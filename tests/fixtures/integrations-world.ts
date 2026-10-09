@@ -268,6 +268,9 @@ export async function worldLaunchpad(
     undefined,
     {
       executor: world.executorHost(),
+      // The tests' Folder is a workstation's, where decision F44 installs no
+      // Executor; the fake stands in for a Remote Environment's.
+      executorPresent: true,
       environmentBrowser: null,
       now: () => new Date("2026-10-09T12:00:00.000Z"),
       ...options.seams,

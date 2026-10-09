@@ -39,6 +39,7 @@ const states = new Set(["connected", "expired", "pending", "failed"]);
 const sourceStates = new Set([
   "ok",
   "unavailable",
+  "absent",
   "unreadable",
   "signed-out",
   "not-allowed",
@@ -413,6 +414,7 @@ export function sourceLines(
   const executor: SourceState = overview.sources.executor;
   if (executor === "unavailable")
     lines.push(copy.integrationsExecutorUnavailable);
+  if (executor === "absent") lines.push(copy.integrationsExecutorAbsent);
   if (executor === "unreadable")
     lines.push(copy.integrationsExecutorUnreadable);
   if (overview.sources.composio === "unreadable" && overview.composio.ready)

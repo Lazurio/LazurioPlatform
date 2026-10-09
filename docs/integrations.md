@@ -45,7 +45,14 @@ the sign-in is the person's consent, so they send the link to its card.
    ("nepoužívá se") and may be disconnected.
 3. Directly where it is just as easy: an official MCP server that registers
    itself (dynamic client registration, a client ID metadata document) or needs
-   no sign-in, or a company app the Organization set up.
+   no sign-in, or a company app the Organization set up. Only where Executor is
+   part of the Environment (`Rules.direct`): Lazurio sets it up here (decision
+   F44's context: a Remote Environment's operator) and its row in Settings →
+   Tools says it is installed. Elsewhere, as on a person's computer until F44's
+   second wave or before F44's setup ran, the reading says `absent` and an app
+   goes the next way instead of a dead end. An Executor that is part of the
+   Environment but down or answering unexpectedly keeps the direct path; the
+   page says why it cannot connect now.
 4. Through Composio where it is allowed (`composioPolicy()`), after signing the
    person's Composio account in where it is not signed in yet.
 5. Without either: an Organization's company app first (its Admin sets it up in
@@ -195,8 +202,8 @@ returned or logged.
 Both answer the same document (`IntegrationsOverview`, `src/integrations/model.ts`):
 the Folder's language and scope, the Integrace page address where a browser
 reaches the Launchpad (`page`, null on a workstation), Composio's policy and
-readiness, each source's state (`ok`, `unavailable`, `unreadable`, `signed-out`,
-`not-allowed`), the tools for one app that are connected, every catalog app with
+readiness, each source's state (`ok`, `unavailable`, `absent` for an Environment
+without Executor, `unreadable`, `signed-out`, `not-allowed`), the tools for one app that are connected, every catalog app with
 its path, `connected`, its accounts (path, the selector that disconnects it, its
 name, state, spare) and its card link (`<origin>/integrations/app/<id>`), the
 accounts of Composio toolkits the catalog does not know, and the custom MCP

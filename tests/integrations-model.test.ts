@@ -9,7 +9,8 @@ import {
   type MergeInput,
   mergeIntegrations,
 } from "../src/integrations/model";
-import { scopeOf } from "../src/integrations/read";
+import { executorHere, scopeOf } from "../src/integrations/read";
+import type { ToolOverview, ToolsOverview } from "../src/tools/overview";
 
 // The one list of an Environment's Integrace (decision F42): three sources
 // merged, one path per app, accounts on another way marked spare, every
@@ -344,6 +345,63 @@ test("a source that cannot be read stays explicit and hides nothing else", () =>
     path: "composio",
     signIn: true,
   });
+});
+
+// An Environment without Executor (no console token: never installed or
+// started here) says so, and its apps go the way that connects here; an
+// Executor that is only down keeps the direct path (decision F42).
+test("Executor absent from the Environment: said so, and a direct app goes through Composio", () => {
+  const absent = mergeIntegrations({ ...base, executor: { state: "absent" } });
+  expect(absent.sources.executor).toBe("absent");
+  expect(absent.apps.find((item) => item.id === "notion")?.path).toEqual({
+    path: "composio",
+    signIn: false,
+  });
+  expect(
+    find(
+      {
+        executor: { state: "absent" },
+        policy: { allowed: false, source: "environment" },
+      },
+      "notion",
+    )?.path,
+  ).toEqual({ path: null, missing: "composio", action: "allow" });
+  expect(find({ executor: { state: "unavailable" } }, "notion")?.path).toEqual({
+    path: "direct",
+  });
+  expect(find({ executor: { state: "unreadable" } }, "notion")?.path).toEqual({
+    path: "direct",
+  });
+});
+
+// Executor is part of an Environment where Lazurio sets it up (decision
+// F44's context, else its Tools row's `offered`) and its row in Settings →
+// Tools says it is installed. Tools that cannot be read leave it to
+// Executor's own reading to say why nothing answers.
+test("Executor is part of the Environment where F44 sets it up and it is installed", () => {
+  const tools = (executor?: Partial<ToolOverview>): ToolsOverview =>
+    ({
+      kind: "tools-status",
+      tools:
+        executor === undefined
+          ? []
+          : [{ name: "executor", offered: true, installed: true, ...executor }],
+    }) as unknown as ToolsOverview;
+  expect(executorHere(tools({}))).toBe(true);
+  expect(executorHere(tools({ installed: false }))).toBe(false);
+  expect(executorHere(tools({ offered: false }))).toBe(false);
+  expect(executorHere(tools())).toBe(false);
+  expect(executorHere(null)).toBe(true);
+  // F44's context decides where Lazurio sets Executor up: its operator's
+  // Remote Environment, never a workstation or another account yet.
+  const supported = { kind: "supported" } as const;
+  const workstation = { kind: "unsupported", reason: "workstation" } as const;
+  expect(executorHere(tools({ offered: false }), supported)).toBe(true);
+  expect(executorHere(tools({ installed: false }), supported)).toBe(false);
+  expect(executorHere(tools({}), workstation)).toBe(false);
+  expect(
+    executorHere(tools({}), { kind: "unsupported", reason: "not-operator" }),
+  ).toBe(false);
 });
 
 test("Composio's toolkits the catalog does not know are listed, and links follow the Launchpad's origin", () => {

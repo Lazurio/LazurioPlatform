@@ -1,5 +1,6 @@
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import type { ExecutorHost } from "../executor/flow";
 import { toolsEnvironmentOf } from "../tools/overview";
 import { runTool } from "../tools/status";
 import type { CliContext, CommandOutput } from "../update/cli";
@@ -33,6 +34,9 @@ export type IntegrationsCliContext = CliContext &
     /** Test seam: the Executor API to read instead of this account's
      * (`executor` is the CLI context's Executor setup, decision F44). */
     executorEndpoint?: ExecutorEndpoint | null;
+    /** Test seam: whether Executor is part of this Environment, instead of
+     * its row in Settings → Tools (decision F44). */
+    executorPresent?: boolean;
     now?: () => Date;
   }>;
 
@@ -136,6 +140,15 @@ export async function runIntegrationsCommand(
         context.executorEndpoint !== undefined
           ? context.executorEndpoint
           : processExecutorEndpoint(context.env),
+      ...(context.executor === undefined
+        ? {}
+        : {
+            executorContext: () =>
+              (context.executor as () => ExecutorHost)().context(),
+          }),
+      ...(context.executorPresent === undefined
+        ? {}
+        : { executorPresent: context.executorPresent }),
       ...(context.now === undefined ? {} : { now: context.now }),
     });
     return {

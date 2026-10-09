@@ -21,8 +21,13 @@ import type { ComposioPolicy } from "./policy";
 /** The state of one source of the reading. */
 export type SourceState =
   | "ok"
-  /** Not there to ask: not installed, not running, not this account's. */
+  /** Not there to ask: not installed (a tool, Composio), not running, not
+   * this account's. */
   | "unavailable"
+  /** Executor is no part of this Environment: Settings → Tools does not
+   * offer it here or it is not installed (decision F44), so nothing connects
+   * directly. */
+  | "absent"
   /** It answered something this product does not understand. */
   | "unreadable"
   /** Installed but not signed in (Composio). */
@@ -62,7 +67,7 @@ export type ExecutorReading =
       integrations: readonly ExecutorIntegration[];
       connections: readonly ExecutorConnection[];
     }>
-  | Readonly<{ state: "unavailable" | "unreadable" }>;
+  | Readonly<{ state: "unavailable" | "unreadable" | "absent" }>;
 
 export type ComposioReadingState =
   | Readonly<{ state: "ok"; accounts: readonly ComposioAccount[] }>
@@ -208,6 +213,9 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
     composio: policy.allowed,
     // The Organization's company apps arrive with plan DEV-6626 task 685.
     companyApps: [],
+    // Where Executor is no part of the Environment, an app's way is the one
+    // that connects here (Composio, or its tool), never a dead end.
+    direct: input.executor.state !== "absent",
   };
   const tools =
     input.tools.state === "ok"

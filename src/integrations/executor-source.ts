@@ -172,7 +172,8 @@ export async function readExecutor(
   host: ExecutorEndpoint | null,
   catalog: IntegrationsCatalog,
 ): Promise<ExecutorReading> {
-  if (host === null) return { state: "unavailable" };
+  // No Executor to ask: none is part of this Environment.
+  if (host === null) return { state: "absent" };
   try {
     const listed = parseIntegrationList(
       list(await executorCall(host, "GET", "/integrations")),

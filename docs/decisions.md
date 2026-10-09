@@ -5935,9 +5935,12 @@ preferences), which was never merged. The reference is
    it defers to the card's path.
 5. **One reading for people and agents.** `GET /api/integrations` and
    `lazurio integrations list [--json]` answer the same document from the same
-   core: each source with its own state (`ok`, `unavailable`, `unreadable`,
-   `signed-out`, `not-allowed`), so a source that is down is never taken for
-   "nothing connected" and never fails the page. The Launchpad keeps its last
+   core: each source with its own state (`ok`, `unavailable`, `absent`,
+   `unreadable`, `signed-out`, `not-allowed`), so a source that is down is never
+   taken for "nothing connected" and never fails the page. An Environment without
+   Executor (`absent`: F44 does not set Executor up there, as on a computer, or
+   its row in Settings → Tools says it is not installed) offers no direct path,
+   and its apps go the way that connects there. The Launchpad keeps its last
    reading for a minute and reads again on request and after every change.
 6. **The catalog is Lazurio's to keep.** 67 curated apps, built from Composio's and
    Executor's public catalogs by `scripts/integrations-catalog.ts` and checked in;

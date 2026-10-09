@@ -1,3 +1,4 @@
+import type { ExecutorContext } from "../executor/flow";
 import { ownDataValue, stateFields } from "../folder/state-fields";
 import type { IntegrationsCatalog } from "../integrations/catalog-schema";
 import {
@@ -40,6 +41,12 @@ export type IntegrationsSeams = Readonly<{
   environmentBrowser:
     | ((url: string) => Promise<Readonly<{ view: string }> | null>)
     | null;
+  /** Whether Lazurio sets Executor up for this Environment (decision F44's
+   * context); the Launchpad's Executor host answers it. */
+  executorContext?: (() => Promise<ExecutorContext>) | undefined;
+  /** Test and preview seam: whether Executor is part of this Environment,
+   * instead of F44's context and its row in Settings → Tools. */
+  executorPresent?: boolean | undefined;
   policy?: ComposioPolicySource | undefined;
   catalog?: IntegrationsCatalog | undefined;
   now?: (() => Date) | undefined;
@@ -68,6 +75,12 @@ export function createIntegrationsRoutes(
       folder: input.folder,
       tools: input.tools,
       executor: seams.executor,
+      ...(seams.executorContext === undefined
+        ? {}
+        : { executorContext: seams.executorContext }),
+      ...(seams.executorPresent === undefined
+        ? {}
+        : { executorPresent: seams.executorPresent }),
       ...(seams.policy === undefined ? {} : { policy: seams.policy }),
       ...(seams.catalog === undefined ? {} : { catalog: seams.catalog }),
       ...(seams.now === undefined ? {} : { now: seams.now }),

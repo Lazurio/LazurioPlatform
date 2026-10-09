@@ -514,6 +514,16 @@ export async function startLaunchpad(
         integrationSeams?.environmentBrowser !== undefined
           ? integrationSeams.environmentBrowser
           : environmentBrowserOf(entry),
+      // Whether Lazurio sets Executor up here: F44's context of this
+      // Launchpad's Executor host.
+      executorContext:
+        integrationSeams?.executorContext ??
+        (() =>
+          (executorHost === undefined
+            ? (defaultExecutor as ExecutorHost)
+            : executorHost
+          ).context()),
+      executorPresent: integrationSeams?.executorPresent,
       policy: integrationSeams?.policy,
       catalog: integrationSeams?.catalog,
       now: integrationSeams?.now,

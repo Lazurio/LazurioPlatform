@@ -53,6 +53,10 @@ export type Rules = Readonly<{
   scope: "organization" | "personal";
   composio: boolean;
   companyApps: readonly string[];
+  /** Whether the Environment has Executor at all; false where it was never
+   * installed (Lazurio installs it on Remote Environments, decision F44),
+   * and then nothing connects directly. Absent: it has. */
+  direct?: boolean;
 }>;
 
 export type PathChoice =
@@ -125,6 +129,7 @@ export function choosePath(
     return { path: "tool", tool: app.tool };
   const company = companyAppOf(app);
   const directHere =
+    rules.direct !== false &&
     app.direct !== undefined &&
     (company === null || rules.companyApps.includes(company));
   const composioHere = app.composio && rules.composio;

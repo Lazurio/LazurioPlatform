@@ -22,8 +22,11 @@
 // F42) reads a fake Executor API on a loopback port of its own (never 4789)
 // with a synthetic token, and a fake `composio` signed in with two accounts:
 // a direct sign-in finishes by itself after a few seconds and a Composio link
-// at once (the window they open shows nothing real). Synthetic names only;
-// stop it with Ctrl-C.
+// at once (the window they open shows nothing real). Locally that fake
+// stands in for a Remote Environment's Executor, so the page shows the
+// direct paths (decision F44 installs none on a computer); in a Remote
+// Environment the page follows Settings → Tools → executor, as in
+// production. Synthetic names only; stop it with Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -411,6 +414,7 @@ const app = await startLaunchpad(
   // Integrace (decision F42): the fake Executor, and on a Remote
   // Environment a synthetic tab of the Environment browser.
   {
+    ...(mode === "local" ? { executorPresent: true } : {}),
     executor: {
       dataDir: join(home, ".executor"),
       port: executorApi.port,

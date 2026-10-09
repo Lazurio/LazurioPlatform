@@ -437,6 +437,17 @@ test("a source that cannot be read says so on the page; custom servers count the
     "Připojení přes Composio se nepodařilo načíst.",
     "Nástroje se nepodařilo načíst.",
   ]);
+  // An Environment without Executor says why nothing is direct.
+  expect(
+    sourceLines(
+      overview([], {
+        sources: { tools: "ok", executor: "absent", composio: "ok" },
+      }),
+      en,
+    ),
+  ).toEqual([
+    "This Environment has no Executor, so apps connect here through Composio or their tool.",
+  ]);
   const server = (
     tools: number | null,
     state: "connected" | "failed" | "ready" = "connected",

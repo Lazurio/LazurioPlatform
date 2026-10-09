@@ -238,6 +238,34 @@ test("an Executor that is down and one without a token file are explicit, never 
   expect(value.apps.find((item) => item.id === "github")).toMatchObject({
     connected: false,
   });
+  // Down is not gone: Notion keeps its direct path.
+  expect(value.apps.find((item) => item.id === "notion")?.path).toEqual({
+    path: "direct",
+  });
+});
+
+test("an Environment without Executor says so, and Notion goes through Composio there", async () => {
+  const { world, app } = await setup(
+    { executorSeed: { integrations: [notion] } },
+    { tools: ["composio"], seams: { executorPresent: false } },
+  );
+  const { value } = await overview(app);
+  expect(value.sources.executor).toBe("absent");
+  expect(value.apps.find((item) => item.id === "notion")?.path).toEqual({
+    path: "composio",
+    signIn: false,
+  });
+  // Notion's Executor integration is not this Environment's: no account.
+  expect(value.apps.find((item) => item.id === "notion")?.accounts).toEqual([]);
+  expect(value.custom).toEqual([]);
+  // Connecting it starts Composio's link, never Executor's sign-in.
+  const connect = await app.post("/api/integrations/connect", {
+    app: "notion",
+  });
+  expect(((await connect.json()) as { kind: string }).kind).toBe("authorize");
+  expect(
+    world.executor.calls.some((call) => call.path.startsWith("/api/oauth")),
+  ).toBe(false);
 });
 
 test("the local admission holds: no token, no answer; a write needs the same origin", async () => {
@@ -705,6 +733,7 @@ test("`lazurio integrations list --json` answers what the route answers", async 
       env: { PATH: world.path, HOME: world.home },
       executable: process.execPath,
       executorEndpoint: world.executorHost(),
+      executorPresent: true,
       now: () => new Date("2026-10-09T12:00:00.000Z"),
     },
   );
@@ -719,6 +748,7 @@ test("`lazurio integrations list --json` answers what the route answers", async 
       env: { PATH: world.path, HOME: world.home },
       executable: process.execPath,
       executorEndpoint: world.executorHost(),
+      executorPresent: true,
     },
   );
   expect(text.stdout).toContain(

@@ -285,3 +285,34 @@ test("one app, one path: what is connected keeps its way, přímo before an olde
     }),
   ).toEqual({ path: null, missing: "composio", action: "ask-admin" });
 });
+
+// Where the Environment has no Executor at all (Lazurio installs it on Remote
+// Environments, decision F44), nothing is direct: an app goes the way that
+// connects here instead of a dead end.
+test("without Executor in the Environment nothing is direct, and an app goes the way that connects here", () => {
+  const without: Rules = { ...ORG, direct: false };
+  expect(
+    choosePath({ app: notion, rules: without, signedIn: true, admin: false }),
+  ).toEqual({ path: "composio", signIn: false });
+  expect(
+    choosePath({
+      app: notion,
+      rules: without,
+      signedIn: true,
+      admin: false,
+      connected: ["direct"],
+    }),
+  ).toEqual({ path: "composio", signIn: false });
+  expect(
+    choosePath({
+      app: deepwiki,
+      rules: { ...PERSONAL, direct: false },
+      signedIn: true,
+      admin: true,
+    }),
+  ).toEqual({ path: null, missing: "path" });
+  // `direct` left out means the Environment has Executor.
+  expect(
+    choosePath({ app: notion, rules: ORG, signedIn: true, admin: false }),
+  ).toEqual({ path: "direct" });
+});

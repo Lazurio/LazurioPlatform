@@ -1012,6 +1012,8 @@ const en = {
     "The browser blocked the connection window. Allow pop-ups and try again.",
   integrationsExecutorUnavailable:
     "Executor does not run in this Environment now, so nothing connects directly.",
+  integrationsExecutorAbsent:
+    "This Environment has no Executor, so apps connect here through Composio or their tool.",
   integrationsExecutorUnreadable:
     "Executor answered unexpectedly; the direct connections could not be read.",
   integrationsComposioUnreadable:
@@ -2102,6 +2104,8 @@ const cs: Record<MessageKey, string> = {
     "Prohlížeč zablokoval okno s připojením. Povol vyskakovací okna a zkus to znovu.",
   integrationsExecutorUnavailable:
     "Executor v tomhle Environmentu teď neběží, takže nic nejde připojit přímo.",
+  integrationsExecutorAbsent:
+    "Tenhle Environment nemá Executor, aplikace se tu proto připojují přes Composio nebo svým nástrojem.",
   integrationsExecutorUnreadable:
     "Executor odpověděl nečekaně, přímá připojení se nepodařilo načíst.",
   integrationsComposioUnreadable:

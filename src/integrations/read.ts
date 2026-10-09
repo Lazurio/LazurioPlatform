@@ -1,10 +1,13 @@
 import { join } from "node:path";
+import type { ExecutorContext } from "../executor/flow";
 import { withFolderReadLock } from "../folder/lock";
 import type { PresetName } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
+import { executorToolName } from "../tools/catalog";
 import {
   type ToolOverview,
   type ToolsEnvironment,
+  type ToolsOverview,
   toolsOverview,
 } from "../tools/overview";
 import { integrationsCatalog } from "./catalog";
@@ -33,6 +36,14 @@ export type IntegrationsHost = Readonly<{
   folder: string;
   tools: ToolsEnvironment;
   executor: ExecutorEndpoint | null;
+  /** Whether Lazurio sets Executor up for this Environment (decision F44's
+   * context: a Remote Environment's operator, never a workstation yet).
+   * Without it the row's `offered` decides. */
+  executorContext?: () => Promise<ExecutorContext>;
+  /** Test and preview seam: whether Executor is part of this Environment,
+   * instead of F44's context and its row in Settings → Tools
+   * (`executorHere`). */
+  executorPresent?: boolean;
   policy?: ComposioPolicySource;
   catalog?: IntegrationsCatalog;
   now?: () => Date;
@@ -45,6 +56,23 @@ export function scopeOf(preset: PresetName): Rules["scope"] {
   return preset === "local" || preset === "hosted-personal"
     ? "personal"
     : "organization";
+}
+
+/** Whether Executor is part of this Environment (decision F44): Lazurio
+ * sets it up here (F44's context; without one, its row in Settings → Tools
+ * offers it: a Remote Environment, a workstation being the second wave) and
+ * that row says it is installed. Where the tools could not be read, Executor
+ * counts as there and its own reading tells why it does not answer. */
+export function executorHere(
+  overview: ToolsOverview | null,
+  context: ExecutorContext | null = null,
+): boolean {
+  if (overview === null) return true;
+  const executor = overview.tools.find(
+    (tool) => tool.name === executorToolName,
+  );
+  if (executor === undefined || !executor.installed) return false;
+  return context === null ? executor.offered : context.kind === "supported";
 }
 
 /** A tool for one app counts as connected when agents use it (required or
@@ -71,11 +99,20 @@ export async function readIntegrations(
   );
   const locale = preferences.profile.locale === "cs" ? "cs" : "en";
   const scope = scopeOf(preferences.preset.name);
-  const [overview, executor, policy] = await Promise.all([
+  const [overview, reading, policy, context] = await Promise.all([
     toolsOverview(host.folder, host.tools, { signIn: true }).catch(() => null),
     readExecutor(host.executor, catalog),
     (host.policy ?? composioPolicy)(),
+    host.executorPresent !== undefined || host.executorContext === undefined
+      ? null
+      : host.executorContext().catch(() => null),
   ]);
+  // Executor's reading counts only where Executor is part of the
+  // Environment; elsewhere nothing connects directly (decision F44).
+  const executor =
+    (host.executorPresent ?? executorHere(overview, context))
+      ? reading
+      : ({ state: "absent" } as const);
   const tools: ToolsReading =
     overview === null
       ? { state: "unreadable" }
