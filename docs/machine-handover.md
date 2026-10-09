@@ -11,14 +11,14 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
-from the head of Machines pull request **#449** (commit
-`04d47bfdfb004830d77bdb3874e6bf3950f4d9f7`, SHA-256
+from the merge of Machines pull request **#449** into `main` (commit
+`30c2fcf8a77914b5a44c652265e927683b2b413c`, SHA-256
 `fbbd159b8e6dfc8580a7b8460ddb4a2b2d3158a1b74ab2a420d8ff68005ae53f`), which adds the
 optional `entry.environment_relay` ([below](#the-hosted-entry-decision-f16), root
-decision 0194, decision F45) and changes nothing else. The pull request is not merged
-yet: its merge commit, with the same digest, replaces the commit here, and a digest
-other than this one is a new re-pin. No Machines release carries it yet, so the
-provenance names no version and no tag. Before it, the pin was the merge of Machines
+decision 0194, decision F45) and changes nothing else. No Machines release carries it
+yet, so the provenance names no version and no tag; the first release that does may
+add them with the same digest, and a digest other than this one is a new re-pin.
+Before it, the pin was the merge of Machines
 pull request **#398** into `main` (commit `b831308f153519747ebcb4d2d9690c1b9a865a9b`,
 SHA-256 `475c5197b7c2d812dda960aa30f23a709837dca0560579e5c1c5d4f822d1506e`), which
 added the optional `entry.browser` (decision F38); before that, the merge of
