@@ -288,16 +288,16 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
         signedOut: "not logged in",
       },
       installation: installation(
-        "Cílový stav: `composio` ve standardní cestě `~/.local/bin/composio`, nainstalované oficiálním instalátorem podle https://docs.composio.dev/docs/cli; instalátor si smí držet vlastní domov a do `~/.local/bin` vede jen link nebo wrapper. Operátor se přihlásí příkazem `composio login` a odkaz, který příkaz vrátí, otevře ve svém prohlížeči; jednotlivé aplikace pak napojuje `composio link <toolkit>` stejným způsobem. Přihlášení platí pro celý tenhle Environment. Důkaz: `composio --version` odpoví a `composio whoami` skončí kódem 0 a jmenuje zamýšlený účet.",
-        "Target state: `composio` in the standard path `~/.local/bin/composio`, installed by the official installer per https://docs.composio.dev/docs/cli; the installer may keep its own home, with only a link or wrapper in `~/.local/bin`. The Operator signs in with `composio login` and opens the link the command returns in their browser; single applications are then connected with `composio link <toolkit>` the same way. The sign-in holds for this whole Environment. Proof: `composio --version` answers and `composio whoami` exits 0 and names the intended account.",
+        "Cílový stav: `composio` ve standardní cestě `~/.local/bin/composio`, nainstalované oficiálním instalátorem podle https://docs.composio.dev/docs/cli; instalátor si smí držet vlastní domov a do `~/.local/bin` vede jen link nebo wrapper. Operátor se přihlásí příkazem `composio login` a odkaz, který příkaz vrátí, otevře ve svém prohlížeči; jednotlivé aplikace pak člověk připojuje v Launchpadu v Apps → Integrace. Přihlášení platí pro celý tenhle Environment. Důkaz: `composio --version` odpoví a `composio whoami` skončí kódem 0 a jmenuje zamýšlený účet.",
+        "Target state: `composio` in the standard path `~/.local/bin/composio`, installed by the official installer per https://docs.composio.dev/docs/cli; the installer may keep its own home, with only a link or wrapper in `~/.local/bin`. The Operator signs in with `composio login` and opens the link the command returns in their browser; the person then connects single applications in the Launchpad under Apps → Integrations. The sign-in holds for this whole Environment. Proof: `composio --version` answers and `composio whoami` exits 0 and names the intended account.",
       ),
       purpose: {
         cs: "Composio CLI pro externí aplikace (pošta, kalendář, chat a další) napojené pro celý tenhle Environment.",
         en: "Composio CLI for external applications (mail, calendar, chat and others) connected for this whole Environment.",
       },
       usage: writingUsage(
-        "Přihlášení ověř příkazem `composio whoami`. Aplikaci napojíš příkazem `composio link <toolkit>`, který vrátí odkaz, a ten otevře Operátor; nástroje najdeš přes `composio search` a spustíš přes `composio execute`.",
-        "Check the sign-in with `composio whoami`. Connect an app with `composio link <toolkit>`, which returns a link for the Operator to open; find tools with `composio search` and run them with `composio execute`.",
+        "Přihlášení ověř příkazem `composio whoami`. Composio používej jen pro Integrace, jejichž cestou je Composio (`lazurio integrations list --json`): nástroje najdeš přes `composio search` a spustíš přes `composio execute`. Aplikaci sám nepřipojuj; chybí-li, pošli člověku odkaz na její kartu v Apps → Integrace.",
+        "Check the sign-in with `composio whoami`. Use Composio only for the Integrations whose path is Composio (`lazurio integrations list --json`): find tools with `composio search` and run them with `composio execute`. Never connect an app yourself; when one is missing, send the person the link to its card in Apps → Integrations.",
         {
           cs: "Zápis viditelný navenek (odeslání, odevzdání formuláře, zveřejnění, smazání)",
           en: "An externally visible write (sending, submitting a form, publishing, deleting)",
@@ -661,31 +661,33 @@ export function toolPrompt(
   ].join("\n\n");
 }
 
-// The third route next to the catalog (decision F18): an MCP server an agent
-// sets up on the operator's request. The prepared prompt for that agent. MCP
-// servers are never recorded in the Lazurio Folder, so nothing is enabled
-// afterwards. Text only: producing it installs nothing and grants nothing.
+// A custom MCP server of the Environment (decision F42, root decision 0162
+// addendum of 2026-10-09): people add one in Apps → Integrace → Vlastní; an
+// agent adds one only on the Operator's explicit request, and always to the
+// Environment's Executor, never to its own harness alone. The prepared prompt
+// for that agent. Text only: producing it installs nothing and grants
+// nothing.
 export function mcpServerPrompt(locale: "cs" | "en"): string {
   return [
     {
-      cs: "Úkol: napoj na tomhle Environmentu další aplikaci přes MCP server. Nejdřív se Operátora zeptej, kterou aplikaci chce napojit a k čemu ji agenti mají používat; nic nepředpokládej.",
-      en: "Task: connect another app in this Environment through an MCP server. First ask the Operator which app they want to connect and what agents should use it for; assume nothing.",
+      cs: "Úkol: přidej do Executoru tohohle Environmentu vlastní MCP server. Nejdřív se Operátora zeptej, který server chce přidat (adresu URL, nebo příkaz na tomhle Environmentu) a k čemu ho agenti mají používat; nic nepředpokládej.",
+      en: "Task: add a custom MCP server to this Environment's Executor. First ask the Operator which server they want to add (a URL, or a command in this Environment) and what agents should use it for; assume nothing.",
     }[locale],
     {
-      cs: "Dej přednost oficiálnímu MCP serveru poskytovatele té aplikace. Když žádný není, řekni to Operátorovi a navrhni mu možnosti; server z neověřeného zdroje ani server postavený na scrapingu nebo cookies prohlížeče nenastavuj.",
-      en: "Prefer the official MCP server of the app's provider. If there is none, tell the Operator and offer the options; do not set up a server from an unverified source or one built on scraping or browser cookies.",
+      cs: "Dej přednost oficiálnímu MCP serveru poskytovatele. Když žádný není, řekni to Operátorovi a navrhni mu možnosti; server z neověřeného zdroje ani server postavený na scrapingu nebo cookies prohlížeče nenastavuj.",
+      en: "Prefer the provider's official MCP server. If there is none, tell the Operator and offer the options; do not set up a server from an unverified source or one built on scraping or browser cookies.",
     }[locale],
     {
-      cs: "Server nastav pro harnessy, které na tomhle Environmentu skutečně jsou: pro Codex v `~/.codex/config.toml`, pro Claude Code příkazem `claude mcp add`. Nejdřív zjisti, co už je nastavené, a fungující nastavení neměň.",
-      en: "Configure the server for the harnesses actually present in this Environment: for Codex in `~/.codex/config.toml`, for Claude Code with `claude mcp add`. First read what is already configured and change nothing that works.",
+      cs: 'Server přidej do Executoru, ne do svého harnessu: Executor ho dá všem agentům a botům Environmentu. Adresu ověř příkazem `executor call executor mcp probeEndpoint \'{"endpoint":"<adresa>"}\'` a server přidej příkazem `executor call executor mcp addServer`, vzdálený s `{"transport":"remote","name":"<název>","endpoint":"<adresa>","remoteTransport":"auto","auth":{"kind":"none"}}`, příkaz s `{"transport":"stdio","name":"<název>","command":"<příkaz>","args":[…]}`. Vzdálenému serveru bez přihlášení pak založ připojení: `executor call executor coreTools connections create \'{"owner":"org","name":"default","integration":"<slug>","template":"none"}\'`. Executor obojí pozastaví ke schválení; výslovný pokyn Operátora je to schválení, potvrď ho příkazem `executor resume --execution-id <id> --action accept --content \'{}\'`.',
+      en: 'Add the server to Executor, not to your harness: Executor gives it to every agent and bot of the Environment. Check the address with `executor call executor mcp probeEndpoint \'{"endpoint":"<address>"}\'` and add the server with `executor call executor mcp addServer`, a remote one with `{"transport":"remote","name":"<name>","endpoint":"<address>","remoteTransport":"auto","auth":{"kind":"none"}}`, a command with `{"transport":"stdio","name":"<name>","command":"<command>","args":[…]}`. Then create the connection of a remote server without sign-in: `executor call executor coreTools connections create \'{"owner":"org","name":"default","integration":"<slug>","template":"none"}\'`. Executor pauses both for approval; the Operator\'s explicit request is that approval, confirm it with `executor resume --execution-id <id> --action accept --content \'{}\'`.',
     }[locale],
     {
-      cs: "Přihlášení dělá Operátor sám ve svém prohlížeči; ty mu jen předáš odkaz, který nástroj vrátí. Tajemství (token, heslo, klíč, kód) nikdy nepatří do chatu, Gitu ani logu a Operátor žádný API klíč nekopíruje.",
-      en: "The Operator does the sign-in themselves in their browser; you only hand over the link the tool returns. A secret (token, password, key, code) never belongs in chat, Git or a log, and the Operator copies no API key.",
+      cs: "Potřebuje-li server přihlášení nebo klíč, nepřidávej ho sám: Operátor ho přidá v Launchpadu v Apps → Integrace → Vlastní, kde se přihlásí nebo klíč zadá sám. Tajemství (token, heslo, klíč, kód) nikdy nepatří do chatu, Gitu ani logu a konzoli Executoru Operátorovi neotvírej.",
+      en: "When the server needs a sign-in or a key, do not add it yourself: the Operator adds it in the Launchpad under Apps → Integrations → Custom, where they sign in or enter the key themselves. A secret (token, password, key, code) never belongs in chat, Git or a log, and never open Executor's console for the Operator.",
     }[locale],
     {
-      cs: "MCP server do Lazurio Folderu nezapisuj: Folder eviduje jen nástroje z katalogu a `lazurio tools enable` se tady nepoužívá. Nakonec ověř, že harness server vidí, a nahlas Operátorovi, co je nastavené a jak napojení zrušit.",
-      en: "Do not record the MCP server in the Lazurio Folder: the Folder lists catalog tools only and `lazurio tools enable` is not used here. Finally verify that the harness sees the server and report to the Operator what is configured and how to remove the connection.",
+      cs: "Do Lazurio Folderu nic nezapisuj. Nakonec ověř, že `lazurio integrations list --json` server uvádí mezi vlastními (`custom`), a řekni Operátorovi, co je přidané a že ho odebere v Apps → Integrace → Vlastní.",
+      en: "Record nothing in the Lazurio Folder. Finally verify that `lazurio integrations list --json` lists the server among the custom ones (`custom`), and tell the Operator what is added and that they remove it in Apps → Integrations → Custom.",
     }[locale],
     {
       cs: "Když cílového stavu nedosáhneš, přestaň, nahlas přesně, co chybí, a nic neobcházej.",

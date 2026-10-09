@@ -555,22 +555,43 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
+// A custom MCP server goes into the Environment's Executor, never into one
+// harness, and its key is the person's to enter (decision F42).
 test("the MCP prompt carries its rules in both languages", () => {
   for (const [locale, words] of [
-    ["en", ["official MCP server", "never", "Lazurio Folder", "browser"]],
+    [
+      "en",
+      [
+        "official MCP server",
+        "never",
+        "Lazurio Folder",
+        "browser cookies",
+        "Apps → Integrations → Custom",
+      ],
+    ],
     [
       "cs",
-      ["oficiálnímu MCP serveru", "nikdy", "Lazurio Folderu", "prohlížeči"],
+      [
+        "oficiálnímu MCP serveru",
+        "nikdy",
+        "Lazurio Folderu",
+        "cookies prohlížeče",
+        "Apps → Integrace → Vlastní",
+      ],
     ],
   ] as const) {
     const prompt = mcpServerPrompt(locale);
     for (const word of [
       ...words,
-      "~/.codex/config.toml",
-      "claude mcp add",
+      "`executor call executor mcp probeEndpoint",
+      "`executor call executor mcp addServer`",
+      "`executor resume --execution-id <id> --action accept",
+      "`lazurio integrations list --json`",
       "Git",
     ])
       expect(prompt).toContain(word);
+    for (const word of ["~/.codex/config.toml", "claude mcp add"])
+      expect(prompt).not.toContain(word);
   }
 });
 

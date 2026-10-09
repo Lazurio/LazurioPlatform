@@ -363,12 +363,12 @@ const en = {
   toolsCopyFailed:
     "Copying is not available here. The text is selected; copy it with the keyboard.",
   toolsClose: "Close",
-  toolsMcpTitle: "Connect another app through an MCP server",
+  toolsMcpTitle: "A custom MCP server",
   toolsMcpText:
-    "For an app the catalog does not cover, an agent sets up an MCP server on your request.",
-  toolsMcpAction: "Set up an MCP server with an agent",
+    "You add custom MCP servers in Apps → Integrations → Custom; an agent adds one on your explicit request.",
+  toolsMcpAction: "Add one with an agent",
   toolsMcpPromptHint:
-    "Copy this prompt and paste it into a new chat in T3 Code in this Environment. The agent asks which app you want, sets the server up and lets you sign in in your browser. You never copy an API key.",
+    "Copy this prompt and paste it into a new chat in T3 Code in this Environment. The agent asks which server you want and adds it to this Environment's Executor; a key you enter yourself in Integrations.",
   // The Apps home and its left column (decision F36).
   appsTitle: "Apps",
   appsAll: "All modules",
@@ -834,7 +834,7 @@ const en = {
   toolsDescriptionGh:
     "The connection to GitHub, where your modules are kept. Nothing works here without it.",
   toolsDescriptionComposio:
-    "The connection to your apps: mail, calendar, Slack. Agents work in them for you.",
+    "An easy way to many apps through Composio, with your own account. You connect the apps in Apps → Integrations.",
   toolsDescriptionWacli:
     "The connection to WhatsApp: agents read and send your messages.",
   toolsDescriptionGogcli:
@@ -1460,12 +1460,12 @@ const cs: Record<MessageKey, string> = {
   toolsCopyFailed:
     "Kopírování tady není dostupné. Text je označený; zkopírujte ho klávesnicí.",
   toolsClose: "Zavřít",
-  toolsMcpTitle: "Napojit další aplikaci přes MCP server",
+  toolsMcpTitle: "Vlastní MCP server",
   toolsMcpText:
-    "Pro aplikaci, kterou katalog nepokrývá, nastaví agent na vaši žádost MCP server.",
-  toolsMcpAction: "Nastavit MCP server s agentem",
+    "Vlastní MCP servery přidáš v Apps → Integrace → Vlastní; agent ho přidá na tvůj výslovný pokyn.",
+  toolsMcpAction: "Přidat s agentem",
   toolsMcpPromptHint:
-    "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na tomhle Environmentu. Agent se zeptá, kterou aplikaci chcete, server nastaví a přihlášení necháte proběhnout ve svém prohlížeči. Žádný API klíč nikdy nekopírujete.",
+    "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na tomhle Environmentu. Agent se zeptá, který server chcete, a přidá ho do Executoru tohohle Environmentu; klíč zadáte sami v Integracích.",
   // The Apps home and its left column (decision F36).
   appsTitle: "Apps",
   appsAll: "Všechny moduly",
@@ -1929,7 +1929,7 @@ const cs: Record<MessageKey, string> = {
   toolsDescriptionGh:
     "Připojení na GitHub, kde jsou uložené tvoje moduly. Bez něj tu nic nefunguje.",
   toolsDescriptionComposio:
-    "Připojení na tvoje aplikace: pošta, kalendář, Slack. Agenti v nich pracují za tebe.",
+    "Snadná cesta k mnoha aplikacím přes Composio, s tvým vlastním účtem. Aplikace připojíš v Apps → Integrace.",
   toolsDescriptionWacli:
     "Připojení na WhatsApp: agenti čtou a posílají tvoje zprávy.",
   toolsDescriptionGogcli:

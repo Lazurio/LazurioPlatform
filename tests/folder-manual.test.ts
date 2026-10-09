@@ -809,8 +809,8 @@ test("with a hosted entry agents send the Operator to the Launchpad for sign-ins
       ]) {
         expect(text).toContain(
           cs
-            ? `- Launchpad tohohle Environmentu (lidem mu říkej Lazurio; „Lazurio“ i „Launchpad“ od Operátora znamená tuhle stránku) je na \`${origin}\` (Nástroje ${tools}, Soubory \`${origin}/files\`): Operátor v něm otevírá aplikace, Soubory a Nastavení (ozubené kolo vedle názvu Environmentu).`
-            : `- This Environment's Launchpad (call it Lazurio towards people; „Lazurio“ and „Launchpad“ from the Operator both mean this page) is at \`${origin}\` (Tools ${tools}, Files \`${origin}/files\`): there the Operator opens applications, Files and Settings (the gear beside the Environment's name).`,
+            ? `- Launchpad tohohle Environmentu (lidem mu říkej Lazurio; „Lazurio“ i „Launchpad“ od Operátora znamená tuhle stránku) je na \`${origin}\` (Nástroje ${tools}, Soubory \`${origin}/files\`, Integrace \`${origin}/integrations\`): Operátor v něm otevírá aplikace, Soubory, Integrace a Nastavení (ozubené kolo vedle názvu Environmentu).`
+            : `- This Environment's Launchpad (call it Lazurio towards people; „Lazurio“ and „Launchpad“ from the Operator both mean this page) is at \`${origin}\` (Tools ${tools}, Files \`${origin}/files\`, Integrations \`${origin}/integrations\`): there the Operator opens applications, Files, Integrations and Settings (the gear beside the Environment's name).`,
         );
         expect(text).toContain(
           cs
@@ -822,10 +822,18 @@ test("with a hosted entry agents send the Operator to the Launchpad for sign-ins
             ? "jinou neskládej a nikdy místo nich nedávej `localhost` ani `127.0.0.1`"
             : "never compose another one and never give `localhost` or `127.0.0.1` instead",
         );
-        expect(text).toContain(
+        // An app is connected on its Integrace card, by the person (decision
+        // F42): the routing names the page, and the agent no longer walks
+        // them through Composio's setup.
+        expect(text).not.toContain(
           cs
-            ? `Když tu Composio zapnuté není, otevři Operátorovi ${tools} jako výše: u Composia klikne na Nainstalovat a přihlásit, přihlásí se a zapne Používají agenti, potom začne nový chat.`
-            : `When Composio is not enabled here, open ${tools} for the Operator as above: on Composio they click Install and sign in, sign in and turn on Used by agents, then start a new chat.`,
+            ? "Když tu Composio zapnuté není"
+            : "When Composio is not enabled here",
+        );
+        expect(text).not.toContain(
+          cs
+            ? "Aplikace jako Outlook, Teams nebo kalendář"
+            : "applications such as Outlook, Teams or a calendar",
         );
         const ownSignIn = cs
           ? `otevři Operátorovi ${tools} jako výše. U gh klikne na Přihlásit, případně Propojit SSH klíč, a jednorázový kód zadá na github.com; sám ho nepřihlašuj.`
@@ -851,8 +859,10 @@ test("with a hosted entry agents send the Operator to the Launchpad for sign-ins
         machine: journey.machine,
         profile: presetProfile(journey.preset, journey.os, { locale }),
       });
-      for (const text of Object.values(outputs))
+      for (const text of Object.values(outputs)) {
         expect(text).not.toContain("/settings/tools");
+        expect(text).not.toContain("/integrations/app/");
+      }
     }
 });
 
@@ -1172,8 +1182,8 @@ test("a chat without network asks for full access instead of reporting the appli
           : "- You work with full access, without a sandbox and without per-command approvals; this Environment is the boundary (decision 0172). It is a capability, not consent: Publication and writes to connected applications still wait for the Operator's instruction.",
       );
       const rule = cs
-        ? "- Než použiješ cokoli, co potřebuje internet (napojené aplikace jako Composio, přihlášení MCP, `gh`, stahování, `git fetch` nebo `git push`), ověř proměnnou `CODEX_SANDBOX_NETWORK_DISABLED`. Když je `1`, běží chat v sandboxu bez sítě: nic nezkoušej, aplikaci nehlas jako odpojenou, nedostupnou ani s vypršeným časem a řekni člověku srozumitelně v jeho jazyce, co má udělat; česky: „Abych se dostal k <čemu>, potřebuji plný přístup. Dole u pole pro zprávu přepněte prosím oprávnění na Plný přístup a napište mi znovu.“ Chyba sítě nebo vypršený čas v chatu s plným přístupem zůstává běžnou chybou (`manual/troubleshooting.md`)."
-        : "- Before you use anything that needs the internet (connected applications such as Composio, an MCP sign-in, `gh`, downloads, `git fetch` or `git push`), check `CODEX_SANDBOX_NETWORK_DISABLED`. When it is `1`, the chat runs in a sandbox without network: do not try, do not report the application as disconnected, unavailable or timed out, and tell the person plainly, in their language, what to do; in English: “To reach <what>, I need full access. Please switch the permission below the message box to Full access and send me your message again.” A network error or timeout in a chat with full access stays an ordinary error (`manual/troubleshooting.md`).";
+        ? "- Než použiješ cokoli, co potřebuje internet (Integrace přes Executor nebo Composio, `gh`, stahování, `git fetch` nebo `git push`), ověř proměnnou `CODEX_SANDBOX_NETWORK_DISABLED`. Když je `1`, běží chat v sandboxu bez sítě: nic nezkoušej, aplikaci nehlas jako odpojenou, nedostupnou ani s vypršeným časem a řekni člověku srozumitelně v jeho jazyce, co má udělat; česky: „Abych se dostal k <čemu>, potřebuji plný přístup. Dole u pole pro zprávu přepněte prosím oprávnění na Plný přístup a napište mi znovu.“ Chyba sítě nebo vypršený čas v chatu s plným přístupem zůstává běžnou chybou (`manual/troubleshooting.md`)."
+        : "- Before you use anything that needs the internet (Integrations through Executor or Composio, `gh`, downloads, `git fetch` or `git push`), check `CODEX_SANDBOX_NETWORK_DISABLED`. When it is `1`, the chat runs in a sandbox without network: do not try, do not report the application as disconnected, unavailable or timed out, and tell the person plainly, in their language, what to do; in English: “To reach <what>, I need full access. Please switch the permission below the message box to Full access and send me your message again.” A network error or timeout in a chat with full access stays an ordinary error (`manual/troubleshooting.md`).";
       expect([journey.preset, locale, fullAccess > 0]).toEqual([
         journey.preset,
         locale,

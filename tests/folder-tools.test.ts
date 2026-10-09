@@ -175,12 +175,19 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
             : " is a Publication: prepare the Draft and leave it unfinished; the Operator's explicit “Publish” for that Draft is the full mandate to finish it (`manual/working-here.md`).",
         ),
       ]).toEqual([name, locale, writesOutside]);
+  // Composio serves only the Integrace whose path it is, and an agent never
+  // connects an app: the person does, on its card (decision F42).
   expect(findTool("composio")?.activation?.usage.cs).toContain(
-    "`composio execute`. Zápis viditelný navenek (odeslání, odevzdání formuláře, zveřejnění, smazání) je Publikace: připrav Draft a nedokončuj ho;",
+    "Composio používej jen pro Integrace, jejichž cestou je Composio (`lazurio integrations list --json`): nástroje najdeš přes `composio search` a spustíš přes `composio execute`. Aplikaci sám nepřipojuj; chybí-li, pošli člověku odkaz na její kartu v Apps → Integrace. Zápis viditelný navenek (odeslání, odevzdání formuláře, zveřejnění, smazání) je Publikace: připrav Draft a nedokončuj ho;",
   );
   expect(findTool("composio")?.activation?.usage.en).toContain(
-    "`composio execute`. An externally visible write (sending, submitting a form, publishing, deleting) is a Publication: prepare the Draft and leave it unfinished;",
+    "Use Composio only for the Integrations whose path is Composio (`lazurio integrations list --json`): find tools with `composio search` and run them with `composio execute`. Never connect an app yourself; when one is missing, send the person the link to its card in Apps → Integrations. An externally visible write (sending, submitting a form, publishing, deleting) is a Publication: prepare the Draft and leave it unfinished;",
   );
+  for (const locale of ["cs", "en"] as const) {
+    const composio = findTool("composio")?.activation;
+    expect(composio?.usage[locale]).not.toContain("composio link");
+    expect(composio?.installation[locale]).not.toContain("composio link");
+  }
   expect(findTool("gogcli")).toMatchObject({
     command: "gog",
     versionArgs: ["--version"],
@@ -711,7 +718,7 @@ test("a profile change and a handover refresh carry the enabled tools forward", 
 });
 
 test("a Folder rendered by an older template revision is upgraded by a tools change", async () => {
-  expect(instructionTemplateRevision).toBe("base-instructions-38");
+  expect(instructionTemplateRevision).toBe("base-instructions-39");
   const { preferences, manifest } = await planned();
   const older = {
     ...manifest,
@@ -734,7 +741,7 @@ test("a Folder rendered by an older template revision is upgraded by a tools cha
       recorded,
     );
     if (upgrade.kind !== "profile-change") throw new Error("Expected upgrade");
-    expect(upgrade.manifest.templateRevision).toBe("base-instructions-38");
+    expect(upgrade.manifest.templateRevision).toBe("base-instructions-39");
     expect(upgrade.previous).toEqual(older.outputs);
     expect(enabledTools(upgrade.preferences)).toEqual(tools);
     expect(upgrade.files).toEqual(
@@ -825,9 +832,11 @@ test("AGENTS.md and this-machine.md name the required and the enabled tools in b
           );
           expect(output.manual.includes(entry.usage[locale])).toBe(listed);
         }
-        // The priority rule and the generic MCP instruction, in both files.
+        // Where the Integrace are (decision F42), in both files; the
+        // per-harness MCP rule it replaced is gone.
         for (const text of [output.instructions, output.manual]) {
-          expect(text).toContain(
+          expect(text).toContain("`lazurio integrations list --json`");
+          expect(text).not.toContain(
             locale === "cs"
               ? "MCP servery přicházejí na řadu až po CLI z katalogu"
               : "MCP servers come after the catalog CLIs",
