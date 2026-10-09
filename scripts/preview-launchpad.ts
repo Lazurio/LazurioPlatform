@@ -15,8 +15,11 @@
 // the entry's origin through, and `browser`: the origin of the Environment
 // browser's view the entry routes (decision F38). Agent-browser is not run:
 // the Launchpad answers the view there with a synthetic token, and a browser
-// automation stands in for that origin. Synthetic names only; stop it with
-// Ctrl-C.
+// automation stands in for that origin. In a Remote Environment, Executor
+// (decision F44) is the tests' fake world: Settings → Tools → executor shows
+// "not installed", and its setup runs a fake npm, program and user manager,
+// never the network or this computer's services. Synthetic names only; stop
+// it with Ctrl-C.
 import {
   mkdir,
   mkdtemp,
@@ -39,6 +42,7 @@ import {
   writeModule,
   writeOrganization,
 } from "../tests/fixtures/catalog-folder";
+import { executorWorld } from "../tests/fixtures/fake-executor";
 import {
   organizationWithEntry,
   personalWithEntry,
@@ -192,6 +196,9 @@ await writeFile(
   join(home, "Documents", "Zápis z porady.docx"),
   "x".repeat(23_000),
 );
+// Executor's fake world (decision F44) in a Remote Environment; its entry is
+// on the tools' PATH, so the row's installation reads what its setup placed.
+const executor = mode === "local" ? undefined : await executorWorld({ home });
 const app = await startLaunchpad(
   folder,
   undefined,
@@ -204,7 +211,13 @@ const app = await startLaunchpad(
   // fork release that takes a prompt by link and pairs with a synthetic token;
   // no real account or T3 Code is asked.
   toolsEnvironmentOf(
-    { PATH: join(home, "bin"), HOME: home },
+    {
+      PATH:
+        executor === undefined
+          ? join(home, "bin")
+          : `${join(home, "bin")}:${join(home, ".local", "bin")}`,
+      HOME: home,
+    },
     process.platform,
     async (command, timeoutMs, env) =>
       command[1] === "api" &&
@@ -249,6 +262,11 @@ const app = await startLaunchpad(
   // The Environment browser's people's view (decision F39): a thread's tab
   // answers a synthetic target id; nothing is opened.
   { openWindow: async () => ({ targetId: "0".repeat(32) }) },
+  // The Environment vault: this process's.
+  undefined,
+  // Executor: the fake world in a Remote Environment, this computer's own on
+  // a workstation (its second wave).
+  executor?.host,
 );
 let proxy: string | null = null;
 if (mode !== "local") {

@@ -338,10 +338,13 @@ export async function executorWorld(
     context?: ExecutorContext;
     programVersion?: string;
     version?: string;
+    /** An existing home to use (the Launchpad preview's); a private one
+     * otherwise. */
+    home?: string;
   }> = {},
 ) {
   const parent = await realpath(await mkdtemp(join(tmpdir(), "executor-")));
-  const home = join(parent, "home");
+  const home = options.home ?? join(parent, "home");
   const fakes = join(parent, "fakes");
   await mkdir(home, { recursive: true });
   await mkdir(fakes);
