@@ -165,10 +165,9 @@ function parseOrganization(
 ): ToolOverview["organization"] | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const value = input as Record<string, unknown>;
-  return Object.keys(value).sort().join(",") === "allowed,chosen" &&
-    typeof value.allowed === "boolean" &&
-    typeof value.chosen === "boolean"
-    ? { allowed: value.allowed, chosen: value.chosen }
+  return Object.keys(value).join(",") === "allowed" &&
+    typeof value.allowed === "boolean"
+    ? { allowed: value.allowed }
     : null;
 }
 
@@ -230,7 +229,7 @@ export type OrganizationView = Readonly<{
  * the page says that the Organization decides it; allowed explicitly, a
  * short note; otherwise nothing. */
 export function organizationView(
-  tool: Pick<ToolOverview, "name" | "organization">,
+  tool: Pick<ToolOverview, "name" | "enabled" | "organization">,
   copy: Copy,
 ): OrganizationView {
   const organization = tool.organization;
@@ -243,7 +242,7 @@ export function organizationView(
     line: fill(copy.toolsOrganizationOff, {
       name: productNames[tool.name] ?? tool.name,
     }),
-    kept: organization.chosen ? copy.toolsOrganizationKept : null,
+    kept: tool.enabled ? copy.toolsOrganizationKept : null,
   };
 }
 
@@ -364,9 +363,13 @@ export function connectionLine(
 ): Readonly<{ text: string; state: string; ssh: string | null }> {
   if (!tool.installed)
     return {
-      // A required tool has no switch: it is only not added yet.
+      // A required tool has no switch: it is only not added yet. Nor does
+      // the person's switch decide one the Organization does not allow
+      // (decision F45).
       text:
-        tool.enabled && tool.tier !== "required"
+        tool.enabled &&
+        tool.tier !== "required" &&
+        tool.organization?.allowed !== false
           ? fill(copy.toolsEnabledNotInstalled, { name: tool.name })
           : copy.toolsNotAdded,
       state: "missing",
@@ -610,11 +613,7 @@ export function nextSelection(
 ): string[] {
   const names = new Set(
     tools
-      .filter(
-        (tool) =>
-          tool.tier !== "required" &&
-          (tool.organization?.chosen ?? tool.enabled),
-      )
+      .filter((tool) => tool.tier !== "required" && tool.enabled)
       .map((tool) => tool.name),
   );
   if (enable) names.add(name);

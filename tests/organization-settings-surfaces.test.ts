@@ -147,7 +147,7 @@ for (const [name, settings, source] of [
   );
 
 test.skipIf(process.platform === "win32")(
-  "Settings → Tools: the tool agents do not use, what the Organization says and the person's kept choice",
+  "Settings → Tools: the person's recorded choice, and what the Organization says about it",
   async () => {
     const { folder, world, tools } = await environment(
       "hosted-organization-personal",
@@ -157,8 +157,10 @@ test.skipIf(process.platform === "win32")(
     try {
       const overview = await toolsOverview(folder, tools);
       const composio = overview.tools.find((tool) => tool.name === "composio");
-      expect(composio?.enabled).toBe(false);
-      expect(composio?.organization).toEqual({ allowed: false, chosen: true });
+      // The person's choice stays what it is; the Organization's refusal
+      // qualifies it, as `offered` does (decision F44).
+      expect(composio?.enabled).toBe(true);
+      expect(composio?.organization).toEqual({ allowed: false });
       // Nothing else is governed.
       expect(
         overview.tools
@@ -170,7 +172,7 @@ test.skipIf(process.platform === "win32")(
         (tool) => tool.name === "composio",
       );
       expect(back?.enabled).toBe(true);
-      expect(back?.organization).toEqual({ allowed: true, chosen: true });
+      expect(back?.organization).toEqual({ allowed: true });
     } finally {
       await world.executor.stop();
     }
@@ -244,7 +246,7 @@ test.skipIf(process.platform === "win32")(
         list.result.tools as { name: string; enabled: boolean }[]
       ).find((tool) => tool.name === "composio");
       expect(composio).toMatchObject({
-        enabled: false,
+        enabled: true,
         organization: { allowed: false },
       });
       const text = await runToolsCommand(["list", "--folder", folder], context);

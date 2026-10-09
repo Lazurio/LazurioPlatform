@@ -64,17 +64,19 @@ export type ToolOverview = Readonly<{
   command: string;
   tier: ToolTier;
   setup: ToolSetup;
-  /** Whether agents use it here: required, or chosen by the person and not
-   * refused by the Organization (decision F45). */
+  /** Required, or switched on by the person in this Folder: the recorded
+   * choice. Agents use it where it is also `offered` and the Organization
+   * does not refuse it (`organization`). */
   enabled: boolean;
   /** Whether this Environment offers the tool (`toolOffered`, decision
    * F44): one it does not offer is not rendered for agents and cannot be
    * enabled. */
   offered: boolean;
   /** What the Organization's settings say about the tool on this
-   * Environment, when they say anything (root decision 0194): whether it is
-   * allowed, and the person's own choice, kept for when it is. */
-  organization?: Readonly<{ allowed: boolean; chosen: boolean }>;
+   * Environment, when they say anything (root decision 0194, decision F45):
+   * one it does not allow is not used by agents, whatever `enabled` says,
+   * and that choice is kept for when it allows it again. */
+  organization?: Readonly<{ allowed: boolean }>;
   purpose: string;
   usage: string;
   source: string;
@@ -186,11 +188,11 @@ export async function toolsOverview(
         command: entry.command,
         tier: entry.activation.tier,
         setup: entry.activation.setup,
-        enabled: chosen && governance?.allowed !== false,
+        enabled: chosen,
         offered: toolOffered(entry, recorded.offeredIn),
         ...(governance === null
           ? {}
-          : { organization: { allowed: governance.allowed, chosen } }),
+          : { organization: { allowed: governance.allowed } }),
         purpose: entry.activation.purpose[locale],
         usage: entry.activation.usage[locale],
         source: entry.source,

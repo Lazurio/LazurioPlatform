@@ -131,9 +131,10 @@ JSON with `--json`, and the exit status is 0 completed or unchanged, 2 blocked o
 usage, 1 operation failure.
 
 - `tools list --folder <absolute Folder> [--sign-in] [--json]` lists the activatable
-  catalog tools only, in catalog order, each with `tier`, `setup`, `enabled` (whether
-  agents use it), `organization` `{allowed}` when the Organization's settings speak
-  about it (F45), its `note` when there is one and the live facts of `tools status`
+  catalog tools only, in catalog order, each with `tier`, `setup`, `enabled` (the
+  recorded choice), `organization` `{allowed}` when the Organization's settings speak
+  about it (F45; one it does not allow is not used by agents), its `note` when there
+  is one and the live facts of `tools status`
   for that tool (`installed`, `path`, `realPath`, `version`, `standardPath`,
   `source`), plus the Folder `revision` a following mutation must name. Read-only.
   With `--sign-in` each entry also carries `signIn` (below).
@@ -172,10 +173,11 @@ order: `name`, `command`, `tier`, `setup`, `enabled`, `purpose` and `usage` in t
 Folder's locale, `source`, the live facts of `tools status` (`installed`, `path`,
 `realPath`, `version`, `versionError`, `standardPath`), `note` when the operator left
 one, `signIn` when the request asked for it, and `prompt`, the prepared agent prompt
-of `lazurio tools prompt <tool>`. `enabled` is whether agents use the tool here; a
-tool the Organization's settings speak about carries `organization: { allowed,
-chosen }`, `chosen` being the person's own choice, kept for when the Organization
-allows it (F45). On an Organization's Environment the answer also carries
+of `lazurio tools prompt <tool>`. `enabled` is the person's recorded choice; agents
+use the tool where it is also `offered` (F44) and, where the Organization's settings
+speak about it, `organization: { allowed }` does not refuse it (F45), so a choice the
+Organization refuses is kept for when it allows the tool again. On an
+Organization's Environment the answer also carries
 `organizationSettings`: where the settings come from (`dashboard` or `repository`), the
 version applied, when, when the source last answered, the last error and the keys that
 did not apply. With `signIn: true` (the first reading and "Refresh status") the

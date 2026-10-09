@@ -482,7 +482,7 @@ async function runFolderToolsCommand(
         ...(status.tools[index] as ToolStatus),
         tier: selection.tier,
         setup: selection.setup,
-        enabled: selection.enabled && organization?.allowed !== false,
+        enabled: selection.enabled,
         // Whether this Environment offers it (decision F44): one it does
         // not is never rendered for agents and cannot be enabled.
         offered: selection.offered,

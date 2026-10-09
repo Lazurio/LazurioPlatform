@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { messages } from "../src/launchpad/messages";
 import {
   autoEnable,
+  connectionLine,
   curatedActions,
   nextSelection,
   organizationDetails,
@@ -36,7 +37,8 @@ const tool = (overrides: Partial<ToolOverview> = {}): ToolOverview => ({
   prompt: "A prompt.",
   ...overrides,
 });
-const forbidden = tool({ organization: { allowed: false, chosen: true } });
+// The person had it on; the Organization does not allow it.
+const forbidden = tool({ enabled: true, organization: { allowed: false } });
 const status: OrganizationSettingsStatus = {
   source: "dashboard",
   version: "a".repeat(40),
@@ -64,10 +66,7 @@ test("the page reads what the Organization says about a tool, and its settings' 
       }),
     ),
   );
-  expect(parsed?.tools[0]?.organization).toEqual({
-    allowed: false,
-    chosen: true,
-  });
+  expect(parsed?.tools[0]?.organization).toEqual({ allowed: false });
   expect(parsed?.organizationSettings).toEqual(status);
   // Without either, the answer reads as before.
   const plain = parseToolsOverview(
@@ -76,9 +75,9 @@ test("the page reads what the Organization says about a tool, and its settings' 
   expect(plain?.tools[0]?.organization).toBeUndefined();
   expect(plain?.organizationSettings).toBeUndefined();
   for (const bad of [
-    { allowed: "no", chosen: true },
-    { allowed: false },
-    { allowed: false, chosen: true, extra: 1 },
+    { allowed: "no" },
+    {},
+    { allowed: false, chosen: true },
     null,
   ])
     expect(
@@ -120,13 +119,13 @@ for (const locale of ["cs", "en"] as const)
     // Without the person's earlier choice nothing is said to be kept.
     expect(
       organizationView(
-        tool({ organization: { allowed: false, chosen: false } }),
+        tool({ enabled: false, organization: { allowed: false } }),
         copy,
       ).kept,
     ).toBeNull();
     // Allowed explicitly: a short note, and the switch is the person's.
     const allowed = organizationView(
-      tool({ enabled: true, organization: { allowed: true, chosen: true } }),
+      tool({ enabled: true, organization: { allowed: true } }),
       copy,
     );
     expect(allowed).toEqual({
@@ -172,7 +171,7 @@ test("a change of another tool carries the person's kept choice of the locked on
   ]);
   expect(
     nextSelection(
-      [tool({ organization: { allowed: false, chosen: false } }), wacli],
+      [tool({ enabled: false, organization: { allowed: false } }), wacli],
       "wacli",
       true,
     ),
@@ -232,3 +231,16 @@ for (const locale of ["cs", "en"] as const)
       copy.toolsOrganizationHow,
     ]);
   });
+
+test("a locked tool not added yet is not said to be used once it is", () => {
+  const copy = messages("cs");
+  const { signIn: _, path: __, version: ___, ...missing } = forbidden;
+  expect(connectionLine({ ...missing, installed: false }, copy).text).toBe(
+    copy.toolsNotAdded,
+  );
+  // Without the Organization's refusal the person's switch says it.
+  const { organization: ____, ...free } = missing;
+  expect(connectionLine({ ...free, installed: false }, copy).text).toBe(
+    copy.toolsEnabledNotInstalled.replace("{name}", "composio"),
+  );
+});

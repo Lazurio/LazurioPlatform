@@ -139,7 +139,7 @@ async function launchpad(
       tools: {
         name: string;
         enabled: boolean;
-        organization?: { allowed: boolean; chosen: boolean };
+        organization?: { allowed: boolean };
       }[];
       organizationSettings?: Record<string, unknown>;
     };
@@ -171,9 +171,11 @@ test.skipIf(process.platform === "win32")(
       () => answer(),
     );
     const first = await work.tools();
+    // The person's choice stays recorded; the Organization does not allow
+    // it here.
     expect(first.tools.find((tool) => tool.name === "composio")).toMatchObject({
-      enabled: false,
-      organization: { allowed: false, chosen: true },
+      enabled: true,
+      organization: { allowed: false },
     });
     expect(first.organizationSettings).toMatchObject({
       source: "dashboard",
@@ -212,7 +214,7 @@ test.skipIf(process.platform === "win32")(
     expect(second.tools.find((tool) => tool.name === "composio")).toMatchObject(
       {
         enabled: true,
-        organization: { allowed: true, chosen: true },
+        organization: { allowed: true },
       },
     );
     expect(second.organizationSettings).toMatchObject({ version: v2 });

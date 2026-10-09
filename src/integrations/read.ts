@@ -130,7 +130,9 @@ export async function readIntegrations(
       ? { state: "unreadable" }
       : { state: "ok", connected: connectedTools(overview.tools) };
   const composioTool = overview?.tools.find((tool) => tool.name === "composio");
+  // On for agents here: switched on, and allowed (decision F45).
   const composioReady =
+    policy.allowed &&
     composioTool?.enabled === true &&
     composioTool.installed &&
     composioTool.signIn?.state === "signed-in";

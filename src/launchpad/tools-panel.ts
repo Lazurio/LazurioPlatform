@@ -1161,8 +1161,12 @@ export function createToolsPanel(
       );
       toggler.className = "switch";
       toggler.setAttribute("role", "switch");
-      toggler.setAttribute("aria-checked", String(tool.enabled));
-      // The Organization's switch: it never moves from this page.
+      // The Organization's switch: off, whatever the person chose, and it
+      // never moves from this page.
+      toggler.setAttribute(
+        "aria-checked",
+        String(tool.enabled && !organization.locked),
+      );
       if (organization.locked) toggler.disabled = true;
       const label = element(
         "span",
