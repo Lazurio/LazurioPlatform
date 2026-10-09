@@ -5216,6 +5216,9 @@ so it can consume the same bounded retries but never become a sign-in flow.
 After exhaustion the existing local/remembered fallback remains; there is no
 poller, session refresh, new grant store or claim that a persistent outage heals.
 A successful response reaches both the rail and Apps without a page reload.
+During this bounded wait (at most 37 seconds), Apps labels favourites as loading
+and disables star/unstar; it never queues blind toggles against an unknown list.
+Personalspace browser favourites remain available as before.
 The host-provided account (Dashboard) continues to make no relay requests.
 Account writes retain their four-second deadline and are never retried here.
 

@@ -185,7 +185,7 @@ export function createCatalogPanel(
     | Readonly<{ openApps: OpenApps; favourites: AccountFavourites }>
     | null
     | undefined;
-  const accountRead = options
+  void options
     .readAccount()
     .then((value) => {
       account =
@@ -330,7 +330,8 @@ export function createCatalogPanel(
     }
   };
   const toggle = async (group: CatalogGroupEntry, key: string) => {
-    if (favoritesPending(group)) await accountRead;
+    // A pending account is not a known empty list: never queue blind toggles.
+    if (favoritesPending(group)) return;
     const slug = accountSlug(group);
     if (slug !== null && account) {
       // At once; once its writes are done the favourite shows what the
@@ -568,10 +569,15 @@ export function createCatalogPanel(
     const star = element("button", "tile-menu-item");
     star.type = "button";
     star.setAttribute("role", "menuitem");
+    star.disabled = favoritesPending(group);
     if (item.favorite) star.classList.add("is-favorite");
     star.append(
       svg(item.favorite ? "star-filled" : "star"),
-      item.favorite ? copy.appsFavoriteRemove : copy.appsFavoriteAdd,
+      star.disabled
+        ? copy.appsFavoritesLoading
+        : item.favorite
+          ? copy.appsFavoriteRemove
+          : copy.appsFavoriteAdd,
     );
     star.addEventListener("click", () => {
       close();
@@ -785,10 +791,12 @@ export function createCatalogPanel(
     }
     const label = element("p", "column-label", copy.appsFavorites);
     label.id = "column-favorites";
-    // Until the account answers (at most a few seconds) neither its list nor
-    // the hint is shown, so nothing jumps.
+    // A first account read can need bounded recovery. Show that it is pending
+    // instead of presenting an empty list or silently queueing star clicks.
     if (favoritesPending(group)) {
-      favoritesBox.replaceChildren(label);
+      const loading = element("p", "column-hint", copy.appsFavoritesLoading);
+      loading.setAttribute("role", "status");
+      favoritesBox.replaceChildren(label, loading);
       return;
     }
     const items = favoriteTiles(
