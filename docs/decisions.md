@@ -5710,3 +5710,218 @@ rolled back before the guide removing the worker at its next refresh (fails
 without `refreshOutcome`'s retirement), and a registration refused without
 `Service-Worker-Allowed`. The smoke builds the shell's registration from
 `src/shell/offline-guide.ts` into its page.
+
+## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
+
+**Decided by Matěj 2026-10-08 and 2026-10-09 (root decision 0193, plan DEV-6631;
+the Settings wireframe approved in HumanAndMachine-ai/prototypes-lazurio#24);
+implemented in this revision for Remote Environments on Linux.** Every
+Environment has its own account `vaultwarden@<Environment address>` in the
+Vaultwarden of its network. An Admin or Owner of the vault's organization (the
+Lazurio Organization, or the person's own organization for a personal
+Environment) invites that address into the Environment's collection with edit
+rights; the Launchpad creates the account, signs it in and keeps one unlocked
+session; the Admin confirms the member by its fingerprint; then the catalog tool
+`bitwarden` is on for agents, who run `eval "$(lazurio vault env)"` and plain
+`bw`. What is shared with the Environment is usable without asking; an
+externally visible write stays the Operator's Publication, and values never go
+to chat, Git, a log or a pull request.
+
+1. **The vault is the store; Bitwarden is the provider.** This resolves
+   [public development](public-development.md)'s "Platform stores neither a new
+   secret database nor copies of session credentials" and `AGENTS.md`'s "Do not
+   invent a secret store": the passwords live in the Organization's vault, as
+   gh's token lives with gh and Composio's sign-in with Composio. The Platform
+   handles only the Environment account's own credentials, generated on the
+   Environment and known to no person: the master password (32 random bytes),
+   the account's personal API key and its one session. They stay only in the
+   Bitwarden CLI's data directory that Lazurio gives it, the tool's own store,
+   owner-only:
+
+   ```text
+   ${XDG_STATE_HOME:-~/.local/state}/lazurio/vault/<vault host>/   0700
+     lock                      0600, empty: the kernel lock of a mutation
+     bw/                       0700, BITWARDENCLI_APPDATA_DIR
+       data.json               bw's own store (it keeps the API key there itself)
+       lazurio-account.json    0600: email, server, device identifier,
+                               master password, API key, createdAt
+       lazurio-session         0600: the one BW_SESSION
+       lazurio-vault.json      0600, not secret: the fingerprint phrase and
+                               the ids of the connected collection
+   ```
+
+   Nothing of it is ever written to the Folder, a log, the journal,
+   Diagnostics or an error, and no secret is ever an argument of a process:
+   the session travels in `BW_SESSION`, the API key in `BW_CLIENTID` and
+   `BW_CLIENTSECRET`, the master password in a private file that
+   `--passwordfile` reads and that is removed at once. `lazurio vault env` hands
+   the session to the agent's shell on stdout, by design and for that shell
+   only.
+
+2. **The account and its collection.** The Environment's address is its id as
+   the shell derives it from the handover's Launchpad entry (`environmentIdOf`,
+   F37), `<machine>.<org>.lazurio.io` or `<slug>.lazurio.io`; the vault is
+   `https://vaultwarden.<zone>` where the handover's
+   `network.headscale_server_url` is `https://headscale.<zone>`, and anything
+   else is no vault (fail closed, `vault-unknown`). The collection is
+   `Environmenty/<name> · <machine>`, in the vault's language as 0193 writes it,
+   with the Environment's name as the rail gives it (decision 0185): a Team's or
+   a persona's display name from the catalog, otherwise its kind, "Osobní",
+   "Pracovní", "Týmový" or "Automatizovaný". The Environment's own collection is
+   the visible one with exactly the name the dialog showed, else the one it was
+   connected to, else the only one named `Environmenty/… · <machine>`: the
+   machine part identifies it, so a Team that renames itself does not lose its
+   collection. Only the handover's declared operator, in a hosted Folder on
+   Linux, has a vault account; everything else answers `unsupported` with its
+   reason before anything runs.
+
+3. **The CLI is pinned (an addendum of F19).** F19 installs a tool's latest
+   release; the vault's CLI is pinned per Platform release, because it must
+   stay compatible with the Vaultwarden of every network: bw 2026.9.x posts the
+   user key id on its first unlock, which Vaultwarden 1.37.1 does not know
+   (404), while 2026.7.0 works with both 1.37.1 and 1.37.4, each pair proven
+   end to end with the real CLI on 2026-10-09. The pin is bw-oss
+   2026.7.0, the OSS build of the official release `cli-v2026.7.0`, with the
+   SHA-256 of each platform's zip in `src/vault/pin.ts`, verified before the
+   archive is read; exactly one entry named `bw` is taken from it (each
+   official zip holds only that entry). It is placed as
+   `<install base>/tools/bitwarden/<version>/bw` (the install base on Linux is
+   `${XDG_DATA_HOME:-~/.local/share}/lazurio`, whose unknown entries the updater
+   leaves alone), in a directory that holds nothing else: bw prefers a `bw-data`
+   directory beside its executable over `BITWARDENCLI_APPDATA_DIR`, so one there
+   refuses the installation. Agents type `bw`: the standard entry
+   `~/.local/bin/bw` (decision 0161 point 6) is a small wrapper Lazurio writes,
+   marked as its own, that runs the pinned binary and sets
+   `BITWARDENCLI_APPDATA_DIR` to the Environment's data directory and
+   `BW_NOINTERACTION` unless the caller names them. bw rewrites its data file
+   on every start, even for `--version`, so no `bw` of this Environment ever
+   touches a default profile, and an agent that forgot `lazurio vault env`
+   reads "Vault is locked." rather than "You are not logged in." or a prompt
+   for the master password. An entry there that is not Lazurio's is never
+   replaced: the connect stops as `failed`, `install`, `entry-conflict`, and the
+   agent prompt takes over. Older pinned versions are removed once the wrapper
+   runs the new one. A new pin is a reviewed change of `src/vault/pin.ts` with
+   the qualification repeated; `lazurio tools update bitwarden` runs nothing.
+
+4. **Connecting in four steps.** Settings → Tools → bitwarden and `lazurio vault
+   connect` run one core (`src/vault/flow.ts`):
+   1. The operator invites the account's address into the collection with edit
+      rights. The vault has no SMTP, so the invited address may register although
+      sign-ups are off, and the membership is accepted on registration.
+   2. The Environment connects by itself: it installs the pinned CLI; it creates
+      the account (the password and the device identifier are written durably
+      *before* the registration, because the vault refuses a second registration
+      of an address; `/identity/accounts/register/send-verification-email` with
+      `Accept: application/json` and `/identity/accounts/register/finish` with
+      Bitwarden's v1 account keys, `src/vault/register.ts`); it logs in once with
+      the password and the Environment's one device identifier to fetch the API
+      key, which joins the account file; and it signs bw in (`bw config server`,
+      `bw login --apikey`, `bw unlock --passwordfile --raw`, `bw sync`). An
+      interrupted creation resumes with a login, never a second registration; a
+      registration the vault refuses because the address is not invited leaves
+      nothing behind.
+   3. The Admin confirms the member in the vault (only an Admin's client hands a
+      member the organization's key) after comparing the fingerprint phrase the
+      dialog shows (`bw get fingerprint me`). The dialog asks the vault every few
+      seconds while it is open; closing it cancels nothing.
+   4. Connected: "Vidí N kolekcí · M položek", and the agents' switch turns on,
+      as after a curated sign-in (root decision 0188 point 7).
+
+   The states: `unsupported` (with its reason), `not-installed`, `none` (with
+   `registered` when the account exists and connecting again only signs it in),
+   `awaiting-invite`, `confirming` (signed in, the organization or the
+   collection not visible yet; a confirmed organization without the collection
+   is named), `connected` (`organization`, `collection`, `collections`,
+   `items`), `revoked` (the recorded collection is gone after a sync, or the
+   organization reports the member revoked), `unreachable` and `failed` (with
+   `stage`, `reason` and the agent as the fallback). Every mutation holds the
+   account's kernel lock (`src/platform/flock.ts`) and every file is written
+   whole, so an interrupted one is completed by the next.
+
+5. **One session for the Environment.** Every `bw unlock` ends the sessions
+   before it (proven: the earlier one answers "Vault is locked."), so the
+   Launchpad keeps one and agents share it. `lazurio vault env` reads it, checks
+   it with `bw status` and, when it is no longer the unlocked one, unlocks once
+   under the account's lock; a session another process replaced meanwhile is
+   taken, so two agents never unlock twice. Agents never run `bw login`,
+   `unlock`, `lock`, `logout` or `bw config`, and when `bw` says the vault is
+   locked they run `lazurio vault env` again. Disconnect signs bw out and removes
+   its store, the session and the record; the account stays in the vault and in
+   its file, so connecting again signs it in. Only removing the account in the
+   vault ends its access.
+
+6. **Surfaces.** `lazurio vault env [--json]`, `vault status [--json]` (local,
+   no network), `vault refresh [--json]` (a sync, a new unlock when needed) and
+   `vault connect [--json]` (the fallback for an agent). The Launchpad answers
+   `POST /api/tools/bitwarden/status|refresh|connect|disconnect` behind the
+   admission of every route, each with `{}`; a connect answers within a second
+   with `202 {kind: "vault-connecting", job, phase}` while it runs and is asked
+   again with `{job}`. The curated routes and commands of F19 refuse `bitwarden`
+   as `setup-vault`. The Launchpad's journal gets one line per operation,
+   `{"scope":"tools-vault","operation":…,"outcome":…,"reason":…}`, never a value.
+
+7. **Probes of tools.** `tools status`, `tools list` and doctor run every
+   tool's version command; for `bw` (the catalog's `isolatedData`) it runs with a
+   private temporary `BITWARDENCLI_APPDATA_DIR`, removed afterwards. The catalog
+   offers `bitwarden` only in a Remote Environment on Linux (`offered`):
+   elsewhere doctor reports a missing one as `skipped`, `not-offered`; on a
+   Remote Environment it is `warn`, `recommended-missing`, until connected.
+
+8. **The Folder.** The catalog entry `bitwarden` (command `bw`, recommended,
+   setup `launchpad`) carries the agents' texts: the purpose in `AGENTS.md`, the
+   usage in `manual/this-machine.md` (start with `lazurio vault env`, never sign
+   in or unlock, values straight into commands, new secrets into the
+   Environment's collection with `LAZURIO_VAULT_ORGANIZATION_ID` and
+   `LAZURIO_VAULT_COLLECTION_ID`, nothing in the account's own vault, a missing
+   secret asked of the Operator, an external write a Publication), and the
+   target state an agent follows when the curated flow fails. Template revision
+   `base-instructions-34`.
+
+9. **Honest limits, kept from 0193.** Agents with full access (0172) can read
+   the account's secrets on the Environment; the bond to the Machine is the
+   content of the shared collections and their revocation, not encryption or a
+   TPM. Revoking applies at once, but what the Environment already synced stays
+   with it: change important passwords after a revocation. Edit rights include
+   deleting. A collection separates access on the server, not by encryption; a
+   Team's collection is seen by the whole Team. The vault rate-limits logins per
+   client IP (a burst of 10, then one a minute, password and API key logins
+   alike; behind a proxy without the client's address every Environment shares
+   one bucket, Machines #443): nothing here retries a login, and a refusal ends
+   as `rate-limited`. A vault with SMTP on ends as `smtp-enabled`: an
+   Environment account cannot receive mail. An account file lost after its
+   registration cannot be recreated (the vault answers as for an address not
+   invited): an Admin deletes the user in the vault's admin page and invites the
+   address again. Connecting again after a disconnect adds a device to the
+   account, the new profile of bw.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A secret file or database of the Platform | A second store beside the Organization's vault; rejected by point 1 |
+| bw's latest release, as F19 installs tools | 2026.9.x cannot unlock against Vaultwarden 1.37.1; rejected for a pin |
+| `~/.local/bin/bw` as a plain link to the pinned binary | A bare `bw` and every probe would rewrite the default profile; rejected for the wrapper |
+| `--passwordenv` instead of a file | Both keep the password off argv; the file is what the e2e proved, private and removed at once; the file chosen |
+| One session per agent | Each unlock ends the others; rejected for one shared session |
+| The collection only by its exact name | A Team's display name may change; rejected for the machine part and the record |
+| A daemon that keeps the vault unlocked | Not needed: each operation reads the state and moves it on; rejected |
+
+Verified by unit tests against a fake vault (`Bun.serve`) and a fake `bw`
+(`tests/fixtures/fake-vault.ts`): the crypto against Bitwarden's own vectors and
+round trips, the exact request bodies and Vaultwarden's refusals
+(`tests/vault-register.test.ts`), the context (`tests/vault-context.test.ts`),
+the flow from not invited through confirming, connected, revoked, disconnected
+and back, the shared session and its replacement, interrupted and refused
+registrations and the pinned installer (`tests/vault-flow.test.ts`), the CLI and
+its shell exports (`tests/vault-cli.test.ts`), the Launchpad routes
+(`tests/launchpad-vault.test.ts`) and the page's states (`tests/vault-view.test.ts`).
+The registration, the API key and the real CLI were proven end to end against
+Vaultwarden 1.37.1 and 1.37.4 in containers on 2026-10-09 (DEV-6631). The same
+day this core itself ran against both versions with the real pinned bw
+(the macOS arm64 build of 2026.7.0, installed and verified by the core's own
+installer; a disposable script outside the repository, 32 checks each): not
+invited, invited and confirming, confirmed and connected, an agent's `bw`
+through the wrapper storing and reading an item in the collection, a rogue
+`bw lock` replaced by one unlock, revoked, disconnected and connected again,
+with no secret on any argument list or in the journal. Both Linux archives were
+downloaded the same day, matched their pinned digests and gave the installer's
+own zip reader one ELF entry `bw` each; the Linux binary itself first runs in
+the pilot on a personal Remote Environment, which follows the release.

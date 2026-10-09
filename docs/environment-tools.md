@@ -3,9 +3,9 @@
 > **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
 
 Proposed bounded pilot procedure under accepted decision 0144. Apart from the curated
-installation and login of three catalog tools (decision F19, below), this document
-does not claim an implemented tool installer, authenticated harness or usable
-Environment.
+installation and login of three catalog tools (decision F19, below) and the
+Environment vault (decision F43, below), this document does not claim an
+implemented tool installer, authenticated harness or usable Environment.
 Machines delivers the online Machine and a first installation of the Platform; local
 Platform operations and the operator prepare what is needed inside it, including
 the Platform's own updates (F17 addendum 2026-09-28).
@@ -37,11 +37,14 @@ reports and, on instruction, runs them; it pins nothing.
 The Platform's surface for the operator's tools, implemented in `src/tools/`:
 
 - `tools status [--json]` lists codex, claude, gh, git, node, npm, bun, composio,
-  wacli, gog and neon as found on
+  bw, wacli, gog and neon as found on
   the process PATH (first executable of the name, decision 0140 rule), with the real
   path behind a link and the version the tool reports; missing tools carry their
   official source. Read-only; the version commands never use the network; it does not
-  say "outdated", because the operator's version is a fact, not drift.
+  say "outdated", because the operator's version is a fact, not drift. bw writes its
+  data file on every start, even for `--version`, so its version command runs with a
+  private temporary `BITWARDENCLI_APPDATA_DIR` (the catalog's `isolatedData`, decision
+  F43) and touches no profile.
 - `tools update <tool> [--json]` runs exactly that tool's official update path as the
   current user and reports the version before and after: the tool's own updater
   (`claude update`, `bun upgrade`) or the vendor's installer script (`codex`, the
@@ -65,6 +68,7 @@ named in the generated instructions with a **tier** and a **setup mode**:
 | --- | --- | --- | --- |
 | `gh` | `gh` | required: always on, never stored, cannot be disabled | launchpad |
 | `composio` | `composio` | recommended | launchpad |
+| `bitwarden` | `bw` | recommended; offered in a Remote Environment on Linux (F43) | launchpad (its own flow, below) |
 | `wacli` | `wacli` | optional | launchpad |
 | `gogcli` | `gog` | optional | agent |
 | `neon` | `neon` | optional | agent |
@@ -414,6 +418,95 @@ earlier temporary exception that let any account sign in on a Team VM has ended.
   nothing here provisions the App, its broker or a brokered `gh`. The product refuses
   the personal sign-in and relies on what the Machine delivers.
 
+### The Environment vault (decision F43)
+
+Root decision 0193: every Environment has its own account `vaultwarden@<Environment
+address>` in the Vaultwarden of its network, its own collection
+`Environmenty/<name> · <machine>` with edit rights, and one unlocked Bitwarden CLI
+session that all its agents share. The catalog tool is `bitwarden` (command `bw`); it
+has its own flow instead of F19's install and sign-in, which refuse it as
+`setup-vault`. Remote Environments on Linux only; on this computer it is the second
+wave (`unsupported`, `workstation`).
+
+- **Facts** (`src/vault/context.ts`, read from the handover for every operation): the
+  vault `https://vaultwarden.<zone>` from `network.headscale_server_url` =
+  `https://headscale.<zone>` (anything else refuses, `vault-unknown`), the address from
+  the Launchpad entry as the shell derives the Environment's id (no entry:
+  `no-address`), the name from the Folder's preset and the catalog (a Team's or a
+  persona's display name, else "Osobní", "Pracovní", "Týmový", "Automatizovaný"). Only
+  the handover's declared operator has the account (`not-operator`).
+- **Custody** (`src/vault/store.ts`): `${XDG_STATE_HOME:-~/.local/state}/lazurio/vault/<vault host>/`
+  (0700) with `lock` and `bw/` (0700, `BITWARDENCLI_APPDATA_DIR`), which holds bw's
+  `data.json`, `lazurio-account.json` (0600: email, server, device identifier, master
+  password, API key, createdAt), `lazurio-session` (0600) and `lazurio-vault.json`
+  (0600, not secret: fingerprint phrase, connected organization and collection ids).
+  Nothing else anywhere; no secret on argv, in a log, the journal or an error.
+- **The pinned CLI** (`src/vault/pin.ts`, `src/vault/install.ts`): bw-oss 2026.7.0
+  from `https://github.com/bitwarden/clients/releases/download/cli-v2026.7.0/`,
+  the zip of the platform verified against its SHA-256 in the source, its one entry
+  `bw` placed as `${XDG_DATA_HOME:-~/.local/share}/lazurio/tools/bitwarden/2026.7.0/bw`
+  (0755, alone in its directory: a `bw-data` beside it would override the data
+  directory and refuses). `~/.local/bin/bw` is Lazurio's wrapper: it runs that binary
+  and sets `BITWARDENCLI_APPDATA_DIR` to the Environment's `bw/` and
+  `BW_NOINTERACTION=true` unless the caller set them, so a bare `bw` never reaches a
+  default profile or prompts for a password. An entry there that is not Lazurio's is
+  left alone and the connect fails as `entry-conflict`. Older pinned versions are
+  removed afterwards.
+- **The account** (`src/vault/register.ts`): a password of 32 random bytes and a
+  device identifier are written to `lazurio-account.json` before anything is sent;
+  `POST /identity/accounts/register/send-verification-email` `{email, name,
+  receiveMarketingEmails: false}` with `Accept: application/json` answers the
+  registration token (a JSON string, or `text/plain` from 1.37.4 without that
+  header; 204 means SMTP is on: `smtp-enabled`; "Registration not allowed or user
+  already exists": `awaiting-invite`, and the account file goes); `POST
+  /identity/accounts/register/finish` with the v1 account keys (PBKDF2-SHA256 600 000,
+  the salt the trimmed lowercased email, an RSA-2048 key pair, the user key wrapped by
+  the stretched master key); `POST /identity/accounts/prelogin`, `POST
+  /identity/connect/token` (password grant with the one device identifier) and `POST
+  /api/accounts/api-key`, whose key joins the account file. HTTP 429 is
+  `rate-limited`; nothing retries a login.
+- **bw** (`src/vault/bw.ts`): always the pinned binary with the account's
+  `BITWARDENCLI_APPDATA_DIR`, `BW_NOINTERACTION` and `--nointeraction`; `bw config
+  server`, `bw login --apikey` (the key in `BW_CLIENTID`/`BW_CLIENTSECRET`; the session
+  it prints is still locked and is never read), `bw unlock --passwordfile <private
+  file> --raw` (the file removed at once), `bw sync`, `bw list
+  organizations|collections|items` and `bw get fingerprint me`, each with the session
+  in `BW_SESSION`. bw's output never leaves the module; failures are fixed codes
+  (`locked`, `unauthenticated`, `unreachable`, `rate-limited`, `invalid-credentials`,
+  `logout-required`, `timeout`, `spawn-failed`, `unreadable`, `failed`).
+- **States** (`src/vault/flow.ts`, `kind: "vault-status"` with `vault`, `account`,
+  `collection`, `name`, `team`): `unsupported` with a reason, `not-installed`, `none`
+  (`registered`: the account exists, connecting again signs it in), `awaiting-invite`,
+  `confirming` (`fingerprint`; `organization` when an organization is confirmed but
+  the collection is not visible; `locked` when the session must be unlocked again),
+  `connected` (`fingerprint`, `organization`, `collections`, `items`), `revoked`,
+  `unreachable` (`reason`) and `failed` (`stage`: `install`, `account`, `sign-in`,
+  `sync` or `status`; `reason`; `fallback: "agent"`). `status` is local (bw's copy, no
+  network); `refresh` syncs first and unlocks again when the session is no longer the
+  unlocked one; `connect` installs, creates or resumes the account, signs bw in,
+  unlocks and syncs; `disconnect` signs bw out and removes its store, the session and
+  the record, keeping the account. Mutations hold the account's kernel lock.
+- **CLI** (`lazurio vault`): `env [--json]` prints `export BITWARDENCLI_APPDATA_DIR=…`,
+  `BW_SESSION`, `LAZURIO_VAULT_ORGANIZATION_ID` and `LAZURIO_VAULT_COLLECTION_ID`,
+  single-quoted, for `eval "$(lazurio vault env)"`; not connected, one line on stderr,
+  nothing on stdout, exit 2 (`busy` and `unlock-failed` exit 1). `status`, `refresh`
+  and `connect [--json]` print the state (connect: exit 0 connected or confirming, 2
+  waiting for a person, 1 failed or unreachable; its steps go to stderr).
+- **Launchpad**: `POST /api/tools/bitwarden/status|refresh|disconnect` with `{}`, and
+  `POST /api/tools/bitwarden/connect` with `{}` (starts or joins the one connect) or
+  `{job}` (asks about it): `202 {kind: "vault-connecting", job, phase}` while it runs
+  (`install`, `account`, `sign-in`), then the state. A disconnect while a connect runs
+  is `409 busy`; an unknown job `404 job-unknown`. The journal of the unit gets
+  `{"scope":"tools-vault","operation":"connect|refresh|disconnect|unlock","outcome":…,"reason":…}`
+  only.
+
+The agents' texts are the catalog entry's (`purpose` in `AGENTS.md`, `usage` in
+`manual/this-machine.md`, template revision `base-instructions-34`): start with
+`eval "$(lazurio vault env)"`, never `bw login`, `unlock`, `lock`, `logout` or `bw
+config`, `bw sync` before reading, values straight into commands, new secrets into the
+Environment's collection, nothing in the account's own vault, a missing one asked of
+the Operator, and an externally visible write a Publication.
+
 ### The standard path (decision 0161, point 6)
 
 One installation per tool, in one place, on every Machine: an operator tool is the
@@ -534,9 +627,11 @@ identity and exact repository rights before Organization materialization.
 Implement read-only diagnosis and one explicitly approved preparation path first.
 Platform builds no credential broker, account registry, automatic model login or
 package-manager matrix (`lazurio tools` runs one tool's official update path under decision
-0161 and installs only the curated catalog tools of decision F19; it is not a general
-updater or installer); the team case consumes the existing upstream
-broker rather than adding one. Unknown installation state receives a diagnosis
+0161 and installs only the curated catalog tools of decision F19 and the pinned
+Bitwarden CLI of decision F43; it is not a general updater or installer); the team
+case consumes the existing upstream broker rather than adding one. The Environment
+vault (F43) keeps no secret of its own: the vault is the Organization's, and the
+Environment account's credentials stay in the Bitwarden CLI's own data directory. Unknown installation state receives a diagnosis
 and operator repair procedure, not an improvised privileged cleanup. Missing accounts
 remain an explicit pilot prerequisite, not something Machines or a profile can grant.
 Real Organization materialization and canonical document adoption have their separate
