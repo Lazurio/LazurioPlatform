@@ -151,6 +151,7 @@ export function catalogSelection(
     route.view === "home" ||
     route.view === "settings" ||
     route.view === "files" ||
+    route.view === "integrations" ||
     route.view === "marketplace"
   )
     return { kind: "overview" };

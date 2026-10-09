@@ -1353,6 +1353,15 @@ export function createCatalogPanel(
       );
       return found === undefined ? null : found.modules.length;
     },
+    /** The key of the Folder's one Organization (a work Environment's),
+     * for its Owner question; null with none or several. */
+    soleOrganization(): string | null {
+      if (catalog === null || catalog.organizations.length !== 1) return null;
+      const [organization] = catalog.organizations;
+      return organization === undefined
+        ? null
+        : catalogOrganizationKey(catalog, organization);
+    },
     /** The Organization a route shows, for the Marketplace's sentence. */
     scopeName(route: PageRoute): string | null {
       if (catalog === null) return null;

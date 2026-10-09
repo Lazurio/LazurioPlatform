@@ -324,11 +324,21 @@ test.skipIf(process.platform === "win32")(
         "/o/alpha",
         "/o/alpha/web",
         "/o/Alpha%20Co/web",
+        // Integrace (decision F42): the tabs and an app's card.
+        "/integrations",
+        "/integrations/connected",
+        "/integrations/custom",
+        "/integrations/app/notion",
       ])
         expect(await (await fetch(new URL(route, url.origin))).text()).toBe(
           html,
         );
-      for (const route of ["/settings/unknown", "/o", "/o/alpha/web/extra"])
+      for (const route of [
+        "/settings/unknown",
+        "/o",
+        "/o/alpha/web/extra",
+        "/integrationsx",
+      ])
         expect((await fetch(new URL(route, url.origin))).status).toBe(403);
     } finally {
       await app.server.stop(true);

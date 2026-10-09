@@ -2,6 +2,7 @@ import {
   type BrowserPanelState,
   browserFrame,
   browserPanelView,
+  browserViewAddress,
   readBrowserView,
 } from "./browser-panel-view";
 import type { MessageKey } from "./messages";
@@ -78,7 +79,9 @@ export function createBrowserPanel(
         frame.setAttribute(name, value);
       frame.src = view.frame;
       body.append(frame);
-    }
+    } else if (frame.getAttribute("src") !== view.frame)
+      // Another tab of the view (a sign-in the page opened, decision F42).
+      frame.setAttribute("src", view.frame);
     const cover = open && sheet.matches;
     if (cover !== covering) {
       covering = cover;
@@ -106,6 +109,31 @@ export function createBrowserPanel(
     void load();
     heading.focus({ preventScroll: true });
     options.changed();
+  }
+
+  /** Opens the panel on one tab of the view: a direct sign-in of an
+   * Integrace the server opened in the Environment browser (decision F42).
+   * Only an https address on exactly the recorded origin, as any answer of
+   * the view; false when it is not one or no panel is offered. */
+  function showView(view: string): boolean {
+    const origin = options.origin();
+    if (origin === null) return false;
+    const address = browserViewAddress(
+      { available: true, view },
+      origin,
+      location.origin,
+    );
+    if (address === null) return false;
+    reading += 1;
+    state = { kind: "view", view: address };
+    const opening = !open;
+    open = true;
+    draw();
+    if (opening) {
+      heading.focus({ preventScroll: true });
+      options.changed();
+    }
+    return true;
   }
 
   function hide(returnFocus: boolean) {
@@ -154,5 +182,6 @@ export function createBrowserPanel(
     relabel,
     /** Whether the panel is open now. */
     isOpen: () => open,
+    showView,
   };
 }
