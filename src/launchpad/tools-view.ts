@@ -1,3 +1,7 @@
+import {
+  type OrganizationSettingsStatus,
+  parseSettingsStatus,
+} from "../organization-settings/status";
 import { executorToolName, vaultToolName } from "../tools/catalog";
 import type { LoginChallenge, LoginState } from "../tools/login";
 import {
@@ -123,6 +127,11 @@ function parseTool(input: unknown): ToolOverview | null {
   const signIn =
     value.signIn === undefined ? undefined : parseSignIn(value.signIn);
   if (signIn === null) return null;
+  const organization =
+    value.organization === undefined
+      ? undefined
+      : parseOrganization(value.organization);
+  if (organization === null) return null;
   return {
     name: value.name,
     command: value.command,
@@ -146,7 +155,21 @@ function parseTool(input: unknown): ToolOverview | null {
       : { standardPath: value.standardPath }),
     ...(signIn === undefined ? {} : { signIn }),
     ...(value.note === undefined ? {} : { note: value.note }),
+    ...(organization === undefined ? {} : { organization }),
   };
+}
+
+// What the Organization's settings say about a tool (decision F45).
+function parseOrganization(
+  input: unknown,
+): ToolOverview["organization"] | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const value = input as Record<string, unknown>;
+  return Object.keys(value).sort().join(",") === "allowed,chosen" &&
+    typeof value.allowed === "boolean" &&
+    typeof value.chosen === "boolean"
+    ? { allowed: value.allowed, chosen: value.chosen }
+    : null;
 }
 
 /** The server's answer, accepted only in its exact expected form; anything
@@ -173,6 +196,11 @@ export function parseToolsOverview(input: unknown): ToolsOverview | null {
       return null;
     tools.push(tool);
   }
+  const settings =
+    value.organizationSettings === undefined
+      ? undefined
+      : parseSettingsStatus(value.organizationSettings);
+  if (settings === null) return null;
   return {
     kind: "tools-status",
     revision: value.revision,
@@ -181,7 +209,80 @@ export function parseToolsOverview(input: unknown): ToolsOverview | null {
     hosted: value.hosted,
     mcpPrompt: value.mcpPrompt,
     tools,
+    ...(settings === undefined ? {} : { organizationSettings: settings }),
   };
+}
+
+// The names people know these tools by, where they differ from the command.
+const productNames: Readonly<Record<string, string>> = { composio: "Composio" };
+
+export type OrganizationView = Readonly<{
+  /** The switch is the Organization's: locked off. */
+  locked: boolean;
+  /** One plain sentence under the tool's description, or none. */
+  line: string | null;
+  /** That the person's own choice is kept, when they had made it. */
+  kept: string | null;
+}>;
+
+/** A tool on an Organization's Environment (root decision 0194 point 5,
+ * decision F45): one the Organization does not allow is locked off, and
+ * the page says that the Organization decides it; allowed explicitly, a
+ * short note; otherwise nothing. */
+export function organizationView(
+  tool: Pick<ToolOverview, "name" | "organization">,
+  copy: Copy,
+): OrganizationView {
+  const organization = tool.organization;
+  if (organization === undefined)
+    return { locked: false, line: null, kept: null };
+  if (organization.allowed)
+    return { locked: false, line: copy.toolsOrganizationAllows, kept: null };
+  return {
+    locked: true,
+    line: fill(copy.toolsOrganizationOff, {
+      name: productNames[tool.name] ?? tool.name,
+    }),
+    kept: organization.chosen ? copy.toolsOrganizationKept : null,
+  };
+}
+
+/** The Organization's settings in a governed tool's details: who changes
+ * them, where this Environment gets them, the version applied and when, when
+ * it last asked, and why nothing new came. `at` formats a time. */
+export function organizationDetails(
+  status: OrganizationSettingsStatus | undefined,
+  copy: Copy,
+  at: (iso: string) => string,
+): readonly string[] {
+  if (status === undefined) return [copy.toolsOrganizationHow];
+  const errors: Record<
+    NonNullable<OrganizationSettingsStatus["error"]>,
+    MessageKey
+  > = {
+    dashboard_unreachable: "toolsOrganizationUnreachable",
+    identity_unavailable: "toolsOrganizationIdentity",
+    settings_invalid: "toolsOrganizationInvalid",
+    repository_unavailable: "toolsOrganizationRepository",
+    state_unreadable: "toolsOrganizationState",
+  };
+  return [
+    copy.toolsOrganizationHow,
+    status.source === "dashboard"
+      ? copy.toolsOrganizationFromDashboard
+      : copy.toolsOrganizationFromRepository,
+    status.version === null || status.appliedAt === null
+      ? copy.toolsOrganizationNotApplied
+      : fill(copy.toolsOrganizationVersion, {
+          version: status.version.slice(0, 7),
+          time: at(status.appliedAt),
+        }),
+    status.checkedAt === null
+      ? copy.toolsOrganizationNotChecked
+      : fill(copy.toolsOrganizationChecked, { time: at(status.checkedAt) }),
+    ...(status.error === null ? [] : [copy[errors[status.error]]]),
+    ...(status.unapplied.length === 0 ? [] : [copy.toolsOrganizationUnapplied]),
+  ];
 }
 
 export type ToolGroup = Readonly<{
@@ -299,7 +400,7 @@ export function connectionLine(
  * it off, and never when the tool was signed in before the sign-in started.
  * A person may turn it off again. */
 export function autoEnable(
-  tool: Pick<ToolOverview, "tier" | "enabled"> | undefined,
+  tool: Pick<ToolOverview, "tier" | "enabled" | "organization"> | undefined,
   state: LoginView,
 ): boolean {
   return (
@@ -307,7 +408,9 @@ export function autoEnable(
     state.already !== true &&
     tool !== undefined &&
     tool.tier !== "required" &&
-    !tool.enabled
+    !tool.enabled &&
+    // The Organization decides a tool it does not allow (decision F45).
+    tool.organization?.allowed !== false
   );
 }
 
@@ -452,6 +555,14 @@ export function curatedActions(
 ): CuratedActions {
   if (tool.setup !== "launchpad")
     return { primary: null, logout: false, linkSsh: false };
+  // A tool the Organization does not allow here (decision F45) is neither
+  // added nor signed in from this page; a sign-in left from before can go.
+  if (tool.organization?.allowed === false)
+    return {
+      primary: null,
+      logout: tool.installed && tool.signIn?.state === "signed-in",
+      linkSsh: false,
+    };
   if (githubActionRefused({ brokered, tool: tool.name, action: "login" }))
     return {
       // A Team Machine normally has gh from the Organization's broker; a
@@ -490,7 +601,8 @@ export function curatedActions(
 }
 
 /** The full next selection a request carries: the enabled tools that are not
- * required, with one of them switched, sorted and unique. */
+ * required, with one of them switched, sorted and unique. A tool the
+ * Organization decides is carried as the person chose it (decision F45). */
 export function nextSelection(
   tools: readonly ToolOverview[],
   name: string,
@@ -498,7 +610,11 @@ export function nextSelection(
 ): string[] {
   const names = new Set(
     tools
-      .filter((tool) => tool.tier !== "required" && tool.enabled)
+      .filter(
+        (tool) =>
+          tool.tier !== "required" &&
+          (tool.organization?.chosen ?? tool.enabled),
+      )
       .map((tool) => tool.name),
   );
   if (enable) names.add(name);
@@ -657,6 +773,20 @@ export function toolChangeOutcome(
         kind: "blocked",
         message: copy.toolsBlockedIncomplete,
         detail: copy.toolsBlockedIncompleteDetail,
+        reload: true,
+      };
+    // The Organization decided the tool after this page was read (decision
+    // F45): the reload shows its switch locked.
+    if (
+      value.reason === "organization-governed" &&
+      typeof value.tool === "string"
+    )
+      return {
+        kind: "blocked",
+        message: fill(copy.toolsOrganizationOff, {
+          name: productNames[value.tool] ?? value.tool,
+        }),
+        detail: copy.toolsOrganizationHow,
         reload: true,
       };
     // A reason this page has no sentence for is named, never hidden: in

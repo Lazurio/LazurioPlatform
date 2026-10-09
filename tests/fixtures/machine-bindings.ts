@@ -155,6 +155,19 @@ export function organizationWithEntry(
     entry: browser ? withBrowser(entry, host) : entry,
   });
 }
+// An Organization work VM of one operator whose entry, on `port`, carries
+// the Environment's relay to the Dashboard (root decision 0194, Machines
+// #449).
+export function organizationWithRelay(
+  listenPort = 20000,
+  host = "workspace.example.lazurio.io",
+) {
+  return binding({
+    ...organization,
+    owner: withoutTeam,
+    entry: withEnvironmentRelay(handoverEntry(host, listenPort)),
+  });
+}
 // A personal VM of `example` with its entry on `port`, and with `browser`
 // the Environment browser's view.
 export function personalWithEntry(listenPort = 20000, browser = false) {

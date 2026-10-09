@@ -43,6 +43,10 @@ import {
   moduleAnswerWithinMsDefault,
   processModuleHost,
 } from "../modules/module-operations";
+import {
+  launchpadSettingsPoller,
+  type OrganizationSettingsSeams,
+} from "../organization-settings/host";
 import { readFolderCatalog } from "../organizations/catalog";
 import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
@@ -179,6 +183,11 @@ export function environmentBrowserOf(
 
 /** The Lazurio shell's data document (decision F36). */
 export const shellDocumentPath = "/.lazurio/shell.json";
+
+/** How long a refresh of Settings → Tools or of Integrace waits for the
+ * Organization's settings to be asked and applied (decision F45) before it
+ * answers with what the Folder records. */
+const settingsWaitMs = 5_000;
 
 /** How long the page's boot document may wait for the Folder's lock, and
  * for everything it reads (F36's addendum of 2026-10-08): the page is never
@@ -375,6 +384,11 @@ export async function startLaunchpad(
   // Executor on loopback and, on a Remote Environment, its browser. Trusted
   // composition, never HTTP input; tests supply a fake Executor.
   integrationSeams?: Partial<IntegrationsSeams> | undefined,
+  // Where the Organization's settings come from (decision F45): the relay
+  // the handover names, or the Organization's root in the Folder. Trusted
+  // composition, never HTTP input; tests supply a relay socket of their own
+  // and the poller's clock.
+  organizationSettingsSeams?: OrganizationSettingsSeams | undefined,
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -530,6 +544,25 @@ export async function startLaunchpad(
     }),
     journal: (line) => console.log(JSON.stringify(line)),
   });
+  // The Organization's settings (root decision 0194, decision F45), on an
+  // Organization's Environment only: asked every two minutes, at once when
+  // the page opens and on a refresh, and applied to the Folder; Integrace
+  // reads again whenever they change it. Its journal says what happened,
+  // never a value.
+  const settings = await launchpadSettingsPoller({
+    folder,
+    base: installed?.base,
+    tools: toolsEnvironment,
+    journal: (line) => console.log(JSON.stringify(line)),
+    onApplied: () => integrations.forget(),
+    seams: organizationSettingsSeams,
+  }).catch(() => {
+    // The Launchpad serves without them; the Folder keeps what it records.
+    console.log(
+      JSON.stringify({ scope: "organization-settings", event: "unavailable" }),
+    );
+    return null;
+  });
   // The shell document's `setup` from the last reading, never awaited (F36's
   // addendum of 2026-10-08): the forks' column head says what is missing
   // once it is known, and no page waits for GitHub to learn it.
@@ -607,8 +640,10 @@ export async function startLaunchpad(
       // Someone opened the Launchpad: what the Environment lacks is read now
       // (not as the Launchpad starts, when the Folder's operations need its
       // lock), so that Chat and Automate, whose column head reads the shell
-      // document once per load, find it when they open.
+      // document once per load, find it when they open. The Organization's
+      // settings are asked now too, never twice within a short while.
       void setup.peek();
+      void settings?.nudge();
       return boot === null ? answer : withBoot(answer, boot);
     }
     const kept: Record<string, string> = {};
@@ -1106,6 +1141,15 @@ export async function startLaunchpad(
       if (integrations.handles(url.pathname)) {
         if (closing) return response({ error: "closing" }, 503);
         try {
+          // "Check connections" asks the Organization's settings first:
+          // they decide whether Composio is a path here (decision F45).
+          if (
+            url.pathname === "/api/integrations" &&
+            url.searchParams.get("refresh") === "1"
+          ) {
+            server.timeout(request, 120);
+            await settings?.nudge(settingsWaitMs);
+          }
           return await integrations.handle(request, url, (seconds) =>
             server.timeout(request, seconds),
           );
@@ -1225,6 +1269,12 @@ export async function startLaunchpad(
           const value = stateFields(input, withSignIn ? ["signIn"] : []);
           if (withSignIn && typeof value.signIn !== "boolean")
             return response({ error: "invalid-sign-in" }, 400);
+          // The first reading and "Refresh status" ask the Organization's
+          // settings first, so the switches show what applies now (F45).
+          if (value.signIn === true) {
+            server.timeout(request, 120);
+            await settings?.nudge(settingsWaitMs);
+          }
           const overview = await toolsOverview(folder, toolsEnvironment, {
             signIn: value.signIn === true,
           });
@@ -1232,7 +1282,11 @@ export async function startLaunchpad(
           const gh = overview.tools.find((tool) => tool.name === "gh");
           if (gh !== undefined && github.remember(gh.installed, gh.signIn))
             setup.forget();
-          return response(overview);
+          return response(
+            settings === null
+              ? overview
+              : { ...overview, organizationSettings: settings.status() },
+          );
         }
         if (vault.handles(url.pathname)) {
           // The Environment vault (decision F43): `{}`, or a connect's
@@ -1504,6 +1558,7 @@ export async function startLaunchpad(
     ? await serveHealthSocket(installed.base, { version: installed.version })
     : null;
   pill?.start();
+  settings?.start();
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
   > | null = null;
@@ -1524,12 +1579,15 @@ export async function startLaunchpad(
           const moduleClose = modules.close();
           const loginClose = logins.close();
           pill?.stop();
+          // No more questions; a Folder change in progress completes.
+          const settingsClose = settings?.stop();
           await server.stop(true);
           // An upload cut off by the stop removes its temporary file first.
           await files.close();
           await shell?.stop();
           await health?.stop(true);
           await loginClose;
+          await settingsClose;
           const result = applicationClose
             ? await applicationClose
             : Object.freeze({ kind: "closed" as const });

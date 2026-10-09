@@ -122,6 +122,37 @@ const en = {
   toolsEnabled: "Enabled",
   toolsDisabled: "Not enabled",
   toolsAlwaysOn: "Always on",
+  // A tool the Organization decides on its Environment (root decision 0194,
+  // decision F45).
+  toolsOrganizationOff: "The Organization does not allow {name} here.",
+  toolsOrganizationKept:
+    "Your choice is kept: once the Organization allows it, agents use it again.",
+  toolsOrganizationAllows: "The Organization allows it.",
+  toolsOrganizationLocked: "Set by the Organization",
+  toolsOrganizationLockedNamed: "Set by the Organization: {name}",
+  toolsOrganizationDetails: "Organization settings",
+  toolsOrganizationHow:
+    "Only the Organization's Admin can change it, in the Organization's settings.",
+  toolsOrganizationFromDashboard:
+    "This Environment asks the Dashboard for them every two minutes.",
+  toolsOrganizationFromRepository:
+    "This Environment reads them from the Organization's repository it holds.",
+  toolsOrganizationVersion: "Version {version}, applied {time}.",
+  toolsOrganizationNotApplied: "Nothing applied yet.",
+  toolsOrganizationChecked: "Last checked {time}.",
+  toolsOrganizationNotChecked: "Not checked yet.",
+  toolsOrganizationUnreachable:
+    "The Dashboard is not answering right now; the settings applied last stay.",
+  toolsOrganizationIdentity:
+    "This Environment cannot identify itself to the Dashboard right now; the settings applied last stay.",
+  toolsOrganizationInvalid:
+    "The Organization's settings are invalid right now and its Admin needs to fix them; the settings applied last stay.",
+  toolsOrganizationRepository:
+    "The Organization's repository here could not be read; the settings applied last stay.",
+  toolsOrganizationState:
+    "The record of the settings applied last could not be read; they are checked again.",
+  toolsOrganizationUnapplied:
+    "Some of the Organization's settings could not be applied here; an agent can find out why.",
   toolsEnable: "Enable",
   toolsDisable: "Disable",
   toolsEnableNamed: "Enable {name}",
@@ -1230,6 +1261,35 @@ const cs: Record<MessageKey, string> = {
   toolsEnabled: "Zapnuto",
   toolsDisabled: "Vypnuto",
   toolsAlwaysOn: "Vždy zapnuto",
+  toolsOrganizationOff: "{name} tu nepovoluje Organizace.",
+  toolsOrganizationKept:
+    "Volba zůstává uložená: až ho Organizace povolí, agenti ho začnou zase používat.",
+  toolsOrganizationAllows: "Organizace ho povoluje.",
+  toolsOrganizationLocked: "Nastavuje Organizace",
+  toolsOrganizationLockedNamed: "Nastavuje Organizace: {name}",
+  toolsOrganizationDetails: "Nastavení Organizace",
+  toolsOrganizationHow:
+    "Změnit to může jen Admin Organizace, v jejím nastavení.",
+  toolsOrganizationFromDashboard:
+    "Tenhle Environment se na ně ptá Dashboardu každé dvě minuty.",
+  toolsOrganizationFromRepository:
+    "Tenhle Environment je čte z repozitáře Organizace, který tu má.",
+  toolsOrganizationVersion: "Verze {version}, použitá {time}.",
+  toolsOrganizationNotApplied: "Zatím se nic nepoužilo.",
+  toolsOrganizationChecked: "Naposledy ověřeno {time}.",
+  toolsOrganizationNotChecked: "Zatím neověřeno.",
+  toolsOrganizationUnreachable:
+    "Dashboard teď neodpovídá; platí naposledy použité nastavení.",
+  toolsOrganizationIdentity:
+    "Tenhle Environment se teď Dashboardu nemůže prokázat; platí naposledy použité nastavení.",
+  toolsOrganizationInvalid:
+    "Nastavení Organizace je teď neplatné a musí ho opravit její Admin; platí naposledy použité nastavení.",
+  toolsOrganizationRepository:
+    "Repozitář Organizace se tu nepodařilo přečíst; platí naposledy použité nastavení.",
+  toolsOrganizationState:
+    "Záznam o naposledy použitém nastavení se nedal přečíst; ověří se znovu.",
+  toolsOrganizationUnapplied:
+    "Některá nastavení Organizace se tu nepodařilo použít; proč, zjistí agent.",
   toolsEnable: "Zapnout",
   toolsDisable: "Vypnout",
   toolsEnableNamed: "Zapnout {name}",
