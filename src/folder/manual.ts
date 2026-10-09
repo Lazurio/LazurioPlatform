@@ -1547,6 +1547,14 @@ function boundaries(preset: PresetName): readonly Text[] {
           "- Organizace: repozitáře žijí v `organizations/<org>/`; každá Organizace je vlastní access hranice a vlastní git repozitář s vlastním `AGENTS.md`.",
           "- Organizations: repositories live under `organizations/<org>/`; each Organization is its own access boundary and its own git repository with its own `AGENTS.md`.",
         ),
+    ...(personalspace === "present"
+      ? [
+          t(
+            "- Práce v jiném Environmentu: když pro Operátora pracuješ přes SSH v Environmentu Organizace, platí tam jeho hranice a jeho `AGENTS.md`, ne tyhle. Jeho prohlížeč a soubory patří Organizaci: Operátorovy osobní věci ani jejich přihlášení do nich nenos.",
+            "- Work in another Environment: when you work for the Operator over SSH in an Organization's Environment, its boundaries and its `AGENTS.md` apply there, not these. Its browser and files belong to the Organization: do not take the Operator's personal matters or their sign-ins there.",
+          ),
+        ]
+      : []),
     providerIdentity === "own-sign-in"
       ? t(
           "- Identita: Operátorova vlastní přihlášení; GitHub je jediná autorita přístupů.",
@@ -1915,6 +1923,7 @@ function operatorClient(
 // Rendered only where the recorded entry has the view.
 function environmentBrowser(preset: PresetName): readonly Text[] {
   const team = preset === "hosted-organization-team";
+  const personal = workspacePreset(preset).personalspace === "present";
   return [
     t("## Prohlížeč Environmentu", "## The Environment browser"),
     t(
@@ -1934,6 +1943,15 @@ function environmentBrowser(preset: PresetName): readonly Text[] {
       '- **Práce v okně.** `agent-browser --cdp 9222 --session <sezení> <příkaz>`: například `open <url>`, `snapshot -i`, `click @e1`, `fill @e2 "text"`, `screenshot <soubor>`, `get url`. Vždy s `--cdp 9222` a svým `--session`: bez `--cdp` by agent-browser spustil vlastní prohlížeč bez přihlášení Environmentu a Operátor by ho neviděl. Nepoužívej `window new` (otevře izolované okno bez přihlášení), `--profile`, `--headed`, `set device` ani `set viewport`: velikost stránky určuje pohled Operátora.',
       "- **Working in the window.** `agent-browser --cdp 9222 --session <session> <command>`: for example `open <url>`, `snapshot -i`, `click @e1`, `fill @e2 \"text\"`, `screenshot <file>`, `get url`. Always with `--cdp 9222` and your `--session`: without `--cdp` agent-browser starts a browser of its own, without the Environment's sign-ins and invisible to the Operator. Do not use `window new` (it opens an isolated window without sign-ins), `--profile`, `--headed`, `set device` or `set viewport`: the Operator's view sets the page size.",
     ),
+    personal
+      ? t(
+          "- **Osobní prohlížeč.** Tenhle prohlížeč patří osobnímu Environmentu: k Operátorovým osobním věcem (osobní e-mail, datová schránka, banka, osobní domény) se přihlašuj tady. Práci pro Organizaci dělej v prohlížeči jejího Environmentu, kam se dostaneš přes SSH (`lazurio browser window` tam), a osobní účty do něj nepřihlašuj.",
+          "- **A personal browser.** This browser belongs to the personal Environment: sign in to the Operator's personal matters here (personal email, the government data box, the bank, personal domains). Do work for an Organization in the browser of its Environment, which you reach over SSH (`lazurio browser window` there), and never sign in to personal accounts there.",
+        )
+      : t(
+          "- **Prohlížeč Organizace.** Tenhle prohlížeč a jeho přihlášení patří Environmentu Organizace: pracuj v něm jen na jejích věcech. Operátorovy osobní věci (osobní e-mail, datová schránka, banka, osobní domény) sem nepatří: nepřihlašuj se k nim tady a nepracuj s nimi tady, patří do jeho osobního Environmentu. Když o ně Operátor požádá tady, řekni mu to a navrhni osobní Environment.",
+          "- **An Organization's browser.** This browser and its sign-ins belong to the Organization's Environment: work in it only on the Organization's matters. The Operator's personal matters (personal email, the government data box, the bank, personal domains) do not belong here: do not sign in to them or work on them here; they belong in their personal Environment. When the Operator asks for one here, tell them so and suggest their personal Environment.",
+        ),
     t(
       "- **Pohled pro Operátora.** Když začneš, pošli Operátorovi odkaz na svou záložku, který vypíše `lazurio browser window`. Otevře ho v pravém panelu ChatGPT Desktopu (dřív Codex Desktop), v pravém panelu webového T3 Code, v pravém panelu Launchpadu, v tabu nebo na telefonu připojeném do tailnetu: jedna jeho záložka je přesně tvoje záložka a pracujete v ní současně, ovládání se nepředává. Holou adresu `https://browser.…/` neposílej, ta vždy otevře novou prázdnou záložku. Okno, které stránka otevře jako pop-up (třeba přihlášení přes Google), Operátor uvidí ve stejné záložce; novou záložku, kterou stránka otevře, mu pohled nabídne. Ve webovém T3 Code se pravý panel na záložce tvého vlákna otevře sám, jakmile začneš s prohlížečem pracovat.",
       "- **The Operator's view.** When you start, send the Operator the link to your tab that `lazurio browser window` prints. They open it in ChatGPT Desktop's right panel (formerly Codex Desktop), in web T3 Code's right panel, in the Launchpad's right panel, in a tab or on a phone on the tailnet: one tab of theirs is exactly your tab, and you both work in it at the same time; control is never handed over. Never send the bare address `https://browser.…/`, which always opens a new blank tab. A window the page opens as a pop-up (Sign in with Google, say) shows in the same tab of the Operator; a new tab the page opens is offered to them by the view. In web T3 Code the right panel opens on your thread's tab by itself as soon as you start browser work.",

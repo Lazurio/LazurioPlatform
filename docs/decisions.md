@@ -5488,6 +5488,30 @@ Decided, within point 6:
 
 Template revision `base-instructions-36`.
 
+**Addendum 2026-10-09 (2): a matter's work happens in the Environment it belongs to.** The
+same day, an agent on the Organization Admin's personal Environment worked in their
+assigned work Environment over SSH. It had them sign in to their personal accounts in that
+Environment's browser: a domain registrar and the government data box. Those sign-ins now
+belong to an Organization's Environment, which can be shared or handed over (root decision
+0192). The work Environment's manual already says personal data and sign-ins never go
+there. But the agent read the personal Environment's manual, and that says nothing about
+work in another Environment.
+
+Decided by the Organization Admin, within point 6:
+1. **The personal Environment's boundaries add work in another Environment.** Over SSH in
+   an Organization's Environment, that Environment's boundaries and `AGENTS.md` apply. Its
+   browser and files belong to the Organization: the Operator's personal matters and their
+   sign-ins stay out.
+2. **The browser section names whose matters belong in this browser.**
+   - A personal Environment's browser is for the Operator's personal matters. An
+     Organization's work goes to the browser of its Environment, never with a personal
+     sign-in.
+   - An Organization's Environment's browser is for its matters only. The agent neither
+     signs in to nor works on the Operator's personal matters there. When asked to, it
+     says so and suggests the personal Environment.
+
+Template revision `base-instructions-37`.
+
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
 **Decided by Matěj 2026-10-06 after the pilot (root decision 0191 points 11–18, plan
