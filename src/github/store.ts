@@ -1,4 +1,4 @@
-import { lstat, readFile, rm } from "node:fs/promises";
+import { lstat, readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { acquireFileLock, type FileLock } from "../platform/flock";
 import { parseUniqueJson } from "../providers/unique-json";
@@ -182,6 +182,81 @@ export async function removeStoredSignIn(
   await syncDirectory(paths.stateDirectory).catch(() => undefined);
 }
 
+// The temporary files of one Organization's writes (`writeDurableFile`).
+const temporaryPattern = (login: string) =>
+  new RegExp(
+    `^\\.${login.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.json\\.tmp-[0-9a-f]{16}$`,
+  );
+
+/** This Organization's temporary files, with the time of the sign-in each
+ * holds when it is a whole, readable one of this Organization (a write killed
+ * after its sync and before its rename), else null; newest first. */
+async function interruptedWrites(
+  paths: PilotPaths,
+  login: string,
+): Promise<{ name: string; time: number | null }[]> {
+  let names: string[];
+  try {
+    names = await readdir(paths.stateDirectory);
+  } catch {
+    return [];
+  }
+  const pattern = temporaryPattern(login);
+  const found: { name: string; time: number | null }[] = [];
+  for (const name of names) {
+    if (!pattern.test(name)) continue;
+    let time: number | null = null;
+    try {
+      const signIn = parseStoredSignIn(
+        parseUniqueJson(
+          await readFile(join(paths.stateDirectory, name), "utf8"),
+        ),
+      );
+      if (sameLogin(signIn.organization.login, login))
+        time = Date.parse(signIn.refreshedAt ?? signIn.signedInAt);
+    } catch {}
+    found.push({ name, time });
+  }
+  return found.sort((a, b) => (b.time ?? -1) - (a.time ?? -1));
+}
+
+/** Under the Organization's lock only (every writer of its file holds it): a
+ * killed refresh may have left the one working pair in a temporary file
+ * while the file still holds the pair GitHub ended. The newest whole one
+ * newer than the file is put in place; every other temporary file of this
+ * Organization goes. Another Organization's files are never touched. */
+async function settleInterruptedWrites(
+  paths: PilotPaths,
+  login: string,
+): Promise<void> {
+  const writes = await interruptedWrites(paths, login);
+  if (writes.length === 0) return;
+  const current = await readStoredSignIn(paths, login);
+  const currentTime =
+    current === null || current === "unreadable"
+      ? Number.NEGATIVE_INFINITY
+      : Date.parse(current.refreshedAt ?? current.signedInAt);
+  const [newest] = writes;
+  const promote =
+    newest?.time != null && newest.time > currentTime ? newest.name : undefined;
+  if (promote !== undefined)
+    await rename(join(paths.stateDirectory, promote), signInFile(paths, login));
+  for (const write of writes)
+    if (write.name !== promote)
+      await rm(join(paths.stateDirectory, write.name), { force: true });
+  await syncDirectory(paths.stateDirectory).catch(() => undefined);
+}
+
+/** Under the Organization's lock: the sign-in as its writes left it, an
+ * interrupted one settled first. */
+export async function readSettledSignIn(
+  paths: PilotPaths,
+  login: string,
+): Promise<StoredSignIn | null | "unreadable"> {
+  await settleInterruptedWrites(paths, login);
+  return readStoredSignIn(paths, login);
+}
+
 /** The kernel lock of one Organization's sign-in (src/platform/flock.ts):
  * held by a refresh, the final write of a sign-in and a sign-out. A crashed
  * holder never blocks the next one; each holder re-reads the file. */
@@ -287,8 +362,9 @@ export async function organizationToken(
       : unavailable("busy");
   }
   try {
-    // Another process may have refreshed while this one waited.
-    const current = settle(await readStoredSignIn(paths, organization.login));
+    // Another process may have refreshed while this one waited, or a killed
+    // one may have left its pair in a temporary file.
+    const current = settle(await readSettledSignIn(paths, organization.login));
     if ("kind" in current) return current;
     if (fresh(current, now(), refreshMarginMs)) return handOut(current, false);
     if (Date.parse(current.refreshTokenExpiresAt) <= now()) {

@@ -6741,7 +6741,11 @@ operator turns the switch on, and every step has its way back.
   unused has ended (`sign-in-expired`); a refresh that does not reach GitHub,
   or a lock another process holds too long, keeps the sign-in and hands out
   the current token while it still works for 30 seconds more, else fails
-  (`unreachable`, `busy`). Nothing ever starts a sign-in inside `gh` or `git`.
+  (`unreachable`, `busy`). A write killed after its sync and before its
+  rename leaves the only working pair in a temporary file; the next locked
+  caller puts the newest whole one in place and removes the others of that
+  Organization (sign-out revokes it too). Nothing ever starts a sign-in
+  inside `gh` or `git`.
 - **gh** (`src/github/launcher.ts`): `lazurio github gh <args>` runs the
   official gh with `GH_TOKEN` of the chosen sign-in in the child's
   environment only, on the caller's terminal, with gh's own exit status;
@@ -6758,15 +6762,27 @@ operator turns the switch on, and every step has its way back.
   otherwise the owning Organization. Help, versions, completion and
   gh's own `config` and `alias` run without a token, also while signed out
   (`tools status` reads `gh --version` through it). `gh auth login`,
-  `refresh`, `switch`, `setup-git`, `token`, `git-credential` and every
-  `--show-token` are refused with the way that applies; `gh auth status` runs
-  with the owning sign-in (T3 Code's discovery sees the person); `gh auth
-  logout` runs without any token, so it removes only a sign-in gh stored
-  itself (a left-over). Another host than github.com is refused. A
-  configured Organization without its sign-in fails closed with exit 4 (gh's
-  own status for a missing sign-in) and the command to sign in; a failure of
-  a command for an unconfigured owner adds one line saying why GitHub may
-  have refused.
+  `refresh`, `switch`, `setup-git` and `token` and every `--show-token`
+  (also `--show-token=…` and short clusters like `-at`) are refused with the
+  way that applies; within `gh auth`, `-h` is the host, never help. A flag
+  before the command, or between `gh auth` and its subcommand, is refused (gh
+  resolves `gh --hostname … auth token` and `gh auth -h … token`, the
+  launcher would not). `gh auth status` runs with the owning sign-in (T3
+  Code's discovery sees the person); `gh auth logout` runs without any token,
+  so it removes only a sign-in gh stored itself (a left-over); `gh auth
+  git-credential` answers as the pilot's Git helper, so a caller that names
+  gh as Git's helper (Lazurio's own content installation does) gets the
+  owner's sign-in, never gh's own. Another host than github.com is refused,
+  so is a URL of a GitHub Enterprise Cloud tenant (`*.ghe.com`) in any
+  command (gh would hand it the token as to github.com), and `gh api` takes a
+  whole URL only of `api.github.com` or `uploads.github.com`. These refusals guard against printing a token by
+  accident (an agent's `gh auth token` into a chat); they are no boundary
+  against the Environment's own user, who can read the sign-in files as gh's
+  own hosts file (an alias or extension can print `GH_TOKEN`). A configured
+  Organization without its sign-in fails closed with exit 4 (gh's own status
+  for a missing sign-in) and the command to sign in; a failure of a command
+  for an unconfigured owner adds one line saying why GitHub may have
+  refused.
 - **Git** (`src/github/credential.ts`): `lazurio github credential get` reads
   Git's request; for `https://github.com` it answers with the sign-in of the
   `path`'s owner (or the owning one) as `username=x-access-token`, the token
@@ -6775,25 +6791,32 @@ operator turns the switch on, and every step has its way back.
   credential) nor prompts on a terminal an agent cannot answer. `store` and
   `erase` do nothing.
 - **Wiring** (`src/github/wiring.ts`): `lazurio github pilot wire`, refused
-  until the owning Organization is signed in, (a) writes the include
-  `pilot.gitconfig` beside the switch (`credential.https://github.com.helper`
-  reset and set to the pilot's helper, `useHttpPath = true`, the two
-  `insteadOf` rewrites) and adds it as `include.path` to the user's global Git
-  configuration; (b) keeps the official gh: a binary at `~/.local/bin/gh` is
-  hard-linked (or copied across filesystems) to the pilot's state directory, a
-  link is remembered, a gh elsewhere on PATH is used where it is; (c) records
-  that in the switch; (d) replaces `~/.local/bin/gh` with a marked launcher
-  script (`exec '<lazurio>' github gh "$@"`) in one rename, so gh exists at
-  every instant; (e) checks that PATH finds the launcher first, else undoes
-  everything (`gh-not-first`). The executable named is the install base's
-  selector for an installed version (it follows updates) or the running file
-  for a pilot build placed by hand; a path a shell line cannot carry safely,
-  or a source checkout run by Bun, is refused. Run again, it repairs the
-  wiring, also after an official gh installer wrote a new gh over the
-  launcher (the new one is kept instead). `lazurio github pilot unwire` gives
-  both back exactly: the kept binary renamed back, the link recreated with its
-  own target, a created launcher removed, the include and its `include.path`
-  removed; an entry replaced since is left alone.
+  until the owning Organization is signed in, (a) keeps the official gh: a
+  binary at `~/.local/bin/gh` is hard-linked (or copied and synced across
+  filesystems) to the pilot's state directory, a link is remembered by its own
+  target (not where it finally leads: a package manager's versioned path
+  behind it changes with each upgrade), a gh elsewhere on PATH is used where
+  it is; (b) records that in the switch, before anything changes; (c) writes
+  the include `pilot.gitconfig` beside the switch
+  (`credential.https://github.com.helper` reset and set to the pilot's helper,
+  `useHttpPath = true`, the two `insteadOf` rewrites) and adds it as
+  `include.path` to the user's global Git configuration; (d) replaces
+  `~/.local/bin/gh` with a marked launcher script (`exec '<lazurio>' github
+  gh "$@"`) in one rename, so gh exists at every instant; (e) checks that
+  PATH finds the launcher first. Any failure after the record undoes a first
+  wiring, the record included (`git-config-failed`, `gh-not-first`); a
+  repair that fails leaves the working wiring as it was and says so. The
+  executable named is the install base's selector for an installed version
+  (it follows updates) or the running file for a pilot build placed by hand;
+  a path a shell line cannot carry safely, or a source checkout run by Bun,
+  is refused. Run again, it repairs the wiring, also after an official gh
+  installer wrote a new gh over the launcher (the new one is kept instead),
+  and refuses (`gh-missing`) when the recorded official gh is gone. `lazurio
+  github pilot unwire` gives both back exactly: the kept binary renamed back,
+  the link recreated with its own target, a created launcher removed, the
+  include and its `include.path` removed; an entry replaced since is left
+  alone. Without a record (an interrupted wire, a switch lost, the pilot off)
+  it still removes what the pilot's marker and include path identify.
 - **Sign-out** (`lazurio github sign-out`): revokes both tokens with `POST
   /credentials/revoke`, which takes no authentication and notifies the
   person, and removes the file even when GitHub does not confirm; the answer
@@ -6828,6 +6851,13 @@ personal or Automated Environments, workstations, Lazurio for GitHub or the
 Organizations' brokers. A browser session on github.com inside the
 Environment's own browser reaches every Organization of the person; the code
 is entered in the person's own browser.
+
+**Known limit: a refresh ends the token in use.** GitHub ends the old access
+token the moment a refresh token is used, so any command that holds it when
+another process refreshes (about every eight hours of use) fails, short or
+long; a refresh never runs while more than ten minutes remain, which makes the
+window rare but not empty. Avoiding it would need the token's users and its
+refresh coordinated across processes; the pilot measures how often it shows.
 
 **Measured on the pilot Environment before any rollout**, as the research's
 verification lists them: that `GET /user/installations` shows only the

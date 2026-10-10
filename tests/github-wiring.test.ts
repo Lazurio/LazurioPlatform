@@ -5,6 +5,7 @@ import {
   mkdir,
   readFile,
   readlink,
+  rm,
   stat,
   symlink,
   writeFile,
@@ -25,6 +26,7 @@ import {
   inspectWiring,
   launcherScript,
   unwire,
+  unwireLeftovers,
   type WiringHost,
   wire,
 } from "../src/github/wiring";
@@ -115,8 +117,21 @@ async function credentialFill(
   env: Record<string, string>,
   github: FakeGithub,
   path: string,
+  helper?: string,
 ) {
-  const child = Bun.spawn(["git", "credential", "fill"], {
+  // `helper`: what Lazurio's own content installation passes when gh is
+  // Git's helper (`-c credential.https://github.com.helper=!"<gh>" auth
+  // git-credential`, the pilot's include reset by the empty one first).
+  const override =
+    helper === undefined
+      ? []
+      : [
+          "-c",
+          "credential.https://github.com.helper=",
+          "-c",
+          `credential.https://github.com.helper=${helper}`,
+        ];
+  const child = Bun.spawn(["git", ...override, "credential", "fill"], {
     env: {
       ...env,
       LAZURIO_TEST_GITHUB_ORIGIN: github.origins.web,
@@ -206,6 +221,16 @@ test("wire keeps the official gh, puts the launcher first and moves Git to HTTPS
   expect(unsigned.exitCode).not.toBe(0);
   expect(unsigned.stdout).not.toContain("password=");
   expect(unsigned.stderr).toContain("not signed in to GitHub for Other");
+  // Git told to ask gh itself, as Lazurio's content installation does: the
+  // launcher answers with the owner's sign-in, never gh's own.
+  const viaGh = await credentialFill(
+    env,
+    github,
+    "Example/app.git",
+    `!${JSON.stringify(join(world.bin, "gh"))} auth git-credential`,
+  );
+  expect(viaGh.exitCode).toBe(0);
+  expect(viaGh.stdout).toContain(`password=${pair.access}\n`);
 
   // gh through the launcher script, a real shell and the kept official gh.
   const recordFile = join(world.root, "gh-record.txt");
@@ -297,7 +322,7 @@ test("a gh found elsewhere is used where it is; the launcher must be found first
       now: Date.now,
       record: late.record,
     }),
-  ).toEqual({ kind: "blocked", reason: "gh-not-first" });
+  ).toEqual({ kind: "blocked", reason: "gh-not-first", repair: false });
   expect(await lstat(join(late.world.bin, "gh")).catch(() => null)).toBeNull();
   const pilot = await readPilot(late.world.paths);
   expect(pilot.kind === "on" && pilot.config.wiring).toBeNull();
@@ -309,10 +334,7 @@ test("what the pilot does not replace stays untouched", async () => {
   await mkdir(join(world.bin, "gh"));
   expect(
     await wire(host, { executable, current: null, now: Date.now, record }),
-  ).toEqual({
-    kind: "blocked",
-    reason: "gh-entry-unsupported",
-  });
+  ).toEqual({ kind: "blocked", reason: "gh-entry-unsupported", repair: false });
   expect((await stat(join(world.bin, "gh"))).isDirectory()).toBe(true);
   // A path a shell line cannot carry safely, or no executable at all.
   for (const candidate of [
@@ -329,6 +351,7 @@ test("what the pilot does not replace stays untouched", async () => {
     ).toEqual({
       kind: "blocked",
       reason: "executable-unsupported",
+      repair: false,
     });
   expect(await lstat(world.paths.gitInclude).catch(() => null)).toBeNull();
 });
@@ -394,4 +417,115 @@ test("the launcher answers for gh while the sign-in is gone: local commands only
   const filled = await credentialFill(env, github, "Example/app.git");
   expect(filled.exitCode).not.toBe(0);
   expect(filled.stdout).not.toContain("password=");
+});
+
+test("a link is recorded by its own target, which survives an upgrade behind it", async () => {
+  const { host, world, executable, record } = await setup("absent");
+  // ~/.local/bin/gh → <prefix>/bin/gh → <prefix>/Cellar/gh/<version>/bin/gh
+  const prefix = join(world.root, "prefix");
+  const versioned = await fakeGh(join(prefix, "Cellar", "gh", "2.97.0", "bin"));
+  await mkdir(join(prefix, "bin"), { recursive: true });
+  await symlink(versioned, join(prefix, "bin", "gh"));
+  await symlink(join(prefix, "bin", "gh"), join(world.bin, "gh"));
+  const outcome = await wire(host, {
+    executable,
+    current: null,
+    now: Date.now,
+    record,
+  });
+  expect(outcome.kind === "wired" && outcome.wiring.gh).toEqual({
+    previous: "link",
+    real: join(prefix, "bin", "gh"),
+    target: join(prefix, "bin", "gh"),
+  });
+});
+
+test("a repair never keeps an official gh that is gone", async () => {
+  const { host, executable, official, record } = await setup("absent");
+  const first = await wire(host, {
+    executable,
+    current: null,
+    now: Date.now,
+    record,
+  });
+  if (first.kind !== "wired") throw new Error("not wired");
+  await rm(official);
+  expect(
+    await wire(host, {
+      executable,
+      current: first.wiring,
+      now: Date.now,
+      record,
+    }),
+  ).toEqual({ kind: "blocked", reason: "gh-missing", repair: true });
+});
+
+test("a wiring that fails after its record is undone, record included", async () => {
+  const { host, world, executable, record } = await setup("file");
+  const original = await readFile(join(world.bin, "gh"), "utf8");
+  // Git's global configuration cannot be written: a directory in its place.
+  await mkdir(join(world.home, ".gitconfig"));
+  expect(
+    await wire(host, { executable, current: null, now: Date.now, record }),
+  ).toEqual({ kind: "blocked", reason: "git-config-failed", repair: false });
+  expect(await readFile(join(world.bin, "gh"), "utf8")).toBe(original);
+  expect(await lstat(world.paths.savedGh).catch(() => null)).toBeNull();
+  const pilot = await readPilot(world.paths);
+  expect(pilot.kind === "on" && pilot.config.wiring).toBeNull();
+});
+
+test("what a wiring without its record left is cleaned up, also with the pilot off", async () => {
+  const { host, world, env, executable, record } = await setup("file");
+  const original = await readFile(join(world.bin, "gh"), "utf8");
+  const outcome = await wire(host, {
+    executable,
+    current: null,
+    now: Date.now,
+    record,
+  });
+  if (outcome.kind !== "wired") throw new Error("not wired");
+  // The switch is lost (removed by hand): only the marker and the include
+  // path identify what the pilot left.
+  await rm(world.paths.config);
+  expect(await unwireLeftovers(host)).toEqual({
+    gh: "restored",
+    git: "removed",
+  });
+  expect(await readFile(join(world.bin, "gh"), "utf8")).toBe(original);
+  expect(await githubCredentialHelpers(host)).toEqual([]);
+  const url = await git(env, [
+    "ls-remote",
+    "--get-url",
+    "git@github.com:Example/app.git",
+  ]);
+  expect(url.stdout.trim()).toBe("git@github.com:Example/app.git");
+  expect(await unwireLeftovers(host)).toEqual({ gh: "none", git: "none" });
+});
+
+test("a repair that fails leaves the working wiring as it is", async () => {
+  const { host, world, env, executable, record } = await setup("file");
+  const first = await wire(host, {
+    executable,
+    current: null,
+    now: Date.now,
+    record,
+  });
+  if (first.kind !== "wired") throw new Error("not wired");
+  // The include path removed by hand, and Git's configuration now unwritable.
+  await git(env, ["config", "--global", "--unset-all", "include.path"]);
+  await rm(join(world.home, ".gitconfig"), { force: true });
+  await mkdir(join(world.home, ".gitconfig"));
+  expect(
+    await wire(host, {
+      executable,
+      current: first.wiring,
+      now: Date.now,
+      record,
+    }),
+  ).toEqual({ kind: "blocked", reason: "git-config-failed", repair: true });
+  expect(await readFile(join(world.bin, "gh"), "utf8")).toBe(
+    launcherScript(executable),
+  );
+  const pilot = await readPilot(world.paths);
+  expect(pilot.kind === "on" && pilot.config.wiring).toEqual(first.wiring);
 });

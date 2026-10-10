@@ -666,7 +666,9 @@ Environment.
   adds the pilot's include to the user's global Git configuration (the helper
   for `https://github.com`, `useHttpPath`, `insteadOf` for `git@github.com:`
   and `ssh://git@github.com/`). `pilot unwire` gives both back exactly as they
-  were. While wired, `lazurio tools login gh` and `tools logout gh` are
+  were, and cleans up what an interrupted wiring left even without its
+  record or with the pilot off. While wired, `lazurio tools login gh` and
+  `tools logout gh` are
   refused (`github-sign-in-pilot`): before wiring they are the migration step
   (`tools logout gh` removes this Environment's SSH key from the account and
   gh's own sign-in) and afterwards the rollback.
@@ -700,7 +702,9 @@ renew, or that was not used for six months, ends and asks to sign in again.
 without its sign-in fails closed with the command that signs in (gh exit 4,
 Git `quit=1` so it neither asks another helper nor prompts), and a repository
 of another owner gets the owning Organization's sign-in, whose private
-resources GitHub refuses.
+resources GitHub refuses. `gh auth git-credential` answers as the pilot's
+helper, so Git told to ask gh (Lazurio's own content installation does) gets
+the same answer.
 
 ### The standard path (decision 0161, point 6)
 

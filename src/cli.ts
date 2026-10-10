@@ -186,6 +186,20 @@ async function operateServiceApplication(input: unknown) {
   }
 }
 
+// A Git credential request on stdin: a few lines; anything over 64 KiB is
+// not one.
+async function readCredentialRequest(): Promise<string | null> {
+  const chunks: Buffer[] = [];
+  let length = 0;
+  for await (const chunk of process.stdin) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    length += buffer.byteLength;
+    if (length > 65_536) return null;
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 // The GitHub sign-in pilot's gh launcher (decision F46): gh's own terminal,
 // output and exit status; only refusals of the launcher are its own.
 async function runGithubLauncher(args: string[]): Promise<number> {
@@ -205,6 +219,9 @@ async function runGithubLauncher(args: string[]): Promise<number> {
       readOrigin: () => checkoutOrigin(process.env),
       runGh: runInherited,
       writeStderr: (text) => process.stderr.write(text),
+      // A request over the bound answers like an unknown one: nothing.
+      readStdin: async () => (await readCredentialRequest()) ?? "",
+      writeStdout: (text) => process.stdout.write(text),
     });
   } catch {
     console.error("gh (Lazurio): the launcher failed.");
@@ -215,15 +232,8 @@ async function runGithubLauncher(args: string[]): Promise<number> {
 // Git's credential helper of the pilot: Git's protocol on stdin and stdout,
 // nothing else on stdout ever (https://git-scm.com/docs/git-credential).
 async function runGithubCredential(args: string[]): Promise<number> {
-  const chunks: Buffer[] = [];
-  let length = 0;
-  for await (const chunk of process.stdin) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    length += buffer.byteLength;
-    // A request is a few lines; anything larger is not one.
-    if (length > 65_536) return 1;
-    chunks.push(buffer);
-  }
+  const request = await readCredentialRequest();
+  if (request === null) return 1;
   const paths = pilotPaths(process.env);
   if (args.length !== 1 || paths === undefined) {
     if (args[0] === "get") process.stdout.write("quit=1\n");
@@ -232,7 +242,7 @@ async function runGithubCredential(args: string[]): Promise<number> {
   try {
     const { stdout, code } = await credentialHelper(
       args[0] as string,
-      Buffer.concat(chunks).toString("utf8"),
+      request,
       {
         paths,
         http: githubHttp(),

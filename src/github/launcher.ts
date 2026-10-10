@@ -3,7 +3,12 @@ import { constants } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
 import { constants as osConstants } from "node:os";
 import { resolveOnPath } from "../tools/status";
-import { chooseOrganization, foreignNotice, tokenAdvice } from "./credential";
+import {
+  chooseOrganization,
+  credentialHelper,
+  foreignNotice,
+  tokenAdvice,
+} from "./credential";
 import type { GithubHttp } from "./oauth";
 import { OwnerSelectionError, ownerOfGhCommand, ownerOfRemote } from "./owner";
 import { type PilotPaths, readPilot } from "./pilot";
@@ -16,10 +21,16 @@ import { launcherMarker } from "./wiring";
 // child's environment only (owner.ts says which owner), and nothing else
 // changes for gh: its arguments, its own configuration, its output and its
 // exit status are the official ones, and GitHub decides what the token may
-// do. Three things are not gh's own here: the `gh auth` commands that would
+// do. Four things are not gh's own here: the `gh auth` commands that would
 // sign in or print a token (the sign-in is `lazurio github sign-in`), a host
-// other than github.com, and an owner whose configured sign-in is missing,
-// which fails closed with what to do instead of falling back to anything.
+// other than github.com, an owner whose configured sign-in is missing, which
+// fails closed with what to do instead of falling back to anything, and
+// `gh auth git-credential`, which answers Git as the pilot's helper does (a
+// caller that names gh as Git's helper, Lazurio's own content installation
+// among them, gets the owner's sign-in, never gh's own). The refusals guard
+// against printing a token by accident; they are no boundary against the
+// Environment's own user, who can read the sign-in files as gh's own hosts
+// file.
 
 export type LauncherHost = Readonly<{
   env: Readonly<Record<string, string | undefined>>;
@@ -37,6 +48,9 @@ export type LauncherHost = Readonly<{
     env: Readonly<Record<string, string>>,
   ) => Promise<number>;
   writeStderr: (text: string) => void;
+  /** `gh auth git-credential`: Git's request and the answer for Git. */
+  readStdin: () => Promise<string>;
+  writeStdout: (text: string) => void;
 }>;
 
 // The variables of other credentials, which never reach the official gh
@@ -80,7 +94,6 @@ const refusedAuth = new Set([
   "switch",
   "setup-git",
   "token",
-  "git-credential",
 ]);
 
 export type LauncherClass =
@@ -88,10 +101,41 @@ export type LauncherClass =
   /** `gh auth logout`: removes a sign-in gh stored itself, which on a
    * pilot Environment is always a left-over account-wide one. */
   | "logout"
+  /** `gh auth git-credential <action>`: answered by the pilot's helper. */
+  | "git-credential"
   | "refused-auth"
   | "refused-token"
+  /** A flag before the command (`gh --hostname … auth token`): gh resolves
+   * the command after it, the launcher would not. */
+  | "refused-order"
   | "refused-host"
   | "account";
+
+const isShowToken = (argument: string) =>
+  argument === "--show-token" || argument.startsWith("--show-token=");
+// `-t`, `-at`, `-t=true`: gh auth's short `--show-token` in a cluster.
+const isShortShowToken = (argument: string) =>
+  /^-[A-Za-z]*t[A-Za-z]*(?:=.*)?$/.test(argument);
+
+/** The host a command names, from `--hostname` (and `-h` within `gh auth`,
+ * where it is the host, not help). */
+function namedHosts(own: readonly string[], auth: boolean): string[] {
+  const hosts: string[] = [];
+  for (let index = 0; index < own.length; index += 1) {
+    const argument = own[index] as string;
+    if (argument === "--hostname" || (auth && argument === "-h")) {
+      const value = own[index + 1];
+      if (value !== undefined) hosts.push(value);
+      index += 1;
+    } else if (argument.startsWith("--hostname="))
+      hosts.push(argument.slice("--hostname=".length));
+    else if (auth && argument.startsWith("-h=")) hosts.push(argument.slice(3));
+  }
+  return hosts;
+}
+
+// Where `gh api` may send the token when it is given a whole URL.
+const apiOrigins = ["https://api.github.com/", "https://uploads.github.com/"];
 
 export function classifyGh(
   args: readonly string[],
@@ -100,8 +144,35 @@ export function classifyGh(
   const end = args.indexOf("--");
   const own = end === -1 ? args : args.slice(0, end);
   const [command, subcommand] = own;
-  if (own.includes("--show-token")) return "refused-token";
-  if (command === "auth" && own.includes("-t")) return "refused-token";
+  if (own.some(isShowToken)) return "refused-token";
+  // Only help and the version may come before the command.
+  if (
+    command?.startsWith("-") &&
+    !["--version", "--help", "-h"].includes(command)
+  )
+    return "refused-order";
+  const host = env.GH_HOST;
+  const foreignHost = (hosts: readonly string[]) =>
+    hosts.some((value) => value.toLowerCase() !== "github.com");
+  if (command === "auth") {
+    // gh resolves the subcommand after a flag too (`gh auth -h github.com
+    // token`): only a lone help may come first.
+    if (subcommand?.startsWith("-"))
+      return own.length === 2 && ["--help", "-h"].includes(subcommand)
+        ? "local"
+        : "refused-order";
+    // Within gh auth, -h is --hostname, never help.
+    if (own.slice(2).some(isShortShowToken)) return "refused-token";
+    if (subcommand === "git-credential") return "git-credential";
+    if (subcommand === "logout") return "logout";
+    if (subcommand !== undefined && refusedAuth.has(subcommand))
+      return "refused-auth";
+    if (subcommand !== "status" || own.includes("--help")) return "local";
+    return (host !== undefined && host !== "" && foreignHost([host])) ||
+      foreignHost(namedHosts(own, true))
+      ? "refused-host"
+      : "account";
+  }
   // Needs no account and no host: runs whatever GH_HOST says.
   if (
     command === undefined ||
@@ -110,26 +181,32 @@ export function classifyGh(
     own.includes("-h")
   )
     return "local";
-  const host = env.GH_HOST;
-  if (host !== undefined && host !== "" && host.toLowerCase() !== "github.com")
+  if (host !== undefined && host !== "" && foreignHost([host]))
     return "refused-host";
-  for (let index = 0; index < own.length; index += 1) {
-    const argument = own[index] as string;
-    const value =
-      argument === "--hostname"
-        ? own[index + 1]
-        : argument.startsWith("--hostname=")
-          ? argument.slice("--hostname=".length)
-          : undefined;
-    if (value !== undefined && value.toLowerCase() !== "github.com")
-      return "refused-host";
-  }
-  if (command === "auth") {
-    if (subcommand === "logout") return "logout";
-    if (subcommand !== undefined && refusedAuth.has(subcommand))
-      return "refused-auth";
-    if (subcommand !== "status") return "local";
-  }
+  if (foreignHost(namedHosts(own, false))) return "refused-host";
+  // A URL of a GitHub Enterprise Cloud tenant, to which gh would hand the
+  // token as to github.com (`gh pr view https://<tenant>.ghe.com/…`). Not a
+  // general URL check: `--body https://…` is a value.
+  if (
+    own.some((argument) =>
+      /^https?:\/\/[^/]*\.ghe\.com(?::\d+)?(?:\/|$)/i.test(argument),
+    )
+  )
+    return "refused-host";
+  // A whole URL given to gh api: GitHub's API only.
+  if (
+    command === "api" &&
+    own
+      .slice(1)
+      .some(
+        (argument) =>
+          /^https?:\/\//i.test(argument) &&
+          !apiOrigins.some((origin) =>
+            argument.toLowerCase().startsWith(origin),
+          ),
+      )
+  )
+    return "refused-host";
   return "account";
 }
 
@@ -168,6 +245,23 @@ export async function runGhLauncher(
 ): Promise<number> {
   const say = (message: string) =>
     host.writeStderr(`gh (Lazurio): ${message}\n`);
+  const classification = classifyGh(args, host.env);
+  // Git's helper protocol needs no gh at all, and answers as the pilot's
+  // helper does, also while the pilot is off (`quit=1`).
+  if (classification === "git-credential") {
+    const { stdout, code } = await credentialHelper(
+      args[2] ?? "",
+      await host.readStdin(),
+      {
+        paths: host.paths,
+        http: host.http,
+        now: host.now,
+        writeStderr: host.writeStderr,
+      },
+    );
+    host.writeStdout(stdout);
+    return code;
+  }
   const pilot = await readPilot(host.paths);
   if (pilot.kind !== "on") {
     say(
@@ -187,7 +281,6 @@ export async function runGhLauncher(
     );
     return 1;
   }
-  const classification = classifyGh(args, host.env);
   switch (classification) {
     case "local":
     case "logout":
@@ -199,6 +292,9 @@ export async function runGhLauncher(
       return 1;
     case "refused-token":
       say("tokens are never printed in this Environment.");
+      return 1;
+    case "refused-order":
+      say("put the command first: gh <command> [flags].");
       return 1;
     case "refused-host":
       say("the GitHub sign-in pilot serves github.com only.");

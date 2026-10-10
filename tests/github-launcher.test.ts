@@ -54,10 +54,12 @@ function launcher(
     env?: Record<string, string>;
     origin?: string | null;
     exit?: number;
+    stdin?: string;
   } = {},
 ) {
   const calls: Call[] = [];
   const stderr: string[] = [];
+  const stdout: string[] = [];
   const host: LauncherHost = {
     env: {
       ...world.env,
@@ -73,10 +75,13 @@ function launcher(
       return extra.exit ?? 0;
     },
     writeStderr: (text) => stderr.push(text),
+    readStdin: async () => extra.stdin ?? "",
+    writeStdout: (text) => stdout.push(text),
   };
   return {
     calls,
     stderr,
+    stdout,
     run: (args: string[]) => runGhLauncher(args, host),
     gh,
   };
@@ -99,7 +104,59 @@ test("what the launcher runs without an account, refuses, or gives an account", 
     [["auth", "switch"], {}, "refused-auth"],
     [["auth", "setup-git"], {}, "refused-auth"],
     [["auth", "token"], {}, "refused-auth"],
-    [["auth", "git-credential", "get"], {}, "refused-auth"],
+    // Answered by the pilot's helper (Git names gh as its helper).
+    [["auth", "git-credential", "get"], {}, "git-credential"],
+    // Within gh auth, -h is the host, never help.
+    [["auth", "login", "-h", "github.com", "-w"], {}, "refused-auth"],
+    [["auth", "setup-git", "-h", "github.com"], {}, "refused-auth"],
+    [["auth", "refresh", "-h", "github.com", "-s", "repo"], {}, "refused-auth"],
+    [["auth", "token", "-h", "github.com"], {}, "refused-auth"],
+    [["auth", "status", "-h", "github.com"], {}, "account"],
+    [["auth", "status", "-h", "ghe.example.com"], {}, "refused-host"],
+    [["auth", "status", "--show-token=true"], {}, "refused-token"],
+    [["auth", "status", "-at"], {}, "refused-token"],
+    [["auth", "status", "-t=true"], {}, "refused-token"],
+    // A flag between auth and its subcommand: gh resolves it, the launcher
+    // would not.
+    [["auth", "-h", "github.com", "token"], {}, "refused-order"],
+    [["auth", "--hostname", "github.com", "setup-git"], {}, "refused-order"],
+    [["auth", "-h", "github.com", "login", "--web"], {}, "refused-order"],
+    [["auth", "--help"], {}, "local"],
+    [["auth", "-h"], {}, "local"],
+    // A GitHub Enterprise Cloud tenant's URL in any command.
+    [
+      ["pr", "view", "https://tenant.ghe.com/Example/app/pull/1"],
+      {},
+      "refused-host",
+    ],
+    [
+      ["repo", "clone", "https://Tenant.GHE.com/Example/app"],
+      {},
+      "refused-host",
+    ],
+    [
+      ["issue", "create", "--body", "https://example.com/report"],
+      {},
+      "account",
+    ],
+    // gh resolves a command after a leading flag; the launcher would not.
+    [["--hostname", "github.com", "auth", "token"], {}, "refused-order"],
+    [["-R", "Example/app", "pr", "list"], {}, "refused-order"],
+    // A whole URL for gh api: GitHub's API only.
+    [["api", "https://api.github.com/user"], {}, "account"],
+    [
+      ["api", "https://uploads.github.com/repos/Example/app/releases/1/assets"],
+      {},
+      "account",
+    ],
+    [["api", "https://api.tenant.ghe.com/user"], {}, "refused-host"],
+    [["api", "http://api.github.com/user"], {}, "refused-host"],
+    // A URL as a field value is a value.
+    [
+      ["api", "repos/Example/app/issues", "-f", "body=https://example.com"],
+      {},
+      "account",
+    ],
     [["auth", "status", "--show-token"], {}, "refused-token"],
     [["auth", "status", "-t"], {}, "refused-token"],
     [["api", "user", "--show-token"], {}, "refused-token"],
@@ -228,6 +285,36 @@ test("local commands work while signed out; refusals never run gh", async () => 
   expect(run.stderr.join("")).toContain("repositories of different owners");
 });
 
+test("gh auth git-credential answers Git with the owner's sign-in, never gh's own", async () => {
+  const { github, world, gh, example, other } = await setup();
+  const request = (path: string) =>
+    `protocol=https\nhost=github.com\npath=${path}\n\n`;
+  const forOther = launcher(world, github, gh, {
+    stdin: request("Other/app.git"),
+  });
+  expect(await forOther.run(["auth", "git-credential", "get"])).toBe(0);
+  expect(forOther.stdout.join("")).toContain(`password=${other.access}\n`);
+  expect(forOther.calls).toEqual([]);
+  const forExample = launcher(world, github, gh, {
+    stdin: request("Example/app.git"),
+  });
+  expect(await forExample.run(["auth", "git-credential", "get"])).toBe(0);
+  expect(forExample.stdout.join("")).toContain(`password=${example.access}\n`);
+  // store and erase keep nothing.
+  const store = launcher(world, github, gh, {
+    stdin: request("Example/app.git"),
+  });
+  expect(await store.run(["auth", "git-credential", "store"])).toBe(0);
+  expect(store.stdout.join("")).toBe("");
+  // Signed out: Git stops, never falls back.
+  await removeStoredSignIn(world.paths, "Other");
+  const signedOut = launcher(world, github, gh, {
+    stdin: request("Other/app.git"),
+  });
+  expect(await signedOut.run(["auth", "git-credential", "get"])).toBe(0);
+  expect(signedOut.stdout.join("")).toBe("quit=1\n");
+});
+
 test("without the pilot or the official gh, the launcher refuses", async () => {
   const github = startFakeGithub();
   const world = await pilotWorld({ preset: null });
@@ -245,6 +332,8 @@ test("without the pilot or the official gh, the launcher refuses", async () => {
     readOrigin: async () => null,
     runGh: async () => 0,
     writeStderr: (text) => missing.push(text),
+    readStdin: async () => "",
+    writeStdout: () => {},
   });
   expect(code).toBe(1);
   expect(missing.join("")).toContain("the official gh is not on PATH");
@@ -266,6 +355,8 @@ test("the official gh runs on this terminal with its own exit status", async () 
     readOrigin: async () => null,
     runGh: runInherited,
     writeStderr: () => {},
+    readStdin: async () => "",
+    writeStdout: () => {},
   });
   expect(
     await runGhLauncher(["pr", "view", "12", "-R", "Example/app"], host("0")),
