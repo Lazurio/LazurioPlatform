@@ -19,6 +19,7 @@ import {
 import { browserExtensionDigest } from "../src/browser/people/extension";
 import {
   browserCdpPort,
+  browserProfileDirectory,
   browserUnit,
   browserViewUnit,
   displayUnit,
@@ -115,10 +116,15 @@ const browserLines = [
   "Type=simple",
   "Environment=DISPLAY=:1",
   `Environment=LAZURIO_BROWSER_EXTENSION=${browserExtensionDigest}`,
+  "ExecStartPre=-/bin/rm -rf %h/.local/share/lazurio-browser/profile/Default/Sessions",
   'ExecStart=/bin/sh -c \'b=$$(ls -d %h/.agent-browser/browsers/chrome-*/chrome %h/.agent-browser/browsers/chrome-*/chrome-linux64/chrome 2>/dev/null | sort -V | tail -n 1); [ -x "$$b" ] || exit 78; exec "$$b" --user-data-dir=%h/.local/share/lazurio-browser/profile --remote-debugging-port=9222 --no-first-run --no-default-browser-check --password-store=basic --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --hide-crash-restore-bubble --window-size=1280,900 --deny-permission-prompts --load-extension=%h/.local/share/lazurio-browser/extension --disable-features=DisableLoadExtensionCommandLineSwitch about:blank\'',
   "Restart=always",
   "RestartSec=3",
   "RestartPreventExitStatus=78",
+  "MemoryHigh=25%",
+  "MemoryMax=30%",
+  "OOMPolicy=continue",
+  "OOMScoreAdjust=250",
   "",
   "[Install]",
   "WantedBy=default.target",
@@ -148,6 +154,94 @@ test("the three units render the screen, the browser with its extension and the 
   // DevTools is never exposed: no address flag, so Chrome binds loopback.
   expect(renderBrowserUnit()).not.toContain("remote-debugging-address");
   expect(browserCdpPort).toBe(9222);
+});
+
+// Root decision 0195 point 4 (plan DEV-6656): on 2026-10-10 a work Remote
+// Environment of 8 GiB froze. The kernel killed one process of the browser,
+// systemd's default OOMPolicy=stop then stopped the whole browser, and Chrome
+// came back with every tab of the last session, so memory was full again
+// within two minutes. The browser now has a budget of its own, a lost tab costs
+// only that tab, and a restarted browser opens none of the old tabs.
+function serviceDirectives(unit: string): Map<string, string> {
+  const directives = new Map<string, string>();
+  const service = unit.slice(unit.indexOf("[Service]"), unit.indexOf("[Install]"));
+  for (const line of service.split("\n")) {
+    const split = line.indexOf("=");
+    if (split > 0) directives.set(line.slice(0, split), line.slice(split + 1));
+  }
+  return directives;
+}
+
+test("the browser has a memory budget of its own, well below half the Environment's memory, and an exhausted budget costs a tab, not the browser", () => {
+  const directives = serviceDirectives(renderBrowserUnit());
+  const percent = (name: string) => {
+    const value = directives.get(name) ?? "";
+    expect(value).toMatch(/^\d+%$/);
+    return Number.parseInt(value, 10);
+  };
+  // Relative to the Environment's memory, so a larger Environment gives its
+  // browser more without another unit text. Reclaim and slow down first, then
+  // a hard limit well below half of the Environment.
+  expect(percent("MemoryHigh")).toBeLessThan(percent("MemoryMax"));
+  expect(percent("MemoryMax")).toBeLessThanOrEqual(30);
+  // A process the kernel kills inside the budget (a tab's renderer) ends that
+  // tab, not the unit: systemd's default (stop) would end every window.
+  expect(directives.get("OOMPolicy")).toBe("continue");
+  // The user manager gives every user service 200 and Chrome gives a tab's
+  // renderer 300: the rest of the browser sits between, so the kernel takes a
+  // tab first, then the browser, then a Module, never the other way round.
+  const adjust = Number(directives.get("OOMScoreAdjust"));
+  expect(adjust).toBeGreaterThan(200);
+  expect(adjust).toBeLessThan(300);
+});
+
+// The restorer is Chrome itself. Chrome for Testing 154 on Linux, started with
+// the unit's flags on a profile with a previous session, reopened every tab of
+// it after a clean exit, after SIGTERM (systemd's stop) and, with
+// --hide-crash-restore-bubble, after SIGKILL. With the profile's Sessions
+// directory gone it opened only the unit's about:blank in every case (PR
+// evidence). So the unit removes that directory before each start, and keeps
+// everything else of the profile: the Environment's sign-ins stay.
+test("a restarted browser starts without the previous session's tabs and keeps the Environment's sign-ins", async () => {
+  const home = await temporary("browser-restart-");
+  const profile = browserProfileDirectory(home);
+  const directives = serviceDirectives(renderBrowserUnit());
+  const pre = directives.get("ExecStartPre") ?? "";
+  // Optional ("-"): a browser that comes back with old tabs is better than no
+  // browser at all.
+  expect(pre.startsWith("-")).toBe(true);
+  const command = pre.slice(1).replaceAll("%h", home).split(" ");
+  // The directory removed is the one of the profile Chrome is started with.
+  expect(directives.get("ExecStart")).toContain(
+    `--user-data-dir=${browserProfileDirectory("%h")}`,
+  );
+  const run = async () => {
+    const child = Bun.spawn(command, { stdout: "ignore", stderr: "pipe" });
+    expect(await child.exited).toBe(0);
+  };
+
+  // A fresh profile: nothing to remove, the start goes on.
+  await run();
+
+  const kept = [
+    "Local State",
+    "Default/Preferences",
+    "Default/Cookies",
+    "Default/Login Data",
+    "Default/Local Storage/leveldb/000003.log",
+  ];
+  for (const file of [
+    ...kept,
+    "Default/Sessions/Session_13436112497496356",
+    "Default/Sessions/Tabs_13436008915240832",
+  ]) {
+    await mkdir(join(profile, file, ".."), { recursive: true });
+    await writeFile(join(profile, file), "x");
+  }
+  await run();
+  expect(await readdir(join(profile, "Default"))).not.toContain("Sessions");
+  for (const file of kept)
+    expect(await readFile(join(profile, file), "utf8")).toBe("x");
 });
 
 function recorder(failing: string[] = []) {
@@ -568,6 +662,69 @@ test("a thread's window: the bound one while it is open, otherwise a new window 
   ).rejects.toEqual(new BrowserWindowFailure("window-create-failed"));
 });
 
+// After the browser restarted (its budget ran out, or an update changed its
+// unit), no target id survives and no old tab comes back. A thread whose
+// agent-browser session is still pinned to its old window gets a clear,
+// recoverable answer from agent-browser (`tab_gone`), and `lazurio browser
+// window` gives it a new window of its own: never the start page the restarted
+// browser opened, never another thread's tab.
+test("after the browser restarts, a thread gets a new window of its own, never the start page or an old tab", async () => {
+  const socketDir = await temporary("browser-window-restart-");
+  await writeFile(
+    join(socketDir, "codex-a.target"),
+    JSON.stringify({
+      targetId: "BEFORE_RESTART",
+      url: "https://example.com/",
+      pinned: true,
+    }),
+  );
+  // What the restarted browser has: the unit's about:blank and the window of
+  // another thread that already came back.
+  const restarted = windowSeams({
+    socketDir,
+    targets: ["STARTUP_BLANK", "OTHER_THREAD"],
+  });
+  expect(
+    await ensureThreadWindow("codex-a", "https://example.com/", restarted.seams),
+  ).toEqual({ session: "codex-a", targetId: "NEWTARGET", created: true });
+  expect(restarted.calls[0]).toEqual([
+    "Target.createTarget",
+    {
+      url: "https://example.com/",
+      newWindow: true,
+      width: 1280,
+      height: 900,
+    },
+  ]);
+  // The session is bound to the new window, explicitly, which also ends
+  // agent-browser's tab_gone state; then pinned again.
+  expect(restarted.calls.slice(1)).toEqual([
+    [
+      "/home/operator/.local/bin/agent-browser",
+      "--cdp",
+      "9222",
+      "--session",
+      "codex-a",
+      "--no-pin-tab",
+      "tab",
+      "NEWTARGET",
+    ],
+    [
+      "/home/operator/.local/bin/agent-browser",
+      "--cdp",
+      "9222",
+      "--session",
+      "codex-a",
+      "--pin-tab",
+      "get",
+      "url",
+    ],
+  ]);
+  expect(JSON.stringify(restarted.calls)).not.toMatch(
+    /STARTUP_BLANK|OTHER_THREAD|BEFORE_RESTART/,
+  );
+});
+
 // Review of 24ab283: the Launchpad's view (a T3 thread's panel) and the CLI can
 // ask for the same thread's window at the same moment. Both saw no binding and
 // each created a window; the binding kept the second, the first was orphaned
@@ -667,6 +824,35 @@ test("the Folder opens a new page in a new tab and names T3 Code's preview tools
     expect(text).toContain("`reuseExistingTab: false`");
     expect(text).toContain("`lazurio browser window --session <");
     expect(text).not.toMatch(/web T3 has none|ve webovém T3 nejsou/);
+  }
+});
+
+// The browser lives within its memory budget (root decision 0195 point 4):
+// over it, the kernel ends a tab, or the whole browser restarts without its
+// old tabs. The Folder tells an agent what it then sees and how it goes on:
+// a page that stopped answering is opened again; a window that is gone
+// (agent-browser's `tab_gone`) is replaced by `lazurio browser window`, whose
+// new link goes to the Operator. Never a restart of the browser.
+test("the Folder tells an agent how to go on when the browser lost its tab or restarted", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const text = renderManual({
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationBrowser,
+      profile: presetProfile("hosted-organization-personal", "linux", {
+        locale,
+      }),
+    })["manual/this-machine.md"];
+    const line = text
+      .split("\n")
+      .find((candidate) =>
+        candidate.startsWith(
+          locale === "cs" ? "- **Po ztrátě karty" : "- **After a lost tab",
+        ),
+      );
+    expect(line).toBeDefined();
+    expect(line).toContain("`tab_gone`");
+    expect(line).toContain("`lazurio browser window`");
+    expect(line).toContain("`open <");
   }
 });
 
