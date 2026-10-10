@@ -24,7 +24,8 @@ import {
 // runs in this process and a closed page never cancels it. The Launchpad's
 // start runs the same one where Lazurio's setup moves Executor on (`atStart`,
 // addendum of 2026-10-11), so the status answers a running setup with its
-// job too: the row follows it whoever started it.
+// job too: the row follows it whoever started it. A closing Launchpad starts
+// none: the one place a setup is created asks `closing` last.
 
 export const executorRoutePaths = Object.freeze({
   status: "/api/tools/executor/status",
@@ -51,6 +52,15 @@ const failed: ExecutorAnswer = Object.freeze({
   body: Object.freeze({ error: "operation-failed" }),
 });
 
+const closingAnswer: ExecutorAnswer = Object.freeze({
+  status: 503,
+  body: Object.freeze({
+    kind: "blocked",
+    reason: "closing",
+    tool: "executor",
+  }),
+});
+
 /** A job handle as the page sends it back. */
 export const isExecutorJob = (value: unknown): value is string =>
   typeof value === "string" && /^[0-9a-f]{32}$/.test(value);
@@ -69,12 +79,17 @@ export function createExecutorRoutes(
     host: () => ExecutorHost;
     /** How long a setup request waits before it answers 202. */
     answerWithinMs?: number | undefined;
+    /** Whether the Launchpad is closing: then no setup starts. */
+    closing?: (() => boolean) | undefined;
   }>,
 ) {
   let current: Job | null = null;
 
-  /** The one setup. The start's journals `trigger: "start"`. */
-  function start(trigger?: ExecutorJournalEntry["trigger"]): Job {
+  /** The one setup, or none while the Launchpad closes: asked here, after
+   * whatever its caller waited for. The start's journals `trigger:
+   * "start"`. */
+  function start(trigger?: ExecutorJournalEntry["trigger"]): Job | null {
+    if (options.closing?.() === true) return null;
     const host = options.host();
     const journal = host.journal;
     const started: Job = {
@@ -138,20 +153,27 @@ export function createExecutorRoutes(
         return answer(current);
       }
       // A new setup, or the one that runs: never two at once.
-      if (current === null || current.ended) current = start();
+      if (current === null || current.ended) {
+        const started = start();
+        if (started === null) return closingAnswer;
+        current = started;
+      }
       return answer(current);
     },
     /** After the Launchpad's start (decision F44, addendum of 2026-10-11):
      * the state is read once and, where Lazurio's setup moves Executor on
      * (`setUpAtStart`), the one setup starts as Install starts it. Never
-     * beside a running one and never again: a setup that stops leaves the
-     * row's action. Whether one started; it runs on in the background. */
+     * beside a running one, never once the Launchpad closes (`start` asks
+     * after the read) and never again: a setup that stops leaves the row's
+     * action. Whether one started; it runs on in the background. */
     async atStart(): Promise<boolean> {
       if (current !== null && !current.ended) return false;
       if (!setUpAtStart(await executorStatus(options.host()))) return false;
       // Install may have started one while the state was read.
       if (current !== null && !current.ended) return false;
-      current = start("start");
+      const started = start("start");
+      if (started === null) return false;
+      current = started;
       return true;
     },
     /** The setup that runs or ran last, for tests. */

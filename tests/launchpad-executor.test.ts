@@ -669,6 +669,75 @@ test.skipIf(!posix)(
   60_000,
 );
 
+// Review of #304 at c65f6480: a closing Launchpad starts no setup, neither
+// the start's nor Install's, whatever it was waiting for when it began to
+// close. The one place a setup job is created refuses it.
+test("while the Launchpad closes, no setup starts: Install is refused as closing and the start starts nothing", async () => {
+  const world = await executorWorld();
+  try {
+    const routes = createExecutorRoutes({
+      host: () => world.host,
+      closing: () => true,
+    });
+    expect(await routes.handle("/api/tools/executor/setup")).toEqual({
+      status: 503,
+      body: { kind: "blocked", reason: "closing", tool: "executor" },
+    });
+    expect(await routes.atStart()).toBe(false);
+    await routes.settled();
+    expect(world.registry.requests).toEqual([]);
+    expect(world.journal).toEqual([]);
+    expect(await world.calls("npm.calls")).toEqual([]);
+    // The state is still read.
+    expect(await routes.handle("/api/tools/executor/status")).toMatchObject({
+      status: 200,
+      body: { state: "not-installed" },
+    });
+  } finally {
+    await world.close();
+  }
+}, 30_000);
+
+test.skipIf(!posix)(
+  "a Launchpad that closes while its start still reads Executor's state starts no setup once the read ends",
+  async () => {
+    const world = await executorWorld();
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let reads = 0;
+    // The start's read waits in the host's context until the test lets it go.
+    const s = await session(world, {
+      host: {
+        ...world.host,
+        context: async () => {
+          reads++;
+          await held;
+          return { kind: "supported" as const };
+        },
+      },
+      executorAtStart: async () => true,
+    });
+    try {
+      await until(async () => reads > 0);
+      await s.close();
+      release();
+      // The read goes on to its last question (Codex's entry); a setup would
+      // ask for its first tarball right after it.
+      await until(async () => (await world.calls("codex.calls")).length > 0);
+      await Bun.sleep(500);
+      expect(world.registry.requests).toEqual([]);
+      expect(await world.calls("npm.calls")).toEqual([]);
+      expect(world.journal).toEqual([]);
+    } finally {
+      release();
+      await world.close();
+    }
+  },
+  30_000,
+);
+
 // The row (decision F44, addendum of 2026-10-11): a setup the page did not
 // start, the Launchpad's own after its start or Install in another page, is
 // followed as if Install had been clicked here.

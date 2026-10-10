@@ -6617,9 +6617,12 @@ setup changes.
    starts exactly one setup: the job `POST /api/tools/executor/setup` starts, never
    two at once (`setUpAtStart`, `atStart` of `src/launchpad/executor-routes.ts`).
    `running`, a conflict, `unsupported` and the wrapper of a newer pin start
-   nothing. The start never waits for it and never fails because of it. One
-   attempt per start: a setup that stops is not tried again, and the row offers
-   Install, Update or Repair as before. The journal line is the route's with
+   nothing. The start never waits for it and never fails because of it. A
+   closing Launchpad starts no setup: the one place a setup is created asks it
+   last, after the state was read, so neither the start's nor Install's begins
+   during a close (`503 closing` for Install). One attempt per start: a setup
+   that stops is not tried again, and the row offers Install, Update or Repair
+   as before. The journal line is the route's with
    `"trigger":"start"`.
 3. **The row follows it.** While a setup runs, `POST /api/tools/executor/status`
    answers it as the setup route does, `202 {kind: "executor-setting-up", job,
@@ -6646,8 +6649,9 @@ forever, and report the state with its `next` (`tests/update-install.test.ts`,
 and the report's `next` (`tests/executor-converge.test.ts`); one setup from each
 state the start sets up, the outdated one a real version switch, none for
 `running`, a conflict, `unsupported` and a newer pin, never two at once, no second
-attempt after a failure, a start that a held setup does not hold, the journal line,
-and the row following a setup it did not start
+attempt after a failure, a start that a held setup does not hold, no setup once the
+Launchpad closes (also when it closes while the start reads the state), the journal
+line, and the row following a setup it did not start
 (`tests/launchpad-executor.test.ts`).
 
 ## F45 — Organization settings reach the Environment: asked through its relay, recorded in the Folder, reported back

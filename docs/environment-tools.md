@@ -616,7 +616,8 @@ Remote Environments on Linux only; on this computer it is the second wave
   running setup's `202` below), and
   `POST /api/tools/executor/setup` with `{}` (starts or joins the one setup) or
   `{job}`: `202 {kind: "executor-setting-up", job, phase}` while it runs (`install`,
-  `service`, `agents`), then the state; an unknown job is `404 job-unknown`. The row in
+  `service`, `agents`), then the state; an unknown job is `404 job-unknown`, and a
+  setup asked while the Launchpad closes is `503 closing` (none starts then). The row in
   Settings → Tools says the state in plain words with one action and keeps the
   version, address, service and agents under Details; no link to the console. It
   follows a running setup it did not start. The
