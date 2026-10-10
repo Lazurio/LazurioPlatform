@@ -114,7 +114,11 @@ function scriptedSource(
   return { adapter, asked, sent };
 }
 
-function applying(outcomes: ((values: unknown) => ApplyOutcome)[] = []) {
+/** An apply that answers from a script; past it, or at `undefined`, the
+ * Folder takes the settings and changes. */
+function applying(
+  outcomes: (((values: unknown) => ApplyOutcome) | undefined)[] = [],
+) {
   const calls: unknown[] = [];
   return {
     calls,
@@ -123,6 +127,8 @@ function applying(outcomes: ((values: unknown) => ApplyOutcome)[] = []) {
       const outcome = outcomes[calls.length - 1];
       return (
         outcome?.(delivered.values) ?? {
+          folder: "applied",
+          reason: null,
           items: [{ key, outcome: "applied", detail: null } as SettingsItem],
           changed: true,
         }
@@ -308,6 +314,8 @@ test("after a restart the first answer is applied and reported at once", async (
   const source = scriptedSource([{ kind: "not-modified", version: v1 }]);
   const applied = applying([
     () => ({
+      folder: "applied",
+      reason: null,
       items: [{ key, outcome: "applied", detail: null }],
       changed: false,
     }),
@@ -393,7 +401,7 @@ test("a nudge waits for the answer at most as long as it is told", async () => {
   await settingsPoller.stop();
 });
 
-test("an apply that failed is tried again at the next answer, without a new version", async () => {
+test("a version the Folder refuses with a reason is reported with the failed item, and applied again at the next answer", async () => {
   const clock = fakeClock();
   const source = scriptedSource([
     settings(v1, off),
@@ -402,17 +410,24 @@ test("an apply that failed is tried again at the next answer, without a new vers
   ]);
   const applied = applying([
     () => ({
-      items: [{ key, outcome: "failed", detail: "folder-busy" }],
+      folder: "refused",
+      reason: "folder-drift",
+      items: [{ key, outcome: "failed", detail: "folder-drift" }],
       changed: false,
     }),
   ]);
   const settingsPoller = poller(source.adapter, applied.apply, clock);
   settingsPoller.start();
   await tick(clock, settingsPoller, 1_000);
-  expect(settingsPoller.status().unapplied).toEqual([key]);
-  expect(source.sent.at(-1)?.items).toEqual([
-    { key, outcome: "failed", detail: "folder-busy" },
-  ]);
+  // C2: on the current version, an item did not apply.
+  expect(settingsPoller.status()).toMatchObject({
+    version: v1,
+    unapplied: [key],
+  });
+  expect(source.sent.at(-1)).toMatchObject({
+    version: v1,
+    items: [{ key, outcome: "failed", detail: "folder-drift" }],
+  });
   await tick(clock, settingsPoller, 120_000);
   expect(applied.calls).toEqual([off, off]);
   expect(settingsPoller.status().unapplied).toEqual([]);
@@ -480,6 +495,8 @@ test("a report the Dashboard refuses as invalid is sent again with only what it 
   );
   const applied = applying([
     () => ({
+      folder: "applied",
+      reason: null,
       items: [
         { key, outcome: "applied", detail: null },
         { key: "future.limit", outcome: "unsupported", detail: null },
@@ -535,10 +552,14 @@ test("the Folder changing calls back, so the Launchpad reads its Integrace again
   const source = scriptedSource([settings(v1, off), settings(v2, off)]);
   const applied = applying([
     () => ({
+      folder: "applied",
+      reason: null,
       items: [{ key, outcome: "applied", detail: null }],
       changed: true,
     }),
     () => ({
+      folder: "applied",
+      reason: null,
       items: [{ key, outcome: "applied", detail: null }],
       changed: false,
     }),
@@ -559,5 +580,154 @@ test("the Folder changing calls back, so the Launchpad reads its Integrace again
   await tick(clock, settingsPoller, 1_000);
   await tick(clock, settingsPoller, 120_000);
   expect(changes).toBe(1);
+  await settingsPoller.stop();
+});
+
+// Root decision 0194 point 4, decision F45: an apply that brings no answer
+// of the Folder (it throws, the Folder stays busy, its state cannot be read)
+// never records or reports the new version as applied, says which settings
+// failed and why, and is tried again at the next answer.
+test("an apply that throws keeps the version applied before, reports every governed key failed, and is tried again", async () => {
+  const clock = fakeClock();
+  const source = scriptedSource([
+    settings(v1, off),
+    settings(v2, on),
+    settings(v2, on),
+    { kind: "not-modified", version: v2 },
+  ]);
+  const applied = applying([
+    undefined,
+    () => {
+      throw new Error("an I/O error of the Folder");
+    },
+  ]);
+  const journal: Readonly<Record<string, unknown>>[] = [];
+  const settingsPoller = poller(
+    source.adapter,
+    applied.apply,
+    clock,
+    memoryStateStore(),
+    { journal: (entry) => journal.push(entry) },
+  );
+  settingsPoller.start();
+  await tick(clock, settingsPoller, 1_000);
+  expect(settingsPoller.status()).toMatchObject({ version: v1, unapplied: [] });
+  await tick(clock, settingsPoller, 120_000);
+  expect(applied.calls).toEqual([off, on]);
+  // v1 still applies: not v2, and nothing reads as applied.
+  expect(settingsPoller.status()).toMatchObject({
+    version: v1,
+    appliedAt: "2026-10-09T20:00:01.000Z",
+    error: null,
+    unapplied: [key],
+  });
+  expect(source.sent.at(-1)).toEqual({
+    version: v1,
+    appliedAt: "2026-10-09T20:00:01.000Z",
+    lastError: null,
+    items: [{ key, outcome: "failed", detail: "apply-failed" }],
+    platformVersion: "0.1.9",
+  });
+  // The journal says what happened, never a value of a setting.
+  expect(journal).toContainEqual({
+    scope: "organization-settings",
+    event: "apply-failed",
+    source: "dashboard",
+    version: v2,
+    kept: v1,
+    reason: "apply-failed",
+  });
+  expect(JSON.stringify(journal)).not.toContain('"integrations":');
+  // The next answer asks about v1 again, so v2 comes again and is applied.
+  await tick(clock, settingsPoller, 120_000);
+  expect(source.asked.slice(-1)).toEqual([v1]);
+  expect(applied.calls).toEqual([off, on, on]);
+  expect(settingsPoller.status()).toMatchObject({ version: v2, unapplied: [] });
+  expect(source.sent.at(-1)).toMatchObject({
+    version: v2,
+    items: [{ key, outcome: "applied", detail: null }],
+  });
+  // Converged: a 304 for v2 applies nothing.
+  await tick(clock, settingsPoller, 120_000);
+  expect(applied.calls).toEqual([off, on, on]);
+  await settingsPoller.stop();
+});
+
+test("after a restart a 304 for the same version applies again until the Folder answers", async () => {
+  const clock = fakeClock();
+  const recorded: AppliedState = {
+    source: "dashboard",
+    version: v1,
+    organization: { githubOrgId: 123, login: "Example" },
+    settings: off,
+    unsupported: [],
+    appliedAt: "2026-10-09T19:00:00.000Z",
+    items: [{ key, outcome: "applied", detail: null }],
+    lastError: null,
+    checkedAt: "2026-10-09T19:00:00.000Z",
+  };
+  const source = scriptedSource([{ kind: "not-modified", version: v1 }]);
+  const applied = applying([
+    () => {
+      throw new Error("the Folder's lock");
+    },
+    () => ({
+      folder: "unanswered",
+      reason: "folder-busy",
+      items: [],
+      changed: false,
+    }),
+  ]);
+  const settingsPoller = poller(
+    source.adapter,
+    applied.apply,
+    clock,
+    memoryStateStore(recorded),
+  );
+  settingsPoller.start();
+  await tick(clock, settingsPoller, 1_000);
+  expect(source.sent.at(-1)?.items).toEqual([
+    { key, outcome: "failed", detail: "apply-failed" },
+  ]);
+  // A Folder busy all along, with no item of its own, still fails the key.
+  await tick(clock, settingsPoller, 120_000);
+  expect(source.sent.at(-1)?.items).toEqual([
+    { key, outcome: "failed", detail: "folder-busy" },
+  ]);
+  await tick(clock, settingsPoller, 120_000);
+  expect(applied.calls).toEqual([off, off, off]);
+  expect(settingsPoller.status()).toMatchObject({ version: v1, unapplied: [] });
+  expect(source.sent.at(-1)?.items).toEqual([
+    { key, outcome: "applied", detail: null },
+  ]);
+  await tick(clock, settingsPoller, 120_000);
+  expect(applied.calls).toEqual([off, off, off]);
+  await settingsPoller.stop();
+});
+
+test("lifting a setting that fails without an answer still names the setting it governed before", async () => {
+  const clock = fakeClock();
+  const source = scriptedSource([settings(v1, off), settings(v2, {})]);
+  const applied = applying([
+    undefined,
+    () => ({
+      folder: "unanswered",
+      reason: "folder-unavailable",
+      items: [],
+      changed: false,
+    }),
+  ]);
+  const settingsPoller = poller(source.adapter, applied.apply, clock);
+  settingsPoller.start();
+  await tick(clock, settingsPoller, 1_000);
+  await tick(clock, settingsPoller, 120_000);
+  expect(settingsPoller.status()).toMatchObject({
+    version: v1,
+    unapplied: [key],
+  });
+  expect(source.sent.at(-1)).toMatchObject({
+    version: v1,
+    items: [{ key, outcome: "failed", detail: "folder-unavailable" }],
+  });
   await settingsPoller.stop();
 });

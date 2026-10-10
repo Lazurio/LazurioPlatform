@@ -23,17 +23,30 @@ import { canonicalSettings } from "./governance";
 //
 // Each known setting the Organization governs now, or governed before
 // (so that lifting it is said too), is `applied` when the Folder took it and
-// `failed` with the Folder's reason when it did not (`folder-drift`: someone
-// edited the generated files; `folder-busy`: another operation held the
-// Folder all along; …): what the Environment cannot apply it reports, and an
-// agent can fix it. A key this release does not know is `unsupported`.
+// `failed` with the Folder's reason when it did not: what the Environment
+// cannot apply it reports, and an agent can fix it. A key this release does
+// not know is `unsupported`.
+//
+// How the Folder answered decides what the poller records. The Folder took
+// the settings (`applied`), or refused them with its reason (`refused`; for
+// instance `folder-drift`: someone edited the generated files): the version
+// is processed and its items say how. Or the Folder gave no answer
+// (`unanswered`; `folder-busy`: another operation held it all along;
+// `folder-unavailable`: its state or transaction could not be read or
+// written): nothing new applied, so the version applied before stays.
 
 export type DeliveredValues = Readonly<{
   values: OrganizationSettingsValues;
   unsupported: readonly string[];
 }>;
 
+export type FolderAnswer = "applied" | "refused" | "unanswered";
+
 export type ApplyOutcome = Readonly<{
+  folder: FolderAnswer;
+  /** Why the Folder did not take the settings, a detail code; null when it
+   * did. */
+  reason: string | null;
   items: readonly SettingsItem[];
   /** The Folder was changed (re-rendered). */
   changed: boolean;
@@ -71,6 +84,7 @@ export async function applyOrganizationSettings(
   const sleep = options.sleep ?? ((ms: number) => Bun.sleep(ms));
   const desired = canonicalSettings(delivered.values);
   let previous: OrganizationSettingsValues = {};
+  let folderAnswer: FolderAnswer = "applied";
   let detail: string | null = null;
   let changed = false;
   for (let attempt = 1; ; attempt += 1) {
@@ -78,19 +92,28 @@ export async function applyOrganizationSettings(
       previous = await recordedSettings(folder);
       const result = await recordOrganizationSettings(folder, desired);
       if (result.kind === "updated") changed = true;
-      else if (result.kind === "blocked") detail = `folder-${result.reason}`;
+      else if (result.kind === "blocked") {
+        folderAnswer = "refused";
+        detail = `folder-${result.reason}`;
+      }
       break;
     } catch (error) {
       if (error instanceof FolderOperationBusyError && attempt < attempts) {
         await sleep(250 * attempt);
         continue;
       }
-      detail =
-        error instanceof FolderOperationBusyError
-          ? "folder-busy"
-          : error instanceof FolderAdoptionError
-            ? `folder-${error.code}`
+      // A Folder that cannot be adopted says why; any other failure (busy
+      // all along, state or transaction unreadable, I/O) is no answer.
+      if (error instanceof FolderAdoptionError) {
+        folderAnswer = "refused";
+        detail = `folder-${error.code}`;
+      } else {
+        folderAnswer = "unanswered";
+        detail =
+          error instanceof FolderOperationBusyError
+            ? "folder-busy"
             : "folder-unavailable";
+      }
       break;
     }
   }
@@ -110,5 +133,10 @@ export async function applyOrganizationSettings(
   for (const key of delivered.unsupported)
     if (isSettingKey(key))
       items.push(Object.freeze({ key, outcome: "unsupported", detail: null }));
-  return Object.freeze({ items: Object.freeze(items), changed });
+  return Object.freeze({
+    folder: folderAnswer,
+    reason: detail,
+    items: Object.freeze(items),
+    changed,
+  });
 }

@@ -6524,7 +6524,16 @@ of F42 point 4, under which the Environment always decided Composio.
    record that cannot be read changes nothing that applies; it is said
    (`state_unreadable`), the next question goes without a version and its answer
    writes a new record. A Launchpad without an install base (a development run)
-   keeps it in memory.
+   keeps it in memory. A version is recorded once the Folder answered it: it took
+   it, or refused it with its reason (`folder-drift`: the generated files were
+   edited), whose items are then `failed` and which the next answer applies again.
+   Without the Folder's answer (`folder-busy`: another operation held it all along;
+   `folder-unavailable`: its state, or a change interrupted for `profile-resume`,
+   cannot be read; `apply-failed`: the apply failed unexpectedly) nothing new
+   applied, so the version applied before stays: the new one is never recorded or
+   reported as applied, every setting the apply was about, delivered now or applied
+   before, is `failed` with that reason, and the next answer, a 304 for the same
+   version included, applies again.
 7. **Reports.** To the Dashboard only, C2's exact report of at most 4 KiB
    (unsupported items give way first), after anything it says changes (a new
    version, an item's outcome, the error) and at least every ten minutes, so a

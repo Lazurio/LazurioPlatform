@@ -6,6 +6,7 @@ import {
   readFile,
   realpath,
   rm,
+  rmdir,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -22,7 +23,9 @@ import { bindings } from "./fixtures/machine-bindings";
 // Organization's settings itself, safely again and again, and says how each
 // one turned out. Applying is recording them in the Folder, which renders
 // what they allow; an item the Folder cannot take is `failed` with its
-// reason, a key this release does not know `unsupported`.
+// reason, a key this release does not know `unsupported`. The outcome says
+// how the Folder answered: it took them, refused them with its reason, or
+// gave no answer, after which the poller keeps the version applied before.
 
 const os = executionOs(process.platform);
 const key = "integrations.composio.allowed";
@@ -65,27 +68,47 @@ test.skipIf(process.platform === "win32")(
     const applied = [{ key, outcome: "applied" as const, detail: null }];
     expect(
       await applyOrganizationSettings(folder, { values: off, unsupported: [] }),
-    ).toEqual({ items: applied, changed: true });
+    ).toEqual({
+      folder: "applied",
+      reason: null,
+      items: applied,
+      changed: true,
+    });
     expect(await agents(folder)).not.toContain("- `composio` (");
     // The same settings again: nothing written, still applied.
     expect(
       await applyOrganizationSettings(folder, { values: off, unsupported: [] }),
-    ).toEqual({ items: applied, changed: false });
+    ).toEqual({
+      folder: "applied",
+      reason: null,
+      items: applied,
+      changed: false,
+    });
     // Allowed again: the person's choice is back.
     expect(
       await applyOrganizationSettings(folder, { values: on, unsupported: [] }),
-    ).toEqual({ items: applied, changed: true });
+    ).toEqual({
+      folder: "applied",
+      reason: null,
+      items: applied,
+      changed: true,
+    });
     expect(await agents(folder)).toContain("- `composio` (");
     // No longer governed: removing it applied, and the Folder is as it was.
     expect(
       await applyOrganizationSettings(folder, { values: {}, unsupported: [] }),
-    ).toEqual({ items: applied, changed: true });
+    ).toEqual({
+      folder: "applied",
+      reason: null,
+      items: applied,
+      changed: true,
+    });
     expect("organizationSettings" in (await preferences(folder))).toBe(false);
     expect(await agents(folder)).toBe(original);
     // Nothing governed now or before: nothing to say.
     expect(
       await applyOrganizationSettings(folder, { values: {}, unsupported: [] }),
-    ).toEqual({ items: [], changed: false });
+    ).toEqual({ folder: "applied", reason: null, items: [], changed: false });
   },
 );
 
@@ -98,6 +121,8 @@ test.skipIf(process.platform === "win32")(
     expect(
       await applyOrganizationSettings(folder, { values: off, unsupported: [] }),
     ).toEqual({
+      folder: "refused",
+      reason: "folder-drift",
       items: [{ key, outcome: "failed", detail: "folder-drift" }],
       changed: false,
     });
@@ -106,6 +131,8 @@ test.skipIf(process.platform === "win32")(
     expect(
       await applyOrganizationSettings(folder, { values: off, unsupported: [] }),
     ).toEqual({
+      folder: "applied",
+      reason: null,
       items: [{ key, outcome: "applied", detail: null }],
       changed: true,
     });
@@ -125,6 +152,8 @@ test.skipIf(process.platform === "win32")(
         ],
       }),
     ).toEqual({
+      folder: "applied",
+      reason: null,
       items: [
         { key, outcome: "applied", detail: null },
         { key: "future.limit", outcome: "unsupported", detail: null },
@@ -158,6 +187,8 @@ test.skipIf(process.platform === "win32")(
           },
         ),
       ).toEqual({
+        folder: "unanswered",
+        reason: "folder-busy",
         items: [{ key, outcome: "failed", detail: "folder-busy" }],
         changed: false,
       });
@@ -173,5 +204,36 @@ test.skipIf(process.platform === "win32")(
         })
       ).changed,
     ).toBe(true);
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "a Folder with an interrupted change gives no answer until it is resumed",
+  async () => {
+    const folder = await workFolder();
+    // What a change that stopped half way leaves for `profile-resume`.
+    const transaction = join(folder, ".lazurio", "transaction");
+    await mkdir(transaction, { mode: 0o700 });
+    expect(
+      await applyOrganizationSettings(folder, { values: off, unsupported: [] }),
+    ).toEqual({
+      folder: "unanswered",
+      reason: "folder-unavailable",
+      items: [{ key, outcome: "failed", detail: "folder-unavailable" }],
+      changed: false,
+    });
+    // Unreadable, the Folder cannot say what it governed before.
+    expect(
+      await applyOrganizationSettings(folder, { values: {}, unsupported: [] }),
+    ).toEqual({
+      folder: "unanswered",
+      reason: "folder-unavailable",
+      items: [],
+      changed: false,
+    });
+    await rmdir(transaction);
+    expect(
+      await applyOrganizationSettings(folder, { values: off, unsupported: [] }),
+    ).toMatchObject({ folder: "applied", changed: true });
   },
 );

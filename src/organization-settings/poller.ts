@@ -4,6 +4,8 @@ import {
   type DeliveredValues,
 } from "./apply";
 import {
+  isDetailCode,
+  isSettingKey,
   type ReportError,
   reportErrors,
   type SettingsItem,
@@ -25,7 +27,11 @@ export type { ApplyOutcome } from "./apply";
 // twice within a short while: a storm of page loads asks once), applies a
 // new version itself, and reports. Without an answer the last applied
 // version stays: the Folder keeps what it recorded, and the record of the
-// version says why nothing new came.
+// version says why nothing new came. So it does when the Folder gives no
+// answer to an apply (it throws, stays busy, cannot be read): the version
+// applied before is kept, never recorded or reported as the new one, every
+// setting the apply was about is `failed` with the reason, and the next
+// answer, a 304 included, applies again.
 //
 // The source is the Dashboard through the Environment's relay (contract C3)
 // or, without a relay, the Organization's repository in the Folder; only the
@@ -151,7 +157,8 @@ export function createSettingsPoller(
   async function applyGuarded(
     delivered: DeliveredValues,
   ): Promise<ApplyOutcome> {
-    const work = apply(folder, delivered);
+    // A synchronous throw is a failure like a rejected promise.
+    const work = (async () => apply(folder, delivered))();
     applying = work.then(
       () => undefined,
       () => undefined,
@@ -159,7 +166,13 @@ export function createSettingsPoller(
     try {
       return await work;
     } catch {
-      return { items: [], changed: false };
+      // An apply that fails unexpectedly brought no answer of the Folder.
+      return {
+        folder: "unanswered",
+        reason: "apply-failed",
+        items: [],
+        changed: false,
+      };
     } finally {
       applying = null;
     }
@@ -175,9 +188,52 @@ export function createSettingsPoller(
   ): Promise<AppliedState> {
     const outcome = await applyGuarded(delivered);
     if (outcome.changed) options.onApplied?.();
-    converged = outcome.items.every((item) => item.outcome !== "failed");
+    if (outcome.folder === "unanswered") {
+      // Nothing new applied (root decision 0194 point 4, decision F45): the
+      // record keeps the version applied before, with its settings and
+      // time, and says that every setting this apply was about, delivered
+      // now or applied before, failed and why. Not converged: the next
+      // answer applies again.
+      converged = false;
+      const kept = state ?? blank();
+      const reason = isDetailCode(outcome.reason)
+        ? outcome.reason
+        : "apply-failed";
+      const keys = new Set(
+        [
+          ...outcome.items
+            .filter((item) => item.outcome !== "unsupported")
+            .map((item) => item.key),
+          ...governed(delivered.values),
+          ...governed(kept.settings),
+        ].filter(isSettingKey),
+      );
+      const items: SettingsItem[] = [
+        ...[...keys]
+          .sort()
+          .map(
+            (key): SettingsItem => ({ key, outcome: "failed", detail: reason }),
+          ),
+        ...kept.items.filter(
+          (item) => item.outcome === "unsupported" && !keys.has(item.key),
+        ),
+      ];
+      journal({
+        event: "apply-failed",
+        source: source.kind,
+        version,
+        kept: kept.version,
+        reason,
+      });
+      return { ...kept, items, lastError: null, checkedAt: at };
+    }
+    // The Folder answered: it took the version, or refused it with its
+    // reason, which the items say; a refusal is applied again.
+    converged =
+      outcome.folder === "applied" &&
+      outcome.items.every((item) => item.outcome !== "failed");
     journal({
-      event: "applied",
+      event: outcome.folder === "applied" ? "applied" : "refused",
       source: source.kind,
       version,
       changed: outcome.changed,
