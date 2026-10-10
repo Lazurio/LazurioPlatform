@@ -6,8 +6,9 @@ type Plan = Extract<
   { kind: "declared-runtime-plan" }
 >;
 
-/** The name part of a listener's variables: the id upper-cased, anything but
- * a letter or digit as `_` (the listener grammar allows only `-`). */
+/** The name part of a listener's variables, and of a sibling module's: the
+ * id upper-cased, anything but a letter or digit as `_` (the listener and the
+ * module grammar allow only `-`). */
 export function listenerVariableKey(id: string) {
   return id.toUpperCase().replace(/[^A-Z0-9]/g, "_");
 }
@@ -45,7 +46,8 @@ export function moduleProcessEnvironment(
 // `moduleProcessEnvironment`) and nothing else: no
 // ambient HOST, PORT, NODE_PATH or LAZURIO_RUNTIME_* can reach it, because
 // nothing ambient is read. Every value is derived from the declaration, the
-// application's directory, its Organization root and its external origin.
+// application's directory, its Organization root, its external origin and
+// the declarations of the sibling modules it requires.
 export function applicationEnvironment(input: {
   base: Readonly<Record<string, string>>;
   plan: Pick<Plan, "runtime" | "listeners">;
@@ -56,6 +58,9 @@ export function applicationEnvironment(input: {
   /** The browser origin of the entrypoint on a hosted Machine: exactly
    * `runtime.url` without its slash. None on a workstation. */
   externalOrigin?: string | null | undefined;
+  /** The loopback origins of the sibling modules the application declares,
+   * by module id (`siblingOrigins`); none for a Personalspace module. */
+  siblings?: Readonly<Record<string, string>> | undefined;
 }): Record<string, string> {
   const { runtime, listeners } = input.plan;
   const entrypoint = listeners.find(
@@ -113,6 +118,13 @@ export function applicationEnvironment(input: {
     ] = origin;
     environment.LAZURIO_RUNTIME_EXTERNAL_ORIGIN = origin;
   }
+  // A declared sibling's address for calls from the application's own
+  // process, loopback only, never served to a browser (root decision 0176,
+  // addendum of 2026-10-10; F26 addendum of 2026-10-10).
+  for (const [module, siblingOrigin] of Object.entries(input.siblings ?? {}))
+    environment[
+      `LAZURIO_RUNTIME_SIBLING_${listenerVariableKey(module)}_ORIGIN`
+    ] = siblingOrigin;
   environment.LAZURIO_RUNTIME_LISTENERS_JSON = JSON.stringify(state);
   return environment;
 }

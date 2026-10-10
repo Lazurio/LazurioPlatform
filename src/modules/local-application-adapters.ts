@@ -17,6 +17,7 @@ import type { createApplicationLifecycle } from "./lifecycle";
 import { createOwnerOperations } from "./owner-operations";
 import { inspectPreparationBinding } from "./preparation-binding";
 import { parseProcessLaunch } from "./process-launch";
+import { siblingOrigins } from "./sibling-origins";
 
 type Adapters = Parameters<typeof createApplicationLifecycle>[0];
 
@@ -42,9 +43,11 @@ export function localApplicationAdapters(input: {
     selection: unknown,
   ) => Promise<Readonly<{ moduleDirectory: string }>>;
   // What a started application is told about where it runs (decision F26):
-  // its Organization root (none for a Personalspace module) and, for the
-  // module's default app, the browser origin the Machine's gateway serves it
-  // at; null on a workstation. A throw refuses the launch.
+  // its Organization root (none for a Personalspace module), the loopback
+  // origins of the sibling modules of that Organization it declares (F26
+  // addendum of 2026-10-10) and, for the module's default app, the browser
+  // origin the Machine's gateway serves it at; null on a workstation. A
+  // throw refuses the launch.
   organizationRoot?: string;
   externalOrigin?: (module: string) => Promise<string | null>;
 }): Adapters {
@@ -145,6 +148,18 @@ export function localApplicationAdapters(input: {
         }),
         cwd,
       );
+      // The sibling modules it declares, read at this start from their own
+      // declarations in the same Organization (none for Personalspace).
+      const slots = plan.runtime.optional.required_module_slots;
+      const siblings =
+        input.organizationRoot === undefined || !Array.isArray(slots)
+          ? {}
+          : await siblingOrigins({
+              organizationDirectory: selected.cwd,
+              company: plan.runtime.company,
+              module: plan.runtime.module,
+              slots,
+            });
       return {
         executable: selected.executable,
         cwd,
@@ -158,6 +173,7 @@ export function localApplicationAdapters(input: {
             plan.defaultApp && input.externalOrigin
               ? await input.externalOrigin(plan.runtime.module)
               : null,
+          siblings,
         }),
       };
     },

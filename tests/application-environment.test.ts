@@ -746,6 +746,324 @@ posixTest(
   60_000,
 );
 
+// A budgeting module `budgets` that prices through the price-list module
+// `prices` beside it (root decision 0176, addendum of 2026-10-10; F26
+// addendum of 2026-10-10), both runnable on fresh loopback ports, and the
+// module `notes` that declares nothing. The price list serves reads and admits
+// a write only from its own origin, as a module's write guard does; the
+// budgeting module calls it from its own process at
+// `LAZURIO_RUNTIME_SIBLING_PRICES_ORIGIN` and answers 503 when that address is
+// missing or does not answer.
+const priceListServer = `
+const fetch = async (request) => {
+  if (request.method === "POST") {
+    if (request.headers.get("origin") !== "http://" + request.headers.get("host"))
+      return new Response("same_origin_required", { status: 403 });
+    return Response.json({ written: await request.json() });
+  }
+  return Response.json({ price: 42 });
+};
+Bun.serve({ hostname: process.env.LAZURIO_RUNTIME_LISTENER_WEB_HOST, port: Number(process.env.LAZURIO_RUNTIME_LISTENER_WEB_PORT), fetch });
+`;
+const budgetsServer = `
+const sibling = process.env.LAZURIO_RUNTIME_SIBLING_PRICES_ORIGIN;
+const fetch = async (request) => {
+  if (new URL(request.url).pathname === "/env") return Response.json(process.env);
+  if (!sibling) return new Response("sibling-address-missing", { status: 503 });
+  try {
+    const read = await globalThis.fetch(sibling + "/price");
+    const write = await globalThis.fetch(sibling + "/learned", {
+      method: "POST",
+      headers: { origin: sibling, "content-type": "application/json" },
+      body: JSON.stringify({ item: "wall" }),
+    });
+    return Response.json({ read: await read.json(), write: await write.json() });
+  } catch {
+    return new Response("sibling-not-running", { status: 503 });
+  }
+};
+Bun.serve({ hostname: process.env.LAZURIO_RUNTIME_LISTENER_WEB_HOST, port: Number(process.env.LAZURIO_RUNTIME_LISTENER_WEB_PORT), fetch });
+`;
+
+async function siblingModules(folder: string, home: string) {
+  const organization = await writeOrganization(folder, "gamma", {
+    slug: "gamma",
+    state: "current",
+    modules: [
+      {
+        id: "budgets",
+        runtime: { required_module_slots: ["workspace/prices"] },
+      },
+      { id: "prices" },
+      { id: "notes" },
+    ],
+  });
+  const ports: Record<string, number> = {};
+  for (const [id, server] of [
+    ["budgets", budgetsServer],
+    ["prices", priceListServer],
+    ["notes", budgetsServer],
+  ] as const) {
+    const module = join(organization, "workspace", id);
+    await runnableModule(module, home);
+    ports[id] = await moveLease(module, await freePort());
+    await writeFile(join(module, "app", "server.ts"), server);
+  }
+  return {
+    organization,
+    budgets: ports.budgets as number,
+    prices: ports.prices as number,
+    notes: ports.notes as number,
+  };
+}
+
+/** Rewrites the module's one lease to `port`, as a reviewed lease move does;
+ * returns the port. */
+async function moveLease(module: string, port: number) {
+  const path = join(module, "lazurio.module.json");
+  const manifest = JSON.parse(await readFile(path, "utf8"));
+  manifest.port_leases = [{ id: "main", host: "127.0.0.1", port }];
+  await writeFile(path, JSON.stringify(manifest));
+  return port;
+}
+
+/** The sibling names among an environment's variables. */
+const siblingNames = (environment: Record<string, string>) =>
+  Object.keys(environment)
+    .filter((name) => name.startsWith("LAZURIO_RUNTIME_SIBLING_"))
+    .sort();
+
+async function answering(port: number) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    try {
+      await fetch(`http://127.0.0.1:${port}/env`);
+      return;
+    } catch {
+      await Bun.sleep(50);
+    }
+  }
+  throw new Error(`Nothing answers on ${port}`);
+}
+
+async function call(port: number) {
+  const response = await fetch(`http://127.0.0.1:${port}/call`);
+  return {
+    status: response.status,
+    body:
+      response.status === 200 ? await response.json() : await response.text(),
+  };
+}
+
+posixTest(
+  "a declared sibling: the started application calls it at the loopback origin it is given, writes included, while the sibling runs; stopped, the call is refused; a moved lease reaches the caller at its next start",
+  async () => {
+    const parent = await realpath(await mkdtemp(join(root, "sibling-")));
+    const { folder, home } = await fixtureFolder(parent, "hosted");
+    const { organization, budgets, prices, notes } = await siblingModules(
+      folder,
+      home,
+    );
+    const launches: { module: string; env: Record<string, string> }[] = [];
+    const host: ModuleHost = {
+      platform: "darwin",
+      home,
+      path: "/usr/bin:/bin",
+      runtimeDirectory: undefined,
+      platformExecutable: binary,
+      bunExecutable: process.execPath,
+      runnerKind: async () => "session",
+      createRunner: () => {
+        const runner = createSessionRunner(binary);
+        return {
+          ...runner,
+          start: (request) => {
+            launches.push({
+              module: request.application.module,
+              env: { ...request.launch.env },
+            });
+            return runner.start(request);
+          },
+        };
+      },
+      readJournal: async () => {
+        throw new Error("A session app has no journal");
+      },
+    };
+    const operations = createModuleOperations({
+      folder,
+      owner: "launchpad",
+      host,
+    });
+    const launched = (module: string) =>
+      launches.filter((item) => item.module === module).at(-1)?.env as Record<
+        string,
+        string
+      >;
+    try {
+      expect(await operations.start("gamma/prices")).toMatchObject({
+        outcome: "started",
+      });
+      expect(await operations.start("gamma/budgets")).toMatchObject({
+        outcome: "started",
+      });
+      expect(await operations.start("gamma/notes")).toMatchObject({
+        outcome: "started",
+      });
+      // The caller gets the price list's loopback origin beside its own
+      // external origin; nothing else is a sibling. The undeclaring module
+      // and the price list itself get none.
+      const caller = launched("budgets");
+      expect(caller.LAZURIO_RUNTIME_SIBLING_PRICES_ORIGIN).toBe(
+        `http://127.0.0.1:${prices}`,
+      );
+      expect(siblingNames(caller)).toEqual([
+        "LAZURIO_RUNTIME_SIBLING_PRICES_ORIGIN",
+      ]);
+      expect(caller.LAZURIO_RUNTIME_EXTERNAL_ORIGIN).toBe(
+        `https://budgets.${machineHost}`,
+      );
+      expect(caller.COMPANYASCODE_ORGANIZATION_ROOT).toBe(organization);
+      expect(siblingNames(launched("notes"))).toEqual([]);
+      expect(siblingNames(launched("prices"))).toEqual([]);
+      for (const port of [prices, budgets, notes]) await answering(port);
+      // The process holds it as given.
+      const received = (await (
+        await fetch(`http://127.0.0.1:${budgets}/env`)
+      ).json()) as Record<string, string>;
+      expect(received.LAZURIO_RUNTIME_SIBLING_PRICES_ORIGIN).toBe(
+        `http://127.0.0.1:${prices}`,
+      );
+      // Read and write over loopback, the write admitted by the price
+      // list's own same-origin rule; a write with a browser's foreign origin
+      // stays refused there.
+      expect(await call(budgets)).toEqual({
+        status: 200,
+        body: { read: { price: 42 }, write: { written: { item: "wall" } } },
+      });
+      expect(
+        (
+          await fetch(`http://127.0.0.1:${prices}/learned`, {
+            method: "POST",
+            headers: {
+              origin: `https://budgets.${machineHost}`,
+              "content-type": "application/json",
+            },
+            body: "{}",
+          })
+        ).status,
+      ).toBe(403);
+      // Without the declaration there is no address to call.
+      expect(await call(notes)).toEqual({
+        status: 503,
+        body: "sibling-address-missing",
+      });
+      // The price list stopped: the caller keeps running and its call is
+      // refused at the same address; nothing starts the price list for it.
+      expect(await operations.stop("gamma/prices")).toMatchObject({
+        outcome: "group-stopped",
+      });
+      expect(await call(budgets)).toEqual({
+        status: 503,
+        body: "sibling-not-running",
+      });
+      expect(launches.filter((item) => item.module === "prices")).toHaveLength(
+        1,
+      );
+      // The price list's lease moves and it starts on the new port. The
+      // running caller keeps the address it was started with (F26 point 5),
+      // and a Start of a running app changes nothing.
+      const moved = await moveLease(
+        join(organization, "workspace", "prices"),
+        await freePort(),
+      );
+      expect(await operations.start("gamma/prices")).toMatchObject({
+        outcome: "started",
+      });
+      await answering(moved);
+      expect(await call(budgets)).toEqual({
+        status: 503,
+        body: "sibling-not-running",
+      });
+      expect(await operations.start("gamma/budgets")).toMatchObject({
+        outcome: "already-managed",
+      });
+      expect(launches.filter((item) => item.module === "budgets")).toHaveLength(
+        1,
+      );
+      // Stopped and started once, the caller gets the new address.
+      expect(await operations.stop("gamma/budgets")).toMatchObject({
+        outcome: "group-stopped",
+      });
+      expect(await operations.start("gamma/budgets")).toMatchObject({
+        outcome: "started",
+      });
+      expect(launched("budgets").LAZURIO_RUNTIME_SIBLING_PRICES_ORIGIN).toBe(
+        `http://127.0.0.1:${moved}`,
+      );
+      await answering(budgets);
+      expect(await call(budgets)).toEqual({
+        status: 200,
+        body: { read: { price: 42 }, write: { written: { item: "wall" } } },
+      });
+    } finally {
+      expect(await operations.close()).toEqual({ kind: "closed" });
+    }
+    await rm(parent, { recursive: true, force: true });
+  },
+  90_000,
+);
+
+posixTest(
+  "workstation (user manager): a declared sibling's address is given whether or not the sibling runs, and a declared sibling that is not checked out gives none",
+  async () => {
+    const parent = await realpath(await mkdtemp(join(root, "sibling-local-")));
+    const { folder, home } = await fixtureFolder(parent, "local");
+    const { organization, budgets, prices } = await siblingModules(
+      folder,
+      home,
+    );
+    const manager = createFakeServiceManager({
+      runtimeDirectory: join(parent, "runtime"),
+    });
+    await mkdir(manager.runtimeDirectory);
+    const host = linuxHost(manager, home, budgets, binary);
+    const run = async (...args: string[]) =>
+      (
+        await runModuleCommand(
+          ["module", ...args, "--folder", folder, "--json"],
+          cliContext(home),
+          host,
+        )
+      ).result;
+    // The price list has never been started: its address is its lease.
+    expect(await run("start", "gamma/budgets")).toMatchObject({
+      outcome: "started",
+      runtime: { url: `http://127.0.0.1:${budgets}/` },
+    });
+    const first = unitRequest(manager).environment;
+    expect(first.LAZURIO_RUNTIME_SIBLING_PRICES_ORIGIN).toBe(
+      `http://127.0.0.1:${prices}`,
+    );
+    expect(first.LAZURIO_RUNTIME_EXTERNAL_ORIGIN).toBeUndefined();
+    expect(await run("stop", "gamma/budgets")).toMatchObject({
+      outcome: "group-stopped",
+    });
+    // The price list is not on this Environment any more: the caller still
+    // starts (its readiness finding is issue #128's) and gets no address.
+    await rm(join(organization, "workspace", "prices"), {
+      recursive: true,
+      force: true,
+    });
+    expect(await run("start", "gamma/budgets")).toMatchObject({
+      outcome: "started",
+    });
+    expect(siblingNames(unitRequest(manager).environment)).toEqual([]);
+    await run("stop", "gamma/budgets");
+    await rm(parent, { recursive: true, force: true });
+  },
+  60_000,
+);
+
 test("every module process runs with Bun's runtime auto-install off, after whatever options its environment already passes (issue #254)", () => {
   const base = {
     HOME: "/home/operator",
