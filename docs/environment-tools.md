@@ -545,6 +545,18 @@ wave (`unsupported`, `workstation`).
   is `409 busy`; an unknown job `404 job-unknown`. The journal of the unit gets
   `{"scope":"tools-vault","operation":"connect|refresh|disconnect|unlock","outcome":…,"reason":…}`
   only.
+- **Runtime secrets** (decision F46, `vaultSecrets` in `src/vault/flow.ts`): the
+  module operations read the declared secrets of an application of the Organization
+  that owns the Environment (the vault context's `organization`, the handover's
+  `owner.organization`; another Organization's application is `other-organization`)
+  through the same one session as `env`: `bw sync`, then `bw list items
+  --organizationid <id> --collectionid <id>`, of which `secretItems` keeps only the
+  items of the declared names, and of those only name, organization, collections and
+  login password. A value is the password of the one item named exactly so in the
+  connected organization and collection (otherwise `missing`, `ambiguous` or
+  `empty`). Values go to the caller only; a refusal is a fixed code (`workstation`,
+  `no-vault-identity`, `other-organization`, `not-connected`, `locked`, `busy`,
+  `unreachable`, `vault-failed`).
 
 The agents' texts are the catalog entry's (`purpose` in `AGENTS.md`, `usage` in
 `manual/this-machine.md`, template revision `base-instructions-34`): start with
