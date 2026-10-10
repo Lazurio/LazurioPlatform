@@ -6634,3 +6634,234 @@ bytes under the new revision.
 Not in this revision: the Dashboard's editor of the settings, the company apps of
 Google Workspace and Microsoft 365 (DEV-6626 task 685), the relay on Team and
 Automated Environments (Machines #382) and immediate delivery.
+
+## F46 — The Organization-scoped GitHub sign-in of a Work Environment (pilot)
+
+**Decided by Matěj 2026-10-10 (root decision 0192; plan DEV-6638, task 703; the
+research is summarized in Lazurio/github-app#19), on one condition: the design
+is tested on one pilot Work Environment in real use before any rollout.
+Implemented in this revision as that pilot, behind an explicit switch; not yet
+verified on a live Environment.** Root decision 0192 lets the assignee of an
+individual Work Environment share it fully with a trusted member of the same
+Organization, and everything signed in inside is then shared. The sign-in of
+F19 (addendum 2026-09-28) is the GitHub CLI's OAuth token (`repo`, `read:org`,
+`gist`, `admin:public_key`) and an account SSH key: both reach every
+Organization of the person, and no Organization can restrict the GitHub CLI
+(GitHub lists it among the privileged OAuth apps that Organization access
+restrictions do not apply to). The target: the GitHub sign-in of a Work
+Environment reaches only that Environment's Organizations, enforced by GitHub;
+it stays a device-flow sign-in in the person's own browser, with no personal
+access token and nothing copied by hand.
+
+1. **One private sign-in app per Organization.** Each Organization owns one
+   private GitHub App used only for people's sign-in in Work Environments. A
+   private app can be installed only on the account that owns it and
+   authorized only by that Organization's members, and a user access token
+   reaches only what both the person and the app can reach: its reach is that
+   Organization, within the person's own rights, capped by the app's
+   permissions. The Owner creates it from a prepared manifest (private, no
+   webhook) and never exchanges the manifest's one-time code, so no private key
+   or client secret is ever retrieved; the app could not mint an installation
+   token if it wanted to. The Owner ticks "Enable Device Flow", keeps "Expire
+   user authorization tokens" on and installs it on all repositories, so a new
+   module repository works at once. Permissions: `contents`, `pull_requests`,
+   `issues`, `actions` and `workflows` write; `checks`, `statuses` and
+   `metadata` read; the Organization's `members` read. No `administration` (no
+   repository settings or branch rules from a Work Environment) and no account
+   permission (no gists, keys or personal repositories).
+2. **The device flow and expiring tokens, without a secret.** The sign-in is
+   GitHub's device flow with the app's public client id: the person enters a
+   code at `https://github.com/login/device` in their own browser and approves
+   "Lazurio <Organization>". The request asks for `offline_access`, so GitHub
+   hands out an expiring token and a refresh token even if the app's owner
+   switched expiry off; an answer without them is refused
+   (`token-not-expiring`). The access token lives eight hours, the refresh
+   token six months; a device-flow token is refreshed with the client id
+   alone. A refresh ends the refresh token used and the access token it
+   belonged to, at once.
+3. **Several Organizations, selected by repository owner.** A Work Environment
+   may hold explicit sign-ins of several Organizations, one authorization of
+   the same person per Organization's app. Each `gh` command and each Git
+   request uses the sign-in of the repository's owner. The first Organization
+   is the owning one (O3 of [workspace composition](workspace-composition.md)):
+   a command that names no repository uses it, and so does a repository of an
+   owner without a configured sign-in, whose private resources GitHub then
+   refuses: the boundary is GitHub's, not Lazurio's.
+4. **HTTPS instead of an account SSH key.** No SSH user key can be limited to
+   one Organization on GitHub Free or Team. A Work Environment in the pilot uses
+   HTTPS with the pilot's Git helper; `git@github.com:` and
+   `ssh://git@github.com/` remotes keep working through `insteadOf`, as on a
+   Team Environment. This supersedes the SSH-key linking of the F19 addendum
+   for Work Environments once the pilot is accepted; until then only the pilot
+   Environment changes.
+
+**The pilot (`src/github/`).** Nothing changes for an Environment until its
+operator turns the switch on, and every step has its way back.
+
+- **The switch** is one file, `${XDG_CONFIG_HOME:-~/.config}/lazurio/github/
+  pilot.json` (0600 in 0700): the Organizations (login and client id, the
+  first owning) and, once wired, what the wiring replaced. `lazurio github
+  pilot enable --organization <login> --client-id <Iv…>` creates it, only in
+  an individual Work Environment (`hosted-organization-personal`) whose
+  handover names its assigned operator (`owner.assignment`): a Team
+  Environment works through Lazurio for GitHub, a personal one keeps its own
+  sign-in. Only a GitHub App's client id (`Iv…`) is accepted; the GitHub CLI's
+  or another OAuth App's would reach every Organization again. `pilot add`
+  and `pilot remove` record or forget another Organization's app; `pilot
+  disable` removes the switch, refused while wired or signed in. Without the
+  file no other command acts, doctor adds no row and F19 is unchanged.
+- **Sign-in** (`lazurio github sign-in [--organization <login>]`): the code
+  and the page are shown only to the running command (with `--json` one JSON
+  object per state, like `tools login`). Before anything is kept, `GET /user`
+  must be the Environment's assigned operator (by id) and `GET
+  /user/installations` exactly one installation: of that Organization, of
+  this app (its client id), not suspended. A sign-in that fails a check keeps
+  nothing; its tokens are dropped, not revoked (whether revoking one token
+  ends the account's other sign-ins of the app is what the pilot measures).
+  An existing sign-in is kept: signing in again needs a sign-out first.
+  Failures are fixed reasons with the next step: `device-flow-disabled`,
+  `client-id-rejected`, `access-denied`, `wrong-account`,
+  `app-not-installed`, `app-suspended`, `installation-unexpected`,
+  `token-not-expiring`, `unreachable`, `unexpected-response`, `busy`;
+  `expired` and `cancelled` (Ctrl-C).
+- **Custody and refresh** (`src/github/store.ts`): one file per Organization,
+  `${XDG_STATE_HOME:-~/.local/state}/lazurio/github/<login>.json`, 0600 in
+  0700, replaced whole (temporary file, sync, rename): the tokens, their
+  expiry, the account, the installation. This is the second exception of
+  [public development](public-development.md) after the vault's account (F43):
+  GitHub hands the tokens to the device that signed in, and gh itself keeps
+  its token in its hosts file the same way. A token is never written to the
+  Folder, Git configuration, a log, the journal or an error, and never
+  printed. Ten minutes before the access token ends, the next caller refreshes
+  under the Organization's kernel lock (`src/platform/flock.ts`) and re-reads
+  the file first, so concurrent commands of one or several processes refresh
+  once; without the lock a second refresh with the same refresh token would
+  end the sign-in. A refresh GitHub refuses (or answers without a refresh
+  token) removes the sign-in (`refresh-rejected`); a refresh token six months
+  unused has ended (`sign-in-expired`); a refresh that does not reach GitHub,
+  or a lock another process holds too long, keeps the sign-in and hands out
+  the current token while it still works for 30 seconds more, else fails
+  (`unreachable`, `busy`). Nothing ever starts a sign-in inside `gh` or `git`.
+- **gh** (`src/github/launcher.ts`): `lazurio github gh <args>` runs the
+  official gh with `GH_TOKEN` of the chosen sign-in in the child's
+  environment only, on the caller's terminal, with gh's own exit status;
+  `GH_TOKEN`, `GITHUB_TOKEN` and the enterprise variables of the caller never
+  reach it. The owner is chosen by the rules of the Team Environment's
+  brokered gh (Lazurio/github-app `adapter/brokered-gh.mjs`): `--repo`/`-R`
+  and `GH_REPO`, then the checkout's `origin` (with `insteadOf` applied), and
+  selectors that disagree are refused; plus, since one token serves an
+  Organization rather than one repository, the endpoint of `gh api
+  repos/<owner>/…`, `orgs/<owner>/…` and `user/memberships/orgs/<owner>`, the
+  `owner` variable of a `gh api graphql` query (both how Lazurio's own Owner
+  check and repository reads ask), and the repository or GitHub URL right
+  after the subcommand (`gh repo clone <owner>/<repo>`, `gh pr view <url>`);
+  otherwise the owning Organization. Help, versions, completion and
+  gh's own `config` and `alias` run without a token, also while signed out
+  (`tools status` reads `gh --version` through it). `gh auth login`,
+  `refresh`, `switch`, `setup-git`, `token`, `git-credential` and every
+  `--show-token` are refused with the way that applies; `gh auth status` runs
+  with the owning sign-in (T3 Code's discovery sees the person); `gh auth
+  logout` runs without any token, so it removes only a sign-in gh stored
+  itself (a left-over). Another host than github.com is refused. A
+  configured Organization without its sign-in fails closed with exit 4 (gh's
+  own status for a missing sign-in) and the command to sign in; a failure of
+  a command for an unconfigured owner adds one line saying why GitHub may
+  have refused.
+- **Git** (`src/github/credential.ts`): `lazurio github credential get` reads
+  Git's request; for `https://github.com` it answers with the sign-in of the
+  `path`'s owner (or the owning one) as `username=x-access-token`, the token
+  and `password_expiry_utc`. When no sign-in can answer it answers `quit=1`,
+  so Git neither asks another helper (one that may hold an account-wide
+  credential) nor prompts on a terminal an agent cannot answer. `store` and
+  `erase` do nothing.
+- **Wiring** (`src/github/wiring.ts`): `lazurio github pilot wire`, refused
+  until the owning Organization is signed in, (a) writes the include
+  `pilot.gitconfig` beside the switch (`credential.https://github.com.helper`
+  reset and set to the pilot's helper, `useHttpPath = true`, the two
+  `insteadOf` rewrites) and adds it as `include.path` to the user's global Git
+  configuration; (b) keeps the official gh: a binary at `~/.local/bin/gh` is
+  hard-linked (or copied across filesystems) to the pilot's state directory, a
+  link is remembered, a gh elsewhere on PATH is used where it is; (c) records
+  that in the switch; (d) replaces `~/.local/bin/gh` with a marked launcher
+  script (`exec '<lazurio>' github gh "$@"`) in one rename, so gh exists at
+  every instant; (e) checks that PATH finds the launcher first, else undoes
+  everything (`gh-not-first`). The executable named is the install base's
+  selector for an installed version (it follows updates) or the running file
+  for a pilot build placed by hand; a path a shell line cannot carry safely,
+  or a source checkout run by Bun, is refused. Run again, it repairs the
+  wiring, also after an official gh installer wrote a new gh over the
+  launcher (the new one is kept instead). `lazurio github pilot unwire` gives
+  both back exactly: the kept binary renamed back, the link recreated with its
+  own target, a created launcher removed, the include and its `include.path`
+  removed; an entry replaced since is left alone.
+- **Sign-out** (`lazurio github sign-out`): revokes both tokens with `POST
+  /credentials/revoke`, which takes no authentication and notifies the
+  person, and removes the file even when GitHub does not confirm; the answer
+  says which, and that revoking the app under GitHub Settings → Applications
+  ends its sign-ins in all the person's Environments.
+- **Status and doctor.** `lazurio github status [--json]` reads locally: each
+  Organization's sign-in (as whom, until when), the wiring, and the
+  account-wide credentials still left: gh's own stored sign-in (its hosts
+  file), a github.com line in Git's credential store, `GH_TOKEN` or
+  `GITHUB_TOKEN` in the process or a shell startup file, another Git helper
+  for github.com. Named by file or variable, never by value. Doctor adds, only
+  while the switch is on, `github-sign-in` (each Organization `ok` or `warn`
+  `github-not-signed-in`, and `warn` `github-not-wired` or
+  `github-wiring-broken` with the part) and `github-leftover` (`ok`, or `warn`
+  `leftover-<kind>` with the file or variable); with `--sign-in` also `ssh -T
+  git@github.com`, whose greeting of a person is `leftover-ssh-key`. Never
+  `fail`: the pilot is opt-in.
+- **F19 while wired.** `lazurio tools login gh` (with or without `--ssh-key`)
+  and `tools logout gh` are refused (`blocked`, `github-sign-in-pilot`, exit
+  2) with the pilot's commands: an account-wide sign-in or key is what the
+  pilot replaces, and through the launcher neither would work. Before `pilot
+  wire` and after `unwire` they work as everywhere: that is the migration
+  (`tools logout gh` removes the `Lazurio: <Machine>` key from the account and
+  gh's own sign-in; the GitHub CLI's token is not revoked, which would sign
+  the person out of gh everywhere) and the rollback.
+
+**What the pilot does not change.** No template revision: the Folder's text
+for agents still describes F19, and the launcher's refusals point agents to
+`lazurio github …`. Not the Launchpad (its Tools row for gh is not
+pilot-aware: its sign-in stops at the launcher's refusal), Machines, Team,
+personal or Automated Environments, workstations, Lazurio for GitHub or the
+Organizations' brokers. A browser session on github.com inside the
+Environment's own browser reaches every Organization of the person; the code
+is entered in the person's own browser.
+
+**Measured on the pilot Environment before any rollout**, as the research's
+verification lists them: that `GET /user/installations` shows only the
+Organization and another Organization's private repository is refused
+through gh, `git ls-remote` and `git clone`; clone, fetch and push (a
+`.github/workflows` change included) over HTTPS with `x-access-token`; `gh pr
+create`, `review --approve`, `merge`, `checks`, `run rerun` and `issue
+create`, and branch rules with these tokens; T3 Code's discovery; a refresh
+without a secret and a long command across one; whether `/credentials/revoke`
+of one token ends only its chain or the whole authorization; whether
+GitHub's limit of ten tokens per user and app applies; whether deleting the
+client secret and private key the manifest flow generated changes anything.
+A checkout whose gh default repository is not `origin`'s needs `--repo`.
+Linux and macOS only.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A user token of the shared Lazurio for GitHub app | Reaches every Organization where that app is installed; narrowing it needs the client secret and a server-side store of unscoped refresh tokens; rejected |
+| The Organization's broker for people's work | Bot attribution, no approval or merge in the person's own rights; stays the Team Environment's way |
+| Organization OAuth app restrictions on the GitHub CLI | The GitHub CLI is a privileged app and exempt; no effect |
+| A gh account per Organization (`gh auth switch`) | gh keys accounts by user login, so one person cannot hold two; rejected |
+| `GH_TOKEN` exported for the session | One token for every command, visible to every process, never per owner; rejected for the launcher |
+| `git-credential-oauth` for Git | Git only, starts the device flow inside an agent's Git command, weak token storage on a headless Environment; a reference for the helper |
+| `@octokit/oauth-methods` for the requests | Five fixed requests are written here instead, each answer checked field by field, without a new dependency in the compiled executable; the library stays a reference |
+| Falling back to anything when a configured Organization's sign-in is missing | Would hide the boundary; rejected: fail closed with the command to sign in |
+
+Verified by unit and integration tests against a fake GitHub on loopback
+(`tests/fixtures/fake-github.ts`, with GitHub's documented rotation), a real
+Git and a real shell: the device flow, its checks and failures
+(`tests/github-sign-in.test.ts`); custody, the refresh, its races in one
+process and across processes, and the chain broken without the lock
+(`tests/github-store.test.ts`); owner selection (`tests/github-owner.test.ts`);
+the launcher (`tests/github-launcher.test.ts`); wiring, the helper through `git
+credential fill`, `insteadOf` and the launcher script
+(`tests/github-wiring.test.ts`); the commands, the Work Environment gate, the
+F19 refusal, left-overs and doctor (`tests/github-cli.test.ts`). No real GitHub
+App and no Remote Environment were used; the pilot verifies them.

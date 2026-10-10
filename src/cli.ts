@@ -25,6 +25,11 @@ import { parseFolderProfile } from "./folder/profile";
 import { resumeInitialization } from "./folder/resume-initialization";
 import { stateFields } from "./folder/state";
 import { resumeProfileUpdate, updateProfile } from "./folder/update-profile";
+import { githubHelp, runGithubCommand } from "./github/cli";
+import { credentialHelper } from "./github/credential";
+import { checkoutOrigin, runGhLauncher, runInherited } from "./github/launcher";
+import { githubHttp } from "./github/oauth";
+import { pilotPaths } from "./github/pilot";
 import { integrationsHelp, runIntegrationsCommand } from "./integrations/cli";
 import {
   readApplicationRequest,
@@ -181,9 +186,78 @@ async function operateServiceApplication(input: unknown) {
   }
 }
 
+// The GitHub sign-in pilot's gh launcher (decision F46): gh's own terminal,
+// output and exit status; only refusals of the launcher are its own.
+async function runGithubLauncher(args: string[]): Promise<number> {
+  const paths = pilotPaths(process.env);
+  if (paths === undefined) {
+    console.error(
+      "gh (Lazurio): the GitHub sign-in pilot needs an absolute HOME.",
+    );
+    return 1;
+  }
+  try {
+    return await runGhLauncher(args, {
+      env: process.env,
+      paths,
+      http: githubHttp(),
+      now: () => Date.now(),
+      readOrigin: () => checkoutOrigin(process.env),
+      runGh: runInherited,
+      writeStderr: (text) => process.stderr.write(text),
+    });
+  } catch {
+    console.error("gh (Lazurio): the launcher failed.");
+    return 1;
+  }
+}
+
+// Git's credential helper of the pilot: Git's protocol on stdin and stdout,
+// nothing else on stdout ever (https://git-scm.com/docs/git-credential).
+async function runGithubCredential(args: string[]): Promise<number> {
+  const chunks: Buffer[] = [];
+  let length = 0;
+  for await (const chunk of process.stdin) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    length += buffer.byteLength;
+    // A request is a few lines; anything larger is not one.
+    if (length > 65_536) return 1;
+    chunks.push(buffer);
+  }
+  const paths = pilotPaths(process.env);
+  if (args.length !== 1 || paths === undefined) {
+    if (args[0] === "get") process.stdout.write("quit=1\n");
+    return 0;
+  }
+  try {
+    const { stdout, code } = await credentialHelper(
+      args[0] as string,
+      Buffer.concat(chunks).toString("utf8"),
+      {
+        paths,
+        http: githubHttp(),
+        now: () => Date.now(),
+        writeStderr: (text) => process.stderr.write(text),
+      },
+    );
+    process.stdout.write(stdout);
+    return code;
+  } catch {
+    if (args[0] === "get") process.stdout.write("quit=1\n");
+    process.stderr.write("git (Lazurio): the credential helper failed.\n");
+    return 0;
+  }
+}
+
 // CLI entrypoint. No implicit folder discovery; installation and update are the
 // `install` and `update` commands of the one update core (docs/update.md).
 export async function runCli(args: string[]): Promise<number> {
+  // The pilot's launcher and helper speak gh's and Git's protocols, never
+  // followed by the update notice.
+  if (args[0] === "github" && args[1] === "gh")
+    return runGithubLauncher(args.slice(2));
+  if (args[0] === "github" && args[1] === "credential")
+    return runGithubCredential(args.slice(2));
   if (args[0] === "--version") return emit(versionCommand(args.slice(1)));
   if (args[0] === "self-check")
     return emit(await selfCheckCommand(args.slice(1)));
@@ -239,6 +313,27 @@ async function runOtherCommand(args: string[]): Promise<number> {
         progress: (line) => console.error(line),
       }),
     );
+  // The Organization-scoped GitHub sign-in pilot (decision F46): a running
+  // sign-in writes its code to stdout as it comes; Ctrl-C cancels it.
+  if (args[0] === "github") {
+    const interrupt = new AbortController();
+    const onInterrupt = () => interrupt.abort();
+    if (args[1] === "sign-in") process.once("SIGINT", onInterrupt);
+    try {
+      const context = processContext();
+      return emit(
+        await runGithubCommand(args.slice(1), {
+          env: context.env,
+          platform: context.platform,
+          executable: context.executable,
+          hostedFolder: context.hostedFolder,
+          signal: interrupt.signal,
+        }),
+      );
+    } finally {
+      process.removeListener("SIGINT", onInterrupt);
+    }
+  }
   // The Integrace of this Environment (decision F42): the same reading as
   // the Launchpad's Apps → Integrace.
   if (args[0] === "integrations")
@@ -500,6 +595,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(integrationsHelp);
     console.log(vaultHelp);
     console.log(executorHelp);
+    console.log(githubHelp);
     console.log(machineHelp);
     return 0;
   }

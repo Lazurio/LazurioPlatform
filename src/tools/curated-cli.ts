@@ -1,4 +1,5 @@
 import { sharedEnvironment } from "../folder/render";
+import { pilotRefusesCuratedGh } from "../github/pilot";
 import { activatableTools, executorToolName, vaultToolName } from "./catalog";
 import {
   githubLoginRefused,
@@ -71,6 +72,31 @@ function environmentUnreadable(
         ? loginLines(result).join("\n")
         : `${tool}: sign-out stopped: the kind of this Environment could not be read, so nothing was signed out.`,
   };
+}
+
+/** gh's curated sign-in, key linking or sign-out while gh and Git are wired
+ * to the Organization-scoped GitHub sign-in pilot (decision F46): an
+ * account-wide sign-in and an account SSH key are what the pilot replaces,
+ * and through its launcher neither would work. Refused before gh runs. */
+async function githubPilotRefusal(
+  env: Readonly<Record<string, string | undefined>>,
+  json: boolean,
+  action: "login" | "ssh-key" | "logout",
+): Promise<CuratedOutput | undefined> {
+  const pilot = await pilotRefusesCuratedGh(env);
+  if (pilot === undefined) return undefined;
+  const result = {
+    kind: "blocked",
+    reason: "github-sign-in-pilot",
+    tool: "gh",
+    action,
+  };
+  const organization = pilot.owning ?? "<Organization>";
+  const text =
+    action === "logout"
+      ? `This Environment signs in to GitHub per Organization (pilot, decision F46). Sign out: lazurio github sign-out --organization ${organization}. A gh sign-in left from before the pilot is removed with gh auth logout --hostname github.com.`
+      : `This Environment signs in to GitHub per Organization (pilot, decision F46); an account-wide gh sign-in or SSH key is not set up here. Sign in: lazurio github sign-in --organization ${organization}. Back to the account-wide sign-in: lazurio github pilot unwire.`;
+  return { code: 2, result, text: json ? JSON.stringify(result) : text };
 }
 
 /** On an Environment shared by several operators (the Team preset). */
@@ -416,6 +442,14 @@ export async function runLogin(
         : "--phone applies to wacli only (WhatsApp pairing).",
     };
   }
+  if (name === "gh") {
+    const pilot = await githubPilotRefusal(
+      context.env,
+      json,
+      sshKey ? "ssh-key" : "login",
+    );
+    if (pilot !== undefined) return pilot;
+  }
   const environment = context.environment ?? { kind: "none" };
   if (environment.kind === "unreadable" && name === "gh")
     return environmentUnreadable(name, json, "login");
@@ -520,6 +554,10 @@ export async function runLogout(
 ): Promise<CuratedOutput> {
   const refused = refuseTool(name, json);
   if (refused) return refused;
+  if (name === "gh") {
+    const pilot = await githubPilotRefusal(context.env, json, "logout");
+    if (pilot !== undefined) return pilot;
+  }
   const environment = context.environment ?? { kind: "none" };
   // Whether this is a Team Environment decides which account may be signed
   // out; unknown, gh is not signed out at all (#83).
