@@ -5586,6 +5586,67 @@ Decided by the Organization Admin, within point 6:
 
 Template revision `base-instructions-37`.
 
+**Addendum 2026-10-10: the browser's own memory budget, and no old tabs after a restart.**
+Root decision 0195 point 4, plan DEV-6656 (Lazurio/LazurioPlatform#297). That day a work
+Remote Environment of 8 GiB without swap froze. Its Modules held about 4.6 GiB, and the
+browser grew to about 2 GiB with heavy pages. The kernel's OOM killer ended one process of
+`lazurio-browser.service`. systemd's default `OOMPolicy=stop` then stopped the whole
+browser, and `Restart=always` started it again. Chrome came back with every tab of the last
+session, so the memory was full again within two minutes. The same afternoon the browser of
+another Environment of 8 GiB held 4.7 GiB and the Environment thrashed.
+
+Who reopened the tabs: Chrome itself. Chrome for Testing 154 on Linux, started with this
+unit's flags on a profile with a previous session, reopened every tab of it in three cases:
+- after a clean exit (`Browser.close`);
+- after SIGTERM to the unit's processes, which is systemd's stop; the profile records
+  `exit_type: SessionEnded`;
+- after SIGKILL of its main process, but only with `--hide-crash-restore-bubble`. Without
+  that flag Chrome asks in a bubble instead. With it, Chrome answers the bubble's question
+  with yes.
+
+agent-browser does not reopen tabs: a pinned session whose tab is gone answers `tab_gone`.
+The people's view does not either: a target id that does not come back after a reconnect is
+gone (F39). The reopened tabs had new target ids, so no thread's window and no person's view
+knew them. Nothing ever closed them (compare #257).
+
+Decided:
+1. **A budget relative to the Environment's memory.** `lazurio-browser.service` gets
+   `MemoryMax=30%`: about 2.3 GiB on the base Environment of 8 GiB, well below half. At the
+   limit the kernel first reclaims the browser's own memory, into swap where there is
+   swap (Machines, 0195 point 2), then ends a process inside the browser.
+   `MemorySwapMax=20%` bounds what the browser may move to swap; systemd 255 resolves
+   it against the Environment's memory. Swap in memory (zram) is not charged to the
+   browser, so without the bound it could fill that swap. Together that is at most half
+   the Environment's memory, most of it compressed. A larger Environment gives its
+   browser more with the same unit text. No `MemoryHigh`: on systemd 255 without swap,
+   a process that grew past it stayed throttled just above it for minutes and never
+   reached `MemoryMax`. Every process of the browser that allocated waited with it. The
+   hard limit ends the heaviest tab instead.
+2. **An exhausted budget costs a tab.** `OOMPolicy=continue`: the process the kernel ends
+   is mostly one tab's renderer, and only that tab goes. Its window stays, and a
+   navigation brings it back. When the main process goes, the unit ends and restarts.
+3. **Tabs first, then the browser, then a Module.** `OOMScoreAdjust=250`. The user manager
+   gives every user service 200 and Chrome gives each tab's renderer 300. The rest of the
+   browser sits between them. A higher value would put Chrome's main process ahead of its
+   own tabs.
+4. **No old tabs after a restart.** Before each start the unit removes the profile's
+   `Default/Sessions` (`ExecStartPre=-/bin/rm -rf …`). That one place covers every way
+   the browser ends. The rest of the profile, with the Environment's sign-ins, stays. The
+   removal is optional: should it ever fail, a browser with old tabs is better than none.
+   `--hide-crash-restore-bubble` stays, so no bubble waits outside the page.
+5. **Folder manual.** A page that stopped answering is opened again. When agent-browser
+   answers `tab_gone`, `lazurio browser window` opens a new window, and its new link goes
+   to the Operator. Agents never restart the browser for it.
+
+Rollout: the unit's text changes, so the next `install` or `update` restarts the browser
+once (point 10 of F39). That restart already closed every window before this change. The
+windows' tabs used to come back with new ids that nobody knew; now they do not come back.
+Not decided here: putting idle tabs to sleep (0195 point 4), which is DEV-6656 task 916,
+and the flags that keep background tabs at full speed (`--disable-renderer-backgrounding`
+and its siblings), which the same task measures.
+
+Template revision `base-instructions-41`.
+
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
 **Decided by Matěj 2026-10-06 after the pilot (root decision 0191 points 11–18, plan

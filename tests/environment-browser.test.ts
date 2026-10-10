@@ -121,8 +121,8 @@ const browserLines = [
   "Restart=always",
   "RestartSec=3",
   "RestartPreventExitStatus=78",
-  "MemoryHigh=25%",
   "MemoryMax=30%",
+  "MemorySwapMax=20%",
   "OOMPolicy=continue",
   "OOMScoreAdjust=250",
   "",
@@ -164,7 +164,10 @@ test("the three units render the screen, the browser with its extension and the 
 // only that tab, and a restarted browser opens none of the old tabs.
 function serviceDirectives(unit: string): Map<string, string> {
   const directives = new Map<string, string>();
-  const service = unit.slice(unit.indexOf("[Service]"), unit.indexOf("[Install]"));
+  const service = unit.slice(
+    unit.indexOf("[Service]"),
+    unit.indexOf("[Install]"),
+  );
   for (const line of service.split("\n")) {
     const split = line.indexOf("=");
     if (split > 0) directives.set(line.slice(0, split), line.slice(split + 1));
@@ -172,7 +175,7 @@ function serviceDirectives(unit: string): Map<string, string> {
   return directives;
 }
 
-test("the browser has a memory budget of its own, well below half the Environment's memory, and an exhausted budget costs a tab, not the browser", () => {
+test("the browser has a memory budget of its own, well below half the Environment's memory, and an exhausted budget costs a tab, not the browser or anything else", () => {
   const directives = serviceDirectives(renderBrowserUnit());
   const percent = (name: string) => {
     const value = directives.get(name) ?? "";
@@ -180,10 +183,16 @@ test("the browser has a memory budget of its own, well below half the Environmen
     return Number.parseInt(value, 10);
   };
   // Relative to the Environment's memory, so a larger Environment gives its
-  // browser more without another unit text. Reclaim and slow down first, then
-  // a hard limit well below half of the Environment.
-  expect(percent("MemoryHigh")).toBeLessThan(percent("MemoryMax"));
+  // browser more without another unit text: a hard limit well below half of
+  // the Environment, and with what it may move to swap at most half.
   expect(percent("MemoryMax")).toBeLessThanOrEqual(30);
+  expect(percent("MemoryMax") + percent("MemorySwapMax")).toBeLessThanOrEqual(
+    50,
+  );
+  // No throttle below the limit: without swap, systemd 255 kept a process
+  // past MemoryHigh stalled just above it for minutes, and every process of
+  // the browser that allocated stalled with it, instead of ending a tab.
+  expect(directives.has("MemoryHigh")).toBe(false);
   // A process the kernel kills inside the budget (a tab's renderer) ends that
   // tab, not the unit: systemd's default (stop) would end every window.
   expect(directives.get("OOMPolicy")).toBe("continue");
@@ -685,7 +694,11 @@ test("after the browser restarts, a thread gets a new window of its own, never t
     targets: ["STARTUP_BLANK", "OTHER_THREAD"],
   });
   expect(
-    await ensureThreadWindow("codex-a", "https://example.com/", restarted.seams),
+    await ensureThreadWindow(
+      "codex-a",
+      "https://example.com/",
+      restarted.seams,
+    ),
   ).toEqual({ session: "codex-a", targetId: "NEWTARGET", created: true });
   expect(restarted.calls[0]).toEqual([
     "Target.createTarget",
@@ -846,7 +859,7 @@ test("the Folder tells an agent how to go on when the browser lost its tab or re
       .split("\n")
       .find((candidate) =>
         candidate.startsWith(
-          locale === "cs" ? "- **Po ztrátě karty" : "- **After a lost tab",
+          locale === "cs" ? "- **Po ztrátě záložky" : "- **After a lost tab",
         ),
       );
     expect(line).toBeDefined();
