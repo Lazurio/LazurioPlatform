@@ -432,12 +432,35 @@ export function createVaultPanel(
       return nodes;
     }
     if (step === "confirm") {
+      const actions = element("p", "tool-actions");
+      if (link !== null) actions.append(vaultAnchor(link, "button"));
+      // Confirmed in an organization, but the Environment's collection is
+      // not shared with the account (or has another name): that is the one
+      // thing left to do in the vault, so the fingerprint is gone.
+      if (facts.state === "confirming" && facts.organization !== null) {
+        const card = element("div", "vault-card");
+        card.append(
+          value(copy.vaultCollectionLabel, facts.collection, "collection"),
+        );
+        const waiting = element(
+          "p",
+          "vault-waiting",
+          copy.vaultWaitingCollection,
+        );
+        waiting.setAttribute("role", "status");
+        return [
+          element("p", "", copy.vaultCollectionText),
+          card,
+          element("p", "tools-muted", copy.vaultCollectionHint),
+          actions,
+          ...failure,
+          waiting,
+        ];
+      }
       const fingerprint =
         facts.state === "confirming" || facts.state === "connected"
           ? facts.fingerprint
           : null;
-      const actions = element("p", "tool-actions");
-      if (link !== null) actions.append(vaultAnchor(link, "button"));
       const waiting = element("p", "vault-waiting", copy.vaultWaiting);
       waiting.setAttribute("role", "status");
       return [
@@ -450,15 +473,6 @@ export function createVaultPanel(
             ]),
         element("p", "tools-muted", copy.vaultAdminHint),
         actions,
-        ...(facts.state === "confirming" && facts.organization !== null
-          ? [
-              element(
-                "p",
-                "tools-muted",
-                fill(copy.vaultNoCollection, { collection: facts.collection }),
-              ),
-            ]
-          : []),
         ...failure,
         waiting,
       ];

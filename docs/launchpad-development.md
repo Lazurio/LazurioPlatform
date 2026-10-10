@@ -1770,8 +1770,12 @@ phases "Instaluji Bitwarden", "Zakládám účet", "Přihlašuji" with a spinner
 every second with the connect's job, and "Heslo účtu zná jen tento Environment."; a
 failure names its stage and reason with "Dokončit s agentem" and "Zkusit znovu". (3)
 "Potvrď účet v trezoru": the fingerprint phrase in a selectable box, "Otevřít
-Vaultwarden" and "Čekám na potvrzení…" while `/refresh` is asked every five seconds;
-a confirmed organization without the collection says so. (4) "Připojeno": "Vidí N
+Vaultwarden" and "Čekám na potvrzení…" while `/refresh` is asked every five seconds.
+Once the member is confirmed but the account does not see the Environment's
+collection, the step says only that: "Potvrzeno. Ještě účtu v trezoru nasdílej kolekci
+tohoto Environmentu s právem úprav.", the collection's exact name to copy, that a
+collection under another name only needs that name, and "Čekám na kolekci…"; the row
+says "Potvrzeno, čeká na kolekci". (4) "Připojeno": "Vidí N
 kolekcí · M položek." and "Hotovo"; the agents' switch turns on after the reading that
 follows, as after a curated sign-in. An account that exists starts at step 2, a
 revoked one at step 1 with "Pozvi tuhle adresu znovu do kolekce s právem úprav.", a

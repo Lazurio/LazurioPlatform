@@ -247,7 +247,14 @@ export function vaultRowLine(
     case "failed":
       return { text: copy.vaultRowNone, state: "unknown" };
     case "confirming":
-      return { text: copy.vaultRowConfirming, state: "signed-out" };
+      // Confirmed in an organization, without the Environment's collection.
+      return {
+        text:
+          status.organization === null
+            ? copy.vaultRowConfirming
+            : copy.vaultRowCollection,
+        state: "signed-out",
+      };
     case "connected":
       return {
         text:

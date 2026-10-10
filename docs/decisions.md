@@ -6208,7 +6208,8 @@ to chat, Git, a log or a pull request.
    `registered` when the account exists and connecting again only signs it in),
    `awaiting-invite`, `confirming` (signed in, the organization or the
    collection not visible yet; a confirmed organization without the collection
-   is named), `connected` (`organization`, `collection`, `collections`,
+   is named, and the dialog then asks only for the collection, by its exact
+   name), `connected` (`organization`, `collection`, `collections`,
    `items`), `revoked` (the recorded collection is gone after a sync, or the
    organization reports the member revoked), `unreachable` and `failed` (with
    `stage`, `reason` and the agent as the fallback). Every mutation holds the

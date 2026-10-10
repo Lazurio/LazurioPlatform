@@ -132,6 +132,13 @@ test("the row says the wireframe's states, with Czech plurals", () => {
   expect(line({ state: "confirming", fingerprint, organization: null })).toBe(
     "Čeká na potvrzení v trezoru",
   );
+  // Confirmed in an organization, without the Environment's collection.
+  expect(
+    line({ state: "confirming", fingerprint, organization: "Example" }),
+  ).toBe("Potvrzeno, čeká na kolekci");
+  expect(
+    line({ state: "confirming", fingerprint, organization: "Example" }, en),
+  ).toBe("Confirmed, waiting for the collection");
   const connected = (collections: number, items: number) =>
     line({
       state: "connected",
