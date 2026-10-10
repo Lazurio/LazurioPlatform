@@ -31,7 +31,13 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   journal. Elsewhere apps are children of the Launchpad session and are
   started from the Launchpad (launchpad-required). The toolchain is the
   operator's Bun at ${standardBun} (toolchain-missing otherwise; see lazurio
-  tools status). An app whose package declares no lazurio.preparation is
+  tools status). Every slot the app requires (lazurio.runtime
+  required_module_slots) must be declared by the Organization, active and
+  checked out beside it, or nothing is installed or started
+  (required-slot-undeclared, required-slot-planned, required-slot-missing,
+  with the slot); a required sibling module workspace/<slug> with an HTTP
+  default app is passed as LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN, its
+  loopback address. An app whose package declares no lazurio.preparation is
   prepared by default first: bun install --frozen-lockfile from the bun.lock
   beside its package.json, which leaves registry dependencies as they are
   when node_modules already matches it (local file: dependencies are copied
@@ -100,6 +106,12 @@ const explanations: Readonly<Record<string, string>> = {
   "home-unknown": "The account's home directory is not known (HOME).",
   "prerequisites-not-ready":
     "The module's declared check still fails after its dependencies were installed and its prepare_script ran: fix the module's preparation or its check, then start (or lazurio module prepare) again.",
+  "required-slot-undeclared":
+    "The app requires this slot (lazurio.runtime.required_module_slots), but the Organization manifest does not declare it; nothing was started. Fix the app's declaration or the Organization manifest.",
+  "required-slot-planned":
+    "The app requires this slot, which the Organization manifest declares as planned (planned_slot); it cannot start in this Environment until the slot is active.",
+  "required-slot-missing":
+    "The app requires this slot, which is not checked out in this Environment beside it; nothing was started. Synchronize the Organization (lazurio update) or ask for access to that repository, then start again.",
   "preparation-script-failed":
     "The prepare_script this package declares failed after the dependencies were installed; nothing was started. Fix the module's preparation and start (or lazurio module prepare) again.",
   "application-running":

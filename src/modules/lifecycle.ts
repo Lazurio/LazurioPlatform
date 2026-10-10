@@ -4,6 +4,7 @@ import { object, text } from "./manifest";
 import { PreparationRefused, preparationRefusal } from "./preparation-refusal";
 import { parseProcessLaunch } from "./process-launch";
 import { readModuleApplication } from "./read-application";
+import { RequiredSlotRefused } from "./sibling-origins";
 
 type Selection = Readonly<{ company: string; module: string; package: string }>;
 type Operation =
@@ -420,8 +421,13 @@ export function createApplicationLifecycle(adapters: {
               return Object.freeze({ kind: "declaration-changed" as const });
           } catch (error) {
             // A preparation refused for a known reason is named by its
-            // caller (decision F25); nothing was started.
-            if (error instanceof PreparationRefused) throw error;
+            // caller (decision F25), as is a required slot that is not there
+            // (root decision 0176 point 4); nothing was started.
+            if (
+              error instanceof PreparationRefused ||
+              error instanceof RequiredSlotRefused
+            )
+              throw error;
             return Object.freeze({ kind: "invalid-or-unavailable" as const });
           }
           if (closing) return Object.freeze({ kind: "closing" as const });

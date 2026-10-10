@@ -17,7 +17,7 @@ import type { createApplicationLifecycle } from "./lifecycle";
 import { createOwnerOperations } from "./owner-operations";
 import { inspectPreparationBinding } from "./preparation-binding";
 import { parseProcessLaunch } from "./process-launch";
-import { siblingOrigins } from "./sibling-origins";
+import { requiredSlotOrigins } from "./sibling-origins";
 
 type Adapters = Parameters<typeof createApplicationLifecycle>[0];
 
@@ -76,6 +76,21 @@ export function localApplicationAdapters(input: {
     input.resolveApplication ?? resolveOrganizationApplication;
   const authorize: Adapters["authorize"] = (selection) =>
     resolveApplication(selected.cwd, selection);
+  // The slots the app requires, refused before any effect when one is not
+  // there (root decision 0176 point 4), and the origins of the sibling
+  // modules among them, read at this start (F26 addendum of 2026-10-10).
+  // Personalspace modules belong to no Organization: nothing to check.
+  const requiredSlots = (plan: Parameters<Adapters["prepareLaunch"]>[0]) => {
+    const slots = plan.runtime.optional.required_module_slots;
+    return input.organizationRoot === undefined || !Array.isArray(slots)
+      ? Promise.resolve({})
+      : requiredSlotOrigins({
+          organizationDirectory: selected.cwd,
+          company: plan.runtime.company,
+          module: plan.runtime.module,
+          slots,
+        });
+  };
   const preflight =
     (
       check: boolean,
@@ -92,6 +107,8 @@ export function localApplicationAdapters(input: {
       );
       if (dirname(join(module.moduleDirectory, plan.package)) !== cwd)
         throw new Error("Application scope changed");
+      // A start whose required slot is not there installs nothing.
+      if (check) await requiredSlots(plan);
       const options = {
         moduleDirectory: module.moduleDirectory,
         applicationPackage: plan.package,
@@ -148,18 +165,8 @@ export function localApplicationAdapters(input: {
         }),
         cwd,
       );
-      // The sibling modules it declares, read at this start from their own
-      // declarations in the same Organization (none for Personalspace).
-      const slots = plan.runtime.optional.required_module_slots;
-      const siblings =
-        input.organizationRoot === undefined || !Array.isArray(slots)
-          ? {}
-          : await siblingOrigins({
-              organizationDirectory: selected.cwd,
-              company: plan.runtime.company,
-              module: plan.runtime.module,
-              slots,
-            });
+      // Checked again at the launch itself, with the sibling origins.
+      const siblings = await requiredSlots(plan);
       return {
         executable: selected.executable,
         cwd,

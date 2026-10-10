@@ -59,7 +59,7 @@ export function applicationEnvironment(input: {
    * `runtime.url` without its slash. None on a workstation. */
   externalOrigin?: string | null | undefined;
   /** The loopback origins of the sibling modules the application declares,
-   * by module id (`siblingOrigins`); none for a Personalspace module. */
+   * by module id (`requiredSlotOrigins`); none for a Personalspace module. */
   siblings?: Readonly<Record<string, string>> | undefined;
 }): Record<string, string> {
   const { runtime, listeners } = input.plan;

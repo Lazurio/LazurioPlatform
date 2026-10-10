@@ -1014,7 +1014,7 @@ posixTest(
 );
 
 posixTest(
-  "workstation (user manager): a declared sibling's address is given whether or not the sibling runs, and a declared sibling that is not checked out gives none",
+  "workstation (user manager): a declared sibling's address is given whether or not the sibling runs; a declared sibling that is not checked out refuses the start before any install (root decision 0176 point 4)",
   async () => {
     const parent = await realpath(await mkdtemp(join(root, "sibling-local-")));
     const { folder, home } = await fixtureFolder(parent, "local");
@@ -1048,17 +1048,41 @@ posixTest(
     expect(await run("stop", "gamma/budgets")).toMatchObject({
       outcome: "group-stopped",
     });
-    // The price list is not on this Environment any more: the caller still
-    // starts (its readiness finding is issue #128's) and gets no address.
+    // The price list is not on this Environment any more: the caller is not
+    // startable. The start is refused by its slot, before the install (its
+    // dependencies, removed here, stay absent) and without a unit.
     await rm(join(organization, "workspace", "prices"), {
       recursive: true,
       force: true,
     });
-    expect(await run("start", "gamma/budgets")).toMatchObject({
-      outcome: "started",
+    const dependencies = join(
+      organization,
+      "workspace/budgets/app/node_modules",
+    );
+    const installed = join(dependencies, "fixture-dependency/package.json");
+    expect(await Bun.file(installed).exists()).toBe(true);
+    await rm(dependencies, { recursive: true, force: true });
+    const units = manager.commands("systemd-run").length;
+    expect(await run("start", "gamma/budgets")).toEqual({
+      kind: "blocked",
+      operation: "start",
+      reason: "required-slot-missing",
+      organization: "gamma",
+      module: "budgets",
+      app: "app/package.json",
+      file: "workspace/prices",
     });
-    expect(siblingNames(unitRequest(manager).environment)).toEqual([]);
-    await run("stop", "gamma/budgets");
+    expect(manager.commands("systemd-run")).toHaveLength(units);
+    expect(await Bun.file(installed).exists()).toBe(false);
+    expect(
+      (
+        await runModuleCommand(
+          ["module", "start", "gamma/budgets", "--folder", folder],
+          cliContext(home),
+          host,
+        )
+      ).text,
+    ).toContain("required-slot-missing (workspace/prices)");
     await rm(parent, { recursive: true, force: true });
   },
   60_000,

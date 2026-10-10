@@ -574,6 +574,12 @@ const en = {
     "The module's preparation script declared in {file} failed after its dependencies were installed, so the app was not started. Fix the module's preparation and start again.",
   modulePrerequisitesNotReady:
     "The module's declared check still fails after its dependencies were installed and its preparation ran, so the app was not started. Fix the module's preparation or its check and start again.",
+  moduleReasonRequiredSlotUndeclared:
+    "The app requires {file}, which the Organization manifest does not declare, so it was not started. Fix the app's required_module_slots or the Organization manifest.",
+  moduleReasonRequiredSlotPlanned:
+    "The app requires {file}, which the Organization manifest declares as planned, so it cannot start in this Environment yet.",
+  moduleReasonRequiredSlotMissing:
+    "The app requires {file}, which is not in this Environment beside it, so it was not started. Synchronize the Organization, or ask for access to that module, and start again.",
   moduleApplication: "Application",
   moduleStart: "Start",
   moduleStop: "Stop",
@@ -1703,6 +1709,12 @@ const cs: Record<MessageKey, string> = {
     "Přípravný skript modulu deklarovaný v {file} po instalaci závislostí selhal, proto aplikace nebyla spuštěna. Opravte přípravu modulu a spusťte ji znovu.",
   modulePrerequisitesNotReady:
     "Deklarovaná kontrola modulu neprošla ani po instalaci závislostí a jeho přípravě, proto aplikace nebyla spuštěna. Opravte přípravu nebo kontrolu modulu a spusťte ji znovu.",
+  moduleReasonRequiredSlotUndeclared:
+    "Aplikace potřebuje {file}, který manifest Organizace nedeklaruje, proto nebyla spuštěna. Opravte required_module_slots aplikace nebo manifest Organizace.",
+  moduleReasonRequiredSlotPlanned:
+    "Aplikace potřebuje {file}, který manifest Organizace vede jako plánovaný, proto na tomto Environmentu zatím spustit nejde.",
+  moduleReasonRequiredSlotMissing:
+    "Aplikace potřebuje {file}, který na tomto Environmentu vedle ní není, proto nebyla spuštěna. Synchronizujte Organizaci nebo si požádejte o přístup k tomu modulu a spusťte ji znovu.",
   moduleApplication: "Aplikace",
   moduleStart: "Spustit",
   moduleStop: "Zastavit",
