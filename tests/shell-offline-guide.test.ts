@@ -237,6 +237,27 @@ test("the guide page names the Environment, its Organization and the tailnet, es
   expect(escapeHtml(`"'<>&`)).toBe("&quot;&#39;&lt;&gt;&amp;");
 });
 
+test("the guide page's lead calls an Organization's Environment an Environment", () => {
+  // An Environment without its own label carries its kind's name, an
+  // adjective ("Pracovní", "Work"): the sentence needs the noun after it.
+  const input = {
+    organization: "Example",
+    tailnet: "headscale.example.lazurio.io",
+    docs: "https://documentation.lazurio.ai/cs/guide/tailscale/",
+    dashboard: null,
+  };
+  expect(
+    renderOfflineGuide({ ...input, locale: "cs", environment: "Pracovní" }),
+  ).toContain(
+    "<strong>Pracovní</strong> Environment v Organizaci <strong>Example</strong> je dostupný jen přes Tailscale.",
+  );
+  expect(
+    renderOfflineGuide({ ...input, locale: "en", environment: "Work" }),
+  ).toContain(
+    "The <strong>Work</strong> Environment of <strong>Example</strong> is reachable only through Tailscale.",
+  );
+});
+
 test("the guide page leads back to the Dashboard without the tailnet: the rail's logo and a button", () => {
   const input = {
     locale: "cs" as const,

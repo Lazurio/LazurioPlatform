@@ -55,7 +55,7 @@ const copy: Record<"cs" | "en", Copy> = {
     title: "Zapni Tailscale",
     lead: (environment, organization) =>
       organization
-        ? `<strong>${environment}</strong> v Organizaci <strong>${organization}</strong> je dostupný jen přes Tailscale.`
+        ? `<strong>${environment}</strong> Environment v Organizaci <strong>${organization}</strong> je dostupný jen přes Tailscale.`
         : `Tvůj <strong>${environment}</strong> Environment je dostupný jen přes Tailscale.`,
     choose: "Zapni ho a vyber tailnet",
     continues: "Jakmile se připojíš, stránka sama pokračuje.",
@@ -95,7 +95,7 @@ const copy: Record<"cs" | "en", Copy> = {
     title: "Turn on Tailscale",
     lead: (environment, organization) =>
       organization
-        ? `<strong>${environment}</strong> of <strong>${organization}</strong> is reachable only through Tailscale.`
+        ? `The <strong>${environment}</strong> Environment of <strong>${organization}</strong> is reachable only through Tailscale.`
         : `Your <strong>${environment}</strong> Environment is reachable only through Tailscale.`,
     choose: "Turn it on and choose the tailnet",
     continues: "Once you are connected, this page continues by itself.",
