@@ -5586,6 +5586,25 @@ Decided by the Organization Admin, within point 6:
 
 Template revision `base-instructions-37`.
 
+**Addendum 2026-10-11: a work Environment's browser from the personal Environment.** Root
+decision 0191, addendum points 19–23 (2026-10-09), lets a requesting T3 Code or Launchpad of
+another Environment frame a view. Web T3 Code 0.0.45-lazurio.6 (Lazurio/t3code#49, released
+2026-10-10) opens a link to another Environment's view as a marked tab of the right panel:
+a coloured frame and that Environment's name, never loaded in this Environment's browser.
+The personal Environment's browser section now says how an agent works on a work matter
+from there:
+1. It opens a window in the work Environment's browser over SSH, with `lazurio browser window
+   --session <session> --url <address>` there. Over SSH the session name does not follow
+   from the thread, so the agent gives it.
+2. It shows the window to the Operator in the right panel by the link that command prints,
+   in the chat or through `preview_open`, and it works in the window over SSH.
+3. It never loads the work Environment's view or its pages in the personal browser. An older
+   T3 Code would load such a link in this Environment's browser. There the agent does not pass
+   the link to `preview_open` and asks the Operator to open it in a tab of its own.
+
+The "A personal browser" point now points to this one instead of repeating it. Template
+revision `base-instructions-41`.
+
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
 **Decided by Matěj 2026-10-06 after the pilot (root decision 0191 points 11–18, plan
