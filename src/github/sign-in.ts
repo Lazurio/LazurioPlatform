@@ -19,6 +19,7 @@ import {
 } from "./pilot";
 import {
   lockOrganization,
+  readSettledSignIn,
   readStoredSignIn,
   removeStoredSignIn,
   signInSchema,
@@ -261,7 +262,7 @@ export async function signIn(input: SignInInput): Promise<SignInState> {
   }
   try {
     // A sign-in that finished meanwhile wins; this one keeps nothing.
-    const meanwhile = await readStoredSignIn(paths, login);
+    const meanwhile = await readSettledSignIn(paths, login);
     if (
       meanwhile !== null &&
       meanwhile !== "unreadable" &&
@@ -336,7 +337,9 @@ export async function signOut(
     });
   }
   try {
-    const current = await readStoredSignIn(input.paths, login);
+    // A pair a killed write left aside is the sign-in too: settled first, so
+    // it is revoked with the rest.
+    const current = await readSettledSignIn(input.paths, login);
     if (current === null)
       return Object.freeze({ kind: "not-signed-in", organization: login });
     const revoked =

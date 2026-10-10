@@ -35,10 +35,16 @@ import {
   signIn,
   signOut,
 } from "./sign-in";
-import { readStoredSignIn, type StoredSignIn } from "./store";
+import {
+  lockOrganization,
+  readSettledSignIn,
+  readStoredSignIn,
+  type StoredSignIn,
+} from "./store";
 import {
   inspectWiring,
   unwire,
+  unwireLeftovers,
   type WireRefusal,
   type WiringHealth,
   wire,
@@ -77,11 +83,14 @@ github pilot wire [--json]
   git@github.com: remotes rewritten to HTTPS. Needs the owning Organization
   signed in. Run again, it repairs the wiring.
 github pilot unwire [--json]
-  Gives gh and Git back exactly as they were before wire.
+  Gives gh and Git back exactly as they were before wire; without a record
+  (an interrupted wire, the pilot off) it removes what the pilot's launcher
+  marker and Git include identify.
 github pilot disable [--json]
   Turns the pilot off; refused while wired or signed in.
 github gh <gh arguments>
-  The launcher itself (what ~/.local/bin/gh runs once wired).
+  The launcher itself (what ~/.local/bin/gh runs once wired); its
+  gh auth git-credential answers as the pilot's Git helper.
 github credential get|store|erase
   Git's credential helper (Git runs it; not for people).
 Exit status: 0 done or unchanged, 2 blocked or usage, 1 failure.`;
@@ -264,6 +273,27 @@ export function wiringExecutable(
     if (context.executable.startsWith(`${versions}/`)) return selector;
   }
   return context.executable;
+}
+
+/** Whether an Organization holds a sign-in here, read under its lock with an
+ * interrupted write settled first, so a pair a killed write left aside
+ * counts: removing the Organization or the switch never strands a live
+ * token. A lock held too long counts as signed in (the caller refuses). */
+async function signedInHere(
+  paths: PilotPaths,
+  login: string,
+): Promise<boolean> {
+  let lock: Awaited<ReturnType<typeof lockOrganization>>;
+  try {
+    lock = await lockOrganization(paths, login);
+  } catch {
+    return true;
+  }
+  try {
+    return (await readSettledSignIn(paths, login)) !== null;
+  } finally {
+    await lock.release();
+  }
 }
 
 export type GithubStatus = Readonly<{
@@ -449,6 +479,60 @@ export async function runGithubCommand(
   }
 
   const pilot = await readPilot(paths);
+  // Giving gh and Git back works in every state: with the record exactly,
+  // without one (an interrupted wire, a switch removed by hand, the pilot
+  // off) by what the pilot's own marker and include path identify.
+  if (command === "pilot unwire") {
+    const host = {
+      paths,
+      env: context.env,
+      platform: context.platform,
+      run: context.run ?? runTool,
+    };
+    const wiring = pilot.kind === "on" ? pilot.config.wiring : null;
+    if (pilot.kind !== "on" || wiring === null) {
+      const left = await unwireLeftovers(host);
+      if (left.gh === "none" && left.git === "none")
+        return done(
+          0,
+          { kind: "unchanged" },
+          "gh and Git are not wired to the pilot.",
+        );
+      return done(
+        left.gh === "left" || left.git === "failed" ? 1 : 0,
+        { kind: "unwired", ...left },
+        [
+          left.gh === "restored"
+            ? "A left-over launcher was replaced by the official gh the pilot kept."
+            : left.gh === "left"
+              ? "~/.local/bin/gh is a launcher of the pilot, but the official gh it kept is gone: remove ~/.local/bin/gh, then lazurio tools install gh."
+              : "",
+          left.git === "removed"
+            ? "A left-over Git include of the pilot was removed."
+            : left.git === "failed"
+              ? `Git's include could not be removed: git config --global --unset-all include.path (${paths.gitInclude})`
+              : "",
+        ]
+          .filter((line) => line !== "")
+          .join("\n"),
+      );
+    }
+    const { config } = pilot;
+    const outcome = await unwire(host, wiring);
+    await writePilot(paths, { ...config, wiring: null });
+    const ghText = {
+      restored: "gh is the official gh again",
+      removed: "the launcher is removed; gh is found where it was",
+      left: "~/.local/bin/gh had been replaced since and was left as it is",
+      "not-restored":
+        "the official gh the pilot kept is gone, so the launcher was removed: lazurio tools install gh",
+    }[outcome.gh];
+    return done(
+      outcome.git === "removed" ? 0 : 1,
+      outcome,
+      `${ghText}; ${outcome.git === "removed" ? "Git's pilot configuration is removed" : `Git's include could not be removed: git config --global --unset-all include.path (${paths.gitInclude})`}.\nThe sign-ins stay; sign out with lazurio github sign-out.`,
+    );
+  }
   if (pilot.kind === "unreadable")
     return blocked(
       "pilot-unreadable",
@@ -551,7 +635,7 @@ export async function runGithubCommand(
         "owning-organization",
         "The owning Organization stays while the pilot is on (lazurio github pilot disable).",
       );
-    if ((await readStoredSignIn(paths, organization.login)) !== null)
+    if (await signedInHere(paths, organization.login))
       return blocked(
         "signed-in",
         `Signed in to ${organization.login}: lazurio github sign-out --organization ${organization.login} first.`,
@@ -599,7 +683,13 @@ export async function runGithubCommand(
       record: (wiring) => writePilot(paths, { ...config, wiring }),
     });
     if (outcome.kind === "blocked")
-      return blocked(outcome.reason, wireText[outcome.reason]);
+      return blocked(
+        outcome.reason,
+        outcome.repair
+          ? `${wireText[outcome.reason].replace(/ Nothing was (?:changed|replaced)\.$/, "")} The existing wiring was left as it is; lazurio github status shows what is missing.`
+          : wireText[outcome.reason],
+        { repair: outcome.repair },
+      );
     return done(
       0,
       {
@@ -615,29 +705,6 @@ export async function runGithubCommand(
     );
   }
 
-  if (command === "pilot unwire") {
-    if (config.wiring === null)
-      return done(
-        0,
-        { kind: "unchanged" },
-        "gh and Git are not wired to the pilot.",
-      );
-    const outcome = await unwire(host, config.wiring);
-    await writePilot(paths, { ...config, wiring: null });
-    const ghText = {
-      restored: "gh is the official gh again",
-      removed: "the launcher is removed; gh is found where it was",
-      left: "~/.local/bin/gh had been replaced since and was left as it is",
-      "not-restored":
-        "the official gh the pilot kept is gone, so the launcher was removed: lazurio tools install gh",
-    }[outcome.gh];
-    return done(
-      outcome.git === "removed" ? 0 : 1,
-      outcome,
-      `${ghText}; ${outcome.git === "removed" ? "Git's pilot configuration is removed" : `Git's include could not be removed: git config --global --unset-all include.path (${paths.gitInclude})`}.\nThe sign-ins stay; sign out with lazurio github sign-out.`,
-    );
-  }
-
   if (command === "pilot disable") {
     if (config.wiring !== null)
       return blocked(
@@ -646,7 +713,7 @@ export async function runGithubCommand(
       );
     const signedIn: string[] = [];
     for (const organization of config.organizations)
-      if ((await readStoredSignIn(paths, organization.login)) !== null)
+      if (await signedInHere(paths, organization.login))
         signedIn.push(organization.login);
     if (signedIn.length > 0)
       return blocked(

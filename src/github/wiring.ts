@@ -14,9 +14,9 @@ import {
   rm,
   symlink,
 } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { resolveOnPath, type ToolRunner } from "../tools/status";
-import { writeDurableFile } from "../update/durable-file";
+import { syncDirectory, writeDurableFile } from "../update/durable-file";
 import {
   ensurePrivateDirectory,
   type GhWiring,
@@ -187,6 +187,20 @@ async function placeAtomically(
   }
 }
 
+/** A copy on disk before anything relies on it: the file, then its
+ * directory. */
+async function copyDurably(from: string, to: string): Promise<void> {
+  await copyFile(from, to);
+  await chmod(to, 0o755);
+  const file = await open(to, "r");
+  try {
+    await file.sync();
+  } finally {
+    await file.close();
+  }
+  await syncDirectory(dirname(to));
+}
+
 /** The kept binary back at the entry, in one rename (through a copy beside
  * the entry when the two are on different filesystems). */
 async function restoreOfficial(saved: string, entry: string): Promise<void> {
@@ -201,9 +215,9 @@ async function restoreOfficial(saved: string, entry: string): Promise<void> {
     `.gh.lazurio-${randomBytes(8).toString("hex")}`,
   );
   try {
-    await copyFile(saved, temporary);
-    await chmod(temporary, 0o755);
+    await copyDurably(saved, temporary);
     await rename(temporary, entry);
+    await syncDirectory(dirname(entry));
   } catch (error) {
     await rm(temporary, { force: true });
     throw error;
@@ -217,11 +231,42 @@ async function keepOfficial(entry: string, saved: string): Promise<void> {
   await rm(saved, { force: true });
   try {
     await link(entry, saved);
+    await syncDirectory(dirname(saved));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
-    await copyFile(entry, saved);
-    await chmod(saved, 0o755);
+    await copyDurably(entry, saved);
   }
+}
+
+/** The include file and its `include.path` in the user's global Git
+ * configuration; false when Git cannot be asked or written. */
+async function configureGit(
+  host: WiringHost,
+  executable: string,
+): Promise<boolean> {
+  const { paths } = host;
+  await ensurePrivateDirectory(paths.configDirectory);
+  await writeDurableFile(
+    paths.configDirectory,
+    "pilot.gitconfig",
+    Buffer.from(gitIncludeText(executable)),
+  );
+  const included = await git(host, [
+    "config",
+    "--global",
+    "--get-all",
+    "include.path",
+  ]);
+  if (included === null) return false;
+  if (included.stdout.split("\n").includes(paths.gitInclude)) return true;
+  const added = await git(host, [
+    "config",
+    "--global",
+    "--add",
+    "include.path",
+    paths.gitInclude,
+  ]);
+  return added !== null && added.exitCode === 0;
 }
 
 export type WireRefusal =
@@ -239,7 +284,9 @@ export type WireRefusal =
 
 export type WireOutcome =
   | Readonly<{ kind: "wired"; wiring: PilotWiring; repaired: boolean }>
-  | Readonly<{ kind: "blocked"; reason: WireRefusal }>;
+  /** `repair`: a wiring was there; it was left as it is. Otherwise nothing
+   * of the pilot's is left in place. */
+  | Readonly<{ kind: "blocked"; reason: WireRefusal; repair: boolean }>;
 
 /** Wires gh and Git to the pilot, or repairs a wiring (`current`): the record
  * is written by `record` before the entry changes, so `unwire` always knows
@@ -255,7 +302,7 @@ export async function wire(
 ): Promise<WireOutcome> {
   const { paths } = host;
   const blocked = (reason: WireRefusal): WireOutcome =>
-    Object.freeze({ kind: "blocked", reason });
+    Object.freeze({ kind: "blocked", reason, repair: input.current !== null });
   if (
     !isPlainAbsolutePath(input.executable) ||
     !(await isExecutableFile(input.executable))
@@ -274,23 +321,24 @@ export async function wire(
         // A wiring interrupted before its record: the binary was kept.
         gh = { previous: "file", real: paths.savedGh };
       else return blocked("gh-entry-unsupported");
+      // A repair never keeps a gh that is gone (an upgrade removed it).
+      if (!(await isExecutableFile(gh.real))) return blocked("gh-missing");
       break;
     case "file":
       gh = { previous: "file", real: paths.savedGh };
       saveOfficial = true;
       break;
     case "link": {
-      let real: string;
-      try {
-        real = await realpath(paths.ghEntry);
-      } catch {
-        return blocked("gh-missing");
-      }
+      // The link's own target, not where it finally leads: a package
+      // manager's versioned path behind it changes with every upgrade.
+      const real = resolve(dirname(paths.ghEntry), entry.target);
+      if (!(await isExecutableFile(real))) return blocked("gh-missing");
       if (
         !isPlainAbsolutePath(real) ||
-        !(await isExecutableFile(real)) ||
         isLauncherText(
-          (await lstat(real)).size < 4096 ? await readText(real) : null,
+          (await lstat(await realpath(real))).size < 4096
+            ? await readText(real)
+            : null,
         )
       )
         return blocked("gh-entry-unsupported");
@@ -309,32 +357,6 @@ export async function wire(
       return blocked("gh-entry-unsupported");
   }
 
-  // Git first: nothing is replaced yet if it fails.
-  await ensurePrivateDirectory(paths.configDirectory);
-  await writeDurableFile(
-    paths.configDirectory,
-    "pilot.gitconfig",
-    Buffer.from(gitIncludeText(input.executable)),
-  );
-  const included = await git(host, [
-    "config",
-    "--global",
-    "--get-all",
-    "include.path",
-  ]);
-  if (included === null) return blocked("git-config-failed");
-  if (!included.stdout.split("\n").includes(paths.gitInclude)) {
-    const added = await git(host, [
-      "config",
-      "--global",
-      "--add",
-      "include.path",
-      paths.gitInclude,
-    ]);
-    if (added === null || added.exitCode !== 0)
-      return blocked("git-config-failed");
-  }
-
   if (saveOfficial) {
     await ensurePrivateDirectory(paths.stateDirectory);
     await keepOfficial(paths.ghEntry, paths.savedGh);
@@ -344,13 +366,30 @@ export async function wire(
     gh,
     wiredAt: input.current?.wiredAt ?? new Date(input.now()).toISOString(),
   });
+  // The record first: whatever happens next, unwire knows what to restore.
   await input.record(wiring);
-  await placeAtomically(paths.ghEntry, launcherScript(input.executable));
-  const first = await resolveOnPath("gh", host.env.PATH, host.platform);
-  if (first !== paths.ghEntry) {
+  // A first wiring that fails is undone, record included; a repair that
+  // fails leaves the wiring as it was (status names what is still missing),
+  // never tearing down one that works.
+  const rollBack = async () => {
+    if (input.current !== null) return;
     await unwire(host, wiring);
     await input.record(null);
-    return blocked("gh-not-first");
+  };
+  try {
+    if (!(await configureGit(host, input.executable))) {
+      await rollBack();
+      return blocked("git-config-failed");
+    }
+    await placeAtomically(paths.ghEntry, launcherScript(input.executable));
+    const first = await resolveOnPath("gh", host.env.PATH, host.platform);
+    if (first !== paths.ghEntry) {
+      await rollBack();
+      return blocked("gh-not-first");
+    }
+  } catch (error) {
+    await rollBack().catch(() => undefined);
+    throw error;
   }
   return Object.freeze({
     kind: "wired",
@@ -405,7 +444,50 @@ export async function unwire(
     if (wiring.gh.previous === "file") await rm(paths.savedGh, { force: true });
   }
 
-  const escaped = paths.gitInclude.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const gitState = (await removeInclude(host)) ? "removed" : "failed";
+  if (gitState === "removed") await rm(paths.gitInclude, { force: true });
+  return Object.freeze({ kind: "unwired", gh: ghState, git: gitState });
+}
+
+/** Undoes what a wiring without its record left (an interrupted wire, a
+ * switch removed by hand): the include and its `include.path`, and a
+ * launcher of the pilot at the entry, given back the kept official gh. Safe
+ * where nothing is left; runs also while the pilot is off. */
+export async function unwireLeftovers(host: WiringHost): Promise<
+  Readonly<{
+    gh: "restored" | "left" | "none";
+    git: "removed" | "failed" | "none";
+  }>
+> {
+  const { paths } = host;
+  let gh: "restored" | "left" | "none" = "none";
+  const entry = await inspectEntry(paths.ghEntry);
+  if (entry.kind === "launcher") {
+    if (await isExecutableFile(paths.savedGh)) {
+      await restoreOfficial(paths.savedGh, paths.ghEntry);
+      gh = "restored";
+    } else gh = "left";
+  }
+  const included = await git(host, [
+    "config",
+    "--global",
+    "--get-all",
+    "include.path",
+  ]);
+  const listed =
+    included?.stdout.split("\n").includes(paths.gitInclude) === true;
+  const file = (await readText(paths.gitInclude)) !== null;
+  if (!listed && !file) return Object.freeze({ gh, git: "none" });
+  if (listed && !(await removeInclude(host)))
+    return Object.freeze({ gh, git: "failed" });
+  await rm(paths.gitInclude, { force: true });
+  return Object.freeze({ gh, git: "removed" });
+}
+
+/** `include.path` of the pilot's include, removed from the global Git
+ * configuration; true when it is not there afterwards. */
+async function removeInclude(host: WiringHost): Promise<boolean> {
+  const escaped = host.paths.gitInclude.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const unset = await git(host, [
     "config",
     "--global",
@@ -414,12 +496,7 @@ export async function unwire(
     `^${escaped}$`,
   ]);
   // 5: the value was not there, which is the goal.
-  const gitState =
-    unset !== null && (unset.exitCode === 0 || unset.exitCode === 5)
-      ? "removed"
-      : "failed";
-  if (gitState === "removed") await rm(paths.gitInclude, { force: true });
-  return Object.freeze({ kind: "unwired", gh: ghState, git: gitState });
+  return unset !== null && (unset.exitCode === 0 || unset.exitCode === 5);
 }
 
 export type WiringHealth = Readonly<{
