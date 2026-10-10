@@ -1774,9 +1774,9 @@ every second with the connect's job, and "Heslo účtu zná jen tento Environmen
 failure names its stage and reason with "Dokončit s agentem" and "Zkusit znovu". (3)
 "Potvrď účet v trezoru": the fingerprint phrase in a selectable box, "Otevřít
 Vaultwarden" and "Čekám na potvrzení…" while `/refresh` is asked every five seconds.
-Once the member is confirmed but the account does not recognize its collection (it
-sees none, or several and none with the suggested name; the only one it sees is its
-own, whatever its name), the step is titled "Nasdílej účtu kolekci" and says only that:
+Once the member is confirmed but the account does not recognize its collection (at a
+first connection it sees none, or several and none with the suggested name; the only
+one it sees is its own, whatever its name), the step is titled "Nasdílej účtu kolekci" and says only that:
 "Potvrzeno. Ještě účtu v trezoru nasdílej kolekci tohoto Environmentu s právem úprav.",
 the suggested name to copy, "Vidí-li účet víc kolekcí, pozná tu svou podle tohohle
 názvu.", and "Čekám na kolekci…"; the row

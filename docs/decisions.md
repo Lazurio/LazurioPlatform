@@ -6208,14 +6208,17 @@ to chat, Git, a log or a pull request.
    a persona's display name from the catalog, otherwise its kind, "Osobní",
    "Pracovní", "Týmový" or "Automatizovaný". That name is only a suggestion
    (root decision 0193, addendum 2026-10-11): the collection's name is the
-   operator's. The Environment's own collection is the one it was connected
-   to, by its ID, so a rename changes nothing; otherwise the visible one with
-   exactly the suggested name, or the only one named `Environmenty/… ·
-   <machine>` (the machine part identifies it, so a Team that renames itself
-   does not lose its collection); and at a first connection, when nothing is
-   recorded, the only collection the account sees, whatever its name. A
-   recorded collection that is gone is never replaced by another one the
-   account sees: that reads as revoked. Only the handover's declared operator, in a hosted Folder on
+   operator's. Once connected, the Environment's own collection is only the
+   one it was connected to, by its ID: a rename changes nothing, and a
+   collection that is gone reads as revoked, whatever else the account sees
+   (no other collection ever takes its place). At a first connection, when
+   nothing is recorded, it is the visible one with exactly the suggested name,
+   else the only one named `Environmenty/… · <machine>` (the machine part
+   identifies it, so a Team that renames itself does not lose its
+   collection), else the only collection the account sees, whatever its name.
+   A disconnect forgets the record, so connecting again is a first connection
+   again: a collection under its own name is recognized only while it is the
+   only one the account sees; among several, it needs the suggested name. Only the handover's declared operator, in a hosted Folder on
    Linux, has a vault account; everything else answers `unsupported` with its
    reason before anything runs.
 
