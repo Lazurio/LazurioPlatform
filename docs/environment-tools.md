@@ -457,8 +457,10 @@ earlier temporary exception that let any account sign in on a Team VM has ended.
 ### The Environment vault (decision F43)
 
 Root decision 0193: every Environment has its own account `vaultwarden@<Environment
-address>` in the Vaultwarden of its network, its own collection
-`Environmenty/<name> · <machine>` with edit rights, and one unlocked Bitwarden CLI
+address>` in the Vaultwarden of its network, its own collection with edit rights (named
+as the operator likes; `Environmenty/<name> · <machine>` is the suggested name, which
+decides only when the account sees several collections, and the collection is then
+kept by its ID; the 0193 addendum of 2026-10-11), and one unlocked Bitwarden CLI
 session that all its agents share. The catalog tool is `bitwarden` (command `bw`); it
 has its own flow instead of F19's install and sign-in, which refuse it as
 `setup-vault`. Remote Environments on Linux only; on this computer it is the second

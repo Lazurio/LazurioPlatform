@@ -240,24 +240,31 @@ function signedInAs(
   );
 }
 
-/** The account's own collection among those it sees: the one named as the
- * operator was shown, the one it was connected to, or the only one named
- * for this machine. */
+/** The account's own collection among those it sees (root decision 0193,
+ * addendum 2026-10-11: its name is the operator's). The one it was connected
+ * to, by its ID, so a rename changes nothing; otherwise the one with the name
+ * the dialog suggested, or the only one named for this machine; and at a
+ * first connection, when nothing is recorded, the only one it sees, whatever
+ * its name. A recorded collection that is gone is never replaced by another
+ * one the account happens to see: that reads as revoked. */
 export function environmentCollection(
   collections: readonly BwCollection[],
   context: VaultContext,
   record: VaultRecord,
 ): BwCollection | undefined {
-  const exact = collections.find((entry) => entry.name === context.collection);
-  if (exact !== undefined) return exact;
   const recorded = collections.find(
     (entry) => entry.id === record.collectionId,
   );
   if (recorded !== undefined) return recorded;
+  const exact = collections.find((entry) => entry.name === context.collection);
+  if (exact !== undefined) return exact;
   const named = collections.filter((entry) =>
     isEnvironmentCollection(entry.name, context),
   );
-  return named.length === 1 ? named[0] : undefined;
+  if (named.length === 1) return named[0];
+  return record.collectionId === null && collections.length === 1
+    ? collections[0]
+    : undefined;
 }
 
 type Observation =

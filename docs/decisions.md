@@ -6206,11 +6206,16 @@ to chat, Git, a log or a pull request.
    `Environmenty/<name> · <machine>`, in the vault's language as 0193 writes it,
    with the Environment's name as the rail gives it (decision 0185): a Team's or
    a persona's display name from the catalog, otherwise its kind, "Osobní",
-   "Pracovní", "Týmový" or "Automatizovaný". The Environment's own collection is
-   the visible one with exactly the name the dialog showed, else the one it was
-   connected to, else the only one named `Environmenty/… · <machine>`: the
-   machine part identifies it, so a Team that renames itself does not lose its
-   collection. Only the handover's declared operator, in a hosted Folder on
+   "Pracovní", "Týmový" or "Automatizovaný". That name is only a suggestion
+   (root decision 0193, addendum 2026-10-11): the collection's name is the
+   operator's. The Environment's own collection is the one it was connected
+   to, by its ID, so a rename changes nothing; otherwise the visible one with
+   exactly the suggested name, or the only one named `Environmenty/… ·
+   <machine>` (the machine part identifies it, so a Team that renames itself
+   does not lose its collection); and at a first connection, when nothing is
+   recorded, the only collection the account sees, whatever its name. A
+   recorded collection that is gone is never replaced by another one the
+   account sees: that reads as revoked. Only the handover's declared operator, in a hosted Folder on
    Linux, has a vault account; everything else answers `unsupported` with its
    reason before anything runs.
 
