@@ -593,7 +593,11 @@ Codex unit:
   (`--load-extension=~/.local/share/lazurio-browser/extension`, [F39](decisions.md#f39--the-peoples-view-of-the-environment-browser-one-tab-of-a-person-is-one-remote-tab)
   point 7) with `LAZURIO_BROWSER_EXTENSION=<its digest>` in the unit's environment;
   `BindsTo=`/`After=` the display, `Restart=always`, and `RestartPreventExitStatus=78`
-  for "no Chrome to run".
+  for "no Chrome to run". The browser's own memory budget
+  ([F38 addendum 2026-10-10](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)):
+  `MemoryMax=30%`, `MemorySwapMax=20%`, `OOMPolicy=continue` and `OOMScoreAdjust=250`.
+  Before each start, `ExecStartPre=-/bin/rm -rf` removes the profile's
+  `Default/Sessions`, so a restarted browser opens none of the old tabs.
 - `lazurio-browser-view.service`: the people's view (F39), this base's `<selector>
   browser serve --port <entry.browser.listen_port> --origin
   <entry.browser.external_origin>`, a long-running service with `Restart=always`.

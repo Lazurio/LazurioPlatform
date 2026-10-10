@@ -610,7 +610,13 @@ the flag ([evidence, round 3](evidence/app-services-linux-arm64-2026-09-19.md)).
   standard input `null` and standard output and error to the journal (since slice P5
   of the Launchpad parity, B6: the OS owns retention and rotation, `lazurio module logs`
   reads the unit's tail with `journalctl --user --unit=<unit> --output=cat`; until then
-  both were `null`), and nothing that widens privileges or changes resource limits.
+  both were `null`), `OOMScoreAdjust=220`, and nothing that widens privileges or
+  changes resource limits. The adjustment orders the kernel's choice under memory
+  pressure (root decision 0195 point 3, plan DEV-6656): the browser's tabs (300) and
+  the rest of the browser (250) go first, then a Module (220), and the Environment's
+  core last (the user manager's default of 200, which the Launchpad keeps). Raising it
+  needs no privilege. It is not part of the fixed policy below: a Module an older
+  release started without it stays recognized and gets it at its next start.
 - **Environment is an allowlist.** Exactly the launch environment the guard passes (the
   closed base `HOME`, `PATH`, optional `TMPDIR` and the runtime environment of decision
   F26 above). A real user manager
