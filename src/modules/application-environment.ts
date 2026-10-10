@@ -46,8 +46,9 @@ export function moduleProcessEnvironment(
 // `moduleProcessEnvironment`) and nothing else: no
 // ambient HOST, PORT, NODE_PATH or LAZURIO_RUNTIME_* can reach it, because
 // nothing ambient is read. Every value is derived from the declaration, the
-// application's directory, its Organization root, its external origin and
-// the declarations of the sibling modules it requires.
+// application's directory, its Organization root, its external origin, the
+// declarations of the sibling modules it requires and the values of its
+// declared runtime secrets, read from the Environment vault (decision F46).
 export function applicationEnvironment(input: {
   base: Readonly<Record<string, string>>;
   plan: Pick<Plan, "runtime" | "listeners">;
@@ -61,6 +62,11 @@ export function applicationEnvironment(input: {
   /** The loopback origins of the sibling modules the application declares,
    * by module id (`requiredSlotOrigins`); none for a Personalspace module. */
   siblings?: Readonly<Record<string, string>> | undefined;
+  /** `LAZURIO_RUNTIME_SECRET_<NAME>` of each declared secret with a value,
+   * read from the Environment vault at this start (`readRuntimeSecrets`,
+   * decision F46). Only the application's own process gets them: never the
+   * preparation's processes, never `LAZURIO_RUNTIME_LISTENERS_JSON`. */
+  secrets?: Readonly<Record<string, string>> | undefined;
 }): Record<string, string> {
   const { runtime, listeners } = input.plan;
   const entrypoint = listeners.find(
@@ -126,5 +132,10 @@ export function applicationEnvironment(input: {
       `LAZURIO_RUNTIME_SIBLING_${listenerVariableKey(module)}_ORIGIN`
     ] = siblingOrigin;
   environment.LAZURIO_RUNTIME_LISTENERS_JSON = JSON.stringify(state);
+  for (const [name, value] of Object.entries(input.secrets ?? {})) {
+    if (!/^LAZURIO_RUNTIME_SECRET_[A-Z][A-Z0-9_]*$/.test(name))
+      throw new Error("Invalid runtime secret variable");
+    environment[name] = value;
+  }
   return environment;
 }

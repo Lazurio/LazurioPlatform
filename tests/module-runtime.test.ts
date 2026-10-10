@@ -131,3 +131,59 @@ test("runtime optional module requirements are retained without claiming availab
   ).toThrow();
   expect(() => parseAppRuntime({ ...runtime(), unknown: "value" })).toThrow();
 });
+test("runtime secrets are names only: absent, or a non-empty list of unique upper-case names, never both required and optional (decision F46)", () => {
+  // Absent: nothing declared, and the declaration still starts.
+  const absent = parseAppRuntime(runtime());
+  expect(absent.secrets).toEqual([]);
+  expect(absent.optional_secrets).toEqual([]);
+  // Declared: exposed on the plan in declaration order, frozen.
+  const plan = planModuleRuntime(
+    module,
+    {
+      ...runtime(),
+      secrets: ["EXTERNAL_API_KEY", "SECOND_TOKEN_2"],
+      optional_secrets: ["OPTIONAL_KEY"],
+    },
+    "app/package.json",
+    { dev: "fixture" },
+  );
+  expect(plan.runtime.secrets).toEqual(["EXTERNAL_API_KEY", "SECOND_TOKEN_2"]);
+  expect(plan.runtime.optional_secrets).toEqual(["OPTIONAL_KEY"]);
+  expect(Object.isFrozen(plan.runtime.secrets)).toBe(true);
+  expect(
+    parseAppRuntime({ ...runtime(), optional_secrets: ["ONLY_OPTIONAL"] })
+      .optional_secrets,
+  ).toEqual(["ONLY_OPTIONAL"]);
+  for (const key of ["secrets", "optional_secrets"])
+    for (const refused of [
+      [],
+      ["EXTERNAL_API_KEY", "EXTERNAL_API_KEY"],
+      ["external_api_key"],
+      ["1_KEY"],
+      ["_KEY"],
+      ["KEY-NAME"],
+      ["KEY NAME"],
+      ["KEY\n"],
+      [""],
+      [42],
+      "EXTERNAL_API_KEY",
+      { EXTERNAL_API_KEY: true },
+      null,
+    ])
+      expect(() => parseAppRuntime({ ...runtime(), [key]: refused })).toThrow();
+  // One name is either required or optional.
+  expect(() =>
+    parseAppRuntime({
+      ...runtime(),
+      secrets: ["EXTERNAL_API_KEY"],
+      optional_secrets: ["EXTERNAL_API_KEY"],
+    }),
+  ).toThrow();
+  // A value never belongs in the declaration: an object entry is refused.
+  expect(() =>
+    parseAppRuntime({
+      ...runtime(),
+      secrets: [{ name: "EXTERNAL_API_KEY", value: "fake-value" }],
+    }),
+  ).toThrow();
+});

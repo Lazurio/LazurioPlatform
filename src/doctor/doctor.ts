@@ -22,6 +22,10 @@ import { enabledTools } from "../folder/state";
 import { machineBinding } from "../machine/binding";
 import { preparationReasons } from "../modules/preparation-refusal";
 import {
+  type RuntimeSecretFinding,
+  runtimeSecretReasons,
+} from "../modules/runtime-secrets";
+import {
   type Catalog,
   type ModuleReason,
   type OrganizationReason,
@@ -179,6 +183,9 @@ const ownReasons = [
   "executor-conflict",
   "executor-not-running",
   "executor-incomplete",
+  // Modules: optional runtime secrets a module's app would start without
+  // (decision F46); a note on an `ok` module, never a refusal.
+  "runtime-secret-not-provided",
 ] as const;
 const catalogReasons: readonly (OrganizationReason | ModuleReason)[] = [
   "canonical-documents-required",
@@ -195,6 +202,7 @@ const catalogReasons: readonly (OrganizationReason | ModuleReason)[] = [
   "default-app-invalid",
   ...checkoutReasons,
   ...preparationReasons,
+  "runtime-secret-unavailable",
 ];
 export const doctorReasons: readonly string[] = Object.freeze([
   ...new Set<string>([
@@ -284,6 +292,13 @@ export const doctorContextRules: Readonly<
   answer: oneOf(["normal", "recovery", "none", "unexpected"]),
   organizations: count,
   modules: count,
+  // Declared runtime secrets (decision F46): their names, never a value,
+  // and the one reason the catalog knows without the vault.
+  secrets: (value: unknown) =>
+    typeof value === "string" &&
+    value.length <= 512 &&
+    /^[A-Z][A-Z0-9_]*(,[A-Z][A-Z0-9_]*)*$/.test(value),
+  secretReason: oneOf(runtimeSecretReasons),
   // A refused file or directory of the operator's checkout (decision F23):
   // relative to its module or Organization (`.` for the directory itself), or
   // `~/…`; never absolute, never `..`.
@@ -577,6 +592,18 @@ async function toolRows(
   });
 }
 
+// Declared runtime secrets in a check's context: their names and the one
+// reason the catalog gives them all (decision F46).
+const secretContext = (
+  secrets: readonly RuntimeSecretFinding[],
+): ErrorContext =>
+  secrets.length === 0
+    ? {}
+    : {
+        secrets: secrets.map((entry) => entry.name).join(","),
+        secretReason: (secrets[0] as RuntimeSecretFinding).reason,
+      };
+
 /** The Organizations and modules of a catalog as doctor checks; content
  * installation ends an Organization's install with the same checks. */
 export function catalogChecks(
@@ -618,14 +645,21 @@ export function catalogChecks(
       const named = { organization, module: safeName(module.module) };
       checks.push(
         module.executable
-          ? check("module", "ok", undefined, named)
+          ? module.secretsNotProvided?.length
+            ? check("module", "ok", "runtime-secret-not-provided", {
+                ...named,
+                ...secretContext(module.secretsNotProvided),
+              })
+            : check("module", "ok", undefined, named)
           : check(
               "module",
               "warn",
               module.reason ?? "organization-not-executable",
-              module.file === undefined
-                ? named
-                : { ...named, file: module.file },
+              {
+                ...named,
+                ...(module.file === undefined ? {} : { file: module.file }),
+                ...secretContext(module.secrets ?? []),
+              },
             ),
       );
     }

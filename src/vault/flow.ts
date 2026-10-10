@@ -84,7 +84,7 @@ export type VaultHost = Readonly<{
 }>;
 
 export type VaultJournalEntry = Readonly<{
-  operation: "connect" | "refresh" | "disconnect" | "unlock";
+  operation: "connect" | "refresh" | "disconnect" | "unlock" | "secrets";
   outcome: string;
   reason?: string;
 }>;
@@ -916,15 +916,31 @@ export async function vaultDisconnect(host: VaultHost): Promise<VaultStatus> {
   return status;
 }
 
-/** `env`: the session for an agent's shell. A session that is no longer the
- * unlocked one is replaced under the account's lock; another process that
- * replaced it meanwhile is trusted, so two agents never unlock twice. */
-export async function vaultEnv(host: VaultHost): Promise<VaultEnvResult> {
+type ConnectedSession =
+  | Readonly<{
+      ok: true;
+      bw: BwCli;
+      session: string;
+      data: string;
+      organizationId: string;
+      collectionId: string;
+    }>
+  | Readonly<{
+      ok: false;
+      reason: Extract<VaultEnvResult, { kind: "vault-env-refused" }>["reason"];
+    }>;
+
+/** The one unlocked session of a connected Environment and the ids of its
+ * collection. A session that is no longer the unlocked one is replaced under
+ * the account's lock; another process that replaced it meanwhile is trusted,
+ * so two readers never unlock twice. */
+async function connectedSession(
+  host: VaultHost,
+  context: VaultContext,
+): Promise<ConnectedSession> {
   const refuse = (
-    reason: Extract<VaultEnvResult, { kind: "vault-env-refused" }>["reason"],
-  ): VaultEnvResult => ({ kind: "vault-env-refused", reason });
-  const context = await host.context();
-  if (context.kind === "unsupported") return refuse(context.reason);
+    reason: Extract<ConnectedSession, { ok: false }>["reason"],
+  ): ConnectedSession => ({ ok: false, reason });
   const paths = vaultPaths(host.directory(context));
   if (!(await pinnedInstalled(host.base, host.pin)))
     return refuse("not-installed");
@@ -940,16 +956,15 @@ export async function vaultEnv(host: VaultHost): Promise<VaultEnvResult> {
   if (record.organizationId === null || record.collectionId === null)
     return refuse("not-connected");
   const { organizationId, collectionId } = record;
-  const answer = (session: string): VaultEnvResult => ({
-    kind: "vault-env",
-    env: {
-      BITWARDENCLI_APPDATA_DIR: paths.data,
-      BW_SESSION: session,
-      LAZURIO_VAULT_ORGANIZATION_ID: organizationId,
-      LAZURIO_VAULT_COLLECTION_ID: collectionId,
-    },
-  });
   const bw = cliOf(host, paths);
+  const answer = (session: string): ConnectedSession => ({
+    ok: true,
+    bw,
+    session,
+    data: paths.data,
+    organizationId,
+    collectionId,
+  });
   const current = await readSession(paths).catch(() => null);
   if (current !== null) {
     const state = await bw.status(current);
@@ -971,4 +986,188 @@ export async function vaultEnv(host: VaultHost): Promise<VaultEnvResult> {
       );
     },
   );
+}
+
+/** `env`: the session for an agent's shell. A session that is no longer the
+ * unlocked one is replaced under the account's lock; another process that
+ * replaced it meanwhile is trusted, so two agents never unlock twice. */
+export async function vaultEnv(host: VaultHost): Promise<VaultEnvResult> {
+  const context = await host.context();
+  if (context.kind === "unsupported")
+    return { kind: "vault-env-refused", reason: context.reason };
+  const connected = await connectedSession(host, context);
+  if (!connected.ok)
+    return { kind: "vault-env-refused", reason: connected.reason };
+  return {
+    kind: "vault-env",
+    env: {
+      BITWARDENCLI_APPDATA_DIR: connected.data,
+      BW_SESSION: connected.session,
+      LAZURIO_VAULT_ORGANIZATION_ID: connected.organizationId,
+      LAZURIO_VAULT_COLLECTION_ID: connected.collectionId,
+    },
+  };
+}
+
+/** Why no runtime secret of an application can be read from the
+ * Environment vault (decision F46): a fixed code, never bw's output. */
+export type VaultSecretsRefusal =
+  /** This computer: no vault identity yet (the second wave of 0193). */
+  | "workstation"
+  /** A Remote Environment whose vault account cannot be derived (no
+   * handover, not its operator, no address or network, an unknown vault). */
+  | "no-vault-identity"
+  /** The application belongs to another Organization than the one that
+   * owns the Environment and its collection. */
+  | "other-organization"
+  /** The vault is not connected here (not installed, no account, no
+   * collection, signed out or the access revoked). */
+  | "not-connected"
+  /** The session could not be unlocked. */
+  | "locked"
+  /** Another process holds the account's lock. */
+  | "busy"
+  /** The vault cannot be reached for the sync. */
+  | "unreachable"
+  /** bw did not answer in the shape this core reads, or did not run. */
+  | "vault-failed";
+
+/** Why one declared name has no value (decision F46). */
+export type VaultSecretAbsence =
+  /** No item of that exact name in the Environment's collection. */
+  | "missing"
+  /** More than one such item: which one is meant is not guessed. */
+  | "ambiguous"
+  /** The one item has no login password, or an empty one. */
+  | "empty";
+
+export type VaultSecret =
+  | Readonly<{ kind: "value"; value: string }>
+  | Readonly<{ kind: "absent"; reason: VaultSecretAbsence }>;
+
+export type VaultSecretsResult =
+  | Readonly<{
+      kind: "vault-secrets";
+      /** Every requested name, with its value or why it has none. */
+      secrets: ReadonlyMap<string, VaultSecret>;
+    }>
+  | Readonly<{ kind: "vault-secrets-refused"; reason: VaultSecretsRefusal }>;
+
+/** Whether an application of `company` may read runtime secrets from this
+ * Environment's vault, as far as is known without running bw: the
+ * Environment has a vault identity, and the application belongs to the
+ * Organization that owns the Environment (its collection is that
+ * Organization's; slugs compare as GitHub's, case-insensitively). Null when
+ * it may. */
+export async function vaultSecretsAdmission(
+  host: VaultHost,
+  company: string,
+): Promise<VaultSecretsRefusal | null> {
+  const context = await host.context();
+  return admissionOf(context, company);
+}
+
+function admissionOf(
+  context: VaultContext | VaultUnsupported,
+  company: string,
+): VaultSecretsRefusal | null {
+  if (context.kind === "unsupported")
+    return context.reason === "workstation"
+      ? "workstation"
+      : "no-vault-identity";
+  return context.organization !== null &&
+    context.organization.toLowerCase() === company.toLowerCase()
+    ? null
+    : "other-organization";
+}
+
+/** The values of the runtime secrets `names` of an application of
+ * `company` (decision F46, root decision 0177): a sync with the vault first,
+ * so a value changed there takes effect at the next start, then the items
+ * of the Environment's collection. A name's value is the login password of
+ * the one item named exactly so, of the connected organization, in the
+ * connected collection. Values are returned to the caller only; the
+ * journal gets the outcome and a fixed reason. */
+export async function vaultSecrets(
+  host: VaultHost,
+  input: Readonly<{ company: string; names: readonly string[] }>,
+): Promise<VaultSecretsResult> {
+  const result = await readSecrets(host, input);
+  host.journal?.({
+    operation: "secrets",
+    outcome: result.kind === "vault-secrets" ? "read" : "refused",
+    ...(result.kind === "vault-secrets" ? {} : { reason: result.reason }),
+  });
+  return result;
+}
+
+async function readSecrets(
+  host: VaultHost,
+  input: Readonly<{ company: string; names: readonly string[] }>,
+): Promise<VaultSecretsResult> {
+  const refuse = (reason: VaultSecretsRefusal): VaultSecretsResult => ({
+    kind: "vault-secrets-refused",
+    reason,
+  });
+  const context = await host.context();
+  const admission = admissionOf(context, input.company);
+  if (admission !== null || context.kind === "unsupported")
+    return refuse(admission ?? "no-vault-identity");
+  const sessionRefusal = (
+    reason: Extract<ConnectedSession, { ok: false }>["reason"],
+  ): VaultSecretsRefusal =>
+    reason === "busy"
+      ? "busy"
+      : reason === "unlock-failed"
+        ? "locked"
+        : "not-connected";
+  let connected = await connectedSession(host, context);
+  if (!connected.ok) return refuse(sessionRefusal(connected.reason));
+  let synced = await connected.bw.sync(connected.session);
+  // Replaced by another bw run since the check: once more.
+  if (!synced.ok && synced.reason === "locked") {
+    connected = await connectedSession(host, context);
+    if (!connected.ok) return refuse(sessionRefusal(connected.reason));
+    synced = await connected.bw.sync(connected.session);
+  }
+  if (!synced.ok)
+    return refuse(
+      synced.reason === "unauthenticated" ||
+        synced.reason === "invalid-credentials"
+        ? "not-connected"
+        : synced.reason === "locked"
+          ? "locked"
+          : synced.reason === "unreachable" || synced.reason === "timeout"
+            ? "unreachable"
+            : "vault-failed",
+    );
+  const { organizationId, collectionId } = connected;
+  const items = await connected.bw.secretItems(
+    connected.session,
+    { organizationId, collectionId },
+    new Set(input.names),
+  );
+  if (!items.ok)
+    return refuse(items.reason === "locked" ? "locked" : "vault-failed");
+  const secrets = new Map<string, VaultSecret>();
+  for (const name of input.names) {
+    const matches = items.value.filter(
+      (item) =>
+        item.name === name &&
+        item.organizationId === organizationId &&
+        item.collectionIds.includes(collectionId),
+    );
+    const [only] = matches;
+    secrets.set(
+      name,
+      only === undefined
+        ? { kind: "absent", reason: "missing" }
+        : matches.length > 1
+          ? { kind: "absent", reason: "ambiguous" }
+          : only.password === null || only.password === ""
+            ? { kind: "absent", reason: "empty" }
+            : { kind: "value", value: only.password },
+    );
+  }
+  return { kind: "vault-secrets", secrets };
 }

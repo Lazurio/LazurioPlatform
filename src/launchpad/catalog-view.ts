@@ -1,4 +1,8 @@
 import type {
+  RuntimeSecretFinding,
+  RuntimeSecretReason,
+} from "../modules/runtime-secrets";
+import type {
   Catalog,
   CatalogModule,
   CatalogOrganization,
@@ -60,7 +64,46 @@ const reasonKeys: Readonly<
   "preparation-toolchain-mismatch": "preparationReasonToolchainMismatch",
   "preparation-install-failed": "preparationReasonInstallFailed",
   "preparation-script-failed": "preparationReasonScriptFailed",
+  "runtime-secret-unavailable": "moduleReasonRuntimeSecretUnavailable",
 };
+
+const secretReasonKeys: Readonly<Record<RuntimeSecretReason, MessageKey>> = {
+  personalspace: "runtimeSecretPersonalspace",
+  workstation: "runtimeSecretWorkstation",
+  "no-vault-identity": "runtimeSecretNoVaultIdentity",
+  "other-organization": "runtimeSecretOtherOrganization",
+  "not-connected": "runtimeSecretNotConnected",
+  locked: "runtimeSecretLocked",
+  busy: "runtimeSecretBusy",
+  unreachable: "runtimeSecretUnreachable",
+  "vault-failed": "runtimeSecretVaultFailed",
+  missing: "runtimeSecretMissing",
+  ambiguous: "runtimeSecretAmbiguous",
+  empty: "runtimeSecretEmpty",
+};
+
+/** Declared runtime secrets without a value in words: the names of each
+ * reason, then why, `A, B: why; C: why`. An unknown reason is named by its
+ * code. */
+export function runtimeSecretsText(
+  secrets: readonly RuntimeSecretFinding[] | undefined,
+  copy: Copy,
+): string {
+  const byReason = new Map<string, string[]>();
+  for (const entry of secrets ?? [])
+    byReason.set(entry.reason, [
+      ...(byReason.get(entry.reason) ?? []),
+      entry.name,
+    ]);
+  return [...byReason]
+    .map(([reason, names]) => {
+      const key = Object.hasOwn(secretReasonKeys, reason)
+        ? secretReasonKeys[reason as RuntimeSecretReason]
+        : undefined;
+      return `${names.join(", ")}: ${key === undefined ? reason : copy[key]}`;
+    })
+    .join("; ");
+}
 
 /** A reason's sentence with the refused file in it (decision F23), when the
  * reason names one; the file is text, never markup. */
@@ -80,7 +123,12 @@ export type CatalogStatus = Readonly<{
 /** Whether an Organization or module can run, and why not, in words. An
  * unknown reason code is named by its code rather than guessed. */
 export function catalogStatus(
-  entry: Readonly<{ executable: boolean; reason?: string; file?: string }>,
+  entry: Readonly<{
+    executable: boolean;
+    reason?: string;
+    file?: string;
+    secrets?: readonly RuntimeSecretFinding[];
+  }>,
   copy: Copy,
 ): CatalogStatus {
   if (entry.executable)
@@ -91,7 +139,13 @@ export function catalogStatus(
     : undefined;
   return {
     state: "blocked",
-    text: key === undefined ? reason : withFile(copy[key], entry.file),
+    text:
+      key === undefined
+        ? reason
+        : withFile(copy[key], entry.file).replace(
+            "{secrets}",
+            runtimeSecretsText(entry.secrets, copy),
+          ),
     code: reason,
   };
 }

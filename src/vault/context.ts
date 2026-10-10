@@ -33,6 +33,12 @@ export type VaultContext = Readonly<{
   name: string;
   /** The Environment's own collection: `Environmenty/<name> · <machine>`. */
   collection: string;
+  /** The Organization that owns the Environment, as the handover names it
+   * (`owner.organization`, a lowercase slug); null for a personal
+   * Environment, which a person owns. Its collection belongs to this
+   * Organization's vault, so only its own applications read runtime
+   * secrets from it (decision F46). */
+  organization: string | null;
 }>;
 
 /** Why an Environment has no vault account here; every reason refuses
@@ -171,6 +177,10 @@ export function vaultContextOf(
     kind: input.kind,
     name,
     collection: collectionNameOf(name, machine),
+    organization:
+      handover.owner.kind === "organization"
+        ? handover.owner.organization
+        : null,
   });
 }
 

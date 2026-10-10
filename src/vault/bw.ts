@@ -74,7 +74,8 @@ const timeouts = {
   local: 60_000,
   network: 120_000,
 } as const;
-/** A whole item list may be large; only its length is read. */
+/** A whole item list may be large; only its length, or the items of the
+ * declared names, are read. */
 const itemsMaxBytes = 64 * 1024 * 1024;
 
 const ok = <T>(value: T): BwResult<T> => Object.freeze({ ok: true, value });
@@ -188,6 +189,57 @@ export function parseCollections(stdout: string): BwCollection[] | null {
     );
   }
   return collections;
+}
+
+/** One item of the Environment's collection that is a candidate for a
+ * declared name: only what the selection of decision F46 reads. Every other
+ * field of the item (its notes, fields, username, TOTP, URIs) is dropped
+ * here and never leaves this module. */
+export type BwSecretItem = Readonly<{
+  name: string;
+  organizationId: string | null;
+  collectionIds: readonly string[];
+  /** `login.password`; null when the item has no login or no password. */
+  password: string | null;
+}>;
+
+/** `bw list items`: the items whose name is one of `names`, exactly. An
+ * entry that is not an item object, or a candidate whose ids are not of the
+ * vault's shape, makes the whole answer unreadable rather than guessed. */
+export function parseSecretItems(
+  stdout: string,
+  names: ReadonlySet<string>,
+): BwSecretItem[] | null {
+  const value = jsonOf(stdout);
+  if (!Array.isArray(value)) return null;
+  const items: BwSecretItem[] = [];
+  for (const entry of value) {
+    const item = record(entry);
+    if (item === null) return null;
+    if (typeof item.name !== "string" || !names.has(item.name)) continue;
+    const organizationId = item.organizationId ?? null;
+    const collectionIds = item.collectionIds ?? [];
+    if (
+      !(organizationId === null || isVaultId(organizationId)) ||
+      !Array.isArray(collectionIds) ||
+      !collectionIds.every(isVaultId)
+    )
+      return null;
+    const login = record(item.login);
+    const password =
+      login !== null && typeof login.password === "string"
+        ? login.password
+        : null;
+    items.push(
+      Object.freeze({
+        name: item.name,
+        organizationId,
+        collectionIds: Object.freeze([...collectionIds]),
+        password,
+      }),
+    );
+  }
+  return items;
 }
 
 export type BwCli = ReturnType<typeof bwCli>;
@@ -322,6 +374,30 @@ export function bwCli(environment: BwEnvironment) {
           const items = jsonOf(stdout);
           return Array.isArray(items) ? items.length : null;
         },
+        session(value),
+        timeouts.local,
+        itemsMaxBytes,
+      );
+    },
+    /** The items of one collection of one organization whose name is one of
+     * `names` (decision F46). The ids are not secret and go on argv; bw
+     * filters by them, and the caller selects again by every field. */
+    secretItems(
+      value: string,
+      scope: Readonly<{ organizationId: string; collectionId: string }>,
+      names: ReadonlySet<string>,
+    ): Promise<BwResult<BwSecretItem[]>> {
+      return step(
+        [
+          "list",
+          "items",
+          "--organizationid",
+          scope.organizationId,
+          "--collectionid",
+          scope.collectionId,
+          "--nointeraction",
+        ],
+        (stdout) => parseSecretItems(stdout, names),
         session(value),
         timeouts.local,
         itemsMaxBytes,

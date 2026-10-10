@@ -6411,6 +6411,14 @@ downloaded the same day, matched their pinned digests and gave the installer's
 own zip reader one ELF entry `bw` each; the Linux binary itself first runs in
 the pilot on a personal Remote Environment, which follows the release.
 
+**Addendum 2026-10-10 (F46, issue #129).** The vault also serves the declared
+runtime secrets of the Environment's Organization's applications: before every start
+the module operations read them through the same one session (`vaultSecrets`: a sync,
+then the items of the connected collection; `secretItems` in `bw.ts`). The vault
+context carries the Organization that owns the Environment (`organization`, from the
+handover's `owner.organization`; null for a personal Environment), which decides
+which applications may read it.
+
 ## F44 — Executor in every Remote Environment: installed, run and connected to the agents by Lazurio
 
 **Decided by Matěj 2026-10-09 (root decision 0162, addendum 2026-10-09, points 2
@@ -6805,3 +6813,137 @@ bytes under the new revision.
 Not in this revision: the Dashboard's editor of the settings, the company apps of
 Google Workspace and Microsoft 365 (DEV-6626 task 685), the relay on Team and
 Automated Environments (Machines #382) and immediate delivery.
+
+## F46 — Runtime secrets: declared names, read from the Environment vault before every start, fail closed
+
+**Proposed with issue #129 (root decision 0177, HumanAndMachines/Lazurio#480; the
+optional secrets of root decision 0196, the Environment ceiling); implemented in this
+revision.** The secrets an App of a Module needs at start (an API key of an external
+service, a token, a password) come from the Environment vault of F43, never from a
+`.env*` file and never from a file the App keeps itself. The Core side (declaration,
+schema, conformance `MS-03`) is the root's; this is the consumer side.
+
+1. **The declaration.** `lazurio.runtime` may declare `secrets` and
+   `optional_secrets`, next to its listeners: each absent, or a non-empty array of
+   unique names matching `^[A-Z][A-Z0-9_]*$`; a name is in at most one of the two
+   (`parseAppRuntime`, `src/modules/runtime.ts`). Names only: anything else, an
+   object with a value included, makes the declaration unreadable, as every unknown
+   key already did. The plan carries `runtime.secrets` and `runtime.optional_secrets`
+   (empty when absent). The authority is the root's
+   `lazurio/schemas/lazurio-runtime.schema.json` and `validateDeclaredRuntime`.
+2. **Where a value lives.** In the vault of the Organization that owns the
+   Environment, in the Environment's own collection (F43 point 2): the login password
+   of the one item named exactly `<NAME>` (case-sensitive) whose `organizationId` is
+   the connected organization and whose `collectionIds` include the connected
+   collection. The read reuses F43's one session (`connectedSession`, the core of
+   `lazurio vault env`: the recorded session while it is the unlocked one, otherwise
+   one unlock under the account's lock), runs `bw sync` first, so a value changed in
+   the vault takes effect at the next start, then `bw list items --organizationid
+   <id> --collectionid <id>` (`vaultSecrets`, `src/vault/flow.ts`; the reader
+   `secretItems` in `src/vault/bw.ts`, which keeps only the items of the declared
+   names and of them only the fields the selection reads, and selects again by every
+   field). No item is `missing`, more than one `ambiguous`, an item without a login
+   password or with an empty one `empty`.
+3. **The Organization boundary** (the answer to #129's open question on
+   multi-Organization Environments and the Personalspace). One Environment may mount
+   several Organizations, but its collection belongs to the vault of the Organization
+   that owns the Environment. Only an application whose runtime `company` is that
+   Organization reads from it: the handover's `owner.organization` (a lowercase
+   slug), compared with `company` case-insensitively as GitHub compares slugs, the
+   rule Organization settings already use to name the owning Organization (F45);
+   `owner.organization_key` is free text and is not compared. An application of any
+   other mounted Organization is `other-organization`, and so is every application
+   on a personal Environment, which a person owns. A Personalspace module is
+   `personalspace`: which vault serves the Personalspace is open in DEV-6631, and
+   until it is decided none does.
+4. **Injection.** `LAZURIO_RUNTIME_SECRET_<NAME>` of each name with a value is set in
+   the application's own closed environment (F26, `applicationEnvironment`), read in
+   `localApplicationAdapters.prepareLaunch` last, after the sibling origins, at every
+   start: the CLI's, the Launchpad's and the gateway's `ensure`, which is how an app
+   that ended is started again (no unit has a restart policy of its own, F8). The
+   preparation's processes (install, check and prepare scripts) keep the closed base
+   environment and never get one; `LAZURIO_RUNTIME_LISTENERS_JSON` never carries one.
+   Nothing else from the vault reaches any environment. A running application keeps
+   the values it was started with (F26 point 5) until it is stopped and started.
+5. **Fail closed, and the finding.** When a required name has no value, the
+   application does not start and the answer is the typed refusal
+   `{kind: "blocked", reason: "runtime-secret-unavailable", secrets: [{name,
+   reason}]}`: each name with a fixed reason, never a value or bw's output. The
+   reasons: `missing`, `ambiguous`, `empty` of the item; and of the vault, the same
+   for every name: `personalspace`, `workstation` (this computer, the second wave of
+   0193), `no-vault-identity` (a Remote Environment whose account cannot be derived,
+   or no vault composed), `other-organization`, `not-connected` (not installed, no
+   account or collection, signed out, the access revoked), `locked` (unlock failed),
+   `busy`, `unreachable` (the sync), `vault-failed`. What is known without the vault's
+   items (`personalspace`, `workstation`, `no-vault-identity`, `other-organization`)
+   refuses in the start's preflight, before anything is installed
+   (`admitRuntimeSecrets`); the rest when the values are read at the launch
+   (`readRuntimeSecrets`, `RuntimeSecretUnavailable`, passed through the lifecycle as
+   a required-slot refusal). The CLI names each secret with its reason, and the
+   Launchpad says it in Czech and English. **Diagnostics:** the catalog checks the
+   default app's declared secrets against what the Folder records of the Environment
+   (no Machine binding: `workstation`; the binding's owning Organization against
+   `company`: `other-organization`; a Personalspace module: `personalspace`), without
+   the vault and without running anything; a required one makes the module not
+   executable with `runtime-secret-unavailable` and `secrets`, marked like a
+   preparation finding (`preparationRefused`), so its running app is still read and
+   stopped, and `lazurio doctor` reports it as `warn` with the names and the reason in
+   its context (`secrets`, `secretReason`). Whether the vault is connected and holds
+   the items is known only at the start.
+6. **Optional secrets: a capability present only on some Environments** (root
+   decision 0196). A Module may run on Environments that hold a capability's
+   credential and on those that do not, and simply lacks the capability where it is
+   absent. A name in `optional_secrets` is read and passed exactly like a required
+   one. Without an item in the collection it is not set and the application starts:
+   the start's answer lists it in `secretsNotProvided` (`{name, reason: "missing"}`),
+   a note and not a finding. More than one item, or an empty password, is a
+   misconfiguration, not an absence: the start is refused with the same
+   `runtime-secret-unavailable` naming it. A vault the application cannot use
+   (workstation, not connected, unreachable, locked, another Organization, a
+   Personalspace module): with only optional names the application starts without
+   them and `secretsNotProvided` carries each with the reason; with any required name
+   the start stays refused. Where the catalog knows the reason without the vault,
+   doctor reports the module `ok` with the note `runtime-secret-not-provided` and the
+   same context. The Launchpad's sentence after Start names them.
+7. **No leaks.** A value never appears in a log, the journal, Diagnostics, an error,
+   an answer, `LAZURIO_RUNTIME_LISTENERS_JSON`, a file of the Module or a file this
+   Platform writes under `XDG_STATE_HOME`, and never as an argument of a process: the
+   systemd user runner names a secret on systemd-run's command line
+   (`--setenv=<NAME>`) and hands its value in systemd-run's own environment, the only
+   variables the service manager adapter accepts beside its fixed ones; the unit's
+   description binds the definition by the secret's name only, so a short password
+   cannot be guessed from the digest, and a changed value is not a changed
+   definition. The session runner hands its child's environment over stdin, as
+   before. `RuntimeSecretUnavailable` has a fixed message; a source that throws is
+   `vault-failed` and what it said stays there; the vault's journal gets
+   `{operation: "secrets", outcome, reason}` where a journal is composed.
+   **Honest limits:** the user service manager keeps a started unit's environment, so
+   the operator's own account can read it (`systemctl --user show -p Environment`,
+   and the transient unit under `$XDG_RUNTIME_DIR/systemd/transient/`, an owner-only
+   tmpfs directory gone at stop or reboot), as it can read the running process's own
+   environment; agents with full access already can (F43 point 9). bw's own store
+   under `XDG_STATE_HOME` is bw's, encrypted, as in F43. A value with a control
+   character (a multi-line key) cannot be passed to the service manager: that start
+   ends as `launch-failed`.
+
+Not in this revision, and open: a workstation has no vault identity yet, and its
+declared secret stays a finding; reading the operator's local custody path as an
+interim source was not chosen (one source, as the root decision recommends). Which
+vault serves a Personalspace stays open in DEV-6631. A fail-closed `secret("NAME")`
+reader in `@lazurio/module-kit`, next to `listener("APP")`, is the root's. The Core
+conformance check `MS-03` stops warning that the Launchpad does not read the
+declaration once this is released (root). The Folder's manual for agents does not
+describe the declaration yet (a template revision of its own). The module operations
+compose the vault without the Launchpad's journal, so the read is reported by the
+start's answer, not by a journal line.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Any application on the Environment reads the collection | An application of another mounted Organization would read the owning Organization's secrets; rejected by point 3 |
+| `--setenv=NAME=value` on systemd-run's command line | Every account on the Machine can list a process's arguments; rejected for `--setenv=NAME` with the value in systemd-run's environment |
+| Bind the values into the unit's definition digest | The description is readable, and a digest over a short password lets it be guessed offline; rejected for the name only |
+| A file the Platform writes for the application (an `.env`, a secrets file) | A second store beside the vault and a file a Module could commit; rejected by root decision 0177 and F43 point 1 |
+| Read once and keep the values in the Launchpad | A value changed in the vault would not reach the next start, and the CLI and the Launchpad would differ; rejected for a read at every start |
+| Start a required-secret application without the variable | The application would fail later, in front of its user, or worse run with a default; rejected for fail closed |
+| Refuse every start when an optional name is not provided | A Module could not run on an Environment without that capability; rejected by root decision 0196 |
+| One finding code per secret reason (`runtime-secret-missing`, …) | Many codes for one condition; rejected for one code with each name's reason |
