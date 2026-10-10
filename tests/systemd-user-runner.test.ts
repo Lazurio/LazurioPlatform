@@ -9,6 +9,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { renderBrowserUnit } from "../src/browser/units";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { canonicalOwnedDirectory } from "../src/folder/owned-directory";
 import { executionOs } from "../src/folder/platform";
@@ -28,6 +29,7 @@ import {
   organizationUnitPrefix,
   readApplicationJournal,
 } from "../src/modules/systemd-user-runner";
+import { renderLaunchpadUnit } from "../src/update/install";
 import { createFakeServiceManager } from "./fixtures/fake-service-manager";
 
 // Every test here talks to an in-memory service manager. Nothing is executed,
@@ -307,6 +309,7 @@ posixTest(
       "--property=StandardInput=null",
       "--property=StandardOutput=journal",
       "--property=StandardError=journal",
+      "--property=OOMScoreAdjust=220",
       "--expand-environment=no",
       "--setenv=HOME=/home/admin",
       "--setenv=PATH=/usr/bin:/bin",
@@ -875,6 +878,60 @@ posixTest(
     } finally {
       expect(await second.close()).toEqual({ kind: "closed" });
     }
+  },
+);
+
+// Root decision 0195 point 3 (plan DEV-6656): under memory pressure the kernel
+// takes the browser's tabs first, then Modules, and the Environment's core
+// (the Launchpad, T3 Code) last. The user manager gives every user service
+// 200, the core included; Chrome gives each tab's renderer 300 and the browser
+// unit 250 to the rest of the browser. A Module sits between: 220.
+posixTest(
+  "under memory pressure the kernel takes a tab, then the browser, then a Module, and the Environment's core last",
+  async () => {
+    const org = await organization("oom-order");
+    const manager = createFakeServiceManager();
+    const { lifecycle, runner } = launchpad(manager, org);
+    expect(await lifecycle.start(selection)).toEqual({ kind: "started" });
+    const adjust = (lines: readonly string[], prefix: string) =>
+      lines
+        .filter((line) => line.startsWith(prefix))
+        .map((line) => Number(line.slice(prefix.length)));
+    const [module] = adjust(
+      manager.commands("systemd-run")[0]?.args ?? [],
+      "--property=OOMScoreAdjust=",
+    );
+    const [browser] = adjust(
+      renderBrowserUnit().split("\n"),
+      "OOMScoreAdjust=",
+    );
+    const core = 200;
+    // The Launchpad keeps the user manager's default.
+    expect(
+      adjust(
+        renderLaunchpadUnit(
+          "/home/admin/.local/share/lazurio",
+          "/home/admin/Lazurio",
+        ).split("\n"),
+        "OOMScoreAdjust=",
+      ),
+    ).toEqual([]);
+    expect(module).toBe(220);
+    expect(core).toBeLessThan(module as number);
+    expect(module).toBeLessThan(browser as number);
+    expect(browser).toBeLessThan(300);
+
+    // The order is a hint, not the unit's identity: a Module an older release
+    // started without it stays recognized and is stopped as before.
+    const unit = manager.units.get(
+      applicationUnitName(org.directory, selection),
+    );
+    if (!unit) throw new Error("Expected unit");
+    const { OOMScoreAdjust: _dropped, ...older } = unit.properties;
+    unit.properties = older;
+    expect((await runner.inspect(selection)).kind).toBe("running");
+    expect(await lifecycle.stop(selection)).toEqual({ kind: "group-stopped" });
+    expect(await lifecycle.close()).toEqual({ kind: "closed" });
   },
 );
 

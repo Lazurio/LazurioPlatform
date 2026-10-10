@@ -80,13 +80,53 @@ const chromeCandidates = [
   "%h/.agent-browser/browsers/chrome-*/chrome-linux64/chrome",
 ];
 
+/** Where Chrome keeps the last session of the profile's one user (`Default`),
+ * in the unit's `%h` form: the tabs it reopens when it starts. */
+const browserSessionsDirectory = join(
+  browserProfileDirectory("%h"),
+  "Default",
+  "Sessions",
+);
+
+/** The browser's memory budget (root decision 0195 point 4, plan DEV-6656),
+ * so heavy pages cost only the browser's tabs, never the Launchpad, T3 Code
+ * or a Module. On 2026-10-10 one Environment of 8 GiB froze with a browser of
+ * about 2 GiB, and another thrashed with one of 4.7 GiB.
+ * - `MemoryMax=30%`: relative to the Environment's memory, so a larger
+ *   Environment gives its browser more with the same unit text; about 2.3 GiB on
+ *   the base Environment of 8 GiB. At the limit the kernel first reclaims the
+ *   browser's own memory (into swap, where there is swap), then ends a
+ *   process inside the browser.
+ * - `MemorySwapMax=20%`: what the browser may move to swap, relative to the
+ *   Environment's memory as systemd 255 resolves it. Swap in memory (zram)
+ *   is not charged to the browser, so without it the browser could fill it.
+ *   Together at most half the Environment's memory, most of it compressed.
+ * - No `MemoryHigh`: without swap, a process past it stays throttled just
+ *   above it for minutes, never reaches `MemoryMax`, and every process of the
+ *   browser that allocates waits with it (measured on systemd 255). The hard
+ *   limit ends the heaviest tab instead.
+ * - `OOMPolicy=continue`: a process the kernel ends is mostly one tab's
+ *   renderer, and only that tab goes. systemd's default (`stop`) turned one
+ *   such tab into a restart of the whole browser.
+ * - `OOMScoreAdjust=250`: the user manager gives every user service 200, and
+ *   Chrome gives each tab's renderer 300. The rest of the browser between them
+ *   makes the kernel's order a tab first, then the browser, then a Module. */
+const browserMemoryBudget = Object.freeze([
+  "MemoryMax=30%",
+  "MemorySwapMax=20%",
+  "OOMPolicy=continue",
+  "OOMScoreAdjust=250",
+]);
+
 /** Chrome's flags, one per line of the docs (decisions F38 and F39):
  * - the persistent profile and loopback DevTools;
  * - no first-run or default-browser questions, nobody answers them;
  * - `--password-store=basic`: no desktop keyring on a virtual screen;
  * - no background throttling: an agent's window keeps working while the
  *   person watches another one;
- * - no crash-restore bubble after a restart of the unit;
+ * - no crash-restore bubble after a restart of the unit. The bubble's
+ *   question is answered with yes: Chrome then reopens the last session even
+ *   after a crash, which is why the unit removes it before each start;
  * - the first window at a thread window's size;
  * - permission prompts are denied, never shown where nobody sees them;
  * - the Lazurio extension (a window per tab, passkeys declined), with the
@@ -133,7 +173,18 @@ export function renderDisplayUnit(): string {
  * so Chrome is the unit's main process. Bound to the screen; restarted
  * whenever it ends (a person closing the last window included), except when
  * there is no Chrome to run. The extension's digest is part of the text, so
- * a new extension is a changed unit, which restarts the browser. */
+ * a new extension is a changed unit, which restarts the browser.
+ *
+ * It starts without the tabs of the last session (root decision 0195 point
+ * 4). Chrome for Testing reopens them by itself on Linux: after a clean exit,
+ * after systemd's stop and, with the hidden crash bubble, after a crash. Each
+ * restart then loaded the same heavy pages that had filled the memory, and no
+ * one owned them: their target ids are new, so no thread's window and no
+ * person's view knows them. Removing the session before the start is the one
+ * place that covers every way the browser ends; the rest of the profile, with
+ * the Environment's sign-ins, stays. Optional (`-`): should the removal ever
+ * fail, a browser with old tabs is better than none. Threads open their
+ * windows again with `lazurio browser window`. */
 export function renderBrowserUnit(): string {
   const command = [
     `b=$$(ls -d ${chromeCandidates.join(" ")} 2>/dev/null | sort -V | tail -n 1)`,
@@ -151,10 +202,12 @@ export function renderBrowserUnit(): string {
     "Type=simple",
     `Environment=DISPLAY=${browserDisplay}`,
     `Environment=LAZURIO_BROWSER_EXTENSION=${browserExtensionDigest}`,
+    `ExecStartPre=-/bin/rm -rf ${browserSessionsDirectory}`,
     `ExecStart=/bin/sh -c '${command}'`,
     "Restart=always",
     "RestartSec=3",
     "RestartPreventExitStatus=78",
+    ...browserMemoryBudget,
     "",
     "[Install]",
     "WantedBy=default.target",

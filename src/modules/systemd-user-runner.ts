@@ -91,6 +91,9 @@ const vectorProperties = [
   "UnsetEnvironment",
 ] as const;
 const stopTimeoutSeconds = 5;
+// Not part of `fixedPolicy`: the order is a hint, not the unit's identity, so
+// a Module an older release started without it stays recognized.
+const moduleOomScoreAdjust = 220;
 
 // No NUL, control character or DEL: such text is never passed to the manager.
 function hasControlCharacter(value: string) {
@@ -561,6 +564,8 @@ export function createSystemdUserRunner(input: {
       "--property=StandardInput=null",
       "--property=StandardOutput=journal",
       "--property=StandardError=journal",
+      // Root decision 0195 point 3: under memory pressure a Module goes after the browser (250, its tabs 300) and before the core (200).
+      `--property=OOMScoreAdjust=${moduleOomScoreAdjust}`,
     ];
     if (literal) args.push("--expand-environment=no");
     for (const entry of environment) args.push(`--setenv=${entry}`);

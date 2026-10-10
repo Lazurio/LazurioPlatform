@@ -2002,6 +2002,10 @@ function environmentBrowser(preset: PresetName): readonly Text[] {
       "- **`localhost`.** The Environment browser also opens this Environment's `localhost`, so the Operator sees work in progress in the view.",
     ),
     t(
+      "- **Po ztrátě záložky nebo restartu.** Prohlížeč má vlastní limit paměti (decision 0195). Když ho překročí, jádro ukončí jednu záložku, nebo se prohlížeč restartuje a staré záložky už sám neotevře. Stránku, která přestala odpovídat, otevři znovu (`open <adresa>`). Když agent-browser odpoví `tab_gone`, tvoje okno zaniklo: spusť znovu `lazurio browser window` (případně `--url <adresa>`), otevře ti nové, a Operátorovi pošli jeho nový odkaz. Prohlížeč kvůli tomu nerestartuj a okna ostatních vláken nezavírej.",
+      "- **After a lost tab or a restart.** The browser has a memory budget of its own (decision 0195). Over it, the kernel ends one tab, or the browser restarts and opens none of its old tabs. Open a page that stopped answering again (`open <address>`). When agent-browser answers `tab_gone`, your window is gone: run `lazurio browser window` again (optionally `--url <address>`), which opens a new one, and send the Operator its new link. Never restart the browser for it, and leave the other threads' windows open.",
+    ),
+    t(
       "- **Konec.** Své okno zavři příkazem `agent-browser --cdp 9222 --session <sezení> tab close`. Prohlížeč ani jeho služby nevypínej a nerestartuj: zavřel bys okna ostatních vláken.",
       "- **When done.** Close your window with `agent-browser --cdp 9222 --session <session> tab close`. Never stop or restart the browser or its services: that would close the other threads' windows.",
     ),
