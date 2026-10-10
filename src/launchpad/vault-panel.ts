@@ -9,6 +9,7 @@ import {
   type VaultStep,
   vaultActions,
   vaultAfterConnect,
+  vaultAwaitsCollection,
   vaultConnectPollMs,
   vaultLink,
   vaultPhaseMarks,
@@ -17,6 +18,7 @@ import {
   vaultSeen,
   vaultStartStep,
   vaultSteps,
+  vaultStepTitles,
 } from "./vault-view";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -291,12 +293,7 @@ export function createVaultPanel(
       );
       return;
     }
-    const titles: Readonly<Record<VaultStep, string>> = {
-      invite: copy.vaultStepInvite,
-      connect: copy.vaultStepConnect,
-      confirm: copy.vaultStepConfirm,
-      done: copy.vaultStepDone,
-    };
+    const titles = vaultStepTitles(status, copy);
     const at = vaultSteps.indexOf(current.step);
     const list = element("ol", "vault-steps");
     vaultSteps.forEach((step, index) => {
@@ -437,7 +434,7 @@ export function createVaultPanel(
       // Confirmed in an organization, but the Environment's collection is
       // not shared with the account (or has another name): that is the one
       // thing left to do in the vault, so the fingerprint is gone.
-      if (facts.state === "confirming" && facts.organization !== null) {
+      if (vaultAwaitsCollection(facts)) {
         const card = element("div", "vault-card");
         card.append(
           value(copy.vaultCollectionLabel, facts.collection, "collection"),

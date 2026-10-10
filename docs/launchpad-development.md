@@ -1772,7 +1772,7 @@ failure names its stage and reason with "Dokončit s agentem" and "Zkusit znovu"
 "Potvrď účet v trezoru": the fingerprint phrase in a selectable box, "Otevřít
 Vaultwarden" and "Čekám na potvrzení…" while `/refresh` is asked every five seconds.
 Once the member is confirmed but the account does not see the Environment's
-collection, the step says only that: "Potvrzeno. Ještě účtu v trezoru nasdílej kolekci
+collection, the step is titled "Nasdílej účtu kolekci" and says only that: "Potvrzeno. Ještě účtu v trezoru nasdílej kolekci
 tohoto Environmentu s právem úprav.", the collection's exact name to copy, that a
 collection under another name only needs that name, and "Čekám na kolekci…"; the row
 says "Potvrzeno, čeká na kolekci". (4) "Připojeno": "Vidí N

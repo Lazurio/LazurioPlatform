@@ -904,6 +904,7 @@ const en = {
   vaultStepInvite: "Invite the account in the vault",
   vaultStepConnect: "The Environment connects",
   vaultStepConfirm: "Confirm the account in the vault",
+  vaultStepCollection: "Share the collection with the account",
   vaultStepDone: "Connected",
   vaultInviteText:
     "Create the collection and invite this address into it with edit rights.",
@@ -2042,6 +2043,7 @@ const cs: Record<MessageKey, string> = {
   vaultStepInvite: "Pozvi účet v trezoru",
   vaultStepConnect: "Environment se připojí",
   vaultStepConfirm: "Potvrď účet v trezoru",
+  vaultStepCollection: "Nasdílej účtu kolekci",
   vaultStepDone: "Připojeno",
   vaultInviteText: "Založ kolekci a pozvi do ní tuhle adresu s právem úprav.",
   vaultInviteAgainText: "Pozvi tuhle adresu znovu do kolekce s právem úprav.",
