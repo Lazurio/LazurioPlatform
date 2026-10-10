@@ -19,6 +19,9 @@ import {
   toolEnvironmentOf,
 } from "../folder/render";
 import { enabledTools } from "../folder/state";
+import { type GithubStatus, pilotStatus } from "../github/cli";
+import { tokenVariableNames } from "../github/leftovers";
+import { pilotPaths } from "../github/pilot";
 import { machineBinding } from "../machine/binding";
 import { preparationReasons } from "../modules/preparation-refusal";
 import {
@@ -95,6 +98,10 @@ export const doctorCheckIds = [
   // tools
   "tool",
   "executor",
+  // The Organization-scoped GitHub sign-in pilot (decision F46): only while
+  // it is on.
+  "github-sign-in",
+  "github-leftover",
   // Organizations and modules
   "catalog",
   "organization",
@@ -131,6 +138,8 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     "machine-binding": "folder",
     tool: "tools",
     executor: "tools",
+    "github-sign-in": "tools",
+    "github-leftover": "tools",
     catalog: "organizations",
     organization: "organizations",
     module: "organizations",
@@ -179,6 +188,17 @@ const ownReasons = [
   "executor-conflict",
   "executor-not-running",
   "executor-incomplete",
+  // The GitHub sign-in pilot (decision F46).
+  "github-pilot-unreadable",
+  "github-not-signed-in",
+  "github-sign-in-unreadable",
+  "github-not-wired",
+  "github-wiring-broken",
+  "leftover-gh-sign-in",
+  "leftover-git-credentials",
+  "leftover-token-variable",
+  "leftover-git-helper",
+  "leftover-ssh-key",
 ] as const;
 const catalogReasons: readonly (OrganizationReason | ModuleReason)[] = [
   "canonical-documents-required",
@@ -272,6 +292,10 @@ export const doctorContextRules: Readonly<
   ] satisfies ExecutorService[]),
   codexMcp: oneOf(agentRegistrations),
   claudeMcp: oneOf(agentRegistrations),
+  // The GitHub sign-in pilot (decision F46): which part of its wiring, which
+  // token variable is left.
+  wiring: oneOf(["gh", "git"]),
+  variable: oneOf(tokenVariableNames),
   signIn: oneOf(["signed-in", "signed-out", "unknown"]),
   ssh: oneOf(["linked", "not-linked", "unknown"]),
   organization: (value: unknown) =>
@@ -676,6 +700,60 @@ async function executorCheck(host: ExecutorHost): Promise<DoctorCheck> {
     : check("executor", "warn", `executor-${status.state}`, context);
 }
 
+/** The GitHub sign-in pilot (decision F46), only while it is on: each
+ * Organization's sign-in, the wiring of gh and Git, and every account-wide
+ * credential left in the Environment (the SSH probe only with `--sign-in`).
+ * Never `fail`: the pilot is opt-in and its gaps leave the Environment
+ * working; nothing at all is added where the pilot is off. */
+export function githubChecks(status: GithubStatus | null): DoctorCheck[] {
+  if (status === null || status.state === "off") return [];
+  if (status.state === "unreadable")
+    return [check("github-sign-in", "warn", "github-pilot-unreadable")];
+  const checks: DoctorCheck[] = status.organizations.map((entry) => {
+    const organization = safeName(entry.login);
+    return entry.signIn.state === "signed-in"
+      ? check("github-sign-in", "ok", undefined, {
+          organization,
+          signIn: "signed-in",
+        })
+      : check(
+          "github-sign-in",
+          "warn",
+          entry.signIn.state === "unreadable"
+            ? "github-sign-in-unreadable"
+            : "github-not-signed-in",
+          {
+            organization,
+            signIn:
+              entry.signIn.state === "unreadable" ? "unknown" : "signed-out",
+          },
+        );
+  });
+  const wiring = status.wiring;
+  if (wiring === null || wiring.state === "not-wired")
+    checks.push(check("github-sign-in", "warn", "github-not-wired"));
+  else if (wiring.state === "broken")
+    for (const part of ["gh", "git"] as const)
+      if (wiring[part] === "broken")
+        checks.push(
+          check("github-sign-in", "warn", "github-wiring-broken", {
+            wiring: part,
+          }),
+        );
+  if (status.leftovers.length === 0)
+    checks.push(check("github-leftover", "ok"));
+  for (const leftover of status.leftovers)
+    checks.push(
+      check("github-leftover", "warn", `leftover-${leftover.kind}`, {
+        ...(leftover.file === undefined ? {} : { file: leftover.file }),
+        ...(leftover.variable === undefined
+          ? {}
+          : { variable: leftover.variable }),
+      }),
+    );
+  return checks;
+}
+
 export const doctorVerdict = (checks: readonly DoctorCheck[]): DoctorVerdict =>
   checks.some((entry) => entry.outcome === "fail")
     ? "broken"
@@ -751,6 +829,17 @@ export async function collectDoctor(
       }),
   );
 
+  // The GitHub sign-in pilot, read only where its switch is on.
+  const githubPaths = pilotPaths(env);
+  const github =
+    githubPaths === undefined
+      ? null
+      : await pilotStatus(
+          { env, platform, run: environment.tools.run },
+          githubPaths,
+          environment.signIn === true,
+        ).catch(() => null);
+
   const browser = await observeEnvironmentBrowser({
     platform,
     env,
@@ -796,6 +885,7 @@ export async function collectDoctor(
     // Executor has its own check (decision F44), not a tool row.
     ...tools.filter((tool) => tool.name !== executorToolName).map(toolCheck),
     executor,
+    ...githubChecks(github),
     ...catalogChecks(catalog),
     fromRecovery("launchpad-unit", recovered, "launchpad-unit"),
     fromRecovery(
