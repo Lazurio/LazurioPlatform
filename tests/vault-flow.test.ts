@@ -734,6 +734,49 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
+  "connecting again keeps the collection it was connected to, also after a revoked access; only a disconnect forgets it",
+  async () => {
+    const w = await world();
+    try {
+      w.vault.invite(account);
+      await vaultConnect(w.host);
+      await w.vault.confirm(collection, 1);
+      expect(await vaultRefresh(w.host)).toMatchObject({
+        state: "connected",
+      });
+      // Its collection is gone; another one is visible under the suggested
+      // name.
+      await writeFile(
+        join(w.vault.world, "collections.json"),
+        `${JSON.stringify([
+          {
+            object: "collection",
+            id: otherCollectionId,
+            organizationId,
+            name: collection,
+            externalId: null,
+          },
+        ])}\n`,
+      );
+      expect(await vaultRefresh(w.host)).toMatchObject({ state: "revoked" });
+      // "Připojit znovu": still revoked, the record keeps the original.
+      expect(await vaultConnect(w.host)).toMatchObject({ state: "revoked" });
+      expect((await readRecord(w.paths)).collectionId).toBe(collectionId);
+      // Only a disconnect forgets it: the next connection is a first one.
+      await vaultDisconnect(w.host);
+      expect(await vaultConnect(w.host)).toMatchObject({
+        state: "connected",
+        collection,
+      });
+      expect((await readRecord(w.paths)).collectionId).toBe(otherCollectionId);
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
   "a new connection after a disconnect is a first connection again: a collection under its own name only while it is the only one",
   async () => {
     const w = await world();

@@ -6216,9 +6216,13 @@ to chat, Git, a log or a pull request.
    else the only one named `Environmenty/… · <machine>` (the machine part
    identifies it, so a Team that renames itself does not lose its
    collection), else the only collection the account sees, whatever its name.
-   A disconnect forgets the record, so connecting again is a first connection
-   again: a collection under its own name is recognized only while it is the
-   only one the account sees; among several, it needs the suggested name. Only the handover's declared operator, in a hosted Folder on
+   A connect keeps the record, also "Připojit znovu" after a revoked access,
+   which then stays revoked until the account sees that collection again and
+   says so ("Účet nevidí kolekci, ke které byl připojený. …"). Only a
+   disconnect forgets it, so connecting after a disconnect is a first
+   connection again: a collection under its own name is recognized only while
+   it is the only one the account sees; among several, it needs the
+   suggested name. Only the handover's declared operator, in a hosted Folder on
    Linux, has a vault account; everything else answers `unsupported` with its
    reason before anything runs.
 

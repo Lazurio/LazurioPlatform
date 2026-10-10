@@ -1783,7 +1783,10 @@ názvu.", and "Čekám na kolekci…"; the row
 says "Potvrzeno, čeká na kolekci". (4) "Připojeno": "Vidí N
 kolekcí · M položek." and "Hotovo"; the agents' switch turns on after the reading that
 follows, as after a curated sign-in. An account that exists starts at step 2, a
-revoked one at step 1 with "Pozvi tuhle adresu znovu do kolekce s právem úprav.", a
+revoked one at step 1 with "Pozvi tuhle adresu znovu do kolekce s právem úprav." (a
+connect keeps the collection it was connected to; while the account does not see it,
+"Účet nevidí kolekci, ke které byl připojený. Pozvi ho do ní znovu, nebo Environment
+odpoj a připoj ho k jiné kolekci."), a
 waiting one at step 3. Closing the dialog stops only the page's polling; the connect
 goes on in the Launchpad. "Odpojit" asks first ("Agenti tu přestanou trezor používat.
 Přístup úplně ukončíš odebráním účtu v trezoru."). The state is accepted only in its

@@ -758,8 +758,9 @@ async function ensureAccount(
 
 /** `connect`: installs the pinned CLI, creates the account when there is
  * none, signs it in with its API key, unlocks the one session and syncs.
- * Connecting again after a revoked access starts a new confirmation: the
- * record of the collection is dropped. Never runs twice at once. */
+ * The collection it was connected to stays its own, also when connecting
+ * again after a revoked access: only a disconnect forgets it (root decision
+ * 0193, addendum 2026-10-11). Never runs twice at once. */
 export async function vaultConnect(
   host: VaultHost,
   onPhase: (phase: VaultPhase) => void = () => undefined,
@@ -822,12 +823,15 @@ export async function vaultConnect(
       if (!session.ok)
         return journal(failedStatus(facts, "sign-in", session.reason));
       const synced = await bw.sync(session.session);
-      const empty: VaultRecord = {
+      // The fingerprint is read anew; the collection it was connected to is
+      // kept, so a connect never takes another one in its place.
+      const recorded = await readRecord(paths);
+      const kept: VaultRecord = {
         fingerprint: null,
-        organizationId: null,
-        collectionId: null,
+        organizationId: recorded.organizationId,
+        collectionId: recorded.collectionId,
       };
-      const fingerprint = await fingerprintOf(bw, session.session, empty);
+      const fingerprint = await fingerprintOf(bw, session.session, kept);
       if (!synced.ok)
         return journal(
           synced.reason === "unreachable" || synced.reason === "timeout"
@@ -840,11 +844,11 @@ export async function vaultConnect(
               }
             : failedStatus(facts, "sync", synced.reason),
         );
-      const observation = await observe(bw, session.session, context, empty);
+      const observation = await observe(bw, session.session, context, kept);
       if (observation.kind === "failed")
         return journal(failedStatus(facts, "status", observation.reason));
-      await writeRecord(paths, empty).catch(() => undefined);
-      await recordObservation(paths, empty, observation, fingerprint);
+      await writeRecord(paths, kept).catch(() => undefined);
+      await recordObservation(paths, kept, observation, fingerprint);
       return journal(statusOf(facts, observation, fingerprint));
     },
   );

@@ -920,6 +920,8 @@ const en = {
   vaultCopied: "Copied",
   vaultInvited: "Invited",
   vaultNotInvited: "The address is not invited in the vault yet.",
+  vaultRevokedConnect:
+    "The account does not see the collection it was connected to. Invite it into that collection again, or disconnect the Environment and connect it to another one.",
   vaultUnreachableLine: "The vault does not answer.",
   vaultPhaseInstall: "Installing Bitwarden",
   vaultPhaseAccount: "Creating the account",
@@ -2058,6 +2060,8 @@ const cs: Record<MessageKey, string> = {
   vaultCopied: "Zkopírováno",
   vaultInvited: "Pozváno",
   vaultNotInvited: "Adresa ještě není v trezoru pozvaná.",
+  vaultRevokedConnect:
+    "Účet nevidí kolekci, ke které byl připojený. Pozvi ho do ní znovu, nebo Environment odpoj a připoj ho k jiné kolekci.",
   vaultUnreachableLine: "Trezor neodpovídá.",
   vaultPhaseInstall: "Instaluji Bitwarden",
   vaultPhaseAccount: "Zakládám účet",
