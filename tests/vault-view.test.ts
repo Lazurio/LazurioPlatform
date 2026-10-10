@@ -10,6 +10,7 @@ import {
   vaultRowLine,
   vaultSeen,
   vaultStartStep,
+  vaultStepTitles,
 } from "../src/launchpad/vault-view";
 import type { VaultStatus } from "../src/vault/flow";
 
@@ -125,6 +126,31 @@ test("every state the server answers is read back exactly; anything else is refu
   ).toBeNull();
 });
 
+test("the third step asks for the confirmation, and once confirmed only for the collection", () => {
+  const third = (value: Record<string, unknown>, copy = cs) =>
+    vaultStepTitles(status(value), copy).confirm;
+  const waiting = { state: "confirming", fingerprint, organization: null };
+  const confirmed = {
+    state: "confirming",
+    fingerprint,
+    organization: "Example",
+  };
+  expect(third(waiting)).toBe("Potvrď účet v trezoru");
+  expect(third(waiting, en)).toBe("Confirm the account in the vault");
+  expect(third(confirmed)).toBe("Nasdílej účtu kolekci");
+  expect(third(confirmed, en)).toBe("Share the collection with the account");
+  // Every other step keeps its title.
+  expect(vaultStepTitles(status(confirmed), cs)).toEqual({
+    invite: cs.vaultStepInvite,
+    connect: cs.vaultStepConnect,
+    confirm: "Nasdílej účtu kolekci",
+    done: cs.vaultStepDone,
+  });
+  expect(vaultStepTitles(null, en).confirm).toBe(
+    "Confirm the account in the vault",
+  );
+});
+
 test("the row says the wireframe's states, with Czech plurals", () => {
   const line = (value: Record<string, unknown>, copy = cs) =>
     vaultRowLine(status(value), copy).text;
@@ -132,6 +158,13 @@ test("the row says the wireframe's states, with Czech plurals", () => {
   expect(line({ state: "confirming", fingerprint, organization: null })).toBe(
     "Čeká na potvrzení v trezoru",
   );
+  // Confirmed in an organization, without the Environment's collection.
+  expect(
+    line({ state: "confirming", fingerprint, organization: "Example" }),
+  ).toBe("Potvrzeno, čeká na kolekci");
+  expect(
+    line({ state: "confirming", fingerprint, organization: "Example" }, en),
+  ).toBe("Confirmed, waiting for the collection");
   const connected = (collections: number, items: number) =>
     line({
       state: "connected",

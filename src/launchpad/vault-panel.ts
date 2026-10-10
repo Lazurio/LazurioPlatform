@@ -9,6 +9,7 @@ import {
   type VaultStep,
   vaultActions,
   vaultAfterConnect,
+  vaultAwaitsCollection,
   vaultConnectPollMs,
   vaultLink,
   vaultPhaseMarks,
@@ -17,6 +18,7 @@ import {
   vaultSeen,
   vaultStartStep,
   vaultSteps,
+  vaultStepTitles,
 } from "./vault-view";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -291,12 +293,7 @@ export function createVaultPanel(
       );
       return;
     }
-    const titles: Readonly<Record<VaultStep, string>> = {
-      invite: copy.vaultStepInvite,
-      connect: copy.vaultStepConnect,
-      confirm: copy.vaultStepConfirm,
-      done: copy.vaultStepDone,
-    };
+    const titles = vaultStepTitles(status, copy);
     const at = vaultSteps.indexOf(current.step);
     const list = element("ol", "vault-steps");
     vaultSteps.forEach((step, index) => {
@@ -432,12 +429,35 @@ export function createVaultPanel(
       return nodes;
     }
     if (step === "confirm") {
+      const actions = element("p", "tool-actions");
+      if (link !== null) actions.append(vaultAnchor(link, "button"));
+      // Confirmed in an organization, but the Environment's collection is
+      // not shared with the account (or has another name): that is the one
+      // thing left to do in the vault, so the fingerprint is gone.
+      if (vaultAwaitsCollection(facts)) {
+        const card = element("div", "vault-card");
+        card.append(
+          value(copy.vaultCollectionLabel, facts.collection, "collection"),
+        );
+        const waiting = element(
+          "p",
+          "vault-waiting",
+          copy.vaultWaitingCollection,
+        );
+        waiting.setAttribute("role", "status");
+        return [
+          element("p", "", copy.vaultCollectionText),
+          card,
+          element("p", "tools-muted", copy.vaultCollectionHint),
+          actions,
+          ...failure,
+          waiting,
+        ];
+      }
       const fingerprint =
         facts.state === "confirming" || facts.state === "connected"
           ? facts.fingerprint
           : null;
-      const actions = element("p", "tool-actions");
-      if (link !== null) actions.append(vaultAnchor(link, "button"));
       const waiting = element("p", "vault-waiting", copy.vaultWaiting);
       waiting.setAttribute("role", "status");
       return [
@@ -450,15 +470,6 @@ export function createVaultPanel(
             ]),
         element("p", "tools-muted", copy.vaultAdminHint),
         actions,
-        ...(facts.state === "confirming" && facts.organization !== null
-          ? [
-              element(
-                "p",
-                "tools-muted",
-                fill(copy.vaultNoCollection, { collection: facts.collection }),
-              ),
-            ]
-          : []),
         ...failure,
         waiting,
       ];

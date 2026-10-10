@@ -226,6 +226,12 @@ export type VaultRowLine = Readonly<{
   state: "signed-in" | "signed-out" | "unknown";
 }>;
 
+/** Confirmed in an organization, but the Environment's collection is not
+ * visible: what is left is sharing the collection (or giving it its name),
+ * which the row, the third step's title and its body all say. */
+export const vaultAwaitsCollection = (status: VaultStatus | null): boolean =>
+  status?.state === "confirming" && status.organization !== null;
+
 /** The state under the row's name (the wireframe's row states). */
 export function vaultRowLine(
   status: VaultStatus | null,
@@ -247,7 +253,12 @@ export function vaultRowLine(
     case "failed":
       return { text: copy.vaultRowNone, state: "unknown" };
     case "confirming":
-      return { text: copy.vaultRowConfirming, state: "signed-out" };
+      return {
+        text: vaultAwaitsCollection(status)
+          ? copy.vaultRowCollection
+          : copy.vaultRowConfirming,
+        state: "signed-out",
+      };
     case "connected":
       return {
         text:
@@ -315,6 +326,22 @@ export const vaultSteps: readonly VaultStep[] = [
   "confirm",
   "done",
 ];
+
+/** The steps' titles. Once the member is confirmed and only the collection
+ * is missing, the third step asks for the collection, not the confirmation. */
+export function vaultStepTitles(
+  status: VaultStatus | null,
+  copy: Copy,
+): Readonly<Record<VaultStep, string>> {
+  return {
+    invite: copy.vaultStepInvite,
+    connect: copy.vaultStepConnect,
+    confirm: vaultAwaitsCollection(status)
+      ? copy.vaultStepCollection
+      : copy.vaultStepConfirm,
+    done: copy.vaultStepDone,
+  };
+}
 
 /** Where "Připojit", "Pokračovat" or "Připojit znovu" opens the dialog: an
  * account that exists only signs in again, a revoked one is invited again. */

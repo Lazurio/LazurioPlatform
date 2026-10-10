@@ -886,6 +886,7 @@ const en = {
   vaultRowChecking: "Checking…",
   vaultRowNone: "Not connected",
   vaultRowConfirming: "Waiting for the confirmation in the vault",
+  vaultRowCollection: "Confirmed, waiting for the collection",
   vaultRowConnected: "Connected",
   vaultRowRevoked: "Access removed in the vault",
   vaultRowUnreachable: "The vault does not answer",
@@ -903,6 +904,7 @@ const en = {
   vaultStepInvite: "Invite the account in the vault",
   vaultStepConnect: "The Environment connects",
   vaultStepConfirm: "Confirm the account in the vault",
+  vaultStepCollection: "Share the collection with the account",
   vaultStepDone: "Connected",
   vaultInviteText:
     "Create the collection and invite this address into it with edit rights.",
@@ -926,8 +928,11 @@ const en = {
   vaultConfirmText: "Confirm the new member in the vault.",
   vaultFingerprintHint: "The fingerprint in the vault must be the same:",
   vaultWaiting: "Waiting for the confirmation…",
-  vaultNoCollection:
-    "Confirmed, but it does not see the collection {collection} yet.",
+  vaultCollectionText:
+    "Confirmed. Now share this Environment's collection with the account in the vault, with edit rights.",
+  vaultCollectionHint:
+    "If you already have a collection for this Environment under another name, rename it to exactly this.",
+  vaultWaitingCollection: "Waiting for the collection…",
   vaultSees: "It sees {seen}.",
   vaultFailed: "Connecting did not finish ({stage}: {reason}).",
   vaultDisconnectTitle: "Disconnect Bitwarden",
@@ -2020,6 +2025,7 @@ const cs: Record<MessageKey, string> = {
   vaultRowChecking: "Zjišťuji stav…",
   vaultRowNone: "Nepřipojeno",
   vaultRowConfirming: "Čeká na potvrzení v trezoru",
+  vaultRowCollection: "Potvrzeno, čeká na kolekci",
   vaultRowConnected: "Připojeno",
   vaultRowRevoked: "Přístup odebrán v trezoru",
   vaultRowUnreachable: "Trezor neodpovídá",
@@ -2037,6 +2043,7 @@ const cs: Record<MessageKey, string> = {
   vaultStepInvite: "Pozvi účet v trezoru",
   vaultStepConnect: "Environment se připojí",
   vaultStepConfirm: "Potvrď účet v trezoru",
+  vaultStepCollection: "Nasdílej účtu kolekci",
   vaultStepDone: "Připojeno",
   vaultInviteText: "Založ kolekci a pozvi do ní tuhle adresu s právem úprav.",
   vaultInviteAgainText: "Pozvi tuhle adresu znovu do kolekce s právem úprav.",
@@ -2058,7 +2065,11 @@ const cs: Record<MessageKey, string> = {
   vaultConfirmText: "Potvrď v trezoru nového člena.",
   vaultFingerprintHint: "Otisk v trezoru musí být stejný:",
   vaultWaiting: "Čekám na potvrzení…",
-  vaultNoCollection: "Potvrzeno, ale kolekci {collection} zatím nevidí.",
+  vaultCollectionText:
+    "Potvrzeno. Ještě účtu v trezoru nasdílej kolekci tohoto Environmentu s právem úprav.",
+  vaultCollectionHint:
+    "Máš-li už pro tento Environment kolekci pod jiným jménem, stačí ji přejmenovat přesně takhle.",
+  vaultWaitingCollection: "Čekám na kolekci…",
   vaultSees: "Vidí {seen}.",
   vaultFailed: "Připojení se nedokončilo ({stage}: {reason}).",
   vaultDisconnectTitle: "Odpojit Bitwarden",
