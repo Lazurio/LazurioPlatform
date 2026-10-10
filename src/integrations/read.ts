@@ -3,6 +3,11 @@ import type { ExecutorContext } from "../executor/flow";
 import { withFolderReadLock } from "../folder/lock";
 import type { PresetName } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
+import { folderOrganizationSettings } from "../folder/state";
+import {
+  composioPolicyOf,
+  organizationGoverns,
+} from "../organization-settings/governance";
 import { executorToolName } from "../tools/catalog";
 import {
   type ToolOverview,
@@ -22,7 +27,7 @@ import {
   type ToolsReading,
 } from "./model";
 import { type AppTool, appTools, type Rules } from "./path";
-import { type ComposioPolicySource, composioPolicy } from "./policy";
+import type { ComposioPolicySource } from "./policy";
 
 // One reading of the Integrace of an Environment (decision F42), the same
 // for `GET /api/integrations` and `lazurio integrations list`: the Folder's
@@ -44,6 +49,8 @@ export type IntegrationsHost = Readonly<{
    * instead of F44's context and its row in Settings → Tools
    * (`executorHere`). */
   executorPresent?: boolean;
+  /** Test seam; by default the Organization settings the Folder records
+   * decide (`composioPolicyOf`, decision F45). */
   policy?: ComposioPolicySource;
   catalog?: IntegrationsCatalog;
   now?: () => Date;
@@ -53,9 +60,7 @@ export type IntegrationsHost = Readonly<{
  * computer decide alone; every Organization's Environment follows its
  * Organization (root decision 0194 point 5). */
 export function scopeOf(preset: PresetName): Rules["scope"] {
-  return preset === "local" || preset === "hosted-personal"
-    ? "personal"
-    : "organization";
+  return organizationGoverns(preset) ? "organization" : "personal";
 }
 
 /** Whether Executor is part of this Environment (decision F44): Lazurio
@@ -99,10 +104,17 @@ export async function readIntegrations(
   );
   const locale = preferences.profile.locale === "cs" ? "cs" : "en";
   const scope = scopeOf(preferences.preset.name);
+  // Whether Composio is allowed here: what the Organization's settings the
+  // Folder records say (root decision 0194, decision F45), or the
+  // Environment where they say nothing.
+  const recorded = composioPolicyOf(
+    preferences.preset.name,
+    folderOrganizationSettings(preferences),
+  );
   const [overview, reading, policy, context] = await Promise.all([
     toolsOverview(host.folder, host.tools, { signIn: true }).catch(() => null),
     readExecutor(host.executor, catalog),
-    (host.policy ?? composioPolicy)(),
+    host.policy === undefined ? recorded : host.policy(),
     host.executorPresent !== undefined || host.executorContext === undefined
       ? null
       : host.executorContext().catch(() => null),
@@ -118,7 +130,9 @@ export async function readIntegrations(
       ? { state: "unreadable" }
       : { state: "ok", connected: connectedTools(overview.tools) };
   const composioTool = overview?.tools.find((tool) => tool.name === "composio");
+  // On for agents here: switched on, and allowed (decision F45).
   const composioReady =
+    policy.allowed &&
     composioTool?.enabled === true &&
     composioTool.installed &&
     composioTool.signIn?.state === "signed-in";

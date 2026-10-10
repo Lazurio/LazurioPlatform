@@ -87,6 +87,23 @@ export async function refreshFolder(
     : result;
 }
 
+// Records the Organization settings the Launchpad applies (root decision
+// 0194 point 4, decision F45) and re-renders the generated Folder with what
+// they allow: the same planner, transaction, archive and recovery
+// (`profile-resume`) as a profile change, at the current revision. The same
+// settings are `unchanged` and nothing is written.
+export async function recordOrganizationSettings(
+  folder: string,
+  settings: unknown,
+  checkpoint: (step: UpdateStep) => Promise<void> = async () => {},
+) {
+  return changeFolder(
+    folder,
+    { kind: "organization-settings", settings },
+    checkpoint,
+  );
+}
+
 async function changeFolder(
   folder: string,
   request: FolderChangeRequest,

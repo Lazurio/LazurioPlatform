@@ -11,13 +11,17 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
-from the merge of Machines pull request **#398** into `main` (commit
-`b831308f153519747ebcb4d2d9690c1b9a865a9b`, SHA-256
-`475c5197b7c2d812dda960aa30f23a709837dca0560579e5c1c5d4f822d1506e`), which adds the
-optional `entry.browser` ([below](#the-hosted-entry-decision-f16), decision F38) and
-changes nothing else. No Machines release carries it yet, so the provenance names no
-version and no tag; the first release that does may add them with the same digest,
-and a digest other than this one is a new re-pin. Before it, the pin was the merge of
+from the merge of Machines pull request **#449** into `main` (commit
+`30c2fcf8a77914b5a44c652265e927683b2b413c`, SHA-256
+`fbbd159b8e6dfc8580a7b8460ddb4a2b2d3158a1b74ab2a420d8ff68005ae53f`), which adds the
+optional `entry.environment_relay` ([below](#the-hosted-entry-decision-f16), root
+decision 0194, decision F45) and changes nothing else. No Machines release carries it
+yet, so the provenance names no version and no tag; the first release that does may
+add them with the same digest, and a digest other than this one is a new re-pin.
+Before it, the pin was the merge of Machines
+pull request **#398** into `main` (commit `b831308f153519747ebcb4d2d9690c1b9a865a9b`,
+SHA-256 `475c5197b7c2d812dda960aa30f23a709837dca0560579e5c1c5d4f822d1506e`), which
+added the optional `entry.browser` (decision F38); before that, the merge of
 Machines pull request **#304** (commit `3d49ac09dd01868805bfb44bc1d99f8140d3bfe9`,
 SHA-256 `b9f9a127bc50c290f99f8332120f0efe2ef42482815d1d79dda7810fb656cfd7`), which
 added the optional `entry.mausbot`; before that, the merge of Machines
@@ -348,7 +352,8 @@ reads it: a Platform vendoring the earlier schema refuses the whole handover.
   "mausbot":   { "external_origin": "https://mausbot.<vm>.<org>.lazurio.io",
                  "listen_port": 4102 },
   "browser":   { "external_origin": "https://browser.<vm>.<org>.lazurio.io",
-                 "listen_port": 4848 }
+                 "listen_port": 4848 },
+  "environment_relay": { "socket": "/run/lazurio-environment/relay.sock" }
 }
 ```
 
@@ -363,6 +368,16 @@ the view's origin and the loopback port the people's view service listens on (F3
 It is also the
 signal the installer converges the browser's units on. Absent, the Environment has no
 Environment browser.
+
+`environment_relay` is optional and present only on an Organization work VM that
+declares its own identity at the Lazurio issuer (root decision 0194, Machines
+`docs/environment-identity.md`): the unix socket, reachable only by the operator
+account, on which the Launchpad asks the Dashboard for the Organization's settings
+and posts what it applied, as this Environment (contract C3, decision F45). The
+Environment's key and tokens stay with the gateway; the Launchpad holds no credential
+for it. Machines writes it only for a pinned Platform at least its
+`PLATFORM_ENTRY_ENVIRONMENT_RELAY_MINIMUM`, the first release that reads it. Absent,
+this Machine has no relay and the Launchpad asks no Dashboard.
 
 On a personal VM the Machine hostname has no Organization label
 (`https://launchpad.<login>.lazurio.io`, `https://{module}.<login>.lazurio.io`).
@@ -381,8 +396,10 @@ The binding records it one member to one, as `entry` next to the relationships:
 | `mausbot.listen_port` | `mausbotListenPort` (optional) | as `listenPort` |
 | `browser.external_origin` | `browserOrigin` (optional) | as `externalOrigin` |
 | `browser.listen_port` | `browserListenPort` (optional) | as `listenPort` |
+| `environment_relay.socket` | `environmentRelaySocket` (optional) | `/run/<directory>/<name>.sock`, lowercase letters, digits and `-`, at most 100 characters |
 
-The two MausBot fields, like the two browser fields, are recorded both or neither, and absent (never `null`) when the
+The relay's socket is recorded only when the handover carries it; it is never rendered
+into the Folder and never part of the Launchpad's public entry. The two MausBot fields, like the two browser fields, are recorded both or neither, and absent (never `null`) when the
 handover has no `mausbot`, so an entry recorded from an older handover is unchanged
 byte for byte. A present but invalid `mausbot` refuses the whole handover
 (`machine-context-invalid`), as every other entry value does.

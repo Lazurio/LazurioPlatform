@@ -2,6 +2,7 @@ import { planFolderChange } from "./change-profile";
 import { type OutputPath, outputPaths } from "./outputs";
 import {
   enabledTools,
+  folderOrganizationSettings,
   parseFolderPreferences,
   parseInstructionManifest,
   stateFields,
@@ -88,6 +89,7 @@ export async function validatePreparation(
   // The staged binding is part of the transition: a refresh carries the
   // re-projected binding of the same Machine, a profile change the recorded
   // one; the staged enabled tools and notes are the requested or the
+  // recorded ones, and the staged Organization settings the applied or the
   // recorded ones.
   const plan = await planFolderChange(
     previousPreferences,
@@ -99,6 +101,7 @@ export async function validatePreparation(
       machine: preferences.machine,
       tools: enabledTools(preferences),
       notes: toolNotes(preferences),
+      organizationSettings: folderOrganizationSettings(preferences),
     },
     async (path) => ({
       kind: "regular",

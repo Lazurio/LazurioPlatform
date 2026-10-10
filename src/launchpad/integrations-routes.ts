@@ -128,6 +128,9 @@ export function createIntegrationsRoutes(
   }
 
   return Object.freeze({
+    /** Something changed outside these routes (the Organization's settings,
+     * decision F45): the next reading reads again. */
+    forget: () => reader.forget(),
     handles: (path: string) =>
       path === "/api/integrations" || path.startsWith("/api/integrations/"),
     async handle(

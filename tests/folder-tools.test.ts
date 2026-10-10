@@ -708,6 +708,7 @@ test("a profile change and a handover refresh carry the enabled tools forward", 
       }),
       tools: enabledTools(hosted.preferences),
       notes: {},
+      organizationSettings: {},
     },
     hosted.inspect,
   );
@@ -718,7 +719,7 @@ test("a profile change and a handover refresh carry the enabled tools forward", 
 });
 
 test("a Folder rendered by an older template revision is upgraded by a tools change", async () => {
-  expect(instructionTemplateRevision).toBe("base-instructions-39");
+  expect(instructionTemplateRevision).toBe("base-instructions-40");
   const { preferences, manifest } = await planned();
   const older = {
     ...manifest,
@@ -741,7 +742,7 @@ test("a Folder rendered by an older template revision is upgraded by a tools cha
       recorded,
     );
     if (upgrade.kind !== "profile-change") throw new Error("Expected upgrade");
-    expect(upgrade.manifest.templateRevision).toBe("base-instructions-39");
+    expect(upgrade.manifest.templateRevision).toBe("base-instructions-40");
     expect(upgrade.previous).toEqual(older.outputs);
     expect(enabledTools(upgrade.preferences)).toEqual(tools);
     expect(upgrade.files).toEqual(
@@ -893,6 +894,8 @@ test.skipIf(process.platform === "win32")(
           // A computer offers neither Executor nor the vault (decision F44).
           offered: !["executor", "bitwarden"].includes(selection.name),
         })),
+        // No Organization governs a workstation's tools.
+        governed: {},
       });
       // Nothing enabled and nothing asked: no write, no revision.
       expect(await updateTools(folder, 1, [])).toEqual({ kind: "unchanged" });

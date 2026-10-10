@@ -53,7 +53,10 @@ export type OrganizationAssignment =
 // Optional and closed on both branches; finished values, never a convention.
 // `mausbot` (DEV-6632) is present only on a Machine that runs Lazurio MausBot;
 // `browser` (root decision 0191, F38) only where the gateway routes the view
-// of the Environment browser.
+// of the Environment browser; `environment_relay` (root decision 0194, DEV-6653
+// contract C3, Machines #449) only on an Organization work VM that declares its
+// own identity at the Lazurio issuer: the unix socket on which the Launchpad
+// asks the Dashboard as this Environment.
 export type MachineEntry = Readonly<{
   launchpad: Readonly<{
     external_origin: string;
@@ -65,6 +68,7 @@ export type MachineEntry = Readonly<{
   modules: Readonly<{ origin_template: string }>;
   mausbot?: Readonly<{ external_origin: string; listen_port: number }>;
   browser?: Readonly<{ external_origin: string; listen_port: number }>;
+  environment_relay?: Readonly<{ socket: string }>;
 }>;
 type MachineInstalled = Readonly<{
   machines_release: Readonly<{

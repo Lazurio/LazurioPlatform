@@ -4,6 +4,7 @@ import type { ManualPath } from "./outputs";
 import { type PresetName, presetVersion, workspacePreset } from "./presets";
 import type { FolderProfile } from "./profile";
 import {
+  agentTools,
   assignmentLine,
   type InstructionSource,
   instructionTemplateRevision,
@@ -11,6 +12,7 @@ import {
   launchpadRouting,
   notesMeaning,
   operatorConnectsOverSsh,
+  organizationForbidsComposio,
   parseInstructionSource,
   peerLine,
   personaIdentity,
@@ -1764,6 +1766,7 @@ function enabledToolsSection(
   notes: ToolNotes,
   locale: Locale,
   shared: boolean,
+  forbidden: readonly string[] = [],
 ): readonly Text[] {
   const noted = renderedTools(tools, environment).some((entry) =>
     Object.hasOwn(notes, entry.name),
@@ -1778,6 +1781,9 @@ function enabledToolsSection(
     ...(shared ? [sharedSignInWarning, blank] : []),
     ...(noted ? [notesMeaning, blank] : []),
     ...toolLines(tools, environment, locale, "usage", notes).map(same),
+    ...(forbidden.includes("composio")
+      ? [blank, organizationForbidsComposio]
+      : []),
     blank,
     t("### Integrace a MCP", "### Integrations and MCP"),
     integrationsPointer,
@@ -2009,6 +2015,9 @@ function environmentBrowser(preset: PresetName): readonly Text[] {
 function thisMachine(source: InstructionSource): string {
   const { preset, machine } = source;
   const { locale } = source.profile;
+  // The tools agents are told to use: without what the Organization does not
+  // allow here (decision F45).
+  const agents = agentTools(source);
   const relationships = machine?.relationships;
   const entry = machine?.entry;
   return document(
@@ -2092,11 +2101,12 @@ function thisMachine(source: InstructionSource): string {
         : [blank, ...environmentBrowser(preset)]),
       blank,
       ...enabledToolsSection(
-        source.tools,
+        agents.tools,
         toolEnvironmentOf(preset, source.profile),
-        source.toolNotes,
+        agents.notes,
         locale,
         sharedEnvironment(preset),
+        agents.forbidden,
       ),
       ...(relationships === undefined
         ? []

@@ -69,7 +69,9 @@ export type MachineRelationships = Readonly<{
 // port (`entry.mausbot`, DEV-6632) are recorded only when the handover carries
 // them, both or neither, so an entry recorded from an older handover is
 // unchanged byte for byte. The Environment browser's view (`entry.browser`,
-// root decision 0191, F38) follows the same rule.
+// root decision 0191, F38) follows the same rule, and so does the socket of
+// the Environment's relay to the Dashboard (`entry.environment_relay.socket`,
+// root decision 0194, DEV-6653 contract C3).
 export type MachineEntry = HostedEntry &
   Readonly<{
     t3codeOrigin: string;
@@ -78,7 +80,15 @@ export type MachineEntry = HostedEntry &
     mausbotListenPort?: number;
     browserOrigin?: string;
     browserListenPort?: number;
+    environmentRelaySocket?: string;
   }>;
+
+/** The socket of the Environment's relay, by the wire schema's rule: one
+ * directory under `/run` and a `.sock` file, at most 100 characters. */
+export const isEnvironmentRelaySocket = (value: unknown): value is string =>
+  typeof value === "string" &&
+  value.length <= 100 &&
+  /^\/run\/[a-z0-9-]+\/[a-z0-9-]+\.sock$/.test(value);
 
 export type MachineBinding = Readonly<{
   contextDigest: string;
@@ -269,10 +279,11 @@ function relationships(input: unknown): MachineRelationships {
 
 // All six members or none, each by the rule of the wire schema, as written;
 // Lazurio MausBot's two members and the Environment browser's two members are
-// optional, each pair only together.
+// optional, each pair only together, and so is the relay's socket.
 export function parseMachineEntry(input: unknown): MachineEntry {
   const withMausbot = ownDataValue(input, "mausbotOrigin") !== undefined;
   const withBrowser = ownDataValue(input, "browserOrigin") !== undefined;
+  const withRelay = ownDataValue(input, "environmentRelaySocket") !== undefined;
   const {
     t3codeOrigin,
     moduleOriginTemplate,
@@ -280,6 +291,7 @@ export function parseMachineEntry(input: unknown): MachineEntry {
     mausbotListenPort,
     browserOrigin,
     browserListenPort,
+    environmentRelaySocket,
     ...launchpad
   }: Record<string, unknown> = stateFields(input, [
     "externalOrigin",
@@ -290,6 +302,7 @@ export function parseMachineEntry(input: unknown): MachineEntry {
     "moduleOriginTemplate",
     ...(withMausbot ? ["mausbotOrigin", "mausbotListenPort"] : []),
     ...(withBrowser ? ["browserOrigin", "browserListenPort"] : []),
+    ...(withRelay ? ["environmentRelaySocket"] : []),
   ]);
   const hosted = parseHostedEntry(launchpad);
   if (!isHttpsOrigin(t3codeOrigin))
@@ -310,6 +323,11 @@ export function parseMachineEntry(input: unknown): MachineEntry {
     if (!isEntryPort(browserListenPort))
       throw new Error("Invalid hosted entry Environment browser port");
     entry = { ...entry, browserOrigin, browserListenPort };
+  }
+  if (withRelay) {
+    if (!isEnvironmentRelaySocket(environmentRelaySocket))
+      throw new Error("Invalid hosted entry Environment relay socket");
+    entry = { ...entry, environmentRelaySocket };
   }
   return Object.freeze(entry);
 }

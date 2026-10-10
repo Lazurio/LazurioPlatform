@@ -1634,7 +1634,22 @@ status" (with them again), and shows:
   of the Folder state (`src/tools/note.ts`), so a note the server would refuse cannot
   be saved; what was typed and not saved survives a re-render;
 - a card "Connect another app through an MCP server" with the generic prepared prompt.
-  MCP servers are never recorded in the Folder, so this card enables nothing.
+  MCP servers are never recorded in the Folder, so this card enables nothing;
+- on an Organization's Environment, a tool the Organization does not allow
+  ([F45](decisions.md#f45--organization-settings-reach-the-environment-asked-through-its-relay-recorded-in-the-folder-reported-back),
+  today Composio) has its switch locked off, labelled "Nastavuje Organizace" / "Set by
+  the Organization" (`organizationView` in `tools-view.ts`), one subdued sentence "Composio
+  tu nepovoluje Organizace." / "The Organization does not allow Composio here." and,
+  where the person had it on, that the choice is kept for when the Organization allows
+  it; no "Add and connect", "Connect" or agent fallback, while "Disconnect" stays for a
+  sign-in left from before. Its Details gain "Organization settings"
+  (`organizationDetails`): that only the Organization's Admin changes it, where this
+  Environment gets the settings, the version applied and when, when it last asked, and
+  why nothing new came (the Dashboard silent, the Environment's identity missing, the
+  Organization's settings invalid, the repository unreadable, the record unreadable). A
+  tool the Organization allows explicitly keeps its switch and says "Organizace ho
+  povoluje." The first reading and "Refresh status" ask the Organization's settings
+  first, at most five seconds.
 
 **Enable, disable and notes** take one click (the switch is a `role="switch"` button
 named "Used by agents: <tool>" with `aria-checked`, so its name holds the visible

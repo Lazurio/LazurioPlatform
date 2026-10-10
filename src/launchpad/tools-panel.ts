@@ -26,6 +26,8 @@ import {
   noteDraftView,
   noticeHolds,
   organizationChoices,
+  organizationDetails,
+  organizationView,
   parseLoginState,
   parseToolsOverview,
   qrImageSource,
@@ -1029,6 +1031,12 @@ export function createToolsPanel(
       signIn.dataset.state = "team";
       text.append(element("p", "tool-team", copy.toolsTeamGithub));
     }
+    // A tool the Organization decides here (root decision 0194, decision
+    // F45): why its switch does not move, and that the person's choice is
+    // kept for when the Organization allows it again.
+    const organization = organizationView(tool, copy);
+    for (const line of [organization.line, organization.kept])
+      if (line !== null) text.append(element("p", "tool-organization", line));
 
     const agent = button(
       copy.toolsAgentAction,
@@ -1144,12 +1152,29 @@ export function createToolsPanel(
         tool.name,
         "toggle",
         () => void toggle(tool, enable),
-        fill(copy.toolsSwitchNamed, { name: tool.name }),
+        fill(
+          organization.locked
+            ? copy.toolsOrganizationLockedNamed
+            : copy.toolsSwitchNamed,
+          { name: tool.name },
+        ),
       );
       toggler.className = "switch";
       toggler.setAttribute("role", "switch");
-      toggler.setAttribute("aria-checked", String(tool.enabled));
-      const label = element("span", "switch-label", copy.toolsSwitchLabel);
+      // The Organization's switch: off, whatever the person chose, and it
+      // never moves from this page.
+      toggler.setAttribute(
+        "aria-checked",
+        String(tool.enabled && !organization.locked),
+      );
+      if (organization.locked) toggler.disabled = true;
+      const label = element(
+        "span",
+        "switch-label",
+        organization.locked
+          ? copy.toolsOrganizationLocked
+          : copy.toolsSwitchLabel,
+      );
       label.setAttribute("aria-hidden", "true");
       label.addEventListener("click", () => toggler.click());
       const field = element("span", "switch-field");
@@ -1182,6 +1207,25 @@ export function createToolsPanel(
       body.append(happened);
     }
     if (vaultRow?.details) body.append(vaultRow.details);
+    // The Organization's settings this tool follows: who changes them,
+    // where this Environment gets them, the version and its state.
+    if (tool.organization !== undefined) {
+      const settings = element("section", "");
+      settings.append(element("h4", "", copy.toolsOrganizationDetails));
+      for (const line of organizationDetails(
+        overview?.organizationSettings,
+        copy,
+        (iso) =>
+          new Date(iso).toLocaleString(overview?.locale ?? "en", {
+            day: "numeric",
+            month: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+      ))
+        settings.append(element("p", "tools-muted", line));
+      body.append(settings);
+    }
     // The installation: version, anything to look at, where it is, and for
     // gh whether the SSH key of this Environment is linked.
     const installation = element("section", "");
@@ -1225,8 +1269,9 @@ export function createToolsPanel(
     }
     body.append(usage, noteEditor(tool, copy));
     // The agent's fallback of a `launchpad` tool; on a Team Environment the
-    // server hands gh's Team prompt, which signs nobody in.
-    if (tool.setup === "launchpad") {
+    // server hands gh's Team prompt, which signs nobody in. Not for a tool
+    // the Organization does not allow here.
+    if (tool.setup === "launchpad" && !organization.locked) {
       const fallback = element("section", "");
       const row = element("p", "tool-actions");
       row.append(agent);

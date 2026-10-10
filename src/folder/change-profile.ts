@@ -1,4 +1,9 @@
 import {
+  forbiddenTools,
+  organizationGoverns,
+} from "../organization-settings/governance";
+import type { OrganizationSettingsValues } from "../organizations/organization-settings";
+import {
   activatableTools,
   activeTools,
   parseEnabledTools,
@@ -31,9 +36,12 @@ import {
 } from "./render";
 import {
   enabledTools,
+  folderOrganizationSettings,
   parseFolderPreferences,
   parseInstructionManifest,
+  parseOrganizationSettingsValues,
   toolNotes,
+  withOrganizationSettings,
   withToolSelection,
 } from "./state";
 import { ownDataValue, stateFields } from "./state-fields";
@@ -80,6 +88,7 @@ export async function planProfileChange(
       machine: current.machine,
       tools: enabledTools(current),
       notes: toolNotes(current),
+      organizationSettings: folderOrganizationSettings(current),
     },
     inspect,
   );
@@ -91,7 +100,10 @@ export async function planProfileChange(
 // recorded ones are carried forward for the tools that stay on, so disabling
 // a tool removes its note in the same change. The recorded preset, profile
 // and Machine binding are carried forward; the same selection and notes are
-// `unchanged`.
+// `unchanged`. A tool the Organization does not allow here (decision F45)
+// keeps the person's recorded choice: a selection that changes it is refused
+// (`organization-governed`), whichever way, because the Organization decides
+// it now; every other tool changes as requested.
 export async function planToolsChange(
   currentPreferencesInput: unknown,
   currentManifestInput: unknown,
@@ -117,6 +129,16 @@ export async function planToolsChange(
     )
   )
     return { kind: "blocked", reason: "tool-not-offered" } as const;
+  const settings = folderOrganizationSettings(current);
+  const governed = forbiddenTools(settings).find(
+    (tool) => tools.includes(tool) !== recorded.includes(tool),
+  );
+  if (governed !== undefined)
+    return {
+      kind: "blocked",
+      reason: "organization-governed",
+      tool: governed,
+    } as const;
   return planFolderChange(
     current,
     currentManifestInput,
@@ -130,6 +152,44 @@ export async function planToolsChange(
         requestedNotes === undefined
           ? keptNotes(toolNotes(current), tools)
           : parseToolNotes(requestedNotes, tools),
+      organizationSettings: settings,
+    },
+    inspect,
+  );
+}
+
+// The Organization's settings this Folder applies (root decision 0194 point
+// 4, decision F45): the full next section, everything else carried forward,
+// at the current revision (no caller holds one: the Launchpad applies what
+// the Organization decided). An Environment no Organization governs records
+// none; the same section is `unchanged`.
+export async function planOrganizationSettingsChange(
+  currentPreferencesInput: unknown,
+  currentManifestInput: unknown,
+  requestedInput: unknown,
+  inspect: (path: OutputPath) => Promise<ObservedFile>,
+) {
+  const current = parseFolderPreferences(currentPreferencesInput);
+  const settings = parseOrganizationSettingsValues(requestedInput);
+  if (
+    Object.keys(settings).length > 0 &&
+    !organizationGoverns(current.preset.name)
+  )
+    return {
+      kind: "blocked",
+      reason: "organization-settings-not-governed",
+    } as const;
+  return planFolderChange(
+    current,
+    currentManifestInput,
+    current.revision,
+    {
+      preset: current.preset.name,
+      profile: current.profile,
+      machine: current.machine,
+      tools: enabledTools(current),
+      notes: toolNotes(current),
+      organizationSettings: settings,
     },
     inspect,
   );
@@ -161,6 +221,7 @@ export type FolderChange = Readonly<{
   machine: MachineBinding | null;
   tools: readonly string[];
   notes: ToolNotes;
+  organizationSettings: OrganizationSettingsValues;
 }>;
 
 export async function planFolderChange(
@@ -198,6 +259,7 @@ export async function planFolderChange(
   const machine = parseMachineBinding(change.machine);
   const tools = parseEnabledTools(change.tools);
   const notes = parseToolNotes(change.notes, tools);
+  const settings = parseOrganizationSettingsValues(change.organizationSettings);
   if (
     JSON.stringify(machineIdentity(machine)) !==
     JSON.stringify(machineIdentity(current.machine))
@@ -249,6 +311,7 @@ export async function planFolderChange(
       profile: change.profile,
       tools,
       toolNotes: notes,
+      organizationSettings: settings,
     },
     manifest.outputs,
     inspect,
@@ -258,27 +321,34 @@ export async function planFolderChange(
   // renders: the Launchpad serves and admits from the recorded one. A changed
   // entry is recorded even when the Folder renders the same bytes. So is a
   // changed selection or note: a tool this Environment does not offer is not
-  // rendered (decision F44), and switching it off changes only the record.
+  // rendered (decision F44), and switching it off changes only the record;
+  // and so is a changed section of Organization settings, which Settings →
+  // Tools and `lazurio tools` act on (decision F45).
   if (
     preview.plan.kind === "unchanged" &&
     JSON.stringify(machine?.entry) === JSON.stringify(current.machine?.entry) &&
     JSON.stringify(tools) === JSON.stringify(enabledTools(current)) &&
-    JSON.stringify(notes) === JSON.stringify(toolNotes(current))
+    JSON.stringify(notes) === JSON.stringify(toolNotes(current)) &&
+    JSON.stringify(settings) ===
+      JSON.stringify(folderOrganizationSettings(current))
   )
     return { kind: "unchanged" } as const;
   if (current.revision === Number.MAX_SAFE_INTEGER)
     return { kind: "blocked", reason: "revision-exhausted" } as const;
   const preferences = parseFolderPreferences(
-    withToolSelection(
-      {
-        ...current,
-        revision: current.revision + 1,
-        preset,
-        machine,
-        profile: change.profile,
-      },
-      tools,
-      notes,
+    withOrganizationSettings(
+      withToolSelection(
+        {
+          ...current,
+          revision: current.revision + 1,
+          preset,
+          machine,
+          profile: change.profile,
+        },
+        tools,
+        notes,
+      ),
+      settings,
     ),
   );
   const nextManifest = parseInstructionManifest({

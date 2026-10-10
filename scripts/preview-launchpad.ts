@@ -26,13 +26,19 @@
 // stands in for a Remote Environment's Executor, so the page shows the
 // direct paths (decision F44 installs none on a computer); in a Remote
 // Environment the page follows Settings → Tools → executor, as in
-// production. Synthetic names only; stop it with Ctrl-C.
+// production. With `composio-off` anywhere after the mode, a hosted
+// preview's example Organization does not allow Composio (root decision
+// 0194, decision F45): its root becomes a Git checkout whose `main` says so,
+// which the Launchpad reads as on an Organization's Environment without the
+// relay, so Settings → Tools shows Composio's switch locked. Synthetic names
+// only; stop it with Ctrl-C.
 import {
   chmod,
   mkdir,
   mkdtemp,
   readFile,
   realpath,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -63,6 +69,7 @@ const mode =
     ? process.argv[2]
     : "local";
 const fresh = process.argv[6] === "fresh";
+const composioOff = process.argv.slice(3).includes("composio-off");
 const locale = process.argv[3] === "en" ? "en" : "cs";
 const listenPort = Number(process.argv[4] ?? 24611);
 const role =
@@ -322,6 +329,46 @@ await writeFile(
 // on the tools' PATH, so the row's installation reads what its setup placed.
 const executor = mode === "local" ? undefined : await executorWorld({ home });
 if (mode === "local") await updateTools(folder, 1, ["composio"]);
+if (composioOff && mode === "hosted" && !fresh) {
+  // The Launchpad reads the root with the operator's git, from its PATH.
+  const git = Bun.which("git");
+  if (git === null) throw new Error("composio-off needs git");
+  await symlink(git, join(home, "bin", "git"));
+  await updateTools(folder, 1, ["composio"]);
+  const root = join(folder, "organizations", "example_GEN3");
+  const manifest = join(root, "lazurio.organization.json");
+  const document = JSON.parse(await readFile(manifest, "utf8"));
+  await writeFile(
+    manifest,
+    JSON.stringify({
+      ...document,
+      settings: { integrations: { composio: { allowed: false } } },
+    }),
+  );
+  for (const args of [
+    ["init", "--quiet", "--initial-branch=main"],
+    ["add", "lazurio.organization.json"],
+    [
+      "-c",
+      "user.name=Preview",
+      "-c",
+      "user.email=preview@example.invalid",
+      "-c",
+      "commit.gpgsign=false",
+      "commit",
+      "--quiet",
+      "-m",
+      "Organization settings",
+    ],
+  ]) {
+    const git = Bun.spawn(["git", "-C", root, ...args], {
+      stdout: "ignore",
+      stderr: "ignore",
+      env: { PATH: process.env.PATH ?? "", HOME: home },
+    });
+    if ((await git.exited) !== 0) throw new Error(`git ${args[0]} failed`);
+  }
+}
 const app = await startLaunchpad(
   folder,
   undefined,

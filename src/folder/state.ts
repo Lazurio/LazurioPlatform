@@ -1,4 +1,12 @@
 import {
+  canonicalSettings,
+  organizationGoverns,
+} from "../organization-settings/governance";
+import {
+  type OrganizationSettingsValues,
+  organizationSettings,
+} from "../organizations/organization-settings";
+import {
   parseEnabledTools,
   parseToolNotes,
   type ToolNotes,
@@ -35,6 +43,12 @@ export const folderStateSchemas = Object.freeze({
 // `toolNotes` (decision F18, addendum 2026-09-27) is the optional object of the
 // operator's notes for agents, keyed by a required or enabled tool, keys
 // sorted; absent when there is no note, and an empty object is refused.
+// `organizationSettings` (root decision 0194, decision F45) is the optional
+// section of the Organization's settings this Folder applies, recorded from
+// the Organization like the binding from the handover, because the generated
+// Folder renders what they allow: exactly the governed keys of the closed
+// section, in one representation (keys sorted, nothing empty), only on an
+// Environment an Organization governs; absent when it governs nothing here.
 export type FolderPreferences = Readonly<{
   schemaVersion: 2;
   revision: number;
@@ -44,7 +58,43 @@ export type FolderPreferences = Readonly<{
   customInstructions: string;
   tools?: readonly string[];
   toolNotes?: ToolNotes;
+  organizationSettings?: OrganizationSettingsValues;
 }>;
+
+/** The Organization settings a Folder applies; `{}` when none. */
+export function folderOrganizationSettings(
+  preferences: Pick<FolderPreferences, "organizationSettings">,
+): OrganizationSettingsValues {
+  return preferences.organizationSettings ?? Object.freeze({});
+}
+
+/** A settings section as the Organization's contract reads it (a closed
+ * section, every governed key valid), in its one representation. Throws on
+ * anything else. */
+export function parseOrganizationSettingsValues(
+  input: unknown,
+): OrganizationSettingsValues {
+  const verdict = organizationSettings({ settings: input });
+  if (verdict.status !== "valid")
+    throw new Error("Invalid Organization settings");
+  return canonicalSettings(verdict.values);
+}
+
+// The preference fields with the given Organization settings: the key present
+// only when they govern something.
+export function withOrganizationSettings<
+  T extends Readonly<{ organizationSettings?: unknown }>,
+>(
+  fields: T,
+  settings: OrganizationSettingsValues,
+): Omit<T, "organizationSettings"> & {
+  organizationSettings?: OrganizationSettingsValues;
+} {
+  const { organizationSettings: _, ...rest } = fields;
+  return Object.keys(settings).length === 0
+    ? rest
+    : { ...rest, organizationSettings: settings };
+}
 
 export function enabledTools(
   preferences: Pick<FolderPreferences, "tools">,
@@ -113,6 +163,8 @@ export function parseOutputDigests(input: unknown): OutputDigests {
 export function parseFolderPreferences(input: unknown): FolderPreferences {
   const withTools = ownDataValue(input, "tools") !== undefined;
   const withNotes = ownDataValue(input, "toolNotes") !== undefined;
+  const withSettings =
+    ownDataValue(input, "organizationSettings") !== undefined;
   const value = stateFields(input, [
     "schemaVersion",
     "revision",
@@ -122,6 +174,7 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
     "customInstructions",
     ...(withTools ? ["tools"] : []),
     ...(withNotes ? ["toolNotes"] : []),
+    ...(withSettings ? ["organizationSettings"] : []),
   ]);
   if (value.schemaVersion !== 2 || typeof value.customInstructions !== "string")
     throw new Error("Unsupported Folder preferences");
@@ -137,6 +190,17 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
   const machine = parseMachineBinding(value.machine);
   const profile = parseFolderProfile(value.profile);
   validatePresetComposition(preset.name, machine, profile);
+  const settings = withSettings
+    ? parseOrganizationSettingsValues(value.organizationSettings)
+    : undefined;
+  if (settings !== undefined) {
+    if (Object.keys(settings).length === 0)
+      throw new Error("Empty Organization settings must be absent");
+    if (JSON.stringify(settings) !== JSON.stringify(value.organizationSettings))
+      throw new Error("Organization settings not in their one representation");
+    if (!organizationGoverns(preset.name))
+      throw new Error("No Organization governs this Environment");
+  }
   return Object.freeze({
     schemaVersion: 2,
     revision: revision(value.revision),
@@ -148,6 +212,7 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
     customInstructions: value.customInstructions,
     ...(tools === undefined ? {} : { tools }),
     ...(notes === undefined ? {} : { toolNotes: notes }),
+    ...(settings === undefined ? {} : { organizationSettings: settings }),
   });
 }
 

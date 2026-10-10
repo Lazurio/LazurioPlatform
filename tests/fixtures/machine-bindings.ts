@@ -119,6 +119,17 @@ export function withBrowser(
   };
 }
 
+// Root decision 0194 (DEV-6653, contract C3): the entry of an Organization
+// work VM that declares its own identity, as Machines writes
+// `entry.environment_relay` (Machines #449).
+export const environmentRelaySocket = "/run/lazurio-environment/relay.sock";
+export function withEnvironmentRelay<T extends object>(
+  entry: T,
+  socket = environmentRelaySocket,
+) {
+  return { ...entry, environment_relay: { socket } };
+}
+
 // The handover shapes the presets derive from, projected exactly as the
 // machine CLI would project a validated root-issued document.
 export function binding(document: unknown) {
@@ -142,6 +153,19 @@ export function organizationWithEntry(
     ...organization,
     owner: withoutTeam,
     entry: browser ? withBrowser(entry, host) : entry,
+  });
+}
+// An Organization work VM of one operator whose entry, on `port`, carries
+// the Environment's relay to the Dashboard (root decision 0194, Machines
+// #449).
+export function organizationWithRelay(
+  listenPort = 20000,
+  host = "workspace.example.lazurio.io",
+) {
+  return binding({
+    ...organization,
+    owner: withoutTeam,
+    entry: withEnvironmentRelay(handoverEntry(host, listenPort)),
   });
 }
 // A personal VM of `example` with its entry on `port`, and with `browser`
@@ -215,5 +239,17 @@ export const bindings = Object.freeze({
     ...organization,
     owner: { ...organization.owner, assignment: assignments.automation },
     entry: entries.organization,
+  }),
+  // Root decision 0194 (DEV-6653): the entry with the Environment's relay to
+  // the Dashboard, on a work Environment of one operator and, as a schema
+  // could carry it, on a personal one (which ignores Organization settings).
+  organizationRelay: binding({
+    ...organization,
+    owner: withoutTeam,
+    entry: withEnvironmentRelay(entries.organization),
+  }),
+  personalRelay: binding({
+    ...personal,
+    entry: withEnvironmentRelay(entries.personal),
   }),
 });
