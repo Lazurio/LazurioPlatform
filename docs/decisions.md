@@ -5625,10 +5625,14 @@ Decided:
 2. **An exhausted budget costs a tab.** `OOMPolicy=continue`: the process the kernel ends
    is mostly one tab's renderer, and only that tab goes. Its window stays, and a
    navigation brings it back. When the main process goes, the unit ends and restarts.
-3. **Tabs first, then the browser, then a Module.** `OOMScoreAdjust=250`. The user manager
-   gives every user service 200 and Chrome gives each tab's renderer 300. The rest of the
-   browser sits between them. A higher value would put Chrome's main process ahead of its
-   own tabs.
+3. **Tabs first, then the browser, then a Module, the core last** (0195 point 3).
+   `OOMScoreAdjust=250`. The user manager gives every user service 200, and Chrome gives
+   each tab's renderer 300. The rest of the browser sits between them; a higher value
+   would put Chrome's main process ahead of its own tabs. The Launchpad starts each
+   Module's transient unit with `OOMScoreAdjust=220` ([module adoption](module-adoption.md)).
+   The order is therefore a tab (300), the rest of the browser (250), a Module (220),
+   and the core: the Launchpad and T3 Code at the default 200. Before, a Module and the
+   core were both at 200, and only their size decided between them.
 4. **No old tabs after a restart.** Before each start the unit removes the profile's
    `Default/Sessions` (`ExecStartPre=-/bin/rm -rf …`). That one place covers every way
    the browser ends. The rest of the profile, with the Environment's sign-ins, stays. The
