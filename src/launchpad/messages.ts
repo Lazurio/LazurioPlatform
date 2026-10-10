@@ -907,7 +907,7 @@ const en = {
   vaultStepCollection: "Share the collection with the account",
   vaultStepDone: "Connected",
   vaultInviteText:
-    "Create the collection and invite this address into it with edit rights.",
+    "Create a collection, named as you like (this name, for instance), and invite this address into it with edit rights.",
   vaultInviteAgainText:
     "Invite this address into the collection again with edit rights.",
   vaultAdminHint:
@@ -920,6 +920,8 @@ const en = {
   vaultCopied: "Copied",
   vaultInvited: "Invited",
   vaultNotInvited: "The address is not invited in the vault yet.",
+  vaultRevokedConnect:
+    "The account does not see the collection it was connected to. Invite it into that collection again, or disconnect the Environment and connect it to another one.",
   vaultUnreachableLine: "The vault does not answer.",
   vaultPhaseInstall: "Installing Bitwarden",
   vaultPhaseAccount: "Creating the account",
@@ -931,7 +933,7 @@ const en = {
   vaultCollectionText:
     "Confirmed. Now share this Environment's collection with the account in the vault, with edit rights.",
   vaultCollectionHint:
-    "If you already have a collection for this Environment under another name, rename it to exactly this.",
+    "If the account sees several collections, it recognizes its own by this name.",
   vaultWaitingCollection: "Waiting for the collection…",
   vaultSees: "It sees {seen}.",
   vaultFailed: "Connecting did not finish ({stage}: {reason}).",
@@ -2045,7 +2047,8 @@ const cs: Record<MessageKey, string> = {
   vaultStepConfirm: "Potvrď účet v trezoru",
   vaultStepCollection: "Nasdílej účtu kolekci",
   vaultStepDone: "Připojeno",
-  vaultInviteText: "Založ kolekci a pozvi do ní tuhle adresu s právem úprav.",
+  vaultInviteText:
+    "Založ kolekci, pojmenuj ji, jak chceš (třeba takhle), a pozvi do ní tuhle adresu s právem úprav.",
   vaultInviteAgainText: "Pozvi tuhle adresu znovu do kolekce s právem úprav.",
   vaultAdminHint:
     "Pozvat a potvrdit může Admin nebo Owner organizace v trezoru.",
@@ -2057,6 +2060,8 @@ const cs: Record<MessageKey, string> = {
   vaultCopied: "Zkopírováno",
   vaultInvited: "Pozváno",
   vaultNotInvited: "Adresa ještě není v trezoru pozvaná.",
+  vaultRevokedConnect:
+    "Účet nevidí kolekci, ke které byl připojený. Pozvi ho do ní znovu, nebo Environment odpoj a připoj ho k jiné kolekci.",
   vaultUnreachableLine: "Trezor neodpovídá.",
   vaultPhaseInstall: "Instaluji Bitwarden",
   vaultPhaseAccount: "Zakládám účet",
@@ -2068,7 +2073,7 @@ const cs: Record<MessageKey, string> = {
   vaultCollectionText:
     "Potvrzeno. Ještě účtu v trezoru nasdílej kolekci tohoto Environmentu s právem úprav.",
   vaultCollectionHint:
-    "Máš-li už pro tento Environment kolekci pod jiným jménem, stačí ji přejmenovat přesně takhle.",
+    "Vidí-li účet víc kolekcí, pozná tu svou podle tohohle názvu.",
   vaultWaitingCollection: "Čekám na kolekci…",
   vaultSees: "Vidí {seen}.",
   vaultFailed: "Připojení se nedokončilo ({stage}: {reason}).",

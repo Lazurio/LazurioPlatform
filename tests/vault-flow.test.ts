@@ -21,7 +21,12 @@ import {
   vaultStatus,
 } from "../src/vault/flow";
 import { pinnedBinary } from "../src/vault/install";
-import { readAccount, readSession, vaultPaths } from "../src/vault/store";
+import {
+  readAccount,
+  readRecord,
+  readSession,
+  vaultPaths,
+} from "../src/vault/store";
 import {
   collectionId,
   fakeBw,
@@ -30,6 +35,7 @@ import {
   fakeRelease,
   fingerprint,
   organizationId,
+  otherCollectionId,
   personalHandover,
   personalHandoverAt,
   startFakeVault,
@@ -613,6 +619,194 @@ test.skipIf(!posix)(
       expect(env.kind === "vault-env" ? env.env.BW_SESSION : null).toBe(
         await readSession(w.paths),
       );
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "the only collection the account sees is the Environment's, whatever its name, and it stays so by its ID",
+  async () => {
+    const w = await world();
+    try {
+      w.vault.invite(account);
+      expect(await vaultConnect(w.host)).toMatchObject({
+        state: "confirming",
+        organization: null,
+      });
+      // The operator named the collection as he likes (root decision 0193,
+      // addendum 2026-10-11).
+      await w.vault.confirm("Osobní Environment", 2);
+      expect(await vaultRefresh(w.host)).toMatchObject({
+        state: "connected",
+        collection: "Osobní Environment",
+        collections: 1,
+        items: 2,
+      });
+      const collectionOf = async () => {
+        const env = await vaultEnv(w.host);
+        return env.kind === "vault-env"
+          ? env.env.LAZURIO_VAULT_COLLECTION_ID
+          : null;
+      };
+      expect(await collectionOf()).toBe(collectionId);
+      // Renamed: still its collection, by its ID.
+      await w.vault.confirm("Osobní Environment Example", 2);
+      expect(await vaultRefresh(w.host)).toMatchObject({
+        state: "connected",
+        collection: "Osobní Environment Example",
+      });
+      // Another collection appears, even under the suggested name: the
+      // recorded one stays the Environment's.
+      await w.vault.confirm("Osobní Environment Example", 2, [collection]);
+      expect(await vaultRefresh(w.host)).toMatchObject({
+        state: "connected",
+        collection: "Osobní Environment Example",
+        collections: 2,
+      });
+      expect(await collectionOf()).toBe(collectionId);
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "with several collections the suggested name decides, and a recorded collection that is gone is revoked, never replaced",
+  async () => {
+    const w = await world();
+    try {
+      w.vault.invite(account);
+      await vaultConnect(w.host);
+      // Two collections, neither named for this Environment: it waits.
+      await w.vault.confirm("Infrastruktura", 0, ["Banky"]);
+      expect(await vaultRefresh(w.host)).toMatchObject({
+        state: "confirming",
+        organization: "Example Organization",
+      });
+      // One of them gets the suggested name: that one.
+      await w.vault.confirm(collection, 3, ["Banky"]);
+      expect(await vaultRefresh(w.host)).toMatchObject({
+        state: "connected",
+        collection,
+        collections: 2,
+      });
+      // The Environment's collection is deleted and another one stays
+      // visible, under any name, even the suggested one or one named for
+      // this machine: the access is revoked, nothing else takes its place,
+      // and the record keeps the original collection.
+      const only = async (name: string) =>
+        writeFile(
+          join(w.vault.world, "collections.json"),
+          `${JSON.stringify([
+            {
+              object: "collection",
+              id: otherCollectionId,
+              organizationId,
+              name,
+              externalId: null,
+            },
+          ])}\n`,
+        );
+      for (const name of [
+        "Banky",
+        collection,
+        "Environmenty/Jiný název · example",
+      ]) {
+        await only(name);
+        expect([name, await vaultRefresh(w.host)]).toMatchObject([
+          name,
+          { state: "revoked" },
+        ]);
+        expect([name, (await readRecord(w.paths)).collectionId]).toEqual([
+          name,
+          collectionId,
+        ]);
+      }
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "connecting again keeps the collection it was connected to, also after a revoked access; only a disconnect forgets it",
+  async () => {
+    const w = await world();
+    try {
+      w.vault.invite(account);
+      await vaultConnect(w.host);
+      await w.vault.confirm(collection, 1);
+      expect(await vaultRefresh(w.host)).toMatchObject({
+        state: "connected",
+      });
+      // Its collection is gone; another one is visible under the suggested
+      // name.
+      await writeFile(
+        join(w.vault.world, "collections.json"),
+        `${JSON.stringify([
+          {
+            object: "collection",
+            id: otherCollectionId,
+            organizationId,
+            name: collection,
+            externalId: null,
+          },
+        ])}\n`,
+      );
+      expect(await vaultRefresh(w.host)).toMatchObject({ state: "revoked" });
+      // "Připojit znovu": still revoked, the record keeps the original.
+      expect(await vaultConnect(w.host)).toMatchObject({ state: "revoked" });
+      expect((await readRecord(w.paths)).collectionId).toBe(collectionId);
+      // Only a disconnect forgets it: the next connection is a first one.
+      await vaultDisconnect(w.host);
+      expect(await vaultConnect(w.host)).toMatchObject({
+        state: "connected",
+        collection,
+      });
+      expect((await readRecord(w.paths)).collectionId).toBe(otherCollectionId);
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "a new connection after a disconnect is a first connection again: a collection under its own name only while it is the only one",
+  async () => {
+    const w = await world();
+    try {
+      w.vault.invite(account);
+      await vaultConnect(w.host);
+      await w.vault.confirm("Osobní Environment Example", 1);
+      expect(await vaultRefresh(w.host)).toMatchObject({
+        state: "connected",
+        collection: "Osobní Environment Example",
+      });
+      // Another collection is shared meanwhile: still connected, by its ID.
+      await w.vault.confirm("Osobní Environment Example", 1, ["Banky"]);
+      expect(await vaultRefresh(w.host)).toMatchObject({
+        state: "connected",
+        collections: 2,
+      });
+      // Disconnected and connected again: the record is gone, and among
+      // several collections only the suggested name decides.
+      expect(await vaultDisconnect(w.host)).toMatchObject({ state: "none" });
+      expect(await vaultConnect(w.host)).toMatchObject({
+        state: "confirming",
+        organization: "Example Organization",
+      });
+      // Under the suggested name it is recognized again.
+      await w.vault.confirm(collection, 1, ["Banky"]);
+      expect(await vaultRefresh(w.host)).toMatchObject({
+        state: "connected",
+        collection,
+      });
     } finally {
       await w.close();
     }

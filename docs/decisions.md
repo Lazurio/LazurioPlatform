@@ -6225,11 +6225,23 @@ to chat, Git, a log or a pull request.
    `Environmenty/<name> · <machine>`, in the vault's language as 0193 writes it,
    with the Environment's name as the rail gives it (decision 0185): a Team's or
    a persona's display name from the catalog, otherwise its kind, "Osobní",
-   "Pracovní", "Týmový" or "Automatizovaný". The Environment's own collection is
-   the visible one with exactly the name the dialog showed, else the one it was
-   connected to, else the only one named `Environmenty/… · <machine>`: the
-   machine part identifies it, so a Team that renames itself does not lose its
-   collection. Only the handover's declared operator, in a hosted Folder on
+   "Pracovní", "Týmový" or "Automatizovaný". That name is only a suggestion
+   (root decision 0193, addendum 2026-10-11): the collection's name is the
+   operator's. Once connected, the Environment's own collection is only the
+   one it was connected to, by its ID: a rename changes nothing, and a
+   collection that is gone reads as revoked, whatever else the account sees
+   (no other collection ever takes its place). At a first connection, when
+   nothing is recorded, it is the visible one with exactly the suggested name,
+   else the only one named `Environmenty/… · <machine>` (the machine part
+   identifies it, so a Team that renames itself does not lose its
+   collection), else the only collection the account sees, whatever its name.
+   A connect keeps the record, also "Připojit znovu" after a revoked access,
+   which then stays revoked until the account sees that collection again and
+   says so ("Účet nevidí kolekci, ke které byl připojený. …"). Only a
+   disconnect forgets it, so connecting after a disconnect is a first
+   connection again: a collection under its own name is recognized only while
+   it is the only one the account sees; among several, it needs the
+   suggested name. Only the handover's declared operator, in a hosted Folder on
    Linux, has a vault account; everything else answers `unsupported` with its
    reason before anything runs.
 

@@ -265,6 +265,16 @@ test("the dialog starts where the state is and goes where a connect ends", () =>
     failure: "Adresa ještě není v trezoru pozvaná.",
     agent: false,
   });
+  // A connect keeps the collection it was connected to: another one needs a
+  // disconnect first, and the dialog says so.
+  expect(
+    vaultAfterConnect(status({ state: "revoked", fingerprint }), cs),
+  ).toEqual({
+    step: "invite",
+    failure:
+      "Účet nevidí kolekci, ke které byl připojený. Pozvi ho do ní znovu, nebo Environment odpoj a připoj ho k jiné kolekci.",
+    agent: false,
+  });
   expect(
     vaultAfterConnect(
       status({ state: "confirming", fingerprint, organization: null }),
