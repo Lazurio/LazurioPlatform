@@ -74,6 +74,8 @@ test("a personal Remote Environment: its slug, its kind's name, the person's net
     kind: "personal",
     name: "Osobní",
     collection: "Environmenty/Osobní · example",
+    // A person owns it: no Organization's application reads its secrets.
+    organization: null,
   });
 });
 
@@ -86,6 +88,8 @@ test("a work, Team and Automated Environment: <machine>.<org> and the name the r
     machine: "workspace",
     name: "Pracovní",
     collection: "Environmenty/Pracovní · workspace",
+    // The handover's owning Organization (decision F46).
+    organization: "example",
   });
   expect(
     vaultContextOf({ handover: teamVm, kind: "team", label: "Team Sales" }),

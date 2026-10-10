@@ -9,7 +9,13 @@ export type ServiceManagerProgram =
 export type ServiceManagerProcess = (
   program: ServiceManagerProgram,
   args: readonly string[],
-  options: Readonly<{ timeoutMs: number }>,
+  options: Readonly<{
+    timeoutMs: number;
+    /** Only `LAZURIO_RUNTIME_SECRET_<NAME>` (decision F46): the value of a
+     * runtime secret that `systemd-run --setenv=<NAME>` takes from its own
+     * environment, so that it is never an argument of a process. */
+    env?: Readonly<Record<string, string>> | undefined;
+  }>,
 ) => Promise<Readonly<{ code: number | null; stdout: string; stderr: string }>>;
 
 const executables: Readonly<Record<ServiceManagerProgram, string>> = {
@@ -21,6 +27,9 @@ const executables: Readonly<Record<ServiceManagerProgram, string>> = {
   // Read-only: the journal of one application unit (`lazurio module logs`).
   journalctl: "/usr/bin/journalctl",
 };
+
+/** The variable of a runtime secret (decision F46). */
+export const runtimeSecretVariable = /^LAZURIO_RUNTIME_SECRET_[A-Z][A-Z0-9_]*$/;
 
 // The only place that executes the service manager's tools: fixed absolute
 // executables, argv arrays (never a shell), a sanitized environment that carries
@@ -36,7 +45,14 @@ export function createServiceManagerProcess(
       !Number.isInteger(options.timeoutMs) ||
       options.timeoutMs < 1 ||
       options.timeoutMs > 60_000 ||
-      args.some((value) => typeof value !== "string" || value.includes("\0"))
+      args.some((value) => typeof value !== "string" || value.includes("\0")) ||
+      Object.entries(options.env ?? {}).some(
+        ([name, value]) =>
+          program !== "systemd-run" ||
+          !runtimeSecretVariable.test(name) ||
+          typeof value !== "string" ||
+          value.includes("\0"),
+      )
     )
       throw new Error("Bounded service manager invocation required");
     return new Promise((resolve) => {
@@ -45,6 +61,7 @@ export function createServiceManagerProcess(
         [...args],
         {
           env: {
+            ...options.env,
             PATH: "/usr/bin:/bin",
             LC_ALL: "C",
             XDG_RUNTIME_DIR: runtimeDirectory,

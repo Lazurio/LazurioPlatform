@@ -4,6 +4,11 @@ import { object, text } from "./manifest";
 import { PreparationRefused, preparationRefusal } from "./preparation-refusal";
 import { parseProcessLaunch } from "./process-launch";
 import { readModuleApplication } from "./read-application";
+import {
+  type RuntimeSecretFinding,
+  RuntimeSecretUnavailable,
+  runtimeSecretReasons,
+} from "./runtime-secrets";
 import { RequiredSlotRefused } from "./sibling-origins";
 
 type Selection = Readonly<{ company: string; module: string; package: string }>;
@@ -35,6 +40,36 @@ type PreparationFactory = (
   close: () => Promise<{ kind: "closed" | "incomplete" }>;
 }>;
 
+// The launch an adapter prepared, and the optional runtime secrets it
+// starts without (decision F46): names and reasons only.
+function launchOf(input: unknown): {
+  launch: ReturnType<typeof parseProcessLaunch>;
+  notProvided: readonly RuntimeSecretFinding[];
+} {
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    return { launch: parseProcessLaunch(input), notProvided: [] };
+  const { secretsNotProvided, ...launch } = input as Record<string, unknown>;
+  if (secretsNotProvided === undefined)
+    return { launch: parseProcessLaunch(launch), notProvided: [] };
+  if (
+    !Array.isArray(secretsNotProvided) ||
+    !secretsNotProvided.every(
+      (entry) =>
+        typeof entry?.name === "string" &&
+        (runtimeSecretReasons as readonly string[]).includes(entry?.reason),
+    )
+  )
+    throw new Error("Invalid runtime secrets not provided");
+  return {
+    launch: parseProcessLaunch(launch),
+    notProvided: Object.freeze(
+      secretsNotProvided.map((entry: RuntimeSecretFinding) =>
+        Object.freeze({ name: entry.name, reason: entry.reason }),
+      ),
+    ),
+  };
+}
+
 function selection(input: unknown): Selection {
   const value = object(input, ["company", "module", "package"]);
   return Object.freeze({
@@ -57,6 +92,9 @@ export function createApplicationLifecycle(adapters: {
     selection: Selection,
     operation: Operation,
   ) => Promise<{ moduleDirectory: string }>;
+  // The launch: `executable`, `cwd`, `args` and `env`, and optionally
+  // `secretsNotProvided`, the optional runtime secrets the app starts
+  // without (decision F46), which the start's answer reports.
   prepareLaunch: (plan: Plan, cwd: string) => Promise<unknown>;
   // Explicit module preparation. Preflight is read-only and checks its actual
   // dependency owner before any app stop. The effect owns bounded subprocess
@@ -362,6 +400,7 @@ export function createApplicationLifecycle(adapters: {
           }
           let plan: Plan;
           let launch: ReturnType<typeof parseProcessLaunch>;
+          let notProvided: readonly RuntimeSecretFinding[] = [];
           try {
             plan = await read(value, directory);
             if (adapters.preflightStartCheck) {
@@ -410,9 +449,9 @@ export function createApplicationLifecycle(adapters: {
               }
             }
             if (closing) return Object.freeze({ kind: "closing" as const });
-            launch = parseProcessLaunch(
+            ({ launch, notProvided } = launchOf(
               await adapters.prepareLaunch(plan, cwd),
-            );
+            ));
             if (launch.cwd !== cwd) throw new Error("Launch path mismatch");
             if (
               JSON.stringify(await read(value, directory)) !==
@@ -425,7 +464,8 @@ export function createApplicationLifecycle(adapters: {
             // (root decision 0176 point 4); nothing was started.
             if (
               error instanceof PreparationRefused ||
-              error instanceof RequiredSlotRefused
+              error instanceof RequiredSlotRefused ||
+              error instanceof RuntimeSecretUnavailable
             )
               throw error;
             return Object.freeze({ kind: "invalid-or-unavailable" as const });
@@ -448,7 +488,7 @@ export function createApplicationLifecycle(adapters: {
           // The runner serializes nothing itself: this owner's queue does. It
           // refuses a claimed or observed port before it creates any process.
           // Absence is not an OS reservation; status still checks ownership.
-          return runner.start(
+          const started = await runner.start(
             Object.freeze({
               application: value,
               launch,
@@ -456,6 +496,9 @@ export function createApplicationLifecycle(adapters: {
               ports: Object.freeze(plan.listeners.map((item) => item.port)),
             }),
           );
+          return started.kind === "started" && notProvided.length > 0
+            ? Object.freeze({ ...started, secretsNotProvided: notProvided })
+            : started;
         },
         "start",
       );
