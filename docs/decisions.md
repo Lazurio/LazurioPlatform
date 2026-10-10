@@ -3143,6 +3143,61 @@ both runners, and compare the whole environment exactly.
 | Restart a running app whose environment differs | A start that stops an app people may be using, against F8; not chosen |
 | The replaced Launchpad's names and values, built from the declaration and the recorded entry, on the closed base (selected) | Modules run unchanged; one source for the link and the origin; nothing ambient |
 
+**Addendum 2026-10-10 (Matěj, issue #246; root decision 0176 addendum of
+2026-10-10): the loopback origin of a declared sibling module.** A module may call
+the API of a sibling module of its Organization on the same Environment from its own
+process: a budgeting module prices items through a price-list module beside it and
+writes back what people taught it. Through the gateway every route is closed by design
+(#246): a server request carries no session, the gateway strips its session cookie
+before any module, and it refuses a write whose `Origin` is not the module's own host.
+Root decision 0176 point 9 allowed no new runtime variable, and point 3 forbids reading
+the sibling's lease. Matěj chose variant A of #246 on 2026-10-10: the Platform gives a
+module the local address of the sibling it declares; the gateway's rules stay as they
+are. The mechanism below was proposed with this addendum.
+
+6. **What a declaring application gets.** For each `workspace/<slug>` in the started
+   application's `lazurio.runtime.required_module_slots`,
+   `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` is `<protocol>://<host>:<port>` of the
+   entrypoint of that sibling's default app, from the sibling's own lease (no slash, no
+   path; `<SLUG>` is its module id keyed like a listener id, upper-cased, `-` as `_`; a
+   `::1` host in brackets). It is there only for a module of the application's own
+   Organization that its Organization manifest declares, that is checked out beside it
+   and readable at this start, and whose default app has an HTTP(S) entrypoint
+   (`siblingOrigins`, `src/modules/sibling-origins.ts`, read in
+   `localApplicationAdapters.prepareLaunch` under the same admission as the start).
+   A data mount `workspace/<slug>/db`, any other slot path, the application's own module
+   and a Personalspace module's declarations give nothing; another Organization's
+   module is never read, as for `COMPANIES_WORKSPACE_ROOT` above. Both runners, a
+   workstation and a Remote Environment get it alike.
+7. **Read at every start, never asked whether the sibling runs.** The address is the
+   sibling's lease, so it does not depend on start order; it answers only while the
+   sibling runs. Stopped or still starting, the caller's request is refused or answered
+   by the sibling itself, and the caller reports that to its own user; nothing starts
+   the sibling for it. A lease moved by a reviewed change reaches the caller at its next
+   start: a running application keeps the environment it was started with (point 5),
+   so after the move the caller is stopped and started once.
+8. **Loopback only, never the browser's.** The call never passes the gateway, whose
+   rules do not change: a browser still writes to a module only from that module's own
+   origin. The request reaches the sibling's own listener without a person's session;
+   a sibling that admits writes only from its own origin sees the caller send
+   `Origin` equal to this address. The application never hands the address to a browser
+   (a link, a redirect, page data or a CORS header); a link a person opens stays the
+   sibling's hostname derived from the application's own external origin (root 0176
+   point 5).
+9. **A declared sibling that is not there** gives no variable and does not refuse the
+   start here: the typed readiness finding for a missing declared slot, data mounts
+   included, is issue #128 (root 0176 point 4). The application treats a missing
+   address as its sibling being unavailable and keeps running.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A Launchpad proxy path per sibling (`http://127.0.0.1:<launchpad>/…/<slug>/`), the lease read per request | Follows a moved lease and could start a stopped sibling. But the Launchpad's listener is the gateway's upstream on a Remote Environment, so a browser reaches such a path through the Launchpad's origin unless a second loopback-only listener or a per-start caller credential is added; every call then depends on the Launchpad process, which an update restarts while service-owned applications keep running (F8), and a start through the CLI alone has no proxy; and it is a new streaming HTTP proxy (bodies, SSE, timeouts, hop-by-hop headers, `Origin`). Not chosen |
+| The gateway admits writes and preflights between the modules of one Environment (#246 option 2) | A Machines change relaxing the CSRF rule at the ingress; Matěj chose against it |
+| The module reads the sibling's lease itself (today's pre-standard behavior) | Root 0176 point 3 and `MS-06` forbid it; every module parses foreign manifests |
+| The variable only while the sibling runs | Start order would matter, and a sibling started later never reaches an already running caller; not chosen |
+| Refuse the start when a declared sibling is missing | The target of root 0176 point 4, but issue #128's, for data mounts too and with the catalog and Diagnostics; not here |
+| The loopback origin of the sibling's default-app entrypoint, read at every start (selected) | No new component, listener or credential; independent of the Launchpad process; the same in both runners and places |
+
 ## F27 — The Steward preset for the Automated Environment
 
 **Proposed 2026-09-30 (upstream decision 0169; plan DEV-6632, milestone M2); implemented
