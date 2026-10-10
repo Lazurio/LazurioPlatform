@@ -38,6 +38,7 @@ import {
   userManagerState,
 } from "./service-manager-process";
 import { createSessionRunner } from "./session-runner";
+import { RequiredSlotRefused } from "./sibling-origins";
 import {
   applicationCoordinationLockFile,
   applicationUnitName,
@@ -181,7 +182,9 @@ export type ModuleBlocked = Readonly<{
   /** `declaration-*`: the refused file, relative to the module, to the
    * Organization root for an Organization document, or `~/…` for the
    * account's own package manager configuration; `preparation-*`: the
-   * package or lockfile, relative to the module. Never absolute. */
+   * package or lockfile, relative to the module; `required-slot-*`: the
+   * slot the app requires, relative to the Organization root. Never
+   * absolute. */
   file?: string;
 }>;
 
@@ -416,6 +419,10 @@ export function createModuleOperations(input: {
       module: target.module,
       app: target.app,
     };
+    // A required slot that is not there (root decision 0176 point 4), by
+    // its Organization-relative slot.
+    if (error instanceof RequiredSlotRefused)
+      return blocked(operation, error.reason, { ...where, file: error.slot });
     const refused =
       preparationRefusal(error, [
         target.moduleDirectory,

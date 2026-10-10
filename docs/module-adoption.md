@@ -325,9 +325,16 @@ declared runtime, on top of the closed base `HOME`, `PATH` and optional `TMPDIR`
 | `LAZURIO_RUNTIME_SCHEMA_VERSION`, `LAZURIO_RUNTIME_APP_ID`, `LAZURIO_RUNTIME_ENTRYPOINT_ID` | `lazurio.runtime.v1`, the runtime `id`, the entrypoint's `id` | always |
 | `COMPANYASCODE_APP_ID`, `COMPANYASCODE_RUNTIME_KEY`, `COMPANYASCODE_RUNTIME_SOURCE` | the runtime `id`, the runtime `id`, `main` | always |
 | `COMPANYASCODE_ORGANIZATION_ROOT` | the Organization root | an Organization's module, not a Personalspace module |
+| `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` | the loopback origin `<protocol>://<host>:<port>` of the entrypoint of a sibling module's default app, from its lease, read at this start (F26 addendum of 2026-10-10) | each `workspace/<slug>` the app declares in `required_module_slots` that is a module of its own Organization with a readable HTTP(S) default-app entrypoint; whether it runs is not asked (a required slot that is not there refuses the start) |
 | `NODE_PATH` | `<application directory>/node_modules` | always |
 | `NODE_ENV`, `ASTRO_DEV_BACKGROUND`, `ASTRO_PREVIEW_BACKGROUND` | `development`, `1`, `1` | always |
 
+A sibling's address is for calls from the application's own process, loopback only
+and never for a browser; a stopped sibling refuses the call at that address, and a moved
+lease reaches the caller at its next start. A required slot that is not there
+(undeclared, planned or not checked out) refuses the start before any install
+(`required-slot-undeclared`, `required-slot-planned`, `required-slot-missing`, with the
+slot; root decision 0176 point 4).
 Nothing else is passed, so an ambient `HOST`, `PORT`, `NODE_PATH` or `LAZURIO_RUNTIME_*`
 of the Launchpad, the CLI or the user manager never reaches the application (the
 user manager's own names are unset, below). A workstation run, a loopback-only
@@ -337,7 +344,11 @@ cannot be read refuses the start (`folder-state-unreadable`) instead of being ta
 for a workstation. Both runners start the same environment. `tests/application-environment.test.ts`
 starts a fixture application that allows only its external origin's hostname through
 the module operations on a hosted and a workstation fixture Folder and compares the
-whole environment exactly.
+whole environment exactly; a budgeting fixture calls its price-list sibling at its
+address, reads and same-origin writes, while it runs, refused once it stops, and at a
+moved lease after its own restart, and its start is refused before any install once
+the sibling is gone (`tests/sibling-origins.test.ts` covers which slots refuse the
+start and which give an address).
 
 For the start-time step, `preflightDeclaredBunStart` selects the `start` operation of
 that same process owner (decision F34, issues #114 and #116). It requires check_script

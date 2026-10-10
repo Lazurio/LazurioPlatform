@@ -238,6 +238,11 @@ test("the sentence after Start or Stop names what happened or why not", () => {
     ["preparation-install-failed", "app/bun.lock"],
     ["preparation-script-failed", "app/package.json"],
     ["preparation-toolchain-mismatch", "app/package.json"],
+    // A required slot that is not there (root decision 0176 point 4) names
+    // the slot, relative to the Organization root.
+    ["required-slot-undeclared", "workspace/prices"],
+    ["required-slot-planned", "workspace/prices"],
+    ["required-slot-missing", "workspace/prices"],
   ] as const)
     for (const copy of [en, cs]) {
       const sentence = moduleResultMessage({ ...refusal(reason), file }, copy);

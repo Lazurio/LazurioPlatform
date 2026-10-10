@@ -17,6 +17,7 @@ import type { createApplicationLifecycle } from "./lifecycle";
 import { createOwnerOperations } from "./owner-operations";
 import { inspectPreparationBinding } from "./preparation-binding";
 import { parseProcessLaunch } from "./process-launch";
+import { requiredSlotOrigins } from "./sibling-origins";
 
 type Adapters = Parameters<typeof createApplicationLifecycle>[0];
 
@@ -42,9 +43,11 @@ export function localApplicationAdapters(input: {
     selection: unknown,
   ) => Promise<Readonly<{ moduleDirectory: string }>>;
   // What a started application is told about where it runs (decision F26):
-  // its Organization root (none for a Personalspace module) and, for the
-  // module's default app, the browser origin the Machine's gateway serves it
-  // at; null on a workstation. A throw refuses the launch.
+  // its Organization root (none for a Personalspace module), the loopback
+  // origins of the sibling modules of that Organization it declares (F26
+  // addendum of 2026-10-10) and, for the module's default app, the browser
+  // origin the Machine's gateway serves it at; null on a workstation. A
+  // throw refuses the launch.
   organizationRoot?: string;
   externalOrigin?: (module: string) => Promise<string | null>;
 }): Adapters {
@@ -73,6 +76,21 @@ export function localApplicationAdapters(input: {
     input.resolveApplication ?? resolveOrganizationApplication;
   const authorize: Adapters["authorize"] = (selection) =>
     resolveApplication(selected.cwd, selection);
+  // The slots the app requires, refused before any effect when one is not
+  // there (root decision 0176 point 4), and the origins of the sibling
+  // modules among them, read at this start (F26 addendum of 2026-10-10).
+  // Personalspace modules belong to no Organization: nothing to check.
+  const requiredSlots = (plan: Parameters<Adapters["prepareLaunch"]>[0]) => {
+    const slots = plan.runtime.optional.required_module_slots;
+    return input.organizationRoot === undefined || !Array.isArray(slots)
+      ? Promise.resolve({})
+      : requiredSlotOrigins({
+          organizationDirectory: selected.cwd,
+          company: plan.runtime.company,
+          module: plan.runtime.module,
+          slots,
+        });
+  };
   const preflight =
     (
       check: boolean,
@@ -89,6 +107,8 @@ export function localApplicationAdapters(input: {
       );
       if (dirname(join(module.moduleDirectory, plan.package)) !== cwd)
         throw new Error("Application scope changed");
+      // A start whose required slot is not there installs nothing.
+      if (check) await requiredSlots(plan);
       const options = {
         moduleDirectory: module.moduleDirectory,
         applicationPackage: plan.package,
@@ -145,6 +165,8 @@ export function localApplicationAdapters(input: {
         }),
         cwd,
       );
+      // Checked again at the launch itself, with the sibling origins.
+      const siblings = await requiredSlots(plan);
       return {
         executable: selected.executable,
         cwd,
@@ -158,6 +180,7 @@ export function localApplicationAdapters(input: {
             plan.defaultApp && input.externalOrigin
               ? await input.externalOrigin(plan.runtime.module)
               : null,
+          siblings,
         }),
       };
     },

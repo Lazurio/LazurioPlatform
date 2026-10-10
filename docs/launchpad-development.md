@@ -1128,7 +1128,9 @@ writes to the journal (`StandardOutput/Error=journal`); `logs` is `journalctl --
 identical units. Beside `HOME`, `PATH` and optional `TMPDIR` the app gets exactly the
 runtime environment the replaced Launchpad gave it (decision F26, the table in
 `docs/module-adoption.md`): the keyed and entrypoint listener addresses, the listener
-JSON, `NODE_PATH`, `NODE_ENV=development`, the runtime and Organization identity, and on
+JSON, `NODE_PATH`, `NODE_ENV=development`, the runtime and Organization identity, the
+loopback origin of each sibling module of its Organization it declares
+(`LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN`, F26 addendum of 2026-10-10), and on
 a hosted Machine, for the module's default app, the entrypoint's external origin
 `LAZURIO_RUNTIME_EXTERNAL_ORIGIN`, taken from the same recorded entry as `runtime.url`
 (that URL without its slash), so a dev server that allows only its own hostname

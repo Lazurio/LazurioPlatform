@@ -3143,6 +3143,70 @@ both runners, and compare the whole environment exactly.
 | Restart a running app whose environment differs | A start that stops an app people may be using, against F8; not chosen |
 | The replaced Launchpad's names and values, built from the declaration and the recorded entry, on the closed base (selected) | Modules run unchanged; one source for the link and the origin; nothing ambient |
 
+**Addendum 2026-10-10 (Matěj, issue #246; root decision 0176 addendum of
+2026-10-10): the loopback origin of a declared sibling module.** A module may call
+the API of a sibling module of its Organization on the same Environment from its own
+process: a budgeting module prices items through a price-list module beside it and
+writes back what people taught it. Through the gateway every route is closed by design
+(#246): a server request carries no session, the gateway strips its session cookie
+before any module, and it refuses a write whose `Origin` is not the module's own host.
+Root decision 0176 point 9 allowed no new runtime variable, and point 3 forbids reading
+the sibling's lease. Matěj chose variant A of #246 on 2026-10-10: the Platform gives a
+module the local address of the sibling it declares; the gateway's rules stay as they
+are. The mechanism below was proposed with this addendum.
+
+6. **What a declaring application gets.** For each `workspace/<slug>` in the started
+   application's `lazurio.runtime.required_module_slots`,
+   `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` is `<protocol>://<host>:<port>` of the
+   entrypoint of that sibling's default app, from the sibling's own lease (no slash, no
+   path; `<SLUG>` is its module id keyed like a listener id, upper-cased, `-` as `_`; a
+   `::1` host in brackets). It is there only for a module of the application's own
+   Organization that its Organization manifest declares, that is checked out beside it
+   and readable at this start, and whose default app has an HTTP(S) entrypoint
+   (`requiredSlotOrigins`, `src/modules/sibling-origins.ts`, read in
+   `localApplicationAdapters.prepareLaunch` under the same admission as the start).
+   A data mount `workspace/<slug>/db`, any other slot path, the application's own module
+   and a Personalspace module's declarations give nothing; another Organization's
+   module is never read, as for `COMPANIES_WORKSPACE_ROOT` above. Both runners, a
+   workstation and a Remote Environment get it alike.
+7. **Read at every start, never asked whether the sibling runs.** The address is the
+   sibling's lease, so it does not depend on start order; it answers only while the
+   sibling runs. Stopped or still starting, the caller's request is refused or answered
+   by the sibling itself, and the caller reports that to its own user; nothing starts
+   the sibling for it. A lease moved by a reviewed change reaches the caller at its next
+   start: a running application keeps the environment it was started with (point 5),
+   so after the move the caller is stopped and started once.
+8. **Loopback only, never the browser's.** The call never passes the gateway, whose
+   rules do not change: a browser still writes to a module only from that module's own
+   origin. The request reaches the sibling's own listener without a person's session;
+   a sibling that admits writes only from its own origin sees the caller send
+   `Origin` equal to this address. The application never hands the address to a browser
+   (a link, a redirect, page data or a CORS header); a link a person opens stays the
+   sibling's hostname derived from the application's own external origin (root 0176
+   point 5).
+9. **A required slot that is not there refuses the start** (root 0176 point 4,
+   unchanged): every slot of `required_module_slots`, a sibling module or a data
+   mount, must be declared in the Organization manifest, not `planned_slot`, and
+   checked out beside the application, each directory the operator's own. Otherwise
+   the start answers `required-slot-undeclared`, `required-slot-planned` or
+   `required-slot-missing` with the slot (Organization-relative, in `file`), before
+   any install or process (`requiredSlotOrigins`, in the start's preflight and again
+   at the launch; `RequiredSlotRefused`), in the CLI and the Launchpad alike. This is
+   the start's part of issue #128; the catalog, Diagnostics and doctor follow there.
+   A sibling that is there but app-less, unreadable or without an HTTP(S) entrypoint
+   does not refuse the start and gives no address. Without the variable (this
+   case, or a Launchpad that does not pass it: the replaced one, an older release)
+   the application keeps running and reports its sibling unavailable to its user.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A Launchpad proxy path per sibling (`http://127.0.0.1:<launchpad>/…/<slug>/`), the lease read per request | Follows a moved lease and could start a stopped sibling. But the Launchpad's listener is the gateway's upstream on a Remote Environment, so a browser reaches such a path through the Launchpad's origin unless a second loopback-only listener or a per-start caller credential is added; every call then depends on the Launchpad process, which an update restarts while service-owned applications keep running (F8), and a start through the CLI alone has no proxy; and it is a new streaming HTTP proxy (bodies, SSE, timeouts, hop-by-hop headers, `Origin`). Not chosen |
+| The gateway admits writes and preflights between the modules of one Environment (#246 option 2) | A Machines change relaxing the CSRF rule at the ingress; Matěj chose against it |
+| The module reads the sibling's lease itself (today's pre-standard behavior) | Root 0176 point 3 and `MS-06` forbid it; every module parses foreign manifests |
+| The variable only while the sibling runs | Start order would matter, and a sibling started later never reaches an already running caller; not chosen |
+| Start a caller whose declared sibling is missing and leave the variable out | Promises a degraded mode root 0176 point 4 does not allow and the replaced Launchpad never offered (it refuses with `required_slot_unavailable` / `planned_slot`); rejected in review |
+| The loopback origin of the sibling's default-app entrypoint, read at every start, with the start refused for a required slot that is not there (selected) | No new component, listener or credential; independent of the Launchpad process; the same in both runners and places; the same readiness rule as the replaced Launchpad |
+
 ## F27 — The Steward preset for the Automated Environment
 
 **Proposed 2026-09-30 (upstream decision 0169; plan DEV-6632, milestone M2); implemented
