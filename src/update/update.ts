@@ -5,8 +5,8 @@ import {
   environmentBrowserFailed,
 } from "../browser/units";
 import {
-  type ExecutorConvergence,
-  executorConvergenceFailed,
+  type ExecutorReport,
+  executorReportFailed,
 } from "../executor/converge";
 import {
   type FolderRefresh,
@@ -87,10 +87,11 @@ export type UpdateEnvironment = Readonly<{
    * supervised hosted base (`convergeEnvironmentBrowser`, decision F38);
    * undefined when there is nothing to converge. Absent: nothing. */
   browserUnits?: (() => Promise<EnvironmentBrowser | undefined>) | undefined;
-  /** After a successful run: set up Executor of a supervised hosted base
-   * (`convergeExecutor`, decision F44); undefined when there is nothing to
-   * converge. Absent: nothing. */
-  executorUnits?: (() => Promise<ExecutorConvergence | undefined>) | undefined;
+  /** After a successful run: read Executor's state on a supervised hosted
+   * base, never set it up (`reportExecutor`, decision F44, addendum of
+   * 2026-10-11: the Launchpad does it after it starts); undefined when there
+   * is nothing to report. Absent: nothing. */
+  executorReport?: (() => Promise<ExecutorReport | undefined>) | undefined;
   run?: ProcessRunner | undefined;
   now?: (() => Date) | undefined;
   download?: Partial<DownloadPolicy> | undefined;
@@ -278,8 +279,8 @@ export type UpdateResult =
       codexAppServer?: CodexAppServer;
       /** Supervised base only: the Environment browser's units (F38). */
       environmentBrowser?: EnvironmentBrowser;
-      /** Supervised base only: Executor (F44). */
-      executor?: ExecutorConvergence;
+      /** Supervised base only: Executor's state as read (F44). */
+      executor?: ExecutorReport;
     }>
   | Readonly<{
       kind: "updated";
@@ -291,7 +292,7 @@ export type UpdateResult =
       folderRefresh: FolderRefresh | null;
       codexAppServer?: CodexAppServer;
       environmentBrowser?: EnvironmentBrowser;
-      executor?: ExecutorConvergence;
+      executor?: ExecutorReport;
     }>
   | ErrorResult;
 
@@ -324,8 +325,9 @@ export async function performUpdate(
 ): Promise<UpdateResult> {
   const result = await updateOnce(environment, exactVersion);
   // After the run, outside the lock, as `lazurio install` does: the entry
-  // units of a supervised hosted base. Never a reason for the result to
-  // change; after a refusal nothing is converged.
+  // units of a supervised hosted base, and Executor's state read there.
+  // Never a reason for the result to change; after a refusal nothing is
+  // converged or read.
   if (result.kind === "error") return result;
   const codexAppServer =
     environment.entryUnits === undefined
@@ -340,11 +342,9 @@ export async function performUpdate(
           .browserUnits()
           .catch(() => environmentBrowserFailed("unit"));
   const executor =
-    environment.executorUnits === undefined
+    environment.executorReport === undefined
       ? undefined
-      : await environment
-          .executorUnits()
-          .catch(() => executorConvergenceFailed);
+      : await environment.executorReport().catch(() => executorReportFailed);
   return codexAppServer === undefined &&
     environmentBrowser === undefined &&
     executor === undefined

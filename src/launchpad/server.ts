@@ -328,6 +328,11 @@ export async function startLaunchpad(
     /** The update pill of this installation (docs/update.md "Surfaces"):
      * `GET /api/update/status` and `POST /api/update/apply`. */
     pill?: UpdatePill | undefined;
+    /** Whether this Launchpad sets Executor up after it starts (decision
+     * F44, addendum of 2026-10-11): where install and update only report
+     * it, a supervised base for the hosted operator (`executorAtStart`).
+     * Absent: it never does. */
+    executorAtStart?: (() => Promise<boolean>) | undefined;
   }>,
   hostedOptions: HostedOptions = {},
   // Where the tools screen reads its live facts: this process's PATH and
@@ -496,6 +501,8 @@ export async function startLaunchpad(
             ...executorHost,
             journal: executorHost.journal ?? executorJournal,
           },
+    // A closing Launchpad starts no setup (`start` asks it last).
+    closing: () => closing,
   });
   // Content installation: one job at a time per Folder, over the same core
   // as `lazurio organization install` and `lazurio personalspace install`.
@@ -1559,6 +1566,17 @@ export async function startLaunchpad(
     : null;
   pill?.start();
   settings?.start();
+  // Executor (decision F44, addendum of 2026-10-11, #298): where install and
+  // update only report it, this Launchpad sets it up in the background once
+  // it listens, through the one setup of Settings → Tools. Never awaited and
+  // never a reason for the start to fail; one attempt per start, so a setup
+  // that stops waits for the row's action. Closing is asked after each wait:
+  // here before the state is read, and by the routes before the setup.
+  const executorAtStart = installed?.executorAtStart;
+  if (executorAtStart !== undefined)
+    void (async () => {
+      if ((await executorAtStart()) && !closing) await executor.atStart();
+    })().catch(() => undefined);
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
   > | null = null;

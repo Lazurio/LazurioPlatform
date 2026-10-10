@@ -1803,7 +1803,10 @@ wave"). Its one action is "Nainstalovat", "Aktualizovat" or "Opravit", which run
 `/api/tools/executor/setup` and asks again with its job while the line says the step
 ("Instaluje se…", "Spouští se…", "Připojují se agenti…"), or for a conflict "Vyřešit s
 pomocí agenta", which opens a prepared prompt (show the Operator what conflicts and
-remove it only with their consent). In the required group it has "Vždy zapnuto" where
+remove it only with their consent). A setup the page did not start, the Launchpad's
+own after its start (F44 addendum of 2026-10-11) or Install in another page, comes
+back from the status read as its job and step; the row follows it the same way, with
+no action until it ends. In the required group it has "Vždy zapnuto" where
 it is offered and no switch. Details hold the version, the address
 "127.0.0.1:4789 (jen tento Environment)", the service and the agents ("Codex:
 připojený · Claude Code: není nainstalovaný"), and after a setup that stopped its stage

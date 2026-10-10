@@ -995,7 +995,7 @@ test.skipIf(process.platform === "win32")(
 // Executor of a Remote Environment (decision F44): its own check in the
 // tools group, `ok` when it runs with the agents connected, `warn` with its
 // state otherwise and never `fail`, so a release that makes Executor required
-// never turns an Environment broken before its install or update set it up.
+// never turns an Environment broken before its Launchpad set it up.
 test("Executor: warn until it is set up, ok once it runs, never broken", async () => {
   const world = await createWorld();
   const executor = await executorWorld();

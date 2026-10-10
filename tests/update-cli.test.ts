@@ -1,12 +1,14 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { ExecutorHost } from "../src/executor/flow";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { instructionTemplateRevision } from "../src/folder/render";
 import { startLaunchpad } from "../src/launchpad/server";
 import {
   type CliContext,
+  executorAtStart,
   noticeAfterCommand,
   runInstallCommand,
   runUpdateCommand,
@@ -426,54 +428,59 @@ test("lazurio update converges the Codex app-server unit on a supervised hosted 
   );
 });
 
-// Decision F44: `lazurio update` sets Executor up on a supervised base in a
-// Remote Environment, as it converges the entry units; it is not a reason for
-// the update to fail, and a context that names no Executor host sets nothing
-// up (every other test here).
-test("lazurio update sets Executor up on a supervised hosted base and leaves an unsupervised base or a workstation alone", async () => {
+// Decision F44, addendum of 2026-10-11 (#298): `lazurio update` only reads
+// Executor's state on a supervised base in a Remote Environment, as it
+// converges the entry units, and the Launchpad of exactly such a base sets
+// Executor up after it starts (`executorAtStart`, the same rule). A setup
+// here would wait for a held download, so an update that ran one would not
+// return. Nothing about Executor fails the update, and a context that names
+// no Executor host reports nothing (every other test here).
+test("lazurio update reports Executor's state on a supervised hosted base and never sets it up; the Launchpad sets it up after its start exactly there", async () => {
   world = await createWorld();
   await world.release("1.1.0");
   const executor = await executorWorld();
+  const held = executor.hold();
   try {
     const folder = join(world.root, "Lazurio");
     await mkdir(folder);
     const config = join(world.root, "config");
     const units = join(config, "systemd", "user");
     const service = fakeService(world.base, { folder });
-    const update = async (hosted: boolean, failing = false) =>
+    const cli = (
+      hosted: boolean,
+      host: ExecutorHost = held.host,
+    ): CliContext => ({
+      ...context("1.1.0"),
+      platform: "linux",
+      env: {
+        HOME: world.root,
+        XDG_DATA_HOME: world.root,
+        XDG_CONFIG_HOME: config,
+      },
+      run: async (command, timeoutMs, env) =>
+        command[0] === "systemctl"
+          ? { exitCode: 0, stdout: "" }
+          : runProcess(command, timeoutMs, env),
+      hostedFolder: async () => (hosted ? folder : undefined),
+      executor: () => host,
+      environment: world.environment("1.1.0", { service }),
+    });
+    const update = async (hosted: boolean, host?: ExecutorHost) =>
       JSON.parse(
         (
-          await runUpdateCommand(["--base", world.base, "--json"], {
-            ...context("1.1.0"),
-            platform: "linux",
-            env: {
-              HOME: world.root,
-              XDG_DATA_HOME: world.root,
-              XDG_CONFIG_HOME: config,
-            },
-            run: async (command, timeoutMs, env) =>
-              command[0] === "systemctl"
-                ? { exitCode: 0, stdout: "" }
-                : runProcess(command, timeoutMs, env),
-            hostedFolder: async () => (hosted ? folder : undefined),
-            executor: () =>
-              failing
-                ? {
-                    ...executor.host,
-                    context: async () => {
-                      throw new Error("handover unreadable");
-                    },
-                  }
-                : executor.host,
-            environment: world.environment("1.1.0", { service }),
-          })
+          await runUpdateCommand(
+            ["--base", world.base, "--json"],
+            cli(hosted, host),
+          )
         ).stdout ?? "",
       );
-    // Unsupervised: no key and nothing set up.
+    const atStart = (hosted: boolean) =>
+      executorAtStart(cli(hosted), world.base)();
+    // Unsupervised: no key and nothing read; its Launchpad sets nothing up.
     const unsupervised = await update(true);
     expect(unsupervised).toMatchObject({ kind: "updated", to: "1.1.0" });
     expect(Object.keys(unsupervised)).not.toContain("executor");
-    expect(executor.journal).toEqual([]);
+    expect(await atStart(true)).toBe(false);
     // Supervised by this base's Launchpad unit.
     await mkdir(units, { recursive: true });
     await writeFile(
@@ -484,20 +491,46 @@ test("lazurio update sets Executor up on a supervised hosted base and leaves an 
       kind: "up-to-date",
       executor: { state: "skipped-not-hosted" },
     });
-    expect(executor.journal).toEqual([]);
-    expect(await update(true)).toMatchObject({
+    expect(await atStart(false)).toBe(false);
+    const hosted = await update(true);
+    expect(hosted).toMatchObject({
       kind: "up-to-date",
-      executor: { state: "running" },
+      executor: { state: "not-installed" },
     });
-    expect(executor.journal).toEqual([
-      { operation: "setup", outcome: "running" },
-    ]);
-    // Whatever happens to Executor, the update stands.
-    const failed = await update(true, true);
+    expect(hosted.executor.next).toContain(
+      "The Launchpad sets it up in the background after it starts",
+    );
+    expect(await atStart(true)).toBe(true);
+    const words = await runUpdateCommand(["--base", world.base], cli(true));
+    expect(words.stdout).toContain("Lazurio 1.1.0 is up to date.");
+    expect(words.stdout).toContain(hosted.executor.next);
+    // No setup ran: no download, no npm, no change of the service and no
+    // agent's entry.
+    expect(held.requested()).toBe(0);
+    expect(executor.journal).toEqual([]);
+    expect(await executor.calls("npm.calls")).toEqual([]);
+    expect(
+      (await executor.calls("systemctl.calls")).every((line) =>
+        line.startsWith("--user show "),
+      ),
+    ).toBe(true);
+    expect(
+      (await executor.calls("codex.calls")).every((line) =>
+        line.startsWith("mcp get executor --json"),
+      ),
+    ).toBe(true);
+    // Whatever happens to the reading, the update stands.
+    const failed = await update(true, {
+      ...held.host,
+      context: async () => {
+        throw new Error("handover unreadable");
+      },
+    });
     expect(failed.kind).toBe("up-to-date");
     expect(failed.executor).toMatchObject({ state: "failed" });
-    expect(failed.executor.next).toContain("lazurio executor setup");
+    expect(failed.executor.next).toContain("lazurio executor status");
   } finally {
+    held.release();
     await executor.close();
   }
 }, 60_000);

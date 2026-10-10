@@ -201,8 +201,8 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
   // Executor 1 of every Remote Environment (decision F44, root decision 0162
   // addendum 2026-10-09): the MCP gateway of the direct Integrations and of
   // custom MCP servers, installed, run and connected to the agents by
-  // Lazurio itself (`lazurio executor setup`, the install and update
-  // convergence, Settings → Tools → executor), pinned per Platform release.
+  // Lazurio itself (`lazurio executor setup`, the Launchpad after it starts,
+  // Settings → Tools → executor), pinned per Platform release.
   // Even its version command writes a cache in its data directory, so the
   // probe gets a private one.
   tool({
@@ -455,8 +455,8 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
 export const vaultToolName = "bitwarden";
 
 /** Executor's catalog tool (decision F44): set up by Lazurio itself
- * (`lazurio executor setup`, the install and update convergence, Settings →
- * Tools → executor), not by the curated install and sign-in of F19. */
+ * (`lazurio executor setup`, the Launchpad after it starts, Settings → Tools
+ * → executor), not by the curated install and sign-in of F19. */
 export const executorToolName = "executor";
 
 /** Whether Lazurio offers a tool in an Environment of this preset, on Linux

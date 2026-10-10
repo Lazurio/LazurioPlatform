@@ -617,21 +617,25 @@ changed. The result carries
 reason to fail. The hosted context is asked once for both convergences. `lazurio
 doctor` reports it as `environment-browser`.
 
-**Executor ([F44](decisions.md#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio)).**
-On the same supervised hosted base, `install` and `update` then set Executor up as
-`lazurio executor setup` does: the pinned version from verified npm tarballs into
-`~/.local/share/executor-cli/<version>/`, the wrapper `~/.local/bin/executor`, its
-service `sh.executor.daemon.service` on `127.0.0.1:4789` with Lazurio's drop-in, and
-the MCP server `executor` in Codex and Claude Code, each only what is missing. A first
-setup downloads about 100 MB and may take a minute; a repeated one only reads. The
-result carries `executor`: `{"state":"running"}`, `{"state":"skipped-not-hosted"}`, or
-the state (`not-installed`, `outdated`, `conflict`, `not-running`, `incomplete`,
-`unsupported`, `failed`) with `stage` and `reason` where a setup stopped and `next`;
-never a reason to fail, and a base without its Launchpad unit is left alone. The
-Executor of an update runs in the updating executable, as the entry units do: the
-first online update **to** the release that brings it sets nothing up, and the next
-`install --base`, update, Settings → Tools → Repair or `lazurio executor setup` does.
-`lazurio doctor` reports it as `executor` (`ok`, `warn` or `skipped`, never `fail`).
+**Executor ([F44](decisions.md#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio), addendum of 2026-10-11).**
+On the same supervised hosted base, `install` and `update` then read Executor's state
+as `lazurio executor status` does, and never set it up: a first setup downloads about
+100 MB and may take minutes, and a Machines apply gives its install step a bounded
+time (#298). The Launchpad of that base sets Executor up in the background after it
+starts, as `lazurio executor setup` does: the pinned version from verified npm
+tarballs into `~/.local/share/executor-cli/<version>/`, the wrapper
+`~/.local/bin/executor`, its service `sh.executor.daemon.service` on `127.0.0.1:4789`
+with Lazurio's drop-in, and the MCP server `executor` in Codex and Claude Code, each
+only what is missing. It starts one setup per start, and only where Executor is
+`not-installed`, `outdated`, `not-running` or `incomplete`; Settings → Tools →
+executor shows how it goes. So the first online update **to** a release that brings
+Executor sets it up too: the update restarts the Launchpad, and the new one does it.
+The result carries `executor`: `{"state":"running"}`, `{"state":"skipped-not-hosted"}`,
+or the state read (`not-installed`, `outdated`, `conflict`, `not-running`,
+`incomplete`, `unsupported` with its `reason`, or `failed` when it cannot be read)
+with `next`; never a reason to fail, and a base without its Launchpad unit is left
+alone. `lazurio doctor` reports it as `executor` (`ok`, `warn` or `skipped`, never
+`fail`).
 
 ## Offline update
 

@@ -652,7 +652,7 @@ export type DoctorEnvironment = RecoveryEnvironment &
  * running, `warn` with its state otherwise, `skipped` where it is not
  * offered. Never `fail`: without Executor an Environment loses its direct
  * Integrations, not its work, and a release that adds Executor must not turn
- * every Environment broken before its next install or update set it up. */
+ * every Environment broken before its Launchpad set it up. */
 async function executorCheck(host: ExecutorHost): Promise<DoctorCheck> {
   const status = await executorStatus(host).catch(() => null);
   if (status === null) return check("executor", "skipped", "internal");

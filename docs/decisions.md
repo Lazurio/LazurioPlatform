@@ -3404,7 +3404,9 @@ update does.
 **Amended by [F44](#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio)
 (2026-10-09):** the same install and update also set Executor up, and the one
 change to Codex's configuration the Platform makes is the MCP server
-`executor`; it still never restarts a running session.
+`executor`; it still never restarts a running session. *Since F44's addendum
+of 2026-10-11 (#298) they only report Executor's state, and the Launchpad sets
+it up after it starts.*
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -6539,7 +6541,10 @@ access token); everything for people is in the Launchpad.
    up on its first run with this release; the first online update **to** this
    release runs the previous updater and sets nothing up, and then the next
    install or update, Settings → Tools → Repair or `lazurio executor setup`
-   does.
+   does. *Amended 2026-10-11 (addendum below, #298):* install and update only
+   read Executor's state and report it; the Launchpad of that base sets it up
+   in the background after it starts, so the caveat about the first online
+   update is gone.
 8. **Required only where it is offered.** The catalog's offer is one rule
    (`toolOffered`): Executor and the vault are offered in a Remote Environment
    on Linux. A tool the Environment does not offer is not rendered into the
@@ -6562,7 +6567,7 @@ access token); everything for people is in the Launchpad.
     service, `codexMcp`, `claudeMcp`), `skipped` where it is not offered. Never
     `fail`: without Executor an Environment loses its direct Integrations, not
     its work, and a release that makes Executor required must not turn every
-    Environment broken before its next install or update set it up.
+    Environment broken before Lazurio set it up.
 11. **The Folder.** The catalog entry `executor` (required, setup `launchpad`,
     offered `hosted-linux`) tells agents to use directly connected Integrations
     through the MCP server `executor` (its tools `skills` and `execute`) or
@@ -6610,6 +6615,75 @@ Claude Code 2.1.295 each got exactly one entry, read back as registered, and
 `claude mcp list` reported `executor` connected. The x64 program, the switch
 from the pilot's manual installation and a Remote Environment's own image
 first run on a real Remote Environment after the release.
+
+**Addendum 2026-10-11 (issue #298): the Launchpad sets Executor up after it
+starts; install and update only report it.** On the first canary of the release
+that brought this decision, a Machines apply ran `lazurio install --base … --json`
+in an install step bounded to 300 s. The install ran Executor's first setup inline:
+about 100 MB of verified tarballs, npm offline into a staging prefix, `executor
+install` and the wait for its health. On an 8 GB Environment under memory pressure
+that took about six minutes. The installation itself completed, but the step timed
+out, and the Machine needed the recovery of an interrupted apply. `lazurio update`
+waited the same way, so the Launchpad's Update button would have hung for minutes
+too. A Platform install must not wait minutes for one tool's download, and a
+Machines apply gives its install step a bounded time. Only who starts the first
+setup changes.
+
+1. **Install and update report.** Where point 7 set Executor up (a supervised base
+   and the hosted operator: the F29 rule, `executorScope` in
+   `src/executor/converge.ts`), `lazurio install` and `lazurio update` only read its
+   state with `executorStatus`: no download, no npm, no change of its service and no
+   agent's entry. The read is local and bounded by the timeouts of the commands it
+   asks. The result still carries `executor`: `running`, `skipped-not-hosted`, or
+   the state with `next`. Where the Launchpad sets it up, `next` says so, says that
+   Settings → Tools → executor shows how it goes, and that `lazurio executor setup`
+   does the same without a running Launchpad. A conflict keeps its own `next`.
+   Where Lazurio does not set it up (`unsupported`, the wrapper of a newer pin),
+   `next` points to `lazurio executor status`; a state that cannot be read is
+   `failed`. Nothing about Executor fails install or update, as before.
+2. **The Launchpad converges at start.** The Launchpad of an install base (the
+   service unit's `launchpad --base`) asks the same rule once it listens
+   (`executorAtStart`). Where it holds, the Launchpad reads Executor's state once.
+   When the state is `not-installed`, `outdated`, `not-running` or `incomplete`, it
+   starts exactly one setup: the job `POST /api/tools/executor/setup` starts, never
+   two at once (`setUpAtStart`, `atStart` of `src/launchpad/executor-routes.ts`).
+   `running`, a conflict, `unsupported` and the wrapper of a newer pin start
+   nothing. The start never waits for it and never fails because of it. A
+   closing Launchpad starts no setup: the one place a setup is created asks it
+   last, after the state was read, so neither the start's nor Install's begins
+   during a close (`503 closing` for Install). One attempt per start: a setup
+   that stops is not tried again, and the row offers Install, Update or Repair
+   as before. The journal line is the route's with
+   `"trigger":"start"`.
+3. **The row follows it.** While a setup runs, `POST /api/tools/executor/status`
+   answers it as the setup route does, `202 {kind: "executor-setting-up", job,
+   phase}`. The row follows that job as if Install had been clicked: a page opened
+   during the start's setup shows its step, and Install joins it.
+4. **Unchanged.** The kernel lock, the placement, the pin, the wrapper, the service
+   and the agents stay as points 1 to 6 say.
+5. **Consequence.** The caveat of point 7 goes: the first online update **to** a
+   release that brings Executor restarts the Launchpad, and the new Launchpad sets
+   Executor up. A Launchpad that never starts sets nothing up; `lazurio executor
+   setup` and Settings → Tools → Repair remain for that case.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Raise the Machines task timeout | Keeps a ~300 MB optional tool on the critical path of every Platform install; rejected |
+| A time budget inside install, the rest in the background | The install process ends with its command, so the rest needs a process that outlives it; rejected for the Launchpad, which already runs |
+| A user unit of its own that runs `lazurio executor setup` | One more unit to write and keep in step beside the Launchpad's; rejected |
+| Retry a failed setup by itself | Hides a failure that needs a person and loads an Environment that may be under pressure; rejected: one attempt per start, then the row's action |
+
+Verified by tests: install and update never run a setup, even where it would wait
+forever, and report the state with its `next` (`tests/update-install.test.ts`,
+`tests/update-cli.test.ts`); the Launchpad's rule is theirs (`executorAtStart`,
+`tests/update-cli.test.ts`); the start's decision for every state and a newer pin,
+and the report's `next` (`tests/executor-converge.test.ts`); one setup from each
+state the start sets up, the outdated one a real version switch, none for
+`running`, a conflict, `unsupported` and a newer pin, never two at once, no second
+attempt after a failure, a start that a held setup does not hold, no setup once the
+Launchpad closes (also when it closes while the start reads the state), the journal
+line, and the row following a setup it did not start
+(`tests/launchpad-executor.test.ts`).
 
 ## F45 — Organization settings reach the Environment: asked through its relay, recorded in the Folder, reported back
 
