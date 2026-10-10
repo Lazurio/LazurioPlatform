@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { githubHttp } from "../src/github/oauth";
 import type { PilotOrganization } from "../src/github/pilot";
 import {
@@ -336,4 +337,41 @@ test("a sign-out that GitHub does not confirm still removes the sign-in and says
       () => null,
     ),
   ).toBeNull();
+});
+
+test("sign-out also revokes a pair a killed write left aside, and leaves no copy", async () => {
+  const github = startFakeGithub();
+  const world = await pilotWorld({ preset: null });
+  cleanups.push(github.close, world.cleanup);
+  await enablePilot(world);
+  await storeSignIn(world, github, exampleOrganization, {
+    now: Date.now() - 3600 * 1000,
+  });
+  const stored = JSON.parse(
+    await readFile(signInFile(world.paths, "Example"), "utf8"),
+  );
+  const aside = github.issue();
+  await writeFile(
+    join(world.paths.stateDirectory, ".example.json.tmp-00112233445566aa"),
+    JSON.stringify({
+      ...stored,
+      accessToken: aside.access,
+      refreshToken: aside.refresh,
+      refreshedAt: new Date().toISOString(),
+    }),
+    { mode: 0o600 },
+  );
+  expect(
+    await signOut({
+      paths: world.paths,
+      organization: exampleOrganization,
+      http: githubHttp({ origins: github.origins }),
+    }),
+  ).toMatchObject({ kind: "signed-out", revoked: true });
+  expect(github.revoked).toEqual([aside.access, aside.refresh]);
+  expect(
+    (await readdir(world.paths.stateDirectory)).filter((name) =>
+      name.includes("json"),
+    ),
+  ).toEqual([]);
 });

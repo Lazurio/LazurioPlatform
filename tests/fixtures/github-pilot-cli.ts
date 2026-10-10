@@ -26,6 +26,8 @@ if (command === "gh") {
     readOrigin: () => checkoutOrigin(process.env),
     runGh: runInherited,
     writeStderr: (text) => process.stderr.write(text),
+    readStdin: () => new Response(Bun.stdin.stream()).text(),
+    writeStdout: (text) => process.stdout.write(text),
   });
 } else if (command === "credential") {
   const input = await new Response(Bun.stdin.stream()).text();

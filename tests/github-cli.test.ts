@@ -88,6 +88,11 @@ test("off: status says so, every other command but enable refuses, nothing is wr
       stdout: JSON.stringify({ kind: "blocked", reason: "pilot-off" }),
     });
   expect(await readPilot(world.paths)).toEqual({ kind: "off" });
+  // Giving gh and Git back works in every state, and finds nothing here.
+  expect(await run(["pilot", "unwire"])).toEqual({
+    code: 0,
+    stdout: "gh and Git are not wired to the pilot.",
+  });
   expect((await run(["pilot", "frob"])).code).toBe(2);
   expect((await run(["constructor"])).code).toBe(2);
   expect((await run(["status", "--organization", "Example"])).code).toBe(2);
@@ -527,4 +532,62 @@ test("doctor adds the pilot's rows only while it is on, in its contract", async 
     },
     { id: "github-leftover", outcome: "ok" },
   ]);
+});
+
+test("removing an Organization or the switch never strands a pair a killed write left aside", async () => {
+  const { world, run } = await setup();
+  expect((await run(enable)).code).toBe(0);
+  expect(
+    (
+      await run([
+        "pilot",
+        "add",
+        "--organization",
+        "Other",
+        "--client-id",
+        "Iv23liFixture0000002",
+      ])
+    ).code,
+  ).toBe(0);
+  // A first sign-in to Other killed between its sync and its rename.
+  await mkdir(world.paths.stateDirectory, { recursive: true, mode: 0o700 });
+  const now = new Date();
+  await writeFile(
+    join(world.paths.stateDirectory, ".other.json.tmp-0123456789abcdef"),
+    JSON.stringify({
+      schema: "lazurio.github-sign-in.v1",
+      organization: { login: "Other", id: 5 },
+      clientId: "Iv23liFixture0000002",
+      installationId: 9,
+      account: { login: "example", id: 12345 },
+      accessToken: "ghu_fake-access-aside",
+      accessTokenExpiresAt: new Date(now.getTime() + 3600 * 1000).toISOString(),
+      refreshToken: "ghr_fake-refresh-aside",
+      refreshTokenExpiresAt: new Date(
+        now.getTime() + 86400 * 1000,
+      ).toISOString(),
+      signedInAt: now.toISOString(),
+      refreshedAt: null,
+    }),
+    { mode: 0o600 },
+  );
+  expect(
+    JSON.parse(
+      (await run(["pilot", "remove", "--organization", "Other", "--json"]))
+        .stdout as string,
+    ),
+  ).toMatchObject({ kind: "blocked", reason: "signed-in" });
+  // It was put in place, so sign-out finds, revokes and removes it.
+  expect(
+    JSON.parse(
+      (await run(["sign-out", "--organization", "Other", "--json"]))
+        .stdout as string,
+    ),
+  ).toMatchObject({
+    kind: "signed-out",
+    organization: "Other",
+  });
+  expect(
+    await run(["pilot", "remove", "--organization", "Other"]),
+  ).toMatchObject({ code: 0 });
 });

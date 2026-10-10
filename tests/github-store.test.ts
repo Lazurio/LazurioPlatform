@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   GithubOAuthError,
@@ -279,4 +279,48 @@ test("while another process holds the lock, a still-working token is used, a spe
     reason: "busy",
   });
   expect(github.refreshes()).toBe(0);
+});
+
+test("a refresh killed before its rename leaves its pair aside; the next locked caller puts it in place", async () => {
+  const { github, world } = await setup();
+  const now = Date.now();
+  // The file still holds the pair GitHub ended at the refresh…
+  const ended = await storeSignIn(world, github, exampleOrganization, {
+    now: now - 8 * 3600 * 1000,
+    accessMs: 8 * 3600 * 1000 - 5 * 60 * 1000,
+  });
+  const file = signInFile(world.paths, "Example");
+  const stored = JSON.parse(await readFile(file, "utf8"));
+  // …and the killed write's temporary file the one that works.
+  const working = github.issue();
+  const aside = {
+    ...stored,
+    accessToken: working.access,
+    accessTokenExpiresAt: new Date(now + 8 * 3600 * 1000).toISOString(),
+    refreshToken: working.refresh,
+    refreshedAt: new Date(now - 1000).toISOString(),
+  };
+  const directory = world.paths.stateDirectory;
+  await writeFile(
+    join(directory, ".example.json.tmp-0123456789abcdef"),
+    `${JSON.stringify(aside)}\n`,
+    { mode: 0o600 },
+  );
+  await writeFile(
+    join(directory, ".example.json.tmp-fedcba9876543210"),
+    "{par",
+  );
+  // Another Organization's write in flight is never touched.
+  await writeFile(join(directory, ".other.json.tmp-0123456789abcdef"), "{}");
+  const answer = await tokenOf(world, github);
+  expect(answer).toMatchObject({
+    kind: "token",
+    token: working.access,
+    refreshed: false,
+  });
+  expect(github.refreshes()).toBe(0);
+  expect(ended.access).not.toBe(working.access);
+  expect((await readdir(directory)).sort()).toEqual(
+    [".other.json.tmp-0123456789abcdef", "example.json", "example.lock"].sort(),
+  );
 });
