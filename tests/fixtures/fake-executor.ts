@@ -427,6 +427,29 @@ export async function executorWorld(
       await mkdir(join(home, "systemd-world"), { recursive: true });
       await writeFile(join(home, "systemd-world", "active"), `${state}\n`);
     },
+    /** The host with every registry download held until `release()`: a
+     * setup waits in its install phase meanwhile, and a command that ran
+     * one would not return. `requested()` counts the held downloads. */
+    hold() {
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let requested = 0;
+      const held: ExecutorHost = {
+        ...host,
+        fetch: async (url) => {
+          requested++;
+          await gate;
+          return registryFake.fetch(url);
+        },
+      };
+      return {
+        host: held,
+        requested: () => requested,
+        release: () => release(),
+      };
+    },
     async close() {
       await rm(parent, { recursive: true, force: true });
     },

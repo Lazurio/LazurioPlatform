@@ -7,8 +7,8 @@ import {
   environmentBrowserFailed,
 } from "../browser/units";
 import {
-  type ExecutorConvergence,
-  executorConvergenceFailed,
+  type ExecutorReport,
+  executorReportFailed,
 } from "../executor/converge";
 import { activate, withUpdateLock } from "./activation";
 import type { AttestationVerifier } from "./attestation";
@@ -84,7 +84,9 @@ import { compareVersions } from "./version";
  * when it is missing or Lazurio's own (`path-entry.ts`). On a supervised base
  * of a hosted Machine — with or without `--service` — it also converges the
  * unit that starts the operator's Codex app-server daemon at boot
- * (`codex-app-server.ts`, decision F29), which never fails the installation.
+ * (`codex-app-server.ts`, decision F29), which never fails the installation,
+ * and reports Executor's state without setting it up: the Launchpad does that
+ * after it starts (decision F44, addendum of 2026-10-11).
  */
 
 /** The PATH of the Launchpad and of everything it starts (`unitPath`). */
@@ -156,13 +158,11 @@ export type InstallInput = Readonly<{
   /** The handover's `entry.browser`, asked only on a supervised hosted base
    * (decision F38); absent: none, so nothing is converged. */
   browserEntry?: (() => Promise<BrowserEntry | undefined>) | undefined;
-  /** Executor's convergence on a supervised hosted base (decision F44,
-   * `convergeExecutor`), given the same hosted answer; absent: nothing is
-   * converged. */
+  /** Executor's state on a supervised hosted base, read only (decision
+   * F44, addendum of 2026-10-11, `reportExecutor`), given the same hosted
+   * answer; absent: nothing is read. */
   executor?:
-    | ((
-        hosted: () => Promise<boolean>,
-      ) => Promise<ExecutorConvergence | undefined>)
+    | ((hosted: () => Promise<boolean>) => Promise<ExecutorReport | undefined>)
     | undefined;
   run?: ProcessRunner | undefined;
   healthDeadlineMs?: number | undefined;
@@ -186,8 +186,8 @@ export type InstallResult =
       /** Only on a supervised base: what became of the Environment
        * browser's units (decision F38). */
       environmentBrowser?: EnvironmentBrowser;
-      /** Only on a supervised base: what became of Executor (F44). */
-      executor?: ExecutorConvergence;
+      /** Only on a supervised base: Executor's state as read (F44). */
+      executor?: ExecutorReport;
     }>
   /** The offline update: a newer executable over an existing installation. */
   | Readonly<{
@@ -201,7 +201,7 @@ export type InstallResult =
       entry: PathEntry | null;
       codexAppServer?: CodexAppServer;
       environmentBrowser?: EnvironmentBrowser;
-      executor?: ExecutorConvergence;
+      executor?: ExecutorReport;
     }>
   | ErrorResult;
 
@@ -500,12 +500,14 @@ async function install(input: InstallInput): Promise<InstallResult> {
       hosted,
       entry: input.browserEntry ?? (async () => undefined),
     }).catch(() => environmentBrowserFailed("unit"));
-  // Executor the same way (decision F44): set up for the hosted operator of
-  // a supervised base, never a reason for the installation to fail.
-  const executor: ExecutorConvergence | undefined =
+  // Executor's state the same way (decision F44, addendum of 2026-10-11):
+  // read for the hosted operator of a supervised base, never set up here,
+  // since its first setup may take minutes, and never a reason for the
+  // installation to fail. Its Launchpad sets it up after it starts.
+  const executor: ExecutorReport | undefined =
     input.executor === undefined
       ? undefined
-      : await input.executor(hosted).catch(() => executorConvergenceFailed);
+      : await input.executor(hosted).catch(() => executorReportFailed);
   // Last, and never a reason to fail: the product is installed whatever
   // happens to its PATH entry, and the result says what it found.
   const entry = await ensurePathEntry({

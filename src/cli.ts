@@ -81,6 +81,7 @@ import { recoverHelp, recoverySource, runRecoverCommand } from "./recover/cli";
 import { runToolsCommand, ToolsUsageError, toolsHelp } from "./tools/cli";
 import {
   type CommandOutput,
+  executorAtStart,
   installBase,
   noticeAfterCommand,
   processContext,
@@ -104,6 +105,8 @@ function emit(output: CommandOutput): number {
 
 // The installed Launchpad of this base answers the updater's health question
 // and serves the update pill on the same update core and service the CLI uses.
+// Where install and update only report Executor, it sets Executor up after
+// it starts (decision F44, addendum of 2026-10-11).
 async function installedLaunchpad(explicitBase: string, folder: string) {
   const context = processContext();
   const base = installBase(context, explicitBase);
@@ -120,6 +123,7 @@ async function installedLaunchpad(explicitBase: string, folder: string) {
         supervised: environment.service !== null,
       }),
     }),
+    executorAtStart: executorAtStart(context, base),
   };
 }
 

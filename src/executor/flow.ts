@@ -32,12 +32,13 @@ import {
 
 // Executor in a Remote Environment (decision F44): one core for the CLI
 // (`lazurio executor status|setup`), the Launchpad (Settings → Tools →
-// executor) and the convergence of `lazurio install` and `lazurio update`.
-// Status-driven and idempotent: `setup` reads what is there and moves it on
-// (the pinned program and the entry, the service, the agents), so an
-// interrupted one is completed by the next. A setup holds a kernel lock in
-// the version root; the journal carries the outcome and a fixed reason,
-// never a path, an output or a value.
+// executor, and its own setup after it starts) and the report of `lazurio
+// install` and `lazurio update`, which only read the status (addendum of
+// 2026-10-11). Status-driven and idempotent: `setup` reads what is there and
+// moves it on (the pinned program and the entry, the service, the agents),
+// so an interrupted one is completed by the next. A setup holds a kernel
+// lock in the version root; the journal carries the outcome and a fixed
+// reason, never a path, an output or a value.
 
 /** Where Executor is set up: trusted composition, never HTTP input. */
 export type ExecutorHost = Readonly<{
@@ -84,6 +85,9 @@ export type ExecutorJournalEntry = Readonly<{
   outcome: string;
   stage?: string;
   reason?: string;
+  /** `start`: the setup the Launchpad started itself after its start
+   * (addendum of 2026-10-11), not a person's or an agent's. */
+  trigger?: "start";
 }>;
 
 /** The plain states of the row:

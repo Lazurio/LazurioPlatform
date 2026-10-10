@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
+import { setUpAtStart } from "../executor/converge";
 import {
   type ExecutorHost,
+  type ExecutorJournalEntry,
   type ExecutorPhase,
   executorSetup,
   executorStatus,
@@ -10,7 +12,8 @@ import {
 // the same core as `lazurio executor`. Two routes behind the admission of
 // every route:
 //
-//   POST /api/tools/executor/status  {}     the local status (loopback only)
+//   POST /api/tools/executor/status  {}     the local status (loopback only),
+//                                            or the setup that runs
 //   POST /api/tools/executor/setup   {}     starts the one setup, or joins
 //                                            the one that runs
 //                                    {job}  asks how that one goes
@@ -18,7 +21,10 @@ import {
 // A setup may download about 100 MB and start a service: the route answers
 // within a second, `202 {kind: "executor-setting-up", job, phase}` while it
 // runs and the status once it ended; the page asks again with the job. It
-// runs in this process and a closed page never cancels it.
+// runs in this process and a closed page never cancels it. The Launchpad's
+// start runs the same one where Lazurio's setup moves Executor on (`atStart`,
+// addendum of 2026-10-11), so the status answers a running setup with its
+// job too: the row follows it whoever started it.
 
 export const executorRoutePaths = Object.freeze({
   status: "/api/tools/executor/status",
@@ -49,6 +55,15 @@ const failed: ExecutorAnswer = Object.freeze({
 export const isExecutorJob = (value: unknown): value is string =>
   typeof value === "string" && /^[0-9a-f]{32}$/.test(value);
 
+const settingUp = (job: Job): ExecutorAnswer => ({
+  status: 202,
+  body: {
+    kind: "executor-setting-up",
+    job: job.id,
+    phase: job.phase,
+  } satisfies ExecutorSettingUp,
+});
+
 export function createExecutorRoutes(
   options: Readonly<{
     host: () => ExecutorHost;
@@ -58,16 +73,24 @@ export function createExecutorRoutes(
 ) {
   let current: Job | null = null;
 
-  function start(): Job {
+  /** The one setup. The start's journals `trigger: "start"`. */
+  function start(trigger?: ExecutorJournalEntry["trigger"]): Job {
+    const host = options.host();
+    const journal = host.journal;
     const started: Job = {
       id: randomBytes(16).toString("hex"),
       phase: "install",
       done: Promise.resolve(failed),
       ended: false,
     };
-    started.done = executorSetup(options.host(), (phase) => {
-      started.phase = phase;
-    })
+    started.done = executorSetup(
+      trigger === undefined || journal === undefined
+        ? host
+        : { ...host, journal: (entry) => journal({ ...entry, trigger }) },
+      (phase) => {
+        started.phase = phase;
+      },
+    )
       .then(
         (result): ExecutorAnswer => ({ status: 200, body: result }),
         () => failed,
@@ -86,15 +109,7 @@ export function createExecutorRoutes(
         late = setTimeout(() => resolve(null), options.answerWithinMs ?? 1_000);
       }),
     ]).finally(() => clearTimeout(late));
-    if (ended !== null) return ended;
-    return {
-      status: 202,
-      body: {
-        kind: "executor-setting-up",
-        job: job.id,
-        phase: job.phase,
-      } satisfies ExecutorSettingUp,
-    };
+    return ended ?? settingUp(job);
   }
 
   return Object.freeze({
@@ -104,6 +119,8 @@ export function createExecutorRoutes(
     /** `job` only with a setup: the handle a 202 answered. */
     async handle(path: string, job?: string): Promise<ExecutorAnswer> {
       if (path === executorRoutePaths.status) {
+        // A setup that runs is the state the row shows, whoever started it.
+        if (current !== null && !current.ended) return settingUp(current);
         try {
           return { status: 200, body: await executorStatus(options.host()) };
         } catch {
@@ -123,6 +140,19 @@ export function createExecutorRoutes(
       // A new setup, or the one that runs: never two at once.
       if (current === null || current.ended) current = start();
       return answer(current);
+    },
+    /** After the Launchpad's start (decision F44, addendum of 2026-10-11):
+     * the state is read once and, where Lazurio's setup moves Executor on
+     * (`setUpAtStart`), the one setup starts as Install starts it. Never
+     * beside a running one and never again: a setup that stops leaves the
+     * row's action. Whether one started; it runs on in the background. */
+    async atStart(): Promise<boolean> {
+      if (current !== null && !current.ended) return false;
+      if (!setUpAtStart(await executorStatus(options.host()))) return false;
+      // Install may have started one while the state was read.
+      if (current !== null && !current.ended) return false;
+      current = start("start");
+      return true;
     },
     /** The setup that runs or ran last, for tests. */
     async settled(): Promise<void> {
