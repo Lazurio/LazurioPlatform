@@ -3163,7 +3163,7 @@ are. The mechanism below was proposed with this addendum.
    `::1` host in brackets). It is there only for a module of the application's own
    Organization that its Organization manifest declares, that is checked out beside it
    and readable at this start, and whose default app has an HTTP(S) entrypoint
-   (`siblingOrigins`, `src/modules/sibling-origins.ts`, read in
+   (`requiredSlotOrigins`, `src/modules/sibling-origins.ts`, read in
    `localApplicationAdapters.prepareLaunch` under the same admission as the start).
    A data mount `workspace/<slug>/db`, any other slot path, the application's own module
    and a Personalspace module's declarations give nothing; another Organization's
@@ -3184,10 +3184,19 @@ are. The mechanism below was proposed with this addendum.
    (a link, a redirect, page data or a CORS header); a link a person opens stays the
    sibling's hostname derived from the application's own external origin (root 0176
    point 5).
-9. **A declared sibling that is not there** gives no variable and does not refuse the
-   start here: the typed readiness finding for a missing declared slot, data mounts
-   included, is issue #128 (root 0176 point 4). The application treats a missing
-   address as its sibling being unavailable and keeps running.
+9. **A required slot that is not there refuses the start** (root 0176 point 4,
+   unchanged): every slot of `required_module_slots`, a sibling module or a data
+   mount, must be declared in the Organization manifest, not `planned_slot`, and
+   checked out beside the application, each directory the operator's own. Otherwise
+   the start answers `required-slot-undeclared`, `required-slot-planned` or
+   `required-slot-missing` with the slot (Organization-relative, in `file`), before
+   any install or process (`requiredSlotOrigins`, in the start's preflight and again
+   at the launch; `RequiredSlotRefused`), in the CLI and the Launchpad alike. This is
+   the start's part of issue #128; the catalog, Diagnostics and doctor follow there.
+   A sibling that is there but app-less, unreadable or without an HTTP(S) entrypoint
+   does not refuse the start and gives no address. Without the variable (this
+   case, or a Launchpad that does not pass it: the replaced one, an older release)
+   the application keeps running and reports its sibling unavailable to its user.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -3195,8 +3204,8 @@ are. The mechanism below was proposed with this addendum.
 | The gateway admits writes and preflights between the modules of one Environment (#246 option 2) | A Machines change relaxing the CSRF rule at the ingress; Matěj chose against it |
 | The module reads the sibling's lease itself (today's pre-standard behavior) | Root 0176 point 3 and `MS-06` forbid it; every module parses foreign manifests |
 | The variable only while the sibling runs | Start order would matter, and a sibling started later never reaches an already running caller; not chosen |
-| Refuse the start when a declared sibling is missing | The target of root 0176 point 4, but issue #128's, for data mounts too and with the catalog and Diagnostics; not here |
-| The loopback origin of the sibling's default-app entrypoint, read at every start (selected) | No new component, listener or credential; independent of the Launchpad process; the same in both runners and places |
+| Start a caller whose declared sibling is missing and leave the variable out | Promises a degraded mode root 0176 point 4 does not allow and the replaced Launchpad never offered (it refuses with `required_slot_unavailable` / `planned_slot`); rejected in review |
+| The loopback origin of the sibling's default-app entrypoint, read at every start, with the start refused for a required slot that is not there (selected) | No new component, listener or credential; independent of the Launchpad process; the same in both runners and places; the same readiness rule as the replaced Launchpad |
 
 ## F27 — The Steward preset for the Automated Environment
 
