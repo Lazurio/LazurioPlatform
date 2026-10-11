@@ -1,7 +1,13 @@
 import type { Server, ServerWebSocket } from "bun";
 import { viewScript } from "./bundle" with { type: "macro" };
 import { browserSocketUrl, type CdpConnection, connectCdp } from "./cdp";
-import { BrowserHub, type HubSeams, type Viewer } from "./hub";
+import { isStrip } from "./holds";
+import {
+  BrowserHub,
+  type HubSeams,
+  navigableAddress,
+  type Viewer,
+} from "./hub";
 import { viewPage } from "./page";
 import { parseClientMessage } from "./protocol";
 
@@ -10,7 +16,9 @@ import { parseClientMessage } from "./protocol";
  * and carries one WebSocket per person's tab. The gateway's session is the
  * only admission (F39 point 8): this service checks that every request names
  * its own host and that every socket and every change comes from its own
- * origin, and it listens on loopback only. */
+ * origin, and it listens on loopback only. On loopback alone it also answers
+ * the Launchpad's requests about the Environment's tabs (decision F47 point
+ * 6), which no browser may make. */
 
 export type ViewServiceOptions = Readonly<{
   /** The view's public origin, `https://browser.<…>`, from the handover. */
@@ -103,6 +111,8 @@ const json = (body: unknown, status = 200) =>
 const livePath = /^\/t\/([0-9A-Fa-f]{32})\/live$/;
 const filesPath = /^\/t\/([0-9A-Fa-f]{32})\/files$/;
 const viewPath = /^\/t\/([0-9A-Fa-f]{32})$/;
+const tabsPath = /^\/\.lazurio\/tabs(?:\/([0-9A-Fa-f]{32})\/(close|restore))?$/;
+const maxTabsBodyBytes = 8 * 1024;
 
 export type RequestDecision =
   | Readonly<{ kind: "health" }>
@@ -111,6 +121,10 @@ export type RequestDecision =
   | Readonly<{ kind: "create" }>
   | Readonly<{ kind: "files"; targetId: string }>
   | Readonly<{ kind: "live"; targetId: string }>
+  | Readonly<{ kind: "tabs" }>
+  | Readonly<{ kind: "open" }>
+  | Readonly<{ kind: "close"; targetId: string }>
+  | Readonly<{ kind: "restore"; targetId: string }>
   | Readonly<{ kind: "refused"; status: number; error: string }>;
 
 /** What a request is, after the Host and Origin checks (F39 point 8).
@@ -122,6 +136,8 @@ export function classifyRequest(
     host: string | null;
     origin: string | null;
     upgrade: boolean;
+    /** `Sec-Fetch-Site`: a browser sends it with every request. */
+    fetchSite?: string | null;
   }>,
   viewOrigin: string,
   port: number,
@@ -135,6 +151,27 @@ export function classifyRequest(
     return request.host === own.host || loopback
       ? { kind: "health" }
       : { kind: "refused", status: 421, error: "wrong-host" };
+  const tabs = tabsPath.exec(path);
+  if (tabs !== null) {
+    // The Launchpad's requests (F47 point 6): through the gateway, which
+    // sends the view's own host, they do not exist. Pages in the
+    // Environment's own browser reach the loopback too, and a browser always
+    // names where its request comes from.
+    if (!loopback) return { kind: "refused", status: 404, error: "not-found" };
+    if (request.origin !== null || (request.fetchSite ?? null) !== null)
+      return { kind: "refused", status: 403, error: "browser-request" };
+    const targetId = tabs[1]?.toUpperCase();
+    if (targetId === undefined) {
+      if (request.method === "GET") return { kind: "tabs" };
+      if (request.method === "POST") return { kind: "open" };
+      return { kind: "refused", status: 405, error: "method-not-allowed" };
+    }
+    if (request.method !== "POST")
+      return { kind: "refused", status: 405, error: "method-not-allowed" };
+    return tabs[2] === "close"
+      ? { kind: "close", targetId }
+      : { kind: "restore", targetId };
+  }
   if (request.host !== own.host)
     return { kind: "refused", status: 421, error: "wrong-host" };
   const sameOrigin = request.origin === own.origin;
@@ -190,6 +227,7 @@ export function startViewService(options: ViewServiceOptions): ViewService {
           origin: request.headers.get("origin"),
           upgrade:
             request.headers.get("upgrade")?.toLowerCase() === "websocket",
+          fetchSite: request.headers.get("sec-fetch-site"),
         },
         options.origin,
         server.port ?? options.port,
@@ -262,6 +300,41 @@ export function startViewService(options: ViewServiceOptions): ViewService {
             ? new Response(null, { status: 204 })
             : json({ error: "not-accepted" }, 409);
         }
+        case "tabs":
+          return hub.ready
+            ? json({ tabs: hub.list() })
+            : json({ error: "browser-unreachable" }, 503);
+        case "open": {
+          const body = await smallJson(request);
+          const url = body?.url;
+          const strip = body?.strip ?? null;
+          if (
+            typeof url !== "string" ||
+            navigableAddress(url) === null ||
+            (strip !== null && !isStrip(strip))
+          )
+            return json({ error: "invalid-request" }, 400);
+          const id = await hub.openTab(url, strip);
+          return id === null
+            ? json({ error: "browser-unreachable" }, 503)
+            : json({ id, view: `${options.origin}/t/${id}` }, 201);
+        }
+        case "close": {
+          // While the hub does not know the browser's targets it changes
+          // nothing (F47's failure modes); a close accepted before goes on.
+          if (!hub.ready) return json({ error: "browser-unreachable" }, 503);
+          const endsAt = hub.closeForEveryone(decision.targetId);
+          return endsAt === null
+            ? json({ error: "not-found" }, 404)
+            : json({ closing: new Date(endsAt).toISOString() }, 202);
+        }
+        case "restore":
+          if (!hub.ready) return json({ error: "browser-unreachable" }, 503);
+          if (!hub.hasTab(decision.targetId))
+            return json({ error: "not-found" }, 404);
+          return hub.restore(decision.targetId)
+            ? json({ restored: true })
+            : json({ error: "nothing-to-restore" }, 409);
         case "live": {
           // Upgraded even for a tab that is gone: the page can read a
           // message, not the status of a refused handshake (`open`).
@@ -333,6 +406,22 @@ export function startViewService(options: ViewServiceOptions): ViewService {
       await server.stop(true);
     },
   });
+}
+
+/** A small JSON object body, or null. */
+async function smallJson(
+  request: Request,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const text = await request.text();
+    if (text.length > maxTabsBodyBytes) return null;
+    const value: unknown = JSON.parse(text);
+    return typeof value === "object" && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /** The production connection: the browser target on the loopback DevTools

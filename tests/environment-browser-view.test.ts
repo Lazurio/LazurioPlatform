@@ -1,5 +1,13 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CdpConnection, CdpEvent } from "../src/browser/people/cdp";
@@ -8,9 +16,16 @@ import {
   writeBrowserExtension,
 } from "../src/browser/people/extension";
 import {
+  type Hold,
+  type Holds,
+  noHolds,
+  readHolds,
+} from "../src/browser/people/holds";
+import {
   BrowserHub,
   jpegSize,
   navigableAddress,
+  type TabFacts,
   type Viewer,
 } from "../src/browser/people/hub";
 import {
@@ -60,6 +75,9 @@ type Target = {
 };
 
 const id = (n: number) => n.toString(16).toUpperCase().padStart(32, "0");
+const firstWindow = id(0xb1a4c);
+const testBoot = "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f";
+const blankWindow = { targetId: firstWindow, url: "about:blank", title: "" };
 
 /** A browser target that answers like Chrome for what the hub asks. */
 class FakeBrowser {
@@ -76,7 +94,10 @@ class FakeBrowser {
   gate: Promise<void> | null = null;
   pageTitle = "Stránka z dokumentu";
 
-  constructor(initial: Target[] = []) {
+  /** Chrome's first window (the unit starts it with `about:blank`), which
+   * the hub keeps as its own blank window unless `blank` is false. */
+  constructor(initial: Target[] = [], blank = true) {
+    if (blank) this.targets.set(firstWindow, { ...blankWindow });
     for (const target of initial) this.targets.set(target.targetId, target);
   }
 
@@ -155,6 +176,14 @@ class FakeBrowser {
     sessionId?: string,
   ): Record<string, unknown> {
     switch (method) {
+      case "Target.getTargets":
+        return {
+          targetInfos: [...this.targets.values()].map((target) => ({
+            type: "page",
+            attached: false,
+            ...target,
+          })),
+        };
       case "Target.setDiscoverTargets":
         for (const target of this.targets.values())
           this.emit("Target.targetCreated", {
@@ -226,31 +255,134 @@ afterEach(async () => {
   root = undefined;
 });
 
+type HoldsState = {
+  /** Targets an agent works in (a bound session whose daemon runs). */
+  working?: readonly string[];
+  /** Targets bound to a session whose daemon ended. */
+  idle?: readonly string[];
+  /** Holder strips and the targets each holds. */
+  holders?: Readonly<Record<string, readonly string[]>>;
+};
+
+/** The holds a state names, as `readHolds` answers them. */
+function holdsOf(state: HoldsState): Holds {
+  const holders = new Map<string, Hold[]>();
+  for (const [strip, ids] of Object.entries(state.holders ?? {}))
+    for (const target of ids)
+      holders.set(target, [
+        ...(holders.get(target) ?? []),
+        { strip, label: `Strip ${strip}` },
+      ]);
+  const working = new Map<string, string[]>();
+  const bound = new Map<string, string[]>();
+  for (const target of state.working ?? []) {
+    working.set(target, [`codex-${target.slice(-4)}`]);
+    bound.set(target, [`codex-${target.slice(-4)}`]);
+  }
+  for (const target of state.idle ?? [])
+    bound.set(target, [`codex-${target.slice(-4)}`]);
+  return { holders, working, bound };
+}
+
 async function serve(
   browser: FakeBrowser,
-  options: { bound?: string[]; graceMs?: number; reconnectMs?: number } = {},
+  options: HoldsState & {
+    graceMs?: number;
+    unviewedGraceMs?: number;
+    releaseGraceMs?: number;
+    holdsEveryMs?: number;
+    reconnectMs?: number;
+    /** The real reader instead of the state above. */
+    holds?: () => Promise<Holds>;
+  } = {},
 ) {
   root = await realpath(await mkdtemp(join(tmpdir(), "people-view-")));
   const logs: string[] = [];
+  let state: Holds = holdsOf(options);
+  let failing = false;
+  let changed: (() => void) | null = null;
+  const writes: string[][] = [];
+  const takenAts: number[] = [];
+  // The boot clock: seconds since a fixed boot, later at each reading.
+  let uptime = 1_000;
   service = startViewService({
     origin,
     port: 0,
     log: (line) => logs.push(line),
     hub: {
       connect: browser.connect,
-      boundTargets: async () => new Set(options.bound ?? []),
+      holds:
+        options.holds ??
+        (async () => {
+          if (failing) throw new Error("unreadable");
+          return state;
+        }),
+      watchHolds: (callback) => {
+        changed = callback;
+        return { retry: () => {}, stop: () => {} };
+      },
+      writeTabs: async (ids, takenAt) => {
+        writes.push([...ids].sort());
+        takenAts.push(takenAt.at);
+      },
+      bootClock: async () => {
+        uptime += 0.01;
+        return { boot: testBoot, at: uptime };
+      },
       uploadDirectory: join(root, "uploads"),
       screen: { width: 1920, height: 1080 },
       log: (line) => logs.push(line),
       graceMs: options.graceMs ?? 60_000,
-      unviewedGraceMs: options.graceMs ?? 60_000,
+      unviewedGraceMs: options.unviewedGraceMs ?? options.graceMs ?? 60_000,
+      releaseGraceMs: options.releaseGraceMs ?? options.graceMs ?? 60_000,
+      holdsEveryMs: options.holdsEveryMs ?? 60_000,
       reconnectMs: options.reconnectMs ?? 20,
     },
   });
-  await until(() => service?.hub.connected === true);
+  await until(() => service?.hub.ready === true);
   const base = `http://127.0.0.1:${service.server.port}`;
-  return { base, logs, root };
+  /** New holds, as when an app rewrites its holder file. */
+  const setHolds = (next: HoldsState) => {
+    state = holdsOf(next);
+    changed?.();
+  };
+  const failHolds = (fail: boolean) => {
+    failing = fail;
+  };
+  /** As when a watched directory changed. */
+  const refresh = () => changed?.();
+  return { base, logs, root, setHolds, failHolds, refresh, writes, takenAts };
 }
+
+/** The Launchpad's request to the hub on loopback (F47 point 6): no Origin,
+ * no Sec-Fetch-Site, the loopback host Bun's fetch sends by itself. */
+async function loopback(
+  base: string,
+  path: string,
+  init: {
+    method?: string;
+    body?: unknown;
+    headers?: Record<string, string>;
+  } = {},
+) {
+  const response = await fetch(`${base}${path}`, {
+    method: init.method ?? "GET",
+    headers: {
+      ...(init.body === undefined
+        ? {}
+        : { "content-type": "application/json" }),
+      ...init.headers,
+    },
+    ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+  });
+  return {
+    status: response.status,
+    body: (await response.json()) as Record<string, unknown>,
+  };
+}
+
+const closedTargets = (browser: FakeBrowser) =>
+  browser.called("Target.closeTarget").map((c) => c.params.targetId);
 
 /** A person's socket, as the view page opens it. */
 async function person(
@@ -901,11 +1033,11 @@ test("a file chooser is answered with the person's files; without a viewer it is
   view.socket.close();
 });
 
-// ---- Closing (F39 point 9) ---------------------------------------------------
+// ---- Closing (F39 point 9, F47 point 5) -----------------------------------------
 
-test("a closed person's tab closes its own remote tab after the grace, unless an agent is bound to it", async () => {
+test("a closed person's tab closes its remote tab after the grace; a tab an agent works in stays", async () => {
   const browser = new FakeBrowser([tab(1)]);
-  const { base } = await serve(browser, { graceMs: 60, bound: [] });
+  const { base } = await serve(browser, { graceMs: 60, working: [id(1)] });
   const make = async () => {
     const response = await fetch(`${base}/api/tabs`, {
       method: "POST",
@@ -922,26 +1054,62 @@ test("a closed person's tab closes its own remote tab after the grace, unless an
   const view = await person(base, own);
   await until(() => view.of("info").length > 0);
   view.socket.close();
-  await until(() =>
-    browser.called("Target.closeTarget").some((c) => c.params.targetId === own),
-  );
-  // An agent's tab the view did not open is never closed by it.
+  await until(() => closedTargets(browser).includes(own));
+  // An agent's window it works in stays after its viewer leaves.
   const agent = await person(base, id(1));
   await until(() => agent.of("info").length > 0);
   agent.socket.close();
   await settle(150);
-  expect(
-    browser
-      .called("Target.closeTarget")
-      .some((c) => c.params.targetId === id(1)),
-  ).toBe(false);
+  expect(closedTargets(browser)).not.toContain(id(1));
 });
 
-test("an own tab an agent bound itself to stays open; an own tab nobody opened closes", async () => {
+test("a tab an agent works in stays; once the agent stops, it ends after the grace of Vrátit", async () => {
+  const browser = new FakeBrowser([tab(1), tab(2)]);
+  const { setHolds } = await serve(browser, {
+    graceMs: 60_000,
+    releaseGraceMs: 40,
+    working: [id(1), id(2)],
+  });
+  await settle(80);
+  expect(closedTargets(browser)).toEqual([]);
+  // The agent of id(1) stopped: its daemon ended, its binding stays.
+  setHolds({ working: [id(2)], idle: [id(1)] });
+  await until(() => closedTargets(browser).includes(id(1)));
+  await settle(80);
+  expect(closedTargets(browser)).not.toContain(id(2));
+});
+
+test("a tab a strip holds stays without viewers; after its last hold it ends unless held again within the grace", async () => {
+  const browser = new FakeBrowser([tab(1), tab(2)]);
+  const { setHolds } = await serve(browser, {
+    unviewedGraceMs: 60_000,
+    releaseGraceMs: 300,
+    holders: { "t3-a": [id(1), id(2)], "t3-b": [id(2)] },
+  });
+  const graceOf = (target: string) =>
+    service?.hub.list().find((t) => t.id === target)?.grace ?? null;
+  await settle(120);
+  expect(closedTargets(browser)).toEqual([]);
+  // Thread a lets go of both; thread b still holds id(2).
+  setHolds({ holders: { "t3-b": [id(2)] } });
+  await until(() => graceOf(id(1))?.kind === "release");
+  expect(graceOf(id(2))).toBeNull();
+  // Vrátit in thread a within the grace: held again.
+  setHolds({ holders: { "t3-a": [id(1)], "t3-b": [id(2)] } });
+  await until(() => graceOf(id(1)) === null);
+  await settle(400);
+  expect(closedTargets(browser)).toEqual([]);
+  // Both threads let go of id(2): it ends; id(1) stays held.
+  setHolds({ holders: { "t3-a": [id(1)] } });
+  await until(() => closedTargets(browser).includes(id(2)));
+  expect(closedTargets(browser)).not.toContain(id(1));
+});
+
+test("an own tab nobody views or holds closes; an agent's tab stays while it works", async () => {
   const browser = new FakeBrowser();
-  // The fake's first two new tabs are id(100) and id(101); an agent-browser
-  // session is bound to the first.
-  const { base } = await serve(browser, { graceMs: 40, bound: [id(100)] });
+  // The fake's first two new tabs are id(100) and id(101); an agent works
+  // in the first.
+  const { base } = await serve(browser, { graceMs: 40, working: [id(100)] });
   const make = async () => {
     const response = await fetch(`${base}/api/tabs`, {
       method: "POST",
@@ -960,24 +1128,16 @@ test("an own tab an agent bound itself to stays open; an own tab nobody opened c
   await until(() => view.of("info").length > 0);
   view.socket.close();
   const unopened = await make();
-  await until(() =>
-    browser
-      .called("Target.closeTarget")
-      .some((c) => c.params.targetId === unopened),
-  );
+  await until(() => closedTargets(browser).includes(unopened));
   await settle(100);
-  expect(
-    browser
-      .called("Target.closeTarget")
-      .some((c) => c.params.targetId === bound),
-  ).toBe(false);
+  expect(closedTargets(browser)).not.toContain(bound);
 });
 
-test("a tab a page opened closes when nobody views it, unless an agent is bound to it; the agent's own tab stays", async () => {
-  // id(1) is an agent's window (not opened by the view); its page opens two
-  // tabs, and an agent-browser session is bound to the second.
+test("a tab a page opened closes when nobody views or holds it; the tabs agents work in stay", async () => {
+  // id(1) is an agent's window; its page opens two tabs, and an agent works
+  // in the second.
   const browser = new FakeBrowser([tab(1)]);
-  await serve(browser, { graceMs: 40, bound: [id(3)] });
+  await serve(browser, { graceMs: 40, working: [id(1), id(3)] });
   browser.created(
     tab(2, {
       url: "https://example.com/a",
@@ -992,17 +1152,459 @@ test("a tab a page opened closes when nobody views it, unless an agent is bound 
       canAccessOpener: false,
     }),
   );
-  await until(() =>
-    browser
-      .called("Target.closeTarget")
-      .some((c) => c.params.targetId === id(2)),
-  );
+  await until(() => closedTargets(browser).includes(id(2)));
   await settle(120);
-  const closed = browser
-    .called("Target.closeTarget")
-    .map((c) => c.params.targetId);
-  expect(closed).not.toContain(id(3));
-  expect(closed).not.toContain(id(1));
+  expect(closedTargets(browser)).not.toContain(id(3));
+  expect(closedTargets(browser)).not.toContain(id(1));
+});
+
+test("after a start, a tab nothing holds gets the time of a new tab; before, the view never closed it", async () => {
+  const browser = new FakeBrowser([tab(1), tab(2)]);
+  await serve(browser, {
+    unviewedGraceMs: 60,
+    holders: { launchpad: [id(2)] },
+  });
+  await until(() => closedTargets(browser).includes(id(1)));
+  await settle(100);
+  expect(closedTargets(browser)).not.toContain(id(2));
+});
+
+test("a failed read of the holds lets no tab go", async () => {
+  // id(2) is held by nothing: its grace ends, but the read before closing
+  // fails, so it stays.
+  const browser = new FakeBrowser([tab(1), tab(2)]);
+  const { failHolds, setHolds } = await serve(browser, {
+    working: [id(1)],
+    releaseGraceMs: 30,
+    unviewedGraceMs: 100,
+  });
+  failHolds(true);
+  setHolds({});
+  await settle(300);
+  expect(closedTargets(browser)).toEqual([]);
+});
+
+// ---- The list of live tabs (F47 point 4) -----------------------------------------
+
+test("the hub writes the list of live tabs whenever one appears or ends, never while it does not know the browser's targets", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { base, writes } = await serve(browser, {
+    releaseGraceMs: 30,
+    reconnectMs: 250,
+    holders: { launchpad: [id(1)] },
+  });
+  const last = () => writes.at(-1) ?? null;
+  // After discovery: every page but the hub's blank window.
+  await until(() => last() !== null);
+  expect(last()).toEqual([id(1)]);
+  const opened = await loopback(base, "/.lazurio/tabs", {
+    method: "POST",
+    body: { url: "https://example.com/n" },
+  });
+  const fresh = String(opened.body.id);
+  await until(() => last()?.includes(fresh) === true);
+  await loopback(base, `/.lazurio/tabs/${fresh}/close`, { method: "POST" });
+  await until(() => last()?.includes(fresh) === false);
+  // The browser goes away and comes back restarted, with new ids: nothing is
+  // written while the hub does not know its targets, then the new list.
+  const before = writes.length;
+  browser.drop();
+  browser.targets.delete(id(1));
+  browser.targets.set(id(5), tab(5));
+  await settle(150);
+  expect(service?.hub.connected).toBe(false);
+  expect(writes.length).toBe(before);
+  await until(() => JSON.stringify(last()) === JSON.stringify([id(5)]));
+});
+
+test("the hub takes a snapshot again on its beat, so a record made after its tab ended meets a newer list", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { writes, takenAts } = await serve(browser, {
+    holdsEveryMs: 60,
+    holders: { launchpad: [id(1)] },
+  });
+  await until(() => writes.length > 0);
+  const before = writes.length;
+  await settle(300);
+  expect(writes.length).toBeGreaterThanOrEqual(before + 3);
+  expect(writes.at(-1)).toEqual([id(1)]);
+  // Each snapshot is stamped with the boot clock when it began, later each
+  // time.
+  for (let n = 1; n < takenAts.length; n++)
+    expect(takenAts[n] as number).toBeGreaterThan(takenAts[n - 1] as number);
+});
+
+test("snapshots are stamped by the boot clock, whatever the wall clock does", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { writes, takenAts } = await serve(browser, {
+    holdsEveryMs: 50,
+    holders: { launchpad: [id(1)] },
+  });
+  await until(() => writes.length > 0);
+  // The wall clock steps back an hour.
+  const realNow = Date.now;
+  const back = realNow() - 3_600_000;
+  Date.now = () => back;
+  try {
+    const before = takenAts.length;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(takenAts.length).toBeGreaterThan(before);
+    for (let n = 1; n < takenAts.length; n++)
+      expect(takenAts[n] as number).toBeGreaterThan(takenAts[n - 1] as number);
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test("a live tab whose event reaches the hub late is in the list, because the list is a snapshot of the browser", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { writes } = await serve(browser, {
+    holdsEveryMs: 60,
+    holders: { launchpad: [id(1)] },
+  });
+  // Chrome has the target, but its targetCreated has not reached the hub.
+  browser.targets.set(id(7), tab(7));
+  const before = writes.length;
+  await until(() => writes.length > before + 1);
+  expect(service?.hub.list().some((t) => t.id === id(7))).toBe(false);
+  expect(writes.at(-1)).toEqual([id(1), id(7)]);
+});
+
+test("a holder directory that cannot be read lets no tab go until a read succeeds and shows the release", async () => {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "people-holders-")));
+  const holders = join(dir, "holders");
+  await mkdir(holders, { mode: 0o700 });
+  const hold = (tabs: string[]) =>
+    writeFile(
+      join(holders, "launchpad.json"),
+      JSON.stringify({ strip: "launchpad", label: "Launchpad", tabs }),
+    );
+  await hold([id(1)]);
+  const browser = new FakeBrowser([tab(1)]);
+  const { refresh } = await serve(browser, {
+    releaseGraceMs: 40,
+    unviewedGraceMs: 60_000,
+    holds: () => readHolds({ holders }),
+  });
+  try {
+    expect(
+      service?.hub.list().find((t) => t.id === id(1))?.holders,
+    ).toHaveLength(1);
+    // The directory becomes unreadable: the hub keeps its last reading.
+    await chmod(holders, 0o000);
+    refresh();
+    await settle(300);
+    expect(closedTargets(browser)).toEqual([]);
+    expect(
+      service?.hub.list().find((t) => t.id === id(1))?.holders,
+    ).toHaveLength(1);
+    // Readable again, and the Launchpad let go: now the release counts.
+    await chmod(holders, 0o700);
+    await hold([]);
+    refresh();
+    await until(() => closedTargets(browser).includes(id(1)));
+  } finally {
+    await chmod(holders, 0o700).catch(() => undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("an agent whose .pid cannot be understood keeps its tab; a .pid of an ended process lets it go", async () => {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "people-sockets-")));
+  const sockets = join(dir, "agent-browser");
+  await mkdir(sockets, { mode: 0o700 });
+  await writeFile(
+    join(sockets, "codex-1.target"),
+    JSON.stringify({ targetId: id(1) }),
+  );
+  await writeFile(join(sockets, "codex-1.pid"), "");
+  const browser = new FakeBrowser([tab(1)]);
+  const { refresh } = await serve(browser, {
+    releaseGraceMs: 40,
+    unviewedGraceMs: 60,
+    holds: () => readHolds({ sockets }),
+  });
+  try {
+    await settle(300);
+    expect(closedTargets(browser)).toEqual([]);
+    // A well-formed id of a process that does not run: the agent ended.
+    await writeFile(join(sockets, "codex-1.pid"), "4194303");
+    refresh();
+    await until(() => closedTargets(browser).includes(id(1)));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("while the browser is away, close and restore change nothing and answer 503", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { base } = await serve(browser, {
+    reconnectMs: 60_000,
+    holders: { launchpad: [id(1)] },
+  });
+  // A viewer keeps the tab known to the hub across the lost connection.
+  const view = await person(base, id(1));
+  await until(() => view.of("info").length > 0);
+  browser.drop();
+  await until(() => service?.hub.connected === false);
+  expect(service?.hub.hasTab(id(1))).toBe(true);
+  for (const action of ["close", "restore"])
+    expect(
+      (
+        await loopback(base, `/.lazurio/tabs/${id(1)}/${action}`, {
+          method: "POST",
+        })
+      ).status,
+    ).toBe(503);
+  expect(service?.hub.list().find((t) => t.id === id(1))?.closing).toBeNull();
+  view.socket.close();
+});
+
+// ---- The hub's blank window (F47 point 5) -----------------------------------------
+
+test("the hub keeps Chrome's first window as its own, never closes or lists it, and opens another when someone uses it", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { base } = await serve(browser, { graceMs: 30, working: [id(1)] });
+  await settle(100);
+  expect(closedTargets(browser)).toEqual([]);
+  expect(browser.called("Target.createTarget")).toEqual([]);
+  const listed = (await loopback(base, "/.lazurio/tabs")).body
+    .tabs as TabFacts[];
+  expect(listed.map((t) => t.id)).toEqual([id(1)]);
+  // Someone navigated it: a tab like any other now, and a new blank one.
+  browser.emit("Target.targetInfoChanged", {
+    targetInfo: {
+      type: "page",
+      targetId: firstWindow,
+      url: "https://example.com/x",
+      title: "",
+    },
+  });
+  await until(() => browser.called("Target.createTarget").length === 1);
+  expect(browser.called("Target.createTarget")[0]?.params).toEqual({
+    url: "about:blank",
+    newWindow: true,
+  });
+  // The used window nobody views or holds ends; the new one stays.
+  await until(() => closedTargets(browser).includes(firstWindow));
+  await settle(100);
+  expect(closedTargets(browser)).toEqual([firstWindow]);
+});
+
+test("a browser without a blank window gets one from the hub, and another when it closes", async () => {
+  const browser = new FakeBrowser([tab(1)], false);
+  await serve(browser, { working: [id(1)] });
+  await until(() => browser.called("Target.createTarget").length === 1);
+  const keeper = id(100);
+  browser.emit("Target.targetDestroyed", { targetId: keeper });
+  await until(() => browser.called("Target.createTarget").length === 2);
+});
+
+// ---- The Launchpad's requests (F47 point 6) ---------------------------------------
+
+test("the tab requests exist only on loopback and never for a browser", () => {
+  const ask = (
+    method: string,
+    path: string,
+    headers: {
+      host?: string;
+      origin?: string | null;
+      fetchSite?: string | null;
+    } = {},
+  ) =>
+    classifyRequest(
+      {
+        method,
+        url: `http://x${path}`,
+        host: headers.host ?? "127.0.0.1:4100",
+        origin: headers.origin ?? null,
+        upgrade: false,
+        fetchSite: headers.fetchSite ?? null,
+      },
+      origin,
+      4100,
+    );
+  const target = id(5);
+  expect(ask("GET", "/.lazurio/tabs")).toEqual({ kind: "tabs" });
+  expect(ask("GET", "/.lazurio/tabs", { host: "localhost:4100" })).toEqual({
+    kind: "tabs",
+  });
+  expect(ask("POST", "/.lazurio/tabs")).toEqual({ kind: "open" });
+  expect(ask("POST", `/.lazurio/tabs/${target}/close`)).toEqual({
+    kind: "close",
+    targetId: target,
+  });
+  expect(ask("POST", `/.lazurio/tabs/${target.toLowerCase()}/restore`)).toEqual(
+    {
+      kind: "restore",
+      targetId: target,
+    },
+  );
+  // Through the gateway, which sends the view's own host, they do not exist.
+  expect(ask("GET", "/.lazurio/tabs", { host })).toEqual({
+    kind: "refused",
+    status: 404,
+    error: "not-found",
+  });
+  expect(
+    ask("POST", `/.lazurio/tabs/${target}/close`, { host, origin }),
+  ).toMatchObject({ status: 404 });
+  // A page in the Environment's own browser reaches the loopback too.
+  for (const headers of [
+    { origin: "https://evil.example" },
+    { origin: "null" },
+    { fetchSite: "cross-site" },
+    { fetchSite: "same-origin" },
+    { fetchSite: "none" },
+  ])
+    expect(ask("POST", `/.lazurio/tabs/${target}/close`, headers)).toEqual({
+      kind: "refused",
+      status: 403,
+      error: "browser-request",
+    });
+  expect(ask("GET", `/.lazurio/tabs/${target}/close`)).toMatchObject({
+    status: 405,
+  });
+  expect(ask("DELETE", "/.lazurio/tabs")).toMatchObject({ status: 405 });
+  expect(
+    ask("GET", "/.lazurio/tabs/nope/close", { host: "127.0.0.1:4100" }),
+  ).toMatchObject({
+    status: 421,
+  });
+});
+
+test("the list names each tab's opener, holders, agents and countdown", async () => {
+  const browser = new FakeBrowser([
+    tab(1),
+    tab(2, { url: "https://example.com/p" }),
+  ]);
+  const { base } = await serve(browser, {
+    working: [id(1)],
+    holders: { "t3-x": [id(2)], launchpad: [id(2)] },
+    unviewedGraceMs: 60_000,
+  });
+  const opened = await loopback(base, "/.lazurio/tabs", {
+    method: "POST",
+    body: { url: "https://example.com/new", strip: "t3-x" },
+  });
+  expect(opened.status).toBe(201);
+  expect(opened.body.view).toBe(`${origin}/t/${opened.body.id}`);
+  expect(browser.called("Target.createTarget")[0]?.params).toEqual({
+    url: "https://example.com/new",
+    newWindow: true,
+  });
+  const listed = (await loopback(base, "/.lazurio/tabs")).body
+    .tabs as TabFacts[];
+  const byId = new Map(listed.map((t) => [t.id, t]));
+  expect(byId.get(id(1))).toMatchObject({
+    opener: { kind: "agent", session: `codex-${id(1).slice(-4)}` },
+    agents: [`codex-${id(1).slice(-4)}`],
+    holders: [],
+    grace: null,
+    closing: null,
+  });
+  expect(
+    byId
+      .get(id(2))
+      ?.holders.map((h) => h.strip)
+      .sort(),
+  ).toEqual(["launchpad", "t3-x"]);
+  const fresh = byId.get(String(opened.body.id));
+  expect(fresh?.opener).toEqual({ kind: "new-tab", strip: "t3-x" });
+  expect(fresh?.grace?.kind).toBe("unviewed");
+  expect(Date.parse(String(fresh?.openedAt))).toBeGreaterThan(0);
+  expect(byId.has(firstWindow)).toBe(false);
+  // Not an address the bar may open, or a strip that is no file name.
+  for (const body of [
+    { url: "javascript:alert(1)" },
+    { url: "file:///etc/passwd" },
+    { url: "https://example.com", strip: "../x" },
+    { url: 42 },
+  ])
+    expect(
+      (await loopback(base, "/.lazurio/tabs", { method: "POST", body })).status,
+    ).toBe(400);
+  // A browser's request is refused even on loopback.
+  const refused = await loopback(base, "/.lazurio/tabs", {
+    headers: { Origin: "https://evil.example" },
+  });
+  expect(refused.status).toBe(403);
+});
+
+test("a close for everyone ends a held tab after the grace, and Vrátit within it keeps the tab", async () => {
+  const browser = new FakeBrowser([tab(1), tab(2)]);
+  const { base } = await serve(browser, {
+    releaseGraceMs: 80,
+    working: [id(2)],
+    holders: { "t3-a": [id(1)], launchpad: [id(2)] },
+  });
+  const closing = await loopback(base, `/.lazurio/tabs/${id(1)}/close`, {
+    method: "POST",
+  });
+  expect(closing.status).toBe(202);
+  expect(Date.parse(String(closing.body.closing))).toBeGreaterThan(
+    Date.now() - 1_000,
+  );
+  const restored = await loopback(base, `/.lazurio/tabs/${id(1)}/restore`, {
+    method: "POST",
+  });
+  expect(restored).toEqual({ status: 200, body: { restored: true } });
+  await settle(160);
+  expect(closedTargets(browser)).toEqual([]);
+  // Held and with an agent working in it: closed for everyone all the same.
+  expect(
+    (await loopback(base, `/.lazurio/tabs/${id(2)}/close`, { method: "POST" }))
+      .status,
+  ).toBe(202);
+  const listed = (await loopback(base, "/.lazurio/tabs")).body
+    .tabs as TabFacts[];
+  expect(listed.find((t) => t.id === id(2))?.closing).not.toBeNull();
+  await until(() => closedTargets(browser).includes(id(2)));
+  // Unknown tabs and nothing to restore.
+  expect(
+    (await loopback(base, `/.lazurio/tabs/${id(77)}/close`, { method: "POST" }))
+      .status,
+  ).toBe(404);
+  expect(
+    (
+      await loopback(base, `/.lazurio/tabs/${id(77)}/restore`, {
+        method: "POST",
+      })
+    ).status,
+  ).toBe(404);
+  expect(
+    (
+      await loopback(base, `/.lazurio/tabs/${id(1)}/restore`, {
+        method: "POST",
+      })
+    ).status,
+  ).toBe(409);
+  // The hub's blank window cannot be closed this way.
+  expect(
+    (
+      await loopback(base, `/.lazurio/tabs/${firstWindow}/close`, {
+        method: "POST",
+      })
+    ).status,
+  ).toBe(404);
+});
+
+test("a close for everyone whose grace ends while the browser is away finishes after the reconnect", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { base } = await serve(browser, {
+    releaseGraceMs: 40,
+    reconnectMs: 250,
+    holders: { launchpad: [id(1)] },
+  });
+  expect(
+    (await loopback(base, `/.lazurio/tabs/${id(1)}/close`, { method: "POST" }))
+      .status,
+  ).toBe(202);
+  browser.drop();
+  await settle(120);
+  expect(service?.hub.connected).toBe(false);
+  expect(closedTargets(browser)).toEqual([]);
+  await until(() => closedTargets(browser).includes(id(1)));
 });
 
 test("a tab that goes away tells its viewers", async () => {
@@ -1058,7 +1660,7 @@ test("a slow viewer holds Chrome's next frame instead of the service's memory", 
   const browser = new FakeBrowser([tab(1)]);
   const hub = new BrowserHub({
     connect: browser.connect,
-    boundTargets: async () => new Set(),
+    holds: async () => noHolds,
     uploadDirectory: tmpdir(),
     screen: { width: 1920, height: 1080 },
     log: () => {},
