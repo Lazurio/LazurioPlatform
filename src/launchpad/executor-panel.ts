@@ -21,7 +21,9 @@ type Post = (
 // words, one action (Install, Update, Repair, or an agent for a conflict),
 // and the version, address, service and agents behind Details. The setup
 // runs in the Launchpad: the row says its step while it runs and the state
-// the server reads afterwards, never a state it remembers.
+// the server reads afterwards, never a state it remembers. A setup the page
+// did not start (the Launchpad's own after its start, or Install in another
+// page) is followed the same way once a reading finds it.
 
 const answerMs = 45_000;
 
@@ -61,27 +63,37 @@ export function createExecutorPanel(
 
   async function read(): Promise<void> {
     const turn = ++reading;
-    let parsed: ExecutorStatus | null = null;
+    let value: unknown = null;
     try {
       const answer = await answerWithin(
         options.post("/api/tools/executor/status", {}),
         answerMs,
       );
-      parsed = answer.answered ? parseExecutorStatus(answer.value) : null;
+      value = answer.answered ? answer.value : null;
     } catch {}
     if (turn !== reading) return;
+    // A setup runs: followed as if Install had been clicked here.
+    const pending = parseExecutorSettingUp(value);
+    if (pending !== null) {
+      void setup(pending);
+      return;
+    }
+    const parsed = parseExecutorStatus(value);
     unreadable = parsed === null;
     if (parsed !== null) status = parsed;
     options.changed();
   }
 
-  /** Starts the setup, or joins the one that runs, and asks again until it
-   * ends; the answer is the state it ended in. */
-  async function setup(): Promise<void> {
+  /** Starts the setup, or joins the one that runs (`joined`: the one a
+   * reading found), and asks again until it ends; the answer is the state
+   * it ended in. */
+  async function setup(
+    joined?: Readonly<{ job: string; phase: ExecutorPhase }>,
+  ): Promise<void> {
     if (running !== null) return;
-    running = "install";
+    running = joined?.phase ?? "install";
     options.changed();
-    let body: unknown = {};
+    let body: unknown = joined === undefined ? {} : { job: joined.job };
     for (;;) {
       let value: unknown = null;
       try {

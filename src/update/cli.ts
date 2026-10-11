@@ -7,11 +7,12 @@ import {
   type EnvironmentBrowser,
 } from "../browser/units";
 import {
-  convergeExecutor,
-  type ExecutorConvergence,
+  type ExecutorReport,
   executorFinding,
+  executorScope,
+  reportExecutor,
 } from "../executor/converge";
-import { type ExecutorHost, executorSetup } from "../executor/flow";
+import { type ExecutorHost, executorStatus } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import {
   type FolderRefresh,
@@ -94,10 +95,10 @@ install [--verify-release <directory>] [--service systemd-user --folder <absolut
   lazurio-codex-app-server.service, which runs the operator's own codex
   app-server daemon start at boot; that step never fails the command and
   never stops or restarts a running daemon (codexAppServer in --json). There
-  it also sets Executor up as lazurio executor setup does (the pinned
-  version, its service on 127.0.0.1:4789, the MCP server executor in Codex
-  and Claude Code); that step never fails the command either (executor in
-  --json).
+  it also reads Executor's state (executor in --json) and never sets it up:
+  the Launchpad sets Executor up in the background after it starts, and
+  Settings → Tools → executor shows how it goes. Reading it never fails the
+  command either.
 install prompt [--locale cs|en] [--json]
   The prepared prompt for an agent who straightens a non-standard
   installation: the standard layout on this platform, what was found instead,
@@ -152,8 +153,9 @@ export type CliContext = Readonly<{
    * Resolves undefined where there positively is none and rejects where a
    * hosted context is there but unreadable (`hostedOperatorFolder`, #83). */
   hostedFolder?: (() => Promise<string | undefined>) | undefined;
-  /** Where install and update set Executor up on a supervised hosted base
-   * (decision F44); absent: they never do. This process's in production. */
+  /** Where install and update read Executor's state on a supervised hosted
+   * base (decision F44, addendum of 2026-10-11); absent: they never do. This
+   * process's in production. */
   executor?: (() => ExecutorHost) | undefined;
 }>;
 
@@ -239,21 +241,36 @@ const hostedOperator = (context: CliContext) => async () =>
   context.hostedFolder !== undefined &&
   (await context.hostedFolder().catch(() => undefined)) !== undefined;
 
-/** Executor's convergence for this base (decision F44): only where the
- * context names where Executor is set up. */
-const executorConvergence = (context: CliContext, base: string) => {
+/** What install and update report of Executor for this base (decision F44,
+ * addendum of 2026-10-11): its state, read where the context names where
+ * Executor is set up, never a setup. */
+const executorReport = (context: CliContext, base: string) => {
   const host = context.executor;
   if (host === undefined) return undefined;
   return (hosted: () => Promise<boolean>) =>
-    convergeExecutor({
+    reportExecutor({
       base,
       platform: context.platform,
       env: context.env,
       run: context.run,
       hosted,
-      setup: () => executorSetup(host()),
+      status: () => executorStatus(host()),
     });
 };
+
+/** Whether the Launchpad of this base sets Executor up after it starts
+ * (decision F44, addendum of 2026-10-11, #298): exactly where install and
+ * update report it, a supervised base for the hosted operator
+ * (`executorScope`). */
+export const executorAtStart =
+  (context: CliContext, base: string) => async (): Promise<boolean> =>
+    (await executorScope({
+      base,
+      platform: context.platform,
+      env: context.env,
+      run: context.run,
+      hosted: hostedOperator(context),
+    })) === "hosted";
 
 export async function updateEnvironment(
   context: CliContext,
@@ -297,11 +314,11 @@ export async function updateEnvironment(
         hosted: hostedOperator(context),
         entry: () => handoverBrowserEntry(),
       }),
-    executorUnits: (() => {
-      const converge = executorConvergence(context, base);
-      return converge === undefined
+    executorReport: (() => {
+      const report = executorReport(context, base);
+      return report === undefined
         ? undefined
-        : () => converge(hostedOperator(context));
+        : () => report(hostedOperator(context));
     })(),
     run: context.run,
     ...context.environment,
@@ -501,7 +518,7 @@ const browserFinding = (value: EnvironmentBrowser | undefined): string[] =>
     : [];
 
 /** Executor in words after an installation (decision F44). */
-const executorLines = (value: ExecutorConvergence | undefined): string[] =>
+const executorLines = (value: ExecutorReport | undefined): string[] =>
   value?.state === "running"
     ? [
         "Executor runs in this Environment (sh.executor.daemon.service on 127.0.0.1:4789) and Codex and Claude Code have it as the MCP server executor.",
@@ -689,7 +706,7 @@ export async function runInstallCommand(
         values.folder === undefined ? undefined : { folder: values.folder },
       hosted: hostedOperator(context),
       browserEntry: () => handoverBrowserEntry(),
-      executor: executorConvergence(context, base),
+      executor: executorReport(context, base),
       release:
         directory === undefined
           ? undefined

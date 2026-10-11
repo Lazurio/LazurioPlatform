@@ -908,6 +908,42 @@ test("the Folder keeps personal matters in the personal browser and an Organizat
     expect(work).not.toContain(otherEnvironment);
   }
 });
+// A work matter from the personal Environment: a window in the work
+// Environment's browser over SSH, shown in the right panel by its link, never
+// loaded in the personal browser (root 0191 points 19–23, task 503).
+test("the personal Folder shows a work Environment's browser by its link and never loads it here", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const render = (
+      preset: "hosted-personal" | "hosted-organization-personal",
+      machine: typeof bindings.organizationBrowser,
+    ) =>
+      renderManual({
+        preset,
+        machine,
+        profile: presetProfile(preset, "linux", { locale }),
+      })["manual/this-machine.md"];
+    const personal = render("hosted-personal", bindings.personalBrowser);
+    const work = render(
+      "hosted-organization-personal",
+      bindings.organizationBrowser,
+    );
+    const [heading, never] =
+      locale === "cs"
+        ? [
+            "**Prohlížeč pracovního Environmentu.**",
+            "Pohled ani stránky pracovního Environmentu nikdy nenačítej v prohlížeči tohoto Environmentu.",
+          ]
+        : [
+            "**A work Environment's browser.**",
+            "Never load the work Environment's view or its pages in this Environment's browser.",
+          ];
+    expect(personal).toContain(heading);
+    expect(personal).toContain(never);
+    expect(personal).toContain("lazurio browser window --session");
+    expect(personal).toContain("0.0.45-lazurio.6");
+    expect(work).not.toContain(heading);
+  }
+});
 
 // ---- The CLI -----------------------------------------------------------------
 

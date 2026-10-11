@@ -457,8 +457,12 @@ earlier temporary exception that let any account sign in on a Team VM has ended.
 ### The Environment vault (decision F43)
 
 Root decision 0193: every Environment has its own account `vaultwarden@<Environment
-address>` in the Vaultwarden of its network, its own collection
-`Environmenty/<name> · <machine>` with edit rights, and one unlocked Bitwarden CLI
+address>` in the Vaultwarden of its network, its own collection with edit rights (named
+as the operator likes; at a first connection the only collection the account sees is
+its own, among several `Environmenty/<name> · <machine>`, the suggested name, decides;
+once connected only its ID counts, a gone one reads as revoked, and a disconnect makes
+the next connection a first one again; the 0193 addendum of 2026-10-11), and one
+unlocked Bitwarden CLI
 session that all its agents share. The catalog tool is `bitwarden` (command `bw`); it
 has its own flow instead of F19's install and sign-in, which refuse it as
 `setup-vault`. Remote Environments on Linux only; on this computer it is the second
@@ -624,17 +628,24 @@ Remote Environments on Linux only; on this computer it is the second wave
 - **CLI** (`lazurio executor`): `status [--json]` reads (exit 0); `setup [--json]`
   sets up what is missing (exit 0 running, 2 waiting for a person, 1 not finished;
   its steps go to stderr).
-- **Launchpad**: `POST /api/tools/executor/status` with `{}`, and
+- **Launchpad**: `POST /api/tools/executor/status` with `{}` (the state, or the
+  running setup's `202` below), and
   `POST /api/tools/executor/setup` with `{}` (starts or joins the one setup) or
   `{job}`: `202 {kind: "executor-setting-up", job, phase}` while it runs (`install`,
-  `service`, `agents`), then the state; an unknown job is `404 job-unknown`. The row in
+  `service`, `agents`), then the state; an unknown job is `404 job-unknown`, and a
+  setup asked while the Launchpad closes is `503 closing` (none starts then). The row in
   Settings → Tools says the state in plain words with one action and keeps the
-  version, address, service and agents under Details; no link to the console. The
+  version, address, service and agents under Details; no link to the console. It
+  follows a running setup it did not start. The
   unit's journal gets `{"scope":"tools-executor","operation":"setup","outcome":…}`
-  with a stage and reason when it stopped, nothing else.
-- **Install and update**: on a supervised base of the hosted operator, `lazurio
-  install` and `lazurio update` set Executor up and report `executor` in `--json`;
-  never a reason to fail ([product update](update.md)).
+  with a stage and reason when it stopped, and `"trigger":"start"` for the
+  Launchpad's own setup after its start, nothing else.
+- **Install, update and the Launchpad's start** (addendum of 2026-10-11, #298): on
+  a supervised base of the hosted operator, `lazurio install` and `lazurio update`
+  only read Executor's state and report `executor` in `--json`; never a setup and
+  never a reason to fail ([product update](update.md)). The Launchpad of that base
+  sets Executor up in the background after it starts: one setup per start, where it
+  is `not-installed`, `outdated`, `not-running` or `incomplete`.
 - **Doctor**: the check `executor`, `ok` running, `warn` `executor-<state>` otherwise,
   `skipped` where it is not offered; never `fail`.
 

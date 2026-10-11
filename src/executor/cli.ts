@@ -16,7 +16,7 @@ import { executorUnit } from "./pin";
 
 /** `lazurio executor`: Executor of this Remote Environment for agents and
  * the operator (decision F44). The same core as Settings → Tools → executor
- * and the convergence of `lazurio install` and `lazurio update`. */
+ * and the Launchpad's own setup after it starts. */
 export const executorHelp = `executor status [--json]
   Executor of this Remote Environment as Settings → Tools shows it, read
   locally (the service only on 127.0.0.1): the pinned version and the one
@@ -24,7 +24,7 @@ export const executorHelp = `executor status [--json]
   Claude Code have the MCP server executor. Nothing is changed and the
   network is not used.
 executor setup [--json]
-  What lazurio install and lazurio update do in a Remote Environment, for an
+  What the Launchpad does after it starts in a Remote Environment, for an
   agent or the Launchpad's Repair: installs the pinned Executor (the npm
   registry's tarballs, verified against their pinned integrity before npm
   runs them, offline and without scripts) into

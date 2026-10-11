@@ -240,24 +240,28 @@ function signedInAs(
   );
 }
 
-/** The account's own collection among those it sees: the one named as the
- * operator was shown, the one it was connected to, or the only one named
- * for this machine. */
+/** The account's own collection among those it sees (root decision 0193,
+ * addendum 2026-10-11: its name is the operator's). Once connected, only the
+ * recorded ID counts: a rename changes nothing, and a collection that is gone
+ * is gone (revoked), whatever else the account sees. At a first connection,
+ * when nothing is recorded (a disconnect forgets the record, so connecting
+ * again is a first connection again): the one with the name the dialog
+ * suggested, else the only one named for this machine, else the only
+ * collection the account sees, whatever its name. */
 export function environmentCollection(
   collections: readonly BwCollection[],
   context: VaultContext,
   record: VaultRecord,
 ): BwCollection | undefined {
+  if (record.collectionId !== null)
+    return collections.find((entry) => entry.id === record.collectionId);
   const exact = collections.find((entry) => entry.name === context.collection);
   if (exact !== undefined) return exact;
-  const recorded = collections.find(
-    (entry) => entry.id === record.collectionId,
-  );
-  if (recorded !== undefined) return recorded;
   const named = collections.filter((entry) =>
     isEnvironmentCollection(entry.name, context),
   );
-  return named.length === 1 ? named[0] : undefined;
+  if (named.length === 1) return named[0];
+  return collections.length === 1 ? collections[0] : undefined;
 }
 
 type Observation =
@@ -754,8 +758,9 @@ async function ensureAccount(
 
 /** `connect`: installs the pinned CLI, creates the account when there is
  * none, signs it in with its API key, unlocks the one session and syncs.
- * Connecting again after a revoked access starts a new confirmation: the
- * record of the collection is dropped. Never runs twice at once. */
+ * The collection it was connected to stays its own, also when connecting
+ * again after a revoked access: only a disconnect forgets it (root decision
+ * 0193, addendum 2026-10-11). Never runs twice at once. */
 export async function vaultConnect(
   host: VaultHost,
   onPhase: (phase: VaultPhase) => void = () => undefined,
@@ -818,12 +823,15 @@ export async function vaultConnect(
       if (!session.ok)
         return journal(failedStatus(facts, "sign-in", session.reason));
       const synced = await bw.sync(session.session);
-      const empty: VaultRecord = {
+      // The fingerprint is read anew; the collection it was connected to is
+      // kept, so a connect never takes another one in its place.
+      const recorded = await readRecord(paths);
+      const kept: VaultRecord = {
         fingerprint: null,
-        organizationId: null,
-        collectionId: null,
+        organizationId: recorded.organizationId,
+        collectionId: recorded.collectionId,
       };
-      const fingerprint = await fingerprintOf(bw, session.session, empty);
+      const fingerprint = await fingerprintOf(bw, session.session, kept);
       if (!synced.ok)
         return journal(
           synced.reason === "unreachable" || synced.reason === "timeout"
@@ -836,11 +844,11 @@ export async function vaultConnect(
               }
             : failedStatus(facts, "sync", synced.reason),
         );
-      const observation = await observe(bw, session.session, context, empty);
+      const observation = await observe(bw, session.session, context, kept);
       if (observation.kind === "failed")
         return journal(failedStatus(facts, "status", observation.reason));
-      await writeRecord(paths, empty).catch(() => undefined);
-      await recordObservation(paths, empty, observation, fingerprint);
+      await writeRecord(paths, kept).catch(() => undefined);
+      await recordObservation(paths, kept, observation, fingerprint);
       return journal(statusOf(facts, observation, fingerprint));
     },
   );

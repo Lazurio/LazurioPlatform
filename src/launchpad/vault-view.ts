@@ -370,8 +370,15 @@ export function vaultAfterConnect(
     case "connected":
       return { step: "done", failure: null, agent: false };
     case "awaiting-invite":
-    case "revoked":
       return { step: "invite", failure: copy.vaultNotInvited, agent: false };
+    case "revoked":
+      // Its collection is kept (0193 addendum): another one needs a
+      // disconnect first.
+      return {
+        step: "invite",
+        failure: copy.vaultRevokedConnect,
+        agent: false,
+      };
     case "unreachable":
       return {
         step: "connect",
