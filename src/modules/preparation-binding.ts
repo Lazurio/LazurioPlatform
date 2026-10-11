@@ -189,7 +189,9 @@ export async function inspectPreparationShape(
   );
   checkOwner(preparation, applicationPackage, installOwner);
   requireQualifiedInstall(preparation, applicationPackage, installOwner);
-  return preparation;
+  // The runtime it was read from: the catalog also checks its declared
+  // secrets against what the Environment is (decision F46).
+  return Object.freeze({ preparation, runtime: plan.runtime });
 }
 
 // Read-only binding inspection for an explicitly selected, caller-owned module.

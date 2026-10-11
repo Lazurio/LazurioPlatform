@@ -37,8 +37,18 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   (required-slot-undeclared, required-slot-planned, required-slot-missing,
   with the slot); a required sibling module workspace/<slug> with an HTTP
   default app is passed as LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN, its
-  loopback address. An app whose package declares no lazurio.preparation is
-  prepared by default first: bun install --frozen-lockfile from the bun.lock
+  loopback address. Every secret the app declares (lazurio.runtime secrets
+  and optional_secrets, names only) is read from this Environment's vault
+  before every start: the login password of the one item of exactly that
+  name in the Environment's collection, passed to the app's own process
+  only as LAZURIO_RUNTIME_SECRET_<NAME>. Only an app of the Organization
+  that owns the Environment reads them. A required secret without a value
+  refuses the start (runtime-secret-unavailable, with each name and why:
+  missing, ambiguous, empty, not-connected, unreachable, other-organization,
+  personalspace, workstation, …); an optional one whose item is not there,
+  or that an unusable vault does not give, is only reported, and the app
+  starts without it. Values are never printed. An app whose package
+  declares no lazurio.preparation is prepared by default first: bun install --frozen-lockfile from the bun.lock
   beside its package.json, which leaves registry dependencies as they are
   when node_modules already matches it (local file: dependencies are copied
   again and the package's own lifecycle scripts such as postinstall run on
@@ -112,6 +122,8 @@ const explanations: Readonly<Record<string, string>> = {
     "The app requires this slot, which the Organization manifest declares as planned (planned_slot); it cannot start in this Environment until the slot is active.",
   "required-slot-missing":
     "The app requires this slot, which is not checked out in this Environment beside it; nothing was started. Synchronize the Organization (lazurio update) or ask for access to that repository, then start again.",
+  "runtime-secret-unavailable":
+    "The app needs these secrets and the Environment's vault did not give them, so nothing was started. Each is the login password of the one item named exactly like it in this Environment's collection (lazurio vault status); add or fix the item and start again. Values are never shown.",
   "preparation-script-failed":
     "The prepare_script this package declares failed after the dependencies were installed; nothing was started. Fix the module's preparation and start (or lazurio module prepare) again.",
   "application-running":
@@ -176,7 +188,9 @@ function describe(name: string, result: ModuleResult): string {
         : ` (${result.candidates.map(shown).join(", ")})`;
     const explanation = explanations[result.reason];
     const file = result.file === undefined ? "" : ` (${shown(result.file)})`;
-    return `${shown(name)}: ${result.reason}${file}${candidates}${explanation === undefined ? "" : `\n${explanation}`}`;
+    const secrets =
+      result.secrets === undefined ? "" : ` (${secretList(result.secrets)})`;
+    return `${shown(name)}: ${result.reason}${file}${secrets}${candidates}${explanation === undefined ? "" : `\n${explanation}`}`;
   }
   if (result.kind === "module-logs") return result.lines.join("\n");
   const title = `${result.organization}/${result.module}`;
@@ -193,8 +207,16 @@ function describe(name: string, result: ModuleResult): string {
       : result.runtimeReason !== undefined
         ? [`  link    none (${result.runtimeReason})`]
         : []),
+    ...(result.secretsNotProvided?.length
+      ? [`  without optional secrets ${secretList(result.secretsNotProvided)}`]
+      : []),
   ].join("\n");
 }
+
+// Runtime secrets by name and reason (decision F46), never a value.
+const secretList = (
+  secrets: readonly Readonly<{ name: string; reason: string }>[],
+) => secrets.map((entry) => `${shown(entry.name)}: ${entry.reason}`).join(", ");
 
 export async function runModuleCommand(
   args: string[],

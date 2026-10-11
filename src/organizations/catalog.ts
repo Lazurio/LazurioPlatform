@@ -1,14 +1,21 @@
 import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { withFolderReadLock } from "../folder/lock";
 import {
   inspectCheckoutDirectory,
   inspectOwnedDirectory,
 } from "../folder/owned-directory";
+import { readFolderState } from "../folder/read-state";
 import { inspectPreparationShape } from "../modules/preparation-binding";
 import {
   type PreparationReason,
   preparationRefusal,
 } from "../modules/preparation-refusal";
+import {
+  declaredSecretsFinding,
+  type RuntimeSecretFinding,
+  type SecretEnvironment,
+} from "../modules/runtime-secrets";
 import {
   type CheckoutReason,
   checkoutRefusal,
@@ -81,7 +88,12 @@ export type ModuleReason =
   | CheckoutReason
   /** The default app's preparation cannot run for a reason known without
    * running anything (decision F25); `file` names the package it concerns. */
-  | PreparationReason;
+  | PreparationReason
+  /** A secret the default app requires cannot come from this Environment's
+   * vault, as known without the vault (decision F46): a Personalspace
+   * module, a workstation, an app of another Organization; `secrets`
+   * names them. */
+  | "runtime-secret-unavailable";
 
 /** What the default app of a module says of itself for a page (decision
  * F36): its id, title, description, semantic icon key and tags, bounded and
@@ -127,11 +139,18 @@ export type CatalogModule = Readonly<{
   /** With a refused declaration: the file, relative to the module (or to the
    * Organization root for an Organization document). Never absolute. */
   file?: string;
-  /** Set when `reason` is the default app's preparation (decision F25): the
-   * module's declarations admit it, so its running app is still read,
-   * logged and stopped; only a start (and `ensure` that would start) is
-   * refused. */
+  /** Set when `reason` is the default app's preparation (decision F25), or
+   * its required runtime secrets (F46): the module's declarations admit it,
+   * so its running app is still read, logged and stopped; only a start (and
+   * `ensure` that would start) is refused. */
   preparationRefused?: true;
+  /** `runtime-secret-unavailable`: each required secret, by name, and why
+   * (decision F46). Never a value. */
+  secrets?: readonly RuntimeSecretFinding[];
+  /** The default app's optional secrets it would start without, as known
+   * without the vault, and why: a note, not a refusal (root decision 0196,
+   * decision F46). */
+  secretsNotProvided?: readonly RuntimeSecretFinding[];
   /** `teams-invalid` when the declared membership is not a list of slugs. */
   issues?: readonly string[];
   /** Its repository's GitHub page, read from the slot's `git.url` (or the
@@ -201,6 +220,14 @@ export type Catalog = Readonly<{
 }>;
 
 type Data = Readonly<Record<string, unknown>>;
+// The declared-secret fields of a module finding, when it has them.
+const secretFields = (finding: ModuleFinding) => ({
+  ...(finding.secrets === undefined ? {} : { secrets: finding.secrets }),
+  ...(finding.secretsNotProvided === undefined
+    ? {}
+    : { secretsNotProvided: finding.secretsNotProvided }),
+});
+
 const isRecord = (value: unknown): value is Data =>
   !!value && typeof value === "object" && !Array.isArray(value);
 const teamSlug = /^[a-z0-9](?:[a-z0-9-]{0,98}[a-z0-9])?$/;
@@ -279,12 +306,15 @@ async function preparationReason(
   moduleDirectory: string,
   app: string,
   organizationDirectory: string,
-): Promise<
-  Readonly<{ reason?: ModuleReason; file?: string; preparationRefused?: true }>
-> {
+  secrets: SecretCheck,
+): Promise<ModuleFinding> {
+  let runtime: Awaited<ReturnType<typeof inspectPreparationShape>>["runtime"];
   try {
-    await inspectPreparationShape(moduleDirectory, app, organizationDirectory);
-    return {};
+    ({ runtime } = await inspectPreparationShape(
+      moduleDirectory,
+      app,
+      organizationDirectory,
+    ));
   } catch (error) {
     // Named relative to the module, else to the Organization root, as the
     // start names them (a dependency may lie in the Organization's root
@@ -296,6 +326,54 @@ async function preparationReason(
       preparationRefused: true,
     };
   }
+  // Its declared secrets, as far as the Folder tells (decision F46).
+  const found = await secrets(runtime).catch(() => ({}));
+  return "reason" in found && found.reason !== undefined
+    ? { ...found, preparationRefused: true }
+    : found;
+}
+
+type ModuleFinding = Readonly<{
+  reason?: ModuleReason;
+  file?: string;
+  preparationRefused?: true;
+  secrets?: readonly RuntimeSecretFinding[];
+  secretsNotProvided?: readonly RuntimeSecretFinding[];
+}>;
+
+/** The catalog's check of an app's declared secrets (decision F46). */
+type SecretCheck = (
+  runtime: Parameters<typeof declaredSecretsFinding>[0],
+) => ReturnType<typeof declaredSecretsFinding>;
+
+/** What the Folder records of the Environment, read at most once per
+ * catalog and only when an app declares a secret. */
+function folderSecretEnvironment(
+  folder: string,
+): () => Promise<SecretEnvironment> {
+  let read: Promise<SecretEnvironment> | undefined;
+  return () => {
+    read ??= (async (): Promise<SecretEnvironment> => {
+      try {
+        const state = join(folder, ".lazurio");
+        const machine = await withFolderReadLock(
+          state,
+          async () => (await readFolderState(state)).preferences.machine,
+        );
+        if (machine === null) return { kind: "workstation" };
+        return {
+          kind: "hosted",
+          organization:
+            machine.owner.kind === "organization"
+              ? machine.owner.organization
+              : null,
+        };
+      } catch {
+        return { kind: "unknown" };
+      }
+    })();
+    return read;
+  };
 }
 
 // Whether a module's own declaration admits a start of its default app: the
@@ -308,9 +386,8 @@ async function moduleReason(
   apps: readonly CatalogApp[],
   moduleDirectory: string,
   organizationDirectory: string,
-): Promise<
-  Readonly<{ reason?: ModuleReason; file?: string; preparationRefused?: true }>
-> {
+  secrets: SecretCheck,
+): Promise<ModuleFinding> {
   if (observed.kind !== "module-observed")
     return observed.file === undefined
       ? { reason: observed.kind }
@@ -322,6 +399,7 @@ async function moduleReason(
       moduleDirectory,
       defaultApp,
       organizationDirectory,
+      secrets,
     );
   return app?.reason !== undefined && app.file !== undefined
     ? { reason: app.reason, file: app.file }
@@ -430,6 +508,11 @@ async function isCheckedOut(root: string, path: string): Promise<boolean> {
 export async function readCatalogOrganization(
   directory: string,
   name: string,
+  /** What the Folder records of the Environment, for the declared secrets
+   * (decision F46); unknown without a Folder. */
+  environment: () => Promise<SecretEnvironment> = async () => ({
+    kind: "unknown",
+  }),
 ): Promise<CatalogOrganization> {
   const { result, documents } = await observeOrganizationApplications(
     directory,
@@ -488,13 +571,14 @@ export async function readCatalogOrganization(
           entry.kind === "module-observed" ? entry.defaultApp : null;
         // The Organization's gate comes first: it applies before any module,
         // and its modules' preparation is not inspected.
-        const own = executable
+        const own: ModuleFinding = executable
           ? await moduleReason(
               entry,
               defaultApp,
               apps,
               join(directory, entry.path),
               directory,
+              (runtime) => declaredSecretsFinding(runtime, false, environment),
             )
           : {};
         const reason = executable ? own.reason : "organization-not-executable";
@@ -516,6 +600,7 @@ export async function readCatalogOrganization(
             ...(reason === undefined ? {} : { reason }),
             ...(file === undefined ? {} : { file }),
             ...(preparation ? { preparationRefused: true } : {}),
+            ...secretFields(executable ? own : {}),
             ...(invalid ? { issues: Object.freeze(["teams-invalid"]) } : {}),
             ...(url === null ? {} : { url }),
           } satisfies CatalogModule),
@@ -645,13 +730,19 @@ async function readCatalogPersonalspace(
           : [];
       const defaultApp =
         observed.kind === "module-observed" ? observed.defaultApp : null;
-      const { reason, file, preparationRefused } = await moduleReason(
+      const own = await moduleReason(
         observed,
         defaultApp,
         apps,
         moduleDirectory,
         located.directory,
+        // A Personalspace module: no vault serves it (decision F46).
+        (runtime) =>
+          declaredSecretsFinding(runtime, true, async () => ({
+            kind: "unknown",
+          })),
       );
+      const { reason, file, preparationRefused } = own;
       return Object.freeze({
         organization: personalspaceName,
         module: id,
@@ -666,6 +757,7 @@ async function readCatalogPersonalspace(
         ...(reason === undefined ? {} : { reason }),
         ...(file === undefined ? {} : { file }),
         ...(preparationRefused ? { preparationRefused } : {}),
+        ...secretFields(own),
       });
     }),
   );
@@ -710,8 +802,11 @@ export async function readFolderCatalog(folder: string): Promise<Catalog> {
     )
     .map((entry) => entry.name)
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const environment = folderSecretEnvironment(folder);
   const organizations = await Promise.all(
-    names.map((name) => readCatalogOrganization(join(root, name), name)),
+    names.map((name) =>
+      readCatalogOrganization(join(root, name), name, environment),
+    ),
   );
   return Object.freeze({
     kind: "catalog",

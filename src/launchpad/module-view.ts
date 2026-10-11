@@ -1,5 +1,6 @@
 import type { ModuleAnswer, ModuleBlocked } from "../modules/module-operations";
-import { withFile } from "./catalog-view";
+import type { RuntimeSecretFinding } from "../modules/runtime-secrets";
+import { runtimeSecretsText, withFile } from "./catalog-view";
 import type { MessageKey } from "./messages";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -19,7 +20,8 @@ export function parseModuleResult(
   if (value.kind === "blocked")
     return text(value.operation) &&
       text(value.reason) &&
-      (value.file === undefined || text(value.file))
+      (value.file === undefined || text(value.file)) &&
+      (value.secrets === undefined || secretFindings(value.secrets))
       ? (value as ModuleBlocked)
       : null;
   if (
@@ -35,11 +37,26 @@ export function parseModuleResult(
     ) ||
     typeof value.healthy !== "boolean" ||
     typeof value.survivesLaunchpadRestart !== "boolean" ||
-    !(value.runtime === null || typeof value.runtime === "object")
+    !(value.runtime === null || typeof value.runtime === "object") ||
+    !(
+      value.secretsNotProvided === undefined ||
+      secretFindings(value.secretsNotProvided)
+    )
   )
     return null;
   return value as ModuleAnswer;
 }
+
+// Runtime secrets by name and reason (decision F46): never a value.
+const secretFindings = (value: unknown): boolean =>
+  Array.isArray(value) &&
+  value.every(
+    (entry) =>
+      entry !== null &&
+      typeof entry === "object" &&
+      typeof entry.name === "string" &&
+      typeof entry.reason === "string",
+  );
 
 const loopbackHosts = ["127.0.0.1", "[::1]", "localhost"];
 
@@ -77,6 +94,7 @@ const reasonKeys: Readonly<Record<string, MessageKey>> = {
   "required-slot-undeclared": "moduleReasonRequiredSlotUndeclared",
   "required-slot-planned": "moduleReasonRequiredSlotPlanned",
   "required-slot-missing": "moduleReasonRequiredSlotMissing",
+  "runtime-secret-unavailable": "moduleReasonRuntimeSecretUnavailable",
   "coordination-busy": "appCoordinationBusy",
   "service-unrecognized": "appServiceUnrecognized",
   "preparation-recovery-required": "appPreparationRecoveryRequired",
@@ -115,13 +133,17 @@ export function moduleReasonText(
   reason: string,
   copy: Copy,
   file?: string,
+  secrets?: readonly RuntimeSecretFinding[],
 ): string {
   const key = Object.hasOwn(reasonKeys, reason)
     ? reasonKeys[reason]
     : undefined;
   return key === undefined
     ? copy.moduleRefused.replace("{reason}", reason)
-    : withFile(copy[key], file);
+    : withFile(copy[key], file).replace(
+        "{secrets}",
+        runtimeSecretsText(secrets, copy),
+      );
 }
 
 // Why a healthy app has no Open link, in words, or by its code.
@@ -169,7 +191,7 @@ export function moduleStatusView(
   if (status.kind === "blocked")
     return {
       dot: "unknown",
-      text: moduleReasonText(status.reason, copy, status.file),
+      text: moduleReasonText(status.reason, copy, status.file, status.secrets),
       code: status.reason,
       action: null,
       ...none,
@@ -247,10 +269,20 @@ export function moduleResultMessage(
 ): string {
   if (result === null) return copy.appResultUnknown;
   if (result.kind === "blocked")
-    return moduleReasonText(result.reason, copy, result.file);
+    return moduleReasonText(result.reason, copy, result.file, result.secrets);
   switch (result.outcome) {
-    case "started":
-      return result.healthy ? copy.moduleStartedHealthy : copy.moduleStarted;
+    case "started": {
+      const started = result.healthy
+        ? copy.moduleStartedHealthy
+        : copy.moduleStarted;
+      // Optional secrets it started without (decision F46): a note.
+      return result.secretsNotProvided?.length
+        ? `${started} ${copy.moduleSecretsNotProvided.replace(
+            "{secrets}",
+            runtimeSecretsText(result.secretsNotProvided, copy),
+          )}`
+        : started;
+    }
     case "already-managed":
       return copy.moduleAlreadyRunning;
     case "group-stopped":

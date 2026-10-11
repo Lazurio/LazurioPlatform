@@ -269,3 +269,59 @@ test("the page keeps reading the status only while a started app settles", () =>
   expect(moduleSettling(refusal("port-occupied"))).toBe(false);
   expect(moduleSettling(null)).toBe(false);
 });
+
+test("a start refused for its runtime secrets names each one and why, and a start without optional ones says so, in both languages (decision F46)", () => {
+  const refused: ModuleBlocked = {
+    ...refusal("runtime-secret-unavailable"),
+    secrets: [
+      { name: "EXTERNAL_API_KEY", reason: "missing" },
+      { name: "SECOND_KEY", reason: "missing" },
+      { name: "THIRD_KEY", reason: "ambiguous" },
+    ],
+  };
+  expect(parseModuleResult(refused)).toEqual(refused);
+  expect(
+    parseModuleResult({ ...refused, secrets: [{ name: "EXTERNAL_API_KEY" }] }),
+  ).toBeNull();
+  expect(moduleResultMessage(refused, en)).toBe(
+    "The app was not started: it needs secrets that this Environment's vault did not give it. EXTERNAL_API_KEY, SECOND_KEY: no item of this name in the Environment's collection; THIRD_KEY: more than one item of this name in the Environment's collection. Values are never shown; add or fix the item named exactly like the secret in the Environment's collection and start again.",
+  );
+  const czech = moduleResultMessage(refused, cs);
+  expect(czech).toContain("EXTERNAL_API_KEY, SECOND_KEY: v kolekci");
+  expect(czech).toContain("THIRD_KEY: v kolekci Environmentu je víc položek");
+  expect(moduleStatusView(refused, cs).code).toBe("runtime-secret-unavailable");
+  for (const copy of [en, cs])
+    for (const reason of [
+      "personalspace",
+      "workstation",
+      "no-vault-identity",
+      "other-organization",
+      "not-connected",
+      "locked",
+      "busy",
+      "unreachable",
+      "vault-failed",
+      "empty",
+    ] as const) {
+      const sentence = moduleResultMessage(
+        { ...refused, secrets: [{ name: "EXTERNAL_API_KEY", reason }] },
+        copy,
+      );
+      expect(sentence).toContain("EXTERNAL_API_KEY: ");
+      // In words, never the bare code.
+      expect(sentence).not.toContain(`EXTERNAL_API_KEY: ${reason}`);
+      expect(sentence).not.toContain("{secrets}");
+    }
+  const started = answer({
+    operation: "start",
+    outcome: "started",
+    secretsNotProvided: [{ name: "OPTIONAL_KEY", reason: "not-connected" }],
+  });
+  expect(parseModuleResult(started)).toEqual(started);
+  expect(moduleResultMessage(started, en)).toBe(
+    `${en.moduleStartedHealthy} Started without these optional secrets, so the capabilities that need them are off: OPTIONAL_KEY: the vault is not connected (Settings → Tools → bitwarden).`,
+  );
+  expect(moduleResultMessage(started, cs)).toContain(
+    "Spuštěno bez těchto volitelných tajných údajů",
+  );
+});

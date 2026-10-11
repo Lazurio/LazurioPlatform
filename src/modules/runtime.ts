@@ -31,6 +31,8 @@ export function parseAppRuntime(input: unknown) {
       "description",
       "group",
       "production_url",
+      "secrets",
+      "optional_secrets",
     ],
   );
   if (value.schema_version !== "lazurio.runtime.v1")
@@ -82,6 +84,10 @@ export function parseAppRuntime(input: unknown) {
       throw new Error("Invalid required module slots");
     optional.required_module_slots = Object.freeze(slots);
   }
+  const secrets = secretNames(value, "secrets");
+  const optionalSecrets = secretNames(value, "optional_secrets");
+  if (optionalSecrets.some((name) => secrets.includes(name)))
+    throw new Error("Runtime secret declared required and optional");
   const listenerIds = new Set<string>();
   const leaseIds = new Set<string>();
   const listeners = array(value.listeners).map((input) => {
@@ -135,8 +141,34 @@ export function parseAppRuntime(input: unknown) {
     dev_script: devScript,
     tags,
     listeners: Object.freeze(listeners),
+    /** The names of the secrets the app needs at start (root decision 0177,
+     * decision F46): read from the Environment vault before every start and
+     * passed as `LAZURIO_RUNTIME_SECRET_<NAME>`; without one it does not
+     * start. Names only, never values; empty when none are declared. */
+    secrets,
+    /** The names of the secrets the app can use when the Environment holds
+     * them (root decision 0196, decision F46): passed like `secrets` when
+     * their item is there, otherwise the app starts without the variable. */
+    optional_secrets: optionalSecrets,
     optional: Object.freeze(optional),
   });
+}
+
+/** The grammar of a runtime secret's name (root decision 0177): it is the
+ * vault item's name and the suffix of `LAZURIO_RUNTIME_SECRET_<NAME>`. */
+export const runtimeSecretName = /^[A-Z][A-Z0-9_]*$/;
+
+// `secrets` or `optional_secrets`: absent, or a non-empty array of unique
+// names of the grammar above; anything else refuses the declaration.
+function secretNames(
+  value: Record<string, unknown>,
+  key: "secrets" | "optional_secrets",
+): readonly string[] {
+  if (!Object.hasOwn(value, key)) return Object.freeze([]);
+  const names = array(value[key]).map((name) => text(name, runtimeSecretName));
+  if (!names.length || new Set(names).size !== names.length)
+    throw new Error("Invalid runtime secrets");
+  return Object.freeze(names);
 }
 
 export function planModuleRuntime(

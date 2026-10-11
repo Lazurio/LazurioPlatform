@@ -17,6 +17,11 @@ import type { createApplicationLifecycle } from "./lifecycle";
 import { createOwnerOperations } from "./owner-operations";
 import { inspectPreparationBinding } from "./preparation-binding";
 import { parseProcessLaunch } from "./process-launch";
+import {
+  admitRuntimeSecrets,
+  type RuntimeSecretSource,
+  readRuntimeSecrets,
+} from "./runtime-secrets";
 import { requiredSlotOrigins } from "./sibling-origins";
 
 type Adapters = Parameters<typeof createApplicationLifecycle>[0];
@@ -50,6 +55,12 @@ export function localApplicationAdapters(input: {
   // throw refuses the launch.
   organizationRoot?: string;
   externalOrigin?: (module: string) => Promise<string | null>;
+  // Where the app's declared runtime secrets are read before every start
+  // (decision F46): the Environment vault. A Personalspace module gets none
+  // (`personalspace`), and without a source an app that requires one does
+  // not start (`no-vault-identity`).
+  secretSource?: RuntimeSecretSource | undefined;
+  personalspace?: boolean;
 }): Adapters {
   // The one environment of every process started for a module here: the
   // preparation's install and scripts, the toolchain probe and the
@@ -91,6 +102,11 @@ export function localApplicationAdapters(input: {
           slots,
         });
   };
+  const secretInput = (plan: Parameters<Adapters["prepareLaunch"]>[0]) => ({
+    runtime: plan.runtime,
+    personalspace: input.personalspace === true,
+    source: input.secretSource,
+  });
   const preflight =
     (
       check: boolean,
@@ -107,8 +123,13 @@ export function localApplicationAdapters(input: {
       );
       if (dirname(join(module.moduleDirectory, plan.package)) !== cwd)
         throw new Error("Application scope changed");
-      // A start whose required slot is not there installs nothing.
-      if (check) await requiredSlots(plan);
+      // A start whose required slot is not there installs nothing, nor one
+      // whose required secret the vault cannot give it, as far as is known
+      // without reading it (decision F46).
+      if (check) {
+        await requiredSlots(plan);
+        await admitRuntimeSecrets(secretInput(plan));
+      }
       const options = {
         moduleDirectory: module.moduleDirectory,
         applicationPackage: plan.package,
@@ -167,6 +188,13 @@ export function localApplicationAdapters(input: {
       );
       // Checked again at the launch itself, with the sibling origins.
       const siblings = await requiredSlots(plan);
+      const externalOrigin =
+        plan.defaultApp && input.externalOrigin
+          ? await input.externalOrigin(plan.runtime.module)
+          : null;
+      // Read last, at every start: a value changed in the vault reaches the
+      // app at its next start. Only the app's own process gets them.
+      const secrets = await readRuntimeSecrets(secretInput(plan));
       return {
         executable: selected.executable,
         cwd,
@@ -176,12 +204,13 @@ export function localApplicationAdapters(input: {
           plan,
           cwd,
           organizationRoot: input.organizationRoot,
-          externalOrigin:
-            plan.defaultApp && input.externalOrigin
-              ? await input.externalOrigin(plan.runtime.module)
-              : null,
+          externalOrigin,
           siblings,
+          secrets: secrets.variables,
         }),
+        ...(secrets.notProvided.length > 0
+          ? { secretsNotProvided: secrets.notProvided }
+          : {}),
       };
     },
     async coordinateMutation(selection, action, intent) {
