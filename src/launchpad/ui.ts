@@ -509,12 +509,35 @@ const recovery = createRecoveryPanel({
   copy: () => copy,
   t3codeOrigin: () => chatHref(entry),
 });
-// The right panel (decision F38's addendum of 2026-10-05): the Environment
-// browser's view, offered only where the recorded entry routes it and never
-// in Recovery mode; closed until the person opens it.
+// The right panel (decision F38's addendum of 2026-10-05, decision F47 point
+// 9): every tab of the Environment browser and Nová karta, offered only where
+// the recorded entry routes the view and never in Recovery mode; closed until
+// the person opens it. Its requests carry the page's credential, as every
+// read of this page does.
 const browser = createBrowserPanel({
   copy: () => copy,
+  locale: () => locale,
   origin: () => browserPanelOrigin(entry, recoveryMode !== null),
+  transport: async (method, path, body) => {
+    try {
+      const response = await fetch(path, {
+        method,
+        headers:
+          method === "POST"
+            ? { "Content-Type": "application/json", ...credential() }
+            : credential(),
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        cache: "no-store",
+      });
+      denied(response);
+      const value: unknown = await response.json().catch(() => null);
+      const mode = recoveryModeAnswer(response.status, value);
+      if (mode !== null) enterRecovery(mode);
+      return { status: response.status, value };
+    } catch {
+      return { status: 0, value: null };
+    }
+  },
   changed: () => tour.update(),
 });
 // The frame: routes, the catalog and settings navigation, the breadcrumb and

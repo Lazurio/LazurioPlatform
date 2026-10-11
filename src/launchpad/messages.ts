@@ -1045,10 +1045,7 @@ const en = {
   browserReload: "Reload",
   browserOpenTab: "Open in a new tab",
   browserClose: "Close",
-  browserFrame: "Windows of the Environment browser",
-  browserLoading: "Opening the Environment browser…",
-  browserUnavailable:
-    "The Environment browser is not available right now; try to reload it in a moment.",
+  browserFrame: "A tab of the Environment browser",
   browserFailed:
     "The Environment browser could not be loaded here; open it in a new tab, where you can sign in again.",
   integrationsTitle: "Integrations",
@@ -2203,10 +2200,7 @@ const cs: Record<MessageKey, string> = {
   browserReload: "Načíst znovu",
   browserOpenTab: "Otevřít v nové kartě",
   browserClose: "Zavřít",
-  browserFrame: "Okna prohlížeče Environmentu",
-  browserLoading: "Otevírá se prohlížeč Environmentu…",
-  browserUnavailable:
-    "Prohlížeč Environmentu teď není k dispozici; zkus ho za chvíli načíst znovu.",
+  browserFrame: "Záložka prohlížeče Environmentu",
   browserFailed:
     "Prohlížeč Environmentu se tu nepodařilo načíst; otevři ho v nové kartě, kde se můžeš znovu přihlásit.",
   integrationsTitle: "Integrace",

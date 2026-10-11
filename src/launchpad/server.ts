@@ -51,6 +51,7 @@ import { readFolderCatalog } from "../organizations/catalog";
 import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
+import { newTabPagePath } from "../shell/new-tab-protocol";
 import {
   activatableTools,
   executorToolName,
@@ -102,6 +103,7 @@ import { runningModules } from "./new-tab/modules";
 import {
   createNewTabRoutes,
   type NewTabHost,
+  newTabPageHeaders,
   processNewTabHost,
 } from "./new-tab-routes";
 import {
@@ -657,11 +659,13 @@ export async function startLaunchpad(
   // never stored and carries its boot document; an asset keeps the inner
   // listener's caching (the bundle's hashed files, the fonts and the stones
   // immutable, the shell's script revalidated by its ETag); an answer
-  // without its own, a missing asset among them, is not stored.
+  // without its own, a missing asset among them, is not stored. A page may
+  // add headers of its own: only Nová karta's does (`newTabPageHeaders`).
   async function fromShell(
     request: Request,
     path: string,
     status: (page: Response) => number,
+    pageHeaders: Readonly<Record<string, string>> = {},
   ): Promise<Response> {
     if (shell === null) throw new Error("No inner listener");
     const page = await shell.get(path, request.headers.get("accept"));
@@ -670,7 +674,7 @@ export async function startLaunchpad(
     if (page.ok && type.startsWith("text/html")) {
       const answer = new Response(body, {
         status: status(page),
-        headers: { ...headers, "Content-Type": type },
+        headers: { ...headers, ...pageHeaders, "Content-Type": type },
       });
       if (request.method === "HEAD") return answer;
       const boot = await pageBoot();
@@ -747,6 +751,11 @@ export async function startLaunchpad(
             request,
             `${url.pathname}${url.search}`,
             (page) => page.status,
+            // Nová karta is framed only by the Environment's own apps (F47
+            // point 1).
+            url.pathname === newTabPagePath && entry !== null
+              ? newTabPageHeaders(entry)
+              : {},
           );
       } else if (!admitLocal(request, origin, token))
         return response({ error: "denied" }, 403);

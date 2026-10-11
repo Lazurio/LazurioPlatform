@@ -524,17 +524,55 @@ button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); co
 .apps-head .browser-toggle, .market-head .browser-toggle, .integrations-head .browser-toggle { font-weight: var(--lz-weight-akce); }
 .market-head .browser-toggle { margin-left: auto; }
 .browser-panel { position: sticky; top: 0; z-index: 3; display: flex; flex: none; flex-direction: column; width: clamp(360px, calc((100vw - var(--lazurio-rail-width, 64px) - var(--column-width)) / 2), 960px); height: 100vh; background: var(--card); border-left: 1px solid var(--lz-line-faint); }
-.browser-head { display: flex; flex: none; align-items: center; gap: 8px; height: 52px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--lz-line-faint); }
-.browser-title { flex: 1; min-width: 0; overflow: hidden; font-size: 14px; font-weight: var(--lz-weight-akce); text-overflow: ellipsis; white-space: nowrap; }
 .browser-title:focus { outline: none; }
-.browser-title:focus-visible { outline: 2px solid var(--lz-accent); outline-offset: 2px; border-radius: 4px; }
+/* The strip (decision F47 point 9, the wireframe's BrowserPanel): every tab
+   of the Environment, then "+" for Nová karta, and the panel's own actions.
+   Tabs narrow to 92 px first, then the list scrolls sideways and the shown
+   tab stays in view. */
+.browser-strip { display: flex; flex: none; align-items: center; gap: 8px; height: 46px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--lz-line-faint); background: var(--lz-paper); }
+.browser-tabs { display: flex; flex: 1; align-items: center; gap: 4px; min-width: 0; }
+.browser-tablist { display: flex; flex: 0 1 auto; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.browser-tablist::-webkit-scrollbar { display: none; }
+.browser-tab { display: flex; flex: 1 1 220px; align-items: center; height: 32px; min-width: 92px; max-width: 220px; border: 1px solid transparent; border-radius: var(--lz-radius-sm); color: var(--lz-ink-muted); }
+.browser-tab:hover { background: var(--lz-gray-50); }
+.browser-tab.is-active { border-color: var(--lz-line); background: var(--lz-white); color: var(--lz-ink); }
+button.browser-tab-main { flex: 1; justify-content: flex-start; gap: 8px; height: 100%; min-width: 0; padding: 0 2px 0 10px; border: 0; border-radius: var(--lz-radius-sm); background: transparent; color: inherit; font-weight: 400; text-align: left; }
+button.browser-tab-main:hover { background: transparent; }
+.browser-tab-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.browser-tab-close { flex: none; width: 22px; height: 22px; margin-right: 4px; padding: 0; border: 0; border-radius: var(--lz-radius-sm); background: transparent; color: var(--lz-ink-muted); opacity: 0; }
+.browser-tab:hover .browser-tab-close, .browser-tab.is-active .browser-tab-close, button.browser-tab-close:focus-visible { opacity: 1; }
+button.browser-tab-close:hover { background: var(--lz-gray-100); color: var(--lz-ink); }
+.browser-tab-close .icon { width: 14px; height: 14px; }
+.browser-favicon { position: relative; display: inline-grid; flex: none; width: 16px; height: 16px; place-items: center; color: var(--lz-ink-muted); }
+.browser-favicon img { display: block; width: 16px; height: 16px; border-radius: var(--lz-radius-xs); }
+.browser-favicon .icon { width: 15px; height: 15px; }
+/* An agent in the tab: a blue dot on its icon, whose ring breathes. */
+.browser-agent { position: absolute; right: -4px; bottom: -4px; width: 10px; height: 10px; border: 2px solid var(--lz-paper); border-radius: 50%; background: var(--lz-blue-500); animation: browser-agent 1.6s ease-in-out infinite; }
+.browser-tab.is-active .browser-agent { border-color: var(--lz-white); }
+@keyframes browser-agent { 50% { box-shadow: 0 0 0 3px rgb(13 18 219 / 22%); } }
 .browser-actions { display: flex; flex: none; align-items: center; gap: 2px; }
 .browser-action { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 8px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted-fg); font: 400 13px/1 var(--font-sans); text-decoration: none; white-space: nowrap; cursor: pointer; }
 .browser-action:hover { background: var(--hover); color: var(--fg); }
-button.browser-action { width: 30px; padding: 0; }
-.browser-body { display: flex; flex: 1; min-height: 0; background: var(--lz-gray-25); }
+button.browser-action, a.browser-action { flex: none; width: 30px; padding: 0; }
+.browser-body { position: relative; display: flex; flex: 1; min-height: 0; background: var(--lz-gray-25); }
 .browser-frame { display: block; flex: 1; width: 100%; height: 100%; border: 0; background: var(--lz-white); }
+.browser-new-tab { display: block; flex: 1; width: 100%; height: 100%; background: var(--lz-white); }
 .browser-message { margin: auto; max-width: 30rem; padding: 24px; color: var(--muted-fg); font-size: 14px; line-height: 1.5; text-align: center; }
+/* The toast of the panel: at its bottom while it is open; once the panel
+   is closed within the grace, at the bottom of the window, so Vrátit stays
+   reachable (the wireframe's PendingClose). */
+.browser-toast-slot { position: absolute; z-index: 6; right: 16px; bottom: 18px; left: 16px; display: grid; justify-items: center; pointer-events: none; }
+.browser-toast-region { position: fixed; z-index: 61; right: 16px; bottom: 28px; left: 16px; display: grid; justify-items: center; pointer-events: none; }
+.browser-toast { display: flex; align-items: center; gap: 10px; max-width: 100%; padding: 8px 8px 8px 16px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); box-shadow: var(--lz-shadow-float); color: var(--fg); font-size: 13.5px; pointer-events: auto; }
+.browser-toast:not(:has(button)) { padding-right: 16px; }
+.browser-toast-note { display: block; color: var(--muted-fg); }
+button.browser-toast-undo { flex: none; margin-left: 4px; height: 28px; padding: 0 10px; }
+/* The warning before closing a tab an agent works in, over the panel. */
+.browser-scrim { position: absolute; z-index: 8; inset: 0; display: grid; place-items: center; padding: 24px; background: rgb(9 9 9 / 28%); }
+.browser-confirm { display: grid; gap: 10px; width: min(380px, 100%); padding: 18px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); box-shadow: var(--lz-shadow-float); }
+.browser-confirm-title { font-size: 15px; font-weight: var(--lz-weight-akce); }
+.browser-confirm-text { color: var(--muted-fg); font-size: 13.5px; line-height: 1.5; }
+.browser-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 @media (max-width: 1099px) { .browser-panel { position: fixed; inset: 0; z-index: 50; width: auto; height: auto; border-left: 0; } }
 @media (max-width: 767px) { .browser-toggle-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
 
@@ -825,23 +863,31 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 </section>
 </main>
 </div>
-<!-- The right panel (decision F38's addendum of 2026-10-05, root decision
-     0191 point 8a): the view of every window of the Environment browser, the
-     same view every app of the Environment embeds, never a viewer of our
-     own; drawn by browser-panel.ts. Its link leads to the view, or to the
-     hand-over, which passes the gateway's sign-in a frame cannot show. -->
+<!-- The right panel (decision F38's addendum of 2026-10-05, decision F47
+     point 9): the strip of every tab of the Environment browser and "+" for
+     Nová karta, then one tab's view (the same view every app of the
+     Environment embeds, never a viewer of our own) or Nová karta itself
+     (<lazurio-new-tab>); drawn by browser-panel.ts. Its link leads to the
+     tab's view, or to the hand-over, which passes the gateway's sign-in a
+     frame cannot show. -->
 <aside class="browser-panel" id="browser-panel" aria-labelledby="browser-title" hidden>
-<header class="browser-head">
-<h2 class="browser-title" id="browser-title" tabindex="-1" data-message="browserTitle">Environment browser</h2>
+<h2 class="sr-only browser-title" id="browser-title" tabindex="-1" data-message="browserTitle">Environment browser</h2>
+<div class="browser-strip">
+<div class="browser-tabs">
+<div class="browser-tablist" id="browser-tablist" role="tablist"></div>
+<button type="button" class="browser-action" id="browser-new"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
+</div>
 <div class="browser-actions">
 <button type="button" class="browser-action" id="browser-reload"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span class="sr-only" data-message="browserReload">Reload</span></button>
-<a class="browser-action" id="browser-tab" href="/.lazurio/browser" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-external"/></svg><span data-message="browserOpenTab">Open in a new tab</span></a>
+<a class="browser-action" id="browser-tab" href="/.lazurio/browser" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only" data-message="browserOpenTab">Open in a new tab</span></a>
 <button type="button" class="browser-action" id="browser-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="browserClose">Close</span></button>
 </div>
-</header>
-<div class="browser-body" id="browser-body"><p class="browser-message" id="browser-message" role="status" aria-live="polite"></p></div>
+</div>
+<div class="browser-body" id="browser-body"><p class="browser-message" id="browser-message" role="status" aria-live="polite" hidden></p></div>
+<div class="browser-toast-slot" id="browser-toast-slot" role="status" aria-live="polite"></div>
 </aside>
 </div>
+<div class="browser-toast-region" id="browser-toast-region" role="status" aria-live="polite"></div>
 <div id="files-drop" class="files-drop" hidden><p id="files-drop-text"></p></div>
 <div id="toast" class="toast-region" role="status" aria-live="polite"></div>
 <dialog id="tools-prompt" aria-labelledby="tools-prompt-title">
