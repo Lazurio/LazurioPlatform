@@ -6871,6 +6871,23 @@ workstation, keep their apps' own "+".
    Files need no interface between the servers of one Unix user. Like agent-browser's binding
    files they outlive a restart of the Launchpad, of T3 Code and of the view, and they go at a
    reboot with the runtime directory, as the browser's tabs do.
+
+   **Each app keeps its holds true to the browser.** The hub writes the ids of the browser's
+   live page targets to a file of its own, `$XDG_RUNTIME_DIR/lazurio-browser/tabs.json` =
+   `{"tabs": [<target id>…], "writtenAt"}`, mode 0600 and replaced atomically. It writes it
+   after each discovery of the browser's targets and whenever a target appears or ends. It
+   never writes it while it does not know them: between a lost connection to the browser and
+   the next discovery, the file stays as it was. Each app's server reads the file when it
+   starts, whenever it changes (watched, and read again every 30 s) and before it writes its
+   holder file. It drops from its stored tabs and its holder file every id that the list does
+   not contain, provided the list was written after the app recorded that id, so a tab
+   recorded a moment ago is never dropped. This covers, with no view open:
+   - a tab closed for everyone or ended while no app shows it;
+   - a browser restart that ends every id;
+   - stored ids that ended while the app's server was down.
+
+   A view page whose tab ends also tells its app at once (`lazurio-browser:closed`), so a strip
+   that shows the tab drops it without waiting for the file.
 5. **The view's hub decides when a remote tab ends.** A page target is **held** while a
    holder file lists it or an agent works in it: an agent-browser session is bound to it
    (`<session>.target`) and that session's daemon runs (`<session>.pid` names a live process).
@@ -6904,8 +6921,9 @@ workstation, keep their apps' own "+".
 
    The Launchpad is their caller; it knows the view's loopback port from its entry
    (`entry.browser`). They give no new power: a process of the Environment that can call them
-   already reaches DevTools on 9222. When a tab ends, the view page tells its app
-   (`lazurio-browser:closed`), so a strip that still lists it drops it.
+   already reaches DevTools on 9222. The apps reconcile with the list of live tabs in a file
+   (point 4), not through these requests, so an app's server needs neither the view's port nor
+   the view running.
 7. **The overview is the Launchpad's.** `GET /api/new-tab/overview` answers the page, beside the
    Launchpad's other requests:
    - **memory:** the Environment's total and what is in use (`/proc/meminfo`), the browser
@@ -6945,13 +6963,15 @@ workstation, keep their apps' own "+".
 | Failure | What happens |
 | --- | --- |
 | The view restarts | The hub re-reads holders and bindings; held tabs stay, every other tab gets 10 minutes to be viewed or held again |
-| The browser restarts | Its tabs are gone and do not come back (F38's addendum of 2026-10-10); holder files keep ids that no longer exist, which the hub ignores and the strips drop on `lazurio-browser:closed` |
+| The browser restarts | Its tabs are gone and do not come back (F38's addendum of 2026-10-10). After discovery the hub writes the new list, and each app's server drops the ended ids from its stored tabs and its holder file (point 4) |
+| A tab is closed for everyone, or ends, while no app shows it | The hub rewrites the list when the target ends; each app's server drops it from its strips and its holder file, with no view involved |
 | The Launchpad restarts | Holds stay in their files and no tab ends; Nová karta says the Launchpad is unreachable and tries again |
-| T3 Code's server restarts | Its holder files stay; on start it rewrites them from the threads' stored tabs and removes those of deleted threads |
+| T3 Code's server restarts | Its holder files stay. On start it reconciles the threads' stored tabs with the hub's list, rewrites the files, and removes those of deleted threads |
 | An app records its hold late | The tab is new, so it has 10 minutes, and the app's frame views it within seconds |
+| An app records a tab the list does not have yet | It drops an id only when a list written after it recorded the id lacks it, so a new tab stays |
 | An agent's daemon ends (an hour idle, a crash) | Its binding stops counting; a tab nothing holds or views ends after 8 s. The agent's next command answers `tab_gone`, and `lazurio browser window` opens a new window (F38's addendum of 2026-10-10, Folder manual) |
 | A killed daemon leaves its `.pid` | The process check finds no process; a reused pid at worst keeps a tab longer |
-| The hub is down | No tab ends; close and restore answer 503, and Nová karta says so |
+| The hub is down, or does not know the browser's targets | No tab ends, and the list stays as last written, so no app drops a tab because of it; close and restore answer 503, and Nová karta says so |
 | A page in the Environment's browser calls the hub's loopback requests | Refused: its request carries `Origin` and `Sec-Fetch-Site` |
 | Every tab ends | The hub's own blank window stays, so Chrome keeps running |
 | Another origin frames `/new-tab` | `frame-ancestors` refuses it; the page ignores messages from any other origin or window |
@@ -6968,8 +6988,10 @@ workstation, keep their apps' own "+".
 | The Launchpad decides when a tab ends | Two processes would end the same targets; the hub already does (F39 point 9); rejected |
 | Holds as leases the people's browsers renew | A thread's tabs would end when a laptop sleeps, and T3 Code's panel differs per device; rejected |
 | Holds in the hub's memory through its API | Lost when the view restarts, and every app would depend on the hub being up; rejected |
+| Apps learn that a tab ended only from its view page | Only a tab someone views has a view page; a hidden tab closed for everyone or a browser restart would leave dead ids in strips and holder files; rejected |
+| Apps poll the hub's loopback list | T3 Code's server knows neither the view's loopback port nor whether the view runs; the hub's own file needs neither; rejected |
 | A binding file alone means an agent works in the tab | The binding outlives the daemon on purpose, so agents' windows would never end; rejected |
-| The element, the Launchpad's page, holder files and the hub deciding (selected) | No change to Machines or the gateway; one owner per fact: holds by their apps, a tab's end by the hub, the overview by the Launchpad |
+| The element, the Launchpad's page, holder files and the hub deciding (selected) | No change to Machines or the gateway; one owner per fact: holds by their apps, the live tabs and a tab's end by the hub, the overview by the Launchpad |
 
 **Not decided here.** Uspat and putting tabs to sleep (DEV-6656 spike 916); a person's name as
 a tab's opener (admission is not identity, F11); recent sites (until then the suggestions are
@@ -6978,9 +7000,12 @@ the Environment's apps); MausBot as an app of Nová karta; how to measure one ta
 thread lets go of its tabs.
 
 **Steps.** (1) The hub: holds from holder files and live bindings, the 8 s grace, the loopback
-requests and the tabs' facts; the view page reports a tab's end to its app. (2) The Launchpad:
-the overview, the actions and its holder file. (3) The page `/new-tab`, the element
-`<lazurio-new-tab>` and the Launchpad's panel. (4) T3 Code (task 2026-10-11-501): the threads'
-tabs on its server, their holder files, the element behind "+", the shared hint; a T3 Code
-release. (5) A Platform release and Matěj's check in a browser on his Environment (root
-decision 0178).
+requests, the tabs' facts and the list of live tabs; the view page reports a tab's end to its
+app. (2) The Launchpad: the overview, the actions, its holder file and its reconciliation with
+the list. (3) The page `/new-tab`, the element `<lazurio-new-tab>` and the Launchpad's panel.
+(4) T3 Code (task 2026-10-11-501): the threads' tabs on its server, their holder files
+reconciled with the list, the element behind "+", the shared hint; a T3 Code release. (5) A
+Platform release and Matěj's check in a browser on his Environment (root decision 0178). Steps
+1, 2 and 4 prove the reconciliation with tests: a tab closed for everyone or ended while no app
+shows it, a browser restart with no view open, an app's server that starts with ids that ended,
+and a tab recorded before the list has it.
