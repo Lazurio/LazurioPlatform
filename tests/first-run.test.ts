@@ -292,32 +292,32 @@ test("the stops speak the wireframe's words", () => {
   const stop = (step: Parameters<typeof tourStop>[0], content: ContentFact) =>
     tourStop(step, content, apps, cs);
   expect(stop("gear", missing(organization))).toMatchObject({
-    title: "Nejdřív připoj GitHub",
+    title: "Nejdřív připojte GitHub",
     text: "Bez něj tu nic nefunguje.",
   });
   expect(stop("github", missing(organization))).toMatchObject({
-    title: "Připoj GitHub",
-    text: "Uvidíš své moduly a agenti budou pracovat za tebe.",
+    title: "Připojte GitHub",
+    text: "Uvidíte své moduly a agenti budou pracovat za vás.",
   });
   expect(stop("composio", missing(organization))).toMatchObject({
-    title: "Připoj své aplikace",
+    title: "Připojte své aplikace",
     text: "Pošta, kalendář, Slack. Klidně až později.",
     notNow: true,
   });
   expect(stop("gear-prepare", missing(organization)).title).toBe(
-    "Ještě stáhni Example Company",
+    "Ještě stáhněte Example Company",
   );
   expect(stop("gear-prepare", missing(personalspace))).toMatchObject({
-    title: "Ještě připrav osobní prostor",
-    text: "Místo pro tvé vlastní věci.",
+    title: "Ještě připravte osobní prostor",
+    text: "Místo pro vaše vlastní věci.",
   });
   expect(stop("prepare", missing(organization))).toMatchObject({
-    title: "Stáhni Example Company",
-    text: "Pak tu uvidíš její moduly.",
+    title: "Stáhněte Example Company",
+    text: "Pak tu uvidíte její moduly.",
   });
   expect(stop("prepare", failed(organization))).toMatchObject({
     title: "Něco se nepovedlo",
-    text: "Zkus to znovu, nebo to vyřeší agent v Chatu.",
+    text: "Zkuste to znovu, nebo to vyřeší agent v Chatu.",
   });
   expect(stop("settings", ready)).toMatchObject({
     title: "Nastavení je vždycky tady",
@@ -329,7 +329,7 @@ test("the stops speak the wireframe's words", () => {
     tourStop("automate", ready, { chat: true, automate: false }, cs).text,
   ).toBe("Co se má dít samo. Tady zatím neběží.");
   expect(stop("automate", ready).text).toBe(
-    "Tady nastavíš, co se má dít samo.",
+    "Tady nastavíte, co se má dít samo.",
   );
 });
 

@@ -446,7 +446,7 @@ test("accounts: one line when they need the person or are spare, and what discon
     menu: null,
   });
   expect(accountView(notion, account("expired"), cs, true)).toMatchObject({
-    line: "Přihlášení vypršelo — zkus to znovu",
+    line: "Přihlášení vypršelo, zkuste to znovu",
     retry: "Přihlásit znovu",
   });
   expect(accountView(notion, account("failed"), en, true)).toMatchObject({

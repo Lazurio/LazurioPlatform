@@ -238,7 +238,7 @@ test("the jump to any Environment keeps the Organization's heads, the search fie
       null,
       ["Empty Example", "https://dashboard.example.invalid/orgs/empty"],
       0,
-      "Tady nemáš žádný Environment.",
+      "Tady nemáte žádný Environment.",
     ],
   ]);
   // The rows are the picker's one-line rows; the current one marked.
@@ -269,7 +269,7 @@ test("an Organization's Dashboard without an Environment: the picker says so and
       section.rows,
       section.empty,
     ]),
-  ).toEqual([["empty", null, [], "Tady nemáš žádný Environment."]]);
+  ).toEqual([["empty", null, [], "Tady nemáte žádný Environment."]]);
   expect([picker.search, picker.nothing, picker.widen, picker.start]).toEqual([
     null,
     null,

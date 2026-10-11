@@ -106,7 +106,7 @@ test("the Personalspace: “Zakládám” only where it is created", () => {
     contentSteps(entry, value, cs).map((step) => step.label);
   // It exists on GitHub: found and downloaded, never created.
   expect(labels(null)).toEqual([
-    "Hledám tvůj osobní prostor",
+    "Hledám váš osobní prostor",
     "Stahuji",
     "Kontroluji",
   ]);
@@ -122,7 +122,7 @@ test("the Personalspace: “Zakládám” only where it is created", () => {
     ],
   }).items[0] as never;
   expect(labels(null, missing)).toEqual([
-    "Hledám tvůj osobní prostor",
+    "Hledám váš osobní prostor",
     "Zakládám",
     "Stahuji",
     "Nastavuji",
@@ -144,7 +144,7 @@ test("the Personalspace: “Zakládám” only where it is created", () => {
       }),
       missing,
     ),
-  ).toEqual(["Hledám tvůj osobní prostor", "Stahuji", "Kontroluji"]);
+  ).toEqual(["Hledám váš osobní prostor", "Stahuji", "Kontroluji"]);
   expect(
     labels(
       job({
@@ -157,7 +157,7 @@ test("the Personalspace: “Zakládám” only where it is created", () => {
       }),
     ),
   ).toEqual([
-    "Hledám tvůj osobní prostor",
+    "Hledám váš osobní prostor",
     "Zakládám",
     "Stahuji",
     "Nastavuji",
@@ -178,7 +178,7 @@ test("the Personalspace: “Zakládám” only where it is created", () => {
         ],
       }),
     ),
-  ).toEqual(["Hledám tvůj osobní prostor", "Stahuji", "Kontroluji"]);
+  ).toEqual(["Hledám váš osobní prostor", "Stahuji", "Kontroluji"]);
   // A key this page does not know follows in plain words.
   expect(
     labels(
@@ -230,7 +230,7 @@ test("the view: one action, the steps while it runs, the stop in one sentence", 
   // Without GitHub the action waits and says why.
   const noGithub = contentView(work, null, cs, { github: "missing" });
   expect(noGithub.action?.disabled).toBe(true);
-  expect(noGithub.note).toBe("Nejdřív připoj GitHub v Nástrojích.");
+  expect(noGithub.note).toBe("Nejdřív připojte GitHub v Nástrojích.");
   // Running: no action, the steps, the status.
   const busy = contentView(work, running, cs, { github: "connected" });
   expect(busy.action).toBeNull();

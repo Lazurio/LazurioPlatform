@@ -751,7 +751,7 @@ export const curatedApps: readonly CuratedApp[] = [
     id: "whatsapp",
     name: same("WhatsApp"),
     about: {
-      cs: "Tvoje zprávy a skupiny na WhatsAppu.",
+      cs: "Vaše zprávy a skupiny na WhatsAppu.",
       en: "Your WhatsApp messages and groups.",
     },
     category: "chat",

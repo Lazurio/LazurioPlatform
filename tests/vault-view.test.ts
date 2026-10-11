@@ -135,15 +135,15 @@ test("the third step asks for the confirmation, and once confirmed only for the 
     fingerprint,
     organization: "Example",
   };
-  expect(third(waiting)).toBe("Potvrď účet v trezoru");
+  expect(third(waiting)).toBe("Potvrďte účet v trezoru");
   expect(third(waiting, en)).toBe("Confirm the account in the vault");
-  expect(third(confirmed)).toBe("Nasdílej účtu kolekci");
+  expect(third(confirmed)).toBe("Nasdílejte účtu kolekci");
   expect(third(confirmed, en)).toBe("Share the collection with the account");
   // Every other step keeps its title.
   expect(vaultStepTitles(status(confirmed), cs)).toEqual({
     invite: cs.vaultStepInvite,
     connect: cs.vaultStepConnect,
-    confirm: "Nasdílej účtu kolekci",
+    confirm: "Nasdílejte účtu kolekci",
     done: cs.vaultStepDone,
   });
   expect(vaultStepTitles(null, en).confirm).toBe(
@@ -272,7 +272,7 @@ test("the dialog starts where the state is and goes where a connect ends", () =>
   ).toEqual({
     step: "invite",
     failure:
-      "Účet nevidí kolekci, ke které byl připojený. Pozvi ho do ní znovu, nebo Environment odpoj a připoj ho k jiné kolekci.",
+      "Účet nevidí kolekci, ke které byl připojený. Pozvěte ho do ní znovu, nebo Environment odpojte a připojte ho k jiné kolekci.",
     agent: false,
   });
   expect(

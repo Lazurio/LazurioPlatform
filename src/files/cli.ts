@@ -66,13 +66,13 @@ const explanations: Readonly<Record<"cs" | "en", Record<LinkRefusal, string>>> =
     },
     cs: {
       "outside-documents":
-        "Cesta neleží v ~/Documents. Nejdřív soubor ulož nebo zkopíruj do ~/Documents/<úkol>/ a pak spusť lazurio files link znovu.",
+        "Cesta neleží v ~/Documents. Nejdřív soubor uložte nebo zkopírujte do ~/Documents/<úkol>/ a pak spusťte lazurio files link znovu.",
       "path-hidden":
-        "Jméno v cestě začíná tečkou: skryté soubory a složky se nikdy nezpřístupňují. Ulož soubor pod viditelným jménem do ~/Documents/<úkol>/.",
+        "Jméno v cestě začíná tečkou: skryté soubory a složky se nikdy nezpřístupňují. Uložte soubor pod viditelným jménem do ~/Documents/<úkol>/.",
       "path-invalid":
-        "Jméno v cestě nejde zpřístupnit (řídicí znak, oddělovač nebo příliš dlouhé jméno). Ulož soubor pod obyčejným jménem do ~/Documents/<úkol>/.",
+        "Jméno v cestě nejde zpřístupnit (řídicí znak, oddělovač nebo příliš dlouhé jméno). Uložte soubor pod obyčejným jménem do ~/Documents/<úkol>/.",
       "not-found":
-        "Na téhle cestě nic není. Nejdřív soubor ulož do ~/Documents/<úkol>/.",
+        "Na téhle cestě nic není. Nejdřív soubor uložte do ~/Documents/<úkol>/.",
       "not-regular":
         "Tohle není soubor ani složka. Zpřístupňují se jen soubory a složky v ~/Documents.",
       "not-directory": "Není to složka.",

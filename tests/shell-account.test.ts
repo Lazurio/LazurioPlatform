@@ -830,7 +830,7 @@ test("the account in another language: every Environment is named as without the
     environmentWho(entry, cs),
   ]);
   expect(names).toEqual([
-    ["ada", "Osobní", "jen tvůj"],
+    ["ada", "Osobní", "jen váš"],
     ["vm-01.example", "Sales", "sdílený Teamem"],
     ["vm-03.example", "Pracovní", "@ada"],
   ]);
@@ -872,8 +872,8 @@ test("the account in the local language: its words name the Environments", () =>
       at === 1
         ? { ...entry, name: "Obchod", who: "sdílený Teamem" }
         : at === 2
-          ? { ...entry, name: "Pracovní 2", who: "jen tvůj" }
-          : { ...entry, name: "Osobní Ada", who: "jen tvůj" },
+          ? { ...entry, name: "Pracovní 2", who: "jen váš" }
+          : { ...entry, name: "Osobní Ada", who: "jen váš" },
     ),
   });
   const merged = mergeAccount(czech, read);
@@ -883,9 +883,9 @@ test("the account in the local language: its words name the Environments", () =>
       environmentWho(entry, cs),
     ]),
   ).toEqual([
-    ["Osobní Ada", "jen tvůj"],
+    ["Osobní Ada", "jen váš"],
     ["Obchod", "sdílený Teamem"],
-    ["Pracovní 2", "jen tvůj"],
+    ["Pracovní 2", "jen váš"],
   ]);
 });
 
