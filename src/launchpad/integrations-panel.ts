@@ -1019,11 +1019,7 @@ export function createIntegrationsPanel(
     const status = element("p", "mcp-status");
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
-    note.append(
-      element("p", "mcp-note", copy.integrationsMcpKeysOnly),
-      together,
-      status,
-    );
+    note.append(together, status);
     const save = element(
       "button",
       "primary mcp-save",

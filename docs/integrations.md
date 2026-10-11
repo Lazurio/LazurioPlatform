@@ -212,7 +212,9 @@ Codex Desktop's "Connect to a custom MCP" does (decision F42, addendum of
 fields left out). "Přidat MCP server" opens `/integrations/custom/new`, a server's
 name `/integrations/custom/server/<slug>`, the same page filled in. Agents add one
 only on the person's explicit instruction and only without keys (the prepared prompt
-of Settings → Tools); a key is entered on this page, by the person.
+of Settings → Tools); a key is entered on this page, by the person. The page explains
+none of what follows in text of its own, as Codex's does not: this section is where
+it is said.
 
 - **STDIO**: Název, Příkaz ke spuštění (as typed, never split), Argumenty (one row
   each), Proměnné prostředí (key and value), Pracovní složka (absolute or `~/…`,
@@ -225,11 +227,14 @@ of Settings → Tools); a key is entered on this page, by the person.
   environment variables. Without keys the address is probed and a server that needs
   a sign-in starts it; with keys it is probed with them.
 - **Keys.** Every value of an environment variable, the Bearer token and every header
-  value is a key: it goes to Executor as the values of the server's one account
-  (`org/default`), the Bearer token as `Authorization: Bearer <token>` and each header
-  as an input of its own (`header-<name>`). Executor's config of the server names the
-  keys only; Lazurio sets no static header or static environment, which Executor's
-  API and its agents' `getServer` tool would return as they are.
+  value is a key: it goes only to this Environment's Executor, as the values of the
+  server's one account (`org/default`), the Bearer token as `Authorization: Bearer
+  <token>` and each header as an input of its own (`header-<name>`), and it is never
+  shown again. The page sends it once and keeps no copy; no answer, journal line or
+  Folder file carries it; an edited server's key fields open empty, marked
+  "Uloženo". Executor's config of the server names the keys only; Lazurio sets no
+  static header or static environment, which Executor's API and its agents'
+  `getServer` tool would return as they are.
 - **Editing.** The name is changed in place and the slug stays; the command, the
   arguments, the working directory or the address replace the config
   (`POST /api/mcp/servers/<slug>/config`, everything the page does not show carried

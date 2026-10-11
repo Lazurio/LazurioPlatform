@@ -6266,9 +6266,11 @@ that report what they receive. The reference is
    Přidat …" under them; switching the type keeps what each type has. A line under a
    field says plainly what is wrong (an address is https, plain http only to this
    Environment; a key twice; a header the Bearer token already sends); an empty
-   required field says nothing and Save waits for it. The page and the Launchpad's
-   server check with the same rules (`src/integrations/custom-server.ts`). Plain http
-   to another computer is now refused: the route took any http address before.
+   required field says nothing and Save waits for it. Like Codex's, the page has no
+   footnote of its own: where a key goes and that it is never shown again is said in
+   the documentation, not on the page. The page and the Launchpad's server check with
+   the same rules (`src/integrations/custom-server.ts`). Plain http to another
+   computer is now refused: the route took any http address before.
 2. **The fields, mapped onto Executor 1.6.10.**
 
    | Codex | Executor 1.6.10 | Lazurio |

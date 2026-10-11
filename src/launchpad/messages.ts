@@ -1195,8 +1195,6 @@ const en = {
   integrationsMcpValue: "Value",
   integrationsMcpStored: "Stored",
   integrationsMcpEnterAgain: "Enter again",
-  integrationsMcpKeysOnly:
-    "Values of variables, the Bearer token and headers go only to this Environment's Executor and are never shown again.",
   integrationsMcpKeysTogether:
     "Executor keeps a server's values together and never returns them: changing one means entering all of them again.",
   integrationsMcpSave: "Save",
@@ -2403,8 +2401,6 @@ const cs: Record<MessageKey, string> = {
   integrationsMcpValue: "Hodnota",
   integrationsMcpStored: "Uloženo",
   integrationsMcpEnterAgain: "Zadej znovu",
-  integrationsMcpKeysOnly:
-    "Hodnoty proměnných, Bearer token a hlavičky jdou jen do Executoru tohoto Environmentu a už se nezobrazí.",
   integrationsMcpKeysTogether:
     "Executor drží hodnoty serveru pohromadě a nevrací je: když jednu měníš, zadej znovu všechny.",
   integrationsMcpSave: "Uložit",
