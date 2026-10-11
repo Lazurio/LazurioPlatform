@@ -6875,16 +6875,24 @@ workstation, keep their apps' own "+".
    **Each app keeps its holds true to the browser.** The hub writes the ids of the browser's
    live page targets to a file of its own, `$XDG_RUNTIME_DIR/lazurio-browser/tabs.json` =
    `{"tabs": [<target id>…], "writtenAt"}`, mode 0600 and replaced atomically. It writes it
-   after each discovery of the browser's targets and whenever a target appears or ends. It
-   never writes it while it does not know them: between a lost connection to the browser and
-   the next discovery, the file stays as it was. Each app's server reads the file when it
-   starts, whenever it changes (watched, and read again every 30 s) and before it writes its
-   holder file. It drops from its stored tabs and its holder file every id that the list does
-   not contain, provided the list was written after the app recorded that id, so a tab
-   recorded a moment ago is never dropped. This covers, with no view open:
+   after each discovery of the browser's targets, whenever a target appears or ends, and every
+   30 s while it knows them, so every record an app makes meets a newer list. It never writes
+   it while it does not know them: between a lost connection to the browser and the next
+   discovery, the file stays as it was. Each app's server reads the file when it starts,
+   whenever it changes (watched, and read again every 30 s) and before it writes its holder
+   file. It drops from its stored tabs and its holder file every id that the list does not
+   contain, provided the list was written at least 5 s after the app recorded that id. The hub
+   sees a target within milliseconds of Chrome creating it, and an app learns an id only after
+   that (from the hub, the view or the browser), so a tab recorded a moment ago is never
+   dropped. An app keeps, with each stored tab, when it recorded it, in its own store (T3
+   Code's thread state; for the Launchpad, its holder file's `recordedAt`, which the hub
+   ignores), so the time survives a restart. A stored tab without a time counts as recorded
+   long ago. This covers, with no view open:
    - a tab closed for everyone or ended while no app shows it;
    - a browser restart that ends every id;
-   - stored ids that ended while the app's server was down.
+   - stored ids that ended while the app's server was down;
+   - a tab that ended before the app recorded it, which the next periodic list drops, within
+     about 35 s.
 
    A view page whose tab ends also tells its app at once (`lazurio-browser:closed`), so a strip
    that shows the tab drops it without waiting for the file.
@@ -6968,7 +6976,8 @@ workstation, keep their apps' own "+".
 | The Launchpad restarts | Holds stay in their files and no tab ends; Nová karta says the Launchpad is unreachable and tries again |
 | T3 Code's server restarts | Its holder files stay. On start it reconciles the threads' stored tabs with the hub's list, rewrites the files, and removes those of deleted threads |
 | An app records its hold late | The tab is new, so it has 10 minutes, and the app's frame views it within seconds |
-| An app records a tab the list does not have yet | It drops an id only when a list written after it recorded the id lacks it, so a new tab stays |
+| An app records a tab the list does not have yet | It drops an id only when a list written at least 5 s after it recorded the id lacks it, so a new tab stays |
+| A tab ends before the app records it | No change writes a newer list, but the hub's periodic one does within 30 s; it lacks the id and is newer than the record, so the app drops it |
 | An agent's daemon ends (an hour idle, a crash) | Its binding stops counting; a tab nothing holds or views ends after 8 s. The agent's next command answers `tab_gone`, and `lazurio browser window` opens a new window (F38's addendum of 2026-10-10, Folder manual) |
 | A killed daemon leaves its `.pid` | The process check finds no process; a reused pid at worst keeps a tab longer |
 | The hub is down, or does not know the browser's targets | No tab ends, and the list stays as last written, so no app drops a tab because of it; close and restore answer 503, and Nová karta says so |
@@ -7008,4 +7017,4 @@ reconciled with the list, the element behind "+", the shared hint; a T3 Code rel
 Platform release and Matěj's check in a browser on his Environment (root decision 0178). Steps
 1, 2 and 4 prove the reconciliation with tests: a tab closed for everyone or ended while no app
 shows it, a browser restart with no view open, an app's server that starts with ids that ended,
-and a tab recorded before the list has it.
+a tab recorded before the list has it, and a tab that ended before the app recorded it.
