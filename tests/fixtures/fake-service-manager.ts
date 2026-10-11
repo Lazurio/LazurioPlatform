@@ -32,7 +32,11 @@ export function createFakeServiceManager(
   const runtimeDirectory = options.runtimeDirectory ?? "/run/user/1000";
   const units = new Map<string, Unit>();
   const populated = new Set<string>();
-  const calls: { program: string; args: readonly string[] }[] = [];
+  const calls: {
+    program: string;
+    args: readonly string[];
+    envNames?: readonly string[];
+  }[] = [];
   // What each unit wrote to the user journal, by unit name; it outlives the
   // unit, as the journal does.
   const journal = new Map<string, string[]>();
@@ -59,8 +63,15 @@ export function createFakeServiceManager(
       .replace(/_([0-9a-f]{2})/g, (_match, hex: string) =>
         String.fromCharCode(Number.parseInt(hex, 16)),
       );
-  const run: ServiceManagerProcess = async (program, args) => {
-    calls.push({ program, args: [...args] });
+  const run: ServiceManagerProcess = async (program, args, runOptions) => {
+    calls.push({
+      program,
+      args: [...args],
+      // The names systemd-run got in its own environment, never values.
+      ...(runOptions?.env === undefined
+        ? {}
+        : { envNames: Object.keys(runOptions.env).sort() }),
+    });
     if (behaviour.unavailable) return { code: null, stdout: "", stderr: "" };
     if (program === "busctl") {
       const state = units.get(unitOfBusPath(args[4] as string));
@@ -131,7 +142,13 @@ export function createFakeServiceManager(
         invocationId: (++invocations).toString(16).padStart(32, "0"),
         controlGroup: failed ? "" : controlGroup,
         properties,
-        environment: option(args, "--setenv"),
+        // `--setenv=NAME` takes the value from systemd-run's own
+        // environment, as the real manager does (systemd-run(1)).
+        environment: option(args, "--setenv").map((entry) =>
+          entry.includes("=")
+            ? entry
+            : `${entry}=${runOptions?.env?.[entry] ?? ""}`,
+        ),
         command: args.slice(args.indexOf("--") + 1),
         dropIns: "",
         transient: "yes",

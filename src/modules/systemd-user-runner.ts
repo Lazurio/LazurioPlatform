@@ -21,6 +21,7 @@ import { parseProcessLaunch } from "./process-launch";
 import {
   isControlGroupEmpty,
   readProcessControlGroup,
+  runtimeSecretVariable,
   type ServiceManagerProcess,
 } from "./service-manager-process";
 
@@ -112,6 +113,11 @@ function digest(value: unknown) {
 // launch vector without running the toolchain adapter again, so the expectation
 // is bound durably at creation: the description carries this digest, and every
 // observation recomputes it from what the manager actually holds.
+//
+// A runtime secret (decision F46) is bound by its name only: the description
+// is readable by anyone who can list the account's units, and a digest over a
+// short password would let it be guessed offline. A changed value is not a
+// changed definition; it takes effect at the next start like every value.
 function definitionDigest(definition: {
   cwd: string;
   path: string;
@@ -126,9 +132,15 @@ function definitionDigest(definition: {
     definition.path,
     [...definition.argv],
     [...definition.flags].sort(),
-    [...definition.environment].sort(),
+    definition.environment.map(boundEntry).sort(),
     [...definition.unset].sort(),
   ]);
+}
+
+// `NAME=value` as the definition binds it: a runtime secret by its name.
+function boundEntry(entry: string) {
+  const name = entry.slice(0, Math.max(0, entry.indexOf("=")));
+  return runtimeSecretVariable.test(name) ? `${name}=` : entry;
 }
 
 // D-Bus object path label of a unit name, as the manager escapes it.
@@ -568,10 +580,21 @@ export function createSystemdUserRunner(input: {
       `--property=OOMScoreAdjust=${moduleOomScoreAdjust}`,
     ];
     if (literal) args.push("--expand-environment=no");
-    for (const entry of environment) args.push(`--setenv=${entry}`);
+    // A runtime secret is named on the command line and its value taken from
+    // systemd-run's own environment (`--setenv=NAME`, decision F46): no value
+    // is ever an argument of a process, which every account can list.
+    const secrets: Record<string, string> = {};
+    for (const [name, entry] of Object.entries(launch.env))
+      if (runtimeSecretVariable.test(name)) {
+        secrets[name] = entry;
+        args.push(`--setenv=${name}`);
+      } else args.push(`--setenv=${name}=${entry}`);
     if (unsetNames.length)
       args.push(`--property=UnsetEnvironment=${unsetNames.join(" ")}`);
-    return Object.freeze([...args, "--", launch.executable, ...launch.args]);
+    return Object.freeze({
+      argv: Object.freeze([...args, "--", launch.executable, ...launch.args]),
+      env: Object.freeze(secrets),
+    });
   }
 
   const runner: ApplicationRunner = {
@@ -603,7 +626,7 @@ export function createSystemdUserRunner(input: {
     },
     async start(request) {
       const unit = identify(request.application);
-      let argv: readonly string[];
+      let argv: Awaited<ReturnType<typeof definition>>;
       try {
         const state = await observe(unit);
         if (state.kind === "running")
@@ -632,7 +655,10 @@ export function createSystemdUserRunner(input: {
       }
       let started: Awaited<ReturnType<ServiceManagerProcess>> | null = null;
       try {
-        started = await run("systemd-run", argv, { timeoutMs: 20_000 });
+        started = await run("systemd-run", argv.argv, {
+          timeoutMs: 20_000,
+          ...(Object.keys(argv.env).length > 0 ? { env: argv.env } : {}),
+        });
       } catch {
         /* the manager's view below decides what exists */
       }

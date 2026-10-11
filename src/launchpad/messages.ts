@@ -580,6 +580,25 @@ const en = {
     "The app requires {file}, which the Organization manifest declares as planned, so it cannot start in this Environment yet.",
   moduleReasonRequiredSlotMissing:
     "The app requires {file}, which is not in this Environment beside it, so it was not started. Synchronize the Organization, or ask for access to that module, and start again.",
+  moduleReasonRuntimeSecretUnavailable:
+    "The app was not started: it needs secrets that this Environment's vault did not give it. {secrets}. Values are never shown; add or fix the item named exactly like the secret in the Environment's collection and start again.",
+  moduleSecretsNotProvided:
+    "Started without these optional secrets, so the capabilities that need them are off: {secrets}.",
+  runtimeSecretPersonalspace: "a Personalspace module has no vault yet",
+  runtimeSecretWorkstation: "this computer has no Environment vault yet",
+  runtimeSecretNoVaultIdentity: "this Environment has no vault account",
+  runtimeSecretOtherOrganization:
+    "the app belongs to another Organization than the one that owns this Environment and its vault",
+  runtimeSecretNotConnected:
+    "the vault is not connected (Settings → Tools → bitwarden)",
+  runtimeSecretLocked: "the vault could not be unlocked",
+  runtimeSecretBusy: "the vault is busy; try again",
+  runtimeSecretUnreachable: "the vault cannot be reached",
+  runtimeSecretVaultFailed: "the vault did not answer as expected",
+  runtimeSecretMissing: "no item of this name in the Environment's collection",
+  runtimeSecretAmbiguous:
+    "more than one item of this name in the Environment's collection",
+  runtimeSecretEmpty: "its item has no password",
   moduleApplication: "Application",
   moduleStart: "Start",
   moduleStop: "Stop",
@@ -1722,6 +1741,24 @@ const cs: Record<MessageKey, string> = {
     "Aplikace potřebuje {file}, který manifest Organizace vede jako plánovaný, proto na tomto Environmentu zatím spustit nejde.",
   moduleReasonRequiredSlotMissing:
     "Aplikace potřebuje {file}, který na tomto Environmentu vedle ní není, proto nebyla spuštěna. Synchronizujte Organizaci nebo si požádejte o přístup k tomu modulu a spusťte ji znovu.",
+  moduleReasonRuntimeSecretUnavailable:
+    "Aplikace nebyla spuštěna: potřebuje tajné údaje, které jí trezor tohoto Environmentu nedal. {secrets}. Hodnoty se nikdy nezobrazují; v kolekci Environmentu přidejte nebo opravte položku pojmenovanou přesně jako ten údaj a spusťte ji znovu.",
+  moduleSecretsNotProvided:
+    "Spuštěno bez těchto volitelných tajných údajů, takže schopnosti, které je potřebují, jsou vypnuté: {secrets}.",
+  runtimeSecretPersonalspace: "modul Personalspace zatím trezor nemá",
+  runtimeSecretWorkstation: "tento počítač zatím trezor Environmentu nemá",
+  runtimeSecretNoVaultIdentity: "tento Environment nemá účet v trezoru",
+  runtimeSecretOtherOrganization:
+    "aplikace patří jiné Organizaci, než která vlastní tento Environment a jeho trezor",
+  runtimeSecretNotConnected:
+    "trezor není připojený (Nastavení → Nástroje → bitwarden)",
+  runtimeSecretLocked: "trezor se nepodařilo odemknout",
+  runtimeSecretBusy: "trezor je právě zaneprázdněný; zkuste to znovu",
+  runtimeSecretUnreachable: "trezor není dostupný",
+  runtimeSecretVaultFailed: "trezor neodpověděl tak, jak má",
+  runtimeSecretMissing: "v kolekci Environmentu není položka tohoto názvu",
+  runtimeSecretAmbiguous: "v kolekci Environmentu je víc položek tohoto názvu",
+  runtimeSecretEmpty: "jeho položka nemá heslo",
   moduleApplication: "Aplikace",
   moduleStart: "Spustit",
   moduleStop: "Zastavit",

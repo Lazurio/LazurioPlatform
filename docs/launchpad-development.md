@@ -1130,7 +1130,11 @@ runtime environment the replaced Launchpad gave it (decision F26, the table in
 `docs/module-adoption.md`): the keyed and entrypoint listener addresses, the listener
 JSON, `NODE_PATH`, `NODE_ENV=development`, the runtime and Organization identity, the
 loopback origin of each sibling module of its Organization it declares
-(`LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN`, F26 addendum of 2026-10-10), and on
+(`LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN`, F26 addendum of 2026-10-10), the value of
+each runtime secret it declares, read from the Environment vault at this start
+(`LAZURIO_RUNTIME_SECRET_<NAME>`, F46; a required one without a value refuses the
+start as `runtime-secret-unavailable`, an optional one is reported as
+`secretsNotProvided`), and on
 a hosted Machine, for the module's default app, the entrypoint's external origin
 `LAZURIO_RUNTIME_EXTERNAL_ORIGIN`, taken from the same recorded entry as `runtime.url`
 (that URL without its slash), so a dev server that allows only its own hostname

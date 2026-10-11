@@ -24,6 +24,8 @@ import {
   resolvePersonalspaceApplication,
 } from "../organizations/personalspace";
 import { checkoutRefusal } from "../providers/checkout-custody";
+import { runTool } from "../tools/status";
+import { processVaultHost } from "../vault/host";
 import { createApplicationCoordination } from "./application-coordination";
 import {
   type ApplicationRunner,
@@ -33,6 +35,12 @@ import {
 import { createApplicationLifecycle } from "./lifecycle";
 import { localApplicationAdapters } from "./local-application-adapters";
 import { preparationRefusal } from "./preparation-refusal";
+import {
+  type RuntimeSecretFinding,
+  type RuntimeSecretSource,
+  RuntimeSecretUnavailable,
+  vaultRuntimeSecretSource,
+} from "./runtime-secrets";
 import {
   createServiceManagerProcess,
   userManagerState,
@@ -96,6 +104,10 @@ export type ModuleHost = Readonly<{
     unit: string,
     lines: number,
   ) => ReturnType<typeof readApplicationJournal>;
+  /** Where the declared runtime secrets of the Folder's apps are read
+   * (decision F46): the Environment vault of this process. None: an app
+   * that requires a secret does not start (`no-vault-identity`). */
+  runtimeSecrets?: ((folder: string) => RuntimeSecretSource) | undefined;
 }>;
 
 /** The standard Bun of the operator's account (B2): one rule for the CLI, the
@@ -154,6 +166,17 @@ export function processModuleHost(
         unit,
         lines,
       ),
+    // The vault of the Environment this process serves, read anew at each
+    // start from its handover and Folder (decision F43).
+    runtimeSecrets: (folder: string) =>
+      vaultRuntimeSecretSource(
+        processVaultHost({
+          folder: async () => folder,
+          env,
+          platform,
+          run: runTool,
+        }),
+      ),
   });
 }
 
@@ -186,6 +209,10 @@ export type ModuleBlocked = Readonly<{
    * slot the app requires, relative to the Organization root. Never
    * absolute. */
   file?: string;
+  /** `runtime-secret-unavailable` (decision F46): each declared secret the
+   * app cannot start without, by its name, and why it has no value. Never
+   * a value. */
+  secrets?: readonly RuntimeSecretFinding[];
 }>;
 
 export type ModuleState =
@@ -220,6 +247,9 @@ export type ModuleAnswer = Readonly<{
   runtime: Readonly<{ url: string }> | null;
   /** Why a healthy app has no link. */
   runtimeReason?: string;
+  /** A start: the optional runtime secrets the app started without, and
+   * why (decision F46, root decision 0196); a note, not a refusal. */
+  secretsNotProvided?: readonly RuntimeSecretFinding[];
 }>;
 
 export type ModuleLogs = Readonly<{
@@ -298,7 +328,11 @@ type Target = Readonly<{
   /** The default app's preparation cannot run (decision F25): its running
    * app is still read, logged and stopped, and `ensure` refuses only where
    * it would start. */
-  preparationFault?: Readonly<{ reason: string; file?: string }>;
+  preparationFault?: Readonly<{
+    reason: string;
+    file?: string;
+    secrets?: readonly RuntimeSecretFinding[];
+  }>;
 }>;
 
 type Lifecycle = ReturnType<typeof createApplicationLifecycle>;
@@ -423,6 +457,13 @@ export function createModuleOperations(input: {
     // its Organization-relative slot.
     if (error instanceof RequiredSlotRefused)
       return blocked(operation, error.reason, { ...where, file: error.slot });
+    // A declared runtime secret without a value (decision F46), by its
+    // names and reasons only.
+    if (error instanceof RuntimeSecretUnavailable)
+      return blocked(operation, "runtime-secret-unavailable", {
+        ...where,
+        secrets: error.secrets,
+      });
     const refused =
       preparationRefusal(error, [
         target.moduleDirectory,
@@ -554,6 +595,9 @@ export function createModuleOperations(input: {
         ? Object.freeze({
             reason: module.reason,
             ...(module.file === undefined ? {} : { file: module.file }),
+            ...(module.secrets === undefined
+              ? {}
+              : { secrets: module.secrets }),
           })
         : undefined;
     const needsPreparation = operation === "start" || operation === "prepare";
@@ -565,6 +609,7 @@ export function createModuleOperations(input: {
       return blocked(operation, module.reason ?? "not-executable", {
         ...where,
         ...(module.file === undefined ? {} : { file: module.file }),
+        ...(module.secrets === undefined ? {} : { secrets: module.secrets }),
       });
     const app = options.app ?? module.defaultApp;
     if (app === null) return blocked(operation, "no-app", where);
@@ -652,9 +697,13 @@ export function createModuleOperations(input: {
         environment,
         runner,
         ...(target.personalspace
-          ? { resolveApplication: resolvePersonalspaceApplication }
+          ? {
+              resolveApplication: resolvePersonalspaceApplication,
+              personalspace: true,
+            }
           : { organizationRoot: organizationDirectory }),
         externalOrigin: (module) => launchOrigin(folder, module),
+        secretSource: host.runtimeSecrets?.(folder),
         ...(kind === "systemd-user"
           ? {
               coordination: createApplicationCoordination({
@@ -883,7 +932,23 @@ export function createModuleOperations(input: {
             ? { file: started.file }
             : {}),
         });
-      return observe("start", started.kind, kind, target, selection, lifecycle);
+      const answer = await observe(
+        "start",
+        started.kind,
+        kind,
+        target,
+        selection,
+        lifecycle,
+      );
+      // The optional secrets it started without (decision F46).
+      return answer.kind === "module" &&
+        "secretsNotProvided" in started &&
+        Array.isArray(started.secretsNotProvided)
+        ? Object.freeze({
+            ...answer,
+            secretsNotProvided: started.secretsNotProvided,
+          })
+        : answer;
     });
   }
 
@@ -1083,6 +1148,9 @@ export function createModuleOperations(input: {
               organization: target.organization,
               module: target.module,
               ...(fault.file === undefined ? {} : { file: fault.file }),
+              ...(fault.secrets === undefined
+                ? {}
+                : { secrets: fault.secrets }),
             })
           : current;
       const key = `${target.organizationDirectory}\0${target.module}\0${target.app}`;
