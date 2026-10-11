@@ -41,7 +41,7 @@ system asks for the rail in the forks.
 The design system's Lazurio stones (`content/brand/icons/*-96.png`, Lazurio's own
 artwork, 96 × 96 px, drawn at 48 × 48 on a tile and 20 × 20 in a list), byte-for-byte
 from `HumanAndMachine-ai/design-system-lazurio` at commit
-`3219a6a7aaf27f09de084b2565100e13bd5dfe82` (2026-10-11, "Prvky: Module stones on a
+`190e735c9c4ad2e2910ada07768191c6c5a0e983` (2026-10-11, "Prvky: Module stones on a
 transparent background", #76): the surrounding of every stone is transparent instead
 of a baked-in off-white square, so the stone alone sits on any surface; the stone
 and its symbol are unchanged. `src/shell/stones.ts`
