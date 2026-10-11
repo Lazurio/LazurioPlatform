@@ -1,24 +1,10 @@
 import type { GithubHttp } from "./oauth";
-import { ownerOfCredentialPath } from "./owner";
-import {
-  configuredOrganization,
-  owningOrganization,
-  type PilotConfig,
-  type PilotPaths,
-  readPilot,
-} from "./pilot";
-import { organizationToken, type SignInToken } from "./store";
+import { type PilotPaths, readPilot } from "./pilot";
+import { applicationToken, type SignInToken } from "./store";
 
-// Git's credential helper of the pilot (decision F46), configured for
-// `https://github.com` with `useHttpPath` by `pilot wire`, so each request
-// names its repository. `get` answers with the user access token of the
-// repository owner's Organization sign-in (`username=x-access-token`), or of
-// the owning Organization for another owner, whose private repositories
-// GitHub then refuses: the boundary is GitHub's, not this helper's. When no
-// sign-in can answer, it answers `quit=1`, so Git neither asks another helper
-// (one that may hold an account-wide credential) nor prompts on a terminal an
-// agent cannot answer. `store` and `erase` do nothing: the sign-in is kept in
-// its own file. https://git-scm.com/docs/git-credential
+// HTTPS Git and gh use the same App chain. The repository path never picks
+// credentials or narrows authority: GitHub checks the user's/App's rights.
+// A missing sign-in answers quit=1 so Git cannot silently use another helper.
 
 export type CredentialHost = Readonly<{
   paths: PilotPaths;
@@ -50,7 +36,7 @@ export const tokenAdvice = (
   organization: string,
   answer: Exclude<SignInToken, { kind: "token" }>,
 ): string => {
-  const signIn = `lazurio github sign-in --organization ${organization}`;
+  const signIn = "lazurio github sign-in";
   if (answer.kind === "signed-out")
     switch (answer.reason) {
       case "not-signed-in":
@@ -60,7 +46,7 @@ export const tokenAdvice = (
       case "sign-in-expired":
         return `The GitHub sign-in for ${organization} ran out after six months without use. Sign in again: ${signIn}`;
       case "app-changed":
-        return `The GitHub sign-in for ${organization} belongs to another sign-in app than the one configured now. Sign out and in again: lazurio github sign-out --organization ${organization}, then ${signIn}`;
+        return `The GitHub sign-in for ${organization} belongs to another sign-in app than the one configured now. Sign out and in again: lazurio github sign-out, then ${signIn}`;
     }
   switch (answer.reason) {
     case "unreachable":
@@ -68,38 +54,9 @@ export const tokenAdvice = (
     case "busy":
       return `Another process is renewing the GitHub sign-in for ${organization}. Try again in a moment.`;
     case "unreadable":
-      return `The GitHub sign-in for ${organization} cannot be read. Sign out and in again: lazurio github sign-out --organization ${organization}, then ${signIn}`;
+      return `The GitHub sign-in for ${organization} cannot be read. Sign out and in again: lazurio github sign-out, then ${signIn}`;
   }
 };
-
-/** Which Organization's sign-in answers for a repository owner: its own when
- * it is configured, else the owning Organization's (`foreign` names the
- * owner, so the caller can say why GitHub may refuse). */
-export function chooseOrganization(
-  config: PilotConfig,
-  owner: string | null,
-): Readonly<{
-  organization: ReturnType<typeof owningOrganization>;
-  foreign: string | null;
-}> {
-  if (owner !== null) {
-    const configured = configuredOrganization(config, owner);
-    if (configured !== undefined)
-      return { organization: configured, foreign: null };
-  }
-  return { organization: owningOrganization(config), foreign: owner };
-}
-
-export const foreignNotice = (
-  config: PilotConfig,
-  owner: string,
-  tool: "gh" | "git",
-): string =>
-  `${tool} (Lazurio): ${owner} is not an Organization this Environment is signed in to (${config.organizations
-    .map((entry) => entry.login)
-    .join(
-      ", ",
-    )}), so GitHub answers with the sign-in of ${owningOrganization(config).login}, which reaches only its own Organization. If GitHub refused, that is why: another Organization's private repositories are reached from its own Environment, or the Operator adds its sign-in here (lazurio github pilot add).`;
 
 export async function credentialHelper(
   action: string,
@@ -127,9 +84,8 @@ export async function credentialHelper(
     return quit(
       `the GitHub sign-in pilot's configuration cannot be read (${host.paths.config}).`,
     );
-  const owner = ownerOfCredentialPath(request.path);
-  const { organization, foreign } = chooseOrganization(pilot.config, owner);
-  const answer = await organizationToken({
+  const organization = pilot.config.application;
+  const answer = await applicationToken({
     paths: host.paths,
     organization,
     http: host.http,
@@ -137,8 +93,6 @@ export async function credentialHelper(
   });
   if (answer.kind !== "token")
     return quit(tokenAdvice(organization.login, answer));
-  if (foreign !== null)
-    host.writeStderr(`${foreignNotice(pilot.config, foreign, "git")}\n`);
   return {
     stdout: [
       "username=x-access-token",

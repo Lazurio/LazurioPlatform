@@ -13,12 +13,12 @@ import {
 } from "./oauth";
 import {
   type GithubSubject,
-  type PilotOrganization,
+  type PilotApplication,
   type PilotPaths,
   sameLogin,
 } from "./pilot";
 import {
-  lockOrganization,
+  lockSignIn,
   readSettledSignIn,
   readStoredSignIn,
   removeStoredSignIn,
@@ -26,16 +26,10 @@ import {
   writeStoredSignIn,
 } from "./store";
 
-// The sign-in of one person to one Organization's sign-in app (decision
-// F46): GitHub's device flow, exactly as the person knows it from gh today —
-// a code they enter at https://github.com/login/device in their own browser —
-// then two checks before anything is kept: the token acts for the person the
-// Organization assigned this Environment to (`GET /user`), and it reaches
-// exactly that Organization's installation of the app (`GET
-// /user/installations`). A sign-in that fails a check keeps nothing; its
-// tokens are dropped, not revoked: whether revoking one token ends the
-// account's other sign-ins of the app is what the pilot measures. The code
-// is shown only to the caller of the running command, never logged.
+// Device flow for the existing shared App (F48). Before retaining a pair,
+// verify the assigned account id and active owning installation. Other App
+// installations are expected and are not a reason to reject authorization.
+// Failed checks keep no new tokens; the pilot measures revocation scope.
 
 export type SignInFailure =
   /** The app's "Enable Device Flow" is off: its Owner ticks it. */
@@ -46,7 +40,7 @@ export type SignInFailure =
   | "access-denied"
   | "unreachable"
   | "unexpected-response"
-  /** The app handed out a token that never expires (decision F46 asks for
+  /** The app handed out a token that never expires (decision F48 asks for
    * expiring ones). */
   | "token-not-expiring"
   /** Another GitHub account approved the code. */
@@ -56,10 +50,11 @@ export type SignInFailure =
   | "app-not-installed"
   /** The Organization suspended its sign-in app. */
   | "app-suspended"
-  /** The token reaches another or a further installation: the app is not
-   * this Organization's private sign-in app. */
+  /** Inconsistent App identity or malformed/duplicate owning installation. */
   | "installation-unexpected"
-  /** Another sign-in or sign-out of this Organization held its lock. */
+  /** Existing credentials cannot be used safely and must be handled explicitly. */
+  | "state-unreadable"
+  /** Another sign-in or sign-out held the shared chain lock. */
   | "busy";
 
 export type SignInState =
@@ -90,7 +85,7 @@ export type SignInState =
 
 export type SignInInput = Readonly<{
   paths: PilotPaths;
-  organization: PilotOrganization;
+  organization: PilotApplication;
   subject: GithubSubject;
   http: GithubHttp;
   now: () => number;
@@ -124,26 +119,29 @@ const requestFailure = (error: unknown): SignInFailure => {
   throw error;
 };
 
-/** Which installation the token reaches, checked against the Organization:
- * exactly one, of that Organization, of this app, not suspended. */
+/** The owning installation must be active; other installations of the same
+ * App are expected. This check is not an Organization allowlist. */
 export function installationProblem(
   installations: readonly AppInstallation[],
-  organization: PilotOrganization,
+  organization: PilotApplication,
 ): Extract<
   SignInFailure,
   "app-not-installed" | "app-suspended" | "installation-unexpected"
 > | null {
-  if (installations.length === 0) return "app-not-installed";
-  const [only] = installations;
   if (
-    installations.length !== 1 ||
-    only === undefined ||
-    !sameLogin(only.account.login, organization.login) ||
-    only.targetType !== "Organization" ||
-    (only.clientId !== null && only.clientId !== organization.clientId)
+    installations.some(
+      (entry) =>
+        entry.clientId !== null && entry.clientId !== organization.clientId,
+    )
   )
     return "installation-unexpected";
-  return only.suspended ? "app-suspended" : null;
+  const owning = installations.filter((entry) =>
+    sameLogin(entry.account.login, organization.login),
+  );
+  if (owning.length === 0) return "app-not-installed";
+  if (owning.length !== 1 || owning[0]?.targetType !== "Organization")
+    return "installation-unexpected";
+  return owning[0].suspended ? "app-suspended" : null;
 }
 
 export async function signIn(input: SignInInput): Promise<SignInState> {
@@ -157,10 +155,16 @@ export async function signIn(input: SignInInput): Promise<SignInState> {
 
   const existing = await readStoredSignIn(paths, login);
   if (
-    existing !== null &&
-    existing !== "unreadable" &&
-    existing.clientId === organization.clientId
+    existing === "unreadable" ||
+    (existing !== null && existing.clientId !== organization.clientId)
   )
+    return failed("state-unreadable");
+  if (existing !== null) {
+    if (existing.account.id !== input.subject.id)
+      return failed("wrong-account", {
+        account: existing.account.login,
+        expected: input.subject.login,
+      });
     return Object.freeze({
       kind: "signed-in",
       organization: existing.organization.login,
@@ -168,6 +172,7 @@ export async function signIn(input: SignInInput): Promise<SignInState> {
       installationId: existing.installationId,
       already: true,
     });
+  }
 
   let device: Awaited<ReturnType<typeof requestDeviceCode>>;
   try {
@@ -252,11 +257,13 @@ export async function signIn(input: SignInInput): Promise<SignInState> {
   }
   const problem = installationProblem(installations, organization);
   if (problem !== null) return failed(problem);
-  const installation = installations[0] as AppInstallation;
+  const installation = installations.find((entry) =>
+    sameLogin(entry.account.login, organization.login),
+  ) as AppInstallation;
 
-  let lock: Awaited<ReturnType<typeof lockOrganization>>;
+  let lock: Awaited<ReturnType<typeof lockSignIn>>;
   try {
-    lock = await lockOrganization(paths, login);
+    lock = await lockSignIn(paths);
   } catch {
     return failed("busy");
   }
@@ -264,10 +271,16 @@ export async function signIn(input: SignInInput): Promise<SignInState> {
     // A sign-in that finished meanwhile wins; this one keeps nothing.
     const meanwhile = await readSettledSignIn(paths, login);
     if (
-      meanwhile !== null &&
-      meanwhile !== "unreadable" &&
-      meanwhile.clientId === organization.clientId
+      meanwhile === "unreadable" ||
+      (meanwhile !== null && meanwhile.clientId !== organization.clientId)
     )
+      return failed("state-unreadable");
+    if (meanwhile !== null) {
+      if (meanwhile.account.id !== input.subject.id)
+        return failed("wrong-account", {
+          account: meanwhile.account.login,
+          expected: input.subject.login,
+        });
       return Object.freeze({
         kind: "signed-in",
         organization: meanwhile.organization.login,
@@ -275,6 +288,7 @@ export async function signIn(input: SignInInput): Promise<SignInState> {
         installationId: meanwhile.installationId,
         already: true,
       });
+    }
     const at = new Date(now()).toISOString();
     await writeStoredSignIn(paths, {
       schema: signInSchema,
@@ -315,20 +329,20 @@ export type SignOutResult =
   | Readonly<{ kind: "not-signed-in"; organization: string }>
   | Readonly<{ kind: "failed"; organization: string; reason: "busy" }>;
 
-/** Ends one Organization's sign-in here: both tokens are revoked at GitHub
+/** Ends this Environment's App sign-in here: both tokens are revoked at GitHub
  * (`POST /credentials/revoke`, which notifies the person) and the file is
  * removed, also when GitHub cannot be reached; then the result says so. */
 export async function signOut(
   input: Readonly<{
     paths: PilotPaths;
-    organization: PilotOrganization;
+    organization: PilotApplication;
     http: GithubHttp;
   }>,
 ): Promise<SignOutResult> {
   const login = input.organization.login;
-  let lock: Awaited<ReturnType<typeof lockOrganization>>;
+  let lock: Awaited<ReturnType<typeof lockSignIn>>;
   try {
-    lock = await lockOrganization(input.paths, login);
+    lock = await lockSignIn(input.paths);
   } catch {
     return Object.freeze({
       kind: "failed",
@@ -348,7 +362,7 @@ export async function signOut(
         current.accessToken,
         current.refreshToken,
       ]));
-    await removeStoredSignIn(input.paths, login);
+    await removeStoredSignIn(input.paths);
     return Object.freeze({ kind: "signed-out", organization: login, revoked });
   } finally {
     await lock.release();

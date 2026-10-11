@@ -8,8 +8,8 @@ import {
 } from "../src/github/oauth";
 import { ensurePrivateDirectory } from "../src/github/pilot";
 import {
-  lockOrganization,
-  organizationToken,
+  applicationToken,
+  lockSignIn,
   readStoredSignIn,
   signInFile,
 } from "../src/github/store";
@@ -23,8 +23,8 @@ import {
 } from "./fixtures/github-pilot";
 import { runChild } from "./fixtures/run-child";
 
-// One Organization's sign-in (decision F46): the access token renews itself
-// ten minutes before its end, under the Organization's kernel lock, because a
+// One shared App sign-in (decision F48): the access token renews itself
+// ten minutes before its end, under its one kernel lock, because a
 // refresh token works once (GitHub's rotation ends the pair it replaced).
 
 const cleanups: (() => unknown)[] = [];
@@ -45,7 +45,7 @@ const tokenOf = (
   github: FakeGithub,
   extra: { now?: () => number; lockTimeoutMs?: number } = {},
 ) =>
-  organizationToken({
+  applicationToken({
     paths: world.paths,
     organization: exampleOrganization,
     http: githubHttp({ origins: github.origins }),
@@ -235,7 +235,7 @@ test("no sign-in, an unreadable one and another app's are never used", async () 
     reason: "not-signed-in",
   });
   await ensurePrivateDirectory(world.paths.stateDirectory);
-  await writeFile(signInFile(world.paths, "Example"), "{not json");
+  await writeFile(signInFile(world.paths), "{not json");
   expect(await tokenOf(world, github)).toEqual({
     kind: "unavailable",
     reason: "unreadable",
@@ -253,11 +253,11 @@ test("no sign-in, an unreadable one and another app's are never used", async () 
 test("the sign-in is kept owner-only and whole", async () => {
   const { github, world } = await setup();
   const pair = await storeSignIn(world, github, exampleOrganization);
-  const file = signInFile(world.paths, "Example");
+  const file = signInFile(world.paths);
   expect((await stat(file)).mode & 0o777).toBe(0o600);
   expect((await stat(world.paths.stateDirectory)).mode & 0o777).toBe(0o700);
-  // Keyed by the login in lower case: GitHub logins ignore case.
-  expect(file.endsWith("/example.json")).toBe(true);
+  // One file independent of repository owner.
+  expect(file.endsWith("/sign-in.json")).toBe(true);
   const text = await readFile(file, "utf8");
   expect(JSON.parse(text).accessToken).toBe(pair.access);
 });
@@ -267,7 +267,7 @@ test("while another process holds the lock, a still-working token is used, a spe
   await storeSignIn(world, github, exampleOrganization, {
     accessMs: 5 * 60 * 1000,
   });
-  const lock = await lockOrganization(world.paths, "Example");
+  const lock = await lockSignIn(world.paths);
   cleanups.push(() => lock.release());
   expect(await tokenOf(world, github, { lockTimeoutMs: 50 })).toMatchObject({
     kind: "token",
@@ -289,7 +289,7 @@ test("a refresh killed before its rename leaves its pair aside; the next locked 
     now: now - 8 * 3600 * 1000,
     accessMs: 8 * 3600 * 1000 - 5 * 60 * 1000,
   });
-  const file = signInFile(world.paths, "Example");
+  const file = signInFile(world.paths);
   const stored = JSON.parse(await readFile(file, "utf8"));
   // …and the killed write's temporary file the one that works.
   const working = github.issue();
@@ -302,15 +302,15 @@ test("a refresh killed before its rename leaves its pair aside; the next locked 
   };
   const directory = world.paths.stateDirectory;
   await writeFile(
-    join(directory, ".example.json.tmp-0123456789abcdef"),
+    join(directory, ".sign-in.json.tmp-0123456789abcdef"),
     `${JSON.stringify(aside)}\n`,
     { mode: 0o600 },
   );
   await writeFile(
-    join(directory, ".example.json.tmp-fedcba9876543210"),
+    join(directory, ".sign-in.json.tmp-fedcba9876543210"),
     "{par",
   );
-  // Another Organization's write in flight is never touched.
+  // Unrelated state is never touched.
   await writeFile(join(directory, ".other.json.tmp-0123456789abcdef"), "{}");
   const answer = await tokenOf(world, github);
   expect(answer).toMatchObject({
@@ -321,6 +321,6 @@ test("a refresh killed before its rename leaves its pair aside; the next locked 
   expect(github.refreshes()).toBe(0);
   expect(ended.access).not.toBe(working.access);
   expect((await readdir(directory)).sort()).toEqual(
-    [".other.json.tmp-0123456789abcdef", "example.json", "example.lock"].sort(),
+    [".other.json.tmp-0123456789abcdef", "sign-in.json", "sign-in.lock"].sort(),
   );
 });

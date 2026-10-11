@@ -14,13 +14,12 @@ import {
   enablePilot,
   exampleOrganization,
   fakeGh,
-  otherOrganization,
   type PilotWorld,
   pilotWorld,
   storeSignIn,
 } from "./fixtures/github-pilot";
 
-// The gh launcher (decision F46): the official gh with GH_TOKEN of the
+// The gh launcher (decision F48): the official gh with GH_TOKEN of the
 // repository owner's Organization sign-in, chosen per command; gh's own
 // arguments, output and exit status otherwise.
 
@@ -39,11 +38,10 @@ async function setup() {
   const github = startFakeGithub();
   const world = await pilotWorld({ preset: null });
   cleanups.push(github.close, world.cleanup);
-  await enablePilot(world, [exampleOrganization, otherOrganization]);
+  await enablePilot(world);
   const gh = await fakeGh(join(world.root, "official"));
   const example = await storeSignIn(world, github, exampleOrganization);
-  const other = await storeSignIn(world, github, otherOrganization);
-  return { github, world, gh, example, other };
+  return { github, world, gh, example };
 }
 
 function launcher(
@@ -169,6 +167,13 @@ test("what the launcher runs without an account, refuses, or gives an account", 
     // Help and versions need no account and no host.
     [["--version"], { GH_HOST: "ghe.example.com" }, "local"],
     [["api", "user"], { GH_HOST: "github.com" }, "account"],
+    [["pr", "list"], { GH_REPO: "tenant.ghe.com/Example/app" }, "refused-host"],
+    [
+      ["pr", "list", "--repo=https://tenant.ghe.com/Example/app"],
+      {},
+      "refused-host",
+    ],
+    [["pr", "list", "-RExample/app"], {}, "account"],
     [["pr", "create", "--fill"], {}, "account"],
     // After -- the arguments are another program's.
     [["repo", "clone", "Example/app", "--", "--show-token"], {}, "account"],
@@ -177,8 +182,8 @@ test("what the launcher runs without an account, refuses, or gives an account", 
     expect([args, classifyGh(args, env)]).toEqual([args, expected as never]);
 });
 
-test("each command gets the token of its repository owner's Organization", async () => {
-  const { github, world, gh, example, other } = await setup();
+test("commands for different owners use the one shared App chain", async () => {
+  const { github, world, gh, example } = await setup();
   const run = launcher(world, github, gh);
   expect(await run.run(["pr", "list", "-R", "Example/app"])).toBe(0);
   expect(await run.run(["pr", "list", "--repo", "other/app"])).toBe(0);
@@ -188,8 +193,8 @@ test("each command gets the token of its repository owner's Organization", async
   expect(await run.run(["api", "user"])).toBe(0);
   expect(run.calls.map((call) => call.env.GH_TOKEN)).toEqual([
     example.access,
-    other.access,
-    other.access,
+    example.access,
+    example.access,
     example.access,
     example.access,
   ]);
@@ -199,18 +204,18 @@ test("each command gets the token of its repository owner's Organization", async
   expect(run.stderr).toEqual([]);
 });
 
-test("the checkout's origin names the owner when the command does not", async () => {
-  const { github, world, gh, other } = await setup();
+test("another checkout does not create or select another token chain", async () => {
+  const { github, world, gh, example } = await setup();
   const run = launcher(world, github, gh, {
     origin: "git@github.com:Other/app.git",
   });
   expect(await run.run(["pr", "list"])).toBe(0);
-  expect(run.calls[0]?.env.GH_TOKEN).toBe(other.access);
+  expect(run.calls[0]?.env.GH_TOKEN).toBe(example.access);
   const https = launcher(world, github, gh, {
     origin: "https://github.com/Other/app.git",
   });
   expect(await https.run(["pr", "status"])).toBe(0);
-  expect(https.calls[0]?.env.GH_TOKEN).toBe(other.access);
+  expect(https.calls[0]?.env.GH_TOKEN).toBe(example.access);
 });
 
 test("another owner gets the owning Organization's sign-in and GitHub decides", async () => {
@@ -223,19 +228,17 @@ test("another owner gets the owning Organization's sign-in and GitHub decides", 
   const refused = launcher(world, github, gh, { exit: 1 });
   expect(await refused.run(["repo", "view", "Foreign/private"])).toBe(1);
   expect(refused.calls).toHaveLength(1);
-  expect(refused.stderr.join("")).toContain(
-    "Foreign is not an Organization this Environment is signed in to (Example, Other)",
-  );
+  expect(refused.stderr).toEqual([]);
 });
 
-test("an Organization without its sign-in fails closed and says what to do", async () => {
+test("a missing shared sign-in fails closed for every owner", async () => {
   const { github, world, gh } = await setup();
-  await removeStoredSignIn(world.paths, "Other");
+  await removeStoredSignIn(world.paths);
   const run = launcher(world, github, gh);
   expect(await run.run(["pr", "list", "-R", "Other/app"])).toBe(4);
   expect(run.calls).toEqual([]);
   expect(run.stderr.join("")).toContain(
-    "not signed in to GitHub for Other. The Operator signs in with lazurio github sign-in --organization Other",
+    "not signed in to GitHub for Example. The Operator signs in with lazurio github sign-in",
   );
 });
 
@@ -264,7 +267,7 @@ test("other credentials never reach gh beside the chosen sign-in", async () => {
 
 test("local commands work while signed out; refusals never run gh", async () => {
   const { github, world, gh } = await setup();
-  await removeStoredSignIn(world.paths, "Example");
+  await removeStoredSignIn(world.paths);
   const run = launcher(world, github, gh);
   expect(await run.run(["--version"])).toBe(0);
   expect(run.calls).toHaveLength(1);
@@ -275,25 +278,21 @@ test("local commands work while signed out; refusals never run gh", async () => 
     ["api", "user", "--hostname", "ghe.example.com"],
   ])
     expect(await run.run(args)).toBe(1);
-  expect(
-    await run.run(["pr", "list", "-R", "Example/a", "-R", "Other/b"]),
-  ).toBe(1);
   expect(run.calls).toHaveLength(1);
   expect(run.stderr.join("")).toContain("gh auth login is not used here");
   expect(run.stderr.join("")).toContain("tokens are never printed");
   expect(run.stderr.join("")).toContain("serves github.com only");
-  expect(run.stderr.join("")).toContain("repositories of different owners");
 });
 
 test("gh auth git-credential answers Git with the owner's sign-in, never gh's own", async () => {
-  const { github, world, gh, example, other } = await setup();
+  const { github, world, gh, example } = await setup();
   const request = (path: string) =>
     `protocol=https\nhost=github.com\npath=${path}\n\n`;
   const forOther = launcher(world, github, gh, {
     stdin: request("Other/app.git"),
   });
   expect(await forOther.run(["auth", "git-credential", "get"])).toBe(0);
-  expect(forOther.stdout.join("")).toContain(`password=${other.access}\n`);
+  expect(forOther.stdout.join("")).toContain(`password=${example.access}\n`);
   expect(forOther.calls).toEqual([]);
   const forExample = launcher(world, github, gh, {
     stdin: request("Example/app.git"),
@@ -307,7 +306,7 @@ test("gh auth git-credential answers Git with the owner's sign-in, never gh's ow
   expect(await store.run(["auth", "git-credential", "store"])).toBe(0);
   expect(store.stdout.join("")).toBe("");
   // Signed out: Git stops, never falls back.
-  await removeStoredSignIn(world.paths, "Other");
+  await removeStoredSignIn(world.paths);
   const signedOut = launcher(world, github, gh, {
     stdin: request("Other/app.git"),
   });

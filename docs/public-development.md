@@ -14,13 +14,12 @@ The one exception is the Environment vault's own account (decision F43): the
 Platform creates that account, so it writes the account's generated master
 password, its API key and its one Bitwarden CLI session itself, owner-only,
 beside the CLI's store on that Environment and nowhere else. Every other
-secret stays in the vault. The pilot of the Organization-scoped GitHub sign-in
-(decision F46) is a second, while it is switched on: GitHub hands the user
-access and refresh tokens of an Organization's sign-in app to the Environment
-that signed in, so the Platform keeps them itself, owner-only, one file per
-Organization in the Environment user's state directory, as gh keeps its own
-token in its hosts file; they are never printed, logged or written anywhere
-else.
+secret stays in the vault. The shared GitHub App sign-in pilot
+(decision F48) is a second exception while switched on: GitHub hands its expiring
+user/refresh pair to the Environment that signed in, so Platform keeps one
+owner-only chain in that Environment user's state directory, as gh keeps its own
+token. Its owning installation metadata does not narrow the token's reach. Tokens
+are never printed, logged, copied to another Environment or written to the Folder.
 
 Never include personal files, another Organization's data, customer examples,
 private environment values, keys, cookies, tokens or raw operational logs in source,

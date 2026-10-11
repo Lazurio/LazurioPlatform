@@ -7,28 +7,13 @@ import { readFolderState } from "../folder/read-state";
 import { parseUniqueJson } from "../providers/unique-json";
 import { writeDurableFile } from "../update/durable-file";
 
-// The pilot switch of the Organization-scoped GitHub sign-in (decision F46,
-// a pilot under root decision 0192): one configuration file of the
-// Environment user. Without it nothing of this module changes anything: no
-// command of `lazurio github` but `pilot enable` and `status` acts, the
-// launcher and the Git helper are not wired, doctor adds no row and the
-// curated gh sign-in of F19 is untouched. The file names the Organizations
-// whose own private sign-in app this Environment may sign in to (the first
-// is the owning Organization, used when a command names no repository) and,
-// once wired, what `pilot wire` replaced, so `pilot unwire` restores it.
-//
-//   ${XDG_CONFIG_HOME:-~/.config}/lazurio/github/          0700
-//     pilot.json        0600  the switch: Organizations and the wiring record
-//     pilot.gitconfig   0600  the Git include `pilot wire` writes
-//   ${XDG_STATE_HOME:-~/.local/state}/lazurio/github/      0700
-//     <login>.json      0600  one Organization's sign-in (store.ts)
-//     <login>.lock      0600  its kernel lock (refresh, sign-in, sign-out)
-//     gh                0755  the official gh, moved aside by `pilot wire`
-//
-// Nothing here is secret but the sign-in files; the client id of a GitHub App
-// is public.
+// One shared App sign-in on an assigned Work Environment (decision F48).
+// The owning Organization is checked at sign-in, never a token scope or ACL.
+// Config: private pilot.json + reversible wiring. State: one sign-in.json and
+// one sign-in.lock for the App's single refresh chain; official gh is kept here
+// while wired. All live credentials stay outside the Lazurio Folder.
 
-export const pilotSchema = "lazurio.github-sign-in-pilot.v1";
+export const pilotSchema = "lazurio.github-sign-in-pilot.v2";
 
 export type PilotPaths = Readonly<{
   configDirectory: string;
@@ -85,16 +70,16 @@ const loginPattern = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
 export const isGithubLogin = (value: unknown): value is string =>
   typeof value === "string" && loginPattern.test(value);
 
-/** A GitHub App's client id (`Iv1.…`, `Iv23li…`). An OAuth App's id (the
- * GitHub CLI's included) is refused: its tokens reach every Organization of
- * the person, which is exactly what this pilot ends. */
+/** Only a GitHub App client id. Its token reaches the intersection of
+ * the person's rights and this App's installations and permissions. */
 export const isAppClientId = (value: unknown): value is string =>
   typeof value === "string" && /^Iv[A-Za-z0-9.]{6,62}$/.test(value);
 
 export const sameLogin = (a: string, b: string) =>
   a.toLowerCase() === b.toLowerCase();
 
-export type PilotOrganization = Readonly<{ login: string; clientId: string }>;
+/** The owning Organization's login is an installation check, not access scope. */
+export type PilotApplication = Readonly<{ login: string; clientId: string }>;
 
 /** What `pilot wire` found at `~/.local/bin/gh` and did with it:
  * - `file`: the official binary itself, moved to `savedGh` (`real`);
@@ -116,13 +101,9 @@ export type PilotWiring = Readonly<{
 
 export type PilotConfig = Readonly<{
   schema: typeof pilotSchema;
-  /** The first is the owning Organization (O3); the others are explicit
-   * additional sign-ins, selected by repository owner. */
-  organizations: readonly PilotOrganization[];
+  application: PilotApplication;
   wiring: PilotWiring | null;
 }>;
-
-export const maxOrganizations = 10;
 
 function plainObject(input: unknown): Record<string, unknown> | null {
   if (typeof input !== "object" || input === null || Array.isArray(input))
@@ -188,34 +169,16 @@ export function parsePilotConfig(input: unknown): PilotConfig {
   const value = plainObject(input);
   if (
     value === null ||
-    !exactKeys(value, ["schema", "organizations", "wiring"]) ||
-    value.schema !== pilotSchema ||
-    !Array.isArray(value.organizations) ||
-    value.organizations.length === 0 ||
-    value.organizations.length > maxOrganizations
+    !exactKeys(value, ["schema", "application", "wiring"]) ||
+    value.schema !== pilotSchema
   )
     throw new Error("Invalid pilot configuration");
-  const organizations = value.organizations.map((entry) => {
-    const organization = plainObject(entry);
-    if (
-      organization === null ||
-      !exactKeys(organization, ["login", "clientId"]) ||
-      !isGithubLogin(organization.login) ||
-      !isAppClientId(organization.clientId)
-    )
-      throw new Error("Invalid pilot configuration");
-    return Object.freeze({
-      login: organization.login,
-      clientId: organization.clientId,
-    });
-  });
-  const logins = new Set(
-    organizations.map((entry) => entry.login.toLowerCase()),
-  );
-  const clients = new Set(organizations.map((entry) => entry.clientId));
+  const application = plainObject(value.application);
   if (
-    logins.size !== organizations.length ||
-    clients.size !== organizations.length
+    application === null ||
+    !exactKeys(application, ["login", "clientId"]) ||
+    !isGithubLogin(application.login) ||
+    !isAppClientId(application.clientId)
   )
     throw new Error("Invalid pilot configuration");
   let wiring: PilotWiring | null = null;
@@ -236,7 +199,10 @@ export function parsePilotConfig(input: unknown): PilotConfig {
   }
   return Object.freeze({
     schema: pilotSchema,
-    organizations: Object.freeze(organizations),
+    application: Object.freeze({
+      login: application.login,
+      clientId: application.clientId,
+    }),
     wiring,
   });
 }
@@ -297,16 +263,6 @@ export async function removePilot(paths: PilotPaths): Promise<void> {
   await rm(paths.config, { force: true });
 }
 
-/** The configured Organization of a login (GitHub logins ignore case). */
-export const configuredOrganization = (
-  config: PilotConfig,
-  login: string,
-): PilotOrganization | undefined =>
-  config.organizations.find((entry) => sameLogin(entry.login, login));
-
-export const owningOrganization = (config: PilotConfig): PilotOrganization =>
-  config.organizations[0] as PilotOrganization;
-
 // ---- The Work Environment ---------------------------------------------------
 
 /** The person a sign-in must be: the GitHub account the Organization
@@ -315,7 +271,12 @@ export const owningOrganization = (config: PilotConfig): PilotOrganization =>
 export type GithubSubject = Readonly<{ login: string; id: number }>;
 
 export type WorkEnvironment =
-  | Readonly<{ kind: "work"; subject: GithubSubject; preset: PresetName }>
+  | Readonly<{
+      kind: "work";
+      subject: GithubSubject;
+      organization: string;
+      preset: PresetName;
+    }>
   | Readonly<{
       kind: "refused";
       reason: /** Not a Remote Environment of this account: no hosted Folder. */
@@ -369,13 +330,14 @@ export async function workEnvironment(
   if (preset !== "hosted-organization-personal")
     return refused("not-work-environment", preset);
   const owner = preferences.machine?.owner;
-  const assignment =
-    owner?.kind === "organization" ? owner.assignment : undefined;
+  if (owner?.kind !== "organization") return refused("subject-unknown", preset);
+  const assignment = owner.assignment;
   if (assignment === undefined || assignment.kind !== "operator")
     return refused("subject-unknown", preset);
   return Object.freeze({
     kind: "work",
     preset,
+    organization: owner.organization,
     subject: Object.freeze({
       login: assignment.githubLogin,
       id: assignment.githubId,
@@ -398,5 +360,5 @@ export async function pilotRefusesCuratedGh(
   if (pilot.kind === "off") return undefined;
   if (pilot.kind === "unreadable") return Object.freeze({ owning: null });
   if (pilot.config.wiring === null) return undefined;
-  return Object.freeze({ owning: owningOrganization(pilot.config).login });
+  return Object.freeze({ owning: pilot.config.application.login });
 }

@@ -9,7 +9,7 @@ import {
 } from "./wiring";
 
 // What else in this Environment can reach GitHub as the person, beyond the
-// pilot's Organization sign-ins (decision F46, the migration of root decision
+// pilot's Organization sign-ins (decision F48, the migration of root decision
 // 0192's work Environments). Each of these reaches every Organization of the
 // person, so while one is left the boundary of the pilot is not the
 // Environment's. Found without reading or printing a value: a file is named,

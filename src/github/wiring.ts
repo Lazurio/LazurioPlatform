@@ -25,7 +25,7 @@ import {
   type PilotWiring,
 } from "./pilot";
 
-// How gh and Git reach the pilot's sign-ins (decision F46), and how they are
+// How gh and Git reach the pilot's sign-ins (decision F48), and how they are
 // given back. `pilot wire`:
 // - gh: the standard entry `~/.local/bin/gh` (decision 0161), which every
 //   shell and service of the Environment finds first, becomes a small
@@ -49,7 +49,7 @@ export const launcherMarker = "# lazurio-github-sign-in-pilot v1";
 export const launcherScript = (executable: string): string =>
   [
     "#!/bin/sh",
-    `${launcherMarker}: gh with the Organization sign-in of this Environment (decision F46).`,
+    `${launcherMarker}: gh with the Organization sign-in of this Environment (decision F48).`,
     "# Written by lazurio github pilot wire; lazurio github pilot unwire restores the official gh.",
     `exec '${executable}' github gh "$@"`,
     "",
@@ -66,7 +66,7 @@ const gitValue = (value: string) =>
 /** The pilot's Git include. */
 export const gitIncludeText = (executable: string): string =>
   [
-    `${launcherMarker}: Git for github.com through the Organization sign-in of this Environment (decision F46).`,
+    `${launcherMarker}: Git for github.com through the Organization sign-in of this Environment (decision F48).`,
     "# Written by lazurio github pilot wire; lazurio github pilot unwire removes it.",
     '[credential "https://github.com"]',
     "\thelper =",

@@ -3,34 +3,16 @@ import { constants } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
 import { constants as osConstants } from "node:os";
 import { resolveOnPath } from "../tools/status";
-import {
-  chooseOrganization,
-  credentialHelper,
-  foreignNotice,
-  tokenAdvice,
-} from "./credential";
+import { credentialHelper, tokenAdvice } from "./credential";
 import type { GithubHttp } from "./oauth";
-import { OwnerSelectionError, ownerOfGhCommand, ownerOfRemote } from "./owner";
 import { type PilotPaths, readPilot } from "./pilot";
-import { organizationToken } from "./store";
+import { applicationToken } from "./store";
 import { launcherMarker } from "./wiring";
 
-// The gh launcher of the pilot (decision F46): `~/.local/bin/gh` once
-// `pilot wire` ran, and `lazurio github gh …` directly. It runs the official
-// gh with `GH_TOKEN` of the repository owner's Organization sign-in in the
-// child's environment only (owner.ts says which owner), and nothing else
-// changes for gh: its arguments, its own configuration, its output and its
-// exit status are the official ones, and GitHub decides what the token may
-// do. Four things are not gh's own here: the `gh auth` commands that would
-// sign in or print a token (the sign-in is `lazurio github sign-in`), a host
-// other than github.com, an owner whose configured sign-in is missing, which
-// fails closed with what to do instead of falling back to anything, and
-// `gh auth git-credential`, which answers Git as the pilot's helper does (a
-// caller that names gh as Git's helper, Lazurio's own content installation
-// among them, gets the owner's sign-in, never gh's own). The refusals guard
-// against printing a token by accident; they are no boundary against the
-// Environment's own user, who can read the sign-in files as gh's own hosts
-// file.
+// Official gh gets one shared App token in its child environment only.
+// GitHub remains the authority for every owner and operation; there is no
+// per-owner credential routing. Host/token-display guards avoid accidental
+// disclosure, not a sandbox against the Environment's own OS user.
 
 export type LauncherHost = Readonly<{
   env: Readonly<Record<string, string | undefined>>;
@@ -137,6 +119,38 @@ function namedHosts(own: readonly string[], auth: boolean): string[] {
 // Where `gh api` may send the token when it is given a whole URL.
 const apiOrigins = ["https://api.github.com/", "https://uploads.github.com/"];
 
+/** Only extract a host, never a repository owner or token scope. */
+function foreignRepositoryHost(value: string): boolean {
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) {
+    try {
+      return new URL(value).hostname.toLowerCase() !== "github.com";
+    } catch {
+      return true;
+    }
+  }
+  const scp = /^(?:[^@/]+@)?([^:/]+):/.exec(value);
+  if (scp !== null) return scp[1]?.toLowerCase() !== "github.com";
+  const parts = value.split("/");
+  return parts.length === 3 && parts[0]?.toLowerCase() !== "github.com";
+}
+
+function repositorySelectors(
+  args: readonly string[],
+  env: Readonly<Record<string, string | undefined>>,
+): string[] {
+  const selected = env.GH_REPO ? [env.GH_REPO] : [];
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i] as string;
+    if (arg === "-R" || arg === "--repo") {
+      const value = args[++i];
+      if (value !== undefined) selected.push(value);
+    } else if (arg.startsWith("--repo=")) selected.push(arg.slice(7));
+    else if (arg.startsWith("-R") && arg.length > 2)
+      selected.push(arg.slice(2).replace(/^=/, ""));
+  }
+  return selected;
+}
+
 export function classifyGh(
   args: readonly string[],
   env: Readonly<Record<string, string | undefined>>,
@@ -184,6 +198,8 @@ export function classifyGh(
   if (host !== undefined && host !== "" && foreignHost([host]))
     return "refused-host";
   if (foreignHost(namedHosts(own, false))) return "refused-host";
+  if (repositorySelectors(own, env).some(foreignRepositoryHost))
+    return "refused-host";
   // A URL of a GitHub Enterprise Cloud tenant, to which gh would hand the
   // token as to github.com (`gh pr view https://<tenant>.ghe.com/…`). Not a
   // general URL check: `--body https://…` is a value.
@@ -287,7 +303,7 @@ export async function runGhLauncher(
       return host.runGh(gh, args, withoutTokens(host.env));
     case "refused-auth":
       say(
-        `in this Environment GitHub is signed in per Organization (pilot), so gh auth ${args[1]} is not used here. See lazurio github status; the Operator signs in with lazurio github sign-in --organization <Organization>.`,
+        `this Environment uses one shared App sign-in (pilot), so gh auth ${args[1]} is not used here. See lazurio github status; the Operator signs in with lazurio github sign-in.`,
       );
       return 1;
     case "refused-token":
@@ -302,26 +318,13 @@ export async function runGhLauncher(
     case "account":
       break;
   }
-  let owner: string | null;
-  try {
-    owner = ownerOfGhCommand(args, host.env)?.owner ?? null;
-  } catch (error) {
-    if (!(error instanceof OwnerSelectionError)) throw error;
-    say(
-      error.reason === "selectors-disagree"
-        ? "--repo, GH_REPO and the command name repositories of different owners; name one."
-        : error.reason === "host-not-github"
-          ? "the GitHub sign-in pilot serves github.com only."
-          : "--repo or GH_REPO is not a repository (OWNER/REPO).",
-    );
+  const origin = await host.readOrigin().catch(() => null);
+  if (origin !== null && foreignRepositoryHost(origin)) {
+    say("the GitHub sign-in pilot serves github.com only.");
     return 1;
   }
-  if (owner === null) {
-    const origin = await host.readOrigin().catch(() => null);
-    owner = origin === null ? null : ownerOfRemote(origin);
-  }
-  const { organization, foreign } = chooseOrganization(config, owner);
-  const answer = await organizationToken({
+  const organization = config.application;
+  const answer = await applicationToken({
     paths: host.paths,
     organization,
     http: host.http,
@@ -336,8 +339,6 @@ export async function runGhLauncher(
     ...withoutTokens(host.env),
     GH_TOKEN: answer.token,
   });
-  if (code !== 0 && foreign !== null)
-    host.writeStderr(`${foreignNotice(config, foreign, "gh")}\n`);
   return code;
 }
 

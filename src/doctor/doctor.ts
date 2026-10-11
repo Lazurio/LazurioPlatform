@@ -102,7 +102,7 @@ export const doctorCheckIds = [
   // tools
   "tool",
   "executor",
-  // The Organization-scoped GitHub sign-in pilot (decision F46): only while
+  // The shared GitHub App sign-in pilot (decision F48): only while
   // it is on.
   "github-sign-in",
   "github-leftover",
@@ -193,9 +193,9 @@ const ownReasons = [
   "executor-not-running",
   "executor-incomplete",
   // Modules: optional runtime secrets a module's app would start without
-  // (decision F46); a note on an `ok` module, never a refusal.
+  // (decision F48); a note on an `ok` module, never a refusal.
   "runtime-secret-not-provided",
-  // The GitHub sign-in pilot (decision F46).
+  // The GitHub sign-in pilot (decision F48).
   "github-pilot-unreadable",
   "github-not-signed-in",
   "github-sign-in-unreadable",
@@ -300,7 +300,7 @@ export const doctorContextRules: Readonly<
   ] satisfies ExecutorService[]),
   codexMcp: oneOf(agentRegistrations),
   claudeMcp: oneOf(agentRegistrations),
-  // The GitHub sign-in pilot (decision F46): which part of its wiring, which
+  // The GitHub sign-in pilot (decision F48): which part of its wiring, which
   // token variable is left.
   wiring: oneOf(["gh", "git"]),
   variable: oneOf(tokenVariableNames),
@@ -316,7 +316,7 @@ export const doctorContextRules: Readonly<
   answer: oneOf(["normal", "recovery", "none", "unexpected"]),
   organizations: count,
   modules: count,
-  // Declared runtime secrets (decision F46): their names, never a value,
+  // Declared runtime secrets (decision F48): their names, never a value,
   // and the one reason the catalog knows without the vault.
   secrets: (value: unknown) =>
     typeof value === "string" &&
@@ -617,7 +617,7 @@ async function toolRows(
 }
 
 // Declared runtime secrets in a check's context: their names and the one
-// reason the catalog gives them all (decision F46).
+// reason the catalog gives them all (decision F48).
 const secretContext = (
   secrets: readonly RuntimeSecretFinding[],
 ): ErrorContext =>
@@ -734,8 +734,8 @@ async function executorCheck(host: ExecutorHost): Promise<DoctorCheck> {
     : check("executor", "warn", `executor-${status.state}`, context);
 }
 
-/** The GitHub sign-in pilot (decision F46), only while it is on: each
- * Organization's sign-in, the wiring of gh and Git, and every account-wide
+/** The GitHub sign-in pilot (decision F48), only while it is on: the shared
+ * App sign-in, the wiring of gh and Git, and every account-wide
  * credential left in the Environment (the SSH probe only with `--sign-in`).
  * Never `fail`: the pilot is opt-in and its gaps leave the Environment
  * working; nothing at all is added where the pilot is off. */
@@ -743,7 +743,9 @@ export function githubChecks(status: GithubStatus | null): DoctorCheck[] {
   if (status === null || status.state === "off") return [];
   if (status.state === "unreadable")
     return [check("github-sign-in", "warn", "github-pilot-unreadable")];
-  const checks: DoctorCheck[] = status.organizations.map((entry) => {
+  const checks: DoctorCheck[] = (
+    status.application === null ? [] : [status.application]
+  ).map((entry) => {
     const organization = safeName(entry.login);
     return entry.signIn.state === "signed-in"
       ? check("github-sign-in", "ok", undefined, {

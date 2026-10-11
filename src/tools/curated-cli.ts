@@ -75,7 +75,7 @@ function environmentUnreadable(
 }
 
 /** gh's curated sign-in, key linking or sign-out while gh and Git are wired
- * to the Organization-scoped GitHub sign-in pilot (decision F46): an
+ * to the shared GitHub App sign-in pilot (decision F48): an
  * account-wide sign-in and an account SSH key are what the pilot replaces,
  * and through its launcher neither would work. Refused before gh runs. */
 async function githubPilotRefusal(
@@ -91,11 +91,10 @@ async function githubPilotRefusal(
     tool: "gh",
     action,
   };
-  const organization = pilot.owning ?? "<Organization>";
   const text =
     action === "logout"
-      ? `This Environment signs in to GitHub per Organization (pilot, decision F46). Sign out: lazurio github sign-out --organization ${organization}. A gh sign-in left from before the pilot is removed with gh auth logout --hostname github.com.`
-      : `This Environment signs in to GitHub per Organization (pilot, decision F46); an account-wide gh sign-in or SSH key is not set up here. Sign in: lazurio github sign-in --organization ${organization}. Back to the account-wide sign-in: lazurio github pilot unwire.`;
+      ? `This Environment uses one shared GitHub App sign-in (pilot, decision F48). Sign out: lazurio github sign-out. A gh sign-in left from before the pilot is removed with gh auth logout --hostname github.com.`
+      : `This Environment uses one shared GitHub App sign-in (pilot, decision F48); an account-wide gh sign-in or SSH key is not set up here. Sign in: lazurio github sign-in. Back to the account-wide sign-in: lazurio github pilot unwire.`;
   return { code: 2, result, text: json ? JSON.stringify(result) : text };
 }
 

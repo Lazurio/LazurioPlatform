@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { githubHttp } from "../src/github/oauth";
-import type { PilotOrganization } from "../src/github/pilot";
+import type { PilotApplication } from "../src/github/pilot";
 import {
   installationProblem,
   type SignInFailure,
@@ -22,10 +22,10 @@ import {
   storeSignIn,
 } from "./fixtures/github-pilot";
 
-// The person's sign-in to one Organization's sign-in app (decision F46):
+// The person's sign-in to the shared App (decision F48):
 // GitHub's device flow with the public client id only, then the checks that
 // the account is the Environment's assigned operator and that the token
-// reaches exactly that Organization's installation, before anything is kept.
+// reaches the active owning installation, before anything is kept.
 
 const cleanups: (() => unknown)[] = [];
 afterEach(async () => {
@@ -37,16 +37,21 @@ const subject = Object.freeze({ login: "example", id: 12345 });
 async function run(
   options: FakeGithubOptions = {},
   extra: {
-    organization?: PilotOrganization;
+    organization?: PilotApplication;
     subject?: { login: string; id: number };
     signal?: AbortSignal;
     onSleep?: (milliseconds: number) => void;
+    before?: (
+      world: Awaited<ReturnType<typeof pilotWorld>>,
+      github: ReturnType<typeof startFakeGithub>,
+    ) => Promise<void>;
   } = {},
 ) {
   const github = startFakeGithub(options);
   const world = await pilotWorld({ preset: null });
   cleanups.push(github.close, world.cleanup);
   await enablePilot(world);
+  await extra.before?.(world, github);
   const states: SignInState[] = [];
   const sleeps: number[] = [];
   let clock = Date.parse("2026-10-10T08:00:00Z");
@@ -114,9 +119,7 @@ test("the device flow signs in with the public client id and keeps the checked t
     accessTokenExpiresAt: "2026-10-10T16:00:10.000Z",
     refreshedAt: null,
   });
-  expect((await stat(signInFile(world.paths, "Example"))).mode & 0o777).toBe(
-    0o600,
-  );
+  expect((await stat(signInFile(world.paths))).mode & 0o777).toBe(0o600);
   // No state a caller prints carries a token.
   expect(JSON.stringify([states, final])).not.toMatch(/gh[ur]_/);
 });
@@ -128,6 +131,20 @@ test("slow_down lengthens the polling interval as GitHub says", async () => {
   expect(final.kind).toBe("signed-in");
   // pending, slow_down → GitHub's 10 s, a short outage, then the tokens.
   expect(sleeps).toEqual([5000, 5000, 10000, 10000]);
+});
+
+test("the shared App accepts multiple installations and keeps the owning installation even when it is not first", async () => {
+  const { world, final } = await run({
+    installations: [
+      { id: 778, account: { login: "Other", id: 4243 } },
+      { id: 777, account: { login: "Example", id: 4242 } },
+    ],
+  });
+  expect(final).toMatchObject({ kind: "signed-in", installationId: 777 });
+  expect(await readStoredSignIn(world.paths, "Example")).toMatchObject({
+    organization: { login: "Example", id: 4242 },
+    installationId: 777,
+  });
 });
 
 test("another account approving the code keeps nothing", async () => {
@@ -144,20 +161,17 @@ test("another account approving the code keeps nothing", async () => {
   expect(await readStoredSignIn(world.paths, "Example")).toBeNull();
 });
 
-test("the token must reach exactly the Organization's own installation of the app", async () => {
+test("the owning installation must exist, be active, and belong to the configured App", async () => {
   const cases: [
     NonNullable<FakeGithubOptions["installations"]>,
     SignInFailure,
   ][] = [
     [[], "app-not-installed"],
-    [
-      [{ id: 1, account: { login: "Other", id: 5 } }],
-      "installation-unexpected",
-    ],
+    [[{ id: 1, account: { login: "Other", id: 5 } }], "app-not-installed"],
     [
       [
         { id: 1, account: { login: "Example", id: 4242 } },
-        { id: 2, account: { login: "Other", id: 5 } },
+        { id: 2, account: { login: "EXAMPLE", id: 4242 } },
       ],
       "installation-unexpected",
     ],
@@ -191,7 +205,7 @@ test("the token must reach exactly the Organization's own installation of the ap
     expect(final).toEqual({ kind: "failed", organization: "Example", reason });
     expect(
       await readdir(world.paths.stateDirectory).catch(() => []),
-    ).not.toContain("example.json");
+    ).not.toContain("sign-in.json");
   }
   // The login of the Organization is compared without case.
   expect(
@@ -239,7 +253,7 @@ test("the app's settings and the person's choice end the flow with what to do", 
     kind: "expired",
     organization: "Example",
   });
-  // An app whose tokens never expire is refused (decision F46).
+  // An app whose tokens never expire is refused (decision F48).
   const lasting = await run({ expiring: false });
   expect(lasting.final).toEqual({
     kind: "failed",
@@ -333,9 +347,7 @@ test("a sign-out that GitHub does not confirm still removes the sign-in and says
     }),
   ).toEqual({ kind: "signed-out", organization: "Example", revoked: false });
   expect(
-    await readFile(signInFile(world.paths, "Example"), "utf8").catch(
-      () => null,
-    ),
+    await readFile(signInFile(world.paths), "utf8").catch(() => null),
   ).toBeNull();
 });
 
@@ -347,12 +359,10 @@ test("sign-out also revokes a pair a killed write left aside, and leaves no copy
   await storeSignIn(world, github, exampleOrganization, {
     now: Date.now() - 3600 * 1000,
   });
-  const stored = JSON.parse(
-    await readFile(signInFile(world.paths, "Example"), "utf8"),
-  );
+  const stored = JSON.parse(await readFile(signInFile(world.paths), "utf8"));
   const aside = github.issue();
   await writeFile(
-    join(world.paths.stateDirectory, ".example.json.tmp-00112233445566aa"),
+    join(world.paths.stateDirectory, ".sign-in.json.tmp-00112233445566aa"),
     JSON.stringify({
       ...stored,
       accessToken: aside.access,
@@ -374,4 +384,41 @@ test("sign-out also revokes a pair a killed write left aside, and leaves no copy
       name.includes("json"),
     ),
   ).toEqual([]);
+});
+
+test("an existing authorization cannot stand in for another assigned account", async () => {
+  const { world, github, final } = await run(
+    {},
+    {
+      subject: { login: "new-assignee", id: 999 },
+      before: async (world, github) => {
+        await storeSignIn(world, github, exampleOrganization);
+      },
+    },
+  );
+  expect(final).toMatchObject({
+    kind: "failed",
+    reason: "wrong-account",
+    account: "example",
+    expected: "new-assignee",
+  });
+  expect(github.requests).toHaveLength(0);
+  expect(await readStoredSignIn(world.paths, "Example")).toMatchObject({
+    account: { id: 12345 },
+  });
+});
+
+test("unreadable credentials are preserved instead of replaced by a fresh authorization", async () => {
+  const { world, github, final } = await run(
+    {},
+    {
+      before: async (world, github) => {
+        await storeSignIn(world, github, exampleOrganization);
+        await writeFile(signInFile(world.paths), "unknown-state");
+      },
+    },
+  );
+  expect(final).toMatchObject({ kind: "failed", reason: "state-unreadable" });
+  expect(github.requests).toHaveLength(0);
+  expect(await readFile(signInFile(world.paths), "utf8")).toBe("unknown-state");
 });

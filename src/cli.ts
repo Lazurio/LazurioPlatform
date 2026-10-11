@@ -204,7 +204,7 @@ async function readCredentialRequest(): Promise<string | null> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-// The GitHub sign-in pilot's gh launcher (decision F46): gh's own terminal,
+// The GitHub sign-in pilot's gh launcher (decision F48): gh's own terminal,
 // output and exit status; only refusals of the launcher are its own.
 async function runGithubLauncher(args: string[]): Promise<number> {
   const paths = pilotPaths(process.env);
@@ -327,7 +327,7 @@ async function runOtherCommand(args: string[]): Promise<number> {
         progress: (line) => console.error(line),
       }),
     );
-  // The Organization-scoped GitHub sign-in pilot (decision F46): a running
+  // The shared GitHub App sign-in pilot (decision F48): a running
   // sign-in writes its code to stdout as it comes; Ctrl-C cancels it.
   if (args[0] === "github") {
     const interrupt = new AbortController();
