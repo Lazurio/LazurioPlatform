@@ -4,11 +4,13 @@ import {
   type Shell,
   type ShellAccount,
   type ShellSignedOut,
+  shellSchema,
 } from "./contract";
 import { installShellFonts } from "./fonts";
 import { icon } from "./icons";
 import { appOf, keptVisit, reportLast } from "./last";
 import { fillShell, type ShellCopy, shellMessages } from "./messages";
+import { newTabElement } from "./new-tab-element";
 import { registerGuide } from "./offline-guide";
 import { accountSourceOf, createShellState } from "./state";
 import { columnHeadCss, railCss, railWidth } from "./styles";
@@ -69,6 +71,10 @@ import {
 // `lazurio-navigate` (detail `{ href }`) for a link on the document's own
 // origin, and `lazurio-app` (detail `{ app, href }`) for a switch tab.
 // Without a listener that cancels them, the links simply navigate.
+//
+// `<lazurio-new-tab>` (decision F47, new-tab-element.ts) is Nová karta in an
+// app's right panel: it frames the Launchpad's `/new-tab` from the same
+// document's `apps` and reports what the tab became (`lazurio-new-tab`).
 
 const logo = vendorText("symbol-color.svg");
 
@@ -103,6 +109,12 @@ export function provideAccount(account: ShellAccount | null): void {
 
 function requestShell(): void {
   state.requestAccount();
+  requestDocument();
+}
+
+/** The page's document only, read once on this origin unless the host
+ * provides it; Nová karta needs no account. */
+function requestDocument(): void {
   if (
     requested ||
     state.local() !== null ||
@@ -998,6 +1010,13 @@ export function luminance(r: number, g: number, b: number): number {
   return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
 }
 
+/** The page's own document of a person, for Nová karta's frame: never the
+ * signed-out one, which names no Environment. */
+function personsDocument(): Shell | null {
+  const local = state.local();
+  return local !== null && local.schema === shellSchema ? local : null;
+}
+
 /** Defines the elements (once) and declares the brand fonts in the document. */
 export function defineShellElements(): void {
   installShellFonts(document);
@@ -1005,4 +1024,13 @@ export function defineShellElements(): void {
     customElements.define("lazurio-rail", LazurioRail);
   if (!customElements.get("lazurio-column-head"))
     customElements.define("lazurio-column-head", LazurioColumnHead);
+  if (!customElements.get("lazurio-new-tab"))
+    customElements.define(
+      "lazurio-new-tab",
+      newTabElement({
+        shell: personsDocument,
+        listen: (changed) => state.listen(changed),
+        request: requestDocument,
+      }),
+    );
 }
