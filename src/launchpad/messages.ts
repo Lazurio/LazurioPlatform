@@ -1551,7 +1551,7 @@ const cs: Record<MessageKey, string> = {
   updateStarted: "Aktualizace spuštěna…",
   updateRefused: "Aktualizace nebyla spuštěna; zobrazený stav byl obnoven.",
   updateFolderRefresh:
-    "Folder je potřeba obnovit: vykreslila ho revize šablon {recorded}, Lazurio teď vykresluje {product}. Spusť: {command}",
+    "Folder je potřeba obnovit: vykreslila ho revize šablon {recorded}, Lazurio teď vykresluje {product}. Spusťte: {command}",
   toolsTitle: "Nástroje",
   toolsSwitchLabel: "Používají agenti",
   toolsSwitchNamed: "Používají agenti: {name}",
@@ -1569,7 +1569,7 @@ const cs: Record<MessageKey, string> = {
   toolsTierRecommended: "Doporučené",
   toolsTierRecommendedNote: "Hodí se skoro každému.",
   toolsTierOptional: "Volitelné",
-  toolsTierOptionalNote: "Zapni jen to, co používáš.",
+  toolsTierOptionalNote: "Zapněte jen to, co používáte.",
   toolsInstalled: "Nainstalováno, verze {version}",
   toolsInstalledNoVersion: "Nainstalováno, verze neznámá",
   toolsNotInstalled: "Není nainstalováno",
@@ -1693,7 +1693,7 @@ const cs: Record<MessageKey, string> = {
   toolsLoginTitle: "Připojit {name}",
   toolsLoginContinue: "Pokračovat",
   toolsStepInstalling: "Instalace",
-  toolsStepWaiting: "Čeká se na tebe",
+  toolsStepWaiting: "Čeká se na vás",
   toolsStepSignedIn: "Připojeno",
   toolsStepDone: "{step}: hotovo",
   toolsStepCurrent: "{step}: probíhá",
@@ -1727,10 +1727,10 @@ const cs: Record<MessageKey, string> = {
     "Nastavení může dokončit agent podle sepsaného cílového stavu tohoto nástroje.",
   toolsLoginStarting: "Spouštím připojení…",
   toolsLoginStartingDetail: "Obvykle to trvá pár sekund.",
-  toolsLoginGhText: "Zkopíruj kód a potvrď ho na GitHubu.",
+  toolsLoginGhText: "Zkopírujte kód a potvrďte ho na GitHubu.",
   toolsLoginGhLink: "Otevřít GitHub",
   toolsLoginCodeLabel: "Jednorázový kód",
-  toolsLoginComposioText: "Přihlas se do Composia v prohlížeči.",
+  toolsLoginComposioText: "Přihlaste se do Composia v prohlížeči.",
   toolsLoginComposioLink: "Otevřít Composio",
   toolsLoginQrText:
     "V telefonu otevřete WhatsApp, pak Nastavení, Propojená zařízení, Propojit zařízení, a namiřte fotoaparát na tento kód. Kód se každých pár sekund mění; tady je vždy ten nejnovější.",
@@ -1769,7 +1769,7 @@ const cs: Record<MessageKey, string> = {
   toolsLoginNoAnswer:
     "Launchpad včas neodpověděl. Zkuste to znovu; když zase neodpoví, obnovte stránku.",
   toolsLoginExpired:
-    "Přihlášení vypršelo dřív, než bylo dokončeno. Spusťte ho znovu, až budete připraveni.",
+    "Přihlášení vypršelo dřív, než bylo dokončeno. Spusťte ho znovu, až se vám to bude hodit.",
   toolsLoginEnded:
     "Přihlášení už neběží. Když ho pořád potřebujete, spusťte ho znovu.",
   toolsLoginUnreadable:
@@ -1787,14 +1787,14 @@ const cs: Record<MessageKey, string> = {
   toolsStepLinked: "SSH klíč propojený",
   toolsLoginLinking: "Připojeno. Propojuji SSH klíč tohoto Environmentu…",
   toolsLoginRefreshText:
-    "Vaše přihlášení gh zatím nesmí spravovat SSH klíče vašeho účtu. Abyste to povolili, otevřete na libovolném zařízení (tomhle počítači, jiném nebo telefonu) stránku zařízení GitHubu a zadejte tento kód:",
+    "Vaše přihlášení gh zatím nesmí spravovat SSH klíče vašeho účtu. Povolíte to na libovolném zařízení (tomhle počítači, jiném nebo telefonu): otevřete stránku zařízení GitHubu a zadejte tento kód:",
   toolsSshLinkedDone: "Připojeno jako {account}.",
   toolsSshKeyCreated:
     "Vytvořil se nový klíč bez hesla, aby ho agenti mohli používat: {path} ({fingerprint}).",
   toolsSshKeyReused:
     "Používá se stávající klíč {path} ({fingerprint}) beze změny.",
   toolsSshNotLinkedDone:
-    "V gh jste přihlášeni jako {account}, ale SSH klíč tohohle Environmentu propojený není, takže git přes SSH zatím nefunguje.",
+    "gh je přihlášený jako {account}, ale SSH klíč tohohle Environmentu propojený není, takže git přes SSH zatím nefunguje.",
   toolsSshFailureNotSignedIn: "gh na tomhle Environmentu není přihlášený.",
   toolsSshFailureScopeMissing:
     "Přihlášení gh nesmí spravovat SSH klíče vašeho účtu.",
@@ -1872,10 +1872,10 @@ const cs: Record<MessageKey, string> = {
   toolsClose: "Zavřít",
   toolsMcpTitle: "Vlastní MCP server",
   toolsMcpText:
-    "Vlastní MCP servery přidáš v Apps → Integrace → Vlastní; agent ho přidá na tvůj výslovný pokyn.",
+    "Vlastní MCP servery přidáte v Apps → Integrace → Vlastní; agent ho přidá na váš výslovný pokyn.",
   toolsMcpAction: "Přidat s agentem",
   toolsMcpPromptHint:
-    "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na tomhle Environmentu. Agent se zeptá, který server chcete, a přidá ho do Executoru tohohle Environmentu; klíč zadáte sami v Integracích.",
+    "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na tomhle Environmentu. Agent se zeptá, který server chcete, a přidá ho do Executoru tohohle Environmentu; klíč pak zadáte v Integracích.",
   // The Apps home and its left column (decision F36).
   appsTitle: "Apps",
   appsAll: "Všechny moduly",
@@ -1896,7 +1896,7 @@ const cs: Record<MessageKey, string> = {
   appsAbout: "O modulu",
   appsLog: "Log aplikace",
   appsLogHint:
-    "Launchpad log zatím neukazuje. Jeho poslední řádky přečteš v příkazové řádce tohoto Environmentu:",
+    "Launchpad log zatím neukazuje. Jeho poslední řádky přečtete v příkazové řádce tohoto Environmentu:",
   appsStarting: "Spouštím {name}…",
   appsStartFailed: "{name} se nepodařilo otevřít. Proč, říká přehled modulu.",
   // The org-agnostic description of a module by its stone's semantic key,
@@ -1938,11 +1938,11 @@ const cs: Record<MessageKey, string> = {
   appsMore: "Další volby pro {name}",
   appsFavorites: "Oblíbené",
   appsFavoritesLoading: "Načítání oblíbených…",
-  appsFavoritesHint: "Hvězdičkou u modulu si ho připneš sem.",
+  appsFavoritesHint: "Hvězdičkou u modulu si ho připnete sem.",
   appsFavoriteAdd: "Přidat do oblíbených",
   appsFavoriteRemove: "Odebrat z oblíbených",
   appsFavoriteMark: "V oblíbených",
-  appsFavoriteFailed: "Oblíbené se nepodařilo uložit. Zkus to znovu.",
+  appsFavoriteFailed: "Oblíbené se nepodařilo uložit. Zkuste to znovu.",
   appsModuleAccess: "Přístup k modulu",
   appsInfoModule: "Informace o modulu",
   appsInfoRepository: "Informace o repozitáři",
@@ -1951,9 +1951,9 @@ const cs: Record<MessageKey, string> = {
   appsNewModuleOpened:
     "Chat se otevírá v nové záložce se zadáním nového modulu v poli zprávy, neodeslaným.",
   appsNewModuleCopied:
-    "Zadání nového modulu je ve schránce: vlož ho v Chatu do nového vlákna.",
+    "Zadání nového modulu je ve schránce: vložte ho v Chatu do nového vlákna.",
   appsNewModuleCopyFailed:
-    "Zadání se nepodařilo zkopírovat; otevři Chat a popiš agentovi nový modul.",
+    "Zadání se nepodařilo zkopírovat; otevřete Chat a popište agentovi nový modul.",
   appsNewModulePrompt:
     "Chci založit nový modul v Organizaci {name} (GitHub {login}).\n\nNež cokoli vytvoříš, zeptej se mě postupně, jednu otázku po druhé:\n1. K čemu modul je a kdo ho bude používat.\n2. Jak se má jmenovat (název a krátký slug).\n3. Jestli má mít aplikaci a jakou (vite-react, astro, astro-starlight, bun-service, python-uv), nebo žádnou.\n4. Které Teamy k němu mají mít přístup.\n\nPak postupuj podle Lazurio Module Standard (skill lazurio-module-standard):\n- modul založ scaffoldem `lazurio module create {login}/<slug> --stack <stack> --teams <teamy>` z task worktree rootu Organizace, nikdy ručně, a nejdřív mi ukaž plán přes --dry-run;\n- ověř, že repozitář modulu existuje na GitHubu v Organizaci {login} a že k němu mají přístup vybrané Teamy;\n- výsledek připrav jako pull request a před Publikací se mě zeptej.",
   // The personal space's "+ Nový modul" (root decision 0185's addendum of
@@ -1965,7 +1965,7 @@ const cs: Record<MessageKey, string> = {
   appsSoon: "již brzy",
   appsMarketplaceSoon: "Již brzy",
   appsMarketplaceText:
-    "Tady si do Environmentu budeš přidávat další moduly. Připravujeme to.",
+    "Tady si do Environmentu budete přidávat další moduly. Připravujeme to.",
   appsMarketplaceOrganization:
     " Do té doby přibývají moduly v Dashboardu Organizace {name}.",
   title: "Lazurio Launchpad",
@@ -1981,7 +1981,7 @@ const cs: Record<MessageKey, string> = {
   mausbot: "Lazurio MausBot",
   catalogModules: "Moduly",
   catalogNoModules:
-    "Zatím tu nemáš žádné moduly. O přístup požádej Admina Organizace.",
+    "Zatím tu nemáte žádné moduly. O přístup požádejte Admina Organizace.",
   catalogPersonalspaceEmpty: "Osobní prostor je zatím prázdný.",
   catalogSectionWorkspace: "Workspace",
   catalogSectionProductionspace: "Productionspace",
@@ -2186,7 +2186,7 @@ const cs: Record<MessageKey, string> = {
   recoveryIssueCopy: "Zkopírovat příkaz gh",
   recoveryIssueLink: "Otevřít předvyplněné issue v prohlížeči",
   recoveryIssueLinkPaste:
-    "Otevřít formulář issue v prohlížeči (tělo vložte sami)",
+    "Otevřít formulář issue v prohlížeči (tělo do něj vložte)",
   recoveryIssueRefused:
     "Tělo issue se nepřipravilo: po sanitizaci v něm zůstalo {kinds}. Nic nesmí tenhle Environment opustit automaticky.",
   recoveryNothingFiled:
@@ -2309,30 +2309,30 @@ const cs: Record<MessageKey, string> = {
   setupResolve: "Vyřešit v Chatu",
   setupRetry: "Zkusit znovu",
   tourLabel: "Prohlídka Environmentu",
-  tourGearTitle: "Nejdřív připoj GitHub",
+  tourGearTitle: "Nejdřív připojte GitHub",
   tourGearText: "Bez něj tu nic nefunguje.",
   tourSettingsToolsTitle: "Tady se připojují služby",
-  tourGithubTitle: "Připoj GitHub",
-  tourGithubText: "Uvidíš své moduly a agenti budou pracovat za tebe.",
-  tourComposioTitle: "Připoj své aplikace",
+  tourGithubTitle: "Připojte GitHub",
+  tourGithubText: "Uvidíte své moduly a agenti budou pracovat za vás.",
+  tourComposioTitle: "Připojte své aplikace",
   tourComposioText: "Pošta, kalendář, Slack. Klidně až později.",
-  tourGearPersonalTitle: "Ještě připrav osobní prostor",
-  tourPersonalText: "Místo pro tvé vlastní věci.",
-  tourGearOrganizationTitle: "Ještě stáhni {name}",
-  tourOrganizationText: "Pak tu uvidíš její moduly.",
+  tourGearPersonalTitle: "Ještě připravte osobní prostor",
+  tourPersonalText: "Místo pro vaše vlastní věci.",
+  tourGearOrganizationTitle: "Ještě stáhněte {name}",
+  tourOrganizationText: "Pak tu uvidíte její moduly.",
   tourOrganization: "Organizaci",
   tourSettingsEnvironmentTitle: "Obsah Environmentu je tady",
   tourPrepareFailedTitle: "Něco se nepovedlo",
-  tourPrepareFailedText: "Zkus to znovu, nebo to vyřeší agent v Chatu.",
-  tourPreparePersonalTitle: "Připrav osobní prostor",
-  tourPrepareOrganizationTitle: "Stáhni {name}",
+  tourPrepareFailedText: "Zkuste to znovu, nebo to vyřeší agent v Chatu.",
+  tourPreparePersonalTitle: "Připravte osobní prostor",
+  tourPrepareOrganizationTitle: "Stáhněte {name}",
   tourAppsTitle: "Apps",
-  tourAppsText: "Tady otevíráš aplikace svých modulů.",
+  tourAppsText: "Tady otevíráte aplikace svých modulů.",
   tourChatTitle: "Chat",
-  tourChatText: "Tady zadáváš práci agentům.",
+  tourChatText: "Tady zadáváte práci agentům.",
   tourChatMissingText: "Práce pro agenty. Tady zatím neběží.",
   tourAutomateTitle: "Automate",
-  tourAutomateText: "Tady nastavíš, co se má dít samo.",
+  tourAutomateText: "Tady nastavíte, co se má dít samo.",
   tourAutomateMissingText: "Co se má dít samo. Tady zatím neběží.",
   tourSettingsTitle: "Nastavení je vždycky tady",
   tourNext: "Další",
@@ -2348,10 +2348,10 @@ const cs: Record<MessageKey, string> = {
   contentStopped: "Zastavilo se",
   contentBlocked: "Teď to připravit nejde",
   contentDownloadAll: "Stáhnout vše",
-  contentNeedsGithub: "Nejdřív připoj GitHub v Nástrojích.",
+  contentNeedsGithub: "Nejdřív připojte GitHub v Nástrojích.",
   contentNotAllowed: "Tady se obsah připravit nedá.",
   contentRefused: "Tady to připravit nejde.",
-  contentStartFailed: "Přípravu se nepodařilo spustit. Zkus to znovu.",
+  contentStartFailed: "Přípravu se nepodařilo spustit. Zkuste to znovu.",
   contentLost: "Průběh přípravy se nepodařilo zjistit.",
   contentAgentFixes: "Agent v Chatu to opraví.",
   contentDetails: "Podrobnosti",
@@ -2360,7 +2360,7 @@ const cs: Record<MessageKey, string> = {
   contentStepModules: "Stahuji moduly",
   contentStepPreparation: "Instaluji",
   contentStepCheck: "Kontroluji",
-  contentStepFind: "Hledám tvůj osobní prostor",
+  contentStepFind: "Hledám váš osobní prostor",
   contentStepCreate: "Zakládám",
   contentStepClone: "Stahuji",
   contentStepBootstrap: "Nastavuji",
@@ -2381,9 +2381,9 @@ const cs: Record<MessageKey, string> = {
   contentResolveOpened:
     "Chat se otevírá v nové záložce se zadáním v poli zprávy, neodeslaným.",
   contentResolveCopied:
-    "Zadání je ve schránce: vlož ho v Chatu do nového vlákna.",
+    "Zadání je ve schránce: vložte ho v Chatu do nového vlákna.",
   contentResolveCopyFailed:
-    "Zadání se nepodařilo zkopírovat; otevři Chat a řekni agentovi, co se zastavilo.",
+    "Zadání se nepodařilo zkopírovat; otevřete Chat a řekněte agentovi, co se zastavilo.",
   preparePromptWhatPersonal:
     "Příprava mého osobního prostoru (Personalspace) v tomhle Environmentu",
   preparePromptWhatOrganization:
@@ -2393,17 +2393,17 @@ const cs: Record<MessageKey, string> = {
   preparePromptBody:
     "Dotáhni prosím instalaci se vším všudy:\n1. Zjisti příčinu chyby a oprav ji v tomhle Environmentu.\n2. Dokonči přípravu stejným příkazem, jaký spouští Launchpad: `{command}`.\n3. Ověř výsledek: `lazurio doctor`, a u modulů, které mají testy, jejich testy.\n4. Řekni mi stručně, co bylo špatně, co jsi udělal a co jsi ověřil. Kdyby oprava potřebovala změnu mimo tenhle Environment (třeba v repozitáři), nejdřív se zeptej.",
   toolsDescriptionGh:
-    "Připojení na GitHub, kde jsou uložené tvoje moduly. Bez něj tu nic nefunguje.",
+    "Připojení na GitHub, kde jsou uložené vaše moduly. Bez něj tu nic nefunguje.",
   toolsDescriptionComposio:
-    "Snadná cesta k mnoha aplikacím přes Composio, s tvým vlastním účtem. Aplikace připojíš v Apps → Integrace.",
+    "Snadná cesta k mnoha aplikacím přes Composio, s vaším vlastním účtem. Aplikace připojíte v Apps → Integrace.",
   toolsDescriptionWacli:
-    "Připojení na WhatsApp: agenti čtou a posílají tvoje zprávy.",
+    "Připojení na WhatsApp: agenti čtou a posílají vaše zprávy.",
   toolsDescriptionGogcli:
-    "Připojení na Google: Gmail, Kalendář a Disk, když nechceš Composio.",
+    "Připojení na Google: Gmail, Kalendář a Disk, když nechcete Composio.",
   toolsDescriptionNeon:
     "Připojení na databáze Neon, hlavně pro vývoj aplikací.",
   toolsDescriptionBitwarden:
-    "Hesla a přístupy, které Environmentu nasdílíš ve svém trezoru Vaultwarden.",
+    "Hesla a přístupy, které Environmentu nasdílíte ve svém trezoru Vaultwarden.",
   toolsDescriptionExecutor:
     "Přes něj agenti používají aplikace připojené přímo z tohoto Environmentu. Instaluje ho a udržuje v chodu Lazurio.",
   toolsNotOffered: "V tomhle Environmentu se nenabízí; agenti ho nepoužívají.",
@@ -2425,14 +2425,14 @@ const cs: Record<MessageKey, string> = {
   vaultOpen: "Otevřít Vaultwarden",
   vaultSync: "Synchronizovat",
   vaultTitle: "Připojit Bitwarden",
-  vaultStepInvite: "Pozvi účet v trezoru",
+  vaultStepInvite: "Pozvěte účet v trezoru",
   vaultStepConnect: "Environment se připojí",
-  vaultStepConfirm: "Potvrď účet v trezoru",
-  vaultStepCollection: "Nasdílej účtu kolekci",
+  vaultStepConfirm: "Potvrďte účet v trezoru",
+  vaultStepCollection: "Nasdílejte účtu kolekci",
   vaultStepDone: "Připojeno",
   vaultInviteText:
-    "Založ kolekci, pojmenuj ji, jak chceš (třeba takhle), a pozvi do ní tuhle adresu s právem úprav.",
-  vaultInviteAgainText: "Pozvi tuhle adresu znovu do kolekce s právem úprav.",
+    "Založte kolekci, pojmenujte ji, jak chcete (třeba takhle), a pozvěte do ní tuhle adresu s právem úprav.",
+  vaultInviteAgainText: "Pozvěte tuhle adresu znovu do kolekce s právem úprav.",
   vaultAdminHint:
     "Pozvat a potvrdit může Admin nebo Owner organizace v trezoru.",
   vaultTeamHint: "Kolekci uvidí celý Team.",
@@ -2444,17 +2444,17 @@ const cs: Record<MessageKey, string> = {
   vaultInvited: "Pozváno",
   vaultNotInvited: "Adresa ještě není v trezoru pozvaná.",
   vaultRevokedConnect:
-    "Účet nevidí kolekci, ke které byl připojený. Pozvi ho do ní znovu, nebo Environment odpoj a připoj ho k jiné kolekci.",
+    "Účet nevidí kolekci, ke které byl připojený. Pozvěte ho do ní znovu, nebo Environment odpojte a připojte ho k jiné kolekci.",
   vaultUnreachableLine: "Trezor neodpovídá.",
   vaultPhaseInstall: "Instaluji Bitwarden",
   vaultPhaseAccount: "Zakládám účet",
   vaultPhaseSignIn: "Přihlašuji",
   vaultPasswordHint: "Heslo účtu zná jen tento Environment.",
-  vaultConfirmText: "Potvrď v trezoru nového člena.",
+  vaultConfirmText: "Potvrďte v trezoru nového člena.",
   vaultFingerprintHint: "Otisk v trezoru musí být stejný:",
   vaultWaiting: "Čekám na potvrzení…",
   vaultCollectionText:
-    "Potvrzeno. Ještě účtu v trezoru nasdílej kolekci tohoto Environmentu s právem úprav.",
+    "Potvrzeno. Ještě účtu v trezoru nasdílejte kolekci tohoto Environmentu s právem úprav.",
   vaultCollectionHint:
     "Vidí-li účet víc kolekcí, pozná tu svou podle tohohle názvu.",
   vaultWaitingCollection: "Čekám na kolekci…",
@@ -2462,7 +2462,7 @@ const cs: Record<MessageKey, string> = {
   vaultFailed: "Připojení se nedokončilo ({stage}: {reason}).",
   vaultDisconnectTitle: "Odpojit Bitwarden",
   vaultDisconnectText:
-    "Agenti tu přestanou trezor používat. Přístup úplně ukončíš odebráním účtu v trezoru.",
+    "Agenti tu přestanou trezor používat. Přístup úplně ukončíte odebráním účtu v trezoru.",
   vaultDisconnected:
     "Odpojeno. Účet v trezoru zůstává; Připojit ho přihlásí znovu.",
   vaultCancel: "Zrušit",
@@ -2532,16 +2532,16 @@ const cs: Record<MessageKey, string> = {
   toolsLoginDone: "Hotovo",
   toolsInstallLabel: "Instalace",
   machineBelongs: "Patří",
-  machineBelongsYou: "tobě (@{login})",
+  machineBelongsYou: "vám (@{login})",
   machineWorks: "Pracuje v něm",
-  machineWorksOnlyYou: "jen ty",
+  machineWorksOnlyYou: "jen vy",
   machineWorksTeam: "Team {team}",
   machineWorksAutomation: "automatizace, odpovídá @{login}",
   machineKindPersonal: "Osobní Remote Environment",
   machineKindWork: "Pracovní Remote Environment",
   machineKindTeam: "Týmový Remote Environment",
   machineKindAutomated: "Automatizovaný Environment",
-  machineKindWorkstation: "Tvůj počítač",
+  machineKindWorkstation: "Váš počítač",
   machineTechnicalKind: "Technický druh",
   machineSupport: "Pro podporu",
   browserToggle: "Prohlížeč",
@@ -2561,7 +2561,7 @@ const cs: Record<MessageKey, string> = {
   columnWidth: "Šířka navigace",
   integrationsTitle: "Integrace",
   integrationsSubtitle:
-    "Co tu připojíš, používají všichni agenti a boti tohoto Environmentu.",
+    "Co tu připojíte, používají všichni agenti a boti tohoto Environmentu.",
   integrationsHelp: "Jak to funguje",
   integrationsSearch: "Hledat aplikace",
   integrationsRefresh: "Zkontrolovat připojení",
@@ -2570,7 +2570,7 @@ const cs: Record<MessageKey, string> = {
   integrationsTabConnected: "Připojené",
   integrationsTabCustom: "Vlastní",
   integrationsAvailable: "Dostupné aplikace · {count}",
-  integrationsYours: "Tvoje připojení",
+  integrationsYours: "Vaše připojení",
   integrationsResults: "Výsledky hledání",
   integrationsLoading: "Načítám Integrace…",
   integrationsChecking: "Kontroluji připojení…",
@@ -2580,7 +2580,7 @@ const cs: Record<MessageKey, string> = {
   integrationsNoneFound: "Žádné aplikace jsme nenašli.",
   integrationsShowAll: "Zobrazit všech {count} aplikací",
   integrationsPopupBlocked:
-    "Prohlížeč zablokoval okno s připojením. Povol vyskakovací okna a zkus to znovu.",
+    "Prohlížeč zablokoval okno s připojením. Povolte vyskakovací okna a zkuste to znovu.",
   integrationsExecutorUnavailable:
     "Executor v tomhle Environmentu teď neběží, takže nic nejde připojit přímo.",
   integrationsExecutorAbsent:
@@ -2631,9 +2631,9 @@ const cs: Record<MessageKey, string> = {
     "Další účet téže aplikace potřebuje vlastní název.",
   integrationsContinue: "Pokračovat",
   integrationsCancel: "Zrušit",
-  integrationsFinishInBrowser: "Dokonči připojení v prohlížeči",
+  integrationsFinishInBrowser: "Dokončete připojení v prohlížeči",
   integrationsFinishInEnvironment:
-    "Dokonči přihlášení v prohlížeči Environmentu vpravo.",
+    "Dokončete přihlášení v prohlížeči Environmentu vpravo.",
   integrationsWaiting: "Čekám na přihlášení…",
   integrationsConnectedNow: "{app} je připojená.",
   integrationsReturnTitle: "Přihlášení",
@@ -2647,15 +2647,16 @@ const cs: Record<MessageKey, string> = {
     "Toto přihlášení už neplatí. Spusťte připojení znovu v Launchpadu.",
   integrationsConnectFailed: "Připojení se nepodařilo spustit.",
   integrationsIntegrationConflict:
-    "V Executoru je pod jménem téhle aplikace jiný server. Najdeš ho ve Vlastní: odeber ho tam a aplikaci připoj znovu.",
+    "V Executoru je pod jménem téhle aplikace jiný server. Najdete ho ve Vlastní: odeberte ho tam a aplikaci připojte znovu.",
   integrationsStillFailing:
-    "Pořád to nefunguje: Executor tenhle účet použít neumí. Zkus to později, nebo účet odpoj.",
+    "Pořád to nefunguje: Executor tenhle účet použít neumí. Zkuste to později, nebo účet odpojte.",
   integrationsConnectEnded: "Připojení se nedokončilo.",
   integrationsNameTaken: "Tenhle název už má jiný účet aplikace.",
   integrationsAccountUnnamed: "účet",
-  integrationsAccountExpired: "Přihlášení vypršelo — zkus to znovu",
-  integrationsAccountPending: "Dokonči připojení v prohlížeči, nebo účet odpoj",
-  integrationsAccountFailed: "Připojení se nepovedlo — zkus to znovu",
+  integrationsAccountExpired: "Přihlášení vypršelo, zkuste to znovu",
+  integrationsAccountPending:
+    "Dokončete připojení v prohlížeči, nebo účet odpojte",
+  integrationsAccountFailed: "Připojení se nepovedlo, zkuste to znovu",
   integrationsAccountSpareDirect: "Navíc přímo, nepoužívá se",
   integrationsAccountSpareComposio: "Navíc přes Composio, nepoužívá se",
   integrationsSignInAgain: "Přihlásit znovu",
@@ -2671,7 +2672,7 @@ const cs: Record<MessageKey, string> = {
   integrationsDisconnectPending:
     "Odvolá se jen tento účet; ostatní účty aplikace {app} zůstanou připojené.",
   integrationsDisconnectUnsupported:
-    "Composio odsud zatím odpojit nejde: účet odpoj v Composiu.",
+    "Composio odsud zatím odpojit nejde: účet odpojte v Composiu.",
   integrationsDisconnectFailed: "Účet se nepodařilo odpojit.",
   integrationsOpenComposio: "Otevřít Composio",
   integrationsMissingPath: "Tady ji zatím nejde připojit.",
@@ -2682,13 +2683,13 @@ const cs: Record<MessageKey, string> = {
   integrationsComposioOffOrganization: "Composio je ve firmě vypnuté.",
   integrationsComposioOffHere: "Composio je tu vypnuté.",
   integrationsAskAdmin: "Požádat Admina",
-  integrationsAskAdminCopied: "Zprávu pro Admina máš ve schránce.",
+  integrationsAskAdminCopied: "Zprávu pro Admina máte ve schránce.",
   integrationsAskAdminText:
     "Prosím o zpřístupnění aplikace {app} v Integracích našich Environmentů: {line}",
   integrationsSetUpInDashboard: "Nastavit v Dashboardu",
   integrationsAllowComposio: "Povolit Composio",
   integrationsComposioSignIn:
-    "Nejdřív se přihlas do Composia: otevře se v Nastavení → Nástroje.",
+    "Nejdřív se přihlaste do Composia: otevře se v Nastavení → Nástroje.",
   integrationsBrowserMissing:
     "Přímé přihlášení potřebuje prohlížeč tohoto Environmentu, který tu teď není.",
   integrationsKeyTitle: "Klíč pro {app}",

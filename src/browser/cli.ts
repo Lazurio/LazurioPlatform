@@ -121,11 +121,11 @@ const text = {
     "not-declared":
       "Tenhle Environment nemá prohlížeč Environmentu: předání sem nesměruje žádný pohled prohlížeče. Na Remote Environmentu přichází s cestou browser. v bráně.",
     "no-session":
-      "Chybí sezení: zadej --session <jméno> (písmena, číslice, - a _, nejvýš 64), nebo spusť příkaz z vlákna T3 Code, Codexu nebo Claude Code.",
+      "Chybí sezení: zadejte --session <jméno> (písmena, číslice, - a _, nejvýš 64), nebo spusťte příkaz z vlákna T3 Code, Codexu nebo Claude Code.",
     "browser-unreachable":
-      "Prohlížeč Environmentu na loopbacku neodpovídá. Spusť lazurio doctor.",
+      "Prohlížeč Environmentu na loopbacku neodpovídá. Spusťte lazurio doctor.",
     "window-create-failed":
-      "Prohlížeč Environmentu neotevřel okno. Spusť lazurio doctor.",
+      "Prohlížeč Environmentu neotevřel okno. Spusťte lazurio doctor.",
     "bind-failed":
       "Okno je otevřené, ale agent-browser k němu sezení nepřipojil.",
     failed: "lazurio browser selhal",

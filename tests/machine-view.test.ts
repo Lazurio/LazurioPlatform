@@ -76,8 +76,8 @@ test("a personal Remote Environment: yours, only you work in it", () => {
   );
   expect(facts).toEqual([
     ["Druh", "Osobní Remote Environment"],
-    ["Patří", "tobě (@octocat)"],
-    ["Pracuje v něm", "jen ty"],
+    ["Patří", "vám (@octocat)"],
+    ["Pracuje v něm", "jen vy"],
   ]);
   expect(support).toEqual([
     ["Technický název", "example"],
@@ -219,7 +219,7 @@ test("the technical facts are only under Pro podporu, a workstation says it is y
       { preset: "local", machine: null, organization: named, team: null },
       cs,
     ),
-  ).toEqual({ facts: [["Druh", "Tvůj počítač"]], support: [] });
+  ).toEqual({ facts: [["Druh", "Váš počítač"]], support: [] });
   expect(cs.machineSupport).toBe("Pro podporu");
   expect(en.machineSupport).toBe("For support");
 });

@@ -632,7 +632,7 @@ test("auto-on: a sign-in of this session turns the switch on, never for a tool s
 
 test("Nástroje: one plain sentence per tool, connected or not, the version in its details", () => {
   expect(toolDescription(tool({ name: "gh" }), cs)).toBe(
-    "Připojení na GitHub, kde jsou uložené tvoje moduly. Bez něj tu nic nefunguje.",
+    "Připojení na GitHub, kde jsou uložené vaše moduly. Bez něj tu nic nefunguje.",
   );
   expect(toolDescription(tool({ name: "neon" }), cs)).toBe(
     "Připojení na databáze Neon, hlavně pro vývoj aplikací.",

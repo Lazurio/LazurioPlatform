@@ -132,7 +132,7 @@ const en: ShellCopy = {
 const cs: ShellCopy = {
   rail: "Organizace",
   dashboard: "Dashboard",
-  dashboardSub: "tvůj přehled napříč Organizacemi",
+  dashboardSub: "váš přehled napříč Organizacemi",
   jump: "Přejít na Environment",
   jumpShortcut: "⌘⇧E",
   personal: "Osobní",
@@ -152,7 +152,7 @@ const cs: ShellCopy = {
     workstation: "Tento počítač",
   },
   who: {
-    personal: "jen tvůj",
+    personal: "jen váš",
     work: "pracovní",
     team: "sdílený Teamem",
     automated: "automatizace",
@@ -165,8 +165,8 @@ const cs: ShellCopy = {
   searchIn: "Hledat v {name}…",
   searchAll: "Environment nebo Organizace…",
   organizationDashboard: "Dashboard Organizace",
-  here: "tady jsi",
-  noEnvironment: "Tady nemáš žádný Environment.",
+  here: "tady jste",
+  noEnvironment: "Tady nemáte žádný Environment.",
   nothing: "Nic takového tu není.",
   widen: "Všechny Organizace",
   choose: "vybrat",
