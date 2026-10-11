@@ -7029,23 +7029,28 @@ workstation, keep their apps' own "+".
 
    **Each app keeps its holds true to the browser.** The hub writes the ids of the browser's
    live page targets to a file of its own, `$XDG_RUNTIME_DIR/lazurio-browser/tabs.json` =
-   `{"tabs": [<target id>…], "takenAt"}`, mode 0600 and replaced atomically.
-   - **Every list is a fresh snapshot.** The hub notes the time, asks the browser for its
-     targets (`Target.getTargets`), and writes the page targets of the answer with that time
-     as `takenAt`. It takes one after each discovery, whenever a target appears or ends, and
-     every 30 s while it is connected to the browser. Without a connection it writes nothing,
-     and the file stays as it was.
+   `{"tabs": [<target id>…], "takenAt": {"boot", "at"}}`, mode 0600 and replaced atomically.
+   - **Times come from the boot clock, never the wall clock.** A time here is the Environment's
+     boot (`/proc/sys/kernel/random/boot_id`) and the seconds since it (`/proc/uptime`, the
+     kernel's boot clock). That clock never steps back, unlike the wall clock, and the hub and
+     the apps read the same one.
+   - **Every list is a fresh snapshot.** The hub reads the boot clock, asks the browser for its
+     targets (`Target.getTargets`), and writes the page targets of the answer with that
+     reading as `takenAt`. It takes one after each discovery, whenever a target appears or
+     ends, and every 30 s while it is connected to the browser, one at a time. Without a
+     connection it writes nothing, and the file stays as it was.
    - **The apps reconcile.** Each app's server reads the file when it starts, whenever it
      changes (watched, and read again every 30 s) and before it writes its holder file. It
-     drops from its stored tabs and its holder file every id that a list lacks whose `takenAt`
-     is more than 1 s after the app recorded that id.
-   - **Why that order is safe.** A snapshot lists every target that exists when it begins, also
-     one whose event reaches the hub late on its own connection. So an id that a snapshot
-     begun after the record lacks had ended by then, and a live tab is never dropped. The
-     second guards a small step of the Environment's clock, which both times come from.
-   - **The record times survive a restart.** An app keeps, with each stored tab, when it
-     recorded it, in its own store: T3 Code's thread state; for the Launchpad, its holder
-     file's `recordedAt`, which the hub ignores. A stored tab without a time counts as
+     drops from its stored tabs and its holder file every id that a list of the current boot
+     lacks, when that list's `takenAt` is later than the app's record of the id. A record
+     from an earlier boot is older than every list of this one, and a list of another boot is
+     ignored.
+   - **Why that order is safe.** A snapshot lists every target that exists when it begins,
+     also one whose event reaches the hub late on its own connection. So an id that a
+     snapshot begun after the record lacks had ended by then, and a live tab is never dropped.
+   - **The record times survive a restart.** An app keeps, with each stored tab, its record
+     time on the boot clock in its own store: T3 Code's thread state; for the Launchpad, its
+     holder file's `recordedAt`, which the hub ignores. A stored tab without a time counts as
      recorded long ago.
 
    This covers, with no view open:
@@ -7053,7 +7058,7 @@ workstation, keep their apps' own "+".
    - a browser restart that ends every id;
    - stored ids that ended while the app's server was down;
    - a tab that ended before the app recorded it, which the next periodic snapshot drops,
-     within about 31 s.
+     within about 30 s.
 
    A view page whose tab ends also tells its app at once (`lazurio-browser:closed`), so a strip
    that shows the tab drops it without waiting for the file.
@@ -7137,7 +7142,8 @@ workstation, keep their apps' own "+".
 | The Launchpad restarts | Holds stay in their files and no tab ends; Nová karta says the Launchpad is unreachable and tries again |
 | T3 Code's server restarts | Its holder files stay. On start it reconciles the threads' stored tabs with the hub's list, rewrites the files, and removes those of deleted threads |
 | An app records its hold late | The tab is new, so it has 10 minutes, and the app's frame views it within seconds |
-| An app records a tab the list does not have yet | It drops an id only when a snapshot begun more than 1 s after the record lacks it, so a new tab stays |
+| An app records a tab the list does not have yet | It drops an id only when a snapshot begun after the record lacks it, so a new tab stays |
+| The Environment's wall clock steps back or forward | Nothing here reads it: the boot clock orders records and snapshots |
 | The hub's event about a new tab comes late | The snapshot asks the browser itself, so the tab is in it; no app drops a live tab |
 | A tab ends before the app records it | No change triggers a snapshot, but the periodic one does within 30 s; it began after the record and lacks the id, so the app drops it |
 | An agent's daemon ends (an hour idle, a crash) | Its binding stops counting; a tab nothing holds or views ends after 8 s. The agent's next command answers `tab_gone`, and `lazurio browser window` opens a new window (F38's addendum of 2026-10-10, Folder manual) |
@@ -7162,6 +7168,7 @@ workstation, keep their apps' own "+".
 | Apps learn that a tab ended only from its view page | Only a tab someone views has a view page; a hidden tab closed for everyone or a browser restart would leave dead ids in strips and holder files; rejected |
 | Apps poll the hub's loopback list | T3 Code's server knows neither the view's loopback port nor whether the view runs; the hub's own file needs neither; rejected |
 | The hub writes its cached targets and apps wait a margin after a record | "Within milliseconds" is an expectation, not an order across two DevTools connections; a late event would drop a live tab; rejected for a fresh snapshot |
+| Wall-clock times, with a margin for a step of the clock | The wall clock can step back by more than any margin, so a snapshot begun before a record could carry a later time and drop a live tab; rejected for the boot clock |
 | A binding file alone means an agent works in the tab | The binding outlives the daemon on purpose, so agents' windows would never end; rejected |
 | The element, the Launchpad's page, holder files and the hub deciding (selected) | No change to Machines or the gateway; one owner per fact: holds by their apps, the live tabs and a tab's end by the hub, the overview by the Launchpad |
 
@@ -7180,5 +7187,5 @@ reconciled with the list, the element behind "+", the shared hint; a T3 Code rel
 Platform release and Matěj's check in a browser on his Environment (root decision 0178). Steps
 1, 2 and 4 prove the reconciliation with tests: a tab closed for everyone or ended while no app
 shows it, a browser restart with no view open, an app's server that starts with ids that ended,
-a tab recorded before the list has it, a live tab whose event reaches the hub late, and a tab
-that ended before the app recorded it.
+a tab recorded before the list has it, a live tab whose event reaches the hub late, a tab that
+ended before the app recorded it, a record from an earlier boot, and a step of the wall clock.
