@@ -9,12 +9,16 @@ import {
   captureConsole,
   composioCalls,
   filesContaining,
+  holdList,
   type IntegrationsWorld,
   integrationsWorld,
+  listHeld,
   readComposioState,
+  releaseList,
   setAccountStatus,
   tokenCanary,
   worldLaunchpad,
+  writeComposioState,
 } from "./fixtures/integrations-world";
 
 // The Integrace contract of the Launchpad (decision F42): one reading of the
@@ -173,6 +177,7 @@ test("one reading: the catalog with one path per app, tool and Executor and Comp
         label: null,
         state: "pending",
         spare: false,
+        manage: "https://dashboard.composio.dev/First/~/connect/apps/todoist",
       },
     ]);
     // A custom server, its address without the query (it may carry a key).
@@ -686,6 +691,277 @@ test("a second Composio account needs a name, and a name in use is refused befor
       call.includes("--no-wait"),
     ),
   ).toEqual([]);
+});
+
+// Names and the way to Composio's dashboard (decision F42, addendum of
+// 2026-10-11, #312): `connections list` leaves out a single account's alias,
+// so the reading asks `link <toolkit> --list` for it, once per such toolkit,
+// and keeps it as long as it keeps itself; each Composio account links to the
+// app's page in the organization Composio's sign-in probe named.
+test("a toolkit's only active account is named in the reading, read once and kept with it", async () => {
+  const { world, app } = await setup(
+    {
+      composio: {
+        accounts: [
+          {
+            id: "ca_1",
+            toolkit: "gmail",
+            status: "ACTIVE",
+            alias: "Work",
+            word_id: "castle",
+          },
+          // Two accounts: `connections list` names them itself.
+          {
+            id: "ca_2",
+            toolkit: "slack",
+            status: "ACTIVE",
+            alias: "Team",
+            word_id: "river",
+          },
+          {
+            id: "ca_3",
+            toolkit: "slack",
+            status: "ACTIVE",
+            alias: "Community",
+            word_id: "stone",
+          },
+          // Expired: `--list` lists only active accounts, so it stays unnamed.
+          {
+            id: "ca_4",
+            toolkit: "salesforce",
+            status: "EXPIRED",
+            alias: "Sales",
+            word_id: "field",
+          },
+          // Active without a name in Composio.
+          {
+            id: "ca_5",
+            toolkit: "notion",
+            status: "ACTIVE",
+            alias: null,
+            word_id: "cloud",
+          },
+        ],
+      },
+    },
+    { tools: ["composio"] },
+  );
+  const lists = async () =>
+    (await composioCalls(world.home)).filter((call) => call.includes("--list"));
+  const read = async (path: string) => {
+    const answer = await app.get(path);
+    expect(answer.status).toBe(200);
+    return (await answer.json()) as IntegrationsOverview;
+  };
+  const value = await read("/api/integrations");
+  const accounts = (id: string) =>
+    value.apps
+      .find((item) => item.id === id)
+      ?.accounts.map((account) => [account.label, account.manage]);
+  const manage = (toolkit: string) =>
+    `https://dashboard.composio.dev/First/~/connect/apps/${toolkit}`;
+  expect(accounts("gmail")).toEqual([["Work", manage("gmail")]]);
+  expect(accounts("slack")).toEqual([
+    ["Team", manage("slack")],
+    ["Community", manage("slack")],
+  ]);
+  expect(accounts("salesforce")).toEqual([[null, manage("salesforce")]]);
+  expect(accounts("notion")).toEqual([[null, manage("notion")]]);
+  // One call per toolkit whose only account is active and unnamed.
+  expect((await lists()).sort()).toEqual([
+    ["link", "gmail", "--list"],
+    ["link", "notion", "--list"],
+  ]);
+  // The kept reading asks nothing again; a refresh reads the names anew.
+  await read("/api/integrations");
+  expect(await lists()).toHaveLength(2);
+  const state = await readComposioState(world.home);
+  await writeComposioState(world.home, {
+    ...state,
+    accounts: state.accounts.map((account) =>
+      account.id === "ca_1" ? { ...account, alias: "Personal" } : account,
+    ),
+  });
+  const again = await read("/api/integrations?refresh=1");
+  expect(
+    again.apps.find((item) => item.id === "gmail")?.accounts[0]?.label,
+  ).toBe("Personal");
+  expect(await lists()).toHaveLength(4);
+});
+
+// The names outlive the reading (half an hour, by toolkit and word id), so
+// a new reading asks nothing for an unchanged account; connecting, signing
+// in again or disconnecting an account of a toolkit asks its toolkit again,
+// and "Zkontrolovat připojení" (`?refresh=1`) asks every name again.
+test("a name is read once for many readings; a connect, a disconnect and a refresh read again", async () => {
+  const { world, app } = await setup(
+    {
+      composio: {
+        accounts: [
+          {
+            id: "ca_1",
+            toolkit: "gmail",
+            status: "ACTIVE",
+            alias: "Work",
+            word_id: "castle",
+          },
+          {
+            id: "ca_2",
+            toolkit: "salesforce",
+            status: "ACTIVE",
+            alias: "Sales",
+            word_id: "field",
+          },
+          {
+            id: "ca_3",
+            toolkit: "todoist",
+            status: "ACTIVE",
+            alias: "Home",
+            word_id: "stone",
+          },
+        ],
+      },
+    },
+    { tools: ["composio"] },
+  );
+  const lookups = async () => {
+    const calls = (await composioCalls(world.home)).filter(
+      (call) => call[0] === "link" && call[2] === "--list",
+    );
+    return ["gmail", "salesforce", "todoist"].map(
+      (toolkit) => calls.filter((call) => call[1] === toolkit).length,
+    );
+  };
+  const labels = async (path: string) => {
+    const answer = await app.get(path);
+    expect(answer.status).toBe(200);
+    const value = (await answer.json()) as IntegrationsOverview;
+    return ["gmail", "salesforce", "todoist"].map(
+      (id) => value.apps.find((item) => item.id === id)?.accounts[0]?.label,
+    );
+  };
+  expect(await labels("/api/integrations")).toEqual(["Work", "Sales", "Home"]);
+  expect(await lookups()).toEqual([1, 1, 1]);
+  // Connecting Salesforce again (here refused: a second account needs a
+  // name) forgets its names; its own check asks `--list` once.
+  const refused = await app.post("/api/integrations/connect", {
+    app: "salesforce",
+  });
+  expect(await refused.json()).toEqual({
+    kind: "blocked",
+    reason: "name-required",
+  });
+  expect(await lookups()).toEqual([1, 2, 1]);
+  // Disconnecting Gmail (here refused: this CLI has no `--yes`) forgets its
+  // names and the reading.
+  const kept = await app.post("/api/integrations/disconnect", {
+    app: "gmail",
+    path: "composio",
+    account: "castle",
+    confirm: true,
+  });
+  expect(await kept.json()).toEqual({
+    kind: "blocked",
+    reason: "disconnect-unsupported",
+  });
+  // The new reading asks Gmail and Salesforce again, never Todoist.
+  expect(await labels("/api/integrations")).toEqual(["Work", "Sales", "Home"]);
+  expect(await lookups()).toEqual([2, 3, 1]);
+  // "Zkontrolovat připojení" asks every name again.
+  expect(await labels("/api/integrations?refresh=1")).toEqual([
+    "Work",
+    "Sales",
+    "Home",
+  ]);
+  expect(await lookups()).toEqual([3, 4, 2]);
+});
+
+// Review of 2026-10-11 (#315): "Zkontrolovat připojení" reads by a reading
+// of its own while an older reading still waits for its lookup, and that
+// older lookup's answer, once it comes, is not kept.
+test("a refresh reads names afresh while an older lookup still runs, and the older answer is not kept", async () => {
+  const { world, app } = await setup(
+    {
+      composio: {
+        accounts: [
+          {
+            id: "ca_1",
+            toolkit: "gmail",
+            status: "ACTIVE",
+            alias: "Old",
+            word_id: "castle",
+          },
+        ],
+      },
+    },
+    { tools: ["composio"] },
+  );
+  const label = async (answer: Response) => {
+    expect(answer.status).toBe(200);
+    const value = (await answer.json()) as IntegrationsOverview;
+    return value.apps.find((item) => item.id === "gmail")?.accounts[0]?.label;
+  };
+  const lookups = async () =>
+    (await composioCalls(world.home)).filter(
+      (call) =>
+        call[0] === "link" && call[1] === "gmail" && call[2] === "--list",
+    ).length;
+  await holdList(world.home, "gmail");
+  const older = app.get("/api/integrations");
+  await listHeld(world.home, "gmail");
+  // The person renames the account in Composio and checks the connections.
+  const state = await readComposioState(world.home);
+  await writeComposioState(world.home, {
+    ...state,
+    accounts: state.accounts.map((account) => ({ ...account, alias: "New" })),
+  });
+  expect(await label(await app.get("/api/integrations?refresh=1"))).toBe("New");
+  expect(await lookups()).toBe(2);
+  // The older lookup answers what it read; its reading shows it, nothing
+  // keeps it.
+  await releaseList(world.home, "gmail");
+  expect(await label(await older)).toBe("Old");
+  expect(await label(await app.get("/api/integrations"))).toBe("New");
+  // A new reading (Vlastní changed nothing, the reading is read again)
+  // takes the kept name and asks nothing.
+  await app.post("/api/integrations/custom/remove", {
+    id: "nothing",
+    confirm: true,
+  });
+  expect(await label(await app.get("/api/integrations"))).toBe("New");
+  expect(await lookups()).toBe(2);
+});
+
+test("the link to Composio's dashboard: the organization's name encoded, the person's current one where none is known", async () => {
+  for (const [organization, expected] of [
+    [
+      "Žluťoučký kůň & Co",
+      "https://dashboard.composio.dev/%C5%BDlu%C5%A5ou%C4%8Dk%C3%BD%20k%C5%AF%C5%88%20%26%20Co/~/connect/apps/gmail",
+    ],
+    [null, "https://dashboard.composio.dev/~/org/connect/apps/gmail"],
+  ] as const) {
+    const { app } = await setup(
+      {
+        composio: {
+          organization,
+          accounts: [
+            {
+              id: "ca_1",
+              toolkit: "gmail",
+              status: "ACTIVE",
+              alias: null,
+              word_id: "castle",
+            },
+          ],
+        },
+      },
+      { tools: ["composio"] },
+    );
+    const { value } = await overview(app);
+    expect(
+      value.apps.find((item) => item.id === "gmail")?.accounts[0]?.manage,
+    ).toBe(expected);
+  }
 });
 
 test("Composio not signed in: the card's path asks for its sign-in first", async () => {

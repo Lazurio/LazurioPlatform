@@ -504,7 +504,14 @@ a.files-name:hover { text-decoration: underline; }
 .integration-account-name { overflow-wrap: anywhere; }
 .integration-account-line { color: var(--muted-fg); font-size: 12px; }
 .integration-account[data-state="expired"] .integration-account-line, .integration-account[data-state="failed"] .integration-account-line { color: var(--warning-fg); }
-.integration-account-actions { display: flex; flex: none; gap: 8px; }
+.integration-account-actions { display: flex; flex: none; align-items: center; gap: 8px; }
+/* A Composio account's "⋯" menu (#312): the tile menu's look, in the row. */
+.tile-menu.integration-menu { position: relative; top: auto; right: auto; }
+.integration-menu .tile-menu-button { width: 24px; height: 24px; color: var(--muted-fg); }
+.integration-menu .tile-menu-button:hover { color: var(--fg); }
+.integration-menu .tile-menu-button .icon { width: 16px; height: 16px; }
+.integration-menu .tile-menu-list { top: 28px; min-width: 200px; }
+.tile-menu-item.danger { color: var(--destructive); }
 button.link-button { height: auto; padding: 0; border: 0; background: none; color: var(--link); font-size: 13px; cursor: pointer; }
 button.link-button:hover { background: none; text-decoration: underline; }
 button.link-button.danger { color: var(--destructive); }

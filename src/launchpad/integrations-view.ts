@@ -1,4 +1,5 @@
 import type { CatalogApp } from "../integrations/catalog-schema";
+import { composioDashboard } from "../integrations/composio-source";
 import type {
   CustomServer,
   IntegrationAccount,
@@ -74,7 +75,10 @@ function isAccount(value: unknown): value is IntegrationAccount {
     (account.selector === null || typeof account.selector === "string") &&
     (account.label === null || typeof account.label === "string") &&
     states.has(account.state as string) &&
-    typeof account.spare === "boolean"
+    typeof account.spare === "boolean" &&
+    (account.manage === null ||
+      (typeof account.manage === "string" &&
+        account.manage.startsWith(`${composioDashboard}/`)))
   );
 }
 
@@ -352,19 +356,44 @@ export function cardView(
 }
 
 export type AccountView = Readonly<{
+  /** Its name (Composio's alias, Executor's name), else "účet". */
   name: string;
   /** Why it is not active, or that it is on another way; none when ok. */
   line: string | null;
   /** "Přihlásit znovu" or "Zkusit znovu"; none when ok, spare or waiting. */
   retry: string | null;
+  /** "Odpojit" in the row: an account in Executor that can be named. */
   disconnect: boolean;
+  /** The "⋯" menu of a Composio account (#312): the label of its button,
+   * "Spravovat v Composiu" to `manage`, and whether "Odpojit" is in it. */
+  menu: Readonly<{
+    label: string;
+    manage: string;
+    disconnect: boolean;
+  }> | null;
 }>;
 
 export function accountView(
+  app: IntegrationApp,
   account: IntegrationAccount,
   copy: Copy,
 ): AccountView {
   const name = account.label ?? copy.integrationsAccountUnnamed;
+  const named = account.selector !== null;
+  // A Composio account has its menu, with "Odpojit" in it; an account in
+  // Executor keeps "Odpojit" in the row.
+  const menu =
+    account.manage === null
+      ? null
+      : {
+          label: fill(copy.integrationsAccountMore, {
+            account: name,
+            app: app.name,
+          }),
+          manage: account.manage,
+          disconnect: named,
+        };
+  const disconnect = menu === null && named;
   if (account.spare)
     return {
       name,
@@ -373,7 +402,8 @@ export function accountView(
           ? copy.integrationsAccountSpareDirect
           : copy.integrationsAccountSpareComposio,
       retry: null,
-      disconnect: account.selector !== null,
+      disconnect,
+      menu,
     };
   const line =
     account.state === "expired"
@@ -389,7 +419,7 @@ export function accountView(
       : account.state === "failed"
         ? copy.integrationsRetry
         : null;
-  return { name, line, retry, disconnect: account.selector !== null };
+  return { name, line, retry, disconnect, menu };
 }
 
 /** The one consequence the disconnect dialog names. */

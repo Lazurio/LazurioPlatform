@@ -6162,6 +6162,89 @@ that the company app is not set up, with a link to the Organization's Dashboard
 for its Admin and a message to copy for anyone else), the Dashboard's place for
 "Požádat Admina", and Executor 2.
 
+**Addendum 2026-10-11 (issue #312), asked for by the Organization Admin: a Composio
+account says its name and opens in Composio's dashboard.** In Apps → Integrace every
+Composio account without a name said only "účet", so a person with several Google or
+Microsoft accounts could not tell them apart, and nothing led to Composio, the place
+where an account is seen and changed. The reference is
+[integrations](integrations.md#account-names-and-composios-dashboard).
+
+1. **The name is Composio's alias, read for a single account too.** `composio
+   connections list` prints an alias only where a toolkit has several accounts. Where
+   a toolkit's only account is active and unnamed there, the reading asks `composio
+   link <toolkit> --list`, which lists the toolkit's active accounts with their
+   aliases: once per such toolkit and for no other. One `composio` process takes
+   about 200 MB and a second, and a Remote Environment may have little memory to
+   spare (8 GB without swap, plan DEV-6656), so at most two lookups run at once, for
+   all readings of a Launchpad together; each starts only within one Composio budget
+   (15 s) and is bounded by it, so naming adds at most two budgets to a reading,
+   within the route's own two minutes. The Launchpad keeps a name it read for half
+   an hour by toolkit and word id, beyond the reading's minute: an account's word id
+   is stable and its name changes only when the person renames it in Composio. So a
+   page opened again asks nothing once the names are known. "Zkontrolovat
+   připojení" reads every name again, by a reading of its own that never adopts one
+   or a lookup started before it; connecting, signing in again or disconnecting an
+   account of a toolkit here reads that toolkit's again. A lookup that was running
+   when its names were forgotten keeps nothing: every forgetting, of one toolkit or
+   of all names, counts a generation, and an answer is kept only when the
+   generations it started with are unchanged. A failure, an unclear answer and an
+   account without a word id are never kept. `lazurio integrations
+   list`, a process of its own, reads the names each time, two at a time. The alias
+   is taken only where `--list` lists exactly one active account and, where both
+   lists name a word id, the same one; any other answer, a failure or a timeout
+   leaves "účet". An account that is not active stays unnamed (`--list` lists only
+   active accounts), and a word id is never shown as a name.
+2. **A "⋯" menu on each Composio account.** "Spravovat v Composiu" opens, in a new
+   tab of the person's browser, the app's page in their Composio organization:
+   `https://dashboard.composio.dev/<organization name>/~/connect/apps/<toolkit>`,
+   the name encoded as one path segment, without the CLI's `?open=true`, which would
+   open the dialog that connects another account. Composio's dashboard has no page
+   of one connected account, so the app's page, which lists its accounts, is the
+   closest. The organization is the one Composio's sign-in probe already reads
+   (`current_org_name` of `composio whoami`, Settings → Tools); where it is not
+   known, the link is `https://dashboard.composio.dev/~/org/connect/apps/<toolkit>`,
+   the person's current organization through `~/org/`, a shortcut inferred from the
+   links in Composio's documentation, not documented for this page. The server
+   builds the link once, as the `manage` of each Composio account in the reading,
+   and the page takes only a link to Composio's dashboard. "Odpojit" moves into the
+   menu; "Přihlásit znovu" stays in the row of an expired account. An Executor
+   account is unchanged: no menu, "Odpojit" in its row.
+3. **Not in this addendum, until Composio's CLI offers them.** Renaming an account
+   needs a project API key (`PATCH /api/v3/connected_accounts/{id}`) and the CLI has
+   no rename, so the page offers none; the person renames in Composio. The
+   provider's identity of an account (a mail address, a login), which Composio
+   keeps as `state.val.displayName`, is stripped from every output of the CLI;
+   naming an account by it waits for an upstream change (#312, point 3).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Ask `--list` for every toolkit | Repeats what `connections list` already names and reads expired accounts that `--list` never lists; rejected: only a toolkit's only active, unnamed account |
+| Take the alias by the count alone | A word id that differs means two lists describe different accounts; rejected: the word ids must agree where both lists have them |
+| Show the word id where there is no alias | A word id is Composio's selector (`castle`), not a name the person gave; rejected |
+| Keep the names only as long as the reading | Every page opened after a minute asked again for every single account; rejected in review: half an hour by toolkit and word id, read again on "Zkontrolovat připojení" and per toolkit on a connect or disconnect |
+| Four lookups at a time | About 800 MB at once from opening a page, on an Environment that may have 750 MB free; rejected in review: two, for all readings together |
+| Forget names without a generation | A lookup already running when its toolkit is forgotten writes the old name back for half an hour, and a refresh adopted a reading already running; rejected in review: an answer is kept only while the generations it started with are unchanged, and a refresh starts a reading of its own |
+| Read the accounts from Composio's API | The CLI keeps the person's key and the Environment reads no Composio credential; rejected |
+
+Verified by tests: the alias read only for a toolkit's only active, unnamed account,
+taken from exactly one active account with the same word id, and kept unnamed for
+two active accounts, another word id, no alias, a failure, a timeout and none
+active; two lookups at a time for seven single accounts, also for two readings at
+once, and none started after the budget; a name kept half an hour by toolkit and
+word id, also "no name", never a failure or an account without a word id, and
+forgotten per toolkit or entirely, never kept from a lookup that was running when
+its toolkit's names or all names were forgotten, while another toolkit's running
+lookup is still kept (`tests/integrations-model.test.ts`); the reading's names, read
+once while the reading is kept, not again for an unchanged account in a new
+reading, again after a connect or a disconnect of its toolkit and after a refresh,
+a refresh answered by a fresh lookup while an older one is still held and that
+older answer not kept, and the link with the organization encoded or, without one,
+`~/org/` (`tests/integrations-routes.test.ts`); the link's
+encoding without a query, the toolkit rather than the catalog's id, none for an
+Executor account (`tests/integrations-model.test.ts`); the menu's label, its items,
+"Přihlásit znovu" in the row, Executor's row unchanged and only a link to Composio's
+dashboard taken by the page (`tests/integrations-page.test.ts`).
+
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
 **Decided by Matěj 2026-10-08 and 2026-10-09 (root decision 0193, plan DEV-6631;

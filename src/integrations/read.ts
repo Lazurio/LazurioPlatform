@@ -17,7 +17,12 @@ import {
 } from "../tools/overview";
 import { integrationsCatalog } from "./catalog";
 import type { IntegrationsCatalog } from "./catalog-schema";
-import { readComposioAccounts } from "./composio-source";
+import {
+  type ComposioNames,
+  createComposioNames,
+  nameComposioAccounts,
+  readComposioAccounts,
+} from "./composio-source";
 import type { ExecutorEndpoint } from "./executor-client";
 import { readExecutor } from "./executor-source";
 import {
@@ -35,7 +40,11 @@ import type { ComposioPolicySource } from "./policy";
 // Executor and the person's Composio account, each read on its own so that
 // one source down never hides the others. The sign-in probes and Composio
 // reach the network, so the Launchpad keeps the last reading for a while and
-// reads again on an explicit refresh.
+// reads again on an explicit refresh. Composio's accounts are named in the
+// reading (a toolkit's only account by `link <toolkit> --list`, a name the
+// Launchpad keeps for half an hour), and the organization of its link to
+// Composio's dashboard is the one Composio's sign-in probe already read: no
+// second `composio whoami`.
 
 export type IntegrationsHost = Readonly<{
   folder: string;
@@ -52,6 +61,10 @@ export type IntegrationsHost = Readonly<{
   /** Test seam; by default the Organization settings the Folder records
    * decide (`composioPolicyOf`, decision F45). */
   policy?: ComposioPolicySource;
+  /** The names of Composio's accounts the Launchpad keeps between readings
+   * (`createIntegrationsReader`); without them, as for `lazurio
+   * integrations list`, every reading reads them. */
+  composioNames?: ComposioNames;
   catalog?: IntegrationsCatalog;
   now?: () => Date;
 }>;
@@ -148,7 +161,23 @@ export async function readIntegrations(
     composioTool.path === undefined
   )
     composio = { state: "unavailable" };
-  else composio = await readComposioAccounts(host.tools, composioTool.path);
+  else {
+    const reading = await readComposioAccounts(host.tools, composioTool.path);
+    composio =
+      reading.state === "ok"
+        ? {
+            state: "ok",
+            accounts: await nameComposioAccounts(
+              host.tools,
+              composioTool.path,
+              reading.accounts,
+              host.composioNames === undefined
+                ? {}
+                : { names: host.composioNames },
+            ),
+          }
+        : reading;
+  }
   return mergeIntegrations({
     catalog,
     locale,
@@ -156,6 +185,7 @@ export async function readIntegrations(
     origin: preferences.machine?.entry?.externalOrigin ?? null,
     policy,
     composioReady,
+    composioOrganization: composioTool?.signIn?.organization ?? null,
     tools,
     executor,
     composio,
@@ -167,11 +197,15 @@ export async function readIntegrations(
 export const integrationsFreshMs = 60_000;
 
 /** The Launchpad's reading: the last one while it is fresh, one read at a
- * time, and a new one on an explicit refresh or after a change. */
+ * time, and a new one on an explicit refresh or after a change. The names of
+ * Composio's single accounts outlive it (`composioNamesFreshMs`): an
+ * explicit refresh ("Zkontrolovat připojení") forgets every name, and a
+ * connect or disconnect forgets its toolkit's (`forgetNames`). */
 export function createIntegrationsReader(
   host: () => IntegrationsHost,
   now: () => number = Date.now,
 ) {
+  const names = createComposioNames(now);
   let last: Readonly<{ at: number; overview: IntegrationsOverview }> | null =
     null;
   let reading: Readonly<{
@@ -185,7 +219,7 @@ export function createIntegrationsReader(
       return reading.promise;
     const mine = generation;
     const started = now();
-    const promise = readIntegrations(host())
+    const promise = readIntegrations({ ...host(), composioNames: names })
       .then((overview) => {
         if (mine === generation) last = { at: started, overview };
         return overview;
@@ -197,9 +231,14 @@ export function createIntegrationsReader(
     return promise;
   }
   return Object.freeze({
-    /** The overview: the last one while fresh, unless `refresh`. */
+    /** The overview: the last one while fresh, unless `refresh`, which
+     * reads every name of Composio's accounts again too, by a reading of its
+     * own: never one, nor a lookup, that started before it. */
     async overview(refresh = false): Promise<IntegrationsOverview> {
-      if (!refresh && last !== null && now() - last.at < integrationsFreshMs)
+      if (refresh) {
+        names.forget();
+        generation += 1;
+      } else if (last !== null && now() - last.at < integrationsFreshMs)
         return last.overview;
       return read();
     },
@@ -207,6 +246,11 @@ export function createIntegrationsReader(
     forget() {
       generation += 1;
       last = null;
+    },
+    /** An account of Composio's `toolkit` was connected, signed in again or
+     * disconnected here: its names are read again. */
+    forgetNames(toolkit: string) {
+      names.forget(toolkit);
     },
   });
 }

@@ -4,7 +4,10 @@
 // `ts/packages/cli`, read 2026-10-08 and 2026-10-09):
 // - `connections list` prints every status, an alias only when the toolkit
 //   has more than one account, and no ids;
-// - `link <toolkit> --list` prints the active accounts with their ids;
+// - `link <toolkit> --list` prints the active accounts with their ids, word
+//   ids and aliases;
+// - `whoami` names the account and its current organization (`First`, or
+//   the state's `organization`; none where that is null);
 // - `link --no-wait --no-browser [--alias]` prints the pending connection
 //   as JSON. It refuses an alias in use before it creates anything, but a
 //   second account without an alias only after it created the link, which
@@ -12,11 +15,15 @@
 // - `connections remove` asks for confirmation, and without a terminal it
 //   removes nothing; `--yes` exists only when the state says so (not in the
 //   CLI as of 0.4.3; Lazurio removes only where it is).
+// A test may hold the next `link <toolkit> --list` (`hold-<toolkit>` in the
+// state's directory) until it releases it (`release-<toolkit>`): that call
+// answers what the state said when it started, as a slow CLI would.
 // State: `$HOME/.fake-composio/state.json`; every call is appended to
 // `calls.jsonl` there. It never reads `~/.composio/user_data.json` and never
 // reaches a vendor.
 import {
   appendFileSync,
+  existsSync,
   readFileSync,
   renameSync,
   writeFileSync,
@@ -84,6 +91,25 @@ const item = (account: FakeAccount) => ({
   updated_at: "2026-10-08T00:00:00.000Z",
 });
 
+// Only one call takes a hold: the rename succeeds for exactly one process.
+function holdIfAsked(toolkit: string) {
+  try {
+    renameSync(
+      join(directory, `hold-${toolkit}`),
+      join(directory, `held-${toolkit}`),
+    );
+  } catch {
+    return;
+  }
+  // At most ten seconds, so a test that never releases leaves no process.
+  for (
+    let waited = 0;
+    waited < 10_000 && !existsSync(join(directory, `release-${toolkit}`));
+    waited += 20
+  )
+    Bun.sleepSync(20);
+}
+
 const [command, sub] = args;
 
 if (command === "--version") {
@@ -93,11 +119,13 @@ if (command === "--version") {
 
 if (command === "whoami") {
   requireAuth();
+  const organization =
+    state.organization === undefined ? "First" : state.organization;
   console.log(
     JSON.stringify({
       account_type: "human",
       email: "op@example.com",
-      current_org_name: "First",
+      ...(organization === null ? {} : { current_org_name: organization }),
       enhanced_controls_enabled: null,
     }),
   );
@@ -193,6 +221,7 @@ if (command === "link") {
     (account) => account.toolkit === toolkit && account.status === "ACTIVE",
   );
   if (args.includes("--list")) {
+    holdIfAsked(toolkit);
     print({ toolkit, total: active.length, items: active.map(item) });
     end(0);
   }

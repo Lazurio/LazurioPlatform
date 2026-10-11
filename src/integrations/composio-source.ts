@@ -8,7 +8,8 @@ import type { ToolRunner } from "../tools/status";
 //   permission_group}]}` on stdout: every status, an alias only where the
 //   toolkit has several accounts, no ids;
 // - `link <toolkit> --list` prints `{toolkit, total, items}` with the active
-//   accounts and their ids;
+//   accounts, their ids, word ids and aliases (0.4.1 read 2026-10-11: the
+//   JSON alone on stdout, an alias of null where the account has none);
 // - `link <toolkit> --no-wait --no-browser [--alias <name>]` prints
 //   `{status: "pending", connected_account_id, redirect_url, toolkit}`, or,
 //   for a toolkit without Composio-managed sign-in, only a URL of Composio's
@@ -161,13 +162,21 @@ export async function readComposioAccounts(
     : { state: "ok", accounts };
 }
 
+/** One active account as `link <toolkit> --list` names it. */
+export type ActiveComposioAccount = Readonly<{
+  id: string;
+  alias: string | null;
+  /** Its word id; null where none is given or it is not a plain label. */
+  wordId: string | null;
+}>;
+
 /** A toolkit's active accounts with their ids and names (`link <toolkit>
  * --list`), or null for any other answer. */
 export async function activeComposioAccounts(
   input: ComposioEnvironment,
   command: string,
   toolkit: string,
-): Promise<readonly Readonly<{ id: string; alias: string | null }>[] | null> {
+): Promise<readonly ActiveComposioAccount[] | null> {
   if (!toolkitPattern.test(toolkit)) return null;
   const result = await runComposio(input, command, ["link", toolkit, "--list"]);
   if (result === null || result.exitCode !== 0) return null;
@@ -175,9 +184,13 @@ export async function activeComposioAccounts(
   if (document === null || document.toolkit !== toolkit) return null;
   const items = document.items;
   if (!Array.isArray(items)) return null;
-  const accounts: Readonly<{ id: string; alias: string | null }>[] = [];
+  const accounts: ActiveComposioAccount[] = [];
   for (const item of items) {
-    const { id, alias } = (item ?? {}) as { id?: unknown; alias?: unknown };
+    const {
+      id,
+      alias,
+      word_id: word,
+    } = (item ?? {}) as { id?: unknown; alias?: unknown; word_id?: unknown };
     const name = optionalLabel(alias);
     if (
       typeof id !== "string" ||
@@ -185,9 +198,237 @@ export async function activeComposioAccounts(
       name === undefined
     )
       return null;
-    accounts.push(Object.freeze({ id, alias: name }));
+    accounts.push(
+      Object.freeze({ id, alias: name, wordId: optionalLabel(word) ?? null }),
+    );
   }
   return Object.freeze(accounts);
+}
+
+/** How many `link <toolkit> --list` run at once while accounts are named:
+ * one `composio` process takes about 200 MB and a second (0.4.1, measured
+ * 2026-10-11), and a Remote Environment may have little memory to spare
+ * (8 GB, no swap: plan DEV-6656), so two at most. */
+const namesAtOnce = 2;
+
+/** How long the Launchpad keeps a name it read with `link <toolkit> --list`
+ * (decision F42, addendum of 2026-10-11): far longer than the reading's
+ * minute, because an account's word id is stable and its name changes only
+ * when the person renames it in Composio. */
+export const composioNamesFreshMs = 30 * 60_000;
+
+/** Where a lookup of one toolkit started: the generations of forgetting,
+ * every name's and the toolkit's own (`ComposioNames.since`). */
+export type ComposioNamesSince = Readonly<{ all: number; toolkit: number }>;
+
+/** The names of single Composio accounts the Launchpad has read, by toolkit
+ * and word id (an alias, or null for an account Composio knows without
+ * one), and the one place where their lookups run: two at a time for every
+ * reading of the Launchpad together, so readings that overlap never run
+ * more. "Zkontrolovat připojení" forgets every name; connecting or
+ * disconnecting an account here forgets its toolkit's (`forget`). A lookup
+ * that was running when they were forgotten keeps nothing: `set` stores an
+ * answer only while nothing was forgotten since the lookup started
+ * (`since`). */
+export type ComposioNames = Readonly<{
+  get(toolkit: string, wordId: string): string | null | undefined;
+  /** Taken when a lookup of `toolkit` starts. */
+  since(toolkit: string): ComposioNamesSince;
+  set(
+    toolkit: string,
+    wordId: string,
+    alias: string | null,
+    since: ComposioNamesSince,
+  ): void;
+  /** Forgets one toolkit's names, or every name. */
+  forget(toolkit?: string): void;
+  /** Runs one lookup when one of the two places is free. */
+  run(work: () => Promise<void>): Promise<void>;
+}>;
+
+/** At most `size` of the works at once; the others wait in turn. */
+function limit(size: number): ComposioNames["run"] {
+  let running = 0;
+  const waiting: (() => void)[] = [];
+  return async (work) => {
+    while (running >= size)
+      await new Promise<void>((resolve) => waiting.push(resolve));
+    running += 1;
+    try {
+      await work();
+    } finally {
+      running -= 1;
+      waiting.shift()?.();
+    }
+  };
+}
+
+export function createComposioNames(
+  now: () => number = Date.now,
+): ComposioNames {
+  const entries = new Map<
+    string,
+    Readonly<{ toolkit: string; alias: string | null; at: number }>
+  >();
+  // How often every name, and each toolkit's, was forgotten.
+  let all = 0;
+  const forgotten = new Map<string, number>();
+  const key = (toolkit: string, wordId: string) =>
+    JSON.stringify([toolkit, wordId]);
+  const fresh = (at: number) => now() - at < composioNamesFreshMs;
+  return Object.freeze({
+    get(toolkit: string, wordId: string) {
+      const entry = entries.get(key(toolkit, wordId));
+      return entry !== undefined && fresh(entry.at) ? entry.alias : undefined;
+    },
+    since(toolkit: string): ComposioNamesSince {
+      return Object.freeze({ all, toolkit: forgotten.get(toolkit) ?? 0 });
+    },
+    set(
+      toolkit: string,
+      wordId: string,
+      alias: string | null,
+      since: ComposioNamesSince,
+    ) {
+      // Forgotten while the lookup ran: its answer is older than that.
+      if (since.all !== all || since.toolkit !== (forgotten.get(toolkit) ?? 0))
+        return;
+      for (const [name, entry] of entries)
+        if (!fresh(entry.at)) entries.delete(name);
+      entries.set(
+        key(toolkit, wordId),
+        Object.freeze({ toolkit, alias, at: now() }),
+      );
+    },
+    forget(toolkit?: string) {
+      if (toolkit === undefined) {
+        all += 1;
+        entries.clear();
+        return;
+      }
+      forgotten.set(toolkit, (forgotten.get(toolkit) ?? 0) + 1);
+      for (const [name, entry] of entries)
+        if (entry.toolkit === toolkit) entries.delete(name);
+    },
+    run: limit(namesAtOnce),
+  });
+}
+
+/** The accounts, each toolkit's only active account with its name (decision
+ * F42, addendum of 2026-10-11, #312). `connections list` prints an alias
+ * only where a toolkit has several accounts, so where its only account is
+ * active and has none there, its name is taken from `names` while they keep
+ * it, and otherwise `link <toolkit> --list` is asked: once per such toolkit,
+ * never for any other, two at a time (with `names`, for all readings
+ * together). A call starts only within one Composio budget
+ * (`composioTimeoutMs`) and runs within it, so naming adds at most two
+ * budgets to a reading. The alias is taken only where `--list` lists exactly
+ * one active account and, where both name a word id, the same one; that
+ * answer, also no alias, is kept in `names` by the account's word id, unless
+ * its names were forgotten while the lookup ran. Any other answer, a failure
+ * or a timeout leaves the account unnamed and is not kept, and the page says
+ * "účet"; so is an account without a word id, which is asked again at the
+ * next reading. An account that is not active has no alias to read (`--list`
+ * lists only active ones). */
+export async function nameComposioAccounts(
+  input: ComposioEnvironment,
+  command: string,
+  accounts: readonly ComposioAccount[],
+  options: Readonly<{ names?: ComposioNames; now?: () => number }> = {},
+): Promise<readonly ComposioAccount[]> {
+  const known = options.names;
+  const now = options.now ?? (() => performance.now());
+  const counts = new Map<string, number>();
+  for (const account of accounts)
+    counts.set(account.toolkit, (counts.get(account.toolkit) ?? 0) + 1);
+  const kept = (account: ComposioAccount) =>
+    account.wordId === null
+      ? undefined
+      : known?.get(account.toolkit, account.wordId);
+  const names = new Map<string, string | null>();
+  const unnamed: ComposioAccount[] = [];
+  for (const account of accounts) {
+    if (
+      counts.get(account.toolkit) !== 1 ||
+      account.alias !== null ||
+      account.state !== "connected"
+    )
+      continue;
+    const alias = kept(account);
+    if (alias === undefined) unnamed.push(account);
+    else names.set(account.toolkit, alias);
+  }
+  const name = async (account: ComposioAccount) => {
+    // Another reading may have read it meanwhile.
+    const alias = kept(account);
+    if (alias !== undefined) {
+      names.set(account.toolkit, alias);
+      return;
+    }
+    const since = known?.since(account.toolkit);
+    const active = await activeComposioAccounts(
+      input,
+      command,
+      account.toolkit,
+    );
+    const only = active?.length === 1 ? active[0] : undefined;
+    if (only === undefined) return;
+    if (
+      account.wordId !== null &&
+      only.wordId !== null &&
+      only.wordId !== account.wordId
+    )
+      return;
+    names.set(account.toolkit, only.alias);
+    if (account.wordId !== null && since !== undefined)
+      known?.set(account.toolkit, account.wordId, only.alias, since);
+  };
+  const run = known?.run ?? limit(namesAtOnce);
+  const deadline = now() + composioTimeoutMs;
+  await Promise.all(
+    unnamed.map((account) =>
+      run(async () => {
+        if (now() < deadline) await name(account);
+      }),
+    ),
+  );
+  return [...names.values()].every((alias) => alias === null)
+    ? accounts
+    : Object.freeze(
+        accounts.map((account) => {
+          const alias = names.get(account.toolkit);
+          return alias === undefined || alias === null
+            ? account
+            : Object.freeze({ ...account, alias });
+        }),
+      );
+}
+
+/** Composio's dashboard, where the person sees and changes their accounts. */
+export const composioDashboard = "https://dashboard.composio.dev";
+
+/** The page where the person sees and changes an account of `toolkit` in
+ * Composio's dashboard. The dashboard has no page of one connected account,
+ * so it is the closest: the toolkit's page in the person's Composio
+ * organization, `/<organization name>/~/connect/apps/<toolkit>`, the path
+ * the CLI builds when it links an account (`link.cmd.ts`), with the
+ * organization's name as a path segment, encoded, and without the CLI's
+ * `?open=true`, which would open the dialog that connects another account.
+ * The name is the one `composio whoami` answers (`current_org_name`, read by
+ * the sign-in probe of Settings → Tools). Where it is not known, the page is
+ * asked under `~/org/`, which stands for the signed-in person's current
+ * organization: a shortcut inferred from the links of Composio's
+ * documentation (`/~/org/connect/clients`, `/~/org/settings/billing`), not
+ * one documented for this page. A visitor who is not signed in to Composio
+ * is sent to its sign-in and back to the page. */
+export function composioManageUrl(
+  organization: string | null,
+  toolkit: string,
+): string {
+  const app = encodeURIComponent(toolkit);
+  return organization === null
+    ? `${composioDashboard}/~/org/connect/apps/${app}`
+    : `${composioDashboard}/${encodeURIComponent(organization)}/~/connect/apps/${app}`;
 }
 
 /** Whether a link URL is Composio's own: https on composio.dev. */

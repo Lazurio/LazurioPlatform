@@ -20,9 +20,11 @@
 // "not installed", and its setup runs a fake npm, program and user manager,
 // never the network or this computer's services. Apps → Integrace (decision
 // F42) reads a fake Executor API on a loopback port of its own (never 4789)
-// with a synthetic token, and a fake `composio` signed in with two accounts:
-// a direct sign-in finishes by itself after a few seconds and a Composio link
-// at once (the window they open shows nothing real). Locally that fake
+// with a synthetic token, and a fake `composio` signed in with two accounts,
+// one of them named, in a Composio organization whose name has a space and
+// diacritics (each account's menu links to Composio's dashboard): a direct
+// sign-in finishes by itself after a few seconds and a Composio link at once
+// (the window they open shows nothing real). Locally that fake
 // stands in for a Remote Environment's Executor, so the page shows the
 // direct paths (decision F44 installs none on a computer); in a Remote
 // Environment the page follows Settings → Tools → executor, as in
@@ -202,8 +204,9 @@ for (const tool of ["gh", "t3"])
   await writeFile(join(home, "bin", tool), "#!/bin/sh\nexit 1\n", {
     mode: 0o755,
   });
-// Integrace (decision F42): a fake composio signed in, two accounts, and
-// a fake Executor with Executor's token file of a synthetic token.
+// Integrace (decision F42): a fake composio signed in, two accounts (the
+// active one named, which only `link --list` tells), and a fake Executor
+// with Executor's token file of a synthetic token.
 await writeFile(
   join(home, "bin", "composio"),
   `#!/bin/sh\nexec '${process.execPath}' --no-env-file '${join(import.meta.dir, "..", "tests", "fixtures", "fake-composio.ts")}' "$@"\n`,
@@ -217,12 +220,13 @@ await writeFile(
     removeYes: false,
     next: 100,
     activateOnLink: true,
+    organization: "Příklad s.r.o.",
     accounts: [
       {
         id: "ca_1",
         toolkit: "salesforce",
         status: "ACTIVE",
-        alias: null,
+        alias: "Obchod",
         word_id: "castle",
       },
       {

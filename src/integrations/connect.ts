@@ -15,7 +15,12 @@ import {
   executorPort,
 } from "./executor-client";
 import { healthState, readExecutor } from "./executor-source";
-import { type AccountState, catalogAppOf, shownEndpoint } from "./model";
+import {
+  type AccountState,
+  catalogAppOf,
+  composioToolkitOf,
+  shownEndpoint,
+} from "./model";
 
 // Connecting and disconnecting an Integrace from the Launchpad (decision
 // F42): the server drives the Environment's Executor or the person's
@@ -793,8 +798,7 @@ export function createConnectSessions(host: () => ConnectHost) {
           : { kind: "blocked", reason: "disconnect-failed" };
       }
       const composio = await host().composio();
-      const app = catalog().apps.find((item) => item.id === appId);
-      const toolkit = app?.composio ?? appId;
+      const toolkit = composioToolkitOf(catalog(), appId);
       if (composio === null)
         return { kind: "blocked", reason: "disconnect-failed" };
       const before = await readComposioAccounts(composio.env, composio.command);
