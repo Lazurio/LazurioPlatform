@@ -1597,12 +1597,16 @@ change (without them; the last known sign-ins stay on the cards) and on "Refresh
 status" (with them again), and shows:
 
 - no introduction (root decision 0188, Matěj 2026-10-04: no paragraph that only
-  restates the page); each tier's note is one short line: "Bez nich tu nic nefunguje.",
-  "Hodí se skoro každému.", "Zapni jen to, co používáš.";
+  restates the page), no note under a tier and no line on when the tools were read
+  (Anna 2026-10-11: each only restated what the page shows); the tier names are quieter
+  than the tool names they group (muted, 13 px, regular weight);
 - on a shared Environment (the Team preset) the warning that signed-in accounts are
   shared by all operators; it is repeated in the confirmation of an enable;
 - three groups, **Required**, **Recommended** and **Optional**, in catalog order, each
-  a settings group of rows. A row carries on the left the tool's real name (gh,
+  a settings group of rows. A row carries on the left the tool's logo (Anna 2026-10-11: known at first sight;
+  `src/tools/icons.ts`, bundled simple-icons, CC0, drawn by the same `appMark` as
+  Integrace; a tool without one, such as codex, composio or executor, shows its first
+  letter), its real name (gh,
   composio, bitwarden, wacli, gogcli, neon: what an agent says and what is searched for), one
   plain sentence on what it is for (root decision 0188; `toolDescription` in
   `tools-view.ts`, a page-only text: the catalog's `activation.purpose` is rendered into

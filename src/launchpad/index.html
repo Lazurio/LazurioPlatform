@@ -524,6 +524,11 @@ a.files-name:hover { text-decoration: underline; }
 .integration-mark { display: grid; flex: none; width: 40px; height: 40px; place-items: center; border: 1px solid var(--lz-line-faint); border-radius: var(--lz-radius-sm); background: var(--lz-white); }
 .integration-mark svg { width: 24px; height: 24px; }
 .integration-mark-letter { color: var(--muted-fg); font-weight: var(--lz-weight-akce); font-size: 17px; background: var(--lz-gray-25); }
+/* Settings → Tools: the tool's logo beside its name (Anna 2026-10-11), and
+ * the tier names quieter than the tool names they group. */
+.row-ident { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.row-ident > .integration-mark { margin-top: 1px; }
+#tools .group-head h2 { color: var(--muted-fg); font-size: 13px; font-weight: 400; }
 .integration-text { display: grid; gap: 2px; min-width: 0; }
 .integration-name { font-size: 15px; font-weight: var(--lz-weight-akce); }
 .integration-line { color: var(--muted-fg); font-size: 13px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -966,7 +971,6 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <section id="tools" data-section="tools" aria-labelledby="page-heading">
 <div class="section-head-text">
 <p id="tools-shared" class="tools-warning" role="note" hidden data-message="toolsShared">This is the whole Team's shared Environment. Sign in here with team accounts, such as a shared mailbox or calendar. Whatever you sign in here, anyone in the Team can use. Connect your personal accounts in your own Environment.</p>
-<p class="toolbar"><span id="tools-checked"></span></p>
 <p id="tools-announce" class="sr-only" role="status" aria-live="polite"></p>
 </div>
 <div id="tools-groups" class="stack"></div>

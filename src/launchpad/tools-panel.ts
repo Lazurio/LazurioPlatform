@@ -1,12 +1,13 @@
 import { executorToolName, vaultToolName } from "../tools/catalog";
+import { toolIcons } from "../tools/icons";
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
 import type { ToolSignIn } from "../tools/status";
+import { appMark } from "./app-mark";
 import { createExecutorPanel } from "./executor-panel";
 import type { MessageKey } from "./messages";
 import {
   answerWithin,
   autoEnable,
-  checkedLine,
   connectionLine,
   curatedActions,
   currentNotes,
@@ -79,7 +80,6 @@ export function createToolsPanel(
   };
   const groups = find<HTMLDivElement>("#tools-groups");
   const shared = find<HTMLParagraphElement>("#tools-shared");
-  const checked = find<HTMLSpanElement>("#tools-checked");
   const announce = find<HTMLParagraphElement>("#tools-announce");
   const refreshButton = find<HTMLButtonElement>("#tools-refresh");
   const mcpButton = find<HTMLButtonElement>("#tools-mcp");
@@ -976,6 +976,10 @@ export function createToolsPanel(
     if (tool.command !== tool.name)
       title.append(element("code", "", tool.command));
     text.append(title, element("p", "row-desc", toolDescription(tool, copy)));
+    // The tool's logo beside its name, so it is known at first sight (Anna
+    // 2026-10-11); the same mark as on Integrace.
+    const ident = element("div", "row-ident");
+    ident.append(appMark(tool.name, toolIcons[tool.name]), text);
 
     const view = toolStatusView(
       tool,
@@ -1181,7 +1185,7 @@ export function createToolsPanel(
       field.append(label, toggler);
       controls.append(field);
     }
-    main.append(text, controls);
+    main.append(ident, controls);
     item.append(main);
 
     const details = element("details", "row-details");
@@ -1340,7 +1344,7 @@ export function createToolsPanel(
         heading.id = `tools-group-${group.tier}`;
         section.setAttribute("aria-labelledby", heading.id);
         const head = element("div", "group-head");
-        head.append(heading, element("p", "group-note", group.note));
+        head.append(heading);
         const list = element("ul", "card tools-list");
         list.setAttribute("aria-labelledby", heading.id);
         list.replaceChildren(...group.tools.map((tool) => card(tool, copy)));
@@ -1414,16 +1418,10 @@ export function createToolsPanel(
       // another one means the Folder changed since, elsewhere, and its Undo
       // would be refused.
       if (notice !== null && !noticeHolds(notice, overview)) notice = null;
-      checked.textContent = checkedLine(
-        new Date(),
-        parsed.locale,
-        options.copy(),
-      );
     } catch {
       if (turn !== sequence) return;
       overview = null;
       failed = true;
-      checked.textContent = "";
       say(copy.toolsLoadFailed);
     } finally {
       if (turn === sequence) {
