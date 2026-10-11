@@ -6856,6 +6856,17 @@ schema, conformance `MS-03`) is the root's; this is the consumer side.
    on a personal Environment, which a person owns. A Personalspace module is
    `personalspace`: which vault serves the Personalspace is open in DEV-6631, and
    until it is decided none does.
+   **This is a declaration rule, not isolation.** Every Module on an Environment runs
+   under the Environment's one account, whichever Organization it comes from, so one
+   Module can read another running Module's environment through the user service
+   manager, and the account's unlocked vault session as well. The Modules of all
+   Organizations on one Environment are one trust domain, as everything on the
+   Environment acts with its operator's full rights (root decision 0196 point 3,
+   Admin decision of 2026-10-11). The check keeps a Module of another Organization
+   from receiving the owning Organization's secrets by declaring them; it does not
+   protect them from code running on the same Environment. A person who must not be
+   trusted with a sensitive Module's secrets gets no access to the Environment that
+   runs it, only to its application (root decision 0192).
 4. **Injection.** `LAZURIO_RUNTIME_SECRET_<NAME>` of each name with a value is set in
    the application's own closed environment (F26, `applicationEnvironment`), read in
    `localApplicationAdapters.prepareLaunch` last, after the sibling origins, at every
@@ -6921,7 +6932,9 @@ schema, conformance `MS-03`) is the root's; this is the consumer side.
    the operator's own account can read it (`systemctl --user show -p Environment`,
    and the transient unit under `$XDG_RUNTIME_DIR/systemd/transient/`, an owner-only
    tmpfs directory gone at stop or reboot), as it can read the running process's own
-   environment; agents with full access already can (F43 point 9). bw's own store
+   environment; agents with full access already can (F43 point 9), and so can any
+   other Module on the same account, including one of another Organization (point 3:
+   one trust domain, not isolation). bw's own store
    under `XDG_STATE_HOME` is bw's, encrypted, as in F43. A value with a control
    character (a multi-line key) cannot be passed to the service manager: that start
    ends as `launch-failed`.
@@ -6939,7 +6952,7 @@ start's answer, not by a journal line.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
-| Any application on the Environment reads the collection | An application of another mounted Organization would read the owning Organization's secrets; rejected by point 3 |
+| Any application on the Environment reads the collection | An application of another mounted Organization would receive the owning Organization's secrets by declaring them; rejected by point 3 (a declaration rule: code on the same account is one trust domain) |
 | `--setenv=NAME=value` on systemd-run's command line | Every account on the Machine can list a process's arguments; rejected for `--setenv=NAME` with the value in systemd-run's environment |
 | Bind the values into the unit's definition digest | The description is readable, and a digest over a short password lets it be guessed offline; rejected for the name only |
 | A file the Platform writes for the application (an `.env`, a secrets file) | A second store beside the vault and a file a Module could commit; rejected by root decision 0177 and F43 point 1 |

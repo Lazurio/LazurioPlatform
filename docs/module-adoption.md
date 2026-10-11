@@ -344,6 +344,8 @@ Before every start the value of each is read from the Environment vault (F43): a
 sync, then the login password of the one item named exactly so in the Environment's
 collection. Only an application of the Organization that owns the Environment reads
 it; another mounted Organization's application and every Personalspace module do not.
+That is a rule about declarations, not isolation: all Modules on one Environment run
+under its one account and are one trust domain (F46 point 3, root decision 0196).
 A required name without a value refuses the start with `runtime-secret-unavailable`
 and each name's reason (`missing`, `ambiguous`, `empty`, `not-connected`,
 `unreachable`, `other-organization`, `personalspace`, `workstation`, …); an optional
