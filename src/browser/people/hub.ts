@@ -94,6 +94,10 @@ export type TabFacts = Readonly<{
   /** When a close for everyone ends it, unless restored. */
   closing: string | null;
   grace: Readonly<{ kind: GraceKind; endsAt: string }> | null;
+  /** Its JavaScript heap in bytes, the overview's estimate marked "≈" (F47
+   * point 7): only in a list asked for with `heap=1`, null where it could
+   * not be read in time. */
+  heap?: Readonly<{ used: number; total: number }> | null;
 }>;
 
 type Info = {
@@ -183,6 +187,8 @@ const metaScript = `(() => {
   return JSON.stringify({ title: String(document.title ?? ""), icon });
 })()`;
 const metaEveryMs = 2_000;
+/** How long the list waits for one tab's heap (F47 point 7). */
+const heapReadMs = 500;
 
 const ackThreshold = 1 << 20;
 const jpegQuality = 70;
@@ -420,6 +426,53 @@ export class BrowserHub {
       });
     }
     return facts;
+  }
+
+  /** The list with each tab's JavaScript heap, which the overview shows as
+   * the tab's memory marked "≈" (F47 point 7): `Runtime.getHeapUsage` on the
+   * hub's own session of the tab. Like the reads in the isolated world
+   * (`inWorld`) it needs no `Runtime.enable`, so a page sees nothing new.
+   * The heap is its renderer's, so tabs that share a renderer show the same
+   * one. Every tab at once, 500 ms each; a tab without a session, or whose
+   * read fails or is late, has null. */
+  async listWithHeap(): Promise<TabFacts[]> {
+    const facts = this.list();
+    const heaps = await Promise.all(facts.map((fact) => this.heap(fact.id)));
+    return facts.map((fact, index) => ({
+      ...fact,
+      heap: heaps[index] ?? null,
+    }));
+  }
+
+  private async heap(
+    targetId: string,
+  ): Promise<Readonly<{ used: number; total: number }> | null> {
+    const cdp = this.cdp;
+    const session = this.tabs.get(targetId)?.sessionId ?? null;
+    if (cdp === null || session === null) return null;
+    let late: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const answer = await Promise.race([
+        cdp.send("Runtime.getHeapUsage", {}, session),
+        new Promise<null>((resolve) => {
+          late = setTimeout(() => resolve(null), heapReadMs);
+        }),
+      ]);
+      const used = answer?.usedSize;
+      const total = answer?.totalSize;
+      return typeof used === "number" &&
+        typeof total === "number" &&
+        Number.isFinite(used) &&
+        Number.isFinite(total) &&
+        used >= 0 &&
+        total >= 0
+        ? { used, total }
+        : null;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(late);
+    }
   }
 
   /** Closes a tab for everyone after the grace of Vrátit, held or not (F47

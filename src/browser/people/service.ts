@@ -301,9 +301,15 @@ export function startViewService(options: ViewServiceOptions): ViewService {
             : json({ error: "not-accepted" }, 409);
         }
         case "tabs":
-          return hub.ready
-            ? json({ tabs: hub.list() })
-            : json({ error: "browser-unreachable" }, 503);
+          if (!hub.ready) return json({ error: "browser-unreachable" }, 503);
+          // `heap=1` adds each tab's JavaScript heap for the Launchpad's
+          // overview (F47 point 7); without it the list is as it was.
+          return json({
+            tabs:
+              new URL(request.url).searchParams.get("heap") === "1"
+                ? await hub.listWithHeap()
+                : hub.list(),
+          });
         case "open": {
           const body = await smallJson(request);
           const url = body?.url;

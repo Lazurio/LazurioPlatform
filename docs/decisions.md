@@ -7465,3 +7465,45 @@ ended before the app recorded it, a record from an earlier boot, and a step of t
 Until T3 Code writes its holder files (step 4), a T3 Code thread's window stays while its agent
 works in it or someone views it. Otherwise it ends about an hour after the agent's last
 command. The Folder manual's `tab_gone` recovery already covers that.
+
+**Step 2, implemented in this revision (2026-10-11).**
+- `src/launchpad/new-tab-routes.ts` answers `GET /api/new-tab/overview` and
+  `POST /api/new-tab/open|hold|close|restore` behind the admission of every `/api/*` route.
+  Where the entry routes no browser view, a workstation among them, every path answers 404
+  `no-browser`.
+- The overview joins three readings, and none of them fails the others:
+  - the hub's list with each tab's JavaScript heap (`GET /.lazurio/tabs?heap=1`:
+    `Runtime.getHeapUsage` on the hub's own session of each tab, all at once, 500 ms each,
+    null where it fails), and who opened each tab, for display: `t3-` is T3 Code with the
+    thread's title from its holder file, `codex-` Codex, `claude-` Claude Code, a person
+    never by name. While the hub does not answer, the overview says so with status 200
+    and `tabs` null;
+  - the memory: `/proc/meminfo`, and `memory.current` of the browser, the Launchpad, T3 Code
+    and each running Module in one `systemctl --user show`. What cannot be read is null,
+    and so is the rest then;
+  - the running Modules: each app of the catalog named by its runner's unit name and
+    matched with the units the user manager lists, with Zastavit's `<org>`. Mode `dev`
+    and source `main` until tasks 918 and 919.
+- `src/launchpad/new-tab/hub-client.ts` asks the hub on loopback without `Origin` or
+  `Sec-Fetch-Site`, within 3 s (5 s to open). It reads at most 4 MiB of a list and 16 KiB
+  of any other answer and passes on only the hub's own shapes.
+- The Launchpad's holder file `holders/launchpad.json` keeps each tab's record time on the
+  boot clock (`recordedAt`), owner-only and replaced atomically. An open for the strip
+  `launchpad` and `hold` record it before they answer. The Launchpad reconciles it with
+  the hub's list when it starts, when the list changes (watched), every 30 s and before
+  each write, and rewrites it only when a hold went. It holds at most 256 tabs, so the
+  file stays within what the hub reads; a hold past that is refused (409). The Launchpad
+  reads its file again before every hold and every write. A file that exists but cannot be
+  read, or is not a holder file, fails closed like the hub's read: the Launchpad takes no
+  hold and writes nothing over it until a read succeeds.
+- The tests cover the reconciliation cases of the steps: a tab closed for everyone or ended
+  while no app shows it, a browser restart, a start with stored ids that ended, a tab
+  recorded before the list has it, a live tab whose event reached the hub late, a tab that
+  ended before the record, a record from an earlier boot, a list of another boot, and a
+  step of the wall clock.
+
+Steps 3–5 still need the page and its element, which call `hold` for a page's new tab
+shown in the Launchpad, mark the heap "≈" and never open another Environment's view; T3
+Code's holder files with their record times; and a check on a real Environment, where
+neither the heaps of tabs that share a renderer nor the cost of the overview every 5 s has
+been measured yet.

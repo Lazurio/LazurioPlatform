@@ -47,6 +47,7 @@ import { renderManual } from "../src/folder/manual";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
+import { processNewTabHost } from "../src/launchpad/new-tab-routes";
 import { startLaunchpad } from "../src/launchpad/server";
 import type { ProcessRunner } from "../src/update/self-check";
 import { unitMarker } from "../src/update/service-control";
@@ -1096,6 +1097,13 @@ async function hostedLaunchpad(withView: boolean) {
         return { targetId: "C".repeat(32) };
       },
     },
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    // Nová karta's host without a runtime directory or service manager: the
+    // test never reads or writes this account's holder files (F47).
+    processNewTabHost({}, process.platform),
   );
   const base = `http://127.0.0.1:${listenPort}`;
   const valid = {
