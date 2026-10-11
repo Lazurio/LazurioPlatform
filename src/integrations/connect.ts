@@ -9,6 +9,20 @@ import {
   removeComposioAccount,
 } from "./composio-source";
 import {
+  type CustomServerInput,
+  type CustomServerSettings,
+  customProblems,
+  envValues,
+  keyHeaders,
+  keysChange,
+  keysMethod,
+  keysTemplate,
+  plainLine,
+  remoteAuthOf,
+  settingsOf,
+  storedOf,
+} from "./custom-server";
+import {
   type ExecutorEndpoint,
   type ExecutorResult,
   executorCall,
@@ -110,6 +124,29 @@ export type ConnectProgress =
   | Readonly<{ kind: "connected"; app: string }>
   | Readonly<{ kind: "ended"; reason: "failed" | "expired" | "cancelled" }>;
 
+/** Why a custom server cannot be read or saved as one. */
+export type CustomRefusal =
+  /** No such server, or a catalog app's (edited only through its card). */
+  "account-unknown" | "executor-unavailable" | "connect-failed";
+
+/** Equal as JSON, whatever the order of an object's keys. */
+function sameJson(a: unknown, b: unknown): boolean {
+  const canonical = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.map(canonical)
+      : typeof value === "object" && value !== null
+        ? Object.fromEntries(
+            Object.keys(value)
+              .sort()
+              .map((key) => [
+                key,
+                canonical((value as Record<string, unknown>)[key]),
+              ]),
+          )
+        : value;
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+}
+
 type Session = {
   readonly id: string;
   readonly app: string;
@@ -130,14 +167,8 @@ type Session = {
 export function accountName(value: unknown): string | null | "invalid" {
   if (value === undefined || value === null) return null;
   if (typeof value !== "string") return "invalid";
-  const trimmed = value.trim();
-  if (trimmed === "") return null;
-  if (
-    Array.from(trimmed).length > 64 ||
-    /[\p{Cc}\u2028\u2029\u202a-\u202e\u2066-\u2069]/u.test(trimmed)
-  )
-    return "invalid";
-  return trimmed;
+  if (value.trim() === "") return null;
+  return plainLine(value, 64) ?? "invalid";
 }
 
 /** Executor's connection name for an account name: a camelCase identifier
@@ -606,6 +637,75 @@ export function createConnectSessions(host: () => ConnectHost) {
       : { kind: "blocked", reason: "still-failing" };
   }
 
+  /** A custom server of Executor: its edit form, its config and the
+   * template its account binds. Never a catalog app's integration, which
+   * its card owns (decision F42). */
+  async function customServerOf(
+    executor: ExecutorEndpoint,
+    id: string,
+  ): Promise<
+    | Readonly<{
+        settings: CustomServerSettings;
+        config: Record<string, unknown>;
+        template: string | null;
+      }>
+    | Readonly<{ reason: CustomRefusal }>
+  > {
+    const slug = encodeURIComponent(id);
+    const integration = await executorCall(
+      executor,
+      "GET",
+      `/integrations/${slug}`,
+    );
+    if (integration.kind === "unavailable")
+      return { reason: "executor-unavailable" };
+    if (integration.kind === "answer" && integration.status === 404)
+      return { reason: "account-unknown" };
+    if (integration.kind !== "answer" || integration.status !== 200)
+      return { reason: "connect-failed" };
+    const described = record(integration.body);
+    if (described.kind !== "mcp" || typeof described.name !== "string")
+      return { reason: "account-unknown" };
+    const server = await executorCall(executor, "GET", `/mcp/servers/${slug}`);
+    if (server.kind === "unavailable")
+      return { reason: "executor-unavailable" };
+    if (server.kind !== "answer" || server.status !== 200)
+      return { reason: "connect-failed" };
+    if (server.body === null) return { reason: "account-unknown" };
+    const config = record(record(server.body).config);
+    if (
+      config.transport === "remote" &&
+      typeof config.endpoint === "string" &&
+      catalogAppOf(catalog(), {
+        kind: "remote",
+        target: shownEndpoint(config.endpoint),
+      }) !== undefined
+    )
+      return { reason: "account-unknown" };
+    const account = await executorCall(
+      executor,
+      "GET",
+      `/connections/org/${slug}/default`,
+    );
+    if (account.kind === "unavailable")
+      return { reason: "executor-unavailable" };
+    const template =
+      account.kind === "answer" &&
+      account.status === 200 &&
+      typeof record(account.body).template === "string"
+        ? (record(account.body).template as string)
+        : null;
+    const settings = settingsOf(
+      id,
+      described.name.trim() || id,
+      config,
+      template,
+    );
+    return settings === null
+      ? { reason: "connect-failed" }
+      : { settings, config, template };
+  }
+
   async function connectComposio(
     app: CatalogApp,
     name: string | null,
@@ -828,15 +928,12 @@ export function createConnectSessions(host: () => ConnectHost) {
         : { kind: "blocked", reason: "disconnect-failed" };
     },
 
-    /** Adds a custom MCP server to Executor (Vlastní). A key goes only to
-     * Executor: the remote server's header, or the command's variable. */
+    /** Adds a custom MCP server to Executor (Vlastní), as the form has it
+     * (decision F42, addendum of 2026-10-11). Its keys go only to Executor,
+     * as the server's account: a command's environment variables, a remote
+     * server's Bearer token and headers. */
     async addCustom(
-      server: Readonly<{
-        name: string;
-        kind: "url" | "command";
-        target: string;
-        secret: Readonly<{ name: string; value: string }> | null;
-      }>,
+      server: CustomServerInput,
     ): Promise<
       ConnectStart | Readonly<{ kind: "blocked"; reason: "name-taken" }>
     > {
@@ -844,38 +941,37 @@ export function createConnectSessions(host: () => ConnectHost) {
       if (executor === null)
         return { kind: "blocked", reason: "executor-unavailable" };
       try {
-        if (server.kind === "command") {
-          const [command, ...args] = splitCommand(server.target);
-          if (command === undefined)
+        if (server.type === "stdio") {
+          const env = envValues(server);
+          if (env === null)
             return { kind: "blocked", reason: "connect-failed" };
+          // Executor creates the command's account at once: its variables
+          // in its secret store, or none.
           const added = await executorCall(
             executor,
             "POST",
             "/mcp/servers",
             {
               transport: "stdio",
-              name: server.name,
-              command,
-              args,
-              ...(server.secret === null
-                ? {}
-                : { env: { [server.secret.name]: server.secret.value } }),
+              name: server.name.trim(),
+              command: server.command.trim(),
+              args: [...server.args],
+              ...(server.cwd === null ? {} : { cwd: server.cwd }),
+              ...(Object.keys(env).length === 0 ? {} : { env }),
             },
             60_000,
           );
           if (added.kind === "answer" && added.status === 409)
             return { kind: "blocked", reason: "name-taken" };
           const slug = record(answerOf(added, 200)).slug;
-          journal({
-            event: "custom-add",
-            app: typeof slug === "string" ? slug : "",
-            outcome: "connected",
-          });
-          return {
-            kind: "connected",
-            app: typeof slug === "string" ? slug : server.name,
-          };
+          if (typeof slug !== "string")
+            return { kind: "blocked", reason: "connect-failed" };
+          journal({ event: "custom-add", app: slug, outcome: "connected" });
+          return { kind: "connected", app: slug };
         }
+        const keys = keysMethod(server);
+        const endpoint = server.url.trim();
+        const headers = keyHeaders(server) ?? {};
         const probe = record(
           answerOf(
             await executorCall(
@@ -883,28 +979,23 @@ export function createConnectSessions(host: () => ConnectHost) {
               "POST",
               "/mcp/probe",
               {
-                endpoint: server.target,
-                ...(server.secret === null
-                  ? {}
-                  : { headers: { [server.secret.name]: server.secret.value } }),
+                endpoint,
+                ...(Object.keys(headers).length === 0 ? {} : { headers }),
               },
               60_000,
             ),
             200,
           ),
         );
-        const oauth = server.secret === null && probe.requiresOAuth === true;
+        const oauth = keys === null && probe.requiresOAuth === true;
         const added = await executorCall(executor, "POST", "/mcp/servers", {
           transport: "remote",
-          name: server.name,
-          endpoint: server.target,
+          name: server.name.trim(),
+          endpoint,
           remoteTransport: "auto",
-          auth:
-            server.secret !== null
-              ? { kind: "header", headerName: server.secret.name }
-              : oauth
-                ? { kind: "oauth2" }
-                : { kind: "none" },
+          ...(keys !== null
+            ? { authenticationTemplate: [keys.input] }
+            : { auth: oauth ? { kind: "oauth2" } : { kind: "none" } }),
         });
         if (added.kind === "answer" && added.status === 409)
           return { kind: "blocked", reason: "name-taken" };
@@ -915,7 +1006,7 @@ export function createConnectSessions(host: () => ConnectHost) {
           const { url, state } = await startOAuth(
             executor,
             slug,
-            server.target,
+            endpoint,
             null,
           );
           const session = open(slug, { oauth: { state } });
@@ -927,9 +1018,9 @@ export function createConnectSessions(host: () => ConnectHost) {
             owner: "org",
             name: "default",
             integration: slug,
-            ...(server.secret === null
+            ...(keys === null
               ? { template: "none", values: {} }
-              : { template: "header", value: server.secret.value }),
+              : { template: keysTemplate, values: keys.values }),
           }),
           200,
         );
@@ -940,6 +1031,203 @@ export function createConnectSessions(host: () => ConnectHost) {
           kind: "blocked",
           reason:
             error instanceof ConnectBlocked ? error.reason : "connect-failed",
+        };
+      }
+    },
+
+    /** A custom server as its edit form opens: its configuration and the
+     * names of its keys; never a value, never a catalog app's server. */
+    async customSettings(
+      id: string,
+    ): Promise<
+      | CustomServerSettings
+      | Readonly<{ kind: "blocked"; reason: CustomRefusal }>
+    > {
+      const executor = host().executor;
+      if (executor === null)
+        return { kind: "blocked", reason: "executor-unavailable" };
+      const found = await customServerOf(executor, id);
+      return "reason" in found
+        ? { kind: "blocked", reason: found.reason }
+        : found.settings;
+    },
+
+    /** Saves a custom server's form in Executor, in place: its name, its
+     * configuration and, where its keys change, its account anew, with
+     * every key again (Executor keeps them together and never returns
+     * them). A remote server that now needs a sign-in starts it. */
+    async updateCustom(
+      id: string,
+      server: CustomServerInput,
+    ): Promise<
+      | ConnectStart
+      | Readonly<{ kind: "saved"; app: string }>
+      | Readonly<{
+          kind: "blocked";
+          reason: CustomRefusal | "type-fixed" | "invalid-server";
+        }>
+    > {
+      const executor = host().executor;
+      if (executor === null)
+        return { kind: "blocked", reason: "executor-unavailable" };
+      const found = await customServerOf(executor, id);
+      if ("reason" in found) return { kind: "blocked", reason: found.reason };
+      const { settings, config, template } = found;
+      if (settings.type !== server.type)
+        return { kind: "blocked", reason: "type-fixed" };
+      const stored = storedOf(settings);
+      if (customProblems(server, stored).length > 0)
+        return { kind: "blocked", reason: "invalid-server" };
+      const changed = keysChange(server, stored);
+      const at = `/connections/org/${encodeURIComponent(id)}/default`;
+      try {
+        // A remote address is probed before anything changes: one that does
+        // not answer keeps the server as it was. Its account is created anew
+        // last, after the old one is removed (Executor's account name
+        // `default` is the agents' address); should that fail, the server is
+        // left without an account and the next save creates it.
+        let next: Record<string, unknown>;
+        let account:
+          | Readonly<{ template: string; values: Record<string, string> }>
+          | "oauth2"
+          | null = null;
+        let endpoint = "";
+        if (server.type === "stdio") {
+          const { args: _args, cwd: _cwd, ...rest } = config;
+          const names = server.env.map((key) => key.name.trim());
+          next = {
+            ...rest,
+            transport: "stdio",
+            command: server.command.trim(),
+            ...(server.args.length === 0 ? {} : { args: [...server.args] }),
+            ...(server.cwd === null ? {} : { cwd: server.cwd }),
+          };
+          if (changed) {
+            next.authenticationTemplate =
+              names.length === 0
+                ? [{ slug: "none", kind: "none" }]
+                : [{ slug: "env", kind: "stdio_env", vars: names }];
+            account =
+              names.length === 0
+                ? { template: "none", values: {} }
+                : { template: "env", values: { ...envValues(server) } };
+          }
+        } else {
+          const kept =
+            settings.type === "http" && server.url.trim() === settings.url;
+          endpoint = kept ? String(config.endpoint) : server.url.trim();
+          const keys = changed ? keysMethod(server) : null;
+          const withKeys = server.bearer !== null || server.headers.length > 0;
+          const current = remoteAuthOf(config, template);
+          // Without keys and with the address as it was, a server keeps how
+          // it signs in; otherwise the probe of its address decides.
+          const decide = !withKeys && (current.kind === "keys" || !kept);
+          let method: Record<string, unknown> | null = null;
+          if (!kept || decide || (withKeys && changed)) {
+            const headers = keys === null ? {} : (keyHeaders(server) ?? {});
+            const probe = record(
+              answerOf(
+                await executorCall(
+                  executor,
+                  "POST",
+                  "/mcp/probe",
+                  {
+                    endpoint,
+                    ...(Object.keys(headers).length === 0 ? {} : { headers }),
+                  },
+                  60_000,
+                ),
+                200,
+              ),
+            );
+            if (decide) {
+              const oauth = probe.requiresOAuth === true;
+              method = oauth
+                ? { slug: "oauth2", kind: "oauth2" }
+                : { slug: "none", kind: "none" };
+              account = oauth ? "oauth2" : { template: "none", values: {} };
+            }
+          }
+          if (withKeys && changed && keys !== null) {
+            method = { ...keys.stored };
+            account = { template: keysTemplate, values: { ...keys.values } };
+          }
+          next = {
+            ...config,
+            transport: "remote",
+            endpoint,
+            remoteTransport: config.remoteTransport ?? "auto",
+            ...(method === null ? {} : { authenticationTemplate: [method] }),
+          };
+        }
+        if (server.name.trim() !== settings.name)
+          answerOf(
+            await executorCall(
+              executor,
+              "PATCH",
+              `/integrations/${encodeURIComponent(id)}`,
+              { name: server.name.trim() },
+            ),
+            200,
+          );
+        if (!sameJson(next, config))
+          answerOf(
+            await executorCall(
+              executor,
+              "POST",
+              `/mcp/servers/${encodeURIComponent(id)}/config`,
+              { config: next },
+            ),
+            200,
+          );
+        if (account !== null) {
+          const removed = await executorCall(executor, "DELETE", at);
+          if (
+            removed.kind !== "answer" ||
+            (removed.status !== 200 && removed.status !== 404)
+          )
+            throw new ConnectBlocked(
+              removed.kind === "unavailable"
+                ? "executor-unavailable"
+                : "connect-failed",
+            );
+          if (account === "oauth2") {
+            const { url, state } = await startOAuth(
+              executor,
+              id,
+              endpoint,
+              null,
+            );
+            const session = open(id, { oauth: { state } });
+            awaitOAuth(executor, session, state);
+            journal({ event: "custom-update", app: id, outcome: "pending" });
+            return authorize(session, url);
+          }
+          answerOf(
+            await executorCall(executor, "POST", "/connections", {
+              owner: "org",
+              name: "default",
+              integration: id,
+              template: account.template,
+              values: account.values,
+            }),
+            200,
+          );
+        }
+        journal({ event: "custom-update", app: id, outcome: "saved" });
+        return { kind: "saved", app: id };
+      } catch (error) {
+        const reason =
+          error instanceof ConnectBlocked ? error.reason : "connect-failed";
+        journal({
+          event: "custom-update",
+          app: id,
+          outcome: "blocked",
+          reason,
+        });
+        return {
+          kind: "blocked",
+          reason: reason === "executor-unavailable" ? reason : "connect-failed",
         };
       }
     },
@@ -990,35 +1278,4 @@ export function createConnectSessions(host: () => ConnectHost) {
         : { kind: "blocked", reason: "remove-failed" };
     },
   });
-}
-
-/** A command line as words: spaces separate, single and double quotes keep
- * a word together; no expansion, no shell. */
-export function splitCommand(line: string): string[] {
-  const words: string[] = [];
-  let word = "";
-  let quote: "'" | '"' | null = null;
-  let started = false;
-  for (const char of line.trim()) {
-    if (quote !== null) {
-      if (char === quote) quote = null;
-      else word += char;
-      continue;
-    }
-    if (char === "'" || char === '"') {
-      quote = char;
-      started = true;
-      continue;
-    }
-    if (/\s/.test(char)) {
-      if (started) words.push(word);
-      word = "";
-      started = false;
-      continue;
-    }
-    word += char;
-    started = true;
-  }
-  if (started) words.push(word);
-  return words;
 }

@@ -15,6 +15,10 @@ export type FakeIntegration = {
   args?: string[];
   auth: "none" | "oauth2" | "header";
   tools: number;
+  /** The config Executor stores (`GET /api/mcp/servers/<slug>`), as an add
+   * or an edit made it; a seeded integration without one answers the
+   * shape derived from the fields above. */
+  config?: Record<string, unknown>;
   /** The server does not answer as it should: Executor's tool sync and its
    * liveness check fail, and its connections read as misconfigured. */
   broken?: boolean;
@@ -30,6 +34,8 @@ export type FakeConnection = {
   /** What the connection was created with (a key, the command's
    * environment): kept only here, where Executor keeps it. */
   secret?: string;
+  /** Its values by input (`values` of `POST /api/connections`). */
+  values?: Record<string, string>;
 };
 
 export type FakeExecutor = Readonly<{
@@ -84,6 +90,29 @@ const shapeOf = (item: FakeConnection) => ({
         },
 });
 
+/** An auth method of `POST /api/mcp/servers` as Executor stores it: the
+ * request-shaped apikey dialect as canonical placements. */
+function canonicalMethod(method: Record<string, unknown>) {
+  if (method.type !== "apiKey") return method;
+  const placements = Object.entries(
+    (method.headers ?? {}) as Record<string, unknown[]>,
+  ).map(([name, parts]) => {
+    const prefix = parts.filter((part) => typeof part === "string").join("");
+    const variable = (
+      parts.find((part) => typeof part !== "string") as
+        | { name: string }
+        | undefined
+    )?.name;
+    return {
+      carrier: "header",
+      name,
+      ...(prefix === "" ? {} : { prefix }),
+      ...(variable === undefined || variable === "token" ? {} : { variable }),
+    };
+  });
+  return { slug: method.slug ?? "apikey", kind: "apikey", placements };
+}
+
 export async function startFakeExecutor(
   token: string,
   seed: Partial<Pick<FakeExecutor, "integrations" | "connections">> = {},
@@ -106,7 +135,7 @@ export async function startFakeExecutor(
       const authorized =
         request.headers.get("authorization") === `Bearer ${token}`;
       let body: unknown = null;
-      if (request.method === "POST")
+      if (request.method === "POST" || request.method === "PATCH")
         body = await request.json().catch(() => null);
       calls.push({
         method: request.method,
@@ -138,6 +167,14 @@ export async function startFakeExecutor(
           })),
         );
       const integration = /^\/integrations\/([^/]+)$/.exec(path);
+      if (request.method === "PATCH" && integration !== null) {
+        const item = integrations.find(
+          (entry) => entry.slug === integration[1],
+        );
+        if (item === undefined) return tagged("IntegrationNotFoundError", 404);
+        if (typeof input.name === "string") item.name = input.name;
+        return json({ slug: item.slug, name: item.name, kind: item.kind });
+      }
       if (request.method === "GET" && integration !== null) {
         const item = integrations.find(
           (entry) => entry.slug === integration[1],
@@ -189,6 +226,16 @@ export async function startFakeExecutor(
           // Executor syncs the tools at once; a broken server fails it.
           health: broken ? "misconfigured" : null,
           ...(typeof input.value === "string" ? { secret: input.value } : {}),
+          ...(typeof input.values === "object" &&
+          input.values !== null &&
+          Object.keys(input.values).length > 0
+            ? {
+                values: input.values as Record<string, string>,
+                secret: Object.values(
+                  input.values as Record<string, string>,
+                ).join(","),
+              }
+            : {}),
         };
         connections.push(connection);
         return json({ owner: connection.owner, name: connection.name });
@@ -267,6 +314,10 @@ export async function startFakeExecutor(
           return tagged("IntegrationAlreadyExistsError", 409);
         const stdio = input.transport === "stdio";
         const auth = (input.auth as { kind?: string } | undefined)?.kind;
+        const template = input.authenticationTemplate as
+          | Record<string, unknown>[]
+          | undefined;
+        const env = input.env as Record<string, string> | undefined;
         integrations.push({
           slug,
           name: String(input.name),
@@ -281,14 +332,57 @@ export async function startFakeExecutor(
           auth:
             auth === "oauth2"
               ? "oauth2"
-              : auth === "header"
+              : auth === "header" || template !== undefined
                 ? "header"
                 : "none",
           tools: 3,
+          config: stdio
+            ? {
+                transport: "stdio",
+                command: input.command,
+                ...(Array.isArray(input.args) && input.args.length > 0
+                  ? { args: input.args }
+                  : {}),
+                ...(typeof input.cwd === "string" ? { cwd: input.cwd } : {}),
+                // A legacy plaintext environment the page must never see.
+                env: { LEGACY: "legacy-env-value" },
+                authenticationTemplate:
+                  env === undefined
+                    ? [{ slug: "none", kind: "none" }]
+                    : [
+                        {
+                          slug: "env",
+                          kind: "stdio_env",
+                          vars: Object.keys(env),
+                        },
+                      ],
+              }
+            : {
+                transport: "remote",
+                endpoint: input.endpoint,
+                remoteTransport: input.remoteTransport ?? "auto",
+                authenticationTemplate:
+                  template !== undefined
+                    ? template.map(canonicalMethod)
+                    : auth === "header"
+                      ? [
+                          {
+                            slug: "header",
+                            kind: "apikey",
+                            placements: [
+                              {
+                                carrier: "header",
+                                name: (input.auth as { headerName: string })
+                                  .headerName,
+                              },
+                            ],
+                          },
+                        ]
+                      : [{ slug: auth ?? "none", kind: auth ?? "none" }],
+              },
         });
         // A command server gets its connection at once, as Executor does.
-        if (stdio) {
-          const env = input.env as Record<string, string> | undefined;
+        if (stdio)
           connections.push({
             owner: "org",
             name: "default",
@@ -298,9 +392,8 @@ export async function startFakeExecutor(
             health: null,
             ...(env === undefined
               ? {}
-              : { secret: Object.values(env).join(",") }),
+              : { secret: Object.values(env).join(","), values: env }),
           });
-        }
         return json({ slug });
       }
       const server = /^\/mcp\/servers\/([^/]+)$/.exec(path);
@@ -324,7 +417,8 @@ export async function startFakeExecutor(
           canRemove: true,
           canRefresh: true,
           config:
-            item.transport === "stdio"
+            item.config ??
+            (item.transport === "stdio"
               ? {
                   transport: "stdio",
                   command: item.command,
@@ -337,8 +431,23 @@ export async function startFakeExecutor(
                   transport: "remote",
                   endpoint: item.endpoint,
                   authenticationTemplate: [],
-                },
+                }),
         });
+      }
+      // Executor's configureServer: the whole config is replaced.
+      const configure = /^\/mcp\/servers\/([^/]+)\/config$/.exec(path);
+      if (request.method === "POST" && configure !== null) {
+        const item = integrations.find((entry) => entry.slug === configure[1]);
+        if (item === undefined) return tagged("IntegrationNotFoundError", 404);
+        const config = input.config as Record<string, unknown>;
+        item.config = config;
+        if (config.transport === "remote")
+          item.endpoint = String(config.endpoint);
+        else {
+          item.command = String(config.command);
+          item.args = (config.args as string[] | undefined) ?? [];
+        }
+        return json({ config });
       }
       if (request.method === "GET" && path === "/tools") {
         const slug = url.searchParams.get("integration");

@@ -202,7 +202,7 @@ export const directTransport: ExecutorTransport = (input) =>
 /** One call of Executor's API: `path` below `/api`, a JSON body or none. */
 export async function executorCall(
   host: ExecutorEndpoint,
-  method: "GET" | "POST" | "DELETE",
+  method: "GET" | "POST" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
   timeoutMs: number = executorTimeoutMs,

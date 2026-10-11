@@ -1,4 +1,5 @@
 import { filesUrlPath, parseUrlPath } from "../files/rules";
+import { customServerIdPattern } from "../integrations/custom-server";
 import { integrationIdPattern } from "../integrations/path";
 import type { MessageKey } from "./messages";
 
@@ -38,11 +39,16 @@ export type PageRoute =
   /** Integrace of the Environment (decision F42): `/integrations` is the tab
    * Vše, `/integrations/connected` and `/integrations/custom` the two others,
    * and `/integrations/app/<id>` one app's card in Vše, the link an agent
-   * sends. A card lives under `app/`, so no app id is ever a tab's name. */
+   * sends. A card lives under `app/`, so no app id is ever a tab's name.
+   * In Vlastní, `/integrations/custom/new` is the page that connects a
+   * custom MCP server and `/integrations/custom/server/<id>` the same page
+   * for one that exists (`form`, its id null for a new one; F42's addendum
+   * of 2026-10-11). */
   | Readonly<{
       view: "integrations";
       tab: IntegrationsTab;
       app?: string;
+      form?: Readonly<{ server: string | null }>;
     }>;
 
 /** The tabs of Integrace: Vše · Připojené · Vlastní. */
@@ -105,6 +111,13 @@ export function integrationsPath(
   return tab === "all" ? "/integrations" : `/integrations/${tab}`;
 }
 
+/** The page of a custom MCP server: a new one (null), or one that exists. */
+export function customServerPath(server: string | null): string {
+  return server === null
+    ? "/integrations/custom/new"
+    : `/integrations/custom/server/${encodeURIComponent(server)}`;
+}
+
 // One path segment, decoded; null when it is empty or not valid encoding.
 function segment(input: string | undefined): string | null {
   if (!input) return null;
@@ -138,6 +151,15 @@ export function pageRoute(pathname: string): PageRoute {
       (parts[0] === "connected" || parts[0] === "custom")
     )
       return { view: "integrations", tab: parts[0] };
+    if (parts[0] === "custom") {
+      if (parts.length === 2 && parts[1] === "new")
+        return { view: "integrations", tab: "custom", form: { server: null } };
+      const server =
+        parts.length === 3 && parts[1] === "server" ? segment(parts[2]) : null;
+      return server !== null && customServerIdPattern.test(server)
+        ? { view: "integrations", tab: "custom", form: { server } }
+        : { view: "integrations", tab: "custom" };
+    }
     const app =
       parts.length === 2 && parts[0] === "app" ? segment(parts[1]) : null;
     return app !== null && integrationIdPattern.test(app)
@@ -189,7 +211,9 @@ export function routePath(route: PageRoute): string {
     return modulePath(route.organization, route.module);
   if (route.view === "files") return filesUrlPath(route.path);
   if (route.view === "integrations")
-    return integrationsPath(route.tab, route.app);
+    return route.form !== undefined
+      ? customServerPath(route.form.server)
+      : integrationsPath(route.tab, route.app);
   if (route.view === "marketplace") return "/marketplace";
   return settingsPath(route.section);
 }
@@ -232,7 +256,14 @@ export function routeTitle(
   if (route.view === "integrations")
     return {
       heading: copy.integrationsTitle,
-      document: `${copy.integrationsTitle} — ${copy.title}`,
+      document:
+        route.form === undefined
+          ? `${copy.integrationsTitle} — ${copy.title}`
+          : `${
+              route.form.server === null
+                ? copy.integrationsMcpPageTitle
+                : copy.integrationsMcpEditTitle
+            } · ${copy.integrationsTitle} — ${copy.title}`,
     };
   if (route.view === "files") {
     const folder = route.path.at(-1);

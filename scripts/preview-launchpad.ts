@@ -286,6 +286,44 @@ const executorApi = await startFakeExecutor(
         endpoint: "https://mcp.invoices.example.com/mcp",
         auth: "header",
         tools: 6,
+        config: {
+          transport: "remote",
+          endpoint: "https://mcp.invoices.example.com/mcp",
+          remoteTransport: "auto",
+          authenticationTemplate: [
+            {
+              slug: "apikey",
+              kind: "apikey",
+              placements: [
+                { carrier: "header", name: "Authorization", prefix: "Bearer " },
+                {
+                  carrier: "header",
+                  name: "X-Api-Key",
+                  variable: "header-x-api-key",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        slug: "files",
+        name: "Files",
+        kind: "mcp",
+        transport: "stdio",
+        command: "npx",
+        args: ["-y", "@example/files-mcp"],
+        auth: "none",
+        tools: 4,
+        config: {
+          transport: "stdio",
+          command: "npx",
+          args: ["-y", "@example/files-mcp", "--root", "~/Documents"],
+          cwd: "/home/preview",
+          authenticationTemplate: [
+            { slug: "env", kind: "stdio_env", vars: ["FILES_TOKEN"] },
+          ],
+        },
       },
     ],
     connections: [
@@ -301,9 +339,17 @@ const executorApi = await startFakeExecutor(
         owner: "org",
         name: "default",
         integration: "invoices",
-        template: "header",
+        template: "apikey",
         identityLabel: null,
         health: null,
+      },
+      {
+        owner: "org",
+        name: "default",
+        integration: "files",
+        template: "env",
+        identityLabel: null,
+        health: "healthy",
       },
     ],
   },
@@ -318,6 +364,12 @@ for (const endpoint of [
 executorApi.probes.set("https://mcp.deepwiki.com/mcp", {
   requiresOAuth: false,
 });
+// Vlastní: Codex's example address answers without a sign-in.
+for (const endpoint of [
+  "https://mcp.example.com/mcp",
+  "https://mcp.invoices.example.com/mcp",
+])
+  executorApi.probes.set(endpoint, { requiresOAuth: false });
 await mkdir(join(home, "Documents", "Nabídky"), { recursive: true });
 await mkdir(join(home, "Documents", "Smlouvy"), { recursive: true });
 await writeFile(
