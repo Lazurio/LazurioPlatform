@@ -220,8 +220,9 @@ async function settleInterruptedWrites(
   const writes = await interruptedWrites(paths, login);
   if (writes.length === 0) return;
   const current = await readStoredSignIn(paths, login);
+  if (current === "unreadable") return;
   const currentTime =
-    current === null || current === "unreadable"
+    current === null
       ? Number.NEGATIVE_INFINITY
       : Date.parse(current.refreshedAt ?? current.signedInAt);
   const [newest] = writes;
@@ -246,7 +247,7 @@ export async function readSettledSignIn(
 }
 
 /** The kernel lock of this Environment's one App sign-in (src/platform/flock.ts):
- * held by a refresh, the final write of a sign-in and a sign-out. A crashed
+ * held by a refresh, the entire device flow, sign-out and pilot disable. A crashed
  * holder never blocks the next one; each holder re-reads the file. */
 export async function lockSignIn(
   paths: PilotPaths,

@@ -68,6 +68,91 @@ async function setup(options: Parameters<typeof pilotWorld>[0] = {}) {
 
 const enable = ["pilot", "enable", "--client-id", exampleOrganization.clientId];
 
+test("sign-out waits for an in-flight device flow and removes its resulting authorization", async () => {
+  const { world, run } = await setup();
+  expect((await run(enable)).code).toBe(0);
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const signing = run(["sign-in", "--json"], {
+    sleep: async () => {
+      entered.resolve();
+      await release.promise;
+    },
+  });
+  await entered.promise;
+  let returned = false;
+  const ending = run(["sign-out", "--json"]).then((value) => {
+    returned = true;
+    return value;
+  });
+  await Bun.sleep(40);
+  const returnedDuringFlow = returned;
+  release.resolve();
+  expect((await signing).code).toBe(0);
+  const out = await ending;
+  expect(returnedDuringFlow).toBe(false);
+  expect(JSON.parse(out.stdout as string)).toMatchObject({
+    kind: "signed-out",
+    revoked: true,
+  });
+  expect(await readStoredSignIn(world.paths, "example")).toBeNull();
+});
+
+test("disable cannot strand credentials produced by an in-flight device flow", async () => {
+  const { world, run } = await setup();
+  expect((await run(enable)).code).toBe(0);
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const signing = run(["sign-in", "--json"], {
+    sleep: async () => {
+      entered.resolve();
+      await release.promise;
+    },
+  });
+  await entered.promise;
+  let returned = false;
+  const disabling = run(["pilot", "disable", "--json"]).then((value) => {
+    returned = true;
+    return value;
+  });
+  await Bun.sleep(40);
+  const returnedDuringFlow = returned;
+  release.resolve();
+  expect((await signing).code).toBe(0);
+  const result = await disabling;
+  expect(returnedDuringFlow).toBe(false);
+  expect(JSON.parse(result.stdout as string)).toMatchObject({
+    reason: "signed-in",
+  });
+  expect((await readPilot(world.paths)).kind).toBe("on");
+  expect(await readStoredSignIn(world.paths, "example")).not.toBeNull();
+});
+
+test("a sign-in that read configuration before disable rechecks it before starting device flow", async () => {
+  const { world, github, run } = await setup();
+  expect((await run(enable)).code).toBe(0);
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const signing = run(["sign-in", "--json"], {
+    hostedFolder: async () => {
+      entered.resolve();
+      await release.promise;
+      return world.folder;
+    },
+  });
+  await entered.promise;
+  const disabled = await run(["pilot", "disable"]);
+  release.resolve();
+  const result = await signing;
+  expect(disabled.code).toBe(0);
+  expect(JSON.parse(result.stdout as string)).toMatchObject({
+    kind: "failed",
+    reason: "pilot-changed",
+  });
+  expect(await readStoredSignIn(world.paths, "example")).toBeNull();
+  expect(github.requests).toEqual([]);
+});
+
 test("off: status says so, every other command but enable refuses, nothing is written", async () => {
   const { world, run } = await setup();
   expect(await run(["status"])).toEqual({

@@ -15,12 +15,12 @@ import {
   type GithubSubject,
   type PilotApplication,
   type PilotPaths,
+  readPilot,
   sameLogin,
 } from "./pilot";
 import {
   lockSignIn,
   readSettledSignIn,
-  readStoredSignIn,
   removeStoredSignIn,
   signInSchema,
   writeStoredSignIn,
@@ -54,6 +54,8 @@ export type SignInFailure =
   | "installation-unexpected"
   /** Existing credentials cannot be used safely and must be handled explicitly. */
   | "state-unreadable"
+  /** Pilot was disabled or replaced while this command was starting. */
+  | "pilot-changed"
   /** Another sign-in or sign-out held the shared chain lock. */
   | "busy";
 
@@ -145,6 +147,26 @@ export function installationProblem(
 }
 
 export async function signIn(input: SignInInput): Promise<SignInState> {
+  let lock: Awaited<ReturnType<typeof lockSignIn>>;
+  try {
+    lock = await lockSignIn(input.paths);
+  } catch {
+    return Object.freeze({
+      kind: "failed",
+      organization: input.organization.login,
+      reason: "busy",
+    });
+  }
+  try {
+    return await signInLocked(input);
+  } finally {
+    await lock.release();
+  }
+}
+
+// The entire interactive flow is one lifecycle operation. Sign-out/disable
+// can wait or report busy, never complete before a late credential write.
+async function signInLocked(input: SignInInput): Promise<SignInState> {
   const { paths, organization, http, now } = input;
   const login = organization.login;
   const failed = (
@@ -153,7 +175,16 @@ export async function signIn(input: SignInInput): Promise<SignInState> {
   ): SignInState =>
     Object.freeze({ kind: "failed", organization: login, reason, ...extra });
 
-  const existing = await readStoredSignIn(paths, login);
+  const pilot = await readPilot(paths);
+  if (
+    pilot.kind !== "on" ||
+    !sameLogin(pilot.config.application.login, login) ||
+    pilot.config.application.clientId !== organization.clientId
+  )
+    return failed("pilot-changed");
+  if (input.signal?.aborted)
+    return Object.freeze({ kind: "cancelled", organization: login });
+  const existing = await readSettledSignIn(paths, login);
   if (
     existing === "unreadable" ||
     (existing !== null && existing.clientId !== organization.clientId)
@@ -261,56 +292,23 @@ export async function signIn(input: SignInInput): Promise<SignInState> {
     sameLogin(entry.account.login, organization.login),
   ) as AppInstallation;
 
-  let lock: Awaited<ReturnType<typeof lockSignIn>>;
-  try {
-    lock = await lockSignIn(paths);
-  } catch {
-    return failed("busy");
-  }
-  try {
-    // A sign-in that finished meanwhile wins; this one keeps nothing.
-    const meanwhile = await readSettledSignIn(paths, login);
-    if (
-      meanwhile === "unreadable" ||
-      (meanwhile !== null && meanwhile.clientId !== organization.clientId)
-    )
-      return failed("state-unreadable");
-    if (meanwhile !== null) {
-      if (meanwhile.account.id !== input.subject.id)
-        return failed("wrong-account", {
-          account: meanwhile.account.login,
-          expected: input.subject.login,
-        });
-      return Object.freeze({
-        kind: "signed-in",
-        organization: meanwhile.organization.login,
-        account: meanwhile.account.login,
-        installationId: meanwhile.installationId,
-        already: true,
-      });
-    }
-    const at = new Date(now()).toISOString();
-    await writeStoredSignIn(paths, {
-      schema: signInSchema,
-      organization: Object.freeze({
-        login: installation.account.login,
-        id: installation.account.id,
-      }),
-      clientId: organization.clientId,
-      installationId: installation.id,
-      account,
-      accessToken: tokens.accessToken,
-      accessTokenExpiresAt: new Date(tokens.accessTokenExpiresAt).toISOString(),
-      refreshToken: tokens.refreshToken,
-      refreshTokenExpiresAt: new Date(
-        tokens.refreshTokenExpiresAt,
-      ).toISOString(),
-      signedInAt: at,
-      refreshedAt: null,
-    });
-  } finally {
-    await lock.release();
-  }
+  const at = new Date(now()).toISOString();
+  await writeStoredSignIn(paths, {
+    schema: signInSchema,
+    organization: Object.freeze({
+      login: installation.account.login,
+      id: installation.account.id,
+    }),
+    clientId: organization.clientId,
+    installationId: installation.id,
+    account,
+    accessToken: tokens.accessToken,
+    accessTokenExpiresAt: new Date(tokens.accessTokenExpiresAt).toISOString(),
+    refreshToken: tokens.refreshToken,
+    refreshTokenExpiresAt: new Date(tokens.refreshTokenExpiresAt).toISOString(),
+    signedInAt: at,
+    refreshedAt: null,
+  });
   return Object.freeze({
     kind: "signed-in",
     organization: installation.account.login,
@@ -327,7 +325,11 @@ export type SignOutResult =
       revoked: boolean;
     }>
   | Readonly<{ kind: "not-signed-in"; organization: string }>
-  | Readonly<{ kind: "failed"; organization: string; reason: "busy" }>;
+  | Readonly<{
+      kind: "failed";
+      organization: string;
+      reason: "busy" | "state-unreadable";
+    }>;
 
 /** Ends this Environment's App sign-in here: both tokens are revoked at GitHub
  * (`POST /credentials/revoke`, which notifies the person) and the file is
@@ -356,12 +358,19 @@ export async function signOut(
     const current = await readSettledSignIn(input.paths, login);
     if (current === null)
       return Object.freeze({ kind: "not-signed-in", organization: login });
-    const revoked =
-      current !== "unreadable" &&
-      (await revokeTokens(input.http, [
-        current.accessToken,
-        current.refreshToken,
-      ]));
+    if (
+      current === "unreadable" ||
+      current.clientId !== input.organization.clientId
+    )
+      return Object.freeze({
+        kind: "failed",
+        organization: login,
+        reason: "state-unreadable",
+      });
+    const revoked = await revokeTokens(input.http, [
+      current.accessToken,
+      current.refreshToken,
+    ]);
     await removeStoredSignIn(input.paths);
     return Object.freeze({ kind: "signed-out", organization: login, revoked });
   } finally {

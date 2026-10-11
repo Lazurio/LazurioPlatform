@@ -200,7 +200,11 @@ export function signInLines(state: SignInState): string[] {
           ];
         case "state-unreadable":
           return [
-            "Existing GitHub credentials do not match this pilot; they were preserved. Inspect the local state, then explicitly sign out before signing in again.",
+            "Existing GitHub credentials do not match this pilot; they were preserved. Resolve their local recovery before retrying.",
+          ];
+        case "pilot-changed":
+          return [
+            "The pilot configuration changed before sign-in started. Check lazurio github status and retry.",
           ];
         case "busy":
           return [
@@ -261,27 +265,6 @@ export function wiringExecutable(
     if (context.executable.startsWith(`${versions}/`)) return selector;
   }
   return context.executable;
-}
-
-/** Whether an Organization holds a sign-in here, read under its lock with an
- * interrupted write settled first, so a pair a killed write left aside
- * counts: removing the Organization or the switch never strands a live
- * token. A lock held too long counts as signed in (the caller refuses). */
-async function signedInHere(
-  paths: PilotPaths,
-  login: string,
-): Promise<boolean> {
-  let lock: Awaited<ReturnType<typeof lockSignIn>>;
-  try {
-    lock = await lockSignIn(paths);
-  } catch {
-    return true;
-  }
-  try {
-    return (await readSettledSignIn(paths, login)) !== null;
-  } finally {
-    await lock.release();
-  }
 }
 
 export type GithubStatus = Readonly<{
@@ -628,20 +611,51 @@ export async function runGithubCommand(
   }
 
   if (command === "pilot disable") {
-    if (config.wiring !== null)
+    let lock: Awaited<ReturnType<typeof lockSignIn>>;
+    try {
+      lock = await lockSignIn(paths);
+    } catch {
       return blocked(
-        "wired",
-        "gh and Git are wired: lazurio github pilot unwire first.",
+        "busy",
+        "Another GitHub sign-in operation is running here. Try again.",
       );
-    if (await signedInHere(paths, config.application.login))
-      return blocked(
-        "signed-in",
-        "This Environment is still signed in: lazurio github sign-out first.",
+    }
+    try {
+      const current = await readPilot(paths);
+      if (
+        current.kind !== "on" ||
+        current.config.application.clientId !== config.application.clientId ||
+        !sameLogin(current.config.application.login, config.application.login)
+      )
+        return blocked(
+          "pilot-changed",
+          "The pilot configuration changed. Check lazurio github status and retry.",
+        );
+      if (current.config.wiring !== null)
+        return blocked(
+          "wired",
+          "gh and Git are wired: lazurio github pilot unwire first.",
+        );
+      const credentials = await readSettledSignIn(
+        paths,
+        config.application.login,
       );
-    // The state directory keeps its lock files: a lock file is never
-    // unlinked (src/platform/flock.ts), and they hold nothing.
-    await removePilot(paths);
-    return done(0, { kind: "disabled" }, "The GitHub sign-in pilot is off.");
+      if (credentials === "unreadable")
+        return blocked(
+          "state-unreadable",
+          "Existing credentials were preserved. Resolve their local recovery before disabling the pilot.",
+        );
+      if (credentials !== null)
+        return blocked(
+          "signed-in",
+          "This Environment is still signed in: lazurio github sign-out first.",
+        );
+      // Keep the kernel lock file: unlinking it would create two lock domains.
+      await removePilot(paths);
+      return done(0, { kind: "disabled" }, "The GitHub sign-in pilot is off.");
+    } finally {
+      await lock.release();
+    }
   }
 
   if (command === "sign-in") {
@@ -685,7 +699,9 @@ export async function runGithubCommand(
     result.kind === "not-signed-in"
       ? `Not signed in to GitHub for ${result.organization} here.`
       : result.kind === "failed"
-        ? `Another sign-in or sign-out of ${result.organization} is running here. Try again.`
+        ? result.reason === "state-unreadable"
+          ? "Existing GitHub credentials do not match this pilot; they were preserved. Resolve their local recovery before retrying."
+          : `Another sign-in or sign-out of ${result.organization} is running here. Try again.`
         : result.revoked
           ? `Signed out of GitHub for ${result.organization} here; GitHub revoked both tokens and tells you so by email.`
           : `Signed out of GitHub for ${result.organization} here (nothing of it is kept). GitHub did not confirm the revocation: if this sign-in must end at GitHub too, revoke the app under GitHub Settings → Applications → Authorized GitHub Apps (that ends its sign-ins in all your Environments).`;
