@@ -1,14 +1,8 @@
 import { randomBytes } from "node:crypto";
-import {
-  mkdir,
-  readdir,
-  readFile,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { CdpConnection, CdpEvent } from "./cdp";
+import { type BootTime, type Hold, type Holds, noHolds } from "./holds";
 import {
   type ClientMessage,
   encodeFrame,
@@ -21,8 +15,10 @@ import {
 /** The view service's hold on the Environment browser (decision F39): every
  * page target with one DevTools session each, the people who view which tab,
  * and what the view does for them (frames, input, pop-ups, dialogs, file
- * choosers, closing an unused tab). One hub per service; it reconnects
- * whenever the browser goes away. */
+ * choosers). It alone decides when a remote tab ends (F47 point 5): a tab
+ * that a strip holds or an agent works in stays; one that nothing holds or
+ * views ends after a grace. One hub per service; it reconnects whenever the
+ * browser goes away. */
 
 /** One person's socket on one tab. */
 export type Viewer = {
@@ -38,17 +34,66 @@ export type Viewer = {
 export type HubSeams = Readonly<{
   /** Opens a DevTools connection to the browser target on loopback. */
   connect: () => Promise<CdpConnection>;
-  /** The target ids agent-browser sessions are bound to right now. */
-  boundTargets: () => Promise<ReadonlySet<string>>;
+  /** Who holds which tab right now: the holder files and the agents that
+   * work in a tab (F47 points 4 and 5). */
+  holds: () => Promise<Holds>;
+  /** Calls `changed` when the holds may have changed. `retry` is called on
+   * every periodic read, for a directory that did not exist before. */
+  watchHolds?: (
+    changed: () => void,
+  ) => Readonly<{ retry: () => void; stop: () => void }>;
+  /** Writes the list of the browser's live page targets that the apps
+   * reconcile their holds with (F47 point 4): one snapshot, `takenAt` being
+   * the boot-clock time the hub began it. */
+  writeTabs?: (ids: readonly string[], takenAt: BootTime) => Promise<void>;
+  /** The Environment's boot clock, read before each snapshot; null where
+   * there is none, and then no list is written. */
+  bootClock?: () => Promise<BootTime | null>;
   /** Where uploaded files wait until the page reads them. */
   uploadDirectory: string;
   /** The virtual screen; no window grows past it. */
   screen: Readonly<{ width: number; height: number }>;
   log: (line: string) => void;
-  /** Overridable for tests. */
+  /** Overridable for tests: after the last viewer of a tab nothing holds,
+   * for a tab nobody has viewed or held yet, after the last hold or a close
+   * for everyone (the window of Vrátit), between reads of the holds. */
   graceMs?: number;
   unviewedGraceMs?: number;
+  releaseGraceMs?: number;
+  holdsEveryMs?: number;
   reconnectMs?: number;
+}>;
+
+/** Who opened a tab, as far as the hub knows: the people's view (`/`), Nová
+ * karta (through the loopback request), a page (its new tab or pop-up), an
+ * agent (a session bound to it), or nobody it knows of (a tab from before
+ * the service started). */
+export type TabOpener =
+  | Readonly<{ kind: "view" }>
+  | Readonly<{ kind: "new-tab"; strip: string | null }>
+  | Readonly<{ kind: "page"; openerId: string }>
+  | Readonly<{ kind: "agent"; session: string }>
+  | Readonly<{ kind: "unknown" }>;
+
+/** Why a tab nothing holds or views is counting down (F47 point 5). */
+export type GraceKind = "release" | "viewer" | "unviewed";
+
+/** One remote tab as the loopback list reports it (F47 point 6). */
+export type TabFacts = Readonly<{
+  id: string;
+  url: string;
+  title: string;
+  favicon: string | null;
+  openedAt: string;
+  usedAt: string;
+  opener: TabOpener;
+  /** The sessions whose agent works in it now. */
+  agents: readonly string[];
+  holders: readonly Hold[];
+  viewers: number;
+  /** When a close for everyone ends it, unless restored. */
+  closing: string | null;
+  grace: Readonly<{ kind: GraceKind; endsAt: string }> | null;
 }>;
 
 type Info = {
@@ -80,6 +125,13 @@ type Tab = {
   resizeTimer: ReturnType<typeof setTimeout> | null;
   infoTimer: ReturnType<typeof setTimeout> | null;
   graceTimer: ReturnType<typeof setTimeout> | null;
+  grace: Readonly<{ kind: GraceKind; endsAt: number }> | null;
+  /** What kept the tab at the last review: a hold, a viewer, or nothing. */
+  state: "held" | "viewed" | "idle";
+  opener: TabOpener;
+  openedAt: number;
+  /** Last viewed, acted in or navigated. */
+  usedAt: number;
   watched: boolean;
   attaching: boolean;
   /** The view's isolated world in the main frame, until it navigates. */
@@ -197,22 +249,49 @@ export class BrowserHub {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly tabs = new Map<string, Tab>();
   private readonly bySession = new Map<string, string>();
-  /** Tabs the view opened or a page opened: the only tabs the view ever
-   * closes, and only while no agent-browser session is bound to them (F39
-   * point 9). An agent's own window is never one of them. Lost on restart,
-   * on purpose. */
-  private readonly ownTabs = new Set<string>();
   private readonly fileChoosers = new Map<string, FileChooser>();
   /** Page targets discovery reported on the current connection. */
   private seen = new Set<string>();
   private discovered = false;
+  /** The last read of the holder files and the agents' bindings. A read
+   * that fails keeps the previous one, so a failure never lets a tab go. */
+  private holds: Holds = noHolds;
+  private holdsTimer: ReturnType<typeof setInterval> | null = null;
+  private holdsSoon: ReturnType<typeof setTimeout> | null = null;
+  private tabsSoon: ReturnType<typeof setTimeout> | null = null;
+  /** A snapshot of the targets is being taken; another is wanted after it. */
+  private snapshotting = false;
+  private snapshotAgain = false;
+  private watcher: Readonly<{ retry: () => void; stop: () => void }> | null =
+    null;
+  /** Closes for everyone that wait for their grace (F47 point 6), kept apart
+   * from the tabs so a reconnect to the browser does not lose them. */
+  private readonly closing = new Map<
+    string,
+    { endsAt: number; timer: ReturnType<typeof setTimeout> | null }
+  >();
+  /** Who opened each tab and when, kept across a reconnect to the same
+   * browser. Lost when the service restarts: the tabs from before are then
+   * the opener's "unknown", or an agent's by its binding. */
+  private readonly origins = new Map<
+    string,
+    Readonly<{ opener: TabOpener; openedAt: number }>
+  >();
+  /** The hub's own blank window: Chrome ends with its last window and the
+   * unit starts it again, so one window always stays (F47 point 5). */
+  private keeperId: string | null = null;
+  private keeperCreating = false;
   private readonly graceMs: number;
   private readonly unviewedGraceMs: number;
+  private readonly releaseGraceMs: number;
+  private readonly holdsEveryMs: number;
   private readonly reconnectMs: number;
 
   constructor(private readonly seams: HubSeams) {
     this.graceMs = seams.graceMs ?? 30_000;
     this.unviewedGraceMs = seams.unviewedGraceMs ?? 600_000;
+    this.releaseGraceMs = seams.releaseGraceMs ?? 8_000;
+    this.holdsEveryMs = seams.holdsEveryMs ?? 30_000;
     this.reconnectMs = seams.reconnectMs ?? 2_000;
   }
 
@@ -228,44 +307,157 @@ export class BrowserHub {
 
   start(): void {
     this.stopped = false;
+    this.watcher =
+      this.seams.watchHolds?.(() => this.holdsChanged()) ?? this.watcher;
+    // The holds are read and the list of live tabs written again on this
+    // beat too: a record an app made after its tab ended meets a newer list
+    // (F47 point 4).
+    this.holdsTimer = setInterval(() => {
+      this.watcher?.retry();
+      void this.refreshHolds();
+      this.publishTabs();
+    }, this.holdsEveryMs);
     void this.connect();
   }
 
   stop(): void {
     this.stopped = true;
     if (this.reconnectTimer !== null) clearTimeout(this.reconnectTimer);
+    if (this.holdsTimer !== null) clearInterval(this.holdsTimer);
+    if (this.holdsSoon !== null) clearTimeout(this.holdsSoon);
+    if (this.tabsSoon !== null) clearTimeout(this.tabsSoon);
+    this.tabsSoon = null;
+    this.holdsTimer = null;
+    this.holdsSoon = null;
+    this.watcher?.stop();
+    this.watcher = null;
     this.cdp?.close();
     this.cdp = null;
     for (const tab of this.tabs.values()) this.clearTimers(tab);
+    for (const entry of this.closing.values())
+      if (entry.timer !== null) clearTimeout(entry.timer);
+    this.closing.clear();
   }
 
-  /** A new window of the default context, at the person's size when given.
-   * Null when the browser cannot be reached. */
+  /** A new window of the default context, at the person's size when given:
+   * the people's view's new tab (F39 point 1). Null when the browser cannot
+   * be reached. */
   async createTab(size: ViewSize | null): Promise<string | null> {
+    const fitted = size === null ? null : this.windowSize(clampSize(size));
+    return this.newWindow(
+      "about:blank",
+      fitted === null ? {} : { width: fitted.width, height: fitted.height },
+      { kind: "view" },
+    );
+  }
+
+  /** A new window at an address, for Nová karta (F47 points 3 and 6): the
+   * remote tab exists only from now. Null when the address is not one the
+   * address bar may open or the browser cannot be reached. */
+  async openTab(url: string, strip: string | null): Promise<string | null> {
+    const address = navigableAddress(url);
+    if (address === null) return null;
+    return this.newWindow(address, {}, { kind: "new-tab", strip });
+  }
+
+  private async newWindow(
+    url: string,
+    size: Readonly<{ width?: number; height?: number }>,
+    opener: TabOpener,
+  ): Promise<string | null> {
     const cdp = this.cdp;
     if (cdp === null) return null;
-    const fitted = size === null ? null : this.windowSize(clampSize(size));
     try {
       const result = await cdp.send("Target.createTarget", {
-        url: "about:blank",
+        url,
         newWindow: true,
-        ...(fitted === null
-          ? {}
-          : { width: fitted.width, height: fitted.height }),
+        ...size,
       });
       const targetId = String(result.targetId);
-      this.ownTabs.add(targetId);
       const deadline = Date.now() + 2_000;
       while (!this.tabs.has(targetId) && Date.now() < deadline)
         await new Promise((resolve) => setTimeout(resolve, 20));
       const tab = this.tabs.get(targetId);
       if (tab === undefined) return null;
-      if (tab.viewers.size === 0) this.scheduleGrace(tab, this.unviewedGraceMs);
+      tab.opener = opener;
+      this.origins.set(targetId, { opener, openedAt: tab.openedAt });
+      this.review(tab);
       return targetId;
     } catch (error) {
       this.seams.log(`create tab failed: ${String(error)}`);
       return null;
     }
+  }
+
+  /** Every remote tab but the hub's own blank window, as the loopback list
+   * reports it (F47 point 6). */
+  list(): TabFacts[] {
+    const iso = (ms: number) => new Date(ms).toISOString();
+    const facts: TabFacts[] = [];
+    for (const tab of this.tabs.values()) {
+      if (tab.targetId === this.keeperId) continue;
+      const closing = this.closing.get(tab.targetId);
+      const session = this.holds.bound.get(tab.targetId)?.[0];
+      facts.push({
+        id: tab.targetId,
+        url: tab.info.url,
+        title: tab.info.title,
+        favicon: tab.info.favicon,
+        openedAt: iso(tab.openedAt),
+        usedAt: iso(tab.usedAt),
+        opener:
+          tab.opener.kind === "unknown" && session !== undefined
+            ? { kind: "agent", session }
+            : tab.opener,
+        agents: this.holds.working.get(tab.targetId) ?? [],
+        holders: this.holds.holders.get(tab.targetId) ?? [],
+        viewers: tab.viewers.size,
+        closing: closing === undefined ? null : iso(closing.endsAt),
+        grace:
+          tab.grace === null
+            ? null
+            : { kind: tab.grace.kind, endsAt: iso(tab.grace.endsAt) },
+      });
+    }
+    return facts;
+  }
+
+  /** Closes a tab for everyone after the grace of Vrátit, held or not (F47
+   * point 6). The time it ends; null for a tab the hub does not list. */
+  closeForEveryone(targetId: string): number | null {
+    const tab = this.tabs.get(targetId);
+    if (tab === undefined || targetId === this.keeperId) return null;
+    const pending = this.closing.get(targetId);
+    if (pending !== undefined) return pending.endsAt;
+    this.clearGrace(tab);
+    const endsAt = Date.now() + this.releaseGraceMs;
+    this.closing.set(targetId, {
+      endsAt,
+      timer: setTimeout(
+        () => void this.finishClose(targetId),
+        this.releaseGraceMs,
+      ),
+    });
+    this.seams.log(`closing tab ${targetId} for everyone`);
+    return endsAt;
+  }
+
+  /** Vrátit: cancels a close for everyone or a grace. A tab that nothing
+   * holds or views then has as long as a new one to be viewed or held. False
+   * when the tab is gone or nothing was counting down. */
+  restore(targetId: string): boolean {
+    const tab = this.tabs.get(targetId);
+    if (tab === undefined) return false;
+    const pending = this.closing.get(targetId);
+    if (pending !== undefined) {
+      if (pending.timer !== null) clearTimeout(pending.timer);
+      this.closing.delete(targetId);
+    } else if (tab.grace === null) return false;
+    this.clearGrace(tab);
+    tab.state = "idle";
+    this.review(tab, "unviewed");
+    this.seams.log(`restored tab ${targetId}`);
+    return true;
   }
 
   hasTab(targetId: string): boolean {
@@ -277,10 +469,8 @@ export class BrowserHub {
     const tab = this.tabs.get(targetId);
     if (tab === undefined) return false;
     tab.viewers.add(viewer);
-    if (tab.graceTimer !== null) {
-      clearTimeout(tab.graceTimer);
-      tab.graceTimer = null;
-    }
+    tab.usedAt = Date.now();
+    this.review(tab);
     viewer.send({
       t: "browser",
       state:
@@ -302,12 +492,13 @@ export class BrowserHub {
     if (tab === undefined) return;
     tab.viewers.delete(viewer);
     if (tab.lastActor === viewer) tab.lastActor = null;
+    tab.usedAt = Date.now();
     if (tab.viewers.size > 0) {
       void this.updateScreencast(tab);
       return;
     }
     void this.unwatch(tab);
-    if (this.ownTabs.has(targetId)) this.scheduleGrace(tab, this.graceMs);
+    this.review(tab);
   }
 
   /** Called when a viewer's socket drained, to release a held frame. */
@@ -538,9 +729,32 @@ export class BrowserHub {
     // A tab kept across a reconnect whose page did not come back is gone.
     for (const id of [...this.tabs.keys()])
       if (!this.seen.has(id)) this.gone(id);
-    for (const id of [...this.ownTabs])
-      if (!this.seen.has(id)) this.ownTabs.delete(id);
+    for (const [id, entry] of [...this.closing])
+      if (!this.seen.has(id)) {
+        if (entry.timer !== null) clearTimeout(entry.timer);
+        this.closing.delete(id);
+      }
+    // Ready once the holds are read too, so a tab is never judged by an
+    // empty read.
+    await this.refreshHolds();
+    if (this.cdp !== cdp) return;
     this.discovered = true;
+    this.publishTabs();
+    if (this.keeperId !== null && !this.tabs.has(this.keeperId))
+      this.keeperId = null;
+    // A close for everyone whose grace ran out while the browser was away.
+    for (const [id, entry] of this.closing)
+      if (entry.timer === null) void this.finishClose(id);
+    if (this.keeperId === null) {
+      // The window Chrome started with, if nothing uses it.
+      for (const tab of this.tabs.values())
+        if (this.blank(tab) && tab.viewers.size === 0) {
+          this.keeperId = tab.targetId;
+          this.clearGrace(tab);
+          break;
+        }
+    }
+    void this.ensureKeeper();
   }
 
   private retry(): void {
@@ -615,6 +829,17 @@ export class BrowserHub {
     const title = String(info.title ?? "");
     if (tab === undefined) {
       const openerId = typeof info.openerId === "string" ? info.openerId : null;
+      // Kept across a reconnect to the same browser; a new target is new.
+      // An agent's window is named by its binding when the list is read.
+      const now = Date.now();
+      const origin = this.origins.get(targetId) ?? {
+        opener:
+          openerId !== null
+            ? ({ kind: "page", openerId } as const)
+            : ({ kind: "unknown" } as const),
+        openedAt: now,
+      };
+      this.origins.set(targetId, origin);
       tab = {
         targetId,
         sessionId: null,
@@ -640,6 +865,11 @@ export class BrowserHub {
         resizeTimer: null,
         infoTimer: null,
         graceTimer: null,
+        grace: null,
+        state: "idle",
+        opener: origin.opener,
+        openedAt: origin.openedAt,
+        usedAt: now,
         watched: false,
         attaching: false,
         world: null,
@@ -649,17 +879,28 @@ export class BrowserHub {
         metaTimer: null,
       };
       this.tabs.set(targetId, tab);
+      this.publishTabs();
       if (created && openerId !== null) this.opened(tab, openerId);
-      if (this.ownTabs.has(targetId) && tab.viewers.size === 0)
-        this.scheduleGrace(tab, this.unviewedGraceMs);
+      this.review(tab);
     } else {
       // Chrome's target title is only the address (see metaScript): it is
       // taken with a new address, and the page's own title follows.
-      if (url !== tab.info.url) tab.info.title = title;
+      if (url !== tab.info.url) {
+        tab.info.title = title;
+        tab.usedAt = Date.now();
+      }
       tab.info.url = url;
       this.queueInfo(tab);
       if (tab.pendingOpen !== null && url !== "" && url !== "about:blank")
         this.announce(tab, tab.pendingOpen.openerId);
+      if (targetId === this.keeperId && !this.blank(tab)) {
+        // Someone used the hub's blank window: it is a tab like any other
+        // now, and the hub opens another.
+        this.keeperId = null;
+        this.review(tab);
+        this.publishTabs();
+        void this.ensureKeeper();
+      }
     }
     this.seen.add(targetId);
     if (tab.sessionId === null) void this.attachSession(tab);
@@ -670,10 +911,6 @@ export class BrowserHub {
    * address, so it is announced at its first address, or after 1.5 s. */
   private opened(tab: Tab, openerId: string): void {
     if (!this.tabs.has(openerId)) return;
-    // A page's new tab or pop-up is nobody's working window unless an agent
-    // binds a session to it: it closes when nobody views it (F39 point 9).
-    this.ownTabs.add(tab.targetId);
-    this.scheduleGrace(tab, this.unviewedGraceMs);
     if (tab.info.url !== "" && tab.info.url !== "about:blank") {
       this.announce(tab, openerId);
       return;
@@ -1070,6 +1307,7 @@ export class BrowserHub {
   // ---- Window size ---------------------------------------------------------
 
   private acted(tab: Tab, viewer: Viewer): void {
+    tab.usedAt = Date.now();
     if (!viewer.resize || tab.lastActor === viewer) return;
     tab.lastActor = viewer;
     this.scheduleResize(tab);
@@ -1140,40 +1378,252 @@ export class BrowserHub {
 
   // ---- Lifecycle -----------------------------------------------------------
 
-  private scheduleGrace(tab: Tab, ms: number): void {
-    if (tab.graceTimer !== null) clearTimeout(tab.graceTimer);
+  private held(targetId: string): boolean {
+    return this.holds.holders.has(targetId) || this.holds.working.has(targetId);
+  }
+
+  /** An empty window nobody opened: the one Chrome starts with, or the hub's
+   * own. */
+  private blank(tab: Tab): boolean {
+    return (
+      (tab.info.url === "" || tab.info.url === "about:blank") &&
+      tab.openerId === null &&
+      tab.opener.kind !== "view" &&
+      tab.opener.kind !== "new-tab" &&
+      !this.holds.bound.has(tab.targetId) &&
+      !this.held(tab.targetId)
+    );
+  }
+
+  /** F47 point 5. A tab a strip holds or an agent works in stays. One that
+   * nothing holds or views counts down: 8 s when its last hold went (the
+   * window of Vrátit), 30 s when its last viewer left (F39 point 9), and 10
+   * minutes when nobody has viewed or held it yet. `idle` names the count
+   * for a tab with nothing before (Vrátit gives a new tab's time). */
+  private review(tab: Tab, idle: GraceKind = "unviewed"): void {
+    if (tab.targetId === this.keeperId || this.closing.has(tab.targetId)) {
+      this.clearGrace(tab);
+      return;
+    }
+    const before = tab.state;
+    tab.state = this.held(tab.targetId)
+      ? "held"
+      : tab.viewers.size > 0
+        ? "viewed"
+        : "idle";
+    if (tab.state !== "idle") {
+      this.clearGrace(tab);
+      return;
+    }
+    if (tab.grace !== null) return;
+    this.scheduleGrace(
+      tab,
+      before === "held" ? "release" : before === "viewed" ? "viewer" : idle,
+    );
+  }
+
+  private scheduleGrace(tab: Tab, kind: GraceKind): void {
+    this.clearGrace(tab);
+    const ms =
+      kind === "release"
+        ? this.releaseGraceMs
+        : kind === "viewer"
+          ? this.graceMs
+          : this.unviewedGraceMs;
+    tab.grace = { kind, endsAt: Date.now() + ms };
     tab.graceTimer = setTimeout(() => {
       tab.graceTimer = null;
       void this.closeIfUnused(tab.targetId);
     }, ms);
   }
 
-  /** F39 point 9: an own tab nobody views and no agent-browser session is
-   * bound to. */
+  private clearGrace(tab: Tab): void {
+    if (tab.graceTimer !== null) clearTimeout(tab.graceTimer);
+    tab.graceTimer = null;
+    tab.grace = null;
+  }
+
+  /** The end of a grace: the holds are read again first, and a tab that is
+   * held or viewed by now stays. A failed read keeps the tab. */
   private async closeIfUnused(targetId: string): Promise<void> {
+    let fresh: Holds;
+    try {
+      fresh = await this.seams.holds();
+    } catch (error) {
+      this.seams.log(`reading the holds failed: ${String(error)}`);
+      const tab = this.tabs.get(targetId);
+      if (tab !== undefined) {
+        tab.grace = null;
+        this.review(tab);
+      }
+      return;
+    }
+    this.holds = fresh;
     const tab = this.tabs.get(targetId);
     const cdp = this.cdp;
+    if (tab === undefined || cdp === null) return;
+    tab.grace = null;
     if (
-      tab === undefined ||
-      cdp === null ||
-      tab.viewers.size > 0 ||
-      !this.ownTabs.has(targetId)
-    )
+      targetId === this.keeperId ||
+      this.closing.has(targetId) ||
+      this.held(targetId) ||
+      tab.viewers.size > 0
+    ) {
+      this.review(tab);
       return;
-    const bound = await this.seams
-      .boundTargets()
-      .catch(() => new Set<string>([targetId]));
-    if (bound.has(targetId) || tab.viewers.size > 0) return;
+    }
     this.seams.log(`closing unused tab ${targetId}`);
     await cdp.send("Target.closeTarget", { targetId }).catch(() => undefined);
   }
 
+  /** The end of a close for everyone. While the browser is away it waits
+   * for the reconnect, which finishes it. */
+  private async finishClose(targetId: string): Promise<void> {
+    const entry = this.closing.get(targetId);
+    if (entry === undefined) return;
+    entry.timer = null;
+    const cdp = this.cdp;
+    if (cdp === null || !this.discovered) return;
+    if (!this.tabs.has(targetId)) {
+      this.closing.delete(targetId);
+      return;
+    }
+    this.seams.log(`closing tab ${targetId} for everyone`);
+    await cdp.send("Target.closeTarget", { targetId }).catch(() => undefined);
+  }
+
+  /** Keeps one blank window of the hub's own (F47 point 5). */
+  private async ensureKeeper(): Promise<void> {
+    const cdp = this.cdp;
+    if (
+      this.stopped ||
+      cdp === null ||
+      !this.discovered ||
+      this.keeperCreating ||
+      (this.keeperId !== null && this.tabs.has(this.keeperId))
+    )
+      return;
+    this.keeperCreating = true;
+    try {
+      const result = await cdp.send("Target.createTarget", {
+        url: "about:blank",
+        newWindow: true,
+      });
+      const keeperId = String(result.targetId);
+      this.keeperId = keeperId;
+      this.origins.set(keeperId, {
+        opener: { kind: "unknown" },
+        openedAt: Date.now(),
+      });
+      const tab = this.tabs.get(keeperId);
+      if (tab !== undefined) {
+        tab.opener = { kind: "unknown" };
+        this.clearGrace(tab);
+      }
+    } catch (error) {
+      this.seams.log(`opening the blank window failed: ${String(error)}`);
+    } finally {
+      this.keeperCreating = false;
+    }
+  }
+
+  /** Soon after a holder file or a binding changed: several changes at once
+   * are one read. */
+  private holdsChanged(): void {
+    if (this.holdsSoon !== null || this.stopped) return;
+    this.holdsSoon = setTimeout(() => {
+      this.holdsSoon = null;
+      void this.refreshHolds();
+    }, 100);
+  }
+
+  private async refreshHolds(): Promise<void> {
+    try {
+      this.holds = await this.seams.holds();
+    } catch (error) {
+      this.seams.log(`reading the holds failed: ${String(error)}`);
+      return;
+    }
+    for (const tab of [...this.tabs.values()]) this.review(tab);
+  }
+
+  /** Soon writes the list of live tabs (F47 point 4) from a fresh snapshot
+   * of the browser's targets, not from what the hub has heard: a target whose
+   * event comes late on the hub's connection is in the snapshot all the same.
+   * Only while connected; one snapshot at a time, so a slower one never
+   * overwrites a newer one. The hub's blank window is in no list. */
+  private publishTabs(): void {
+    if (
+      this.seams.writeTabs === undefined ||
+      this.tabsSoon !== null ||
+      this.stopped
+    )
+      return;
+    this.tabsSoon = setTimeout(() => {
+      this.tabsSoon = null;
+      void this.snapshotTabs();
+    }, 50);
+  }
+
+  private async snapshotTabs(): Promise<void> {
+    const write = this.seams.writeTabs;
+    const clock = this.seams.bootClock;
+    const cdp = this.cdp;
+    if (
+      write === undefined ||
+      clock === undefined ||
+      cdp === null ||
+      this.stopped
+    )
+      return;
+    if (this.snapshotting) {
+      this.snapshotAgain = true;
+      return;
+    }
+    this.snapshotting = true;
+    try {
+      // The clock first: the snapshot then lists every target that exists
+      // at that time or comes later, never one that ended before it.
+      const takenAt = await clock();
+      if (takenAt === null) return;
+      const answer = await cdp.send("Target.getTargets");
+      const infos = Array.isArray(answer.targetInfos)
+        ? (answer.targetInfos as Record<string, unknown>[])
+        : [];
+      const ids = infos
+        .filter(
+          (info) => info.type === "page" && typeof info.targetId === "string",
+        )
+        .map((info) => String(info.targetId))
+        .filter((id) => id !== this.keeperId);
+      await write(ids, takenAt);
+    } catch (error) {
+      this.seams.log(`writing the list of tabs failed: ${String(error)}`);
+    } finally {
+      this.snapshotting = false;
+      if (this.snapshotAgain) {
+        this.snapshotAgain = false;
+        this.publishTabs();
+      }
+    }
+  }
+
   private gone(targetId: string): void {
     const tab = this.tabs.get(targetId);
+    const pending = this.closing.get(targetId);
+    if (pending !== undefined) {
+      if (pending.timer !== null) clearTimeout(pending.timer);
+      this.closing.delete(targetId);
+    }
+    this.origins.delete(targetId);
+    if (targetId === this.keeperId) {
+      this.keeperId = null;
+      void this.ensureKeeper();
+    }
     if (tab === undefined) return;
     this.clearTimers(tab);
     this.tabs.delete(targetId);
-    this.ownTabs.delete(targetId);
+    this.publishTabs();
     if (tab.sessionId !== null) this.bySession.delete(tab.sessionId);
     for (const [token, chooser] of this.fileChoosers)
       if (chooser.targetId === targetId) this.fileChoosers.delete(token);
@@ -1193,6 +1643,7 @@ export class BrowserHub {
     ])
       if (timer !== null) clearTimeout(timer);
     tab.graceTimer = null;
+    tab.grace = null;
     tab.resizeTimer = null;
     tab.infoTimer = null;
     tab.selectionTimer = null;
@@ -1232,25 +1683,4 @@ export class BrowserHub {
         await rm(path, { recursive: true, force: true }).catch(() => undefined);
     }
   }
-}
-
-/** The targets agent-browser sessions are bound to: its binding files
- * (`<socket dir>/<session>.target`, `{"targetId": …}`), as `lazurio browser
- * window` reads them (F38 point 3). */
-export async function agentBoundTargets(
-  socketDirectory: string | undefined,
-): Promise<ReadonlySet<string>> {
-  const bound = new Set<string>();
-  if (socketDirectory === undefined) return bound;
-  const names = await readdir(socketDirectory).catch(() => [] as string[]);
-  for (const name of names) {
-    if (!name.endsWith(".target")) continue;
-    try {
-      const binding = JSON.parse(
-        await readFile(join(socketDirectory, name), "utf8"),
-      ) as { targetId?: unknown };
-      if (typeof binding.targetId === "string") bound.add(binding.targetId);
-    } catch {}
-  }
-  return bound;
 }

@@ -7189,3 +7189,31 @@ Platform release and Matěj's check in a browser on his Environment (root decisi
 shows it, a browser restart with no view open, an app's server that starts with ids that ended,
 a tab recorded before the list has it, a live tab whose event reaches the hub late, a tab that
 ended before the app recorded it, a record from an earlier boot, and a step of the wall clock.
+
+**Step 1, implemented in this revision (2026-10-11).**
+- `src/browser/people/holds.ts` reads the holder files and the agents' bindings with their
+  daemons (point 5), and writes and reads the list of live tabs (point 4). It also gives the
+  apps' rule for reconciling with that list (`keptTabs`: an id goes only when a list of the
+  current boot, taken after its record, lacks it) and the boot clock (`readBootClock`), which
+  steps 2 and 4 use.
+- The hub (`hub.ts`):
+  - reviews every page target on each change of viewers or holds, with the three graces of
+    point 5;
+  - re-reads the holds before it closes a tab, and keeps the tab when that read fails. Only a
+    directory or file that does not exist reads as holding nothing; any other failure, and a
+    holder file that is not one, keeps the last reading;
+  - keeps its blank window, which is in no list;
+  - writes the list of live tabs from a fresh `Target.getTargets` snapshot, stamped with the
+    boot-clock time the snapshot began, after each discovery, on every change and every 30 s
+    while it is connected, one snapshot at a time.
+- The service answers the four loopback requests of point 6. It refuses them through the
+  gateway (404) and to any request with `Origin` or `Sec-Fetch-Site` (403). While the hub does
+  not know the browser's targets, close and restore answer 503; a close accepted before goes
+  on after the reconnect.
+- The view page posts `lazurio-browser:closed` to its app when its tab ends.
+- `lazurio browser serve` creates the holder directory (0700) and watches it and
+  agent-browser's socket directory.
+
+Until T3 Code writes its holder files (step 4), a T3 Code thread's window stays while its agent
+works in it or someone views it. Otherwise it ends about an hour after the agent's last
+command. The Folder manual's `tab_gone` recovery already covers that.
