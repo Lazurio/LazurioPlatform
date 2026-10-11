@@ -1606,7 +1606,8 @@ status" (with them again), and shows:
 - three groups, **Required**, **Recommended** and **Optional**, in catalog order, each
   a settings group of rows. A row carries on the left the tool's logo (Anna 2026-10-11: known at first sight;
   `src/tools/icons.ts`, bundled simple-icons, CC0, drawn by the same `appMark` as
-  Integrace; a tool without one, such as codex, composio or executor, shows its first
+  Integrace; Composio and Codex carry the vendor's own bundled SVG, the OpenAI Blossom
+  for Codex; executor, without one, shows its first
   letter), its real name (gh,
   composio, bitwarden, wacli, gogcli, neon: what an agent says and what is searched for), one
   plain sentence on what it is for (root decision 0188; `toolDescription` in

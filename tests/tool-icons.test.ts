@@ -18,6 +18,6 @@ test("every tool logo belongs to a curated tool and is a bundled, inert drawing"
     expect(icon.source).toMatch(/^simple-icons@\d+\.\d+\.\d+\/[a-z0-9]+$/);
   }
   // The tools a person meets first carry their logo.
-  for (const name of ["gh", "composio", "bitwarden", "wacli"])
+  for (const name of ["gh", "codex", "composio", "bitwarden", "wacli"])
     expect(toolIcons[name]).toBeDefined();
 });
