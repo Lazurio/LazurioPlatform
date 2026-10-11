@@ -50,7 +50,7 @@ async function run(
   const github = startFakeGithub(options);
   const world = await pilotWorld({ preset: null });
   cleanups.push(github.close, world.cleanup);
-  await enablePilot(world);
+  await enablePilot(world, extra.organization ?? exampleOrganization);
   await extra.before?.(world, github);
   const states: SignInState[] = [];
   const sleeps: number[] = [];
@@ -349,6 +349,44 @@ test("a sign-out that GitHub does not confirm still removes the sign-in and says
   expect(
     await readFile(signInFile(world.paths), "utf8").catch(() => null),
   ).toBeNull();
+});
+
+test("sign-out preserves unreadable, other-owner and other-App credentials without revocation", async () => {
+  for (const kind of ["unknown", "other-owner", "other-app"]) {
+    const github = startFakeGithub();
+    const world = await pilotWorld({ preset: null });
+    cleanups.push(github.close, world.cleanup);
+    await enablePilot(world);
+    await storeSignIn(world, github, exampleOrganization);
+    const path = signInFile(world.paths);
+    const original = JSON.parse(await readFile(path, "utf8"));
+    const value =
+      kind === "unknown"
+        ? { schema: "unknown", recovery: "keep these bytes" }
+        : kind === "other-owner"
+          ? { ...original, organization: { login: "Other", id: 999 } }
+          : { ...original, clientId: "Iv23liOtherApp0001" };
+    const bytes = JSON.stringify(value);
+    await writeFile(path, bytes);
+    const aside = join(
+      world.paths.stateDirectory,
+      ".sign-in.json.tmp-0123456789abcdef",
+    );
+    if (kind === "unknown") await writeFile(aside, JSON.stringify(original));
+    const result = await signOut({
+      paths: world.paths,
+      organization: exampleOrganization,
+      http: githubHttp({ origins: github.origins }),
+    });
+    expect(result).toMatchObject({
+      kind: "failed",
+      reason: "state-unreadable",
+    });
+    expect(await readFile(path, "utf8")).toBe(bytes);
+    if (kind === "unknown")
+      expect(await readFile(aside, "utf8")).toBe(JSON.stringify(original));
+    expect(github.requests).toEqual([]);
+  }
 });
 
 test("sign-out also revokes a pair a killed write left aside, and leaves no copy", async () => {
