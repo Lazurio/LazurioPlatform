@@ -232,10 +232,13 @@ export function createIntegrationsReader(
   }
   return Object.freeze({
     /** The overview: the last one while fresh, unless `refresh`, which
-     * reads every name of Composio's accounts again too. */
+     * reads every name of Composio's accounts again too, by a reading of its
+     * own: never one, nor a lookup, that started before it. */
     async overview(refresh = false): Promise<IntegrationsOverview> {
-      if (refresh) names.forget();
-      else if (last !== null && now() - last.at < integrationsFreshMs)
+      if (refresh) {
+        names.forget();
+        generation += 1;
+      } else if (last !== null && now() - last.at < integrationsFreshMs)
         return last.overview;
       return read();
     },

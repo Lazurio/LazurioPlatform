@@ -9,12 +9,16 @@ import {
   captureConsole,
   composioCalls,
   filesContaining,
+  holdList,
   type IntegrationsWorld,
   integrationsWorld,
+  listHeld,
   readComposioState,
+  releaseList,
   setAccountStatus,
   tokenCanary,
   worldLaunchpad,
+  writeComposioState,
 } from "./fixtures/integrations-world";
 
 // The Integrace contract of the Launchpad (decision F42): one reading of the
@@ -772,7 +776,6 @@ test("a toolkit's only active account is named in the reading, read once and kep
   await read("/api/integrations");
   expect(await lists()).toHaveLength(2);
   const state = await readComposioState(world.home);
-  const { writeComposioState } = await import("./fixtures/integrations-world");
   await writeComposioState(world.home, {
     ...state,
     accounts: state.accounts.map((account) =>
@@ -871,6 +874,62 @@ test("a name is read once for many readings; a connect, a disconnect and a refre
     "Home",
   ]);
   expect(await lookups()).toEqual([3, 4, 2]);
+});
+
+// Review of 2026-10-11 (#315): "Zkontrolovat připojení" reads by a reading
+// of its own while an older reading still waits for its lookup, and that
+// older lookup's answer, once it comes, is not kept.
+test("a refresh reads names afresh while an older lookup still runs, and the older answer is not kept", async () => {
+  const { world, app } = await setup(
+    {
+      composio: {
+        accounts: [
+          {
+            id: "ca_1",
+            toolkit: "gmail",
+            status: "ACTIVE",
+            alias: "Old",
+            word_id: "castle",
+          },
+        ],
+      },
+    },
+    { tools: ["composio"] },
+  );
+  const label = async (answer: Response) => {
+    expect(answer.status).toBe(200);
+    const value = (await answer.json()) as IntegrationsOverview;
+    return value.apps.find((item) => item.id === "gmail")?.accounts[0]?.label;
+  };
+  const lookups = async () =>
+    (await composioCalls(world.home)).filter(
+      (call) =>
+        call[0] === "link" && call[1] === "gmail" && call[2] === "--list",
+    ).length;
+  await holdList(world.home, "gmail");
+  const older = app.get("/api/integrations");
+  await listHeld(world.home, "gmail");
+  // The person renames the account in Composio and checks the connections.
+  const state = await readComposioState(world.home);
+  await writeComposioState(world.home, {
+    ...state,
+    accounts: state.accounts.map((account) => ({ ...account, alias: "New" })),
+  });
+  expect(await label(await app.get("/api/integrations?refresh=1"))).toBe("New");
+  expect(await lookups()).toBe(2);
+  // The older lookup answers what it read; its reading shows it, nothing
+  // keeps it.
+  await releaseList(world.home, "gmail");
+  expect(await label(await older)).toBe("Old");
+  expect(await label(await app.get("/api/integrations"))).toBe("New");
+  // A new reading (Vlastní changed nothing, the reading is read again)
+  // takes the kept name and asks nothing.
+  await app.post("/api/integrations/custom/remove", {
+    id: "nothing",
+    confirm: true,
+  });
+  expect(await label(await app.get("/api/integrations"))).toBe("New");
+  expect(await lookups()).toBe(2);
 });
 
 test("the link to Composio's dashboard: the organization's name encoded, the person's current one where none is known", async () => {

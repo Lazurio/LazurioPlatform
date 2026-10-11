@@ -15,11 +15,15 @@
 // - `connections remove` asks for confirmation, and without a terminal it
 //   removes nothing; `--yes` exists only when the state says so (not in the
 //   CLI as of 0.4.3; Lazurio removes only where it is).
+// A test may hold the next `link <toolkit> --list` (`hold-<toolkit>` in the
+// state's directory) until it releases it (`release-<toolkit>`): that call
+// answers what the state said when it started, as a slow CLI would.
 // State: `$HOME/.fake-composio/state.json`; every call is appended to
 // `calls.jsonl` there. It never reads `~/.composio/user_data.json` and never
 // reaches a vendor.
 import {
   appendFileSync,
+  existsSync,
   readFileSync,
   renameSync,
   writeFileSync,
@@ -86,6 +90,25 @@ const item = (account: FakeAccount) => ({
   created_at: "2026-10-08T00:00:00.000Z",
   updated_at: "2026-10-08T00:00:00.000Z",
 });
+
+// Only one call takes a hold: the rename succeeds for exactly one process.
+function holdIfAsked(toolkit: string) {
+  try {
+    renameSync(
+      join(directory, `hold-${toolkit}`),
+      join(directory, `held-${toolkit}`),
+    );
+  } catch {
+    return;
+  }
+  // At most ten seconds, so a test that never releases leaves no process.
+  for (
+    let waited = 0;
+    waited < 10_000 && !existsSync(join(directory, `release-${toolkit}`));
+    waited += 20
+  )
+    Bun.sleepSync(20);
+}
 
 const [command, sub] = args;
 
@@ -198,6 +221,7 @@ if (command === "link") {
     (account) => account.toolkit === toolkit && account.status === "ACTIVE",
   );
   if (args.includes("--list")) {
+    holdIfAsked(toolkit);
     print({ toolkit, total: active.length, items: active.map(item) });
     end(0);
   }

@@ -252,11 +252,14 @@ connecting, or the account the provider names). Without one the page says "úče
 - The Launchpad keeps a name it read for half an hour by toolkit and word id
   (`createComposioNames`, `composioNamesFreshMs`), beyond the reading's minute, so
   a page opened again runs no `link --list` once the names are known.
-  "Zkontrolovat připojení" (`?refresh=1`) reads every name again; connecting,
-  signing in again or disconnecting an account of a toolkit here reads that
-  toolkit's again. A failure, an unclear answer and an account without a word id
-  are never kept. `lazurio integrations list`, a process of its own, reads the
-  names each time.
+  "Zkontrolovat připojení" (`?refresh=1`) reads every name again, by a reading
+  of its own that never adopts an older reading or lookup still running;
+  connecting, signing in again or disconnecting an account of a toolkit here
+  reads that toolkit's again. A lookup that was running when its names were
+  forgotten keeps nothing (`ComposioNames.since`: an answer is kept only while
+  the generations of forgetting, all names' and its toolkit's, are unchanged). A
+  failure, an unclear answer and an account without a word id are never kept.
+  `lazurio integrations list`, a process of its own, reads the names each time.
 - The alias is taken only where `--list` lists exactly one active account and,
   where both lists name a word id, the same one. Any other answer, a failure or a
   timeout leaves the account unnamed. An account that is not active stays unnamed

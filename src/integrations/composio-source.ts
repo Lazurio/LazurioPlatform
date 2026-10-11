@@ -217,15 +217,29 @@ const namesAtOnce = 2;
  * when the person renames it in Composio. */
 export const composioNamesFreshMs = 30 * 60_000;
 
+/** Where a lookup of one toolkit started: the generations of forgetting,
+ * every name's and the toolkit's own (`ComposioNames.since`). */
+export type ComposioNamesSince = Readonly<{ all: number; toolkit: number }>;
+
 /** The names of single Composio accounts the Launchpad has read, by toolkit
  * and word id (an alias, or null for an account Composio knows without
  * one), and the one place where their lookups run: two at a time for every
  * reading of the Launchpad together, so readings that overlap never run
  * more. "Zkontrolovat připojení" forgets every name; connecting or
- * disconnecting an account here forgets its toolkit's (`forget`). */
+ * disconnecting an account here forgets its toolkit's (`forget`). A lookup
+ * that was running when they were forgotten keeps nothing: `set` stores an
+ * answer only while nothing was forgotten since the lookup started
+ * (`since`). */
 export type ComposioNames = Readonly<{
   get(toolkit: string, wordId: string): string | null | undefined;
-  set(toolkit: string, wordId: string, alias: string | null): void;
+  /** Taken when a lookup of `toolkit` starts. */
+  since(toolkit: string): ComposioNamesSince;
+  set(
+    toolkit: string,
+    wordId: string,
+    alias: string | null,
+    since: ComposioNamesSince,
+  ): void;
   /** Forgets one toolkit's names, or every name. */
   forget(toolkit?: string): void;
   /** Runs one lookup when one of the two places is free. */
@@ -256,6 +270,9 @@ export function createComposioNames(
     string,
     Readonly<{ toolkit: string; alias: string | null; at: number }>
   >();
+  // How often every name, and each toolkit's, was forgotten.
+  let all = 0;
+  const forgotten = new Map<string, number>();
   const key = (toolkit: string, wordId: string) =>
     JSON.stringify([toolkit, wordId]);
   const fresh = (at: number) => now() - at < composioNamesFreshMs;
@@ -264,7 +281,18 @@ export function createComposioNames(
       const entry = entries.get(key(toolkit, wordId));
       return entry !== undefined && fresh(entry.at) ? entry.alias : undefined;
     },
-    set(toolkit: string, wordId: string, alias: string | null) {
+    since(toolkit: string): ComposioNamesSince {
+      return Object.freeze({ all, toolkit: forgotten.get(toolkit) ?? 0 });
+    },
+    set(
+      toolkit: string,
+      wordId: string,
+      alias: string | null,
+      since: ComposioNamesSince,
+    ) {
+      // Forgotten while the lookup ran: its answer is older than that.
+      if (since.all !== all || since.toolkit !== (forgotten.get(toolkit) ?? 0))
+        return;
       for (const [name, entry] of entries)
         if (!fresh(entry.at)) entries.delete(name);
       entries.set(
@@ -273,10 +301,14 @@ export function createComposioNames(
       );
     },
     forget(toolkit?: string) {
-      if (toolkit === undefined) entries.clear();
-      else
-        for (const [name, entry] of entries)
-          if (entry.toolkit === toolkit) entries.delete(name);
+      if (toolkit === undefined) {
+        all += 1;
+        entries.clear();
+        return;
+      }
+      forgotten.set(toolkit, (forgotten.get(toolkit) ?? 0) + 1);
+      for (const [name, entry] of entries)
+        if (entry.toolkit === toolkit) entries.delete(name);
     },
     run: limit(namesAtOnce),
   });
@@ -292,11 +324,12 @@ export function createComposioNames(
  * (`composioTimeoutMs`) and runs within it, so naming adds at most two
  * budgets to a reading. The alias is taken only where `--list` lists exactly
  * one active account and, where both name a word id, the same one; that
- * answer, also no alias, is kept in `names` by the account's word id. Any
- * other answer, a failure or a timeout leaves the account unnamed and is not
- * kept, and the page says "účet"; so is an account without a word id, which
- * is asked again at the next reading. An account that is not active has no
- * alias to read (`--list` lists only active ones). */
+ * answer, also no alias, is kept in `names` by the account's word id, unless
+ * its names were forgotten while the lookup ran. Any other answer, a failure
+ * or a timeout leaves the account unnamed and is not kept, and the page says
+ * "účet"; so is an account without a word id, which is asked again at the
+ * next reading. An account that is not active has no alias to read (`--list`
+ * lists only active ones). */
 export async function nameComposioAccounts(
   input: ComposioEnvironment,
   command: string,
@@ -332,6 +365,7 @@ export async function nameComposioAccounts(
       names.set(account.toolkit, alias);
       return;
     }
+    const since = known?.since(account.toolkit);
     const active = await activeComposioAccounts(
       input,
       command,
@@ -346,8 +380,8 @@ export async function nameComposioAccounts(
     )
       return;
     names.set(account.toolkit, only.alias);
-    if (account.wordId !== null)
-      known?.set(account.toolkit, account.wordId, only.alias);
+    if (account.wordId !== null && since !== undefined)
+      known?.set(account.toolkit, account.wordId, only.alias, since);
   };
   const run = known?.run ?? limit(namesAtOnce);
   const deadline = now() + composioTimeoutMs;

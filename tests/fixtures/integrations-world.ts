@@ -184,6 +184,35 @@ export async function setAccountStatus(
   await writeComposioState(home, state);
 }
 
+/** Holds the next `link <toolkit> --list` of the fake composio: it answers
+ * what it read when it started, once `releaseList` lets it go. */
+export async function holdList(home: string, toolkit: string): Promise<void> {
+  await writeFile(join(home, ".fake-composio", `hold-${toolkit}`), "");
+}
+
+/** Waits until a held `link <toolkit> --list` runs (at most 5 s). */
+export async function listHeld(home: string, toolkit: string): Promise<void> {
+  const held = join(home, ".fake-composio", `held-${toolkit}`);
+  for (let tries = 0; tries < 250; tries += 1) {
+    if (
+      await lstat(held).then(
+        () => true,
+        () => false,
+      )
+    )
+      return;
+    await Bun.sleep(20);
+  }
+  throw new Error(`No held link ${toolkit} --list`);
+}
+
+export async function releaseList(
+  home: string,
+  toolkit: string,
+): Promise<void> {
+  await writeFile(join(home, ".fake-composio", `release-${toolkit}`), "");
+}
+
 /** Every argv the fake composio was called with, in order. */
 export async function composioCalls(home: string): Promise<string[][]> {
   try {

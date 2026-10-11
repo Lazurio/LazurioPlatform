@@ -898,3 +898,86 @@ test("a name is kept half an hour by toolkit and word id, and a failure never", 
   ).toBe("googlecalendar");
   expect(composioToolkitOf(catalog, "todoist")).toBe("todoist");
 });
+
+// `link <toolkit> --list` held until the test answers it, as a slow CLI:
+// the alias is what the test answers, for the account's own word id.
+function heldLists() {
+  const pending: { toolkit: string; answer: (alias: string | null) => void }[] =
+    [];
+  const run: ToolRunner = (command) =>
+    new Promise((resolve) => {
+      const toolkit = command[2] ?? "";
+      pending.push({
+        toolkit,
+        answer: (alias) =>
+          resolve({
+            exitCode: 0,
+            stdout: JSON.stringify({
+              toolkit,
+              total: 1,
+              items: [item(alias, `${toolkit}-word`)],
+            }),
+            stderr: "",
+          }),
+      });
+    });
+  return { env: { path: "/fake/bin", home: "/fake/home", run }, pending };
+}
+
+// Review of 2026-10-11 (#315): names forgotten while a lookup runs (a
+// connect, a disconnect, a sign-in, "Zkontrolovat připojení") are never
+// brought back by that older lookup's answer.
+test("a lookup that was running when its toolkit's names were forgotten keeps nothing", async () => {
+  for (const forget of [
+    (names: ReturnType<typeof createComposioNames>) =>
+      names.forget("salesforce"),
+    (names: ReturnType<typeof createComposioNames>) => names.forget(),
+  ]) {
+    const names = createComposioNames(() => 0);
+    const cli = heldLists();
+    const older = nameComposioAccounts(
+      cli.env,
+      "composio",
+      [account("salesforce")],
+      { names },
+    );
+    expect(cli.pending.map((call) => call.toolkit)).toEqual(["salesforce"]);
+    forget(names);
+    cli.pending[0]?.answer("Old");
+    // The reading that asked shows what it read; nothing keeps it.
+    expect((await older).map((item) => item.alias)).toEqual(["Old"]);
+    expect(names.get("salesforce", "salesforce-word")).toBeUndefined();
+    // The next reading runs the CLI again and keeps its answer.
+    const next = nameComposioAccounts(
+      cli.env,
+      "composio",
+      [account("salesforce")],
+      { names },
+    );
+    expect(cli.pending).toHaveLength(2);
+    cli.pending[1]?.answer("New");
+    expect((await next).map((item) => item.alias)).toEqual(["New"]);
+    expect(names.get("salesforce", "salesforce-word")).toBe("New");
+  }
+});
+
+test("forgetting one toolkit keeps what another toolkit's running lookup reads", async () => {
+  const names = createComposioNames(() => 0);
+  const cli = heldLists();
+  const reading = nameComposioAccounts(
+    cli.env,
+    "composio",
+    [account("salesforce"), account("gmail")],
+    { names },
+  );
+  expect(cli.pending.map((call) => call.toolkit)).toEqual([
+    "salesforce",
+    "gmail",
+  ]);
+  names.forget("salesforce");
+  for (const call of cli.pending)
+    call.answer(call.toolkit === "salesforce" ? "Old" : "Work");
+  expect((await reading).map((item) => item.alias)).toEqual(["Old", "Work"]);
+  expect(names.get("salesforce", "salesforce-word")).toBeUndefined();
+  expect(names.get("gmail", "gmail-word")).toBe("Work");
+});
