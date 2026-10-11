@@ -1,5 +1,6 @@
 import type { ExecutorContext } from "../executor/flow";
 import { ownDataValue, stateFields } from "../folder/state-fields";
+import { integrationsCatalog } from "../integrations/catalog";
 import type { IntegrationsCatalog } from "../integrations/catalog-schema";
 import {
   accountName,
@@ -7,6 +8,7 @@ import {
   createConnectSessions,
 } from "../integrations/connect";
 import type { ExecutorEndpoint } from "../integrations/executor-client";
+import { composioToolkitOf } from "../integrations/model";
 import type { ComposioPolicySource } from "../integrations/policy";
 import { createIntegrationsReader } from "../integrations/read";
 import type { ToolsEnvironment } from "../tools/overview";
@@ -86,6 +88,12 @@ export function createIntegrationsRoutes(
       ...(seams.now === undefined ? {} : { now: seams.now }),
     };
   });
+  // Connecting, signing in again or disconnecting a Composio account here
+  // reads its toolkit's names again (decision F42, addendum of 2026-10-11).
+  const forgetNames = (app: string) =>
+    reader.forgetNames(
+      composioToolkitOf(input.seams().catalog ?? integrationsCatalog, app),
+    );
   const sessions = createConnectSessions((): ConnectHost => {
     const seams = input.seams();
     return {
@@ -195,6 +203,7 @@ export function createIntegrationsRoutes(
             ? value.account
             : undefined,
         );
+        if (path.path === "composio") forgetNames(app.id);
         if (started.kind === "connected") reader.forget();
         return response(started, started.kind === "blocked" ? 409 : 200);
       }
@@ -219,7 +228,10 @@ export function createIntegrationsRoutes(
         const progress = await sessions.poll(value.session);
         if (progress === null)
           return response({ kind: "blocked", reason: "session-unknown" }, 404);
-        if (progress.kind === "connected") reader.forget();
+        if (progress.kind === "connected") {
+          forgetNames(progress.app);
+          reader.forget();
+        }
         return response(progress);
       }
       if (url.pathname === "/api/integrations/disconnect") {
@@ -246,6 +258,7 @@ export function createIntegrationsRoutes(
           value.path,
           value.account,
         );
+        if (value.path === "composio") forgetNames(value.app);
         reader.forget();
         return response(result, result.kind === "blocked" ? 409 : 200);
       }

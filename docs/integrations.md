@@ -244,10 +244,19 @@ connecting, or the account the provider names). Without one the page says "úče
 
 - `connections list` leaves out the alias of a toolkit's only account. Where that
   account is active and has no alias there, the reading asks `link <toolkit>
-  --list` (`nameComposioAccounts`): once per such toolkit and for no other, four
-  at a time, each call started only within one Composio budget (15 s) and bounded
-  by it, so naming adds at most two budgets to a reading and nothing where no
-  account needs it. The names are part of the reading and kept as long as it is.
+  --list` (`nameComposioAccounts`): once per such toolkit and for no other, at
+  most two at a time for all readings of the Launchpad together (each `composio`
+  process takes about 200 MB), each call started only within one Composio budget
+  (15 s) and bounded by it, so naming adds at most two budgets to a reading and
+  nothing where no account needs it.
+- The Launchpad keeps a name it read for half an hour by toolkit and word id
+  (`createComposioNames`, `composioNamesFreshMs`), beyond the reading's minute, so
+  a page opened again runs no `link --list` once the names are known.
+  "Zkontrolovat připojení" (`?refresh=1`) reads every name again; connecting,
+  signing in again or disconnecting an account of a toolkit here reads that
+  toolkit's again. A failure, an unclear answer and an account without a word id
+  are never kept. `lazurio integrations list`, a process of its own, reads the
+  names each time.
 - The alias is taken only where `--list` lists exactly one active account and,
   where both lists name a word id, the same one. Any other answer, a failure or a
   timeout leaves the account unnamed. An account that is not active stays unnamed

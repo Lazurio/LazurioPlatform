@@ -786,6 +786,93 @@ test("a toolkit's only active account is named in the reading, read once and kep
   expect(await lists()).toHaveLength(4);
 });
 
+// The names outlive the reading (half an hour, by toolkit and word id), so
+// a new reading asks nothing for an unchanged account; connecting, signing
+// in again or disconnecting an account of a toolkit asks its toolkit again,
+// and "Zkontrolovat připojení" (`?refresh=1`) asks every name again.
+test("a name is read once for many readings; a connect, a disconnect and a refresh read again", async () => {
+  const { world, app } = await setup(
+    {
+      composio: {
+        accounts: [
+          {
+            id: "ca_1",
+            toolkit: "gmail",
+            status: "ACTIVE",
+            alias: "Work",
+            word_id: "castle",
+          },
+          {
+            id: "ca_2",
+            toolkit: "salesforce",
+            status: "ACTIVE",
+            alias: "Sales",
+            word_id: "field",
+          },
+          {
+            id: "ca_3",
+            toolkit: "todoist",
+            status: "ACTIVE",
+            alias: "Home",
+            word_id: "stone",
+          },
+        ],
+      },
+    },
+    { tools: ["composio"] },
+  );
+  const lookups = async () => {
+    const calls = (await composioCalls(world.home)).filter(
+      (call) => call[0] === "link" && call[2] === "--list",
+    );
+    return ["gmail", "salesforce", "todoist"].map(
+      (toolkit) => calls.filter((call) => call[1] === toolkit).length,
+    );
+  };
+  const labels = async (path: string) => {
+    const answer = await app.get(path);
+    expect(answer.status).toBe(200);
+    const value = (await answer.json()) as IntegrationsOverview;
+    return ["gmail", "salesforce", "todoist"].map(
+      (id) => value.apps.find((item) => item.id === id)?.accounts[0]?.label,
+    );
+  };
+  expect(await labels("/api/integrations")).toEqual(["Work", "Sales", "Home"]);
+  expect(await lookups()).toEqual([1, 1, 1]);
+  // Connecting Salesforce again (here refused: a second account needs a
+  // name) forgets its names; its own check asks `--list` once.
+  const refused = await app.post("/api/integrations/connect", {
+    app: "salesforce",
+  });
+  expect(await refused.json()).toEqual({
+    kind: "blocked",
+    reason: "name-required",
+  });
+  expect(await lookups()).toEqual([1, 2, 1]);
+  // Disconnecting Gmail (here refused: this CLI has no `--yes`) forgets its
+  // names and the reading.
+  const kept = await app.post("/api/integrations/disconnect", {
+    app: "gmail",
+    path: "composio",
+    account: "castle",
+    confirm: true,
+  });
+  expect(await kept.json()).toEqual({
+    kind: "blocked",
+    reason: "disconnect-unsupported",
+  });
+  // The new reading asks Gmail and Salesforce again, never Todoist.
+  expect(await labels("/api/integrations")).toEqual(["Work", "Sales", "Home"]);
+  expect(await lookups()).toEqual([2, 3, 1]);
+  // "Zkontrolovat připojení" asks every name again.
+  expect(await labels("/api/integrations?refresh=1")).toEqual([
+    "Work",
+    "Sales",
+    "Home",
+  ]);
+  expect(await lookups()).toEqual([3, 4, 2]);
+});
+
 test("the link to Composio's dashboard: the organization's name encoded, the person's current one where none is known", async () => {
   for (const [organization, expected] of [
     [

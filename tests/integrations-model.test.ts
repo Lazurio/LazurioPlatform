@@ -3,13 +3,16 @@ import type { IntegrationsCatalog } from "../src/integrations/catalog-schema";
 import {
   type ComposioAccount,
   composioManageUrl,
+  composioNamesFreshMs,
   composioState,
   composioTimeoutMs,
+  createComposioNames,
   nameComposioAccounts,
   parseComposioConnections,
 } from "../src/integrations/composio-source";
 import {
   catalogAppOf,
+  composioToolkitOf,
   forAdmin,
   type MergeInput,
   mergeIntegrations,
@@ -785,45 +788,113 @@ test("a toolkit's only active account is named by `link <toolkit> --list`, and n
   expect(quiet.calls).toEqual([]);
 });
 
-test("naming runs four calls at a time and starts none after one Composio budget", async () => {
-  const toolkits = Array.from({ length: 10 }, (_, index) => `app${index}`);
+// Seven single accounts, as on a real account: never more than two lookups
+// at once, also for two readings at once (DEV-6656: an Environment may have
+// little memory to spare), and none started after the budget.
+test("naming runs two lookups at a time, for all readings together, and starts none after one Composio budget", async () => {
+  const toolkits = Array.from({ length: 7 }, (_, index) => `app${index}`);
   const answers = Object.fromEntries(
     toolkits.map((toolkit) => [
       toolkit,
       [item(`Name ${toolkit}`, `${toolkit}-word`)],
     ]),
   );
-  // Quick answers: every toolkit named, never more than four at once.
+  const all = () => toolkits.map((toolkit) => account(toolkit));
   let clock = 0;
   const quick = listRunner(answers, () => {
     clock += 1_000;
   });
-  const named = await nameComposioAccounts(
-    quick.env,
-    "composio",
-    toolkits.map((toolkit) => account(toolkit)),
-    () => clock,
-  );
+  const named = await nameComposioAccounts(quick.env, "composio", all(), {
+    now: () => clock,
+  });
   expect(named.map((item) => item.alias)).toEqual(
     toolkits.map((toolkit) => `Name ${toolkit}`),
   );
-  expect(quick.calls).toHaveLength(10);
-  expect(quick.most()).toBe(4);
-  // Slow answers: the first four use up the budget, and no call starts
-  // after it; those toolkits stay unnamed.
+  expect(quick.calls).toHaveLength(7);
+  expect(quick.most()).toBe(2);
+  // Two readings that overlap share the Launchpad's two places.
+  const shared = listRunner(answers);
+  const names = createComposioNames(() => 0);
+  await Promise.all([
+    nameComposioAccounts(shared.env, "composio", all().slice(0, 4), {
+      names,
+    }),
+    nameComposioAccounts(shared.env, "composio", all().slice(4), { names }),
+  ]);
+  expect(shared.calls).toHaveLength(7);
+  expect(shared.most()).toBe(2);
+  // Slow answers: no lookup starts after the budget; those stay unnamed.
   clock = 0;
+  const starts: number[] = [];
   const slow = listRunner(answers, () => {
+    starts.push(clock);
     clock += composioTimeoutMs / 3;
   });
-  const partly = await nameComposioAccounts(
-    slow.env,
-    "composio",
-    toolkits.map((toolkit) => account(toolkit)),
-    () => clock,
+  const partly = await nameComposioAccounts(slow.env, "composio", all(), {
+    now: () => clock,
+  });
+  expect(starts.length).toBeGreaterThan(0);
+  expect(starts.length).toBeLessThan(7);
+  expect(starts.every((at) => at < composioTimeoutMs)).toBe(true);
+  expect(partly.filter((item) => item.alias === null)).toHaveLength(
+    7 - starts.length,
   );
-  expect(slow.calls).toHaveLength(4);
-  expect(partly.map((item) => item.alias)).toEqual([
-    ...toolkits.slice(0, 4).map((toolkit) => `Name ${toolkit}`),
-    ...toolkits.slice(4).map(() => null),
+});
+
+// The names a Launchpad keeps (decision F42, addendum of 2026-10-11): by
+// toolkit and word id for half an hour, also "no name"; never a failure or
+// an account without a word id.
+test("a name is kept half an hour by toolkit and word id, and a failure never", async () => {
+  let clock = 0;
+  const names = createComposioNames(() => clock);
+  const runner = listRunner({
+    gmail: [item("Work", "gmail-word")],
+    notion: [item(null, "notion-word")],
+    zoom: [item("Calls", "zoom-other")],
+    todoist: "fail",
+  });
+  const accounts = [
+    account("gmail"),
+    account("notion"),
+    account("zoom", { wordId: null }),
+    account("todoist"),
+  ];
+  const lookups = (toolkit: string) =>
+    runner.calls.filter((call) => call[2] === toolkit).length;
+  const read = async (list = accounts) =>
+    (await nameComposioAccounts(runner.env, "composio", list, { names })).map(
+      (item) => item.alias,
+    );
+  expect(await read()).toEqual(["Work", null, "Calls", null]);
+  // Read again: what was read is kept, also that notion has no name; the
+  // failure and the account without a word id are asked again.
+  expect(await read()).toEqual(["Work", null, "Calls", null]);
+  expect(["gmail", "notion", "zoom", "todoist"].map(lookups)).toEqual([
+    1, 1, 2, 2,
   ]);
+  // Another account of the toolkit is another word id: asked.
+  expect(await read([account("gmail", { wordId: "gmail-2" })])).toEqual([null]);
+  expect(lookups("gmail")).toBe(2);
+  // Forgetting one toolkit asks only it again; forgetting all asks all.
+  names.forget("gmail");
+  await read();
+  expect(["gmail", "notion"].map(lookups)).toEqual([3, 1]);
+  names.forget();
+  await read();
+  expect(["gmail", "notion"].map(lookups)).toEqual([4, 2]);
+  // Half an hour later every name is read again.
+  clock = composioNamesFreshMs - 1;
+  await read();
+  expect(["gmail", "notion"].map(lookups)).toEqual([4, 2]);
+  clock = composioNamesFreshMs;
+  await read();
+  expect(["gmail", "notion"].map(lookups)).toEqual([5, 3]);
+  // The toolkit a connect or disconnect names: the catalog's, else the id.
+  expect(
+    composioToolkitOf(
+      { ...catalog, apps: [app("calendar", { composio: "googlecalendar" })] },
+      "calendar",
+    ),
+  ).toBe("googlecalendar");
+  expect(composioToolkitOf(catalog, "todoist")).toBe("todoist");
 });

@@ -207,46 +207,138 @@ export async function activeComposioAccounts(
 
 /** How many `link <toolkit> --list` run at once while accounts are named:
  * one `composio` process takes about 200 MB and a second (0.4.1, measured
- * 2026-10-11), so four keep a page with many apps quick without loading an
- * Environment that may be short of memory. */
-const namesAtOnce = 4;
+ * 2026-10-11), and a Remote Environment may have little memory to spare
+ * (8 GB, no swap: plan DEV-6656), so two at most. */
+const namesAtOnce = 2;
+
+/** How long the Launchpad keeps a name it read with `link <toolkit> --list`
+ * (decision F42, addendum of 2026-10-11): far longer than the reading's
+ * minute, because an account's word id is stable and its name changes only
+ * when the person renames it in Composio. */
+export const composioNamesFreshMs = 30 * 60_000;
+
+/** The names of single Composio accounts the Launchpad has read, by toolkit
+ * and word id (an alias, or null for an account Composio knows without
+ * one), and the one place where their lookups run: two at a time for every
+ * reading of the Launchpad together, so readings that overlap never run
+ * more. "Zkontrolovat připojení" forgets every name; connecting or
+ * disconnecting an account here forgets its toolkit's (`forget`). */
+export type ComposioNames = Readonly<{
+  get(toolkit: string, wordId: string): string | null | undefined;
+  set(toolkit: string, wordId: string, alias: string | null): void;
+  /** Forgets one toolkit's names, or every name. */
+  forget(toolkit?: string): void;
+  /** Runs one lookup when one of the two places is free. */
+  run(work: () => Promise<void>): Promise<void>;
+}>;
+
+/** At most `size` of the works at once; the others wait in turn. */
+function limit(size: number): ComposioNames["run"] {
+  let running = 0;
+  const waiting: (() => void)[] = [];
+  return async (work) => {
+    while (running >= size)
+      await new Promise<void>((resolve) => waiting.push(resolve));
+    running += 1;
+    try {
+      await work();
+    } finally {
+      running -= 1;
+      waiting.shift()?.();
+    }
+  };
+}
+
+export function createComposioNames(
+  now: () => number = Date.now,
+): ComposioNames {
+  const entries = new Map<
+    string,
+    Readonly<{ toolkit: string; alias: string | null; at: number }>
+  >();
+  const key = (toolkit: string, wordId: string) =>
+    JSON.stringify([toolkit, wordId]);
+  const fresh = (at: number) => now() - at < composioNamesFreshMs;
+  return Object.freeze({
+    get(toolkit: string, wordId: string) {
+      const entry = entries.get(key(toolkit, wordId));
+      return entry !== undefined && fresh(entry.at) ? entry.alias : undefined;
+    },
+    set(toolkit: string, wordId: string, alias: string | null) {
+      for (const [name, entry] of entries)
+        if (!fresh(entry.at)) entries.delete(name);
+      entries.set(
+        key(toolkit, wordId),
+        Object.freeze({ toolkit, alias, at: now() }),
+      );
+    },
+    forget(toolkit?: string) {
+      if (toolkit === undefined) entries.clear();
+      else
+        for (const [name, entry] of entries)
+          if (entry.toolkit === toolkit) entries.delete(name);
+    },
+    run: limit(namesAtOnce),
+  });
+}
 
 /** The accounts, each toolkit's only active account with its name (decision
  * F42, addendum of 2026-10-11, #312). `connections list` prints an alias
  * only where a toolkit has several accounts, so where its only account is
- * active and has none there, `link <toolkit> --list` is asked: once per such
- * toolkit, never for any other, four at a time. A call starts only within
- * one Composio budget (`composioTimeoutMs`) and runs within it, so naming
- * adds at most two budgets to a reading, and the reading keeps the names as
- * long as it keeps itself. The alias is taken only where `--list` lists
- * exactly one active account and, where both name a word id, the same one:
- * any other answer, a failure or a timeout leaves the account unnamed, and
- * the page says "účet". An account that is not active has no alias to read
- * (`--list` lists only active ones). */
+ * active and has none there, its name is taken from `names` while they keep
+ * it, and otherwise `link <toolkit> --list` is asked: once per such toolkit,
+ * never for any other, two at a time (with `names`, for all readings
+ * together). A call starts only within one Composio budget
+ * (`composioTimeoutMs`) and runs within it, so naming adds at most two
+ * budgets to a reading. The alias is taken only where `--list` lists exactly
+ * one active account and, where both name a word id, the same one; that
+ * answer, also no alias, is kept in `names` by the account's word id. Any
+ * other answer, a failure or a timeout leaves the account unnamed and is not
+ * kept, and the page says "účet"; so is an account without a word id, which
+ * is asked again at the next reading. An account that is not active has no
+ * alias to read (`--list` lists only active ones). */
 export async function nameComposioAccounts(
   input: ComposioEnvironment,
   command: string,
   accounts: readonly ComposioAccount[],
-  now: () => number = () => performance.now(),
+  options: Readonly<{ names?: ComposioNames; now?: () => number }> = {},
 ): Promise<readonly ComposioAccount[]> {
+  const known = options.names;
+  const now = options.now ?? (() => performance.now());
   const counts = new Map<string, number>();
   for (const account of accounts)
     counts.set(account.toolkit, (counts.get(account.toolkit) ?? 0) + 1);
-  const unnamed = accounts.filter(
-    (account) =>
-      counts.get(account.toolkit) === 1 &&
-      account.alias === null &&
-      account.state === "connected",
-  );
-  const names = new Map<string, string>();
+  const kept = (account: ComposioAccount) =>
+    account.wordId === null
+      ? undefined
+      : known?.get(account.toolkit, account.wordId);
+  const names = new Map<string, string | null>();
+  const unnamed: ComposioAccount[] = [];
+  for (const account of accounts) {
+    if (
+      counts.get(account.toolkit) !== 1 ||
+      account.alias !== null ||
+      account.state !== "connected"
+    )
+      continue;
+    const alias = kept(account);
+    if (alias === undefined) unnamed.push(account);
+    else names.set(account.toolkit, alias);
+  }
   const name = async (account: ComposioAccount) => {
+    // Another reading may have read it meanwhile.
+    const alias = kept(account);
+    if (alias !== undefined) {
+      names.set(account.toolkit, alias);
+      return;
+    }
     const active = await activeComposioAccounts(
       input,
       command,
       account.toolkit,
     );
     const only = active?.length === 1 ? active[0] : undefined;
-    if (only === undefined || only.alias === null) return;
+    if (only === undefined) return;
     if (
       account.wordId !== null &&
       only.wordId !== null &&
@@ -254,23 +346,28 @@ export async function nameComposioAccounts(
     )
       return;
     names.set(account.toolkit, only.alias);
+    if (account.wordId !== null)
+      known?.set(account.toolkit, account.wordId, only.alias);
   };
+  const run = known?.run ?? limit(namesAtOnce);
   const deadline = now() + composioTimeoutMs;
-  for (
-    let start = 0;
-    start < unnamed.length && now() < deadline;
-    start += namesAtOnce
-  )
-    await Promise.all(unnamed.slice(start, start + namesAtOnce).map(name));
-  if (names.size === 0) return accounts;
-  return Object.freeze(
-    accounts.map((account) => {
-      const alias = names.get(account.toolkit);
-      return alias === undefined
-        ? account
-        : Object.freeze({ ...account, alias });
-    }),
+  await Promise.all(
+    unnamed.map((account) =>
+      run(async () => {
+        if (now() < deadline) await name(account);
+      }),
+    ),
   );
+  return [...names.values()].every((alias) => alias === null)
+    ? accounts
+    : Object.freeze(
+        accounts.map((account) => {
+          const alias = names.get(account.toolkit);
+          return alias === undefined || alias === null
+            ? account
+            : Object.freeze({ ...account, alias });
+        }),
+      );
 }
 
 /** Composio's dashboard, where the person sees and changes their accounts. */

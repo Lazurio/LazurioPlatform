@@ -192,6 +192,15 @@ const pathAppOf = (app: CatalogApp): PathApp => ({
  * and path, never userinfo or a query, which may carry a key. */
 export const shownEndpoint = canonicalEndpoint;
 
+/** The Composio toolkit of an app: the catalog's, or the app's own id for a
+ * toolkit the catalog does not know (listed under its toolkit). */
+export function composioToolkitOf(
+  catalog: IntegrationsCatalog,
+  appId: string,
+): string {
+  return catalog.apps.find((app) => app.id === appId)?.composio ?? appId;
+}
+
 /** Which catalog app an Executor integration is: only a remote MCP server
  * at the catalog's own endpoint (the same scheme, host and path), whatever
  * its slug. A slug is never enough: an integration that holds an app's slug
