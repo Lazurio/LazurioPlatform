@@ -137,6 +137,9 @@ ${baseCss}
 ${switcherCss}
 ${identityCss}
 :host { display: block; }
+/* In the column head the name is one step smaller than in a header, so a
+   name like "MacBook-Air-2" fits beside the gear (Anna 2026-10-11). */
+.pick .identity-name { font-size: var(--lz-size-meta); }
 .head { display: flex; flex-direction: column; gap: 8px; }
 /* The picker and the gear of what it names, side by side (lz-picker-row). */
 .row { display: flex; align-items: center; gap: var(--lz-space-4); }

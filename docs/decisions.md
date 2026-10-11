@@ -4865,6 +4865,13 @@ prototypes-lazurio `1acd615` (`app/v1/src/Rail.tsx`, `Switcher.tsx`, `EnvPicker.
    before). Every interface icon, the shell's and the Launchpad page's, is drawn at the
    wireframe's stroke of 1.6 (was 1.5). As the glyph takes the picker's ink, a kind's icon
    is light on a dark host without roles (it stayed near-black, issue #169).
+   *Addendum 2026-10-11 (Anna):* the Launchpad's column narrows from 264 to 256 px (four
+   grid modules) with 13.5 px entries and a 16 px title, and the picker's name drops to
+   14 px (`--lz-size-meta`), so a name like "MacBook-Air-2" still fits beside the gear.
+   Quiet text has three levels: a group's label (Oblíbené, a Tools tier) in the action
+   weight and `gray-600`; text people read (a settings row's description) `gray-600` at
+   14 px; the lowest priority (a hint, a neutral state, "Podrobnosti") stays muted
+   (`gray-500`), the lightest grey that passes 4.5:1 on white.
 6. **The keys, with or without the field.** ↓ and ↑ (wrapping), Home, End, Enter and
    Escape work in the list. Without the search field the focus lands on the current
    Environment, else the first (on "Všechny Organizace" where the space has none), and
