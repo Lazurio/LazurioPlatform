@@ -10,7 +10,12 @@ import {
   type CatalogOrganization,
   readFolderCatalog,
 } from "../src/organizations/catalog";
-import { parseShell, type Shell } from "../src/shell/contract";
+import {
+  parseShell,
+  parseShellAccount,
+  type Shell,
+} from "../src/shell/contract";
+import { mergeAccount } from "../src/shell/merge";
 import { shellMessages } from "../src/shell/messages";
 import {
   environmentHref,
@@ -23,6 +28,7 @@ import {
   switcherList,
   switchTabs,
 } from "../src/shell/view";
+import { accountDocument } from "./fixtures/account-document";
 import { folderFixture, writeOrganization } from "./fixtures/catalog-folder";
 import {
   binding,
@@ -257,13 +263,14 @@ test("an Organization's Environment stands in its Organization's space even befo
       catalog: held,
     });
     expect(shell.environments[0]?.organizations).toEqual(["example"]);
-    // Known by its slug alone until the Folder can read it.
+    // Known by the handover's login and that login's GitHub logo until the
+    // Folder can read it.
     expect(shell.organizations).toEqual([
       {
         slug: "example",
         name: "example",
         dashboard: "https://dashboard.lazurio.ai/orgs/example",
-        avatar: null,
+        avatar: "https://github.com/example.png?size=96",
       },
     ]);
     expect(hereOf(shell, null)).toBe("example");
@@ -348,6 +355,53 @@ test("the owner named by its GitHub login is the Folder's Organization of anothe
     catalog: catalog(),
   });
   expect(unread.environments[0]?.organizations).toEqual(["examplelazurio"]);
+});
+
+test("an owner the Folder cannot read yet is known by the handover's own slug and its login's logo, so the person's account never shows it twice", () => {
+  // The handover names the owner by its lowercased GitHub login
+  // (`examplelazurio`) and by its own slug (`Example`), the slug the
+  // Dashboard reduces to (`example`) and names it by in the account.
+  const { team: _team, ...owner } = machineContext.owner;
+  const machine = binding({
+    ...machineContext,
+    owner: { ...owner, organization: "examplelazurio" },
+    entry: handoverEntry("workspace.examplelazurio.lazurio.io"),
+  }) as MachineBinding;
+  const document = (found: Catalog, ownerKey: string | null): Shell =>
+    shellDocument({
+      preset: "hosted-organization-personal",
+      machine,
+      locale: "cs",
+      catalog: found,
+      ownerKey,
+    });
+  const unread = document(catalog(), "Example");
+  expect(unread.environments[0]?.organizations).toEqual(["Example"]);
+  expect(unread.organizations).toEqual([
+    {
+      slug: "Example",
+      name: "Example",
+      dashboard: "https://dashboard.lazurio.ai/orgs/example",
+      avatar: "https://github.com/examplelazurio.png?size=96",
+    },
+  ]);
+  // The account names it `example`: the rail has one space for it, in the
+  // account's place, then the account's other Organization.
+  const read = parseShellAccount(accountDocument());
+  if (read === null) throw new Error("Expected a valid account document");
+  expect(
+    mergeAccount(unread, read).organizations.map((entry) => entry.slug),
+  ).toEqual(["Example", "other-example"]);
+  // A handover without the slug (an older one) still names it by the login.
+  expect(
+    document(catalog(), null).organizations.map((entry) => entry.slug),
+  ).toEqual(["examplelazurio"]);
+  // Once the Folder holds it under that slug, its catalog entry stands.
+  expect(
+    document(catalog(organization("Example")), "Example").organizations.map(
+      (entry) => [entry.slug, entry.name],
+    ),
+  ).toEqual([["Example", "Example Example"]]);
 });
 
 test("an assigned work Environment says whose it is; an Automated one is its persona's; a Team one its Team's", () => {

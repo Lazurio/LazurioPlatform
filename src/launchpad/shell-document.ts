@@ -223,7 +223,9 @@ export function ownerOrganization(
 
 /** This Environment's shell document. `computer` is the host name of the
  * computer a workstation runs on; `setup` what the Environment still lacks
- * (root decision 0188, setup-state.ts), when the server knows it. */
+ * (root decision 0188, setup-state.ts), when the server knows it;
+ * `ownerKey` the owning Organization's own slug as the Machine handover
+ * names it (`owner.organization_key`), when it does. */
 export function shellDocument(
   input: Readonly<{
     preset: PresetName;
@@ -232,19 +234,22 @@ export function shellDocument(
     catalog: Catalog;
     computer?: string;
     setup?: ShellSetup;
+    ownerKey?: string | null;
   }>,
 ): Shell {
   const { machine } = input;
   const entry = machine?.entry;
   const kind = presetKinds[input.preset];
   const held = shellOrganizations(input.catalog);
-  // The owning Organization first; known by its slug alone (no display
-  // name, no avatar) until the Folder holds it readable.
+  // The owning Organization first.
   const owner = ownerOrganization(machine, kind);
   // The handover names the owner by its lowercased GitHub login
-  // (`examplelazurio`), the Folder by its own slug (`example`): the
-  // catalog entry bound to that login or carrying that slug is the same
-  // Organization, never a second one.
+  // (`examplelazurio`) and, where it carries one, by its own slug
+  // (`owner.organization_key`, `Example`); the Folder by its own slug
+  // (`example`): the catalog entry bound to that login or carrying that
+  // slug is the same Organization, never a second one.
+  const key =
+    owner !== null && isShellSlug(input.ownerKey) ? input.ownerKey : null;
   const same = (left: string | null | undefined, right: string) =>
     typeof left === "string" && left.toLowerCase() === right.toLowerCase();
   const ownerSlug =
@@ -253,17 +258,24 @@ export function shellDocument(
       : (input.catalog.organizations.find(
           (entry) =>
             entry.organization !== null &&
-            (same(entry.forgeLogin, owner) || same(entry.organization, owner)),
+            (same(entry.forgeLogin, owner) ||
+              same(entry.organization, owner) ||
+              (key !== null && same(entry.organization, key))),
         )?.organization ?? owner);
+  // Until the Folder holds it readable, the owner is known by the handover's
+  // own slug where it names one, the slug the Dashboard reduces to as well,
+  // so the rail's merge with the person's account finds it and never shows
+  // it twice; else by the login. Its logo is the GitHub Organization's of
+  // that login either way.
   const ownerEntry =
     owner === null || ownerSlug === null
       ? undefined
       : (held.find((entry) => same(entry.slug, ownerSlug)) ??
         Object.freeze({
-          slug: owner,
-          name: owner,
-          dashboard: organizationDashboardUrl(owner),
-          avatar: null,
+          slug: key ?? owner,
+          name: key ?? owner,
+          dashboard: organizationDashboardUrl(key ?? owner),
+          avatar: githubPhoto(owner),
         }));
   const organizations =
     ownerEntry === undefined

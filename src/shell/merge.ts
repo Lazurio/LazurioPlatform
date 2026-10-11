@@ -25,8 +25,8 @@ import {
 //   Organization in the place of the account's with the same Dashboard slug
 //   (`dashboardSlug`; the account names Organizations by it, the local
 //   document by the manifest's slug), then local ones the account does not
-//   list. The local entry wins. An account Environment names the merged
-//   slug.
+//   list. The local entry wins; one without a logo shows the account's. An
+//   account Environment names the merged slug.
 // - An ambiguous Dashboard slug (two local Organizations, or two of the
 //   account's, that reduce to the same one, such as `Example Org` and
 //   `example-org`) cannot be placed safely: for it the local entries stay as
@@ -85,16 +85,23 @@ export function mergeAccount(
   // An account slug (lowercased) to the slug it has in the merged document;
   // absent for an ambiguous one.
   const slugOf = new Map<string, string>();
+  const placed = new Set<ShellOrganization>();
   for (const organization of account.organizations) {
     const key = canonical(organization.slug);
     if (ambiguous.has(key)) continue;
-    const chosen = localBySlug.get(key) ?? organization;
+    const own = localBySlug.get(key);
+    if (own !== undefined) placed.add(own);
+    // The local entry wins; where it has no logo, it shows the account's.
+    const chosen =
+      own === undefined
+        ? organization
+        : own.avatar === null && organization.avatar !== null
+          ? Object.freeze({ ...own, avatar: organization.avatar })
+          : own;
     organizations.push(chosen);
     slugOf.set(organization.slug.toLowerCase(), chosen.slug);
   }
-  const onlyLocal = local.organizations.filter(
-    (entry) => !organizations.includes(entry),
-  );
+  const onlyLocal = local.organizations.filter((entry) => !placed.has(entry));
 
   // Environments: the account's order, a local entry in its place. An
   // account entry in an Organization left out (ambiguous) is left out too;

@@ -5361,6 +5361,34 @@ failure, malformed answers and unchanged per-person cache handling. Verify the
 same artifact in a browser before review. Installed consumers receive the fix
 only through a qualified Platform release and their normal update lane.
 
+### Addendum 2026-10-11 — an owner the Folder cannot read yet is one space with the account's, with a logo
+
+A work Environment whose Folder does not hold its owning Organization yet (before
+the person's first run installs it) named that Organization by the handover's
+lowercased GitHub login, without a logo. The person's account names the same
+Organization by the Dashboard's slug, which the Dashboard reduces from the
+manifest's own slug. Where the two differ (an Organization whose login is not its
+slug), the merge found no match and the rail showed the Organization twice: once
+by the login without a logo, once from the account with it.
+
+Until the Folder holds the owner readable, the shell document now names it by the
+handover's own slug (`owner.organization_key`, the manifest's slug the Dashboard
+reduces as well), and its logo is the GitHub Organization's of the handover's
+login. The merge then finds the account's entry by the Dashboard slug, so the rail
+has one space for it. A handover without the key still names the owner by the
+login, as before, now with that login's logo. Once the Folder holds the
+Organization, its catalog entry stands as before; the catalog entry carrying the
+key is the owner too.
+
+In the merge, the local entry still wins, but one without a logo (a manifest
+without a forge binding, or an older Launchpad's entry) now shows the account's
+logo instead of initials; its slug, name and Dashboard stay the local document's.
+
+Tests: `tests/shell.test.ts` (the document and its merge with the account),
+`tests/shell-account.test.ts` (the logo taken from the account) and
+`tests/launchpad-offline-guide.test.ts` (the server reads the key from the
+handover for the document and for the offline guide).
+
 ## F38 — The Environment browser of a Remote Environment: one Chromium, a window per thread, a view behind the gateway
 
 **Decided by Matěj 2026-10-05 (plan DEV-6646, root decision 0191); implemented in this

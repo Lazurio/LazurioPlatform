@@ -156,6 +156,11 @@ export type HostedOptions = Readonly<{
    * names, or none (a workstation, no handover). Trusted composition, never
    * HTTP input; tests supply the address. */
   offlineTailnet?: () => Promise<string | null>;
+  /** Where the shell document reads the owning Organization's own slug
+   * (`owner.organization_key`): by default the root-custodied Machine
+   * handover, none where it names none or there is no handover. Trusted
+   * composition, never HTTP input; tests supply the key. */
+  ownerKey?: () => Promise<string | null>;
 }>;
 
 /** Where a direct sign-in of an Integrace opens (decision F42): Executor's
@@ -202,6 +207,20 @@ async function machineTailnet(): Promise<string | null> {
     return (
       (await readMachineContext()).context.network?.headscale_server_url ?? null
     );
+  } catch {
+    return null;
+  }
+}
+
+/** The owning Organization's own slug the Machine handover names
+ * (`owner.organization_key`); none for a personal Machine, a handover that
+ * names none, or no readable handover, as on a workstation. */
+async function machineOwnerKey(): Promise<string | null> {
+  try {
+    const { owner } = (await readMachineContext()).context;
+    return owner.kind === "organization"
+      ? (owner.organization_key ?? null)
+      : null;
   } catch {
     return null;
   }
@@ -597,9 +616,10 @@ export async function startLaunchpad(
         () => readFolderState(state),
         bootLockWaitMs,
       );
-      const [catalog, tailnet] = await Promise.all([
+      const [catalog, tailnet, ownerKey] = await Promise.all([
         readFolderCatalog(folder),
         (hostedOptions.offlineTailnet ?? machineTailnet)(),
+        (hostedOptions.ownerKey ?? machineOwnerKey)(),
       ]);
       return launchpadBoot({
         preset: current.preferences.preset.name,
@@ -609,6 +629,7 @@ export async function startLaunchpad(
         entry,
         computer: hostname(),
         tailnet,
+        ownerKey,
       });
     })().catch(() => null);
     try {
@@ -736,9 +757,10 @@ export async function startLaunchpad(
             readFolderState(state),
           );
           const preset = current.preferences.preset.name;
-          const [catalog, tailnet] = await Promise.all([
+          const [catalog, tailnet, ownerKey] = await Promise.all([
             readFolderCatalog(folder),
             (hostedOptions.offlineTailnet ?? machineTailnet)(),
+            (hostedOptions.ownerKey ?? machineOwnerKey)(),
           ]);
           // GitHub and the content only where the Environment signs in as
           // its person (setup-state.ts).
@@ -754,6 +776,7 @@ export async function startLaunchpad(
                   current.preferences.profile.locale === "cs" ? "cs" : "en",
                 catalog,
                 computer: hostname(),
+                ownerKey,
                 ...(known === undefined ? {} : { setup: known }),
               }),
               tailnet,
@@ -793,6 +816,7 @@ export async function startLaunchpad(
                   current.preferences.profile.locale === "cs" ? "cs" : "en",
                 catalog: await readFolderCatalog(folder),
                 computer: hostname(),
+                ownerKey: await (hostedOptions.ownerKey ?? machineOwnerKey)(),
               }),
               tailnet,
             );
