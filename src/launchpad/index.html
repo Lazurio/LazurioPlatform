@@ -57,13 +57,20 @@
   --input: var(--lz-line);
   --muted: var(--lz-gray-25);
   --muted-fg: var(--lz-ink-muted);
-  /* Three levels of quiet text (Anna 2026-10-11): a group's label (Oblíbené,
-   * Povinné) is a heading, in the action weight and this colour; text people
-   * read (a row's description) is this colour at 14 px, since muted read as
-   * too thin in Inter Tight beside ChatGPT's 14 px system text; the lowest
-   * priority (a hint, a neutral state, "Details") stays muted, the lightest
-   * grey that still passes 4.5:1 on white. */
-  --secondary-fg: var(--lz-gray-600);
+  /* Three levels of text, after ClickUp (Anna 2026-10-11; measured there:
+   * #202020, #646464 and #838383-#8d8d8d): ink for what you act on (a name,
+   * the active entry); muted for what explains it (a description, a group's
+   * label, an inactive entry); quiet for the lowest priority (a hint, a
+   * neutral state, "Podrobnosti"), halfway between gray-500 and gray-400 at
+   * 3.7:1, as ClickUp's own timestamps, so used only for text that need not
+   * be read. */
+  --quiet-fg: color-mix(in srgb, var(--lz-gray-500), var(--lz-gray-400));
+  /* Weights between the design system's 400 and 600 (Inter Tight is
+   * variable): text people read at 450, so the tight face does not read thin
+   * beside system fonts; an entry of the column and a group's label at 500,
+   * as ClickUp's sidebar; names, buttons and the active entry stay at 600. */
+  --weight-text: 450;
+  --weight-label: 500;
   --hover: var(--lz-gray-100);
   --link: var(--lz-accent);
   --primary: var(--lz-accent-button);
@@ -145,7 +152,7 @@ h1, h2, h3, h4 { margin: 0; font-size: 14px; }
 .menu { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
 .menu-item { display: flex; align-items: center; gap: 10px; min-width: 0; height: 32px; padding: 0 10px; border-radius: var(--lz-radius-sm); color: var(--fg); font-size: 13.5px; text-decoration: none; }
 a.menu-item:hover, button.menu-item:hover { background: var(--lz-gray-50); }
-button.menu-item { width: 100%; border: 0; background: transparent; font-weight: 400; cursor: pointer; }
+button.menu-item { width: 100%; border: 0; background: transparent; font-weight: var(--weight-label); cursor: pointer; }
 .menu-item[aria-current="page"] { background: var(--hover); font-weight: var(--lz-weight-akce); }
 .menu-item .icon { width: 16px; height: 16px; }
 .menu-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -292,8 +299,8 @@ button.tile { height: auto; justify-content: flex-start; white-space: normal; bo
 .row-copy { display: grid; gap: 3px; min-width: 0; }
 .row-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; min-height: 1.25rem; color: var(--fg); font-size: 15px; font-weight: var(--lz-weight-akce); }
 .row-title code { color: var(--muted-fg); font-weight: 400; }
-.row-desc { max-width: 40rem; color: var(--secondary-fg); font-size: 14px; line-height: 1.45; }
-.row-status { color: var(--muted-fg); font-size: 13px; }
+.row-desc { max-width: 40rem; color: var(--muted-fg); font-size: 14px; font-weight: var(--weight-text); line-height: 1.45; }
+.row-status { color: var(--quiet-fg); font-size: 13px; }
 .row-control { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px; min-width: 0; }
 @container (min-width: 32rem) { .row-control { justify-content: flex-end; } }
 dl.card { margin: 0; }
@@ -305,7 +312,7 @@ dl.card ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.25re
 .callout[data-kind="warning"], .tools-warning { border: 1px solid var(--warning-border); border-radius: var(--radius-control); background: var(--warning-bg); color: var(--fg); padding: 10px 14px; font-size: 14px; }
 .callout[data-kind="warning"] strong { color: var(--warning-fg); }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; color: var(--muted-fg); font-size: 12px; }
-details.technical > summary, details.row-details > summary { display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer; color: var(--muted-fg); font-size: 13px; list-style: none; border-radius: 4px; }
+details.technical > summary, details.row-details > summary { display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer; color: var(--quiet-fg); font-size: 13px; list-style: none; border-radius: 4px; }
 details.technical > summary::-webkit-details-marker, details.row-details > summary::-webkit-details-marker { display: none; }
 details.technical > summary::before, details.row-details > summary::before { content: ""; width: 0.75rem; height: 0.75rem; background: var(--chevron) center / 0.75rem no-repeat; transform: rotate(-90deg); transition: transform 0.15s; }
 details[open].technical > summary::before, details[open].row-details > summary::before { transform: none; }
@@ -535,7 +542,11 @@ a.files-name:hover { text-decoration: underline; }
  * the tier names quieter than the tool names they group. */
 .row-ident { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
 .row-ident > .integration-mark { margin-top: 1px; }
-#tools .group-head h2, .column-label { color: var(--secondary-fg); font-size: 13px; font-weight: var(--lz-weight-akce); }
+#tools .group-head h2, .column-label { color: var(--muted-fg); font-size: 13px; font-weight: var(--weight-label); }
+.column-hint, .menu-soon { color: var(--quiet-fg); }
+.menu-item { color: var(--muted-fg); font-weight: var(--weight-label); }
+.menu-item[aria-current="page"] { font-weight: var(--lz-weight-akce); }
+a.menu-item:hover, button.menu-item:hover, .menu-item[aria-current="page"] { color: var(--fg); }
 .integration-text { display: grid; gap: 2px; min-width: 0; }
 .integration-name { font-size: 15px; font-weight: var(--lz-weight-akce); }
 .integration-line { color: var(--muted-fg); font-size: 13px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }

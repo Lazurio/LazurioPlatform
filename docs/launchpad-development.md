@@ -1599,7 +1599,8 @@ status" (with them again), and shows:
 - no introduction (root decision 0188, Matěj 2026-10-04: no paragraph that only
   restates the page), no note under a tier and no line on when the tools were read
   (Anna 2026-10-11: each only restated what the page shows); the tier names are quieter
-  than the tool names they group (muted, 13 px, regular weight);
+  than the tool names they group (muted, 13 px, weight 500; the levels of text are in
+  decision F36's addendum of 2026-10-11);
 - on a shared Environment (the Team preset) the warning that signed-in accounts are
   shared by all operators; it is repeated in the confirmation of an enable;
 - three groups, **Required**, **Recommended** and **Optional**, in catalog order, each
