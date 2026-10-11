@@ -12,7 +12,8 @@
 // hand them over. F36's addendum of 2026-10-06 added, in version 1, the
 // export `parseShellSignedOut`: a host page with nobody signed in hands its
 // signed-out document to the same `provideShell`, which accepts it besides
-// `lazurio.shell.v1`.
+// `lazurio.shell.v1`. Decision F47 (2026-10-11) added, in version 1,
+// `<lazurio-new-tab>` with its attributes and its event `lazurio-new-tab`.
 export const shellElementInterface = Object.freeze({
   version: 1,
   /** The script an app loads, on its own origin. */
@@ -28,12 +29,23 @@ export const shellElementInterface = Object.freeze({
     ]),
     // Reserved for Buddy's bubble (root decision 0180); not defined yet.
     "lazurio-buddy": Object.freeze([] as string[]),
+    // Nová karta (decision F47 point 2): the strip the tab is for, the app's
+    // tools as JSON (`[{id, label, key?, icon?}]`), whether the address bar
+    // takes the keys, and the language.
+    "lazurio-new-tab": Object.freeze([
+      "strip",
+      "tools",
+      "focus-address",
+      "lang",
+    ]),
   }),
   /** Values of `active` on `<lazurio-column-head>`: the app the head sits
    * in, or `settings` inside the Settings its gear opens. */
   active: Object.freeze(["chat", "apps", "automate", "settings"]),
-  /** Cancelable, composed events a host may take over. */
-  events: Object.freeze(["lazurio-navigate", "lazurio-app"]),
+  /** Composed events: the first two are cancelable and a host may take them
+   * over; `lazurio-new-tab` says what Nová karta became (`detail`:
+   * `{kind: "page" | "tab", tab, view}` or `{kind: "tool", id}`). */
+  events: Object.freeze(["lazurio-navigate", "lazurio-app", "lazurio-new-tab"]),
   /** Attributes a host sets on its document (`<html>`) and their values:
    * `host` says the page provides that document itself (`provideShell`,
    * `provideAccount`) and the elements read nothing of it. */
