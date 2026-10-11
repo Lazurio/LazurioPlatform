@@ -11,11 +11,16 @@ import {
   type GithubContext,
   pilotStatus,
   runGithubCommand,
+  sharedReach,
   wiringExecutable,
 } from "../src/github/cli";
 import { findLeftovers } from "../src/github/leftovers";
 import { githubHttp } from "../src/github/oauth";
-import { pilotRefusesCuratedGh, readPilot } from "../src/github/pilot";
+import {
+  pilotRefusesCuratedGh,
+  readPilot,
+  writePilot,
+} from "../src/github/pilot";
 import { readStoredSignIn } from "../src/github/store";
 import { runToolsCommand } from "../src/tools/cli";
 import { runTool } from "../src/tools/status";
@@ -27,7 +32,7 @@ import {
 } from "./fixtures/github-pilot";
 import { bindings } from "./fixtures/machine-bindings";
 
-// `lazurio github` (decision F46): an explicit pilot switch, the Work
+// `lazurio github` (decision F48): an explicit pilot switch, the Work
 // Environment gate, the sign-in, wiring and its reversal, and what doctor and
 // the curated gh flows of F19 do while the pilot is on. Nothing changes where
 // it is off.
@@ -61,21 +66,14 @@ async function setup(options: Parameters<typeof pilotWorld>[0] = {}) {
   return { github, world, lines, context, run: github_, executable };
 }
 
-const enable = [
-  "pilot",
-  "enable",
-  "--organization",
-  "Example",
-  "--client-id",
-  exampleOrganization.clientId,
-];
+const enable = ["pilot", "enable", "--client-id", exampleOrganization.clientId];
 
 test("off: status says so, every other command but enable refuses, nothing is written", async () => {
   const { world, run } = await setup();
   expect(await run(["status"])).toEqual({
     code: 0,
     stdout:
-      "GitHub sign-in pilot (decision F46): off. gh and Git work as everywhere.",
+      "GitHub sign-in pilot (decision F48): off. gh and Git work as everywhere.",
   });
   for (const args of [
     ["sign-in"],
@@ -135,96 +133,47 @@ test("the pilot is enabled only in an individual Work Environment with an assign
   ).toMatchObject({ reason: "environment-unreadable" });
 });
 
-test("only a GitHub App's client id is accepted, once per Organization", async () => {
-  const { run } = await setup();
+test("one shared App is configured from the handover; no per-Organization sign-ins can be added", async () => {
+  const { world, run } = await setup();
   for (const id of ["Ov23liFixtureOAuth01", "0123456789abcdef0123", "Iv1"])
     expect(
       JSON.parse(
-        (
-          await run([
-            "pilot",
-            "enable",
-            "--organization",
-            "Example",
-            "--client-id",
-            id,
-            "--json",
-          ])
-        ).stdout as string,
+        (await run(["pilot", "enable", "--client-id", id, "--json"]))
+          .stdout as string,
       ),
     ).toMatchObject({ reason: "client-id-invalid" });
-  expect(
-    JSON.parse(
-      (
-        await run([
-          "pilot",
-          "enable",
-          "--organization",
-          "bad_login",
-          "--client-id",
-          exampleOrganization.clientId,
-          "--json",
-        ])
-      ).stdout as string,
-    ),
-  ).toMatchObject({ reason: "organization-invalid" });
-  expect(await run(enable)).toMatchObject({ code: 0 });
+  expect((await run(enable)).code).toBe(0);
+  expect(await readPilot(world.paths)).toMatchObject({
+    kind: "on",
+    config: {
+      application: { login: "example", clientId: exampleOrganization.clientId },
+      wiring: null,
+    },
+  });
   expect(
     JSON.parse((await run([...enable, "--json"])).stdout as string),
   ).toMatchObject({ reason: "pilot-on" });
-  expect(
-    JSON.parse(
-      (
-        await run([
-          "pilot",
-          "add",
-          "--organization",
-          "example",
-          "--client-id",
-          "Iv23liFixture0000009",
-          "--json",
-        ])
-      ).stdout as string,
-    ),
-  ).toMatchObject({ reason: "organization-configured" });
-  expect(
-    JSON.parse(
-      (
-        await run([
-          "pilot",
-          "add",
-          "--organization",
-          "Other",
-          "--client-id",
-          exampleOrganization.clientId,
-          "--json",
-        ])
-      ).stdout as string,
-    ),
-  ).toMatchObject({ reason: "client-id-configured" });
-  expect(
-    await run([
+  for (const args of [
+    [
       "pilot",
       "add",
       "--organization",
       "Other",
       "--client-id",
-      "Iv23liFixture0000002",
-    ]),
-  ).toMatchObject({
-    code: 0,
-  });
-  expect(
-    JSON.parse(
-      (await run(["pilot", "remove", "--organization", "Example", "--json"]))
-        .stdout as string,
-    ),
-  ).toMatchObject({
-    reason: "owning-organization",
-  });
-  expect(
-    await run(["pilot", "remove", "--organization", "Other"]),
-  ).toMatchObject({ code: 0 });
+      exampleOrganization.clientId,
+    ],
+    ["pilot", "remove", "--organization", "Other"],
+    ["sign-in", "--organization", "Other"],
+    [
+      "pilot",
+      "enable",
+      "--organization",
+      "Other",
+      "--client-id",
+      exampleOrganization.clientId,
+    ],
+  ])
+    expect((await run(args)).code).toBe(2);
 });
 
 async function signIn(run: Awaited<ReturnType<typeof setup>>["run"]) {
@@ -237,11 +186,12 @@ test("the sign-in shows the code, then who is signed in and the next step; no to
   const result = await signIn(run);
   expect(result.code).toBe(0);
   expect(lines[0]).toBe(
-    "Sign in to GitHub for Example: open https://github.com/login/device in your own browser (not this Environment's browser) and enter the code WDJB-MJHT.",
+    "Sign in to GitHub for example: open https://github.com/login/device in your own browser (not this Environment's browser) and enter the code WDJB-MJHT.",
   );
   expect(result.stdout).toBe(
     [
-      "Signed in to GitHub as example for Example only (installation 777). The sign-in renews itself while it is used at least every six months.",
+      "Signed in to GitHub as example; owning installation Example (777). The sign-in renews itself while it is used at least every six months.",
+      sharedReach,
       "Next: lazurio github pilot wire",
     ].join("\n"),
   );
@@ -254,13 +204,11 @@ test("the sign-in shows the code, then who is signed in and the next step; no to
   }
   expect(JSON.parse(status.stdout as string)).toMatchObject({
     state: "on",
-    organizations: [
-      {
-        login: "Example",
-        owning: true,
-        signIn: { state: "signed-in", account: "example", installationId: 777 },
-      },
-    ],
+    application: {
+      login: "example",
+      signIn: { state: "signed-in", account: "example", installationId: 777 },
+    },
+    reach: "user-and-app-intersection",
     wiring: { state: "not-wired" },
   });
   // JSON lines while it runs.
@@ -333,11 +281,10 @@ test("wire needs the owning sign-in and a compiled executable; unwire and sign-o
     JSON.parse((await run(["pilot", "disable", "--json"])).stdout as string),
   ).toMatchObject({
     reason: "signed-in",
-    organizations: ["Example"],
   });
   const out = await run(["sign-out"]);
   expect(out.stdout).toBe(
-    "Signed out of GitHub for Example here; GitHub revoked both tokens and tells you so by email.",
+    "Signed out of GitHub for example here; GitHub revoked both tokens and tells you so by email.",
   );
   expect(await run(["pilot", "disable"])).toEqual({
     code: 0,
@@ -372,7 +319,7 @@ test("while gh and Git are wired, the curated gh sign-in and sign-out of F19 are
   expect(await pilotRefusesCuratedGh(world.env)).toBeUndefined();
   await fakeGh(world.bin);
   expect((await run(["pilot", "wire"])).code).toBe(0);
-  expect(await pilotRefusesCuratedGh(world.env)).toEqual({ owning: "Example" });
+  expect(await pilotRefusesCuratedGh(world.env)).toEqual({ owning: "example" });
   const context = {
     env: world.env,
     platform: process.platform,
@@ -392,7 +339,7 @@ test("while gh and Git are wired, the curated gh sign-in and sign-out of F19 are
     });
   }
   const text = await runToolsCommand(["login", "gh"], context);
-  expect(text.text).toContain("lazurio github sign-in --organization Example");
+  expect(text.text).toContain("lazurio github sign-in");
 });
 
 test("left-over account-wide credentials are named, never their values", async () => {
@@ -472,7 +419,7 @@ test("doctor adds the pilot's rows only while it is on, in its contract", async 
       id: "github-sign-in",
       outcome: "warn",
       reason: "github-not-signed-in",
-      context: { organization: "Example", signIn: "signed-out" },
+      context: { organization: "example", signIn: "signed-out" },
     },
     { id: "github-sign-in", outcome: "warn", reason: "github-not-wired" },
     {
@@ -492,22 +439,20 @@ test("doctor adds the pilot's rows only while it is on, in its contract", async 
     githubChecks({
       kind: "github-pilot",
       state: "on",
-      organizations: [
-        {
-          login: "Example",
-          clientId: exampleOrganization.clientId,
-          owning: true,
-          signIn: {
-            state: "signed-in",
-            account: "example",
-            installationId: 1,
-            accessTokenExpiresAt: "2026-10-10T16:00:00.000Z",
-            refreshTokenExpiresAt: "2027-04-10T16:00:00.000Z",
-            signedInAt: "2026-10-10T08:00:00.000Z",
-            refreshedAt: null,
-          },
+      reach: "user-and-app-intersection",
+      application: {
+        login: "Example",
+        clientId: exampleOrganization.clientId,
+        signIn: {
+          state: "signed-in",
+          account: "example",
+          installationId: 1,
+          accessTokenExpiresAt: "2026-10-10T16:00:00.000Z",
+          refreshTokenExpiresAt: "2027-04-10T16:00:00.000Z",
+          signedInAt: "2026-10-10T08:00:00.000Z",
+          refreshedAt: null,
         },
-      ],
+      },
       wiring: {
         state: "broken",
         gh: "broken",
@@ -534,30 +479,18 @@ test("doctor adds the pilot's rows only while it is on, in its contract", async 
   ]);
 });
 
-test("removing an Organization or the switch never strands a pair a killed write left aside", async () => {
+test("disabling the switch never strands a pair a killed write left aside", async () => {
   const { world, run } = await setup();
   expect((await run(enable)).code).toBe(0);
-  expect(
-    (
-      await run([
-        "pilot",
-        "add",
-        "--organization",
-        "Other",
-        "--client-id",
-        "Iv23liFixture0000002",
-      ])
-    ).code,
-  ).toBe(0);
-  // A first sign-in to Other killed between its sync and its rename.
+  // A first shared sign-in killed between its sync and its rename.
   await mkdir(world.paths.stateDirectory, { recursive: true, mode: 0o700 });
   const now = new Date();
   await writeFile(
-    join(world.paths.stateDirectory, ".other.json.tmp-0123456789abcdef"),
+    join(world.paths.stateDirectory, ".sign-in.json.tmp-0123456789abcdef"),
     JSON.stringify({
-      schema: "lazurio.github-sign-in.v1",
-      organization: { login: "Other", id: 5 },
-      clientId: "Iv23liFixture0000002",
+      schema: "lazurio.github-sign-in.v2",
+      organization: { login: "example", id: 4242 },
+      clientId: exampleOrganization.clientId,
       installationId: 9,
       account: { login: "example", id: 12345 },
       accessToken: "ghu_fake-access-aside",
@@ -572,22 +505,34 @@ test("removing an Organization or the switch never strands a pair a killed write
     { mode: 0o600 },
   );
   expect(
-    JSON.parse(
-      (await run(["pilot", "remove", "--organization", "Other", "--json"]))
-        .stdout as string,
-    ),
+    JSON.parse((await run(["pilot", "disable", "--json"])).stdout as string),
   ).toMatchObject({ kind: "blocked", reason: "signed-in" });
   // It was put in place, so sign-out finds, revokes and removes it.
   expect(
-    JSON.parse(
-      (await run(["sign-out", "--organization", "Other", "--json"]))
-        .stdout as string,
-    ),
+    JSON.parse((await run(["sign-out", "--json"])).stdout as string),
   ).toMatchObject({
     kind: "signed-out",
-    organization: "Other",
+    organization: "example",
+  });
+  expect(await run(["pilot", "disable"])).toMatchObject({ code: 0 });
+});
+
+test("unknown configuration is preserved and a changed owning Organization cannot silently reuse the sign-in", async () => {
+  const { world, run } = await setup();
+  expect((await run(enable)).code).toBe(0);
+  const pilot = await readPilot(world.paths);
+  if (pilot.kind !== "on") throw new Error("pilot off");
+  await writePilot(world.paths, {
+    ...pilot.config,
+    application: { ...pilot.config.application, login: "Other" },
   });
   expect(
-    await run(["pilot", "remove", "--organization", "Other"]),
-  ).toMatchObject({ code: 0 });
+    JSON.parse((await run(["sign-in", "--json"])).stdout as string),
+  ).toMatchObject({ reason: "owning-organization-changed" });
+  const unknown = '{"schema":"unknown-pilot"}';
+  await writeFile(world.paths.config, unknown);
+  expect(
+    JSON.parse((await run(["sign-in", "--json"])).stdout as string),
+  ).toMatchObject({ reason: "pilot-unreadable" });
+  expect(await readFile(world.paths.config, "utf8")).toBe(unknown);
 });

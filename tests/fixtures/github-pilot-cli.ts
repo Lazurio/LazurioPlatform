@@ -1,4 +1,4 @@
-// The `lazurio github gh|credential` entry of a wired pilot (decision F46),
+// The `lazurio github gh|credential` entry of a wired pilot (decision F48),
 // pointed at the fake GitHub of LAZURIO_TEST_GITHUB_ORIGIN: what the
 // launcher script and Git's helper line run in the integration tests, through
 // a real shell, a real Git and a stand-in of the official gh.

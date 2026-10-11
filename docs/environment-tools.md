@@ -5,7 +5,7 @@
 Proposed bounded pilot procedure under accepted decision 0144. Apart from the curated
 installation and login of three catalog tools (decision F19, below), the
 Environment vault (decision F43, below), Executor (decision F44, below) and the
-pilot of the Organization-scoped GitHub sign-in (decision F46, below), this
+pilot of the shared GitHub App sign-in (decision F48, below), this
 document does not claim an implemented tool installer, authenticated harness or
 usable Environment.
 Machines delivers the online Machine and a first installation of the Platform; local
@@ -657,77 +657,66 @@ Integrations connected directly through the MCP server `executor` (tools `skills
 check `lazurio executor status`, leave a repair to the Operator's instruction, and an
 externally visible write through an Integration is a Publication.
 
-### The Organization-scoped GitHub sign-in (pilot, decision F46)
+### The shared GitHub App sign-in (pilot, decision F48)
 
-A pilot, behind an explicit switch, of the GitHub sign-in that reaches only a
-Work Environment's Organizations (root decision 0192): each Organization owns a
-private GitHub App used only for people's sign-in, the person signs in with its
-device flow in their own browser, and `gh` and Git use the sign-in of each
-repository's owner, over HTTPS instead of an account SSH key. Matěj decided the
-design on 2026-10-10 on condition that it is tried on one Work Environment in
-real use first; the reasons, the Owner's one-time setup of the app and what the
-pilot measures are in [F46](decisions.md#f46--the-organization-scoped-github-sign-in-of-a-work-environment-pilot).
-Without the switch nothing below acts and nothing of this section changes an
-Environment.
+The opt-in pilot uses the existing Lazurio for GitHub App. One authorization
+acts as the assigned human across every installation available to that person.
+GitHub enforces the intersection of user rights, App permissions and installation
+repository selection. The owning Organization is a required installation check,
+not a token restriction. Full Environment sharing includes this entire capability.
+The selected contract, alternatives, failures and real acceptance gates are in
+[F48](decisions.md#f48--one-shared-github-app-sign-in-in-a-work-environment-pilot).
+No other App is registered and no personal access token is used.
 
-- `lazurio github pilot enable --organization <login> --client-id <Iv…>`
-  turns it on in an individual Work Environment (`hosted-organization-personal`
-  whose handover names its assigned operator) for the owning Organization; the
-  client id of the Organization's sign-in app is public. `pilot add` and `pilot
-  remove` record or forget another Organization's app; `pilot disable` turns it
-  off once unwired and signed out. Each refuses, exit 2, with a fixed reason
-  (`not-hosted`, `not-work-environment`, `subject-unknown`,
-  `environment-unreadable`, `client-id-invalid`, `pilot-on`, `pilot-off`, …).
-- `lazurio github sign-in [--organization <login>] [--json]` shows the code for
-  `https://github.com/login/device` (to be entered in the person's own browser,
-  not the Environment's), waits, checks the account (the assigned operator) and
-  the installation (exactly that Organization's, of that app), and keeps the
-  tokens owner-only; Ctrl-C cancels. `sign-out` revokes them at GitHub and
-  removes them. Exit 0 signed in, 1 not, 2 refused.
-- `lazurio github pilot wire` (needs the owning Organization signed in) makes
-  `~/.local/bin/gh` a launcher of the official gh, which is kept beside it, and
-  adds the pilot's include to the user's global Git configuration (the helper
-  for `https://github.com`, `useHttpPath`, `insteadOf` for `git@github.com:`
-  and `ssh://git@github.com/`). `pilot unwire` gives both back exactly as they
-  were, and cleans up what an interrupted wiring left even without its
-  record or with the pilot off. While wired, `lazurio tools login gh` and
-  `tools logout gh` are
-  refused (`github-sign-in-pilot`): before wiring they are the migration step
-  (`tools logout gh` removes this Environment's SSH key from the account and
-  gh's own sign-in) and afterwards the rollback.
-- `lazurio github status [--json]` reads locally: the sign-ins (as whom, until
-  when; never a token), the wiring and the account-wide credentials still left
-  (gh's own sign-in, Git's credential store, token variables, another Git
-  helper; `lazurio doctor --sign-in` also tries `ssh -T git@github.com`).
-  Doctor's `github-sign-in` and `github-leftover` rows appear only while the
-  switch is on and are never `fail`.
-
-State on disk, all of the Environment user:
+- `lazurio github pilot enable --client-id <Iv…>` enables the pilot only in an
+  assigned individual Work Environment. Its owning Organization comes from the
+  handover. The App's client id is public. There is one application configuration,
+  with no per-Organization add/remove command or sign-in selector. With the switch
+  off, the ordinary tooling flow is unchanged.
+- `lazurio github sign-in [--json]` shows a code for
+  `https://github.com/login/device` to approve in the person's own browser.
+  It checks the assigned account id and the App's active owning installation.
+  Other installations of that same App are accepted. Expiring token pairs are
+  retained owner-only; Ctrl-C cancels. `sign-out` removes the local pair and
+  requests revocation, explicitly reporting whether GitHub confirmed it.
+- `lazurio github pilot wire` requires that sign-in, preserves official gh and
+  installs the reversible launcher and Git include. gh and HTTPS Git use the
+  same token chain for every repository owner. GitHub's denial propagates; no
+  other credential is substituted. Git's `quit=1` prevents helper/prompt fallback.
+  Existing GitHub SSH remotes are rewritten to HTTPS by the include.
+- `pilot unwire` restores the prior gh entry and Git config, preserving the
+  sign-in. `pilot disable` refuses until unwired and signed out. While wired,
+  F19's tool login/logout directs the person to this pilot's commands instead.
+- `lazurio github status [--json]` and Doctor report the one sign-in, owning
+  installation, expiry, wiring and leftover account credentials without values.
+  This is local state, not a fresh access inventory. `doctor --sign-in` additionally
+  probes GitHub SSH. Existing credentials are never silently removed.
 
 ```text
 ${XDG_CONFIG_HOME:-~/.config}/lazurio/github/            0700
-  pilot.json        0600  the switch: Organizations, and what wire replaced
-  pilot.gitconfig   0600  the Git include of a wired pilot
+  pilot.json        0600  one App, owning installation and reversible wiring
+  pilot.gitconfig   0600  the Git include while wired
 ${XDG_STATE_HOME:-~/.local/state}/lazurio/github/        0700
-  <login>.json      0600  one Organization's sign-in (login in lower case):
-                          its tokens and what the sign-in checked
-  <login>.lock      0600  its kernel lock (refresh, sign-in, sign-out)
-  gh                0755  the official gh binary that was at the entry, kept
-                          while wired
-~/.local/bin/gh           the launcher while wired (marked
-                          "# lazurio-github-sign-in-pilot v1")
+  sign-in.json      0600  one expiring user token/refresh pair
+  sign-in.lock      0600  one kernel lock for all callers
+  gh                0755  preserved official gh binary when moved from its entry
+~/.local/bin/gh           the marked launcher while wired
 ```
 
-The tokens renew themselves ten minutes before they end, under the lock, so
-commands running at once refresh only once; a sign-in that GitHub refuses to
-renew, or that was not used for six months, ends and asks to sign in again.
-`gh` and `git` never start a sign-in themselves: a configured Organization
-without its sign-in fails closed with the command that signs in (gh exit 4,
-Git `quit=1` so it neither asks another helper nor prompts), and a repository
-of another owner gets the owning Organization's sign-in, whose private
-resources GitHub refuses. `gh auth git-credential` answers as the pilot's
-helper, so Git told to ask gh (Lazurio's own content installation does) gets
-the same answer.
+The pilot's version-2 configuration/token shapes replace unpublished experimental
+version-1 shapes. Unknown configuration is retained and refused, not silently
+converted. The shared chain is refreshed under its kernel lock ten minutes before
+expiry; concurrent processes re-read it and refresh once. Atomic whole-file writes
+and interrupted-write recovery preserve the pair. A refused/expired refresh asks
+for a new human sign-in; an outage retains local state and can use a still-valid
+token. A refresh invalidates the old access token, so a concurrent long operation
+can fail; the real pilot must measure this limitation and revocation scope.
+
+The wrapper's token-display and host checks prevent accidental disclosure, not
+access by the Environment's own user or their agents. Permissions are GitHub's;
+this module is neither a sandbox nor an additional Organization ACL. Device Flow
+and installation permission approvals use the existing App's normal provider
+settings and human authentication. Real pilot acceptance precedes rollout.
 
 ### The standard path (decision 0161, point 6)
 

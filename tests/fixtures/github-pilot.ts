@@ -13,7 +13,7 @@ import type { MachineBinding } from "../../src/folder/machine-binding";
 import { executionOs } from "../../src/folder/platform";
 import { type PresetName, presetProfile } from "../../src/folder/presets";
 import {
-  type PilotOrganization,
+  type PilotApplication,
   type PilotPaths,
   pilotPaths,
   pilotSchema,
@@ -23,7 +23,7 @@ import { signInSchema, writeStoredSignIn } from "../../src/github/store";
 import type { FakeGithub } from "./fake-github";
 import { bindings } from "./machine-bindings";
 
-// A home of an Environment user for the GitHub sign-in pilot (decision F46):
+// A home of an Environment user for the GitHub sign-in pilot (decision F48):
 // its own HOME, PATH and Git configuration (never the machine's), and a
 // hosted Folder of the chosen preset for the Work Environment gate.
 
@@ -98,22 +98,22 @@ export async function pilotWorld(
   });
 }
 
-export const exampleOrganization: PilotOrganization = Object.freeze({
+export const exampleOrganization: PilotApplication = Object.freeze({
   login: "Example",
   clientId: "Iv23liFixture0000001",
 });
-export const otherOrganization: PilotOrganization = Object.freeze({
+export const otherOrganization: PilotApplication = Object.freeze({
   login: "Other",
   clientId: "Iv23liFixture0000002",
 });
 
 export async function enablePilot(
   world: PilotWorld,
-  organizations: readonly PilotOrganization[] = [exampleOrganization],
+  application: PilotApplication = exampleOrganization,
 ): Promise<void> {
   await writePilot(world.paths, {
     schema: pilotSchema,
-    organizations,
+    application,
     wiring: null,
   });
 }
@@ -122,7 +122,7 @@ export async function enablePilot(
 export async function storeSignIn(
   world: PilotWorld,
   github: FakeGithub,
-  organization: PilotOrganization,
+  organization: PilotApplication,
   times: Readonly<{
     now?: number;
     accessMs?: number;

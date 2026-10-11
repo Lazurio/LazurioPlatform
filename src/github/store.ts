@@ -16,23 +16,17 @@ import {
   ensurePrivateDirectory,
   isAppClientId,
   isGithubLogin,
-  type PilotOrganization,
+  type PilotApplication,
   type PilotPaths,
   sameLogin,
 } from "./pilot";
 
-// One Organization's sign-in on this Environment (decision F46): the user
-// access token of that Organization's sign-in app, its refresh token and
-// what the sign-in checked, in one owner-only file per Organization. The
-// access token lives eight hours, the refresh token six months; each refresh
-// gives a new pair and ends the old one at once, so a refresh runs only under
-// the Organization's kernel lock and re-reads the file first: two processes
-// that refreshed with the same refresh token would end the sign-in. The file
-// is replaced whole (temporary file, sync, rename), so a reader without the
-// lock always sees one complete pair. No token is ever written anywhere else:
-// not to the Folder, Git config, a log, the journal or an error.
+// One App token/refresh chain in this Environment (F48). The Organization
+// stored beside it identifies the required installation at sign-in; it does
+// not narrow the shared App token. All callers share one kernel lock and
+// atomic whole-pair replacement. No token enters the Folder, logs or errors.
 
-export const signInSchema = "lazurio.github-sign-in.v1";
+export const signInSchema = "lazurio.github-sign-in.v2";
 
 export type StoredSignIn = Readonly<{
   schema: typeof signInSchema;
@@ -56,11 +50,11 @@ export const expiryGraceMs = 30 * 1000;
 /** How long a caller waits for another process's refresh or sign-out. */
 export const lockWaitMs = 30_000;
 
-const fileName = (login: string) => `${login.toLowerCase()}.json`;
-export const signInFile = (paths: PilotPaths, login: string) =>
-  join(paths.stateDirectory, fileName(login));
-const lockFile = (paths: PilotPaths, login: string) =>
-  join(paths.stateDirectory, `${login.toLowerCase()}.lock`);
+const fileName = "sign-in.json";
+export const signInFile = (paths: PilotPaths) =>
+  join(paths.stateDirectory, fileName);
+const lockFile = (paths: PilotPaths) =>
+  join(paths.stateDirectory, "sign-in.lock");
 
 const iso = (time: number) => new Date(time).toISOString();
 const isTime = (value: unknown): value is string =>
@@ -137,13 +131,13 @@ export function parseStoredSignIn(input: unknown): StoredSignIn {
   });
 }
 
-/** The sign-in of one Organization: none, the file, or `unreadable` when a
+/** The shared App sign-in bound to the expected owner: none, the file, or `unreadable` when a
  * file is there that is not one (it is never used, never repaired). */
 export async function readStoredSignIn(
   paths: PilotPaths,
   login: string,
 ): Promise<StoredSignIn | null | "unreadable"> {
-  const path = signInFile(paths, login);
+  const path = signInFile(paths);
   let text: string;
   try {
     const entry = await lstat(path);
@@ -169,27 +163,21 @@ export async function writeStoredSignIn(
   await ensurePrivateDirectory(paths.stateDirectory);
   await writeDurableFile(
     paths.stateDirectory,
-    fileName(checked.organization.login),
+    fileName,
     Buffer.from(`${JSON.stringify(checked, null, 2)}\n`),
   );
 }
 
-export async function removeStoredSignIn(
-  paths: PilotPaths,
-  login: string,
-): Promise<void> {
-  await rm(signInFile(paths, login), { force: true });
+export async function removeStoredSignIn(paths: PilotPaths): Promise<void> {
+  await rm(signInFile(paths), { force: true });
   await syncDirectory(paths.stateDirectory).catch(() => undefined);
 }
 
-// The temporary files of one Organization's writes (`writeDurableFile`).
-const temporaryPattern = (login: string) =>
-  new RegExp(
-    `^\\.${login.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.json\\.tmp-[0-9a-f]{16}$`,
-  );
+// Only temporary writes of this single App chain, not arbitrary state files.
+const temporaryPattern = /^\.sign-in\.json\.tmp-[0-9a-f]{16}$/;
 
-/** This Organization's temporary files, with the time of the sign-in each
- * holds when it is a whole, readable one of this Organization (a write killed
+/** The shared chain's temporary files, with the time of the sign-in each
+ * holds when it is a whole, readable one bound to the expected owner (a write killed
  * after its sync and before its rename), else null; newest first. */
 async function interruptedWrites(
   paths: PilotPaths,
@@ -201,7 +189,7 @@ async function interruptedWrites(
   } catch {
     return [];
   }
-  const pattern = temporaryPattern(login);
+  const pattern = temporaryPattern;
   const found: { name: string; time: number | null }[] = [];
   for (const name of names) {
     if (!pattern.test(name)) continue;
@@ -220,11 +208,11 @@ async function interruptedWrites(
   return found.sort((a, b) => (b.time ?? -1) - (a.time ?? -1));
 }
 
-/** Under the Organization's lock only (every writer of its file holds it): a
+/** Under the shared chain's lock only (every writer of its file holds it): a
  * killed refresh may have left the one working pair in a temporary file
  * while the file still holds the pair GitHub ended. The newest whole one
  * newer than the file is put in place; every other temporary file of this
- * Organization goes. Another Organization's files are never touched. */
+ * chain goes. Unrelated state files are never touched. */
 async function settleInterruptedWrites(
   paths: PilotPaths,
   login: string,
@@ -240,14 +228,14 @@ async function settleInterruptedWrites(
   const promote =
     newest?.time != null && newest.time > currentTime ? newest.name : undefined;
   if (promote !== undefined)
-    await rename(join(paths.stateDirectory, promote), signInFile(paths, login));
+    await rename(join(paths.stateDirectory, promote), signInFile(paths));
   for (const write of writes)
     if (write.name !== promote)
       await rm(join(paths.stateDirectory, write.name), { force: true });
   await syncDirectory(paths.stateDirectory).catch(() => undefined);
 }
 
-/** Under the Organization's lock: the sign-in as its writes left it, an
+/** Under the shared chain's lock: the sign-in as its writes left it, an
  * interrupted one settled first. */
 export async function readSettledSignIn(
   paths: PilotPaths,
@@ -257,16 +245,15 @@ export async function readSettledSignIn(
   return readStoredSignIn(paths, login);
 }
 
-/** The kernel lock of one Organization's sign-in (src/platform/flock.ts):
+/** The kernel lock of this Environment's one App sign-in (src/platform/flock.ts):
  * held by a refresh, the final write of a sign-in and a sign-out. A crashed
  * holder never blocks the next one; each holder re-reads the file. */
-export async function lockOrganization(
+export async function lockSignIn(
   paths: PilotPaths,
-  login: string,
   timeoutMs = lockWaitMs,
 ): Promise<FileLock> {
   await ensurePrivateDirectory(paths.stateDirectory);
-  return acquireFileLock(lockFile(paths, login), { timeoutMs });
+  return acquireFileLock(lockFile(paths), { timeoutMs });
 }
 
 export type SignInToken =
@@ -314,15 +301,15 @@ const handOut = (signIn: StoredSignIn, refreshed: boolean): SignInToken =>
     refreshed,
   });
 
-/** The access token of one Organization's sign-in, refreshed first when it
+/** The access token of this Environment's shared App sign-in, refreshed first when it
  * ends within `refreshMarginMs`. Never starts a sign-in: a missing or ended
  * one is `signed-out` (fail closed, the caller says what to do). A refresh
  * that GitHub refuses removes the sign-in; one that does not reach GitHub
  * keeps it and hands out the current token while it still works. */
-export async function organizationToken(
+export async function applicationToken(
   input: Readonly<{
     paths: PilotPaths;
-    organization: PilotOrganization;
+    organization: PilotApplication;
     http: GithubHttp;
     now: () => number;
     lockTimeoutMs?: number;
@@ -350,11 +337,7 @@ export async function organizationToken(
 
   let lock: FileLock;
   try {
-    lock = await lockOrganization(
-      paths,
-      organization.login,
-      input.lockTimeoutMs ?? lockWaitMs,
-    );
+    lock = await lockSignIn(paths, input.lockTimeoutMs ?? lockWaitMs);
   } catch {
     // Someone else refreshes: the current token while it still works.
     return fresh(first, now(), expiryGraceMs)
@@ -369,7 +352,7 @@ export async function organizationToken(
     if (fresh(current, now(), refreshMarginMs)) return handOut(current, false);
     if (Date.parse(current.refreshTokenExpiresAt) <= now()) {
       if (fresh(current, now(), expiryGraceMs)) return handOut(current, false);
-      await removeStoredSignIn(paths, organization.login);
+      await removeStoredSignIn(paths);
       return signedOut("sign-in-expired");
     }
     let pair: Awaited<ReturnType<typeof refreshTokenPair>>;
@@ -388,7 +371,7 @@ export async function organizationToken(
         error instanceof GithubOAuthError ||
         error instanceof GithubTokenNotExpiring
       ) {
-        await removeStoredSignIn(paths, organization.login);
+        await removeStoredSignIn(paths);
         return signedOut("refresh-rejected");
       }
       if (!(error instanceof GithubRequestError)) throw error;

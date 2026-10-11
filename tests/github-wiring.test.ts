@@ -35,14 +35,13 @@ import { type FakeGithub, startFakeGithub } from "./fixtures/fake-github";
 import {
   exampleOrganization,
   fakeGh,
-  otherOrganization,
   type PilotWorld,
   pilotWorld,
   storeSignIn,
 } from "./fixtures/github-pilot";
 import { runChild } from "./fixtures/run-child";
 
-// How gh and Git reach the pilot's sign-ins (decision F46) and are given
+// How gh and Git reach the pilot's sign-ins (decision F48) and are given
 // back: the launcher at ~/.local/bin/gh with the official gh kept beside it,
 // and one Git include for https://github.com — exercised with a real shell
 // and a real Git against the fake GitHub.
@@ -83,7 +82,7 @@ async function setup(entry: "file" | "link" | "absent" = "file") {
   } as Record<string, string>;
   const config: PilotConfig = {
     schema: pilotSchema,
-    organizations: [exampleOrganization, otherOrganization],
+    application: exampleOrganization,
     wiring: null,
   };
   await writePilot(world.paths, config);
@@ -212,15 +211,12 @@ test("wire keeps the official gh, puts the launcher first and moves Git to HTTPS
   // Another Organization's repository: the owning sign-in, GitHub decides.
   const foreign = await credentialFill(env, github, "Foreign/private.git");
   expect(foreign.stdout).toContain(`password=${pair.access}\n`);
-  expect(foreign.stderr).toContain(
-    "Foreign is not an Organization this Environment is signed in to",
-  );
-  // A configured Organization without its sign-in: Git stops, never prompts
-  // and never asks another helper.
-  const unsigned = await credentialFill(env, github, "Other/app.git");
-  expect(unsigned.exitCode).not.toBe(0);
-  expect(unsigned.stdout).not.toContain("password=");
-  expect(unsigned.stderr).toContain("not signed in to GitHub for Other");
+  expect(foreign.stderr).toBe("");
+  // Another owner uses exactly the same chain. GitHub, not this helper,
+  // decides whether an actual repository request is permitted.
+  const other = await credentialFill(env, github, "Other/app.git");
+  expect(other.exitCode).toBe(0);
+  expect(other.stdout).toContain(`password=${pair.access}\n`);
   // Git told to ask gh itself, as Lazurio's content installation does: the
   // launcher answers with the owner's sign-in, never gh's own.
   const viaGh = await credentialFill(
@@ -399,7 +395,7 @@ test("the launcher answers for gh while the sign-in is gone: local commands only
     record,
   });
   if (outcome.kind !== "wired") throw new Error("not wired");
-  await removeStoredSignIn(world.paths, "Example");
+  await removeStoredSignIn(world.paths);
   const environment = {
     ...env,
     LAZURIO_TEST_GITHUB_ORIGIN: github.origins.web,

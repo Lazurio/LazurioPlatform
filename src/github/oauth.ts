@@ -1,4 +1,4 @@
-// GitHub's side of the Organization-scoped sign-in (decision F46): the OAuth
+// GitHub's side of the shared App sign-in (decision F48): the OAuth
 // device flow of a GitHub App, the refresh of its expiring user access tokens,
 // the two reads that check a sign-in (`GET /user`, `GET /user/installations`)
 // and the revocation of its tokens. Every request needs only the app's public
@@ -93,7 +93,7 @@ export class GithubOAuthError extends Error {
 }
 
 /** A token answer without a refresh token: the app hands out tokens that
- * never expire, which this pilot refuses (decision F46). */
+ * never expire, which this pilot refuses (decision F48). */
 export class GithubTokenNotExpiring extends Error {
   constructor() {
     super("github-token-not-expiring");
@@ -373,7 +373,7 @@ export type AppInstallation = Readonly<{
 }>;
 
 /** `GET /user/installations`: the installations of this app the token can
- * reach. For a private app of an Organization it is that one installation. */
+ * reach. A shared App may expose several; the caller checks the owning one. */
 export async function readInstallations(
   http: GithubHttp,
   accessToken: string,
