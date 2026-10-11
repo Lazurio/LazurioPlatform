@@ -3,7 +3,7 @@ import {
   canonicalEndpoint,
   type IntegrationsCatalog,
 } from "./catalog-schema";
-import type { ComposioAccount } from "./composio-source";
+import { type ComposioAccount, composioManageUrl } from "./composio-source";
 import {
   type AppTool,
   choosePath,
@@ -92,6 +92,10 @@ export type IntegrationAccount = Readonly<{
   state: AccountState;
   /** On another way than the app's one path: not used by the agents. */
   spare: boolean;
+  /** Where the person sees and changes a Composio account: the app's page in
+   * their Composio organization (`composioManageUrl`; Composio has no page
+   * of one account). Null for an account in Executor. */
+  manage: string | null;
 }>;
 
 export type IntegrationApp = Readonly<{
@@ -157,6 +161,10 @@ export type MergeInput = Readonly<{
   policy: ComposioPolicy;
   /** Composio installed, signed in and on for agents. */
   composioReady: boolean;
+  /** The organization of the person's Composio sign-in (`current_org_name`
+   * of `composio whoami`, read by the sign-in probe of Settings → Tools);
+   * null where it is not known. */
+  composioOrganization: string | null;
   tools: ToolsReading;
   executor: ExecutorReading;
   composio: ComposioReadingState;
@@ -255,6 +263,7 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
           label: connection.label,
           state: connection.state,
           spare: false,
+          manage: null,
         });
       direct.set(app.id, accounts);
     }
@@ -272,6 +281,7 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
         label: account.alias,
         state: account.state,
         spare: false,
+        manage: composioManageUrl(input.composioOrganization, account.toolkit),
       });
       viaComposio.set(account.toolkit, accounts);
     }

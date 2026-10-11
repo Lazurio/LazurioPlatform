@@ -42,6 +42,9 @@ export type FakeComposioState = {
   accounts: FakeAccount[];
   /** The preview's stand-in: a link's account is active at once. */
   activateOnLink?: boolean;
+  /** The current organization `whoami` names: `First` by default, none
+   * where null. */
+  organization?: string | null;
 };
 
 /** Executor's console token: it may reach the fake Executor only. */

@@ -4,7 +4,10 @@
 // `ts/packages/cli`, read 2026-10-08 and 2026-10-09):
 // - `connections list` prints every status, an alias only when the toolkit
 //   has more than one account, and no ids;
-// - `link <toolkit> --list` prints the active accounts with their ids;
+// - `link <toolkit> --list` prints the active accounts with their ids, word
+//   ids and aliases;
+// - `whoami` names the account and its current organization (`First`, or
+//   the state's `organization`; none where that is null);
 // - `link --no-wait --no-browser [--alias]` prints the pending connection
 //   as JSON. It refuses an alias in use before it creates anything, but a
 //   second account without an alias only after it created the link, which
@@ -93,11 +96,13 @@ if (command === "--version") {
 
 if (command === "whoami") {
   requireAuth();
+  const organization =
+    state.organization === undefined ? "First" : state.organization;
   console.log(
     JSON.stringify({
       account_type: "human",
       email: "op@example.com",
-      current_org_name: "First",
+      ...(organization === null ? {} : { current_org_name: organization }),
       enhanced_controls_enabled: null,
     }),
   );

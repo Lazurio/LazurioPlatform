@@ -166,6 +166,7 @@ test("the tabs count what is connected and the custom servers; expired sign-ins 
             label: null,
             state: "expired",
             spare: false,
+            manage: null,
           },
         ],
       }),
@@ -270,6 +271,7 @@ test("a connected card says its one way quietly; Composio's form says who makes 
         label: null,
         state: "connected",
         spare: false,
+        manage: null,
       },
     ],
   });
@@ -302,6 +304,7 @@ test("a connected card says its one way quietly; Composio's form says who makes 
             label: "Work",
             state: "pending",
             spare: false,
+            manage: null,
           },
         ],
       }),
@@ -411,7 +414,10 @@ test("where nothing connects an app: one line and one action, the Admin's or any
   });
 });
 
+const manageGmail = "https://dashboard.composio.dev/First/~/connect/apps/gmail";
+
 test("accounts: one line when they need the person or are spare, and what disconnecting reaches", () => {
+  const notion = app("notion");
   const account = (
     state: "connected" | "expired" | "pending" | "failed",
     path: "direct" | "composio" = "direct",
@@ -422,28 +428,29 @@ test("accounts: one line when they need the person or are spare, and what discon
     label: null,
     state,
     spare,
+    manage: path === "direct" ? null : manageGmail,
   });
-  expect(accountView(account("connected"), cs)).toEqual({
+  expect(accountView(notion, account("connected"), cs)).toEqual({
     name: "účet",
     line: null,
     retry: null,
     disconnect: true,
+    menu: null,
   });
-  expect(accountView(account("expired"), cs)).toMatchObject({
+  expect(accountView(notion, account("expired"), cs)).toMatchObject({
     line: "Přihlášení vypršelo — zkus to znovu",
     retry: "Přihlásit znovu",
   });
-  expect(accountView(account("failed"), en)).toMatchObject({
+  expect(accountView(notion, account("failed"), en)).toMatchObject({
     retry: "Try again",
   });
-  expect(accountView(account("pending"), cs).retry).toBeNull();
-  expect(accountView(account("connected", "composio", true), cs)).toMatchObject(
-    {
-      line: "Navíc přes Composio, nepoužívá se",
-      retry: null,
-    },
-  );
-  const notion = app("notion");
+  expect(accountView(notion, account("pending"), cs).retry).toBeNull();
+  expect(
+    accountView(notion, account("connected", "composio", true), cs),
+  ).toMatchObject({
+    line: "Navíc přes Composio, nepoužívá se",
+    retry: null,
+  });
   expect(disconnectText(notion, account("connected"), null, cs)).toBe(
     "Odpojí se jen v tomto Environmentu.",
   );
@@ -460,6 +467,119 @@ test("accounts: one line when they need the person or are spare, and what discon
   expect(disconnectText(notion, account("pending"), null, en)).toBe(
     "Only this account is withdrawn; the other accounts of Notion stay connected.",
   );
+});
+
+// A Composio account's "⋯" menu (decision F42, addendum of 2026-10-11,
+// #312): "Spravovat v Composiu" to the app's page in the person's Composio
+// organization and "Odpojit", moved out of the row; "Přihlásit znovu" stays
+// in the row; an Executor account has no menu and keeps "Odpojit".
+test("a Composio account's menu: manage it in Composio and disconnect it; signing in again stays in the row", () => {
+  const gmail = app("gmail", {
+    path: { path: "composio", signIn: false },
+    connected: true,
+  });
+  const composio = (
+    state: "connected" | "expired" | "pending" | "failed",
+    extra: Partial<IntegrationApp["accounts"][number]> = {},
+  ) => ({
+    path: "composio" as const,
+    selector: "castle",
+    label: "Práce",
+    state,
+    spare: false,
+    manage: manageGmail,
+    ...extra,
+  });
+  expect(accountView(gmail, composio("connected"), cs)).toEqual({
+    name: "Práce",
+    line: null,
+    retry: null,
+    disconnect: false,
+    menu: {
+      label: "Další volby pro Práce v aplikaci Gmail",
+      manage: manageGmail,
+      disconnect: true,
+    },
+  });
+  expect(accountView(gmail, composio("connected"), en).menu?.label).toBe(
+    "More options for Práce in Gmail",
+  );
+  expect(cs.integrationsManageInComposio).toBe("Spravovat v Composiu");
+  expect(en.integrationsManageInComposio).toBe("Manage in Composio");
+  // An expired account: "Přihlásit znovu" in the row, the rest in the menu.
+  expect(accountView(gmail, composio("expired"), cs)).toMatchObject({
+    retry: "Přihlásit znovu",
+    disconnect: false,
+    menu: { manage: manageGmail, disconnect: true },
+  });
+  // Unnamed, and with no word id to disconnect it by: the menu still leads
+  // to Composio, without "Odpojit".
+  expect(
+    accountView(
+      gmail,
+      composio("connected", { label: null, selector: null }),
+      cs,
+    ),
+  ).toMatchObject({
+    name: "účet",
+    disconnect: false,
+    menu: {
+      label: "Další volby pro účet v aplikaci Gmail",
+      disconnect: false,
+    },
+  });
+  // A spare Composio account has its menu too.
+  expect(
+    accountView(gmail, composio("connected", { spare: true }), cs).menu,
+  ).not.toBeNull();
+  // Executor's account: no menu, "Odpojit" in the row, as before.
+  expect(
+    accountView(
+      app("notion"),
+      {
+        path: "direct",
+        selector: "org/notion-com/default",
+        label: "person@example.test",
+        state: "connected",
+        spare: false,
+        manage: null,
+      },
+      cs,
+    ),
+  ).toEqual({
+    name: "person@example.test",
+    line: null,
+    retry: null,
+    disconnect: true,
+    menu: null,
+  });
+  // The page takes a link to Composio's dashboard only.
+  const value = overview([gmail]);
+  const withManage = (manage: unknown) => ({
+    ...value,
+    apps: [{ ...gmail, accounts: [{ ...composio("connected"), manage }] }],
+  });
+  expect(parseIntegrations(withManage(manageGmail))).not.toBeNull();
+  expect(parseIntegrations(withManage(null))).not.toBeNull();
+  for (const manage of [
+    "javascript:alert(1)",
+    "https://dashboard.composio.dev.example.test/First",
+    "http://dashboard.composio.dev/First/~/connect/apps/gmail",
+    "https://example.test/",
+    3,
+  ])
+    expect(parseIntegrations(withManage(manage))).toBeNull();
+  expect(
+    parseIntegrations({
+      ...value,
+      apps: [
+        {
+          ...gmail,
+          accounts: [{ ...composio("connected"), manage: undefined }],
+        },
+      ],
+    }),
+  ).toBeNull();
 });
 
 test("a source that cannot be read says so on the page; custom servers count their tools", () => {

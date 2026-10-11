@@ -173,6 +173,7 @@ test("one reading: the catalog with one path per app, tool and Executor and Comp
         label: null,
         state: "pending",
         spare: false,
+        manage: "https://dashboard.composio.dev/First/~/connect/apps/todoist",
       },
     ]);
     // A custom server, its address without the query (it may carry a key).
@@ -686,6 +687,135 @@ test("a second Composio account needs a name, and a name in use is refused befor
       call.includes("--no-wait"),
     ),
   ).toEqual([]);
+});
+
+// Names and the way to Composio's dashboard (decision F42, addendum of
+// 2026-10-11, #312): `connections list` leaves out a single account's alias,
+// so the reading asks `link <toolkit> --list` for it, once per such toolkit,
+// and keeps it as long as it keeps itself; each Composio account links to the
+// app's page in the organization Composio's sign-in probe named.
+test("a toolkit's only active account is named in the reading, read once and kept with it", async () => {
+  const { world, app } = await setup(
+    {
+      composio: {
+        accounts: [
+          {
+            id: "ca_1",
+            toolkit: "gmail",
+            status: "ACTIVE",
+            alias: "Work",
+            word_id: "castle",
+          },
+          // Two accounts: `connections list` names them itself.
+          {
+            id: "ca_2",
+            toolkit: "slack",
+            status: "ACTIVE",
+            alias: "Team",
+            word_id: "river",
+          },
+          {
+            id: "ca_3",
+            toolkit: "slack",
+            status: "ACTIVE",
+            alias: "Community",
+            word_id: "stone",
+          },
+          // Expired: `--list` lists only active accounts, so it stays unnamed.
+          {
+            id: "ca_4",
+            toolkit: "salesforce",
+            status: "EXPIRED",
+            alias: "Sales",
+            word_id: "field",
+          },
+          // Active without a name in Composio.
+          {
+            id: "ca_5",
+            toolkit: "notion",
+            status: "ACTIVE",
+            alias: null,
+            word_id: "cloud",
+          },
+        ],
+      },
+    },
+    { tools: ["composio"] },
+  );
+  const lists = async () =>
+    (await composioCalls(world.home)).filter((call) => call.includes("--list"));
+  const read = async (path: string) => {
+    const answer = await app.get(path);
+    expect(answer.status).toBe(200);
+    return (await answer.json()) as IntegrationsOverview;
+  };
+  const value = await read("/api/integrations");
+  const accounts = (id: string) =>
+    value.apps
+      .find((item) => item.id === id)
+      ?.accounts.map((account) => [account.label, account.manage]);
+  const manage = (toolkit: string) =>
+    `https://dashboard.composio.dev/First/~/connect/apps/${toolkit}`;
+  expect(accounts("gmail")).toEqual([["Work", manage("gmail")]]);
+  expect(accounts("slack")).toEqual([
+    ["Team", manage("slack")],
+    ["Community", manage("slack")],
+  ]);
+  expect(accounts("salesforce")).toEqual([[null, manage("salesforce")]]);
+  expect(accounts("notion")).toEqual([[null, manage("notion")]]);
+  // One call per toolkit whose only account is active and unnamed.
+  expect((await lists()).sort()).toEqual([
+    ["link", "gmail", "--list"],
+    ["link", "notion", "--list"],
+  ]);
+  // The kept reading asks nothing again; a refresh reads the names anew.
+  await read("/api/integrations");
+  expect(await lists()).toHaveLength(2);
+  const state = await readComposioState(world.home);
+  const { writeComposioState } = await import("./fixtures/integrations-world");
+  await writeComposioState(world.home, {
+    ...state,
+    accounts: state.accounts.map((account) =>
+      account.id === "ca_1" ? { ...account, alias: "Personal" } : account,
+    ),
+  });
+  const again = await read("/api/integrations?refresh=1");
+  expect(
+    again.apps.find((item) => item.id === "gmail")?.accounts[0]?.label,
+  ).toBe("Personal");
+  expect(await lists()).toHaveLength(4);
+});
+
+test("the link to Composio's dashboard: the organization's name encoded, the person's current one where none is known", async () => {
+  for (const [organization, expected] of [
+    [
+      "Žluťoučký kůň & Co",
+      "https://dashboard.composio.dev/%C5%BDlu%C5%A5ou%C4%8Dk%C3%BD%20k%C5%AF%C5%88%20%26%20Co/~/connect/apps/gmail",
+    ],
+    [null, "https://dashboard.composio.dev/~/org/connect/apps/gmail"],
+  ] as const) {
+    const { app } = await setup(
+      {
+        composio: {
+          organization,
+          accounts: [
+            {
+              id: "ca_1",
+              toolkit: "gmail",
+              status: "ACTIVE",
+              alias: null,
+              word_id: "castle",
+            },
+          ],
+        },
+      },
+      { tools: ["composio"] },
+    );
+    const { value } = await overview(app);
+    expect(
+      value.apps.find((item) => item.id === "gmail")?.accounts[0]?.manage,
+    ).toBe(expected);
+  }
 });
 
 test("Composio not signed in: the card's path asks for its sign-in first", async () => {

@@ -7,6 +7,7 @@ import type {
   IntegrationsOverview,
 } from "../integrations/model";
 import {
+  type AccountView,
   accountView,
   appsPreview,
   attentionCount,
@@ -422,6 +423,159 @@ export function createIntegrationsPanel(
     );
   }
 
+  // --- The "⋯" menu of a Composio account (#312) --------------------------
+  // The tile menu's pattern (catalog-panel.ts): one menu open at a time,
+  // closed by a click elsewhere, Escape or the next drawing of the page; the
+  // arrow keys move through its items, and focus that leaves it closes it.
+
+  let closeMenu: (() => void) | null = null;
+  document.addEventListener("click", (event) => {
+    if (closeMenu === null) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest(".integration-menu"))
+      return;
+    closeMenu();
+  });
+  // Escape where the focus is not in the menu (its own keys handle it there).
+  document.addEventListener("keydown", (event) => {
+    if (
+      event.key !== "Escape" ||
+      closeMenu === null ||
+      event.defaultPrevented ||
+      event.isComposing
+    )
+      return;
+    event.preventDefault();
+    closeMenu();
+  });
+
+  function accountMenu(
+    app: IntegrationApp,
+    account: IntegrationAccount,
+    menu: NonNullable<AccountView["menu"]>,
+  ): HTMLElement {
+    const copy = options.copy();
+    const box = element("div", "tile-menu integration-menu");
+    const toggle = element("button", "tile-menu-button");
+    toggle.type = "button";
+    toggle.setAttribute("aria-haspopup", "menu");
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-label", menu.label);
+    toggle.append(icon("i-more"));
+    const list = element("div", "tile-menu-list");
+    list.setAttribute("role", "menu");
+    list.hidden = true;
+    const items: HTMLElement[] = [];
+    const close = () => {
+      list.hidden = true;
+      box.classList.remove("is-open");
+      toggle.setAttribute("aria-expanded", "false");
+      if (closeMenu === close) closeMenu = null;
+    };
+    // Closed by its own item or key: the focus goes back to its button (a
+    // dialog the item opens returns it there).
+    const done = () => {
+      close();
+      toggle.focus();
+    };
+    const open = (index: number) => {
+      closeMenu?.();
+      list.hidden = false;
+      box.classList.add("is-open");
+      toggle.setAttribute("aria-expanded", "true");
+      closeMenu = close;
+      items[index]?.focus();
+    };
+    // The app's page in the person's Composio organization, in a new tab of
+    // their browser: Composio's own place to see and change the account.
+    const manage = element("a", "tile-menu-item");
+    manage.href = menu.manage;
+    manage.target = "_blank";
+    manage.rel = "noopener noreferrer";
+    manage.setAttribute("role", "menuitem");
+    manage.append(
+      icon("i-external"),
+      element("span", "", copy.integrationsManageInComposio),
+    );
+    manage.addEventListener("click", done);
+    items.push(manage);
+    if (menu.disconnect) {
+      const remove = element("button", "tile-menu-item danger");
+      remove.type = "button";
+      remove.setAttribute("role", "menuitem");
+      remove.append(
+        icon("i-x"),
+        element("span", "", copy.integrationsDisconnect),
+      );
+      remove.addEventListener("click", () => {
+        done();
+        disconnect(app, account);
+      });
+      items.push(remove);
+    }
+    // The arrows move between the items; Tab leaves the menu (WAI-ARIA's
+    // menu button).
+    for (const item of items) item.tabIndex = -1;
+    list.append(...items);
+    const last = items.length - 1;
+    toggle.addEventListener("click", () => {
+      if (list.hidden) open(0);
+      else close();
+    });
+    box.addEventListener("keydown", (event) => {
+      const down = event.key === "ArrowDown";
+      if (list.hidden) {
+        // The menu button's keys: the arrows open it at either end.
+        if (event.target === toggle && (down || event.key === "ArrowUp")) {
+          event.preventDefault();
+          open(down ? 0 : last);
+        }
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        done();
+        return;
+      }
+      // Tab moves on from the menu, which closes once the focus is there.
+      if (event.key === "Tab") {
+        setTimeout(close);
+        return;
+      }
+      // Space chooses an item as Enter does, the link too.
+      if (event.key === " " && document.activeElement === manage) {
+        event.preventDefault();
+        manage.click();
+        return;
+      }
+      const at = items.indexOf(document.activeElement as HTMLElement);
+      const next = down
+        ? at < 0 || at === last
+          ? 0
+          : at + 1
+        : event.key === "ArrowUp"
+          ? at <= 0
+            ? last
+            : at - 1
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? last
+              : null;
+      if (next === null) return;
+      event.preventDefault();
+      items[next]?.focus();
+    });
+    // Focus moved elsewhere closes it too; a click elsewhere has no next
+    // focus here (Safari focuses no button it clicks) and closes it above.
+    box.addEventListener("focusout", (event) => {
+      const next = event.relatedTarget;
+      if (next instanceof Node && !box.contains(next)) close();
+    });
+    box.append(toggle, list);
+    return box;
+  }
+
   async function askAdmin(app: IntegrationApp, line: string) {
     const copy = options.copy();
     try {
@@ -563,7 +717,7 @@ export function createIntegrationsPanel(
     if (app.accounts.length > 0) {
       const list = element("ul", "integration-accounts");
       for (const account of app.accounts) {
-        const shown = accountView(account, copy);
+        const shown = accountView(app, account, copy);
         const row = element("li", "integration-account");
         row.dataset.state = account.spare ? "spare" : account.state;
         const words = element("div", "integration-account-text");
@@ -586,6 +740,8 @@ export function createIntegrationsPanel(
               disconnect(app, account),
             ),
           );
+        if (shown.menu !== null)
+          actions.append(accountMenu(app, account, shown.menu));
         row.append(actions);
         list.append(row);
       }
@@ -862,6 +1018,8 @@ export function createIntegrationsPanel(
 
   function render() {
     const copy = options.copy();
+    // The page is drawn anew: an open account menu goes with it.
+    closeMenu = null;
     if (active()) navLink.setAttribute("aria-current", "page");
     else navLink.removeAttribute("aria-current");
     if (route === null) return;

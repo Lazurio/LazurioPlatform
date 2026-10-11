@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import type { IntegrationsCatalog } from "../src/integrations/catalog-schema";
 import {
+  type ComposioAccount,
+  composioManageUrl,
   composioState,
+  composioTimeoutMs,
+  nameComposioAccounts,
   parseComposioConnections,
 } from "../src/integrations/composio-source";
 import {
@@ -12,6 +16,7 @@ import {
 } from "../src/integrations/model";
 import { executorHere, scopeOf } from "../src/integrations/read";
 import type { ToolOverview, ToolsOverview } from "../src/tools/overview";
+import type { ToolProcessResult, ToolRunner } from "../src/tools/status";
 
 // The one list of an Environment's Integrace (decision F42): three sources
 // merged, one path per app, accounts on another way marked spare, every
@@ -82,6 +87,7 @@ const base: MergeInput = {
   origin: null,
   policy: { allowed: true, source: "environment" },
   composioReady: true,
+  composioOrganization: null,
   tools: { state: "ok", connected: [] },
   executor: { state: "ok", integrations: [], connections: [] },
   composio: { state: "ok", accounts: [] },
@@ -468,6 +474,7 @@ test("Composio's toolkits the catalog does not know are listed, and links follow
   const overview = mergeIntegrations({
     ...base,
     origin: "https://launchpad.example.lazurio.io",
+    composioOrganization: "First",
     composio: {
       state: "ok",
       accounts: [
@@ -495,6 +502,7 @@ test("Composio's toolkits the catalog does not know are listed, and links follow
         label: "Home",
         state: "expired",
         spare: false,
+        manage: "https://dashboard.composio.dev/First/~/connect/apps/todoist",
       },
     ],
     catalog: false,
@@ -561,4 +569,261 @@ test("the scope of a preset, and Composio's statuses and answers read exactly", 
     JSON.stringify({ gmail: [{ status: "ACTIVE", alias: 3 }] }),
   ])
     expect(parseComposioConnections(malformed)).toBeNull();
+});
+
+// A Composio account's place in Composio's dashboard (decision F42, addendum
+// of 2026-10-11, #312): the app's page in the person's Composio
+// organization, which the dashboard has instead of a page of one account.
+test("a Composio account links to its app's page in the person's Composio organization; an Executor account to none", () => {
+  expect(composioManageUrl("First", "gmail")).toBe(
+    "https://dashboard.composio.dev/First/~/connect/apps/gmail",
+  );
+  // The organization's name is one encoded path segment: spaces,
+  // diacritics and what would end a segment or start a query.
+  expect(composioManageUrl("Žluťoučký kůň", "gmail")).toBe(
+    "https://dashboard.composio.dev/%C5%BDlu%C5%A5ou%C4%8Dk%C3%BD%20k%C5%AF%C5%88/~/connect/apps/gmail",
+  );
+  expect(composioManageUrl("R&D / Sales?#1", "slack")).toBe(
+    "https://dashboard.composio.dev/R%26D%20%2F%20Sales%3F%231/~/connect/apps/slack",
+  );
+  // Unknown: the person's current organization, the dashboard's `~/org/`.
+  expect(composioManageUrl(null, "gmail")).toBe(
+    "https://dashboard.composio.dev/~/org/connect/apps/gmail",
+  );
+  // Never the CLI's `?open=true`, which connects another account.
+  for (const organization of ["First", "Žluťoučký kůň", null]) {
+    const url = new URL(composioManageUrl(organization, "gmail"));
+    expect(url.origin).toBe("https://dashboard.composio.dev");
+    expect(url.search).toBe("");
+    expect(url.hash).toBe("");
+  }
+  // The model gives it to every Composio account, by its toolkit (not the
+  // catalog's id of the app), and none to an Executor account.
+  const overview = mergeIntegrations({
+    ...base,
+    catalog: {
+      ...catalog,
+      apps: [...catalog.apps, app("calendar", { composio: "googlecalendar" })],
+    },
+    composioOrganization: "Žluťoučký kůň",
+    executor: {
+      state: "ok",
+      integrations: [
+        {
+          slug: "notion-com",
+          name: "Notion",
+          kind: "remote",
+          target: "https://mcp.notion.example/mcp",
+          tools: null,
+        },
+      ],
+      connections: [
+        {
+          id: "org/notion-com/default",
+          integration: "notion-com",
+          label: null,
+          state: "connected",
+        },
+      ],
+    },
+    composio: {
+      state: "ok",
+      accounts: [
+        {
+          toolkit: "googlecalendar",
+          state: "connected",
+          alias: "Work",
+          wordId: "castle",
+        },
+      ],
+    },
+  });
+  const accounts = (id: string) =>
+    overview.apps
+      .find((item) => item.id === id)
+      ?.accounts.map((account) => [account.path, account.manage]);
+  expect(accounts("calendar")).toEqual([
+    [
+      "composio",
+      "https://dashboard.composio.dev/%C5%BDlu%C5%A5ou%C4%8Dk%C3%BD%20k%C5%AF%C5%88/~/connect/apps/googlecalendar",
+    ],
+  ]);
+  expect(accounts("notion")).toEqual([["direct", null]]);
+});
+
+// `link <toolkit> --list` as a fake runner answers it: the accounts of each
+// toolkit (or a failure or a timeout), every call recorded.
+function listRunner(
+  answers: Readonly<
+    Record<string, readonly Record<string, unknown>[] | "fail" | "timeout">
+  >,
+  onCall: () => void = () => {},
+) {
+  const calls: (readonly string[])[] = [];
+  let open = 0;
+  let most = 0;
+  const run: ToolRunner = async (command, timeoutMs, env) => {
+    calls.push(command);
+    open += 1;
+    most = Math.max(most, open);
+    onCall();
+    expect(timeoutMs).toBe(composioTimeoutMs);
+    expect(Object.keys(env).sort()).toEqual(["HOME", "NO_COLOR", "PATH"]);
+    await Promise.resolve();
+    open -= 1;
+    const [, toolkit, flag] = command.slice(1);
+    const answer = toolkit === undefined ? undefined : answers[toolkit];
+    if (flag !== "--list" || answer === undefined || answer === "fail")
+      return { exitCode: 1, stdout: "", stderr: "" } as ToolProcessResult;
+    if (answer === "timeout") return "timeout";
+    return {
+      exitCode: 0,
+      stdout: `${JSON.stringify({ toolkit, total: answer.length, items: answer }, null, 2)}\n`,
+      stderr: "",
+    };
+  };
+  return {
+    env: { path: "/fake/bin", home: "/fake/home", run },
+    calls,
+    most: () => most,
+  };
+}
+
+const account = (
+  toolkit: string,
+  extra: Partial<ComposioAccount> = {},
+): ComposioAccount => ({
+  toolkit,
+  state: "connected",
+  alias: null,
+  wordId: `${toolkit}-word`,
+  ...extra,
+});
+const item = (alias: string | null, wordId: string) => ({
+  id: `ca_${wordId}`,
+  word_id: wordId,
+  alias,
+  status: "ACTIVE",
+});
+
+test("a toolkit's only active account is named by `link <toolkit> --list`, and nothing is guessed", async () => {
+  const runner = listRunner({
+    gmail: [item("Work", "gmail-word")],
+    // A name only where its word id is the same one, or one side has none.
+    zoom: [item("Calls", "zoom-other")],
+    // Two active accounts for one in `connections list`: which is which?
+    outlook: [item("Office", "outlook-word"), item("Home", "outlook-2")],
+    linear: [item("Product", "linear-other")],
+    // Active without a name: still none.
+    notion: [item(null, "notion-word")],
+    todoist: "fail",
+    github: "timeout",
+    // None active any more.
+    trello: [],
+  });
+  const accounts = [
+    account("gmail"),
+    account("zoom", { wordId: null }),
+    account("outlook"),
+    account("linear"),
+    account("notion"),
+    account("todoist"),
+    account("github"),
+    account("trello"),
+    // Several accounts: `connections list` names them itself.
+    account("slack", { alias: "Team" }),
+    account("slack", { alias: null, wordId: "slack-2" }),
+    // Not active: `--list` lists only active accounts.
+    account("salesforce", { state: "expired" }),
+    account("hubspot", { state: "pending" }),
+  ];
+  const named = await nameComposioAccounts(
+    runner.env,
+    "/fake/bin/composio",
+    accounts,
+  );
+  expect(named.map((item) => [item.toolkit, item.alias])).toEqual([
+    ["gmail", "Work"],
+    ["zoom", "Calls"],
+    ["outlook", null],
+    ["linear", null],
+    ["notion", null],
+    ["todoist", null],
+    ["github", null],
+    ["trello", null],
+    ["slack", "Team"],
+    ["slack", null],
+    ["salesforce", null],
+    ["hubspot", null],
+  ]);
+  // The rest of each account is what `connections list` said.
+  expect(named[0]).toEqual({ ...account("gmail"), alias: "Work" });
+  expect(named.slice(2)).toEqual(accounts.slice(2));
+  // One call per toolkit that needs it, none for any other.
+  expect(runner.calls.map((call) => call.slice(1)).sort()).toEqual(
+    [
+      "github",
+      "gmail",
+      "linear",
+      "notion",
+      "outlook",
+      "todoist",
+      "trello",
+      "zoom",
+    ].map((toolkit) => ["link", toolkit, "--list"]),
+  );
+  expect(runner.calls.every((call) => call[0] === "/fake/bin/composio")).toBe(
+    true,
+  );
+  // Nothing to name: no call at all, the same accounts back.
+  const quiet = listRunner({});
+  const none = [
+    account("slack", { alias: "Team" }),
+    account("x", { state: "expired" }),
+  ];
+  expect(await nameComposioAccounts(quiet.env, "composio", none)).toBe(none);
+  expect(quiet.calls).toEqual([]);
+});
+
+test("naming runs four calls at a time and starts none after one Composio budget", async () => {
+  const toolkits = Array.from({ length: 10 }, (_, index) => `app${index}`);
+  const answers = Object.fromEntries(
+    toolkits.map((toolkit) => [
+      toolkit,
+      [item(`Name ${toolkit}`, `${toolkit}-word`)],
+    ]),
+  );
+  // Quick answers: every toolkit named, never more than four at once.
+  let clock = 0;
+  const quick = listRunner(answers, () => {
+    clock += 1_000;
+  });
+  const named = await nameComposioAccounts(
+    quick.env,
+    "composio",
+    toolkits.map((toolkit) => account(toolkit)),
+    () => clock,
+  );
+  expect(named.map((item) => item.alias)).toEqual(
+    toolkits.map((toolkit) => `Name ${toolkit}`),
+  );
+  expect(quick.calls).toHaveLength(10);
+  expect(quick.most()).toBe(4);
+  // Slow answers: the first four use up the budget, and no call starts
+  // after it; those toolkits stay unnamed.
+  clock = 0;
+  const slow = listRunner(answers, () => {
+    clock += composioTimeoutMs / 3;
+  });
+  const partly = await nameComposioAccounts(
+    slow.env,
+    "composio",
+    toolkits.map((toolkit) => account(toolkit)),
+    () => clock,
+  );
+  expect(slow.calls).toHaveLength(4);
+  expect(partly.map((item) => item.alias)).toEqual([
+    ...toolkits.slice(0, 4).map((toolkit) => `Name ${toolkit}`),
+    ...toolkits.slice(4).map(() => null),
+  ]);
 });

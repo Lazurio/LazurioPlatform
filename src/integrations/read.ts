@@ -17,7 +17,7 @@ import {
 } from "../tools/overview";
 import { integrationsCatalog } from "./catalog";
 import type { IntegrationsCatalog } from "./catalog-schema";
-import { readComposioAccounts } from "./composio-source";
+import { nameComposioAccounts, readComposioAccounts } from "./composio-source";
 import type { ExecutorEndpoint } from "./executor-client";
 import { readExecutor } from "./executor-source";
 import {
@@ -35,7 +35,10 @@ import type { ComposioPolicySource } from "./policy";
 // Executor and the person's Composio account, each read on its own so that
 // one source down never hides the others. The sign-in probes and Composio
 // reach the network, so the Launchpad keeps the last reading for a while and
-// reads again on an explicit refresh.
+// reads again on an explicit refresh. Composio's accounts are named in the
+// reading (a toolkit's only account by `link <toolkit> --list`), and the
+// organization of its link to Composio's dashboard is the one Composio's
+// sign-in probe already read: no second `composio whoami`.
 
 export type IntegrationsHost = Readonly<{
   folder: string;
@@ -148,7 +151,20 @@ export async function readIntegrations(
     composioTool.path === undefined
   )
     composio = { state: "unavailable" };
-  else composio = await readComposioAccounts(host.tools, composioTool.path);
+  else {
+    const reading = await readComposioAccounts(host.tools, composioTool.path);
+    composio =
+      reading.state === "ok"
+        ? {
+            state: "ok",
+            accounts: await nameComposioAccounts(
+              host.tools,
+              composioTool.path,
+              reading.accounts,
+            ),
+          }
+        : reading;
+  }
   return mergeIntegrations({
     catalog,
     locale,
@@ -156,6 +172,7 @@ export async function readIntegrations(
     origin: preferences.machine?.entry?.externalOrigin ?? null,
     policy,
     composioReady,
+    composioOrganization: composioTool?.signIn?.organization ?? null,
     tools,
     executor,
     composio,

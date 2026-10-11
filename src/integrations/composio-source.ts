@@ -8,7 +8,8 @@ import type { ToolRunner } from "../tools/status";
 //   permission_group}]}` on stdout: every status, an alias only where the
 //   toolkit has several accounts, no ids;
 // - `link <toolkit> --list` prints `{toolkit, total, items}` with the active
-//   accounts and their ids;
+//   accounts, their ids, word ids and aliases (0.4.1 read 2026-10-11: the
+//   JSON alone on stdout, an alias of null where the account has none);
 // - `link <toolkit> --no-wait --no-browser [--alias <name>]` prints
 //   `{status: "pending", connected_account_id, redirect_url, toolkit}`, or,
 //   for a toolkit without Composio-managed sign-in, only a URL of Composio's
@@ -161,13 +162,21 @@ export async function readComposioAccounts(
     : { state: "ok", accounts };
 }
 
+/** One active account as `link <toolkit> --list` names it. */
+export type ActiveComposioAccount = Readonly<{
+  id: string;
+  alias: string | null;
+  /** Its word id; null where none is given or it is not a plain label. */
+  wordId: string | null;
+}>;
+
 /** A toolkit's active accounts with their ids and names (`link <toolkit>
  * --list`), or null for any other answer. */
 export async function activeComposioAccounts(
   input: ComposioEnvironment,
   command: string,
   toolkit: string,
-): Promise<readonly Readonly<{ id: string; alias: string | null }>[] | null> {
+): Promise<readonly ActiveComposioAccount[] | null> {
   if (!toolkitPattern.test(toolkit)) return null;
   const result = await runComposio(input, command, ["link", toolkit, "--list"]);
   if (result === null || result.exitCode !== 0) return null;
@@ -175,9 +184,13 @@ export async function activeComposioAccounts(
   if (document === null || document.toolkit !== toolkit) return null;
   const items = document.items;
   if (!Array.isArray(items)) return null;
-  const accounts: Readonly<{ id: string; alias: string | null }>[] = [];
+  const accounts: ActiveComposioAccount[] = [];
   for (const item of items) {
-    const { id, alias } = (item ?? {}) as { id?: unknown; alias?: unknown };
+    const {
+      id,
+      alias,
+      word_id: word,
+    } = (item ?? {}) as { id?: unknown; alias?: unknown; word_id?: unknown };
     const name = optionalLabel(alias);
     if (
       typeof id !== "string" ||
@@ -185,9 +198,106 @@ export async function activeComposioAccounts(
       name === undefined
     )
       return null;
-    accounts.push(Object.freeze({ id, alias: name }));
+    accounts.push(
+      Object.freeze({ id, alias: name, wordId: optionalLabel(word) ?? null }),
+    );
   }
   return Object.freeze(accounts);
+}
+
+/** How many `link <toolkit> --list` run at once while accounts are named:
+ * one `composio` process takes about 200 MB and a second (0.4.1, measured
+ * 2026-10-11), so four keep a page with many apps quick without loading an
+ * Environment that may be short of memory. */
+const namesAtOnce = 4;
+
+/** The accounts, each toolkit's only active account with its name (decision
+ * F42, addendum of 2026-10-11, #312). `connections list` prints an alias
+ * only where a toolkit has several accounts, so where its only account is
+ * active and has none there, `link <toolkit> --list` is asked: once per such
+ * toolkit, never for any other, four at a time. A call starts only within
+ * one Composio budget (`composioTimeoutMs`) and runs within it, so naming
+ * adds at most two budgets to a reading, and the reading keeps the names as
+ * long as it keeps itself. The alias is taken only where `--list` lists
+ * exactly one active account and, where both name a word id, the same one:
+ * any other answer, a failure or a timeout leaves the account unnamed, and
+ * the page says "účet". An account that is not active has no alias to read
+ * (`--list` lists only active ones). */
+export async function nameComposioAccounts(
+  input: ComposioEnvironment,
+  command: string,
+  accounts: readonly ComposioAccount[],
+  now: () => number = () => performance.now(),
+): Promise<readonly ComposioAccount[]> {
+  const counts = new Map<string, number>();
+  for (const account of accounts)
+    counts.set(account.toolkit, (counts.get(account.toolkit) ?? 0) + 1);
+  const unnamed = accounts.filter(
+    (account) =>
+      counts.get(account.toolkit) === 1 &&
+      account.alias === null &&
+      account.state === "connected",
+  );
+  const names = new Map<string, string>();
+  const name = async (account: ComposioAccount) => {
+    const active = await activeComposioAccounts(
+      input,
+      command,
+      account.toolkit,
+    );
+    const only = active?.length === 1 ? active[0] : undefined;
+    if (only === undefined || only.alias === null) return;
+    if (
+      account.wordId !== null &&
+      only.wordId !== null &&
+      only.wordId !== account.wordId
+    )
+      return;
+    names.set(account.toolkit, only.alias);
+  };
+  const deadline = now() + composioTimeoutMs;
+  for (
+    let start = 0;
+    start < unnamed.length && now() < deadline;
+    start += namesAtOnce
+  )
+    await Promise.all(unnamed.slice(start, start + namesAtOnce).map(name));
+  if (names.size === 0) return accounts;
+  return Object.freeze(
+    accounts.map((account) => {
+      const alias = names.get(account.toolkit);
+      return alias === undefined
+        ? account
+        : Object.freeze({ ...account, alias });
+    }),
+  );
+}
+
+/** Composio's dashboard, where the person sees and changes their accounts. */
+export const composioDashboard = "https://dashboard.composio.dev";
+
+/** The page where the person sees and changes an account of `toolkit` in
+ * Composio's dashboard. The dashboard has no page of one connected account,
+ * so it is the closest: the toolkit's page in the person's Composio
+ * organization, `/<organization name>/~/connect/apps/<toolkit>`, the path
+ * the CLI builds when it links an account (`link.cmd.ts`), with the
+ * organization's name as a path segment, encoded, and without the CLI's
+ * `?open=true`, which would open the dialog that connects another account.
+ * The name is the one `composio whoami` answers (`current_org_name`, read by
+ * the sign-in probe of Settings → Tools). Where it is not known, the page is
+ * asked under `~/org/`, which stands for the signed-in person's current
+ * organization: a shortcut inferred from the links of Composio's
+ * documentation (`/~/org/connect/clients`, `/~/org/settings/billing`), not
+ * one documented for this page. A visitor who is not signed in to Composio
+ * is sent to its sign-in and back to the page. */
+export function composioManageUrl(
+  organization: string | null,
+  toolkit: string,
+): string {
+  const app = encodeURIComponent(toolkit);
+  return organization === null
+    ? `${composioDashboard}/~/org/connect/apps/${app}`
+    : `${composioDashboard}/${encodeURIComponent(organization)}/~/connect/apps/${app}`;
 }
 
 /** Whether a link URL is Composio's own: https on composio.dev. */
