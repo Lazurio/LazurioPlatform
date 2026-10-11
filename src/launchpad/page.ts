@@ -4,8 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { shellScript } from "../shell/bundle" with { type: "macro" };
 import { shellFontPaths } from "../shell/font-files";
+import { newTabPagePath } from "../shell/new-tab-protocol";
 import { stoneFilePaths } from "../shell/stone-files";
 import index from "./index.html";
+import newTabPage from "./new-tab.html";
 import { pagePaths } from "./routes";
 
 /** `/.lazurio/shell.js` (decision F36), built into this executable. */
@@ -90,9 +92,12 @@ export const shellRoutes = {
 // The page itself under each of its routes (`/`, `/settings/tools`, …): the
 // same bundled document, which picks the section from the path. No other
 // path serves it, and none of them carries or needs the credential. It needs
-// nothing of the Folder, so Recovery mode serves it too.
+// nothing of the Folder, so Recovery mode serves it too. Beside it Nová
+// karta's own page (decision F47 point 1), `/new-tab`, which the shell
+// element `<lazurio-new-tab>` frames in every app's right panel.
 export const pageRoutes = {
   ...Object.fromEntries(pagePaths.map((path) => [path, index])),
+  [newTabPagePath]: newTabPage,
   ...shellRoutes,
 };
 
