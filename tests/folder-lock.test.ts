@@ -243,3 +243,77 @@ test.skipIf(process.platform === "win32")(
     }
   },
 );
+
+// Issue #272: the shell setup cache reads the Folder in the background right
+// after a profile change; the person's next change waits for that read.
+test.skipIf(process.platform === "win32")(
+  "a mutation of this process waits for its own short read, never for another holder",
+  async () => {
+    const directory = await realpath(
+      await mkdtemp(join(tmpdir(), "lock-own-read-")),
+    );
+    try {
+      let releaseRead = () => {};
+      const reading = new Promise<void>((resolve) => {
+        releaseRead = resolve;
+      });
+      const order: string[] = [];
+      const read = withFolderReadLock(directory, async () => {
+        order.push("read");
+        await reading;
+        order.push("read done");
+      });
+      await Bun.sleep(30);
+      const write = withFolderOperationLock(directory, async () => {
+        order.push("write");
+      });
+      await Bun.sleep(100);
+      expect(order).toEqual(["read"]);
+      releaseRead();
+      await Promise.all([read, write]);
+      expect(order).toEqual(["read", "read done", "write"]);
+
+      // Any other holder (here one taken without the read) refuses at once.
+      const held = await acquireFolderOperationLock(directory);
+      try {
+        const started = Date.now();
+        await expect(
+          withFolderOperationLock(directory, async () => {}),
+        ).rejects.toThrow("busy");
+        expect(Date.now() - started).toBeLessThan(500);
+      } finally {
+        await held.release();
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "the wait for an own read is bounded, and the mutation then fails as busy",
+  async () => {
+    const directory = await realpath(
+      await mkdtemp(join(tmpdir(), "lock-own-read-bound-")),
+    );
+    try {
+      let releaseRead = () => {};
+      const reading = new Promise<void>((resolve) => {
+        releaseRead = resolve;
+      });
+      const read = withFolderReadLock(directory, () => reading);
+      await Bun.sleep(30);
+      const started = Date.now();
+      await expect(
+        withFolderOperationLock(directory, async () => {}, 150),
+      ).rejects.toThrow("busy");
+      expect(Date.now() - started).toBeGreaterThanOrEqual(140);
+      releaseRead();
+      await read;
+      // Free again: a mutation goes through at once.
+      await withFolderOperationLock(directory, async () => {});
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
