@@ -210,8 +210,13 @@ Read from the CLI's source (ComposioHQ/composio, `ts/packages/cli`, 2026-10-09):
   `EXPIRED`, `REVOKED` expired; `INITIATED`, `INITIALIZING` pending; anything else
   failed.
 - `link <toolkit> --list` prints `{toolkit, total, items}` with the active accounts,
-  their ids and aliases; the Launchpad checks a second account's name against it
-  before linking (the CLI asks for one only after it created the link).
+  their ids, word ids and aliases (an alias of `null` where the account has none);
+  the Launchpad checks a second account's name against it before linking (the CLI
+  asks for one only after it created the link), and the reading takes a single
+  account's name from it (see [Account names](#account-names-and-composios-dashboard)).
+- `whoami` prints `{account_type, email, current_org_name, …}`: the sign-in probe
+  of Settings → Tools reads the account and its current organization, and the
+  reading uses that organization for the link to Composio's dashboard.
 - `link <toolkit> --no-wait --no-browser [--alias <name>]` prints `{status:
   "pending", connected_account_id, redirect_url, toolkit}`. The URL must be https
   on `composio.dev`; it is answered only to the request that started the link and
@@ -230,6 +235,42 @@ Every process gets only `PATH`, `HOME`, the XDG base directories and `NO_COLOR`,
 runs in its own process group and is bounded (15 s); its raw output is never
 returned or logged.
 
+### Account names and Composio's dashboard
+
+Decision F42, addendum of 2026-10-11 (#312). An account's **label** is its name:
+Composio's alias, or the name Executor gives a direct account (the name given when
+connecting, or the account the provider names). Without one the page says "účet"
+("account"); a word id is a selector, never shown as a name.
+
+- `connections list` leaves out the alias of a toolkit's only account. Where that
+  account is active and has no alias there, the reading asks `link <toolkit>
+  --list` (`nameComposioAccounts`): once per such toolkit and for no other, four
+  at a time, each call started only within one Composio budget (15 s) and bounded
+  by it, so naming adds at most two budgets to a reading and nothing where no
+  account needs it. The names are part of the reading and kept as long as it is.
+- The alias is taken only where `--list` lists exactly one active account and,
+  where both lists name a word id, the same one. Any other answer, a failure or a
+  timeout leaves the account unnamed. An account that is not active stays unnamed
+  too: `--list` lists only active accounts.
+- Each Composio account's `manage` is the page where the person sees and changes
+  it: the app's page in their Composio organization,
+  `https://dashboard.composio.dev/<organization name>/~/connect/apps/<toolkit>`
+  (the name an encoded path segment, the path the CLI builds when it links an
+  account, without its `?open=true`, which would connect another account).
+  Composio's dashboard has no page of one account. The organization is
+  `current_org_name` of the sign-in probe; where it is not known, the link is
+  `https://dashboard.composio.dev/~/org/connect/apps/<toolkit>`, the person's
+  current organization through `~/org/`, a shortcut inferred from the links in
+  Composio's documentation. A visitor not signed in to Composio signs in there
+  first. An Executor account has none (`null`).
+- The page shows a "⋯" menu on each Composio account: "Spravovat v Composiu"
+  opens `manage` in a new tab of the person's browser, and "Odpojit" is there
+  rather than in the row. "Přihlásit znovu" stays in the row of an expired
+  account; an Executor account keeps "Odpojit" in its row and has no menu.
+- No rename and no provider identity: renaming needs a project API key and the
+  CLI has no rename, and the CLI strips the identity Composio keeps for an account
+  (`state.val.displayName`) from every output. Both wait for the CLI.
+
 ## The reading: `GET /api/integrations` and `lazurio integrations list`
 
 Both answer the same document (`IntegrationsOverview`, `src/integrations/model.ts`):
@@ -238,7 +279,8 @@ reaches the Launchpad (`page`, null on a workstation), Composio's policy and
 readiness, each source's state (`ok`, `unavailable`, `absent` for an Environment
 without Executor, `unreadable`, `signed-out`, `not-allowed`), the tools for one app that are connected, every catalog app with
 its path, `connected`, its accounts (path, the selector that disconnects it, its
-name, state, spare) and its card link (`<origin>/integrations/app/<id>`, which
+`label`, state, spare, and `manage`, a Composio account's page in Composio's
+dashboard: [Account names](#account-names-and-composios-dashboard)) and its card link (`<origin>/integrations/app/<id>`, which
 lists and focuses that card even where nothing connects the app here), the
 accounts of Composio toolkits the catalog does not know, and the custom MCP
 servers (address without userinfo or query, which may carry a key; a command

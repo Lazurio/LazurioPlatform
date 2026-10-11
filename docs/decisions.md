@@ -6162,6 +6162,69 @@ that the company app is not set up, with a link to the Organization's Dashboard
 for its Admin and a message to copy for anyone else), the Dashboard's place for
 "Požádat Admina", and Executor 2.
 
+**Addendum 2026-10-11 (issue #312), asked for by the Organization Admin: a Composio
+account says its name and opens in Composio's dashboard.** In Apps → Integrace every
+Composio account without a name said only "účet", so a person with several Google or
+Microsoft accounts could not tell them apart, and nothing led to Composio, the place
+where an account is seen and changed. The reference is
+[integrations](integrations.md#account-names-and-composios-dashboard).
+
+1. **The name is Composio's alias, read for a single account too.** `composio
+   connections list` prints an alias only where a toolkit has several accounts. Where
+   a toolkit's only account is active and unnamed there, the reading asks `composio
+   link <toolkit> --list`, which lists the toolkit's active accounts with their
+   aliases: once per such toolkit and for no other, four at a time (one `composio`
+   process takes about 200 MB and a second), each call started only within one
+   Composio budget (15 s) and bounded by it. Naming adds at most two budgets to a
+   reading, within the route's own two minutes, and nothing where no account needs
+   it. The names are part of the reading, kept as long as it is (a minute, or until
+   "Zkontrolovat připojení" or a change), for the page and `lazurio integrations
+   list` alike. The alias is taken only where `--list` lists exactly one active
+   account and, where both lists name a word id, the same one; any other answer, a
+   failure or a timeout leaves "účet". An account that is not active stays unnamed
+   (`--list` lists only active accounts), and a word id is never shown as a name.
+2. **A "⋯" menu on each Composio account.** "Spravovat v Composiu" opens, in a new
+   tab of the person's browser, the app's page in their Composio organization:
+   `https://dashboard.composio.dev/<organization name>/~/connect/apps/<toolkit>`,
+   the name encoded as one path segment, without the CLI's `?open=true`, which would
+   open the dialog that connects another account. Composio's dashboard has no page
+   of one connected account, so the app's page, which lists its accounts, is the
+   closest. The organization is the one Composio's sign-in probe already reads
+   (`current_org_name` of `composio whoami`, Settings → Tools); where it is not
+   known, the link is `https://dashboard.composio.dev/~/org/connect/apps/<toolkit>`,
+   the person's current organization through `~/org/`, a shortcut inferred from the
+   links in Composio's documentation, not documented for this page. The server
+   builds the link once, as the `manage` of each Composio account in the reading,
+   and the page takes only a link to Composio's dashboard. "Odpojit" moves into the
+   menu; "Přihlásit znovu" stays in the row of an expired account. An Executor
+   account is unchanged: no menu, "Odpojit" in its row.
+3. **Not in this addendum, until Composio's CLI offers them.** Renaming an account
+   needs a project API key (`PATCH /api/v3/connected_accounts/{id}`) and the CLI has
+   no rename, so the page offers none; the person renames in Composio. The
+   provider's identity of an account (a mail address, a login), which Composio
+   keeps as `state.val.displayName`, is stripped from every output of the CLI;
+   naming an account by it waits for an upstream change (#312, point 3).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Ask `--list` for every toolkit | Repeats what `connections list` already names and reads expired accounts that `--list` never lists; rejected: only a toolkit's only active, unnamed account |
+| Take the alias by the count alone | A word id that differs means two lists describe different accounts; rejected: the word ids must agree where both lists have them |
+| Show the word id where there is no alias | A word id is Composio's selector (`castle`), not a name the person gave; rejected |
+| Keep the names longer than the reading | A name changed in Composio would not show after "Zkontrolovat připojení"; rejected |
+| Read the accounts from Composio's API | The CLI keeps the person's key and the Environment reads no Composio credential; rejected |
+
+Verified by tests: the alias read only for a toolkit's only active, unnamed account,
+taken from exactly one active account with the same word id, and kept unnamed for
+two active accounts, another word id, no alias, a failure, a timeout and none
+active; four calls at a time and none started after the budget
+(`tests/integrations-model.test.ts`); the reading's names, read once while the
+reading is kept and again on a refresh, and the link with the organization encoded
+or, without one, `~/org/` (`tests/integrations-routes.test.ts`); the link's
+encoding without a query, the toolkit rather than the catalog's id, none for an
+Executor account (`tests/integrations-model.test.ts`); the menu's label, its items,
+"Přihlásit znovu" in the row, Executor's row unchanged and only a link to Composio's
+dashboard taken by the page (`tests/integrations-page.test.ts`).
+
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
 **Decided by Matěj 2026-10-08 and 2026-10-09 (root decision 0193, plan DEV-6631;
