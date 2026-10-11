@@ -31,6 +31,9 @@ export function launchpadBoot(
     computer?: string;
     /** The tailnet control server of the handover (decision F41). */
     tailnet: string | null;
+    /** The owning Organization's own slug the handover names, when it does
+     * (shell-document.ts). */
+    ownerKey?: string | null;
   }>,
 ): LaunchpadBoot {
   let shell: Shell | null = null;
@@ -42,6 +45,7 @@ export function launchpadBoot(
         locale: input.locale,
         catalog: input.catalog,
         ...(input.computer === undefined ? {} : { computer: input.computer }),
+        ownerKey: input.ownerKey ?? null,
       }),
       input.tailnet,
     );

@@ -37,6 +37,7 @@ const tailnet = "https://headscale.example.lazurio.io";
 
 async function hostedLaunchpad(
   offlineTailnet: HostedOptions["offlineTailnet"],
+  ownerKey?: HostedOptions["ownerKey"],
 ) {
   const parent = await realpath(
     await mkdtemp(join(tmpdir(), "launchpad-offline-")),
@@ -63,6 +64,7 @@ async function hostedLaunchpad(
         ? new Response("ok")
         : new Response("no", { status: 401 }),
     ...(offlineTailnet === undefined ? {} : { offlineTailnet }),
+    ...(ownerKey === undefined ? {} : { ownerKey }),
   });
   const host = "launchpad.workspace.example.lazurio.io";
   return {
@@ -186,6 +188,41 @@ posixTest(
       expect(script.startsWith("const LAZURIO_OFFLINE = ")).toBe(true);
       expect(script).toContain('"retired":true');
       expect(script.endsWith(offlineWorkerSource)).toBe(true);
+    } finally {
+      await app.close();
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+  30_000,
+);
+
+posixTest(
+  "hosted: until the Folder holds its Organization, the document and the guide name it by the handover's own slug",
+  async () => {
+    // The handover names the owner by its login (`example`) and by its own
+    // slug; the Folder holds no Organization yet.
+    const { app, parent, base, valid } = await hostedLaunchpad(
+      async () => tailnet,
+      async () => "Example Org",
+    );
+    try {
+      const shell = await fetch(`${base}${shellDocumentPath}`, {
+        headers: valid,
+      });
+      const document = parseShell(await shell.json());
+      expect(document?.environments[0]?.organizations).toEqual(["Example Org"]);
+      expect(document?.organizations).toEqual([
+        {
+          slug: "Example Org",
+          name: "Example Org",
+          dashboard: "https://dashboard.lazurio.ai/orgs/example-org",
+          avatar: "https://github.com/example.png?size=96",
+        },
+      ]);
+      const page = await fetch(`${base}${OFFLINE_PAGE_PATH}`, {
+        headers: valid,
+      });
+      expect(await page.text()).toContain("<strong>Example Org</strong>");
     } finally {
       await app.close();
       await rm(parent, { recursive: true, force: true });
