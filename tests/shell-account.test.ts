@@ -422,6 +422,24 @@ test("Organizations: one per Dashboard slug, the local entry in the account's pl
   ]);
   // The local entry wins: its name and avatar, not the account's.
   expect(merged.organizations[0]).toBe(withOwn.organizations[0]);
+  // One without a logo shows the account's and keeps everything else; it
+  // stays one space.
+  const plain = parsed(
+    localDocument({
+      organizations: [{ ...localDocument().organizations[0], avatar: null }],
+    }),
+  );
+  const filled = mergeAccount(plain, account()).organizations;
+  expect(filled.map((entry) => entry.slug)).toEqual([
+    "Example",
+    "other-example",
+  ]);
+  expect(filled[0]).toEqual({
+    slug: "Example",
+    name: "Example Company",
+    avatar: "https://avatars.githubusercontent.com/u/710101?v=4",
+    dashboard: "https://dashboard.lazurio.ai/orgs/example",
+  });
   // A local Environment the account does not list comes first.
   const workstation = parsed({
     ...localDocument(),
