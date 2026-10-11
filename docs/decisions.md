@@ -7507,3 +7507,63 @@ shown in the Launchpad, mark the heap "≈" and never open another Environment's
 Code's holder files with their record times; and a check on a real Environment, where
 neither the heaps of tabs that share a renderer nor the cost of the overview every 5 s has
 been measured yet.
+
+**Step 3, implemented in this revision (2026-10-11).**
+- `src/launchpad/new-tab.html` and `new-tab-page.ts` are Nová karta, served on `/new-tab`
+  beside the Launchpad's page, locally and behind the gateway with the boot document.
+  Behind the gateway the page answers `Content-Security-Policy: frame-ancestors 'self'`
+  with the entry's own app origins (the Launchpad, T3 Code and MausBot as present) and
+  `X-Content-Type-Options: nosniff`; no other page changes its headers. What it decides
+  without a document is `new-tab-view.ts`: the overview read field by field, the address
+  bar, the memory and its tone, "when last used", who opened a tab, the order, the
+  warning, the toast, the Modules' names from the boot catalog and the suggestions.
+- The address bar opens a link to a tab of this Environment's view as that tab. It never
+  opens an address of another Environment's view: it says so, as the wireframe does, with
+  a link that opens it in a tab of the person's own browser. An http(s) or host-like
+  address opens as a page and anything else is a search; a page becomes a remote tab only
+  then (`POST /api/new-tab/open` with the host's strip).
+- Přehled is read every 5 s while the page is visible, never while it is hidden:
+  - the Environment's memory with the Dashboard's thresholds (80 and 90 %);
+  - the tabs, heaviest first, with who opened them, whether an agent works in them,
+    "v tomto vlákně" for the host's thread and the heap marked "≈";
+  - the running Modules with Zastavit.
+
+  A value that cannot be read is left out, never shown as 0. When the hub or the Launchpad
+  does not answer, Přehled says which and reads again; where the Environment has no
+  browser, it says so and reads no more.
+- Zavřít asks first when an agent works in the tab (the wireframe's warning; keeping the
+  tab is the answer offered first). The tab leaves the list at once and Vrátit stays for
+  the 8 s of the grace: a later message shows above it, and a later overview neither
+  brings the tab back nor takes Vrátit away.
+- `src/shell/new-tab-protocol.ts` is the protocol between the page and
+  `<lazurio-new-tab>` (`src/shell/new-tab-element.ts`, defined with the shell's other
+  elements). Interface v1 gains the element with its attributes `strip`, `tools`,
+  `focus-address` and `lang`, and the event `lazurio-new-tab`.
+  - The element frames `/new-tab` on the origin of the current Environment's `apps`. It
+    answers the page's `ready` with the strip, the tools, the language and the host
+    document's colour roles, again whenever they change, and dispatches what the tab
+    became. It hears only its own frame on that origin.
+  - The page hears only its parent on an origin of the Environment's apps and posts only
+    there. Neither navigates the other.
+- **Standalone** (Matěj 2026-10-11): Codex Desktop's browser opens `launchpad.<env>/new-tab`
+  on its own. A page that is not framed, or hears no host within 1.5 s, is Nová karta of
+  the Launchpad's strip with no tools; its address bar takes the focus, and a choice
+  navigates that window to the tab's view. A page opened there is the Launchpad's to hold
+  (`open` with the strip `launchpad`); choosing a tab that exists holds nothing.
+- The Launchpad's right panel (`browser-panel.ts`, `browser-panel-view.ts`) lists every tab
+  of the Environment from the overview, read every 5 s while the panel is open.
+  - "+" shows Nová karta, `<lazurio-new-tab strip="launchpad" focus-address>`, and so do
+    the first opening and the close of the last tab. A page or tab chosen in it shows in
+    the panel.
+  - × closes for everyone, with the warning and Vrátit.
+  - A page's new tab that a view reports (`lazurio-browser:new-tab`) is held for the
+    Launchpad (`POST /api/new-tab/hold`) and shown; `lazurio-browser:closed` drops its
+    tab.
+  - A closed panel mounts no frame and reads nothing.
+- `scripts/preview-new-tab.ts` shows it against fakes: the Launchpad's page with the
+  panel, `/new-tab` standalone and inside a host page with T3 Code's tools, and switches
+  for a hub that does not answer and an Environment without a browser.
+
+Until T3 Code's release with step 4, the Launchpad's panel and a standalone page are Nová
+karta's only consumers. While Nová karta shows in the Launchpad's panel, the panel and the
+page each read the overview every 5 s; step 5 measures that cost with the heaps.

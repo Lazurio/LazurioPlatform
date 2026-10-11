@@ -7,6 +7,7 @@ import {
 } from "../browser/people/hub";
 import type { BrowserEntry } from "../browser/units";
 import { browserViewUrl } from "../browser/view";
+import type { MachineEntry } from "../folder/machine-binding";
 import { ownDataValue, stateFields } from "../folder/state-fields";
 import {
   createServiceManagerProcess,
@@ -109,6 +110,28 @@ export type NewTabOverview = Readonly<{
 }>;
 
 const targetIdPattern = /^[0-9A-Fa-f]{32}$/;
+
+/** The headers the page `/new-tab` adds behind the gateway (F47 point 1):
+ * only the Environment's own apps may frame Nová karta, `apps` (the
+ * Launchpad itself, also `'self'`), `chat` and `automate`, from the recorded
+ * entry, as present; and its type is not sniffed. No other page of the
+ * Launchpad changes its headers. */
+export function newTabPageHeaders(
+  entry: Pick<
+    MachineEntry,
+    "externalOrigin" | "t3codeOrigin" | "mausbotOrigin"
+  >,
+): Readonly<Record<string, string>> {
+  const origins = [
+    entry.externalOrigin,
+    entry.t3codeOrigin,
+    ...(entry.mausbotOrigin === undefined ? [] : [entry.mausbotOrigin]),
+  ];
+  return Object.freeze({
+    "Content-Security-Policy": `frame-ancestors 'self' ${[...new Set(origins)].join(" ")}`,
+    "X-Content-Type-Options": "nosniff",
+  });
+}
 
 function nameOpener(
   opener: TabOpener,

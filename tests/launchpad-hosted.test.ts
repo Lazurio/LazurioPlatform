@@ -1,13 +1,24 @@
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
+import {
+  type NewTabHost,
+  newTabPageHeaders,
+} from "../src/launchpad/new-tab-routes";
 import { startLaunchpad } from "../src/launchpad/server";
-import { bindings, organizationWithEntry } from "./fixtures/machine-bindings";
+import {
+  binding,
+  bindings,
+  handoverEntry,
+  organizationWithEntry,
+  withBrowser,
+} from "./fixtures/machine-bindings";
+import organizationContext from "./fixtures/machine-context.json";
 
 const freePort = () => {
   const probe = Bun.serve({
@@ -170,6 +181,135 @@ test.skipIf(process.platform === "win32")(
       expect(
         asked.filter((c) => c === "__Secure-lazurio-workspace=valid").length,
       ).toBe(1);
+    } finally {
+      await app.close();
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// Nová karta (decision F47 point 1): the page `/new-tab` is framed by the
+// shell element in every app of the Environment, and only there. Behind the
+// gateway it names exactly the entry's own app origins in `frame-ancestors`:
+// the Launchpad (`'self'` and its external origin), T3 Code and MausBot as
+// present, never the browser's view or anything else. No other page of the
+// Launchpad changes its headers.
+test("frame-ancestors of /new-tab: the entry's app origins as present, each once", () => {
+  const headers = (mausbot?: string) =>
+    newTabPageHeaders({
+      externalOrigin: "https://launchpad.workspace.example.lazurio.io",
+      t3codeOrigin: "https://t3code.workspace.example.lazurio.io",
+      ...(mausbot === undefined ? {} : { mausbotOrigin: mausbot }),
+    });
+  expect(headers()).toEqual({
+    "Content-Security-Policy":
+      "frame-ancestors 'self' https://launchpad.workspace.example.lazurio.io https://t3code.workspace.example.lazurio.io",
+    "X-Content-Type-Options": "nosniff",
+  });
+  expect(
+    headers("https://mausbot.workspace.example.lazurio.io")[
+      "Content-Security-Policy"
+    ],
+  ).toBe(
+    "frame-ancestors 'self' https://launchpad.workspace.example.lazurio.io https://t3code.workspace.example.lazurio.io https://mausbot.workspace.example.lazurio.io",
+  );
+});
+
+test.skipIf(process.platform === "win32")(
+  "hosted, /new-tab may be framed only by the Environment's own apps, and no other page changes its headers",
+  async () => {
+    const parent = await realpath(
+      await mkdtemp(join(tmpdir(), "launchpad-new-tab-page-")),
+    );
+    const folder = join(parent, "Lazurio");
+    await mkdir(folder, { mode: 0o700 });
+    await mkdir(join(folder, "organizations"), { mode: 0o755 });
+    await mkdir(join(folder, "personalspace"), { mode: 0o700 });
+    const preset = "hosted-organization-personal";
+    const host = "workspace.example.lazurio.io";
+    const listenPort = freePort();
+    const { team: _team, ...owner } = organizationContext.owner;
+    // An entry with every app of decision F47 point 1 and the browser's
+    // view, whose origin is no app's and must not frame Nová karta.
+    const machine = binding({
+      ...organizationContext,
+      owner,
+      entry: {
+        ...withBrowser(handoverEntry(host, listenPort), host),
+        mausbot: {
+          external_origin: `https://mausbot.${host}`,
+          listen_port: 4102,
+        },
+      },
+    });
+    await initializeHandoverFolder(folder, {
+      preset,
+      machine,
+      profile: presetProfile(preset, executionOs(process.platform)),
+    });
+    const fetcher: AuthFetcher = async (_url, init) =>
+      new Headers(init.headers).get("cookie") ===
+      "__Secure-lazurio-workspace=valid"
+        ? new Response("ok")
+        : new Response("no", { status: 401 });
+    // The holder file lives under this test's own runtime directory.
+    const newTabHost: NewTabHost = {
+      runtimeDirectory: join(parent, "run"),
+      run: null,
+      readFile: (path) => readFile(path, "utf8"),
+      bootClock: async () => null,
+      log: () => undefined,
+    };
+    const app = await startLaunchpad(
+      folder,
+      undefined,
+      undefined,
+      undefined,
+      { fetcher },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      newTabHost,
+    );
+    try {
+      const base = `http://127.0.0.1:${listenPort}`;
+      const valid = {
+        host: `launchpad.${host}`,
+        cookie: "__Secure-lazurio-workspace=valid",
+      };
+      const page = await fetch(`${base}/new-tab`, { headers: valid });
+      expect(page.status).toBe(200);
+      expect(page.headers.get("content-security-policy")).toBe(
+        `frame-ancestors 'self' https://launchpad.${host} https://t3code.${host} https://mausbot.${host}`,
+      );
+      expect(page.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(page.headers.get("cache-control")).toBe("no-store");
+      // Nová karta's own page, with the boot document a hosted Launchpad
+      // writes into its pages.
+      const html = await page.text();
+      expect(html).toContain('<main class="nt" id="new-tab">');
+      expect(html).toContain('id="lazurio-boot"');
+      // Every other page as before: no frame-ancestors.
+      for (const path of ["/", "/settings/tools", "/integrations"]) {
+        const other = await fetch(`${base}${path}`, { headers: valid });
+        expect([path, other.status]).toEqual([path, 200]);
+        expect(other.headers.get("content-security-policy")).toBeNull();
+        await other.text();
+      }
+      // Behind the same admission as every page.
+      expect(
+        (await fetch(`${base}/new-tab`, { headers: { host: valid.host } }))
+          .status,
+      ).toBe(401);
     } finally {
       await app.close();
       await rm(parent, { recursive: true, force: true });

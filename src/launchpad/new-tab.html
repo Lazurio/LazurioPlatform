@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Nová karta</title>
+<link rel="icon" href="../shell/vendor/lazurio/symbol-color.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../shell/vendor/lazurio/tokens.css">
+<!-- The brand fonts, exactly the font faces of the shell (`fontFaceCss`,
+     src/shell/fonts.ts), as the Launchpad page declares them. -->
+<style data-lazurio-fonts>
+@font-face{font-family:"Inter Tight Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url("/.lazurio/fonts/inter-tight-latin-wght-normal.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Inter Tight Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url("/.lazurio/fonts/inter-tight-latin-ext-wght-normal.woff2") format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Geist Mono";font-style:normal;font-display:swap;font-weight:400;src:url("/.lazurio/fonts/geist-mono-latin-400-normal.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Geist Mono";font-style:normal;font-display:swap;font-weight:400;src:url("/.lazurio/fonts/geist-mono-latin-ext-400-normal.woff2") format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+</style>
+<style>
+/* Nová karta (decision F47, the approved wireframe prototypes-lazurio #27:
+   NewTab.tsx and browser-panel.css), what "+" opens in the right panel of
+   every app of the Environment: the address bar, the app's tools, Přehled
+   and Navrhované, one calm column. Every colour comes from the design
+   system's tokens, and from the app's colour roles (`--lazurio-*`) when the
+   element hands them over, so Nová karta looks like the app around it. Three
+   radii (fields and keys, controls, free-standing objects) and the one
+   shadow for what floats over the page. Plain CSS, no framework. */
+:root {
+  color-scheme: light;
+  --nt-surface: var(--lazurio-surface, var(--lz-white));
+  --nt-ink: var(--lazurio-ink, var(--lz-ink));
+  --nt-muted: var(--lazurio-ink-muted, var(--lz-ink-muted));
+  --nt-faint: var(--lazurio-ink-muted, var(--lz-ink-faint));
+  --nt-line: var(--lazurio-line, var(--lz-line));
+  --nt-line-faint: var(--lazurio-line, var(--lz-line-faint));
+  --nt-line-strong: var(--lazurio-line-strong, var(--lz-gray-300));
+  --nt-hover: var(--lazurio-hover, var(--lz-gray-50));
+  --nt-control: var(--lazurio-control, var(--lz-gray-25));
+  --nt-raised: var(--lazurio-raised, var(--lz-white));
+  --nt-selected: var(--lazurio-selected, var(--lz-gray-50));
+  --nt-overlay: var(--lazurio-overlay, var(--lz-white));
+  --nt-overlay-ink: var(--lazurio-overlay-ink, var(--lz-ink));
+  --nt-focus: var(--lazurio-focus, var(--lz-accent));
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { background: var(--nt-surface); color: var(--nt-ink); font: 14px/1.45 var(--lz-font-sans); letter-spacing: var(--lz-track-body); -webkit-font-smoothing: antialiased; }
+[hidden] { display: none !important; }
+button, input, a { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--nt-focus); outline-offset: 1px; }
+.icon { width: 16px; height: 16px; flex: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+.nt { display: grid; align-content: start; gap: 24px; max-width: 760px; margin: 0 auto; padding: 16px 16px 96px; }
+
+/* The address bar: the field of a browser's new tab. */
+.nt-address { display: flex; align-items: center; gap: 8px; height: 38px; margin: 0; padding: 0 12px; border: 1px solid var(--nt-line); border-radius: var(--lz-radius-sm); background: var(--nt-control); color: var(--nt-muted); }
+.nt-address:focus-within { border-color: var(--nt-ink); background: var(--nt-raised); }
+.nt-address input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--nt-ink); font-size: 14px; }
+.nt-address input::placeholder { color: var(--nt-muted); }
+.nt-address input:disabled { opacity: 0.6; }
+
+/* A link to another Environment's tab: said, never opened here. */
+.nt-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: -14px; padding: 6px 6px 6px 12px; border: 1px solid var(--lz-warning-border); border-radius: var(--lz-radius-sm); background: var(--lz-warning-bg); color: var(--lz-ink); font-size: 13px; }
+.nt-notice-text { flex: 1; min-width: 12rem; }
+.nt-notice-where { white-space: nowrap; }
+.nt-notice-link { color: var(--lz-blue-500); font-weight: var(--lz-weight-akce); text-decoration: none; white-space: nowrap; }
+.nt-notice-link:hover { text-decoration: underline; }
+.nt-icon-button { display: inline-grid; width: 26px; height: 26px; flex: none; place-items: center; padding: 0; border: 0; border-radius: var(--lz-radius-sm); background: transparent; color: inherit; }
+.nt-icon-button:hover { background: var(--lz-gray-100); }
+
+.nt-section { display: grid; gap: 10px; }
+.nt-title { margin: 0; color: var(--nt-muted); font-size: 13px; font-weight: var(--lz-weight-akce); }
+
+/* The app's tools, two to a row as Codex lists its tools, with their keys. */
+.nt-tools { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.nt-tool { display: flex; align-items: center; gap: 8px; height: 38px; min-width: 0; padding: 0 8px 0 10px; border: 1px solid var(--nt-line); border-radius: var(--lz-radius-sm); background: var(--nt-control); color: var(--nt-ink); font-size: 13.5px; text-align: left; }
+.nt-tool:hover { border-color: var(--nt-line-strong); background: var(--nt-hover); }
+.nt-tool .icon { color: var(--nt-muted); }
+.nt-tool-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nt-kbd { flex: none; padding: 1px 6px; border: 1px solid var(--nt-line); border-radius: var(--lz-radius-xs); background: var(--nt-raised); color: var(--nt-muted); font-family: var(--lz-font-mono); font-size: 11px; line-height: 1.4; }
+
+/* Přehled: the Environment's memory on top, then every tab of the
+   Environment and its running Modules. */
+.nto { display: grid; align-content: start; gap: 18px; }
+.nto-status { margin: 0; color: var(--nt-muted); font-size: 13px; }
+.nto-memory { display: grid; gap: 8px; padding: 14px 14px 12px; border: 1px solid var(--nt-line); border-radius: var(--lz-radius-md); }
+.nto-memory-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.nto-memory-title { font-size: 13px; font-weight: var(--lz-weight-akce); }
+.nto-memory-value { color: var(--nt-muted); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nto-memory-value strong { color: var(--nt-ink); font-size: 15px; font-weight: var(--lz-weight-akce); }
+.nto-bar { position: relative; display: block; height: 6px; overflow: hidden; border-radius: var(--lz-radius-xs); background: var(--lz-blue-50); }
+.nto-bar-fill { position: absolute; inset: 0 auto 0 0; border-radius: var(--lz-radius-xs); background: var(--lz-blue-500); transition: width 220ms ease-out; }
+.nto-memory[data-tone="warn"] .nto-bar { background: #fff1d6; }
+.nto-memory[data-tone="warn"] .nto-bar-fill { background: var(--lz-expressive-orange); }
+.nto-memory[data-tone="bad"] .nto-bar { background: var(--lz-red-100); }
+.nto-memory[data-tone="bad"] .nto-bar-fill { background: var(--lz-red-500); }
+.nto-memory-parts { display: flex; flex-wrap: wrap; gap: 2px 14px; color: var(--nt-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.nto-memory-hint { display: flex; align-items: flex-start; gap: 6px; margin: 2px 0 0; font-size: 12.5px; line-height: 1.45; }
+.nto-memory-hint .icon { width: 14px; height: 14px; margin-top: 2px; color: var(--lz-expressive-orange); }
+.nto-group { display: grid; gap: 8px; }
+.nto-group-title { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--nt-muted); font-size: 13px; font-weight: var(--lz-weight-akce); }
+.nto-count { color: var(--nt-faint); font-variant-numeric: tabular-nums; }
+.nto-list { margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--nt-line); border-radius: var(--lz-radius-md); list-style: none; }
+/* A row: what it is and who opened it on the left; the memory over the
+   actions on the right. */
+.nto-row { display: grid; align-items: center; gap: 2px 12px; grid-template-areas: "open mem" "open actions"; grid-template-columns: minmax(0, 1fr) auto; padding: 8px 8px 8px 10px; }
+.nto-row + .nto-row { border-top: 1px solid var(--nt-line-faint); }
+.nto-open { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding: 2px; border: 0; border-radius: var(--lz-radius-sm); background: transparent; color: inherit; text-align: left; grid-area: open; }
+.nto-open > :first-child { margin-top: 2px; }
+.nto-open:not(.is-static):hover .nto-name { text-decoration: underline; }
+.nto-open.is-static { cursor: default; }
+.nto-text { display: grid; gap: 2px; min-width: 0; }
+.nto-name { overflow: hidden; color: var(--nt-ink); font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
+.nto-meta { display: flex; flex-wrap: wrap; gap: 0 10px; min-width: 0; color: var(--nt-muted); font-size: 12px; }
+.nto-who { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.nto-who .icon { width: 12px; height: 12px; }
+.nto-status-working { color: var(--lz-blue-500); }
+.nto-here { padding: 0 5px; border-radius: var(--lz-radius-xs); background: var(--nt-selected); color: var(--nt-ink); }
+.nto-mem { color: var(--nt-ink); font-size: 12.5px; font-variant-numeric: tabular-nums; grid-area: mem; justify-self: end; white-space: nowrap; }
+.nto-mem.is-heavy { font-weight: 650; }
+.nto-actions { display: flex; justify-content: flex-end; gap: 4px; grid-area: actions; }
+.nto-action { height: 24px; padding: 0 8px; border: 1px solid var(--nt-line); border-radius: var(--lz-radius-sm); background: var(--nt-raised); color: var(--nt-ink); font-size: 12px; font-weight: var(--lz-weight-akce); }
+.nto-action:hover:not(:disabled) { border-color: var(--nt-line-strong); background: var(--nt-hover); }
+.nto-action:disabled { color: var(--nt-faint); cursor: default; opacity: 0.6; }
+.nto-empty { margin: 0; padding: 12px 14px; border: 1px dashed var(--nt-line); border-radius: var(--lz-radius-md); color: var(--nt-muted); font-size: 13px; }
+
+/* A tab's icon: its favicon or a globe, with a dot while an agent works. */
+.nt-favicon { position: relative; display: inline-grid; flex: none; width: 16px; height: 16px; place-items: center; color: var(--nt-muted); }
+.nt-favicon img { display: block; width: 16px; height: 16px; border-radius: var(--lz-radius-xs); }
+.nt-favicon .icon { width: 15px; height: 15px; }
+.nt-agent { position: absolute; right: -4px; bottom: -4px; width: 10px; height: 10px; border: 2px solid var(--nt-surface); border-radius: 50%; background: var(--lz-blue-500); animation: nt-agent 1.6s ease-in-out infinite; }
+@keyframes nt-agent { 50% { box-shadow: 0 0 0 3px rgba(13, 18, 219, 0.22); } }
+.nt-stone { display: block; flex: none; border-radius: var(--lz-radius-xs); }
+
+/* Navrhované: the Environment's apps. */
+.nt-group { display: grid; gap: 4px; }
+.nt-caption { margin: 0; color: var(--nt-faint); font-size: 12px; font-weight: 500; }
+.nt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+.nt-tile { display: grid; justify-items: center; gap: 8px; min-width: 0; padding: 14px 6px 12px; border: 1px solid transparent; border-radius: var(--lz-radius-sm); background: transparent; color: var(--nt-ink); font-size: 13px; }
+.nt-tile:hover { border-color: var(--nt-line); background: var(--nt-control); }
+.nt-tile-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Whose sign-ins these are. */
+.nt-note { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; border-radius: var(--lz-radius-sm); background: var(--nt-selected); font-size: 13.5px; }
+.nt-note[data-team] { background: var(--lz-blue-100); color: var(--lz-ink); }
+
+/* The toast: why a closed tab ends and Vrátit for its grace; a later
+   message shows above that line and never takes Vrátit away. */
+.nt-toast-region { position: fixed; z-index: 6; right: 16px; bottom: 18px; left: 16px; display: grid; justify-items: center; pointer-events: none; }
+.nt-toast { display: flex; align-items: center; gap: 10px; max-width: 100%; padding: 8px 8px 8px 16px; border: 1px solid var(--nt-line); border-radius: var(--lz-radius-md); background: var(--nt-overlay); color: var(--nt-overlay-ink); box-shadow: var(--lz-shadow-float); font-size: 13.5px; pointer-events: auto; }
+.nt-toast:not(:has(button)) { padding-right: 16px; }
+.nt-toast-note { display: block; color: var(--nt-muted); }
+.nt-toast-undo { flex: none; margin-left: 4px; padding: 5px 10px; border: 1px solid var(--nt-line); border-radius: var(--lz-radius-sm); background: var(--nt-raised); color: var(--nt-ink); font-weight: var(--lz-weight-akce); }
+.nt-toast-undo:hover { background: var(--nt-hover); }
+
+/* The warning before closing a tab an agent works in. */
+.nt-scrim { position: fixed; z-index: 8; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(9, 9, 9, 0.28); }
+.nt-confirm { display: grid; gap: 10px; width: min(380px, 100%); padding: 18px; border: 1px solid var(--nt-line); border-radius: var(--lz-radius-md); background: var(--nt-overlay); color: var(--nt-overlay-ink); box-shadow: var(--lz-shadow-float); }
+.nt-confirm-title { font-size: 15px; font-weight: var(--lz-weight-akce); }
+.nt-confirm-text { margin: 0; color: var(--nt-muted); font-size: 13.5px; line-height: 1.5; }
+.nt-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.nt-button { height: 32px; padding: 0 12px; border: 1px solid var(--nt-line); border-radius: var(--lz-radius-sm); background: var(--nt-raised); color: var(--nt-ink); font-size: 13px; font-weight: var(--lz-weight-akce); }
+.nt-button:hover { background: var(--nt-hover); }
+.nt-button.is-danger { border-color: var(--lz-danger-border); background: var(--lz-danger-bg); color: var(--lz-danger); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<!-- Icons: Iconoir (MIT, https://iconoir.com; licence in
+     src/shell/vendor/LICENSE-iconoir.txt), the design system's interface set,
+     the path data of iconoir-react 7.12.1 at the wireframe's stroke of 1.6,
+     inlined: the tools' icons as the wireframe's ToolIcon picks them
+     (MultiplePages, GitCompare, GitPullRequest, Brain, SmartphoneDevice,
+     ViewGrid). -->
+<svg hidden aria-hidden="true">
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M17 17L21 21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 11C3 15.4183 6.58172 19 11 19C13.213 19 15.2161 18.1015 16.6644 16.6493C18.1077 15.2022 19 13.2053 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 12.5L8 14.5L7 18L8 21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 20.5L16.5 18L14 17V13.5L17 12.5L21.5 13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 5.5L18.5 7L15 7.5V10.5L17.5 9.5H19.5L21.5 10.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 10.5L5 8.5L7.5 8L9.5 5L8.5 3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6.75827 17.2426L12.0009 12M17.2435 6.75736L12.0009 12M12.0009 12L6.75827 6.75736M12.0009 12L17.2435 17.2426" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 11.5V16.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7.51L12.01 7.49889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-warning" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M20.0429 21H3.95705C2.41902 21 1.45658 19.3364 2.22324 18.0031L10.2662 4.01533C11.0352 2.67792 12.9648 2.67791 13.7338 4.01532L21.7768 18.0031C22.5434 19.3364 21.581 21 20.0429 21Z" stroke="currentColor" stroke-linecap="round"/><path d="M12 9V13" stroke="currentColor" stroke-linecap="round"/><path d="M12 17.01L12.01 16.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M10 12C10 14.2091 8.20914 16 6 16C3.79086 16 2 14.2091 2 12C2 9.79086 3.79086 8 6 8C8.20914 8 10 9.79086 10 12ZM10 12H22V15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 12V15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M1 20V19C1 15.134 4.13401 12 8 12V12C11.866 12 15 15.134 15 19V20" stroke="currentColor" stroke-linecap="round"/><path d="M13 14V14C13 11.2386 15.2386 9 18 9V9C20.7614 9 23 11.2386 23 14V14.5" stroke="currentColor" stroke-linecap="round"/><path d="M8 12C10.2091 12 12 10.2091 12 8C12 5.79086 10.2091 4 8 4C5.79086 4 4 5.79086 4 8C4 10.2091 5.79086 12 8 12Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 9C19.6569 9 21 7.65685 21 6C21 4.34315 19.6569 3 18 3C16.3431 3 15 4.34315 15 6C15 7.65685 16.3431 9 18 9Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M5 20V19C5 15.134 8.13401 12 12 12V12C15.866 12 19 15.134 19 19V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M7 14C5.34315 14 4 15.3431 4 17C4 18.6569 5.34315 20 7 20C7.35064 20 7.68722 19.9398 8 19.8293" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.26392 15.6046C2.9243 14.9582 2.00004 13.587 2.00004 12C2.00004 10.7883 2.53877 9.70251 3.38978 8.96898" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.42053 8.8882C3.1549 8.49109 3 8.01363 3 7.5C3 6.11929 4.11929 5 5.5 5C6.06291 5 6.58237 5.18604 7.00024 5.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.23769 5.56533C7.08524 5.24215 7 4.88103 7 4.5C7 3.11929 8.11929 2 9.5 2C10.8807 2 12 3.11929 12 4.5V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 20C8 21.1046 8.89543 22 10 22C11.1046 22 12 21.1046 12 20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7C12 8.65685 13.3431 10 15 10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 14C18.6569 14 20 15.3431 20 17C20 18.6569 18.6569 20 17 20C16.6494 20 16.3128 19.9398 16 19.8293" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.7361 15.6046C21.0757 14.9582 22 13.587 22 12C22 10.7883 21.4612 9.70251 20.6102 8.96898" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M20.5795 8.8882C20.8451 8.49109 21 8.01363 21 7.5C21 6.11929 19.8807 5 18.5 5C17.9371 5 17.4176 5.18604 16.9998 5.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 4.5C12 3.11929 13.1193 2 14.5 2C15.8807 2 17 3.11929 17 4.5C17 4.88103 16.9148 5.24215 16.7623 5.56533" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 20C16 21.1046 15.1046 22 14 22C12.8954 22 12 21.1046 12 20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-page" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M21 3L15 3M21 3L12 12M21 3V9" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 13V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H11" stroke="currentColor" stroke-linecap="round"/></symbol>
+<symbol id="i-terminal" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M13 17H20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 7L10 12L5 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-files" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M7 18H10.5H14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 14H7.5H8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 10H8.5H10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 2L16.5 2L21 6.5V19" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 20.5V6.5C3 5.67157 3.67157 5 4.5 5H14.2515C14.4106 5 14.5632 5.06321 14.6757 5.17574L17.8243 8.32426C17.9368 8.43679 18 8.5894 18 8.74853V20.5C18 21.3284 17.3284 22 16.5 22H4.5C3.67157 22 3 21.3284 3 20.5Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 5V8.4C14 8.73137 14.2686 9 14.6 9H18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-diff" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M18 21C19.1046 21 20 20.1046 20 19C20 17.8954 19.1046 17 18 17C16.8954 17 16 17.8954 16 19C16 20.1046 16.8954 21 18 21Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 7C7.10457 7 8 6.10457 8 5C8 3.89543 7.10457 3 6 3C4.89543 3 4 3.89543 4 5C4 6.10457 4.89543 7 6 7Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 17V7C18 7 18 5 16 5H13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 7V17C6 17 6 19 8 19H11" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.0005 7.50012L12.5005 5.00012L15.0005 2.50012" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 16.5L11 19L8.5 21.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-pull-request" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M18 21C19.1046 21 20 20.1046 20 19C20 17.8954 19.1046 17 18 17C16.8954 17 16 17.8954 16 19C16 20.1046 16.8954 21 18 21Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 7C7.10457 7 8 6.10457 8 5C8 3.89543 7.10457 3 6 3C4.89543 3 4 3.89543 4 5C4 6.10457 4.89543 7 6 7Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 21C7.10457 21 8 20.1046 8 19C8 17.8954 7.10457 17 6 17C4.89543 17 4 17.8954 4 19C4 20.1046 4.89543 21 6 21Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 7V17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 17V7C18 7 18 5 16 5H13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.0005 7.50012L12.5005 5.00012L15.0005 2.50012" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-device" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 16.01L12.01 15.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 19.4V4.6C7 4.26863 7.26863 4 7.6 4H16.4C16.7314 4 17 4.26863 17 4.6V19.4C17 19.7314 16.7314 20 16.4 20H7.6C7.26863 20 7 19.7314 7 19.4Z" stroke="currentColor"/></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M14 20.4V14.6C14 14.2686 14.2686 14 14.6 14H20.4C20.7314 14 21 14.2686 21 14.6V20.4C21 20.7314 20.7314 21 20.4 21H14.6C14.2686 21 14 20.7314 14 20.4Z" stroke="currentColor"/><path d="M3 20.4V14.6C3 14.2686 3.26863 14 3.6 14H9.4C9.73137 14 10 14.2686 10 14.6V20.4C10 20.7314 9.73137 21 9.4 21H3.6C3.26863 21 3 20.7314 3 20.4Z" stroke="currentColor"/><path d="M14 9.4V3.6C14 3.26863 14.2686 3 14.6 3H20.4C20.7314 3 21 3.26863 21 3.6V9.4C21 9.73137 20.7314 10 20.4 10H14.6C14.2686 10 14 9.73137 14 9.4Z" stroke="currentColor"/><path d="M3 9.4V3.6C3 3.26863 3.26863 3 3.6 3H9.4C9.73137 3 10 3.26863 10 3.6V9.4C10 9.73137 9.73137 10 9.4 10H3.6C3.26863 10 3 9.73137 3 9.4Z" stroke="currentColor"/></symbol>
+</svg>
+<!-- Drawn by new-tab-page.ts from new-tab-view.ts; the server's boot
+     document (boot.ts) carries the language, the shell document, the
+     catalog and the entry. -->
+<main class="nt" id="new-tab">
+<form class="nt-address" id="address-form" role="search" autocomplete="off"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input id="address" type="text" enterkeyhint="go" spellcheck="false" autocapitalize="off" autocorrect="off"></form>
+<div class="nt-notice" id="foreign" role="status" hidden></div>
+<section class="nt-section" id="tools" aria-labelledby="tools-title" hidden><h2 class="nt-title" id="tools-title"></h2><div class="nt-tools" id="tools-list"></div></section>
+<section class="nt-section" id="overview" aria-labelledby="overview-title"><h2 class="nt-title" id="overview-title"></h2><div class="nto" id="overview-body"></div></section>
+<section class="nt-section" id="suggested" aria-labelledby="suggested-title" hidden><h2 class="nt-title" id="suggested-title"></h2><div class="nt-group"><h3 class="nt-caption" id="suggested-caption"></h3><div class="nt-grid" id="suggested-list"></div></div></section>
+<p class="nt-note" id="note"></p>
+</main>
+<div class="nt-toast-region" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="./new-tab-page.ts"></script>
+</body>
+</html>
