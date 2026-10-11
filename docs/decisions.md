@@ -6960,3 +6960,232 @@ start's answer, not by a journal line.
 | Start a required-secret application without the variable | The application would fail later, in front of its user, or worse run with a default; rejected for fail closed |
 | Refuse every start when an optional name is not provided | A Module could not run on an Environment without that capability; rejected by root decision 0196 |
 | One finding code per secret reason (`runtime-secret-missing`, …) | Many codes for one condition; rejected for one code with each name's reason |
+
+## F47 — Nová karta: one shell element for every app's right panel, the places that hold a remote tab, and the Environment's overview
+
+**Decided by Matěj 2026-10-11 (root decision 0195 points 5 and 9–12, HumanAndMachines/Lazurio#523;
+the final wireframe `HumanAndMachine-ai/prototypes-lazurio` #27; plans DEV-6656 task 917 and
+DEV-6646 task 2026-10-11-501); this revision designs it, the steps at the end implement it.**
+In the Launchpad the right panel's strip shows every tab of the Environment, in T3 Code the tabs
+of one thread (0195 point 9). "+" opens the same Nová karta in every app: an address bar, the
+app's own tools, Přehled with the Environment's memory, all its tabs and its running Modules, and
+suggestions (point 10). A tab taken from Přehled into a thread stays one remote tab. It ends when
+the last place that holds it lets go and no agent works in it, after a short grace with Vrátit;
+Zavřít in Přehled or in the Launchpad's strip closes it for everyone (point 11). All of this is
+the Environment browser of a Remote Environment (F38, F39); an Environment without it, and a
+workstation, keep their apps' own "+".
+
+1. **Nová karta is a shell element, `<lazurio-new-tab>`.** Apps embed it from
+   `/.lazurio/shell.js` as they embed `<lazurio-rail>` (F36), give it their tools and learn what
+   the tab became (0195 point 10). In its shadow root the element frames one page of the
+   Launchpad, `/new-tab` on the Launchpad's origin (`apps` in `shell.json`), which draws Nová
+   karta and does its reads and writes. The writes are why the page is framed. On the
+   Launchpad's origin they are same-origin and pass the hosted admission as they are (`Origin`
+   equal to the Launchpad's, `Sec-Fetch-Site: same-origin`, the session revalidated at the
+   gateway). On the forks' origins the gateway relays only `GET` and `HEAD` of listed paths
+   under `/.lazurio` and answers other methods with 405 (Machines, `workspace-vm` ingress).
+   The Launchpad's own panel uses the same element. The page sends
+   `Content-Security-Policy: frame-ancestors` with the Environment's own app origins (`apps`,
+   `chat`, `automate`) and nothing else.
+2. **The element's interface** is part of the shell's and only grows (F36's addendum of
+   2026-10-05):
+   - `strip`: the strip the tab is for, `launchpad` or a T3 Code thread's agent-browser session
+     (`t3-<thread>`); `tools`: the app's own surfaces, each `{id, label, key?}` (T3 Code:
+     Terminal, Files, Diff, pull requests, Agents, Device), drawn under the address bar in that
+     order; the attribute `focus-address`.
+   - One event, `lazurio-new-tab`, with `detail` `{kind: "page", tab, view}` when an address
+     opened a remote tab, `{kind: "tab", tab, view}` when a tab of Přehled was chosen, or
+     `{kind: "tool", id}`. `view` is that remote tab's view (`https://browser.<…>/t/<id>`, F39
+     point 1). The app turns its tab into it; the element never navigates the app.
+   - The address bar takes the keys only with `focus-address`. The Launchpad sets it. T3 Code
+     does not, so its tools keep opening by their letters, which the page passes on while
+     nobody types (the wireframe).
+   - The element hands the page the app's colour roles and language, so Nová karta looks like
+     the app around it.
+   - Between the element and its page runs `postMessage`, each side checking the other's
+     origin and window. Both come from the same Launchpad, so that protocol is internal.
+3. **The page.**
+   - An address creates a remote tab only then (`Target.createTarget` with `newWindow`, F39
+     point 2), so an empty Nová karta takes none of the Environment's memory (0195 point 10).
+   - An address of another Environment's view is never opened in this Environment's browser
+     (F38's addendum of 2026-10-11); the page says so, as the wireframe does.
+   - Přehled is read only while the page is visible (the Page Visibility API), every 5 s; a
+     hidden Nová karta reads nothing.
+   - Uspat waits for DEV-6656 spike 916; until then Přehled offers Zavřít.
+4. **The places that hold a remote tab are files their apps' servers write.** A holder
+   (0195 point 11) is a T3 Code thread whose strip has the tab, or the Launchpad for a tab a
+   person opened in it: from its Nová karta, or as a page's new tab while viewed there (F39
+   point 4). Each holder is one file, `$XDG_RUNTIME_DIR/lazurio-browser/holders/<strip>.json`
+   = `{"strip", "label", "tabs": [<target id>…]}`, mode 0600 in a directory of mode 0700. Only
+   its app's server replaces it, atomically (a temporary file and a rename).
+   - T3 Code's server keeps each thread's browser tabs, so the strip is the same on every
+     device, and writes `t3-<thread>.json` with the thread's title as `label`. A deleted
+     thread's file goes.
+   - The Launchpad writes `launchpad.json`.
+
+   Files need no interface between the servers of one Unix user. Like agent-browser's binding
+   files they outlive a restart of the Launchpad, of T3 Code and of the view, and they go at a
+   reboot with the runtime directory, as the browser's tabs do.
+
+   **Each app keeps its holds true to the browser.** The hub writes the ids of the browser's
+   live page targets to a file of its own, `$XDG_RUNTIME_DIR/lazurio-browser/tabs.json` =
+   `{"tabs": [<target id>…], "takenAt": {"boot", "at"}}`, mode 0600 and replaced atomically.
+   - **Times come from the boot clock, never the wall clock.** A time here is the Environment's
+     boot (`/proc/sys/kernel/random/boot_id`) and the seconds since it (`/proc/uptime`, the
+     kernel's boot clock). That clock never steps back, unlike the wall clock, and the hub and
+     the apps read the same one.
+   - **Every list is a fresh snapshot.** The hub reads the boot clock, asks the browser for its
+     targets (`Target.getTargets`), and writes the page targets of the answer with that
+     reading as `takenAt`. It takes one after each discovery, whenever a target appears or
+     ends, and every 30 s while it is connected to the browser, one at a time. Without a
+     connection it writes nothing, and the file stays as it was.
+   - **The apps reconcile.** Each app's server reads the file when it starts, whenever it
+     changes (watched, and read again every 30 s) and before it writes its holder file. It
+     drops from its stored tabs and its holder file every id that a list of the current boot
+     lacks, when that list's `takenAt` is later than the app's record of the id. A record
+     from an earlier boot is older than every list of this one, and a list of another boot is
+     ignored.
+   - **Why that order is safe.** A snapshot lists every target that exists when it begins,
+     also one whose event reaches the hub late on its own connection. So an id that a
+     snapshot begun after the record lacks had ended by then, and a live tab is never dropped.
+   - **The record times survive a restart.** An app keeps, with each stored tab, its record
+     time on the boot clock in its own store: T3 Code's thread state; for the Launchpad, its
+     holder file's `recordedAt`, which the hub ignores. A stored tab without a time counts as
+     recorded long ago.
+
+   This covers, with no view open:
+   - a tab closed for everyone or ended while no app shows it;
+   - a browser restart that ends every id;
+   - stored ids that ended while the app's server was down;
+   - a tab that ended before the app recorded it, which the next periodic snapshot drops,
+     within about 30 s.
+
+   A view page whose tab ends also tells its app at once (`lazurio-browser:closed`), so a strip
+   that shows the tab drops it without waiting for the file.
+5. **The view's hub decides when a remote tab ends.** A page target is **held** while a
+   holder file lists it or an agent works in it: an agent-browser session is bound to it
+   (`<session>.target`) and that session's daemon runs (`<session>.pid` names a live process).
+   The binding alone does not count. agent-browser keeps it past the daemon on purpose, and
+   the daemon ends after an hour without a command (its default idle timeout). The hub re-reads
+   both directories when they change and every 30 s.
+   - When the last hold goes while nobody views the tab, the tab ends after 8 s, the window of
+     Vrátit (the wireframe's grace). A hold or a viewer within it keeps the tab.
+   - When the last viewer leaves a tab nothing holds, F39 point 9 stands: it ends after 30 s,
+     and a tab that nobody has viewed or held yet after 10 minutes.
+   - A held tab never ends for lack of viewers.
+   - The hub keeps one blank window of its own, the `about:blank` the unit starts the browser
+     with, because Chrome ends with its last window and the unit would start it again. That
+     window is in no list. When someone navigates it, it becomes a tab like any other, and the
+     hub opens a new blank one.
+
+   This changes F39 point 9 twice. An agent's window ends once no agent works in it and
+   nothing holds or views it; before, the view never closed it. After a restart of the view
+   every tab nothing holds gets the 10 minutes; before, the record was gone and nothing closed.
+6. **Closing for everyone, and Vrátit.** The hub answers four requests only on its loopback
+   address (`Host: 127.0.0.1:<port>`). Through the gateway, which sends the view's own host,
+   they do not exist. Pages in the Environment's own browser reach the loopback too, so the hub
+   refuses any of these requests that carries an `Origin` or a `Sec-Fetch-Site` header, as
+   Chrome's requests do; the Launchpad's server sends neither.
+   - `GET /.lazurio/tabs`: every page target with its title, address, icon, when it was opened
+     and last used (viewed or navigated), who opened it (the view, Nová karta, a page, or an
+     agent-browser session), whether an agent works in it, its holders and any grace.
+   - `POST /.lazurio/tabs {url}`: a new remote tab for Nová karta (point 3); answers its id.
+   - `POST /.lazurio/tabs/<id>/close`: the tab ends after 8 s for everyone, held or not.
+   - `POST /.lazurio/tabs/<id>/restore`: within that grace, or within the grace of point 5.
+
+   The Launchpad is their caller; it knows the view's loopback port from its entry
+   (`entry.browser`). They give no new power: a process of the Environment that can call them
+   already reaches DevTools on 9222. The apps reconcile with the list of live tabs in a file
+   (point 4), not through these requests, so an app's server needs neither the view's port nor
+   the view running.
+7. **The overview is the Launchpad's.** `GET /api/new-tab/overview` answers the page, beside the
+   Launchpad's other requests:
+   - **memory:** the Environment's total and what is in use (`/proc/meminfo`), the browser
+     (`memory.current` of `lazurio-browser.service`, whose `MemoryMax` F38's addendum of
+     2026-10-10 sets), each running Module (its transient unit's `memory.current`), the
+     protected core (0195 point 3) and the rest;
+   - **tabs:** the hub's list (point 6) with the holders' labels. An agent that opened a tab is
+     named by its app from its session (`t3-` T3 Code with the thread's title from its holder
+     file, `codex-` Codex, `claude-` Claude Code); a person stays unnamed (F11). A tab's memory where it can be
+     measured, otherwise an estimate marked "≈" (open below);
+   - **Modules:** the running units of the Environment's Organizations with their memory,
+     source (`main` or a worktree) and mode, and Zastavit through the existing
+     `POST /api/modules/<org>/<module>/stop`.
+8. **Actions,** same-origin from the page:
+   - `POST /api/new-tab/open {url, strip}` asks the hub for the tab and answers its `tab` and
+     `view`; for `launchpad` the Launchpad records its hold first. Another app records its hold
+     through its own server when the element reports `page` or `tab`. Until then the tab is
+     one nobody has viewed or held yet (point 5), and the app's frame of it becomes its viewer
+     within seconds.
+   - `POST /api/new-tab/close {tab}` and `POST /api/new-tab/restore {tab}` go to the hub
+     (point 6). The page asks first when an agent works in the tab (0195 point 5).
+   - Zastavit is the Module's existing stop.
+9. **The Launchpad's panel** shows every tab of the Environment from the overview, and "+"
+   opens Nová karta; the pinned Přehled of the first wireframe is gone. Its first opening shows
+   Nová karta, and so does closing the last tab. Zavřít in its strip is the close for everyone
+   (point 6), with the warning when an agent works in the tab. A message during the grace
+   never takes Vrátit away (wireframe #27).
+10. **T3 Code** (plan DEV-6646 task 2026-10-11-501): "+" opens a tab with `<lazurio-new-tab>`
+    instead of the upstream menu. A page or a chosen tab turns it into the thread's tab, a tool
+    into T3 Code's own surface. Its server keeps the threads' browser tabs and writes their
+    holder files. Closing a tab in the strip takes it off that thread only, with Vrátit, and
+    the strip says when another thread or the Launchpad holds it too (from the holder files).
+    This replaces the interim "+ → Browser" of 0.0.45-lazurio.7.
+
+**Failure modes.**
+
+| Failure | What happens |
+| --- | --- |
+| The view restarts | The hub re-reads holders and bindings; held tabs stay, every other tab gets 10 minutes to be viewed or held again |
+| The browser restarts | Its tabs are gone and do not come back (F38's addendum of 2026-10-10). After discovery the hub writes the new list, and each app's server drops the ended ids from its stored tabs and its holder file (point 4) |
+| A tab is closed for everyone, or ends, while no app shows it | The hub rewrites the list when the target ends; each app's server drops it from its strips and its holder file, with no view involved |
+| The Launchpad restarts | Holds stay in their files and no tab ends; Nová karta says the Launchpad is unreachable and tries again |
+| T3 Code's server restarts | Its holder files stay. On start it reconciles the threads' stored tabs with the hub's list, rewrites the files, and removes those of deleted threads |
+| An app records its hold late | The tab is new, so it has 10 minutes, and the app's frame views it within seconds |
+| An app records a tab the list does not have yet | It drops an id only when a snapshot begun after the record lacks it, so a new tab stays |
+| The Environment's wall clock steps back or forward | Nothing here reads it: the boot clock orders records and snapshots |
+| The hub's event about a new tab comes late | The snapshot asks the browser itself, so the tab is in it; no app drops a live tab |
+| A tab ends before the app records it | No change triggers a snapshot, but the periodic one does within 30 s; it began after the record and lacks the id, so the app drops it |
+| An agent's daemon ends (an hour idle, a crash) | Its binding stops counting; a tab nothing holds or views ends after 8 s. The agent's next command answers `tab_gone`, and `lazurio browser window` opens a new window (F38's addendum of 2026-10-10, Folder manual) |
+| A killed daemon leaves its `.pid` | The process check finds no process; a reused pid at worst keeps a tab longer |
+| The hub is down, or not connected to the browser | No tab ends, and the list stays as last written, so no app drops a tab because of it; close and restore answer 503, and Nová karta says so |
+| A page in the Environment's browser calls the hub's loopback requests | Refused: its request carries `Origin` and `Sec-Fetch-Site` |
+| Every tab ends | The hub's own blank window stays, so Chrome keeps running |
+| Another origin frames `/new-tab` | `frame-ancestors` refuses it; the page ignores messages from any other origin or window |
+| A reboot | The runtime directory goes with the browser's tabs; nothing comes back |
+| An app without the element (an older shell or app) | It keeps its own "+"; T3 Code's release with task 501 requires a Platform release with steps 1–3 |
+
+**Variants considered.**
+
+| Alternative | Disposition |
+| --- | --- |
+| The element draws Nová karta in the app's page, with the endpoints on every origin | Writes from T3 Code's and MausBot's origins would need a new relay with its own admission in the gateway: a Machines release and a fleet rollout; rejected |
+| Apps frame `/new-tab` themselves, without an element | Every app would carry the protocol and its origin checks, and 0195 point 10 says apps embed it as shell components; rejected |
+| The page on the view's origin (`browser.<…>/new`) | Modules, their memory and Zastavit are the Launchpad's, so the view would call the Launchpad; rejected |
+| The Launchpad decides when a tab ends | Two processes would end the same targets; the hub already does (F39 point 9); rejected |
+| Holds as leases the people's browsers renew | A thread's tabs would end when a laptop sleeps, and T3 Code's panel differs per device; rejected |
+| Holds in the hub's memory through its API | Lost when the view restarts, and every app would depend on the hub being up; rejected |
+| Apps learn that a tab ended only from its view page | Only a tab someone views has a view page; a hidden tab closed for everyone or a browser restart would leave dead ids in strips and holder files; rejected |
+| Apps poll the hub's loopback list | T3 Code's server knows neither the view's loopback port nor whether the view runs; the hub's own file needs neither; rejected |
+| The hub writes its cached targets and apps wait a margin after a record | "Within milliseconds" is an expectation, not an order across two DevTools connections; a late event would drop a live tab; rejected for a fresh snapshot |
+| Wall-clock times, with a margin for a step of the clock | The wall clock can step back by more than any margin, so a snapshot begun before a record could carry a later time and drop a live tab; rejected for the boot clock |
+| A binding file alone means an agent works in the tab | The binding outlives the daemon on purpose, so agents' windows would never end; rejected |
+| The element, the Launchpad's page, holder files and the hub deciding (selected) | No change to Machines or the gateway; one owner per fact: holds by their apps, the live tabs and a tab's end by the hub, the overview by the Launchpad |
+
+**Not decided here.** Uspat and putting tabs to sleep (DEV-6656 spike 916); a person's name as
+a tab's opener (admission is not identity, F11); recent sites (until then the suggestions are
+the Environment's apps); MausBot as an app of Nová karta; how to measure one tab's memory
+(until a spike decides, a tab shows its JavaScript heap marked "≈"); whether archiving a
+thread lets go of its tabs.
+
+**Steps.** (1) The hub: holds from holder files and live bindings, the 8 s grace, the loopback
+requests, the tabs' facts and the list of live tabs; the view page reports a tab's end to its
+app. (2) The Launchpad: the overview, the actions, its holder file and its reconciliation with
+the list. (3) The page `/new-tab`, the element `<lazurio-new-tab>` and the Launchpad's panel.
+(4) T3 Code (task 2026-10-11-501): the threads' tabs on its server, their holder files
+reconciled with the list, the element behind "+", the shared hint; a T3 Code release. (5) A
+Platform release and Matěj's check in a browser on his Environment (root decision 0178). Steps
+1, 2 and 4 prove the reconciliation with tests: a tab closed for everyone or ended while no app
+shows it, a browser restart with no view open, an app's server that starts with ids that ended,
+a tab recorded before the list has it, a live tab whose event reaches the hub late, a tab that
+ended before the app recorded it, a record from an earlier boot, and a step of the wall clock.
