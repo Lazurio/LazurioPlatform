@@ -14,6 +14,7 @@ import {
   sharedReach,
   wiringExecutable,
 } from "../src/github/cli";
+import { credentialHelper } from "../src/github/credential";
 import { findLeftovers } from "../src/github/leftovers";
 import { githubHttp } from "../src/github/oauth";
 import {
@@ -21,7 +22,7 @@ import {
   readPilot,
   writePilot,
 } from "../src/github/pilot";
-import { readStoredSignIn } from "../src/github/store";
+import { readStoredSignIn, signInFile } from "../src/github/store";
 import { runToolsCommand } from "../src/tools/cli";
 import { runTool } from "../src/tools/status";
 import { startFakeGithub } from "./fixtures/fake-github";
@@ -67,6 +68,52 @@ async function setup(options: Parameters<typeof pilotWorld>[0] = {}) {
 }
 
 const enable = ["pilot", "enable", "--client-id", exampleOrganization.clientId];
+
+test.each(["unknown", "other-app"])(
+  "status and Git give usable local recovery guidance for %s credentials",
+  async (kind) => {
+    const { world, github, context, run } = await setup();
+    expect((await signIn(run)).code).toBe(0);
+    const path = signInFile(world.paths);
+    const stored = JSON.parse(await readFile(path, "utf8"));
+    const bytes = JSON.stringify(
+      kind === "unknown"
+        ? { schema: "unknown", recovery: "retain" }
+        : { ...stored, clientId: "Iv23liOtherApp0001" },
+    );
+    await writeFile(path, bytes);
+    const before = github.requests.length;
+    const status = await run(["status", "--json"]);
+    expect(JSON.parse(status.stdout as string).application.signIn.state).toBe(
+      "unreadable",
+    );
+    const text = (await run(["status"])).stdout as string;
+    expect(text).toContain("local recovery");
+    expect(text).not.toContain("sign-out, then");
+    expect(text).not.toContain("not signed in:");
+    const advice: string[] = [];
+    const answer = await credentialHelper(
+      "get",
+      "protocol=https\nhost=github.com\npath=Example/repo.git\n\n",
+      {
+        paths: world.paths,
+        http: context.http ?? githubHttp(),
+        now: Date.now,
+        writeStderr: (value) => advice.push(value),
+      },
+    );
+    expect(answer.stdout).toBe("quit=1\n");
+    expect(advice.join()).toContain("local recovery");
+    expect(advice.join()).not.toContain("sign-out, then");
+    expect((await run(["sign-out"])).code).toBe(1);
+    const disable = await run(["pilot", "disable"]);
+    expect(disable.code).toBe(2);
+    expect(disable.stdout).toContain("local recovery");
+    expect((await run(["sign-in"])).code).toBe(1);
+    expect(await readFile(path, "utf8")).toBe(bytes);
+    expect(github.requests).toHaveLength(before);
+  },
+);
 
 test("sign-out waits for an in-flight device flow and removes its resulting authorization", async () => {
   const { world, run } = await setup();

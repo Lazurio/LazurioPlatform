@@ -1,5 +1,5 @@
 import type { GithubHttp } from "./oauth";
-import { type PilotPaths, readPilot } from "./pilot";
+import { credentialRecoveryAdvice, type PilotPaths, readPilot } from "./pilot";
 import { applicationToken, type SignInToken } from "./store";
 
 // HTTPS Git and gh use the same App chain. The repository path never picks
@@ -46,7 +46,7 @@ export const tokenAdvice = (
       case "sign-in-expired":
         return `The GitHub sign-in for ${organization} ran out after six months without use. Sign in again: ${signIn}`;
       case "app-changed":
-        return `The GitHub sign-in for ${organization} belongs to another sign-in app than the one configured now. Sign out and in again: lazurio github sign-out, then ${signIn}`;
+        return credentialRecoveryAdvice;
     }
   switch (answer.reason) {
     case "unreachable":
@@ -54,7 +54,7 @@ export const tokenAdvice = (
     case "busy":
       return `Another process is renewing the GitHub sign-in for ${organization}. Try again in a moment.`;
     case "unreadable":
-      return `The GitHub sign-in for ${organization} cannot be read. Sign out and in again: lazurio github sign-out, then ${signIn}`;
+      return credentialRecoveryAdvice;
   }
 };
 

@@ -11,6 +11,7 @@ import {
 } from "./leftovers";
 import { type GithubHttp, githubHttp } from "./oauth";
 import {
+  credentialRecoveryAdvice,
   isAppClientId,
   type PilotApplication,
   type PilotConfig,
@@ -199,9 +200,7 @@ export function signInLines(state: SignInState): string[] {
             "GitHub returned an inconsistent App or owning installation; nothing was kept.",
           ];
         case "state-unreadable":
-          return [
-            "Existing GitHub credentials do not match this pilot; they were preserved. Resolve their local recovery before retrying.",
-          ];
+          return [credentialRecoveryAdvice];
         case "pilot-changed":
           return [
             "The pilot configuration changed before sign-in started. Check lazurio github status and retry.",
@@ -235,9 +234,10 @@ const signInStatus = (
   signIn: StoredSignIn | null | "unreadable",
   organization: PilotApplication,
 ): ApplicationStatus["signIn"] =>
-  signIn === "unreadable"
+  signIn === "unreadable" ||
+  (signIn !== null && signIn.clientId !== organization.clientId)
     ? { state: "unreadable" }
-    : signIn === null || signIn.clientId !== organization.clientId
+    : signIn === null
       ? { state: "signed-out" }
       : {
           state: "signed-in",
@@ -354,7 +354,7 @@ function statusText(status: GithubStatus): string {
       signIn.state === "signed-in"
         ? `  ${name}: signed in as ${signIn.account}; renews itself (current token until ${time(signIn.accessTokenExpiresAt)}, sign-in valid until ${time(signIn.refreshTokenExpiresAt)} without use)`
         : signIn.state === "unreadable"
-          ? `  ${name}: the sign-in cannot be read: lazurio github sign-out, then sign in again`
+          ? `  ${name}: ${credentialRecoveryAdvice}`
           : `  ${name}: not signed in: lazurio github sign-in`,
     );
   }
@@ -640,11 +640,12 @@ export async function runGithubCommand(
         paths,
         config.application.login,
       );
-      if (credentials === "unreadable")
-        return blocked(
-          "state-unreadable",
-          "Existing credentials were preserved. Resolve their local recovery before disabling the pilot.",
-        );
+      if (
+        credentials === "unreadable" ||
+        (credentials !== null &&
+          credentials.clientId !== config.application.clientId)
+      )
+        return blocked("state-unreadable", credentialRecoveryAdvice);
       if (credentials !== null)
         return blocked(
           "signed-in",
@@ -700,7 +701,7 @@ export async function runGithubCommand(
       ? `Not signed in to GitHub for ${result.organization} here.`
       : result.kind === "failed"
         ? result.reason === "state-unreadable"
-          ? "Existing GitHub credentials do not match this pilot; they were preserved. Resolve their local recovery before retrying."
+          ? credentialRecoveryAdvice
           : `Another sign-in or sign-out of ${result.organization} is running here. Try again.`
         : result.revoked
           ? `Signed out of GitHub for ${result.organization} here; GitHub revoked both tokens and tells you so by email.`
