@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, statfs } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   closeOnExecFlag,
   darwinFilesystemName,
@@ -155,15 +155,67 @@ export async function acquireFolderOperationLock(stateDirectory: string) {
   }
 }
 
+/** This process's short reads that hold the lock now, by state directory.
+ * A mutation of this process waits a bounded moment for them (issue #272):
+ * the shell setup cache starts its background read right after a profile
+ * change, and the person's next change must not fail as busy because of the
+ * Launchpad's own read. It never waits for another process. */
+const ownReads = new Map<string, number>();
+
+/** How long a mutation of this process waits for its own short reads. */
+export const ownReadWaitMs = 3_000;
+
+/** A mutation under the lock. It refuses at once when another process holds
+ * the lock, or this process's own mutation does; only this process's short
+ * read (`withFolderReadLock`) is waited for, `waitForOwnReadsMs` at most. */
 export async function withFolderOperationLock<T>(
+  stateDirectory: string,
+  operation: (assertHeld: () => Promise<void>) => Promise<T>,
+  waitForOwnReadsMs = ownReadWaitMs,
+): Promise<T> {
+  const deadline = Date.now() + waitForOwnReadsMs;
+  for (let attempt = 1; ; attempt += 1) {
+    let lock: Awaited<ReturnType<typeof acquireFolderOperationLock>>;
+    try {
+      lock = await acquireFolderOperationLock(stateDirectory);
+    } catch (error) {
+      if (
+        !(error instanceof FolderOperationBusyError) ||
+        (ownReads.get(resolve(stateDirectory)) ?? 0) === 0 ||
+        Date.now() >= deadline
+      )
+        throw error;
+      await Bun.sleep(Math.min(10 * attempt, 100));
+      continue;
+    }
+    try {
+      return await operation(lock.assertHeld);
+    } finally {
+      await lock.release();
+    }
+  }
+}
+
+/** Holds the lock for one short read, counted as this process's own until
+ * the lock is released: a mutation that finds the lock busy meanwhile knows
+ * whom it waits for. */
+async function ownRead<T>(
   stateDirectory: string,
   operation: (assertHeld: () => Promise<void>) => Promise<T>,
 ): Promise<T> {
   const lock = await acquireFolderOperationLock(stateDirectory);
+  const key = resolve(stateDirectory);
+  ownReads.set(key, (ownReads.get(key) ?? 0) + 1);
   try {
     return await operation(lock.assertHeld);
   } finally {
-    await lock.release();
+    try {
+      await lock.release();
+    } finally {
+      const left = (ownReads.get(key) ?? 1) - 1;
+      if (left > 0) ownReads.set(key, left);
+      else ownReads.delete(key);
+    }
   }
 }
 
@@ -172,8 +224,9 @@ export async function withFolderOperationLock<T>(
  * rule's preset reads of a running gh session, a poll): the lock is
  * exclusive and non-blocking, so two such reads at the same moment would
  * refuse one of them as busy. A read waits for the holder instead, a
- * bounded time (default 3 s), and then fails as before. Mutations keep the
- * immediate refusal of `withFolderOperationLock`. */
+ * bounded time (default 3 s), and then fails as before. A mutation of this
+ * process waits for such a read (`withFolderOperationLock`); one of another
+ * process is refused at once. */
 export async function withFolderReadLock<T>(
   stateDirectory: string,
   operation: (assertHeld: () => Promise<void>) => Promise<T>,
@@ -182,7 +235,7 @@ export async function withFolderReadLock<T>(
   const deadline = Date.now() + waitMs;
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await withFolderOperationLock(stateDirectory, operation);
+      return await ownRead(stateDirectory, operation);
     } catch (error) {
       if (
         !(error instanceof FolderOperationBusyError) ||
