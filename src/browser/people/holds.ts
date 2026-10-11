@@ -15,7 +15,7 @@ import { dirname, isAbsolute, join } from "node:path";
  * - the places that hold it: one file per strip that the app's server writes,
  *   `$XDG_RUNTIME_DIR/lazurio-browser/holders/<strip>.json` =
  *   `{"strip", "label", "tabs": [<target id>…]}` (a T3 Code thread, the
- *   Launchpad);
+ *   Launchpad), with the writer's own `recordedAt`, which the hub ignores;
  * - the agents that work in it: an agent-browser session bound to it
  *   (`<socket dir>/<session>.target`) whose daemon runs (`<session>.pid`
  *   names a live process). The binding alone does not count: agent-browser
@@ -116,9 +116,33 @@ export function parseBootTime(value: unknown): BootTime | null {
     : null;
 }
 
+/** A stored tab of an app with the boot-clock time it recorded the tab, or
+ * null for a tab without one, which counts as recorded long ago (F47 point
+ * 4). */
+export type RecordedTab = Readonly<{ id: string; recordedAt: BootTime | null }>;
+
 /** One snapshot of the browser's page targets: `takenAt` is the boot-clock
  * time the hub began it, before it asked the browser. */
 export type LiveTabs = Readonly<{ tabs: readonly string[]; takenAt: BootTime }>;
+
+/** Replaces one file of `lazurio-browser` atomically and owner-only (F47
+ * point 4): a temporary file of mode 0600 renamed over it, so a reader sees
+ * the old text or the new one, never a part. Its directory is made with mode
+ * 0700 when missing. */
+export async function replaceOwnerFile(
+  path: string,
+  text: string,
+): Promise<void> {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${randomBytes(6).toString("hex")}.tmp`;
+  try {
+    await writeFile(temporary, text, { mode: 0o600 });
+    await rename(temporary, path);
+  } catch (error) {
+    await rm(temporary, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
 
 /** Writes the list atomically: a reader sees the old list or the new one. */
 export async function writeLiveTabs(
@@ -126,17 +150,7 @@ export async function writeLiveTabs(
   tabs: readonly string[],
   takenAt: BootTime,
 ): Promise<void> {
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const temporary = `${path}.${randomBytes(6).toString("hex")}.tmp`;
-  try {
-    await writeFile(temporary, `${JSON.stringify({ tabs, takenAt })}\n`, {
-      mode: 0o600,
-    });
-    await rename(temporary, path);
-  } catch (error) {
-    await rm(temporary, { force: true }).catch(() => undefined);
-    throw error;
-  }
+  await replaceOwnerFile(path, `${JSON.stringify({ tabs, takenAt })}\n`);
 }
 
 /** The list a reader finds, or null when the file is not one. */
@@ -172,7 +186,7 @@ export function parseLiveTabs(text: string): LiveTabs | null {
  * of this boot. Without a list, or without the boot clock, it keeps
  * everything. */
 export function keptTabs(
-  stored: readonly Readonly<{ id: string; recordedAt: BootTime | null }>[],
+  stored: readonly RecordedTab[],
   list: LiveTabs | null,
   boot: string | null,
 ): string[] {
@@ -223,6 +237,55 @@ export function parseHolder(
     ),
   ].slice(0, maxTabsPerHolder);
   return { strip: name, label, tabs };
+}
+
+/** The text of a holder file that also keeps each tab's record time,
+ * `recordedAt`, by its id: the hub ignores it, and only the app that writes
+ * the file reads it back (`parseHolderRecords`), so its reconciliation
+ * survives a restart. A tab without a time has no entry. */
+export function holderFileText(
+  strip: string,
+  label: string,
+  tabs: readonly RecordedTab[],
+): string {
+  const recordedAt: Record<string, BootTime> = {};
+  for (const tab of tabs)
+    if (tab.recordedAt !== null)
+      recordedAt[tab.id] = { boot: tab.recordedAt.boot, at: tab.recordedAt.at };
+  return `${JSON.stringify({
+    strip,
+    label,
+    tabs: tabs.map((tab) => tab.id),
+    recordedAt,
+  })}\n`;
+}
+
+/** A holder file with the record time of each of its tabs, or null when the
+ * file is not a holder file (`parseHolder`'s rules). A tab whose time is
+ * missing or not a boot-clock time has null. */
+export function parseHolderRecords(
+  fileName: string,
+  text: string,
+): Readonly<{
+  strip: string;
+  label: string;
+  tabs: readonly RecordedTab[];
+}> | null {
+  const hold = parseHolder(fileName, text);
+  if (hold === null) return null;
+  const times = new Map<string, BootTime>();
+  const stored = (JSON.parse(text) as Record<string, unknown>).recordedAt;
+  if (typeof stored === "object" && stored !== null && !Array.isArray(stored))
+    for (const [id, value] of Object.entries(stored)) {
+      const at = parseBootTime(value);
+      if (targetIdPattern.test(id) && at !== null)
+        times.set(id.toUpperCase(), at);
+    }
+  return {
+    strip: hold.strip,
+    label: hold.label,
+    tabs: hold.tabs.map((id) => ({ id, recordedAt: times.get(id) ?? null })),
+  };
 }
 
 /** True while a process with this id runs (one of another user counts too,

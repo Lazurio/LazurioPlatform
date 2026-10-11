@@ -47,6 +47,12 @@ import {
   startViewService,
   type ViewService,
 } from "../src/browser/people/service";
+import {
+  closeTab,
+  listTabs,
+  openTab,
+  restoreTab,
+} from "../src/launchpad/new-tab/hub-client";
 
 // The people's view of the Environment browser (decision F39) against a
 // scripted DevTools peer: no Chrome runs, every call is recorded and
@@ -93,6 +99,14 @@ class FakeBrowser {
   /** Holds the next selection read until it is opened (ordering tests). */
   gate: Promise<void> | null = null;
   pageTitle = "Stránka z dokumentu";
+  /** What `Runtime.getHeapUsage` answers in each tab's session: its heap,
+   * an error, or nothing ever; 1 MB of 2 MB unless named. */
+  readonly heaps = new Map<
+    string,
+    { usedSize: number; totalSize: number } | "fail" | "hang"
+  >();
+  /** When each `Runtime.getHeapUsage` was asked (`performance.now()`). */
+  readonly heapAskedAt: number[] = [];
 
   /** Chrome's first window (the unit starts it with `about:blank`), which
    * the hub keeps as its own blank window unless `blank` is false. */
@@ -126,6 +140,18 @@ class FakeBrowser {
             ...(sessionId === undefined ? {} : { sessionId }),
           });
           return { result: { value: answer } };
+        }
+        if (method === "Runtime.getHeapUsage") {
+          this.heapAskedAt.push(performance.now());
+          this.calls.push({
+            method,
+            params: { ...params },
+            ...(sessionId === undefined ? {} : { sessionId }),
+          });
+          const heap = this.heaps.get(String(sessionId).slice("S-".length));
+          if (heap === "hang") return new Promise(() => {});
+          if (heap === "fail") throw new Error(`${method}: Target closed`);
+          return heap ?? { usedSize: 1_000_000, totalSize: 2_000_000 };
         }
         this.calls.push({
           method,
@@ -1529,6 +1555,95 @@ test("the list names each tab's opener, holders, agents and countdown", async ()
     headers: { Origin: "https://evil.example" },
   });
   expect(refused.status).toBe(403);
+});
+
+test("the list with heap=1 adds each tab's JavaScript heap from its own session, null where the read fails or is late; without it nothing changes", async () => {
+  const browser = new FakeBrowser([tab(1), tab(2), tab(3)]);
+  browser.heaps.set(id(1), "hang");
+  browser.heaps.set(id(2), "fail");
+  browser.heaps.set(id(3), { usedSize: 12_345_678, totalSize: 20_000_000 });
+  const { base } = await serve(browser);
+  // Every page has its session, the hub's blank window too.
+  await until(() => browser.called("Page.getFrameTree").length >= 4);
+  const started = Date.now();
+  const listed = (await loopback(base, "/.lazurio/tabs?heap=1")).body
+    .tabs as TabFacts[];
+  // Each read waits 500 ms at most, and all are asked at once: the tab
+  // after the one that never answers is not kept waiting for it.
+  expect(Date.now() - started).toBeLessThan(1_500);
+  const asked = browser.heapAskedAt;
+  expect(Math.max(...asked) - Math.min(...asked)).toBeLessThan(250);
+  const byId = new Map(listed.map((t) => [t.id, t]));
+  expect(byId.get(id(1))?.heap).toBeNull();
+  expect(byId.get(id(2))?.heap).toBeNull();
+  expect(byId.get(id(3))?.heap).toEqual({
+    used: 12_345_678,
+    total: 20_000_000,
+  });
+  expect(
+    browser
+      .called("Runtime.getHeapUsage")
+      .map((call) => call.sessionId)
+      .sort(),
+  ).toEqual([`S-${id(1)}`, `S-${id(2)}`, `S-${id(3)}`]);
+  // Without it the list is as it was, and no heap is read.
+  const reads = browser.called("Runtime.getHeapUsage").length;
+  const plain = (await loopback(base, "/.lazurio/tabs")).body.tabs as Record<
+    string,
+    unknown
+  >[];
+  expect(plain.map((t) => t.id).sort()).toEqual([id(1), id(2), id(3)]);
+  for (const t of plain) expect(Object.hasOwn(t, "heap")).toBe(false);
+  expect(browser.called("Runtime.getHeapUsage").length).toBe(reads);
+  // The Runtime domain is never enabled, so no page can tell.
+  expect(browser.called("Runtime.enable")).toEqual([]);
+});
+
+test("the Launchpad's hub client reads the service's own answers on loopback, with no Origin or Sec-Fetch-Site", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { base } = await serve(browser, { holders: { launchpad: [id(1)] } });
+  await until(() => browser.called("Page.getFrameTree").length >= 2);
+  const entry = { origin, listenPort: Number(new URL(base).port) };
+  expect(await listTabs(entry, { heap: true })).toMatchObject({
+    kind: "tabs",
+    tabs: [
+      {
+        id: id(1),
+        heap: { used: 1_000_000, total: 2_000_000 },
+        holders: [{ strip: "launchpad", label: "Strip launchpad" }],
+      },
+    ],
+  });
+  const opened = await openTab(entry, "https://example.com/new", "launchpad");
+  if (opened.kind !== "opened") throw new Error("The hub opened no tab");
+  expect(browser.called("Target.createTarget")[0]?.params).toEqual({
+    url: "https://example.com/new",
+    newWindow: true,
+  });
+  const listed = await listTabs(entry, { heap: false });
+  if (listed.kind !== "tabs") throw new Error("The hub listed no tabs");
+  const fresh = listed.tabs.find((t) => t.id === opened.tab);
+  expect(fresh?.opener).toEqual({ kind: "new-tab", strip: "launchpad" });
+  expect(fresh && Object.hasOwn(fresh, "heap")).toBe(false);
+  expect(await closeTab(entry, opened.tab)).toMatchObject({ kind: "closing" });
+  expect(await restoreTab(entry, opened.tab)).toEqual({ kind: "restored" });
+  // A held tab counts nothing down: nothing to restore.
+  expect(await restoreTab(entry, id(1))).toEqual({
+    kind: "refused",
+    reason: "nothing-to-restore",
+  });
+  expect(await closeTab(entry, id(77))).toEqual({
+    kind: "refused",
+    reason: "not-found",
+  });
+  expect(await restoreTab(entry, id(77))).toEqual({
+    kind: "refused",
+    reason: "not-found",
+  });
+  expect(await openTab(entry, "javascript:alert(1)", null)).toEqual({
+    kind: "refused",
+    reason: "invalid-request",
+  });
 });
 
 test("a close for everyone ends a held tab after the grace, and Vrátit within it keeps the tab", async () => {

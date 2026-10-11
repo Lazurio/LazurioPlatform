@@ -97,6 +97,13 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 import { issueMausbotLink } from "./mausbot";
 import { messages } from "./messages";
 import { createMaintainerCheck } from "./module-maintainer";
+import { launchpadHolderOf } from "./new-tab/holder";
+import { runningModules } from "./new-tab/modules";
+import {
+  createNewTabRoutes,
+  type NewTabHost,
+  processNewTabHost,
+} from "./new-tab-routes";
 import {
   offlineGuideHeaders,
   offlineGuidePage,
@@ -413,6 +420,10 @@ export async function startLaunchpad(
   // composition, never HTTP input; tests supply a relay socket of their own
   // and the poller's clock.
   organizationSettingsSeams?: OrganizationSettingsSeams | undefined,
+  // Where Nová karta's overview and actions read and write (decision F47):
+  // this account's runtime directory, service manager, /proc and boot clock.
+  // Trusted composition, never HTTP input; tests supply their own.
+  newTabHost: NewTabHost = processNewTabHost(),
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -569,6 +580,25 @@ export async function startLaunchpad(
       now: integrationSeams?.now,
     }),
     journal: (line) => console.log(JSON.stringify(line)),
+  });
+  // Nová karta (decision F47 points 4 and 6-8): the overview, the actions on
+  // the view's hub and the Launchpad's holder file, only where the entry
+  // routes the Environment browser's view.
+  const browser = browserEntryOf(entry);
+  const holder =
+    browser === undefined
+      ? null
+      : launchpadHolderOf(newTabHost.runtimeDirectory, {
+          bootClock: newTabHost.bootClock,
+          readFile: newTabHost.readFile,
+          log: newTabHost.log,
+        });
+  const newTab = createNewTabRoutes({
+    browser,
+    holder,
+    host: newTabHost,
+    modules: () => runningModules({ folder, host: moduleHost }),
+    headers,
   });
   // The Organization's settings (root decision 0194, decision F45), on an
   // Organization's Environment only: asked every two minutes, at once when
@@ -1188,6 +1218,16 @@ export async function startLaunchpad(
           return response({ error: "operation-failed" }, 500);
         }
       }
+      if (newTab.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        try {
+          return await newTab.handle(request, url, (seconds) =>
+            server.timeout(request, seconds),
+          );
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
       if (request.method !== "POST")
         return response({ error: "method-not-allowed" }, 405);
       if (request.headers.get("content-type") !== "application/json")
@@ -1590,6 +1630,8 @@ export async function startLaunchpad(
     : null;
   pill?.start();
   settings?.start();
+  // The Launchpad's holds, reconciled with the hub's list from now on.
+  await holder?.start();
   // Executor (decision F44, addendum of 2026-10-11, #298): where install and
   // update only report it, this Launchpad sets it up in the background once
   // it listens, through the one setup of Settings → Tools. Never awaited and
@@ -1624,6 +1666,8 @@ export async function startLaunchpad(
           // No more questions; a Folder change in progress completes.
           const settingsClose = settings?.stop();
           await server.stop(true);
+          // No more holds; a write under way completes.
+          await holder?.stop();
           // An upload cut off by the stop removes its temporary file first.
           await files.close();
           await shell?.stop();
