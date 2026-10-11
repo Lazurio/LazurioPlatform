@@ -15,6 +15,9 @@ import { writeDurableFile } from "../update/durable-file";
 
 export const pilotSchema = "lazurio.github-sign-in-pilot.v2";
 
+export const credentialRecoveryAdvice =
+  "GitHub sign-in needs local recovery. Existing credentials are preserved; recover this Environment's original App/account state before retrying.";
+
 export type PilotPaths = Readonly<{
   configDirectory: string;
   config: string;

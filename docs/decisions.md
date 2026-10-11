@@ -7748,6 +7748,9 @@ command flag nor a repository URL can select another account or mint permission.
    without claiming completion. Disable checks credentials and removes configuration
    under the same lock; a waiting sign-in rechecks configuration before requesting a
    code. Unknown or foreign credential state is preserved and refused on sign-out.
+   Status reports that state as unreadable, never signed out; status, Git and gh
+   direct the Operator to local recovery rather than a sign-out/sign-in loop
+   that deliberately refuses to overwrite those credentials.
    Atomic replacement, interrupted
    write recovery, concurrent refresh, offline retention and expiry behavior keep
    the existing store's guarantees. No token is printed in status, errors or logs.
