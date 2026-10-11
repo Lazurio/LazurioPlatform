@@ -1282,6 +1282,8 @@ function tabClosed(): void {
   for (const control of [back, forward, reload, address])
     control.disabled = true;
   showEnd(say.closed, say.openNewTab, () => location.assign("/"));
+  // The app around the view drops the tab from its strip (F47 point 6).
+  tell({ type: "lazurio-browser:closed", view: location.href });
 }
 
 /** A new remote tab at the page area's size (F39 point 1); null when the
