@@ -15,7 +15,8 @@ import { columnHead, shellApps } from "../src/shell/view";
 // rail's `app` and `space`, the column head's `settings` and `space` and
 // `active="settings"`, the host's document attributes and the script's
 // exports, and removed nothing; the addendum of 2026-10-06 added the export
-// `parseShellSignedOut`.
+// `parseShellSignedOut`; decision F47 (2026-10-11) added `<lazurio-new-tab>`
+// with its attributes and its event `lazurio-new-tab`, and removed nothing.
 
 test("the promised interface v1 is exactly this", () => {
   expect(JSON.parse(JSON.stringify(shellElementInterface))).toEqual({
@@ -25,9 +26,10 @@ test("the promised interface v1 is exactly this", () => {
       "lazurio-rail": ["lang", "app", "space"],
       "lazurio-column-head": ["active", "lang", "settings", "space"],
       "lazurio-buddy": [],
+      "lazurio-new-tab": ["strip", "tools", "focus-address", "lang"],
     },
     active: ["chat", "apps", "automate", "settings"],
-    events: ["lazurio-navigate", "lazurio-app"],
+    events: ["lazurio-navigate", "lazurio-app", "lazurio-new-tab"],
     document: {
       "data-lazurio-shell": ["host"],
       "data-lazurio-account": ["host"],
@@ -60,10 +62,13 @@ test("the promised interface v1 is exactly this", () => {
 
 test("the elements keep every promised name", async () => {
   const source = await readFile("src/shell/elements.ts", "utf8");
-  const observed = (className: string) => {
-    const at = source.indexOf(`class ${className} `);
+  // Nová karta's element is built in its own module (decision F47).
+  const newTab = await readFile("src/shell/new-tab-element.ts", "utf8");
+  const observed = (className: string, text = source) => {
+    const at = text.indexOf(`class ${className} `);
+    expect(at).toBeGreaterThanOrEqual(0);
     const match = /static observedAttributes = \[([^\]]*)\]/.exec(
-      source.slice(at),
+      text.slice(at),
     );
     return [...(match?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]);
   };
@@ -71,10 +76,14 @@ test("the elements keep every promised name", async () => {
     expect(observed("LazurioRail")).toContain(attribute);
   for (const attribute of shellElementInterface.elements["lazurio-column-head"])
     expect(observed("LazurioColumnHead")).toContain(attribute);
-  for (const name of ["lazurio-rail", "lazurio-column-head"])
-    expect(source).toContain(`customElements.define("${name}", `);
+  for (const attribute of shellElementInterface.elements["lazurio-new-tab"])
+    expect(observed("LazurioNewTab", newTab)).toContain(attribute);
+  for (const name of ["lazurio-rail", "lazurio-column-head", "lazurio-new-tab"])
+    expect(source).toMatch(
+      new RegExp(`customElements\\.define\\(\\s*"${name}",`),
+    );
   for (const event of shellElementInterface.events)
-    expect(source).toContain(`new CustomEvent("${event}"`);
+    expect(`${source}${newTab}`).toContain(`new CustomEvent("${event}"`);
   // The rail width and the tone in the script, the colour roles in the
   // styles of both elements.
   for (const property of shellElementInterface.properties)
