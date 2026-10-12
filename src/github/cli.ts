@@ -62,7 +62,9 @@ github sign-in [--json]
   limited to the owning Organization. Anyone sharing the full Environment
   can use that access. No PAT or client secret is needed. Ctrl-C cancels.
 github sign-out [--json]
-  Removes this Environment's one sign-in and requests token revocation.
+  Removes saved credentials only in this Environment. No provider revocation:
+  the GitHub authorization and copied credentials remain valid. To end the
+  App authorization in all your Environments, use GitHub Settings → Applications → Authorized GitHub Apps.
 github pilot wire [--json]
   Wires official gh and HTTPS Git to the same sign-in. Repairs existing wiring.
 github pilot unwire [--json]
