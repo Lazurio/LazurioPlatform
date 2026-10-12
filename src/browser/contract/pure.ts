@@ -272,6 +272,11 @@ export function parseBootTime(value: unknown): BootTime | null {
 
 // ---- Holder files (C5) -------------------------------------------------------
 
+/** The `schema` of every holder file this module writes (F50 point 3). A
+ * file without one is v1, written before the module; a file of another major
+ * is one this module cannot read. */
+export const holderSchema = "lazurio.browser-holder.v1";
+
 // What the hub reads of a holder file at most (F47 point 4); every app keeps
 // its own bound below it (F50 point 2).
 const maxHolderCharacters = 64 * 1024;
@@ -290,10 +295,12 @@ export type HolderReading = Readonly<{
  * 4). */
 export type RecordedTab = Readonly<{ id: string; recordedAt: BootTime | null }>;
 
-/** The hold one holder file records, or null when the file is not one: its
- * name is `<strip>.json` and its `strip` that strip, and only target ids
- * count, in upper case and once each, at most 500. The label is trimmed and
- * cut at 200 characters; a file of more than 64 Ki characters is none. */
+/** The hold one holder file records, or null when the file is not one this
+ * module can read: its name is `<strip>.json`, its `strip` that strip and
+ * its `schema` absent or `holderSchema`, and only target ids count, in upper
+ * case and once each, at most 500. The label is trimmed and cut at 200
+ * characters; a file of more than 64 Ki characters is none. Members it does
+ * not know are ignored, the writer's `contract` and `recordedAt` too. */
 export function parseHolder(
   fileName: string,
   text: string,
@@ -309,6 +316,8 @@ export function parseHolder(
   }
   if (typeof value !== "object" || value === null) return null;
   const record = value as Record<string, unknown>;
+  if (record.schema !== undefined && record.schema !== holderSchema)
+    return null;
   if (record.strip !== name || !Array.isArray(record.tabs)) return null;
   const label =
     typeof record.label === "string"
@@ -325,20 +334,25 @@ export function parseHolder(
   return { strip: name, label, tabs };
 }
 
-/** The text of a holder file that also keeps each tab's record time,
- * `recordedAt`, by its id: the hub ignores it, and only the app that writes
- * the file reads it back (`parseHolderRecords`), so its reconciliation
- * survives a restart. A tab without a time has no entry. */
+/** The text of a holder file (F47 point 4, F50 point 3): its `schema`, the
+ * Platform release this module came from (`contract`, which doctor reads and
+ * the hub ignores), the strip, its label, its tabs, and each tab's record
+ * time, `recordedAt`, by its id. The hub ignores the times too: only the app
+ * that writes the file reads them back (`parseHolderRecords`), so its
+ * reconciliation survives a restart. A tab without a time has no entry. */
 export function holderFileText(
   strip: string,
   label: string,
   tabs: readonly RecordedTab[],
+  contract: string,
 ): string {
   const recordedAt: Record<string, BootTime> = {};
   for (const tab of tabs)
     if (tab.recordedAt !== null)
       recordedAt[tab.id] = { boot: tab.recordedAt.boot, at: tab.recordedAt.at };
   return `${JSON.stringify({
+    schema: holderSchema,
+    contract,
     strip,
     label,
     tabs: tabs.map((tab) => tab.id),
@@ -376,12 +390,26 @@ export function parseHolderRecords(
 
 // ---- The list of live tabs (C6) ----------------------------------------------
 
+/** The `schema` of the hub's list of live tabs (F50 point 3); a list without
+ * one is v1, and one of another major is no list. */
+export const liveTabsSchema = "lazurio.browser-tabs.v1";
+
 /** One snapshot of the browser's page targets: `takenAt` is the boot-clock
  * time the hub began it, before it asked the browser. */
 export type LiveTabs = Readonly<{ tabs: readonly string[]; takenAt: BootTime }>;
 
+/** The text of `tabs.json`, the hub's list that every app reconciles its
+ * holds with (F47 point 4). */
+export function liveTabsText(
+  tabs: readonly string[],
+  takenAt: BootTime,
+): string {
+  return `${JSON.stringify({ schema: liveTabsSchema, tabs, takenAt })}\n`;
+}
+
 /** The list a reader finds, its ids in upper case, or null when the file is
- * not one: every id a target id and the time a boot-clock time. */
+ * not one: every id a target id, the time a boot-clock time and the `schema`
+ * absent or `liveTabsSchema`. Members it does not know are ignored. */
 export function parseLiveTabs(text: string): LiveTabs | null {
   let value: unknown;
   try {
@@ -391,6 +419,8 @@ export function parseLiveTabs(text: string): LiveTabs | null {
   }
   if (typeof value !== "object" || value === null) return null;
   const record = value as Record<string, unknown>;
+  if (record.schema !== undefined && record.schema !== liveTabsSchema)
+    return null;
   const takenAt = parseBootTime(record.takenAt);
   if (!Array.isArray(record.tabs) || takenAt === null) return null;
   if (!record.tabs.every(isTargetId)) return null;

@@ -15,6 +15,7 @@ import {
   type BootTime,
   type HolderReading,
   isStrip,
+  liveTabsText,
   parseBootTime,
   parseHolder,
   targetIdOf,
@@ -116,13 +117,14 @@ export async function replaceOwnerFile(
   }
 }
 
-/** Writes the list atomically: a reader sees the old list or the new one. */
+/** Writes the list (`liveTabsText`) atomically: a reader sees the old list
+ * or the new one. */
 export async function writeLiveTabs(
   path: string,
   tabs: readonly string[],
   takenAt: BootTime,
 ): Promise<void> {
-  await replaceOwnerFile(path, `${JSON.stringify({ tabs, takenAt })}\n`);
+  await replaceOwnerFile(path, liveTabsText(tabs, takenAt));
 }
 
 // ---- The holds ----------------------------------------------------------------

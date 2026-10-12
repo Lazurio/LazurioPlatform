@@ -17,6 +17,7 @@ import {
   parseLiveTabs,
   targetIdOf,
 } from "../../browser/contract/pure";
+import { embeddedIdentity } from "../../update/identity";
 
 // The Launchpad's own holder file (decision F47 point 4): the remote tabs a
 // person opened in the Launchpad, from its Nová karta or as a page's new tab
@@ -89,6 +90,9 @@ export type HolderSeams = Readonly<{
 export function createLaunchpadHolder(seams: HolderSeams): LaunchpadHolder {
   const path = join(seams.directory, fileName);
   const read = seams.readFile ?? ((file: string) => readFile(file, "utf8"));
+  // The file names the Platform release whose contract module writes it,
+  // this executable's (decision F50 point 3).
+  const contract = embeddedIdentity().version;
   const log = seams.log ?? (() => undefined);
   const everyMs = seams.everyMs ?? 30_000;
   const debounceMs = seams.debounceMs ?? 100;
@@ -156,6 +160,7 @@ export function createLaunchpadHolder(seams: HolderSeams): LaunchpadHolder {
         launchpadStrip,
         launchpadLabel,
         [...held].map(([id, recordedAt]) => ({ id, recordedAt })),
+        contract,
       ),
     );
 
