@@ -878,6 +878,59 @@ test("the Folder opens a new page in a new tab and names T3 Code's preview tools
   }
 });
 
+// How a page reaches the Operator is explained, not prescribed (F38 addendum of
+// 2026-10-12): a plain link, a link to a tab of the Environment, and what each
+// client does with them, with ChatGPT Desktop's own browser on the Operator's
+// computer, so the agent chooses the way.
+test("the Folder explains how a page reaches the Operator in each client and leaves the way to the agent", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const text = renderManual({
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationBrowser,
+      profile: presetProfile("hosted-organization-personal", "linux", {
+        locale,
+      }),
+    })["manual/this-machine.md"];
+    const section = text.slice(
+      text.indexOf(
+        locale === "cs"
+          ? "### Jak Operátor stránku uvidí"
+          : "### How the Operator sees a page",
+      ),
+      text.indexOf(
+        locale === "cs"
+          ? "### Práce v prohlížeči"
+          : "### Working in the browser",
+      ),
+    );
+    const ways =
+      locale === "cs"
+        ? [
+            "**Obyčejný odkaz**",
+            "**Odkaz na záložku Environmentu**",
+            "**Webové T3 Code**",
+            "**ChatGPT Desktop**",
+            "**Launchpad**",
+            "vyber tu, která mu dává největší smysl",
+            "rádi vidí rovnou vedle chatu",
+          ]
+        : [
+            "**A plain link**",
+            "**A link to a tab of the Environment**",
+            "**Web T3 Code**",
+            "**ChatGPT Desktop**",
+            "**The Launchpad**",
+            "choose the one that makes the most sense to them",
+            "right beside the chat",
+          ];
+    for (const way of ways) expect(section).toContain(way);
+    // A plain address the Operator opens in ChatGPT Desktop runs on their
+    // computer; the agent takes it into its window and sends that tab's link.
+    expect(section).toContain("`lazurio browser window --url <");
+    expect(text).not.toMatch(/Pohled pro Operátora|The Operator's view\.\*\*/);
+  }
+});
+
 // Root decision 0191 point 28: an agent lets go of its window when its work
 // there is done, and the hub ends the tab once nothing holds or views it. It
 // never closes the tab for everyone with agent-browser's `tab close`.
