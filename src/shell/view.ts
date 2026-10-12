@@ -1,12 +1,13 @@
 import {
   type AccountVisit,
   currentEnvironment,
+  isEnvironmentId,
   type Shell,
   type ShellEnvironment,
   type ShellOrganization,
   type ShellSignedOut,
 } from "./contract";
-import { fillShell, type ShellCopy } from "./messages";
+import { fillShell, type ShellCopy, shellMessages } from "./messages";
 
 // Pure presentation of the shell document (decision F36, addendum of
 // 2026-10-04): the rail of spaces (your personal space, then one avatar per
@@ -27,6 +28,12 @@ import { fillShell, type ShellCopy } from "./messages";
 // Dashboard. An Environment's page is drawn exactly as before. With nobody
 // signed in (F36's addendum of 2026-10-06, `lazurio.shell-signed-out.v1`) the
 // rail is only the logo and the sign-in key (`signedOutRail`).
+//
+// One Environment is named by one identity wherever the shell or an app
+// shows it (F39's addendum of 2026-10-12, `environmentIdentity`): the column
+// head's picker, `<lazurio-environment>` in an app, and the bar of the
+// Environment browser's view, which takes it from the app around it or from
+// its own server. Its glyph, name and who line are the picker's.
 
 /** A space of the rail: your personal space or one Organization. */
 export const personalSpace = "personal";
@@ -81,6 +88,16 @@ export const organizationOf = (
 ): ShellOrganization | undefined =>
   shell.organizations.find((entry) => sameSlug(entry.slug, slug));
 
+/** The space an Environment stands in by itself: the personal one for a
+ * personal Environment, a workstation and one without an Organization,
+ * otherwise its first Organization's, the one that owns it (the producer
+ * lists the owner first). */
+export function environmentSpace(environment: ShellEnvironment): string {
+  return environment.kind === "personal" || environment.kind === "workstation"
+    ? personalSpace
+    : (environment.organizations[0] ?? personalSpace);
+}
+
 /** Where a page is (F36's addendum of 2026-10-05): in an Environment, in
  * the space you are in there; or, on a page that is no Environment's, on an
  * Organization's Dashboard or on the personal Dashboard. */
@@ -96,11 +113,10 @@ export type ShellPage =
 
 /** Where the page is. With a current Environment: the space the host names
  * (`space`, a workstation opened for one Organization) when it is
- * `personal` or a listed Organization, otherwise the current Environment's:
- * a personal one or a workstation is personal, any other its first
- * Organization's. Without one (`current: null`): the Dashboard of the
- * Organization `space` names; without it, with `personal` or with a slug the
- * document does not list, the personal Dashboard. */
+ * `personal` or a listed Organization, otherwise the current Environment's
+ * own (`environmentSpace`). Without one (`current: null`): the Dashboard of
+ * the Organization `space` names; without it, with `personal` or with a slug
+ * the document does not list, the personal Dashboard. */
 export function pageOf(shell: Shell, space: string | null): ShellPage {
   const named =
     space === null || space === personalSpace
@@ -116,11 +132,7 @@ export function pageOf(shell: Shell, space: string | null): ShellPage {
       ? personalSpace
       : named !== undefined
         ? named.slug
-        : current.kind === "personal" ||
-            current.kind === "workstation" ||
-            current.organizations.length === 0
-          ? personalSpace
-          : (current.organizations[0] ?? personalSpace);
+        : environmentSpace(current);
   return { kind: "environment", environment: current, space: here };
 }
 
@@ -338,13 +350,31 @@ export function signedOutRail(
   });
 }
 
-/** What the picker shows of an Environment: its glyph, its name and who it
- * is for. The glyph is the Organization's avatar where it belongs to one,
- * your initials for a personal one, and the kind's icon otherwise. */
+/** The mark the picker draws beside a name: the Organization's avatar (its
+ * initials where it has none or the picture does not load, and its name for
+ * the words), your initials, or the kind's icon. Display data only, so it
+ * may cross to a framed view as it is (F39's addendum of 2026-10-12). */
 export type EnvironmentGlyph =
-  | Readonly<{ kind: "avatar"; organization: ShellOrganization }>
+  | Readonly<{
+      kind: "avatar";
+      /** The Organization's name. */
+      organization: string;
+      avatar: string | null;
+      initials: string;
+    }>
   | Readonly<{ kind: "initials"; text: string }>
   | Readonly<{ kind: "icon"; icon: "laptop" | "user" | "users" | "bot" }>;
+
+/** An Organization's mark: its avatar, its initials and its name. */
+export const organizationGlyph = (
+  organization: ShellOrganization,
+): EnvironmentGlyph =>
+  Object.freeze({
+    kind: "avatar",
+    organization: organization.name,
+    avatar: organization.avatar,
+    initials: initialsOf(organization.name),
+  });
 
 const kindIcons = {
   personal: "user",
@@ -354,6 +384,9 @@ const kindIcons = {
   workstation: "laptop",
 } as const;
 
+/** What the picker shows of an Environment in a space: your initials for a
+ * personal one, the space's Organization's mark where the space is one, the
+ * kind's icon otherwise. */
 export function environmentGlyph(
   shell: Shell,
   environment: ShellEnvironment,
@@ -364,8 +397,98 @@ export function environmentGlyph(
   const organization =
     space === personalSpace ? undefined : organizationOf(shell, space);
   return organization !== undefined
-    ? { kind: "avatar", organization }
+    ? organizationGlyph(organization)
     : { kind: "icon", icon: kindIcons[environment.kind] };
+}
+
+/** What a head draws of what it names: its glyph, its name and, quieter
+ * under or beside it, who it is for (`drawIdentity`). */
+export type IdentityLook = Readonly<{
+  glyph: EnvironmentGlyph;
+  name: string;
+  who: string;
+}>;
+
+/** How the shell names one Environment wherever it shows it (F39's addendum
+ * of 2026-10-12): the column head's picker, `<lazurio-environment>`, and the
+ * bar and title of the Environment browser's view. */
+export type EnvironmentIdentity = IdentityLook &
+  Readonly<{
+    /** The Environment's id (`isEnvironmentId`). */
+    id: string;
+  }>;
+
+function identityOf(
+  shell: Shell,
+  environment: ShellEnvironment,
+  copy: ShellCopy,
+  space: string,
+): EnvironmentIdentity {
+  return Object.freeze({
+    id: environment.id,
+    name: environmentName(environment, copy),
+    who: environmentWho(environment, copy),
+    glyph: environmentGlyph(shell, environment, space),
+  });
+}
+
+/** The identity of the Environment `id` in a document, the person's account
+ * merged in where the page has it (so a Dashboard name and who line show):
+ * `environmentName`, `environmentWho` and `environmentGlyph` in the space
+ * the Environment stands in by itself (`environmentSpace`), or in `space`
+ * where the page knows better (a workstation opened for one Organization).
+ * The only rule that names an Environment; never by the machine's technical
+ * name or an address. Null for an id the document does not list. */
+export function environmentIdentity(
+  shell: Shell,
+  id: string,
+  copy: ShellCopy,
+  space?: string,
+): EnvironmentIdentity | null {
+  const environment = shell.environments.find((entry) => entry.id === id);
+  return environment === undefined
+    ? null
+    : identityOf(
+        shell,
+        environment,
+        copy,
+        space ?? environmentSpace(environment),
+      );
+}
+
+/** The identity `<lazurio-environment>` draws for its attributes: of the
+ * Environment `environment` names (an Environment id, in any case), else of
+ * the page's own (`current`), in the language `lang` names, else the
+ * document's. Null for a value that is no id, an Environment the document
+ * does not know, and a page that is no Environment's without the
+ * attribute. */
+export function elementIdentity(
+  shell: Shell,
+  environment: string | null,
+  lang: string | null,
+): EnvironmentIdentity | null {
+  const named = environment?.trim().toLowerCase() ?? "";
+  const id = named === "" ? shell.current : named;
+  if (id === null || !isEnvironmentId(id)) return null;
+  return environmentIdentity(
+    shell,
+    id,
+    shellMessages(lang === "cs" || lang === "en" ? lang : shell.locale),
+  );
+}
+
+/** An identity in words, where nothing draws its mark (a tab's title, a
+ * tooltip): the Organization whose avatar the mark is (unless the name is
+ * already its), the name and who it is for. */
+export function identityText(identity: IdentityLook): string {
+  const organization =
+    identity.glyph.kind === "avatar" &&
+    identity.glyph.organization !== identity.name
+      ? identity.glyph.organization
+      : null;
+  return [organization, identity.name, identity.who]
+    .filter((part): part is string => part !== null && part !== "")
+    .join(" · ");
 }
 
 /** One line of the list: an Environment's glyph, its name and, quieter
@@ -744,12 +867,10 @@ export function organizationSettingsHref(dashboard: string): string {
 export type ColumnHead = Readonly<{
   /** The space the picker's list shows. */
   here: string;
-  picker: Readonly<{
-    glyph: EnvironmentGlyph;
-    title: string;
-    /** The line under the title. */
-    who: string;
-  }>;
+  /** What the picker names: on an Environment's page the Environment's
+   * identity (`environmentIdentity`); on an Organization's Dashboard the
+   * Organization's mark and name over "Organization Dashboard". */
+  picker: EnvironmentIdentity | IdentityLook;
   gear: Readonly<{
     href: string;
     label: string;
@@ -763,7 +884,7 @@ export type ColumnHead = Readonly<{
 
 /** What the column head shows, from the host's attributes (`space`,
  * `active`, `settings`). On an Environment's page: the Environment picker
- * (its glyph, name and who it is for), the gear of the Environment's
+ * (its identity in the space you are in), the gear of the Environment's
  * Settings (`settings`, else its Launchpad's `/settings`), the switch and
  * the setup line, as before. On an Organization's Dashboard (F36's addendum
  * of 2026-10-05, a page that is no Environment's with the Organization in
@@ -794,8 +915,8 @@ export function columnHead(
     return {
       here: organization.slug,
       picker: {
-        glyph: { kind: "avatar", organization },
-        title: organization.name,
+        glyph: organizationGlyph(organization),
+        name: organization.name,
         who: copy.organizationDashboard,
       },
       gear: {
@@ -813,11 +934,7 @@ export function columnHead(
     : null;
   return {
     here: space,
-    picker: {
-      glyph: environmentGlyph(shell, environment, space),
-      title: environmentName(environment, copy),
-      who: environmentWho(environment, copy),
-    },
+    picker: identityOf(shell, environment, copy, space),
     gear: {
       href: own ?? environmentSettingsHref(environment),
       label: copy.settings,
