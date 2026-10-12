@@ -30,7 +30,7 @@ test("the promised interface v1 is exactly this", () => {
       "lazurio-column-head": ["active", "lang", "settings", "space"],
       "lazurio-buddy": [],
       "lazurio-new-tab": ["strip", "tools", "focus-address", "lang"],
-      "lazurio-environment": ["environment", "lang"],
+      "lazurio-environment": ["environment", "lang", "space"],
     },
     active: ["chat", "apps", "automate", "settings"],
     events: ["lazurio-navigate", "lazurio-app", "lazurio-new-tab"],

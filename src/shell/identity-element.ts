@@ -73,11 +73,13 @@ export function drawIdentity(
 }
 
 export type EnvironmentElementSeams = Readonly<{
-  /** The identity to draw for the element's `environment` and `lang`
-   * attributes (null where absent); null while the page does not know it. */
+  /** The identity to draw for the element's `environment`, `lang` and
+   * `space` attributes (null where absent); null while the page does not
+   * know it. */
   identity: (
     environment: string | null,
     lang: string | null,
+    space: string | null,
   ) => EnvironmentIdentity | null;
   /** Calls `changed` after every change of what the page knows; returns
    * its removal. */
@@ -92,7 +94,7 @@ export function environmentElement(
   // One stylesheet for every instance: a host may name several Environments.
   let sheet: CSSStyleSheet | null = null;
   return class LazurioEnvironment extends HTMLElement {
-    static observedAttributes = ["environment", "lang"];
+    static observedAttributes = ["environment", "lang", "space"];
     private readonly root: ShadowRoot;
     private unlisten: (() => void) | null = null;
     /** The identity drawn, as JSON; null: the element's own children;
@@ -129,6 +131,7 @@ export function environmentElement(
       const identity = seams.identity(
         this.getAttribute("environment"),
         this.getAttribute("lang"),
+        this.getAttribute("space"),
       );
       const drawn = identity === null ? null : JSON.stringify(identity);
       if (drawn === this.drawn) return;

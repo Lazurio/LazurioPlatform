@@ -5972,8 +5972,14 @@ This addendum replaces that point; its point 2 (who may frame the view) stands.
    `<lazurio-environment environment="<id>">`, draws it on one line with the same drawing
    (`drawIdentity`, `src/shell/identity-element.ts`). Without `environment` it names the page's
    own Environment. Until the page knows that Environment it shows its own children, so a host
-   may put a plain label inside it. Interface v1 gains the element with `environment` and
-   `lang`, and no event.
+   may put a plain label inside it. Interface v1 gains the element with `environment`, `lang`
+   and `space`, and no event.
+   - `space` is the page's space as the host names it to the column head. For the page's own
+     Environment it is read by the same rule (`pageOf`), so the element and the column head of
+     one page name it alike, also on a workstation opened for one Organization, whose column
+     head shows that Organization's mark (Pablo's review of #339).
+   - Another Environment, and the page's own without `space`, stands in its own space: the
+     owning Organization's mark, a workstation's laptop.
 2. **Framed, the app around the view answers.** The view cannot read the person's account: the
    gateway relays it only on the apps' origins. Inside a frame the view posts
    `{type: "lazurio-browser:identity-request"}` to its parent. The shell on the parent's page
