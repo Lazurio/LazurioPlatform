@@ -1,5 +1,6 @@
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { runChatDefaults } from "../chat/cli";
 import { toolsEnvironmentOf } from "../tools/overview";
 import type { ToolRunner } from "../tools/status";
 import {
@@ -35,7 +36,13 @@ export const chatHelp = `chat link [--folder <absolute Folder>] [--plain] [--jso
   link (not-hosted). The link alone is on stdout; the reason goes to stderr,
   which never carries the token. --json prints {kind: "chat-link", url,
   pairing, reason?}. The Folder is found as for lazurio doctor.
-  Exit status: 0 a link, 10 not a Remote Environment, 2 usage, 1 failure.`;
+  Exit status: 0 a link, 10 not a Remote Environment, 2 usage, 1 failure.
+
+chat defaults [--apply] [--folder <absolute Folder>] [--json]
+  Read the native T3 default without writing. --apply reconciles the Platform
+  recommendation through the running T3 service, preserving a personal choice.
+  T3 must support the managed Folder contract; no offline write or settings-file
+  patch is attempted. Exit: 0 managed/custom, 10 outdated/not hosted, 1 unavailable.`;
 
 export const exitNotHosted = exitUpdateAvailable;
 
@@ -97,6 +104,7 @@ export async function runChatCommand(
   args: readonly string[],
   context: ChatContext,
 ): Promise<CommandOutput> {
+  if (args[0] === "defaults") return runChatDefaults(args.slice(1), context);
   const usage = Object.freeze({
     code: exitUsage,
     stderr: `Usage: ${synopsis}`,
