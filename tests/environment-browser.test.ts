@@ -1160,7 +1160,7 @@ test.skipIf(process.platform === "win32")(
         await readFile(join(sockets, "codex-1.pid")).catch(() => null),
       ).toBeNull();
       expect(sleeper.exitCode).toBeNull();
-      // A daemon that refuses, or does not answer: failed, nothing changes.
+      // A daemon that refuses: nothing changed.
       expect(
         await stopSessionDaemon(sockets, "codex-2", {
           ask: async () => ({
@@ -1168,12 +1168,22 @@ test.skipIf(process.platform === "win32")(
             line: JSON.stringify({ success: false, error: "busy" }),
           }),
         }),
-      ).toBe("failed");
+      ).toBe("refused");
+      // No answer after the command went out, or an answer while the .pid
+      // stays (Pablo's review of 3122df40): the daemon may still hold the
+      // window, so it is never reported as stopped.
       expect(
         await stopSessionDaemon(sockets, "codex-2", {
           ask: async () => ({ kind: "no-answer" }),
         }),
-      ).toBe("failed");
+      ).toBe("unconfirmed");
+      await writeFile(join(sockets, "codex-2.pid"), "4343");
+      expect(
+        await stopSessionDaemon(sockets, "codex-2", {
+          ask: async () => ({ kind: "reply", line: '{"success":true}' }),
+          exitWithinMs: 150,
+        }),
+      ).toBe("unconfirmed");
       // A name outside the session alphabet is no session.
       expect(await stopSessionDaemon(sockets, "../codex-1")).toBe("none");
     } finally {
@@ -1227,15 +1237,37 @@ test.skipIf(process.platform === "win32")(
     );
     expect(JSON.parse(none.stdout ?? "")).toMatchObject({ outcome: "none" });
     expect(none.code).toBe(0);
-    // A daemon that refuses: a failure, nothing changed.
-    const refused = await runBrowserCommand(["done", "--folder", folder], {
-      ...context(env),
-      daemonSeams: {
-        ask: async () =>
-          ({ kind: "reply", line: '{"success":false}' }) as const,
+    // A daemon that refuses, or acknowledges but has not exited: a failure.
+    const refused = await runBrowserCommand(
+      ["done", "--folder", folder, "--json"],
+      {
+        ...context(env),
+        daemonSeams: {
+          ask: async () =>
+            ({ kind: "reply", line: '{"success":false}' }) as const,
+        },
       },
-    });
+    );
     expect(refused.code).toBe(1);
+    expect(JSON.parse(refused.stdout ?? "")).toMatchObject({
+      outcome: "refused",
+    });
+    const lingering = await runBrowserCommand(
+      ["done", "--folder", folder, "--json"],
+      {
+        ...context(env),
+        daemonSeams: {
+          ask: async () =>
+            ({ kind: "reply", line: '{"success":true}' }) as const,
+          exists: async () => true,
+          exitWithinMs: 150,
+        },
+      },
+    );
+    expect(lingering.code).toBe(1);
+    expect(JSON.parse(lingering.stdout ?? "")).toMatchObject({
+      outcome: "unconfirmed",
+    });
     // done has no --url, and needs a session.
     expect(
       (
