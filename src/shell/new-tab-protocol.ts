@@ -1,4 +1,4 @@
-import { isStrip, targetIdOf } from "../browser/contract/pure";
+import { isStrip, targetIdOf, viewAddressOf } from "../browser/contract/pure";
 import { currentEnvironment, type Shell } from "./contract";
 import { shellElementInterface } from "./interface";
 
@@ -139,25 +139,13 @@ export function parseNewTabTools(value: unknown): readonly NewTabTool[] | null {
   return Object.freeze(tools);
 }
 
-/** `value` when it is the view of the remote tab `tab` as the Launchpad
- * writes it (`browserViewUrl`): an https URL without credentials, query or
- * fragment whose path is exactly `/t/<tab>`, as written. Null otherwise. */
+/** `value` when it is the view of the remote tab `tab` (upper case), a view
+ * address of the contract's strict form (`viewAddressOf`, decision F50
+ * point 2): `https://browser.<base>.lazurio.io/t/<tab>`, as written. Null
+ * otherwise. */
 export function newTabViewOf(value: unknown, tab: string): string | null {
-  if (typeof value !== "string" || value.length > 512) return null;
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" &&
-      url.username === "" &&
-      url.password === "" &&
-      url.search === "" &&
-      url.hash === "" &&
-      url.pathname === `/t/${tab}` &&
-      url.href === value
-      ? value
-      : null;
-  } catch {
-    return null;
-  }
+  const address = viewAddressOf(value);
+  return address !== null && address.tab === tab ? address.view : null;
 }
 
 /** A choice of these three kinds and their exact members, or null: a tab's

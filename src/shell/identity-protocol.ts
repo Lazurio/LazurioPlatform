@@ -1,3 +1,4 @@
+import { viewAddressOf } from "../browser/contract/pure";
 import { environmentIdOf, isEnvironmentId, isShellUrl } from "./contract";
 import type { EnvironmentGlyph, EnvironmentIdentity } from "./view";
 
@@ -28,10 +29,6 @@ export const identityMessage = Object.freeze({
   request: "lazurio-browser:identity-request",
   reply: "lazurio-browser:identity",
 });
-
-/** The label the gateway routes an Environment browser's view under
- * (`https://browser.<base>.lazurio.io`, decisions F38 and F39). */
-export const viewAppLabel = "browser";
 
 /** The id of the element of the view page that carries its own identity:
  * `<script type="application/json">` with `identityJson`. */
@@ -133,14 +130,12 @@ export function parseEmbeddedIdentity(
 }
 
 /** The Environment of a view's origin: the base host of
- * `https://browser.<base>.lazurio.io` (`environmentIdOf`, the one
- * derivation of an Environment's id); null for any other origin. */
+ * `https://browser.<base>.lazurio.io`, the bare origin of a view address of
+ * the Environment browser's contract (`viewAddressOf`, decision F50); null
+ * for any other origin. */
 export function viewEnvironmentId(origin: string): string | null {
-  const id = environmentIdOf(origin);
-  return id !== null &&
-    origin.toLowerCase().startsWith(`https://${viewAppLabel}.`)
-    ? id
-    : null;
+  const address = viewAddressOf(origin);
+  return address !== null && address.tab === null ? address.environment : null;
 }
 
 /** Whether `source` is the window of a frame of the page whose window is

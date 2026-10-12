@@ -165,6 +165,13 @@ export function environmentIdOf(origin: string): string | null {
   return isEnvironmentId(id) ? id : null;
 }
 
+/** The label the gateway routes an Environment browser's view under
+ * (decisions F38 and F39): `https://browser.<base>.lazurio.io`. */
+const viewLabel = "browser";
+const viewPathPattern = /^\/t\/([0-9A-F]{32})$/;
+/** Far longer than any view address, whose base has at most two labels. */
+const maxViewLength = 512;
+
 /** The view of one remote tab, `<origin>/t/<id>`, or of a new one,
  * `<origin>/` (F39 point 1), `origin` being the view's and the id written as
  * given: Chrome's, in upper case. Neither carries a token: the gateway's
@@ -174,6 +181,69 @@ export function browserViewUrl(
   targetId: string | null,
 ): string {
   return targetId === null ? `${origin}/` : `${origin}/t/${targetId}`;
+}
+
+/** The remote tab a path of the view shows: `/t/<id>`, the id in upper case
+ * as the view serves it; null for any other path. */
+export function viewPathTab(path: string): string | null {
+  return viewPathPattern.exec(path)?.[1] ?? null;
+}
+
+/** A view address as `viewAddressOf` reads it. */
+export type ViewAddress = Readonly<{
+  /** The address, as written. */
+  view: string;
+  /** The view's origin, `https://browser.<base>.lazurio.io`. */
+  origin: string;
+  /** The Environment whose view it is, `<base>` (`environmentIdOf`). */
+  environment: string;
+  /** The remote tab it shows; null for the bare origin, which opens a new
+   * one. */
+  tab: string | null;
+}>;
+
+/** The view address `value` is (F50 point 2), exactly as written:
+ * `https://browser.<base>.lazurio.io/t/<id>`, one remote tab, or the bare
+ * origin, with or without its `/`, which opens a new one. `<base>` is an id
+ * `environmentIdOf` gives, the host is in lower case and the id in upper
+ * case, as Chrome writes it; no port, no credentials, no query or fragment
+ * (not even an empty one) and no slash after the id. A link is a tab only in
+ * this form, on every Lazurio surface alike. Null for anything else. */
+export function viewAddressOf(value: unknown): ViewAddress | null {
+  if (typeof value !== "string" || value.length > maxViewLength) return null;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  const environment = environmentIdOf(url.origin);
+  if (
+    environment === null ||
+    url.hostname !== `${viewLabel}.${environment}${hostedDomain}` ||
+    url.username !== "" ||
+    url.password !== ""
+  )
+    return null;
+  const origin = url.origin;
+  if (value === origin || value === `${origin}/`)
+    return Object.freeze({ view: value, origin, environment, tab: null });
+  const tab =
+    value === `${origin}${url.pathname}` ? viewPathTab(url.pathname) : null;
+  return tab === null
+    ? null
+    : Object.freeze({ view: value, origin, environment, tab });
+}
+
+/** Whether a host is where the gateway routes the views of Environment
+ * browsers: `browser.` and a name in `lazurio.io`, an Environment's or not.
+ * No Lazurio surface loads an address on such a host in the Environment
+ * browser (F50 point 2): a view address opens as its tab, a new tab or
+ * another Environment's, and any other address there is refused. The browser
+ * itself stays unrestricted. */
+export function isViewHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return host.startsWith(`${viewLabel}.`) && host.endsWith(hostedDomain);
 }
 
 // ---- The boot clock (C4) -----------------------------------------------------

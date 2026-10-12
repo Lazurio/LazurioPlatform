@@ -526,6 +526,41 @@ test("every request must name the view's host; sockets and changes must come fro
   );
 });
 
+test("the view serves a tab only at the address of the contract's strict form: its id in upper case, as Chrome writes it (decision F50 point 2)", () => {
+  const ask = (method: string, path: string, upgrade = false) =>
+    classifyRequest(
+      {
+        method,
+        url: `http://127.0.0.1:4848${path}`,
+        host,
+        origin,
+        upgrade,
+      },
+      origin,
+      4848,
+    );
+  const tab = id(0xabcdef);
+  expect(ask("GET", `/t/${tab}`)).toEqual({ kind: "page" });
+  expect(ask("GET", `/t/${tab}/live`, true)).toEqual({
+    kind: "live",
+    targetId: tab,
+  });
+  expect(ask("POST", `/t/${tab}/files`)).toEqual({
+    kind: "files",
+    targetId: tab,
+  });
+  // A lower-case id named the same tab before; it names none now.
+  const lower = tab.toLowerCase();
+  expect(ask("GET", `/t/${lower}`)).toEqual({
+    kind: "refused",
+    status: 404,
+    error: "not-found",
+  });
+  expect(ask("GET", `/t/${lower}/live`, true).kind).toBe("refused");
+  expect(ask("POST", `/t/${lower}/files`).kind).toBe("refused");
+  expect(ask("GET", `/T/${tab}`).kind).toBe("refused");
+});
+
 test("only the Environment's own origins may frame the view", () => {
   expect(frameAncestors(origin)).toBe(
     "'self' https://*.pilot.example.lazurio.io",

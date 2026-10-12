@@ -1,17 +1,18 @@
 import {
   browserViewUrl,
   isStrip,
+  isViewHost,
   launchpadStrip,
   type StripApp,
   stripAppOf,
   targetIdOf,
+  viewAddressOf,
 } from "../browser/contract/pure";
 import type { Catalog } from "../organizations/catalog";
 import {
   catalogGroups,
   catalogOrganizationKey,
 } from "../organizations/catalog-selection";
-import { environmentIdOf } from "../shell/contract";
 import { moduleName, moduleStone, tileTarget } from "./apps-view";
 import type { PublicEntry } from "./chat";
 
@@ -97,6 +98,8 @@ const en = {
   foreignOpen: "Open it there",
   dismiss: "Dismiss",
   openFailed: "The tab could not be opened.",
+  addressRefused:
+    "This address is on the view of an Environment browser but links to no tab, so it does not open here.",
   warnTitle: "Close a tab an agent is working in?",
   warnText:
     "An agent{where} is working in the tab “{title}”. If you close it, the agent loses the page it is working on and has to open it again.",
@@ -194,6 +197,8 @@ const cs: Words = {
   foreignOpen: "Otevřít v něm",
   dismiss: "Zavřít",
   openFailed: "Záložku se nepodařilo otevřít.",
+  addressRefused:
+    "Tahle adresa patří pohledu prohlížeče Environmentu, ale neodkazuje na žádnou záložku, takže se tu neotevře.",
   warnTitle: "Zavřít záložku, ve které pracuje agent?",
   warnText:
     "V záložce „{title}“ právě pracuje agent{where}. Po zavření přijde o rozdělanou stránku a bude ji muset otevřít znovu.",
@@ -508,6 +513,9 @@ export type AddressTarget =
   /** A link to another Environment's view: never opened here (F38's
    * addendum of 2026-10-11); `where` names that Environment. */
   | Readonly<{ kind: "foreign"; href: string; where: string }>
+  /** Another address on the view host of an Environment: never opened in
+   * the Environment browser (decision F50 point 2). */
+  | Readonly<{ kind: "refused" }>
   /** An address to open as a new remote tab, or a search. */
   | Readonly<{ kind: "page"; url: string }>;
 
@@ -542,14 +550,15 @@ function absoluteAddress(input: string): URL | null {
   return null;
 }
 
-const viewTabPath = /^\/t\/([0-9A-Fa-f]{32})\/?$/;
-
 /** What the address bar opens for `input` (the wireframe's order):
- * 1. a link to this Environment's view, `<view origin>/t/<id>`: that tab;
- * 2. an address on another Environment's view (`browser.` of another base
- *    host, `environmentIdOf`): the notice, never a tab here;
- * 3. an http(s) address, or a host-like text: a page;
- * 4. anything else: a search. */
+ * 1. an address on the view host of an Environment (`isViewHost`), typed
+ *    without a scheme or over http as that view's https: never loaded in
+ *    the Environment browser (decision F50 point 2). A view address of this
+ *    Environment (`viewAddressOf`) is that tab, its bare origin a new remote
+ *    tab; another Environment's view gets the notice; any other address
+ *    there is refused;
+ * 2. an http(s) address, or a host-like text: a page;
+ * 3. anything else: a search. */
 export function resolveAddress(
   input: string,
   viewOrigin: string | null,
@@ -557,25 +566,21 @@ export function resolveAddress(
   const typed = input.trim();
   if (typed === "") return { kind: "none" };
   const address = absoluteAddress(typed);
-  if (address !== null) {
-    const own = viewOrigin === null ? null : new URL(viewOrigin);
-    const tab = viewTabPath.exec(address.pathname)?.[1];
-    if (own !== null && address.host === own.host) {
-      if (tab !== undefined && viewOrigin !== null) {
-        const id = tab.toUpperCase();
-        return { kind: "tab", tab: id, view: browserViewUrl(viewOrigin, id) };
-      }
-    } else if (address.hostname.startsWith("browser.")) {
-      const secure = new URL(address.href);
-      secure.protocol = "https:";
-      const where = environmentIdOf(secure.origin);
-      if (where !== null) return { kind: "foreign", href: secure.href, where };
-    }
-    return { kind: "page", url: address.href };
+  if (address === null) {
+    const search = new URL("https://www.google.com/search");
+    search.searchParams.set("q", typed);
+    return { kind: "page", url: search.href };
   }
-  const search = new URL("https://www.google.com/search");
-  search.searchParams.set("q", typed);
-  return { kind: "page", url: search.href };
+  if (!isViewHost(address.hostname)) return { kind: "page", url: address.href };
+  const secure = new URL(address.href);
+  secure.protocol = "https:";
+  const view = viewAddressOf(secure.href);
+  if (view === null) return { kind: "refused" };
+  if (view.origin !== viewOrigin)
+    return { kind: "foreign", href: view.view, where: view.environment };
+  return view.tab === null
+    ? { kind: "page", url: "about:blank" }
+    : { kind: "tab", tab: view.tab, view: view.view };
 }
 
 // ---- Memory (F47 point 7, the wireframe's `formatMemory` and `memoryTone`) ---
@@ -1098,24 +1103,17 @@ export function suggestions(
 // ---- Where things are -------------------------------------------------------------
 
 /** The view's origin from `GET /.lazurio/browser.json`'s answer (its `view`
- * for a new tab): an https origin, never the page's own; null otherwise. */
+ * for a new tab): the origin of a view address of the contract
+ * (`viewAddressOf`), never the page's own; null otherwise. */
 export function viewOriginOf(
   answer: unknown,
   pageOrigin: string,
 ): string | null {
   if (!isRecord(answer) || answer.available !== true) return null;
-  if (typeof answer.view !== "string") return null;
-  try {
-    const url = new URL(answer.view);
-    return url.protocol === "https:" &&
-      url.username === "" &&
-      url.password === "" &&
-      url.origin !== pageOrigin
-      ? url.origin
-      : null;
-  } catch {
-    return null;
-  }
+  const address = viewAddressOf(answer.view);
+  return address !== null && address.origin !== pageOrigin
+    ? address.origin
+    : null;
 }
 
 /** The letter key that chooses a tool (the wireframe's NewTab): a single

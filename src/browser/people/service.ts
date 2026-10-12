@@ -1,6 +1,6 @@
 import type { Server, ServerWebSocket } from "bun";
 import type { EnvironmentIdentity } from "../../shell/view";
-import { isStrip, targetIdOf } from "../contract/pure";
+import { isStrip, targetIdOf, viewPathTab } from "../contract/pure";
 import { viewScript } from "./bundle" with { type: "macro" };
 import { browserSocketUrl, type CdpConnection, connectCdp } from "./cdp";
 import {
@@ -149,9 +149,11 @@ const json = (body: unknown, status = 200) =>
     },
   });
 
-const livePath = /^\/t\/([0-9A-Fa-f]{32})\/live$/;
-const filesPath = /^\/t\/([0-9A-Fa-f]{32})\/files$/;
-const viewPath = /^\/t\/([0-9A-Fa-f]{32})$/;
+/** The tab a path of one remote tab's view names, `/t/<id>` followed by
+ * `suffix`: the view's own path (`viewPathTab`), its id in upper case, as
+ * the contract writes a view address (decision F50 point 2). */
+const tabOfPath = (path: string, suffix: "/live" | "/files"): string | null =>
+  path.endsWith(suffix) ? viewPathTab(path.slice(0, -suffix.length)) : null;
 const tabsPath = /^\/\.lazurio\/tabs(?:\/([^/]+)\/(close|restore))?$/;
 const maxTabsBodyBytes = 8 * 1024;
 
@@ -219,13 +221,13 @@ export function classifyRequest(
   if (request.host !== own.host)
     return { kind: "refused", status: 421, error: "wrong-host" };
   const sameOrigin = request.origin === own.origin;
-  const live = livePath.exec(path);
+  const live = tabOfPath(path, "/live");
   if (live !== null) {
     if (request.method !== "GET" || !request.upgrade)
       return { kind: "refused", status: 426, error: "upgrade-required" };
     if (!sameOrigin)
       return { kind: "refused", status: 403, error: "wrong-origin" };
-    return { kind: "live", targetId: (live[1] as string).toUpperCase() };
+    return { kind: "live", targetId: live };
   }
   if (path === "/api/tabs") {
     if (request.method !== "POST")
@@ -234,17 +236,17 @@ export function classifyRequest(
       return { kind: "refused", status: 403, error: "wrong-origin" };
     return { kind: "create" };
   }
-  const files = filesPath.exec(path);
+  const files = tabOfPath(path, "/files");
   if (files !== null) {
     if (request.method !== "POST")
       return { kind: "refused", status: 405, error: "method-not-allowed" };
     if (!sameOrigin)
       return { kind: "refused", status: 403, error: "wrong-origin" };
-    return { kind: "files", targetId: (files[1] as string).toUpperCase() };
+    return { kind: "files", targetId: files };
   }
   if (request.method !== "GET" && request.method !== "HEAD")
     return { kind: "refused", status: 405, error: "method-not-allowed" };
-  if (path === "/" || viewPath.test(path)) return { kind: "page" };
+  if (path === "/" || viewPathTab(path) !== null) return { kind: "page" };
   if (path === "/assets/view.js") return { kind: "script" };
   return { kind: "refused", status: 404, error: "not-found" };
 }
