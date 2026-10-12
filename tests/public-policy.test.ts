@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -116,4 +116,51 @@ test("real Git index secret cannot be hidden by a safe unstaged replacement", as
   } finally {
     await rm(fixture, { recursive: true, force: true });
   }
+});
+
+// Decision F50 point 6: the Environment browser's contract is MIT, so the
+// forks can vendor it without becoming mixed-licence. Its own licence file
+// names the licensor of NOTICE; NOTICE and docs/licensing.md name the
+// exception's three parts, the copied functions by name; the root LICENSE
+// stays Elastic-2.0.
+test("the browser contract's MIT terms lie beside it, and NOTICE and the licensing page name the exception's three parts", async () => {
+  const root = fileURLToPath(new URL("..", import.meta.url));
+  const read = (path: string) => readFile(join(root, path), "utf8");
+  const notice = await read("NOTICE");
+  const licensor = /^Copyright 2026 (.+)$/m.exec(notice)?.[1];
+  expect(licensor).toBeDefined();
+  const mit = await read("src/browser/contract/LICENSE");
+  expect(mit.split("\n")[0]).toBe("MIT License");
+  expect(mit).toContain(`Copyright (c) 2026 ${licensor}\n`);
+  expect(mit).toContain("Permission is hereby granted, free of charge");
+  expect((await read("LICENSE")).split("\n")[0]).toBe("Elastic License 2.0");
+  const copied = [
+    "BootTime",
+    "readBootClock",
+    "parseBootTime",
+    "RecordedTab",
+    "LiveTabs",
+    "parseLiveTabs",
+    "keptTabs",
+    "isStrip",
+    "holderDirectory",
+    "liveTabsPath",
+    "parseHolder",
+    "holderFileText",
+    "parseHolderRecords",
+    "replaceOwnerFile",
+    "processAlive",
+    "watchHolds",
+    "watchDirectories",
+  ];
+  for (const text of [notice, await read("docs/licensing.md")])
+    for (const part of [
+      "src/browser/contract/",
+      "browserContract",
+      "src/browser/people/holds.ts",
+      "49d54c9",
+      "apps/server/src/lazurio/holders.ts",
+      ...copied,
+    ])
+      expect(`${part}: ${text.includes(part)}`).toBe(`${part}: true`);
 });

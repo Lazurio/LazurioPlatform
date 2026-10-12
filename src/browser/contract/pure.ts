@@ -10,7 +10,8 @@
 // file system, processes and sockets. Within v1 the contract only grows (F50
 // point 3): a release may add members, values and cases and accept what it
 // refused before; it never removes, renames or narrows anything. The module's
-// directory holds nothing from outside it (F50 point 6).
+// directory holds nothing from outside it and is licensed under MIT
+// (`LICENSE`, F50 point 6), unlike the rest of this repository.
 
 // ---- Remote tabs (C1) --------------------------------------------------------
 
