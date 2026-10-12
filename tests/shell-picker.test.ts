@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
+import { hostTokens } from "../src/shell/base-styles";
 import { parseShell, type Shell } from "../src/shell/contract";
 import { shellMessages } from "../src/shell/messages";
-import { hostTokens, railWidth } from "../src/shell/styles";
+import { railWidth } from "../src/shell/styles";
 import {
   type SwitcherKind,
   switcherKey,
