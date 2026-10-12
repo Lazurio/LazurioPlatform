@@ -7685,6 +7685,11 @@ page each read the overview every 5 s; step 5 measures that cost with the heaps.
   - its unit runs the stable selector, so the unit text stays the same;
   - the update's convergence restarts the view only when that text changed.
   On the first F47 canary the hub's changes therefore did not take effect until the view was restarted by hand.
-- **The fix.** When it starts, the Launchpad compares the running view's executable (`/proc/<MainPID>/exe`) with its own (`realpath` of `process.execPath`). When they differ, or the view's file was replaced, it restarts the view (`try-restart`).
+- **The fix.** When it starts, the supervised Launchpad compares the running view's executable (`/proc/<MainPID>/exe`) with the installed version, the one the base's selector names. When they differ, or the view's file was replaced, it restarts the view (`try-restart`).
+- **Only its own view (Pablo's review of #336).** The Launchpad touches nothing unless all of this holds:
+  - the base is supervised: its Launchpad unit is the installer's for this base;
+  - the view's unit is the installer's for this base and entry: the marker on its first line and the exact `ExecStart=` line that this base's selector and the entry's port and origin give (`viewUnitBelongsToBase`). Its other lines may come from another version of the installer;
+  - the Launchpad itself is the installed version, not a source checkout.
+  A unit of the view's name that someone else wrote is never restarted.
 - **Effect.** A viewer reconnects; the browser and its tabs are untouched. After the restart, every tab nothing holds gets the hub's 10 minutes (point 5).
 - **Scope.** The new Launchpad does the check, so this works for updates from any older version.

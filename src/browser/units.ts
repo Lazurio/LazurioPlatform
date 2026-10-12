@@ -215,6 +215,21 @@ export function renderBrowserUnit(): string {
   ].join("\n");
 }
 
+/** The one line that says which installation, port and origin the view
+ * serves. */
+export const browserViewExecStart = (entry: BrowserEntry, selector: string) =>
+  `ExecStart=${[
+    selector,
+    "browser",
+    "serve",
+    "--port",
+    String(entry.listenPort),
+    "--origin",
+    entry.origin,
+  ]
+    .map(systemdQuote)
+    .join(" ")}`;
+
 /** The view: the Platform's own people's view (decision F39), this
  * installation's `lazurio browser serve` on the entry's loopback port for the
  * gateway's origin. A long-running service, restarted whenever it ends. */
@@ -231,17 +246,7 @@ export function renderBrowserViewUnit(
     "[Service]",
     "Type=simple",
     `Environment=PATH=${unitPath}`,
-    `ExecStart=${[
-      selector,
-      "browser",
-      "serve",
-      "--port",
-      String(entry.listenPort),
-      "--origin",
-      entry.origin,
-    ]
-      .map(systemdQuote)
-      .join(" ")}`,
+    browserViewExecStart(entry, selector),
     "Restart=always",
     "RestartSec=2",
     "",
@@ -382,11 +387,33 @@ export async function convergeEnvironmentBrowser(
   });
 }
 
+/** Whether a view unit is the installer's for this base and entry: the
+ * marker on its first line AND the exact `ExecStart=` line this base's
+ * selector and the entry give, as `unitBelongsToBase` proves the Launchpad's.
+ * Its other lines may come from another version of the installer. */
+export function viewUnitBelongsToBase(
+  unitText: string,
+  entry: BrowserEntry,
+  selector: string,
+): boolean {
+  if (!unitText.startsWith(unitMarker)) return false;
+  try {
+    return unitText.split("\n").includes(browserViewExecStart(entry, selector));
+  } catch {
+    // A port or origin no ExecStart can carry was never written by the
+    // installer.
+    return false;
+  }
+}
+
 /** What `restartStaleBrowserView` found and did. */
 export type BrowserViewRefresh =
   | "restarted"
   | "current"
   | "not-running"
+  | "not-supervised"
+  | "not-installed"
+  | "foreign-unit"
   | "unknown"
   | "failed";
 
@@ -394,12 +421,21 @@ export type BrowserViewRefresh =
  * Its unit runs this installation's stable selector, so the unit's text stays
  * the same and the update's convergence does not restart it; the old view
  * then serves until a reboot, without what the new version changed (its hub,
- * decision F47). Every update restarts the Launchpad, so the Launchpad
- * compares the running view's executable with its own when it starts, and
- * restarts the view when they differ, or when the view's file is gone. A
- * viewer reconnects; the browser and its tabs are untouched. */
+ * decision F47, #334). Every update restarts the supervised Launchpad, so the
+ * Launchpad restarts the view when it starts, only where all of this holds
+ * (Pablo's review of #336), and touches nothing otherwise:
+ * - the base is supervised: its Launchpad unit is the installer's for this
+ *   base (`detectServiceControl`);
+ * - the view's unit is the installer's for this base and entry
+ *   (`viewUnitBelongsToBase`), never a foreign unit of the same name;
+ * - this process is the installed version, the one the selector names;
+ * - the running view's executable differs from it, or its file was replaced.
+ * A viewer reconnects; the browser and its tabs are untouched. */
 export async function restartStaleBrowserView(
   input: Readonly<{
+    base: string;
+    platform: string;
+    entry: BrowserEntry;
     run: ProcessRunner;
     env: Readonly<Record<string, string | undefined>>;
     /** This process's executable (`process.execPath`). */
@@ -408,6 +444,28 @@ export async function restartStaleBrowserView(
     realpath?: (path: string) => Promise<string>;
   }>,
 ): Promise<BrowserViewRefresh> {
+  const directory = userUnitDirectory(input.env);
+  if (input.platform !== "linux" || directory === undefined)
+    return "not-supervised";
+  if ((await detectServiceControl(input).catch(() => null)) === null)
+    return "not-supervised";
+  const selector = layout(input.base).selector;
+  const unit = await readFile(join(directory, browserViewUnit), "utf8").catch(
+    () => undefined,
+  );
+  if (unit === undefined) return "not-running";
+  if (!viewUnitBelongsToBase(unit, input.entry, selector))
+    return "foreign-unit";
+  const resolve = input.realpath ?? realpath;
+  let installed: string;
+  let own: string;
+  try {
+    installed = await resolve(selector);
+    own = await resolve(input.executable);
+  } catch {
+    return "unknown";
+  }
+  if (own !== installed) return "not-installed";
   const shown = await input
     .run(
       [
@@ -427,15 +485,13 @@ export async function restartStaleBrowserView(
   const pid = Number.parseInt(shown.stdout.trim(), 10);
   if (!Number.isInteger(pid) || pid < 2) return "not-running";
   let running: string;
-  let own: string;
   try {
     running = await (input.readlink ?? readlink)(`/proc/${pid}/exe`);
-    own = await (input.realpath ?? realpath)(input.executable);
   } catch {
     return "unknown";
   }
-  const deleted = running.endsWith(" (deleted)");
-  if (!deleted && running === own) return "current";
+  if (!running.endsWith(" (deleted)") && running === installed)
+    return "current";
   return (await systemctl(input, "try-restart", browserViewUnit))
     ? "restarted"
     : "failed";
