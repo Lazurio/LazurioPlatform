@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readdir,
@@ -1190,6 +1191,44 @@ test.skipIf(process.platform === "win32")(
       sleeper.kill();
       for (const server of servers) server.close();
     }
+  },
+);
+
+// Pablo's review of Lazurio/t3code#56, which has the same code: a socket or a
+// .pid that cannot be reached proves nothing, so it is never "none" or
+// "stopped".
+test.skipIf(process.platform === "win32")(
+  "letting go: a socket or a .pid that cannot be reached is unconfirmed",
+  async () => {
+    const sockets = await temporary("browser-daemon-");
+    const server = createServer(() => undefined);
+    await new Promise<void>((resolve) =>
+      server.listen(join(sockets, "codex-1.sock"), () => resolve()),
+    );
+    try {
+      // A daemon listens, but its socket cannot be opened.
+      await chmod(join(sockets, "codex-1.sock"), 0o000);
+      expect(await stopSessionDaemon(sockets, "codex-1")).toBe("unconfirmed");
+    } finally {
+      server.close();
+    }
+    // Acknowledged, and the .pid's directory cannot be read.
+    const pids = await temporary("browser-pid-");
+    await writeFile(join(pids, "codex-1.pid"), "4242\n");
+    try {
+      expect(
+        await stopSessionDaemon(pids, "codex-1", {
+          ask: async () => {
+            await chmod(pids, 0o000);
+            return { kind: "reply", line: '{"success":true}' } as const;
+          },
+          exitWithinMs: 150,
+        }),
+      ).toBe("unconfirmed");
+    } finally {
+      await chmod(pids, 0o700);
+    }
+    expect(await readFile(join(pids, "codex-1.pid"), "utf8")).toBe("4242\n");
   },
 );
 

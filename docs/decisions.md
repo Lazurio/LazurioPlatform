@@ -7983,9 +7983,11 @@ the tab for everyone who holds or views it. Matěj decided:
   - Outcomes: `stopped` (the daemon answered and its `.pid` is gone), `none` (nothing listens
     on the session's socket; done all the same), `refused` (the daemon answered that it did
     not shut down; nothing changed, exit 1) and `unconfirmed` (no answer within 5 s after the
-    command went out, or an answer while the `.pid` stays 5 s: the daemon may still hold the
-    window, exit 1; run `done` again). Only a gone `.pid` counts as stopped (Pablo's review of
-    3122df40).
+    command went out, a socket or `.pid` that cannot be reached, or an answer while the `.pid`
+    stays 5 s: the daemon may still hold the window, exit 1; run `done` again). Only a `.pid`
+    proven gone (`ENOENT`) counts as stopped, and only `ENOENT`, `ECONNREFUSED` or `ENOTSOCK`
+    on the socket counts as nothing listening (Pablo's reviews of 3122df40 and of
+    Lazurio/t3code#56).
   - T3 Code's overlay stops an archived thread's daemon by process id the same way the first
     version did; it moves to this path when it takes over the contract (task 703).
   - The manual's "When done" now says `lazurio browser done`, and never `tab close` or
