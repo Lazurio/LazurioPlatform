@@ -1,13 +1,16 @@
 // The Launchpad's layout in this browser (Matěj's tuning of the Launchpad's
 // panel, 2026-10-12): the right panel dragged wider or narrower by its left
-// edge, as T3 Code's and Codex Desktop's panels are. The panel can take all
-// of the room right of the rail and the column: dragged past half of the
-// page's narrowest width, the page steps aside and the panel takes the
-// room, as in the wireframe's "Celá šířka" (prototypes-lazurio `placePanel`,
-// mode "wide"). What the person chose stays in this browser under one key,
-// read defensively, as the favourites and the tour's progress do: it is
-// their view, never the Folder's, which a Team Environment shares. Pure:
-// layout.ts and browser-panel.ts only draw this and ask.
+// edge, as T3 Code's and Codex Desktop's panels are, and the left column
+// hidden and shown, and dragged wider or narrower by its right edge, as T3
+// Code's sidebar is. The panel can take all of the room right of the rail
+// and the column: dragged past half of the page's narrowest width, the page
+// steps aside and the panel takes the room, as in the wireframe's "Celá
+// šířka" (prototypes-lazurio `placePanel`, mode "wide"). With the column
+// hidden too, the browser fills the window but the rail. What the person
+// chose stays in this browser under one key, read defensively, as the
+// favourites and the tour's progress do: it is their view, never the
+// Folder's, which a Team Environment shares. Pure: layout.ts and
+// browser-panel.ts only draw this and ask.
 
 /** The storage key of the person's layout. */
 export const layoutKey = "lazurio.layout";
@@ -17,6 +20,13 @@ export const layoutKey = "lazurio.layout";
 export const panelMinWidth = 360;
 export const pageMinWidth = 400;
 
+/** The left column: T3 Code's narrowest sidebar, which the shell's column
+ * head is drawn for, the width it had before it could be dragged, and the
+ * widest that still leaves its navigation a column. */
+export const columnMinWidth = 208;
+export const columnDefaultWidth = 264;
+export const columnMaxWidth = 480;
+
 /** The right panel's width as the person left it: pixels, or all of the
  * room. */
 export type PanelWish = number | "wide";
@@ -24,9 +34,17 @@ export type PanelWish = number | "wide";
 export type StoredLayout = Readonly<{
   /** The right panel's width the person chose; null for the default. */
   panel: PanelWish | null;
+  /** The left column's width the person chose; null for the default. */
+  column: number | null;
+  /** The person hid the left column. */
+  columnHidden: boolean;
 }>;
 
-export const defaultLayout: StoredLayout = Object.freeze({ panel: null });
+export const defaultLayout: StoredLayout = Object.freeze({
+  panel: null,
+  column: null,
+  columnHidden: false,
+});
 
 /** A stored width: whole pixels within reason, else none. */
 const storedWidth = (value: unknown): number | null =>
@@ -50,8 +68,12 @@ export function parseLayout(raw: string | null): StoredLayout {
   }
   if (typeof value !== "object" || value === null || Array.isArray(value))
     return defaultLayout;
-  const { panel } = value as Record<string, unknown>;
-  return { panel: panel === "wide" ? "wide" : storedWidth(panel) };
+  const { panel, column, columnHidden } = value as Record<string, unknown>;
+  return {
+    panel: panel === "wide" ? "wide" : storedWidth(panel),
+    column: storedWidth(column),
+    columnHidden: columnHidden === true,
+  };
 }
 
 /** The layout as it is stored. */
@@ -126,6 +148,46 @@ export function keyPanel(place: PanelPlace, key: DividerKey): PanelWish | null {
       return place.min;
     case "End":
       return "wide";
+    default:
+      return null;
+  }
+}
+
+// ---- The left column --------------------------------------------------------
+
+/** The left column's width and its divider's range. */
+export type ColumnPlace = Readonly<{ width: number; min: number; max: number }>;
+
+/** The column in an app `appWidth` pixels wide (all right of the rail), as
+ * the person wished, or 264 px: 208–480 px, and never so wide that the page
+ * beside it has less than its narrowest width. */
+export function placeColumn(
+  appWidth: number,
+  wish: number | null,
+): ColumnPlace {
+  const max = Math.max(
+    columnMinWidth,
+    Math.min(columnMaxWidth, Math.floor(appWidth) - pageMinWidth),
+  );
+  const width = Math.round(
+    Math.min(max, Math.max(columnMinWidth, wish ?? columnDefaultWidth)),
+  );
+  return { width, min: columnMinWidth, max };
+}
+
+/** The width a key on the column's divider asks for (`placeColumn` holds
+ * it in range); null for any other key. The arrows move the divider, so →
+ * widens the column. */
+export function keyColumn(place: ColumnPlace, key: DividerKey): number | null {
+  switch (key.key) {
+    case "ArrowRight":
+      return place.width + stepOf(key);
+    case "ArrowLeft":
+      return place.width - stepOf(key);
+    case "Home":
+      return place.min;
+    case "End":
+      return place.max;
     default:
       return null;
   }

@@ -1050,6 +1050,9 @@ const en = {
     "The Environment browser could not be loaded here; open it in a new tab, where you can sign in again.",
   browserWidth: "Browser width",
   dividerHint: "Drag to change the width; a double-click restores the default",
+  columnHide: "Hide navigation",
+  columnShow: "Show navigation",
+  columnWidth: "Navigation width",
   integrationsTitle: "Integrations",
   integrationsSubtitle:
     "Every agent and bot of this Environment uses what you connect here.",
@@ -2252,6 +2255,9 @@ const cs: Record<MessageKey, string> = {
     "Prohlížeč Environmentu se tu nepodařilo načíst; otevřete ho v nové kartě, kde se můžete znovu přihlásit.",
   browserWidth: "Šířka prohlížeče",
   dividerHint: "Táhněte pro změnu šířky, dvojklik vrátí výchozí",
+  columnHide: "Skrýt navigaci",
+  columnShow: "Zobrazit navigaci",
+  columnWidth: "Šířka navigace",
   integrationsTitle: "Integrace",
   integrationsSubtitle:
     "Co tu připojíš, používají všichni agenti a boti tohoto Environmentu.",

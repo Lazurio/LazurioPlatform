@@ -1,8 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
+  columnDefaultWidth,
+  columnMaxWidth,
+  columnMinWidth,
   defaultLayout,
   defaultPanelWidth,
   dragPanel,
+  keyColumn,
   keyPanel,
   layoutKey,
   layoutText,
@@ -10,15 +14,17 @@ import {
   panelMinWidth,
   panelWish,
   parseLayout,
+  placeColumn,
   placePanel,
 } from "../src/launchpad/layout-view";
 
 // The Launchpad's layout in this browser (Matěj's tuning of the Launchpad's
 // panel, 2026-10-12): the right panel dragged wider or narrower by its left
 // edge, up to all of the room right of the rail and the column, the page
-// then stepped aside (the wireframe's "Celá šířka"); what the person chose
-// kept under one key and read defensively. The DOM (layout.ts,
-// browser-panel.ts) only draws this.
+// then stepped aside (the wireframe's "Celá šířka"); the left column hidden
+// or dragged wider or narrower by its right edge; what the person chose kept
+// under one key and read defensively. The DOM (layout.ts, browser-panel.ts)
+// only draws this.
 
 // The room right of the rail and a 264 px column in a window 1800 px wide,
 // and the widest panel that leaves the page its narrowest width.
@@ -113,28 +119,84 @@ describe("the right panel's width", () => {
   });
 });
 
+describe("the left column's width", () => {
+  test("264 px by default, the person's width within 208–480 px, and never so wide that the page beside it has less than its narrowest width", () => {
+    expect([columnMinWidth, columnDefaultWidth, columnMaxWidth]).toEqual([
+      208, 264, 480,
+    ]);
+    // The app right of the rail in a window 1800 px wide.
+    const app = 1800 - 64 - 1;
+    expect(placeColumn(app, null)).toEqual({ width: 264, min: 208, max: 480 });
+    expect(placeColumn(app, 320)).toMatchObject({ width: 320 });
+    expect(placeColumn(app, 320.6)).toMatchObject({ width: 321 });
+    expect(placeColumn(app, 100)).toMatchObject({ width: 208 });
+    expect(placeColumn(app, 900)).toMatchObject({ width: 480 });
+    // A window of 800 px leaves the page its 400 px.
+    expect(placeColumn(800 - 65, 480)).toEqual({
+      width: 335,
+      min: 208,
+      max: 335,
+    });
+    // Narrower still, the column keeps its least width.
+    expect(placeColumn(500, null)).toEqual({ width: 208, min: 208, max: 208 });
+  });
+
+  test("its divider's keys: → widens it by 24 px, 96 with Shift, ← narrows it; Home and End go to the least and the greatest width", () => {
+    const at = placeColumn(1735, 300);
+    const key = (name: string, shift = false) => ({ key: name, shift });
+    expect(keyColumn(at, key("ArrowRight"))).toBe(324);
+    expect(keyColumn(at, key("ArrowRight", true))).toBe(396);
+    expect(keyColumn(at, key("ArrowLeft"))).toBe(276);
+    expect(keyColumn(at, key("Home"))).toBe(208);
+    expect(keyColumn(at, key("End"))).toBe(480);
+    // Past either end, placing it holds it in range.
+    expect(
+      placeColumn(1735, keyColumn(placeColumn(1735, 470), key("ArrowRight"))),
+    ).toMatchObject({ width: 480 });
+    for (const other of ["Enter", "ArrowDown", "Escape"])
+      expect(keyColumn(at, key(other))).toBeNull();
+  });
+});
+
 describe("the stored layout", () => {
   test("one key in this browser, read defensively: anything else is the default, and a wrong field is its own default alone", () => {
     expect(layoutKey).toBe("lazurio.layout");
+    expect(defaultLayout).toEqual({
+      panel: null,
+      column: null,
+      columnHidden: false,
+    });
     expect(parseLayout(null)).toEqual(defaultLayout);
     for (const raw of ["", "{", "null", "[720]", '"wide"', "42", "true"])
-      expect(parseLayout(raw)).toEqual({ panel: null });
-    expect(parseLayout('{"panel":720}')).toEqual({ panel: 720 });
-    expect(parseLayout('{"panel":720.4}')).toEqual({ panel: 720 });
-    expect(parseLayout('{"panel":"wide"}')).toEqual({ panel: "wide" });
-    for (const panel of ['"720"', "0", "-5", "1e9", '"WIDE"', "null", "{}"])
-      expect(parseLayout(`{"panel":${panel}}`)).toEqual({ panel: null });
-    // Nothing else is read from it.
-    expect(parseLayout('{"panel":720,"theme":"dark"}')).toEqual({
+      expect(parseLayout(raw)).toEqual(defaultLayout);
+    expect(parseLayout('{"panel":720}')).toEqual({
+      ...defaultLayout,
       panel: 720,
     });
+    expect(parseLayout('{"panel":720.4}').panel).toBe(720);
+    expect(parseLayout('{"panel":"wide"}').panel).toBe("wide");
+    for (const panel of ['"720"', "0", "-5", "1e9", '"WIDE"', "null", "{}"])
+      expect(parseLayout(`{"panel":${panel}}`).panel).toBeNull();
+    expect(
+      parseLayout('{"panel":"wide","column":300,"columnHidden":true}'),
+    ).toEqual({ panel: "wide", column: 300, columnHidden: true });
+    for (const column of ['"300"', "-1", "1e9", '"wide"', "true"])
+      expect(parseLayout(`{"column":${column}}`).column).toBeNull();
+    for (const hidden of ['"true"', "1", "null", "false"])
+      expect(parseLayout(`{"columnHidden":${hidden}}`).columnHidden).toBe(
+        false,
+      );
+    // A wrong field takes nothing else with it, and nothing else is read.
+    expect(
+      parseLayout('{"panel":"x","column":300,"columnHidden":true,"theme":1}'),
+    ).toEqual({ panel: null, column: 300, columnHidden: true });
   });
 
   test("what is written reads back the same", () => {
     for (const layout of [
       defaultLayout,
-      { panel: 720 },
-      { panel: "wide" as const },
+      { panel: 720, column: null, columnHidden: false },
+      { panel: "wide" as const, column: 320, columnHidden: true },
     ])
       expect(parseLayout(layoutText(layout))).toEqual(layout);
   });
