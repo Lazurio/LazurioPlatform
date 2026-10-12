@@ -273,7 +273,7 @@ abstract class ShellElement extends HTMLElement {
   protected abstract render(): void;
 }
 
-/** Where you are in a list: the check, and its word ("tady jsi") for screen
+/** Where you are in a list: the check, and its word ("tady jste") for screen
  * readers only (design-system-lazurio#62). */
 function checkMark(word: string): HTMLSpanElement {
   const mark = element("span", "switcher-check");

@@ -135,7 +135,7 @@ const text = {
     reused: "Tvoje okno už je otevřené.",
     created: "Tvoje okno je otevřené.",
     "hub-unreachable":
-      "Pohled prohlížeče Environmentu záložku neotevřel. Spusť lazurio doctor.",
+      "Pohled prohlížeče Environmentu záložku neotevřel. Spusťte lazurio doctor.",
     "invalid-address": "Tuhle adresu pohled neotevře.",
     stopped:
       "Okno je puštěné: skončí, až ho nic nedrží a nikdo se na něj nedívá. Kdo ho má otevřené, tomu zůstane.",

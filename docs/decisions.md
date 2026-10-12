@@ -3601,6 +3601,16 @@ Environment stays the name in the Launchpad, the CLI and the generated texts, a 
 one stays a Remote Environment, and the guard of point 4 is unchanged. Template revision
 `base-instructions-27` (F14 addendum 2026-10-05).
 
+**Addendum 2026-10-12 (Anna, plan DEV-6658): agents address people formally.** Lazurio,
+its agents and Buddy address every person formally, as the brand voice of
+design-system-lazurio (`content/brand/hlas/hlas.md`) has asked since 2026-10-11: in Czech
+lowercase vy, váš, vám, plural imperatives and no past tense about the person. A new rule
+next to `environmentWording` (`formalAddress`) says so in the generated AGENTS.md, and the
+manual's handoff block now has the agent say "Připravil jsem vám pull request",
+"Zkontrolujte si to v aplikaci" and "Mám změny Publikovat vaším jménem?". Rules written for
+agents, and the prompts a person hands to an agent in their own words, keep ty; English is
+unchanged. Template revision `base-instructions-48`.
+
 ## F29 — Entry units of a Remote Environment: the Launchpad, T3 Code and the operator's Codex app-server
 
 **Decided by Matěj 2026-09-30 (plan DEV-6635); implemented in this revision.**

@@ -1121,7 +1121,7 @@ test("missing rights are escalated on every preset; only the Team hands every pu
         locale,
         workingHere.includes(
           locale === "cs"
-            ? "Mám změny Publikovat tvým jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?"
+            ? "Mám změny Publikovat vaším jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?"
             : "Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?",
         ),
         workingHere.includes(
