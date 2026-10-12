@@ -24,7 +24,9 @@
 // one of them named, in a Composio organization whose name has a space and
 // diacritics (each account's menu links to Composio's dashboard): a direct
 // sign-in finishes by itself after a few seconds and a Composio link at once
-// (the window they open shows nothing real). Locally that fake
+// (the window they open shows nothing real). Vlastní lists one server that
+// Executor cannot reach, as 1.6.10 reads it (`degraded`, #322), so it says
+// it could not start. Locally that fake
 // stands in for a Remote Environment's Executor, so the page shows the
 // direct paths (decision F44 installs none on a computer); in a Remote
 // Environment the page follows Settings → Tools → executor, as in
@@ -325,6 +327,16 @@ const executorApi = await startFakeExecutor(
           ],
         },
       },
+      {
+        slug: "search",
+        name: "Search",
+        kind: "mcp",
+        transport: "stdio",
+        command: "search-mcp",
+        auth: "none",
+        tools: 0,
+        broken: true,
+      },
     ],
     connections: [
       {
@@ -350,6 +362,15 @@ const executorApi = await startFakeExecutor(
         template: "env",
         identityLabel: null,
         health: "healthy",
+      },
+      {
+        owner: "org",
+        name: "default",
+        integration: "search",
+        template: "none",
+        identityLabel: null,
+        health: "degraded",
+        reason: "tool_sync_failed",
       },
     ],
   },
