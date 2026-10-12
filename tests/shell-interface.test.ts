@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { parseShell } from "../src/shell/contract";
+import { environmentCss } from "../src/shell/identity-styles";
 import { shellElementInterface } from "../src/shell/interface";
 import { shellMessages } from "../src/shell/messages";
 import { accountSourceOf } from "../src/shell/state";
@@ -181,7 +182,7 @@ test("a host's document attributes and the script's exports are kept", async () 
 // the rest. A role is read either with that colour as its fallback, or in a
 // `--shell-host-*` value that is itself only ever read with one.
 test("an unset colour role leaves the design system's colour", () => {
-  for (const css of [railCss, columnHeadCss]) {
+  for (const css of [railCss, columnHeadCss, environmentCss]) {
     for (const declaration of css.split(/[;{}]/)) {
       if (!/var\(--lazurio-[a-z-]+\)/.test(declaration)) continue;
       expect(declaration.trim()).toMatch(/^--shell-host-[a-z-]+:/);

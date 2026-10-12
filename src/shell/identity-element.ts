@@ -1,5 +1,5 @@
 import { icon } from "./icons";
-import { environmentCss } from "./styles";
+import { environmentCss } from "./identity-styles";
 import {
   type EnvironmentIdentity,
   type IdentityLook,

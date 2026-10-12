@@ -1,12 +1,10 @@
-import { vendorText } from "./vendor-text" with { type: "macro" };
+import { baseCss, hostTokens } from "./base-styles";
+import { identityCss } from "./identity-styles";
 
-const tokens = vendorText("tokens.css");
-
-// The styles of the shell elements, inside their shadow roots: the Lazurio
-// design system's tokens (vendored byte-for-byte, declared on `:root`, here
-// applied to `:host` so they hold inside the shadow root and nowhere else),
-// and the components of the rail, the Environment picker and the app switch
-// after the shell wireframe (prototypes-lazurio 1acd615, F36's addendum of
+// The styles of the shell elements' components, inside their shadow roots,
+// on the foundations of base-styles.ts (the design system's tokens and the
+// colour roles): the rail, the Environment picker and the app switch after
+// the shell wireframe (prototypes-lazurio 1acd615, F36's addendum of
 // 2026-10-06) and the design system (design-system-lazurio fdcc9b4). They
 // mirror its rules: the selected look is a quiet surface one step darker,
 // with a hairline in the rail (`lz-rail`, B3) and a check in a list whose
@@ -18,79 +16,12 @@ const tokens = vendorText("tokens.css");
 // list of Environments, the ⌘⇧E dialog and the rail's label; nothing in the
 // flow of the page has one. Nothing here reaches the host page, and the host
 // page's styles do not reach in.
-//
-// Colours (F36, addendum of 2026-10-04, evening; prototypes-lazurio
-// 5411279, `shell-theme.css`): the elements have no palette of their own.
-// They take the colours of the app they sit in through the colour roles of
-// interface v1 (`--lazurio-surface`, `--lazurio-ink`, …), custom properties
-// the host sets on its document, which inherit into these shadow roots. The
-// components below use only the `--shell-*` names, each bound to a role with
-// the design system's value as its fallback: without roles the elements look
-// as the design system draws them. A `--shell-host-*` name is mixed from a
-// role and stays unset while the host sets none (a `var()` without a
-// fallback); it is only ever read with the design system's value as
-// fallback.
-
-/** The tokens, scoped to the element. */
-export const hostTokens = tokens.replace(":root", ":host");
 
 /** The width the rail takes, one step of the design system's grid
  * (`--lz-grid-step`, `lz-rail`); the host lays its content beside it with
  * `padding-left: var(--lazurio-rail-width, 0px)`. 72 px until F36's addendum
  * of 2026-10-06. */
 export const railWidth = "64px";
-
-const base = `
-:host {
-  --shell-ink: var(--lazurio-ink, var(--lz-ink));
-  --shell-ink-muted: var(--lazurio-ink-muted, var(--lz-ink-muted));
-  --shell-line: var(--lazurio-line, var(--lz-line));
-  --shell-line-strong: var(--lazurio-line-strong, var(--lz-gray-300));
-  --shell-hover: var(--lazurio-hover, var(--lz-gray-100));
-  --shell-selected: var(--lazurio-selected, var(--lz-gray-100));
-  --shell-control: var(--lazurio-control, var(--lz-gray-100));
-  --shell-raised: var(--lazurio-raised, var(--lz-white));
-  /* The active tab is in the flow of the page: a hairline, never a shadow. */
-  --shell-raised-shadow: inset 0 0 0 1px var(--shell-line);
-  --shell-focus: var(--lazurio-focus, var(--lz-accent));
-  --shell-overlay: var(--lazurio-overlay, var(--lz-white));
-  --shell-overlay-ink: var(--lazurio-overlay-ink, var(--lz-ink));
-  /* Marks (an Organization's avatar or initials, your personal monogram) sit
-     on the raised colour with a hairline, never on ink. The rail's labels
-     and the account's initials are ink with the surface's colour as text.
-     The dark tone below leaves them as they are. */
-  --shell-mark: var(--lazurio-raised, var(--lz-white));
-  --shell-mark-ink: var(--lazurio-ink, var(--lz-ink));
-  --shell-mark-line: var(--lazurio-line, var(--lz-line));
-  --shell-inverse: var(--lazurio-ink, var(--lz-ink));
-  --shell-inverse-ink: var(--lazurio-surface, var(--lz-white));
-}
-:host { font-family: var(--lz-font-sans); font-size: 15px; font-weight: 400; line-height: 1.4; letter-spacing: normal; text-align: left; text-transform: none; color: var(--shell-ink); -webkit-font-smoothing: antialiased; }
-*, *::before, *::after { box-sizing: border-box; }
-[hidden] { display: none !important; }
-a, button, input { font: inherit; color: inherit; }
-:focus-visible { outline: 2px solid var(--shell-focus); outline-offset: 2px; }
-.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-.org-mark { display: grid; flex: none; place-items: center; overflow: hidden; border-radius: var(--lz-radius-sm); background: var(--shell-mark); box-shadow: inset 0 0 0 1px var(--shell-mark-line); color: var(--shell-mark-ink); font-weight: var(--lz-weight-akce); letter-spacing: 0.02em; }
-.org-mark img { display: block; width: 100%; height: 100%; object-fit: cover; }
-`;
-
-/** One identity as `drawIdentity` draws it (F39's addendum of 2026-10-12),
- * in the column head's picker and in `<lazurio-environment>`: the glyph
- * (lz-picker__mark) in the ink, an Organization's mark or your monogram
- * inside it or the kind's icon filling it, then the name and, quieter, who
- * it is for. The picker's rules until then, under the drawing's names. */
-const identityCss = `
-.identity-glyph { display: grid; width: var(--lz-space-32); height: var(--lz-space-32); flex: none; place-items: center; overflow: hidden; border-radius: var(--lz-radius-sm); color: var(--shell-ink); font-size: var(--lz-size-meta); font-weight: var(--lz-weight-akce); }
-.identity-glyph > svg { display: block; width: 100%; height: auto; }
-.identity-glyph .org-mark { width: 24px; height: 24px; font-size: 10px; }
-/* Your personal Environment's glyph: your monogram as the rail draws it. */
-.identity-glyph .initials { display: grid; width: 24px; height: 24px; place-items: center; border-radius: var(--lz-radius-sm); background: var(--shell-mark); box-shadow: inset 0 0 0 1px var(--shell-mark-line); color: var(--shell-mark-ink); font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
-.identity-text { display: grid; flex: 1; min-width: 0; line-height: normal; }
-.identity-name, .identity-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.identity-name { font-size: var(--lz-size-nav); font-weight: var(--lz-weight-akce); }
-.identity-who { color: var(--shell-ink-muted); font-size: var(--lz-size-meta); }
-`;
 
 /** The list of Environments: under the picker (one space) and as the ⌘⇧E
  * dialog (every space). It floats on the host's overlay colour with a
@@ -149,7 +80,7 @@ dialog.switcher-dialog::backdrop { background: rgb(0 0 0 / 25%); }
 `;
 
 export const railCss = `${hostTokens}
-${base}
+${baseCss}
 ${switcherCss}
 /* The rail is the host's surface, paper without roles like the app's column
    (design-system-lazurio#59), and draws no edge toward the app beside it
@@ -202,7 +133,7 @@ nav { display: flex; height: 100%; flex-direction: column; align-items: center; 
 `;
 
 export const columnHeadCss = `${hostTokens}
-${base}
+${baseCss}
 ${switcherCss}
 ${identityCss}
 :host { display: block; }
@@ -262,24 +193,4 @@ a.tab:hover { color: var(--shell-ink); }
   .setup { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .pick > svg { transition: none; } }
-`;
-
-/** `<lazurio-environment>` (F39's addendum of 2026-10-12): the identity on
- * one line, in the size of the text around it (a header, the bar of the
- * Environment browser's view): the glyph, the name and, quieter beside it,
- * who it is for, as a line of the list of Environments draws them
- * (`lz-menu-item--compact`). Who it is for gives way first. In the host's
- * colour roles; without them, the design system's. */
-export const environmentCss = `${hostTokens}
-${base}
-${identityCss}
-:host { display: inline-flex; min-width: 0; max-width: 100%; vertical-align: middle; font-size: inherit; line-height: normal; }
-:host([hidden]) { display: none; }
-.identity { display: flex; min-width: 0; align-items: center; gap: 0.5em; }
-.identity-glyph { width: 20px; height: 20px; font-size: 9px; }
-.identity-glyph > svg { width: 16px; height: 16px; }
-.identity-glyph .org-mark, .identity-glyph .initials { width: 20px; height: 20px; font-size: 9px; }
-.identity-text { display: flex; align-items: baseline; gap: 0.4em; }
-.identity-name { flex: 0 1 auto; min-width: 0; font-size: 1em; }
-.identity-who { flex: 0 100 auto; min-width: 0; font-size: 0.92em; }
 `;
