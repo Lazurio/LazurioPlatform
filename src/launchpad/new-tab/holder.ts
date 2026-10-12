@@ -31,7 +31,7 @@ import {
 // everything. Times come from the boot clock only, never the wall clock.
 
 export const launchpadStrip = "launchpad";
-const launchpadLabel = "Launchpad";
+export const launchpadLabel = "Launchpad";
 const fileName = `${launchpadStrip}.json`;
 
 /** At most this many tabs, so the file stays well inside what the hub reads
@@ -58,6 +58,12 @@ export type LaunchpadHolder = Readonly<{
    * writes the file before it resolves. `HolderFull` at the bound; a failed
    * write rejects and records nothing. */
   hold: (id: string) => Promise<void>;
+  /** Lets go of the Launchpad's hold of a tab (× in its strip, F47 point 9's
+   * addendum of 2026-10-12) and writes the file before it resolves, on the
+   * same path as `hold`: one operation at a time, the file read again first,
+   * nothing written over a file that cannot be read. A tab the file does not
+   * hold is released already, and nothing is written for it. */
+  release: (id: string) => Promise<void>;
   /** Reconciles with the list now, writing only when a hold went. */
   reconcile: () => Promise<void>;
   /** The held tabs, in the order they were first recorded. */
@@ -218,6 +224,24 @@ export function createLaunchpadHolder(seams: HolderSeams): LaunchpadHolder {
           throw new HolderFull();
         held.set(tab, at);
         await write(held);
+        remember(held);
+      });
+    },
+    async release(id: string) {
+      if (!targetIdPattern.test(id)) throw new Error("Invalid target id");
+      const tab = id.toUpperCase();
+      await serialized(async () => {
+        if (stopped) throw new Error("The Launchpad is closing");
+        let held: Map<string, BootTime | null>;
+        try {
+          held = await current();
+        } catch {
+          log("holder-unreadable");
+          throw new Error("The holder file cannot be read");
+        }
+        const gone = await letGo(held);
+        for (const id of gone) held.delete(id);
+        if (held.delete(tab) || gone.length > 0) await write(held);
         remember(held);
       });
     },

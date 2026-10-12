@@ -809,6 +809,75 @@ test("a holder file the Launchpad cannot read takes no hold and is never written
   expect((await world.stored())?.map((tab) => tab.id)).toEqual([id(1), id(3)]);
 });
 
+test("release takes hold's path: one operation at a time, the file read again first, a file it cannot read never written over, and a tab not held released already", async () => {
+  const runtime = await temporary("launchpad-release-");
+  const env = { XDG_RUNTIME_DIR: runtime };
+  const directory = holderDirectory(env) as string;
+  const file = join(directory, "launchpad.json");
+  // Every read of the file is slow and counted: two operations side by
+  // side would read it at once.
+  let reading = 0;
+  let most = 0;
+  const holder = createLaunchpadHolder({
+    directory,
+    listPath: liveTabsPath(env) as string,
+    bootClock: async () => at(100),
+    readFile: async (path) => {
+      if (path !== file) return readFile(path, "utf8");
+      reading += 1;
+      most = Math.max(most, reading);
+      await settle(15);
+      try {
+        return await readFile(path, "utf8");
+      } finally {
+        reading -= 1;
+      }
+    },
+  });
+  cleanups.push(() => holder.stop());
+  const stored = async () =>
+    parseHolderRecords(
+      "launchpad.json",
+      await readFile(file, "utf8"),
+    )?.tabs.map((tab) => tab.id) ?? null;
+  // Asked together, they run one after another, in the order asked.
+  await Promise.all([
+    holder.hold(id(1)),
+    holder.release(id(1).toLowerCase()),
+    holder.hold(id(2)),
+  ]);
+  expect(most).toBe(1);
+  expect(holder.tabs()).toEqual([id(2)]);
+  expect(await stored()).toEqual([id(2)]);
+  // A tab the file does not hold is released already: nothing is written.
+  const written = (await stat(file)).mtimeMs;
+  await settle(20);
+  await holder.release(id(7));
+  expect((await stat(file)).mtimeMs).toBe(written);
+  await expect(holder.release("not-a-tab")).rejects.toThrow("Invalid");
+  // A file that is not a holder file, or cannot be read, is never written
+  // over, and the release fails.
+  await writeFile(file, "{");
+  await expect(holder.release(id(2))).rejects.toThrow("cannot be read");
+  expect(await readFile(file, "utf8")).toBe("{");
+  await writeFile(
+    file,
+    holderFileText("launchpad", "Launchpad", [
+      { id: id(2), recordedAt: at(100) },
+    ]),
+  );
+  await chmod(file, 0o000);
+  try {
+    await expect(holder.release(id(2))).rejects.toThrow("cannot be read");
+  } finally {
+    await chmod(file, 0o600);
+  }
+  expect(await stored()).toEqual([id(2)]);
+  // Readable again: the release goes through.
+  await holder.release(id(2));
+  expect(await stored()).toEqual([]);
+});
+
 test("the Launchpad's holder file is owner-only, replaced atomically, and read back with its record times by the Launchpad alone", async () => {
   const world = await holderWorld();
   world.setClock(at(100.25));
@@ -1134,6 +1203,7 @@ async function routesWorld(
     modules?: readonly ModuleUnit[] | null;
     memory?: Readonly<Record<string, string>>;
     runtime?: string;
+    now?: () => number;
   } = {},
 ) {
   const runtime = options.runtime ?? (await temporary("new-tab-routes-"));
@@ -1157,6 +1227,7 @@ async function routesWorld(
     host,
     modules: async () => (options.modules === undefined ? [] : options.modules),
     headers: { "Cache-Control": "no-store" },
+    ...(options.now === undefined ? {} : { now: options.now }),
   });
   const call = async (
     method: string,
@@ -1195,7 +1266,7 @@ async function routesWorld(
       ? []
       : (parseHolderRecords("launchpad.json", text)?.tabs ?? []);
   };
-  return { routes, call, host, held, runtime };
+  return { routes, call, host, held, runtime, holder };
 }
 
 test("every path answers 404 no-browser where the Environment has no browser", async () => {
@@ -1206,6 +1277,7 @@ test("every path answers 404 no-browser where the Environment has no browser", a
     ["GET", "/api/new-tab/overview", undefined],
     ["POST", "/api/new-tab/open", { url: "https://example.com" }],
     ["POST", "/api/new-tab/hold", { tab: id(1) }],
+    ["POST", "/api/new-tab/release", { tab: id(1) }],
     ["POST", "/api/new-tab/close", { tab: id(1) }],
     ["POST", "/api/new-tab/restore", { tab: id(1) }],
     ["GET", "/api/new-tab/other", undefined],
@@ -1525,6 +1597,95 @@ test("close and restore go to the hub and answer its outcome", async () => {
     `/.lazurio/tabs/${id(1)}/restore`,
     `/.lazurio/tabs/${id(2)}/close`,
     `/.lazurio/tabs/${id(2)}/restore`,
+  ]);
+});
+
+test("close answers how long its Vrátit has left on the Environment's clock, the one the hub's deadline is on", async () => {
+  // The fake hub's deadline is 2026-10-11T10:02:08.000Z.
+  const deadline = Date.parse("2026-10-11T10:02:08.000Z");
+  const hub = standardHub([fact(1), fact(2)]);
+  let now = deadline - 6_500;
+  const { call } = await routesWorld({ hub, now: () => now });
+  expect(await call("POST", "/api/new-tab/close", { tab: id(1) })).toEqual({
+    status: 202,
+    cache: "no-store",
+    body: { closing: "2026-10-11T10:02:08.000Z", left: 6_500 },
+  });
+  // Past the deadline nothing is left, never less than nothing.
+  now = deadline + 1_000;
+  expect(
+    await call("POST", "/api/new-tab/close", { tab: id(2) }),
+  ).toMatchObject({ status: 202, body: { left: 0 } });
+});
+
+test("release lets go of the Launchpad's hold only, without the hub, and a tab not held is released already", async () => {
+  const hub = standardHub([fact(1), fact(2)]);
+  const { call, held } = await routesWorld({ hub });
+  await call("POST", "/api/new-tab/hold", { tab: id(1) });
+  await call("POST", "/api/new-tab/hold", { tab: id(2) });
+  hub.seen.length = 0;
+  expect(
+    await call("POST", "/api/new-tab/release", { tab: id(1).toLowerCase() }),
+  ).toEqual({ status: 200, cache: "no-store", body: { released: true } });
+  expect((await held()).map((tab) => tab.id)).toEqual([id(2)]);
+  // Again, and a tab the Launchpad never held: released already.
+  for (const tab of [id(1), id(99)])
+    expect(await call("POST", "/api/new-tab/release", { tab })).toEqual({
+      status: 200,
+      cache: "no-store",
+      body: { released: true },
+    });
+  expect((await held()).map((tab) => tab.id)).toEqual([id(2)]);
+  // Neither the hub's tabs nor its other holders are touched.
+  expect(hub.seen).toEqual([]);
+  expect(hub.tabs.has(id(1))).toBe(true);
+  // Exactly a tab id, and only with a holder.
+  expect(
+    await call("POST", "/api/new-tab/release", { tab: "x", extra: 1 }),
+  ).toMatchObject({ status: 400 });
+  const without = await routesWorld({ hub, holder: false });
+  expect(
+    await without.call("POST", "/api/new-tab/release", { tab: id(2) }),
+  ).toMatchObject({ status: 503, body: { error: "holder-unavailable" } });
+});
+
+test("a release the holder file refuses fails closed: 500, and the file is not written over", async () => {
+  const hub = standardHub([fact(1)]);
+  const world = await routesWorld({ hub });
+  await world.call("POST", "/api/new-tab/hold", { tab: id(1) });
+  const directory = holderDirectory({
+    XDG_RUNTIME_DIR: world.runtime,
+  }) as string;
+  const file = join(directory, "launchpad.json");
+  await writeFile(file, "{");
+  expect(
+    await world.call("POST", "/api/new-tab/release", { tab: id(1) }),
+  ).toMatchObject({ status: 500, body: { error: "release-failed" } });
+  expect(await readFile(file, "utf8")).toBe("{");
+  expect(world.host.events).toContain("release-failed");
+});
+
+test("the overview says the Launchpad's hold as the Launchpad last wrote it, before the hub reads the file again", async () => {
+  // The hub still reports what it read last: a hold of id(2) that the
+  // Launchpad no longer has, and none of id(1), which it just took.
+  const hub = standardHub([
+    fact(1, { holders: [{ strip: "t3-x", label: "Vlákno" }] }),
+    fact(2, { holders: [{ strip: "launchpad", label: "Launchpad" }] }),
+  ]);
+  const { call } = await routesWorld({ hub });
+  await call("POST", "/api/new-tab/hold", { tab: id(1) });
+  const holders = async () =>
+    ((await call("GET", "/api/new-tab/overview")).body.tabs as TabFacts[]).map(
+      (tab) => [tab.id, tab.holders.map((hold) => hold.strip)],
+    );
+  expect(await holders()).toEqual([
+    [id(1), ["t3-x", "launchpad"]],
+    [id(2), []],
+  ]);
+  await call("POST", "/api/new-tab/release", { tab: id(1) });
+  expect(await holders()).toEqual([
+    [id(1), ["t3-x"]],
+    [id(2), []],
   ]);
 });
 

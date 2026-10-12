@@ -174,6 +174,7 @@ export type HostedOptions = Readonly<{
  * entry whose gateway routes no browser view has none to offer. */
 export function environmentBrowserOf(
   entry: MachineEntry | null,
+  hold: (target: string) => Promise<void> = async () => undefined,
 ): IntegrationsSeams["environmentBrowser"] {
   if (entry === null) return null;
   const browser = browserEntryOf(entry);
@@ -184,9 +185,20 @@ export function environmentBrowserOf(
       { url },
     )) as { targetId?: unknown } | null;
     const target = created?.targetId;
-    return typeof target === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(target)
-      ? { view: browserViewUrl(browser.origin, target) }
-      : null;
+    if (typeof target !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(target))
+      return null;
+    // The panel shows the sign-in, and its strip shows the tabs the
+    // Launchpad holds (F47 point 9's addendum of 2026-10-12): the Launchpad
+    // holds it first, as one opened from its Nová karta. Unheld, it would
+    // leave the strip at the panel's next reading, so a hold that fails
+    // answers that the browser cannot open it now; the hub ends the tab,
+    // which nothing holds.
+    try {
+      await hold(target);
+    } catch {
+      return null;
+    }
+    return { view: browserViewUrl(browser.origin, target) };
   };
 }
 
@@ -533,6 +545,18 @@ export async function startLaunchpad(
       }),
   });
   const contentState: ContentReader = contentReader ?? content;
+  // Nová karta (decision F47 points 4 and 6-8): the overview, the actions on
+  // the view's hub and the Launchpad's holder file, only where the entry
+  // routes the Environment browser's view.
+  const browser = browserEntryOf(entry);
+  const holder =
+    browser === undefined
+      ? null
+      : launchpadHolderOf(newTabHost.runtimeDirectory, {
+          bootClock: newTabHost.bootClock,
+          readFile: newTabHost.readFile,
+          log: newTabHost.log,
+        });
   // Integrace (decision F42): one reading and the connect sessions of this
   // Launchpad, journaled as the operation, the app and the outcome only.
   const integrations = createIntegrationsRoutes({
@@ -547,7 +571,9 @@ export async function startLaunchpad(
       environmentBrowser:
         integrationSeams?.environmentBrowser !== undefined
           ? integrationSeams.environmentBrowser
-          : environmentBrowserOf(entry),
+          : environmentBrowserOf(entry, (target) =>
+              holder === null ? Promise.resolve() : holder.hold(target),
+            ),
       // Whether Lazurio sets Executor up here: F44's context of this
       // Launchpad's Executor host.
       executorContext:
@@ -564,18 +590,6 @@ export async function startLaunchpad(
     }),
     journal: (line) => console.log(JSON.stringify(line)),
   });
-  // Nová karta (decision F47 points 4 and 6-8): the overview, the actions on
-  // the view's hub and the Launchpad's holder file, only where the entry
-  // routes the Environment browser's view.
-  const browser = browserEntryOf(entry);
-  const holder =
-    browser === undefined
-      ? null
-      : launchpadHolderOf(newTabHost.runtimeDirectory, {
-          bootClock: newTabHost.bootClock,
-          readFile: newTabHost.readFile,
-          log: newTabHost.log,
-        });
   const newTab = createNewTabRoutes({
     browser,
     holder,

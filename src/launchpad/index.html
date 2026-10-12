@@ -563,16 +563,13 @@ button.browser-action, a.browser-action { flex: none; width: 30px; padding: 0; }
    reachable (the wireframe's PendingClose). */
 .browser-toast-slot { position: absolute; z-index: 6; right: 16px; bottom: 18px; left: 16px; display: grid; justify-items: center; pointer-events: none; }
 .browser-toast-region { position: fixed; z-index: 61; right: 16px; bottom: 28px; left: 16px; display: grid; justify-items: center; pointer-events: none; }
-.browser-toast { display: flex; align-items: center; gap: 10px; max-width: 100%; padding: 8px 8px 8px 16px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); box-shadow: var(--lz-shadow-float); color: var(--fg); font-size: 13.5px; pointer-events: auto; }
-.browser-toast:not(:has(button)) { padding-right: 16px; }
-.browser-toast-note { display: block; color: var(--muted-fg); }
-button.browser-toast-undo { flex: none; margin-left: 4px; height: 28px; padding: 0 10px; }
-/* The warning before closing a tab an agent works in, over the panel. */
-.browser-scrim { position: absolute; z-index: 8; inset: 0; display: grid; place-items: center; padding: 24px; background: rgb(9 9 9 / 28%); }
-.browser-confirm { display: grid; gap: 10px; width: min(380px, 100%); padding: 18px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); box-shadow: var(--lz-shadow-float); }
-.browser-confirm-title { font-size: 15px; font-weight: var(--lz-weight-akce); }
-.browser-confirm-text { color: var(--muted-fg); font-size: 13.5px; line-height: 1.5; }
-.browser-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.browser-toast { display: grid; gap: 6px; max-width: 100%; padding: 8px 8px 8px 16px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); box-shadow: var(--lz-shadow-float); color: var(--fg); font-size: 13.5px; pointer-events: auto; }
+/* One line per action: a message with Zkusit znovu above the line of the
+   tab taken away with Vrátit; a line without a button keeps its right edge. */
+.browser-toast-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; }
+.browser-toast-line:not(:has(button)) { padding-right: 8px; }
+.browser-toast-line.is-note { color: var(--muted-fg); }
+button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; padding: 0 10px; }
 @media (max-width: 1099px) { .browser-panel { position: fixed; inset: 0; z-index: 50; width: auto; height: auto; border-left: 0; } }
 @media (max-width: 767px) { .browser-toggle-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
 

@@ -2,28 +2,35 @@ import { browserViewUrl } from "../browser/view";
 import { isTargetId, parseNewTabChoice } from "../shell/new-tab-protocol";
 import type { PublicEntry } from "./chat";
 import {
+  actionFailure,
+  fill,
+  hideAnswered,
+  hideAsked,
+  isNoBrowser,
+  launchpadStrip,
+  type NewTabAnswer,
+  type NewTabCopy,
   type NewTabOverview,
   type NewTabTab,
   settleOverrides,
   type TabOverride,
-  visibleTabs,
   withOverride,
-  withoutOverride,
 } from "./new-tab-view";
 
 // The Launchpad's right panel (decision F38's addendum of 2026-10-05, root
-// decision 0191 points 8a and 18, #207; decision F47 point 9): the strip of
-// every remote tab of the Environment, read from Nová karta's overview every
-// 5 s while the panel is open, and under it either one tab's view (decision
-// F39, the same view every app of the Environment embeds; the Launchpad
-// builds no viewer of its own) or Nová karta, the shell element
-// `<lazurio-new-tab strip="launchpad" focus-address>`. The first opening
-// shows Nová karta, and so does closing the last tab; × closes a tab for
-// everyone, with the warning when an agent works in it and Vrátit for the
-// grace. The panel is offered only where the recorded entry routes the view
-// (`browserOrigin`): never on a workstation, which has no entry, and never in
-// Recovery mode. A view is framed only on exactly the recorded origin. Pure:
-// the DOM (browser-panel.ts) only draws this and asks.
+// decision 0191 points 8a and 18, #207; decision F47 point 9 and its addendum
+// of 2026-10-12): the strip of the tabs the Launchpad holds, read from Nová
+// karta's overview every 5 s while the panel is open, and under it either one
+// tab's view (decision F39, the same view every app of the Environment
+// embeds; the Launchpad builds no viewer of its own) or Nová karta, the shell
+// element `<lazurio-new-tab strip="launchpad" focus-address>`. The first
+// opening shows Nová karta, and so does the strip once its last tab goes. ×
+// lets go of the Launchpad's hold, with Vrátit while the hub's grace lasts;
+// closing a tab for everyone is Přehled's Zavřít. The panel is offered only
+// where the recorded entry routes the view (`browserOrigin`): never on a
+// workstation, which has no entry, and never in Recovery mode. A view is
+// framed only on exactly the recorded origin. Pure: the DOM
+// (browser-panel.ts) only draws this and asks.
 
 /** `GET /.lazurio/browser.json` (the server's `browserViewDocumentPath`):
  * the view's address for a new tab, or that there is none. */
@@ -124,9 +131,14 @@ export type StripTab = Pick<
   "id" | "title" | "url" | "favicon" | "agents" | "holders" | "closing"
 >;
 
+/** The Launchpad holds the tab, as the overview says (F47 point 4): the
+ * Launchpad's own hold, as it last wrote its holder file. */
+export const heldByLaunchpad = (tab: Pick<StripTab, "holders">): boolean =>
+  tab.holders.some((hold) => hold.strip === launchpadStrip);
+
 export type StripState = Readonly<{
-  /** The last overview's tabs in the hub's order; null before the first
-   * answer that listed them. */
+  /** The last overview's tabs in the hub's order, every tab of the
+   * Environment; null before the first answer that listed them. */
   listed: readonly StripTab[] | null;
   /** What was done here that an older overview does not know yet. */
   overrides: readonly TabOverride[];
@@ -138,6 +150,9 @@ export type StripState = Readonly<{
     url: string;
     after: number;
   }>[];
+  /** Every tab the strip has had, in the order it first had it: the strip
+   * keeps that order, and a tab held again returns to its place. */
+  order: readonly string[];
   /** Overviews requested so far. */
   requests: number;
   /** A Nová karta of the strip. */
@@ -155,6 +170,7 @@ export const emptyStrip: StripState = Object.freeze({
   listed: null,
   overrides: [],
   live: [],
+  order: [],
   requests: 0,
   newTab: false,
   active: null,
@@ -187,35 +203,46 @@ const sameEntry = (
   entry.kind === active.kind &&
   (entry.kind === "new" || (active.kind === "tab" && entry.id === active.id));
 
-/** The strip in order: every visible tab of the Environment in the hub's
- * order, then the tabs this panel showed before an overview lists them,
- * then its Nová karta. With nothing in it the strip is Nová karta. */
+/** The strip (F47 point 9's addendum of 2026-10-12): the tabs the Launchpad
+ * holds, as the overview says, and those it took here before an overview
+ * says so; none taken away here, and none whose close for everyone counts
+ * down unless brought back here. In the order the strip first had them,
+ * then its Nová karta; with nothing in it the strip is Nová karta. Every
+ * other tab of the Environment is in Přehled only. */
 export function stripEntries(state: StripState): readonly StripEntry[] {
   const listed = state.listed ?? [];
-  const listedIds = new Set(listed.map((tab) => tab.id));
-  const live = (id: string) => state.live.find((item) => item.id === id);
-  const entries: StripEntry[] = visibleTabs(listed, state.overrides).map(
-    (tab) => ({
-      kind: "tab",
-      id: tab.id,
-      title: live(tab.id)?.title || tab.title,
-      url: live(tab.id)?.url || tab.url,
-      favicon: tab.favicon,
-      working: tab.agents.length > 0,
-      tab,
-    }),
-  );
+  const facts = new Map(listed.map((tab) => [tab.id, tab]));
+  const hidden = new Set<string>();
+  const shown = new Set<string>();
   for (const override of state.overrides)
-    if (override.state === "shown" && !listedIds.has(override.id))
-      entries.push({
+    (override.state === "hidden" ? hidden : shown).add(override.id);
+  const ids = [
+    ...new Set([
+      ...listed.filter(heldByLaunchpad).map((tab) => tab.id),
+      ...shown,
+    ]),
+  ].filter(
+    (id) =>
+      !hidden.has(id) && (shown.has(id) || facts.get(id)?.closing !== true),
+  );
+  const rank = new Map(state.order.map((id, at) => [id, at]));
+  const place = (id: string) => rank.get(id) ?? state.order.length;
+  const live = (id: string) => state.live.find((item) => item.id === id);
+  const entries: StripEntry[] = ids
+    .map((id, at) => ({ id, at }))
+    .sort((a, b) => place(a.id) - place(b.id) || a.at - b.at)
+    .map(({ id }) => {
+      const tab = facts.get(id) ?? null;
+      return {
         kind: "tab",
-        id: override.id,
-        title: live(override.id)?.title ?? "",
-        url: live(override.id)?.url ?? "",
-        favicon: null,
-        working: false,
-        tab: null,
-      });
+        id,
+        title: live(id)?.title || tab?.title || "",
+        url: live(id)?.url || tab?.url || "",
+        favicon: tab?.favicon ?? null,
+        working: (tab?.agents.length ?? 0) > 0,
+        tab,
+      };
+    });
   if (state.newTab || entries.length === 0)
     entries.push({ kind: "new", closable: entries.length > 0 });
   return entries;
@@ -249,16 +276,24 @@ export type StripEvent =
   | Readonly<{ kind: "select"; entry: "new" | string }>
   /** × on the Nová karta. */
   | Readonly<{ kind: "close-new-tab" }>
-  /** Nová karta became this tab (its choice `page` or `tab`). */
+  /** Nová karta became this tab, which the Launchpad now holds: a page it
+   * opened, or a tab chosen in its Přehled and held. */
   | Readonly<{ kind: "chosen"; tab: string }>
-  /** A tab to show: a page's new tab viewed here, a sign-in an Integrace
-   * opened in the Environment browser. */
+  /** A tab the Launchpad now holds, to show: a page's new tab viewed here,
+   * a sign-in an Integrace opened in the Environment browser. */
   | Readonly<{ kind: "show"; tab: string; url?: string | undefined }>
-  /** × confirmed: the tab goes from the strip at once. */
-  | Readonly<{ kind: "closing"; tab: string }>
-  | Readonly<{ kind: "close-failed"; tab: string }>
-  /** Vrátit: back, and shown again where it was shown when closed. */
-  | Readonly<{ kind: "restored"; tab: string; show: boolean }>
+  /** × in the strip: the Launchpad lets go of the tab, which goes from the
+   * strip at once and stays gone while the release is on its way
+   * (`hideAsked`). */
+  | Readonly<{ kind: "releasing"; tab: string }>
+  /** The release is done: only an overview requested after now lifts the
+   * hide (`hideAnswered`). */
+  | Readonly<{ kind: "released"; tab: string }>
+  /** The release failed: the tab is back. */
+  | Readonly<{ kind: "release-failed"; tab: string }>
+  /** Vrátit: the Launchpad holds the tab again, shown again where it was
+   * shown when released. */
+  | Readonly<{ kind: "held-again"; tab: string; show: boolean }>
   /** The view said its tab ended (`lazurio-browser:closed`). */
   | Readonly<{ kind: "ended"; tab: string }>
   /** The view said where its tab is (`lazurio-browser:info`). */
@@ -315,22 +350,29 @@ function apply(state: StripState, event: StripEvent): StripState {
               ],
         active: { kind: "tab", id: event.tab },
       };
-    case "closing":
-    case "ended":
+    case "releasing":
+      return { ...state, overrides: hideAsked(state.overrides, event.tab) };
+    case "released":
+    case "release-failed":
       return {
         ...state,
-        overrides: withOverride(state.overrides, event.tab, "hidden", after),
+        overrides: hideAnswered(
+          state.overrides,
+          event.tab,
+          event.kind === "released",
+          after,
+        ),
       };
-    case "close-failed":
-      return {
-        ...state,
-        overrides: withoutOverride(state.overrides, event.tab),
-      };
-    case "restored":
+    case "held-again":
       return {
         ...state,
         overrides: withOverride(state.overrides, event.tab, "shown", after),
         active: event.show ? { kind: "tab", id: event.tab } : state.active,
+      };
+    case "ended":
+      return {
+        ...state,
+        overrides: withOverride(state.overrides, event.tab, "hidden", after),
       };
     case "info":
       return {
@@ -344,10 +386,19 @@ function apply(state: StripState, event: StripEvent): StripState {
 }
 
 /** The strip after `event`. When what the panel showed is gone from the
- * strip (closed, ended, or listed no more), it shows the entry that took its
- * place, else the one before it, and with nothing left Nová karta. */
+ * strip (released, ended, or held no more), it shows the entry that took its
+ * place, else the one before it, and with nothing left Nová karta. A tab new
+ * to the strip takes the last place in its order. */
 export function reduceStrip(state: StripState, event: StripEvent): StripState {
-  const next = apply(state, event);
+  const applied = apply(state, event);
+  const known = new Set(applied.order);
+  const added = stripEntries(applied).flatMap((entry) =>
+    entry.kind === "tab" && !known.has(entry.id) ? [entry.id] : [],
+  );
+  const next =
+    added.length === 0
+      ? applied
+      : { ...applied, order: [...applied.order, ...added] };
   const active = next.active;
   if (active === null) return next;
   const entries = stripEntries(next);
@@ -428,10 +479,88 @@ export function viewMessage(
   }
 }
 
-/** The tab Nová karta's choice shows in the Launchpad's panel: a page it
- * opened or a tab it chose; the Launchpad has no tools, so a tool is
+/** The Launchpad holds the tab (F47 point 4): `POST /api/new-tab/hold`
+ * answered `200 {held: true}`, and nothing else. */
+export function holdSucceeded(answer: NewTabAnswer): boolean {
+  return (
+    answer.status === 200 &&
+    isRecord(answer.value) &&
+    answer.value.held === true
+  );
+}
+
+/** Why a hold failed, in Nová karta's words, and whether Zkusit znovu can
+ * help: a tab that is gone (`gone` says it), an Environment without a
+ * browser, or a Launchpad without its holder file cannot hold it by trying
+ * again; a full holder can, once the person closed some tabs. */
+export function holdFailure(
+  answer: NewTabAnswer,
+  copy: NewTabCopy,
+  gone: string = copy.holdGone,
+): Readonly<{ text: string; retry: boolean }> {
+  const error = isRecord(answer.value) ? answer.value.error : undefined;
+  if (answer.status === 404 && error === "not-found")
+    return { text: gone, retry: false };
+  if (answer.status === 409 && error === "too-many-tabs")
+    return { text: copy.holdFull, retry: true };
+  return {
+    text: actionFailure(answer, copy.holdFailed, copy),
+    retry: !isNoBrowser(answer) && error !== "holder-unavailable",
+  };
+}
+
+/** The Launchpad let go of the tab: `POST /api/new-tab/release` answered
+ * `200 {released: true}`, and nothing else. */
+export function releaseSucceeded(answer: NewTabAnswer): boolean {
+  return (
+    answer.status === 200 &&
+    isRecord(answer.value) &&
+    answer.value.released === true
+  );
+}
+
+/** What happens to a tab the Launchpad lets go of, as the overview tells
+ * (the wireframe's words for a thread's strip): an agent works in it, so it
+ * stays; another place holds it, so it stays there; else it closes in the
+ * Environment once nothing views it. Nothing known of it: it closes. */
+export function releaseText(
+  tab: Pick<StripTab, "agents" | "holders"> | null,
+  copy: NewTabCopy,
+): string {
+  if (tab !== null && tab.agents.length > 0) return copy.releasedAgent;
+  const others = (tab?.holders ?? []).filter(
+    (hold) => hold.strip !== launchpadStrip,
+  );
+  if (others.length === 0) return copy.closing;
+  const places = [
+    ...new Set(
+      others.map((hold) =>
+        !hold.strip.startsWith("t3-")
+          ? copy.placeElsewhere
+          : hold.label.trim() === ""
+            ? copy.placeOtherThread
+            : fill(copy.placeThread, { thread: hold.label }),
+      ),
+    ),
+  ];
+  const last = places.pop() ?? "";
+  return fill(copy.releasedElsewhere, {
+    places:
+      places.length === 0
+        ? last
+        : `${places.join(", ")}${copy.placesAnd}${last}`,
+  });
+}
+
+/** What Nová karta's choice shows in the Launchpad's panel: a page it opened
+ * (the Launchpad already holds it) or a tab it chose (which the Launchpad
+ * holds before it shows it). The Launchpad has no tools, so a tool is
  * nothing, and so is anything not a choice. */
-export function panelChoice(detail: unknown): string | null {
+export function panelChoice(
+  detail: unknown,
+): Readonly<{ kind: "page" | "tab"; tab: string }> | null {
   const choice = parseNewTabChoice(detail);
-  return choice === null || choice.kind === "tool" ? null : choice.tab;
+  return choice === null || choice.kind === "tool"
+    ? null
+    : { kind: choice.kind, tab: choice.tab };
 }
