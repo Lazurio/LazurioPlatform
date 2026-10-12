@@ -175,6 +175,16 @@ as working, and otherwise `still-failing`, never a success it did not see. The
 same applies when "Připojit" without a name meets the app's existing default
 account. A new account is read back after it is created, too.
 
+**An account's state** is Executor's last verdict (`lastHealth.status`): none,
+`healthy` and `unknown` read as connected, `expired` as expired, and
+`misconfigured` and `degraded` as failing (a custom server "Nepodařilo se
+spustit"). `degraded` says that Executor's last check reached no working server
+for a reason other than the credential. Executor 1.6.10 adds a server it cannot
+reach all the same and stamps its connection `degraded` with `reason:
+tool_sync_failed`; a later check (`…/health`) replaces that with its own
+verdict, such as `probe_failed`. The Launchpad therefore reads the status and
+never the reason (#322).
+
 ### Approvals
 
 Executor approves only the calls that go through its tool invocation

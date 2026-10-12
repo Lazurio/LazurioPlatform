@@ -20,7 +20,9 @@ export type FakeIntegration = {
    * shape derived from the fields above. */
   config?: Record<string, unknown>;
   /** The server does not answer as it should: Executor's tool sync and its
-   * liveness check fail, and its connections read as misconfigured. */
+   * liveness check fail. As in Executor 1.6.10, its connections then read
+   * `degraded`, stamped `tool_sync_failed` by a sync and `probe_failed` by a
+   * check, whose verdict replaces the sync's. */
   broken?: boolean;
 };
 
@@ -30,7 +32,9 @@ export type FakeConnection = {
   integration: string;
   template: string;
   identityLabel: string | null;
-  health: null | "healthy" | "expired" | "misconfigured";
+  health: null | "healthy" | "expired" | "misconfigured" | "degraded";
+  /** Why a `degraded` verdict was given (Executor's `reason`). */
+  reason?: "tool_sync_failed" | "probe_failed";
   /** What the connection was created with (a key, the command's
    * environment): kept only here, where Executor keeps it. */
   secret?: string;
@@ -85,6 +89,7 @@ const shapeOf = (item: FakeConnection) => ({
       ? null
       : {
           status: item.health,
+          ...(item.reason === undefined ? {} : { reason: item.reason }),
           checkedAt: 1,
           // Upstream data the Launchpad must never pass on.
           responseSample: [{ path: "x", value: "upstream-sample" }],
@@ -225,7 +230,8 @@ export async function startFakeExecutor(
           template: String(input.template),
           identityLabel: null,
           // Executor syncs the tools at once; a broken server fails it.
-          health: broken ? "misconfigured" : null,
+          health: broken ? "degraded" : null,
+          ...(broken ? { reason: "tool_sync_failed" as const } : {}),
           ...(typeof input.value === "string" ? { secret: input.value } : {}),
           ...(typeof input.values === "object" &&
           input.values !== null &&
@@ -272,10 +278,28 @@ export async function startFakeExecutor(
         const broken = integrations.some(
           (item) => item.slug === found.integration && item.broken === true,
         );
-        if (action[4] === "refresh")
-          return broken ? tagged("InternalError", 500) : json([]);
-        found.health = broken ? "misconfigured" : "healthy";
-        return json({ status: found.health, checkedAt: Date.now() });
+        if (action[4] === "refresh") {
+          // A failed sync stamps its verdict; a sync that works clears only
+          // that stamp.
+          if (broken) {
+            found.health = "degraded";
+            found.reason = "tool_sync_failed";
+            return tagged("InternalError", 500);
+          }
+          if (found.reason === "tool_sync_failed") {
+            found.health = null;
+            delete found.reason;
+          }
+          return json([]);
+        }
+        found.health = broken ? "degraded" : "healthy";
+        if (broken) found.reason = "probe_failed";
+        else delete found.reason;
+        return json({
+          status: found.health,
+          ...(found.reason === undefined ? {} : { reason: found.reason }),
+          checkedAt: Date.now(),
+        });
       }
       if (request.method === "DELETE" && connection !== null) {
         const index = connections.findIndex(

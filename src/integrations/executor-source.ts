@@ -57,14 +57,17 @@ const label = (value: unknown): string | null => {
 };
 
 /** Executor's health verdict as an account's state; a connection never
- * checked counts as connected. */
+ * checked counts as connected. `degraded` is Executor's verdict that its
+ * last check reached no working server for a reason other than the
+ * credential: a tool sync that failed, a server that does not answer or
+ * answers with an error. Its tools are then out of reach, so the account
+ * is failing, never connected. */
 export function healthState(lastHealth: unknown): AccountState {
   if (lastHealth === null || lastHealth === undefined) return "connected";
   const status = object(lastHealth).status;
   if (status === "expired") return "expired";
-  if (status === "misconfigured") return "failed";
-  if (status === "healthy" || status === "degraded" || status === "unknown")
-    return "connected";
+  if (status === "misconfigured" || status === "degraded") return "failed";
+  if (status === "healthy" || status === "unknown") return "connected";
   throw new Unreadable();
 }
 

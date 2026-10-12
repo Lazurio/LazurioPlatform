@@ -206,6 +206,37 @@ test("one reading: the catalog with one path per app, tool and Executor and Comp
   }
 });
 
+// Executor 1.6.10 adds a server it cannot reach all the same and stamps its
+// connection `degraded` with `tool_sync_failed` (#322): an app's account and a
+// custom server then read as failing, never as connected.
+test("an account whose tools Executor cannot sync reads as failing, never connected", async () => {
+  const unreachable = {
+    owner: "org" as const,
+    name: "default",
+    identityLabel: null,
+    health: "degraded" as const,
+    reason: "tool_sync_failed" as const,
+  };
+  const { app } = await setup({
+    composio: false,
+    executorSeed: {
+      integrations: [
+        { ...notion, broken: true },
+        { ...invoices, broken: true },
+      ],
+      connections: [
+        { ...unreachable, integration: "notion-com", template: "oauth2" },
+        { ...unreachable, integration: "invoices", template: "header" },
+      ],
+    },
+  });
+  const { value } = await overview(app);
+  expect(
+    value.apps.find((item) => item.id === "notion")?.accounts,
+  ).toMatchObject([{ selector: "org/notion-com/default", state: "failed" }]);
+  expect(value.custom).toMatchObject([{ id: "invoices", state: "failed" }]);
+});
+
 test("Executor that is not this account's never gets the token, and the page still answers", async () => {
   const parent = await realpath(
     await mkdtemp(join(tmpdir(), "lazurio-integrations-")),
@@ -448,7 +479,8 @@ test("a squatted app slug refuses the connect even next to the app's server unde
 // Signing in again an account without sign-in is a real retry (review of
 // 2026-10-09): Executor re-syncs its tools and checks it, and only a working
 // account answers connected. A broken server stays failing and says so, also
-// when the person connects the app anew without a name.
+// when the person connects the app anew without a name, and also after the
+// check's verdict (`degraded`, `probe_failed`) replaced the sync's (#322).
 test("retrying a failing account without sign-in checks it for real and never reports a false success", async () => {
   const deepwiki = {
     slug: "deepwiki-com",
@@ -471,7 +503,9 @@ test("retrying a failing account without sign-in checks it for real and never re
           integration: "deepwiki-com",
           template: "none",
           identityLabel: null,
-          health: "misconfigured",
+          // What Executor 1.6.10 stamps when it cannot sync a server's tools.
+          health: "degraded",
+          reason: "tool_sync_failed",
         },
       ],
     },
