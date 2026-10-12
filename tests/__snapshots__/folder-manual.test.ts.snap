@@ -57,10 +57,10 @@ This Environment's tailnet peers as the handover records them from the Conglomer
 - \`example-workspace\` (work Remote Environment, work zone, Organization \`example\`): SSH from here to \`example-workspace.tailnet.example.invalid\` as \`operator\`; HTTPS \`launchpad.example-workspace.example.lazurio.io\`.
 Lazurio enforces none of this: the Headscale policy of the Conglomerate Host does, and transport is not authentication, so SSH keys and application sign-in stay separate.
 
-## Connecting a laptop and a Codex project
-The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
-The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+## Connecting a computer and a Codex project
+The agent on the Operator's computer sets up the connection, not you. You are in the Environment the computer connects to, and the computer's private key does not belong here.
+The handover gives no Launchpad address, so do not guess it. Ask the Environment's administrator to add it.
+A registered key gives no network access by itself. The network administrator decides which devices reach the network (Headscale and the SSH grant). Do not switch the Tailscale profile on the Operator's computer.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.
@@ -147,10 +147,10 @@ Peers tohohle Environmentu v tailnetu, jak je handover odvozuje z grantů Conglo
 - \`example-workspace\` (pracovní Remote Environment, pracovní zóna, Organizace \`example\`): SSH odsud na \`example-workspace.tailnet.example.invalid\` jako \`operator\`; HTTPS \`launchpad.example-workspace.example.lazurio.io\`.
 Nic z toho Lazurio nevynucuje: vynucuje to Headscale policy Conglomerate Hostu a transport není autentizace, takže SSH klíče i přihlášení do aplikací zůstávají samostatné.
 
-## Připojení laptopu a projektu Codex
-Připojení nastavuje agent na laptopu. Tady jsi v cílovém Environmentu; privátní klíč laptopu sem nepatří.
-Handover neuvádí Launchpad; adresu neodvozuj. Nech jeho správce doplnit vstup Environmentu.
-Zápis veřejného klíče neotevírá síť. Vstup zařízení přes Headscale a SSH grant spravuje správce sítě; profil Tailscale na laptopu nepřepínej.
+## Připojení počítače a projektu v Codexu
+Připojení nastavuje agent na Operátorově počítači, ne ty. Jsi v Environmentu, ke kterému se počítač připojuje, a soukromý klíč počítače sem nepatří.
+Handover neuvádí adresu Launchpadu, tak ji neodvozuj. Požádej správce Environmentu, ať ji doplní.
+Zaregistrovaný klíč sám přístup do sítě nedává. Která zařízení se do sítě dostanou, rozhoduje správce sítě (Headscale a povolení SSH). Profil Tailscale na Operátorově počítači nepřepínej.
 
 ## SSH na další Environmenty a zařízení
 - Připojuj se jen na tailnet hostname peeru tak, jak ho uvádí handover (\`ssh.host\` u peerů výše), nikdy na holou tailnet adresu typu \`100.64.0.x\`: ty se opakují v každém tailnetu a v každém znamenají jiný peer.
@@ -269,10 +269,10 @@ The CLIs of the Lazurio catalog that agents in this Environment are to use: the 
 ### Integrations and MCP
 The Integrations (connected apps) and custom MCP servers of this Environment are held by the Environment's Executor and by Composio with the person's account; \`lazurio integrations list --json\` prints what is connected and which way, and the rules are in \`manual/working-here.md\` (section Integrations). Integrations are never recorded in the Folder, and neither a connected app nor an available MCP server is consent to Publication.
 
-## Connecting a laptop and a Codex project
-The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
-The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+## Connecting a computer and a Codex project
+The agent on the Operator's computer sets up the connection, not you. You are in the Environment the computer connects to, and the computer's private key does not belong here.
+The handover gives no Launchpad address, so do not guess it. Ask the Environment's administrator to add it.
+A registered key gives no network access by itself. The network administrator decides which devices reach the network (Headscale and the SSH grant). Do not switch the Tailscale profile on the Operator's computer.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.
@@ -352,10 +352,10 @@ The CLIs of the Lazurio catalog that agents in this Environment are to use: the 
 ### Integrations and MCP
 The Integrations (connected apps) and custom MCP servers of this Environment are held by the Environment's Executor and by Composio with the person's account; \`lazurio integrations list --json\` prints what is connected and which way, and the rules are in \`manual/working-here.md\` (section Integrations). Integrations are never recorded in the Folder, and neither a connected app nor an available MCP server is consent to Publication.
 
-## Connecting a laptop and a Codex project
-The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
-The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+## Connecting a computer and a Codex project
+The agent on the Operator's computer sets up the connection, not you. You are in the Environment the computer connects to, and the computer's private key does not belong here.
+The handover gives no Launchpad address, so do not guess it. Ask the Environment's administrator to add it.
+A registered key gives no network access by itself. The network administrator decides which devices reach the network (Headscale and the SSH grant). Do not switch the Tailscale profile on the Operator's computer.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.
@@ -430,10 +430,10 @@ The CLIs of the Lazurio catalog that agents in this Environment are to use: the 
 ### Integrations and MCP
 The Integrations (connected apps) and custom MCP servers of this Environment are held by the Environment's Executor and by Composio with the person's account; \`lazurio integrations list --json\` prints what is connected and which way, and the rules are in \`manual/working-here.md\` (section Integrations). Integrations are never recorded in the Folder, and neither a connected app nor an available MCP server is consent to Publication.
 
-## Connecting a laptop and a Codex project
-The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
-The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+## Connecting a computer and a Codex project
+The agent on the Operator's computer sets up the connection, not you. You are in the Environment the computer connects to, and the computer's private key does not belong here.
+The handover gives no Launchpad address, so do not guess it. Ask the Environment's administrator to add it.
+A registered key gives no network access by itself. The network administrator decides which devices reach the network (Headscale and the SSH grant). Do not switch the Tailscale profile on the Operator's computer.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.
@@ -524,10 +524,10 @@ The CLIs of the Lazurio catalog that agents in this Environment are to use: the 
 ### Integrations and MCP
 The Integrations (connected apps) and custom MCP servers of this Environment are held by the Environment's Executor and by Composio with the person's account; \`lazurio integrations list --json\` prints what is connected and which way, and the rules are in \`manual/working-here.md\` (section Integrations). Integrations are never recorded in the Folder, and neither a connected app nor an available MCP server is consent to Publication.
 
-## Connecting a laptop and a Codex project
-The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
-The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+## Connecting a computer and a Codex project
+The agent on the Operator's computer sets up the connection, not you. You are in the Environment the computer connects to, and the computer's private key does not belong here.
+The handover gives no Launchpad address, so do not guess it. Ask the Environment's administrator to add it.
+A registered key gives no network access by itself. The network administrator decides which devices reach the network (Headscale and the SSH grant). Do not switch the Tailscale profile on the Operator's computer.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.
@@ -2047,10 +2047,10 @@ This Environment's tailnet peers as the handover records them from the Conglomer
 - \`example-gateway\` (Conglomerate Host, Organization \`example\`): no SSH; HTTPS \`auth.example.lazurio.io\`.
 Lazurio enforces none of this: the Headscale policy of the Conglomerate Host does, and transport is not authentication, so SSH keys and application sign-in stay separate.
 
-## Connecting a laptop and a Codex project
-The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
-The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+## Connecting a computer and a Codex project
+The agent on the Operator's computer sets up the connection, not you. You are in the Environment the computer connects to, and the computer's private key does not belong here.
+The handover gives no Launchpad address, so do not guess it. Ask the Environment's administrator to add it.
+A registered key gives no network access by itself. The network administrator decides which devices reach the network (Headscale and the SSH grant). Do not switch the Tailscale profile on the Operator's computer.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.
@@ -2124,10 +2124,10 @@ The CLIs of the Lazurio catalog that agents in this Environment are to use: the 
 ### Integrations and MCP
 The Integrations (connected apps) and custom MCP servers of this Environment are held by the Environment's Executor and by Composio with the person's account; \`lazurio integrations list --json\` prints what is connected and which way, and the rules are in \`manual/working-here.md\` (section Integrations). Integrations are never recorded in the Folder, and neither a connected app nor an available MCP server is consent to Publication.
 
-## Connecting a laptop and a Codex project
-The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
-The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+## Connecting a computer and a Codex project
+The agent on the Operator's computer sets up the connection, not you. You are in the Environment the computer connects to, and the computer's private key does not belong here.
+The handover gives no Launchpad address, so do not guess it. Ask the Environment's administrator to add it.
+A registered key gives no network access by itself. The network administrator decides which devices reach the network (Headscale and the SSH grant). Do not switch the Tailscale profile on the Operator's computer.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.
@@ -2203,10 +2203,10 @@ The CLIs of the Lazurio catalog that agents in this Environment are to use: the 
 ### Integrations and MCP
 The Integrations (connected apps) and custom MCP servers of this Environment are held by the Environment's Executor and by Composio with the person's account; \`lazurio integrations list --json\` prints what is connected and which way, and the rules are in \`manual/working-here.md\` (section Integrations). Integrations are never recorded in the Folder, and neither a connected app nor an available MCP server is consent to Publication.
 
-## Connecting a laptop and a Codex project
-The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
-The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+## Connecting a computer and a Codex project
+The agent on the Operator's computer sets up the connection, not you. You are in the Environment the computer connects to, and the computer's private key does not belong here.
+The handover gives no Launchpad address, so do not guess it. Ask the Environment's administrator to add it.
+A registered key gives no network access by itself. The network administrator decides which devices reach the network (Headscale and the SSH grant). Do not switch the Tailscale profile on the Operator's computer.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.

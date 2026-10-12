@@ -1244,7 +1244,7 @@ const en = {
   sshPromptUnavailable:
     "The prompt appears once the settings for your computer are known (below).",
   sshPromptText:
-    'Connect this laptop to my Lazurio Environment "{alias}" over SSH and add its Lazurio Folder as a Codex project.\n\nThe Environment’s page supplies its address, account and pinned host key: {url}\n\nUse the laptop key {keyPath} (Windows: {windowsKeyPath}); create an ed25519 key there if missing. Register its public key under "Add a device". Apply the page’s SSH config and known_hosts settings for {alias}, preserving other connections. Reuse a matching entry; do not retarget a conflicting one. Verify SSH works before opening the Codex link.\n\nCodex link from the page: {desktopLink}\nIf the app cannot handle the link, add the SSH alias and the page’s remote Folder path in Settings → Connections → SSH.\n\nThe private key stays on this laptop. Do not switch Tailscale profiles: network admission is separate and belongs to the network administrator. Report the actual connection result.',
+    "Connect this computer to my Lazurio Environment \"{alias}\" over SSH and add its Lazurio Folder to Codex as a project.\n\nThe Environment's page has its address, account and host key: {url}\n\n1. Use the key {keyPath} (on Windows {windowsKeyPath}). If it does not exist yet, create an ed25519 key. The private key never leaves this computer; only the .pub file does.\n2. On the page, under \"Add a device\", register its public key.\n3. Add the page's SSH settings and known_hosts line for {alias}. Leave other connections as they are. If the same entry already exists, use it; if a different one exists for {alias}, change nothing and tell me.\n4. Check that SSH works: ssh {alias} true\n5. Then open the page's Codex link: {desktopLink}. If the app cannot open it, add the alias and the page's Folder path yourself in Settings → Connections → SSH.\n\nDo not switch the Tailscale profile. A registered key does not give network access; the network administrator allows that. Finally, tell me how the connection went.",
   sshDevicesTitle: "Your devices",
   sshDevicesNone: "No device has been added here yet.",
   sshAddedBy: "Added {date} by {who}",
@@ -1319,7 +1319,7 @@ const en = {
   sshCopy: "Copy",
   sshCopied: "Copied.",
   sshNetworkNote:
-    "Registering a key does not grant network access. If SSH fails, give your agent the exact error; if a network grant is missing, the network administrator must allow SSH from this device to this Environment.",
+    "Adding a key does not give this device network access by itself. If SSH fails, give your agent the exact error. If the device is not allowed on the network yet, the network administrator can allow it.",
   sshComputerMissing: "The settings for your computer are not available yet:",
   sshMissingTailscale: "Tailscale is not installed in this Environment.",
   sshMissingTailscaleFailed: "Tailscale in this Environment did not answer.",
@@ -2551,7 +2551,7 @@ const cs: Record<MessageKey, string> = {
   sshPromptUnavailable:
     "Prompt se objeví, jakmile budou známá nastavení pro váš počítač (níže).",
   sshPromptText:
-    "Připoj tento počítač přes SSH k mému Lazurio Environmentu „{alias}“ a přidej jeho Lazurio Folder jako projekt do Codexu.\n\nStránka Environmentu poskytuje adresu, účet a pinnutý host klíč: {url}\n\nPoužij klíč laptopu {keyPath} (Windows: {windowsKeyPath}); pokud chybí, vytvoř tam ed25519 klíč. Jeho veřejný klíč zaregistruj v části „Přidat zařízení“. Použij SSH config a known_hosts ze stránky pro alias {alias}, ostatní připojení zachovej. Shodný záznam použij, konfliktní záznam nepřesměrovávej. Před otevřením odkazu do Codexu ověř funkční SSH.\n\nOdkaz do Codexu ze stránky: {desktopLink}\nPokud jej aplikace neumí otevřít, přidej SSH alias a vzdálenou cestu Folderu ze stránky v Settings → Connections → SSH.\n\nPrivátní klíč zůstává na laptopu. Nepřepínej profily Tailscale: vstup do sítě je samostatný a patří správci sítě. Předej skutečný výsledek připojení.",
+    "Připoj tento počítač přes SSH k mému Lazurio Environmentu „{alias}“ a přidej jeho Lazurio Folder do Codexu jako projekt.\n\nAdresu, účet a klíč hostu najdeš na stránce Environmentu: {url}\n\n1. Použij klíč {keyPath} (ve Windows {windowsKeyPath}). Když ještě neexistuje, vytvoř klíč ed25519. Soukromý klíč z počítače nikdy neodchází, ven smí jen soubor .pub.\n2. Na stránce v části „Přidat zařízení“ zaregistruj jeho veřejný klíč.\n3. Doplň nastavení SSH a řádek known_hosts ze stránky pro {alias}. Ostatní připojení nech, jak jsou. Když stejný záznam už existuje, použij ho; když pro {alias} existuje jiný, nic neměň a řekni mi to.\n4. Ověř, že SSH funguje: ssh {alias} true\n5. Pak otevři odkaz do Codexu ze stránky: {desktopLink}. Když ho aplikace neotevře, přidej alias a cestu k Folderu ze stránky sám v Settings → Connections → SSH.\n\nProfil Tailscale nepřepínej. Zaregistrovaný klíč přístup do sítě nedává, ten povoluje správce sítě. Nakonec mi napiš, jak připojení dopadlo.",
   sshDevicesTitle: "Vaše zařízení",
   sshDevicesNone: "Zatím tu není přidané žádné zařízení.",
   sshAddedBy: "Přidáno {date}, účet {who}",
@@ -2626,7 +2626,7 @@ const cs: Record<MessageKey, string> = {
   sshCopy: "Kopírovat",
   sshCopied: "Zkopírováno.",
   sshNetworkNote:
-    "Registrace klíče neuděluje síťový přístup. Pokud SSH selže, předejte agentovi přesnou chybu; chybějící síťový grant musí povolit správce sítě z tohoto zařízení do tohoto Environmentu.",
+    "Přidaný klíč zařízení sám přístup do sítě nedá. Když SSH selže, dejte agentovi přesnou chybovou hlášku. Pokud zařízení do sítě zatím nesmí, povolí mu to správce sítě.",
   sshComputerMissing: "Nastavení pro váš počítač zatím není k dispozici:",
   sshMissingTailscale: "V tomhle Environmentu není nainstalovaný Tailscale.",
   sshMissingTailscaleFailed: "Tailscale v tomhle Environmentu neodpověděl.",

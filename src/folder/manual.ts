@@ -1797,25 +1797,25 @@ function deviceSsh(machine: MachineBinding): readonly Text[] {
   return [
     blank,
     t(
-      "## Připojení laptopu a projektu Codex",
-      "## Connecting a laptop and a Codex project",
+      "## Připojení počítače a projektu v Codexu",
+      "## Connecting a computer and a Codex project",
     ),
     t(
-      "Připojení nastavuje agent na laptopu. Tady jsi v cílovém Environmentu; privátní klíč laptopu sem nepatří.",
-      "The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.",
+      "Připojení nastavuje agent na Operátorově počítači, ne ty. Jsi v Environmentu, ke kterému se počítač připojuje, a soukromý klíč počítače sem nepatří.",
+      "The agent on the Operator's computer sets up the connection, not you. You are in the Environment the computer connects to, and the computer's private key does not belong here.",
     ),
     origin === undefined
       ? t(
-          "Handover neuvádí Launchpad; adresu neodvozuj. Nech jeho správce doplnit vstup Environmentu.",
-          "The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.",
+          "Handover neuvádí adresu Launchpadu, tak ji neodvozuj. Požádej správce Environmentu, ať ji doplní.",
+          "The handover gives no Launchpad address, so do not guess it. Ask the Environment's administrator to add it.",
         )
       : t(
-          `Pošli Operátorovi [Nastavení → SSH ze zařízení](${origin}/settings/ssh), kde je prompt pro agenta laptopu. Stránka vytváří jednoznačný alias Environmentu, host pin a odkaz do Codexu s projektem v tomto Lazurio Folderu. Použij její údaje.`,
-          `Send the Operator to [Settings → SSH from your devices](${origin}/settings/ssh) where the laptop agent’s prompt is ready. The page supplies a distinct Environment alias, host pin and Codex link with a project in this Lazurio Folder. Use its values.`,
+          `Pošli Operátorovi odkaz na [Nastavení → SSH ze zařízení](${origin}/settings/ssh). Čeká tam hotový prompt pro agenta na jeho počítači: jednoznačný alias tohoto Environmentu, klíč hostu a odkaz, který přidá tento Lazurio Folder do Codexu jako projekt. Údaje ber z té stránky.`,
+          `Send the Operator the link to [Settings → SSH from your devices](${origin}/settings/ssh). A prompt for the agent on their computer is ready there: a distinct alias for this Environment, its host key and a link that adds this Lazurio Folder to Codex as a project. Take the values from that page.`,
         ),
     t(
-      "Zápis veřejného klíče neotevírá síť. Vstup zařízení přes Headscale a SSH grant spravuje správce sítě; profil Tailscale na laptopu nepřepínej.",
-      "Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.",
+      "Zaregistrovaný klíč sám přístup do sítě nedává. Která zařízení se do sítě dostanou, rozhoduje správce sítě (Headscale a povolení SSH). Profil Tailscale na Operátorově počítači nepřepínej.",
+      "A registered key gives no network access by itself. The network administrator decides which devices reach the network (Headscale and the SSH grant). Do not switch the Tailscale profile on the Operator's computer.",
     ),
   ];
 }
