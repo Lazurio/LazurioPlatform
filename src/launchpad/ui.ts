@@ -520,15 +520,24 @@ const recovery = createRecoveryPanel({
 // Settings → SSH from your devices (decision F49): read on first view. Who
 // added a key is the login of the Lazurio account the gateway relays to this
 // page (`/.lazurio/account/environments`), a label and never evidence; a
-// workstation's page has no such account and its keys say `local`.
+// workstation's page has no such account and its keys say `local`. The page
+// read the account as it loaded; "Add device" waits for that read at most
+// two seconds more and never fails for it.
 const ssh = createSshPanel({
   get: (path) => get(path),
   post: (path, body) => post(path, body),
   copy: () => copy,
-  addedBy: async () =>
-    token
-      ? null
-      : (parseShellAccount(await pageAccountJson())?.operator.login ?? null),
+  addedBy: async () => {
+    if (token) return null;
+    let late: ReturnType<typeof setTimeout> | undefined;
+    const account = await Promise.race([
+      pageAccountJson().catch(() => null),
+      new Promise<null>((resolve) => {
+        late = setTimeout(() => resolve(null), 2_000);
+      }),
+    ]).finally(() => clearTimeout(late));
+    return parseShellAccount(account)?.operator.login ?? null;
+  },
   origin: () => location.origin,
 });
 // The left column as the person left it in this browser (Matěj's tuning of
