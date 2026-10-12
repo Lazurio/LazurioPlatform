@@ -5980,6 +5980,14 @@ This addendum replaces that point; its point 2 (who may frame the view) stands.
      head shows that Organization's mark (Pablo's review of #339).
    - Another Environment, and the page's own without `space`, stands in its own space: the
      owning Organization's mark, a workstation's laptop.
+   - A framed view is answered by `viewIdentity`: its Environment in its own space. A view
+     belongs to a hosted Environment, which holds one Organization or is personal, so every
+     page of its apps stands in that space and every column head of them names it alike.
+   - A workstation has no view, so its id `local` is never answered. A view whose address
+     reads as `local` (a person's own Environment with that slug) is never named as this
+     computer (Pablo's review of #339).
+   - The unframed view names its Environment in its own space, which for a hosted
+     Environment is the space of all its pages.
 2. **Framed, the app around the view answers.** The view cannot read the person's account: the
    gateway relays it only on the apps' origins. Inside a frame the view posts
    `{type: "lazurio-browser:identity-request"}` to its parent. The shell on the parent's page
