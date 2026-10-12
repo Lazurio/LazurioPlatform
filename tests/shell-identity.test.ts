@@ -25,6 +25,7 @@ import {
   elementIdentity,
   environmentIdentity,
   identityText,
+  titleWithIdentity,
   viewIdentity,
 } from "../src/shell/view";
 
@@ -268,6 +269,19 @@ describe("one identity names an Environment", () => {
             settings: null,
           })?.picker,
         ).toEqual(environmentIdentity(shell, "vm-01.acme", copy) ?? undefined);
+  });
+
+  test("a page's title comes first, then its Environment in words, so a tab strip tells pages apart", () => {
+    const shell = parsed(acmeDocument());
+    const identity = environmentIdentity(shell, "vm-01.acme", cs);
+    expect(titleWithIdentity("Inbox (3)", identity)).toBe(
+      "Inbox (3) — Acme Works · Pracovní · @jana",
+    );
+    expect(titleWithIdentity("", identity)).toBe(
+      "Acme Works · Pracovní · @jana",
+    );
+    expect(titleWithIdentity("Inbox (3)", null)).toBe("Inbox (3)");
+    expect(titleWithIdentity("", null)).toBe("");
   });
 
   test("in words: the Organization of its mark, its name and who it is for", () => {

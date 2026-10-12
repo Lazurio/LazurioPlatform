@@ -6,7 +6,7 @@ import {
   parseEmbeddedIdentity,
   viewIdentityElementId,
 } from "../../shell/identity-protocol";
-import { type EnvironmentIdentity, identityText } from "../../shell/view";
+import { type EnvironmentIdentity, titleWithIdentity } from "../../shell/view";
 import {
   buttonBit,
   clampInto,
@@ -161,10 +161,7 @@ const badge = byId("environment", HTMLElement);
 let pageTitle = "";
 
 function showTitle(): void {
-  const identity = named();
-  document.title = [identity === null ? "" : identityText(identity), pageTitle]
-    .filter((part) => part !== "")
-    .join(" — ");
+  document.title = titleWithIdentity(pageTitle, named());
 }
 
 function renamed(): void {
