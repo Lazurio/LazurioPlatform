@@ -27,7 +27,8 @@ import {
 // reading of holder files and agent-browser's bindings for every reader (the
 // hub passes the memory of root decision 0191 point 32, a reader for display
 // passes none), and letting go of a session's window through its daemon's
-// socket.
+// socket. Licensed under MIT with the rest of the module (`LICENSE`, F50
+// point 6).
 //
 // Who keeps a remote tab of the Environment browser (decision F47 points 4
 // and 5), read by the view's hub, which alone ends a tab:

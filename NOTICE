@@ -4,3 +4,20 @@ Copyright 2026 Human and Machine s.r.o.
 Newly authored Platform code, documentation and supplied first-party templates
 are provided under Elastic License 2.0. Third-party components retain their
 original licenses and notices; see docs/licensing.md.
+
+The Environment browser's contract is provided under the MIT License instead
+(decision F50 point 6, Matěj's decision of 2026-10-12); its terms are in
+src/browser/contract/LICENSE. The exception covers exactly:
+- the directory src/browser/contract/: the contract module, its pure and Node
+  parts and its vectors;
+- the files a release's shell artifact lists under browserContract in its
+  artifact.json; the artifact gains that listing in a later step of F50;
+- by Matěj's grant of 2026-10-12, the functions the T3 Code fork's overlay
+  copied from src/browser/people/holds.ts at 49d54c9 into
+  apps/server/src/lazurio/holders.ts, as that file's header lists them:
+  BootTime, readBootClock, parseBootTime, RecordedTab, LiveTabs, parseLiveTabs,
+  keptTabs, isStrip, holderDirectory, liveTabsPath, parseHolder,
+  holderFileText, parseHolderRecords, replaceOwnerFile, processAlive and
+  watchHolds (there watchDirectories).
+Everything else, the repository's root LICENSE included, stays under Elastic
+License 2.0.
