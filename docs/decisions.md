@@ -5996,8 +5996,10 @@ This addendum replaces that point; its point 2 (who may frame the view) stands.
    `defineShellElements` installs the answer, so the Launchpad, T3 Code and MausBot answer
    without code of their own. The shell answers again whenever its answer changes, so an
    account that arrives later renames the view. The view draws the answer with the same
-   element, and its title starts with the same identity in words
-   (`<Organization> · <name> · <who>`).
+   element, and its title ends with the same identity in words, after the page's own title
+   (`<page> — <Organization> · <name> · <who>`, `titleWithIdentity`): a browser's tab strip
+   shows only a title's start, so the page's words go first and the tabs stay apart (Matěj's
+   smoke test in Codex Desktop, 2026-10-12).
 3. **Unframed, the server's identity.** The view service reads its own Environment's shell
    document with the Launchpad's reader and producer (`readShellInputs`, `shellDocument`, as
    `/.lazurio/shell.json`) and names it with the same `environmentIdentity`. It puts the identity

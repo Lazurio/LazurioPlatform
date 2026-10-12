@@ -520,6 +520,20 @@ export function identityText(identity: IdentityLook): string {
     .join(" · ");
 }
 
+/** A page's title with the identity of its Environment after it (`<page> —
+ * <identity in words>`): a browser's tab strip shows only a title's start,
+ * so the page's own words go first and its tabs stay apart (Matěj's smoke
+ * test in Codex Desktop, 2026-10-12). Either part alone where the other is
+ * missing. */
+export function titleWithIdentity(
+  title: string,
+  identity: IdentityLook | null,
+): string {
+  return [title, identity === null ? "" : identityText(identity)]
+    .filter((part) => part !== "")
+    .join(" — ");
+}
+
 /** One line of the list: an Environment's glyph, its name and, quieter
  * beside it, who it is for; the current one is marked. */
 export type SwitcherRow = Readonly<{
