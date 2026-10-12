@@ -1,13 +1,19 @@
 import {
   downloadPath,
   type FilesEntry,
+  type FilesLayout,
   type FilesState,
+  fileExtension,
+  fileKind,
   filesCrumbs,
   filesHref,
+  filesLayoutKey,
   filesState,
   formatModified,
   formatSize,
+  hasPreview,
   listPath,
+  parseFilesLayout,
   uploadOutcome,
   uploadPath,
   zipName,
@@ -37,6 +43,9 @@ type Upload = {
 // Uploads go one at a time, from the file picker or a drop anywhere on the
 // page, each with its own progress, and never replace a file: the server
 // picks a free name. Every value from the server is drawn with textContent.
+// The folder is drawn as rows or, as the person chose in this browser, as a
+// grid whose image tiles show the image itself: a plain link behind a
+// gateway, fetched with the token locally, and only once the tile is seen.
 export function createFilesPanel(
   options: Readonly<{
     /** A read-only GET with the page's credential. */
@@ -72,6 +81,10 @@ export function createFilesPanel(
   const drop = find<HTMLDivElement>("#files-drop");
   const dropText = find<HTMLParagraphElement>("#files-drop-text");
   const refreshButton = find<HTMLButtonElement>("#files-refresh");
+  const layoutGroup = find<HTMLDivElement>("#files-layout");
+  const layoutButtons = [
+    ...layoutGroup.querySelectorAll<HTMLButtonElement>("button[data-layout]"),
+  ];
 
   // The route the page shows (`show` is called on every move, also while
   // the frame is still being built), the folder shown, the last answer with
@@ -86,6 +99,28 @@ export function createFilesPanel(
   const uploads: Upload[] = [];
   let sending = false;
   let dragging = 0;
+  let layout: FilesLayout = parseFilesLayout(readStored());
+  // The previews drawn, by file and version, so a later drawing of the
+  // folder reuses the image instead of fetching it again.
+  const previews = new Map<string, HTMLImageElement>();
+  const seen =
+    typeof IntersectionObserver === "function"
+      ? new IntersectionObserver((sightings) => {
+          for (const sighting of sightings) {
+            if (!sighting.isIntersecting) continue;
+            seen?.unobserve(sighting.target);
+            void loadPreview(sighting.target as HTMLImageElement);
+          }
+        })
+      : null;
+
+  function readStored(): string | null {
+    try {
+      return localStorage.getItem(filesLayoutKey);
+    } catch {
+      return null;
+    }
+  }
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -235,26 +270,177 @@ export function createFilesPanel(
       );
       action.append(button);
     }
-    main.append(
-      icon(entry.kind === "directory" ? "i-folder" : "i-file", entry.kind),
-      name,
-      meta,
-      action,
+    const mark = icon(
+      entry.kind === "directory" ? "i-folder" : "i-file",
+      entry.kind,
     );
+    if (entry.kind === "file") mark.dataset.file = fileKind(entry.name);
+    main.append(mark, name, meta, action);
     item.append(main);
     return item;
   }
 
+  // A preview's image: its address is set once the tile is seen.
+  async function loadPreview(image: HTMLImageElement) {
+    const request = image.dataset.request;
+    if (request === undefined || image.src !== "") return;
+    if (options.linkDownloads()) {
+      image.src = request;
+      return;
+    }
+    try {
+      const response = await fetch(request, {
+        headers: options.credential(),
+        cache: "no-store",
+      });
+      options.denied(response.status);
+      if (!response.ok) throw new Error("Preview refused");
+      image.src = URL.createObjectURL(await response.blob());
+    } catch {
+      image.remove();
+    }
+  }
+
+  function preview(entry: FilesEntry, target: readonly string[]) {
+    const key = `${folderKey(target)}\n${entry.size}\n${entry.modifiedAt}`;
+    let image = previews.get(key);
+    if (image === undefined) {
+      image = element("img");
+      image.alt = "";
+      image.decoding = "async";
+      image.dataset.request = downloadPath(target);
+      image.addEventListener("error", () => image?.remove());
+      previews.set(key, image);
+      if (seen === null) void loadPreview(image);
+      else seen.observe(image);
+    }
+    return { key, image };
+  }
+
+  // Previews of files no longer shown are let go.
+  function keepPreviews(keys: ReadonlySet<string>) {
+    for (const [key, image] of previews) {
+      if (keys.has(key)) continue;
+      seen?.unobserve(image);
+      if (image.src.startsWith("blob:")) URL.revokeObjectURL(image.src);
+      previews.delete(key);
+    }
+  }
+
+  function folderTile(entry: FilesEntry, folder: readonly string[]) {
+    const item = element("li");
+    const link = routeLink(
+      filesHref([...folder, entry.name]),
+      "files-folder",
+      "",
+    );
+    link.append(icon("i-folder"), element("span", "", entry.name));
+    link.title = entry.name;
+    item.append(link);
+    return item;
+  }
+
+  function fileTile(
+    entry: FilesEntry,
+    folder: readonly string[],
+    keys: Set<string>,
+  ) {
+    const copy = options.copy();
+    const locale = options.locale();
+    const target = [...folder, entry.name];
+    const named = fill(copy.filesDownloadNamed, { name: entry.name });
+    const item = element("li", "files-tile");
+    item.dataset.file = fileKind(entry.name);
+    // The preview downloads too, as people click it; the name says the same
+    // to a screen reader, so the preview is skipped by one.
+    const thumb = downloadLink(
+      target,
+      downloadPath(target),
+      entry.name,
+      "files-thumb",
+      "",
+    );
+    thumb.tabIndex = -1;
+    thumb.setAttribute("aria-hidden", "true");
+    thumb.append(icon("i-file"));
+    const extension = fileExtension(entry.name);
+    if (extension !== "")
+      thumb.append(element("span", "files-ext", extension.slice(0, 5)));
+    if (hasPreview(entry)) {
+      const { key, image } = preview(entry, target);
+      keys.add(key);
+      thumb.append(image);
+    }
+    const caption = element("div", "files-caption");
+    const name = downloadLink(
+      target,
+      downloadPath(target),
+      entry.name,
+      "files-name",
+      entry.name,
+    );
+    name.title = entry.name;
+    const meta = element(
+      "span",
+      "files-meta",
+      `${formatSize(entry.size ?? 0, locale)} · ${formatModified(entry.modifiedAt, locale)}`,
+    );
+    const button = downloadLink(
+      target,
+      downloadPath(target),
+      entry.name,
+      "button ghost",
+      "",
+    );
+    button.append(icon("i-download"));
+    button.setAttribute("aria-label", named);
+    button.title = copy.filesDownload;
+    const action = element("span", "files-action");
+    action.append(button);
+    caption.append(name, meta, action);
+    item.append(thumb, caption);
+    return item;
+  }
+
+  function gridView(entries: readonly FilesEntry[], folder: readonly string[]) {
+    const copy = options.copy();
+    const grid = element("div", "files-grid");
+    const keys = new Set<string>();
+    const section = (
+      heading: string,
+      id: string,
+      items: readonly HTMLLIElement[],
+    ) => {
+      if (items.length === 0) return;
+      const part = element("section");
+      part.setAttribute("aria-labelledby", id);
+      const head = element("h2", "", heading);
+      head.id = id;
+      const list = element("ul", "files-tiles");
+      list.append(...items);
+      part.append(head, list);
+      grid.append(part);
+    };
+    section(
+      copy.filesFolders,
+      "files-grid-folders",
+      entries
+        .filter((entry) => entry.kind === "directory")
+        .map((entry) => folderTile(entry, folder)),
+    );
+    section(
+      copy.filesFiles,
+      "files-grid-files",
+      entries
+        .filter((entry) => entry.kind === "file")
+        .map((entry) => fileTile(entry, folder, keys)),
+    );
+    keepPreviews(keys);
+    return [grid];
+  }
+
   function listView(entries: readonly FilesEntry[], folder: readonly string[]) {
     const copy = options.copy();
-    if (entries.length === 0)
-      return [
-        element(
-          "p",
-          "callout",
-          folder.length === 0 ? copy.filesEmptyRoot : copy.filesEmpty,
-        ),
-      ];
     const list = element("ul", "card files-list");
     // Column names for sighted readers of a wide list; each row says the
     // same in its own text.
@@ -277,8 +463,31 @@ export function createFilesPanel(
     return [list];
   }
 
+  function renderLayout(copy: Copy) {
+    layoutGroup.setAttribute("aria-label", copy.filesLayout);
+    for (const button of layoutButtons) {
+      const value = parseFilesLayout(button.dataset.layout ?? null);
+      const label =
+        value === "grid" ? copy.filesLayoutGrid : copy.filesLayoutList;
+      button.setAttribute("aria-label", label);
+      button.title = label;
+      button.setAttribute("aria-checked", String(value === layout));
+      button.tabIndex = value === layout ? 0 : -1;
+    }
+  }
+
+  function chooseLayout(next: FilesLayout) {
+    if (next === layout) return;
+    layout = next;
+    try {
+      localStorage.setItem(filesLayoutKey, next);
+    } catch {}
+    render();
+  }
+
   function render() {
     const copy = options.copy();
+    renderLayout(copy);
     if (active()) navLink.setAttribute("aria-current", "page");
     else navLink.removeAttribute("aria-current");
     refreshButton.disabled = loading;
@@ -298,14 +507,33 @@ export function createFilesPanel(
     const state = shown();
     toolbar.hidden = state?.kind !== "loaded";
     zip.href = options.linkDownloads() ? zipPath(folder) : filesHref(folder);
+    zip.setAttribute(
+      "aria-label",
+      fill(copy.filesZipNamed, { folder: folder.at(-1) ?? copy.filesRoot }),
+    );
     status.textContent = state === null && loading ? copy.filesLoading : note;
     if (state === null) {
       body.replaceChildren();
       return;
     }
-    if (state.kind === "loaded")
-      body.replaceChildren(...listView(state.listing.entries, folder));
-    else if (state.kind === "file") {
+    if (state.kind === "loaded") {
+      const { entries } = state.listing;
+      if (entries.length === 0) {
+        keepPreviews(new Set());
+        body.replaceChildren(
+          element(
+            "p",
+            "callout",
+            folder.length === 0 ? copy.filesEmptyRoot : copy.filesEmpty,
+          ),
+        );
+      } else if (layout === "grid")
+        body.replaceChildren(...gridView(entries, folder));
+      else {
+        keepPreviews(new Set());
+        body.replaceChildren(...listView(entries, folder));
+      }
+    } else if (state.kind === "file") {
       const callout = element("div", "callout files-callout");
       const download = downloadLink(
         folder,
@@ -553,6 +781,22 @@ export function createFilesPanel(
     void saveFetched(zipPath(path), zipName(path));
   });
   refreshButton.addEventListener("click", () => void load());
+  for (const button of layoutButtons) {
+    const value = parseFilesLayout(button.dataset.layout ?? null);
+    button.addEventListener("click", () => chooseLayout(value));
+    // A radio group: the arrows move the choice and the focus with it.
+    button.addEventListener("keydown", (event) => {
+      if (
+        !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
+      )
+        return;
+      event.preventDefault();
+      const other = layoutButtons.find((each) => each !== button);
+      if (other === undefined) return;
+      chooseLayout(parseFilesLayout(other.dataset.layout ?? null));
+      other.focus();
+    });
+  }
 
   // A drop anywhere on the page uploads into the folder shown; a folder in
   // the drop is skipped and said so.

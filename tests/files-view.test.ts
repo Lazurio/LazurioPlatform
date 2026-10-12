@@ -1,13 +1,18 @@
 import { expect, test } from "bun:test";
 import {
   downloadPath,
+  fileExtension,
+  fileKind,
   filesCrumbs,
   filesHref,
   filesState,
   formatModified,
   formatSize,
+  hasPreview,
   listPath,
+  parseFilesLayout,
   parseFilesListing,
+  previewMaxBytes,
   uploadOutcome,
   uploadPath,
   zipName,
@@ -168,4 +173,43 @@ test("an upload says where it landed, or why not, in words", () => {
   expect(uploadOutcome("a.docx", 0, null, messages("cs")).text).toBe(
     "Nahrání se nezdařilo. Zkuste to znovu.",
   );
+});
+
+test("a file's kind comes from its extension, whatever its case", () => {
+  expect(fileKind("Výroční zpráva 2026.DOCX")).toBe("document");
+  expect(fileKind("report-zari.pdf")).toBe("pdf");
+  expect(fileKind("plan.xlsx")).toBe("spreadsheet");
+  expect(fileKind("deck.pptx")).toBe("presentation");
+  expect(fileKind("foto.JPG")).toBe("image");
+  expect(fileKind("archiv.tar.gz")).toBe("other");
+  expect(fileKind(".hidden")).toBe("other");
+  expect(fileKind("README")).toBe("other");
+  expect(fileExtension("a.b.Zip")).toBe("zip");
+  expect(fileExtension(".env")).toBe("");
+});
+
+test("only an image a browser draws, and not too large, is its own preview", () => {
+  const file = (name: string, size: number) =>
+    ({ ...entry, name, size }) as const;
+  expect(hasPreview(file("foto.jpg", 2_000_000))).toBe(true);
+  expect(hasPreview(file("foto.webp", previewMaxBytes))).toBe(true);
+  expect(hasPreview(file("foto.png", previewMaxBytes + 1))).toBe(false);
+  expect(hasPreview(file("foto.heic", 1_000))).toBe(false);
+  expect(hasPreview(file("logo.svg", 1_000))).toBe(false);
+  expect(hasPreview(file("zprava.pdf", 1_000))).toBe(false);
+  expect(
+    hasPreview({
+      name: "fotky.png",
+      kind: "directory",
+      size: null,
+      modifiedAt: entry.modifiedAt,
+    }),
+  ).toBe(false);
+});
+
+test("the stored layout is the grid only when the grid was chosen", () => {
+  expect(parseFilesLayout("grid")).toBe("grid");
+  expect(parseFilesLayout("list")).toBe("list");
+  expect(parseFilesLayout(null)).toBe("list");
+  expect(parseFilesLayout("<b>")).toBe("list");
 });

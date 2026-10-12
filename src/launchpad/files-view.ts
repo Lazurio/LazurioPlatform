@@ -108,6 +108,89 @@ export function formatModified(
   }).format(new Date(iso));
 }
 
+/** How the folder is drawn: rows, or a grid of tiles with previews. */
+export type FilesLayout = "list" | "grid";
+/** Where this browser keeps the person's choice of layout. */
+export const filesLayoutKey = "lazurio.files.layout";
+/** A stored layout, or the list where nothing (valid) is stored. */
+export const parseFilesLayout = (value: string | null): FilesLayout =>
+  value === "grid" ? "grid" : "list";
+
+/** What a file is, as its icon and colour say it: by extension only. */
+export type FileKind =
+  | "pdf"
+  | "document"
+  | "spreadsheet"
+  | "presentation"
+  | "image"
+  | "video"
+  | "audio"
+  | "archive"
+  | "text"
+  | "other";
+
+const kinds: Readonly<Record<string, FileKind>> = {
+  pdf: "pdf",
+  doc: "document",
+  docx: "document",
+  odt: "document",
+  rtf: "document",
+  pages: "document",
+  xls: "spreadsheet",
+  xlsx: "spreadsheet",
+  ods: "spreadsheet",
+  csv: "spreadsheet",
+  numbers: "spreadsheet",
+  ppt: "presentation",
+  pptx: "presentation",
+  odp: "presentation",
+  key: "presentation",
+  png: "image",
+  jpg: "image",
+  jpeg: "image",
+  gif: "image",
+  webp: "image",
+  heic: "image",
+  svg: "image",
+  mp4: "video",
+  mov: "video",
+  webm: "video",
+  mp3: "audio",
+  m4a: "audio",
+  wav: "audio",
+  zip: "archive",
+  txt: "text",
+  md: "text",
+  json: "text",
+};
+
+/** The lower-case extension of a name, `""` without one (or a dotfile). */
+export function fileExtension(name: string): string {
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+}
+
+export const fileKind = (name: string): FileKind =>
+  kinds[fileExtension(name)] ?? "other";
+
+/** Images every current browser draws (not HEIC, and never SVG, which the
+ * server sends only as an attachment of unknown type). */
+const previewExtensions: ReadonlySet<string> = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+]);
+/** A preview is the file itself, so a large one is not fetched for it. */
+export const previewMaxBytes = 25_000_000;
+
+/** Whether the grid shows the file itself as its preview. */
+export const hasPreview = (entry: FilesEntry): boolean =>
+  entry.kind === "file" &&
+  previewExtensions.has(fileExtension(entry.name)) &&
+  (entry.size ?? 0) <= previewMaxBytes;
+
 export type FilesCrumb = Readonly<{
   label: string;
   href: string;
