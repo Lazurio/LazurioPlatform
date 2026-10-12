@@ -22,6 +22,20 @@ import {
   viewMessage,
   viewTabOf,
 } from "./browser-panel-view";
+import {
+  attachDivider,
+  readLayout,
+  showDividerRange,
+  writeLayout,
+} from "./layout";
+import {
+  dragPanel,
+  keyPanel,
+  type PanelPlace,
+  type PanelWish,
+  panelWish,
+  placePanel,
+} from "./layout-view";
 import type { MessageKey } from "./messages";
 import {
   actionFailure,
@@ -62,9 +76,10 @@ export type PanelTransport = (
 // panel (Matěj's tuning of 2026-10-12). A tab is shown here only once the
 // Launchpad holds it. Closed on every page load; what it shows is
 // browser-panel-view.ts. A closed panel mounts no frame, so it streams and
-// reads nothing. It slides in and out (Matěj 2026-10-12), never with reduced
-// motion. Below 1100 px it covers the window like a sheet and what lies
-// behind it is inert.
+// reads nothing. It slides in and out, and its left edge drags it wider or
+// narrower, up to all of the room with the page stepped aside (Matěj
+// 2026-10-12; layout-view.ts). Below 1100 px it covers the window like a
+// sheet and what lies behind it is inert.
 export function createBrowserPanel(
   options: Readonly<{
     copy: () => Copy;
@@ -82,7 +97,10 @@ export function createBrowserPanel(
     if (!element) throw new Error("Missing browser panel UI");
     return element;
   };
+  const app = find<HTMLElement>("#app");
+  const sidebar = find<HTMLElement>("#sidebar");
   const panel = find<HTMLElement>("#browser-panel");
+  const divider = find<HTMLElement>("#browser-divider");
   const heading = find<HTMLHeadingElement>("#browser-title");
   const tablist = find<HTMLDivElement>("#browser-tablist");
   const newButton = find<HTMLButtonElement>("#browser-new");
@@ -107,6 +125,10 @@ export function createBrowserPanel(
   /** While the closed panel slides out: it stays drawn, inert, until this
    * timer hides it. */
   let leaving: ReturnType<typeof setTimeout> | undefined;
+  /** The width the person dragged the panel to, kept in this browser. */
+  let wish: PanelWish | null = readLayout().panel;
+  /** Where the open panel is now; null on the sheet and before it opens. */
+  let place: PanelPlace | null = null;
   let state: StripState = emptyStrip;
   /** What the body shows: one tab's view, or one Nová karta of the strip. */
   let surface:
@@ -629,11 +651,74 @@ export function createBrowserPanel(
     panel.inert = false;
   }
 
+  // Its left edge drags the panel wider or narrower (Matěj 2026-10-12), up
+  // to all of the room right of the rail and the column, the page then
+  // stepped aside (`data-browser="wide"`); layout-view.ts decides where it
+  // goes, and this browser keeps the person's width.
+
+  /** The room the page and the panel share. */
+  const room = () => app.clientWidth - sidebar.offsetWidth;
+  let placed = "";
+
+  /** Places the open panel beside the page, or over all of the room. A
+   * closing panel gives the page back at once and keeps its width while it
+   * slides out; the sheet below 1100 px is placed by its stylesheet. */
+  function relayout() {
+    if (!open || sheet.matches) {
+      place = null;
+      placed = "";
+      delete app.dataset.browser;
+      return;
+    }
+    place = placePanel(room(), wish);
+    const key = `${place.mode} ${place.width} ${place.max}`;
+    if (key === placed) return;
+    placed = key;
+    panel.style.setProperty("--browser-panel-width", `${place.width}px`);
+    app.dataset.browser = place.mode;
+    showDividerRange(divider, place);
+  }
+
+  /** Keeps where the person left the panel, in this browser. */
+  function keep() {
+    if (place === null) return;
+    wish = panelWish(place);
+    writeLayout({ panel: wish });
+  }
+
+  attachDivider(divider, {
+    grows: "left",
+    width: () => place?.width ?? 0,
+    drag: (width) => {
+      wish = dragPanel(room(), width);
+      relayout();
+    },
+    key: (key) => {
+      const next = place === null ? null : keyPanel(place, key);
+      if (next === null) return false;
+      wish = next;
+      relayout();
+      keep();
+      return true;
+    },
+    done: keep,
+    reset: () => {
+      wish = null;
+      writeLayout({ panel: null });
+      relayout();
+    },
+  });
+  // The room changes with the window, and with the column hidden, shown or
+  // dragged.
+  window.addEventListener("resize", () => relayout());
+  new ResizeObserver(() => relayout()).observe(sidebar);
+
   function show() {
     if (open || options.origin() === null) return;
     stopSliding();
     open = true;
     closedOn = null;
+    relayout();
     dispatch({ kind: "opened" });
     void poll();
     heading.focus({ preventScroll: true });
@@ -654,6 +739,7 @@ export function createBrowserPanel(
     stopSliding();
     open = true;
     closedOn = null;
+    relayout();
     dispatch({ kind: "show", tab });
     void poll();
     if (opening) {
@@ -666,6 +752,7 @@ export function createBrowserPanel(
   function hide(returnFocus: boolean) {
     if (!open) return;
     open = false;
+    relayout();
     clearTimeout(pollTimer);
     pollTimer = undefined;
     // A hidden strip loses its scroll: the next opening draws it anew, with
@@ -698,11 +785,16 @@ export function createBrowserPanel(
     event.preventDefault();
     hide(true);
   });
-  sheet.addEventListener("change", () => draw());
+  sheet.addEventListener("change", () => {
+    relayout();
+    draw();
+  });
 
   function relabel() {
     const copy = options.copy();
     const own = words();
+    divider.setAttribute("aria-label", copy.browserWidth);
+    divider.title = copy.dividerHint;
     reload.title = copy.browserReload;
     close.title = copy.browserClose;
     tabLink.title = copy.browserOpenTab;

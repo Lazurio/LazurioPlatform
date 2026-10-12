@@ -583,6 +583,21 @@ button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); co
 @keyframes browser-sheet-in { from { opacity: 0; transform: translateX(32px); } }
 @keyframes browser-sheet-out { to { opacity: 0; transform: translateX(32px); } }
 .browser-title:focus { outline: none; }
+/* The panel's left edge is its divider (Matěj 2026-10-12, as T3 Code's and
+   Codex Desktop's panels): drag it, move it with the arrow keys, or
+   double-click it for the default width; its hairline turns blue under the
+   pointer. browser-panel.ts sets the width (layout-view.ts): beside the
+   page, which keeps at least 400 px, or all of the room right of the column
+   with the page stepped aside (the wireframe's "Celá šířka"). While a
+   divider drags, the frames do not take the pointer and nothing is
+   selected. The sheet below 1100 px has none. */
+.browser-divider { position: absolute; z-index: 7; top: 0; bottom: 0; left: 0; width: 7px; cursor: col-resize; touch-action: none; }
+.browser-divider::after { content: ""; position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: transparent; transition: background-color 120ms; }
+.browser-divider:hover::after, .browser-divider:focus-visible::after, .browser-divider.is-dragging::after { background: var(--lz-blue-500); }
+.browser-divider:focus-visible { outline: none; }
+html.is-resizing, html.is-resizing * { cursor: col-resize !important; user-select: none; }
+html.is-resizing iframe, html.is-resizing lazurio-new-tab { pointer-events: none; }
+@media (min-width: 1100px) { .app[data-browser="wide"] .page { display: none; } }
 /* The strip (decision F47 point 9, the wireframe's BrowserPanel): the tabs
    the Launchpad holds and its Nová karta entries, then "+", and the panel's
    own actions. Every entry is the same full tab with its × (Matěj
@@ -633,6 +648,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
 @media (max-width: 1099px) {
   .browser-panel { position: fixed; inset: 0; z-index: 50; width: auto; height: auto; border-left: 0; animation-name: browser-sheet-in; }
   .browser-panel.is-leaving { animation-name: browser-sheet-out; }
+  .browser-divider { display: none; }
 }
 @media (max-width: 767px) { .browser-toggle-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
 
@@ -935,6 +951,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
      which passes the gateway's sign-in a frame cannot show. -->
 <aside class="browser-panel" id="browser-panel" aria-labelledby="browser-title" hidden>
 <h2 class="sr-only browser-title" id="browser-title" tabindex="-1" data-message="browserTitle">Environment browser</h2>
+<div class="browser-divider" id="browser-divider" role="separator" aria-orientation="vertical" aria-controls="browser-panel" tabindex="0"></div>
 <div class="browser-strip">
 <div class="browser-tabs">
 <div class="browser-tablist" id="browser-tablist" role="tablist"></div>
