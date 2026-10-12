@@ -10,7 +10,9 @@ import {
   browserPanelOrigin,
   browserViewAddress,
   browserViewDocumentPath,
+  closesPanel,
   emptyStrip,
+  entryKey,
   heldByLaunchpad,
   holdFailure,
   holdSucceeded,
@@ -42,15 +44,17 @@ const cs = newTabCopy("cs");
 const en = newTabCopy("en");
 
 // The Launchpad's right panel (decision F38's addendum of 2026-10-05, root
-// decision 0191 points 8a and 18, #207; decision F47 point 9 and its addendum
-// of 2026-10-12): offered only where the recorded entry routes the
-// Environment browser's view, never on a workstation or in Recovery mode. Its
-// strip lists the tabs the Launchpad holds, from Nová karta's overview; "+"
-// shows Nová karta, as do the first opening and the strip once its last tab
-// goes; × lets go of the Launchpad's hold with Vrátit; a tab shows here only
-// once the Launchpad holds it; a view is framed only on exactly the recorded
-// origin. What the view frame and Nová karta say is heard only from them.
-// The DOM (browser-panel.ts) only draws this.
+// decision 0191 points 8a and 18, #207; decision F47 point 9, its addendum
+// of 2026-10-12 and Matěj's tuning of the same day): offered only where the
+// recorded entry routes the Environment browser's view, never on a
+// workstation or in Recovery mode. Its strip lists the tabs the Launchpad
+// holds, from Nová karta's overview, then its Nová karta entries; "+" adds
+// another, and opening the panel on an empty strip shows one; × on a tab lets
+// go of the Launchpad's hold with Vrátit, × on a Nová karta takes it away,
+// and the person's × on the last entry closes the panel; a tab shows here
+// only once the Launchpad holds it; a view is framed only on exactly the
+// recorded origin. What the view frame and Nová karta say is heard only from
+// them. The DOM (browser-panel.ts) only draws this.
 
 const origin = "https://browser.workspace.example.lazurio.io";
 const page = "https://launchpad.workspace.example.lazurio.io";
@@ -203,11 +207,11 @@ const otherTab = (n: number, extra: Partial<StripTab> = {}) =>
   listedTab(n, { holders: [], ...extra });
 const run = (events: readonly StripEvent[], from: StripState = emptyStrip) =>
   events.reduce(reduceStrip, from);
-const keys = (state: StripState) =>
-  stripEntries(state).map((entry) => (entry.kind === "new" ? "new" : entry.id));
+/** The strip's entries by key: a tab's id, a Nová karta's `new-<n>`. */
+const keys = (state: StripState) => stripEntries(state).map(entryKey);
 const shown = (state: StripState) => {
   const entry = shownEntry(state);
-  return entry.kind === "new" ? "new" : entry.id;
+  return entry === null ? null : entryKey(entry);
 };
 /** The panel opened and its first overview listed `tabs`. */
 const openWith = (tabs: readonly StripTab[]) =>
@@ -234,7 +238,7 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
       otherTab(3, { holders: [{ strip: "t3-x", label: "Vlákno" }] }),
       listedTab(4),
     ]);
-    expect(keys(state)).toEqual([id(2), id(4), "new"]);
+    expect(keys(state)).toEqual([id(2), id(4), "new-1"]);
     expect(stripEntries(state)[0]).toMatchObject({
       kind: "tab",
       title: "Stránka 2",
@@ -244,13 +248,13 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
     expect(heldByLaunchpad(listedTab(2))).toBe(true);
     expect(heldByLaunchpad(otherTab(1))).toBe(false);
     // The hub's order changes, the strip's does not; a tab held later
-    // comes last.
+    // comes last among the tabs, before the Nová karta entries.
     const later = relist(state, [listedTab(5), listedTab(4), listedTab(2)]);
-    expect(keys(later)).toEqual([id(2), id(4), id(5), "new"]);
+    expect(keys(later)).toEqual([id(2), id(4), id(5), "new-1"]);
     // A tab whose close for everyone counts down leaves the strip.
     expect(
       keys(relist(later, [listedTab(2), listedTab(4, { closing: true })])),
-    ).toEqual([id(2), "new"]);
+    ).toEqual([id(2), "new-1"]);
     // While the hub does not answer, the strip stays as it was.
     expect(
       run(
@@ -271,55 +275,99 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
     ).toBeNull();
   });
 
-  test("the first opening shows Nová karta, and so does the strip once its last tab goes; before any list the strip is Nová karta alone, with no ×", () => {
+  test("opening the panel on an empty strip shows one Nová karta, a full entry of the strip; opened again it shows what it showed; a strip emptied by anything but the person's × shows a new Nová karta", () => {
     const opened = run([{ kind: "opened" }]);
-    expect(stripEntries(opened)).toEqual([{ kind: "new", closable: false }]);
-    expect(shown(opened)).toBe("new");
+    expect(stripEntries(opened)).toEqual([{ kind: "new", key: "new-1" }]);
+    expect([shown(opened), closesPanel(opened)]).toEqual(["new-1", false]);
     // The Launchpad holds nothing yet: only Nová karta, whatever Přehled lists.
-    expect(stripEntries(openWith([otherTab(1), otherTab(2)]))).toEqual([
-      { kind: "new", closable: false },
-    ]);
-    // Opened again later, it shows what it showed.
+    expect(keys(openWith([otherTab(1), otherTab(2)]))).toEqual(["new-1"]);
+    // Opened again later, it shows what it showed, and adds nothing.
     const later = run(
       [{ kind: "select", entry: id(2) }, { kind: "opened" }],
       openWith([listedTab(1), listedTab(2)]),
     );
-    expect(shown(later)).toBe(id(2));
-    // The strip's last tab ends elsewhere: Nová karta shows.
+    expect([keys(later), shown(later)]).toEqual([
+      [id(1), id(2), "new-1"],
+      id(2),
+    ]);
+    // The strip's last tab ends elsewhere: the panel stays open on a new
+    // Nová karta and never closes by itself.
     const shownTab = run(
-      [{ kind: "chosen", tab: id(1) }],
+      [{ kind: "chosen", tab: id(1), from: "new-1" }],
       openWith([listedTab(1)]),
     );
+    expect(keys(shownTab)).toEqual([id(1)]);
     const emptied = relist(shownTab, [otherTab(1)]);
-    expect([stripEntries(emptied), shown(emptied)]).toEqual([
-      [{ kind: "new", closable: false }],
-      "new",
+    expect([keys(emptied), shown(emptied), closesPanel(emptied)]).toEqual([
+      ["new-2"],
+      "new-2",
+      false,
     ]);
   });
 
-  test("+ shows a fresh Nová karta; what is chosen in it and held shows, and Nová karta goes from the strip", () => {
+  test("+ always adds a new Nová karta after the others and shows it; the one shown before stays as it was, and none of them is a remote tab", () => {
+    const one = run([{ kind: "opened" }]);
+    const three = run([{ kind: "new-tab" }, { kind: "new-tab" }], one);
+    expect([keys(three), shown(three), three.made]).toEqual([
+      ["new-1", "new-2", "new-3"],
+      "new-3",
+      3,
+    ]);
+    expect(three.overrides).toEqual([]);
+    // Each is an entry of its own: choosing one shows it.
+    expect(shown(run([{ kind: "select", entry: "new-1" }], three))).toBe(
+      "new-1",
+    );
+    // Beside tabs, "+" from a tab adds one after the strip's Nová karta.
+    const beside = run(
+      [{ kind: "select", entry: id(1) }, { kind: "new-tab" }],
+      openWith([listedTab(1)]),
+    );
+    expect([keys(beside), shown(beside)]).toEqual([
+      [id(1), "new-1", "new-2"],
+      "new-2",
+    ]);
+    // An entry the strip does not have is no choice.
+    expect(run([{ kind: "select", entry: "new-9" }], beside)).toEqual(beside);
+  });
+
+  test("what is chosen in a Nová karta and held shows, and that Nová karta goes from the strip; the others stay", () => {
     const state = openWith([listedTab(1), otherTab(2)]);
     const fresh = run(
       [{ kind: "select", entry: id(1) }, { kind: "new-tab" }],
       state,
     );
-    expect([shown(fresh), fresh.generation]).toEqual(["new", 1]);
+    expect([keys(fresh), shown(fresh)]).toEqual([
+      [id(1), "new-1", "new-2"],
+      "new-2",
+    ]);
     // A tab chosen in Přehled, held for the Launchpad, then shown: in the
     // strip before an overview says the Launchpad holds it.
-    const chosen = run([{ kind: "chosen", tab: id(2) }], fresh);
-    expect([keys(chosen), shown(chosen)]).toEqual([[id(1), id(2)], id(2)]);
+    const chosen = run([{ kind: "chosen", tab: id(2), from: "new-2" }], fresh);
+    expect([keys(chosen), shown(chosen)]).toEqual([
+      [id(1), id(2), "new-1"],
+      id(2),
+    ]);
     // An overview begun before the hold, which does not have it yet, does
     // not take it away; the next one says the Launchpad holds it.
     const before = run(
       [{ kind: "listed", request: 1, tabs: [listedTab(1), otherTab(2)] }],
       chosen,
     );
-    expect(keys(before)).toEqual([id(1), id(2)]);
+    expect(keys(before)).toEqual([id(1), id(2), "new-1"]);
     const after = relist(before, [listedTab(1), listedTab(2)]);
-    expect([keys(after), after.overrides]).toEqual([[id(1), id(2)], []]);
-    // A page just opened shows before the overview lists it at all.
+    expect([keys(after), after.overrides]).toEqual([
+      [id(1), id(2), "new-1"],
+      [],
+    ]);
+    // A page just opened shows before the overview lists it at all, and
+    // takes the place of the Nová karta it was opened in, also when another
+    // entry is shown by the time it is held.
     const opened = run(
-      [{ kind: "new-tab" }, { kind: "chosen", tab: id(9) }],
+      [
+        { kind: "select", entry: id(1) },
+        { kind: "chosen", tab: id(9), from: "new-1" },
+      ],
       after,
     );
     expect([keys(opened), shown(opened)]).toEqual([
@@ -329,15 +377,111 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
     expect(stripEntries(opened)[2]).toMatchObject({ tab: null, title: "" });
   });
 
+  test("× on a Nová karta takes that entry away, with nothing let go of; the entry that took its place shows, else the one before it", () => {
+    const state = run(
+      [{ kind: "new-tab" }, { kind: "select", entry: "new-1" }],
+      openWith([listedTab(1)]),
+    );
+    expect([keys(state), shown(state)]).toEqual([
+      [id(1), "new-1", "new-2"],
+      "new-1",
+    ]);
+    const first = run([{ kind: "close-new-tab", key: "new-1" }], state);
+    expect([keys(first), shown(first), first.overrides]).toEqual([
+      [id(1), "new-2"],
+      "new-2",
+      [],
+    ]);
+    const second = run([{ kind: "close-new-tab", key: "new-2" }], first);
+    expect([keys(second), shown(second), closesPanel(second)]).toEqual([
+      [id(1)],
+      id(1),
+      false,
+    ]);
+    // A Nová karta not shown goes without changing what is shown.
+    expect(
+      shown(
+        run(
+          [
+            { kind: "select", entry: id(1) },
+            { kind: "close-new-tab", key: "new-2" },
+          ],
+          first,
+        ),
+      ),
+    ).toBe(id(1));
+  });
+
+  test("the person's × on the strip's last entry leaves it empty, which closes the panel; opening it again shows a new Nová karta", () => {
+    // The last Nová karta.
+    const alone = run([
+      { kind: "opened" },
+      { kind: "close-new-tab", key: "new-1" },
+    ]);
+    expect([keys(alone), shown(alone), closesPanel(alone)]).toEqual([
+      [],
+      null,
+      true,
+    ]);
+    const again = run([{ kind: "opened" }], alone);
+    expect([keys(again), shown(again)]).toEqual([["new-2"], "new-2"]);
+    // The last tab, let go of with ×: the strip stays empty while the
+    // release is on its way and after it, and an overview that still holds
+    // the tab brings nothing back.
+    const tab = run(
+      [{ kind: "chosen", tab: id(1), from: "new-1" }],
+      openWith([listedTab(1)]),
+    );
+    const released = run(
+      [
+        { kind: "releasing", tab: id(1) },
+        { kind: "requested" },
+        { kind: "released", tab: id(1) },
+      ],
+      tab,
+    );
+    expect([keys(released), shown(released), closesPanel(released)]).toEqual([
+      [],
+      null,
+      true,
+    ]);
+    expect(
+      closesPanel(
+        run(
+          [
+            {
+              kind: "listed",
+              request: released.requests,
+              tabs: [listedTab(1)],
+            },
+          ],
+          released,
+        ),
+      ),
+    ).toBe(true);
+    // Vrátit while the panel is closed puts the tab back without showing a
+    // Nová karta, and the panel opens on it.
+    const back = run(
+      [{ kind: "held-again", tab: id(1), show: true }, { kind: "opened" }],
+      released,
+    );
+    expect([keys(back), shown(back)]).toEqual([[id(1)], id(1)]);
+    const quiet = run(
+      [{ kind: "held-again", tab: id(1), show: false }, { kind: "opened" }],
+      released,
+    );
+    expect([keys(quiet), shown(quiet)]).toEqual([[id(1)], id(1)]);
+  });
+
   test("× lets go: the tab goes at once and stays gone while the release is on its way, even when an overview read before still holds it; only one requested after lifts the hide; a failed release brings it back", () => {
     const state = openWith([listedTab(1), listedTab(2)]);
     // Pablo's reproduction (#324), on the release that × now is: the tab
     // goes, then an overview begun before the release was done still lists
     // the Launchpad's hold.
     const releasing = run([{ kind: "releasing", tab: id(1) }], state);
-    expect(keys(releasing)).toEqual([id(2), "new"]);
+    expect(keys(releasing)).toEqual([id(2), "new-1"]);
     const read = relist(releasing, [listedTab(1), listedTab(2)]);
-    expect(keys(read)).toEqual([id(2), "new"]);
+    expect(keys(read)).toEqual([id(2), "new-1"]);
     expect(read.overrides).toEqual([
       { id: id(1), state: "hidden", after: null },
     ]);
@@ -349,10 +493,10 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
       [{ kind: "listed", request: 3, tabs: [listedTab(1), listedTab(2)] }],
       done,
     );
-    expect(keys(late)).toEqual([id(2), "new"]);
+    expect(keys(late)).toEqual([id(2), "new-1"]);
     const confirmed = relist(late, [otherTab(1), listedTab(2)]);
     expect([keys(confirmed), confirmed.overrides]).toEqual([
-      [id(2), "new"],
+      [id(2), "new-1"],
       [],
     ]);
     // A release that fails brings the tab back at once.
@@ -364,14 +508,14 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
       state,
     );
     expect([keys(failed), failed.overrides]).toEqual([
-      [id(1), id(2), "new"],
+      [id(1), id(2), "new-1"],
       [],
     ]);
   });
 
-  test("the shown tab let go falls to the tab that took its place or the one before it, and with the strip empty Nová karta shows", () => {
+  test("the shown tab let go falls to the tab that took its place or the one before it, and the last one leaves the strip empty", () => {
     const state = run(
-      [{ kind: "chosen", tab: id(3) }],
+      [{ kind: "chosen", tab: id(3), from: "new-1" }],
       openWith([listedTab(1), listedTab(2), listedTab(3)]),
     );
     const third = run([{ kind: "releasing", tab: id(3) }], state);
@@ -385,16 +529,28 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
     );
     expect([keys(first), shown(first)]).toEqual([[id(2)], id(2)]);
     const none = run([{ kind: "releasing", tab: id(2) }], first);
-    expect([stripEntries(none), shown(none)]).toEqual([
-      [{ kind: "new", closable: false }],
-      "new",
+    expect([keys(none), shown(none), closesPanel(none)]).toEqual([
+      [],
+      null,
+      true,
+    ]);
+    // A Nová karta after the tab takes its place instead.
+    const kept = run(
+      [{ kind: "new-tab" }, { kind: "select", entry: id(2) }],
+      first,
+    );
+    const toNew = run([{ kind: "releasing", tab: id(2) }], kept);
+    expect([keys(toNew), shown(toNew), closesPanel(toNew)]).toEqual([
+      ["new-2"],
+      "new-2",
+      false,
     ]);
   });
 
   test("Vrátit holds the tab again: back in its place in the strip, and shown again where it was shown when let go", () => {
     const released = run(
       [
-        { kind: "chosen", tab: id(2) },
+        { kind: "chosen", tab: id(2), from: "new-1" },
         { kind: "releasing", tab: id(2) },
         { kind: "released", tab: id(2) },
       ],
@@ -411,29 +567,27 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
     expect([keys(quiet), shown(quiet)]).toEqual([[id(1), id(2), id(3)], id(3)]);
   });
 
-  test("the view's tab ended: it goes, and the panel falls back; × on Nová karta among tabs shows the tab before it", () => {
-    const ended = run(
-      [
-        { kind: "chosen", tab: id(1) },
-        { kind: "ended", tab: id(1) },
-      ],
-      openWith([listedTab(1)]),
+  test("the view's tab ended: it goes, and the panel falls back, on its last tab to a new Nová karta; × on Nová karta among tabs shows the tab before it", () => {
+    const two = run(
+      [{ kind: "chosen", tab: id(2), from: "new-1" }],
+      openWith([listedTab(1), listedTab(2)]),
     );
-    expect([stripEntries(ended), shown(ended)]).toEqual([
-      [{ kind: "new", closable: false }],
-      "new",
+    const endedOne = run([{ kind: "ended", tab: id(2) }], two);
+    expect([keys(endedOne), shown(endedOne)]).toEqual([[id(1)], id(1)]);
+    const ended = run([{ kind: "ended", tab: id(1) }], endedOne);
+    expect([keys(ended), shown(ended), closesPanel(ended)]).toEqual([
+      ["new-2"],
+      "new-2",
+      false,
     ]);
     const closedNew = run(
-      [{ kind: "close-new-tab" }],
+      [{ kind: "close-new-tab", key: "new-1" }],
       openWith([listedTab(1), listedTab(2)]),
     );
     expect([keys(closedNew), shown(closedNew)]).toEqual([
       [id(1), id(2)],
       id(2),
     ]);
-    // Alone, Nová karta stays: the strip is never empty.
-    const alone = run([{ kind: "opened" }, { kind: "close-new-tab" }]);
-    expect([keys(alone), shown(alone)]).toEqual([["new"], "new"]);
   });
 
   test("a page's new tab held here shows at once with its address, its title follows the view, and the overview takes over", () => {

@@ -18,19 +18,22 @@ import {
 } from "./new-tab-view";
 
 // The Launchpad's right panel (decision F38's addendum of 2026-10-05, root
-// decision 0191 points 8a and 18, #207; decision F47 point 9 and its addendum
-// of 2026-10-12): the strip of the tabs the Launchpad holds, read from Nová
-// karta's overview every 5 s while the panel is open, and under it either one
-// tab's view (decision F39, the same view every app of the Environment
-// embeds; the Launchpad builds no viewer of its own) or Nová karta, the shell
-// element `<lazurio-new-tab strip="launchpad" focus-address>`. The first
-// opening shows Nová karta, and so does the strip once its last tab goes. ×
-// lets go of the Launchpad's hold, with Vrátit while the hub's grace lasts;
-// closing a tab for everyone is Přehled's Zavřít. The panel is offered only
-// where the recorded entry routes the view (`browserOrigin`): never on a
-// workstation, which has no entry, and never in Recovery mode. A view is
-// framed only on exactly the recorded origin. Pure: the DOM
-// (browser-panel.ts) only draws this and asks.
+// decision 0191 points 8a and 18, #207; decision F47 point 9, its addendum
+// of 2026-10-12 and Matěj's tuning of the same day): the strip of the tabs
+// the Launchpad holds, read from Nová karta's overview every 5 s while the
+// panel is open, then its Nová karta entries, and under it either one tab's
+// view (decision F39, the same view every app of the Environment embeds; the
+// Launchpad builds no viewer of its own) or Nová karta, the shell element
+// `<lazurio-new-tab strip="launchpad" focus-address>`. "+" adds a Nová karta
+// after the others, as Chrome does, and opening the panel on an empty strip
+// shows one. × on a Nová karta takes it away; × on a tab lets go of the
+// Launchpad's hold, with Vrátit while the hub's grace lasts; closing a tab
+// for everyone is Přehled's Zavřít. The person's × on the strip's last entry
+// closes the panel, as T3 Code's does (root decision 0195 point 16). The
+// panel is offered only where the recorded entry routes the view
+// (`browserOrigin`): never on a workstation, which has no entry, and never in
+// Recovery mode. A view is framed only on exactly the recorded origin. Pure:
+// the DOM (browser-panel.ts) only draws this and asks.
 
 /** `GET /.lazurio/browser.json` (the server's `browserViewDocumentPath`):
  * the view's address for a new tab, or that there is none. */
@@ -155,15 +158,16 @@ export type StripState = Readonly<{
   order: readonly string[];
   /** Overviews requested so far. */
   requests: number;
-  /** A Nová karta of the strip. */
-  newTab: boolean;
-  /** What the panel shows; null until its first opening. */
-  active:
-    | Readonly<{ kind: "new" }>
-    | Readonly<{ kind: "tab"; id: string }>
-    | null;
-  /** Grows with every "+", so each shows a fresh Nová karta. */
-  generation: number;
+  /** The strip's Nová karta entries, each with a key of its own
+   * (`new-<n>`), in the order "+" made them. They stand after the tabs, as
+   * in the wireframe, and none of them is a remote tab yet. */
+  newTabs: readonly string[];
+  /** The key of the entry the panel shows (a tab's id, a Nová karta's
+   * key); null before the first opening and once the strip's last entry
+   * went. */
+  active: string | null;
+  /** Nová karta entries made so far, for the next one's key. */
+  made: number;
 }>;
 
 export const emptyStrip: StripState = Object.freeze({
@@ -172,9 +176,9 @@ export const emptyStrip: StripState = Object.freeze({
   live: [],
   order: [],
   requests: 0,
-  newTab: false,
+  newTabs: [],
   active: null,
-  generation: 0,
+  made: 0,
 });
 
 export type StripEntry =
@@ -191,24 +195,23 @@ export type StripEntry =
     }>
   | Readonly<{
       kind: "new";
-      /** Its × shows only beside other tabs: an empty strip is Nová
-       * karta. */
-      closable: boolean;
+      /** Its own key: every Nová karta is a tab of the strip, with its ×
+       * (Matěj 2026-10-12). */
+      key: string;
     }>;
 
-const sameEntry = (
-  entry: StripEntry,
-  active: NonNullable<StripState["active"]>,
-): boolean =>
-  entry.kind === active.kind &&
-  (entry.kind === "new" || (active.kind === "tab" && entry.id === active.id));
+/** An entry's key in the strip: a tab's id, a Nová karta's own key. Tab
+ * ids are hexadecimal target ids, so the two never meet. */
+export const entryKey = (entry: StripEntry): string =>
+  entry.kind === "new" ? entry.key : entry.id;
 
 /** The strip (F47 point 9's addendum of 2026-10-12): the tabs the Launchpad
  * holds, as the overview says, and those it took here before an overview
  * says so; none taken away here, and none whose close for everyone counts
  * down unless brought back here. In the order the strip first had them,
- * then its Nová karta; with nothing in it the strip is Nová karta. Every
- * other tab of the Environment is in Přehled only. */
+ * then its Nová karta entries; empty only before the panel first opens and
+ * once the person's × took its last entry. Every other tab of the
+ * Environment is in Přehled only. */
 export function stripEntries(state: StripState): readonly StripEntry[] {
   const listed = state.listed ?? [];
   const facts = new Map(listed.map((tab) => [tab.id, tab]));
@@ -243,24 +246,32 @@ export function stripEntries(state: StripState): readonly StripEntry[] {
         tab,
       };
     });
-  if (state.newTab || entries.length === 0)
-    entries.push({ kind: "new", closable: entries.length > 0 });
-  return entries;
+  return [
+    ...entries,
+    ...state.newTabs.map((key): StripEntry => ({ kind: "new", key })),
+  ];
 }
 
-/** The entry the panel shows. */
-export function shownEntry(state: StripState): StripEntry {
+/** The entry the panel shows: the one shown last, else the strip's last;
+ * null while the strip is empty. */
+export function shownEntry(state: StripState): StripEntry | null {
   const entries = stripEntries(state);
-  const active = state.active;
   return (
-    entries.find((entry) => active !== null && sameEntry(entry, active)) ??
-    entries.find((entry) => entry.kind === "new") ??
-    (entries[entries.length - 1] as StripEntry)
+    entries.find((entry) => entryKey(entry) === state.active) ??
+    entries[entries.length - 1] ??
+    null
   );
 }
 
+/** The person's × took the strip's last entry: the panel closes, as T3
+ * Code's does when its last tab closes (root decision 0195 point 16), and
+ * opens again on a Nová karta. */
+export const closesPanel = (state: StripState): boolean =>
+  stripEntries(state).length === 0;
+
 export type StripEvent =
-  /** The panel opened: the first opening shows Nová karta. */
+  /** The panel opened: on an empty strip it shows a new Nová karta,
+   * otherwise what it showed last. */
   | Readonly<{ kind: "opened" }>
   /** An overview is requested now; it is the `requests`-th. */
   | Readonly<{ kind: "requested" }>
@@ -271,14 +282,18 @@ export type StripEvent =
       request: number;
       tabs: readonly StripTab[] | null;
     }>
-  /** "+": a fresh Nová karta. */
+  /** "+": a new Nová karta after the others, shown; the one shown before
+   * stays as it was (Matěj 2026-10-12). */
   | Readonly<{ kind: "new-tab" }>
-  | Readonly<{ kind: "select"; entry: "new" | string }>
-  /** × on the Nová karta. */
-  | Readonly<{ kind: "close-new-tab" }>
-  /** Nová karta became this tab, which the Launchpad now holds: a page it
-   * opened, or a tab chosen in its Přehled and held. */
-  | Readonly<{ kind: "chosen"; tab: string }>
+  /** An entry of the strip chosen, by its key. */
+  | Readonly<{ kind: "select"; entry: string }>
+  /** × on a Nová karta: that entry goes. It is no remote tab, so nothing
+   * is let go of and there is no Vrátit. */
+  | Readonly<{ kind: "close-new-tab"; key: string }>
+  /** The Nová karta `from` became this tab, which the Launchpad now holds:
+   * a page it opened, or a tab chosen in its Přehled and held. That Nová
+   * karta goes, and the panel shows the tab. */
+  | Readonly<{ kind: "chosen"; tab: string; from: string | null }>
   /** A tab the Launchpad now holds, to show: a page's new tab viewed here,
    * a sign-in an Integrace opened in the Environment browser. */
   | Readonly<{ kind: "show"; tab: string; url?: string | undefined }>
@@ -299,13 +314,28 @@ export type StripEvent =
   /** The view said where its tab is (`lazurio-browser:info`). */
   | Readonly<{ kind: "info"; tab: string; title: string; url: string }>;
 
+/** A new Nová karta after the others, shown. */
+function withNewTab(state: StripState): StripState {
+  const key = `new-${state.made + 1}`;
+  return {
+    ...state,
+    newTabs: [...state.newTabs, key],
+    active: key,
+    made: state.made + 1,
+  };
+}
+
 function apply(state: StripState, event: StripEvent): StripState {
   const after = state.requests;
   switch (event.kind) {
-    case "opened":
-      return state.active === null
-        ? { ...state, newTab: true, active: { kind: "new" } }
-        : state;
+    case "opened": {
+      const entries = stripEntries(state);
+      const last = entries[entries.length - 1];
+      if (last === undefined) return withNewTab(state);
+      return entries.some((entry) => entryKey(entry) === state.active)
+        ? state
+        : { ...state, active: entryKey(last) };
+    }
     case "requested":
       return { ...state, requests: state.requests + 1 };
     case "listed":
@@ -318,24 +348,24 @@ function apply(state: StripState, event: StripEvent): StripState {
             live: state.live.filter((item) => item.after >= event.request),
           };
     case "new-tab":
+      return withNewTab(state);
+    case "select":
+      return stripEntries(state).some(
+        (entry) => entryKey(entry) === event.entry,
+      )
+        ? { ...state, active: event.entry }
+        : state;
+    case "close-new-tab":
       return {
         ...state,
-        newTab: true,
-        active: { kind: "new" },
-        generation: state.generation + 1,
+        newTabs: state.newTabs.filter((key) => key !== event.key),
       };
-    case "select":
-      return event.entry === "new"
-        ? { ...state, newTab: true, active: { kind: "new" } }
-        : { ...state, active: { kind: "tab", id: event.entry } };
-    case "close-new-tab":
-      return { ...state, newTab: false };
     case "chosen":
       return {
         ...state,
-        newTab: false,
+        newTabs: state.newTabs.filter((key) => key !== event.from),
         overrides: withOverride(state.overrides, event.tab, "shown", after),
-        active: { kind: "tab", id: event.tab },
+        active: event.tab,
       };
     case "show":
       return {
@@ -348,7 +378,7 @@ function apply(state: StripState, event: StripEvent): StripState {
                 ...state.live.filter((item) => item.id !== event.tab),
                 { id: event.tab, title: "", url: event.url, after },
               ],
-        active: { kind: "tab", id: event.tab },
+        active: event.tab,
       };
     case "releasing":
       return { ...state, overrides: hideAsked(state.overrides, event.tab) };
@@ -367,7 +397,7 @@ function apply(state: StripState, event: StripEvent): StripState {
       return {
         ...state,
         overrides: withOverride(state.overrides, event.tab, "shown", after),
-        active: event.show ? { kind: "tab", id: event.tab } : state.active,
+        active: event.show ? event.tab : state.active,
       };
     case "ended":
       return {
@@ -385,10 +415,17 @@ function apply(state: StripState, event: StripEvent): StripState {
   }
 }
 
+/** The person's own × on an entry of the strip. */
+const closedByPerson = (event: StripEvent): boolean =>
+  event.kind === "close-new-tab" || event.kind === "releasing";
+
 /** The strip after `event`. When what the panel showed is gone from the
- * strip (released, ended, or held no more), it shows the entry that took its
- * place, else the one before it, and with nothing left Nová karta. A tab new
- * to the strip takes the last place in its order. */
+ * strip (closed, released, ended, or held no more), it shows the entry that
+ * took its place, else the one before it. With nothing left, the person's
+ * × leaves the strip empty, which closes the panel (`closesPanel`); a strip
+ * emptied any other way (its tab ended, another device let go of it) shows
+ * a new Nová karta, so the panel never closes by itself. A tab new to the
+ * strip takes the last place in its order. */
 export function reduceStrip(state: StripState, event: StripEvent): StripState {
   const applied = apply(state, event);
   const known = new Set(applied.order);
@@ -402,24 +439,21 @@ export function reduceStrip(state: StripState, event: StripEvent): StripState {
   const active = next.active;
   if (active === null) return next;
   const entries = stripEntries(next);
-  if (entries.some((entry) => sameEntry(entry, active)))
-    return active.kind === "new" && !next.newTab
-      ? { ...next, newTab: true }
-      : next;
+  if (entries.some((entry) => entryKey(entry) === active)) return next;
+  if (entries.length === 0)
+    return closedByPerson(event) ? { ...next, active: null } : withNewTab(next);
   const before = stripEntries(state);
-  const at = before.findIndex((entry) => sameEntry(entry, active));
+  const at = before.findIndex((entry) => entryKey(entry) === active);
   const rest = before.filter((entry) =>
-    entries.some(
-      (left) =>
-        left.kind === entry.kind &&
-        (left.kind === "new" || (entry.kind === "tab" && left.id === entry.id)),
-    ),
+    entries.some((left) => entryKey(left) === entryKey(entry)),
   );
   const neighbour =
-    at < 0 ? rest[rest.length - 1] : rest[Math.min(at, rest.length - 1)];
-  return neighbour?.kind === "tab"
-    ? { ...next, active: { kind: "tab", id: neighbour.id } }
-    : { ...next, newTab: true, active: { kind: "new" } };
+    (at < 0 ? rest[rest.length - 1] : rest[Math.min(at, rest.length - 1)]) ??
+    entries[entries.length - 1];
+  return {
+    ...next,
+    active: neighbour === undefined ? null : entryKey(neighbour),
+  };
 }
 
 /** The strip's tabs from Nová karta's overview; null while the hub does not
