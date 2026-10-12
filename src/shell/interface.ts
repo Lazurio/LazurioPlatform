@@ -15,7 +15,7 @@
 // `lazurio.shell.v1`. Decision F47 (2026-10-11) added, in version 1,
 // `<lazurio-new-tab>` with its attributes and its event `lazurio-new-tab`.
 // F39's addendum of 2026-10-12 added, in version 1, `<lazurio-environment>`
-// with its attributes `environment` and `lang`.
+// with its attributes `environment`, `lang` and `space`.
 export const shellElementInterface = Object.freeze({
   version: 1,
   /** The script an app loads, on its own origin. */
@@ -42,7 +42,7 @@ export const shellElementInterface = Object.freeze({
     ]),
     // One Environment named as the shell names it (F39's addendum of
     // 2026-10-12): its id (absent: the page's own) and the language.
-    "lazurio-environment": Object.freeze(["environment", "lang"]),
+    "lazurio-environment": Object.freeze(["environment", "lang", "space"]),
   }),
   /** Values of `active` on `<lazurio-column-head>`: the app the head sits
    * in, or `settings` inside the Settings its gear opens. */

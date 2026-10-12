@@ -1042,11 +1042,11 @@ export function defineShellElements(): void {
     customElements.define(
       "lazurio-environment",
       environmentElement({
-        identity: (environment, lang) => {
+        identity: (environment, lang, space) => {
           const shell = state.drawn();
           return shell === null
             ? null
-            : elementIdentity(shell, environment, lang);
+            : elementIdentity(shell, environment, lang, space);
         },
         listen: (changed) => state.listen(changed),
         request: requestShell,

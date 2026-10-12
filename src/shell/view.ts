@@ -459,21 +459,30 @@ export function environmentIdentity(
 /** The identity `<lazurio-environment>` draws for its attributes: of the
  * Environment `environment` names (an Environment id, in any case), else of
  * the page's own (`current`), in the language `lang` names, else the
- * document's. Null for a value that is no id, an Environment the document
- * does not know, and a page that is no Environment's without the
+ * document's. For the page's own Environment, `space` is the page's space as
+ * the host names it to the column head, read by the same rule (`pageOf`), so
+ * that the element and the column head of one page name it alike also on a
+ * workstation opened for one Organization (Pablo's review of #339). Another
+ * Environment, and the page's own without `space`, stands in its own space
+ * (`environmentSpace`). Null for a value that is no id, an Environment the
+ * document does not know, and a page that is no Environment's without the
  * attribute. */
 export function elementIdentity(
   shell: Shell,
   environment: string | null,
   lang: string | null,
+  space: string | null = null,
 ): EnvironmentIdentity | null {
   const named = environment?.trim().toLowerCase() ?? "";
   const id = named === "" ? shell.current : named;
   if (id === null || !isEnvironmentId(id)) return null;
+  const page =
+    id === shell.current && space !== null ? pageOf(shell, space) : null;
   return environmentIdentity(
     shell,
     id,
     shellMessages(lang === "cs" || lang === "en" ? lang : shell.locale),
+    page?.kind === "environment" ? page.space : undefined,
   );
 }
 

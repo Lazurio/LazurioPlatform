@@ -308,6 +308,45 @@ describe("<lazurio-environment>'s attributes", () => {
     );
   });
 
+  test("`space` is the page's space as its column head reads it: on a workstation opened for one Organization both name it alike", () => {
+    // Pablo's review of #339: the column head named it in the page's space,
+    // the element in the Environment's own.
+    const shell = parsed(
+      acmeDocument({
+        current: "local",
+        environments: [
+          {
+            id: "local",
+            label: "Studio",
+            kind: "workstation",
+            organizations: ["acme"],
+            assignee: null,
+            apps: { apps: "/", chat: null, automate: null },
+          },
+        ],
+      }),
+    );
+    // On an Environment's page the picker is an identity (`columnHead`).
+    const head = (space: string | null) =>
+      columnHead(shell, cs, { space, active: "apps", settings: null })
+        ?.picker as EnvironmentIdentity | undefined;
+    expect(head("acme")?.glyph).toEqual(acmeMark);
+    for (const space of ["acme", "personal", "nope", null])
+      expect(elementIdentity(shell, null, "cs", space)).toEqual(
+        head(space) ?? null,
+      );
+    // Without the page's space, the element names it in its own space.
+    expect(elementIdentity(shell, "local", "cs")?.glyph).toEqual({
+      kind: "icon",
+      icon: "laptop",
+    });
+    // Another Environment stands in its own space whatever the page's is.
+    const hosted = parsed(acmeDocument());
+    expect(elementIdentity(hosted, "vm-02.acme", "cs", "personal")).toEqual(
+      environmentIdentity(hosted, "vm-02.acme", cs),
+    );
+  });
+
   test("nothing for a value that is no id, an unknown Environment, or a page of no Environment without one", () => {
     const shell = parsed(acmeDocument());
     for (const value of [
