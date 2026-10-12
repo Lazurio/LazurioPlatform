@@ -9,6 +9,7 @@ import {
 } from "../src/doctor/doctor";
 import {
   type GithubContext,
+  githubHelp,
   pilotStatus,
   runGithubCommand,
   sharedReach,
@@ -68,6 +69,23 @@ async function setup(options: Parameters<typeof pilotWorld>[0] = {}) {
 }
 
 const enable = ["pilot", "enable", "--client-id", exampleOrganization.clientId];
+
+test("help and invalid usage distinguish local sign-out from global App revocation", async () => {
+  const { run } = await setup();
+  const invalid = await run(["invalid-command"]);
+  expect(invalid.code).toBe(2);
+  for (const text of [githubHelp, invalid.stderr]) {
+    expect(text).toContain(
+      "Removes saved credentials only in this Environment",
+    );
+    expect(text).toContain("No provider revocation");
+    expect(text).toContain("copied credentials remain valid");
+    expect(text).toContain(
+      "GitHub Settings → Applications → Authorized GitHub Apps",
+    );
+    expect(text).not.toContain("requests token revocation");
+  }
+});
 
 test.each(["unknown", "other-app"])(
   "status and Git give usable local recovery guidance for %s credentials",
