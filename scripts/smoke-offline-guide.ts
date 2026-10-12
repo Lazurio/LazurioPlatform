@@ -200,7 +200,7 @@ async function main(): Promise<void> {
     const shown = await text(page);
     check(
       "a navigation that does not resolve shows the guide",
-      shown.includes("Zapni Tailscale") &&
+      shown.includes("Zapněte Tailscale") &&
         shown.includes("headscale.example.lazurio.io"),
     );
     check(
@@ -260,7 +260,7 @@ async function main(): Promise<void> {
     let guided = false;
     try {
       await page.goto(`${origin}/`);
-      guided = (await text(page)).includes("Zapni Tailscale");
+      guided = (await text(page)).includes("Zapněte Tailscale");
     } catch {
       guided = false;
     }

@@ -6094,6 +6094,33 @@ The same day the Admin dropped the status line "Připojeno, pokračuju…" ("Con
 continuing…"): once the address answers, the page reloads into the Environment at
 once, with nothing shown in between. `tests/shell-offline-guide.test.ts` keeps it out.
 
+**Addendum 2026-10-12: one command under a moving sketch of the person's own system.**
+Anna simplified the page on 2026-10-11 (#327), and the Organization Admin asked on
+2026-10-12 to ship it to every Environment. It supersedes the page described in point 1
+(the switch between four systems, the three numbered steps, "try again") and the button
+of the addendum of 2026-10-09:
+- **One command** as the heading, "Zapněte Tailscale a vyberte síť" ("Turn on Tailscale
+  and choose the network"; on a phone "Otevřete Tailscale…"), and the tailnet under it,
+  exactly as the Tailscale client lists it.
+- **A moving sketch of the detected system** above it. The cursor clicks the Tailscale
+  icon, turns it on, opens the account's submenu and chooses the tailnet: in the menu
+  bar on macOS; in the tray by the clock on Windows, with Connect; through the app's
+  account button on a phone. The system is detected, so no switch between systems is
+  drawn. `prefers-reduced-motion` shows the finished state.
+- **One small line** for when it fails: on Windows first "right-click the icon; it may
+  hide under ^ by the clock", then the documentation's detailed guide or the way back
+  to the Dashboard, now a link in that line beside the rail's logo.
+- **No retry button**: the page retries by itself, as before, and reloads at once.
+- The Environment and its Organization move from the lead to the tab's title
+  ("Zapněte Tailscale · Pracovní Environment v Organizaci …").
+- The Czech copy addresses the person formally (vykání), per the brand rule of
+  2026-10-11 that the rest of the Launchpad follows.
+
+The worker, its cache, the registration, the update contract and `OfflineGuideInput`
+are unchanged; the page's bytes change, so every installed worker takes the new page
+with its next update check. Tests: `tests/shell-offline-guide.test.ts`,
+`tests/launchpad-offline-guide.test.ts` and `scripts/smoke-offline-guide.ts`.
+
 ## F42 — Integrace: one catalog for the Environment, one path per app, Executor's API behind the Launchpad
 
 **Decided by Matěj 2026-10-09 (root decision 0162, addendum of 2026-10-09; root

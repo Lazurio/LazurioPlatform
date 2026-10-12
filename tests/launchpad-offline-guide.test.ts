@@ -105,8 +105,8 @@ posixTest(
       const html = await page.text();
       expect(html).toContain("headscale.example.lazurio.io");
       expect(html).toContain(offlineDocsUrl("cs"));
-      expect(html).toContain("Zapni Tailscale");
-      // The way back without the tailnet: the rail's logo and the button
+      expect(html).toContain("Zapněte Tailscale");
+      // The way back without the tailnet: the rail's logo and the link
       // lead to the Dashboard the shell's rail names.
       expect(html).toContain(
         '<a class="home" href="https://dashboard.lazurio.ai/home"',
@@ -114,7 +114,7 @@ posixTest(
       expect(html).toContain(
         '<a class="back" href="https://dashboard.lazurio.ai/home">',
       );
-      expect(html).toContain("Zpět do Dashboardu");
+      expect(html).toContain("nebo se vraťte do");
 
       const worker = await fetch(`${base}${OFFLINE_WORKER_PATH}`, {
         headers: valid,
@@ -222,7 +222,7 @@ posixTest(
       const page = await fetch(`${base}${OFFLINE_PAGE_PATH}`, {
         headers: valid,
       });
-      expect(await page.text()).toContain("<strong>Example Org</strong>");
+      expect(await page.text()).toContain("v Organizaci Example Org</title>");
     } finally {
       await app.close();
       await rm(parent, { recursive: true, force: true });

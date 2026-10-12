@@ -2,18 +2,25 @@ import { vendorText } from "./vendor-text" with { type: "macro" };
 
 const symbol = vendorText("symbol-color.svg");
 
-// The offline guide page (DEV-6651, design: the shell wireframe's
-// "Environment mimo dosah", approved by the Admin on 2026-10-08). The
-// Environment's service worker keeps it from the last visit and shows it at
-// the address that failed, so it must stand alone: styles, logo and sketch
-// are inside, nothing is loaded from the network. Its text names the
-// Environment, its Organization and the tailnet exactly as the Tailscale client
-// lists it, and it continues to the address by itself once the address answers.
-// Everything beyond the three steps lives in the documentation. A way back
-// does not need the tailnet (Admin, 2026-10-09: an Organization clicked by
-// mistake must not strand you here): the rail's Lazurio logo and a button
-// lead to the Dashboard, on the public internet, where you choose another
-// Environment.
+// The offline guide page (DEV-6651). The Environment's service worker keeps it
+// from the last visit and shows it at the address that failed, so it must
+// stand alone: styles, logo and sketch are inside, nothing is loaded from the
+// network. It continues to the address by itself once the address answers.
+//
+// Simplified on 2026-10-11 (Anna): one command, one small line for when it
+// fails, and above them a moving sketch of the person's own system in which
+// the cursor from lazurio.ai's hero clicks the Tailscale icon, turns it on and
+// chooses the tailnet. The system is detected, so there is no switch between
+// systems, no numbered steps and no retry button: the page retries by itself.
+// The tailnet is named exactly as the Tailscale client lists it, because
+// every account in the list carries the same name. The Environment and its
+// Organization stay in the tab's title.
+//
+// A way back does not need the tailnet (Admin, 2026-10-09: an Organization
+// clicked by mistake must not strand you here): the rail's Lazurio logo and a
+// link lead to the Dashboard, on the public internet, where you choose another
+// Environment. No status line once connected (Admin, 2026-10-09): the page
+// reloads at once into the Environment.
 
 export type OfflineGuideInput = {
   locale: "cs" | "en";
@@ -31,114 +38,69 @@ export type OfflineGuideInput = {
   dashboard: string | null;
 };
 
-type Platform = "macos" | "windows" | "ios" | "android";
-
 type Copy = {
   title: string;
-  lead: (environment: string, organization: string | null) => string;
-  choose: string;
-  continues: string;
-  continuesTo: string;
-  retry: string;
-  retried: string;
-  stillFailing: string;
+  place: (environment: string, organization: string | null) => string;
+  /** The command on a computer, where Tailscale lives by the clock. */
+  desktop: string;
+  /** The command on a phone, where Tailscale is an app. */
+  phone: string;
+  /** Before the fallback, on Windows only: the icon is right-clicked and may hide. */
+  windows: string;
+  failed: string;
   docs: string;
+  or: string;
+  /** The Dashboard as the end of the way back sentence. */
+  dashboard: string;
+  /** The Dashboard as the rail's logo names it. */
+  home: string;
+  /** The cursor's name tag. */
+  you: string;
+  /** The person's account as the sketch lists it: every tailnet carries it alike. */
   account: string;
   otherTailnet: string;
-  back: string;
-  dashboard: string;
-  steps: Record<Platform, readonly [string, string, string]>;
 };
 
 const copy: Record<"cs" | "en", Copy> = {
   cs: {
-    title: "Zapni Tailscale",
-    lead: (environment, organization) =>
+    title: "Zapněte Tailscale",
+    place: (environment, organization) =>
       organization
-        ? `<strong>${environment}</strong> Environment v Organizaci <strong>${organization}</strong> je dostupný jen přes Tailscale.`
-        : `Tvůj <strong>${environment}</strong> Environment je dostupný jen přes Tailscale.`,
-    choose: "Zapni ho a vyber tailnet",
-    continues: "Jakmile se připojíš, stránka sama pokračuje.",
-    continuesTo: "Pokračuje na",
-    retry: "Zkusit znovu",
-    retried: "Environment je pořád mimo dosah.",
-    stillFailing: "Pořád to nejde?",
-    docs: "Podrobný návod v dokumentaci",
-    account: "Tvůj účet",
-    otherTailnet: "jiný tailnet",
-    back: "Zpět do Dashboardu",
-    dashboard: "Dashboard",
-    steps: {
-      macos: [
-        "Klikni na ikonu Tailscale v horní liště.",
-        "Zapni přepínač Tailscale.",
-        "Najeď na svůj účet a v seznamu vyber {tailnet}.",
-      ],
-      windows: [
-        "Klikni pravým tlačítkem na ikonu Tailscale vpravo dole na hlavním panelu. Když ji nevidíš, schovává se pod šipkou ^.",
-        "Najeď na svůj účet a v seznamu vyber {tailnet}.",
-        "Když Tailscale není připojený, zvol Connect.",
-      ],
-      ios: [
-        "Otevři aplikaci Tailscale.",
-        "Klepni na ikonu účtu vpravo nahoře, pak na svůj účet a v seznamu vyber {tailnet}.",
-        "Zapni přepínač Tailscale.",
-      ],
-      android: [
-        "Otevři aplikaci Tailscale.",
-        "Klepni na ikonu účtu vpravo nahoře, pak na svůj účet a v seznamu vyber {tailnet}.",
-        "Zapni přepínač Tailscale.",
-      ],
-    },
+        ? `${environment} Environment v Organizaci ${organization}`
+        : `${environment} Environment`,
+    desktop: "Zapněte Tailscale a vyberte síť",
+    phone: "Otevřete Tailscale a vyberte síť",
+    windows:
+      "Na ikonu Tailscale klikněte pravým tlačítkem. Nevidíte ji? Je schovaná pod šipkou ^ vedle hodin. ",
+    failed: "Nepovedlo se? Pomůže",
+    docs: "podrobný návod",
+    or: ", nebo se vraťte do",
+    dashboard: "Dashboardu",
+    home: "Dashboard",
+    you: "Vy",
+    account: "Váš účet",
+    otherTailnet: "jiná síť",
   },
   en: {
     title: "Turn on Tailscale",
-    lead: (environment, organization) =>
+    place: (environment, organization) =>
       organization
-        ? `The <strong>${environment}</strong> Environment of <strong>${organization}</strong> is reachable only through Tailscale.`
-        : `Your <strong>${environment}</strong> Environment is reachable only through Tailscale.`,
-    choose: "Turn it on and choose the tailnet",
-    continues: "Once you are connected, this page continues by itself.",
-    continuesTo: "Continues to",
-    retry: "Try again",
-    retried: "The Environment is still out of reach.",
-    stillFailing: "Still not working?",
-    docs: "The detailed guide in the documentation",
-    account: "Your account",
-    otherTailnet: "another tailnet",
-    back: "Back to the Dashboard",
+        ? `${environment} Environment of ${organization}`
+        : `${environment} Environment`,
+    desktop: "Turn on Tailscale and choose the network",
+    phone: "Open Tailscale and choose the network",
+    windows:
+      "Right-click the Tailscale icon. Don't see it? It hides under the ^ arrow by the clock. ",
+    failed: "Didn't work? Read the",
+    docs: "detailed guide",
+    or: ", or go back to the",
     dashboard: "Dashboard",
-    steps: {
-      macos: [
-        "Click the Tailscale icon in the menu bar.",
-        "Turn on the Tailscale switch.",
-        "Point at your account and choose {tailnet} in the list.",
-      ],
-      windows: [
-        "Right-click the Tailscale icon at the bottom right of the taskbar. If you do not see it, it hides under the ^ arrow.",
-        "Point at your account and choose {tailnet} in the list.",
-        "If Tailscale is not connected, choose Connect.",
-      ],
-      ios: [
-        "Open the Tailscale app.",
-        "Tap the account icon at the top right, then your account, and choose {tailnet} in the list.",
-        "Turn on the Tailscale switch.",
-      ],
-      android: [
-        "Open the Tailscale app.",
-        "Tap the account icon at the top right, then your account, and choose {tailnet} in the list.",
-        "Turn on the Tailscale switch.",
-      ],
-    },
+    home: "Dashboard",
+    you: "You",
+    account: "Your account",
+    otherTailnet: "another network",
   },
 };
-
-const PLATFORMS: readonly (readonly [Platform, string])[] = [
-  ["macos", "macOS"],
-  ["windows", "Windows"],
-  ["ios", "iPhone"],
-  ["android", "Android"],
-];
 
 export function escapeHtml(text: string): string {
   return text
@@ -149,130 +111,209 @@ export function escapeHtml(text: string): string {
     .replaceAll("'", "&#39;");
 }
 
-const glyph = `<svg class="glyph" viewBox="0 0 24 24" aria-hidden="true">${Array.from(
-  { length: 9 },
-  (_, index) =>
-    `<circle cx="${4 + (index % 3) * 8}" cy="${4 + Math.floor(index / 3) * 8}" r="2.6" fill="currentColor" opacity="${[3, 4, 5, 7].includes(index) ? 1 : 0.3}"/>`,
-).join("")}</svg>`;
-
-const marker = (n: number) => `<span class="mark">${n}</span>`;
-
-/** The account rows: the needed tailnet highlighted, two others as in a real list. */
-function accounts(c: Copy, tailnet: string, step: number): string {
-  const row = (host: string, target: boolean, checked: boolean) =>
-    `<div class="acct${target ? " is-target" : ""}"><span class="check">${checked ? "✓" : ""}</span><span class="avatar">•</span><span class="acct-text"><b>${c.account}</b><span class="host">${host}</span></span>${target ? marker(step) : ""}</div>`;
-  return `<div class="accts">${row(c.otherTailnet, false, true)}${row(tailnet, true, false)}${row(c.otherTailnet, false, false)}</div>`;
+/** Tailscale's mark (nine dots, the T solid), the cursor from lazurio.ai's
+ * hero with its name tag, a finger's touch and a tick, drawn once and used by
+ * every sketch. */
+function defs(c: Copy): string {
+  const dots = Array.from(
+    { length: 9 },
+    (_, index) =>
+      `<circle cx="${4 + (index % 3) * 8}" cy="${4 + Math.floor(index / 3) * 8}" r="2.6" fill="currentColor"${[3, 4, 5, 7].includes(index) ? "" : ' opacity=".3"'}/>`,
+  ).join("");
+  const tag = (x: number, y: number) =>
+    `<g class="tag" transform="translate(${x} ${y})"><rect width="28" height="18" rx="9"/><text x="14" y="12.5">${c.you}</text></g>`;
+  return `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="ts" viewBox="0 0 24 24">${dots}</symbol>
+<g id="arrow"><path class="arrow" transform="scale(1.15) translate(-5 -5)" d="M19.5027 9.96958C20.7073 10.4588 20.6154 12.1941 19.3658 12.5533L13.0605 14.3658L10.1807 20.2606C9.60996 21.4288 7.88499 21.218 7.6124 19.9468L4.67677 6.25646C4.44638 5.18204 5.5121 4.2878 6.53019 4.70126L19.5027 9.96958Z"/>${tag(13, 19)}</g>
+<g id="touch"><circle class="touch" r="12"/>${tag(12, -28)}</g>
+<path id="tick" d="M0 0l3.2 3.2l6-7"/>
+</defs></svg>`;
 }
 
-function sketch(platform: Platform, c: Copy, tailnet: string): string {
-  const switchRow = (step: number) =>
-    `<div class="row switch"><span class="switch-text"><b>Tailscale</b><span class="host">Connected</span></span><span class="toggle"></span>${marker(step)}</div>`;
-  if (platform === "ios" || platform === "android") {
-    return `<div class="sk phone"><div class="apphead">${glyph} Tailscale ${marker(1)}</div>${switchRow(3)}${accounts(c, tailnet, 2)}</div>`;
-  }
-  const windows = platform === "windows";
-  const icon = `<span class="icon">${glyph}${marker(1)}</span>`;
-  const menus = `<div class="menus"><div class="panel sub${windows ? " top" : ""}">${accounts(c, tailnet, windows ? 2 : 3)}</div><div class="panel main">${windows ? "" : switchRow(2)}<div class="acct is-open"><span class="avatar">•</span><span class="acct-text"><b>${c.account}</b><span class="host">${c.otherTailnet}</span></span><span class="chev">›</span></div><div class="sep"></div><div class="row faint">${windows ? "Network devices ›" : "Network Devices ›"}</div><div class="row faint">${windows ? "Exit nodes ›" : "Exit Nodes ›"}</div><div class="sep"></div>${windows ? `<div class="row">Connect ${marker(3)}</div>` : ""}<div class="row faint">${windows ? "Exit" : "Quit"}</div></div></div>`;
-  return windows
-    ? `<div class="sk win">${menus}<div class="taskbar"><span>^</span>${icon}</div></div>`
-    : `<div class="sk mac"><div class="bar"><span class="blob"></span>${icon}<span class="blob wide"></span></div>${menus}</div>`;
+/** One account row: the person's account in one tailnet. */
+function account(
+  x: number,
+  y: number,
+  name: string,
+  host: string,
+  kind: "other" | "target",
+  tick: boolean,
+): string {
+  const text =
+    kind === "target"
+      ? `<text class="host" x="${x + 38}" y="${y + 30}">${host}</text>`
+      : `<text class="other-t" x="${x + 38}" y="${y + 30}">${host}</text>`;
+  return `<g class="${kind}">${kind === "target" ? `<rect class="target-bg" x="${x - 4}" y="${y}" width="${270}" height="40" rx="6"/>` : ""}${tick ? `<use href="#tick" class="tick" x="${x - 1}" y="${y + 20}"/>` : ""}<circle class="avatar" cx="${x + 22}" cy="${y + 20}" r="10"/><text class="avatar-t" x="${x + 22}" y="${y + 23.5}">•</text><text class="name" x="${x + 38}" y="${y + 17}">${name}</text>${text}</g>`;
 }
 
-function steps(platform: Platform, c: Copy, tailnet: string): string {
-  return `<ol class="steps">${c.steps[platform]
+/** The submenu of the person's tailnets: another one active, this one to choose. */
+function tailnets(
+  c: Copy,
+  name: string,
+  tailnet: string,
+  y: number,
+  up: boolean,
+): string {
+  return `<g class="sub${up ? " up" : ""}"><rect class="panel" x="48" y="${y}" width="282" height="94" rx="9"/>${account(60, y + 4, name, c.otherTailnet, "other", true)}${account(60, y + 44, name, tailnet, "target", true)}</g>`;
+}
+
+/** The account row of the main menu, whose submenu holds the tailnets. */
+function accountRow(c: Copy, name: string, y: number): string {
+  return `<rect class="acct-bg" x="336" y="${y}" width="208" height="40" rx="6"/><circle class="avatar" cx="360" cy="${y + 20}" r="10"/><text class="avatar-t" x="360" y="${y + 23.5}">•</text><text class="name" x="376" y="${y + 17}">${name}</text><text class="other-t" x="376" y="${y + 30}">${c.otherTailnet}</text><path class="chev" d="M528 ${y + 15}l5 5l-5 5"/>`;
+}
+
+const switchRow = (x: number, y: number) =>
+  `<rect class="track" x="${x}" y="${y}" width="32" height="18" rx="9"/><circle class="knob" cx="${x + 9}" cy="${y + 9}" r="7"/>`;
+
+/**
+ * The sketches, drawn after the real clients (Matěj's screenshots and his
+ * acceptance on macOS and Windows, 2026-10-11), not screenshots, so they
+ * survive redesigns. Each lists where the pointer goes: a press, or a hover
+ * (~) that opens a submenu. The pointer ends on the tailnet to choose.
+ */
+function sketches(c: Copy, tailnet: string): string {
+  const name = c.account;
+  const mac = `<svg class="sc" data-os="macos" viewBox="0 0 560 196" data-start="190,176" data-steps="430,13,open 516,53,switch 470,96,~account 82,127,select">
+<rect class="desk" width="560" height="196"/><rect class="bar" width="560" height="26"/><path class="edge" d="M0 26.5h560"/>
+<rect class="blob" x="14" y="8" width="10" height="10" rx="2.5"/><rect class="blob" x="36" y="9.5" width="30" height="7" rx="3.5"/><rect class="blob" x="74" y="9.5" width="26" height="7" rx="3.5"/><rect class="blob" x="108" y="9.5" width="34" height="7" rx="3.5"/>
+<rect class="blob" x="384" y="9" width="18" height="8" rx="4"/><use href="#ts" class="glyph" x="423" y="6" width="14" height="14"/><rect class="blob" x="452" y="9" width="14" height="8" rx="4"/><rect class="blob" x="474" y="8.5" width="22" height="9" rx="3"/><text class="clock" x="522" y="17">9:41</text>
+<g class="menu"><rect class="panel" x="330" y="32" width="220" height="96" rx="9"/><text class="strong" x="346" y="57">Tailscale</text>${switchRow(500, 44)}<path class="sep" d="M340 70.5h200"/>${accountRow(c, name, 78)}${tailnets(c, name, tailnet, 70, false)}</g>
+<circle class="ripple" r="10"/><g class="cur"><use href="#arrow"/></g></svg>`;
+  const windows = `<svg class="sc" data-os="windows" viewBox="0 0 560 196" data-start="180,40" data-steps="420,180,open 470,72,~account 82,103,select 500,125,switch" hidden>
+<rect class="desk" width="560" height="196"/><rect class="bar" y="164" width="560" height="32"/><path class="edge" d="M0 163.5h560"/>
+<rect class="blob" x="16" y="173" width="14" height="14" rx="3"/><rect class="blob" x="42" y="174" width="120" height="12" rx="6"/><rect class="blob" x="176" y="173" width="14" height="14" rx="3"/><rect class="blob" x="200" y="173" width="14" height="14" rx="3"/>
+<path class="chev" d="M386 183l4-4l4 4"/><use href="#ts" class="glyph" x="413" y="173" width="14" height="14"/><rect class="blob" x="440" y="176" width="14" height="8" rx="4"/><text class="clock" x="508" y="184">9:41</text>
+<g class="menu up"><rect class="panel" x="330" y="46" width="220" height="102" rx="9"/>${accountRow(c, name, 54)}<path class="sep" d="M340 102.5h200"/><rect class="connect-bg" x="336" y="110" width="208" height="30" rx="6"/><text class="strong connect" x="352" y="129">Connect</text>${tailnets(c, name, tailnet, 46, true)}</g>
+<circle class="ripple" r="10"/><g class="cur"><use href="#arrow"/></g></svg>`;
+  const icons = [
+    [178, 62],
+    [294, 62],
+    [352, 62],
+    [178, 124],
+    [236, 124],
+    [294, 124],
+    [178, 186],
+  ]
     .map(
-      (step, index) =>
-        `<li>${marker(index + 1)}<span>${step.replace("{tailnet}", `<code>${tailnet}</code>`)}</span></li>`,
+      ([x, y]) =>
+        `<rect class="icon" x="${x}" y="${y}" width="40" height="40" rx="10"/>`,
     )
-    .join("")}</ol>`;
+    .join("");
+  const phone = `<svg class="sc" data-os="phone" viewBox="0 0 560 220" data-start="470,180" data-steps="256,82,open 378,66,account 190,192,select 368,108,switch" hidden>
+<rect class="desk" width="560" height="220"/><rect class="frame" x="150" y="12" width="260" height="270" rx="36"/><rect class="desk" x="158" y="20" width="244" height="262" rx="29"/>
+<g class="home">${icons}<rect class="app-icon" x="236" y="62" width="40" height="40" rx="10"/><use href="#ts" x="246" y="72" width="20" height="20" style="color:#fff"/></g>
+<g class="app"><rect class="screen" x="158" y="20" width="244" height="262" rx="29"/><text class="title" x="176" y="72">Tailscale</text><circle class="avatar" cx="378" cy="66" r="12"/><text class="avatar-t" x="378" y="69.5">•</text>
+<text class="strong" x="176" y="112">Tailscale</text>${switchRow(352, 99)}
+<g class="sub"><rect class="panel" x="166" y="132" width="228" height="100" rx="12"/>${account(168, 132, name, c.otherTailnet, "other", false)}<g class="target"><rect class="target-bg" x="172" y="172" width="216" height="40" rx="8"/><circle class="avatar" cx="190" cy="192" r="10"/><text class="avatar-t" x="190" y="195.5">•</text><text class="name" x="206" y="189">${name}</text><text class="host small" x="206" y="202">${tailnet}</text></g></g></g>
+<rect class="frame ios" x="250" y="28" width="60" height="16" rx="8"/><circle class="frame android" cx="280" cy="36" r="5"/><text class="clock" x="190" y="40">9:41</text>
+<circle class="ripple" r="10"/><g class="cur"><use href="#touch"/></g></svg>`;
+  return mac + windows + phone;
 }
 
 const style = `
-:root{color-scheme:light;--ink:#090909;--muted:#707070;--faint:#999;--line:#dddcdb;--line-faint:#ecebea;--paper:#fbfaf9;--gray-50:#f5f4f3;--gray-100:#ecebea;--blue:#0d12db;--blue-50:#ebf1fe;--blue-100:#d2ddfd;--blue-300:#7083f7;--green:#28c06f}
+:root{color-scheme:light;--ink:#090909;--muted:#707070;--faint:#999;--line:#dddcdb;--line-faint:#ecebea;--paper:#fbfaf9;--desk:#f5f4f3;--blob:#dddcdb;--track:#c3c2c1;--blue:#0d12db;--blue-50:#ebf1fe;--blue-700:#0b0e91;--orchid:#c77dbb}
 *{box-sizing:border-box}
-body{margin:0;background:var(--gray-50);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+[hidden]{display:none!important}
+body{margin:0;background:#fff;color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 .rail{position:fixed;inset:0 auto 0 0;display:flex;width:64px;flex-direction:column;align-items:center;padding:12px 0;background:var(--paper)}
 .home{display:grid;width:40px;height:40px;place-items:center;border-radius:10px}
-a.home:hover{background:var(--gray-100)}
+a.home:hover{background:var(--line-faint)}
 .disc{display:grid;width:32px;height:32px;place-items:center;border-radius:50%;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.08)}
 .disc svg{width:20px;height:20px}
-main{max-width:680px;margin:48px auto;padding:0 20px 0 84px}
-.back{display:inline-flex;align-self:flex-start;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);font-size:13px;font-weight:600;text-decoration:none}
-.back:hover{background:var(--paper)}
-.card{display:flex;flex-direction:column;gap:16px;padding:32px;border:1px solid var(--line-faint);border-radius:10px;background:#fff}
-h1{margin:0;font-size:26px}
-.lead{margin:0;color:var(--muted)}
-.lead strong{color:var(--ink);font-weight:600}
-code{padding:1px 5px;border-radius:3px;background:var(--blue-50);color:#0b0e91;font:0.88em ui-monospace,Menlo,Consolas,monospace;overflow-wrap:break-word}
-.tabs{display:inline-flex;align-self:flex-start;gap:2px;padding:2px;border:1px solid var(--line);border-radius:6px;background:var(--paper)}
-.tabs button{padding:3px 10px;border:0;border-radius:3px;background:none;color:var(--muted);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
-.tabs button[aria-selected=true]{background:#fff;color:var(--ink);box-shadow:0 0 0 1px var(--line)}
-.guide[hidden]{display:none}
-.guide{display:flex;flex-direction:column;gap:16px}
-.steps{display:flex;flex-direction:column;gap:10px;margin:0;padding:0;list-style:none;font-size:14px}
-.steps li{display:flex;gap:10px;align-items:flex-start}
-.mark{display:inline-flex;flex-shrink:0;width:18px;height:18px;align-items:center;justify-content:center;border-radius:50%;background:var(--blue);color:#fff;font-size:11px;font-weight:700;line-height:1}
-.sk{position:relative;display:flex;flex-direction:column;padding:0 0 14px;border:1px solid var(--line);border-radius:10px;background:#f5f4f3;font-size:11px}
-.sk .mark{position:absolute;top:50%;right:-9px;transform:translateY(-50%);box-shadow:0 0 0 2px #fff}
-.bar{display:flex;justify-content:flex-end;align-items:center;gap:12px;height:26px;padding:0 12px;border-bottom:1px solid var(--line);border-radius:10px 10px 0 0;background:#fff}
-.blob{width:14px;height:9px;border-radius:2px;background:#c3c2c1}.blob.wide{width:34px}
-.icon{position:relative;display:inline-flex;padding:2px 6px;border-radius:6px;background:var(--blue-100);box-shadow:0 0 0 1px var(--blue-300)}
-.icon .mark{top:-10px;right:-12px;transform:none}
-.glyph{width:13px;height:13px}
-.menus{display:flex;min-width:480px;justify-content:flex-end;align-items:flex-start;padding:6px 14px 0}
-.panel{position:relative;display:flex;flex-direction:column;width:230px;padding:5px;border:1px solid var(--line);border-radius:6px;background:#fff;box-shadow:0 8px 24px rgba(9,9,9,.1)}
-.panel.sub{z-index:1;margin:44px -4px 0 0}.panel.sub.top{margin-top:0}
-.row{position:relative;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 6px}
-.row.faint{color:var(--faint)}
-.switch-text{display:flex;flex-direction:column}
-.toggle{position:relative;width:26px;height:15px;margin-right:12px;border-radius:999px;background:var(--blue)}
-.toggle::after{content:"";position:absolute;top:2px;right:2px;width:11px;height:11px;border-radius:50%;background:#fff}
-.sep{height:1px;margin:4px 2px;background:var(--line-faint)}
-.accts{display:flex;flex-direction:column;gap:2px}
-.acct{position:relative;display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:3px}
-.acct.is-open{background:var(--blue-100)}
-.acct.is-target{background:var(--blue);color:#fff}
-.check{width:11px}
-.avatar{display:inline-flex;width:18px;height:18px;flex-shrink:0;align-items:center;justify-content:center;border-radius:50%;background:#0b0eb4;color:#fff;font-size:10px}
-.acct-text{display:flex;flex:1;min-width:0;flex-direction:column}
-.host{color:var(--muted);font:9.5px ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere}
-.is-target .host{color:var(--blue-50)}
-.chev{color:var(--muted)}
-.win{padding-top:12px}.win .menus{padding-bottom:8px}
-.taskbar{display:flex;min-width:480px;justify-content:flex-end;align-items:center;gap:10px;height:26px;padding:0 12px;border-radius:0 0 10px 10px;background:#262626;color:#dddcdb}
-.win .icon{background:#515151;color:#fff}
-.phone{width:240px;max-width:100%;align-self:center;padding:10px 10px 14px;border:6px solid #262626;border-radius:24px;background:#fff}
-.apphead{position:relative;display:flex;align-items:center;gap:6px;padding:4px 6px 8px;font-size:13px;font-weight:700}
-.phone .switch{margin-bottom:6px;border-bottom:1px solid var(--line-faint)}
-.continue{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px 16px;padding:12px 14px;border:1px solid var(--line-faint);border-radius:6px;background:var(--paper)}
-.continue>div{min-width:0;flex:1 1 240px}
-.label{color:var(--faint);font-size:11px}
-.address{font:12px ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere}
-.continue button{padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
-.retried{margin:-6px 0 0;color:var(--muted);font-size:12px}
-.help{margin:0;padding-top:12px;border-top:1px solid var(--line-faint);color:var(--muted);font-size:13px}
-.help a{color:var(--blue);font-weight:600}
-@media (max-width:640px){.sk{overflow-x:auto}.rail{position:static;width:auto;flex-direction:row;padding:8px 12px}main{margin-top:16px;padding:0 20px}}
+main{display:flex;min-height:100vh;flex-direction:column;justify-content:center;gap:28px;max-width:520px;margin:0 auto;padding:40px 16px 40px 80px;box-sizing:content-box}
+.scene{overflow:hidden;border:1px solid var(--line);border-radius:12px;background:var(--desk)}
+.scene svg{display:block;width:100%;height:auto}
+.say{display:flex;flex-direction:column;gap:14px}
+h1{margin:0;font-size:30px;line-height:1.22;letter-spacing:-.02em;text-wrap:balance}
+.net{display:inline-block;margin-top:6px;padding:2px 8px;border-radius:6px;background:var(--blue-50);color:var(--blue-700);font:500 .62em/1.5 ui-monospace,"SF Mono",Menlo,Consolas,monospace;letter-spacing:0;overflow-wrap:anywhere}
+.help{margin:0;color:var(--muted);font-size:13.5px}
+.help a{color:var(--ink);font-weight:600;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.help a:hover{text-decoration-color:currentColor}
+a:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:4px}
+.desk{fill:var(--desk)}.bar{fill:#fff}.edge{stroke:var(--line)}.blob,.icon{fill:var(--blob)}
+.glyph{color:var(--ink)}.clock{fill:var(--ink);font:600 11px -apple-system,"Segoe UI",sans-serif;text-anchor:middle}
+.panel{fill:#fff;stroke:var(--line)}.sep{stroke:var(--line-faint)}
+.strong{fill:var(--ink);font:600 12px -apple-system,"Segoe UI",sans-serif}
+.title{fill:var(--ink);font:700 16px -apple-system,"Segoe UI",sans-serif}
+.name{fill:var(--ink);font:600 11px -apple-system,"Segoe UI",sans-serif}
+.host{fill:var(--blue-700);font:9px ui-monospace,"SF Mono",Menlo,Consolas,monospace}.host.small{font-size:7.6px}
+.other-t{fill:var(--faint);font:9.5px -apple-system,"Segoe UI",sans-serif}
+.avatar{fill:var(--line-faint)}.avatar-t{fill:var(--ink);font:600 10px -apple-system,"Segoe UI",sans-serif;text-anchor:middle}
+.chev{fill:none;stroke:var(--ink);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.tick{fill:none;stroke:var(--ink);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transition:opacity .2s}
+.frame{fill:#262626}.screen{fill:#fff}.app-icon{fill:#171717}
+.menu,.sub,.app{opacity:0;transition:opacity .18s ease}
+.home{transition:opacity .2s}
+.is-open .menu,.is-open .app,.is-account .sub{opacity:1}
+.is-open .home{opacity:0}
+.track{fill:var(--track);transition:fill .2s}.knob{fill:#fff;transition:transform .2s ease}
+.is-switch .track{fill:var(--blue)}.is-switch .knob{transform:translateX(14px)}
+.acct-bg{fill:transparent;transition:fill .2s}.is-account .acct-bg{fill:var(--blue-50)}
+.target-bg{fill:var(--blue-50);transition:fill .2s}
+.target text,.target .avatar{transition:fill .2s}
+.is-select .target-bg{fill:var(--blue)}
+.is-select .target .name,.is-select .target .host,.is-select .target .avatar-t{fill:#fff}
+.is-select .target .avatar{fill:rgba(255,255,255,.22)}
+.target .tick{opacity:0;stroke:#fff}.is-select .target .tick{opacity:1}.is-select .other .tick{opacity:0}
+.connect-bg{fill:transparent;transition:fill .2s}.connect{transition:fill .2s}
+.is-switch .connect-bg{fill:var(--blue)}.is-switch .connect{fill:#fff}
+.ripple{fill:none;stroke:var(--orchid);stroke-width:2;opacity:0}
+.arrow{fill:var(--orchid);stroke:#fff;stroke-width:1.6;stroke-linejoin:round}
+.touch{fill:var(--orchid);fill-opacity:.55;stroke:#fff;stroke-width:1.6}
+.tag rect{fill:var(--orchid)}.tag text{fill:var(--ink);font:600 11px -apple-system,"Segoe UI",sans-serif;text-anchor:middle}
+@media (max-width:640px){.rail{position:static;width:auto;flex-direction:row;padding:8px 12px}main{min-height:0;padding:16px;gap:22px}h1{font-size:25px}}
 `;
 
 /**
- * Continues once the address answers: a same-origin request the worker does
- * not take (only navigations reach it), on return to the window, when the
- * browser reports a connection and every few seconds.
+ * Shows the sketch and the words of the person's system, plays the sketch
+ * (the finished state with reduced motion), and continues once the address
+ * answers: a same-origin request the worker does not take (only navigations
+ * reach it), on return to the window, when the browser reports a connection
+ * and every few seconds.
  */
 const script = `
 (function(){
   var ua=navigator.userAgent, p=/iPhone|iPad|iPod/.test(ua)?"ios":/Android/.test(ua)?"android":/Windows/.test(ua)?"windows":"macos";
-  function show(id){document.querySelectorAll("[data-platform]").forEach(function(b){b.setAttribute("aria-selected",String(b.dataset.platform===id))});document.querySelectorAll(".guide").forEach(function(g){g.hidden=g.dataset.guide!==id})}
-  document.querySelectorAll("[data-platform]").forEach(function(b){b.addEventListener("click",function(){show(b.dataset.platform)})});
-  show(p);
-  document.getElementById("address").textContent=location.host+location.pathname+location.search;
+  var group=p==="ios"||p==="android"?"phone":p;
+  document.querySelectorAll("[data-show]").forEach(function(el){if(el.getAttribute("data-show").split(" ").indexOf(p)<0)el.setAttribute("hidden","");else el.removeAttribute("hidden")});
+  var svg=null;
+  document.querySelectorAll(".sc").forEach(function(el){if(el.getAttribute("data-os")===group){el.removeAttribute("hidden");svg=el}else el.setAttribute("hidden","")});
+  if(svg){
+    var ios=svg.querySelector(".ios"),droid=svg.querySelector(".android");
+    if(ios)ios.style.display=p==="ios"?"":"none";
+    if(droid)droid.style.display=p==="android"?"":"none";
+    var cur=svg.querySelector(".cur"),ring=svg.querySelector(".ripple");
+    var start=svg.getAttribute("data-start").split(",").map(Number);
+    var plan=[{k:"wait",d:700,at:start}],from=start,MOVE=950,PRESS=200,GAP=380;
+    svg.getAttribute("data-steps").split(" ").forEach(function(s){var a=s.split(","),to=[+a[0],+a[1]],hover=a[2].charAt(0)==="~";plan.push({k:"move",d:MOVE,from:from,to:to});if(hover)plan.push({k:"hover",d:GAP+PRESS,at:to,act:a[2].slice(1)});else{plan.push({k:"press",d:PRESS,at:to,act:a[2]});plan.push({k:"wait",d:GAP,at:to})}from=to});
+    plan.push({k:"wait",d:2200,at:from});plan.push({k:"fade",d:450,from:from,to:start});
+    var total=plan.reduce(function(s,q){return s+q.d},0),t0=performance.now();
+    var ease=function(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2};
+    var place=function(x,y,s){cur.setAttribute("transform","translate("+x.toFixed(1)+" "+y.toFixed(1)+") scale("+s+")")};
+    var flags=function(f){["open","switch","account","select"].forEach(function(n){svg.classList.toggle("is-"+n,f.indexOf(n)>=0)})};
+    var frame=function(now){
+      var t=(now-t0)%total,f=[],click=null,since=0;
+      for(var i=0;i<plan.length;i++){var q=plan[i];
+        if(t>=q.d){if(q.k==="press"){f.push(q.act);click=q.at;since=0}else if(click)since+=q.d;if(q.k==="hover")f.push(q.act);if(q.k==="fade"){f=[];click=null}t-=q.d;continue}
+        var k=t/q.d;
+        if(q.k==="wait"||q.k==="hover")place(q.at[0],q.at[1],1);
+        if(q.k==="hover")f.push(q.act);
+        if(q.k==="move"||q.k==="fade"){var e=ease(k);place(q.from[0]+(q.to[0]-q.from[0])*e,q.from[1]+(q.to[1]-q.from[1])*e,1)}
+        if(q.k==="press")place(q.at[0],q.at[1],1-.18*Math.sin(Math.PI*k));
+        if(q.k==="fade"){f=[];click=null}
+        if(click&&q.k!=="press")since+=t;
+        break}
+      flags(f);
+      if(click&&since<520){var r=since/520;ring.setAttribute("cx",click[0]);ring.setAttribute("cy",click[1]);ring.setAttribute("r",(6+16*r).toFixed(1));ring.style.opacity=(.8*(1-r)).toFixed(2)}else ring.style.opacity=0;
+      requestAnimationFrame(frame)};
+    if(matchMedia("(prefers-reduced-motion: reduce)").matches){var steps=plan.filter(function(q){return q.act});flags(steps.map(function(q){return q.act}));var sel=steps.filter(function(q){return q.act==="select"})[0];place(sel.at[0],sel.at[1],1)}
+    else requestAnimationFrame(frame);
+  }
   var busy=false;
-  function attempt(manual){if(busy)return;busy=true;fetch(location.href,{cache:"no-store",credentials:"same-origin",redirect:"manual"}).then(function(){location.reload()},function(){if(manual)document.getElementById("retried").hidden=false}).finally(function(){busy=false})}
-  document.getElementById("retry").addEventListener("click",function(){attempt(true)});
-  addEventListener("focus",function(){attempt(false)});addEventListener("online",function(){attempt(false)});
-  document.addEventListener("visibilitychange",function(){if(!document.hidden)attempt(false)});
-  setInterval(function(){attempt(false)},4000);
+  function attempt(){if(busy)return;busy=true;fetch(location.href,{cache:"no-store",credentials:"same-origin",redirect:"manual"}).then(function(){location.reload()},function(){}).finally(function(){busy=false})}
+  addEventListener("focus",attempt);addEventListener("online",attempt);
+  document.addEventListener("visibilitychange",function(){if(!document.hidden)attempt()});
+  setInterval(attempt,4000);
 })();
 `;
 
@@ -285,34 +326,22 @@ export function renderOfflineGuide(input: OfflineGuideInput): string {
   const home =
     dashboard === null
       ? `<span class="home"><span class="disc">${symbol}</span></span>`
-      : `<a class="home" href="${dashboard}" title="${c.dashboard}" aria-label="${c.dashboard}"><span class="disc">${symbol}</span></a>`;
+      : `<a class="home" href="${dashboard}" title="${c.home}" aria-label="${c.home}"><span class="disc">${symbol}</span></a>`;
   const back =
     dashboard === null
-      ? ""
-      : `<a class="back" href="${dashboard}"><span aria-hidden="true">←</span>${c.back}</a>\n`;
+      ? "."
+      : `${c.or} <a class="back" href="${dashboard}">${c.dashboard}</a>.`;
   const environment = escapeHtml(input.environment);
   const organization =
     input.organization === null ? null : escapeHtml(input.organization);
   const tailnet = escapeHtml(input.tailnet);
-  const tabs = PLATFORMS.map(
-    ([id, label]) =>
-      `<button type="button" role="tab" data-platform="${id}" aria-selected="false">${label}</button>`,
-  ).join("");
-  const guides = PLATFORMS.map(
-    ([id]) =>
-      `<div class="guide" data-guide="${id}" hidden>${sketch(id, c, tailnet)}${steps(id, c, tailnet)}</div>`,
-  ).join("");
   return `<!doctype html>
-<html lang="${input.locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${c.title}</title><style>${style}</style></head>
-<body><nav class="rail" aria-label="Lazurio">${home}</nav><main>
-<section class="card">
-${back}<h1>${c.title}</h1>
-<p class="lead">${c.lead(environment, organization)} ${c.choose} <code>${tailnet}</code>. ${c.continues}</p>
-<div class="tabs" role="tablist">${tabs}</div>
-${guides}
-<div class="continue"><div><div class="label">${c.continuesTo}</div><div class="address" id="address"></div></div><button type="button" id="retry">${c.retry}</button></div>
-<p class="retried" id="retried" hidden>${c.retried}</p>
-<p class="help">${c.stillFailing} <a href="${escapeHtml(input.docs)}" target="_blank" rel="noreferrer">${c.docs}</a></p>
+<html lang="${input.locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${c.title} · ${c.place(environment, organization)}</title><style>${style}</style></head>
+<body><nav class="rail" aria-label="Lazurio">${home}</nav>${defs(c)}<main>
+<figure class="scene" aria-hidden="true" style="margin:0">${sketches(c, tailnet)}</figure>
+<section class="say">
+<h1><span data-show="macos windows">${c.desktop}</span><span data-show="ios android" hidden>${c.phone}</span><br><code class="net">${tailnet}</code></h1>
+<p class="help"><span data-show="windows" hidden>${c.windows}</span>${c.failed} <a href="${escapeHtml(input.docs)}" target="_blank" rel="noreferrer">${c.docs}</a>${back}</p>
 </section></main><script>${script}</script></body></html>
 `;
 }
