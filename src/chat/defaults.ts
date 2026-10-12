@@ -20,7 +20,6 @@ export type ChatDefaults = Readonly<{
   kind: "chat-defaults";
   state: "managed" | "custom" | "outdated" | "unavailable";
   reason?: "t3-launcher-missing" | "t3-defaults-unavailable";
-  modelAvailable?: boolean;
 }>;
 const selection = (value: unknown): value is Selection => {
   if (value === null || typeof value !== "object") return false;
@@ -44,12 +43,13 @@ const same = (a: Selection | null, b: Selection | null): boolean =>
     ? a === b
     : a.instanceId === b.instanceId &&
       a.model === b.model &&
-      JSON.stringify(
-        [...(a.options ?? [])].sort((x, y) => x.id.localeCompare(y.id)),
-      ) ===
-        JSON.stringify(
-          [...(b.options ?? [])].sort((x, y) => x.id.localeCompare(y.id)),
-        );
+      (a.options === undefined || b.options === undefined
+        ? a.options === b.options
+        : a.options.length === b.options.length &&
+          a.options.every(
+            (x, i) =>
+              x.id === b.options?.[i]?.id && x.value === b.options?.[i]?.value,
+          ));
 
 export async function chatDefaults(
   tools: ToolsEnvironment,
@@ -102,9 +102,6 @@ export async function chatDefaults(
         : current !== null && !same(current, managed)
           ? "custom"
           : "outdated",
-      ...(typeof body.modelAvailable === "boolean"
-        ? { modelAvailable: body.modelAvailable }
-        : {}),
     };
   } catch {
     return unavailable;

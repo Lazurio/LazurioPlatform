@@ -8772,3 +8772,30 @@ where in each fork the vendored files live, which is the fork runbook's.
 5. **agent-browser's shutdown:** "pojďme využít toho, že ten fork máme": a documented command in
    the fork, offered upstream and kept by Lazurio until upstream takes it, point 2,
    agent-browser.
+
+## F51 — Managed Chat starts in the Folder; Platform owns the model recommendation
+
+A new hosted Chat must already have its Lazurio project. The Folder is the
+agent's entry context, not a filesystem sandbox: work continues in the
+repositories inside it. Machines declares the real Folder and tools-page URL
+in T3's service configuration. T3 creates/adopts its project through its native
+command engine at startup and enforces that new sessions start at that root.
+Historical projects and conversations stay readable. Import discovery, an
+agent-written bootstrap and direct database edits were rejected: none owns the
+live T3 project store or protects every client entry point.
+
+Platform chooses the recommended model and effort (`src/chat/defaults.ts`).
+T3 owns persistence and atomically changes an unset default or its previous
+managed value; a different user value wins. A single last-managed selection is
+needed to tell those cases apart, and lives beside the T3 setting it qualifies.
+Machines invokes `lazurio chat defaults --apply` after installation. It does not
+carry another model recommendation or write T3 settings. Doctor reads metadata
+through T3's native CLI without minting a session or changing state; it reports
+an incompatible runtime rather than attempting an offline write.
+
+The contract requires coordinated compatible T3 and Platform releases. A
+provider's available models still depend on its installed CLI and sign-in;
+recording the recommendation is not evidence that inference is available.
+Fresh startup, repeated startup, custom model preservation and direct command
+refusals are the acceptance boundaries. Upstream standalone T3 stays unchanged
+when the managed Folder configuration is absent.
