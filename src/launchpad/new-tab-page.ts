@@ -552,10 +552,11 @@ function drawSuggested() {
   );
 }
 
+/** The Team's note, on a Team Environment only (Matěj 2026-10-12). */
 function drawNote() {
-  const words = environmentNote(shell, copy);
-  noteLine.toggleAttribute("data-team", words.team);
-  noteLine.replaceChildren(icon(words.team ? "users" : "key"), words.text);
+  const text = environmentNote(shell, copy);
+  noteLine.hidden = text === null;
+  noteLine.replaceChildren(...(text === null ? [] : [icon("users"), text]));
 }
 
 function drawToast() {

@@ -19,12 +19,12 @@ import type { PublicEntry } from "./chat";
 // Launchpad's panel decide without a document. The overview's answer read
 // field by field, the address bar's resolution, the memory and its tone,
 // "when last used", who opened a tab, the order of the tabs, the running
-// Modules with their names from the boot catalog, the suggestions, the notes,
-// the warning before closing a tab an agent works in, the toast with Vrátit,
-// and the rule by which a local action outlives an older overview. Its
-// words are the page's own (`newTabCopy`), Czech as the wireframe's and
-// English. Left out because F47 does not decide them: Uspat, people's names,
-// recent sites and the desktop line.
+// Modules with their names from the boot catalog, the suggestions, the
+// Team's note, the warning before closing a tab an agent works in, the toast
+// with Vrátit, and the rule by which a local action outlives an older
+// overview. Its words are the page's own (`newTabCopy`), Czech as the
+// wireframe's and English. Left out because F47 does not decide them: Uspat,
+// people's names, recent sites and the desktop line.
 
 const en = {
   pageTitle: "New tab",
@@ -59,7 +59,7 @@ const en = {
   whoT3: "Agent · T3 Code",
   whoCodex: "Agent · Codex",
   whoClaude: "Agent · Claude Code",
-  whoPerson: "Person",
+  whoPerson: "User",
   whoPage: "Opened by a page",
   statusWorking: "an agent is working here",
   statusNow: "in use now",
@@ -91,7 +91,6 @@ const en = {
   stopFailed: "{name} could not be stopped.",
   suggested: "Suggested",
   appsCaption: "The Environment's apps",
-  note: "Every agent of this Environment uses the sign-ins made here.",
   noteTeam:
     "The whole Team sees the sign-ins made here. Use team and company accounts.",
   foreign: "This tab belongs to another Environment",
@@ -160,7 +159,7 @@ const cs: Words = {
   whoT3: "Agent · T3 Code",
   whoCodex: "Agent · Codex",
   whoClaude: "Agent · Claude Code",
-  whoPerson: "Člověk",
+  whoPerson: "Uživatel",
   whoPage: "Otevřela ji stránka",
   statusWorking: "agent tu pracuje",
   statusNow: "používaná teď",
@@ -191,7 +190,6 @@ const cs: Words = {
   stopFailed: "Modul {name} se nepodařilo zastavit.",
   suggested: "Navrhované",
   appsCaption: "Aplikace Environmentu",
-  note: "Přihlášení tady použijí všichni agenti tohoto Environmentu.",
   noteTeam:
     "Přihlášení tady uvidí celý Team. Používejte týmové a firemní účty.",
   foreign: "Tahle záložka patří jinému Environmentu",
@@ -687,8 +685,9 @@ export function tabStatus(
       };
 }
 
-/** Who opened a tab, as Přehled says it; null when nobody knows (F11: a
- * person is never named). */
+/** Who opened a tab, as Přehled says it: a user, never by name (F11), or
+ * an agent by its app (Matěj 2026-10-12: uživatel and agent, and bot once
+ * Lazurio MausBot is an app of Nová karta); null when nobody knows. */
 export function openerLabel(
   who: OpenerName,
   copy: NewTabCopy,
@@ -1085,14 +1084,17 @@ export function suggestions(
   return found;
 }
 
-/** The notes of the wireframe's EnvironmentNotes: whose sign-ins these are;
- * on a Team Environment, the Team's. */
+/** The note of the wireframe's EnvironmentNotes that stays (Matěj
+ * 2026-10-12): on a Team Environment, that the whole Team sees the sign-ins
+ * made here (root decision 0191 point 7). Elsewhere there is none: the note
+ * that every agent uses the sign-ins only stood in the way. */
 export function environmentNote(
   shell: Shell | null,
   copy: NewTabCopy,
-): Readonly<{ text: string; team: boolean }> {
-  const team = shell !== null && currentEnvironment(shell)?.kind === "team";
-  return { text: team ? copy.noteTeam : copy.note, team };
+): string | null {
+  return shell !== null && currentEnvironment(shell)?.kind === "team"
+    ? copy.noteTeam
+    : null;
 }
 
 // ---- Where things are -------------------------------------------------------------
