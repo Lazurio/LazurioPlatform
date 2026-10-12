@@ -61,6 +61,7 @@ import { pageRoutes } from "../src/launchpad/page";
 import type { ServiceManagerProcess } from "../src/modules/service-manager-process";
 import { readFolderCatalog } from "../src/organizations/catalog";
 import { parseShell, type Shell } from "../src/shell/contract";
+import { embeddedIdentity } from "../src/update/identity";
 import { writeOrganization } from "../tests/fixtures/catalog-folder";
 
 const port = Number(process.argv[2] ?? 24620);
@@ -306,17 +307,25 @@ const hub = Bun.serve({
 // shows those two, Přehled every tab.
 await writeFile(
   join(holders, "t3-x.json"),
-  holderFileText("t3-x", czech ? "Faktury za září" : "September invoices", [
-    { id: id(2), recordedAt: null },
-  ]),
+  holderFileText(
+    "t3-x",
+    czech ? "Faktury za září" : "September invoices",
+    [{ id: id(2), recordedAt: null }],
+    embeddedIdentity().version,
+  ),
   { mode: 0o600 },
 );
 await writeFile(
   join(holders, "launchpad.json"),
-  holderFileText("launchpad", "Launchpad", [
-    { id: id(3), recordedAt: null },
-    { id: id(2), recordedAt: null },
-  ]),
+  holderFileText(
+    "launchpad",
+    "Launchpad",
+    [
+      { id: id(3), recordedAt: null },
+      { id: id(2), recordedAt: null },
+    ],
+    embeddedIdentity().version,
+  ),
   { mode: 0o600 },
 );
 const running: ModuleUnit[] = [
