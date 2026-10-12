@@ -183,7 +183,7 @@ async function signInLocked(input: SignInInput): Promise<SignInState> {
     return failed("pilot-changed");
   if (input.signal?.aborted)
     return Object.freeze({ kind: "cancelled", organization: login });
-  const existing = await readSettledSignIn(paths, login);
+  const existing = await readSettledSignIn(paths, organization);
   if (
     existing === "unreadable" ||
     (existing !== null && existing.clientId !== organization.clientId)
@@ -352,7 +352,7 @@ export async function signOut(
   try {
     // A pair a killed write left aside is the sign-in too: settled first, so
     // it is removed with the rest.
-    const current = await readSettledSignIn(input.paths, login);
+    const current = await readSettledSignIn(input.paths, input.organization);
     if (current === null)
       return Object.freeze({ kind: "not-signed-in", organization: login });
     if (
