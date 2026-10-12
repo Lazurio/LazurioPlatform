@@ -485,7 +485,7 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
     const cases: readonly [ReturnType<typeof answer>, string, boolean][] = [
       [
         answer(409, { error: "too-many-tabs" }),
-        "Launchpad už má tolik záložek, kolik unese. Zavři některé a zkus to znovu.",
+        "Launchpad už má tolik záložek, kolik unese. Zavřete některé a zkuste to znovu.",
         true,
       ],
       [
@@ -500,12 +500,12 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
       ],
       [
         answer(503, { error: "closing" }),
-        "Launchpad teď neodpovídá, zkus to za chvíli znovu.",
+        "Launchpad teď neodpovídá, zkuste to za chvíli znovu.",
         true,
       ],
       [
         answer(503, { error: "hub-unreachable" }),
-        "Prohlížeč Environmentu teď neodpovídá, zkus to za chvíli znovu.",
+        "Prohlížeč Environmentu teď neodpovídá, zkuste to za chvíli znovu.",
         true,
       ],
       [
@@ -513,7 +513,7 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
         "Záložku se nepodařilo v Launchpadu ponechat.",
         true,
       ],
-      [answer(0), "Launchpad teď neodpovídá, zkus to za chvíli znovu.", true],
+      [answer(0), "Launchpad teď neodpovídá, zkuste to za chvíli znovu.", true],
       [
         answer(404, { error: "no-browser" }),
         "Tento Environment nemá prohlížeč.",
