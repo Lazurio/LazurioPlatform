@@ -96,6 +96,38 @@ test("offered only where the recorded entry routes the view: never on a workstat
   ).toBeNull();
 });
 
+test("a view address is a tab only in the contract's strict form: no query, no slash after the id, the id in upper case (decision F50 point 2)", () => {
+  for (const address of [
+    `${origin}/t/${target}?x=1`,
+    `${origin}/t/${target}?`,
+    `${origin}/t/${target}/`,
+    `${origin}/t/${target.toLowerCase()}`,
+    `${origin}/T/${target}`,
+  ])
+    expect(viewTabOf(address, origin)).toBeNull();
+  // So the view frame's messages about such an address are nothing.
+  for (const view of [
+    `${origin}/t/${target}?x=1`,
+    `${origin}/t/${target.toLowerCase()}`,
+  ])
+    expect(
+      viewMessage(
+        {
+          data: { type: "lazurio-browser:closed", view },
+          origin,
+          fromFrame: true,
+        },
+        origin,
+      ),
+    ).toBeNull();
+  // The server's answer is a view: a tab's or the bare origin, never another
+  // address on the view's origin.
+  for (const view of [`${origin}/elsewhere`, `${origin}/t/${target}/`])
+    expect(
+      browserViewAddress({ available: true, view }, origin, page),
+    ).toBeNull();
+});
+
 test("the view only as an https URL on exactly the recorded origin, as written: the server's own answers pass, nothing else does", async () => {
   // What the server answers for the panel (no session: a new tab) and for a
   // thread's link (a session's tab): both are the view.
@@ -172,8 +204,12 @@ test("a tab's frame is its view on exactly the recorded origin; a view address n
   // Never a frame on the page's own origin.
   expect(tabViewAddress(origin, target, origin)).toBeNull();
 
-  expect(viewTabOf(`${origin}/t/${target.toLowerCase()}`, origin)).toBe(target);
-  expect(viewTabOf(`${origin}/t/${target}?from=link`, origin)).toBe(target);
+  expect(viewTabOf(`${origin}/t/${target}`, origin)).toBe(target);
+  // A view address names its tab only in the contract's strict form (decision
+  // F50 point 2): a lower-case id or a query, which this reader took before,
+  // names none now.
+  expect(viewTabOf(`${origin}/t/${target.toLowerCase()}`, origin)).toBeNull();
+  expect(viewTabOf(`${origin}/t/${target}?from=link`, origin)).toBeNull();
   for (const address of [
     `${origin}/`,
     `${origin}/t/${target}/extra`,
@@ -829,14 +865,23 @@ describe("what the frames say", () => {
         panelChoice({ kind, tab: target.toLowerCase(), view: at }),
       ).toEqual({ kind, tab: target });
     // Only the tab is taken: its frame is the recorded view's, whatever
-    // address the choice carried.
+    // view the choice carried. Since decision F50 point 2 that view is a view
+    // address in the strict form, here another Environment's; an address
+    // that is none (another host) is no choice.
     const elsewhere = panelChoice({
       kind: "tab",
       tab: target,
-      view: `https://elsewhere.example/t/${target}`,
+      view: `https://browser.vm-02.example.lazurio.io/t/${target}`,
     });
     expect(elsewhere).toEqual({ kind: "tab", tab: target });
     expect(tabViewAddress(origin, elsewhere?.tab ?? "", page)).toBe(at);
+    expect(
+      panelChoice({
+        kind: "tab",
+        tab: target,
+        view: `https://elsewhere.example/t/${target}`,
+      }),
+    ).toBeNull();
     for (const detail of [
       { kind: "tool", id: "terminal" },
       { kind: "link", tab: target },

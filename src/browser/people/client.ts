@@ -7,7 +7,7 @@ import {
   viewIdentityElementId,
 } from "../../shell/identity-protocol";
 import { type EnvironmentIdentity, titleWithIdentity } from "../../shell/view";
-import { isTargetId } from "../contract/pure";
+import { isTargetId, viewPathTab } from "../contract/pure";
 import {
   buttonBit,
   clampInto,
@@ -1385,11 +1385,12 @@ function open(id: string, fresh: boolean): void {
   else main.focus();
 }
 
-/** `/t/<id>` views that tab; `/` opens a new one and takes its address. */
+/** `/t/<id>` views that tab, in the contract's form of a view address
+ * (`viewPathTab`); `/` opens a new one and takes its address. */
 async function start(): Promise<void> {
-  const viewed = /^\/t\/([^/]+)$/.exec(location.pathname)?.[1];
-  if (viewed !== undefined || location.pathname !== "/") {
-    if (viewed !== undefined && isTargetId(viewed)) open(viewed, false);
+  if (location.pathname !== "/") {
+    const viewed = viewPathTab(location.pathname);
+    if (viewed !== null) open(viewed, false);
     else tabClosed();
     return;
   }

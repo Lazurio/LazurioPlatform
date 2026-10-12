@@ -66,16 +66,16 @@ const minutesAgo = (count: number) =>
   new Date(now - count * 60_000).toISOString();
 
 describe("the address bar (the wireframe's resolveAddress)", () => {
-  test("a link to a tab of this Environment's view is that tab, however it is written", () => {
+  test("a link to a tab of this Environment's view is that tab, typed with or without its scheme", () => {
     const tab: AddressTarget = {
       kind: "tab",
       tab: id(10),
       view: `${view}/t/${id(10)}`,
     };
+    // A lower-case id and a slash after it were this tab too before
+    // decision F50 point 2; the next test refuses them.
     for (const typed of [
       `${view}/t/${id(10)}`,
-      `${view}/t/${id(10).toLowerCase()}`,
-      `${view}/t/${id(10)}/`,
       `browser.vm-01.example.lazurio.io/t/${id(10)}`,
       `  ${view}/t/${id(10)}  `,
       `http://browser.vm-01.example.lazurio.io/t/${id(10)}`,
@@ -110,6 +110,34 @@ describe("the address bar (the wireframe's resolveAddress)", () => {
     // Without a known view origin no view link is opened as a page here.
     expect(resolveAddress(`${view}/t/${id(10)}`, null)).toMatchObject({
       kind: "foreign",
+    });
+  });
+
+  test("on the view host of an Environment, only a view address opens, and never as a page: its bare origin as a new tab, any other address is refused (decision F50 point 2)", () => {
+    for (const typed of [
+      `${view}/t/${id(10).toLowerCase()}`,
+      `${view}/t/${id(10)}/`,
+      `${view}/t/${id(10)}?x=1`,
+      `${view}/t/${id(10)}#top`,
+      `${view}/assets/view.js`,
+      `https://browser.vm-02.example.lazurio.io/t/${id(10).toLowerCase()}`,
+      `https://browser.a.b.c.lazurio.io/t/${id(10)}`,
+      `https://browser.-vm.example.lazurio.io/t/${id(10)}`,
+      `https://browser.vm-01.example.lazurio.io:8443/t/${id(10)}`,
+      "https://browser.lazurio.io/",
+    ])
+      expect(resolveAddress(typed, view)).toEqual({ kind: "refused" });
+    // The bare origin opens a new remote tab, as it does in a browser, never
+    // the view inside the Environment browser.
+    for (const typed of [view, `${view}/`, "browser.vm-01.example.lazurio.io"])
+      expect(resolveAddress(typed, view)).toEqual({
+        kind: "page",
+        url: "about:blank",
+      });
+    // A host named so elsewhere is a page like any other.
+    expect(resolveAddress("https://browser.example.com/t/x", view)).toEqual({
+      kind: "page",
+      url: "https://browser.example.com/t/x",
     });
   });
 
@@ -813,6 +841,17 @@ describe("where things are, the tools' letters and what failed", () => {
     expect(pageStrip("standalone", null)).toBeNull();
     expect(pageStrip("standalone", "t3-a")).toBeNull();
     expect(pageStrip("waiting", "t3-a")).toBeNull();
+  });
+
+  test("the view's origin is that of a view address in the contract's strict form (decision F50 point 2)", () => {
+    const page = "https://launchpad.vm-01.example.lazurio.io";
+    for (const address of [
+      "https://elsewhere.example/",
+      `${view}/elsewhere`,
+      `${view}/t/${id(10).toLowerCase()}`,
+      "https://browser.a.b.c.lazurio.io/",
+    ])
+      expect(viewOriginOf({ available: true, view: address }, page)).toBeNull();
   });
 
   test("the view's origin from /.lazurio/browser.json: an https origin that is not the page's own", () => {

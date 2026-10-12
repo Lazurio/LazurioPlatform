@@ -3,6 +3,7 @@ import {
   launchpadStrip,
   stripAppOf,
   targetIdOf,
+  viewAddressOf,
 } from "../browser/contract/pure";
 import { parseNewTabChoice } from "../shell/new-tab-protocol";
 import type { PublicEntry } from "./chat";
@@ -72,33 +73,23 @@ export function browserPanelOrigin(
 }
 
 /** The view's address in an answer of `GET /.lazurio/browser.json`: only
- * `{available: true, view}` whose `view` is an https URL on exactly `origin`
- * (the recorded `browserOrigin`), without credentials, as written. Never on
- * the page's own origin: the sandbox confines the frame only while it is
- * another origin. Anything else is null. */
+ * `{available: true, view}` whose `view` is a view address of the contract
+ * (`viewAddressOf`: a tab's or the bare origin, as written) on exactly
+ * `origin`, the recorded `browserOrigin`. Never on the page's own origin:
+ * the sandbox confines the frame only while it is another origin. Anything
+ * else is null. */
 export function browserViewAddress(
   answer: unknown,
   origin: string,
   pageOrigin: string,
 ): string | null {
-  if (typeof answer !== "object" || answer === null) return null;
-  const { available, view } = answer as Record<string, unknown>;
-  if (available !== true || typeof view !== "string") return null;
-  try {
-    const url = new URL(view);
-    if (
-      url.protocol !== "https:" ||
-      url.origin !== origin ||
-      url.origin === pageOrigin ||
-      url.username ||
-      url.password ||
-      url.href !== view
-    )
-      return null;
-    return url.href;
-  } catch {
-    return null;
-  }
+  if (!isRecord(answer) || answer.available !== true) return null;
+  const address = viewAddressOf(answer.view);
+  return address !== null &&
+    address.origin === origin &&
+    address.origin !== pageOrigin
+    ? address.view
+    : null;
 }
 
 /** The view of one remote tab that the panel frames, under the same check
@@ -117,18 +108,12 @@ export function tabViewAddress(
   );
 }
 
-/** The remote tab a view address shows: `<origin>/t/<id>` on exactly the
- * view's origin; null otherwise. */
+/** The remote tab a view address shows (`viewAddressOf`): `<origin>/t/<id>`
+ * on exactly the view's origin, in the contract's strict form; null
+ * otherwise. */
 export function viewTabOf(view: unknown, origin: string): string | null {
-  if (typeof view !== "string" || view.length > 512) return null;
-  try {
-    const url = new URL(view);
-    if (url.origin !== origin || url.username || url.password) return null;
-    const tab = /^\/t\/([0-9A-Fa-f]{32})$/.exec(url.pathname)?.[1];
-    return tab === undefined ? null : tab.toUpperCase();
-  } catch {
-    return null;
-  }
+  const address = viewAddressOf(view);
+  return address !== null && address.origin === origin ? address.tab : null;
 }
 
 // ---- The strip -------------------------------------------------------------------

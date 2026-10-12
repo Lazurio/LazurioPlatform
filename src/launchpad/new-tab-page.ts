@@ -670,6 +670,7 @@ form.addEventListener("submit", (event) => {
   if (target.kind === "tab")
     choose({ kind: "tab", tab: target.tab, view: target.view });
   else if (target.kind === "page") void openPage(target.url);
+  else if (target.kind === "refused") say(copy.addressRefused);
 });
 
 // Escape clears what was typed, as in a browser.
