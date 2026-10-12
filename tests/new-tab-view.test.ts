@@ -319,7 +319,7 @@ describe("the tabs of Přehled", () => {
     expect(at(null)).toBeNull();
   });
 
-  test("who opened a tab: an agent by its app and a T3 Code thread's title, a person never by name", () => {
+  test("who opened a tab: an agent by its app and a T3 Code thread's title, a user never by name", () => {
     expect(
       openerLabel({ app: "t3code", thread: "Faktury za září" }, cs),
     ).toEqual({ text: "Agent · T3 Code · Faktury za září", icon: "bot" });
@@ -330,10 +330,13 @@ describe("the tabs of Přehled", () => {
     expect(openerLabel({ app: "claude" }, cs)?.text).toBe(
       "Agent · Claude Code",
     );
+    // Uživatel, as the Launchpad names the people who use it (Matěj
+    // 2026-10-12); a MausBot bot will be "Bot" once it is an app here.
     expect(openerLabel({ person: true }, cs)).toEqual({
-      text: "Člověk",
+      text: "Uživatel",
       icon: "user",
     });
+    expect(openerLabel({ person: true }, en)?.text).toBe("User");
     expect(openerLabel({ page: id(3) }, cs)).toEqual({
       text: "Otevřela ji stránka",
       icon: "page",
@@ -793,7 +796,7 @@ describe("running Modules, Navrhované and the notes", () => {
     expect(suggestions(null, entry)).toEqual([]);
   });
 
-  test("the notes: whose sign-ins these are, and on a Team Environment the Team's", () => {
+  test("the note: on a Team Environment that the whole Team sees the sign-ins, and none elsewhere", () => {
     const shell = (kind: "work" | "team"): Shell | null =>
       parseShell({
         schema: "lazurio.shell.v1",
@@ -827,15 +830,18 @@ describe("running Modules, Navrhované and the notes", () => {
         addOrganization: null,
       });
     expect(shell("work")).not.toBeNull();
-    expect(environmentNote(shell("work"), cs)).toEqual({
-      text: "Přihlášení tady použijí všichni agenti tohoto Environmentu.",
-      team: false,
-    });
-    expect(environmentNote(shell("team"), cs)).toEqual({
-      text: "Přihlášení tady uvidí celý Team. Používejte týmové a firemní účty.",
-      team: true,
-    });
-    expect(environmentNote(null, cs).team).toBe(false);
+    // Matěj 2026-10-12: the note that every agent uses the sign-ins made
+    // here only stood in the way; the Team's stays (root decision 0191
+    // point 7).
+    expect(environmentNote(shell("work"), cs)).toBeNull();
+    expect(environmentNote(null, cs)).toBeNull();
+    expect(environmentNote(shell("team"), cs)).toBe(
+      "Přihlášení tady uvidí celý Team. Používejte týmové a firemní účty.",
+    );
+    expect(environmentNote(shell("team"), en)).toBe(
+      "The whole Team sees the sign-ins made here. Use team and company accounts.",
+    );
+    expect(Object.keys(cs)).not.toContain("note");
   });
 });
 
