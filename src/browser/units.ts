@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readlink, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { writeDurableFile } from "../update/durable-file";
 import { layout } from "../update/layout";
@@ -380,6 +380,65 @@ export async function convergeEnvironmentBrowser(
     run: input.run,
     env: input.env,
   });
+}
+
+/** What `restartStaleBrowserView` found and did. */
+export type BrowserViewRefresh =
+  | "restarted"
+  | "current"
+  | "not-running"
+  | "unknown"
+  | "failed";
+
+/** After an update the view keeps running the installation it started with.
+ * Its unit runs this installation's stable selector, so the unit's text stays
+ * the same and the update's convergence does not restart it; the old view
+ * then serves until a reboot, without what the new version changed (its hub,
+ * decision F47). Every update restarts the Launchpad, so the Launchpad
+ * compares the running view's executable with its own when it starts, and
+ * restarts the view when they differ, or when the view's file is gone. A
+ * viewer reconnects; the browser and its tabs are untouched. */
+export async function restartStaleBrowserView(
+  input: Readonly<{
+    run: ProcessRunner;
+    env: Readonly<Record<string, string | undefined>>;
+    /** This process's executable (`process.execPath`). */
+    executable: string;
+    readlink?: (path: string) => Promise<string>;
+    realpath?: (path: string) => Promise<string>;
+  }>,
+): Promise<BrowserViewRefresh> {
+  const shown = await input
+    .run(
+      [
+        "systemctl",
+        "--user",
+        "show",
+        "--property=MainPID",
+        "--value",
+        browserViewUnit,
+      ],
+      serviceCommandTimeoutMs,
+      serviceEnvironment(input.env),
+    )
+    .catch(() => null);
+  if (shown === null || shown === "timeout" || shown.exitCode !== 0)
+    return "unknown";
+  const pid = Number.parseInt(shown.stdout.trim(), 10);
+  if (!Number.isInteger(pid) || pid < 2) return "not-running";
+  let running: string;
+  let own: string;
+  try {
+    running = await (input.readlink ?? readlink)(`/proc/${pid}/exe`);
+    own = await (input.realpath ?? realpath)(input.executable);
+  } catch {
+    return "unknown";
+  }
+  const deleted = running.endsWith(" (deleted)");
+  if (!deleted && running === own) return "current";
+  return (await systemctl(input, "try-restart", browserViewUnit))
+    ? "restarted"
+    : "failed";
 }
 
 // ---- Observation, for `lazurio doctor` --------------------------------------

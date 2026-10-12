@@ -7642,3 +7642,12 @@ page each read the overview every 5 s; step 5 measures that cost with the heaps.
   restarts its session's daemon.
 - On the timeout an attached daemon only disconnects and removes its `.pid`; the hub still
   decides when the tab ends (point 5).
+
+**The view after an update (2026-10-12, #334).**
+- **The problem.** After `lazurio update` the Launchpad restarts on the new version, but the view keeps running the installation it started with:
+  - its unit runs the stable selector, so the unit text stays the same;
+  - the update's convergence restarts the view only when that text changed.
+  On the first F47 canary the hub's changes therefore did not take effect until the view was restarted by hand.
+- **The fix.** When it starts, the Launchpad compares the running view's executable (`/proc/<MainPID>/exe`) with its own (`realpath` of `process.execPath`). When they differ, or the view's file was replaced, it restarts the view (`try-restart`).
+- **Effect.** A viewer reconnects; the browser and its tabs are untouched. After the restart, every tab nothing holds gets the hub's 10 minutes (point 5).
+- **Scope.** The new Launchpad does the check, so this works for updates from any older version.

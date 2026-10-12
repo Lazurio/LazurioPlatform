@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import { join } from "node:path";
+import { restartStaleBrowserView } from "../browser/units";
 import {
   type BrowserViewSeams,
   browserEntryOf,
@@ -582,6 +583,20 @@ export async function startLaunchpad(
   // the view's hub and the Launchpad's holder file, only where the entry
   // routes the Environment browser's view.
   const browser = browserEntryOf(entry);
+  // An update restarts this Launchpad but not the view, whose unit text stays
+  // the same: restart a view that still runs another installation, so the
+  // installed version's hub holds the tabs (decision F47).
+  if (browser !== undefined && process.platform === "linux")
+    void restartStaleBrowserView({
+      run: runProcess,
+      env: process.env,
+      executable: process.execPath,
+    }).then((outcome) => {
+      if (outcome === "restarted" || outcome === "failed")
+        console.log(
+          JSON.stringify({ scope: "browser-view", event: `stale-${outcome}` }),
+        );
+    });
   const holder =
     browser === undefined
       ? null
