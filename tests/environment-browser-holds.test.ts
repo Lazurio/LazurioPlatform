@@ -14,19 +14,23 @@ import { join } from "node:path";
 import {
   holderDirectory,
   holdsReader,
-  isStrip,
-  keptTabs,
   liveTabsPath,
-  parseBootTime,
-  parseHolder,
-  parseLiveTabs,
   processAlive,
   readBootClock,
   readHolds,
   unreadableHolderFiles,
   watchHolds,
   writeLiveTabs,
-} from "../src/browser/people/holds";
+} from "../src/browser/contract/node";
+import {
+  holderFileText,
+  isStrip,
+  keptTabs,
+  parseBootTime,
+  parseHolder,
+  parseHolderRecords,
+  parseLiveTabs,
+} from "../src/browser/contract/pure";
 
 // Who keeps a remote tab of the Environment browser (decision F47 points 4
 // and 5): the holder files the apps' servers write and the agent-browser
@@ -521,4 +525,95 @@ test("a step of the wall clock changes nothing: a record made after a snapshot b
   expect(keptTabs(record, { tabs: [], takenAt: at(100) }, boot)).toEqual([
     id(7),
   ]);
+});
+
+// Decision F50 point 3: a holder file and the list of live tabs carry their
+// `schema`, and a holder file the Platform release its writer's module came
+// from (`contract`, which doctor reads and the hub ignores). A file without a
+// `schema` is v1, written before the module, and members a reader does not
+// know are ignored; a file of another major is one this module cannot read.
+test("a holder file names its schema and its writer's release; one without a schema is v1, one of another major cannot be read", async () => {
+  const text = holderFileText(
+    "t3-a",
+    "A",
+    [{ id: id(1), recordedAt: at(5) }],
+    "1.2.3-rc.4",
+  );
+  expect(JSON.parse(text)).toEqual({
+    schema: "lazurio.browser-holder.v1",
+    contract: "1.2.3-rc.4",
+    strip: "t3-a",
+    label: "A",
+    tabs: [id(1)],
+    recordedAt: { [id(1)]: at(5) },
+  });
+  const hold = { strip: "t3-a", label: "A", tabs: [id(1)] };
+  expect(parseHolder("t3-a.json", text)).toEqual(hold);
+  expect(parseHolderRecords("t3-a.json", text)?.tabs).toEqual([
+    { id: id(1), recordedAt: at(5) },
+  ]);
+  const file = (members: Record<string, unknown>) =>
+    JSON.stringify({ ...members, strip: "t3-a", label: "A", tabs: [id(1)] });
+  expect(parseHolder("t3-a.json", file({}))).toEqual(hold);
+  expect(
+    parseHolder(
+      "t3-a.json",
+      file({ schema: "lazurio.browser-holder.v1", contract: 7, later: true }),
+    ),
+  ).toEqual(hold);
+  for (const schema of [
+    "lazurio.browser-holder.v2",
+    "lazurio.browser-tabs.v1",
+    "",
+    null,
+    1,
+  ]) {
+    expect(parseHolder("t3-a.json", file({ schema }))).toBeNull();
+    expect(parseHolderRecords("t3-a.json", file({ schema }))).toBeNull();
+  }
+  // The hub keeps what such a file held at its last reading (root decision
+  // 0191 point 32), and doctor names it.
+  root = await mkdtemp(join(tmpdir(), "holds-schema-"));
+  const env = { XDG_RUNTIME_DIR: root };
+  const holders = holderDirectory(env) as string;
+  await mkdir(holders, { recursive: true });
+  await writeFile(join(holders, "t3-a.json"), text);
+  const first = await readHolds({ holders });
+  expect([...first.holds.holders.keys()]).toEqual([id(1)]);
+  await writeFile(
+    join(holders, "t3-a.json"),
+    JSON.stringify({
+      schema: "lazurio.browser-holder.v2",
+      strip: "t3-a",
+      tabs: [],
+    }),
+  );
+  const later = await readHolds({ holders }, processAlive, first.memory);
+  expect([...later.holds.holders.keys()]).toEqual([id(1)]);
+  expect(later.unreadable).toEqual(["t3-a.json"]);
+  expect(await unreadableHolderFiles(env)).toEqual(["t3-a.json"]);
+});
+
+test("the list of live tabs names its schema; one without is v1, one of another major is no list", async () => {
+  root = await mkdtemp(join(tmpdir(), "live-tabs-schema-"));
+  const path = join(root, "lazurio-browser", "tabs.json");
+  await writeLiveTabs(path, [id(1)], at(100));
+  expect(JSON.parse(await readFile(path, "utf8"))).toEqual({
+    schema: "lazurio.browser-tabs.v1",
+    tabs: [id(1)],
+    takenAt: at(100),
+  });
+  const list = { tabs: [id(1)], takenAt: at(100) };
+  expect(parseLiveTabs(JSON.stringify(list))).toEqual(list);
+  expect(
+    parseLiveTabs(
+      JSON.stringify({ ...list, schema: "lazurio.browser-tabs.v1", later: 1 }),
+    ),
+  ).toEqual(list);
+  for (const schema of [
+    "lazurio.browser-tabs.v2",
+    "lazurio.browser-holder.v1",
+    null,
+  ])
+    expect(parseLiveTabs(JSON.stringify({ ...list, schema }))).toBeNull();
 });

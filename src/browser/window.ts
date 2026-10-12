@@ -1,10 +1,9 @@
-import { access, readFile } from "node:fs/promises";
-import { createConnection } from "node:net";
+import { readFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { acquireFileLock, type FileLock } from "../platform/flock";
 import type { ProcessRunner } from "../update/self-check";
+import { agentBrowserSocketDirectory } from "./contract/node";
 import { browserCdpPort, browserWindowSize } from "./units";
-import { isBrowserSession } from "./view";
 
 /** A thread's own window of the Environment browser (decision F38).
  *
@@ -17,47 +16,6 @@ import { isBrowserSession } from "./view";
  * it with agent-browser's own commands (`tab <targetId>`, then pinned). Kept
  * until agent-browser opens a pinned session's tab in a new window of the
  * default context itself. */
-
-/** The session of the calling thread: named, or the one its harness gives
- * it. T3 Code sets `AGENT_BROWSER_SESSION` per thread; Codex exports
- * `CODEX_THREAD_ID` and Claude Code `CLAUDE_CODE_SESSION_ID` to the commands
- * of a thread. */
-export function threadSession(
-  named: string | undefined,
-  env: Readonly<Record<string, string | undefined>>,
-): string | null {
-  const candidates = [
-    named,
-    env.AGENT_BROWSER_SESSION,
-    env.CODEX_THREAD_ID === undefined
-      ? undefined
-      : `codex-${env.CODEX_THREAD_ID}`,
-    env.CLAUDE_CODE_SESSION_ID === undefined
-      ? undefined
-      : `claude-${env.CLAUDE_CODE_SESSION_ID}`,
-  ];
-  for (const candidate of candidates) {
-    if (candidate === undefined || candidate === "") continue;
-    // A name given on purpose is used as given or refused.
-    if (candidate === named) return isBrowserSession(named) ? named : null;
-    const sanitized = candidate.replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 64);
-    if (isBrowserSession(sanitized)) return sanitized;
-  }
-  return null;
-}
-
-/** Where agent-browser keeps its sockets and a session's tab binding
- * (`AGENT_BROWSER_SOCKET_DIR`, else `$XDG_RUNTIME_DIR/agent-browser`). */
-export function agentBrowserSocketDirectory(
-  env: Readonly<Record<string, string | undefined>>,
-): string | undefined {
-  const named = env.AGENT_BROWSER_SOCKET_DIR;
-  if (named !== undefined && isAbsolute(named)) return named;
-  const runtime = env.XDG_RUNTIME_DIR;
-  return runtime !== undefined && isAbsolute(runtime)
-    ? join(runtime, "agent-browser")
-    : undefined;
-}
 
 export type CdpCall = (
   method: string,
@@ -237,144 +195,6 @@ async function ensureThreadWindowLocked(
     : "timeout";
   if (!ok(bound) || !ok(pinned)) throw new BrowserWindowFailure("bind-failed");
   return Object.freeze({ session, targetId, created: true });
-}
-
-/** What a session's daemon answered on its socket: nothing listens there
- * (`absent`), a reply line, or no reply in time. */
-export type DaemonAnswer =
-  | Readonly<{ kind: "absent" }>
-  | Readonly<{ kind: "reply"; line: string }>
-  | Readonly<{ kind: "no-answer" }>;
-
-/** What letting go of a window needs of the host: overridable in tests. */
-export type DaemonSeams = Readonly<{
-  /** Sends one command line to a socket and answers the reply line. */
-  ask?: (socketPath: string, line: string) => Promise<DaemonAnswer>;
-  /** Whether a file is still there, polled while the daemon exits. */
-  exists?: (path: string) => Promise<boolean>;
-  /** How long to wait for the daemon to exit after it acknowledged. */
-  exitWithinMs?: number;
-}>;
-
-/** agent-browser's own graceful shutdown of a session's daemon, as its CLI
- * sends it before restarting a daemon (`request_graceful_daemon_shutdown`
- * in agent-browser `cli/src/connection.rs`): the daemon runs its close,
- * which only disconnects from a browser it did not launch, answers and
- * exits, removing its `.pid`. An internal action of the agent-browser
- * release Machines pin; the fork's contract check covers it. */
-export const agentBrowserShutdownAction = "__agent_browser_internal_shutdown";
-
-const daemonAnswerMs = 5_000;
-const maxDaemonReplyBytes = 64 * 1024;
-
-/** Connection errors that prove nothing listens on a socket path: no file,
- * a socket nobody listens on (Linux), a file that is no socket (macOS).
- * Anything else, a permission above all, proves nothing. */
-const absentSocketCodes = new Set(["ENOENT", "ECONNREFUSED", "ENOTSOCK"]);
-
-/** One command line to a Unix socket and its reply line. Nothing listening
- * (no socket, a stale one) is `absent`; no reply within 5 s, or a socket
- * that cannot be reached for any other reason, is `no-answer`. */
-export function askDaemonSocket(
-  socketPath: string,
-  line: string,
-): Promise<DaemonAnswer> {
-  return new Promise((resolve) => {
-    let settled = false;
-    let connected = false;
-    let buffer = "";
-    const socket = createConnection({ path: socketPath });
-    const done = (answer: DaemonAnswer) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      socket.destroy();
-      resolve(answer);
-    };
-    const timer = setTimeout(() => done({ kind: "no-answer" }), daemonAnswerMs);
-    socket.on("connect", () => {
-      connected = true;
-      socket.write(line);
-    });
-    socket.on("data", (chunk) => {
-      buffer += chunk.toString("utf8");
-      const end = buffer.indexOf("\n");
-      if (end >= 0) done({ kind: "reply", line: buffer.slice(0, end) });
-      else if (buffer.length > maxDaemonReplyBytes) done({ kind: "no-answer" });
-    });
-    socket.on("end", () =>
-      done(
-        buffer === "" ? { kind: "no-answer" } : { kind: "reply", line: buffer },
-      ),
-    );
-    socket.on("error", (error: NodeJS.ErrnoException) =>
-      done(
-        !connected && absentSocketCodes.has(error.code ?? "")
-          ? { kind: "absent" }
-          : { kind: "no-answer" },
-      ),
-    );
-  });
-}
-
-/** Whether a file is there: only "no such file" is gone; any other failure
- * is thrown, since it proves nothing. */
-const fileExists = (path: string) =>
-  access(path).then(
-    () => true,
-    (error: NodeJS.ErrnoException) => {
-      if (error.code === "ENOENT") return false;
-      throw error;
-    },
-  );
-
-/** Lets go of a session's window (root decision 0191 point 28): asks the
- * session's own agent-browser daemon, on that session's socket
- * (`<socket dir>/<session>.sock`), to shut down, then waits up to 5 s for
- * its `.pid` to go. The daemon of an attached browser disconnects without
- * closing a tab, so the hub no longer counts the agent as working in it
- * (F47 point 5): the tab ends once nothing holds it and nobody views it.
- * Nothing is signalled by a process id, so a stale `.pid` whose number
- * another process now has, even another session's daemon, is never touched
- * (Pablo's review of #348). Never `agent-browser close` or `tab close`: the
- * tab would close for everyone who holds or views it, and the CLI starts a
- * daemon first when none runs. `stopped`: the daemon answered and its
- * `.pid` is gone; `none`: nothing listens on the session's socket;
- * `refused`: the daemon answered that it did not shut down, so nothing
- * changed; `unconfirmed`: no answer, a socket or `.pid` that cannot be
- * reached, or an answer but the `.pid` still there after the wait, so the
- * daemon may still hold the window. */
-export async function stopSessionDaemon(
-  socketDirectory: string,
-  session: string,
-  seams: DaemonSeams = {},
-): Promise<"stopped" | "none" | "refused" | "unconfirmed"> {
-  if (!isBrowserSession(session)) return "none";
-  const answer = await (seams.ask ?? askDaemonSocket)(
-    join(socketDirectory, `${session}.sock`),
-    `${JSON.stringify({ id: "lazurio-browser-done", action: agentBrowserShutdownAction })}\n`,
-  );
-  if (answer.kind === "absent") return "none";
-  // The command went out: the daemon may have taken it even if its answer
-  // was lost.
-  if (answer.kind === "no-answer") return "unconfirmed";
-  let success = false;
-  try {
-    success =
-      (JSON.parse(answer.line) as { success?: unknown } | null)?.success ===
-      true;
-  } catch {}
-  if (!success) return "refused";
-  const exists = seams.exists ?? fileExists;
-  const pid = join(socketDirectory, `${session}.pid`);
-  const deadline = Date.now() + (seams.exitWithinMs ?? daemonAnswerMs);
-  for (;;) {
-    // Only a .pid proven gone counts; one that cannot be checked is not.
-    const present = await exists(pid).catch(() => null);
-    if (present === false) return "stopped";
-    if (present === null || Date.now() >= deadline) return "unconfirmed";
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
 }
 
 /** The real seams: the browser's loopback DevTools endpoint. */

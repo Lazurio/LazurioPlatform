@@ -13,14 +13,16 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  type BootTime,
   holderDirectory,
-  holderFileText,
   liveTabsPath,
+  writeLiveTabs,
+} from "../src/browser/contract/node";
+import {
+  type BootTime,
+  holderFileText,
   parseHolder,
   parseHolderRecords,
-  writeLiveTabs,
-} from "../src/browser/people/holds";
+} from "../src/browser/contract/pure";
 import type { TabFacts } from "../src/browser/people/hub";
 import {
   initializeFolder,
@@ -66,6 +68,7 @@ import {
   createSystemdUserRunner,
   organizationUnitPrefix,
 } from "../src/modules/systemd-user-runner";
+import { embeddedIdentity } from "../src/update/identity";
 import {
   folderFixture,
   writePersonalspaceModule,
@@ -763,9 +766,12 @@ test("a holder file that breaks after a good read is never written over: neither
   // Unreadable instead of broken: the same.
   await writeFile(
     world.file,
-    holderFileText("launchpad", "Launchpad", [
-      { id: id(1), recordedAt: at(10) },
-    ]),
+    holderFileText(
+      "launchpad",
+      "Launchpad",
+      [{ id: id(1), recordedAt: at(10) }],
+      embeddedIdentity().version,
+    ),
   );
   await chmod(world.file, 0o000);
   try {
@@ -862,9 +868,12 @@ test("release takes hold's path: one operation at a time, the file read again fi
   expect(await readFile(file, "utf8")).toBe("{");
   await writeFile(
     file,
-    holderFileText("launchpad", "Launchpad", [
-      { id: id(2), recordedAt: at(100) },
-    ]),
+    holderFileText(
+      "launchpad",
+      "Launchpad",
+      [{ id: id(2), recordedAt: at(100) }],
+      embeddedIdentity().version,
+    ),
   );
   await chmod(file, 0o000);
   try {
@@ -887,7 +896,11 @@ test("the Launchpad's holder file is owner-only, replaced atomically, and read b
   expect((await stat(world.file)).mode & 0o777).toBe(0o600);
   expect((await stat(world.directory)).mode & 0o777).toBe(0o700);
   const text = await readFile(world.file, "utf8");
+  // Decision F50 point 3: the file names its schema and the Platform release
+  // that wrote it, which this source run reports as its development version.
   expect(JSON.parse(text)).toEqual({
+    schema: "lazurio.browser-holder.v1",
+    contract: embeddedIdentity().version,
     strip: "launchpad",
     label: "Launchpad",
     tabs: [id(1), id(2)],
@@ -981,11 +994,16 @@ test("reconciliation: a Launchpad that starts with stored ids that ended meanwhi
   await mkdir(world.directory, { recursive: true, mode: 0o700 });
   await writeFile(
     world.file,
-    holderFileText("launchpad", "Launchpad", [
-      { id: id(1), recordedAt: at(50) },
-      { id: id(2), recordedAt: at(50) },
-      { id: id(3), recordedAt: null },
-    ]),
+    holderFileText(
+      "launchpad",
+      "Launchpad",
+      [
+        { id: id(1), recordedAt: at(50) },
+        { id: id(2), recordedAt: at(50) },
+        { id: id(3), recordedAt: null },
+      ],
+      embeddedIdentity().version,
+    ),
     { mode: 0o600 },
   );
   await world.list([id(2)], at(100));
@@ -1042,10 +1060,15 @@ test("reconciliation: a record from an earlier boot goes when this boot's list l
   await mkdir(world.directory, { recursive: true, mode: 0o700 });
   await writeFile(
     world.file,
-    holderFileText("launchpad", "Launchpad", [
-      { id: id(1), recordedAt: at(5_000, earlierBoot) },
-      { id: id(2), recordedAt: at(5_000, earlierBoot) },
-    ]),
+    holderFileText(
+      "launchpad",
+      "Launchpad",
+      [
+        { id: id(1), recordedAt: at(5_000, earlierBoot) },
+        { id: id(2), recordedAt: at(5_000, earlierBoot) },
+      ],
+      embeddedIdentity().version,
+    ),
     { mode: 0o600 },
   );
   // Seconds since this boot are fewer than the earlier record's.

@@ -10,17 +10,17 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CdpConnection, CdpEvent } from "../src/browser/people/cdp";
-import {
-  browserExtensionFiles,
-  writeBrowserExtension,
-} from "../src/browser/people/extension";
 import {
   type Hold,
   type Holds,
   holdsReader,
   noHolds,
-} from "../src/browser/people/holds";
+} from "../src/browser/contract/node";
+import type { CdpConnection, CdpEvent } from "../src/browser/people/cdp";
+import {
+  browserExtensionFiles,
+  writeBrowserExtension,
+} from "../src/browser/people/extension";
 import {
   BrowserHub,
   jpegSize,
@@ -524,6 +524,47 @@ test("every request must name the view's host; sockets and changes must come fro
   expect(ask("GET", "/.lazurio/health", { host: "evil.example" }).kind).toBe(
     "refused",
   );
+});
+
+test("the view routes /t/<id>, its /live and its /files by the path alone: the id in either case, named in upper case (decision F50, C1)", () => {
+  const ask = (method: string, path: string, upgrade = false) =>
+    classifyRequest(
+      {
+        method,
+        url: `http://127.0.0.1:4848${path}`,
+        host,
+        origin,
+        upgrade,
+      },
+      origin,
+      4848,
+    );
+  const tab = id(0xabcdef);
+  for (const named of [tab, tab.toLowerCase()]) {
+    expect(ask("GET", `/t/${named}`)).toEqual({ kind: "page" });
+    expect(ask("GET", `/t/${named}/live`, true)).toEqual({
+      kind: "live",
+      targetId: tab,
+    });
+    expect(ask("POST", `/t/${named}/files`)).toEqual({
+      kind: "files",
+      targetId: tab,
+    });
+  }
+  // The query is not part of the path: the page is served all the same.
+  expect(ask("GET", `/t/${tab}?from=link`)).toEqual({ kind: "page" });
+  // Any other path names no tab.
+  for (const path of [
+    `/T/${tab}`,
+    `/t/${tab}/`,
+    `/t/${tab.slice(1)}`,
+    `/t/${"g".repeat(32)}`,
+  ])
+    expect(ask("GET", path)).toEqual({
+      kind: "refused",
+      status: 404,
+      error: "not-found",
+    });
 });
 
 test("only the Environment's own origins may frame the view", () => {

@@ -1,18 +1,23 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
-  type BootTime,
   holderDirectory,
+  liveTabsPath,
+  replaceOwnerFile,
+  watchHolds,
+} from "../../browser/contract/node";
+import {
+  type BootTime,
   holderFileText,
   isStrip,
   keptTabs,
-  liveTabsPath,
+  launchpadStrip,
   parseHolder,
   parseHolderRecords,
   parseLiveTabs,
-  replaceOwnerFile,
-  watchHolds,
-} from "../../browser/people/holds";
+  targetIdOf,
+} from "../../browser/contract/pure";
+import { embeddedIdentity } from "../../update/identity";
 
 // The Launchpad's own holder file (decision F47 point 4): the remote tabs a
 // person opened in the Launchpad, from its Nová karta or as a page's new tab
@@ -30,7 +35,6 @@ import {
 // taken after its record, lacks. A list that is missing or unreadable keeps
 // everything. Times come from the boot clock only, never the wall clock.
 
-export const launchpadStrip = "launchpad";
 export const launchpadLabel = "Launchpad";
 const fileName = `${launchpadStrip}.json`;
 
@@ -45,8 +49,6 @@ export class HolderFull extends Error {
     super("The Launchpad holds as many tabs as it may");
   }
 }
-
-const targetIdPattern = /^[0-9A-Fa-f]{32}$/;
 
 export type LaunchpadHolder = Readonly<{
   /** Reads the file, reconciles, then watches the list and reads it again
@@ -88,6 +90,9 @@ export type HolderSeams = Readonly<{
 export function createLaunchpadHolder(seams: HolderSeams): LaunchpadHolder {
   const path = join(seams.directory, fileName);
   const read = seams.readFile ?? ((file: string) => readFile(file, "utf8"));
+  // The file names the Platform release whose contract module writes it,
+  // this executable's (decision F50 point 3).
+  const contract = embeddedIdentity().version;
   const log = seams.log ?? (() => undefined);
   const everyMs = seams.everyMs ?? 30_000;
   const debounceMs = seams.debounceMs ?? 100;
@@ -155,6 +160,7 @@ export function createLaunchpadHolder(seams: HolderSeams): LaunchpadHolder {
         launchpadStrip,
         launchpadLabel,
         [...held].map(([id, recordedAt]) => ({ id, recordedAt })),
+        contract,
       ),
     );
 
@@ -207,8 +213,8 @@ export function createLaunchpadHolder(seams: HolderSeams): LaunchpadHolder {
       await queue;
     },
     async hold(id: string) {
-      if (!targetIdPattern.test(id)) throw new Error("Invalid target id");
-      const tab = id.toUpperCase();
+      const tab = targetIdOf(id);
+      if (tab === null) throw new Error("Invalid target id");
       await serialized(async () => {
         if (stopped) throw new Error("The Launchpad is closing");
         let held: Map<string, BootTime | null>;
@@ -228,8 +234,8 @@ export function createLaunchpadHolder(seams: HolderSeams): LaunchpadHolder {
       });
     },
     async release(id: string) {
-      if (!targetIdPattern.test(id)) throw new Error("Invalid target id");
-      const tab = id.toUpperCase();
+      const tab = targetIdOf(id);
+      if (tab === null) throw new Error("Invalid target id");
       await serialized(async () => {
         if (stopped) throw new Error("The Launchpad is closing");
         let held: Map<string, BootTime | null>;

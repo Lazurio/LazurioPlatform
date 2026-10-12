@@ -1,8 +1,14 @@
 import type { Server, ServerWebSocket } from "bun";
 import type { EnvironmentIdentity } from "../../shell/view";
+import {
+  browserViewUrl,
+  isStrip,
+  targetIdOf,
+  viewPath,
+  viewPathTab,
+} from "../contract/pure";
 import { viewScript } from "./bundle" with { type: "macro" };
 import { browserSocketUrl, type CdpConnection, connectCdp } from "./cdp";
-import { isStrip } from "./holds";
 import {
   BrowserHub,
   type HubSeams,
@@ -149,10 +155,13 @@ const json = (body: unknown, status = 200) =>
     },
   });
 
-const livePath = /^\/t\/([0-9A-Fa-f]{32})\/live$/;
-const filesPath = /^\/t\/([0-9A-Fa-f]{32})\/files$/;
-const viewPath = /^\/t\/([0-9A-Fa-f]{32})$/;
-const tabsPath = /^\/\.lazurio\/tabs(?:\/([0-9A-Fa-f]{32})\/(close|restore))?$/;
+/** The tab a path of one remote tab's view names, `/t/<id>` followed by
+ * `suffix`: the view's own path (`viewPathTab`), its id in either case, given
+ * in upper case (decision F50, C1). A request is routed by its path alone;
+ * its query is not read here. */
+const tabOfPath = (path: string, suffix: "/live" | "/files"): string | null =>
+  path.endsWith(suffix) ? viewPathTab(path.slice(0, -suffix.length)) : null;
+const tabsPath = /^\/\.lazurio\/tabs(?:\/([^/]+)\/(close|restore))?$/;
 const maxTabsBodyBytes = 8 * 1024;
 
 export type RequestDecision =
@@ -193,7 +202,11 @@ export function classifyRequest(
       ? { kind: "health" }
       : { kind: "refused", status: 421, error: "wrong-host" };
   const tabs = tabsPath.exec(path);
-  if (tabs !== null) {
+  // A tab is named by its id in either case (decision F50, C1); any other
+  // segment is no path of these requests.
+  const named = tabs?.[1];
+  const targetId = named === undefined ? undefined : targetIdOf(named);
+  if (tabs !== null && targetId !== null) {
     // The Launchpad's requests (F47 point 6): through the gateway, which
     // sends the view's own host, they do not exist. Pages in the
     // Environment's own browser reach the loopback too, and a browser always
@@ -201,7 +214,6 @@ export function classifyRequest(
     if (!loopback) return { kind: "refused", status: 404, error: "not-found" };
     if (request.origin !== null || (request.fetchSite ?? null) !== null)
       return { kind: "refused", status: 403, error: "browser-request" };
-    const targetId = tabs[1]?.toUpperCase();
     if (targetId === undefined) {
       if (request.method === "GET") return { kind: "tabs" };
       if (request.method === "POST") return { kind: "open" };
@@ -216,13 +228,13 @@ export function classifyRequest(
   if (request.host !== own.host)
     return { kind: "refused", status: 421, error: "wrong-host" };
   const sameOrigin = request.origin === own.origin;
-  const live = livePath.exec(path);
+  const live = tabOfPath(path, "/live");
   if (live !== null) {
     if (request.method !== "GET" || !request.upgrade)
       return { kind: "refused", status: 426, error: "upgrade-required" };
     if (!sameOrigin)
       return { kind: "refused", status: 403, error: "wrong-origin" };
-    return { kind: "live", targetId: (live[1] as string).toUpperCase() };
+    return { kind: "live", targetId: live };
   }
   if (path === "/api/tabs") {
     if (request.method !== "POST")
@@ -231,17 +243,17 @@ export function classifyRequest(
       return { kind: "refused", status: 403, error: "wrong-origin" };
     return { kind: "create" };
   }
-  const files = filesPath.exec(path);
+  const files = tabOfPath(path, "/files");
   if (files !== null) {
     if (request.method !== "POST")
       return { kind: "refused", status: 405, error: "method-not-allowed" };
     if (!sameOrigin)
       return { kind: "refused", status: 403, error: "wrong-origin" };
-    return { kind: "files", targetId: (files[1] as string).toUpperCase() };
+    return { kind: "files", targetId: files };
   }
   if (request.method !== "GET" && request.method !== "HEAD")
     return { kind: "refused", status: 405, error: "method-not-allowed" };
-  if (path === "/" || viewPath.test(path)) return { kind: "page" };
+  if (path === "/" || viewPathTab(path) !== null) return { kind: "page" };
   if (path === "/assets/view.js") return { kind: "script" };
   return { kind: "refused", status: 404, error: "not-found" };
 }
@@ -323,7 +335,7 @@ export function startViewService(options: ViewServiceOptions): ViewService {
           const id = await hub.createTab(size);
           return id === null
             ? json({ error: "browser-unreachable" }, 503)
-            : json({ id, view: `/t/${id}` }, 201);
+            : json({ id, view: viewPath(id) }, 201);
         }
         case "files": {
           const token = new URL(request.url).searchParams.get("token") ?? "";
@@ -368,7 +380,7 @@ export function startViewService(options: ViewServiceOptions): ViewService {
           const id = await hub.openTab(url, strip);
           return id === null
             ? json({ error: "browser-unreachable" }, 503)
-            : json({ id, view: `${options.origin}/t/${id}` }, 201);
+            : json({ id, view: browserViewUrl(options.origin, id) }, 201);
         }
         case "close": {
           // While the hub does not know the browser's targets it changes

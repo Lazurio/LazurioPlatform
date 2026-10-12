@@ -1,12 +1,19 @@
 import { readFile } from "node:fs/promises";
-import { type BootTime, isStrip, readBootClock } from "../browser/people/holds";
+import { readBootClock } from "../browser/contract/node";
+import {
+  type BootTime,
+  browserViewUrl,
+  isStrip,
+  launchpadStrip,
+  stripAppOf,
+  targetIdOf,
+} from "../browser/contract/pure";
 import {
   navigableAddress,
   type TabFacts,
   type TabOpener,
 } from "../browser/people/hub";
 import type { BrowserEntry } from "../browser/units";
-import { browserViewUrl } from "../browser/view";
 import type { MachineEntry } from "../folder/machine-binding";
 import { ownDataValue, stateFields } from "../folder/state-fields";
 import {
@@ -18,7 +25,6 @@ import {
   HolderFull,
   type LaunchpadHolder,
   launchpadLabel,
-  launchpadStrip,
   readHolderLabel,
 } from "./new-tab/holder";
 import {
@@ -112,8 +118,6 @@ export type NewTabOverview = Readonly<{
   modules: readonly OverviewModule[] | null;
 }>;
 
-const targetIdPattern = /^[0-9A-Fa-f]{32}$/;
-
 /** The headers the page `/new-tab` adds behind the gateway (F47 point 1):
  * only the Environment's own apps may frame Nová karta, `apps` (the
  * Launchpad itself, also `'self'`), `chat` and `automate`, from the recorded
@@ -147,11 +151,18 @@ function nameOpener(
     case "page":
       return { page: opener.openerId };
     case "agent":
-      if (opener.session.startsWith("t3-"))
-        return { app: "t3code", thread: thread(opener.session) };
-      if (opener.session.startsWith("codex-")) return { app: "codex" };
-      if (opener.session.startsWith("claude-")) return { app: "claude" };
-      return {};
+      // By the registry of prefixes (decision F50 point 2); a session of
+      // another app, or one named by hand, names nobody.
+      switch (stripAppOf(opener.session)) {
+        case "t3code":
+          return { app: "t3code", thread: thread(opener.session) };
+        case "codex":
+          return { app: "codex" };
+        case "claude":
+          return { app: "claude" };
+        default:
+          return {};
+      }
     default:
       return {};
   }
@@ -212,9 +223,7 @@ export function createNewTabRoutes(
   async function tabBody(request: Request): Promise<string | Response> {
     const value = await body(request, ["tab"]);
     if (value instanceof Response) return value;
-    return typeof value.tab === "string" && targetIdPattern.test(value.tab)
-      ? value.tab.toUpperCase()
-      : response({ error: "invalid-tab" }, 400);
+    return targetIdOf(value.tab) ?? response({ error: "invalid-tab" }, 400);
   }
 
   /** The Launchpad's hold, recorded before the answer. */
@@ -249,7 +258,8 @@ export function createNewTabRoutes(
       const sessions = [
         ...new Set(
           listed.tabs.flatMap((tab) =>
-            tab.opener.kind === "agent" && tab.opener.session.startsWith("t3-")
+            tab.opener.kind === "agent" &&
+            stripAppOf(tab.opener.session) === "t3code"
               ? [tab.opener.session]
               : [],
           ),

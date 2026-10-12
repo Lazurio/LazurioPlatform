@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { type FSWatcher, watch } from "node:fs";
 import {
+  access,
   mkdir,
   readdir,
   readFile,
@@ -8,19 +9,126 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
+import { createConnection } from "node:net";
 import { dirname, isAbsolute, join } from "node:path";
+import {
+  type BootTime,
+  type HolderReading,
+  isStrip,
+  liveTabsText,
+  parseBootTime,
+  parseHolder,
+  targetIdOf,
+} from "./pure";
 
-/** Who keeps a remote tab of the Environment browser (decision F47 points 4
- * and 5), read by the view's hub, which alone ends a tab:
- * - the places that hold it: one file per strip that the app's server writes,
- *   `$XDG_RUNTIME_DIR/lazurio-browser/holders/<strip>.json` =
- *   `{"strip", "label", "tabs": [<target id>…]}` (a T3 Code thread, the
- *   Launchpad), with the writer's own `recordedAt`, which the hub ignores;
- * - the agents that work in it: an agent-browser session bound to it
- *   (`<socket dir>/<session>.target`) whose daemon runs (`<session>.pid`
- *   names a live process). The binding alone does not count: agent-browser
- *   keeps it past the daemon on purpose, and the daemon ends after an hour
- *   without a command. */
+// The Environment browser's contract, its Node part (decision F50 point 1):
+// what the pure part's rules need of the host, with only `node:` built-ins.
+// Where the files are, the boot clock, the atomic owner-only replace, the one
+// reading of holder files and agent-browser's bindings for every reader (the
+// hub passes the memory of root decision 0191 point 32, a reader for display
+// passes none), and letting go of a session's window through its daemon's
+// socket. Licensed under MIT with the rest of the module (`LICENSE`, F50
+// point 6).
+//
+// Who keeps a remote tab of the Environment browser (decision F47 points 4
+// and 5), read by the view's hub, which alone ends a tab:
+// - the places that hold it: one file per strip that the app's server writes,
+//   `$XDG_RUNTIME_DIR/lazurio-browser/holders/<strip>.json` =
+//   `{"strip", "label", "tabs": [<target id>…]}` (a T3 Code thread, the
+//   Launchpad), with the writer's own `recordedAt`, which the hub ignores;
+// - the agents that work in it: an agent-browser session bound to it
+//   (`<socket dir>/<session>.target`) whose daemon runs (`<session>.pid`
+//   names a live process). The binding alone does not count: agent-browser
+//   keeps it past the daemon on purpose, and the daemon ends after an hour
+//   without a command.
+
+// ---- Where the files are ----------------------------------------------------
+
+/** `$XDG_RUNTIME_DIR/lazurio-browser/holders`, where the apps' servers write
+ * their holds; undefined without an absolute runtime directory. */
+export function holderDirectory(
+  env: Readonly<Record<string, string | undefined>>,
+): string | undefined {
+  const runtime = env.XDG_RUNTIME_DIR;
+  return runtime !== undefined && isAbsolute(runtime)
+    ? join(runtime, "lazurio-browser", "holders")
+    : undefined;
+}
+
+/** `$XDG_RUNTIME_DIR/lazurio-browser/tabs.json`: the hub's list of the
+ * browser's live page targets, which every app's server reconciles its holds
+ * with (F47 point 4). */
+export function liveTabsPath(
+  env: Readonly<Record<string, string | undefined>>,
+): string | undefined {
+  const runtime = env.XDG_RUNTIME_DIR;
+  return runtime !== undefined && isAbsolute(runtime)
+    ? join(runtime, "lazurio-browser", "tabs.json")
+    : undefined;
+}
+
+/** Where agent-browser keeps its sockets and a session's tab binding
+ * (`AGENT_BROWSER_SOCKET_DIR`, else `$XDG_RUNTIME_DIR/agent-browser`). */
+export function agentBrowserSocketDirectory(
+  env: Readonly<Record<string, string | undefined>>,
+): string | undefined {
+  const named = env.AGENT_BROWSER_SOCKET_DIR;
+  if (named !== undefined && isAbsolute(named)) return named;
+  const runtime = env.XDG_RUNTIME_DIR;
+  return runtime !== undefined && isAbsolute(runtime)
+    ? join(runtime, "agent-browser")
+    : undefined;
+}
+
+// ---- The boot clock and the files' replacement ------------------------------
+
+/** Reads the boot clock: `/proc/sys/kernel/random/boot_id` and the first
+ * number of `/proc/uptime` (CLOCK_BOOTTIME). Null where there is none: not
+ * Linux, where no Environment browser runs. */
+export async function readBootClock(
+  read: (path: string) => Promise<string> = (path) => readFile(path, "utf8"),
+): Promise<BootTime | null> {
+  try {
+    const boot = (await read("/proc/sys/kernel/random/boot_id")).trim();
+    const at = Number.parseFloat(
+      (await read("/proc/uptime")).trim().split(/\s+/)[0] ?? "",
+    );
+    return parseBootTime({ boot, at });
+  } catch {
+    return null;
+  }
+}
+
+/** Replaces one file of `lazurio-browser` atomically and owner-only (F47
+ * point 4): a temporary file of mode 0600 renamed over it, so a reader sees
+ * the old text or the new one, never a part. Its directory is made with mode
+ * 0700 when missing. */
+export async function replaceOwnerFile(
+  path: string,
+  text: string,
+): Promise<void> {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${randomBytes(6).toString("hex")}.tmp`;
+  try {
+    await writeFile(temporary, text, { mode: 0o600 });
+    await rename(temporary, path);
+  } catch (error) {
+    await rm(temporary, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
+/** Writes the list (`liveTabsText`) atomically: a reader sees the old list
+ * or the new one. */
+export async function writeLiveTabs(
+  path: string,
+  tabs: readonly string[],
+  takenAt: BootTime,
+): Promise<void> {
+  await replaceOwnerFile(path, liveTabsText(tabs, takenAt));
+}
+
+// ---- The holds ----------------------------------------------------------------
 
 export type Hold = Readonly<{ strip: string; label: string }>;
 
@@ -55,13 +163,6 @@ export const noHoldsMemory: HoldsMemory = Object.freeze({
   bindings: new Map(),
 });
 
-/** What one holder file holds. */
-export type HolderReading = Readonly<{
-  strip: string;
-  label: string;
-  tabs: readonly string[];
-}>;
-
 /** One reading of both directories: the holds, what the next reading
  * remembers, and the files this one could not read. */
 export type HoldsReading = Readonly<{
@@ -73,254 +174,6 @@ export type HoldsReading = Readonly<{
    * one missing here is gone. */
   present: readonly string[];
 }>;
-
-/** A strip's name is a file name: agent-browser's session alphabet, as T3
- * Code's `t3-<thread>` and the Launchpad's `launchpad` are. */
-const stripPattern = /^[A-Za-z0-9_-]{1,64}$/;
-const targetIdPattern = /^[0-9A-Fa-f]{32}$/;
-const maxHolderBytes = 64 * 1024;
-const maxTabsPerHolder = 500;
-const maxLabelLength = 200;
-
-export function isStrip(value: unknown): value is string {
-  return typeof value === "string" && stripPattern.test(value);
-}
-
-/** `$XDG_RUNTIME_DIR/lazurio-browser/holders`, where the apps' servers write
- * their holds; undefined without an absolute runtime directory. */
-export function holderDirectory(
-  env: Readonly<Record<string, string | undefined>>,
-): string | undefined {
-  const runtime = env.XDG_RUNTIME_DIR;
-  return runtime !== undefined && isAbsolute(runtime)
-    ? join(runtime, "lazurio-browser", "holders")
-    : undefined;
-}
-
-/** `$XDG_RUNTIME_DIR/lazurio-browser/tabs.json`: the hub's list of the
- * browser's live page targets, which every app's server reconciles its holds
- * with (F47 point 4). */
-export function liveTabsPath(
-  env: Readonly<Record<string, string | undefined>>,
-): string | undefined {
-  const runtime = env.XDG_RUNTIME_DIR;
-  return runtime !== undefined && isAbsolute(runtime)
-    ? join(runtime, "lazurio-browser", "tabs.json")
-    : undefined;
-}
-
-/** A time on the Environment's boot clock (F47 point 4): the boot's id and
- * the seconds since it. Unlike the wall clock it never steps back, and every
- * process of the Environment reads the same one, so it orders an app's record
- * against the hub's snapshot. */
-export type BootTime = Readonly<{ boot: string; at: number }>;
-
-const bootIdPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-
-/** Reads the boot clock: `/proc/sys/kernel/random/boot_id` and the first
- * number of `/proc/uptime` (CLOCK_BOOTTIME). Null where there is none: not
- * Linux, where no Environment browser runs. */
-export async function readBootClock(
-  read: (path: string) => Promise<string> = (path) => readFile(path, "utf8"),
-): Promise<BootTime | null> {
-  try {
-    const boot = (await read("/proc/sys/kernel/random/boot_id")).trim();
-    const at = Number.parseFloat(
-      (await read("/proc/uptime")).trim().split(/\s+/)[0] ?? "",
-    );
-    return bootIdPattern.test(boot) && Number.isFinite(at) && at >= 0
-      ? { boot, at }
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-/** A boot-clock time as it is stored, or null when the value is not one. */
-export function parseBootTime(value: unknown): BootTime | null {
-  if (typeof value !== "object" || value === null) return null;
-  const record = value as Record<string, unknown>;
-  return typeof record.boot === "string" &&
-    bootIdPattern.test(record.boot) &&
-    typeof record.at === "number" &&
-    Number.isFinite(record.at) &&
-    record.at >= 0
-    ? { boot: record.boot, at: record.at }
-    : null;
-}
-
-/** A stored tab of an app with the boot-clock time it recorded the tab, or
- * null for a tab without one, which counts as recorded long ago (F47 point
- * 4). */
-export type RecordedTab = Readonly<{ id: string; recordedAt: BootTime | null }>;
-
-/** One snapshot of the browser's page targets: `takenAt` is the boot-clock
- * time the hub began it, before it asked the browser. */
-export type LiveTabs = Readonly<{ tabs: readonly string[]; takenAt: BootTime }>;
-
-/** Replaces one file of `lazurio-browser` atomically and owner-only (F47
- * point 4): a temporary file of mode 0600 renamed over it, so a reader sees
- * the old text or the new one, never a part. Its directory is made with mode
- * 0700 when missing. */
-export async function replaceOwnerFile(
-  path: string,
-  text: string,
-): Promise<void> {
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const temporary = `${path}.${randomBytes(6).toString("hex")}.tmp`;
-  try {
-    await writeFile(temporary, text, { mode: 0o600 });
-    await rename(temporary, path);
-  } catch (error) {
-    await rm(temporary, { force: true }).catch(() => undefined);
-    throw error;
-  }
-}
-
-/** Writes the list atomically: a reader sees the old list or the new one. */
-export async function writeLiveTabs(
-  path: string,
-  tabs: readonly string[],
-  takenAt: BootTime,
-): Promise<void> {
-  await replaceOwnerFile(path, `${JSON.stringify({ tabs, takenAt })}\n`);
-}
-
-/** The list a reader finds, or null when the file is not one. */
-export function parseLiveTabs(text: string): LiveTabs | null {
-  let value: unknown;
-  try {
-    value = JSON.parse(text);
-  } catch {
-    return null;
-  }
-  if (typeof value !== "object" || value === null) return null;
-  const record = value as Record<string, unknown>;
-  const takenAt = parseBootTime(record.takenAt);
-  if (!Array.isArray(record.tabs) || takenAt === null) return null;
-  if (
-    !record.tabs.every(
-      (id): id is string => typeof id === "string" && targetIdPattern.test(id),
-    )
-  )
-    return null;
-  return {
-    tabs: record.tabs.map((id) => (id as string).toUpperCase()),
-    takenAt,
-  };
-}
-
-/** An app's reconciliation (F47 point 4): the ids it keeps from its stored
- * ones, `boot` being the current boot. A list of another boot is ignored.
- * An id the list lacks goes when the list was taken after the app recorded
- * it: a snapshot lists every target that exists when it begins, so such an
- * id had ended by then, while a tab recorded after the snapshot began stays.
- * A record from an earlier boot, or without a time, is older than every list
- * of this boot. Without a list, or without the boot clock, it keeps
- * everything. */
-export function keptTabs(
-  stored: readonly RecordedTab[],
-  list: LiveTabs | null,
-  boot: string | null,
-): string[] {
-  if (list === null || boot === null || list.takenAt.boot !== boot)
-    return stored.map((tab) => tab.id);
-  const live = new Set(list.tabs);
-  return stored
-    .filter(
-      (tab) =>
-        live.has(tab.id.toUpperCase()) ||
-        (tab.recordedAt !== null &&
-          tab.recordedAt.boot === boot &&
-          tab.recordedAt.at >= list.takenAt.at),
-    )
-    .map((tab) => tab.id);
-}
-
-/** The hold one holder file records, or null when the file is not one: its
- * `strip` must be its file name, and only target ids count. */
-export function parseHolder(
-  fileName: string,
-  text: string,
-): HolderReading | null {
-  if (!fileName.endsWith(".json")) return null;
-  const name = fileName.slice(0, -".json".length);
-  if (!isStrip(name) || text.length > maxHolderBytes) return null;
-  let value: unknown;
-  try {
-    value = JSON.parse(text);
-  } catch {
-    return null;
-  }
-  if (typeof value !== "object" || value === null) return null;
-  const record = value as Record<string, unknown>;
-  if (record.strip !== name || !Array.isArray(record.tabs)) return null;
-  const label =
-    typeof record.label === "string"
-      ? record.label.trim().slice(0, maxLabelLength)
-      : "";
-  const tabs = [
-    ...new Set(
-      record.tabs
-        .filter(
-          (id): id is string =>
-            typeof id === "string" && targetIdPattern.test(id),
-        )
-        .map((id) => id.toUpperCase()),
-    ),
-  ].slice(0, maxTabsPerHolder);
-  return { strip: name, label, tabs };
-}
-
-/** The text of a holder file that also keeps each tab's record time,
- * `recordedAt`, by its id: the hub ignores it, and only the app that writes
- * the file reads it back (`parseHolderRecords`), so its reconciliation
- * survives a restart. A tab without a time has no entry. */
-export function holderFileText(
-  strip: string,
-  label: string,
-  tabs: readonly RecordedTab[],
-): string {
-  const recordedAt: Record<string, BootTime> = {};
-  for (const tab of tabs)
-    if (tab.recordedAt !== null)
-      recordedAt[tab.id] = { boot: tab.recordedAt.boot, at: tab.recordedAt.at };
-  return `${JSON.stringify({
-    strip,
-    label,
-    tabs: tabs.map((tab) => tab.id),
-    recordedAt,
-  })}\n`;
-}
-
-/** A holder file with the record time of each of its tabs, or null when the
- * file is not a holder file (`parseHolder`'s rules). A tab whose time is
- * missing or not a boot-clock time has null. */
-export function parseHolderRecords(
-  fileName: string,
-  text: string,
-): Readonly<{
-  strip: string;
-  label: string;
-  tabs: readonly RecordedTab[];
-}> | null {
-  const hold = parseHolder(fileName, text);
-  if (hold === null) return null;
-  const times = new Map<string, BootTime>();
-  const stored = (JSON.parse(text) as Record<string, unknown>).recordedAt;
-  if (typeof stored === "object" && stored !== null && !Array.isArray(stored))
-    for (const [id, value] of Object.entries(stored)) {
-      const at = parseBootTime(value);
-      if (targetIdPattern.test(id) && at !== null)
-        times.set(id.toUpperCase(), at);
-    }
-  return {
-    strip: hold.strip,
-    label: hold.label,
-    tabs: hold.tabs.map((id) => ({ id, recordedAt: times.get(id) ?? null })),
-  };
-}
 
 /** True while a process with this id runs (one of another user counts too,
  * as `kill -0` answers EPERM for it). */
@@ -446,9 +299,8 @@ export async function readHolds(
         unreadable.push(name);
         targetId = memory.bindings.get(name);
       }
-      if (typeof targetId !== "string" || !targetIdPattern.test(targetId))
-        continue;
-      const id = targetId.toUpperCase();
+      const id = targetIdOf(targetId);
+      if (id === null) continue;
       remembered.bindings.set(name, id);
       add(bound, id, session);
       const pidText = await textOf(join(directory, `${session}.pid`));
@@ -580,4 +432,146 @@ export function watchHolds(
       watchers.clear();
     },
   });
+}
+
+// ---- Letting go of a session's window (C7) -----------------------------------
+
+/** What a session's daemon answered on its socket: nothing listens there
+ * (`absent`), a reply line, or no reply in time. */
+export type DaemonAnswer =
+  | Readonly<{ kind: "absent" }>
+  | Readonly<{ kind: "reply"; line: string }>
+  | Readonly<{ kind: "no-answer" }>;
+
+/** What letting go of a window needs of the host: overridable in tests. */
+export type DaemonSeams = Readonly<{
+  /** Sends one command line to a socket and answers the reply line. */
+  ask?: (socketPath: string, line: string) => Promise<DaemonAnswer>;
+  /** Whether a file is still there, polled while the daemon exits. */
+  exists?: (path: string) => Promise<boolean>;
+  /** How long to wait for the daemon to exit after it acknowledged. */
+  exitWithinMs?: number;
+}>;
+
+/** agent-browser's own graceful shutdown of a session's daemon, as its CLI
+ * sends it before restarting a daemon (`request_graceful_daemon_shutdown`
+ * in agent-browser `cli/src/connection.rs`): the daemon runs its close,
+ * which only disconnects from a browser it did not launch, answers and
+ * exits, removing its `.pid`. An internal action of the agent-browser
+ * release Machines pin, and no part of the contract: F50 point 2 moves
+ * letting go to a documented command of the agent-browser fork, so only
+ * `stopSessionDaemon`'s outcomes are the contract's. */
+const agentBrowserShutdownAction = "__agent_browser_internal_shutdown";
+
+const daemonAnswerMs = 5_000;
+const maxDaemonReplyBytes = 64 * 1024;
+
+/** Connection errors that prove nothing listens on a socket path: no file,
+ * a socket nobody listens on (Linux), a file that is no socket (macOS).
+ * Anything else, a permission above all, proves nothing. */
+const absentSocketCodes = new Set(["ENOENT", "ECONNREFUSED", "ENOTSOCK"]);
+
+/** One command line to a Unix socket and its reply line. Nothing listening
+ * (no socket, a stale one) is `absent`; no reply within 5 s, or a socket
+ * that cannot be reached for any other reason, is `no-answer`. */
+export function askDaemonSocket(
+  socketPath: string,
+  line: string,
+): Promise<DaemonAnswer> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let connected = false;
+    let buffer = "";
+    const socket = createConnection({ path: socketPath });
+    const done = (answer: DaemonAnswer) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(answer);
+    };
+    const timer = setTimeout(() => done({ kind: "no-answer" }), daemonAnswerMs);
+    socket.on("connect", () => {
+      connected = true;
+      socket.write(line);
+    });
+    socket.on("data", (chunk) => {
+      buffer += chunk.toString("utf8");
+      const end = buffer.indexOf("\n");
+      if (end >= 0) done({ kind: "reply", line: buffer.slice(0, end) });
+      else if (buffer.length > maxDaemonReplyBytes) done({ kind: "no-answer" });
+    });
+    socket.on("end", () =>
+      done(
+        buffer === "" ? { kind: "no-answer" } : { kind: "reply", line: buffer },
+      ),
+    );
+    socket.on("error", (error: NodeJS.ErrnoException) =>
+      done(
+        !connected && absentSocketCodes.has(error.code ?? "")
+          ? { kind: "absent" }
+          : { kind: "no-answer" },
+      ),
+    );
+  });
+}
+
+/** Whether a file is there: only "no such file" is gone; any other failure
+ * is thrown, since it proves nothing. */
+const fileExists = (path: string) =>
+  access(path).then(
+    () => true,
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return false;
+      throw error;
+    },
+  );
+
+/** Lets go of a session's window (root decision 0191 point 28): asks the
+ * session's own agent-browser daemon, on that session's socket
+ * (`<socket dir>/<session>.sock`), to shut down, then waits up to 5 s for
+ * its `.pid` to go. The daemon of an attached browser disconnects without
+ * closing a tab, so the hub no longer counts the agent as working in it
+ * (F47 point 5): the tab ends once nothing holds it and nobody views it.
+ * Nothing is signalled by a process id, so a stale `.pid` whose number
+ * another process now has, even another session's daemon, is never touched
+ * (Pablo's review of #348). Never `agent-browser close` or `tab close`: the
+ * tab would close for everyone who holds or views it, and the CLI starts a
+ * daemon first when none runs. `stopped`: the daemon answered and its
+ * `.pid` is gone; `none`: nothing listens on the session's socket;
+ * `refused`: the daemon answered that it did not shut down, so nothing
+ * changed; `unconfirmed`: no answer, a socket or `.pid` that cannot be
+ * reached, or an answer but the `.pid` still there after the wait, so the
+ * daemon may still hold the window. */
+export async function stopSessionDaemon(
+  socketDirectory: string,
+  session: string,
+  seams: DaemonSeams = {},
+): Promise<"stopped" | "none" | "refused" | "unconfirmed"> {
+  if (!isStrip(session)) return "none";
+  const answer = await (seams.ask ?? askDaemonSocket)(
+    join(socketDirectory, `${session}.sock`),
+    `${JSON.stringify({ id: "lazurio-browser-done", action: agentBrowserShutdownAction })}\n`,
+  );
+  if (answer.kind === "absent") return "none";
+  // The command went out: the daemon may have taken it even if its answer
+  // was lost.
+  if (answer.kind === "no-answer") return "unconfirmed";
+  let success = false;
+  try {
+    success =
+      (JSON.parse(answer.line) as { success?: unknown } | null)?.success ===
+      true;
+  } catch {}
+  if (!success) return "refused";
+  const exists = seams.exists ?? fileExists;
+  const pid = join(socketDirectory, `${session}.pid`);
+  const deadline = Date.now() + (seams.exitWithinMs ?? daemonAnswerMs);
+  for (;;) {
+    // Only a .pid proven gone counts; one that cannot be checked is not.
+    const present = await exists(pid).catch(() => null);
+    if (present === false) return "stopped";
+    if (present === null || Date.now() >= deadline) return "unconfirmed";
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
 }

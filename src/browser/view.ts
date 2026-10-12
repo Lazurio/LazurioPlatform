@@ -1,15 +1,11 @@
+import { browserViewUrl } from "./contract/pure";
 import type { BrowserEntry } from "./units";
 
 /** Where a person sees the Environment browser (decisions F38 and F39): the
  * people's view on the gateway's `browser.` origin. The address of one remote
- * tab is `<origin>/t/<target id>`, and `<origin>/` opens a new one. Neither
- * carries a token: the gateway's session is the only admission (F39 point
- * 8). The Launchpad answers these addresses for the panels and the links. */
-
-/** An agent-browser session name as agent-browser accepts it
- * (`[A-Za-z0-9_-]`, `cli/src/validation.rs`), at most 64 characters. */
-export const isBrowserSession = (value: unknown): value is string =>
-  typeof value === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(value);
+ * tab is `<origin>/t/<target id>`, and `<origin>/` opens a new one, as the
+ * contract writes them (`browserViewUrl`, decision F50). The Launchpad answers
+ * these addresses for the panels and the links. */
 
 /** The answer of `GET /.lazurio/browser.json`: where the view of one
  * thread's tab (or a new tab) is, or that this Environment has none. */
@@ -31,14 +27,6 @@ export type BrowserViewSeams = Readonly<{
    * agent always see the same tab. */
   openWindow: (session: string) => Promise<Readonly<{ targetId: string }>>;
 }>;
-
-/** The view of one remote tab, or of a new one without a target. */
-export function browserViewUrl(
-  origin: string,
-  targetId: string | null,
-): string {
-  return targetId === null ? `${origin}/` : `${origin}/t/${targetId}`;
-}
 
 export async function resolveBrowserView(
   entry: BrowserEntry | undefined,
