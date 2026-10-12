@@ -547,6 +547,42 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
     ]);
   });
 
+  test("entries gone at once fall to the first one after the shown entry that is still there, else the nearest before it, by the strip as it was", () => {
+    // Pablo's review of #341: [A, B, C, D, Nová karta] showing B, and one
+    // overview drops A and B: C took B's place, not D.
+    const four = run(
+      [{ kind: "select", entry: id(2) }],
+      openWith([listedTab(1), listedTab(2), listedTab(3), listedTab(4)]),
+    );
+    expect(keys(four)).toEqual([id(1), id(2), id(3), id(4), "new-1"]);
+    const both = relist(four, [listedTab(3), listedTab(4)]);
+    expect([keys(both), shown(both)]).toEqual([[id(3), id(4), "new-1"], id(3)]);
+    // Showing D, C and D go together: the Nová karta after them.
+    const last = relist(run([{ kind: "select", entry: id(4) }], four), [
+      listedTab(1),
+      listedTab(2),
+    ]);
+    expect([keys(last), shown(last)]).toEqual([
+      [id(1), id(2), "new-1"],
+      "new-1",
+    ]);
+    // Nothing after it is left: the nearest one before it.
+    const tabs = run(
+      [{ kind: "chosen", tab: id(3), from: "new-1" }],
+      openWith([listedTab(1), listedTab(2), listedTab(3)]),
+    );
+    const before = relist(tabs, [listedTab(1)]);
+    expect([keys(before), shown(before)]).toEqual([[id(1)], id(1)]);
+    // Everything gone at once, by anything but the person's ×: a new Nová
+    // karta, and the panel stays open.
+    const emptied = relist(tabs, []);
+    expect([keys(emptied), shown(emptied), closesPanel(emptied)]).toEqual([
+      ["new-2"],
+      "new-2",
+      false,
+    ]);
+  });
+
   test("Vrátit holds the tab again: back in its place in the strip, and shown again where it was shown when let go", () => {
     const released = run(
       [
