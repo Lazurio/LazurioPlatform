@@ -105,7 +105,8 @@ export type IntegrationApp = Readonly<{
    * for a person who is not the Organization's Admin; `forAdmin` turns it
    * for one who is. */
   path: PathChoice;
-  /** Connected: through its tool, or an active account on its path. */
+  /** Connected: through its tool, or an active account on its path; an
+   * account whose sign-in expired or failed does not connect it. */
   connected: boolean;
   accounts: readonly IntegrationAccount[];
   /** Whether the app is in the catalog (otherwise only connected here). */
@@ -138,6 +139,9 @@ export type IntegrationsOverview = Readonly<{
     source: ComposioPolicy["source"];
     /** Installed, signed in and on for agents here. */
     ready: boolean;
+    /** Whether "Odpojit" removes a Composio account here: the CLI removes
+     * one without a prompt (`connections remove --yes`). */
+    disconnect: boolean;
   }>;
   sources: Readonly<{
     tools: SourceState;
@@ -168,6 +172,12 @@ export type MergeInput = Readonly<{
   tools: ToolsReading;
   executor: ExecutorReading;
   composio: ComposioReadingState;
+  /** The Composio toolkits a sign-in started here waits for. A pending
+   * account of any other toolkit is a sign-in nobody finishes: not listed. */
+  composioWaiting?: ReadonlySet<string>;
+  /** The CLI removes an account without a prompt (`connections remove
+   * --yes`). */
+  composioDisconnect?: boolean;
   readAt: string;
 }>;
 
@@ -283,6 +293,11 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
   const viaComposio = new Map<string, IntegrationAccount[]>();
   if (composioUsable && input.composio.state === "ok")
     for (const account of input.composio.accounts) {
+      if (
+        account.state === "pending" &&
+        !(input.composioWaiting?.has(account.toolkit) ?? false)
+      )
+        continue;
       const accounts = viaComposio.get(account.toolkit) ?? [];
       accounts.push({
         path: "composio",
@@ -321,9 +336,7 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
       path.path === "tool" ||
       ((path.path === "direct" || path.path === "composio") &&
         marked.some(
-          (account) =>
-            !account.spare &&
-            (account.state === "connected" || account.state === "expired"),
+          (account) => !account.spare && account.state === "connected",
         ));
     return Object.freeze({
       id: app.id,
@@ -367,6 +380,7 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
       allowed: policy.allowed,
       source: policy.source,
       ready: input.composioReady,
+      disconnect: composioUsable && input.composioDisconnect === true,
     }),
     sources: Object.freeze({
       tools: input.tools.state,

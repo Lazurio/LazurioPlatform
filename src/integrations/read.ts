@@ -19,6 +19,7 @@ import { integrationsCatalog } from "./catalog";
 import type { IntegrationsCatalog } from "./catalog-schema";
 import {
   type ComposioNames,
+  composioRemovesWithoutPrompt,
   createComposioNames,
   nameComposioAccounts,
   readComposioAccounts,
@@ -65,6 +66,10 @@ export type IntegrationsHost = Readonly<{
    * (`createIntegrationsReader`); without them, as for `lazurio
    * integrations list`, every reading reads them. */
   composioNames?: ComposioNames;
+  /** The Composio toolkits a sign-in the Launchpad started waits for (its
+   * connect sessions); without them, as for `lazurio integrations list`,
+   * no pending account is listed. */
+  composioWaiting?: () => ReadonlySet<string>;
   catalog?: IntegrationsCatalog;
   now?: () => Date;
 }>;
@@ -150,6 +155,7 @@ export async function readIntegrations(
     composioTool.installed &&
     composioTool.signIn?.state === "signed-in";
   let composio: ComposioReadingState;
+  let composioDisconnect = false;
   if (overview === null) composio = { state: "unreadable" };
   else if (composioTool === undefined || !composioTool.installed)
     composio = { state: "unavailable" };
@@ -162,7 +168,11 @@ export async function readIntegrations(
   )
     composio = { state: "unavailable" };
   else {
-    const reading = await readComposioAccounts(host.tools, composioTool.path);
+    const [reading, removes] = await Promise.all([
+      readComposioAccounts(host.tools, composioTool.path),
+      composioRemovesWithoutPrompt(host.tools, composioTool.path),
+    ]);
+    composioDisconnect = removes;
     composio =
       reading.state === "ok"
         ? {
@@ -189,6 +199,8 @@ export async function readIntegrations(
     tools,
     executor,
     composio,
+    composioWaiting: host.composioWaiting?.() ?? new Set(),
+    composioDisconnect,
     readAt: (host.now ?? (() => new Date()))().toISOString(),
   });
 }

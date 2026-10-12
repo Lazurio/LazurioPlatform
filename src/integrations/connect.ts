@@ -788,6 +788,21 @@ export function createConnectSessions(host: () => ConnectHost) {
       }
     },
 
+    /** The Composio toolkits a sign-in started here waits for: a session
+     * still pending and not yet expired. The reading lists a pending
+     * account only of these (decision F42, addendum of 2026-10-12). */
+    waitingToolkits(): ReadonlySet<string> {
+      const waiting = new Set<string>();
+      for (const session of sessions.values())
+        if (
+          session.composio !== undefined &&
+          session.outcome.kind === "pending" &&
+          now() < session.expires
+        )
+          waiting.add(session.composio.toolkit);
+      return waiting;
+    },
+
     /** How a session goes. */
     async poll(id: string): Promise<ConnectProgress | null> {
       const session = sessions.get(id);

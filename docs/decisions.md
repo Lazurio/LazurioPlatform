@@ -6447,6 +6447,53 @@ Save enabled only when the rules pass, the lines under the fields, and an edit's
 stored keys marked "Uloženo" and then "Zadejte znovu" with no line or note beside them,
 and the refusals (`tests/integrations-custom-form.test.ts`).
 
+**Addendum 2026-10-12, asked for by the Organization Admin: the page says what
+Composio's accounts are.** A person could not disconnect a Gmail account here, so
+they disconnected it in Composio's dashboard. The card still said "Připojeno přes
+Composio" and listed an unfinished sign-in ("Dokonči připojení v prohlížeči") and an
+account whose sign-in had expired, neither of which the dashboard showed. Three
+things in the reading were wrong. The reference is
+[integrations](integrations.md#composio-composio-04x).
+
+1. **Connected means a working account.** An app is connected through its tool or an
+   active account on its path, as the reading's own type says; the reading also
+   counted an account whose sign-in expired. Such an app now lists its accounts (an
+   expired one with "Přihlásit znovu") but is not connected: no "Připojeno" on its
+   card, not counted in Připojené, and listed for agents under "Not working" by
+   `lazurio integrations list`.
+2. **A sign-in nobody finishes is no account.** `composio link --no-wait` creates a
+   pending (`INITIATED`) account at once, and one whose sign-in is never finished
+   stays pending. The reading lists a pending account only of a toolkit for which a
+   sign-in started in this Launchpad waits: a connect session still pending and not
+   expired. The Launchpad's cached reading is read again when such a sign-in starts,
+   ends or is cancelled. Any other pending account is left out, on the page and for
+   agents.
+3. **"Odpojit" only where it can work.** Composio's CLI (0.4.2, and `next` on
+   2026-10-12) removes an account only after a prompt, which no Launchpad answers for
+   a person, so "Odpojit" always failed (`disconnect-unsupported`). The reading says
+   whether this CLI removes without a prompt (`--yes` in `connections remove --help`,
+   read with the accounts), and the "⋯" menu offers "Odpojit" only then; "Spravovat
+   v Composiu" stays. The flag is proposed upstream (ComposioHQ/composio#4817, issue
+   #4816); once a release has it and the Platform pins that release, "Odpojit"
+   appears by itself.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep an expired account as connected | The card keeps its "Připojeno"; but agents cannot use the account and the person sees a connection that does not work; rejected |
+| Leave out every pending account | Simplest; but the card would no longer say "Dokonči připojení v prohlížeči" while the person signs in; rejected: listed while a sign-in started here waits |
+| Answer the CLI's prompt through a pseudo-terminal | Removal today; but it depends on the prompt's text and keys, which the CLI may change in any beta; rejected: the flag upstream |
+| Remove through Composio's API with the person's key | Removal today; but a second client of a consumer API that Composio's maintainers ask products not to build on (ComposioHQ/composio#3187); rejected |
+
+Verified by tests: an app whose only account expired listed but not connected
+(`tests/integrations-model.test.ts`, `tests/integrations-routes.test.ts`); a pending
+account left out without a waiting sign-in and listed with one
+(`tests/integrations-model.test.ts`); a pending account of an unfinished sign-in left
+out, listed in the cached reading once a sign-in of its toolkit starts, and left out
+again once it is cancelled; `composio.disconnect` false for a CLI without `--yes` and
+true with it; `lazurio integrations list` naming the expired app under "Not working"
+(`tests/integrations-routes.test.ts`); the "⋯" menu without "Odpojit" where the CLI
+cannot remove (`tests/integrations-page.test.ts`).
+
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
 **Decided by Matěj 2026-10-08 and 2026-10-09 (root decision 0193, plan DEV-6631;

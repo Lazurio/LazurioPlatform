@@ -361,6 +361,7 @@ test("Composio not allowed: its accounts do not count, the source says why, and 
     allowed: false,
     source: "organization",
     ready: true,
+    disconnect: false,
   });
   const salesforce = overview.apps.find((item) => item.id === "salesforce");
   expect(salesforce).toMatchObject({
@@ -497,7 +498,8 @@ test("Composio's toolkits the catalog does not know are listed, and links follow
     id: "todoist",
     name: "todoist",
     path: { path: "composio", signIn: false },
-    connected: true,
+    // Its one account's sign-in expired: listed, but not connected.
+    connected: false,
     accounts: [
       {
         path: "composio",
@@ -511,6 +513,35 @@ test("Composio's toolkits the catalog does not know are listed, and links follow
     catalog: false,
     link: "https://launchpad.example.lazurio.io/integrations/app/todoist",
   });
+});
+
+// A Composio account still pending is a sign-in: listed only while one
+// started here waits for its toolkit (decision F42, addendum of
+// 2026-10-12); otherwise nobody finishes it and it is no account.
+test("a pending Composio account is listed only while a sign-in started here waits for its toolkit", () => {
+  const composio = {
+    state: "ok" as const,
+    accounts: [
+      {
+        toolkit: "todoist",
+        state: "pending" as const,
+        alias: null,
+        wordId: "stone",
+      },
+    ],
+  };
+  expect(
+    mergeIntegrations({ ...base, composio }).apps.find(
+      (item) => item.id === "todoist",
+    ),
+  ).toBeUndefined();
+  expect(
+    mergeIntegrations({
+      ...base,
+      composio,
+      composioWaiting: new Set(["todoist"]),
+    }).apps.find((item) => item.id === "todoist"),
+  ).toMatchObject({ connected: false, accounts: [{ state: "pending" }] });
 });
 
 test("the scope of a preset, and Composio's statuses and answers read exactly", () => {

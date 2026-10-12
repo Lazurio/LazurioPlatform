@@ -271,7 +271,13 @@ Read from the CLI's source (ComposioHQ/composio, `ts/packages/cli`, 2026-10-09):
   permission_group}]}` on stdout, every status, an alias only where a toolkit has
   several accounts, no ids. Statuses map to four states: `ACTIVE` connected;
   `EXPIRED`, `REVOKED` expired; `INITIATED`, `INITIALIZING` pending; anything else
-  failed.
+  failed. Only a connected account connects its app: one whose sign-in expired or
+  failed is listed with its state, and the app is not connected. A pending
+  account is a sign-in: `link --no-wait` creates it at once, and one that is
+  never finished stays pending in Composio, which its dashboard does not show. The
+  reading lists a pending account only of a toolkit for which a sign-in started in
+  this Launchpad waits (a connect session still pending and not expired); the
+  Launchpad reads again when such a sign-in starts, ends or is cancelled.
 - `link <toolkit> --list` prints `{toolkit, total, items}` with the active accounts,
   their ids, word ids and aliases (an alias of `null` where the account has none);
   the Launchpad checks a second account's name against it before linking (the CLI
@@ -288,11 +294,14 @@ Read from the CLI's source (ComposioHQ/composio, `ts/packages/cli`, 2026-10-09):
   Composio's dashboard, opened the same way. A link lives ten minutes; the page
   asks every two seconds whether its account is active.
 - `connections remove <selector>` asks for a confirmation and, without a terminal,
-  removes nothing; it has no `--yes` (0.4.3-beta). The Launchpad removes only when
+  removes nothing; it has no `--yes` (0.4.2, and `next` on 2026-10-12; proposed
+  upstream in ComposioHQ/composio#4817). The Launchpad removes only when
   `connections remove --help` offers `--yes` and never answers the prompt for the
-  person; otherwise it answers `disconnect-unsupported` and the page sends the
-  person to Composio. Composio's accounts belong to the Composio account and its
-  organization, so disconnecting reaches every Environment signed in the same way.
+  person. The reading says whether it does (`composio.disconnect`, read with the
+  accounts), and only then the page offers "Odpojit" for a Composio account; the
+  route still answers `disconnect-unsupported` to a request without it. Composio's
+  accounts belong to the Composio account and its organization, so disconnecting
+  reaches every Environment signed in the same way.
 
 Every process gets only `PATH`, `HOME`, the XDG base directories and `NO_COLOR`,
 runs in its own process group and is bounded (15 s); its raw output is never
@@ -340,7 +349,8 @@ connecting, or the account the provider names). Without one the page says "úče
   first. An Executor account has none (`null`).
 - The page shows a "⋯" menu on each Composio account: "Spravovat v Composiu"
   opens `manage` in a new tab of the person's browser, and "Odpojit" is there
-  rather than in the row. "Přihlásit znovu" stays in the row of an expired
+  rather than in the row, where the CLI removes an account without a prompt
+  (`composio.disconnect`). "Přihlásit znovu" stays in the row of an expired
   account; an Executor account keeps "Odpojit" in its row and has no menu.
 - No rename and no provider identity: renaming needs a project API key and the
   CLI has no rename, and the CLI strips the identity Composio keeps for an account
@@ -350,8 +360,9 @@ connecting, or the account the provider names). Without one the page says "úče
 
 Both answer the same document (`IntegrationsOverview`, `src/integrations/model.ts`):
 the Folder's language and scope, the Integrace page address where a browser
-reaches the Launchpad (`page`, null on a workstation), Composio's policy and
-readiness, each source's state (`ok`, `unavailable`, `absent` for an Environment
+reaches the Launchpad (`page`, null on a workstation), Composio's policy,
+readiness and whether its CLI removes an account here (`disconnect`), each
+source's state (`ok`, `unavailable`, `absent` for an Environment
 without Executor, `unreadable`, `signed-out`, `not-allowed`), the tools for one app that are connected, every catalog app with
 its path, `connected`, its accounts (path, the selector that disconnects it, its
 `label`, state, spare, and `manage`, a Composio account's page in Composio's

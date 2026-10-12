@@ -98,7 +98,7 @@ test("one reading: the catalog with one path per app, tool and Executor and Comp
             {
               id: "ca_3",
               toolkit: "todoist",
-              status: "INITIATED",
+              status: "ACTIVE",
               alias: null,
               word_id: "stone",
             },
@@ -139,6 +139,8 @@ test("one reading: the catalog with one path per app, tool and Executor and Comp
       allowed: true,
       source: "environment",
       ready: true,
+      // This composio removes an account only after a prompt.
+      disconnect: false,
     });
     // gh is signed in: GitHub goes through its tool.
     expect(app_("github")).toMatchObject({
@@ -165,8 +167,9 @@ test("one reading: the catalog with one path per app, tool and Executor and Comp
       connected: true,
       accounts: [{ path: "composio", selector: "castle", state: "connected" }],
     });
+    // An account whose sign-in expired does not connect the app.
     expect(app_("salesforce")).toMatchObject({
-      connected: true,
+      connected: false,
       accounts: [{ state: "expired" }],
     });
     // Not in the catalog, connected in Composio: listed by its toolkit.
@@ -175,7 +178,7 @@ test("one reading: the catalog with one path per app, tool and Executor and Comp
         path: "composio",
         selector: "stone",
         label: null,
-        state: "pending",
+        state: "connected",
         spare: false,
         manage: "https://dashboard.composio.dev/First/~/connect/apps/todoist",
       },
@@ -690,6 +693,59 @@ test("through Composio: the link only for the request that asked, then connected
   }
 });
 
+// A Composio sign-in nobody finishes is no account (decision F42, addendum
+// of 2026-10-12): its pending account is listed only while a sign-in
+// started here waits for its toolkit, also in the page's cached reading.
+test("a Composio sign-in nobody finishes is listed only while one started here waits", async () => {
+  const { app } = await setup(
+    {
+      composio: {
+        accounts: [
+          // Left by a sign-in that was never finished, in no session here.
+          {
+            id: "ca_9",
+            toolkit: "salesforce",
+            status: "INITIATED",
+            alias: null,
+            word_id: "harbor",
+          },
+        ],
+      },
+    },
+    { tools: ["composio"] },
+  );
+  const salesforce = async (refresh: boolean) => {
+    const answer = await app.get(
+      refresh ? "/api/integrations?refresh=1" : "/api/integrations",
+    );
+    const value = (await answer.json()) as IntegrationsOverview;
+    return value.apps.find((item) => item.id === "salesforce");
+  };
+  expect(await salesforce(true)).toMatchObject({
+    connected: false,
+    accounts: [],
+  });
+  const started = (await (
+    await app.post("/api/integrations/connect", { app: "salesforce" })
+  ).json()) as { kind: string; session: string };
+  expect(started.kind).toBe("authorize");
+  // The cached reading reads again: the sign-in waits, so its pending
+  // account is listed.
+  expect(
+    (await salesforce(false))?.accounts.map((account) => account.state),
+  ).toContain("pending");
+  expect(
+    await (
+      await app.post("/api/integrations/cancel", { session: started.session })
+    ).json(),
+  ).toEqual({ kind: "cancelled" });
+  // Cancelled: nothing waits, and no pending account is listed.
+  expect(await salesforce(false)).toMatchObject({
+    connected: false,
+    accounts: [],
+  });
+});
+
 test("a second Composio account needs a name, and a name in use is refused before anything runs", async () => {
   const { world, app } = await setup(
     {
@@ -1090,7 +1146,9 @@ test("disconnecting needs an explicit confirmation; Executor's account goes, Com
     account: "castle",
     confirm: true,
   };
-  // Composio 0.4.x asks for a confirmation no Launchpad answers for a person.
+  // Composio 0.4.x asks for a confirmation no Launchpad answers for a person:
+  // the page offers no "Odpojit" for its accounts.
+  expect((await overview(app)).value.composio.disconnect).toBe(false);
   const unsupported = await app.post("/api/integrations/disconnect", composio);
   expect(unsupported.status).toBe(409);
   expect(await unsupported.json()).toEqual({
@@ -1102,6 +1160,7 @@ test("disconnecting needs an explicit confirmation; Executor's account goes, Com
   const state = await readComposioState(world.home);
   const { writeComposioState } = await import("./fixtures/integrations-world");
   await writeComposioState(world.home, { ...state, removeYes: true });
+  expect((await overview(app)).value.composio.disconnect).toBe(true);
   expect(
     await (await app.post("/api/integrations/disconnect", composio)).json(),
   ).toEqual({ kind: "disconnected" });
@@ -1777,8 +1836,10 @@ test("`lazurio integrations list --json` answers what the route answers", async 
       executorPresent: true,
     },
   );
+  // Its only account's sign-in expired: not connected, but the agent sees
+  // that the person has to sign in again.
   expect(text.stdout).toContain(
-    "Notion (notion) — directly (Executor) · expired",
+    "Not working (the person signs in again on the card):\n  Notion (notion) — directly (Executor) · expired",
   );
   expect(text.stdout).toContain("GitHub (github) — through gh");
   // A wrong invocation is a usage error.
