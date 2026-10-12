@@ -6470,7 +6470,10 @@ things in the reading were wrong. The reference is
    (a connect session pending and not expired) may be it: it appeared after that
    sign-in started and before the toolkit's next sign-in did (or by now, after the
    last), counting sign-ins that ended or were cancelled, which the sessions keep a
-   minute beyond their expiry. So trying a toolkit again never lists an earlier,
+   minute beyond their expiry. One sign-in of a toolkit starts at a time (its check
+   of the names, its snapshot, its link and its session, in that order), so the
+   sessions' order is the links' order even when two start at once and the first
+   link answers last. So trying a toolkit again never lists an earlier,
    abandoned sign-in, and cancelling one of two sign-ins of a toolkit leaves only
    the other's account. Where any of those word ids could not be read, or a
    pending account has none, no pending account is listed. The Launchpad's cached
@@ -6500,7 +6503,8 @@ waiting sign-in's own listed, by the order of two sign-ins of one toolkit too
 (`tests/integrations-model.test.ts`); an unfinished sign-in left out, and when the
 person tries the same toolkit again only the new sign-in's pending account listed,
 in the cached reading too, none once it is cancelled, and of two sign-ins at once
-only the earlier's after the later is cancelled; `composio.disconnect` false for a CLI without `--yes` and
+only the earlier's after the later is cancelled; two sign-ins started at once with
+the first link's answer held, each keeping its own account whichever is cancelled; `composio.disconnect` false for a CLI without `--yes` and
 true with it; `lazurio integrations list` naming the expired app under "Not working"
 (`tests/integrations-routes.test.ts`); the "⋯" menu without "Odpojit" where the CLI
 cannot remove (`tests/integrations-page.test.ts`).

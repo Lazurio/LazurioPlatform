@@ -710,6 +710,29 @@ export function createConnectSessions(host: () => ConnectHost) {
       : { settings, config, template };
   }
 
+  // One Composio sign-in of a toolkit starts at a time: its check of the
+  // names, its snapshot of the pending accounts, its link and its session, in
+  // that order. So the sessions' order is the order of the links, by which
+  // the reading weighs a pending account (`pendingOfSignIns`, decision F42,
+  // addendum of 2026-10-12), also where two start at once.
+  const composioStarts = new Map<string, Promise<void>>();
+  async function oneAtATime<T>(
+    toolkit: string,
+    start: () => Promise<T>,
+  ): Promise<T> {
+    const mine = (composioStarts.get(toolkit) ?? Promise.resolve()).then(start);
+    const done = mine.then(
+      () => undefined,
+      () => undefined,
+    );
+    composioStarts.set(toolkit, done);
+    try {
+      return await mine;
+    } finally {
+      if (composioStarts.get(toolkit) === done) composioStarts.delete(toolkit);
+    }
+  }
+
   async function connectComposio(
     app: CatalogApp,
     name: string | null,
@@ -718,6 +741,17 @@ export function createConnectSessions(host: () => ConnectHost) {
     const toolkit = app.composio;
     if (composio === null || toolkit === undefined)
       return { kind: "blocked", reason: "composio-signed-out" };
+    return oneAtATime(toolkit, () =>
+      startComposio(app, name, composio, toolkit),
+    );
+  }
+
+  async function startComposio(
+    app: CatalogApp,
+    name: string | null,
+    composio: NonNullable<Awaited<ReturnType<ConnectHost["composio"]>>>,
+    toolkit: string,
+  ): Promise<ConnectStart> {
     // The CLI asks for a name only after it created a link: the Launchpad
     // asks first (a second account needs one, and a name in use is refused).
     const own = await activeComposioAccounts(

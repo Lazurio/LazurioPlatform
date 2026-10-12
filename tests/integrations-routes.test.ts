@@ -9,11 +9,14 @@ import {
   captureConsole,
   composioCalls,
   filesContaining,
+  holdLink,
   holdList,
   type IntegrationsWorld,
   integrationsWorld,
+  linkHeld,
   listHeld,
   readComposioState,
+  releaseLink,
   releaseList,
   setAccountStatus,
   tokenCanary,
@@ -759,6 +762,57 @@ test("a Composio sign-in nobody finishes is listed only while one started here w
   expect(await salesforce(true)).toEqual([["word102", "pending"]]);
   await app.post("/api/integrations/cancel", { session: first.session });
   expect(await salesforce(false)).toEqual([]);
+});
+
+// Two sign-ins of one toolkit at once whose links would answer out of order
+// (Pablo's third review of #337): the second starts only once the first has
+// its session, so the sessions keep the links' order and cancelling either
+// leaves only the other's pending account.
+test("two Composio sign-ins of one toolkit at once keep their own pending accounts, however the links answer", async () => {
+  for (const cancelled of ["first", "second"] as const) {
+    const { world, app } = await setup({}, { tools: ["composio"] });
+    const salesforce = async (refresh: boolean) => {
+      const answer = await app.get(
+        refresh ? "/api/integrations?refresh=1" : "/api/integrations",
+      );
+      const value = (await answer.json()) as IntegrationsOverview;
+      return value.apps
+        .find((item) => item.id === "salesforce")
+        ?.accounts.map((account) => [account.selector, account.state]);
+    };
+    // The first link has created its pending account; its answer is held.
+    await holdLink(world.home, "salesforce");
+    const first = app.post("/api/integrations/connect", { app: "salesforce" });
+    await linkHeld(world.home, "salesforce");
+    const second = app.post("/api/integrations/connect", { app: "salesforce" });
+    // Time for the second to link, were it not waiting for the first.
+    await Bun.sleep(1_500);
+    expect(
+      (await readComposioState(world.home)).accounts.map(
+        (account) => account.word_id,
+      ),
+    ).toEqual(["word101"]);
+    await releaseLink(world.home, "salesforce");
+    const one = (await (await first).json()) as {
+      kind: string;
+      session: string;
+    };
+    const two = (await (await second).json()) as {
+      kind: string;
+      session: string;
+    };
+    expect([one.kind, two.kind]).toEqual(["authorize", "authorize"]);
+    expect(await salesforce(true)).toEqual([
+      ["word101", "pending"],
+      ["word102", "pending"],
+    ]);
+    await app.post("/api/integrations/cancel", {
+      session: cancelled === "first" ? one.session : two.session,
+    });
+    const left = cancelled === "first" ? "word102" : "word101";
+    expect(await salesforce(false)).toEqual([[left, "pending"]]);
+    expect(await salesforce(true)).toEqual([[left, "pending"]]);
+  }
 });
 
 test("a second Composio account needs a name, and a name in use is refused before anything runs", async () => {

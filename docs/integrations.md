@@ -279,9 +279,11 @@ Read from the CLI's source (ComposioHQ/composio, `ts/packages/cli`, 2026-10-09):
   that still waits may be it (`pendingOfSignIns`): each sign-in keeps the word ids
   of its toolkit's pending accounts read just before its link, and an account
   belongs to the sign-in after whose start and before the next one's it appeared
-  (ended and cancelled sign-ins count while their sessions are kept). None is
-  listed where those word ids could not be read. The Launchpad reads again when a
-  sign-in starts, ends or is cancelled.
+  (ended and cancelled sign-ins count while their sessions are kept). One sign-in
+  of a toolkit starts at a time, its snapshot, link and session in that order, so
+  the sessions keep the links' order. None is listed where those word ids could
+  not be read. The Launchpad reads again when a sign-in starts, ends or is
+  cancelled.
 - `link <toolkit> --list` prints `{toolkit, total, items}` with the active accounts,
   their ids, word ids and aliases (an alias of `null` where the account has none);
   the Launchpad checks a second account's name against it before linking (the CLI
