@@ -1282,6 +1282,21 @@ interface, not a rule; when the client changes, the sentence changes with a new
 revision. Unchanged: the agent never deletes session files. Template revision
 `base-instructions-35`; a unit test checks the sentence in both locales.
 
+### Context discovery clarification, 2026-10-12
+
+The Folder must teach agents to resolve a workplace term before choosing an app,
+Integration or URL. Organization meanings stay in their owning repositories.
+The generated root instructions now connect Organization discovery, its instruction
+cascade and scoped module search to the existing catalogs and app lifecycle;
+ambiguous intent calls for a specific question, never a same-name public substitute.
+The personal-host preset routes company work to a work Environment.
+
+The implementation and transfer audit are in [Folder context routing](folder-context-routing.md).
+Template revision `base-instructions-45` carries the change in both locales through
+the existing refresh transaction. No runtime, data, access or publication authority
+changes. Generated-output tests do not establish cold-session agent compliance;
+the audit records the remaining harness qualification scenarios.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
