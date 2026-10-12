@@ -1014,12 +1014,10 @@ export function createIntegrationsPanel(
       );
     const foot = element("div", "mcp-foot");
     const note = element("div", "mcp-foot-text");
-    const together = element("p", "mcp-note");
-    together.dataset.line = "keys";
     const status = element("p", "mcp-status");
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
-    note.append(together, status);
+    note.append(status);
     const save = element(
       "button",
       "primary mcp-save",
@@ -1027,7 +1025,6 @@ export function createIntegrationsPanel(
     );
     save.type = "submit";
     foot.append(note, save);
-    fields.set("keys", together);
     fields.set("status", status);
     fields.set("save", save);
     node.append(top, body, foot);
@@ -1369,11 +1366,6 @@ export function createIntegrationsPanel(
     const bearer = fields.get("input:bearer");
     if (bearer instanceof HTMLInputElement)
       bearer.placeholder = view.bearerPlaceholder;
-    const together = fields.get("keys");
-    if (together !== undefined) {
-      together.hidden = view.keysNote === null;
-      together.textContent = view.keysNote ?? "";
-    }
     const status = fields.get("status");
     if (status !== undefined) {
       status.hidden = page.status === "";

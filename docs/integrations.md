@@ -238,10 +238,15 @@ it is said.
 - **Editing.** The name is changed in place and the slug stays; the command, the
   arguments, the working directory or the address replace the config
   (`POST /api/mcp/servers/<slug>/config`, everything the page does not show carried
-  through); the type stays. An account's values cannot be changed one by one: while
-  no key changes the account stays, and once one does the account is created anew
-  with every key, so the page marks each stored key "Zadej znovu" until it is typed
-  again. An address left as shown keeps the stored one with its query.
+  through); the type stays. A stored key's field opens empty in the state
+  "Uloženo": left empty, it keeps the stored value. Executor keeps an account's
+  values together and never returns or patches one of them, so an account cannot be
+  changed key by key: while no key changes the account stays, and once one does (a
+  new value, a key added or removed, the Bearer token added or removed) the account
+  is created anew with every key. Then every stored key's field turns to
+  "Zadej znovu" and Save waits until each is typed again. The page says this only
+  through those two states; there is no line or note explaining it. An address left
+  as shown keeps the stored one with its query.
 - **Checked twice.** The page and the server share the rules
   (`src/integrations/custom-server.ts`): what the page refuses as the person types, the
   route refuses before Executor is asked.

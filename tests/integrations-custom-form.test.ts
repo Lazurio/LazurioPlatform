@@ -240,7 +240,6 @@ test("an edit opens with the names of its keys, their fields empty and stored; e
     stored: true,
   });
   expect(view.canSave).toBe(true);
-  expect(view.keysNote).toBeNull();
   // Saved as it is: every key kept (null), the token too.
   expect(customBody(form)).toEqual({
     id: "invoices",
@@ -253,17 +252,14 @@ test("an edit opens with the names of its keys, their fields empty and stored; e
   // The type of a stored server stays.
   expect(withType(form, "stdio").type).toBe("http");
   // A new token: the stored header must come again, and Save waits for it.
+  // The field says so by its state alone: no line under it, no note.
   form = type(form, "bearer", "new-token");
   view = customFormView(form, cs);
-  expect(view.keysNote).toBe(
-    "Executor drží hodnoty serveru pohromadě a nevrací je: když jednu měníš, zadej znovu všechny.",
-  );
-  expect(view.headers[0]).toMatchObject({
-    value: {
-      text: "Zadej znovu: Executor uloženou hodnotu nevrací.",
-      kind: "hint",
-    },
+  expect(view.headers[0]).toEqual({
+    name: null,
+    value: null,
     placeholder: "Zadej znovu",
+    stored: true,
   });
   expect(view.canSave).toBe(false);
   form = withKey(form, "headers", 0, "value", "a");
@@ -323,11 +319,40 @@ test("a command server's edit: configuration shown, variables by name only", () 
   expect(customFormView(form, en).canSave).toBe(true);
   form = removeRow(form, "env", 1);
   const view = customFormView(form, en);
-  expect(view.keysNote).not.toBeNull();
-  expect(view.env[0]?.value?.text).toBe(
-    "Enter it again: Executor never returns a stored value.",
-  );
+  // One variable gone: the other is typed again, its field marked so.
+  expect(view.env[0]).toEqual({
+    name: null,
+    value: null,
+    placeholder: "Enter again",
+    stored: true,
+  });
   expect(view.canSave).toBe(false);
+  // A stored Bearer token to type again is marked the same way.
+  const token = parseCustomSettings({
+    kind: "custom-server",
+    id: "inv",
+    type: "http",
+    name: "Inv",
+    url: "https://mcp.example.com/mcp",
+    bearer: true,
+    headers: [],
+  });
+  const retyped = withKey(
+    addRow(editCustomForm(token as NonNullable<typeof token>), "headers"),
+    "headers",
+    1,
+    "name",
+    "X-Team",
+  );
+  const marked = customFormView(
+    withKey(retyped, "headers", 1, "value", "a"),
+    en,
+  );
+  expect([marked.bearer, marked.bearerPlaceholder, marked.canSave]).toEqual([
+    null,
+    "Enter again",
+    false,
+  ]);
 });
 
 test("what the page says after a save, and answers it does not take", () => {

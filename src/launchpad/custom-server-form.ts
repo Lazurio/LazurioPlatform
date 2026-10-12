@@ -308,8 +308,6 @@ export type KeyView = Readonly<{
 export type CustomFormView = Readonly<{
   title: string;
   canSave: boolean;
-  /** On an edit whose keys change: why every key must be typed again. */
-  keysNote: string | null;
   name: FieldLine | null;
   command: FieldLine | null;
   cwd: FieldLine | null;
@@ -329,7 +327,9 @@ function problemText(
   const error = (text: string): FieldLine => ({ text, kind: "error" });
   const hint = (text: string): FieldLine => ({ text, kind: "hint" });
   const kind = problem.problem;
-  if (kind === "again") return hint(copy.integrationsMcpAgain);
+  // A stored key to type again says so in its own field ("Zadej znovu"),
+  // never in a line under it: the page explains nothing in text of its own.
+  if (kind === "again") return null;
   if (kind === "duplicate") return error(copy.integrationsMcpDuplicate);
   if (kind === "taken") return error(copy.integrationsMcpBearerTaken);
   if (kind === "insecure") return error(copy.integrationsMcpUrlInsecure);
@@ -407,7 +407,6 @@ export function customFormView(form: CustomForm, copy: Copy): CustomFormView {
         ? copy.integrationsMcpPageTitle
         : copy.integrationsMcpEditTitle,
     canSave: problems.length === 0,
-    keysNote: changed ? copy.integrationsMcpKeysTogether : null,
     name: line("name"),
     command: line("command"),
     cwd: line("cwd"),

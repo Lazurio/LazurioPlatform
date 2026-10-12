@@ -1195,8 +1195,6 @@ const en = {
   integrationsMcpValue: "Value",
   integrationsMcpStored: "Stored",
   integrationsMcpEnterAgain: "Enter again",
-  integrationsMcpKeysTogether:
-    "Executor keeps a server's values together and never returns them: changing one means entering all of them again.",
   integrationsMcpSave: "Save",
   integrationsMcpSaving: "Saving…",
   integrationsMcpLoading: "Reading the server's settings…",
@@ -1223,8 +1221,6 @@ const en = {
     "A value has at most 4,096 characters; a header's is on one line.",
   integrationsMcpDuplicate: "This key is here twice.",
   integrationsMcpBearerTaken: "The Bearer token sends this header already.",
-  integrationsMcpAgain:
-    "Enter it again: Executor never returns a stored value.",
   integrationsToolsOne: "{count} tool",
   integrationsToolsFew: "{count} tools",
   integrationsToolsMany: "{count} tools",
@@ -2401,8 +2397,6 @@ const cs: Record<MessageKey, string> = {
   integrationsMcpValue: "Hodnota",
   integrationsMcpStored: "Uloženo",
   integrationsMcpEnterAgain: "Zadej znovu",
-  integrationsMcpKeysTogether:
-    "Executor drží hodnoty serveru pohromadě a nevrací je: když jednu měníš, zadej znovu všechny.",
   integrationsMcpSave: "Uložit",
   integrationsMcpSaving: "Ukládám…",
   integrationsMcpLoading: "Načítám nastavení serveru…",
@@ -2429,7 +2423,6 @@ const cs: Record<MessageKey, string> = {
     "Hodnota má nejvýš 4 096 znaků, u hlavičky na jednom řádku.",
   integrationsMcpDuplicate: "Tenhle klíč je tu dvakrát.",
   integrationsMcpBearerTaken: "Tuhle hlavičku už posílá Bearer token.",
-  integrationsMcpAgain: "Zadej znovu: Executor uloženou hodnotu nevrací.",
   integrationsToolsOne: "{count} nástroj",
   integrationsToolsFew: "{count} nástroje",
   integrationsToolsMany: "{count} nástrojů",
