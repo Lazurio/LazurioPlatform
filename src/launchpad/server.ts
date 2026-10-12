@@ -52,6 +52,7 @@ import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
 import { newTabPagePath } from "../shell/new-tab-protocol";
+import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
 import {
   activatableTools,
   executorToolName,
@@ -144,6 +145,7 @@ import {
   shellSetup,
 } from "./setup-state";
 import { readShellInputs, shellDocument } from "./shell-document";
+import { createSshRoutes } from "./ssh-routes";
 import {
   checkBundledPage,
   LaunchpadStartRefused,
@@ -442,6 +444,11 @@ export async function startLaunchpad(
   // this account's runtime directory, service manager, /proc and boot clock.
   // Trusted composition, never HTTP input; tests supply their own.
   newTabHost: NewTabHost = processNewTabHost(),
+  // Whose `authorized_keys` Settings → SSH from your devices lists and
+  // changes (decision F49): this process's account, its host key and its
+  // Tailscale. Trusted composition, never HTTP input; tests supply a
+  // temporary home, a host key and a tailnet answer.
+  sshHost: SshAccessHost = processSshAccessHost(toolsEnvironment),
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -632,6 +639,14 @@ export async function startLaunchpad(
       catalog: integrationSeams?.catalog,
       now: integrationSeams?.now,
     }),
+    journal: (line) => console.log(JSON.stringify(line)),
+  });
+  // SSH from the person's devices (decision F49): the keys of this account
+  // and the settings a computer writes; journaled as the operation, the
+  // outcome and the key's public fingerprint.
+  const ssh = createSshRoutes({
+    host: () => sshHost,
+    headers,
     journal: (line) => console.log(JSON.stringify(line)),
   });
   const newTab = createNewTabRoutes({
@@ -1233,6 +1248,14 @@ export async function startLaunchpad(
           return await integrations.handle(request, url, (seconds) =>
             server.timeout(request, seconds),
           );
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      if (ssh.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        try {
+          return await ssh.handle(request, url);
         } catch {
           return response({ error: "operation-failed" }, 500);
         }
