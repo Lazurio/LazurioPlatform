@@ -169,25 +169,51 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
 .crumbs h1:focus-visible, [data-page-heading]:focus-visible { outline: 2px solid var(--lz-accent); outline-offset: 2px; border-radius: 4px; }
 .topbar-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
 .nav-toggle { display: none; }
+/* The page's two top corners (Matěj 2026-10-12, evening; the wireframe's
+   apps-corner): controls over the page, always in the same place on every
+   page, as ChatGPT and Codex Desktop keep theirs, centred in the band of
+   Settings' and Files' header. Top left, the column's toggle while the
+   column is hidden; top right, the page's help link (Guide on the Apps
+   home, "Jak to funguje" on Integrace) and the Browser toggle. They stay in
+   view as the page scrolls, on the page's own surface, so what scrolls by
+   passes beneath them and never through their words; no bar, no line, no
+   shadow. Page heads hold only their titles and leave the corners free: the
+   right one by its width, `--page-corner` (layout.ts, the wireframe's
+   --apps-corner), the left one while the column is hidden. */
+.page-top { position: sticky; top: 0; z-index: 3; height: 0; }
+.page-corner { position: absolute; top: 11px; display: flex; align-items: center; gap: 14px; min-height: 30px; border-radius: var(--radius-control); background: var(--bg); }
+.page-corner-start { left: 16px; }
+.page-corner-end { right: 16px; }
+#catalog-head, .market-head, .integrations-head { padding-right: var(--page-corner, 0px); }
+.topbar { padding-right: calc(24px + var(--page-corner, 0px)); }
+/* The Guide is the Apps home's: a module's information page, whose head
+   catalog-panel.ts hides, has none (the wireframe's corner on the home). */
+#page:has(#catalog-head[hidden]) #catalog-guide { display: none; }
 /* The left column on a wide screen (Matěj's tuning of 2026-10-12, as T3
-   Code's sidebar; layout.ts): the toggle at the start of each page's head
-   hides and shows it, the rail staying; the one in the right panel's strip
-   stands in while the page steps aside for the panel. The column's right
-   edge drags it 208–480 px wide, as the panel's divider does. Below 768 px
-   the column is the sheet #nav-toggle opens, and none of this shows. */
+   Code's sidebar; layout.ts). Its toggle sits in the column's head, under
+   <lazurio-column-head>, where Chat keeps T3 Code's toggle under the same
+   head, and hides the column, the rail staying. While the column is hidden
+   the toggle at the page's top left shows it again, and the page keeps that
+   corner free (16 px, the toggle's 30 px and 16 px); while the page also
+   steps aside for the right panel, the one in the panel's strip stands in
+   for it. One of them is in view at a time. The column's right edge drags
+   it 208–480 px wide, as the panel's divider does. Below 768 px the column
+   is the sheet #nav-toggle opens, and none of this shows. */
 .column-toggle, .column-divider { display: none; }
 @media (min-width: 768px) {
   button.ghost.column-toggle { display: inline-flex; flex: none; width: 30px; height: 30px; padding: 0; border-radius: var(--radius-control); }
   button.ghost.column-toggle:hover { background: var(--hover); }
   .column-toggle[aria-expanded="true"] .column-toggle-show, .column-toggle[aria-expanded="false"] .column-toggle-hide { display: none; }
-  .browser-strip button.ghost.column-toggle { display: none; }
+  .column > .column-toggle { align-self: flex-start; }
+  .app:not([data-column="hidden"]) .page-corner-start .column-toggle, .browser-strip button.ghost.column-toggle { display: none; }
   .app[data-column="hidden"] .column { display: none; }
+  .app[data-column="hidden"] .topbar, .app[data-column="hidden"] :is(#view-catalog, #view-marketplace, #view-integrations) { padding-left: 62px; }
   .column-divider { display: block; position: absolute; z-index: 1; top: 0; right: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; }
   .column-divider::after { content: ""; position: absolute; top: 0; right: -1px; bottom: 0; width: 2px; background: transparent; transition: background-color 120ms; }
   .column-divider:hover::after, .column-divider:focus-visible::after, .column-divider.is-dragging::after { background: var(--lz-blue-500); }
   .column-divider:focus-visible { outline: none; }
 }
-@media (min-width: 1100px) { .app[data-browser="wide"] .browser-strip button.ghost.column-toggle { display: inline-flex; } }
+@media (min-width: 1100px) { .app[data-browser="wide"][data-column="hidden"] .browser-strip button.ghost.column-toggle { display: inline-flex; } }
 .container { display: flex; flex-direction: column; gap: 28px; width: 100%; max-width: 56rem; margin: 0 auto; padding: 24px 24px 64px; }
 .container.wide { max-width: 1152px; margin: 0; padding: 24px 32px 64px; }
 .backdrop { display: none; }
@@ -210,7 +236,7 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
    the wireframe's .lp-head__link): the heading's look, underlined on hover. */
 .apps-title-link { color: inherit; text-decoration: none; }
 .apps-title-link:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
-.apps-guide { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--muted-fg); font-size: 14px; font-weight: var(--lz-weight-akce); text-decoration: none; }
+.apps-guide { display: inline-flex; align-items: center; gap: 6px; color: var(--muted-fg); font-size: 14px; font-weight: var(--lz-weight-akce); text-decoration: none; }
 .apps-guide:hover { color: var(--fg); }
 .org-mark { display: grid; flex: none; width: 32px; height: 32px; place-items: center; overflow: hidden; border-radius: var(--lz-radius-sm); background: var(--lz-white); box-shadow: inset 0 0 0 1px var(--lz-line); color: var(--fg); font-size: 12px; font-weight: var(--lz-weight-akce); letter-spacing: 0.02em; }
 .org-mark[data-personal] { border-radius: 50%; background: var(--lz-ink); color: var(--lz-white); box-shadow: none; }
@@ -494,24 +520,27 @@ a.files-name:hover { text-decoration: underline; }
    0191 point 8a): the view of the Environment browser after the page in the
    .app row, so the page shrinks; beside the rail and the column the page
    and the panel share the width. Closed by default. The Browser toggle
-   stands in the head of each page: beside Guide on the Apps home, in the
-   header of Settings and Files, in the Marketplace's head; pressed, it takes
-   the quiet surface. Below 1100 px there is no room for the page beside the
-   panel, so the panel covers the window like a sheet, its Close in view. */
-/* Integrace (decision F42), after the approved wireframe: the head with
-   search and "Jak to funguje", the tabs, cards in a grid with the app's mark,
-   a line, the action and the accounts; Vlastní as rows. */
-.integrations-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 24px; }
-.integrations-lead { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+   stands in the page's top right corner (above), while the panel is
+   closed. Below 1100 px there is no room for the page beside the panel, so
+   the panel covers the window like a sheet, its Close in view. */
+/* Integrace (decision F42), after the approved wireframe: the head with the
+   title and one sentence, the tabs, cards in a grid with the app's mark, a
+   line, the action and the accounts; Vlastní as rows. "Jak to funguje" is in
+   the page's corner, and the search and Zkontrolovat připojení stay on the
+   page at the right end of the tabs' row (Matěj 2026-10-12, evening: no
+   controls in the title row); short of room they go above the tabs, at the
+   right, so the tabs keep their place on the hairline. */
+.integrations-head { align-items: flex-start; }
 .integrations-titles { display: grid; gap: 4px; min-width: 0; }
-.integrations-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.integrations-bar { display: flex; flex-wrap: wrap-reverse; align-items: flex-start; gap: 8px 16px; margin-top: -12px; border-bottom: 1px solid var(--lz-line-faint); }
+.integrations-tools { display: flex; align-items: center; gap: 8px; margin: 0 0 4px auto; }
 .integrations-search { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid var(--input); border-radius: var(--radius-control); background: var(--card); color: var(--muted-fg); }
 .integrations-search input { width: 200px; height: 30px; padding: 0; border: 0; background: transparent; box-shadow: none; }
 .integrations-search input:focus-visible { outline: none; }
 .integrations-search:focus-within { outline: 2px solid var(--lz-accent); outline-offset: 1px; }
 .integrations-refresh.is-spinning .icon { animation: integrations-spin 1s linear infinite; }
 @keyframes integrations-spin { to { transform: rotate(360deg); } }
-.integrations-tabs { display: flex; gap: 4px; margin-top: -12px; border-bottom: 1px solid var(--lz-line-faint); }
+.integrations-tabs { display: flex; gap: 4px; }
 .integrations-tab { padding: 8px 12px; border-bottom: 2px solid transparent; color: var(--muted-fg); font-size: 14px; text-decoration: none; }
 .integrations-tab:hover { color: var(--fg); }
 .integrations-tab[aria-current="page"] { border-bottom-color: var(--lz-accent); color: var(--fg); font-weight: var(--lz-weight-akce); }
@@ -604,9 +633,11 @@ button.mcp-add:hover { background: var(--lz-gray-100); }
 .mcp-status:empty { display: none; }
 button.mcp-save { flex: none; height: 34px; padding: 0 16px; font-size: 14px; }
 .menu-count { margin-left: auto; min-width: 18px; padding: 0 6px; border-radius: var(--lz-radius-pill); background: var(--warning-bg); color: var(--warning-fg); font-size: 11.5px; line-height: 18px; text-align: center; }
-button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); color: var(--fg); }
-.apps-head .browser-toggle, .market-head .browser-toggle, .integrations-head .browser-toggle { font-weight: var(--lz-weight-akce); }
-.market-head .browser-toggle { margin-left: auto; }
+/* The Browser toggle is in the corner only while the panel is closed, as
+   the wireframe draws it: browser-panel.ts sets its aria-expanded, so it is
+   back in the very tick the panel closes and can take the focus again. */
+button.ghost.browser-toggle { font-weight: var(--lz-weight-akce); }
+button.ghost.browser-toggle[aria-expanded="true"] { display: none; }
 /* The panel slides in from the window's right edge and back out (Matěj
    2026-10-12): beside the page its margin gives way, so the page makes room
    while the panel keeps its width and what it shows does not reflow; as a
@@ -696,7 +727,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
   .app[data-nav-open] .column { transform: none; visibility: visible; transition: transform 0.2s; }
   .app[data-nav-open] .backdrop { display: block; position: fixed; inset: 0; z-index: 29; background: rgb(0 0 0 / 28%); }
   .nav-toggle { display: inline-flex; position: fixed; z-index: 25; top: 10px; left: calc(var(--lazurio-rail-width, 64px) + 10px); height: 32px; padding: 0 8px; border-color: var(--lz-line); background: var(--card); color: var(--fg); }
-  .topbar { padding: 0 16px 0 58px; }
+  .topbar { padding: 0 calc(16px + var(--page-corner, 0px)) 0 58px; }
   .container, .container.wide { padding: 20px 14px 48px; }
   #view-catalog { padding-top: 56px; }
   .apps-title, .module-title { font-size: 22px; }
@@ -816,6 +847,10 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
      Environment's Settings beside it, then the switch Chat · Apps ·
      Automate. -->
 <lazurio-column-head id="column-head" active="apps" settings="/settings/general"></lazurio-column-head>
+<!-- The column's toggle in its head, under the shared column head, where
+     Chat keeps T3 Code's under the same head (layout.ts); the column head
+     itself is the shell's and takes nothing of the host. -->
+<button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button>
 <!-- Apps: all modules, Files (decision F35) and the favourites; no module
      list and no search. The Marketplace stands at the foot. -->
 <div class="column-apps" data-view="catalog files integrations marketplace">
@@ -864,10 +899,19 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <div class="backdrop" id="backdrop"></div>
 <button type="button" class="nav-toggle" id="nav-toggle" aria-controls="sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-panel"/></svg><span class="sr-only" data-message="navigationOpen">Open navigation</span></button>
 <div class="page" id="page">
+<!-- The page's top corners (Matěj 2026-10-12, evening; the wireframe's
+     apps-corner), the same on every page: top left the column's toggle
+     while the column is hidden; top right the page's help link (the Guide
+     on the Apps home, "Jak to funguje" on Integrace, by their frame) and
+     the one Browser toggle, which browser-panel.ts shows where the panel is
+     offered and which is there only while the panel is closed. -->
+<div class="page-top">
+<div class="page-corner page-corner-start"><button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button></div>
+<div class="page-corner page-corner-end" id="page-corner"><a class="apps-guide" id="catalog-guide" data-view="catalog" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a><a class="apps-guide" id="integrations-help" data-view="integrations" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="integrationsHelp">How it works</span></a><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></div>
+</div>
 <!-- Settings and Files: a 52 px header with the breadcrumb and the page
      actions (T3 Code). The Apps home has none: no top bar. -->
 <header class="topbar" data-view="settings files">
-<button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button>
 <nav class="crumbs" id="crumbs" aria-labelledby="crumbs-label">
 <span class="sr-only" id="crumbs-label" data-message="settingsBreadcrumb">Where you are in Settings</span>
 <ol><li id="crumb-parent" data-view="settings"><a href="/settings/general" id="crumb-settings" data-message="settingsTitle" data-route>Settings</a></li><li id="crumb-organization" hidden><a href="/" id="crumb-org" data-route></a></li><li aria-current="page"><h1 id="page-heading" tabindex="-1">Launchpad</h1></li></ol>
@@ -878,7 +922,6 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <button type="button" class="ghost" id="tools-refresh" data-section-action="tools"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="toolsRefresh">Refresh status</span></button>
 <button type="button" class="ghost" id="ssh-refresh" data-section-action="ssh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="sshRefresh">Refresh</span></button>
 <button type="button" class="ghost" id="recovery-refresh" data-section-action="recovery"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="recoveryAgain">Check again</span></button>
-<button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button>
 </div>
 </header>
 
@@ -888,7 +931,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
      module's overview `/o/<org>/<module>` from a tile's menu; drawn by
      catalog-panel.ts. -->
 <main id="view-catalog" class="container wide" data-view="catalog">
-<header class="apps-head" id="catalog-head"><button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button><div class="apps-head-name" id="catalog-head-name"></div><a class="apps-guide" id="catalog-guide" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></header>
+<header class="apps-head" id="catalog-head"><div class="apps-head-name" id="catalog-head-name"></div></header>
 <p id="catalog-status" class="row-status" role="status" aria-live="polite">Reading Organizations…</p>
 <div id="catalog-body" class="stack"></div>
 </main>
@@ -896,16 +939,21 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <!-- The Marketplace (decision F36 addendum of 2026-10-04): where modules
      will be added to the Environment; for now it says it is coming. -->
 <main id="view-marketplace" class="container" data-view="marketplace">
-<header class="market-head"><button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button><span class="market-icon"><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg></span><div><h1 class="apps-title" data-page-heading tabindex="-1" data-message="appsMarketplace">Marketplace</h1><p class="module-meta" data-message="appsMarketplaceSoon">Coming soon</p></div><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></header>
+<header class="market-head"><span class="market-icon"><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg></span><div><h1 class="apps-title" data-page-heading tabindex="-1" data-message="appsMarketplace">Marketplace</h1><p class="module-meta" data-message="appsMarketplaceSoon">Coming soon</p></div></header>
 <p class="empty" id="marketplace-text"></p>
 </main>
 
 <!-- Integrace (decision F42): the apps and services connected to this
      Environment, `/integrations` with its tabs Vše · Připojené · Vlastní and
-     an app's card `/integrations/app/<id>`; drawn by integrations-panel.ts. -->
+     an app's card `/integrations/app/<id>`; drawn by integrations-panel.ts.
+     The head holds the title; the search and Zkontrolovat připojení stand at
+     the right end of the tabs' row, outside their navigation. -->
 <main id="view-integrations" class="container wide" data-view="integrations">
-<header class="apps-head integrations-head"><div class="integrations-lead"><button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button><div class="integrations-titles"><h1 class="apps-title" data-page-heading tabindex="-1" data-message="integrationsTitle">Integrations</h1><p class="module-meta" data-message="integrationsSubtitle">Every agent and bot of this Environment uses what you connect here.</p></div></div><div class="integrations-tools"><a class="apps-guide" id="integrations-help" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="integrationsHelp">How it works</span></a><label class="integrations-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only" data-message="integrationsSearch">Search apps</span><input type="search" id="integrations-search" autocomplete="off" spellcheck="false"></label><button type="button" class="ghost integrations-refresh" id="integrations-refresh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span class="sr-only" data-message="integrationsRefresh">Check connections</span></button><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></div></header>
+<header class="apps-head integrations-head"><div class="integrations-titles"><h1 class="apps-title" data-page-heading tabindex="-1" data-message="integrationsTitle">Integrations</h1><p class="module-meta" data-message="integrationsSubtitle">Every agent and bot of this Environment uses what you connect here.</p></div></header>
+<div class="integrations-bar">
 <nav class="integrations-tabs" id="integrations-tabs" aria-labelledby="integrations-tabs-label"><span class="sr-only" id="integrations-tabs-label" data-message="integrationsTabsLabel">Show</span><a class="integrations-tab" href="/integrations" data-tab="all" data-route>All</a><a class="integrations-tab" href="/integrations/connected" data-tab="connected" data-route>Connected</a><a class="integrations-tab" href="/integrations/custom" data-tab="custom" data-route>Custom</a></nav>
+<div class="integrations-tools"><label class="integrations-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only" data-message="integrationsSearch">Search apps</span><input type="search" id="integrations-search" autocomplete="off" spellcheck="false"></label><button type="button" class="ghost integrations-refresh" id="integrations-refresh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span class="sr-only" data-message="integrationsRefresh">Check connections</span></button></div>
+</div>
 <p id="integrations-alert" class="callout integrations-alert" role="status" aria-live="polite" hidden></p>
 <p id="integrations-status" class="row-status" role="status" aria-live="polite"></p>
 <div id="integrations-body" class="stack"></div>

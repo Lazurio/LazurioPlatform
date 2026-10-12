@@ -1,0 +1,199 @@
+import { expect, test } from "bun:test";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
+// The controls of the pages' heads in the page's two top corners (Matěj
+// 2026-10-12, evening; the wireframe's apps-corner). One Browser toggle,
+// which browser-panel.ts collects once by its class as it starts and shows
+// where the panel is offered, stands in the top right corner after the
+// page's help link, outside every view and head, so nothing but its own
+// `aria-expanded` decides whether it is drawn when the panel closes and the
+// focus comes back to it. The column's toggle stands in the column's head,
+// one at the page's top left while the column is hidden, and the panel
+// strip's while the page steps aside. Page heads hold only their titles, and
+// Integrace keep their search and refresh with the tabs. How it looks and
+// moves, and the focus, are checked in a browser, not here (root decision
+// 0178).
+
+type Element = Readonly<{
+  tag: string;
+  attributes: ReadonlyMap<string, string>;
+  parent: Element | null;
+}>;
+
+const page = await readFile(
+  join(import.meta.dir, "..", "src", "launchpad", "index.html"),
+  "utf8",
+);
+
+/** Every element of the page in document order, each with its parent. */
+async function parse(source: string): Promise<Element[]> {
+  const elements: Element[] = [];
+  const open: Element[] = [];
+  await new HTMLRewriter()
+    .on("*", {
+      element(element) {
+        const node: Element = {
+          tag: element.tagName,
+          attributes: new Map(element.attributes),
+          parent: open.at(-1) ?? null,
+        };
+        elements.push(node);
+        if (element.canHaveContent && !element.selfClosing) {
+          open.push(node);
+          element.onEndTag(() => {
+            open.pop();
+          });
+        }
+      },
+    })
+    .transform(new Response(source))
+    .text();
+  return elements;
+}
+
+const elements = await parse(page);
+
+const classes = (node: Element) =>
+  (node.attributes.get("class") ?? "").split(/\s+/).filter(Boolean);
+const withClass = (name: string) =>
+  elements.filter((node) => classes(node).includes(name));
+function byId(id: string): Element {
+  const found = elements.filter((node) => node.attributes.get("id") === id);
+  expect(found).toHaveLength(1);
+  return found[0] as Element;
+}
+function only(name: string): Element {
+  const found = withClass(name);
+  expect(found).toHaveLength(1);
+  return found[0] as Element;
+}
+function inside(node: Element, container: Element): boolean {
+  for (let parent = node.parent; parent !== null; parent = parent.parent)
+    if (parent === container) return true;
+  return false;
+}
+const childrenOf = (container: Element) =>
+  elements.filter((node) => node.parent === container);
+/** Whether `container` holds an element with this `data-message`. */
+const says = (container: Element, key: string) =>
+  elements.some(
+    (node) =>
+      inside(node, container) && node.attributes.get("data-message") === key,
+  );
+
+test("the page's two top corners come first in the page, outside every view, so they are the same on every route", () => {
+  const top = only("page-top");
+  expect(childrenOf(byId("page"))[0]).toBe(top);
+  expect(childrenOf(top).map(classes)).toEqual([
+    ["page-corner", "page-corner-start"],
+    ["page-corner", "page-corner-end"],
+  ]);
+  for (let node: Element | null = top; node !== null; node = node.parent)
+    expect(node.attributes.has("data-view")).toBe(false);
+});
+
+test("one Browser toggle, in the page's top right corner, as browser-panel.ts finds, shows and labels it", () => {
+  const toggle = only("browser-toggle");
+  expect(toggle.tag).toBe("button");
+  expect(inside(toggle, byId("page-corner"))).toBe(true);
+  expect(toggle.attributes.get("aria-controls")).toBe("browser-panel");
+  expect(toggle.attributes.get("aria-expanded")).toBe("false");
+  // Hidden until the entry says the panel is offered (`render`).
+  expect(toggle.attributes.has("hidden")).toBe(true);
+  expect(says(toggle, "browserToggle")).toBe(true);
+  // Never inside a view, a head or anything else a script hides.
+  for (let node = toggle.parent; node !== null; node = node.parent) {
+    expect(node.attributes.has("data-view")).toBe(false);
+    expect(node.attributes.has("hidden")).toBe(false);
+    expect(["header", "main", "nav"]).not.toContain(node.tag);
+  }
+});
+
+test("the corner holds the page's help link by its frame: the Guide on the Apps home and Jak to funguje on Integrace, then the toggle", () => {
+  const corner = byId("page-corner");
+  expect(
+    childrenOf(corner).map(
+      (node) => node.attributes.get("id") ?? classes(node).join(" "),
+    ),
+  ).toEqual(["catalog-guide", "integrations-help", "ghost browser-toggle"]);
+  for (const [id, frame, word] of [
+    ["catalog-guide", "catalog", "appsGuide"],
+    ["integrations-help", "integrations", "integrationsHelp"],
+  ] as const) {
+    const link = byId(id);
+    expect(link.tag).toBe("a");
+    expect(link.attributes.get("data-view")).toBe(frame);
+    expect(link.attributes.get("target")).toBe("_blank");
+    expect(link.attributes.get("rel")).toBe("noopener noreferrer");
+    expect(says(link, word)).toBe(true);
+  }
+});
+
+test("page heads hold only their titles: no toggle, help link, search or refresh in the head of any page", () => {
+  const heads = [
+    byId("catalog-head"),
+    only("market-head"),
+    only("integrations-head"),
+    only("topbar"),
+  ];
+  const controls = elements.filter(
+    (node) =>
+      classes(node).includes("column-toggle") ||
+      classes(node).includes("browser-toggle") ||
+      [
+        "catalog-guide",
+        "integrations-help",
+        "integrations-search",
+        "integrations-refresh",
+      ].includes(node.attributes.get("id") ?? ""),
+  );
+  expect(controls).toHaveLength(8);
+  for (const head of heads)
+    for (const control of controls) expect(inside(control, head)).toBe(false);
+});
+
+test("the column's toggle stands in its head, under the shell's column head, and one at the page's top left while it is hidden", () => {
+  const toggles = withClass("column-toggle");
+  expect(toggles).toHaveLength(3);
+  for (const toggle of toggles) {
+    expect(toggle.tag).toBe("button");
+    expect(toggle.attributes.get("aria-controls")).toBe("sidebar");
+    expect(toggle.attributes.get("aria-expanded")).toBe("true");
+  }
+  // Right under <lazurio-column-head>, beside it in the column: the shell's
+  // column head offers no slot and takes nothing of the host.
+  const column = childrenOf(byId("sidebar"));
+  const head = byId("column-head");
+  expect(head.tag).toBe("lazurio-column-head");
+  expect(column[column.indexOf(head) + 1]).toBe(
+    toggles.find((toggle) => toggle.parent === byId("sidebar")),
+  );
+  // At the page's top left, while the column is hidden.
+  expect(
+    toggles.filter((toggle) => inside(toggle, only("page-corner-start"))),
+  ).toHaveLength(1);
+  // In the panel's strip, while the page also steps aside.
+  expect(
+    toggles.filter((toggle) => inside(toggle, only("browser-strip"))),
+  ).toHaveLength(1);
+});
+
+test("Integrace keep their search and Zkontrolovat připojení on the page, with the tabs and outside their navigation", () => {
+  const view = byId("view-integrations");
+  const bar = only("integrations-bar");
+  const tabs = byId("integrations-tabs");
+  expect(inside(bar, view)).toBe(true);
+  expect(tabs.parent).toBe(bar);
+  const search = byId("integrations-search");
+  const refresh = byId("integrations-refresh");
+  for (const control of [search, refresh]) {
+    expect(inside(control, bar)).toBe(true);
+    expect(inside(control, tabs)).toBe(false);
+  }
+  // Their words, for screen readers: the search's label, the refresh's name.
+  expect(
+    search.parent === null ? false : says(search.parent, "integrationsSearch"),
+  ).toBe(true);
+  expect(says(refresh, "integrationsRefresh")).toBe(true);
+});

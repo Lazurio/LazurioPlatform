@@ -41,7 +41,7 @@ import {
   type TourFacts,
 } from "./first-run";
 import { createIntegrationsPanel } from "./integrations-panel";
-import { createColumn } from "./layout";
+import { createColumn, keepCornerFree } from "./layout";
 import { environmentFacts, type Fact, type MachineView } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
 import { createRecoveryPanel } from "./recovery-panel";
@@ -542,8 +542,10 @@ const ssh = createSshPanel({
 });
 // The left column as the person left it in this browser (Matěj's tuning of
 // 2026-10-12, layout.ts): hidden or shown, and its width; placed before the
-// page first shows, so it never moves on arrival.
+// page first shows, so it never moves on arrival. The heads of the page
+// leave the page's top right corner free, as wide as what it holds.
 const column = createColumn({ copy: () => copy });
+keepCornerFree();
 // The right panel (decision F38's addendum of 2026-10-05, decision F47 point
 // 9): the tabs the Launchpad holds and its Nová karta entries, offered only
 // where the recorded entry routes the view and never in Recovery mode; closed

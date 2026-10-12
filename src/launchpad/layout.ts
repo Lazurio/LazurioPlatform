@@ -15,8 +15,9 @@ type Copy = Readonly<Record<MessageKey, string>>;
 
 // The Launchpad's layout in this browser (Matěj's tuning of the Launchpad's
 // panel, 2026-10-12; layout-view.ts decides it): where the person's layout
-// is kept, the divider a panel is dragged by, and the left column hidden,
-// shown and dragged. The right panel places itself (browser-panel.ts).
+// is kept, the divider a panel is dragged by, the left column hidden, shown
+// and dragged, and the page's top right corner kept free. The right panel
+// places itself (browser-panel.ts).
 
 /** The person's layout as this browser keeps it; the default where storage
  * cannot be read. */
@@ -117,13 +118,18 @@ export function showDividerRange(
   divider.setAttribute("aria-valuenow", String(Math.round(place.width)));
 }
 
+/** Whether an element is drawn now (not `display: none`, nor inside it). */
+const drawn = (element: HTMLElement) => element.getClientRects().length > 0;
+
 /** The left column on a screen 768 px wide or wider (Matěj's tuning of
- * 2026-10-12, as T3 Code's sidebar): the toggle at the start of each page's
- * head (`.column-toggle`; while the page steps aside for the right panel,
- * the one in the panel's strip) hides and shows it, the rail staying, and
- * its right edge drags it wider or narrower. Both stay in this browser.
- * Below 768 px the column is the sheet of shell.ts and none of this shows.
- * The right panel follows the room it leaves. */
+ * 2026-10-12, as T3 Code's sidebar): its toggle (`.column-toggle`) in the
+ * column's head hides it, the rail staying, and the one at the page's top
+ * left shows it again (Matěj 2026-10-12, evening; while the page steps aside
+ * for the right panel, the one in the panel's strip stands in for it). The
+ * stylesheet shows one of them at a time, so the focus moves on to the one
+ * now in view. The column's right edge drags it wider or narrower. Both stay
+ * in this browser. Below 768 px the column is the sheet of shell.ts and none
+ * of this shows. The right panel follows the room it leaves. */
 export function createColumn(options: Readonly<{ copy: () => Copy }>) {
   const find = <T extends HTMLElement>(selector: string): T => {
     const element = document.querySelector<T>(selector);
@@ -171,9 +177,13 @@ export function createColumn(options: Readonly<{ copy: () => Copy }>) {
 
   for (const toggle of toggles)
     toggle.addEventListener("click", () => {
+      const focused = document.activeElement === toggle;
       layout = { ...layout, columnHidden: !layout.columnHidden };
       writeLayout({ columnHidden: layout.columnHidden });
       draw();
+      // The toggle used went with the column, or gave way to it: the focus
+      // it had moves to the toggle now in view.
+      if (focused && !drawn(toggle)) toggles.find(drawn)?.focus();
     });
   attachDivider(divider, {
     grows: "right",
@@ -205,4 +215,22 @@ export function createColumn(options: Readonly<{ copy: () => Copy }>) {
     /** The language changed. */
     relabel,
   };
+}
+
+/** The page's top right corner (Matěj 2026-10-12, evening; the wireframe's
+ * apps-corner): the page's help link and the Browser toggle over the page,
+ * always in the same place. Its width, 0 while it holds nothing in view, is
+ * `--page-corner` on the page, so the heads leave it free, as the
+ * wireframe's `--apps-corner`; it follows the links and the toggle as they
+ * come and go and as the language changes. */
+export function keepCornerFree(): void {
+  const page = document.querySelector<HTMLElement>("#page");
+  const corner = document.querySelector<HTMLElement>("#page-corner");
+  if (!page || !corner) throw new Error("Missing page corner");
+  new ResizeObserver(() =>
+    page.style.setProperty(
+      "--page-corner",
+      `${Math.ceil(corner.getBoundingClientRect().width)}px`,
+    ),
+  ).observe(corner);
 }
