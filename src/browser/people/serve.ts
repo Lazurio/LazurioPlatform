@@ -2,6 +2,13 @@ import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
+import { readShellInputs, shellDocument } from "../../launchpad/shell-document";
+import { hostedOperatorFolder } from "../../machine/operator";
+import { shellMessages } from "../../shell/messages";
+import {
+  type EnvironmentIdentity,
+  environmentIdentity,
+} from "../../shell/view";
 import { ensureAgentBrowserIdleTimeout } from "../agent-browser-config";
 import { browserCdpPort, browserScreenSize } from "../units";
 import { agentBrowserSocketDirectory } from "../window";
@@ -46,6 +53,27 @@ export function parseServeArgs(
   }
 }
 
+/** How the shell names this Environment (F39's addendum of 2026-10-12), for
+ * the view's page: the Environment's own shell document from the declared
+ * operator's Folder, read and produced exactly as the Launchpad's
+ * `/.lazurio/shell.json` (`readShellInputs`, `shellDocument`), named by
+ * `environmentIdentity` in the Folder's language. The switcher of this
+ * Environment's apps says the same but for what only the person's account
+ * adds (a name the Dashboard gave, its initials on a personal Environment),
+ * which the app around a framed view then tells it. None without a hosted
+ * Folder; a Folder that cannot be read rejects. */
+export async function readViewIdentity(
+  folder: () => Promise<string | undefined> = hostedOperatorFolder,
+  ownerKey?: () => Promise<string | null>,
+): Promise<EnvironmentIdentity | null> {
+  const found = await folder();
+  if (found === undefined) return null;
+  const shell = shellDocument(await readShellInputs(found, { ownerKey }));
+  return shell.current === null
+    ? null
+    : environmentIdentity(shell, shell.current, shellMessages(shell.locale));
+}
+
 export async function runViewService(
   args: readonly string[],
   env: Readonly<Record<string, string | undefined>>,
@@ -85,6 +113,7 @@ export async function runViewService(
     origin: options.origin,
     port: options.port,
     log,
+    identity: () => readViewIdentity(),
     hub: {
       connect: loopbackBrowser(browserCdpPort),
       holds: () => readHolds({ holders, sockets }),
