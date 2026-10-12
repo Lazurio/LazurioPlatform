@@ -1948,17 +1948,19 @@ the Launchpad builds no viewer of its own.
   evening](decisions.md#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview)):
   one toggle in the same place on every page, Settings, Files and a module's information
   page included, after the page's help link (the Guide on the Apps home, "Jak to
-  funguje" on Integrace, none elsewhere); only its icon below 768 px. It is there only
-  while the panel is closed, as the wireframe draws it: `browser-panel.ts` sets its
-  `aria-expanded`, and the stylesheet draws it only while that is false, so it is back
-  in the very tick the panel closes and takes the focus again. (It no longer stays in a
-  head, pressed, while the panel is open.) The corner stays in view as the page scrolls,
-  on the page's own surface; page heads hold only their titles and leave it free, as
-  wide as it is (`--page-corner`, measured by `layout.ts`). A panel left open stays open
-  across every move within the page. It slides the panel in from the window's right
-  edge and back out in 200 ms, the focus moving to the panel and back to the toggle; with
-  reduced motion the panel appears and goes at once. The panel is closed on every page
-  load; only its width is remembered (below).
+  funguje" on Integrace, none elsewhere); only its icon below 768 px. Pressed, it takes
+  the quiet surface, and it stays in the corner while the panel is open (the wireframe
+  hid it then; Matěj's call of 2026-10-12); a click on it closes the panel. The corner is
+  the page's, left of the panel, so the panel beside the page never covers it; when the
+  page steps aside for a panel that takes all of the room, the corner goes with the
+  page, as the heads' toggle did, and below 1100 px the sheet covers the page, corner
+  included. The corner stays in view as the page scrolls, on the page's own surface;
+  page heads hold only their titles and leave it free, as wide as it is
+  (`--page-corner`, measured by `layout.ts`). A panel left open stays open across every
+  move within the page. It slides the panel in from the window's right edge and back out
+  in 200 ms, the focus moving to the panel and back to the toggle; with reduced motion the
+  panel appears and goes at once. The panel is closed on every page load; only its width
+  is remembered (below).
 - **The panel** is an `<aside>` after the page in the `.app` row, so the page shrinks:
   beside the rail and the column the page and the panel share the room, and the Apps
   tiles count their columns from their own width, as the wireframe does
@@ -2033,10 +2035,11 @@ the Launchpad builds no viewer of its own.
   their titles only; Integrace's search and refresh with the tabs) and were checked in
   Chrome against the hosted preview in Czech and English at 1440×900 and 900×900: the
   Apps home, Integrace, the Marketplace, Settings, Files and a module's page with the
-  column shown and hidden and the panel closed and open, the panel taking all of the
-  room and the page scrolled; the focus back on the toggle after Close and after
-  Escape, and moving by keyboard between the column's toggles; and the Apps home,
-  Integrace and Settings at 390×844.
+  column shown and hidden and the panel closed and open (the toggle pressed in the
+  corner beside the open panel, its click closing it), the panel taking all of the room
+  and the page scrolled; the focus back on the toggle after Close and after Escape, and
+  moving by keyboard between the column's toggles; and the Apps home, Integrace and
+  Settings at 390×844.
 
 ## First run of an Environment
 

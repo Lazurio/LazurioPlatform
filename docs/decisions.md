@@ -7928,8 +7928,8 @@ and the first bullet of step 3's panel; the rest of F47 stands.
   and back out, in 200 ms; with reduced motion it appears and goes at once. The focus moves as
   before. The toggle stays in the page's head, pressed, while the panel is open: the
   wireframe hid it then, the product keeps it on Matěj's call. (The heads' controls in the
-  page's corners, below, move it to the page's top right corner, shown while the panel is
-  closed.)
+  page's corners, below, move it to the page's top right corner, where it stays, pressed,
+  while the panel is open.)
 - **The panel's width.** Its left edge is a divider, as in T3 Code and Codex Desktop: drag it,
   move it with the arrow keys (24 px, 96 with Shift), Home and End for the least and the
   greatest width, a double-click for the default (half of the room, 360–960 px, as before).
@@ -7972,18 +7972,20 @@ and the first bullet of step 3's panel; the rest of F47 stands.
 **The heads' controls in the page's corners (2026-10-12, evening).** After using the tuning,
 Matěj asked that the controls in the pages' heads move where the wireframe puts them: the
 column's toggle in every head, the Guide and "Prohlížeč" on the Apps home, and Integrace's row
-of "Jak to funguje", the search, Zkontrolovat připojení and "Prohlížeč". It changes the
-tuning's "The toggle stays in the page's head, pressed, while the panel is open", its column
-toggle "at the start of each page's head" and "The module's information page has no head row,
-so it has neither toggle", and point 1 of F38's addendum of 2026-10-05 ("in the head of each
-page"). The rest of the panel stands.
+of "Jak to funguje", the search, Zkontrolovat připojení and "Prohlížeč". It changes only
+where the tuning puts the toggles, "in the page's head" and "at the start of each page's head",
+its "The module's information page has no head row, so it has neither toggle", and point 1 of
+F38's addendum of 2026-10-05 ("in the head of each page"). The rest of the panel stands,
+the toggle that stays pressed while the panel is open included.
 - **One corner, top right.** The wireframe's `apps-corner`, in the same place on every page,
   as ChatGPT and Codex Desktop keep theirs: the page's help link (the Guide on the Apps home,
   "Jak to funguje" on Integrace, none elsewhere, so none on a module's information page), then
-  "Prohlížeč". The toggle is there only while the panel is closed, as the wireframe draws it;
-  the panel closes by its × or Escape, and the focus returns to the toggle. Page heads hold
-  only their titles and leave the corner free. The corner stays in view as the page scrolls,
-  on the page's own surface.
+  "Prohlížeč", which stays there, pressed, while the panel is open, as the tuning decided (the
+  wireframe hides it then); a click on it closes the panel. The corner is the page's, left of
+  the panel, so the panel beside the page never covers it; with the page stepped aside for a
+  panel that takes all of the room, it goes with the page, as the heads' toggle did. Page heads
+  hold only their titles and leave the corner free. The corner stays in view as the page
+  scrolls, on the page's own surface.
 - **Integrace.** The search and Zkontrolovat připojení stay on the page, at the right end of
   the tabs' row; short of room they go above the tabs.
 - **The column's toggle.** In the column's head, right under `<lazurio-column-head>`, where

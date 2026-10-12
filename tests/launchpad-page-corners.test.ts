@@ -4,12 +4,13 @@ import { join } from "node:path";
 
 // The controls of the pages' heads in the page's two top corners (Matěj
 // 2026-10-12, evening; the wireframe's apps-corner). One Browser toggle,
-// which browser-panel.ts collects once by its class as it starts and shows
-// where the panel is offered, stands in the top right corner after the
-// page's help link, outside every view and head, so nothing but its own
-// `aria-expanded` decides whether it is drawn when the panel closes and the
-// focus comes back to it. The column's toggle stands in the column's head,
-// one at the page's top left while the column is hidden, and the panel
+// which browser-panel.ts collects once by its class as it starts, shows
+// where the panel is offered and presses while the panel is open, stands in
+// the top right corner after the page's help link. The corner is the page's,
+// left of the panel, outside every view and head, so the toggle is drawn
+// wherever the page is, stays in view beside the open panel, and the focus
+// can always come back to it. The column's toggle stands in the column's
+// head, one at the page's top left while the column is hidden, and the panel
 // strip's while the page steps aside. Page heads hold only their titles, and
 // Integrace keep their search and refresh with the tabs. How it looks and
 // moves, and the focus, are checked in a browser, not here (root decision
@@ -91,6 +92,11 @@ test("the page's two top corners come first in the page, outside every view, so 
   ]);
   for (let node: Element | null = top; node !== null; node = node.parent)
     expect(node.attributes.has("data-view")).toBe(false);
+  // The page's, beside the panel and never in it: the open panel never
+  // covers the corner, and with the page stepped aside it goes with it.
+  const panel = byId("browser-panel");
+  expect(panel.parent).toBe(byId("page").parent);
+  expect(inside(top, panel)).toBe(false);
 });
 
 test("one Browser toggle, in the page's top right corner, as browser-panel.ts finds, shows and labels it", () => {

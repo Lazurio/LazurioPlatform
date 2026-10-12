@@ -520,9 +520,9 @@ a.files-name:hover { text-decoration: underline; }
    0191 point 8a): the view of the Environment browser after the page in the
    .app row, so the page shrinks; beside the rail and the column the page
    and the panel share the width. Closed by default. The Browser toggle
-   stands in the page's top right corner (above), while the panel is
-   closed. Below 1100 px there is no room for the page beside the panel, so
-   the panel covers the window like a sheet, its Close in view. */
+   stands in the page's top right corner (above); pressed, it takes the
+   quiet surface. Below 1100 px there is no room for the page beside the
+   panel, so the panel covers the window like a sheet, its Close in view. */
 /* Integrace (decision F42), after the approved wireframe: the head with the
    title and one sentence, the tabs, cards in a grid with the app's mark, a
    line, the action and the accounts; Vlastní as rows. "Jak to funguje" is in
@@ -633,11 +633,13 @@ button.mcp-add:hover { background: var(--lz-gray-100); }
 .mcp-status:empty { display: none; }
 button.mcp-save { flex: none; height: 34px; padding: 0 16px; font-size: 14px; }
 .menu-count { margin-left: auto; min-width: 18px; padding: 0 6px; border-radius: var(--lz-radius-pill); background: var(--warning-bg); color: var(--warning-fg); font-size: 11.5px; line-height: 18px; text-align: center; }
-/* The Browser toggle is in the corner only while the panel is closed, as
-   the wireframe draws it: browser-panel.ts sets its aria-expanded, so it is
-   back in the very tick the panel closes and can take the focus again. */
+/* The Browser toggle in the page's corner: pressed (its aria-expanded, set
+   by browser-panel.ts), it takes the quiet surface and stays while the panel
+   is open, and a click closes the panel (Matěj's call of 2026-10-12; the
+   wireframe hid it then). The corner is the page's, left of the panel, so
+   the panel beside the page never covers it. */
 button.ghost.browser-toggle { font-weight: var(--lz-weight-akce); }
-button.ghost.browser-toggle[aria-expanded="true"] { display: none; }
+button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); color: var(--fg); }
 /* The panel slides in from the window's right edge and back out (Matěj
    2026-10-12): beside the page its margin gives way, so the page makes room
    while the panel keeps its width and what it shows does not reflow; as a
@@ -904,7 +906,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
      while the column is hidden; top right the page's help link (the Guide
      on the Apps home, "Jak to funguje" on Integrace, by their frame) and
      the one Browser toggle, which browser-panel.ts shows where the panel is
-     offered and which is there only while the panel is closed. -->
+     offered and which stays, pressed, while the panel is open. -->
 <div class="page-top">
 <div class="page-corner page-corner-start"><button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button></div>
 <div class="page-corner page-corner-end" id="page-corner"><a class="apps-guide" id="catalog-guide" data-view="catalog" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a><a class="apps-guide" id="integrations-help" data-view="integrations" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="integrationsHelp">How it works</span></a><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></div>
