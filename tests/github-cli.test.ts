@@ -140,7 +140,7 @@ test("sign-out waits for an in-flight device flow and removes its resulting auth
   expect(returnedDuringFlow).toBe(false);
   expect(JSON.parse(out.stdout as string)).toMatchObject({
     kind: "signed-out",
-    revoked: true,
+    scope: "environment",
   });
   expect(await readStoredSignIn(world.paths, "example")).toBeNull();
 });
@@ -416,7 +416,7 @@ test("wire needs the owning sign-in and a compiled executable; unwire and sign-o
   });
   const out = await run(["sign-out"]);
   expect(out.stdout).toBe(
-    "Signed out of GitHub for example here; GitHub revoked both tokens and tells you so by email.",
+    "Signed out of GitHub in this Environment. Saved credentials were removed here; the GitHub authorization and any copied credentials remain valid. To end the App authorization in all your Environments, use GitHub Settings → Applications → Authorized GitHub Apps.",
   );
   expect(await run(["pilot", "disable"])).toEqual({
     code: 0,
@@ -639,7 +639,7 @@ test("disabling the switch never strands a pair a killed write left aside", asyn
   expect(
     JSON.parse((await run(["pilot", "disable", "--json"])).stdout as string),
   ).toMatchObject({ kind: "blocked", reason: "signed-in" });
-  // It was put in place, so sign-out finds, revokes and removes it.
+  // It was put in place, so sign-out finds and removes its local custody.
   expect(
     JSON.parse((await run(["sign-out", "--json"])).stdout as string),
   ).toMatchObject({

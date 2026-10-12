@@ -7744,7 +7744,7 @@ command flag nor a repository URL can select another account or mint permission.
 3. One owner-only file stores the entire expiring token pair outside the Lazurio
    Folder. One kernel lock serializes sign-in, refresh and sign-out, regardless
    of which repository triggered the operation. The lock covers the entire device
-   flow, so a concurrent sign-out waits for and revokes its result, or reports busy
+   flow, so a concurrent sign-out waits for and removes its local result, or reports busy
    without claiming completion. Disable checks credentials and removes configuration
    under the same lock; a waiting sign-in rechecks configuration before requesting a
    code. Unknown or foreign credential state is preserved and refused on sign-out.
@@ -7764,8 +7764,13 @@ command flag nor a repository URL can select another account or mint permission.
 5. Explicit `pilot wire` installs the reversible official-gh launcher and Git
    include after successful sign-in. HTTPS rewrites preserve existing SSH remote
    URLs. `pilot unwire` restores the prior entry/config without discarding work.
-   `sign-out` removes the local chain and asks GitHub to revoke both tokens;
-   provider failure is reported. App-wide revocation can affect other sign-ins.
+   `sign-out` removes only the local chain, including interrupted-write copies.
+   It makes no provider revocation request: the real pilot observed the token
+   reporting endpoint invalidate a second authorization of the same person/App.
+   The result names `scope: "environment"`; help states that the GitHub
+   authorization and copied credentials remain valid. To end the App authorization
+   everywhere, the person uses GitHub Settings → Applications → Authorized GitHub
+   Apps, understanding that this affects their other Environments too.
    `pilot disable` refuses while wired or signed in. There are no per-Organization
    add/remove or sign-in switches.
 6. Local status and Doctor report this one sign-in, its owning Environment,
@@ -7808,7 +7813,13 @@ credentials or bypass consent.
 
 Refreshing invalidates the previous access token immediately. The existing refresh
 margin reduces, but does not eliminate, failure of a command using that token.
-Unknown revocation behavior and token limits require real pilot evidence. Local
+**Pilot finding, 2026-10-12:** `POST /credentials/revoke` accepted the submitted
+pair, but a second authorized chain also returned 401. This endpoint reports
+exposed credentials; it is not used for routine Environment sign-out. Local
+sign-out must prove that another active chain still works. The initial probe
+did not record token equality, so it does not establish whether GitHub reused
+a grant or revoked distinct chains; neither behavior permits a promise of
+independent remote revocation. Token limits remain unmeasured. Local
 filesystem isolation is owner-only custody, not protection from the same OS user.
 The pilot changes no Team broker, access grant, template revision or fleet release.
 Publication and rollout follow review and the actual pilot acceptance; they are not

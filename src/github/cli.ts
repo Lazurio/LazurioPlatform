@@ -695,7 +695,7 @@ export async function runGithubCommand(
 
   // sign-out
   const organization = config.application;
-  const result: SignOutResult = await signOut({ paths, organization, http });
+  const result: SignOutResult = await signOut({ paths, organization });
   const text =
     result.kind === "not-signed-in"
       ? `Not signed in to GitHub for ${result.organization} here.`
@@ -703,9 +703,7 @@ export async function runGithubCommand(
         ? result.reason === "state-unreadable"
           ? credentialRecoveryAdvice
           : `Another sign-in or sign-out of ${result.organization} is running here. Try again.`
-        : result.revoked
-          ? `Signed out of GitHub for ${result.organization} here; GitHub revoked both tokens and tells you so by email.`
-          : `Signed out of GitHub for ${result.organization} here (nothing of it is kept). GitHub did not confirm the revocation: if this sign-in must end at GitHub too, revoke the app under GitHub Settings → Applications → Authorized GitHub Apps (that ends its sign-ins in all your Environments).`;
+        : "Signed out of GitHub in this Environment. Saved credentials were removed here; the GitHub authorization and any copied credentials remain valid. To end the App authorization in all your Environments, use GitHub Settings → Applications → Authorized GitHub Apps.";
   const wiredOwning = result.kind === "signed-out" && config.wiring !== null;
   return done(
     result.kind === "failed" ? 1 : 0,

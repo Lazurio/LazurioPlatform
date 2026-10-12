@@ -677,8 +677,12 @@ No other App is registered and no personal access token is used.
   `https://github.com/login/device` to approve in the person's own browser.
   It checks the assigned account id and the App's active owning installation.
   Other installations of that same App are accepted. Expiring token pairs are
-  retained owner-only; Ctrl-C cancels. `sign-out` removes the local pair and
-  requests revocation, explicitly reporting whether GitHub confirmed it.
+  retained owner-only; Ctrl-C cancels. `sign-out` removes the local pair and interrupted-write copies without a
+  provider request. Its JSON result names `scope: "environment"`. GitHub
+  authorization and copied credentials remain valid; ending the authorization
+  under GitHub Settings → Applications → Authorized GitHub Apps affects the
+  person’s other Environments too. The credential-reporting endpoint is not
+  a routine sign-out API: the real pilot also lost its second control chain.
 - `lazurio github pilot wire` requires that sign-in, preserves official gh and
   installs the reversible launcher and Git include. gh and HTTPS Git use the
   same token chain for every repository owner. GitHub's denial propagates; no
