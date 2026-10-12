@@ -124,19 +124,28 @@ the Operator. Exact quotations and externally required formats stay exact.
 ## Customization in Launchpad — proposed
 
 Start with Settings → Agent communication in the existing Environment settings.
-Customization must be understandable without technical knowledge: a person
-should know that it is optional, what to write and how to save it.
-The proposal explains the default in one short paragraph and offers
-one optional field, “What should agents do differently?”, with an everyday
-example such as “Keep answers short. Explain complicated things with an example.”
-Leaving it empty keeps the default. One Save action applies the person's words;
-Cancel restores the saved text. Restoring the default clears the field and is
-saved the same way.
+Customization must be understandable without technical knowledge. The editor is
+called “Tone of Voice for agents” and is prefilled with the complete default
+instruction block above for the current locale. The Operator selected this
+full-text editing model on 2026-10-13: people should see what agents follow and
+edit that text directly, rather than start with an empty optional addition.
 
-No default/custom mode switch, style taxonomy, sample tabs, generated instruction
-text or simulation controls belong in this everyday flow. The existing detail
-preference keeps its owner in General settings; this voice form does not rewrite
-it. Tone is not expertise, initiative, delegation, permission or model choice.
+The editable text is the full Environment voice. Save uses the exact edited
+text; it does not append the old default behind the person's back. Cancel
+restores the saved text. Restore default puts the complete current product
+default back into the editor as a draft, which can then be saved or canceled.
+Empty or whitespace-only text cannot be saved: keep the previous voice and
+offer restoring the visible default. Do not silently interpret an empty editor
+as an invisible default. Preserve authored paragraphs and whitespace on save.
+
+Use one short introduction and one Save action. There is no empty-field example
+or “optional” label. Prototype-only caveats stay in design notes and the existing
+prototype shell, not inside the proposed product form.
+
+No default/custom mode switch, style taxonomy, sample tabs, additional generated
+instruction preview or simulation controls belong in this everyday flow. The
+existing detail preference keeps its owner in General settings; this voice form
+does not rewrite it. Tone is not expertise, initiative, delegation, permission or model choice.
 Show the selected Environment and, for a team, the shared effect in one sentence.
 
 The Operator selected per-Environment customization for the first wireframe
@@ -148,8 +157,9 @@ silently replace the instructions every agent shares.
 
 The proposed composition is:
 
-- Product voice supplies the default wherever no more specific style is requested.
-- Environment customization refines presentation within that Environment.
+- Product voice supplies the complete default shown in the editor.
+- A saved Environment voice replaces that default's stylistic wording for that
+  Environment. It is not a second append-only instruction layer.
 - The task's audience, explicit request and the owning Organization's artifact
   style guide refine the particular output. If those conflict materially, show
   the conflict and ask one concrete question.
@@ -158,6 +168,12 @@ The proposed composition is:
 
 This precedence is a style proposal, not a new general instruction hierarchy.
 Existing presets and Organization instructions keep their current owners.
+
+Voice presets or Marketplace templates are a possible later source of editor
+text, not a selected distribution mechanism yet. A future selection should fill
+the same editable draft and use the same Save and recovery path. It must not
+create a second active voice store, silently overwrite a draft or grant access.
+Do not add invented presets or a nonfunctional Marketplace control to this form.
 
 ## File placement and activation — decision after the wireframe
 
@@ -168,9 +184,11 @@ Existing presets and Organization instructions keep their current owners.
 | Operator-authored file → generated instructions | Viable if file editing is a requirement. Requires an explicit source contract, validation, ownership and conflict handling alongside Launchpad; not a second uncoordinated writer. |
 | Account-wide synchronized voice | Useful for portability, but changes ownership and shared-use semantics. Do not introduce it as an incidental setting. |
 
-The exact preference schema, generated path, long-text inclusion and harness
-loading strategy remain open. Do not create a TONE_OF_VOICE.md convention on the
-assumption that agents automatically read arbitrary files. The installed
+The authored text shown by the editor is the source for the tone instructions
+generated in the Lazurio Folder. The exact source path, preference schema,
+generated path and harness loading strategy remain open. Do not create a
+TONE_OF_VOICE.md convention on the assumption that agents automatically read
+arbitrary files. The installed
 AGENTS.md entrypoint must carry the compact rule and, if a separate document is
 chosen, instruct agents to load it before composing an answer. Qualify this in
 fresh sessions of each supported harness, including resident consumers.
@@ -184,12 +202,15 @@ separate technical preview screen or second confirmation. State when
 a new chat is required; do not imply that an existing chat has reloaded its
 instructions. Restoring the default is an explicit draft edit, saved with the
 same action; it must not silently delete an Operator-authored source file.
+Distinguish an untouched product default from a customized full text when
+designing persistence: updating the product default must preserve saved custom
+text. The person can explicitly restore the new default through the editor.
 
 ## Review and qualification
 
 The wireframe is a decision aid with synthetic, browser-only state. It cannot
 prove model adherence or save a real Folder preference. Review whether a person
-understands that customization is optional, knows what to write and can save,
+understands the prefilled text, can edit any of it and can save,
 cancel, restore the default and distinguish two Environments without technical
 instruction. Failure and drift qualification belongs to the implementation
 contract below, not to controls on the user's settings page.
@@ -198,8 +219,10 @@ After the Operator selects the design, implementation acceptance must cover:
 
 1. The same product default in every preset and locale, available to every
    supported agent entrypoint, without importing personal or Organization data.
-2. Versioned custom source, one CLI/Launchpad writer, preservation on refresh,
-   stale-preview refusal, interrupted apply and recovery without partial state.
+2. A full-text editable source, one CLI/Launchpad writer, exact saved text used in
+   generated tone instructions (without appending the old default), preservation
+   on refresh, stale-preview refusal, interrupted apply and recovery without
+   partial state. Include empty-text validation and restoring the current default.
 3. A shared Environment and two distinct Environments, proving scope and avoiding
    cross-user preference leakage; denial uses existing rights, not a voice ACL.
 4. Fresh-agent answers for all communication types above, with terse and detailed
