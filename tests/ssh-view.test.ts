@@ -61,6 +61,32 @@ test("the prompt names this page, the key, the page's own labels and the rules",
   }
 });
 
+test("Codex handoffs keep two work Environments distinct and request a verified remote project", () => {
+  for (const locale of ["en", "cs"] as const) {
+    const aliases = ["north-alex-work", "south-alex-work"];
+    for (const alias of aliases) {
+      const prompt = sshPrompt(
+        {
+          url: `https://launchpad.${alias}.example.test/settings/ssh`,
+          alias,
+          keyPath: `~/.ssh/${alias}-ed25519`,
+        },
+        messages(locale),
+      );
+      expect(prompt).toContain(`ssh -G ${alias}`);
+      expect(prompt).toContain("manual/this-machine.md");
+      expect(prompt).toContain("codex://settings/connections/ssh/add?name=");
+      expect(prompt).toContain("&projectPath=");
+      expect(prompt).toContain("&enabled=true");
+      expect(prompt).toContain("URLSearchParams");
+      expect(prompt).toContain("HostKeyAlias");
+      expect(prompt).not.toContain(
+        aliases.find((other) => other !== alias) ?? "missing-other-alias",
+      );
+    }
+  }
+});
+
 test("the page gives an agent one stable element for each block it reads", () => {
   for (const [id, block] of [
     ["ssh-prompt", "prompt"],

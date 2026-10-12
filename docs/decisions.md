@@ -8254,6 +8254,48 @@ rule (per-person accounts, or approval of each device key) is an open question f
 Operator. Consumer acceptance on a Remote Environment, with a real device, its network
 grant and `ssh <alias> true`, is still to be recorded.
 
+
+### F49 clarification — device-to-Codex handoff (2026-10-12)
+
+A review of two work Environments of the same Operator found independently generated
+laptop prompts using the same `Host` alias. Retargeting that alias could replace the
+first connection; a leftover `HostKeyAlias` could also select the first host's pin.
+The generated Folder must therefore route requests for a laptop prompt to the existing
+`/settings/ssh` page, rather than invent a second console-based registration workflow.
+The page remains the owner of live SSH settings and key registration. The Folder's
+`manual/this-machine.md` explains the client handoff, identity, failure diagnosis and
+completion evidence; `AGENTS.md` points agents there when asked for laptop access.
+This changes guidance, not grants, key storage or the F49 alias derivation.
+
+For work connections, the alias and human-readable link/connection label distinguish
+both Organization and Environment. Reusing a person's name alone is insufficient.
+An ambiguous or occupied alias is a conflict, not permission to overwrite it. The
+laptop agent checks effective OpenSSH settings (`ssh -G`, including wildcard/Include
+settings, host-key alias and proxies), then tests authentication, the remote account,
+the actual Folder path and remote Codex availability. A timeout alone is not proof of
+a missing network grant; diagnose the actual error before asking the Admin. F49's
+network-failure wording above is refined accordingly.
+
+Once SSH works, the agent gives a clickable desktop link with URL-encoded `name`
+(the exact OpenSSH alias), `projectPath` (the verified absolute remote Folder path)
+and `enabled=true`. No credentials appear in the link. The desktop requests connection
+and creates or reuses a project for that host+path after successful connection and any
+required sign-in. The link cannot authorize a device, register its key, or bypass login.
+Do not report a finished project until the actual desktop shows the intended remote
+host and Folder. Manual Settings → Connections → SSH remains the fallback for clients
+without this capability. No laptop configuration or live access is changed by this PR.
+
+**Capability evidence.** OpenAI's [remote connections documentation](https://learn.chatgpt.com/docs/remote-connections)
+confirms concrete OpenSSH aliases, remote Codex availability and remote-folder selection.
+Read-only inspection of installed ChatGPT Desktop 26.1007.30912 (build 20156) on
+2026-10-12 confirms `codex://settings/connections/ssh/add`, its `name`, `projectPath`
+and `enabled` query parameters, SSH registration by alias, the absolute-path check and
+remote-project creation with `reuseExisting: true`. The `alias` query spelling is a
+synonym for `name`, not an independent display-name parameter; do not send both.
+There is no `projectName` parameter. This is implementation evidence for that build,
+not a published stable URI schema or a completed laptop acceptance test. Source
+inspection and rendered guidance do not prove successful registration on another device.
+
 ## F50 — The Environment browser's contract: one module, executable vectors and an attested artifact for the forks
 
 **Decided by Matěj 2026-10-12 on the agent's proposal (root decision 0191's addendum of

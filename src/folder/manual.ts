@@ -1790,6 +1790,52 @@ function enabledToolsSection(
   ];
 }
 
+// F49: the hosted agent routes the laptop agent to the existing local owner
+// of authorized_keys. The desktop link is a client handoff, never a grant.
+function deviceSsh(machine: MachineBinding): readonly Text[] {
+  const origin = machine.entry?.externalOrigin;
+  return [
+    blank,
+    t(
+      "## Připojení laptopu a projektu Codex",
+      "## Connecting a laptop and a Codex project",
+    ),
+    t(
+      "Když Operátor chce prompt pro Codex Desktop (dnes také ChatGPT Desktop v režimu Codex) na svém laptopu, připrav předání pro lokální chat na laptopu. Tady běžíš v cílovém Environmentu; nevytvářej tu privátní klíč laptopu a nesnaž se odtud nastavovat laptop.",
+      "When the Operator asks for a prompt for Codex Desktop (now also ChatGPT Desktop in Codex mode) on their laptop, prepare a handoff for a local chat on that laptop. You run in the target Environment; do not create the laptop's private key here or try to configure the laptop from here.",
+    ),
+    origin === undefined
+      ? t(
+          "Handover neuvádí adresu Launchpadu. Neodvozuj ji z hostname ani z názvu Organizace; chybějící vstup do Nastavení → SSH ze zařízení předej správci tohoto Environmentu.",
+          "The handover records no Launchpad address. Do not derive one from the hostname or Organization name; report the missing entry to Settings → SSH from your devices to this Environment's administrator.",
+        )
+      : t(
+          `Začni na \`${origin}/settings/ssh\` (Nastavení → SSH ze zařízení). Předej prompt z této stránky a doplň níže uvedené dokončení pro Codex. Stránka je jediný návod pro registraci klíče a poskytuje živý účet, tailnet hostname, alias a veřejný host klíč. Když ji nainstalovaná verze nemá, řekni to a navrhni běžnou aktualizaci; nevymýšlej paralelní zápis přes konzoli ani nasazení bez mandátu.`,
+          `Start at \`${origin}/settings/ssh\` (Settings → SSH from your devices). Hand over that page's prompt and add the Codex completion below. The page is the single guide for key registration and supplies the live account, tailnet hostname, alias and public host key. If the installed version lacks it, say so and propose the normal update; do not invent a parallel console write or deploy without a mandate.`,
+        ),
+    t(
+      "**Jeden cíl, jeden alias.** Použij konkrétní `Host` alias ze stránky; u pracovního Environmentu musí odlišit Organizaci i konkrétní Environment. Jméno člověka samotné nestačí. U dvou pracovních Environmentů téhož člověka zachovej dva různé aliasy, host piny a projekty; původní alias nesmíš přesměrovat na druhý cíl. Pokud je alias ze stránky nejednoznačný, zastav a vyřeš kolizi se správcem. Čitelný název připojení i popisek odkazu mají formát „Lazurio · Organizace · Environment“; osobní Environment označ jako osobní, bez vymyšlené Organizace.",
+      "**One target, one alias.** Use the page's concrete `Host` alias; for a work Environment it must distinguish the Organization and the particular Environment. A person's name alone is insufficient. Keep distinct aliases, host pins and projects for two work Environments of the same person; never retarget the first alias to the second destination. If the page's alias is ambiguous, stop and resolve the collision with the administrator. The readable connection name and link label use “Lazurio · Organization · Environment”; label a personal Environment as personal without inventing an Organization.",
+    ),
+    t(
+      "**Co udělá agent na laptopu.** Ověří svůj lokální kontext a správný aktivní tailnet, přečte existující SSH config včetně `Include` a `Host *`, zachová klíče i ostatní připojení a použije postup stránky. Do formuláře patří jen veřejný klíč; privátní klíč a případná passphrase zůstávají na laptopu. Host klíč převezme z přihlášené stránky, ne z neověřeného `ssh-keyscan`. Po zápisu zkontroluje `ssh -G <alias>`: HostName, User, Port, IdentityFile, HostKeyAlias, UserKnownHostsFile, StrictHostKeyChecking i případný ProxyJump/ProxyCommand musí odpovídat tomuto cíli. Rozpor neopravuje mazáním host pinu, vypnutím ověřování nebo přepsáním cizího bloku.",
+      "**What the laptop agent does.** Verify its local context and correct active tailnet, inspect existing SSH configuration including `Include` and `Host *`, preserve keys and other connections, and follow the page. Only the public key goes into the form; the private key and any passphrase stay on the laptop. Take the host key from the authenticated page, not unverified `ssh-keyscan`. After writing, inspect `ssh -G <alias>`: HostName, User, Port, IdentityFile, HostKeyAlias, UserKnownHostsFile, StrictHostKeyChecking and any ProxyJump/ProxyCommand must match this destination. Never resolve a mismatch by deleting the host pin, disabling verification or overwriting another block.",
+    ),
+    t(
+      "**Ověření ze zdroje.** Z laptopu otestuj `ssh -o BatchMode=yes <alias> true`, vzdálený účet a skutečnou absolutní cestu tohoto Lazurio Folderu. Ověř `codex` na PATH vzdáleného login shellu a stav jeho přihlášení, bez čtení credentials; chybějící přihlášení dokončí Operátor. Neinstaluj ani neaktualizuj nástroje jen kvůli předání. Registrace klíče neuděluje TCP/22 v Headscale; HTTPS přístup do Launchpadu nedokazuje SSH grant. Při selhání rozliš DNS/tailnet, timeout či odmítnutí spojení, host-key mismatch a `Permission denied (publickey)`. Timeout sám nedokazuje chybějící grant; správci předej přesnou chybu, zdrojové zařízení a cílový Environment.",
+      "**Verify from the source.** From the laptop test `ssh -o BatchMode=yes <alias> true`, the remote account and this Lazurio Folder's actual absolute path. Verify `codex` on the remote login shell's PATH and its login status without reading credentials; the Operator completes a missing sign-in. Do not install or update tools merely to hand off. Registering a key grants no TCP/22 in Headscale; HTTPS access to Launchpad does not prove an SSH grant. Distinguish DNS/tailnet failures, a timeout or refused connection, a host-key mismatch and `Permission denied (publickey)`. A timeout alone does not prove a missing grant; give the administrator the exact failure, source device and target Environment.",
+    ),
+    t(
+      "**Dokončení v Codex Desktopu.** Až SSH funguje, dej člověku klikací Markdown odkaz `codex://settings/connections/ssh/add?name=<alias>&projectPath=<absolutní-cesta>&enabled=true`. Každou hodnotu zakóduj samostatně jako URL parametr (`URLSearchParams`); do odkazu nepatří credentials. `name` je přesný OpenSSH alias z laptopu, nikoli lidský název. `projectPath` je ověřená cesta na vzdáleném Environmentu, ne na laptopu. `enabled=true` požádá o připojení a aplikace po úspěšném spojení vytvoří nebo použije projekt pro tuto dvojici host+cesta. Stejná cesta u jiného hostu je jiný projekt. Odkaz nevytvoří SSH klíč ani síťový grant a nenahradí osobní přihlášení nebo potvrzení aplikace.",
+      "**Finish in Codex Desktop.** Once SSH works, give the person a clickable Markdown link `codex://settings/connections/ssh/add?name=<alias>&projectPath=<absolute-path>&enabled=true`. Encode each value as a URL parameter (`URLSearchParams`); no credentials belong in it. `name` is the laptop's exact OpenSSH alias, not a display name. `projectPath` is the verified path on the remote Environment, not on the laptop. `enabled=true` requests connection; after connecting successfully the app creates or reuses the project for this host+path pair. The same path on another host is another project. The link creates no SSH key or network grant and cannot replace personal sign-in or an app confirmation.",
+    ),
+    t(
+      "Parametry odkazu jsou ověřené v ChatGPT Desktop 26.1007.30912; ve starší nebo jiné verzi ověř podporu. Když klient odkaz neumí otevřít, nabídni Settings → Connections → SSH a tutéž vzdálenou složku ručně. Zkontroluj v aplikaci připojení i projekt a v jeho chatu správný hostname, účet a pracovní složku. Samotné vytvoření odkazu nebo úspěch `ssh true` není důkaz hotového Codex projektu. Bez přístupu k laptopu označ tento poslední test jako neprovedený.",
+      "These link parameters were verified in ChatGPT Desktop 26.1007.30912; check support in an older or different version. If the client cannot open the link, offer Settings → Connections → SSH and the same remote folder manually. Check the connection and project in the app and the correct hostname, account and working directory in its chat. Merely creating a link or succeeding at `ssh true` does not prove the Codex project is ready. Without laptop access, mark that final test as not performed.",
+    ),
+  ];
+}
+
 // How the Operator works with an agent on a hosted Environment (decision F14
 // addendum 2026-10-02). The Operator uses the clients they prefer, possibly
 // several at once: ChatGPT Desktop over SSH, T3 Code on the web or in its
@@ -2135,6 +2181,7 @@ function thisMachine(source: InstructionSource): string {
               "Lazurio enforces none of this: the Headscale policy of the Conglomerate Host does, and transport is not authentication, so SSH keys and application sign-in stay separate.",
             ),
           ]),
+      ...(machine === null ? [] : deviceSsh(machine)),
       ...(machine === null ? [] : [blank, ...sshRules]),
       ...(preset === "hosted-personal"
         ? [blank, ...fromPersonalVm(machine, locale)]
