@@ -462,6 +462,7 @@ test("the contract's exported names are exactly these", () => {
     "targetIdOf",
     "threadSession",
     "viewAddressOf",
+    "viewPath",
     "viewPathTab",
   ]);
   expect(Object.keys(node).sort()).toEqual([

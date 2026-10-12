@@ -7,7 +7,12 @@ import {
   viewIdentityElementId,
 } from "../../shell/identity-protocol";
 import { type EnvironmentIdentity, titleWithIdentity } from "../../shell/view";
-import { isTargetId, viewPathTab } from "../contract/pure";
+import {
+  browserViewUrl,
+  targetIdOf,
+  viewPath,
+  viewPathTab,
+} from "../contract/pure";
 import {
   buttonBit,
   clampInto,
@@ -442,7 +447,7 @@ class Viewer {
     if (this.ended) return;
     const scheme = location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(
-      `${scheme}://${location.host}/t/${this.id}/live`,
+      `${scheme}://${location.host}${viewPath(this.id)}/live`,
     );
     socket.binaryType = "arraybuffer";
     this.socket = socket;
@@ -1089,7 +1094,7 @@ class Viewer {
       upload.textContent = say.uploading;
       error.hidden = true;
       const done = await fetch(
-        `/t/${this.id}/files?token=${encodeURIComponent(token)}`,
+        `${viewPath(this.id)}/files?token=${encodeURIComponent(token)}`,
         {
           method: "POST",
           body: form,
@@ -1230,14 +1235,15 @@ address.addEventListener("blur", () => {
 /** A page's new tab without access to its opener (F39 point 4): offered with
  * one click, and to the app around the view. */
 function offerNewTab(id: string, url: string): void {
-  if (!isTargetId(id)) return;
-  offered = id;
+  const tab = targetIdOf(id);
+  if (tab === null) return;
+  offered = tab;
   noticeText.textContent = `${say.newTab}: ${url}`;
   noticeText.title = url;
   notice.hidden = false;
   tell({
     type: "lazurio-browser:new-tab",
-    view: new URL(`/t/${id}`, location.href).href,
+    view: browserViewUrl(location.origin, tab),
     url,
   });
 }
@@ -1249,7 +1255,7 @@ function dismissNotice(): void {
 }
 
 noticeOpen.addEventListener("click", () => {
-  if (offered !== null) window.open(`/t/${offered}`, "_blank", "noopener");
+  if (offered !== null) window.open(viewPath(offered), "_blank", "noopener");
   dismissNotice();
 });
 noticeClose.addEventListener("click", dismissNotice);
@@ -1268,8 +1274,9 @@ new ResizeObserver(() => {
   for (const popup of popups.values()) popup.fit();
 }).observe(popupLayer);
 
-function openPopup(id: string, url: string): void {
-  if (!isTargetId(id) || popups.has(id)) return;
+function openPopup(opened: string, url: string): void {
+  const id = targetIdOf(opened);
+  if (id === null || popups.has(id)) return;
   const panel = element("section", "popup");
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-label", hostOf(url));
@@ -1366,7 +1373,7 @@ async function createTab(): Promise<string | null> {
       typeof body === "object" && body !== null
         ? (body as { id?: unknown }).id
         : undefined;
-    return isTargetId(id) ? id : null;
+    return targetIdOf(id);
   } catch {
     return null;
   }
@@ -1406,7 +1413,7 @@ async function start(): Promise<void> {
     });
     return;
   }
-  history.replaceState(null, "", `/t/${id}`);
+  history.replaceState(null, "", viewPath(id));
   open(id, true);
 }
 

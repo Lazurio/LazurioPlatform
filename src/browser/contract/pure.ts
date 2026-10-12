@@ -169,30 +169,36 @@ export function environmentIdOf(origin: string): string | null {
 /** The label the gateway routes an Environment browser's view under
  * (decisions F38 and F39): `https://browser.<base>.lazurio.io`. */
 const viewLabel = "browser";
-const viewPathPattern = /^\/t\/([0-9A-F]{32})$/;
+const viewPathPattern = /^\/t\/([^/]+)$/;
 /** Far longer than any view address, whose base has at most two labels. */
 const maxViewLength = 512;
 
+/** The path of one remote tab's view, `/t/<id>`, or of a new tab, `/` (F39
+ * point 1), the id written as given: Chrome's, in upper case. */
+export function viewPath(targetId: string | null): string {
+  return targetId === null ? "/" : `/t/${targetId}`;
+}
+
 /** The view of one remote tab, `<origin>/t/<id>`, or of a new one,
- * `<origin>/` (F39 point 1), `origin` being the view's and the id written as
- * given: Chrome's, in upper case. Neither carries a token: the gateway's
- * session is the only admission (F39 point 8). */
+ * `<origin>/` (F39 point 1): `viewPath` on the view's origin. Neither carries
+ * a token: the gateway's session is the only admission (F39 point 8). */
 export function browserViewUrl(
   origin: string,
   targetId: string | null,
 ): string {
-  return targetId === null ? `${origin}/` : `${origin}/t/${targetId}`;
+  return `${origin}${viewPath(targetId)}`;
 }
 
-/** The remote tab a path of the view shows: `/t/<id>`, the id in upper case
- * as the view serves it; null for any other path. */
+/** The remote tab a path of the view shows, `/t/<id>`: the id in either case,
+ * given in its upper-case form (`targetIdOf`); null for any other path. */
 export function viewPathTab(path: string): string | null {
-  return viewPathPattern.exec(path)?.[1] ?? null;
+  return targetIdOf(viewPathPattern.exec(path)?.[1]);
 }
 
 /** A view address as `viewAddressOf` reads it. */
 export type ViewAddress = Readonly<{
-  /** The address, as written. */
+  /** The address as the contract writes it (`browserViewUrl`): a tab's id in
+   * upper case, the bare origin with its `/`. */
   view: string;
   /** The view's origin, `https://browser.<base>.lazurio.io`. */
   origin: string;
@@ -203,13 +209,14 @@ export type ViewAddress = Readonly<{
   tab: string | null;
 }>;
 
-/** The view address `value` is (F50 point 2), exactly as written:
+/** The view address `value` is (F50 point 2):
  * `https://browser.<base>.lazurio.io/t/<id>`, one remote tab, or the bare
  * origin, with or without its `/`, which opens a new one. `<base>` is an id
- * `environmentIdOf` gives, the host is in lower case and the id in upper
- * case, as Chrome writes it; no port, no credentials, no query or fragment
- * (not even an empty one) and no slash after the id. A link is a tab only in
- * this form, on every Lazurio surface alike. Null for anything else. */
+ * `environmentIdOf` gives and the id a target id in either case
+ * (`targetIdOf`); the rest exactly as written: the host in lower case, no
+ * port, no credentials, no query or fragment (not even an empty one) and no
+ * slash after the id. A link is a tab only in this form, on every Lazurio
+ * surface alike. Null for anything else. */
 export function viewAddressOf(value: unknown): ViewAddress | null {
   if (typeof value !== "string" || value.length > maxViewLength) return null;
   let url: URL;
@@ -228,12 +235,22 @@ export function viewAddressOf(value: unknown): ViewAddress | null {
     return null;
   const origin = url.origin;
   if (value === origin || value === `${origin}/`)
-    return Object.freeze({ view: value, origin, environment, tab: null });
+    return Object.freeze({
+      view: browserViewUrl(origin, null),
+      origin,
+      environment,
+      tab: null,
+    });
   const tab =
     value === `${origin}${url.pathname}` ? viewPathTab(url.pathname) : null;
   return tab === null
     ? null
-    : Object.freeze({ view: value, origin, environment, tab });
+    : Object.freeze({
+        view: browserViewUrl(origin, tab),
+        origin,
+        environment,
+        tab,
+      });
 }
 
 /** Whether a host is where the gateway routes the views of Environment

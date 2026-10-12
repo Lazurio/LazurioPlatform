@@ -139,10 +139,10 @@ export function parseNewTabTools(value: unknown): readonly NewTabTool[] | null {
   return Object.freeze(tools);
 }
 
-/** `value` when it is the view of the remote tab `tab` (upper case), a view
- * address of the contract's strict form (`viewAddressOf`, decision F50
- * point 2): `https://browser.<base>.lazurio.io/t/<tab>`, as written. Null
- * otherwise. */
+/** The view of the remote tab `tab` (upper case) when `value` is one, a view
+ * address of the contract (`viewAddressOf`, decision F50 point 2):
+ * `https://browser.<base>.lazurio.io/t/<tab>`, as the contract writes it.
+ * Null otherwise. */
 export function newTabViewOf(value: unknown, tab: string): string | null {
   const address = viewAddressOf(value);
   return address !== null && address.tab === tab ? address.view : null;

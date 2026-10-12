@@ -227,6 +227,22 @@
       "expect": null
     },
     {
+      "name": "the path of one remote tab's view",
+      "call": "viewPath",
+      "args": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": "/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    {
+      "name": "the path of a new tab",
+      "call": "viewPath",
+      "args": [
+        null
+      ],
+      "expect": "/"
+    },
+    {
       "name": "the view of one remote tab",
       "call": "browserViewUrl",
       "args": [
@@ -253,12 +269,12 @@
       "expect": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     },
     {
-      "name": "a lower-case id is no tab's path",
+      "name": "a lower-case id names the tab in upper case",
       "call": "viewPathTab",
       "args": [
         "/t/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       ],
-      "expect": null
+      "expect": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     },
     {
       "name": "a slash after the id",
@@ -333,7 +349,7 @@
         "https://browser.vm-01.example.lazurio.io"
       ],
       "expect": {
-        "view": "https://browser.vm-01.example.lazurio.io",
+        "view": "https://browser.vm-01.example.lazurio.io/",
         "origin": "https://browser.vm-01.example.lazurio.io",
         "environment": "vm-01.example",
         "tab": null
@@ -353,12 +369,17 @@
       }
     },
     {
-      "name": "a lower-case id is no tab (F50 point 2 settles it)",
+      "name": "a lower-case id is the tab, written in upper case",
       "call": "viewAddressOf",
       "args": [
         "https://browser.vm-01.example.lazurio.io/t/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       ],
-      "expect": null
+      "expect": {
+        "view": "https://browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "origin": "https://browser.vm-01.example.lazurio.io",
+        "environment": "vm-01.example",
+        "tab": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
     },
     {
       "name": "a slash after the id is none (F50 point 2 settles it)",
