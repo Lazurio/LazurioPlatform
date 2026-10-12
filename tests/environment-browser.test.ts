@@ -38,6 +38,7 @@ import {
 import {
   BrowserWindowFailure,
   ensureThreadWindow,
+  stopSessionDaemon,
   threadSession,
   type WindowSeams,
 } from "../src/browser/window";
@@ -868,8 +869,38 @@ test("the Folder opens a new page in a new tab and names T3 Code's preview tools
     const text = manual["manual/this-machine.md"];
     expect(text).toContain("`preview_open`");
     expect(text).toContain("`reuseExistingTab: false`");
+    expect(text).toContain("`lazurio browser link --url <");
     expect(text).toContain("`lazurio browser window --session <");
     expect(text).not.toMatch(/web T3 has none|ve webovém T3 nejsou/);
+  }
+});
+
+// Root decision 0191 point 28: an agent lets go of its window when its work
+// there is done, and the hub ends the tab once nothing holds or views it. It
+// never closes the tab for everyone with agent-browser's `tab close`.
+test("the Folder tells an agent to let go of its window, never to close it for everyone", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const text = renderManual({
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationBrowser,
+      profile: presetProfile("hosted-organization-personal", "linux", {
+        locale,
+      }),
+    })["manual/this-machine.md"];
+    const line = text
+      .split("\n")
+      .find((candidate) =>
+        candidate.startsWith(
+          locale === "cs" ? "- **Konec.**" : "- **When done.**",
+        ),
+      );
+    expect(line).toContain("`lazurio browser done`");
+    expect(line).toMatch(
+      locale === "cs"
+        ? /`agent-browser … tab close` ani `close` nepoužívej/
+        : /Never use `agent-browser … tab close` or `close`/,
+    );
+    expect(text).not.toMatch(/Close your window with|Své okno zavři/);
   }
 });
 
@@ -1061,6 +1092,172 @@ test.skipIf(process.platform === "win32")(
     );
     expect(none.code).toBe(10);
     expect(none.stdout).toBeUndefined();
+  },
+);
+
+// Root decision 0191 point 28: letting go stops only the session's own
+// agent-browser daemon, never another process its stale .pid names.
+test("letting go of a window stops only a live agent-browser daemon of that session", async () => {
+  const sockets = await temporary("browser-daemon-");
+  const terminated: number[] = [];
+  const seams = (commandLine: string, alive = true) => ({
+    alive: () => alive,
+    commandLine: async () => commandLine,
+    terminate: (pid: number) => {
+      terminated.push(pid);
+    },
+  });
+  // No .pid: no daemon runs.
+  expect(
+    await stopSessionDaemon(sockets, "codex-1", seams("agent-browser")),
+  ).toBe("none");
+  await writeFile(join(sockets, "codex-1.pid"), "4242\n");
+  expect(
+    await stopSessionDaemon(
+      sockets,
+      "codex-1",
+      seams("/home/operator/.local/bin/agent-browser\0"),
+    ),
+  ).toBe("stopped");
+  expect(terminated).toEqual([4242]);
+  // A daemon that ended, and a .pid that is no process id.
+  expect(
+    await stopSessionDaemon(sockets, "codex-1", seams("agent-browser", false)),
+  ).toBe("none");
+  await writeFile(join(sockets, "codex-1.pid"), "1");
+  expect(
+    await stopSessionDaemon(sockets, "codex-1", seams("agent-browser")),
+  ).toBe("none");
+  // A process id another program has taken: nothing is stopped.
+  await writeFile(join(sockets, "codex-1.pid"), "4242");
+  expect(
+    await stopSessionDaemon(sockets, "codex-1", seams("/usr/bin/python3\0x")),
+  ).toBe("not-agent-browser");
+  // A name outside the session alphabet is no session.
+  expect(
+    await stopSessionDaemon(sockets, "../codex-1", seams("agent-browser")),
+  ).toBe("none");
+  expect(terminated).toEqual([4242]);
+});
+
+// Root decision 0191 points 28 and 29: `done` lets go of the thread's window;
+// `link --url` opens a page for the person that nobody holds.
+test.skipIf(process.platform === "win32")(
+  "lazurio browser: done lets go of the thread's window; link --url opens a page that nobody holds",
+  async () => {
+    const { home, folder } = await folderWith(bindings.organizationBrowser);
+    const socketDir = join(home, "sockets");
+    await mkdir(socketDir);
+    await writeFile(join(socketDir, "codex-019a.pid"), "4242");
+    const terminated: number[] = [];
+    const daemonSeams = {
+      alive: () => true,
+      commandLine: async () => "agent-browser",
+      terminate: (pid: number) => {
+        terminated.push(pid);
+      },
+    };
+    const env = {
+      HOME: home,
+      CODEX_THREAD_ID: "019a",
+      AGENT_BROWSER_SOCKET_DIR: socketDir,
+    };
+    const done = await runBrowserCommand(
+      ["done", "--folder", folder, "--json"],
+      {
+        ...context(env),
+        daemonSeams,
+      },
+    );
+    expect(done.code).toBe(0);
+    expect(JSON.parse(done.stdout ?? "")).toEqual({
+      kind: "browser-done",
+      session: "codex-019a",
+      outcome: "stopped",
+    });
+    expect(terminated).toEqual([4242]);
+    // No daemon runs for another session: nothing to let go, and done.
+    const none = await runBrowserCommand(
+      ["done", "--session", "codex-other", "--folder", folder, "--json"],
+      { ...context(env), daemonSeams },
+    );
+    expect(JSON.parse(none.stdout ?? "")).toMatchObject({ outcome: "none" });
+    expect(none.code).toBe(0);
+    // A .pid of another program: a failure, nothing stopped.
+    const foreign = await runBrowserCommand(["done", "--folder", folder], {
+      ...context(env),
+      daemonSeams: { ...daemonSeams, commandLine: async () => "python3" },
+    });
+    expect(foreign.code).toBe(1);
+    expect(terminated).toEqual([4242]);
+    // done has no --url, and needs a session.
+    expect(
+      (
+        await runBrowserCommand(
+          ["done", "--url", "https://example.com/", "--folder", folder],
+          context(env),
+        )
+      ).code,
+    ).toBe(2);
+    expect(
+      (
+        await runBrowserCommand(
+          ["done", "--folder", folder],
+          context({ HOME: home }),
+        )
+      ).code,
+    ).toBe(2);
+
+    // link --url: one loopback request for a tab without a strip.
+    const asked: unknown[] = [];
+    const tab = "AB".repeat(16);
+    const openTab = async (
+      _entry: { listenPort: number },
+      url: string,
+      strip: string | null,
+    ) => {
+      asked.push([url, strip]);
+      return { kind: "opened", tab } as const;
+    };
+    const link = await runBrowserCommand(
+      ["link", "--url", "https://example.com/x", "--folder", folder, "--json"],
+      { ...context({ HOME: home }), openTab },
+    );
+    expect(link.code).toBe(0);
+    expect(JSON.parse(link.stdout ?? "")).toEqual({
+      kind: "browser-link",
+      session: null,
+      targetId: tab,
+      link: `${origin}/t/${tab}`,
+    });
+    expect(asked).toEqual([["https://example.com/x", null]]);
+    // The hub refused or did not answer: a failure. With a session: usage.
+    const unreachable = await runBrowserCommand(
+      ["link", "--url", "https://example.com/x", "--folder", folder],
+      {
+        ...context({ HOME: home }),
+        openTab: async () =>
+          ({ kind: "refused", reason: "hub-unreachable" }) as const,
+      },
+    );
+    expect(unreachable.code).toBe(1);
+    expect(
+      (
+        await runBrowserCommand(
+          [
+            "link",
+            "--url",
+            "https://example.com/x",
+            "--session",
+            "codex-1",
+            "--folder",
+            folder,
+          ],
+          { ...context({ HOME: home }), openTab },
+        )
+      ).code,
+    ).toBe(2);
+    expect(asked).toHaveLength(1);
   },
 );
 

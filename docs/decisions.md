@@ -5623,6 +5623,8 @@ Decided, within point 6:
      link `https://browser.…/t/<tabId>`, which a click in the thread opens as another tab
      of the panel;
    - elsewhere, `lazurio browser window --session <session>-2 --url <address>`, then its link.
+     (Since `base-instructions-43`, a page only for the Operator is `lazurio browser link
+     --url`, which nobody holds; F47's addendum of 2026-10-12 on points 28 and 29.)
 
    An agent moves an existing tab elsewhere only to continue the same work in it, or when
    the Operator asks.
@@ -7787,7 +7789,8 @@ been measured yet.
   on its own. A page that is not framed, or hears no host within 1.5 s, is Nová karta of
   the Launchpad's strip with no tools; its address bar takes the focus, and a choice
   navigates that window to the tab's view. A page opened there is the Launchpad's to hold
-  (`open` with the strip `launchpad`); choosing a tab that exists holds nothing.
+  (`open` with the strip `launchpad`); choosing a tab that exists holds nothing. (Root
+  decision 0191 point 29, in the addendum below, makes such a page nobody's.)
 - The Launchpad's right panel (`browser-panel.ts`, `browser-panel-view.ts`) lists the tabs
   the Launchpad holds (point 9's addendum of 2026-10-12), from the overview read every 5 s
   while the panel is open, in the order the strip first had them; every other tab is in
@@ -7950,6 +7953,47 @@ tab of the Environment ended while it stayed broken.
   `src/browser/people/holds.ts`, with `tests/environment-browser-holds.test.ts`; the hub's case
   in `tests/environment-browser-view.test.ts`; doctor's in `observeEnvironmentBrowser`
   (`src/browser/units.ts`), with `tests/environment-browser.test.ts`.
+
+**Agents let go, and pages for the person nobody holds (2026-10-12, root decision 0191
+points 28 and 29).** In Matěj's smoke test in Codex Desktop over SSH, the agent opened each page
+for him as a session of its own (`lazurio browser window --session <session>-2`, as the manual
+said). Each tab then stayed held by that session's daemon for up to an hour after its last
+command. The manual also told agents to finish with `agent-browser … tab close`, which closes
+the tab for everyone who holds or views it. Matěj decided:
+- **An agent lets go of its window; it does not close it (point 28).** `lazurio browser done
+  [--session <name>]` stops the session's agent-browser daemon (`stopSessionDaemon` in
+  `src/browser/window.ts`):
+  - only a well-formed id in `<session>.pid` of a live process whose command line is
+    agent-browser's gets SIGTERM;
+  - the daemon of an attached browser then disconnects without closing a tab and removes its
+    `.pid` (agent-browser `cli/src/native/daemon.rs`), so the hub no longer counts the agent
+    as working in it (point 5);
+  - the tab ends once nothing holds it and nobody views it, and a person who has it open keeps
+    it;
+  - never `agent-browser close`, which first starts a daemon when none runs. T3 Code's overlay
+    stops an archived thread's daemon the same way.
+  - Outcomes: `stopped`, `none` (no daemon runs; done all the same) and `not-agent-browser`
+    (another program has the id; nothing stopped, exit 1).
+  - The manual's "When done" now says `lazurio browser done`, and never `tab close` or
+    `close`. Over SSH in a work Environment it is `lazurio browser done --session <session>`.
+- **Pages for the person nobody holds (point 29).**
+  - `lazurio browser link --url <address>` asks the hub on its loopback (point 6) for a new
+    tab without a strip and prints its link. The tab lives while someone views it and ends
+    30 s after the last viewer leaves; nobody viewed yet, the hub's 10 minutes apply (point 5).
+    The manual sends a page only for the Operator there. A page the agent works in too stays
+    a window of its own (`lazurio browser window --session <session>-2 --url`), let go when
+    done.
+  - The standalone page `/new-tab`, as Codex Desktop's browser opens it, opens a page for no
+    strip (`pageStrip` in `new-tab-view.ts`). The Launchpad held such pages before (point 27
+    of 0191), and with no strip and no × in Codex Desktop they piled up in the Launchpad's
+    strip. A page hosted by an app is its host's, as before.
+- **Template revision `base-instructions-43`.**
+- **Where it is.** `stopSessionDaemon` with its tests in `tests/environment-browser.test.ts`,
+  the CLI in `src/browser/cli.ts` (`done`, `link --url`), `pageStrip` with
+  `tests/new-tab-view.test.ts`, and the manual's lines with their tests.
+- **Known limit.** The CLI uses the Launchpad's hub client
+  (`src/launchpad/new-tab/hub-client.ts`) until the browser contract module of the refactor
+  (DEV-6646 task 2026-10-12-701) gives it one home.
 
 ## F48 — One shared GitHub App sign-in in a Work Environment (pilot)
 

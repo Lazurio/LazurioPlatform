@@ -23,6 +23,7 @@ import {
   openerLabel,
   overviewEveryMs,
   overviewFailure,
+  pageStrip,
   parseOverview,
   resolveAddress,
   settleOverrides,
@@ -804,6 +805,16 @@ describe("running Modules, Navrhované and the notes", () => {
 });
 
 describe("where things are, the tools' letters and what failed", () => {
+  // Root decision 0191 point 29: a page opened from the page /new-tab is
+  // held by its host's strip; standalone (Codex Desktop's browser) nobody
+  // holds it, where the Launchpad held it before (point 27).
+  test("a page opened from the Nová karta page is for its host's strip, and standalone for none", () => {
+    expect(pageStrip("hosted", "t3-a")).toBe("t3-a");
+    expect(pageStrip("standalone", null)).toBeNull();
+    expect(pageStrip("standalone", "t3-a")).toBeNull();
+    expect(pageStrip("waiting", "t3-a")).toBeNull();
+  });
+
   test("the view's origin from /.lazurio/browser.json: an https origin that is not the page's own", () => {
     const page = "https://launchpad.vm-01.example.lazurio.io";
     expect(viewOriginOf({ available: true, view: `${view}/` }, page)).toBe(
