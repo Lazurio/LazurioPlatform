@@ -11,8 +11,13 @@ import {
   browserViewAddress,
   browserViewDocumentPath,
   emptyStrip,
+  heldByLaunchpad,
+  holdFailure,
+  holdSucceeded,
   panelChoice,
   reduceStrip,
+  releaseSucceeded,
+  releaseText,
   type StripEvent,
   type StripState,
   type StripTab,
@@ -26,22 +31,26 @@ import {
 } from "../src/launchpad/browser-panel-view";
 import { publicEntry } from "../src/launchpad/chat";
 import { parseEntryAnswer } from "../src/launchpad/chat-view";
-import { parseOverview } from "../src/launchpad/new-tab-view";
+import { newTabCopy, parseOverview } from "../src/launchpad/new-tab-view";
 import {
   browserViewDocumentPath as serverDocumentPath,
   browserViewPath as serverHandOverPath,
 } from "../src/launchpad/server";
 import { bindings } from "./fixtures/machine-bindings";
 
+const cs = newTabCopy("cs");
+const en = newTabCopy("en");
+
 // The Launchpad's right panel (decision F38's addendum of 2026-10-05, root
-// decision 0191 points 8a and 18, #207; decision F47 point 9): offered only
-// where the recorded entry routes the Environment browser's view, never on a
-// workstation or in Recovery mode. Its strip lists every tab of the
-// Environment from Nová karta's overview, "+" shows Nová karta, the first
-// opening and the close of the last tab show it too, and a tab's view is
-// framed only on exactly the recorded origin. What the view frame and Nová
-// karta say is heard only from them. The DOM (browser-panel.ts) only draws
-// this.
+// decision 0191 points 8a and 18, #207; decision F47 point 9 and its addendum
+// of 2026-10-12): offered only where the recorded entry routes the
+// Environment browser's view, never on a workstation or in Recovery mode. Its
+// strip lists the tabs the Launchpad holds, from Nová karta's overview; "+"
+// shows Nová karta, as do the first opening and the strip once its last tab
+// goes; × lets go of the Launchpad's hold with Vrátit; a tab shows here only
+// once the Launchpad holds it; a view is framed only on exactly the recorded
+// origin. What the view frame and Nová karta say is heard only from them.
+// The DOM (browser-panel.ts) only draws this.
 
 const origin = "https://browser.workspace.example.lazurio.io";
 const page = "https://launchpad.workspace.example.lazurio.io";
@@ -176,18 +185,22 @@ test("a tab's frame is its view on exactly the recorded origin; a view address n
     expect(viewTabOf(address, origin)).toBeNull();
 });
 
-// The strip: one tab as the overview lists it, and the panel's state after
-// a run of events.
+// The strip: one tab as the overview lists it, held by the Launchpad unless
+// said otherwise, and the panel's state after a run of events.
+const launchpad = { strip: "launchpad", label: "Launchpad" };
 const listedTab = (n: number, extra: Partial<StripTab> = {}): StripTab => ({
   id: id(n),
   title: `Stránka ${n}`,
   url: `https://site-${n}.example.com/`,
   favicon: null,
   agents: [],
-  holders: [],
+  holders: [launchpad],
   closing: false,
   ...extra,
 });
+/** A tab of the Environment the Launchpad does not hold. */
+const otherTab = (n: number, extra: Partial<StripTab> = {}) =>
+  listedTab(n, { holders: [], ...extra });
 const run = (events: readonly StripEvent[], from: StripState = emptyStrip) =>
   events.reduce(reduceStrip, from);
 const keys = (state: StripState) =>
@@ -203,45 +216,48 @@ const openWith = (tabs: readonly StripTab[]) =>
     { kind: "requested" },
     { kind: "listed", request: 1, tabs },
   ]);
+/** The next overview, requested and answered with `tabs`. */
+const relist = (state: StripState, tabs: readonly StripTab[]) =>
+  run(
+    [
+      { kind: "requested" },
+      { kind: "listed", request: state.requests + 1, tabs },
+    ],
+    state,
+  );
 
-describe("the strip (decision F47 point 9)", () => {
-  test("the first opening shows Nová karta; before any list the strip is Nová karta alone, with no ×", () => {
-    const opened = run([{ kind: "opened" }]);
-    expect(stripEntries(opened)).toEqual([{ kind: "new", closable: false }]);
-    expect(shown(opened)).toBe("new");
-    // Opened again later, it shows what it showed.
-    const later = run(
-      [{ kind: "select", entry: id(2) }, { kind: "opened" }],
-      openWith([listedTab(1), listedTab(2)]),
-    );
-    expect(shown(later)).toBe(id(2));
-  });
-
-  test("every tab of the Environment in the hub's order, then Nová karta; a tab whose close counts down is not listed", () => {
+describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () => {
+  test("the strip shows the tabs the Launchpad holds, in the order it first had them; every other tab is in Přehled only", () => {
     const state = openWith([
-      listedTab(1, {
-        agents: ["codex-a1"],
-        favicon: "https://a.example/i.png",
-      }),
-      listedTab(2),
-      listedTab(3, { closing: true }),
+      otherTab(1, { agents: ["codex-a1"] }),
+      listedTab(2, { favicon: "https://a.example/i.png", agents: ["t3-x"] }),
+      otherTab(3, { holders: [{ strip: "t3-x", label: "Vlákno" }] }),
+      listedTab(4),
     ]);
-    expect(keys(state)).toEqual([id(1), id(2), "new"]);
+    expect(keys(state)).toEqual([id(2), id(4), "new"]);
     expect(stripEntries(state)[0]).toMatchObject({
       kind: "tab",
-      title: "Stránka 1",
+      title: "Stránka 2",
       favicon: "https://a.example/i.png",
       working: true,
     });
-    expect(stripEntries(state).at(-1)).toEqual({ kind: "new", closable: true });
-    expect(shown(state)).toBe("new");
+    expect(heldByLaunchpad(listedTab(2))).toBe(true);
+    expect(heldByLaunchpad(otherTab(1))).toBe(false);
+    // The hub's order changes, the strip's does not; a tab held later
+    // comes last.
+    const later = relist(state, [listedTab(5), listedTab(4), listedTab(2)]);
+    expect(keys(later)).toEqual([id(2), id(4), id(5), "new"]);
+    // A tab whose close for everyone counts down leaves the strip.
+    expect(
+      keys(relist(later, [listedTab(2), listedTab(4, { closing: true })])),
+    ).toEqual([id(2), "new"]);
     // While the hub does not answer, the strip stays as it was.
     expect(
       run(
-        [{ kind: "requested" }, { kind: "listed", request: 2, tabs: null }],
-        state,
+        [{ kind: "requested" }, { kind: "listed", request: 3, tabs: null }],
+        later,
       ),
-    ).toMatchObject({ listed: state.listed, overrides: state.overrides });
+    ).toMatchObject({ listed: later.listed, overrides: later.overrides });
     expect(stripTabs(null)).toBeNull();
     expect(
       stripTabs(
@@ -255,24 +271,56 @@ describe("the strip (decision F47 point 9)", () => {
     ).toBeNull();
   });
 
-  test("+ shows a fresh Nová karta; what is chosen in it shows, and Nová karta goes from the strip", () => {
-    const state = openWith([listedTab(1), listedTab(2)]);
-    const selected = run([{ kind: "select", entry: id(1) }], state);
-    expect(shown(selected)).toBe(id(1));
-    const fresh = run([{ kind: "new-tab" }], selected);
+  test("the first opening shows Nová karta, and so does the strip once its last tab goes; before any list the strip is Nová karta alone, with no ×", () => {
+    const opened = run([{ kind: "opened" }]);
+    expect(stripEntries(opened)).toEqual([{ kind: "new", closable: false }]);
+    expect(shown(opened)).toBe("new");
+    // The Launchpad holds nothing yet: only Nová karta, whatever Přehled lists.
+    expect(stripEntries(openWith([otherTab(1), otherTab(2)]))).toEqual([
+      { kind: "new", closable: false },
+    ]);
+    // Opened again later, it shows what it showed.
+    const later = run(
+      [{ kind: "select", entry: id(2) }, { kind: "opened" }],
+      openWith([listedTab(1), listedTab(2)]),
+    );
+    expect(shown(later)).toBe(id(2));
+    // The strip's last tab ends elsewhere: Nová karta shows.
+    const shownTab = run(
+      [{ kind: "chosen", tab: id(1) }],
+      openWith([listedTab(1)]),
+    );
+    const emptied = relist(shownTab, [otherTab(1)]);
+    expect([stripEntries(emptied), shown(emptied)]).toEqual([
+      [{ kind: "new", closable: false }],
+      "new",
+    ]);
+  });
+
+  test("+ shows a fresh Nová karta; what is chosen in it and held shows, and Nová karta goes from the strip", () => {
+    const state = openWith([listedTab(1), otherTab(2)]);
+    const fresh = run(
+      [{ kind: "select", entry: id(1) }, { kind: "new-tab" }],
+      state,
+    );
     expect([shown(fresh), fresh.generation]).toEqual(["new", 1]);
+    // A tab chosen in Přehled, held for the Launchpad, then shown: in the
+    // strip before an overview says the Launchpad holds it.
     const chosen = run([{ kind: "chosen", tab: id(2) }], fresh);
     expect([keys(chosen), shown(chosen)]).toEqual([[id(1), id(2)], id(2)]);
-    // A page just opened shows before the overview lists it, after the
-    // listed tabs; an overview begun before it does not drop it.
-    const opened = run(
-      [
-        { kind: "requested" },
-        { kind: "new-tab" },
-        { kind: "chosen", tab: id(9) },
-        { kind: "listed", request: 2, tabs: [listedTab(1), listedTab(2)] },
-      ],
+    // An overview begun before the hold, which does not have it yet, does
+    // not take it away; the next one says the Launchpad holds it.
+    const before = run(
+      [{ kind: "listed", request: 1, tabs: [listedTab(1), otherTab(2)] }],
       chosen,
+    );
+    expect(keys(before)).toEqual([id(1), id(2)]);
+    const after = relist(before, [listedTab(1), listedTab(2)]);
+    expect([keys(after), after.overrides]).toEqual([[id(1), id(2)], []]);
+    // A page just opened shows before the overview lists it at all.
+    const opened = run(
+      [{ kind: "new-tab" }, { kind: "chosen", tab: id(9) }],
+      after,
     );
     expect([keys(opened), shown(opened)]).toEqual([
       [id(1), id(2), id(9)],
@@ -281,89 +329,86 @@ describe("the strip (decision F47 point 9)", () => {
     expect(stripEntries(opened)[2]).toMatchObject({ tab: null, title: "" });
   });
 
-  test("× closes for everyone: the tab goes at once, the shown one falls to the tab that took its place or the one before it, and after the last Nová karta shows", () => {
+  test("× lets go: the tab goes at once and stays gone while the release is on its way, even when an overview read before still holds it; only one requested after lifts the hide; a failed release brings it back", () => {
+    const state = openWith([listedTab(1), listedTab(2)]);
+    // Pablo's reproduction (#324), on the release that × now is: the tab
+    // goes, then an overview begun before the release was done still lists
+    // the Launchpad's hold.
+    const releasing = run([{ kind: "releasing", tab: id(1) }], state);
+    expect(keys(releasing)).toEqual([id(2), "new"]);
+    const read = relist(releasing, [listedTab(1), listedTab(2)]);
+    expect(keys(read)).toEqual([id(2), "new"]);
+    expect(read.overrides).toEqual([
+      { id: id(1), state: "hidden", after: null },
+    ]);
+    // Done while the 3rd overview was in flight: its answer still holds the
+    // tab and changes nothing; the 4th is the Launchpad's word.
+    const inFlight = run([{ kind: "requested" }], read);
+    const done = run([{ kind: "released", tab: id(1) }], inFlight);
+    const late = run(
+      [{ kind: "listed", request: 3, tabs: [listedTab(1), listedTab(2)] }],
+      done,
+    );
+    expect(keys(late)).toEqual([id(2), "new"]);
+    const confirmed = relist(late, [otherTab(1), listedTab(2)]);
+    expect([keys(confirmed), confirmed.overrides]).toEqual([
+      [id(2), "new"],
+      [],
+    ]);
+    // A release that fails brings the tab back at once.
+    const failed = run(
+      [
+        { kind: "releasing", tab: id(2) },
+        { kind: "release-failed", tab: id(2) },
+      ],
+      state,
+    );
+    expect([keys(failed), failed.overrides]).toEqual([
+      [id(1), id(2), "new"],
+      [],
+    ]);
+  });
+
+  test("the shown tab let go falls to the tab that took its place or the one before it, and with the strip empty Nová karta shows", () => {
     const state = run(
       [{ kind: "chosen", tab: id(3) }],
       openWith([listedTab(1), listedTab(2), listedTab(3)]),
     );
-    const third = run([{ kind: "closing", tab: id(3) }], state);
+    const third = run([{ kind: "releasing", tab: id(3) }], state);
     expect([keys(third), shown(third)]).toEqual([[id(1), id(2)], id(2)]);
     const first = run(
       [
         { kind: "select", entry: id(1) },
-        { kind: "closing", tab: id(1) },
+        { kind: "releasing", tab: id(1) },
       ],
       third,
     );
     expect([keys(first), shown(first)]).toEqual([[id(2)], id(2)]);
-    const none = run([{ kind: "closing", tab: id(2) }], first);
+    const none = run([{ kind: "releasing", tab: id(2) }], first);
     expect([stripEntries(none), shown(none)]).toEqual([
       [{ kind: "new", closable: false }],
       "new",
     ]);
-    // With Nová karta in the strip, it takes the place of a closed tab.
-    const beside = run(
-      [
-        { kind: "new-tab" },
-        { kind: "select", entry: id(2) },
-        { kind: "closing", tab: id(2) },
-      ],
-      openWith([listedTab(1), listedTab(2)]),
-    );
-    expect([keys(beside), shown(beside)]).toEqual([[id(1), "new"], "new"]);
   });
 
-  test("an overview begun before a close does not bring the tab back; a later one is the hub's word", () => {
-    const state = run(
-      [
-        { kind: "requested" },
-        { kind: "closing", tab: id(1) },
-        { kind: "listed", request: 2, tabs: [listedTab(1), listedTab(2)] },
-      ],
-      openWith([listedTab(1), listedTab(2)]),
-    );
-    expect(keys(state)).toEqual([id(2), "new"]);
-    const later = run(
-      [
-        { kind: "requested" },
-        {
-          kind: "listed",
-          request: 3,
-          tabs: [listedTab(1, { closing: true }), listedTab(2)],
-        },
-      ],
-      state,
-    );
-    expect([keys(later), later.overrides]).toEqual([[id(2), "new"], []]);
-    // A close that failed puts the tab back.
-    const failed = run(
-      [
-        { kind: "closing", tab: id(2) },
-        { kind: "close-failed", tab: id(2) },
-      ],
-      openWith([listedTab(1), listedTab(2)]),
-    );
-    expect(keys(failed)).toEqual([id(1), id(2), "new"]);
-  });
-
-  test("Vrátit brings the tab back, shown again where it was shown when closed, while an older overview still says it closes", () => {
-    const closed = run(
+  test("Vrátit holds the tab again: back in its place in the strip, and shown again where it was shown when let go", () => {
+    const released = run(
       [
         { kind: "chosen", tab: id(2) },
-        { kind: "closing", tab: id(2) },
-        {
-          kind: "listed",
-          request: 1,
-          tabs: [listedTab(1), listedTab(2, { closing: true })],
-        },
+        { kind: "releasing", tab: id(2) },
+        { kind: "released", tab: id(2) },
       ],
-      openWith([listedTab(1), listedTab(2)]),
+      openWith([listedTab(1), listedTab(2), listedTab(3)]),
     );
-    expect([keys(closed), shown(closed)]).toEqual([[id(1)], id(1)]);
-    const back = run([{ kind: "restored", tab: id(2), show: true }], closed);
-    expect([keys(back), shown(back)]).toEqual([[id(1), id(2)], id(2)]);
-    const quiet = run([{ kind: "restored", tab: id(2), show: false }], closed);
-    expect([keys(quiet), shown(quiet)]).toEqual([[id(1), id(2)], id(1)]);
+    const settled = relist(released, [listedTab(1), otherTab(2), listedTab(3)]);
+    expect([keys(settled), shown(settled)]).toEqual([[id(1), id(3)], id(3)]);
+    const back = run([{ kind: "held-again", tab: id(2), show: true }], settled);
+    expect([keys(back), shown(back)]).toEqual([[id(1), id(2), id(3)], id(2)]);
+    const quiet = run(
+      [{ kind: "held-again", tab: id(2), show: false }],
+      settled,
+    );
+    expect([keys(quiet), shown(quiet)]).toEqual([[id(1), id(2), id(3)], id(3)]);
   });
 
   test("the view's tab ended: it goes, and the panel falls back; × on Nová karta among tabs shows the tab before it", () => {
@@ -391,7 +436,7 @@ describe("the strip (decision F47 point 9)", () => {
     expect([keys(alone), shown(alone)]).toEqual([["new"], "new"]);
   });
 
-  test("a page's new tab viewed here shows at once with its address, its title follows the view, and the overview takes over", () => {
+  test("a page's new tab held here shows at once with its address, its title follows the view, and the overview takes over", () => {
     const state = run(
       [
         { kind: "show", tab: id(9), url: "https://accounts.example.com/" },
@@ -412,23 +457,112 @@ describe("the strip (decision F47 point 9)", () => {
       url: "https://accounts.example.com/signin",
       tab: null,
     });
-    const listed = run(
-      [
-        { kind: "requested" },
-        {
-          kind: "listed",
-          request: 2,
-          tabs: [listedTab(1), listedTab(9, { title: "Sign in" })],
-        },
-      ],
-      state,
-    );
+    const listed = relist(state, [
+      listedTab(1),
+      listedTab(9, { title: "Sign in" }),
+    ]);
     expect(stripEntries(listed)[1]).toMatchObject({
       id: id(9),
       title: "Sign in",
       tab: { id: id(9) },
     });
     expect([listed.live, listed.overrides]).toEqual([[], []]);
+  });
+});
+
+describe("holding and letting go (decision F47 points 4 and 9)", () => {
+  const answer = (status: number, value: unknown = null) => ({ status, value });
+
+  test("a hold counts only as 200 {held: true}; one that failed says why, with Zkusit znovu where trying again can help", () => {
+    expect(holdSucceeded(answer(200, { held: true }))).toBe(true);
+    for (const failed of [
+      answer(200, {}),
+      answer(200, { held: "true" }),
+      answer(201, { held: true }),
+      answer(0),
+    ])
+      expect(holdSucceeded(failed)).toBe(false);
+    const cases: readonly [ReturnType<typeof answer>, string, boolean][] = [
+      [
+        answer(409, { error: "too-many-tabs" }),
+        "Launchpad už má tolik záložek, kolik unese. Zavři některé a zkus to znovu.",
+        true,
+      ],
+      [
+        answer(404, { error: "not-found" }),
+        "Záložka už v Environmentu není.",
+        false,
+      ],
+      [
+        answer(503, { error: "holder-unavailable" }),
+        "Záložku se nepodařilo v Launchpadu ponechat.",
+        false,
+      ],
+      [
+        answer(503, { error: "closing" }),
+        "Launchpad teď neodpovídá, zkus to za chvíli znovu.",
+        true,
+      ],
+      [
+        answer(503, { error: "hub-unreachable" }),
+        "Prohlížeč Environmentu teď neodpovídá, zkus to za chvíli znovu.",
+        true,
+      ],
+      [
+        answer(500, { error: "hold-failed" }),
+        "Záložku se nepodařilo v Launchpadu ponechat.",
+        true,
+      ],
+      [answer(0), "Launchpad teď neodpovídá, zkus to za chvíli znovu.", true],
+      [
+        answer(404, { error: "no-browser" }),
+        "Tento Environment nemá prohlížeč.",
+        false,
+      ],
+    ];
+    for (const [failed, text, retry] of cases)
+      expect(holdFailure(failed, cs)).toEqual({ text, retry });
+    // Vrátit says it in its own words.
+    expect(
+      holdFailure(answer(404, { error: "not-found" }), cs, cs.restoreFailed),
+    ).toEqual({ text: "Záložku už nejde vrátit.", retry: false });
+  });
+
+  test("a release counts only as 200 {released: true}; its toast says what happens to the tab, as the overview tells", () => {
+    expect(releaseSucceeded(answer(200, { released: true }))).toBe(true);
+    for (const failed of [
+      answer(200, {}),
+      answer(500, { error: "release-failed" }),
+    ])
+      expect(releaseSucceeded(failed)).toBe(false);
+    expect(releaseText(listedTab(1), cs)).toBe(
+      "Záložka se zavře v Environmentu.",
+    );
+    expect(releaseText(null, cs)).toBe("Záložka se zavře v Environmentu.");
+    expect(releaseText(listedTab(1, { agents: ["codex-a1"] }), cs)).toBe(
+      "Záložka zmizela z Launchpadu. Pracuje v ní agent, takže zůstává otevřená.",
+    );
+    expect(
+      releaseText(
+        listedTab(1, {
+          holders: [
+            launchpad,
+            { strip: "t3-x", label: "Faktury za září" },
+            { strip: "t3-y", label: "" },
+            { strip: "bot-z", label: "Bot" },
+          ],
+        }),
+        cs,
+      ),
+    ).toBe(
+      "Záložka zmizela z Launchpadu. Dál je ve vlákně „Faktury za září“, v jiném vlákně a jinde.",
+    );
+    expect(
+      releaseText(
+        listedTab(1, { holders: [{ strip: "t3-x", label: "Invoices" }] }),
+        en,
+      ),
+    ).toBe("The tab left the Launchpad. It stays in the thread “Invoices”.");
   });
 });
 
@@ -502,11 +636,11 @@ describe("what the frames say", () => {
       expect(viewMessage(event(data, extra), viewOrigin)).toBeNull();
   });
 
-  test("Nová karta's choice in the Launchpad: a page or a tab shows that tab, framed on the recorded origin; the Launchpad has no tools, and anything else is nothing", () => {
-    for (const kind of ["page", "tab"])
-      expect(panelChoice({ kind, tab: target.toLowerCase(), view: at })).toBe(
-        target,
-      );
+  test("Nová karta's choice in the Launchpad: a page it opened or a tab it chose, framed on the recorded origin; the Launchpad has no tools, and anything else is nothing", () => {
+    for (const kind of ["page", "tab"] as const)
+      expect(
+        panelChoice({ kind, tab: target.toLowerCase(), view: at }),
+      ).toEqual({ kind, tab: target });
     // Only the tab is taken: its frame is the recorded view's, whatever
     // address the choice carried.
     const elsewhere = panelChoice({
@@ -514,8 +648,8 @@ describe("what the frames say", () => {
       tab: target,
       view: `https://elsewhere.example/t/${target}`,
     });
-    expect(elsewhere).toBe(target);
-    expect(tabViewAddress(origin, elsewhere ?? "", page)).toBe(at);
+    expect(elsewhere).toEqual({ kind: "tab", tab: target });
+    expect(tabViewAddress(origin, elsewhere?.tab ?? "", page)).toBe(at);
     for (const detail of [
       { kind: "tool", id: "terminal" },
       { kind: "link", tab: target },

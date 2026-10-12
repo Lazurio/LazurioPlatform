@@ -3,8 +3,12 @@ import {
   browserFrame,
   browserHandOverPath,
   emptyStrip,
+  holdFailure,
+  holdSucceeded,
   panelChoice,
   reduceStrip,
+  releaseSucceeded,
+  releaseText,
   type StripEntry,
   type StripEvent,
   type StripState,
@@ -19,14 +23,14 @@ import {
 import type { MessageKey } from "./messages";
 import {
   actionFailure,
+  actionNoteMs,
   closeGraceMs,
-  closeWarning,
   fill,
   launchpadStrip,
   type NewTabAnswer,
   newTabCopy,
   noteMs,
-  type PendingClose,
+  type PendingUndo,
   parseOverview,
   toastModel,
 } from "./new-tab-view";
@@ -46,12 +50,14 @@ export type PanelTransport = (
 // point 9): the Browser toggle in the head of each page (the Apps home beside
 // Guide, the header of Settings and Files, the Marketplace; one shown at a
 // time) and the panel after the page in the `.app` row, so the page shrinks.
-// Its strip lists every tab of the Environment from Nová karta's overview,
-// read every 5 s while the panel is open; "+" shows Nová karta; under the
-// strip is one tab's view or Nová karta (`<lazurio-new-tab>`). Closed on every
-// page load; what it shows is browser-panel-view.ts. A closed panel mounts no
-// frame, so it streams and reads nothing. Below 1100 px it covers the window
-// like a sheet and what lies behind it is inert.
+// Its strip lists the tabs the Launchpad holds, from Nová karta's overview
+// read every 5 s while the panel is open (F47 point 9's addendum of
+// 2026-10-12); "+" shows Nová karta; under the strip is one tab's view or Nová
+// karta (`<lazurio-new-tab>`). × lets go of the Launchpad's hold, with
+// Vrátit; a tab is shown here only once the Launchpad holds it. Closed on
+// every page load; what it shows is browser-panel-view.ts. A closed panel
+// mounts no frame, so it streams and reads nothing. Below 1100 px it covers
+// the window like a sheet and what lies behind it is inert.
 export function createBrowserPanel(
   options: Readonly<{
     copy: () => Copy;
@@ -100,10 +106,11 @@ export function createBrowserPanel(
   // here, so the column's own sheet keeps its inert page.
   let covering = false;
   let drawnStrip = "";
-  let warning: HTMLElement | null = null;
-  let pending: PendingClose | null = null;
+  let pending: PendingUndo | null = null;
   let pendingTimer: ReturnType<typeof setTimeout> | undefined;
-  let note: string | null = null;
+  /** A short message, and what Zkusit znovu does when it can help. */
+  let note: Readonly<{ text: string; retry: (() => void) | null }> | null =
+    null;
   let noteTimer: ReturnType<typeof setTimeout> | undefined;
 
   function dispatch(event: StripEvent) {
@@ -216,11 +223,11 @@ export function createBrowserPanel(
               dispatch({ kind: "close-new-tab" }),
             );
           } else {
+            // The Launchpad lets go; the tab stays in the Environment and in
+            // Přehled while anything still needs it, so no warning.
             shut.setAttribute("aria-label", fill(copy.closeTab, { title }));
-            shut.title = entry.working
-              ? copy.closeTabEveryoneAgent
-              : copy.closeTabEveryone;
-            shut.addEventListener("click", () => askClose(entry, shut));
+            shut.title = copy.closeInLaunchpad;
+            shut.addEventListener("click", () => void releaseTab(entry));
           }
           shut.append(svg("x"));
           tab.append(shut);
@@ -294,26 +301,46 @@ export function createBrowserPanel(
   }
 
   function drawToast() {
-    const model = toastModel(pending, note, words());
+    const model = toastModel(pending, note?.text ?? null, words());
     const target = open ? toastSlot : toastRegion;
     (open ? toastRegion : toastSlot).replaceChildren();
     if (model === null) {
       target.replaceChildren();
       return;
     }
+    // A message above the line of the tab taken away, each with its own
+    // action: Zkusit znovu beside the message, Vrátit beside its line.
     const toast = element("div", "browser-toast");
-    const text = element("span");
+    const retry = note?.retry ?? null;
     if (model.note !== null) {
-      if (model.text === null) text.textContent = model.note;
-      else text.append(element("span", "browser-toast-note", model.note));
+      const line = element(
+        "div",
+        `browser-toast-line${model.text === null ? "" : " is-note"}`,
+      );
+      line.append(element("span", "", model.note));
+      if (retry !== null) {
+        const again = element("button", "browser-toast-action", words().retry);
+        again.type = "button";
+        again.addEventListener("click", () => {
+          clearTimeout(noteTimer);
+          note = null;
+          drawToast();
+          retry();
+        });
+        line.append(again);
+      }
+      toast.append(line);
     }
-    if (model.text !== null) text.append(model.text);
-    toast.append(text);
-    if (model.undo !== null) {
-      const undo = element("button", "browser-toast-undo", model.undo);
-      undo.type = "button";
-      undo.addEventListener("click", () => void restore());
-      toast.append(undo);
+    if (model.text !== null) {
+      const line = element("div", "browser-toast-line");
+      line.append(element("span", "", model.text));
+      if (model.undo !== null) {
+        const undo = element("button", "browser-toast-action", model.undo);
+        undo.type = "button";
+        undo.addEventListener("click", () => void restore());
+        line.append(undo);
+      }
+      toast.append(line);
     }
     target.replaceChildren(toast);
   }
@@ -389,146 +416,118 @@ export function createBrowserPanel(
     }
   });
 
-  // ---- Closing for everyone and Vrátit -------------------------------------
+  // ---- Holding, letting go and Vrátit -----------------------------------
 
-  /** The warning before closing a tab an agent works in, over the panel:
-   * focus on keeping it, Escape keeps it, the focus returns to ×. */
-  function warn(
-    entry: Extract<StripEntry, { kind: "tab" }>,
-    confirm: () => void,
-    back: HTMLElement,
-  ) {
-    if (entry.tab === null) return;
-    warning?.remove();
-    const copy = words();
-    const text = closeWarning(entry.tab, copy);
-    const scrim = element("div", "browser-scrim");
-    const box = element("div", "browser-confirm");
-    box.setAttribute("role", "alertdialog");
-    box.setAttribute("aria-modal", "true");
-    box.setAttribute("aria-labelledby", "browser-confirm-title");
-    box.setAttribute("aria-describedby", "browser-confirm-text");
-    const title = element("strong", "browser-confirm-title", text.title);
-    title.id = "browser-confirm-title";
-    const sentence = element("p", "browser-confirm-text", text.text);
-    sentence.id = "browser-confirm-text";
-    const keep = element("button", "", text.keep);
-    keep.type = "button";
-    const shut = element("button", "destructive", text.close);
-    shut.type = "button";
-    const actions = element("div", "browser-confirm-actions");
-    actions.append(keep, shut);
-    box.append(title, sentence, actions);
-    scrim.append(box);
-    const done = (closeIt: boolean) => {
-      scrim.remove();
-      if (warning === scrim) warning = null;
-      // Back to the same ×, also when a reading drew the strip anew
-      // meanwhile; the panel's heading when it is gone.
-      const key = back.dataset.focusKey;
-      const again =
-        back.isConnected || key === undefined
-          ? back
-          : tablist.querySelector<HTMLElement>(
-              `[data-focus-key="${CSS.escape(key)}"]`,
-            );
-      if (again?.isConnected === true) again.focus({ preventScroll: true });
-      else heading.focus({ preventScroll: true });
-      if (closeIt) confirm();
-    };
-    keep.addEventListener("click", () => done(false));
-    shut.addEventListener("click", () => done(true));
-    box.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        done(false);
-      } else if (event.key === "Tab") {
-        event.preventDefault();
-        (document.activeElement === keep ? shut : keep).focus();
-      }
-    });
-    scrim.addEventListener("click", (event) => {
-      if (event.target === scrim) done(false);
-    });
-    warning = scrim;
-    panel.append(scrim);
-    keep.focus();
-  }
-
-  function askClose(
-    entry: Extract<StripEntry, { kind: "tab" }>,
-    back: HTMLElement,
-  ) {
-    if (entry.working) warn(entry, () => void closeTab(entry), back);
-    else void closeTab(entry);
-  }
-
-  function setPending(next: PendingClose | null) {
+  /** Vrátit for `next` until `until` (this browser's clock), or none. */
+  function setPending(next: PendingUndo | null, until = 0) {
     clearTimeout(pendingTimer);
     pending = next;
     if (next !== null)
-      pendingTimer = setTimeout(() => {
-        pending = null;
-        drawToast();
-      }, closeGraceMs);
+      pendingTimer = setTimeout(
+        () => {
+          pending = null;
+          drawToast();
+        },
+        Math.max(0, until - Date.now()),
+      );
     drawToast();
   }
 
-  function say(text: string) {
-    note = text;
+  /** A short message; with `retry`, Zkusit znovu beside it, and it stays
+   * long enough to take it. */
+  function say(text: string, retry: (() => void) | null = null) {
+    note = { text, retry };
     drawToast();
     clearTimeout(noteTimer);
-    noteTimer = setTimeout(() => {
-      note = null;
-      drawToast();
-    }, noteMs);
+    noteTimer = setTimeout(
+      () => {
+        note = null;
+        drawToast();
+      },
+      retry === null ? noteMs : actionNoteMs,
+    );
   }
 
-  /** × in the strip closes the tab for everyone (F47 points 6 and 9): it
-   * goes from the strip at once, and Vrátit brings it back for 8 s. */
-  async function closeTab(entry: Extract<StripEntry, { kind: "tab" }>) {
+  /** The Launchpad holds a tab (F47 point 4), and only then `held()`; a hold
+   * that failed says why, with Zkusit znovu where trying again can help.
+   * `gone` says that the tab no longer exists. */
+  async function holdThen(tab: string, held: () => void, gone?: string) {
+    const answer = await options.transport("POST", "/api/new-tab/hold", {
+      tab,
+    });
+    if (holdSucceeded(answer)) {
+      held();
+      void poll();
+      return;
+    }
+    const failure = holdFailure(answer, words(), gone);
+    say(
+      failure.text,
+      failure.retry ? () => void holdThen(tab, held, gone) : null,
+    );
+  }
+
+  /** × in the strip lets go of the Launchpad's hold (F47 point 9's addendum
+   * of 2026-10-12): the tab goes from the strip at once and stays gone until
+   * the release is done and a later overview says so, or comes back when it
+   * fails. The toast says what happens to the tab, as the overview told, and
+   * Vrátit holds it again while the hub's grace (8 s from the request, the
+   * earliest the grace can begin) lasts. */
+  async function releaseTab(entry: Extract<StripEntry, { kind: "tab" }>) {
     const shown = shownEntry(state);
     const wasShown = shown.kind === "tab" && shown.id === entry.id;
-    dispatch({ kind: "closing", tab: entry.id });
-    const answer = await options.transport("POST", "/api/new-tab/close", {
+    const text = releaseText(entry.tab, words());
+    dispatch({ kind: "releasing", tab: entry.id });
+    const sentAt = Date.now();
+    const answer = await options.transport("POST", "/api/new-tab/release", {
       tab: entry.id,
     });
-    if (answer.status === 202)
-      setPending({ tab: entry.id, agent: entry.working, shown: wasShown });
-    else if (answer.status !== 404) {
-      dispatch({ kind: "close-failed", tab: entry.id });
-      say(actionFailure(answer, words().closeFailed, words()));
+    if (releaseSucceeded(answer)) {
+      dispatch({ kind: "released", tab: entry.id });
+      // An answer later than the grace says what happened, without Vrátit.
+      const until = sentAt + closeGraceMs;
+      if (until > Date.now())
+        setPending({ tab: entry.id, text, shown: wasShown }, until);
+      else say(text);
+    } else {
+      dispatch({ kind: "release-failed", tab: entry.id });
+      say(actionFailure(answer, words().releaseFailed, words()));
     }
     void poll();
   }
 
+  /** Vrátit: the Launchpad holds the tab again, shown again where it was
+   * shown when released. */
   async function restore() {
-    const closed = pending;
-    if (closed === null) return;
+    const released = pending;
+    if (released === null) return;
     setPending(null);
-    const answer = await options.transport("POST", "/api/new-tab/restore", {
-      tab: closed.tab,
-    });
-    if (answer.status === 200)
-      dispatch({
-        kind: "restored",
-        tab: closed.tab,
-        show: closed.shown && open,
-      });
-    else say(actionFailure(answer, words().restoreFailed, words()));
-    void poll();
+    await holdThen(
+      released.tab,
+      () =>
+        dispatch({
+          kind: "held-again",
+          tab: released.tab,
+          show: released.shown && open,
+        }),
+      words().restoreFailed,
+    );
   }
 
   // ---- What the frames say -------------------------------------------------
 
-  // Nová karta's choice: a page it opened (held for the Launchpad by its
-  // open) or a tab it chose shows in the panel. The Launchpad has no tools.
+  // Nová karta's choice: a page it opened, which the Launchpad already holds
+  // (its open), shows in the panel; a tab chosen in its Přehled shows once
+  // the Launchpad holds it too. The Launchpad has no tools.
   body.addEventListener(newTabEventName, (event) => {
-    const tab = panelChoice((event as CustomEvent<unknown>).detail);
-    if (tab === null) return;
-    dispatch({ kind: "chosen", tab });
-    void poll();
+    const choice = panelChoice((event as CustomEvent<unknown>).detail);
+    if (choice === null) return;
+    const chosen = () => dispatch({ kind: "chosen", tab: choice.tab });
+    if (choice.kind === "tab") void holdThen(choice.tab, chosen);
+    else {
+      chosen();
+      void poll();
+    }
   });
 
   // A view's messages, only from the shown view's own frame and origin.
@@ -545,7 +544,12 @@ export function createBrowserPanel(
       options.origin(),
     );
     if (said === null) return;
-    if (said.kind === "new-tab") void holdAndShow(said.tab, said.url);
+    // A page's new tab viewed here shows once the Launchpad holds it (F47
+    // point 4); until then the view that opened it stays.
+    if (said.kind === "new-tab")
+      void holdThen(said.tab, () =>
+        dispatch({ kind: "show", tab: said.tab, url: said.url }),
+      );
     else if (said.kind === "closed") {
       dispatch({ kind: "ended", tab: said.tab });
       void poll();
@@ -557,14 +561,6 @@ export function createBrowserPanel(
         url: said.url,
       });
   });
-
-  /** A page's new tab viewed here: the Launchpad holds it (F47 point 4),
-   * then shows it; the frame views it either way. */
-  async function holdAndShow(tab: string, url: string) {
-    await options.transport("POST", "/api/new-tab/hold", { tab });
-    dispatch({ kind: "show", tab, url });
-    void poll();
-  }
 
   // ---- Opening and closing the panel -----------------------------------------
 
@@ -603,8 +599,6 @@ export function createBrowserPanel(
     open = false;
     clearTimeout(pollTimer);
     pollTimer = undefined;
-    warning?.remove();
-    warning = null;
     // A hidden strip loses its scroll: the next opening draws it anew, with
     // the shown entry in view.
     drawnStrip = "";

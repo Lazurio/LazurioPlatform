@@ -6,10 +6,13 @@ import {
   ago,
   catalogModuleLook,
   closeGraceMs,
+  closeOutcome,
   closeWarning,
   environmentNote,
   fill,
   formatMemory,
+  hideAnswered,
+  hideAsked,
   inThisStrip,
   isNoBrowser,
   memoryModel,
@@ -27,10 +30,12 @@ import {
   sortTabs,
   standaloneAfterMs,
   suggestions,
+  type TabOverride,
   tabRows,
   tabStatus,
   toastModel,
   toolForKey,
+  undoDeadline,
   viewOriginOf,
   visibleTabs,
   withOverride,
@@ -573,15 +578,15 @@ describe("closing for everyone, and Vrátit", () => {
 
   test("the toast keeps Vrátit for the whole grace: a later message shows above it and never takes it away", () => {
     expect(closeGraceMs).toBe(8_000);
-    const pending = { tab: id(1), agent: false, shown: false };
+    const pending = { tab: id(1), text: cs.closing, shown: false };
     expect(toastModel(pending, null, cs)).toEqual({
       note: null,
       text: "Záložka se zavře v Environmentu.",
       undo: "Vrátit",
     });
-    expect(toastModel({ ...pending, agent: true }, null, cs)?.text).toBe(
-      "Záložka se zavře v Environmentu i agentovi.",
-    );
+    expect(
+      toastModel({ ...pending, text: cs.closingAgent }, null, cs)?.text,
+    ).toBe("Záložka se zavře v Environmentu i agentovi.");
     expect(
       toastModel(pending, "Modul Deals se zastavil a uvolnil 780 MB.", cs),
     ).toEqual({
@@ -595,6 +600,92 @@ describe("closing for everyone, and Vrátit", () => {
       undo: null,
     });
     expect(toastModel(null, null, cs)).toBeNull();
+  });
+
+  test("Zavřít keeps the tab gone while the close is on its way, whatever an overview read before says; once accepted, only an overview requested after gives the hub's word; a failed close brings it back", () => {
+    const open = tabsOf([fact(1), fact(2)]);
+    const counting = tabsOf([
+      fact(1, { closing: "2026-10-11T12:00:08.000Z" }),
+      fact(2),
+    ]);
+    const shown = (tabs: readonly NewTabTab[], overrides: TabOverride[]) =>
+      visibleTabs(tabs, overrides).map((tab) => tab.id);
+    // Four overviews requested so far; Zavřít is clicked.
+    let overrides = [...hideAsked([], id(1))];
+    expect(shown(open, overrides)).toEqual([id(2)]);
+    // The 5th overview begins before the hub accepted the close and still
+    // lists the tab open (Pablo's review of #324): it stays gone.
+    overrides = [...settleOverrides(overrides, 5)];
+    expect(shown(open, overrides)).toEqual([id(2)]);
+    // The hub accepts it while the 5th is the last one requested.
+    overrides = [...hideAnswered(overrides, id(1), true, 5)];
+    overrides = [...settleOverrides(overrides, 5)];
+    expect(shown(open, overrides)).toEqual([id(2)]);
+    // The 6th, begun after, is the hub's word: closing, so still gone.
+    overrides = [...settleOverrides(overrides, 6)];
+    expect(overrides).toEqual([]);
+    expect(shown(counting, overrides)).toEqual([id(2)]);
+    // A close that fails brings the tab back at once.
+    const failed = hideAnswered(hideAsked([], id(2)), id(2), false, 7);
+    expect(failed).toEqual([]);
+    expect(shown(open, [...failed])).toEqual([id(1), id(2)]);
+  });
+
+  test("Vrátit lasts until the hub's deadline as the close's answer measured it, counted from when the request was sent: a late answer leaves less, a passed or missing deadline none", () => {
+    const accepted = (value: unknown) => ({ status: 202, value });
+    const sentAt = 10_000;
+    // 7 s left when the Launchpad answered, received 400 ms after sending.
+    expect(
+      closeOutcome(accepted({ closing: "x", left: 7_000 }), sentAt, 10_400),
+    ).toEqual({ kind: "accepted", undoUntil: 17_000 });
+    // The answer came after the deadline: no Vrátit.
+    expect(
+      closeOutcome(accepted({ closing: "x", left: 7_000 }), sentAt, 17_500),
+    ).toEqual({ kind: "accepted", undoUntil: null });
+    // Never longer than the grace; without a usable `left`, no Vrátit.
+    expect(undoDeadline({ left: 60_000 }, sentAt)).toBe(18_000);
+    for (const value of [
+      {},
+      { left: -1 },
+      { left: "7000" },
+      { left: NaN },
+      null,
+    ])
+      expect(undoDeadline(value, sentAt)).toBeNull();
+    expect(closeOutcome(accepted({ closing: "x" }), sentAt, 10_400)).toEqual({
+      kind: "accepted",
+      undoUntil: null,
+    });
+    // A tab the hub no longer lists is gone as surely; anything else failed.
+    expect(
+      closeOutcome({ status: 404, value: { error: "not-found" } }, sentAt, 1),
+    ).toEqual({ kind: "accepted", undoUntil: null });
+    for (const answer of [
+      { status: 404, value: { error: "no-browser" } },
+      { status: 503, value: { error: "hub-unreachable" } },
+      { status: 0, value: null },
+      { status: 200, value: { closing: "x", left: 7_000 } },
+    ])
+      expect(closeOutcome(answer, sentAt, 10_400)).toEqual({ kind: "failed" });
+  });
+
+  test("a tab the Launchpad let go of stays in Přehled while it lives: its release's grace is no close for everyone", () => {
+    const released = tabsOf([
+      fact(1, {
+        holders: [],
+        grace: { kind: "release", endsAt: "2026-10-11T12:00:08.000Z" },
+      }),
+    ]);
+    expect(
+      tabRows(released, {
+        now,
+        strip: "launchpad",
+        viewOrigin: view,
+        overrides: [],
+        copy: cs,
+        locale: "cs",
+      }).map((row) => row.id),
+    ).toEqual([id(1)]);
   });
 });
 
@@ -839,6 +930,8 @@ describe("where things are, the tools' letters and what failed", () => {
         answer(502),
         answer(409, { error: "nothing-to-restore" }),
         answer(404, { error: "not-found" }),
+        answer(503, { error: "closing" }),
+        answer(503, { error: "holder-unavailable" }),
       ].map((failed) => actionFailure(failed, fallback, cs)),
     ).toEqual([
       "Tento Environment nemá prohlížeč.",
@@ -846,6 +939,10 @@ describe("where things are, the tools' letters and what failed", () => {
       "Launchpad teď neodpovídá, zkus to za chvíli znovu.",
       "Launchpad teď neodpovídá, zkus to za chvíli znovu.",
       "Záložku se nepodařilo zavřít.",
+      "Záložku se nepodařilo zavřít.",
+      // A Launchpad that closes does not answer for long; any other reason
+      // it gives is the action's own failure.
+      "Launchpad teď neodpovídá, zkus to za chvíli znovu.",
       "Záložku se nepodařilo zavřít.",
     ]);
   });

@@ -15,10 +15,12 @@ import { browserViewDocumentPath } from "./browser-panel-view";
 import {
   actionFailure,
   catalogModuleLook,
-  closeGraceMs,
+  closeOutcome,
   closeWarning,
   environmentNote,
   fill,
+  hideAnswered,
+  hideAsked,
   isNoBrowser,
   launchpadStrip,
   type ModuleRow,
@@ -31,7 +33,7 @@ import {
   noteMs,
   overviewEveryMs,
   overviewFailure,
-  type PendingClose,
+  type PendingUndo,
   parseOverview,
   resolveAddress,
   settleOverrides,
@@ -44,7 +46,6 @@ import {
   toolForKey,
   viewOriginOf,
   withOverride,
-  withoutOverride,
 } from "./new-tab-view";
 
 // The page `/new-tab` (decision F47 points 1-3 and 6-8): Nová karta, drawn
@@ -150,7 +151,7 @@ const stopping = new Set<string>();
 let opening = false;
 let foreign: Readonly<{ href: string; where: string }> | null = null;
 let warningOpen = false;
-let pending: PendingClose | null = null;
+let pending: PendingUndo | null = null;
 let pendingTimer: ReturnType<typeof setTimeout> | undefined;
 let note: string | null = null;
 let noteTimer: ReturnType<typeof setTimeout> | undefined;
@@ -780,29 +781,44 @@ function askClose(tab: NewTabTab, back: HTMLElement) {
   else void closeTab(tab);
 }
 
-function setPending(next: PendingClose | null) {
+/** Vrátit for `next` until `until` (this browser's clock, `undoDeadline`),
+ * or none. */
+function setPending(next: PendingUndo | null, until = 0) {
   clearTimeout(pendingTimer);
   pending = next;
   if (next !== null)
-    pendingTimer = setTimeout(() => {
-      pending = null;
-      drawToast();
-    }, closeGraceMs);
+    pendingTimer = setTimeout(
+      () => {
+        pending = null;
+        drawToast();
+      },
+      Math.max(0, until - Date.now()),
+    );
   drawToast();
 }
 
-/** Zavřít: the tab ends for everyone after the grace (F47 point 6); it goes
- * from the list at once, and Vrátit brings it back. */
+/** Zavřít: the tab ends for everyone after the grace (F47 point 6). It goes
+ * from the list at once and stays gone until the hub has accepted the close
+ * and a later overview says so, or comes back when the close fails; Vrátit
+ * lasts until the hub's deadline. */
 async function closeTab(tab: NewTabTab) {
-  overrides = withOverride(overrides, tab.id, "hidden", requests);
+  const text = tab.agents.length > 0 ? copy.closingAgent : copy.closing;
+  overrides = hideAsked(overrides, tab.id);
   drawOverview();
+  const sentAt = Date.now();
   const answer = await post("/api/new-tab/close", { tab: tab.id });
-  if (answer.status === 202)
-    setPending({ tab: tab.id, agent: tab.agents.length > 0, shown: false });
-  else if (answer.status !== 404) {
-    overrides = withoutOverride(overrides, tab.id);
+  const outcome = closeOutcome(answer, sentAt, Date.now());
+  overrides = hideAnswered(
+    overrides,
+    tab.id,
+    outcome.kind === "accepted",
+    requests,
+  );
+  if (outcome.kind === "failed")
     say(actionFailure(answer, copy.closeFailed, copy));
-  }
+  else if (outcome.undoUntil !== null)
+    setPending({ tab: tab.id, text, shown: false }, outcome.undoUntil);
+  else if (answer.status === 202) say(text);
   drawOverview();
   void poll();
 }

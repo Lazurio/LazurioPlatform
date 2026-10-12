@@ -17,6 +17,7 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 import {
   HolderFull,
   type LaunchpadHolder,
+  launchpadLabel,
   launchpadStrip,
   readHolderLabel,
 } from "./new-tab/holder";
@@ -40,7 +41,8 @@ import type { ModuleUnit } from "./new-tab/modules";
 //   GET  /api/new-tab/overview   {hub, tabs, memory, modules}
 //   POST /api/new-tab/open       {url, strip?}   201 {tab, view}
 //   POST /api/new-tab/hold       {tab}           200 {held: true}
-//   POST /api/new-tab/close      {tab}           202 {closing}
+//   POST /api/new-tab/release    {tab}           200 {released: true}
+//   POST /api/new-tab/close      {tab}           202 {closing, left}
 //   POST /api/new-tab/restore    {tab}           200 {restored: true}
 //
 // Only where the entry routes the Environment browser's view (`entry.browser`);
@@ -48,7 +50,8 @@ import type { ModuleUnit } from "./new-tab/modules";
 // The tabs, their opening, closing and Vrátit are the view's hub's (F47 point
 // 6), which the Launchpad asks on loopback; the memory and the running Modules
 // are the Launchpad's own reading; the holds of the Launchpad are its holder
-// file. Zastavit is the Module's existing stop.
+// file, which the overview reports as the Launchpad last wrote it, never as
+// the hub last read it. Zastavit is the Module's existing stop.
 
 /** Where the overview and the actions read and write: this account's runtime
  * directory (the holder files and the hub's list of live tabs), its service
@@ -171,8 +174,12 @@ export function createNewTabRoutes(
     /** The running Modules (`runningModules`); null when not known. */
     modules: () => Promise<readonly ModuleUnit[] | null>;
     headers: Readonly<Record<string, string>>;
+    /** This Environment's wall clock, the one the hub's deadline is on;
+     * tests supply their own. */
+    now?: () => number;
   }>,
 ) {
+  const now = input.now ?? Date.now;
   const response = (body: unknown, status = 200) =>
     Response.json(body, { status, headers: input.headers });
   const refusal = (refused: HubRefusal) =>
@@ -263,8 +270,22 @@ export function createNewTabRoutes(
           ),
         ),
       );
+      // The Launchpad's hold as its holder last wrote it: the hub reads the
+      // file again only once it sees it change, so its holders may lag a
+      // hold or a release this route just answered (F47 point 9's addendum
+      // of 2026-10-12: the Launchpad's strip shows the tabs it holds).
+      const own = input.holder === null ? null : new Set(input.holder.tabs());
       tabs = listed.tabs.map((tab) => ({
         ...tab,
+        holders:
+          own === null
+            ? tab.holders
+            : [
+                ...tab.holders.filter((hold) => hold.strip !== launchpadStrip),
+                ...(own.has(tab.id)
+                  ? [{ strip: launchpadStrip, label: launchpadLabel }]
+                  : []),
+              ],
         who: nameOpener(tab.opener, (session) => titles.get(session) ?? null),
       }));
     }
@@ -349,13 +370,40 @@ export function createNewTabRoutes(
             return response({ error: "not-found" }, 404);
           return (await hold(tab)) ?? response({ held: true });
         }
+        case "/api/new-tab/release": {
+          // × in the Launchpad's strip lets go of the Launchpad's hold only
+          // (F47 point 9's addendum of 2026-10-12); the hub ends the tab once
+          // nothing else holds or views it and no agent works in it. Without
+          // the hub: a tab it no longer lists is released all the same.
+          const tab = await tabBody(request);
+          if (tab instanceof Response) return tab;
+          if (input.holder === null)
+            return response({ error: "holder-unavailable" }, 503);
+          extend(30);
+          try {
+            await input.holder.release(tab);
+          } catch {
+            input.host.log("release-failed");
+            return response({ error: "release-failed" }, 500);
+          }
+          return response({ released: true });
+        }
         case "/api/new-tab/close": {
           const tab = await tabBody(request);
           if (tab instanceof Response) return tab;
           extend(30);
           const closed = await closeTab(browser, tab);
+          // The deadline is on this Environment's clock, the page's
+          // browser may keep another: `left` is what the grace has left
+          // now, which the page counts on its own clock (F47 point 6).
           return closed.kind === "closing"
-            ? response({ closing: closed.closing }, 202)
+            ? response(
+                {
+                  closing: closed.closing,
+                  left: Math.max(0, Date.parse(closed.closing) - now()),
+                },
+                202,
+              )
             : refusal(closed);
         }
         case "/api/new-tab/restore": {

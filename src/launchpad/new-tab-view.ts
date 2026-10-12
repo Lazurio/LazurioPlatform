@@ -110,12 +110,23 @@ const en = {
   undo: "Undo",
   closeFailed: "The tab could not be closed.",
   restoreFailed: "The tab can no longer be brought back.",
+  holdFailed: "The tab could not be kept in the Launchpad.",
+  holdFull:
+    "The Launchpad already keeps as many tabs as it can. Close some and try again.",
+  holdGone: "The tab is no longer in the Environment.",
+  retry: "Try again",
+  closeInLaunchpad: "Close in the Launchpad",
+  releasedAgent:
+    "The tab left the Launchpad. An agent is working in it, so it stays open.",
+  releasedElsewhere: "The tab left the Launchpad. It stays {places}.",
+  placeThread: "in the thread “{thread}”",
+  placeOtherThread: "in another thread",
+  placeElsewhere: "elsewhere",
+  placesAnd: " and ",
+  releaseFailed: "The tab could not be taken out of the Launchpad.",
   stripLabel: "Tabs of the Environment browser",
   newTabTitle: "New tab: address, overview and suggestions",
   closeNewTab: "Close the new tab",
-  closeTabEveryone: "Close the tab for everyone",
-  closeTabEveryoneAgent:
-    "Close the tab for everyone (an agent is working in it)",
   tabWorking: "{title} · an agent is working here",
   tabLoading: "Loading…",
 };
@@ -198,11 +209,23 @@ const cs: Words = {
   undo: "Vrátit",
   closeFailed: "Záložku se nepodařilo zavřít.",
   restoreFailed: "Záložku už nejde vrátit.",
+  holdFailed: "Záložku se nepodařilo v Launchpadu ponechat.",
+  holdFull:
+    "Launchpad už má tolik záložek, kolik unese. Zavři některé a zkus to znovu.",
+  holdGone: "Záložka už v Environmentu není.",
+  retry: "Zkusit znovu",
+  closeInLaunchpad: "Zavřít v Launchpadu",
+  releasedAgent:
+    "Záložka zmizela z Launchpadu. Pracuje v ní agent, takže zůstává otevřená.",
+  releasedElsewhere: "Záložka zmizela z Launchpadu. Dál je {places}.",
+  placeThread: "ve vlákně „{thread}“",
+  placeOtherThread: "v jiném vlákně",
+  placeElsewhere: "jinde",
+  placesAnd: " a ",
+  releaseFailed: "Záložku se nepodařilo z Launchpadu odebrat.",
   stripLabel: "Záložky prohlížeče Environmentu",
   newTabTitle: "Nová karta: adresa, Přehled a Navrhované",
   closeNewTab: "Zavřít Novou kartu",
-  closeTabEveryone: "Zavřít záložku pro všechny",
-  closeTabEveryoneAgent: "Zavřít záložku pro všechny (pracuje v ní agent)",
   tabWorking: "{title} · pracuje tu agent",
   tabLoading: "Načítá se…",
 };
@@ -231,6 +254,9 @@ export const overviewEveryMs = 5_000;
 export const closeGraceMs = 8_000;
 /** How long a short message stays. */
 export const noteMs = 4_000;
+/** How long a message with an action (Zkusit znovu) stays: long enough to
+ * take it. */
+export const actionNoteMs = 10_000;
 /** Without a host message within this time a framed page is standalone. */
 export const standaloneAfterMs = 1_500;
 /** The strip of the Launchpad (F47 point 4). */
@@ -449,19 +475,18 @@ export function overviewFailure(status: number): "unreachable" | "failed" {
 
 /** What Nová karta says when an action did not happen: the cause where the
  * answer names it (no browser, the browser's hub not answering, F47 point 6,
- * or the Launchpad not answering), else `fallback`. */
+ * or the Launchpad not answering, which also says so while it closes), else
+ * `fallback`, also for any other reason the Launchpad gave. */
 export function actionFailure(
   answer: NewTabAnswer,
   fallback: string,
   copy: NewTabCopy,
 ): string {
   if (isNoBrowser(answer)) return copy.noBrowser;
-  if (
-    answer.status === 503 &&
-    isRecord(answer.value) &&
-    answer.value.error === "hub-unreachable"
-  )
+  const error = isRecord(answer.value) ? answer.value.error : undefined;
+  if (answer.status === 503 && error === "hub-unreachable")
     return copy.browserDown;
+  if (typeof error === "string" && error !== "closing") return fallback;
   return overviewFailure(answer.status) === "unreachable"
     ? copy.launchpadDown
     : fallback;
@@ -716,21 +741,26 @@ export function sortTabs<T extends Pick<NewTabTab, "id" | "heap" | "usedAt">>(
 
 /** A tab that the person closed, saw end, opened or brought back here,
  * which an overview requested before that does not know yet. `after` is the
- * number of overviews requested when it happened: the answer to a later
- * request is the hub's own word and replaces it. */
+ * number of overviews requested when the hub had done it: the answer to a
+ * later request is the hub's own word and replaces it. Null while the
+ * request is still on its way: no overview can know it yet, so none lifts
+ * it. */
 export type TabOverride = Readonly<{
   id: string;
   state: "hidden" | "shown";
-  after: number;
+  after: number | null;
 }>;
 
 /** The overrides an overview answering request `request` (the n-th one
- * begun) leaves: those recorded once that request had begun. */
+ * begun) leaves: those still on their way, and those the hub had done once
+ * that request had begun. */
 export function settleOverrides(
   overrides: readonly TabOverride[],
   request: number,
 ): readonly TabOverride[] {
-  return overrides.filter((override) => override.after >= request);
+  return overrides.filter(
+    (override) => override.after === null || override.after >= request,
+  );
 }
 
 /** `overrides` with the one of `id` replaced. */
@@ -738,7 +768,7 @@ export function withOverride(
   overrides: readonly TabOverride[],
   id: string,
   state: TabOverride["state"],
-  after: number,
+  after: number | null,
 ): readonly TabOverride[] {
   return [
     ...overrides.filter((override) => override.id !== id),
@@ -752,6 +782,73 @@ export function withoutOverride(
   id: string,
 ): readonly TabOverride[] {
   return overrides.filter((override) => override.id !== id);
+}
+
+/** A tab was taken away here: Zavřít in Přehled closes it for everyone (F47
+ * point 6), × in the Launchpad's strip lets go of the Launchpad's hold (its
+ * addendum of 2026-10-12). It goes at once and stays gone, whatever an
+ * overview says, while the request is on its way: an overview read before
+ * the request was done still lists the tab as it was. */
+export function hideAsked(
+  overrides: readonly TabOverride[],
+  id: string,
+): readonly TabOverride[] {
+  return withOverride(overrides, id, "hidden", null);
+}
+
+/** The request's answer came. Done, the tab stays gone until an overview
+ * requested after now (`requests` begun so far) gives its word: a closed tab
+ * as closing or not at all, a released one without the Launchpad's hold.
+ * Failed, it comes back. */
+export function hideAnswered(
+  overrides: readonly TabOverride[],
+  id: string,
+  accepted: boolean,
+  requests: number,
+): readonly TabOverride[] {
+  return accepted
+    ? withOverride(overrides, id, "hidden", requests)
+    : withoutOverride(overrides, id);
+}
+
+/** What a close for everyone's answer means here. Accepted (202), with the
+ * moment Vrátit stops being offered (`undoDeadline`), null when that has
+ * passed or the answer does not say; a tab the hub no longer lists (404) is
+ * gone as surely, without Vrátit. Anything else failed, and the tab comes
+ * back. */
+export type CloseOutcome =
+  | Readonly<{ kind: "accepted"; undoUntil: number | null }>
+  | Readonly<{ kind: "failed" }>;
+
+export function closeOutcome(
+  answer: NewTabAnswer,
+  sentAt: number,
+  now: number,
+): CloseOutcome {
+  if (answer.status === 404 && !isNoBrowser(answer))
+    return { kind: "accepted", undoUntil: null };
+  if (answer.status !== 202) return { kind: "failed" };
+  const until = undoDeadline(answer.value, sentAt);
+  return {
+    kind: "accepted",
+    undoUntil: until !== null && until > now ? until : null,
+  };
+}
+
+/** When Vrátit stops being offered, on this browser's clock. The hub ends
+ * the tab at its deadline (F47 point 6), which is on the Environment's
+ * clock, so the close's answer also says how long the grace has left
+ * (`left`, in milliseconds, as the Launchpad measured it when it answered).
+ * Counted from when the request was sent, the earliest the Launchpad can
+ * have measured it, Vrátit never outlives the deadline, however the clocks
+ * differ or late the answer comes. Never longer than the grace; null
+ * without a `left`. */
+export function undoDeadline(value: unknown, sentAt: number): number | null {
+  if (!isRecord(value)) return null;
+  const left = value.left;
+  return typeof left === "number" && Number.isFinite(left) && left >= 0
+    ? sentAt + Math.min(left, closeGraceMs)
+    : null;
 }
 
 /** The tabs to show: none hidden here, and none whose close for everyone
@@ -866,19 +963,20 @@ export function closeWarning(
   };
 }
 
-/** A close for everyone waiting for its grace: the tab, whether an agent
- * worked in it, and whether it was shown where it was closed. */
-export type PendingClose = Readonly<{
+/** What Vrátit undoes while it is offered: a close for everyone here, a
+ * release in the Launchpad's strip; the tab, what happens to it (the
+ * toast's line), and whether it was shown where it was taken away. */
+export type PendingUndo = Readonly<{
   tab: string;
-  agent: boolean;
+  text: string;
   shown: boolean;
 }>;
 
-/** The toast (the wireframe's PendingClose): why the tab ends and Vrátit
- * while its grace lasts, with a later message above it, which never takes
- * Vrátit away (Pablo's review of #27); a message alone otherwise. */
+/** The toast (the wireframe's PendingClose): what happens to the tab and
+ * Vrátit while its grace lasts, with a later message above it, which never
+ * takes Vrátit away (Pablo's review of #27); a message alone otherwise. */
 export function toastModel(
-  pending: PendingClose | null,
+  pending: PendingUndo | null,
   note: string | null,
   copy: NewTabCopy,
 ): Readonly<{
@@ -886,12 +984,7 @@ export function toastModel(
   text: string | null;
   undo: string | null;
 }> | null {
-  if (pending !== null)
-    return {
-      note,
-      text: pending.agent ? copy.closingAgent : copy.closing,
-      undo: copy.undo,
-    };
+  if (pending !== null) return { note, text: pending.text, undo: copy.undo };
   return note === null ? null : { note, text: null, undo: null };
 }
 
