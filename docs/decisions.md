@@ -7934,8 +7934,10 @@ tab of the Environment ended while it stayed broken.
   the reading fails, and the hub keeps its last reading of everything, as before.
 - **Seen, not silent.** The hub's reader (`holdsReader`) reads one at a time, so each reading
   remembers the one before. It logs a file that becomes unreadable, with what it keeps, and
-  again when the file can be read. `lazurio doctor` warns `browser-holder-unreadable` with the
-  `files` it could not read, or the directory.
+  then whether it can be read again or is gone, which lets go of what it held (Pablo's review
+  of #347). `lazurio doctor` warns `browser-holder-unreadable` with the `files` it could not
+  read, or the directory. Doctor runs apart from the hub, so it cannot tell a file the hub
+  read before, whose last tabs it keeps, from one the hub never read, which holds no tab.
 - **The writers are unchanged.** The Launchpad still takes no hold and writes nothing over its
   own file while it cannot read it (step 2): that stops its own tabs only.
 - **Where it is.** `readHolds`, `holdsReader` and `unreadableHolderFiles` in
