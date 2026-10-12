@@ -4152,8 +4152,10 @@ and far less explanatory text. Proposed:
 2. **Image previews only.** A card shows the file itself when it is PNG, JPEG, GIF or WebP
    and at most 25 MB: the same download route (`/api/files/download`), behind a gateway as
    an `<img>` the session cookie admits, locally fetched with the session token as a
-   blob. Fetched only once the card scrolls into view, kept per name, size and modified
-   time across redraws, and released when it leaves the listing. SVG and HEIC are not
+   blob; a link that fails is retried as that fetch. Fetched only once the card scrolls
+   into view, kept per name, size and modified time across redraws, and released when it
+   leaves the listing. The whole image is shown (scaled to fit), on a neutral card with an
+   image icon while it loads, never behind the kind's document icon. SVG and HEIC are not
    drawn. No other content is rendered: other files show the icon of their kind (by
    extension: PDF, document, spreadsheet, presentation, image, video, audio, archive,
    text) in its colour, with the extension. No new route, header or server code.

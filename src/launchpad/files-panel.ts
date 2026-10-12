@@ -281,23 +281,33 @@ export function createFilesPanel(
   }
 
   // A preview's image: its address is set once the tile is seen.
+  // Behind a gateway the image is a plain link the session cookie admits;
+  // should that fail (or locally, where the token cannot ride on a link),
+  // the page fetches it with its credential and draws the result.
   async function loadPreview(image: HTMLImageElement) {
     const request = image.dataset.request;
-    if (request === undefined || image.src !== "") return;
+    if (request === undefined || image.dataset.state !== undefined) return;
+    image.dataset.state = "loading";
     if (options.linkDownloads()) {
       image.src = request;
       return;
     }
+    await fetchPreview(image, request);
+  }
+
+  async function fetchPreview(image: HTMLImageElement, request: string) {
+    image.dataset.state = "fetching";
     try {
       const response = await fetch(request, {
         headers: options.credential(),
+        credentials: "same-origin",
         cache: "no-store",
       });
       options.denied(response.status);
       if (!response.ok) throw new Error("Preview refused");
       image.src = URL.createObjectURL(await response.blob());
     } catch {
-      image.remove();
+      image.dataset.state = "failed";
     }
   }
 
@@ -308,8 +318,17 @@ export function createFilesPanel(
       image = element("img");
       image.alt = "";
       image.decoding = "async";
-      image.dataset.request = downloadPath(target);
-      image.addEventListener("error", () => image?.remove());
+      const request = downloadPath(target);
+      image.dataset.request = request;
+      image.addEventListener("load", () => {
+        if (image) image.dataset.state = "shown";
+      });
+      image.addEventListener("error", () => {
+        if (!image) return;
+        if (image.dataset.state === "loading")
+          void fetchPreview(image, request);
+        else image.dataset.state = "failed";
+      });
       previews.set(key, image);
       if (seen === null) void loadPreview(image);
       else seen.observe(image);
@@ -362,11 +381,14 @@ export function createFilesPanel(
     );
     thumb.tabIndex = -1;
     thumb.setAttribute("aria-hidden", "true");
-    thumb.append(icon("i-file"));
+    const previewed = hasPreview(entry);
+    // An image waits for itself on a quiet background, not behind an icon.
+    thumb.append(icon(previewed ? "i-image" : "i-file"));
     const extension = fileExtension(entry.name);
     if (extension !== "")
       thumb.append(element("span", "files-ext", extension.slice(0, 5)));
-    if (hasPreview(entry)) {
+    if (previewed) {
+      thumb.classList.add("files-thumb--image");
       const { key, image } = preview(entry, target);
       keys.add(key);
       thumb.append(image);
