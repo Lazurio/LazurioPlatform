@@ -7336,7 +7336,9 @@ been measured yet.
   - A page's new tab that a view reports (`lazurio-browser:new-tab`), and the sign-in tab
     an Integrace opens, show only once the Launchpad holds them. A hold that failed says
     why, with Zkusit znovu where trying again can help; for a sign-in, Integrace says that
-    the browser cannot open it now. `lazurio-browser:closed` drops its tab.
+    the browser cannot open it now. A Launchpad without a holder (no usable runtime
+    directory) fails the sign-in closed, as `open` answers 503 then
+    (`launchpadHoldOf`). `lazurio-browser:closed` drops its tab.
   - A closed panel mounts no frame and reads nothing.
 - `scripts/preview-new-tab.ts` shows it against fakes: the Launchpad's page with the
   panel, `/new-tab` standalone and inside a host page with T3 Code's tools, and switches

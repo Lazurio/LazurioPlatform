@@ -8,7 +8,7 @@ import {
   isBrowserSession,
   resolveBrowserView,
 } from "../browser/view";
-import { cdpSeams, ensureThreadWindow } from "../browser/window";
+import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
 import {
   type ContentHost,
   preparationAnswer,
@@ -98,7 +98,7 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 import { issueMausbotLink } from "./mausbot";
 import { messages } from "./messages";
 import { createMaintainerCheck } from "./module-maintainer";
-import { launchpadHolderOf } from "./new-tab/holder";
+import { type LaunchpadHolder, launchpadHolderOf } from "./new-tab/holder";
 import { runningModules } from "./new-tab/modules";
 import {
   createNewTabRoutes,
@@ -174,16 +174,17 @@ export type HostedOptions = Readonly<{
  * entry whose gateway routes no browser view has none to offer. */
 export function environmentBrowserOf(
   entry: MachineEntry | null,
-  hold: (target: string) => Promise<void> = async () => undefined,
+  hold: (target: string) => Promise<void>,
+  cdp: CdpCall = (method, params) =>
+    cdpSeams(process.env, runProcess).cdp(method, params),
 ): IntegrationsSeams["environmentBrowser"] {
   if (entry === null) return null;
   const browser = browserEntryOf(entry);
   return async (url) => {
     if (browser === undefined) return null;
-    const created = (await cdpSeams(process.env, runProcess).cdp(
-      "Target.createTarget",
-      { url },
-    )) as { targetId?: unknown } | null;
+    const created = (await cdp("Target.createTarget", { url })) as {
+      targetId?: unknown;
+    } | null;
     const target = created?.targetId;
     if (typeof target !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(target))
       return null;
@@ -200,6 +201,19 @@ export function environmentBrowserOf(
     }
     return { view: browserViewUrl(browser.origin, target) };
   };
+}
+
+/** The hold the Integrace sign-in takes for the Launchpad before its tab shows
+ * (F47 point 9's addendum of 2026-10-12). Without a holder (no usable runtime
+ * directory) it refuses, as `/api/new-tab/open` answers 503 then, so the
+ * sign-in never shows a tab the Launchpad does not hold. */
+export function launchpadHoldOf(
+  holder: LaunchpadHolder | null,
+): (target: string) => Promise<void> {
+  return (target) =>
+    holder === null
+      ? Promise.reject(new Error("The Launchpad has no holder"))
+      : holder.hold(target);
 }
 
 /** The Lazurio shell's data document (decision F36). */
@@ -571,9 +585,7 @@ export async function startLaunchpad(
       environmentBrowser:
         integrationSeams?.environmentBrowser !== undefined
           ? integrationSeams.environmentBrowser
-          : environmentBrowserOf(entry, (target) =>
-              holder === null ? Promise.resolve() : holder.hold(target),
-            ),
+          : environmentBrowserOf(entry, launchpadHoldOf(holder)),
       // Whether Lazurio sets Executor up here: F44's context of this
       // Launchpad's Executor host.
       executorContext:
