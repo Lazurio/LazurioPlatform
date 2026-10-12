@@ -210,9 +210,11 @@ const keyName = (type: CustomType) =>
     : (name: string) => name.trim();
 
 /** Whether a server's keys change: a new value, a key added or removed, the
- * Bearer token added or removed. Executor keeps a server's keys together
- * on its account and never returns them, so then every key is sent again.
- * A server not yet added has nothing stored: all of its keys are new. */
+ * Bearer token added or removed, or a new address for a server that has
+ * keys (the new address is probed and reached with them, and Executor never
+ * returns a stored one). Executor keeps a server's keys together on its
+ * account and never returns them, so then every key is sent again. A server
+ * not yet added has nothing stored: all of its keys are new. */
 export function keysChange(
   server: CustomServerInput,
   stored: CustomStored | null,
@@ -227,7 +229,9 @@ export function keysChange(
         keyName("stdio"),
       )
     );
+  const keyed = stored.bearer || stored.names.length > 0;
   return (
+    (keyed && stored.url !== null && server.url.trim() !== stored.url) ||
     (server.bearer !== null) !== stored.bearer ||
     (server.bearer !== null && server.bearer.value !== null) ||
     server.headers.some((key) => key.value !== null) ||

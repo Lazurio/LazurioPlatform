@@ -287,6 +287,77 @@ test("an edit opens with the names of its keys, their fields empty and stored; e
   expect(customBody(cleared)).toMatchObject({ headers: [] });
 });
 
+test("an edit's new address asks for every stored key again; without stored keys it saves as before", () => {
+  const settings = parseCustomSettings({
+    kind: "custom-server",
+    id: "invoices",
+    type: "http",
+    name: "Invoices",
+    url: "https://mcp.example.com/mcp",
+    bearer: true,
+    headers: ["X-Team"],
+  });
+  const stored = settings as NonNullable<typeof settings>;
+  let form = type(
+    editCustomForm(stored),
+    "url",
+    "https://mcp.moved.example.com/mcp",
+  );
+  let view = customFormView(form, cs);
+  // The fields' states say it; no line under them, none for the address.
+  expect([
+    view.bearerPlaceholder,
+    view.headers[0]?.placeholder,
+    view.bearer,
+    view.headers[0]?.value,
+    view.url,
+    view.canSave,
+  ]).toEqual(["Zadej znovu", "Zadej znovu", null, null, null, false]);
+  form = type(form, "bearer", "token");
+  expect(customFormView(form, cs).canSave).toBe(false);
+  form = withKey(form, "headers", 0, "value", "a");
+  view = customFormView(form, cs);
+  expect(view.canSave).toBe(true);
+  expect(customBody(form)).toEqual({
+    id: "invoices",
+    type: "http",
+    name: "Invoices",
+    url: "https://mcp.moved.example.com/mcp",
+    bearer: "token",
+    headers: [{ name: "X-Team", value: "a" }],
+  });
+  // The address set back as it was shown: nothing to type again.
+  const back = type(
+    type(editCustomForm(stored), "url", "https://mcp.moved.example.com/mcp"),
+    "url",
+    "https://mcp.example.com/mcp",
+  );
+  expect(customFormView(back, cs).canSave).toBe(true);
+  // A server without stored keys: a new address saves as it is.
+  const open = parseCustomSettings({
+    kind: "custom-server",
+    id: "open",
+    type: "http",
+    name: "Open",
+    url: "https://mcp.open.example.com/mcp",
+    bearer: false,
+    headers: [],
+  });
+  const moved = type(
+    editCustomForm(open as NonNullable<typeof open>),
+    "url",
+    "https://mcp.open-moved.example.com/mcp",
+  );
+  expect(customFormView(moved, cs).canSave).toBe(true);
+  expect(customBody(moved)).toEqual({
+    id: "open",
+    type: "http",
+    name: "Open",
+    url: "https://mcp.open-moved.example.com/mcp",
+    headers: [],
+  });
+});
+
 test("a command server's edit: configuration shown, variables by name only", () => {
   const settings = parseCustomSettings({
     kind: "custom-server",

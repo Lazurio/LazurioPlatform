@@ -246,7 +246,9 @@ it is said.
   is created anew with every key. Then every stored key's field turns to
   "Zadej znovu" and Save waits until each is typed again. The page says this only
   through those two states; there is no line or note explaining it. An address left
-  as shown keeps the stored one with its query.
+  as shown keeps the stored one with its query; a new address is a change of the keys
+  for a server that has any, since it is probed and reached with them, so its stored
+  keys turn to "Zadej znovu" too (a server without keys just moves).
 - **Checked twice.** The page and the server share the rules
   (`src/integrations/custom-server.ts`): what the page refuses as the person types, the
   route refuses before Executor is asked.
@@ -362,7 +364,7 @@ keeps its last reading for a minute and reads again on "Zkontrolovat připojení
 | `POST /api/integrations/disconnect` | `{app, path, account, confirm: true}` | `{kind: "disconnected"}`, `400 confirm-required` without `confirm: true`, or blocked `account-unknown`, `disconnect-unsupported`, `executor-unavailable`, `disconnect-failed` |
 | `POST /api/integrations/custom/add` | STDIO `{type: "stdio", name, command, args: [string], env: [{name, value}], cwd?}`; Streamable HTTP `{type: "http", name, url, bearer?, headers: [{name, value}]}` | like connect; a remote server without keys that needs OAuth starts its sign-in; `400 {error: "invalid-server", problems}` for what the form refuses |
 | `GET /api/integrations/custom/server?id=<slug>` | | its edit form: `{kind: "custom-server", id, type, name, …}` with the command, the arguments and the working directory, or the address without userinfo or query, and its keys by name (`env`, `bearer`, `headers`), never a value; `409 account-unknown` for a catalog app's integration |
-| `POST /api/integrations/custom/update` | `{id, …}` as the add, a stored key's `value` (and `bearer`) `null` to keep it | `{kind: "saved", app}`, or `authorize` when the server now signs in; `409` `type-fixed`, `account-unknown`, `executor-unavailable`, `connect-failed`; `400 invalid-server` when a kept key cannot be kept |
+| `POST /api/integrations/custom/update` | `{id, …}` as the add, a stored key's `value` (and `bearer`) `null` to keep it | `{kind: "saved", app}`, or `authorize` when the server now signs in; `409` `type-fixed`, `account-unknown`, `executor-unavailable`, `connect-failed`; `400 keys-required` when a kept key must come again (another key changed, or the address did), refused before any probe; `400 invalid-server` for what the form refuses |
 | `POST /api/integrations/custom/remove` | `{id, confirm: true}` | `{kind: "removed"}`; a catalog app's integration is never removed as custom |
 
 All behind the admission of every route (the local token and same origin, or the

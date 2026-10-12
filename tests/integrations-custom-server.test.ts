@@ -231,6 +231,25 @@ test("an edit keeps its keys until one changes; then every key comes again", () 
       storedStdio,
     ),
   ).toEqual([{ field: "env", index: 0, part: "value", problem: "required" }]);
+  // A new address is a key change for a server with keys (it is probed and
+  // reached with them), never for one without.
+  const movedKept = http({
+    url: "https://mcp.moved.example.com/mcp",
+    bearer: { value: null },
+    headers: [{ name: "X-Team", value: null }],
+  });
+  expect(keysChange(movedKept, storedHttp)).toBe(true);
+  expect(customProblems(movedKept, storedHttp)).toEqual([
+    { field: "header", index: 0, part: "value", problem: "again" },
+    { field: "bearer", problem: "again" },
+  ]);
+  expect(
+    keysChange(http({ url: "https://mcp.moved.example.com/mcp" }), {
+      ...storedHttp,
+      bearer: false,
+      names: [],
+    }),
+  ).toBe(false);
   // The address the page was shown keeps the stored one, whatever it is.
   expect(
     customProblems(

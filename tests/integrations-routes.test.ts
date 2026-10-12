@@ -1436,7 +1436,7 @@ test("Vlastní: an edit keeps what it does not change; changing a key sends ever
   }
 });
 
-test("Vlastní: an edited address keeps its stored key in the query; the token is kept or sent again with every header", async () => {
+test("Vlastní: an edited address keeps its stored key in the query; the token is kept or sent again with every header; a new address takes every key again", async () => {
   const { world, app } = await setup({ composio: false });
   const stored = "https://mcp.query.example.test/mcp?key=queryCanary000000";
   const shown = "https://mcp.query.example.test/mcp";
@@ -1490,19 +1490,98 @@ test("Vlastní: an edited address keeps its stored key in the query; the token i
     },
   ]);
   expect(world.executor.integrations[0]?.endpoint).toBe(stored);
-  // A new address replaces the stored one.
+  // A new address is a change of the keys (review 5485707630): with the
+  // stored ones kept it is refused before anything is probed or changed,
+  // here at an address that refuses a probe without its token.
   const moved = "https://mcp.moved.example.test/mcp";
-  world.executor.probes.set(moved, { requiresOAuth: false });
-  expect(
-    await (
-      await update({ url: moved, headers: [{ name: "X-Team", value: null }] })
-    ).json(),
-  ).toEqual({ kind: "saved", app: "query" });
-  expect(world.executor.integrations[0]?.endpoint).toBe(moved);
-  // Keys kept: the account stays as it was.
-  expect(world.executor.connections).toMatchObject([
-    { values: { token: newer, "header-x-team": "a" } },
+  world.executor.probes.set(moved, {
+    requiresOAuth: false,
+    authorization: `Bearer ${newer}`,
+  });
+  const before = world.executor.calls.length;
+  const kept = await update({
+    url: moved,
+    bearer: null,
+    headers: [{ name: "X-Team", value: null }],
+  });
+  expect([kept.status, await kept.json()]).toEqual([
+    400,
+    { error: "keys-required" },
   ]);
+  // Only the reading of the server: no probe, no config, no account.
+  expect(world.executor.calls.slice(before).map((call) => call.method)).toEqual(
+    ["GET", "GET", "GET"],
+  );
+  expect(world.executor.integrations[0]?.endpoint).toBe(stored);
+  // Every key typed again: the new address is probed with them, the
+  // server moves, and its account is made anew with them.
+  const again = await update({
+    url: moved,
+    bearer: newer,
+    headers: [{ name: "X-Team", value: "b" }],
+  });
+  expect(await again.json()).toEqual({ kind: "saved", app: "query" });
+  expect(bodiesOf(world, "POST", "/api/mcp/probe").at(-1)).toEqual({
+    endpoint: moved,
+    headers: { Authorization: `Bearer ${newer}`, "X-Team": "b" },
+  });
+  expect(world.executor.integrations[0]?.endpoint).toBe(moved);
+  expect(world.executor.connections).toMatchObject([
+    {
+      integration: "query",
+      template: "apikey",
+      values: { token: newer, "header-x-team": "b" },
+    },
+  ]);
+});
+
+test("Vlastní: a new address for a server without stored keys is probed and saved as before", async () => {
+  const { world, app } = await setup({ composio: false });
+  const first = "https://mcp.open.example.test/mcp";
+  const moved = "https://mcp.open-moved.example.test/mcp";
+  world.executor.probes.set(first, { requiresOAuth: false });
+  world.executor.probes.set(moved, { requiresOAuth: false });
+  await app.post("/api/integrations/custom/add", {
+    type: "http",
+    name: "Open",
+    url: first,
+    headers: [],
+  });
+  const answer = await app.post("/api/integrations/custom/update", {
+    id: "open",
+    type: "http",
+    name: "Open",
+    url: moved,
+    headers: [],
+  });
+  expect(await answer.json()).toEqual({ kind: "saved", app: "open" });
+  expect(bodiesOf(world, "POST", "/api/mcp/probe").at(-1)).toEqual({
+    endpoint: moved,
+  });
+  expect(world.executor.integrations[0]?.endpoint).toBe(moved);
+  expect(world.executor.connections).toMatchObject([
+    { integration: "open", template: "none" },
+  ]);
+  // One that signs in signs in again at its new address.
+  const signIn = "https://mcp.signin.example.test/mcp";
+  const signInMoved = "https://mcp.signin-moved.example.test/mcp";
+  world.executor.probes.set(signIn, { requiresOAuth: true });
+  world.executor.probes.set(signInMoved, { requiresOAuth: true });
+  await app.post("/api/integrations/custom/add", {
+    type: "http",
+    name: "Sign In",
+    url: signIn,
+    headers: [],
+  });
+  const resigned = await app.post("/api/integrations/custom/update", {
+    id: "sign_in",
+    type: "http",
+    name: "Sign In",
+    url: signInMoved,
+    headers: [],
+  });
+  expect(await resigned.json()).toMatchObject({ kind: "authorize" });
+  expect(world.executor.integrations.at(-1)?.endpoint).toBe(signInMoved);
 });
 
 test("Vlastní: what the form refuses, the route refuses before Executor is asked", async () => {

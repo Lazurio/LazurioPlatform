@@ -42,8 +42,9 @@ export type FakeExecutor = Readonly<{
   port: number;
   integrations: FakeIntegration[];
   connections: FakeConnection[];
-  /** Endpoints the probe knows: whether each needs OAuth. */
-  probes: Map<string, { requiresOAuth: boolean }>;
+  /** Endpoints the probe knows: whether each needs OAuth, and whether it
+   * refuses a probe without this exact Authorization header. */
+  probes: Map<string, { requiresOAuth: boolean; authorization?: string }>;
   /** Every call: method, path and whether it carried the right token. */
   calls: { method: string; path: string; authorized: boolean; body: unknown }[];
   /** The OAuth flows started and not finished: state → connection. */
@@ -122,7 +123,7 @@ export async function startFakeExecutor(
 ): Promise<FakeExecutor> {
   const integrations: FakeIntegration[] = seed.integrations ?? [];
   const connections: FakeConnection[] = seed.connections ?? [];
-  const probes = new Map<string, { requiresOAuth: boolean }>();
+  const probes: FakeExecutor["probes"] = new Map();
   const calls: FakeExecutor["calls"] = [];
   const flows: FakeExecutor["flows"] = new Map();
   const results = new Map<string, unknown>();
@@ -291,6 +292,13 @@ export async function startFakeExecutor(
         const endpoint = String(input.endpoint);
         const known = probes.get(endpoint);
         if (known === undefined) return tagged("McpConnectionError", 400);
+        // An endpoint that refuses a probe without its key.
+        const headers = (input.headers ?? {}) as Record<string, string>;
+        if (
+          known.authorization !== undefined &&
+          headers.Authorization !== known.authorization
+        )
+          return tagged("McpConnectionError", 400);
         return json({
           connected: !known.requiresOAuth,
           requiresAuthentication: known.requiresOAuth,

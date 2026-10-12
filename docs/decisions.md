@@ -6334,8 +6334,13 @@ that report what they receive. The reference is
    once one does (a new value, a key added or removed, the Bearer token added or
    removed), Lazurio creates the account anew with every key, and the page asks for
    each stored one again ("Zadej znovu"). An unchanged address keeps the stored one
-   with its query; a new one is probed first, and nothing changes when it does not
-   answer. A remote server left without keys that needs a sign-in starts it. A saved
+   with its query. A new one is a change of the keys too where the server has keys
+   (review of 2026-10-12: probed without them, an address that refuses an
+   unauthenticated request turned a valid edit down while the fields said
+   "Uloženo"): every stored key is typed again, the new address is probed with them,
+   and a request that keeps one is refused (`keys-required`) before anything is
+   probed. A server without keys just moves. Nothing changes when the new address
+   does not answer. A remote server left without keys that needs a sign-in starts it. A saved
    server keeps its type; another type means removing it and adding it again. A
    catalog app's integration is never edited as custom (`account-unknown`), as it is
    never removed as custom.
@@ -6363,7 +6368,10 @@ variable, refusing a kept variable beside a new one before Executor is asked, cr
 the account anew with every key, then without keys; another type and a catalog app's
 server refused; an unchanged address keeping its stored query, never shown, a header
 beside a kept token refused, a new token with the header creating the account anew,
-a new address replacing the stored one and keeping the keys; every value refused by
+a new address with the stored keys kept refused (`keys-required`) without a probe,
+even where the address would refuse a probe without them, and with every key typed
+again probed with them, moved and its account made anew; a new address for a server
+without keys moved, and one that signs in signed in again; every value refused by
 the form refused by the route before Executor is asked, and no key in an answer, the
 journal or the Folder (`tests/integrations-routes.test.ts`); the rules for an address,
 a working directory, each field and an edit's keys, and Executor's shapes in both

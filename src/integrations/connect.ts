@@ -1064,7 +1064,11 @@ export function createConnectSessions(host: () => ConnectHost) {
       | Readonly<{ kind: "saved"; app: string }>
       | Readonly<{
           kind: "blocked";
-          reason: CustomRefusal | "type-fixed" | "invalid-server";
+          reason:
+            | CustomRefusal
+            | "type-fixed"
+            | "invalid-server"
+            | "keys-required";
         }>
     > {
       const executor = host().executor;
@@ -1076,8 +1080,17 @@ export function createConnectSessions(host: () => ConnectHost) {
       if (settings.type !== server.type)
         return { kind: "blocked", reason: "type-fixed" };
       const stored = storedOf(settings);
-      if (customProblems(server, stored).length > 0)
-        return { kind: "blocked", reason: "invalid-server" };
+      // Refused before Executor is asked anything more: a stored key that
+      // must come again (another key changed, or the address did) and did
+      // not is `keys-required`; the server is never probed without it.
+      const problems = customProblems(server, stored);
+      if (problems.length > 0)
+        return {
+          kind: "blocked",
+          reason: problems.some((item) => item.problem === "again")
+            ? "keys-required"
+            : "invalid-server",
+        };
       const changed = keysChange(server, stored);
       const at = `/connections/org/${encodeURIComponent(id)}/default`;
       try {

@@ -33,7 +33,9 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //   POST /api/integrations/disconnect       {app, path, account, confirm: true}
 //   POST /api/integrations/custom/add       a custom server (custom-server.ts)
 //   GET  /api/integrations/custom/server?id=<slug>  its edit form, no value
-//   POST /api/integrations/custom/update    {id, …the same fields}
+//   POST /api/integrations/custom/update    {id, …the same fields}, 400
+//                                           keys-required for a kept key that
+//                                           must come again
 //   POST /api/integrations/custom/remove    {id, confirm: true}
 //
 // The reading answers 200 with each source's own state, so an Executor that
@@ -307,8 +309,12 @@ export function createIntegrationsRoutes(
             ? await sessions.addCustom(server)
             : await sessions.updateCustom(parsed.id, server);
         reader.forget();
-        if (result.kind === "blocked" && result.reason === "invalid-server")
-          return response({ error: "invalid-server" }, 400);
+        if (
+          result.kind === "blocked" &&
+          (result.reason === "invalid-server" ||
+            result.reason === "keys-required")
+        )
+          return response({ error: result.reason }, 400);
         return response(result, result.kind === "blocked" ? 409 : 200);
       }
       if (url.pathname === "/api/integrations/custom/server") {
