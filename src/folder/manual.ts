@@ -1840,6 +1840,36 @@ function enabledToolsSection(
   ];
 }
 
+// F49: Launchpad owns SSH enrollment and supplies the laptop handoff.
+// The desktop link registers a client connection, never a network grant.
+function deviceSsh(machine: MachineBinding): readonly Text[] {
+  const origin = machine.entry?.externalOrigin;
+  return [
+    blank,
+    t(
+      "## Připojení počítače a projektu v Codexu",
+      "## Connecting a computer and a Codex project",
+    ),
+    t(
+      "Připojení nastavuje agent na Operátorově počítači, ne ty. Jsi v Environmentu, ke kterému se počítač připojuje, a soukromý klíč počítače sem nepatří.",
+      "The agent on the Operator's computer sets up the connection, not you. You are in the Environment the computer connects to, and the computer's private key does not belong here.",
+    ),
+    origin === undefined
+      ? t(
+          "Handover neuvádí adresu Launchpadu, tak ji neodvozuj. Požádej správce Environmentu, ať ji doplní.",
+          "The handover gives no Launchpad address, so do not guess it. Ask the Environment's administrator to add it.",
+        )
+      : t(
+          `Pošli Operátorovi odkaz na [Nastavení → SSH ze zařízení](${origin}/settings/ssh). Čeká tam hotový prompt pro agenta na jeho počítači: jednoznačný alias tohoto Environmentu, klíč hostu a odkaz, který přidá tento Lazurio Folder do Codexu jako projekt. Údaje ber z té stránky.`,
+          `Send the Operator the link to [Settings → SSH from your devices](${origin}/settings/ssh). A prompt for the agent on their computer is ready there: a distinct alias for this Environment, its host key and a link that adds this Lazurio Folder to Codex as a project. Take the values from that page.`,
+        ),
+    t(
+      "Zaregistrovaný klíč sám přístup do sítě nedává. Která zařízení se do sítě dostanou, rozhoduje správce sítě (Headscale a povolení SSH). Profil Tailscale na Operátorově počítači nepřepínej.",
+      "A registered key gives no network access by itself. The network administrator decides which devices reach the network (Headscale and the SSH grant). Do not switch the Tailscale profile on the Operator's computer.",
+    ),
+  ];
+}
+
 // How the Operator works with an agent on a hosted Environment (decision F14
 // addendum 2026-10-02). The Operator uses the clients they prefer, possibly
 // several at once: ChatGPT Desktop over SSH, T3 Code on the web or in its
@@ -2216,6 +2246,7 @@ function thisMachine(source: InstructionSource): string {
               "Lazurio enforces none of this: the Headscale policy of the Conglomerate Host does, and transport is not authentication, so SSH keys and application sign-in stay separate.",
             ),
           ]),
+      ...(machine === null ? [] : deviceSsh(machine)),
       ...(machine === null ? [] : [blank, ...sshRules]),
       ...(preset === "hosted-personal"
         ? [blank, ...fromPersonalVm(machine, locale)]

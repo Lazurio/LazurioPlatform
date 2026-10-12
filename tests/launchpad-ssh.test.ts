@@ -139,6 +139,7 @@ async function local() {
   };
   return {
     host,
+    folder,
     url,
     send,
     post,
@@ -170,6 +171,10 @@ test.skipIf(!posix)(
           "  StrictHostKeyChecking yes",
         ].join("\n"),
         knownHosts: `alex-work ssh-ed25519 ${hostKey}`,
+        codex: {
+          projectPath: s.folder,
+          url: `codex://settings/connections/ssh/add?${new URLSearchParams({ name: "alex-work", projectPath: s.folder, enabled: "true" })}`,
+        },
       };
       expect(await s.read()).toEqual({
         status: 200,

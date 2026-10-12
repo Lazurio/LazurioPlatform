@@ -126,6 +126,7 @@ export function createSshPanel(
               url: `${options.origin()}/settings/ssh`,
               alias: settings.alias,
               keyPath: settings.keyPath,
+              ...(settings.codex ? { desktopLink: settings.codex.url } : {}),
             },
             copy,
           );
@@ -220,6 +221,12 @@ export function createSshPanel(
     ready.hidden = settings === null;
     config.textContent = settings?.config ?? "";
     knownHosts.textContent = settings?.knownHosts ?? "";
+    const desktop = find<HTMLAnchorElement>("#ssh-codex");
+    desktop.hidden = settings?.codex === undefined;
+    if (settings?.codex) desktop.href = settings.codex.url;
+    else desktop.removeAttribute("href");
+    find<HTMLElement>("#ssh-project-path").textContent =
+      settings?.codex?.projectPath ?? "";
     missing.hidden = computer === null || computer.state === "ready";
     if (computer === null || computer.state === "ready")
       missing.replaceChildren();

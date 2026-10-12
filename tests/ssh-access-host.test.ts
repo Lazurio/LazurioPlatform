@@ -11,6 +11,7 @@ import {
   tailnetOfStatus,
 } from "../src/ssh-access/host";
 import type { ToolRunner } from "../src/tools/status";
+import { bindings } from "./fixtures/machine-bindings";
 
 // What a person's computer writes to reach this Environment (decision F49):
 // its tailnet name from Tailscale itself (never guessed), the account, and
@@ -19,6 +20,54 @@ import type { ToolRunner } from "../src/tools/status";
 
 const hostKey =
   "AAAAC3NzaC1lZDI1NTE5AAAAIDSQ6IIHQipQN9YXjjwhCNuecXaQZ6xS2/QbEsUFltVy";
+
+test("the same node label in two Organizations has separate SSH and Codex identities", () => {
+  const answers = ["north", "south"].map((organization) =>
+    computerSettings({
+      user: "alex",
+      tailnet: { state: "known", dnsName: `member-1.${organization}.example` },
+      hostKey: { type: "ssh-ed25519", key: hostKey },
+      machine: {
+        ...bindings.organization,
+        name: "member-1",
+        owner: { kind: "organization", organization, team: null },
+      },
+      folder: "/home/alex/Lazurio Folder ž",
+    }),
+  );
+  for (const [index, answer] of answers.entries()) {
+    expect(answer.state).toBe("ready");
+    if (answer.state !== "ready") throw new Error("settings unavailable");
+    const alias = `lazurio.org.${index === 0 ? "north" : "south"}.member-1`;
+    expect(answer.alias).toBe(alias);
+    expect(answer.keyPath).toContain(alias);
+    expect(answer.config).toContain(`HostKeyAlias ${alias}`);
+    expect(answer.knownHosts.startsWith(`${alias} `)).toBe(true);
+    const link = new URL(answer.codex?.url ?? "");
+    expect(link.protocol).toBe("codex:");
+    expect(link.hostname).toBe("settings");
+    expect(link.pathname).toBe("/connections/ssh/add");
+    expect(Object.fromEntries(link.searchParams)).toEqual({
+      name: alias,
+      projectPath: "/home/alex/Lazurio Folder ž",
+      enabled: "true",
+    });
+  }
+  expect(sshAlias("member-1.example.test", bindings.personal)).toStartWith(
+    "lazurio.personal.",
+  );
+  expect(
+    sshAlias("member-1.example.test", {
+      ...bindings.organization,
+      name: "member-2",
+    }),
+  ).not.toBe(
+    sshAlias("member-1.example.test", {
+      ...bindings.organization,
+      name: "member-1",
+    }),
+  );
+});
 
 test("the tailnet name is Self.DNSName while Tailscale runs with MagicDNS", () => {
   const status = (value: unknown) => tailnetOfStatus(JSON.stringify(value));

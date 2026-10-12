@@ -1244,7 +1244,7 @@ const en = {
   sshPromptUnavailable:
     "The prompt appears once the settings for your computer are known (below).",
   sshPromptText:
-    'Set up SSH from this computer to my Lazurio Environment "{alias}".\n\n1. Open {url} in your browser panel. If a sign-in appears, wait until I have signed in with my Lazurio account; never type my password yourself.\n2. On this computer, use the key {keyPath} (on Windows {windowsKeyPath}). If it does not exist yet, create it: ssh-keygen -t ed25519 -N "" -C {alias} -f {keyPath} (in Windows PowerShell 5.1 pass the empty passphrase as -N \'""\'; on Windows ~ is %USERPROFILE%)\n   Never show, copy or send the private key anywhere; only the .pub file leaves this computer.\n3. On the page, under "Add a device", fill in this computer\'s name and the whole content of {keyPath}.pub, then press "Add device".\n4. From "Settings for your computer", add the "SSH config" block to ~/.ssh/config and the "known_hosts" line to ~/.ssh/known_hosts_lazurio (create the files if they are missing). If ~/.ssh/config already has a "Host {alias}" block, or known_hosts_lazurio another key for {alias}, change nothing and tell me.\n5. Check the connection: ssh {alias} true\n\nRules: never change, switch or log out a Tailscale profile. Never turn StrictHostKeyChecking off and never accept a host key other than the one on the page. If ssh is refused or times out on the network, this device is not allowed to reach the Environment over SSH yet: tell me to ask my Organization\'s Admin to allow SSH from this device to the Environment "{alias}". Finally, tell me what you did and the result of the check.',
+    "Connect this computer to my Lazurio Environment \"{alias}\" over SSH and add its Lazurio Folder to Codex as a project.\n\nThe Environment's page has its address, account and host key: {url}\n\n1. Use the key {keyPath} (on Windows {windowsKeyPath}). If it does not exist yet, create an ed25519 key. The private key never leaves this computer; only the .pub file does.\n2. On the page, under \"Add a device\", register its public key.\n3. Add the page's SSH settings and known_hosts line for {alias}. Leave other connections as they are. If the same entry already exists, use it; if a different one exists for {alias}, change nothing and tell me.\n4. Check that SSH works: ssh {alias} true\n5. Then open the page's Codex link: {desktopLink}. If the app cannot open it, add the alias and the page's Folder path yourself in Settings → Connections → SSH.\n\nDo not switch the Tailscale profile. A registered key does not give network access; the network administrator allows that. Finally, tell me how the connection went.",
   sshDevicesTitle: "Your devices",
   sshDevicesNone: "No device has been added here yet.",
   sshAddedBy: "Added {date} by {who}",
@@ -1308,6 +1308,7 @@ const en = {
   sshRefusedName: "Give the device a name with letters or digits.",
   sshRefusedAddedBy:
     "The signed-in account could not be recorded. Reload the page and try again.",
+  sshCodexLink: "Add Environment to Codex",
   sshComputerTitle: "Settings for your computer",
   sshComputerNote:
     "Your agent writes these on your computer. The host key is this Environment's own, so your computer checks that it really talks to this Environment.",
@@ -1318,7 +1319,7 @@ const en = {
   sshCopy: "Copy",
   sshCopied: "Copied.",
   sshNetworkNote:
-    "If the connection is refused or times out, the network does not let that device reach this Environment over SSH yet: ask your Organization's Admin to allow SSH from that device to this Environment.",
+    "Adding a key does not give this device network access by itself. If SSH fails, give your agent the exact error. If the device is not allowed on the network yet, the network administrator can allow it.",
   sshComputerMissing: "The settings for your computer are not available yet:",
   sshMissingTailscale: "Tailscale is not installed in this Environment.",
   sshMissingTailscaleFailed: "Tailscale in this Environment did not answer.",
@@ -2550,7 +2551,7 @@ const cs: Record<MessageKey, string> = {
   sshPromptUnavailable:
     "Prompt se objeví, jakmile budou známá nastavení pro váš počítač (níže).",
   sshPromptText:
-    'Nastav SSH z tohoto počítače do mého Lazurio Environmentu „{alias}“.\n\n1. Otevři {url} ve svém panelu prohlížeče. Když se objeví přihlášení, počkej, až se přihlásím svým účtem Lazurio; moje heslo nikdy nezadávej sám.\n2. Na tomhle počítači použij klíč {keyPath} (ve Windows {windowsKeyPath}). Když ještě neexistuje, vytvoř ho: ssh-keygen -t ed25519 -N "" -C {alias} -f {keyPath} (ve Windows PowerShell 5.1 předej prázdné heslo jako -N \'""\'; ve Windows je ~ složka %USERPROFILE%)\n   Soukromý klíč nikdy nikomu neukazuj, nekopíruj ani neposílej; z počítače smí odejít jen soubor .pub.\n3. Na stránce v části „Přidat zařízení“ vyplň název tohoto počítače a celý obsah souboru {keyPath}.pub a stiskni „Přidat zařízení“.\n4. Z části „Nastavení pro váš počítač“ přidej blok „SSH config“ do ~/.ssh/config a řádek „known_hosts“ do ~/.ssh/known_hosts_lazurio (chybějící soubory vytvoř). Když ~/.ssh/config už má blok „Host {alias}“ nebo known_hosts_lazurio jiný klíč pro {alias}, nic neměň a řekni mi to.\n5. Ověř spojení: ssh {alias} true\n\nPravidla: profil Tailscale nikdy neměň, nepřepínej ani neodhlašuj. StrictHostKeyChecking nikdy nevypínej a nepřijímej jiný klíč hostu než ten ze stránky. Když síť ssh odmítne nebo vyprší, tohle zařízení zatím do Environmentu přes SSH nesmí: řekni mi, ať požádám Admina své Organizace, aby povolil SSH z tohoto zařízení do Environmentu „{alias}“. Nakonec mi řekni, co jsi udělal, a výsledek ověření.',
+    "Připoj tento počítač přes SSH k mému Lazurio Environmentu „{alias}“ a přidej jeho Lazurio Folder do Codexu jako projekt.\n\nAdresu, účet a klíč hostu najdeš na stránce Environmentu: {url}\n\n1. Použij klíč {keyPath} (ve Windows {windowsKeyPath}). Když ještě neexistuje, vytvoř klíč ed25519. Soukromý klíč z počítače nikdy neodchází, ven smí jen soubor .pub.\n2. Na stránce v části „Přidat zařízení“ zaregistruj jeho veřejný klíč.\n3. Doplň nastavení SSH a řádek known_hosts ze stránky pro {alias}. Ostatní připojení nech, jak jsou. Když stejný záznam už existuje, použij ho; když pro {alias} existuje jiný, nic neměň a řekni mi to.\n4. Ověř, že SSH funguje: ssh {alias} true\n5. Pak otevři odkaz do Codexu ze stránky: {desktopLink}. Když ho aplikace neotevře, přidej alias a cestu k Folderu ze stránky sám v Settings → Connections → SSH.\n\nProfil Tailscale nepřepínej. Zaregistrovaný klíč přístup do sítě nedává, ten povoluje správce sítě. Nakonec mi napiš, jak připojení dopadlo.",
   sshDevicesTitle: "Vaše zařízení",
   sshDevicesNone: "Zatím tu není přidané žádné zařízení.",
   sshAddedBy: "Přidáno {date}, účet {who}",
@@ -2614,6 +2615,7 @@ const cs: Record<MessageKey, string> = {
   sshRefusedName: "Pojmenujte zařízení písmeny nebo číslicemi.",
   sshRefusedAddedBy:
     "Přihlášený účet se nepodařilo zaznamenat. Načtěte stránku znovu a zkuste to ještě jednou.",
+  sshCodexLink: "Přidat Environment do Codexu",
   sshComputerTitle: "Nastavení pro váš počítač",
   sshComputerNote:
     "Váš agent je zapíše do vašeho počítače. Klíč hostu je vlastní klíč tohoto Environmentu, takže si počítač ověří, že opravdu mluví s ním.",
@@ -2624,7 +2626,7 @@ const cs: Record<MessageKey, string> = {
   sshCopy: "Kopírovat",
   sshCopied: "Zkopírováno.",
   sshNetworkNote:
-    "Když spojení selže nebo vyprší, síť zatím nepouští to zařízení do tohoto Environmentu přes SSH: požádejte Admina své Organizace, aby SSH z toho zařízení do tohoto Environmentu povolil.",
+    "Přidaný klíč zařízení sám přístup do sítě nedá. Když SSH selže, dejte agentovi přesnou chybovou hlášku. Pokud zařízení do sítě zatím nesmí, povolí mu to správce sítě.",
   sshComputerMissing: "Nastavení pro váš počítač zatím není k dispozici:",
   sshMissingTailscale: "V tomhle Environmentu není nainstalovaný Tailscale.",
   sshMissingTailscaleFailed: "Tailscale v tomhle Environmentu neodpověděl.",

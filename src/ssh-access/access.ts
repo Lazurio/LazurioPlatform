@@ -39,7 +39,13 @@ export async function computerOf(host: SshAccessHost): Promise<ComputerAnswer> {
     host.tailnet(),
     readHostKey(host.hostKeyPath),
   ]);
-  return computerSettings({ user: host.user, tailnet, hostKey });
+  return computerSettings({
+    user: host.user,
+    tailnet,
+    hostKey,
+    ...(host.machine === undefined ? {} : { machine: host.machine }),
+    ...(host.folder === undefined ? {} : { folder: host.folder }),
+  });
 }
 
 export async function sshAccessOverview(

@@ -8286,8 +8286,8 @@ browser would move a private key off the person's computer. Trust on first use w
 let the first answer through an unknown network choose the host key. Opening the
 network grant from the Launchpad would take the Admin's decision.
 
-**Known limits and open questions.** Two Organizations whose Environments share a node
-name give the same alias; the prompt's rule makes the agent stop instead of overwriting.
+**Known limits and open questions.** Legacy unbound Environments use the node label
+as their alias. The binding-based alias below separates hosted Environment identities.
 On a computer with several tailnet profiles Tailscale names the node in the active one.
 **Team Environments:** everyone admitted there acts as the Team's account, so any of them
 may add or remove any device key; the page shows who added each and that the devices are
@@ -8295,6 +8295,45 @@ the whole Team's, and enforces nothing more. Whether a Team Environment needs a 
 rule (per-person accounts, or approval of each device key) is an open question for the
 Operator. Consumer acceptance on a Remote Environment, with a real device, its network
 grant and `ssh <alias> true`, is still to be recorded.
+
+
+### F49 clarification — device-to-Codex handoff (2026-10-12)
+
+A review of two work Environments of the same Operator found independently generated
+laptop prompts using the same `Host` alias. Retargeting that alias could replace the
+first connection; a leftover `HostKeyAlias` could also select the first host's pin.
+The Platform now derives a work alias as `lazurio.org.<organization>.<machine>` and a
+personal alias as `lazurio.personal.<owner>.<machine>` from the validated Machine
+binding. Dot-separated identity components avoid the ambiguity of concatenating
+hyphenated names. Host, key path, HostKeyAlias and the known_hosts pin share that
+alias. An unbound installation retains the original node-label convention.
+
+`GET /api/ssh` also returns the actual canonical Folder path and a Codex link. The
+page owns these values; agents copy the recipe rather than infer identity, paths or
+URI parameters. The concise generated manual explains which device does which part,
+where the recipe lives, and the separate Admin-owned network grant. It delegates
+ordinary SSH setup and diagnosis to the laptop agent. The link carries `name` (the
+OpenSSH alias), `projectPath` (the canonical remote Folder) and `enabled=true`, with
+URLSearchParams encoding and no credentials. The page validates these fields before
+rendering the link. A client without this capability uses Settings → Connections → SSH.
+
+The change does not rewrite a laptop's existing aliases, revoke keys or move Codex
+history. A new binding-based alias may create a separate desktop connection from an
+old alias; the operator can retire the old connection after verifying the new one.
+The link registers a host and creates/reuses its project only once SSH works. It does
+not grant network admission or replace the laptop's private key. Desktop completion
+requires a real client acceptance check; source inspection is not that evidence.
+
+**Capability evidence.** OpenAI's [remote connections documentation](https://learn.chatgpt.com/docs/remote-connections)
+confirms concrete OpenSSH aliases, remote Codex availability and remote-folder selection.
+Read-only inspection of installed ChatGPT Desktop 26.1007.30912 (build 20156) on
+2026-10-12 confirms `codex://settings/connections/ssh/add`, its `name`, `projectPath`
+and `enabled` query parameters, SSH registration by alias, the absolute-path check and
+remote-project creation with `reuseExisting: true`. The `alias` query spelling is a
+synonym for `name`, not an independent display-name parameter; do not send both.
+There is no `projectName` parameter. This is implementation evidence for that build,
+not a published stable URI schema or a completed laptop acceptance test. Source
+inspection and rendered guidance do not prove successful registration on another device.
 
 ## F50 — The Environment browser's contract: one module, executable vectors and an attested artifact for the forks
 
