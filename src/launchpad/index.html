@@ -167,6 +167,25 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
 .crumbs h1:focus-visible, [data-page-heading]:focus-visible { outline: 2px solid var(--lz-accent); outline-offset: 2px; border-radius: 4px; }
 .topbar-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
 .nav-toggle { display: none; }
+/* The left column on a wide screen (Matěj's tuning of 2026-10-12, as T3
+   Code's sidebar; layout.ts): the toggle at the start of each page's head
+   hides and shows it, the rail staying; the one in the right panel's strip
+   stands in while the page steps aside for the panel. The column's right
+   edge drags it 208–480 px wide, as the panel's divider does. Below 768 px
+   the column is the sheet #nav-toggle opens, and none of this shows. */
+.column-toggle, .column-divider { display: none; }
+@media (min-width: 768px) {
+  button.ghost.column-toggle { display: inline-flex; flex: none; width: 30px; height: 30px; padding: 0; border-radius: var(--radius-control); }
+  button.ghost.column-toggle:hover { background: var(--hover); }
+  .column-toggle[aria-expanded="true"] .column-toggle-show, .column-toggle[aria-expanded="false"] .column-toggle-hide { display: none; }
+  .browser-strip button.ghost.column-toggle { display: none; }
+  .app[data-column="hidden"] .column { display: none; }
+  .column-divider { display: block; position: absolute; z-index: 1; top: 0; right: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; }
+  .column-divider::after { content: ""; position: absolute; top: 0; right: -1px; bottom: 0; width: 2px; background: transparent; transition: background-color 120ms; }
+  .column-divider:hover::after, .column-divider:focus-visible::after, .column-divider.is-dragging::after { background: var(--lz-blue-500); }
+  .column-divider:focus-visible { outline: none; }
+}
+@media (min-width: 1100px) { .app[data-browser="wide"] .browser-strip button.ghost.column-toggle { display: inline-flex; } }
 .container { display: flex; flex-direction: column; gap: 28px; width: 100%; max-width: 56rem; margin: 0 auto; padding: 24px 24px 64px; }
 .container.wide { max-width: 1152px; margin: 0; padding: 24px 32px 64px; }
 .backdrop { display: none; }
@@ -311,7 +330,7 @@ pre:empty { display: none; }
 .badge[data-outcome="failed"] { color: var(--destructive); }
 .badge[data-outcome="ok"] { color: var(--success-fg); }
 #recovery-status:empty { display: none; }
-html[data-mode="recovery"] lazurio-rail, html[data-mode="recovery"] .column, html[data-mode="recovery"] .nav-toggle, html[data-mode="recovery"] #crumb-parent, html[data-mode="recovery"] .browser-toggle, html[data-mode="recovery"] .browser-panel { display: none !important; }
+html[data-mode="recovery"] lazurio-rail, html[data-mode="recovery"] .column, html[data-mode="recovery"] .nav-toggle, html[data-mode="recovery"] .column-toggle, html[data-mode="recovery"] #crumb-parent, html[data-mode="recovery"] .browser-toggle, html[data-mode="recovery"] .browser-panel { display: none !important; }
 html[data-mode="recovery"] .app { margin-left: 0; border-left: 0; }
 
 /* Controls: black buttons, quiet outline, the design system's radius. */
@@ -467,6 +486,7 @@ a.files-name:hover { text-decoration: underline; }
    search and "Jak to funguje", the tabs, cards in a grid with the app's mark,
    a line, the action and the accounts; Vlastní as rows. */
 .integrations-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 24px; }
+.integrations-lead { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
 .integrations-titles { display: grid; gap: 4px; min-width: 0; }
 .integrations-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .integrations-search { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid var(--input); border-radius: var(--radius-control); background: var(--card); color: var(--muted-fg); }
@@ -724,7 +744,9 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
      exactly as the shell wireframe draws them (prototypes-lazurio 1acd615,
      Icon.tsx, at its stroke of 1.6), inlined. i-browser, which the wireframe
      does not draw, is Iconoir's app-window (iconoir-react 7.12.1 AppWindow),
-     and i-trash its trash (iconoir 7.12.1). -->
+     i-trash its trash (iconoir 7.12.1), and i-panel-close its
+     sidebar-collapse beside i-panel, its sidebar-expand (iconoir-react
+     7.12.1 SidebarCollapse and SidebarExpand). -->
 <svg hidden aria-hidden="true">
 <symbol id="i-general" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.6224 10.3954L18.5247 7.7448L20 6L18 4L16.2647 5.48295L13.5578 4.36974L12.9353 2H10.981L10.3491 4.40113L7.70441 5.51596L6 4L4 6L5.45337 7.78885L4.3725 10.4463L2 11V13L4.40111 13.6555L5.51575 16.2997L4 18L6 20L7.79116 18.5403L10.397 19.6123L11 22H13L13.6045 19.6132L16.2551 18.5155C16.6969 18.8313 18 20 18 20L20 18L18.5159 16.2494L19.6139 13.598L21.9999 12.9772L22 11L19.6224 10.3954Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-machine" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 18.01L6.01 17.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6.01L6.01 5.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 9.4V2.6C2 2.26863 2.26863 2 2.6 2H21.4C21.7314 2 22 2.26863 22 2.6V9.4C22 9.73137 21.7314 10 21.4 10H2.6C2.26863 10 2 9.73137 2 9.4Z" stroke="currentColor"/><path d="M2 21.4V14.6C2 14.2686 2.26863 14 2.6 14H21.4C21.7314 14 22 14.2686 22 14.6V21.4C22 21.7314 21.7314 22 21.4 22H2.6C2.26863 22 2 21.7314 2 21.4Z" stroke="currentColor"/></symbol>
@@ -732,6 +754,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.6224 10.3954L18.5247 7.7448L20 6L18 4L16.2647 5.48295L13.5578 4.36974L12.9353 2H10.981L10.3491 4.40113L7.70441 5.51596L6 4L4 6L5.45337 7.78885L4.3725 10.4463L2 11V13L4.40111 13.6555L5.51575 16.2997L4 18L6 20L7.79116 18.5403L10.397 19.6123L11 22H13L13.6045 19.6132L16.2551 18.5155C16.6969 18.8313 18 20 18 20L20 18L18.5159 16.2494L19.6139 13.598L21.9999 12.9772L22 11L19.6224 10.3954Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M15 6L9 12L15 18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-panel" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M19 21L5 21C3.89543 21 3 20.1046 3 19L3 5C3 3.89543 3.89543 3 5 3L19 3C20.1046 3 21 3.89543 21 5L21 19C21 20.1046 20.1046 21 19 21Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.5 21V3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 10L7.25 12L5.5 14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-panel-close" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M19 21L5 21C3.89543 21 3 20.1046 3 19L3 5C3 3.89543 3.89543 3 5 3L19 3C20.1046 3 21 3.89543 21 5L21 19C21 20.1046 20.1046 21 19 21Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.25 10L5.5 12L7.25 14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.5 21V3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-catalog" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M14 20.4V14.6C14 14.2686 14.2686 14 14.6 14H20.4C20.7314 14 21 14.2686 21 14.6V20.4C21 20.7314 20.7314 21 20.4 21H14.6C14.2686 21 14 20.7314 14 20.4Z" stroke="currentColor"/><path d="M3 20.4V14.6C3 14.2686 3.26863 14 3.6 14H9.4C9.73137 14 10 14.2686 10 14.6V20.4C10 20.7314 9.73137 21 9.4 21H3.6C3.26863 21 3 20.7314 3 20.4Z" stroke="currentColor"/><path d="M14 9.4V3.6C14 3.26863 14.2686 3 14.6 3H20.4C20.7314 3 21 3.26863 21 3.6V9.4C21 9.73137 20.7314 10 20.4 10H14.6C14.2686 10 14 9.73137 14 9.4Z" stroke="currentColor"/><path d="M3 9.4V3.6C3 3.26863 3.26863 3 3.6 3H9.4C9.73137 3 10 3.26863 10 3.6V9.4C10 9.73137 9.73137 10 9.4 10H3.6C3.26863 10 3 9.73137 3 9.4Z" stroke="currentColor"/></symbol>
 <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M21.8883 13.5C21.1645 18.3113 17.013 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C16.1006 2 19.6248 4.46819 21.1679 8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 8H21.4C21.7314 8 22 7.73137 22 7.4V3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M2 11V4.6C2 4.26863 2.26863 4 2.6 4H8.77805C8.92127 4 9.05977 4.05124 9.16852 4.14445L12.3315 6.85555C12.4402 6.94876 12.5787 7 12.722 7H21.4C21.7314 7 22 7.26863 22 7.6V11M2 11V19.4C2 19.7314 2.26863 20 2.6 20H21.4C21.7314 20 22 19.7314 22 19.4V11M2 11H22" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -818,6 +841,8 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <ul class="menu" data-view="catalog files integrations marketplace"><li><a class="menu-item" href="/marketplace" id="marketplace-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg><span class="menu-name" data-message="appsMarketplace">Marketplace</span><span class="menu-soon" data-message="appsSoon">coming soon</span></a></li></ul>
 <ul class="menu" data-view="settings"><li><a class="menu-item" href="/" id="settings-back" data-route><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg><span class="menu-name" data-message="settingsBack">Back</span></a></li></ul>
 </div>
+<!-- The column's right edge drags it wider or narrower (layout.ts). -->
+<div class="column-divider" id="column-divider" role="separator" aria-orientation="vertical" aria-controls="sidebar" tabindex="0"></div>
 </aside>
 <div class="backdrop" id="backdrop"></div>
 <button type="button" class="nav-toggle" id="nav-toggle" aria-controls="sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-panel"/></svg><span class="sr-only" data-message="navigationOpen">Open navigation</span></button>
@@ -825,6 +850,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <!-- Settings and Files: a 52 px header with the breadcrumb and the page
      actions (T3 Code). The Apps home has none: no top bar. -->
 <header class="topbar" data-view="settings files">
+<button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button>
 <nav class="crumbs" id="crumbs" aria-labelledby="crumbs-label">
 <span class="sr-only" id="crumbs-label" data-message="settingsBreadcrumb">Where you are in Settings</span>
 <ol><li id="crumb-parent" data-view="settings"><a href="/settings/general" id="crumb-settings" data-message="settingsTitle" data-route>Settings</a></li><li id="crumb-organization" hidden><a href="/" id="crumb-org" data-route></a></li><li aria-current="page"><h1 id="page-heading" tabindex="-1">Launchpad</h1></li></ol>
@@ -844,7 +870,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
      module's overview `/o/<org>/<module>` from a tile's menu; drawn by
      catalog-panel.ts. -->
 <main id="view-catalog" class="container wide" data-view="catalog">
-<header class="apps-head" id="catalog-head"><div class="apps-head-name" id="catalog-head-name"></div><a class="apps-guide" id="catalog-guide" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></header>
+<header class="apps-head" id="catalog-head"><button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button><div class="apps-head-name" id="catalog-head-name"></div><a class="apps-guide" id="catalog-guide" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></header>
 <p id="catalog-status" class="row-status" role="status" aria-live="polite">Reading Organizations…</p>
 <div id="catalog-body" class="stack"></div>
 </main>
@@ -852,7 +878,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <!-- The Marketplace (decision F36 addendum of 2026-10-04): where modules
      will be added to the Environment; for now it says it is coming. -->
 <main id="view-marketplace" class="container" data-view="marketplace">
-<header class="market-head"><span class="market-icon"><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg></span><div><h1 class="apps-title" data-page-heading tabindex="-1" data-message="appsMarketplace">Marketplace</h1><p class="module-meta" data-message="appsMarketplaceSoon">Coming soon</p></div><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></header>
+<header class="market-head"><button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button><span class="market-icon"><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg></span><div><h1 class="apps-title" data-page-heading tabindex="-1" data-message="appsMarketplace">Marketplace</h1><p class="module-meta" data-message="appsMarketplaceSoon">Coming soon</p></div><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></header>
 <p class="empty" id="marketplace-text"></p>
 </main>
 
@@ -860,7 +886,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
      Environment, `/integrations` with its tabs Vše · Připojené · Vlastní and
      an app's card `/integrations/app/<id>`; drawn by integrations-panel.ts. -->
 <main id="view-integrations" class="container wide" data-view="integrations">
-<header class="apps-head integrations-head"><div class="integrations-titles"><h1 class="apps-title" data-page-heading tabindex="-1" data-message="integrationsTitle">Integrations</h1><p class="module-meta" data-message="integrationsSubtitle">Every agent and bot of this Environment uses what you connect here.</p></div><div class="integrations-tools"><a class="apps-guide" id="integrations-help" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="integrationsHelp">How it works</span></a><label class="integrations-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only" data-message="integrationsSearch">Search apps</span><input type="search" id="integrations-search" autocomplete="off" spellcheck="false"></label><button type="button" class="ghost integrations-refresh" id="integrations-refresh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span class="sr-only" data-message="integrationsRefresh">Check connections</span></button><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></div></header>
+<header class="apps-head integrations-head"><div class="integrations-lead"><button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button><div class="integrations-titles"><h1 class="apps-title" data-page-heading tabindex="-1" data-message="integrationsTitle">Integrations</h1><p class="module-meta" data-message="integrationsSubtitle">Every agent and bot of this Environment uses what you connect here.</p></div></div><div class="integrations-tools"><a class="apps-guide" id="integrations-help" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="integrationsHelp">How it works</span></a><label class="integrations-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only" data-message="integrationsSearch">Search apps</span><input type="search" id="integrations-search" autocomplete="off" spellcheck="false"></label><button type="button" class="ghost integrations-refresh" id="integrations-refresh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span class="sr-only" data-message="integrationsRefresh">Check connections</span></button><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></div></header>
 <nav class="integrations-tabs" id="integrations-tabs" aria-labelledby="integrations-tabs-label"><span class="sr-only" id="integrations-tabs-label" data-message="integrationsTabsLabel">Show</span><a class="integrations-tab" href="/integrations" data-tab="all" data-route>All</a><a class="integrations-tab" href="/integrations/connected" data-tab="connected" data-route>Connected</a><a class="integrations-tab" href="/integrations/custom" data-tab="custom" data-route>Custom</a></nav>
 <p id="integrations-alert" class="callout integrations-alert" role="status" aria-live="polite" hidden></p>
 <p id="integrations-status" class="row-status" role="status" aria-live="polite"></p>
@@ -953,6 +979,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <h2 class="sr-only browser-title" id="browser-title" tabindex="-1" data-message="browserTitle">Environment browser</h2>
 <div class="browser-divider" id="browser-divider" role="separator" aria-orientation="vertical" aria-controls="browser-panel" tabindex="0"></div>
 <div class="browser-strip">
+<button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button>
 <div class="browser-tabs">
 <div class="browser-tablist" id="browser-tablist" role="tablist"></div>
 <button type="button" class="browser-action" id="browser-new"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
