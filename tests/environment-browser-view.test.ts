@@ -526,7 +526,7 @@ test("every request must name the view's host; sockets and changes must come fro
   );
 });
 
-test("the view serves a tab only at the address of the contract's strict form: its id in upper case, as Chrome writes it (decision F50 point 2)", () => {
+test("the view routes /t/<id>, its /live and its /files by the path alone: the id in either case, named in upper case (decision F50, C1)", () => {
   const ask = (method: string, path: string, upgrade = false) =>
     classifyRequest(
       {
@@ -540,25 +540,31 @@ test("the view serves a tab only at the address of the contract's strict form: i
       4848,
     );
   const tab = id(0xabcdef);
-  expect(ask("GET", `/t/${tab}`)).toEqual({ kind: "page" });
-  expect(ask("GET", `/t/${tab}/live`, true)).toEqual({
-    kind: "live",
-    targetId: tab,
-  });
-  expect(ask("POST", `/t/${tab}/files`)).toEqual({
-    kind: "files",
-    targetId: tab,
-  });
-  // A lower-case id named the same tab before; it names none now.
-  const lower = tab.toLowerCase();
-  expect(ask("GET", `/t/${lower}`)).toEqual({
-    kind: "refused",
-    status: 404,
-    error: "not-found",
-  });
-  expect(ask("GET", `/t/${lower}/live`, true).kind).toBe("refused");
-  expect(ask("POST", `/t/${lower}/files`).kind).toBe("refused");
-  expect(ask("GET", `/T/${tab}`).kind).toBe("refused");
+  for (const named of [tab, tab.toLowerCase()]) {
+    expect(ask("GET", `/t/${named}`)).toEqual({ kind: "page" });
+    expect(ask("GET", `/t/${named}/live`, true)).toEqual({
+      kind: "live",
+      targetId: tab,
+    });
+    expect(ask("POST", `/t/${named}/files`)).toEqual({
+      kind: "files",
+      targetId: tab,
+    });
+  }
+  // The query is not part of the path: the page is served all the same.
+  expect(ask("GET", `/t/${tab}?from=link`)).toEqual({ kind: "page" });
+  // Any other path names no tab.
+  for (const path of [
+    `/T/${tab}`,
+    `/t/${tab}/`,
+    `/t/${tab.slice(1)}`,
+    `/t/${"g".repeat(32)}`,
+  ])
+    expect(ask("GET", path)).toEqual({
+      kind: "refused",
+      status: 404,
+      error: "not-found",
+    });
 });
 
 test("only the Environment's own origins may frame the view", () => {

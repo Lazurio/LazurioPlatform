@@ -66,16 +66,17 @@ const minutesAgo = (count: number) =>
   new Date(now - count * 60_000).toISOString();
 
 describe("the address bar (the wireframe's resolveAddress)", () => {
-  test("a link to a tab of this Environment's view is that tab, typed with or without its scheme", () => {
+  test("a link to a tab of this Environment's view is that tab, its id in either case, typed with or without its scheme", () => {
     const tab: AddressTarget = {
       kind: "tab",
       tab: id(10),
       view: `${view}/t/${id(10)}`,
     };
-    // A lower-case id and a slash after it were this tab too before
-    // decision F50 point 2; the next test refuses them.
+    // A slash after the id was this tab too before decision F50 point 2; the
+    // next test refuses it.
     for (const typed of [
       `${view}/t/${id(10)}`,
+      `${view}/t/${id(10).toLowerCase()}`,
       `browser.vm-01.example.lazurio.io/t/${id(10)}`,
       `  ${view}/t/${id(10)}  `,
       `http://browser.vm-01.example.lazurio.io/t/${id(10)}`,
@@ -115,12 +116,11 @@ describe("the address bar (the wireframe's resolveAddress)", () => {
 
   test("on the view host of an Environment, only a view address opens, and never as a page: its bare origin as a new tab, any other address is refused (decision F50 point 2)", () => {
     for (const typed of [
-      `${view}/t/${id(10).toLowerCase()}`,
       `${view}/t/${id(10)}/`,
       `${view}/t/${id(10)}?x=1`,
       `${view}/t/${id(10)}#top`,
       `${view}/assets/view.js`,
-      `https://browser.vm-02.example.lazurio.io/t/${id(10).toLowerCase()}`,
+      `https://browser.vm-02.example.lazurio.io/t/${id(10)}/`,
       `https://browser.a.b.c.lazurio.io/t/${id(10)}`,
       `https://browser.-vm.example.lazurio.io/t/${id(10)}`,
       `https://browser.vm-01.example.lazurio.io:8443/t/${id(10)}`,
@@ -134,6 +134,18 @@ describe("the address bar (the wireframe's resolveAddress)", () => {
         kind: "page",
         url: "about:blank",
       });
+    // Another Environment's tab by a lower-case id is that Environment's,
+    // written as the contract writes it.
+    expect(
+      resolveAddress(
+        `https://browser.vm-02.example.lazurio.io/t/${id(10).toLowerCase()}`,
+        view,
+      ),
+    ).toEqual({
+      kind: "foreign",
+      href: `https://browser.vm-02.example.lazurio.io/t/${id(10)}`,
+      where: "vm-02.example",
+    });
     // A host named so elsewhere is a page like any other.
     expect(resolveAddress("https://browser.example.com/t/x", view)).toEqual({
       kind: "page",
@@ -848,7 +860,7 @@ describe("where things are, the tools' letters and what failed", () => {
     for (const address of [
       "https://elsewhere.example/",
       `${view}/elsewhere`,
-      `${view}/t/${id(10).toLowerCase()}`,
+      `${view}/t/${id(10)}/`,
       "https://browser.a.b.c.lazurio.io/",
     ])
       expect(viewOriginOf({ available: true, view: address }, page)).toBeNull();

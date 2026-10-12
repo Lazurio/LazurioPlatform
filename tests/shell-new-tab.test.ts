@@ -181,6 +181,15 @@ describe("the page's messages", () => {
       `https://example.com/t/${tab}`,
     ])
       expect(parseNewTabChoice({ kind: "tab", tab, view: address })).toBeNull();
+    // A view with its id in lower case is the tab's view, as the contract
+    // writes it.
+    expect(
+      parseNewTabChoice({
+        kind: "tab",
+        tab,
+        view: `${view}/t/${tab.toLowerCase()}`,
+      }),
+    ).toEqual({ kind: "tab", tab, view: `${view}/t/${tab}` });
     // Another Environment's view is a view address all the same.
     const other = `https://browser.vm-02.example.lazurio.io/t/${tab}`;
     expect(parseNewTabChoice({ kind: "tab", tab, view: other })).toEqual({

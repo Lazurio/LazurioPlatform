@@ -96,30 +96,30 @@ test("offered only where the recorded entry routes the view: never on a workstat
   ).toBeNull();
 });
 
-test("a view address is a tab only in the contract's strict form: no query, no slash after the id, the id in upper case (decision F50 point 2)", () => {
+test("a view address is a tab only in the contract's form: no query, no slash after the id; its id in either case (decision F50 point 2)", () => {
   for (const address of [
     `${origin}/t/${target}?x=1`,
     `${origin}/t/${target}?`,
     `${origin}/t/${target}/`,
-    `${origin}/t/${target.toLowerCase()}`,
     `${origin}/T/${target}`,
   ])
     expect(viewTabOf(address, origin)).toBeNull();
-  // So the view frame's messages about such an address are nothing.
-  for (const view of [
-    `${origin}/t/${target}?x=1`,
-    `${origin}/t/${target.toLowerCase()}`,
-  ])
-    expect(
-      viewMessage(
-        {
-          data: { type: "lazurio-browser:closed", view },
-          origin,
-          fromFrame: true,
-        },
+  // So the view frame's messages about such an address are nothing, and a
+  // message about a lower-case id names the tab in upper case.
+  const closed = (view: string) =>
+    viewMessage(
+      {
+        data: { type: "lazurio-browser:closed", view },
         origin,
-      ),
-    ).toBeNull();
+        fromFrame: true,
+      },
+      origin,
+    );
+  expect(closed(`${origin}/t/${target}?x=1`)).toBeNull();
+  expect(closed(`${origin}/t/${target.toLowerCase()}`)).toEqual({
+    kind: "closed",
+    tab: target,
+  });
   // The server's answer is a view: a tab's or the bare origin, never another
   // address on the view's origin.
   for (const view of [`${origin}/elsewhere`, `${origin}/t/${target}/`])
@@ -205,10 +205,10 @@ test("a tab's frame is its view on exactly the recorded origin; a view address n
   expect(tabViewAddress(origin, target, origin)).toBeNull();
 
   expect(viewTabOf(`${origin}/t/${target}`, origin)).toBe(target);
-  // A view address names its tab only in the contract's strict form (decision
-  // F50 point 2): a lower-case id or a query, which this reader took before,
-  // names none now.
-  expect(viewTabOf(`${origin}/t/${target.toLowerCase()}`, origin)).toBeNull();
+  // A view address names its tab in the contract's form (decision F50 point
+  // 2): its id in either case, as before, but no longer with a query, which
+  // this reader took before.
+  expect(viewTabOf(`${origin}/t/${target.toLowerCase()}`, origin)).toBe(target);
   expect(viewTabOf(`${origin}/t/${target}?from=link`, origin)).toBeNull();
   for (const address of [
     `${origin}/`,

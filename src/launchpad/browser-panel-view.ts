@@ -74,10 +74,10 @@ export function browserPanelOrigin(
 
 /** The view's address in an answer of `GET /.lazurio/browser.json`: only
  * `{available: true, view}` whose `view` is a view address of the contract
- * (`viewAddressOf`: a tab's or the bare origin, as written) on exactly
- * `origin`, the recorded `browserOrigin`. Never on the page's own origin:
- * the sandbox confines the frame only while it is another origin. Anything
- * else is null. */
+ * (`viewAddressOf`: a tab's or the bare origin) on exactly `origin`, the
+ * recorded `browserOrigin`, as the contract writes it. Never on the page's
+ * own origin: the sandbox confines the frame only while it is another
+ * origin. Anything else is null. */
 export function browserViewAddress(
   answer: unknown,
   origin: string,
@@ -109,8 +109,8 @@ export function tabViewAddress(
 }
 
 /** The remote tab a view address shows (`viewAddressOf`): `<origin>/t/<id>`
- * on exactly the view's origin, in the contract's strict form; null
- * otherwise. */
+ * on exactly the view's origin, in the contract's form, its id in upper
+ * case; null otherwise. */
 export function viewTabOf(view: unknown, origin: string): string | null {
   const address = viewAddressOf(view);
   return address !== null && address.origin === origin ? address.tab : null;

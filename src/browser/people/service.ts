@@ -1,6 +1,12 @@
 import type { Server, ServerWebSocket } from "bun";
 import type { EnvironmentIdentity } from "../../shell/view";
-import { isStrip, targetIdOf, viewPathTab } from "../contract/pure";
+import {
+  browserViewUrl,
+  isStrip,
+  targetIdOf,
+  viewPath,
+  viewPathTab,
+} from "../contract/pure";
 import { viewScript } from "./bundle" with { type: "macro" };
 import { browserSocketUrl, type CdpConnection, connectCdp } from "./cdp";
 import {
@@ -150,8 +156,9 @@ const json = (body: unknown, status = 200) =>
   });
 
 /** The tab a path of one remote tab's view names, `/t/<id>` followed by
- * `suffix`: the view's own path (`viewPathTab`), its id in upper case, as
- * the contract writes a view address (decision F50 point 2). */
+ * `suffix`: the view's own path (`viewPathTab`), its id in either case, given
+ * in upper case (decision F50, C1). A request is routed by its path alone;
+ * its query is not read here. */
 const tabOfPath = (path: string, suffix: "/live" | "/files"): string | null =>
   path.endsWith(suffix) ? viewPathTab(path.slice(0, -suffix.length)) : null;
 const tabsPath = /^\/\.lazurio\/tabs(?:\/([^/]+)\/(close|restore))?$/;
@@ -328,7 +335,7 @@ export function startViewService(options: ViewServiceOptions): ViewService {
           const id = await hub.createTab(size);
           return id === null
             ? json({ error: "browser-unreachable" }, 503)
-            : json({ id, view: `/t/${id}` }, 201);
+            : json({ id, view: viewPath(id) }, 201);
         }
         case "files": {
           const token = new URL(request.url).searchParams.get("token") ?? "";
@@ -373,7 +380,7 @@ export function startViewService(options: ViewServiceOptions): ViewService {
           const id = await hub.openTab(url, strip);
           return id === null
             ? json({ error: "browser-unreachable" }, 503)
-            : json({ id, view: `${options.origin}/t/${id}` }, 201);
+            : json({ id, view: browserViewUrl(options.origin, id) }, 201);
         }
         case "close": {
           // While the hub does not know the browser's targets it changes

@@ -45,7 +45,11 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { holderFileText } from "../src/browser/contract/pure";
+import {
+  holderFileText,
+  targetIdOf,
+  viewPath,
+} from "../src/browser/contract/pure";
 import type { TabFacts } from "../src/browser/people/hub";
 import type { LaunchpadBoot } from "../src/launchpad/boot";
 import { withBoot } from "../src/launchpad/boot-document";
@@ -267,13 +271,15 @@ const hub = Bun.serve({
           heapUsed: megabytes(41),
         }),
       );
-      return json({ id: tab, view: `/t/${tab}` }, 201);
+      return json({ id: tab, view: viewPath(tab) }, 201);
     }
-    const action = /^\/\.lazurio\/tabs\/([0-9A-F]{32})\/(close|restore)$/.exec(
+    // A tab by its id in either case, as the hub takes it (decision F50, C1).
+    const action = /^\/\.lazurio\/tabs\/([^/]+)\/(close|restore)$/.exec(
       url.pathname,
     );
-    if (action !== null && request.method === "POST") {
-      const [, tab = "", what] = action;
+    const tab = targetIdOf(action?.[1]);
+    if (action !== null && tab !== null && request.method === "POST") {
+      const what = action[2];
       const known = tabs.get(tab);
       if (known === undefined) return json({ error: "not-found" }, 404);
       if (what === "close") {
