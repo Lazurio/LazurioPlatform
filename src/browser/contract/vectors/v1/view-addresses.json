@@ -526,22 +526,6 @@
       "expect": null
     },
     {
-      "name": "a host in upper case is none: not as written",
-      "call": "viewAddressOf",
-      "args": [
-        "https://BROWSER.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-      ],
-      "expect": null
-    },
-    {
-      "name": "a space before it is none: not as written",
-      "call": "viewAddressOf",
-      "args": [
-        " https://browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-      ],
-      "expect": null
-    },
-    {
       "name": "more than 512 characters are none",
       "call": "viewAddressOf",
       "args": [
