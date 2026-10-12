@@ -21,7 +21,6 @@ import {
   hideAnswered,
   hideAsked,
   isNoBrowser,
-  launchpadStrip,
   type ModuleRow,
   memoryModel,
   moduleRows,
@@ -33,6 +32,7 @@ import {
   overviewEveryMs,
   overviewFailure,
   type PendingUndo,
+  pageStrip,
   parseOverview,
   resolveAddress,
   settleOverrides,
@@ -125,9 +125,9 @@ const standaloneTimer = framed
     }, standaloneAfterMs)
   : undefined;
 
-/** The strip a page opened here is for: the host's, else the Launchpad's. */
-const stripNow = (): string =>
-  mode === "hosted" && host !== null ? host.strip : launchpadStrip;
+/** The strip a page opened here is for: the host's, else none (0191 point
+ * 29). */
+const stripNow = (): string | null => pageStrip(mode, host?.strip ?? null);
 
 // Přehled's state.
 let overview: NewTabOverview | null = null;
@@ -628,14 +628,19 @@ async function post(path: string, body: unknown): Promise<NewTabAnswer> {
 }
 
 /** A new remote tab at `url`, only now (F47 point 3), for the host's strip
- * or, standalone, the Launchpad's, which holds it (F47 point 8). */
+ * or, standalone, for nobody: it ends 30 s after its last viewer leaves
+ * (root decision 0191 point 29). */
 async function openPage(url: string) {
   if (opening) return;
   opening = true;
   form.setAttribute("aria-busy", "true");
   try {
     await decided;
-    const answer = await post("/api/new-tab/open", { url, strip: stripNow() });
+    const strip = stripNow();
+    const answer = await post("/api/new-tab/open", {
+      url,
+      ...(strip === null ? {} : { strip }),
+    });
     const value =
       typeof answer.value === "object" && answer.value !== null
         ? (answer.value as Record<string, unknown>)

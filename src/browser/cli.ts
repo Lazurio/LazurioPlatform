@@ -1,5 +1,6 @@
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { openTab } from "../launchpad/new-tab/hub-client";
 import {
   LaunchpadStartRefused,
   readStartState,
@@ -16,12 +17,16 @@ import {
   exitUsage,
 } from "../update/errors";
 import { runProcess } from "../update/self-check";
+import { navigableAddress } from "./people/hub";
 import { browserCdpPort } from "./units";
 import { browserEntryOf, browserViewUrl } from "./view";
 import {
+  agentBrowserSocketDirectory,
   BrowserWindowFailure,
   cdpSeams,
+  type DaemonSeams,
   ensureThreadWindow,
+  stopSessionDaemon,
   threadSession,
   type WindowSeams,
 } from "./window";
@@ -38,9 +43,18 @@ export const browserHelp = `browser window [--session <name>] [--url <url>] [--f
   the people's view (https://browser.…/t/<id>), where the Operator works in
   the same tab, and the agent-browser command to work in it. --json prints
   {kind: "browser-window", session, targetId, created, link, command}.
-browser link [--session <name>] [--folder <absolute Folder>] [--json]
+browser link [--session <name> | --url <url>] [--folder <absolute Folder>] [--json]
   The link for the person: with a session, the Launchpad's hand-over to that
-  session's tab; without one, the people's view of a new tab.
+  session's tab; with --url, a new tab at that address that nobody holds,
+  which ends 30 s after its last viewer leaves (root decision 0191 point
+  29); without either, the people's view of a new tab. --json prints
+  {kind: "browser-link", session, link}, with targetId for --url.
+browser done [--session <name>] [--folder <absolute Folder>] [--json]
+  Lets go of the calling thread's window when its work there is done (root
+  decision 0191 point 28): its agent-browser daemon stops, and the tab ends
+  once nothing holds it and nobody views it. A person who has it open keeps
+  it. --json prints {kind: "browser-done", session, outcome}, outcome being
+  stopped, none (no daemon ran) or not-agent-browser (nothing was stopped).
   Exit status: 0 done, 10 this Environment has no Environment browser, 2
   usage, 1 failure.
 browser serve --port <loopback port> --origin <https://browser.…>
@@ -48,12 +62,16 @@ browser serve --port <loopback port> --origin <https://browser.…>
   until it is stopped. Not for agents.`;
 
 const synopsis =
-  "browser window|link [--session <name>] [--url <url>] [--folder <absolute Folder>] [--json]";
+  "browser window|link|done [--session <name>] [--url <url>] [--folder <absolute Folder>] [--json]";
 
 export type BrowserContext = CliContext &
   Readonly<{
     /** Tests only: the browser and agent-browser behind the window. */
     windowSeams?: WindowSeams | undefined;
+    /** Tests only: the process table behind `done`. */
+    daemonSeams?: DaemonSeams | undefined;
+    /** Tests only: the hub's loopback request behind `link --url`. */
+    openTab?: typeof openTab | undefined;
   }>;
 
 const text = {
@@ -74,6 +92,15 @@ const text = {
     use: "Work in your window with",
     reused: "Your window is open already.",
     created: "Your window is open.",
+    "hub-unreachable":
+      "The people's view of the Environment browser did not open the tab. Run lazurio doctor.",
+    "invalid-address": "The view does not open that address.",
+    stopped:
+      "Your window is let go: it ends once nothing holds it and nobody views it. Whoever has it open keeps it.",
+    "no-daemon":
+      "Your session has no running agent-browser: nothing to let go.",
+    "not-agent-browser":
+      "The session's .pid names a process that is not agent-browser: nothing was stopped.",
   },
   cs: {
     "not-declared":
@@ -92,6 +119,14 @@ const text = {
     use: "Ve svém okně pracuj příkazem",
     reused: "Tvoje okno už je otevřené.",
     created: "Tvoje okno je otevřené.",
+    "hub-unreachable":
+      "Pohled prohlížeče Environmentu záložku neotevřel. Spusť lazurio doctor.",
+    "invalid-address": "Tuhle adresu pohled neotevře.",
+    stopped:
+      "Okno je puštěné: skončí, až ho nic nedrží a nikdo se na něj nedívá. Kdo ho má otevřené, tomu zůstane.",
+    "no-daemon": "Tvoje sezení nemá spuštěný agent-browser: není co pustit.",
+    "not-agent-browser":
+      "Soubor .pid sezení patří procesu, který není agent-browser: nic se nezastavilo.",
   },
 } as const;
 
@@ -126,7 +161,7 @@ export async function runBrowserCommand(
     url?: string | undefined;
     folder?: string | undefined;
   };
-  let action: "window" | "link";
+  let action: "window" | "link" | "done";
   try {
     const parsed = parseArgs({
       args: [...args],
@@ -147,9 +182,14 @@ export async function runBrowserCommand(
     const [positional] = parsed.positionals;
     if (
       parsed.positionals.length !== 1 ||
-      (positional !== "window" && positional !== "link") ||
+      (positional !== "window" &&
+        positional !== "link" &&
+        positional !== "done") ||
       new Set(names).size !== names.length ||
-      (positional === "link" && values.url !== undefined) ||
+      (positional === "link" &&
+        values.url !== undefined &&
+        values.session !== undefined) ||
+      (positional === "done" && values.url !== undefined) ||
       (values.url !== undefined &&
         !/^(https?:\/\/|about:blank$)/.test(values.url)) ||
       (values.folder !== undefined &&
@@ -190,8 +230,39 @@ export async function runBrowserCommand(
       values.session === undefined && action === "link"
         ? null
         : threadSession(values.session, context.env);
-    if (named === null && (action === "window" || values.session !== undefined))
+    if (named === null && (action !== "link" || values.session !== undefined))
       return Object.freeze({ code: exitUsage, stderr: copy["no-session"] });
+    if (action === "link" && values.url !== undefined) {
+      // A page for the person that nobody holds (0191 point 29): the hub
+      // opens it on its loopback request, without a strip.
+      const address = navigableAddress(values.url);
+      if (address === null)
+        return Object.freeze({
+          code: exitUsage,
+          stderr: copy["invalid-address"],
+        });
+      const opened = await (context.openTab ?? openTab)(browser, address, null);
+      if (opened.kind !== "opened")
+        return Object.freeze({
+          code: exitFailure,
+          stderr:
+            opened.reason === "invalid-request"
+              ? copy["invalid-address"]
+              : copy["hub-unreachable"],
+        });
+      const link = browserViewUrl(browser.origin, opened.tab);
+      return Object.freeze({
+        code: exitOk,
+        stdout: json
+          ? JSON.stringify({
+              kind: "browser-link",
+              session: null,
+              targetId: opened.tab,
+              link,
+            })
+          : link,
+      });
+    }
     if (action === "link") {
       const link = browserLink(entry.externalOrigin, browser.origin, named);
       return Object.freeze({
@@ -199,6 +270,30 @@ export async function runBrowserCommand(
         stdout: json
           ? JSON.stringify({ kind: "browser-link", session: named, link })
           : link,
+      });
+    }
+    if (action === "done") {
+      const session = named as string;
+      const sockets = agentBrowserSocketDirectory(context.env);
+      const outcome =
+        sockets === undefined
+          ? ("none" as const)
+          : await stopSessionDaemon(sockets, session, context.daemonSeams);
+      return Object.freeze({
+        code: outcome === "not-agent-browser" ? exitFailure : exitOk,
+        ...(json
+          ? {
+              stdout: JSON.stringify({
+                kind: "browser-done",
+                session,
+                outcome,
+              }),
+            }
+          : outcome === "stopped"
+            ? { stdout: copy.stopped }
+            : outcome === "none"
+              ? { stdout: copy["no-daemon"] }
+              : { stderr: copy["not-agent-browser"] }),
       });
     }
     const session = named as string;

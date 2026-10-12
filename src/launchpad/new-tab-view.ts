@@ -253,6 +253,18 @@ export const standaloneAfterMs = 1_500;
 /** The strip of the Launchpad (F47 point 4). */
 export const launchpadStrip = "launchpad";
 
+/** The strip a page opened from the Nová karta page is for: its host's
+ * while an app hosts it. Standalone, as in Codex Desktop's browser, it is
+ * none: nobody holds the page, and it ends 30 s after its last viewer leaves
+ * (root decision 0191 point 29, which ends point 27's hold by the
+ * Launchpad). */
+export function pageStrip(
+  mode: "waiting" | "hosted" | "standalone",
+  hostStrip: string | null,
+): string | null {
+  return mode === "hosted" ? hostStrip : null;
+}
+
 // ---- The overview's answer ----------------------------------------------------
 
 /** Who opened a tab, as the overview names them (new-tab-routes.ts). */
