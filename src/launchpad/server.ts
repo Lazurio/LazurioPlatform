@@ -8,7 +8,7 @@ import {
   isBrowserSession,
   resolveBrowserView,
 } from "../browser/view";
-import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
+import { cdpSeams, ensureThreadWindow } from "../browser/window";
 import {
   type ContentHost,
   preparationAnswer,
@@ -98,7 +98,12 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 import { issueMausbotLink } from "./mausbot";
 import { messages } from "./messages";
 import { createMaintainerCheck } from "./module-maintainer";
-import { type LaunchpadHolder, launchpadHolderOf } from "./new-tab/holder";
+import {
+  type LaunchpadHolder,
+  launchpadHolderOf,
+  launchpadStrip,
+} from "./new-tab/holder";
+import { openTab } from "./new-tab/hub-client";
 import { runningModules } from "./new-tab/modules";
 import {
   createNewTabRoutes,
@@ -176,23 +181,22 @@ export type HostedOptions = Readonly<{
  * OAuth returns to localhost, so on a Remote Environment the person signs in
  * in the Environment browser, a new tab the panel shows; a workstation (no
  * entry) answers null and the person's own browser opens the address. An
- * entry whose gateway routes no browser view has none to offer. */
+ * entry whose gateway routes no browser view has none to offer. The tab is
+ * the hub's like every other (root decision 0191's addendum of 2026-10-12,
+ * F47 point 6): its own window, opened from Nová karta of the Launchpad's
+ * strip. */
 export function environmentBrowserOf(
   entry: MachineEntry | null,
   hold: (target: string) => Promise<void>,
-  cdp: CdpCall = (method, params) =>
-    cdpSeams(process.env, runProcess).cdp(method, params),
+  open: typeof openTab = openTab,
 ): IntegrationsSeams["environmentBrowser"] {
   if (entry === null) return null;
   const browser = browserEntryOf(entry);
   return async (url) => {
     if (browser === undefined) return null;
-    const created = (await cdp("Target.createTarget", { url })) as {
-      targetId?: unknown;
-    } | null;
-    const target = created?.targetId;
-    if (typeof target !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(target))
-      return null;
+    const opened = await open(browser, url, launchpadStrip);
+    if (opened.kind !== "opened") return null;
+    const target = opened.tab;
     // The panel shows the sign-in, and its strip shows the tabs the
     // Launchpad holds (F47 point 9's addendum of 2026-10-12): the Launchpad
     // holds it first, as one opened from its Nová karta. Unheld, it would
