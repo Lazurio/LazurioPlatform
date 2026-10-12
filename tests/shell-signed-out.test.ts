@@ -262,7 +262,7 @@ test("a host switching between signed out and signed in: a person's document dra
   ).toEqual(["personal", "example", "other-example"]);
   expect(
     columnHead(drawn, cs, { space: "example", active: null, settings: null })
-      ?.picker.title,
+      ?.picker.name,
   ).toBe("Example Works");
   // Signed out again: the logo and the key, nothing of the person, even
   // while the host has not yet taken their account away.

@@ -16,7 +16,9 @@ import { columnHead, shellApps } from "../src/shell/view";
 // `active="settings"`, the host's document attributes and the script's
 // exports, and removed nothing; the addendum of 2026-10-06 added the export
 // `parseShellSignedOut`; decision F47 (2026-10-11) added `<lazurio-new-tab>`
-// with its attributes and its event `lazurio-new-tab`, and removed nothing.
+// with its attributes and its event `lazurio-new-tab`, and removed nothing;
+// F39's addendum of 2026-10-12 added `<lazurio-environment>` with its
+// attributes `environment` and `lang`, and removed nothing.
 
 test("the promised interface v1 is exactly this", () => {
   expect(JSON.parse(JSON.stringify(shellElementInterface))).toEqual({
@@ -27,6 +29,7 @@ test("the promised interface v1 is exactly this", () => {
       "lazurio-column-head": ["active", "lang", "settings", "space"],
       "lazurio-buddy": [],
       "lazurio-new-tab": ["strip", "tools", "focus-address", "lang"],
+      "lazurio-environment": ["environment", "lang"],
     },
     active: ["chat", "apps", "automate", "settings"],
     events: ["lazurio-navigate", "lazurio-app", "lazurio-new-tab"],
@@ -62,8 +65,10 @@ test("the promised interface v1 is exactly this", () => {
 
 test("the elements keep every promised name", async () => {
   const source = await readFile("src/shell/elements.ts", "utf8");
-  // Nová karta's element is built in its own module (decision F47).
+  // Nová karta's element is built in its own module (decision F47), and so
+  // is the one that names an Environment (F39's addendum of 2026-10-12).
   const newTab = await readFile("src/shell/new-tab-element.ts", "utf8");
+  const environment = await readFile("src/shell/identity-element.ts", "utf8");
   const observed = (className: string, text = source) => {
     const at = text.indexOf(`class ${className} `);
     expect(at).toBeGreaterThanOrEqual(0);
@@ -78,7 +83,14 @@ test("the elements keep every promised name", async () => {
     expect(observed("LazurioColumnHead")).toContain(attribute);
   for (const attribute of shellElementInterface.elements["lazurio-new-tab"])
     expect(observed("LazurioNewTab", newTab)).toContain(attribute);
-  for (const name of ["lazurio-rail", "lazurio-column-head", "lazurio-new-tab"])
+  for (const attribute of shellElementInterface.elements["lazurio-environment"])
+    expect(observed("LazurioEnvironment", environment)).toContain(attribute);
+  for (const name of [
+    "lazurio-rail",
+    "lazurio-column-head",
+    "lazurio-new-tab",
+    "lazurio-environment",
+  ])
     expect(source).toMatch(
       new RegExp(`customElements\\.define\\(\\s*"${name}",`),
     );

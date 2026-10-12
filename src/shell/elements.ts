@@ -8,6 +8,12 @@ import {
 } from "./contract";
 import { installShellFonts } from "./fonts";
 import { icon } from "./icons";
+import {
+  drawIdentity,
+  environmentElement,
+  organizationMark,
+} from "./identity-element";
+import { createIdentityResponder } from "./identity-protocol";
 import { appOf, keptVisit, reportLast } from "./last";
 import { fillShell, type ShellCopy, shellMessages } from "./messages";
 import { newTabElement } from "./new-tab-element";
@@ -19,6 +25,8 @@ import { vendorText } from "./vendor-text" with { type: "macro" };
 import {
   type ColumnSetupLine,
   columnHead,
+  elementIdentity,
+  environmentIdentity,
   hereOf,
   initialsOf,
   railHome,
@@ -75,6 +83,13 @@ import {
 // `<lazurio-new-tab>` (decision F47, new-tab-element.ts) is Nová karta in an
 // app's right panel: it frames the Launchpad's `/new-tab` from the same
 // document's `apps` and reports what the tab became (`lazurio-new-tab`).
+//
+// `<lazurio-environment>` (F39's addendum of 2026-10-12, identity-element.ts)
+// names one Environment as the column head's picker does, from the same
+// merged state: an app names another Environment's view by it. The same
+// state answers a framed view of the Environment browser that asks how its
+// Environment is named (identity-protocol.ts), on every page that defines
+// the elements, so the view's bar says what the switcher says.
 
 const logo = vendorText("symbol-color.svg");
 
@@ -189,26 +204,6 @@ function logoDisc(): HTMLSpanElement {
   image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(logo)}`;
   disc.append(image);
   return disc;
-}
-
-/** An Organization's avatar, or its initials when there is none or it does
- * not load. */
-function organizationMark(
-  avatar: string | null,
-  initials: string,
-): HTMLSpanElement {
-  const mark = element("span", "org-mark");
-  const fallback = () => mark.replaceChildren(initials);
-  if (avatar === null) fallback();
-  else {
-    const image = element("img");
-    image.alt = "";
-    image.referrerPolicy = "no-referrer";
-    image.src = avatar;
-    image.addEventListener("error", fallback, { once: true });
-    mark.append(image);
-  }
-  return mark;
 }
 
 abstract class ShellElement extends HTMLElement {
@@ -857,31 +852,18 @@ export class LazurioColumnHead extends ShellElement {
     }
     // The last Environment used (S8, last.ts): Chat, Apps or Automate.
     state.report(appOf(this.getAttribute("active")), model.here);
-    const name = model.picker.title;
 
+    // What it names, drawn as everywhere an Environment is named (F39's
+    // addendum of 2026-10-12, identity-element.ts).
     const picker = element("button", "pick");
     picker.type = "button";
     picker.setAttribute("aria-haspopup", "dialog");
     picker.setAttribute("aria-expanded", "false");
-    picker.setAttribute("aria-label", fillShell(copy.pick, { name }));
-    const glyph = element("span", "pick-glyph");
-    const look = model.picker.glyph;
-    if (look.kind === "avatar")
-      glyph.append(
-        organizationMark(
-          look.organization.avatar,
-          initialsOf(look.organization.name),
-        ),
-      );
-    else if (look.kind === "initials")
-      glyph.append(element("span", "initials", look.text));
-    else glyph.append(icon(look.icon, 18));
-    const text = element("span", "pick-text");
-    text.append(
-      element("span", "pick-title", name),
-      element("span", "pick-who", model.picker.who),
+    picker.setAttribute(
+      "aria-label",
+      fillShell(copy.pick, { name: model.picker.name }),
     );
-    picker.append(glyph, text, icon("chevron-down", 14));
+    picker.append(...drawIdentity(model.picker), icon("chevron-down", 14));
     picker.addEventListener("click", () =>
       this.toggle(picker, shell, model.here),
     );
@@ -1017,7 +999,30 @@ function personsDocument(): Shell | null {
   return local !== null && local.schema === shellSchema ? local : null;
 }
 
-/** Defines the elements (once) and declares the brand fonts in the document. */
+// The answer to a framed view of the Environment browser that asks how its
+// Environment is named (F39's addendum of 2026-10-12): from the merged
+// state, in the document's language, again whenever the state changes.
+// Installed once per page, with the elements.
+let answering = false;
+function answerFramedViews(): void {
+  if (answering) return;
+  answering = true;
+  const responder = createIdentityResponder({
+    self: window,
+    identity: (environment) => {
+      const shell = state.drawn();
+      return shell === null
+        ? null
+        : environmentIdentity(shell, environment, shellMessages(shell.locale));
+    },
+    request: requestShell,
+  });
+  window.addEventListener("message", (event) => responder.receive(event));
+  state.listen(() => responder.changed());
+}
+
+/** Defines the elements (once), declares the brand fonts in the document
+ * and answers framed views of the Environment browser. */
 export function defineShellElements(): void {
   installShellFonts(document);
   if (!customElements.get("lazurio-rail"))
@@ -1033,4 +1038,19 @@ export function defineShellElements(): void {
         request: requestDocument,
       }),
     );
+  if (!customElements.get("lazurio-environment"))
+    customElements.define(
+      "lazurio-environment",
+      environmentElement({
+        identity: (environment, lang) => {
+          const shell = state.drawn();
+          return shell === null
+            ? null
+            : elementIdentity(shell, environment, lang);
+        },
+        listen: (changed) => state.listen(changed),
+        request: requestShell,
+      }),
+    );
+  answerFramedViews();
 }

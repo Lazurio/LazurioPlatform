@@ -15,6 +15,7 @@ import {
   columnHead,
   columnSetupLine,
   environmentGlyph,
+  environmentIdentity,
   environmentName,
   environmentSettingsHref,
   environmentWho,
@@ -364,8 +365,13 @@ test("the column head names the Organization on its Dashboard: its avatar, name,
   expect(czech).toEqual({
     here: "example",
     picker: {
-      glyph: { kind: "avatar", organization: example },
-      title: "Example Works",
+      glyph: {
+        kind: "avatar",
+        organization: "Example Works",
+        avatar: example.avatar,
+        initials: "EW",
+      },
+      name: "Example Works",
       who: "Dashboard Organizace",
     },
     gear: {
@@ -381,7 +387,7 @@ test("the column head names the Organization on its Dashboard: its avatar, name,
     active: "settings",
     settings: "/orgs/other-example/settings/people",
   });
-  expect(english?.picker.title).toBe("Other Example");
+  expect(english?.picker.name).toBe("Other Example");
   expect(english?.picker.who).toBe("Organization Dashboard");
   expect(english?.gear).toEqual({
     href: "/orgs/other-example/settings/people",
@@ -405,8 +411,9 @@ test("the column head names the Organization on its Dashboard: its avatar, name,
   );
   const glyph = plain?.picker.glyph;
   if (glyph?.kind !== "avatar") throw new Error("The Organization's mark");
-  expect(glyph.organization.avatar).toBeNull();
-  expect(initialsOf(glyph.organization.name)).toBe("EW");
+  expect(glyph.avatar).toBeNull();
+  expect(glyph.initials).toBe(initialsOf("Example Works"));
+  expect(glyph.initials).toBe("EW");
   // An empty attribute is none; a page on the host's origin stays a path.
   const host = parsed(
     hostDocument({
@@ -777,13 +784,22 @@ test("on an Environment's page the column head is the picker, the gear, the swit
             active === "chat" || active === "apps" || active === "automate"
               ? active
               : null;
-          expect(
-            columnHead(shell, copy, { space: null, active, settings }),
-          ).toEqual({
+          const head = columnHead(shell, copy, {
+            space: null,
+            active,
+            settings,
+          });
+          // The picker is the Environment's identity (F39's addendum of
+          // 2026-10-12): the glyph, name and who line it always drew.
+          expect(head?.picker).toEqual(
+            environmentIdentity(shell, environment.id, copy) ?? undefined,
+          );
+          expect(head).toEqual({
             here,
             picker: {
+              id: environment.id,
               glyph: environmentGlyph(shell, environment, here),
-              title: environmentName(environment, copy),
+              name: environmentName(environment, copy),
               who: environmentWho(environment, copy),
             },
             gear: {
