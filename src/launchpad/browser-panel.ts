@@ -2,7 +2,9 @@ import { newTabEventName } from "../shell/new-tab-protocol";
 import {
   browserFrame,
   browserHandOverPath,
+  closesPanel,
   emptyStrip,
+  entryKey,
   holdFailure,
   holdSucceeded,
   panelChoice,
@@ -52,12 +54,16 @@ export type PanelTransport = (
 // time) and the panel after the page in the `.app` row, so the page shrinks.
 // Its strip lists the tabs the Launchpad holds, from Nová karta's overview
 // read every 5 s while the panel is open (F47 point 9's addendum of
-// 2026-10-12); "+" shows Nová karta; under the strip is one tab's view or Nová
-// karta (`<lazurio-new-tab>`). × lets go of the Launchpad's hold, with
-// Vrátit; a tab is shown here only once the Launchpad holds it. Closed on
-// every page load; what it shows is browser-panel-view.ts. A closed panel
-// mounts no frame, so it streams and reads nothing. Below 1100 px it covers
-// the window like a sheet and what lies behind it is inert.
+// 2026-10-12), then its Nová karta entries; "+" adds one, and under the strip
+// is the shown entry: one tab's view or Nová karta (`<lazurio-new-tab>`).
+// Only the shown entry is mounted, so a Nová karta in the strip reads
+// nothing. × on a tab lets go of the Launchpad's hold, with Vrátit; × on a
+// Nová karta takes it away; the person's × on the last entry closes the
+// panel (Matěj's tuning of 2026-10-12). A tab is shown here only once the
+// Launchpad holds it. Closed on every page load; what it shows is
+// browser-panel-view.ts. A closed panel mounts no frame, so it streams and
+// reads nothing. Below 1100 px it covers the window like a sheet and what
+// lies behind it is inert.
 export function createBrowserPanel(
   options: Readonly<{
     copy: () => Copy;
@@ -97,11 +103,14 @@ export function createBrowserPanel(
 
   let open = false;
   let state: StripState = emptyStrip;
-  /** What the body shows: one tab's view, or Nová karta of a generation. */
+  /** What the body shows: one tab's view, or one Nová karta of the strip. */
   let surface:
     | Readonly<{ kind: "frame"; tab: string; node: HTMLIFrameElement }>
-    | Readonly<{ kind: "new"; generation: number; node: HTMLElement }>
+    | Readonly<{ kind: "new"; key: string; node: HTMLElement }>
     | null = null;
+  /** The tab whose × let go of the strip's last entry and so closed the
+   * panel: Vrátit opens the panel on it again while it stays closed. */
+  let closedOn: string | null = null;
   // Whether the sheet makes the rest of the page inert now: changed only
   // here, so the column's own sheet keeps its inert page.
   let covering = false;
@@ -169,11 +178,11 @@ export function createBrowserPanel(
   function drawStrip(force: boolean) {
     const entries = stripEntries(state);
     const shown = shownEntry(state);
-    const shownKey = shown.kind === "new" ? "new" : shown.id;
+    const shownKey = shown === null ? null : entryKey(shown);
     const signature = JSON.stringify([
       entries.map((entry) =>
         entry.kind === "new"
-          ? ["new", entry.closable]
+          ? ["new", entry.key]
           : [entry.id, entryTitle(entry), entry.favicon, entry.working],
       ),
       shownKey,
@@ -188,7 +197,7 @@ export function createBrowserPanel(
     const copy = words();
     tablist.replaceChildren(
       ...entries.map((entry) => {
-        const key = entry.kind === "new" ? "new" : entry.id;
+        const key = entryKey(entry);
         const active = key === shownKey;
         const title = entryTitle(entry);
         const tab = element("div", `browser-tab${active ? " is-active" : ""}`);
@@ -211,34 +220,37 @@ export function createBrowserPanel(
         main.addEventListener("click", () =>
           dispatch({ kind: "select", entry: key }),
         );
-        tab.append(main);
-        if (entry.kind === "tab" || entry.closable) {
-          const shut = element("button", "browser-tab-close");
-          shut.type = "button";
-          shut.dataset.focusKey = `close:${key}`;
-          if (entry.kind === "new") {
-            shut.setAttribute("aria-label", copy.closeNewTab);
-            shut.title = copy.closeNewTab;
-            shut.addEventListener("click", () =>
-              dispatch({ kind: "close-new-tab" }),
-            );
-          } else {
-            // The Launchpad lets go; the tab stays in the Environment and in
-            // Přehled while anything still needs it, so no warning.
-            shut.setAttribute("aria-label", fill(copy.closeTab, { title }));
-            shut.title = copy.closeInLaunchpad;
-            shut.addEventListener("click", () => void releaseTab(entry));
-          }
-          shut.append(svg("x"));
-          tab.append(shut);
+        // Every entry has its ×, a Nová karta too (Matěj 2026-10-12).
+        const shut = element("button", "browser-tab-close");
+        shut.type = "button";
+        shut.dataset.focusKey = `close:${key}`;
+        if (entry.kind === "new") {
+          shut.setAttribute("aria-label", copy.closeNewTab);
+          shut.title = copy.closeNewTab;
+          shut.addEventListener("click", () => closeNewTab(entry.key));
+        } else {
+          // The Launchpad lets go; the tab stays in the Environment and in
+          // Přehled while anything still needs it, so no warning.
+          shut.setAttribute("aria-label", fill(copy.closeTab, { title }));
+          shut.title = copy.closeInLaunchpad;
+          shut.addEventListener("click", () => void releaseTab(entry));
         }
+        shut.append(svg("x"));
+        tab.append(main, shut);
         return tab;
       }),
     );
-    if (focused !== null)
-      tablist
-        .querySelector<HTMLElement>(`[data-focus-key="${CSS.escape(focused)}"]`)
-        ?.focus({ preventScroll: true });
+    // The focus stays where it was; on an entry that went it moves to the
+    // entry shown now, so the keyboard stays in the strip.
+    if (focused?.startsWith("tab:") || focused?.startsWith("close:"))
+      (
+        tablist.querySelector<HTMLElement>(
+          `[data-focus-key="${CSS.escape(focused)}"]`,
+        ) ??
+        tablist.querySelector<HTMLElement>(
+          ".browser-tab.is-active .browser-tab-main",
+        )
+      )?.focus({ preventScroll: true });
     // The shown entry stays in view when the strip is full: chosen now, or
     // pushed aside by tabs an overview listed after it. Only the strip
     // scrolls, never the page around it.
@@ -259,16 +271,18 @@ export function createBrowserPanel(
   }
 
   /** The body for the shown entry: the tab's view in a frame on exactly the
-   * recorded origin, or Nová karta; nothing while the panel is closed. The
-   * sentence instead of a frame, or null. */
-  function drawSurface(shown: StripEntry): string | null {
+   * recorded origin, or that entry's own Nová karta; nothing while the
+   * panel is closed or the strip empty. Only the shown entry is mounted, so
+   * the strip's other Nová karta entries cost nothing. The sentence instead
+   * of a frame, or null. */
+  function drawSurface(shown: StripEntry | null): string | null {
     const origin = options.origin();
-    if (!open || origin === null) {
+    if (!open || origin === null || shown === null) {
       removeSurface();
       return null;
     }
     if (shown.kind === "new") {
-      if (surface?.kind === "new" && surface.generation === state.generation) {
+      if (surface?.kind === "new" && surface.key === shown.key) {
         surface.node.setAttribute("lang", options.locale());
         return null;
       }
@@ -279,7 +293,7 @@ export function createBrowserPanel(
       node.setAttribute("focus-address", "");
       node.setAttribute("lang", options.locale());
       body.append(node);
-      surface = { kind: "new", generation: state.generation, node };
+      surface = { kind: "new", key: shown.key, node };
       return null;
     }
     const address = tabViewAddress(origin, shown.id, location.origin);
@@ -356,7 +370,7 @@ export function createBrowserPanel(
     message.textContent = sentence ?? "";
     const origin = options.origin();
     const view =
-      shown.kind === "tab" && origin !== null
+      shown?.kind === "tab" && origin !== null
         ? tabViewAddress(origin, shown.id, location.origin)
         : null;
     // The tab's view in a new tab of this browser, where the gateway can
@@ -467,17 +481,30 @@ export function createBrowserPanel(
     );
   }
 
-  /** × in the strip lets go of the Launchpad's hold (F47 point 9's addendum
-   * of 2026-10-12): the tab goes from the strip at once and stays gone until
+  /** × on a Nová karta (Matěj 2026-10-12): that entry goes, with nothing
+   * to let go of and no Vrátit; on the strip's last entry the panel
+   * closes. */
+  function closeNewTab(key: string) {
+    dispatch({ kind: "close-new-tab", key });
+    if (closesPanel(state)) hide(true);
+  }
+
+  /** × on a tab lets go of the Launchpad's hold (F47 point 9's addendum of
+   * 2026-10-12): the tab goes from the strip at once and stays gone until
    * the release is done and a later overview says so, or comes back when it
-   * fails. The toast says what happens to the tab, as the overview told, and
-   * Vrátit holds it again while the hub's grace (8 s from the request, the
-   * earliest the grace can begin) lasts. */
+   * fails; on the strip's last entry the panel closes. The toast says what
+   * happens to the tab, as the overview told, and Vrátit holds it again
+   * while the hub's grace (8 s from the request, the earliest the grace can
+   * begin) lasts. */
   async function releaseTab(entry: Extract<StripEntry, { kind: "tab" }>) {
     const shown = shownEntry(state);
-    const wasShown = shown.kind === "tab" && shown.id === entry.id;
+    const wasShown = shown?.kind === "tab" && shown.id === entry.id;
     const text = releaseText(entry.tab, words());
     dispatch({ kind: "releasing", tab: entry.id });
+    if (closesPanel(state)) {
+      hide(true);
+      closedOn = entry.id;
+    }
     const sentAt = Date.now();
     const answer = await options.transport("POST", "/api/new-tab/release", {
       tab: entry.id,
@@ -497,19 +524,23 @@ export function createBrowserPanel(
   }
 
   /** Vrátit: the Launchpad holds the tab again, shown again where it was
-   * shown when released. */
+   * shown when released. When its × closed the panel and the panel stayed
+   * closed, Vrátit opens it on the tab: it undoes the × whole. */
   async function restore() {
     const released = pending;
     if (released === null) return;
     setPending(null);
     await holdThen(
       released.tab,
-      () =>
+      () => {
+        const reopen = !open && closedOn === released.tab;
         dispatch({
           kind: "held-again",
           tab: released.tab,
-          show: released.shown && open,
-        }),
+          show: released.shown && (open || reopen),
+        });
+        if (reopen) show();
+      },
       words().restoreFailed,
     );
   }
@@ -518,11 +549,14 @@ export function createBrowserPanel(
 
   // Nová karta's choice: a page it opened, which the Launchpad already holds
   // (its open), shows in the panel; a tab chosen in its Přehled shows once
-  // the Launchpad holds it too. The Launchpad has no tools.
+  // the Launchpad holds it too. The Nová karta it was made in goes from the
+  // strip: the one shown when the choice came, whatever is shown once the
+  // hold is done. The Launchpad has no tools.
   body.addEventListener(newTabEventName, (event) => {
     const choice = panelChoice((event as CustomEvent<unknown>).detail);
     if (choice === null) return;
-    const chosen = () => dispatch({ kind: "chosen", tab: choice.tab });
+    const from = surface?.kind === "new" ? surface.key : null;
+    const chosen = () => dispatch({ kind: "chosen", tab: choice.tab, from });
     if (choice.kind === "tab") void holdThen(choice.tab, chosen);
     else {
       chosen();
@@ -567,6 +601,7 @@ export function createBrowserPanel(
   function show() {
     if (open || options.origin() === null) return;
     open = true;
+    closedOn = null;
     dispatch({ kind: "opened" });
     void poll();
     heading.focus({ preventScroll: true });
@@ -585,6 +620,7 @@ export function createBrowserPanel(
       return false;
     const opening = !open;
     open = true;
+    closedOn = null;
     dispatch({ kind: "show", tab });
     void poll();
     if (opening) {
@@ -612,6 +648,8 @@ export function createBrowserPanel(
   for (const toggle of toggles)
     toggle.addEventListener("click", () => (open ? hide(false) : show()));
   close.addEventListener("click", () => hide(true));
+  // "+" always adds a Nová karta and shows it, as Chrome does; the one shown
+  // before stays in the strip as it was (Matěj 2026-10-12).
   newButton.addEventListener("click", () => dispatch({ kind: "new-tab" }));
   reload.addEventListener("click", () => {
     // The shown view or Nová karta loads again, and the strip is read.

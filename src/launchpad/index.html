@@ -571,15 +571,17 @@ button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); co
 .market-head .browser-toggle { margin-left: auto; }
 .browser-panel { position: sticky; top: 0; z-index: 3; display: flex; flex: none; flex-direction: column; width: clamp(360px, calc((100vw - var(--lazurio-rail-width, 64px) - var(--column-width)) / 2), 960px); height: 100vh; background: var(--card); border-left: 1px solid var(--lz-line-faint); }
 .browser-title:focus { outline: none; }
-/* The strip (decision F47 point 9, the wireframe's BrowserPanel): every tab
-   of the Environment, then "+" for Nová karta, and the panel's own actions.
-   Tabs narrow to 92 px first, then the list scrolls sideways and the shown
-   tab stays in view. */
+/* The strip (decision F47 point 9, the wireframe's BrowserPanel): the tabs
+   the Launchpad holds and its Nová karta entries, then "+", and the panel's
+   own actions. Every entry is the same full tab with its × (Matěj
+   2026-10-12): its own width, not its title's, decides its size, as in
+   Chrome. Tabs narrow to 92 px first, then the list scrolls sideways and the
+   shown tab stays in view. */
 .browser-strip { display: flex; flex: none; align-items: center; gap: 8px; height: 46px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--lz-line-faint); background: var(--lz-paper); }
 .browser-tabs { display: flex; flex: 1; align-items: center; gap: 4px; min-width: 0; }
 .browser-tablist { display: flex; flex: 0 1 auto; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .browser-tablist::-webkit-scrollbar { display: none; }
-.browser-tab { display: flex; flex: 1 1 220px; align-items: center; height: 32px; min-width: 92px; max-width: 220px; border: 1px solid transparent; border-radius: var(--lz-radius-sm); color: var(--lz-ink-muted); }
+.browser-tab { display: flex; flex: 0 1 auto; align-items: center; width: 220px; height: 32px; min-width: 92px; border: 1px solid transparent; border-radius: var(--lz-radius-sm); color: var(--lz-ink-muted); }
 .browser-tab:hover { background: var(--lz-gray-50); }
 .browser-tab.is-active { border-color: var(--lz-line); background: var(--lz-white); color: var(--lz-ink); }
 button.browser-tab-main { flex: 1; justify-content: flex-start; gap: 8px; height: 100%; min-width: 0; padding: 0 2px 0 10px; border: 0; border-radius: var(--lz-radius-sm); background: transparent; color: inherit; font-weight: 400; text-align: left; }
@@ -910,12 +912,12 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 </main>
 </div>
 <!-- The right panel (decision F38's addendum of 2026-10-05, decision F47
-     point 9): the strip of every tab of the Environment browser and "+" for
-     Nová karta, then one tab's view (the same view every app of the
-     Environment embeds, never a viewer of our own) or Nová karta itself
-     (<lazurio-new-tab>); drawn by browser-panel.ts. Its link leads to the
-     tab's view, or to the hand-over, which passes the gateway's sign-in a
-     frame cannot show. -->
+     point 9): the strip of the tabs the Launchpad holds and its Nová karta
+     entries, "+" for another Nová karta, then the shown entry: one tab's view
+     (the same view every app of the Environment embeds, never a viewer of
+     our own) or Nová karta itself (<lazurio-new-tab>); drawn by
+     browser-panel.ts. Its link leads to the tab's view, or to the hand-over,
+     which passes the gateway's sign-in a frame cannot show. -->
 <aside class="browser-panel" id="browser-panel" aria-labelledby="browser-title" hidden>
 <h2 class="sr-only browser-title" id="browser-title" tabindex="-1" data-message="browserTitle">Environment browser</h2>
 <div class="browser-strip">
