@@ -249,7 +249,7 @@ test("the guide page names the Environment and its Organization in the tab's tit
   expect(
     renderOfflineGuide({ ...input, locale: "cs", environment: "Pracovní" }),
   ).toContain(
-    "<title>Zapni Tailscale · Pracovní Environment v Organizaci Example</title>",
+    "<title>Zapněte Tailscale · Pracovní Environment v Organizaci Example</title>",
   );
   expect(
     renderOfflineGuide({ ...input, locale: "en", environment: "Work" }),
@@ -261,7 +261,7 @@ test("the guide page names the Environment and its Organization in the tab's tit
       locale: "cs",
       environment: "Osobní",
     }),
-  ).toContain("<title>Zapni Tailscale · Osobní Environment</title>");
+  ).toContain("<title>Zapněte Tailscale · Osobní Environment</title>");
 });
 
 test("the guide page says one thing to do, with the tailnet, and one small line for when it fails", () => {
@@ -276,17 +276,17 @@ test("the guide page says one thing to do, with the tailnet, and one small line 
   // The command of a computer and of a phone; the script shows the one of
   // the person's system.
   expect(page).toContain(
-    '<span data-show="macos windows">Zapni Tailscale a vyber síť</span>',
+    '<span data-show="macos windows">Zapněte Tailscale a vyberte síť</span>',
   );
   expect(page).toContain(
-    '<span data-show="ios android" hidden>Otevři Tailscale a vyber síť</span>',
+    '<span data-show="ios android" hidden>Otevřete Tailscale a vyberte síť</span>',
   );
   expect(page).toContain(
     '<code class="net">headscale.example.lazurio.io</code>',
   );
   // Windows alone: the icon is right-clicked and may hide by the clock.
   expect(page).toContain(
-    '<span data-show="windows" hidden>Na ikonu Tailscale klikni pravým tlačítkem.',
+    '<span data-show="windows" hidden>Na ikonu Tailscale klikněte pravým tlačítkem.',
   );
   expect(page).toContain("Nepovedlo se? Pomůže");
   // The system is detected and the page retries by itself: no switch between
@@ -320,7 +320,7 @@ test("the guide page leads back to the Dashboard without the tailnet: the rail's
     `<nav class="rail" aria-label="Lazurio"><a class="home" ${href}`,
   );
   expect(page).toContain(`<a class="back" ${href}>Dashboardu</a>`);
-  expect(page).toContain("nebo se vrať do");
+  expect(page).toContain("nebo se vraťte do");
   expect(
     renderOfflineGuide({
       ...input,
@@ -341,6 +341,6 @@ test("the guide page leads back to the Dashboard without the tailnet: the rail's
       '<nav class="rail" aria-label="Lazurio"><span class="home">',
     );
     expect(without).not.toContain('class="back"');
-    expect(without).not.toContain("nebo se vrať do");
+    expect(without).not.toContain("nebo se vraťte do");
   }
 });

@@ -63,22 +63,22 @@ type Copy = {
 
 const copy: Record<"cs" | "en", Copy> = {
   cs: {
-    title: "Zapni Tailscale",
+    title: "Zapněte Tailscale",
     place: (environment, organization) =>
       organization
         ? `${environment} Environment v Organizaci ${organization}`
         : `${environment} Environment`,
-    desktop: "Zapni Tailscale a vyber síť",
-    phone: "Otevři Tailscale a vyber síť",
+    desktop: "Zapněte Tailscale a vyberte síť",
+    phone: "Otevřete Tailscale a vyberte síť",
     windows:
-      "Na ikonu Tailscale klikni pravým tlačítkem. Nevidíš ji? Je schovaná pod šipkou ^ vedle hodin. ",
+      "Na ikonu Tailscale klikněte pravým tlačítkem. Nevidíte ji? Je schovaná pod šipkou ^ vedle hodin. ",
     failed: "Nepovedlo se? Pomůže",
     docs: "podrobný návod",
-    or: ", nebo se vrať do",
+    or: ", nebo se vraťte do",
     dashboard: "Dashboardu",
     home: "Dashboard",
-    you: "Ty",
-    account: "Tvůj účet",
+    you: "Vy",
+    account: "Váš účet",
     otherTailnet: "jiná síť",
   },
   en: {
