@@ -1279,6 +1279,29 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
+// What letting go sends today (#348): agent-browser's internal shutdown, one
+// line on the session's own socket. The contract's vectors pin only the
+// outcomes, since decision F50 point 2 moves this to a documented command of
+// the agent-browser fork; this test keeps today's line.
+test("letting go sends agent-browser's internal shutdown, one exact line, on the session's own socket", async () => {
+  const sent: (readonly [string, string])[] = [];
+  const directory = join(tmpdir(), "agent-browser");
+  expect(
+    await stopSessionDaemon(directory, "codex-1", {
+      ask: async (socketPath, line) => {
+        sent.push([socketPath, line]);
+        return { kind: "absent" };
+      },
+    }),
+  ).toBe("none");
+  expect(sent).toEqual([
+    [
+      join(directory, "codex-1.sock"),
+      '{"id":"lazurio-browser-done","action":"__agent_browser_internal_shutdown"}\n',
+    ],
+  ]);
+});
+
 // Pablo's review of Lazurio/t3code#56, which has the same code: a socket or a
 // .pid that cannot be reached proves nothing, so it is never "none" or
 // "stopped".

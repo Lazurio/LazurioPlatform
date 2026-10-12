@@ -31,7 +31,7 @@
       }
     },
     {
-      "name": "members it does not know are left out",
+      "name": "a time with members it does not know",
       "call": "parseBootTime",
       "args": [
         {

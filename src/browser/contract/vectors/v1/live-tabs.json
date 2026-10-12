@@ -20,7 +20,19 @@
           "at": 100
         }
       ],
-      "expect": "{\"schema\":\"lazurio.browser-tabs.v1\",\"tabs\":[\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\"],\"takenAt\":{\"boot\":\"6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f\",\"at\":100}}\n"
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-tabs.v1",
+          "tabs": [
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+          ],
+          "takenAt": {
+            "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+            "at": 100
+          }
+        }
+      }
     },
     {
       "name": "a list reads back",
@@ -577,7 +589,17 @@
           "mode": "700"
         },
         "lazurio-browser/tabs.json": {
-          "text": "{\"schema\":\"lazurio.browser-tabs.v1\",\"tabs\":[\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\"],\"takenAt\":{\"boot\":\"6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f\",\"at\":100}}\n",
+          "json": {
+            "schema": "lazurio.browser-tabs.v1",
+            "tabs": [
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+            ],
+            "takenAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 100
+            }
+          },
           "mode": "600"
         }
       },

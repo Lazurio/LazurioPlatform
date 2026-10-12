@@ -458,8 +458,10 @@ export type DaemonSeams = Readonly<{
  * in agent-browser `cli/src/connection.rs`): the daemon runs its close,
  * which only disconnects from a browser it did not launch, answers and
  * exits, removing its `.pid`. An internal action of the agent-browser
- * release Machines pin; the fork's contract check covers it. */
-export const agentBrowserShutdownAction = "__agent_browser_internal_shutdown";
+ * release Machines pin, and no part of the contract: F50 point 2 moves
+ * letting go to a documented command of the agent-browser fork, so only
+ * `stopSessionDaemon`'s outcomes are the contract's. */
+const agentBrowserShutdownAction = "__agent_browser_internal_shutdown";
 
 const daemonAnswerMs = 5_000;
 const maxDaemonReplyBytes = 64 * 1024;

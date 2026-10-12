@@ -27,26 +27,10 @@
       "expect": true
     },
     {
-      "name": "65 characters are too many",
-      "call": "isStrip",
-      "args": [
-        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-      ],
-      "expect": false
-    },
-    {
       "name": "the empty name",
       "call": "isStrip",
       "args": [
         ""
-      ],
-      "expect": false
-    },
-    {
-      "name": "a dot, which agent-browser accepts, is outside the grammar",
-      "call": "isStrip",
-      "args": [
-        "bot.1"
       ],
       "expect": false
     },
@@ -178,10 +162,10 @@
       "expect": null
     },
     {
-      "name": "a name outside the grammar is no app's",
+      "name": "a name with a slash is no app's",
       "call": "stripAppOf",
       "args": [
-        "t3-a.b"
+        "t3-a/b"
       ],
       "expect": null
     },

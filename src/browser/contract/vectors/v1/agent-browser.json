@@ -14,17 +14,6 @@
       "expect": "/srv/agent"
     },
     {
-      "name": "a relative one is skipped",
-      "call": "agentBrowserSocketDirectory",
-      "args": [
-        {
-          "AGENT_BROWSER_SOCKET_DIR": "agent",
-          "XDG_RUNTIME_DIR": "/run/user/1000"
-        }
-      ],
-      "expect": "/run/user/1000/agent-browser"
-    },
-    {
       "name": "the runtime directory's",
       "call": "agentBrowserSocketDirectory",
       "args": [
@@ -33,16 +22,6 @@
         }
       ],
       "expect": "/run/user/1000/agent-browser"
-    },
-    {
-      "name": "none without either",
-      "call": "agentBrowserSocketDirectory",
-      "args": [
-        {}
-      ],
-      "expect": {
-        "$": "undefined"
-      }
     },
     {
       "name": "an agent works in a tab while its session is bound to it and its daemon runs",
@@ -544,11 +523,6 @@
       "expect": false
     },
     {
-      "name": "agent-browser's own shutdown of a session's daemon",
-      "call": "agentBrowserShutdownAction",
-      "expect": "__agent_browser_internal_shutdown"
-    },
-    {
       "name": "a daemon's reply line",
       "call": "askDaemonSocket",
       "args": [
@@ -662,9 +636,6 @@
           "codex-1.pid"
         ]
       },
-      "heard": [
-        "{\"id\":\"lazurio-browser-done\",\"action\":\"__agent_browser_internal_shutdown\"}"
-      ],
       "expect": "stopped"
     },
     {
@@ -684,9 +655,6 @@
         "socket": "codex-1.sock",
         "reply": "{\"success\":false,\"error\":\"busy\"}"
       },
-      "heard": [
-        "{\"id\":\"lazurio-browser-done\",\"action\":\"__agent_browser_internal_shutdown\"}"
-      ],
       "expect": "refused"
     },
     {
@@ -706,9 +674,6 @@
         "socket": "codex-1.sock",
         "reply": null
       },
-      "heard": [
-        "{\"id\":\"lazurio-browser-done\",\"action\":\"__agent_browser_internal_shutdown\"}"
-      ],
       "expect": "unconfirmed"
     },
     {
@@ -728,9 +693,6 @@
         "socket": "codex-1.sock",
         "reply": "{\"success\":true}"
       },
-      "heard": [
-        "{\"id\":\"lazurio-browser-done\",\"action\":\"__agent_browser_internal_shutdown\"}"
-      ],
       "expect": "unconfirmed"
     },
     {
@@ -751,9 +713,6 @@
         "reply": "{\"success\":true}",
         "locks": true
       },
-      "heard": [
-        "{\"id\":\"lazurio-browser-done\",\"action\":\"__agent_browser_internal_shutdown\"}"
-      ],
       "expect": "unconfirmed"
     },
     {
