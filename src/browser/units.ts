@@ -17,6 +17,7 @@ import {
   browserExtensionDigest,
   writeBrowserExtension,
 } from "./people/extension";
+import { unreadableHolderFiles } from "./people/holds";
 
 /** The Environment browser of a Remote Environment (root decision 0191,
  * decisions F38 and F39): one virtual screen, one Chromium with one
@@ -515,12 +516,14 @@ export const environmentBrowserReasons = [
   "browser-unit-inactive",
   "browser-not-answering",
   "browser-view-not-answering",
+  "browser-holder-unreadable",
 ] as const;
 
 const probeTimeoutMs = 3_000;
 
-/** Read-only: `systemctl --user show` of the three units, then whether the
- * browser's DevTools and the view answer on loopback. Skipped where the
+/** Read-only: `systemctl --user show` of the three units, whether the
+ * browser's DevTools and the view answer on loopback, then whether every
+ * holder file can be read (root decision 0191 point 32). Skipped where the
  * browser cannot be: no user manager, an unsupervised installation, not a
  * hosted Machine, a handover without `entry.browser`. Never starts,
  * restarts or asks agent-browser anything (its own `doctor` cleans files). */
@@ -597,5 +600,10 @@ export async function observeEnvironmentBrowser(
     ))
   )
     return warn("browser-view-not-answering");
+  // Root decision 0191 point 32: the tabs such a file held do not end until
+  // it can be read again; the other tabs end as before.
+  const unreadable = await unreadableHolderFiles(input.env);
+  if (unreadable.length > 0)
+    return warn("browser-holder-unreadable", { files: unreadable.join(", ") });
   return Object.freeze({ outcome: "ok" as const });
 }

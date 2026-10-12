@@ -507,6 +507,38 @@ test("doctor: skipped where the browser cannot be, a warning naming the unit or 
   expect(await observeEnvironmentBrowser(base)).toEqual({ outcome: "ok" });
 });
 
+// Root decision 0191 point 32: doctor names a holder file that cannot be read,
+// whose tabs do not end until it can.
+test("doctor: a warning names the holder files that cannot be read", async () => {
+  const runtime = await mkdtemp(join(tmpdir(), "browser-doctor-"));
+  try {
+    const holders = join(runtime, "lazurio-browser", "holders");
+    await mkdir(holders, { recursive: true });
+    const base = {
+      platform: "linux",
+      env: { XDG_RUNTIME_DIR: runtime },
+      supervised: true,
+      hosted: async () => true,
+      entry,
+      run: managerAnswering({}),
+      fetch: answering(),
+    } as const;
+    await writeFile(
+      join(holders, "launchpad.json"),
+      JSON.stringify({ strip: "launchpad", tabs: [] }),
+    );
+    expect(await observeEnvironmentBrowser(base)).toEqual({ outcome: "ok" });
+    await writeFile(join(holders, "t3-a.json"), "{");
+    expect(await observeEnvironmentBrowser(base)).toEqual({
+      outcome: "warn",
+      reason: "browser-holder-unreadable",
+      context: { files: "t3-a.json" },
+    });
+  } finally {
+    await rm(runtime, { recursive: true, force: true });
+  }
+});
+
 // ---- The view ----------------------------------------------------------------
 
 // A thread asks for its own tab before its agent opened one (the Browser

@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   holderDirectory,
+  holdsReader,
   isStrip,
   keptTabs,
   liveTabsPath,
@@ -22,6 +23,7 @@ import {
   processAlive,
   readBootClock,
   readHolds,
+  unreadableHolderFiles,
   watchHolds,
   writeLiveTabs,
 } from "../src/browser/people/holds";
@@ -133,7 +135,11 @@ test("the holds join every holder file and the sessions whose daemon runs", asyn
   await write(sockets, "odd-3.pid", "not a pid");
   await write(sockets, "codex-1.sock", "");
   await write(sockets, "short.target", { targetId: "abc" });
-  const holds = await readHolds({ holders, sockets }, (pid) => pid === 4242);
+  const { holds, unreadable } = await readHolds(
+    { holders, sockets },
+    (pid) => pid === 4242,
+  );
+  expect(unreadable).toEqual([]);
   expect(Object.fromEntries(holds.holders)).toEqual({
     [id(1)]: [{ strip: "t3-a", label: "A" }],
     [id(2)]: [
@@ -152,44 +158,177 @@ test("the holds join every holder file and the sessions whose daemon runs", asyn
   });
 });
 
-test("a read that fails is thrown, never read as holding nothing", async () => {
+test("a holder directory that cannot be listed is thrown, never read as holding nothing", async () => {
   root = await mkdtemp(join(tmpdir(), "holds-fail-"));
   const holders = join(root, "holders");
-  const sockets = join(root, "agent-browser");
   await mkdir(holders);
-  await mkdir(sockets);
   await writeFile(
     join(holders, "t3-a.json"),
     JSON.stringify({ strip: "t3-a", label: "A", tabs: [id(1)] }),
   );
-  expect((await readHolds({ holders, sockets })).holders.size).toBe(1);
-  // A directory that cannot be read.
+  expect((await readHolds({ holders })).holds.holders.size).toBe(1);
   await chmod(holders, 0o000);
   try {
-    await expect(readHolds({ holders, sockets })).rejects.toThrow();
+    await expect(readHolds({ holders })).rejects.toThrow();
   } finally {
     await chmod(holders, 0o700);
   }
-  // A holder file that cannot be read.
-  await chmod(join(holders, "t3-a.json"), 0o000);
-  try {
-    await expect(readHolds({ holders, sockets })).rejects.toThrow();
-  } finally {
-    await chmod(join(holders, "t3-a.json"), 0o600);
-  }
-  // A holder file that is not one.
+});
+
+// Root decision 0191 point 32 (it changes F47 point 5): a file that cannot be
+// read keeps holding what it held at its last reading, and only that.
+test("a holder file that cannot be read keeps only the tabs it last held; the other files count as they read now", async () => {
+  root = await mkdtemp(join(tmpdir(), "holds-file-"));
+  const holders = join(root, "holders");
+  await mkdir(holders);
+  const hold = (strip: string, tabs: string[]) =>
+    writeFile(
+      join(holders, `${strip}.json`),
+      JSON.stringify({ strip, label: strip, tabs }),
+    );
+  await hold("launchpad", [id(1)]);
+  await hold("t3-a", [id(2)]);
+  const first = await readHolds({ holders });
+  expect([...first.holds.holders.keys()].sort()).toEqual([id(1), id(2)]);
+  // The Launchpad's file breaks, and the thread lets go of its tab: the
+  // thread's release counts, the Launchpad keeps its tab.
   await writeFile(join(holders, "launchpad.json"), "{");
-  await expect(readHolds({ holders, sockets })).rejects.toThrow(
-    "unreadable holder file launchpad.json",
-  );
+  await hold("t3-a", []);
+  const broken = await readHolds({ holders }, processAlive, first.memory);
+  expect(Object.fromEntries(broken.holds.holders)).toEqual({
+    [id(1)]: [{ strip: "launchpad", label: "launchpad" }],
+  });
+  expect(broken.unreadable).toEqual(["launchpad.json"]);
+  // Still broken on the next reading: it keeps what it held, no more.
+  const again = await readHolds({ holders }, processAlive, broken.memory);
+  expect([...again.holds.holders.keys()]).toEqual([id(1)]);
+  // A file that cannot be opened counts the same.
+  await hold("launchpad", [id(1)]);
+  await chmod(join(holders, "launchpad.json"), 0o000);
+  try {
+    const denied = await readHolds({ holders }, processAlive, again.memory);
+    expect([...denied.holds.holders.keys()]).toEqual([id(1)]);
+    expect(denied.unreadable).toEqual(["launchpad.json"]);
+  } finally {
+    await chmod(join(holders, "launchpad.json"), 0o600);
+  }
+  // Readable again: what it says now counts, a release included.
+  await hold("launchpad", []);
+  const fixed = await readHolds({ holders }, processAlive, again.memory);
+  expect(fixed.holds.holders.size).toBe(0);
+  expect(fixed.unreadable).toEqual([]);
+  // A file never read holds nothing the reading knows of.
+  await writeFile(join(holders, "t3-b.json"), "{");
+  const never = await readHolds({ holders }, processAlive, fixed.memory);
+  expect(never.holds.holders.size).toBe(0);
+  expect(never.unreadable).toEqual(["t3-b.json"]);
+  // A file that went holds nothing and is forgotten.
+  await rm(join(holders, "t3-b.json"));
   await rm(join(holders, "launchpad.json"));
-  // A binding file that is not one.
-  await writeFile(join(sockets, "codex-1.target"), "{");
-  await expect(readHolds({ holders, sockets })).rejects.toThrow(
-    "unreadable binding file codex-1.target",
+  const gone = await readHolds({ holders }, processAlive, never.memory);
+  expect(gone.memory.holders.size).toBe(1);
+  expect(gone.unreadable).toEqual([]);
+});
+
+test("a binding that cannot be read keeps its tab; one never read binds nothing; a .pid that cannot be read counts as working", async () => {
+  root = await mkdtemp(join(tmpdir(), "holds-binding-"));
+  const sockets = join(root, "agent-browser");
+  await mkdir(sockets);
+  await writeFile(
+    join(sockets, "codex-1.target"),
+    JSON.stringify({ targetId: id(3) }),
   );
-  await rm(join(sockets, "codex-1.target"));
-  expect((await readHolds({ holders, sockets })).holders.size).toBe(1);
+  await writeFile(join(sockets, "codex-1.pid"), "4242");
+  const alive = (pid: number) => pid === 4242;
+  const first = await readHolds({ sockets }, alive);
+  expect(Object.fromEntries(first.holds.working)).toEqual({
+    [id(3)]: ["codex-1"],
+  });
+  await writeFile(join(sockets, "codex-1.target"), "{");
+  const broken = await readHolds({ sockets }, alive, first.memory);
+  expect(Object.fromEntries(broken.holds.working)).toEqual({
+    [id(3)]: ["codex-1"],
+  });
+  expect(broken.unreadable).toEqual(["codex-1.target"]);
+  // Never read: no tab is known for it.
+  const never = await readHolds({ sockets }, alive);
+  expect(never.holds.bound.size).toBe(0);
+  expect(never.unreadable).toEqual(["codex-1.target"]);
+  // A .pid that cannot be opened is unclear, and unclear keeps the tab.
+  await writeFile(
+    join(sockets, "codex-1.target"),
+    JSON.stringify({ targetId: id(3) }),
+  );
+  await writeFile(join(sockets, "codex-1.pid"), "4343");
+  expect((await readHolds({ sockets }, alive)).holds.working.size).toBe(0);
+  await chmod(join(sockets, "codex-1.pid"), 0o000);
+  try {
+    expect(
+      Object.fromEntries((await readHolds({ sockets }, alive)).holds.working),
+    ).toEqual({ [id(3)]: ["codex-1"] });
+  } finally {
+    await chmod(join(sockets, "codex-1.pid"), 0o600);
+  }
+});
+
+test("the hub's reader remembers between readings, one at a time, and logs a file that breaks and mends", async () => {
+  root = await mkdtemp(join(tmpdir(), "holds-reader-"));
+  const holders = join(root, "holders");
+  await mkdir(holders);
+  await writeFile(
+    join(holders, "launchpad.json"),
+    JSON.stringify({ strip: "launchpad", tabs: [id(1), id(2)] }),
+  );
+  const lines: string[] = [];
+  const read = holdsReader({ holders }, { log: (line) => lines.push(line) });
+  expect((await read()).holders.size).toBe(2);
+  await writeFile(join(holders, "launchpad.json"), "{");
+  await writeFile(join(holders, "t3-a.json"), "{");
+  // Readings asked for together still remember each other.
+  const [one, two] = await Promise.all([read(), read()]);
+  expect(one.holders.size).toBe(2);
+  expect(two.holders.size).toBe(2);
+  expect(lines).toEqual([
+    "launchpad.json cannot be read: it keeps the 2 tabs it held when it was last read; other files count",
+    "t3-a.json cannot be read: it was never read, so it holds no tab; other files count",
+  ]);
+  await writeFile(
+    join(holders, "launchpad.json"),
+    JSON.stringify({ strip: "launchpad", tabs: [] }),
+  );
+  await rm(join(holders, "t3-a.json"));
+  expect((await read()).holders.size).toBe(0);
+  expect(lines.slice(2)).toEqual([
+    "launchpad.json can be read again",
+    "t3-a.json can be read again",
+  ]);
+});
+
+test("doctor's list names the holder files that cannot be read, or the directory", async () => {
+  root = await mkdtemp(join(tmpdir(), "holds-doctor-"));
+  const env = { XDG_RUNTIME_DIR: root };
+  expect(await unreadableHolderFiles(env)).toEqual([]);
+  expect(await unreadableHolderFiles({})).toEqual([]);
+  const holders = holderDirectory(env) as string;
+  await mkdir(holders, { recursive: true });
+  await writeFile(
+    join(holders, "launchpad.json"),
+    JSON.stringify({ strip: "launchpad", tabs: [id(1)] }),
+  );
+  await writeFile(join(holders, "t3-a.json.tmp-1"), "{");
+  expect(await unreadableHolderFiles(env)).toEqual([]);
+  await writeFile(join(holders, "t3-a.json"), "{");
+  await writeFile(
+    join(holders, "t3-b.json"),
+    JSON.stringify({ strip: "t3-c", tabs: [] }),
+  );
+  expect(await unreadableHolderFiles(env)).toEqual(["t3-a.json", "t3-b.json"]);
+  await chmod(holders, 0o000);
+  try {
+    expect(await unreadableHolderFiles(env)).toEqual([holders]);
+  } finally {
+    await chmod(holders, 0o700);
+  }
 });
 
 test("a .pid releases a tab only when it names a well-formed process id that ended", async () => {
@@ -203,7 +342,7 @@ test("a .pid releases a tab only when it names a well-formed process id that end
   const working = async (pid: string | null, alive = false) => {
     if (pid === null) await rm(join(sockets, "codex-1.pid"), { force: true });
     else await writeFile(join(sockets, "codex-1.pid"), pid);
-    const holds = await readHolds({ sockets }, () => alive);
+    const { holds } = await readHolds({ sockets }, () => alive);
     return holds.working.has(id(3));
   };
   // Unclear: empty, blank, zero, signed, pid 1, too long, not a number.
@@ -228,7 +367,7 @@ test("a .pid releases a tab only when it names a well-formed process id that end
 });
 
 test("directories that do not exist hold nothing", async () => {
-  const holds = await readHolds({
+  const { holds } = await readHolds({
     holders: join(tmpdir(), "no-such-holders-dir-f47"),
     sockets: undefined,
   });
