@@ -7809,6 +7809,12 @@ been measured yet.
     the browser cannot open it now. A Launchpad without a holder (no usable runtime
     directory) fails the sign-in closed, as `open` answers 503 then
     (`launchpadHoldOf`). `lazurio-browser:closed` drops its tab.
+  - Since 2026-10-12 the hub opens the sign-in tab, as every other one (point 6's `POST
+    /.lazurio/tabs` with the strip `launchpad`, root decision 0191's addendum of that day): a
+    window of its own, recorded as opened from Nová karta. Before, `environmentBrowserOf`
+    created it with `Target.createTarget` and no `newWindow`, so it could open as a tab of
+    another window, in front of an agent's page, which Chrome then stopped painting (F38's
+    window per tab). A hub that refuses or does not answer opens nothing and holds nothing.
   - A closed panel mounts no frame and reads nothing.
 - `scripts/preview-new-tab.ts` shows it against fakes: the Launchpad's page with the
   panel, `/new-tab` standalone and inside a host page with T3 Code's tools, and switches
