@@ -32,12 +32,16 @@ Keep product state, profile preferences and generated instructions separately ow
 Do not create an IAM, Machine registry, second app supervisor or a writable copy of
 the source as a substitute for the installed product.
 
-Write generated agent instructions in a direct, conversational voice: explain how
-we work and why, then give the concrete next step. Address the agent as a colleague
-(Czech singular), use familiar words and examples, and make uncertainty something
-to investigate or ask about. Keep the same voice and meaning in both locales.
+Use the [default agent voice](docs/agent-voice.md) for all authored communication:
+lead with the point, explain the relevant context in ordinary language and give
+a concrete next step. Adapt to the reader and artifact. Agent instructions use
+the Czech singular; human-facing Czech defaults to formal address. Keep the same
+voice and meaning in both locales. The document defines the requested default
+and the early customization design; it does not claim that installed agents
+already load it or select a final Folder file path.
 Organization-specific meanings stay in their Organization; teach agents how to find
 them rather than copying them into the product. See `docs/folder-context-routing.md`.
+
 
 Work on a review branch in an owner-scoped worktree, preserve all unrelated work,
 commit only scoped changes, open a PR and report exact validation. Primary `main`
