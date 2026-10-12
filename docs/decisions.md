@@ -7980,8 +7980,12 @@ the tab for everyone who holds or views it. Matěj decided:
   - never `agent-browser close` or `tab close`: the tab would close for everyone, and the CLI
     starts a daemon first when none runs. The action is internal to the agent-browser release
     Machines pin; the distribution's contract check (task 706) covers it.
-  - Outcomes: `stopped`, `none` (nothing listens on the session's socket; done all the same)
-    and `failed` (the daemon did not answer within 5 s or refused; nothing changed, exit 1).
+  - Outcomes: `stopped` (the daemon answered and its `.pid` is gone), `none` (nothing listens
+    on the session's socket; done all the same), `refused` (the daemon answered that it did
+    not shut down; nothing changed, exit 1) and `unconfirmed` (no answer within 5 s after the
+    command went out, or an answer while the `.pid` stays 5 s: the daemon may still hold the
+    window, exit 1; run `done` again). Only a gone `.pid` counts as stopped (Pablo's review of
+    3122df40).
   - T3 Code's overlay stops an archived thread's daemon by process id the same way the first
     version did; it moves to this path when it takes over the contract (task 703).
   - The manual's "When done" now says `lazurio browser done`, and never `tab close` or

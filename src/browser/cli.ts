@@ -55,8 +55,10 @@ browser done [--session <name>] [--folder <absolute Folder>] [--json]
   once nothing holds it and nobody views it. A person who has it open keeps
   it. It asks the session's own agent-browser daemon on its socket to shut
   down; it never signals a process. --json prints {kind: "browser-done",
-  session, outcome}, outcome being stopped, none (no daemon listens) or
-  failed (the daemon did not answer or refused; nothing changed).
+  session, outcome}, outcome being stopped, none (no daemon listens),
+  refused (the daemon did not shut down; nothing changed) or unconfirmed
+  (no answer, or the daemon has not exited within 5 s: it may still hold the
+  window; run done again).
   Exit status: 0 done, 10 this Environment has no Environment browser, 2
   usage, 1 failure.
 browser serve --port <loopback port> --origin <https://browser.…>
@@ -101,8 +103,10 @@ const text = {
       "Your window is let go: it ends once nothing holds it and nobody views it. Whoever has it open keeps it.",
     "no-daemon":
       "Your session has no running agent-browser: nothing to let go.",
-    "daemon-failed":
-      "Your session's agent-browser did not shut down (no answer, or it refused). Nothing changed; try again, or run lazurio doctor.",
+    "daemon-refused":
+      "Your session's agent-browser refused to shut down. Nothing changed; try again, or run lazurio doctor.",
+    "daemon-unconfirmed":
+      "Your session's agent-browser has not confirmed that it ended, so it may still hold your window. Run lazurio browser done again in a moment, or lazurio doctor.",
   },
   cs: {
     "not-declared":
@@ -127,8 +131,10 @@ const text = {
     stopped:
       "Okno je puštěné: skončí, až ho nic nedrží a nikdo se na něj nedívá. Kdo ho má otevřené, tomu zůstane.",
     "no-daemon": "Tvoje sezení nemá spuštěný agent-browser: není co pustit.",
-    "daemon-failed":
-      "agent-browser tvého sezení se neukončil (neodpověděl nebo odmítl). Nic se nezměnilo; zkus to znovu, nebo spusť lazurio doctor.",
+    "daemon-refused":
+      "agent-browser tvého sezení se odmítl ukončit. Nic se nezměnilo; zkus to znovu, nebo spusť lazurio doctor.",
+    "daemon-unconfirmed":
+      "agent-browser tvého sezení nepotvrdil, že skončil, takže tvoje okno možná pořád drží. Za chvíli spusť lazurio browser done znovu, nebo lazurio doctor.",
   },
 } as const;
 
@@ -282,7 +288,8 @@ export async function runBrowserCommand(
           ? ("none" as const)
           : await stopSessionDaemon(sockets, session, context.daemonSeams);
       return Object.freeze({
-        code: outcome === "failed" ? exitFailure : exitOk,
+        code:
+          outcome === "stopped" || outcome === "none" ? exitOk : exitFailure,
         ...(json
           ? {
               stdout: JSON.stringify({
@@ -295,7 +302,14 @@ export async function runBrowserCommand(
             ? { stdout: copy.stopped }
             : outcome === "none"
               ? { stdout: copy["no-daemon"] }
-              : { stderr: copy["daemon-failed"] }),
+              : {
+                  stderr:
+                    copy[
+                      outcome === "refused"
+                        ? "daemon-refused"
+                        : "daemon-unconfirmed"
+                    ],
+                }),
       });
     }
     const session = named as string;

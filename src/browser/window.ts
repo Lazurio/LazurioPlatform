@@ -323,32 +323,39 @@ const fileExists = (path: string) =>
  * another process now has, even another session's daemon, is never touched
  * (Pablo's review of #348). Never `agent-browser close` or `tab close`: the
  * tab would close for everyone who holds or views it, and the CLI starts a
- * daemon first when none runs. `none`: nothing listens on the session's
- * socket; `failed`: the daemon did not answer or refused. */
+ * daemon first when none runs. `stopped`: the daemon answered and its
+ * `.pid` is gone; `none`: nothing listens on the session's socket;
+ * `refused`: the daemon answered that it did not shut down, so nothing
+ * changed; `unconfirmed`: no answer, or an answer but the `.pid` still there
+ * after the wait, so the daemon may still hold the window. */
 export async function stopSessionDaemon(
   socketDirectory: string,
   session: string,
   seams: DaemonSeams = {},
-): Promise<"stopped" | "none" | "failed"> {
+): Promise<"stopped" | "none" | "refused" | "unconfirmed"> {
   if (!isBrowserSession(session)) return "none";
   const answer = await (seams.ask ?? askDaemonSocket)(
     join(socketDirectory, `${session}.sock`),
     `${JSON.stringify({ id: "lazurio-browser-done", action: agentBrowserShutdownAction })}\n`,
   );
   if (answer.kind === "absent") return "none";
-  if (answer.kind === "no-answer") return "failed";
+  // The command went out: the daemon may have taken it even if its answer
+  // was lost.
+  if (answer.kind === "no-answer") return "unconfirmed";
   let success = false;
   try {
     success =
       (JSON.parse(answer.line) as { success?: unknown } | null)?.success ===
       true;
   } catch {}
-  if (!success) return "failed";
+  if (!success) return "refused";
   const exists = seams.exists ?? fileExists;
   const pid = join(socketDirectory, `${session}.pid`);
   const deadline = Date.now() + (seams.exitWithinMs ?? daemonAnswerMs);
-  while ((await exists(pid)) && Date.now() < deadline)
+  while (await exists(pid)) {
+    if (Date.now() >= deadline) return "unconfirmed";
     await new Promise((resolve) => setTimeout(resolve, 100));
+  }
   return "stopped";
 }
 
