@@ -7265,7 +7265,9 @@ workstation, keep their apps' own "+".
    person opened in it: from its Nová karta, or as a page's new tab while viewed there (F39
    point 4). Each holder is one file, `$XDG_RUNTIME_DIR/lazurio-browser/holders/<strip>.json`
    = `{"strip", "label", "tabs": [<target id>…]}`, mode 0600 in a directory of mode 0700. Only
-   its app's server replaces it, atomically (a temporary file and a rename).
+   its app's server replaces it, atomically (a temporary file and a rename). One holder file
+   the hub cannot read keeps the hub's last reading of every holder (step 1), so each app
+   keeps its file well inside the hub's limits.
    - T3 Code's server keeps each thread's browser tabs, so the strip is the same on every
      device, and writes `t3-<thread>.json` with the thread's title as `label`. A deleted
      thread's file goes.
@@ -7297,9 +7299,11 @@ workstation, keep their apps' own "+".
      also one whose event reaches the hub late on its own connection. So an id that a
      snapshot begun after the record lacks had ended by then, and a live tab is never dropped.
    - **The record times survive a restart.** An app keeps, with each stored tab, its record
-     time on the boot clock in its own store: T3 Code's thread state; for the Launchpad, its
-     holder file's `recordedAt`, which the hub ignores. A stored tab without a time counts as
-     recorded long ago.
+     time on the boot clock in its holder file as `recordedAt`, which the hub ignores. The
+     Launchpad does, and by the addendum of 2026-10-12 so does T3 Code. Its server keeps no
+     other store of a thread's tabs and rebuilds its index from its holder files when it
+     starts, so T3 Code's database and migrations stay upstream's. A stored tab without a time
+     counts as recorded long ago.
 
    This covers, with no view open:
    - a tab closed for everyone or ended while no app shows it;
@@ -7314,7 +7318,10 @@ workstation, keep their apps' own "+".
    holder file lists it or an agent works in it: an agent-browser session is bound to it
    (`<session>.target`) and that session's daemon runs (`<session>.pid` names a live process).
    The binding alone does not count. agent-browser keeps it past the daemon on purpose, and
-   the daemon ends after an hour without a command (its default idle timeout). The hub re-reads
+   the daemon ends after an hour without a command. That is the idle timeout the Platform
+   writes into agent-browser's user config (`"idleTimeout": "1h"` in
+   `~/.agent-browser/config.json`), because agent-browser's own default skips a browser it
+   did not launch (#326). The hub re-reads
    both directories when they change and every 30 s.
    - When the last hold goes while nobody views the tab, the tab ends after 8 s, the window of
      Vrátit (the wireframe's grace). A hold or a viewer within it keeps the tab.
@@ -7389,6 +7396,22 @@ workstation, keep their apps' own "+".
     the strip says when another thread or the Launchpad holds it too (from the holder files).
     This replaces the interim "+ → Browser" of 0.0.45-lazurio.7.
 
+    **Addendum of 2026-10-12 (Matěj, the task 501 design; root decision 0195 points 13–16):**
+    - **How tabs enter the strip:** besides the element's choices, from every tab
+      `preview_open` opens or adopts, and from the agent's own window through its
+      agent-browser binding (`t3-<thread>.target`).
+    - **Nová karta:** "+" and the panel's empty state open it. Closing the last tab closes the
+      panel, as upstream does, unlike the Launchpad's panel.
+    - **Order:** new tabs keep the holder file's order on every device, and an existing tab's
+      position stays each device's. Tabs can be dragged: upstream's #17730, ported to v0.0.45.
+    - **The panel opens by itself** only when the agent opens a tab or a new window.
+    - **×** releases the thread's hold, with Vrátit. The tab stays in the Environment and in
+      Přehled while anything else needs it.
+    - **Archive and delete** release all of a thread's tabs and stop its agent-browser daemon
+      (SIGTERM on a `.pid` verified as agent-browser's), so the binding stops counting.
+      - T3 Code never closes a target, so a tab another place holds survives.
+      - A startup sweep catches threads archived while the server was down.
+
 **Failure modes.**
 
 | Failure | What happens |
@@ -7397,13 +7420,13 @@ workstation, keep their apps' own "+".
 | The browser restarts | Its tabs are gone and do not come back (F38's addendum of 2026-10-10). After discovery the hub writes the new list, and each app's server drops the ended ids from its stored tabs and its holder file (point 4) |
 | A tab is closed for everyone, or ends, while no app shows it | The hub rewrites the list when the target ends; each app's server drops it from its strips and its holder file, with no view involved |
 | The Launchpad restarts | Holds stay in their files and no tab ends; Nová karta says the Launchpad is unreachable and tries again |
-| T3 Code's server restarts | Its holder files stay. On start it reconciles the threads' stored tabs with the hub's list, rewrites the files, and removes those of deleted threads |
+| T3 Code's server restarts | Its holder files stay. On start it reconciles the threads' stored tabs with the hub's list, rewrites the files, removes those of deleted and archived threads, and stops their agents' daemons |
 | An app records its hold late | The tab is new, so it has 10 minutes, and the app's frame views it within seconds |
 | An app records a tab the list does not have yet | It drops an id only when a snapshot begun after the record lacks it, so a new tab stays |
 | The Environment's wall clock steps back or forward | Nothing here reads it: the boot clock orders records and snapshots |
 | The hub's event about a new tab comes late | The snapshot asks the browser itself, so the tab is in it; no app drops a live tab |
 | A tab ends before the app records it | No change triggers a snapshot, but the periodic one does within 30 s; it began after the record and lacks the id, so the app drops it |
-| An agent's daemon ends (an hour idle, a crash) | Its binding stops counting; a tab nothing holds or views ends after 8 s. The agent's next command answers `tab_gone`, and `lazurio browser window` opens a new window (F38's addendum of 2026-10-10, Folder manual) |
+| An agent's daemon ends (an hour idle under the Platform's idle timeout, a crash, its thread archived) | Its binding stops counting; a tab nothing holds or views ends after 8 s. The agent's next command answers `tab_gone`, and `lazurio browser window` opens a new window (F38's addendum of 2026-10-10, Folder manual) |
 | A killed daemon leaves its `.pid` | The process check finds no process; a reused pid at worst keeps a tab longer |
 | The hub is down, or not connected to the browser | No tab ends, and the list stays as last written, so no app drops a tab because of it; close and restore answer 503, and Nová karta says so |
 | A page in the Environment's browser calls the hub's loopback requests | Refused: its request carries `Origin` and `Sec-Fetch-Site` |
@@ -7431,9 +7454,9 @@ workstation, keep their apps' own "+".
 
 **Not decided here.** Uspat and putting tabs to sleep (DEV-6656 spike 916); a person's name as
 a tab's opener (admission is not identity, F11); recent sites (until then the suggestions are
-the Environment's apps); MausBot as an app of Nová karta; how to measure one tab's memory
-(until a spike decides, a tab shows its JavaScript heap marked "≈"); whether archiving a
-thread lets go of its tabs.
+the Environment's apps); MausBot as an app of Nová karta. Matěj decided two former open
+points: on 2026-10-11, that one tab's JavaScript heap marked "≈" is enough as its memory, and
+on 2026-10-12, that archiving a thread lets go of its tabs (point 10's addendum).
 
 **Steps.** (1) The hub: holds from holder files and live bindings, the 8 s grace, the loopback
 requests, the tabs' facts and the list of live tabs; the view page reports a tab's end to its
@@ -7473,7 +7496,8 @@ ended before the app recorded it, a record from an earlier boot, and a step of t
 
 Until T3 Code writes its holder files (step 4), a T3 Code thread's window stays while its agent
 works in it or someone views it. Otherwise it ends about an hour after the agent's last
-command. The Folder manual's `tab_gone` recovery already covers that.
+command, once the idle timeout of #326 is set; before that, an attached daemon never idled
+out. The Folder manual's `tab_gone` recovery already covers that.
 
 **Step 2, implemented in this revision (2026-10-11).**
 - `src/launchpad/new-tab-routes.ts` answers `GET /api/new-tab/overview` and
@@ -7595,3 +7619,19 @@ been measured yet.
 Until T3 Code's release with step 4, the Launchpad's panel and a standalone page are Nová
 karta's only consumers. While Nová karta shows in the Launchpad's panel, the panel and the
 page each read the overview every 5 s; step 5 measures that cost with the heaps.
+
+**The agent-browser idle timeout, implemented in this revision (2026-10-12, #326).**
+- `lazurio browser serve` makes sure, at every start, that agent-browser's user config
+  (`~/.agent-browser/config.json`, which every agent-browser command of the user reads) names
+  `"idleTimeout": "1h"` (`src/browser/agent-browser-config.ts`).
+  - A missing file is created with only that setting.
+  - A file with other settings keeps them all and gains it.
+  - A file that names an idle timeout already is kept, as someone's choice.
+  - A file that cannot be read or is not a JSON object is never written over, and the service
+    logs it.
+  - The write is atomic and owner-only.
+- Daemons that run already pick the hour up when agent-browser next restarts them. The timeout
+  is part of a daemon's configuration fingerprint, so the next command under the new config
+  restarts its session's daemon.
+- On the timeout an attached daemon only disconnects and removes its `.pid`; the hub still
+  decides when the tab ends (point 5).
