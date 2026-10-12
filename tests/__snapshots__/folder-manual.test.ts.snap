@@ -60,7 +60,7 @@ Lazurio enforces none of this: the Headscale policy of the Conglomerate Host doe
 ## Connecting a laptop and a Codex project
 The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
 The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The Organization Admin owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.
@@ -150,7 +150,7 @@ Nic z toho Lazurio nevynucuje: vynucuje to Headscale policy Conglomerate Hostu a
 ## Připojení laptopu a projektu Codex
 Připojení nastavuje agent na laptopu. Tady jsi v cílovém Environmentu; privátní klíč laptopu sem nepatří.
 Handover neuvádí Launchpad; adresu neodvozuj. Nech jeho správce doplnit vstup Environmentu.
-Zápis veřejného klíče neotevírá síť. Vstup zařízení přes Headscale a SSH grant spravuje Admin Organizace; profil Tailscale na laptopu nepřepínej.
+Zápis veřejného klíče neotevírá síť. Vstup zařízení přes Headscale a SSH grant spravuje správce sítě; profil Tailscale na laptopu nepřepínej.
 
 ## SSH na další Environmenty a zařízení
 - Připojuj se jen na tailnet hostname peeru tak, jak ho uvádí handover (\`ssh.host\` u peerů výše), nikdy na holou tailnet adresu typu \`100.64.0.x\`: ty se opakují v každém tailnetu a v každém znamenají jiný peer.
@@ -272,7 +272,7 @@ The Integrations (connected apps) and custom MCP servers of this Environment are
 ## Connecting a laptop and a Codex project
 The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
 The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The Organization Admin owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.
@@ -355,7 +355,7 @@ The Integrations (connected apps) and custom MCP servers of this Environment are
 ## Connecting a laptop and a Codex project
 The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
 The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The Organization Admin owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.
@@ -433,7 +433,7 @@ The Integrations (connected apps) and custom MCP servers of this Environment are
 ## Connecting a laptop and a Codex project
 The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
 The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The Organization Admin owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.
@@ -527,7 +527,7 @@ The Integrations (connected apps) and custom MCP servers of this Environment are
 ## Connecting a laptop and a Codex project
 The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
 The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The Organization Admin owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.
@@ -2050,7 +2050,7 @@ Lazurio enforces none of this: the Headscale policy of the Conglomerate Host doe
 ## Connecting a laptop and a Codex project
 The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
 The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The Organization Admin owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.
@@ -2127,7 +2127,7 @@ The Integrations (connected apps) and custom MCP servers of this Environment are
 ## Connecting a laptop and a Codex project
 The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
 The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The Organization Admin owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.
@@ -2206,7 +2206,7 @@ The Integrations (connected apps) and custom MCP servers of this Environment are
 ## Connecting a laptop and a Codex project
 The laptop agent configures the connection. You are in the target Environment; the laptop's private key does not belong here.
 The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.
-Registering a public key opens no network path. The Organization Admin owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
+Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.
 
 ## SSH to other Environments and devices
 - Connect only to a peer's tailnet hostname as the handover records it (the \`ssh.host\` of a peer above), never to a bare tailnet address such as \`100.64.0.x\`: those addresses repeat in every tailnet and mean a different peer in each.

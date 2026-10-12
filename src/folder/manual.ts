@@ -1790,8 +1790,8 @@ function enabledToolsSection(
   ];
 }
 
-// F49: the hosted agent routes the laptop agent to the existing local owner
-// of authorized_keys. The desktop link is a client handoff, never a grant.
+// F49: Launchpad owns SSH enrollment and supplies the laptop handoff.
+// The desktop link registers a client connection, never a network grant.
 function deviceSsh(machine: MachineBinding): readonly Text[] {
   const origin = machine.entry?.externalOrigin;
   return [
@@ -1810,12 +1810,12 @@ function deviceSsh(machine: MachineBinding): readonly Text[] {
           "The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.",
         )
       : t(
-          `Pošli Operátorovi [Nastavení → SSH ze zařízení](${origin}/settings/ssh) a předej odtud prompt pro agenta laptopu. Stránka vytváří alias rozlišující Organizaci i Environment, host pin a odkaz do Codexu s projektem v tomto Lazurio Folderu. Tyto údaje znovu nevymýšlej; připojení staršího klienta lze nastavit ručně podle téže stránky.`,
-          `Send the Operator to [Settings → SSH from your devices](${origin}/settings/ssh) and hand over its prompt for the laptop agent. The page supplies an Organization-and-Environment alias, host pin and Codex link with a project in this Lazurio Folder. Do not reinvent these values; an older client can be configured manually from the same page.`,
+          `Pošli Operátorovi [Nastavení → SSH ze zařízení](${origin}/settings/ssh) kde je prompt pro agenta laptopu. Stránka vytváří jednoznačný alias Environmentu, host pin a odkaz do Codexu s projektem v tomto Lazurio Folderu. Použij její údaje.`,
+          `Send the Operator to [Settings → SSH from your devices](${origin}/settings/ssh) where the laptop agent’s prompt is ready. The page supplies a distinct Environment alias, host pin and Codex link with a project in this Lazurio Folder. Use its values.`,
         ),
     t(
-      "Zápis veřejného klíče neotevírá síť. Vstup zařízení přes Headscale a SSH grant spravuje Admin Organizace; profil Tailscale na laptopu nepřepínej.",
-      "Registering a public key opens no network path. The Organization Admin owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.",
+      "Zápis veřejného klíče neotevírá síť. Vstup zařízení přes Headscale a SSH grant spravuje správce sítě; profil Tailscale na laptopu nepřepínej.",
+      "Registering a public key opens no network path. The network administrator owns Headscale device admission and the SSH grant; do not switch the laptop's Tailscale profile.",
     ),
   ];
 }
