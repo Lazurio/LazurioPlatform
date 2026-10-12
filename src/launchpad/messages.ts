@@ -1319,7 +1319,7 @@ const en = {
   sshCopy: "Copy",
   sshCopied: "Copied.",
   sshNetworkNote:
-    "Registering a key does not grant network access. If SSH fails, give your agent the exact error; if a network grant is missing, your Organization's Admin must allow SSH from this device to this Environment.",
+    "Registering a key does not grant network access. If SSH fails, give your agent the exact error; if a network grant is missing, the network administrator must allow SSH from this device to this Environment.",
   sshComputerMissing: "The settings for your computer are not available yet:",
   sshMissingTailscale: "Tailscale is not installed in this Environment.",
   sshMissingTailscaleFailed: "Tailscale in this Environment did not answer.",
@@ -2626,7 +2626,7 @@ const cs: Record<MessageKey, string> = {
   sshCopy: "Kopírovat",
   sshCopied: "Zkopírováno.",
   sshNetworkNote:
-    "Registrace klíče neuděluje síťový přístup. Pokud SSH selže, předejte agentovi přesnou chybu; chybějící síťový grant musí povolit Admin vaší Organizace z tohoto zařízení do tohoto Environmentu.",
+    "Registrace klíče neuděluje síťový přístup. Pokud SSH selže, předejte agentovi přesnou chybu; chybějící síťový grant musí povolit správce sítě z tohoto zařízení do tohoto Environmentu.",
   sshComputerMissing: "Nastavení pro váš počítač zatím není k dispozici:",
   sshMissingTailscale: "V tomhle Environmentu není nainstalovaný Tailscale.",
   sshMissingTailscaleFailed: "Tailscale v tomhle Environmentu neodpověděl.",

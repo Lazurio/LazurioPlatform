@@ -1810,7 +1810,7 @@ function deviceSsh(machine: MachineBinding): readonly Text[] {
           "The handover names no Launchpad; do not infer its address. Ask its administrator to complete the Environment entry.",
         )
       : t(
-          `Pošli Operátorovi [Nastavení → SSH ze zařízení](${origin}/settings/ssh) kde je prompt pro agenta laptopu. Stránka vytváří jednoznačný alias Environmentu, host pin a odkaz do Codexu s projektem v tomto Lazurio Folderu. Použij její údaje.`,
+          `Pošli Operátorovi [Nastavení → SSH ze zařízení](${origin}/settings/ssh), kde je prompt pro agenta laptopu. Stránka vytváří jednoznačný alias Environmentu, host pin a odkaz do Codexu s projektem v tomto Lazurio Folderu. Použij její údaje.`,
           `Send the Operator to [Settings → SSH from your devices](${origin}/settings/ssh) where the laptop agent’s prompt is ready. The page supplies a distinct Environment alias, host pin and Codex link with a project in this Lazurio Folder. Use its values.`,
         ),
     t(

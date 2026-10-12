@@ -1019,7 +1019,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <div class="row ssh-block-row"><div class="ssh-block-head"><p class="row-title" data-message="sshKnownHostsLabel">known_hosts</p><p class="row-desc" data-message="sshKnownHostsNote">Add to ~/.ssh/known_hosts_lazurio</p></div><pre id="ssh-known-hosts" class="ssh-block" data-ssh-block="known-hosts"></pre><div class="ssh-block-actions"><span class="row-status" data-copy-status role="status" aria-live="polite"></span><button type="button" data-copy="ssh-known-hosts"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span data-message="sshCopy">Copy</span></button></div></div>
 </div>
 <div id="ssh-computer-missing" class="callout" data-kind="warning" role="note" hidden></div>
-<p class="group-note" data-message="sshNetworkNote">If the connection is refused or times out, the network does not let that device reach this Environment over SSH yet: ask your Organization's Admin to allow SSH from that device to this Environment.</p>
+<p class="group-note" data-message="sshNetworkNote">Registering a key does not grant network access. If SSH fails, give your agent the exact error; if a network grant is missing, the network administrator must allow SSH from this device to this Environment.</p>
 </section>
 <section class="group" id="ssh-outside-group" aria-labelledby="ssh-outside-heading" hidden>
 <div class="group-head"><h2 id="ssh-outside-heading" data-message="sshOutsideTitle">Added outside Launchpad</h2><p class="group-note" data-message="sshOutsideNote">Launchpad never changes or removes these keys, for example the key this Environment was set up with. Whoever looks after this Environment removes them.</p></div>
