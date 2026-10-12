@@ -52,7 +52,9 @@ export const launchpadStrip = "launchpad";
  * reserved for Lazurio MausBot's bots. The overview and the strips name an
  * app by them, and an app writes and removes only the holder files of its
  * own prefix; the Launchpad only `launchpad.json`. */
-export const stripPrefixes = Object.freeze({
+// Marked pure, so a bundle that takes another rule of this module leaves the
+// registry out.
+export const stripPrefixes = /* @__PURE__ */ Object.freeze({
   t3code: "t3-",
   codex: "codex-",
   claude: "claude-",
@@ -62,19 +64,13 @@ export const stripPrefixes = Object.freeze({
 /** An app that names strips or agent-browser sessions. */
 export type StripApp = "launchpad" | keyof typeof stripPrefixes;
 
-const prefixedApps = Object.keys(stripPrefixes) as readonly Exclude<
-  StripApp,
-  "launchpad"
->[];
-
 /** The app a strip's or a session's name belongs to; null for a name of no
  * app (a session named by hand) and for anything that is no strip's name. */
 export function stripAppOf(name: unknown): StripApp | null {
   if (!isStrip(name)) return null;
   if (name === launchpadStrip) return "launchpad";
-  return (
-    prefixedApps.find((app) => name.startsWith(stripPrefixes[app])) ?? null
-  );
+  const apps = Object.keys(stripPrefixes) as Exclude<StripApp, "launchpad">[];
+  return apps.find((app) => name.startsWith(stripPrefixes[app])) ?? null;
 }
 
 /** The agent-browser session of the calling thread: the name given on
