@@ -8,7 +8,6 @@ import {
   readAccount,
   readInstallations,
   requestDeviceCode,
-  revokeTokens,
   type TokenPair,
 } from "./oauth";
 import {
@@ -321,8 +320,8 @@ export type SignOutResult =
   | Readonly<{
       kind: "signed-out";
       organization: string;
-      /** GitHub accepted the revocation of both tokens. */
-      revoked: boolean;
+      /** Only this Environment’s stored credentials were removed. */
+      scope: "environment";
     }>
   | Readonly<{ kind: "not-signed-in"; organization: string }>
   | Readonly<{
@@ -331,14 +330,12 @@ export type SignOutResult =
       reason: "busy" | "state-unreadable";
     }>;
 
-/** Ends this Environment's App sign-in here: both tokens are revoked at GitHub
- * (`POST /credentials/revoke`, which notifies the person) and the file is
- * removed, also when GitHub cannot be reached; then the result says so. */
+/** Removes this Environment’s custody only. Provider revocation may end the
+ * person’s other App sign-ins, so routine local sign-out never requests it. */
 export async function signOut(
   input: Readonly<{
     paths: PilotPaths;
     organization: PilotApplication;
-    http: GithubHttp;
   }>,
 ): Promise<SignOutResult> {
   const login = input.organization.login;
@@ -354,7 +351,7 @@ export async function signOut(
   }
   try {
     // A pair a killed write left aside is the sign-in too: settled first, so
-    // it is revoked with the rest.
+    // it is removed with the rest.
     const current = await readSettledSignIn(input.paths, login);
     if (current === null)
       return Object.freeze({ kind: "not-signed-in", organization: login });
@@ -367,12 +364,12 @@ export async function signOut(
         organization: login,
         reason: "state-unreadable",
       });
-    const revoked = await revokeTokens(input.http, [
-      current.accessToken,
-      current.refreshToken,
-    ]);
     await removeStoredSignIn(input.paths);
-    return Object.freeze({ kind: "signed-out", organization: login, revoked });
+    return Object.freeze({
+      kind: "signed-out",
+      organization: login,
+      scope: "environment",
+    });
   } finally {
     await lock.release();
   }

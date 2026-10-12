@@ -413,32 +413,3 @@ export async function readInstallations(
     }),
   );
 }
-
-/** `POST /credentials/revoke` for the given tokens. The endpoint takes no
- * authentication (an authenticated request is refused) and notifies the
- * tokens' owner. True when GitHub accepted the request. */
-export async function revokeTokens(
-  http: GithubHttp,
-  tokens: readonly string[],
-): Promise<boolean> {
-  if (tokens.length === 0) return true;
-  try {
-    const { status } = await request(
-      http,
-      `${http.origins.api}/credentials/revoke`,
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/vnd.github+json",
-          "Content-Type": "application/json",
-          "User-Agent": "lazurio-platform",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-        body: JSON.stringify({ credentials: tokens }),
-      },
-    );
-    return status === 202;
-  } catch {
-    return false;
-  }
-}

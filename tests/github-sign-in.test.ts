@@ -300,32 +300,30 @@ test("an existing sign-in is kept; signing in again needs a sign-out first", asy
   expect(github.requests).toEqual([]);
 });
 
-test("sign-out revokes both tokens without authentication and removes the sign-in", async () => {
+test("sign-out removes only this Environment custody and makes no provider request", async () => {
   const github = startFakeGithub();
   const world = await pilotWorld({ preset: null });
   cleanups.push(github.close, world.cleanup);
   await enablePilot(world);
   const pair = await storeSignIn(world, github, exampleOrganization);
-  const http = githubHttp({ origins: github.origins });
   expect(
     await signOut({
       paths: world.paths,
       organization: exampleOrganization,
-      http,
     }),
   ).toEqual({
     kind: "signed-out",
     organization: "Example",
-    revoked: true,
+    scope: "environment",
   });
-  expect(github.revoked).toEqual([pair.access, pair.refresh]);
-  expect(github.accessValid(pair.access)).toBe(false);
+  expect(github.requests).toEqual([]);
+  expect(github.accessValid(pair.access)).toBe(true);
+  expect(github.refreshValid(pair.refresh)).toBe(true);
   expect(await readStoredSignIn(world.paths, "Example")).toBeNull();
   expect(
     await signOut({
       paths: world.paths,
       organization: exampleOrganization,
-      http,
     }),
   ).toEqual({
     kind: "not-signed-in",
@@ -333,8 +331,9 @@ test("sign-out revokes both tokens without authentication and removes the sign-i
   });
 });
 
-test("a sign-out that GitHub does not confirm still removes the sign-in and says so", async () => {
+test("sign-out leaves a second Environment sign-in usable and does not depend on GitHub", async () => {
   const github = startFakeGithub({ revokeStatus: 500 });
+  const control = github.issue();
   const world = await pilotWorld({ preset: null });
   cleanups.push(github.close, world.cleanup);
   await enablePilot(world);
@@ -343,9 +342,15 @@ test("a sign-out that GitHub does not confirm still removes the sign-in and says
     await signOut({
       paths: world.paths,
       organization: exampleOrganization,
-      http: githubHttp({ origins: github.origins }),
     }),
-  ).toEqual({ kind: "signed-out", organization: "Example", revoked: false });
+  ).toEqual({
+    kind: "signed-out",
+    organization: "Example",
+    scope: "environment",
+  });
+  expect(github.requests).toEqual([]);
+  expect(github.accessValid(control.access)).toBe(true);
+  expect(github.refreshValid(control.refresh)).toBe(true);
   expect(
     await readFile(signInFile(world.paths), "utf8").catch(() => null),
   ).toBeNull();
@@ -376,7 +381,6 @@ test("sign-out preserves unreadable, other-owner and other-App credentials witho
     const result = await signOut({
       paths: world.paths,
       organization: exampleOrganization,
-      http: githubHttp({ origins: github.origins }),
     });
     expect(result).toMatchObject({
       kind: "failed",
@@ -389,7 +393,7 @@ test("sign-out preserves unreadable, other-owner and other-App credentials witho
   }
 });
 
-test("sign-out also revokes a pair a killed write left aside, and leaves no copy", async () => {
+test("sign-out removes a pair a killed write left aside without remote revocation", async () => {
   const github = startFakeGithub();
   const world = await pilotWorld({ preset: null });
   cleanups.push(github.close, world.cleanup);
@@ -413,10 +417,10 @@ test("sign-out also revokes a pair a killed write left aside, and leaves no copy
     await signOut({
       paths: world.paths,
       organization: exampleOrganization,
-      http: githubHttp({ origins: github.origins }),
     }),
-  ).toMatchObject({ kind: "signed-out", revoked: true });
-  expect(github.revoked).toEqual([aside.access, aside.refresh]);
+  ).toMatchObject({ kind: "signed-out", scope: "environment" });
+  expect(github.requests).toEqual([]);
+  expect(github.accessValid(aside.access)).toBe(true);
   expect(
     (await readdir(world.paths.stateDirectory)).filter((name) =>
       name.includes("json"),
