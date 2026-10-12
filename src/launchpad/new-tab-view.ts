@@ -4,11 +4,7 @@ import {
   catalogGroups,
   catalogOrganizationKey,
 } from "../organizations/catalog-selection";
-import {
-  currentEnvironment,
-  environmentIdOf,
-  type Shell,
-} from "../shell/contract";
+import { environmentIdOf } from "../shell/contract";
 import { isNewTabStrip, isTargetId } from "../shell/new-tab-protocol";
 import { moduleName, moduleStone, tileTarget } from "./apps-view";
 import type { PublicEntry } from "./chat";
@@ -20,7 +16,7 @@ import type { PublicEntry } from "./chat";
 // field by field, the address bar's resolution, the memory and its tone,
 // "when last used", who opened a tab, the order of the tabs, the running
 // Modules with their names from the boot catalog, the suggestions, the
-// Team's note, the warning before closing a tab an agent works in, the toast
+// warning before closing a tab an agent works in, the toast
 // with Vrátit, and the rule by which a local action outlives an older
 // overview. Its words are the page's own (`newTabCopy`), Czech as the
 // wireframe's and English. Left out because F47 does not decide them: Uspat,
@@ -91,8 +87,6 @@ const en = {
   stopFailed: "{name} could not be stopped.",
   suggested: "Suggested",
   appsCaption: "The Environment's apps",
-  noteTeam:
-    "The whole Team sees the sign-ins made here. Use team and company accounts.",
   foreign: "This tab belongs to another Environment",
   foreignOpen: "Open it there",
   dismiss: "Dismiss",
@@ -190,8 +184,6 @@ const cs: Words = {
   stopFailed: "Modul {name} se nepodařilo zastavit.",
   suggested: "Navrhované",
   appsCaption: "Aplikace Environmentu",
-  noteTeam:
-    "Přihlášení tady uvidí celý Team. Používejte týmové a firemní účty.",
   foreign: "Tahle záložka patří jinému Environmentu",
   foreignOpen: "Otevřít v něm",
   dismiss: "Zavřít",
@@ -1082,19 +1074,6 @@ export function suggestions(
       });
     }
   return found;
-}
-
-/** The note of the wireframe's EnvironmentNotes that stays (Matěj
- * 2026-10-12): on a Team Environment, that the whole Team sees the sign-ins
- * made here (root decision 0191 point 7). Elsewhere there is none: the note
- * that every agent uses the sign-ins only stood in the way. */
-export function environmentNote(
-  shell: Shell | null,
-  copy: NewTabCopy,
-): string | null {
-  return shell !== null && currentEnvironment(shell)?.kind === "team"
-    ? copy.noteTeam
-    : null;
 }
 
 // ---- Where things are -------------------------------------------------------------

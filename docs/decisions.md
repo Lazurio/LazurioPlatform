@@ -7740,9 +7740,12 @@ and the first bullet of step 3's panel; the rest of F47 stands.
 - **Kept in this browser.** The panel's width (or all of the room), the column's width and
   whether it is hidden are one `localStorage` entry, `lazurio.layout`, read field by field.
   Nothing goes into the Folder, which a Team Environment shares.
-- **Nová karta's note.** "Přihlášení tady použijí všichni agenti tohoto Environmentu." is gone:
-  it only stood in the way. The Team Environment's note stays (the whole Team sees the
-  sign-ins made here, root decision 0191 point 7).
+- **Nová karta's notes.** Both notes are gone, on every Environment:
+  - "Přihlášení tady použijí všichni agenti tohoto Environmentu." only stood in the way;
+  - the Team Environment's "Přihlášení tady uvidí celý Team. …" (root decision 0191 point 7)
+    went too.
+  - Matěj wants who shares an Environment's sign-ins and connections said once, coherently,
+    for the whole Environment, not inside its browser (#340).
 - **"Uživatel".** Přehled names a tab a person opened "Uživatel" ("User"), not "Člověk". Who
   opened a tab is a user, an agent, or once Lazurio MausBot is an app of Nová karta, a bot
   ("Bot"). A user is still never named (F11).

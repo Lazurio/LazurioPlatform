@@ -17,7 +17,6 @@ import {
   catalogModuleLook,
   closeOutcome,
   closeWarning,
-  environmentNote,
   fill,
   hideAnswered,
   hideAsked,
@@ -78,7 +77,6 @@ const suggestedSection = find("suggested", HTMLElement);
 const suggestedTitle = find("suggested-title", HTMLHeadingElement);
 const suggestedCaption = find("suggested-caption", HTMLHeadingElement);
 const suggestedList = find("suggested-list", HTMLDivElement);
-const noteLine = find("note", HTMLParagraphElement);
 const toastRegion = find("toast", HTMLDivElement);
 
 // What the server's boot document carries (boot.ts): the Folder's
@@ -552,13 +550,6 @@ function drawSuggested() {
   );
 }
 
-/** The Team's note, on a Team Environment only (Matěj 2026-10-12). */
-function drawNote() {
-  const text = environmentNote(shell, copy);
-  noteLine.hidden = text === null;
-  noteLine.replaceChildren(...(text === null ? [] : [icon("users"), text]));
-}
-
 function drawToast() {
   const model = toastModel(pending, note, copy);
   if (model === null) {
@@ -588,7 +579,6 @@ function drawAll() {
   drawForeign();
   drawOverview(true);
   drawSuggested();
-  drawNote();
   drawToast();
 }
 
@@ -979,7 +969,6 @@ async function readShell(): Promise<void> {
     shell = read;
     hostOrigins = newTabHostOrigins(read, location.origin);
     if (boot === null && host === null) setLocale(read.locale);
-    drawNote();
   } catch {}
 }
 

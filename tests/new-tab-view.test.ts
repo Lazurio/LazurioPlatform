@@ -8,7 +8,6 @@ import {
   closeGraceMs,
   closeOutcome,
   closeWarning,
-  environmentNote,
   fill,
   formatMemory,
   hideAnswered,
@@ -46,7 +45,6 @@ import type {
   CatalogModule,
   CatalogOrganization,
 } from "../src/organizations/catalog";
-import { parseShell, type Shell } from "../src/shell/contract";
 
 // Nová karta without a DOM (decision F47 points 1-3 and 6-9, the approved
 // wireframe prototypes-lazurio #27: NewTab.tsx and browser.ts): what the page
@@ -796,52 +794,12 @@ describe("running Modules, Navrhované and the notes", () => {
     expect(suggestions(null, entry)).toEqual([]);
   });
 
-  test("the note: on a Team Environment that the whole Team sees the sign-ins, and none elsewhere", () => {
-    const shell = (kind: "work" | "team"): Shell | null =>
-      parseShell({
-        schema: "lazurio.shell.v1",
-        locale: "cs",
-        current: "vm-01.example",
-        operator: { initials: "EU", login: "example-user", avatar: null },
-        environments: [
-          {
-            id: "vm-01.example",
-            label: kind === "team" ? "Obchod" : null,
-            kind,
-            organizations: ["example"],
-            assignee: kind === "team" ? null : "example-user",
-            apps: {
-              apps: "https://launchpad.vm-01.example.lazurio.io/",
-              chat: "https://t3code.vm-01.example.lazurio.io/",
-              automate: null,
-            },
-          },
-        ],
-        organizations: [
-          {
-            slug: "example",
-            name: "Example Company",
-            avatar: null,
-            dashboard: "https://dashboard.lazurio.ai/orgs/example",
-          },
-        ],
-        dashboard: "https://dashboard.lazurio.ai/",
-        account: "https://dashboard.lazurio.ai/settings",
-        addOrganization: null,
-      });
-    expect(shell("work")).not.toBeNull();
-    // Matěj 2026-10-12: the note that every agent uses the sign-ins made
-    // here only stood in the way; the Team's stays (root decision 0191
-    // point 7).
-    expect(environmentNote(shell("work"), cs)).toBeNull();
-    expect(environmentNote(null, cs)).toBeNull();
-    expect(environmentNote(shell("team"), cs)).toBe(
-      "Přihlášení tady uvidí celý Team. Používejte týmové a firemní účty.",
-    );
-    expect(environmentNote(shell("team"), en)).toBe(
-      "The whole Team sees the sign-ins made here. Use team and company accounts.",
-    );
-    expect(Object.keys(cs)).not.toContain("note");
+  test("no sign-in note on any Environment: the Environment says who shares them, not its browser", () => {
+    // Matěj 2026-10-12: both notes went, the Team's too (#340).
+    for (const copy of [cs, en]) {
+      expect(Object.keys(copy)).not.toContain("note");
+      expect(Object.keys(copy)).not.toContain("noteTeam");
+    }
   });
 });
 
