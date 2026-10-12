@@ -237,9 +237,9 @@ test("the guide page names the Environment, its Organization and the tailnet, es
   expect(escapeHtml(`"'<>&`)).toBe("&quot;&#39;&lt;&gt;&amp;");
 });
 
-test("the guide page's lead calls an Organization's Environment an Environment", () => {
+test("the guide page names the Environment and its Organization in the tab's title, calling it an Environment", () => {
   // An Environment without its own label carries its kind's name, an
-  // adjective ("Pracovní", "Work"): the sentence needs the noun after it.
+  // adjective ("Pracovní", "Work"): the title needs the noun after it.
   const input = {
     organization: "Example",
     tailnet: "headscale.example.lazurio.io",
@@ -249,16 +249,61 @@ test("the guide page's lead calls an Organization's Environment an Environment",
   expect(
     renderOfflineGuide({ ...input, locale: "cs", environment: "Pracovní" }),
   ).toContain(
-    "<strong>Pracovní</strong> Environment v Organizaci <strong>Example</strong> je dostupný jen přes Tailscale.",
+    "<title>Zapni Tailscale · Pracovní Environment v Organizaci Example</title>",
   );
   expect(
     renderOfflineGuide({ ...input, locale: "en", environment: "Work" }),
-  ).toContain(
-    "The <strong>Work</strong> Environment of <strong>Example</strong> is reachable only through Tailscale.",
-  );
+  ).toContain("<title>Turn on Tailscale · Work Environment of Example</title>");
+  expect(
+    renderOfflineGuide({
+      ...input,
+      organization: null,
+      locale: "cs",
+      environment: "Osobní",
+    }),
+  ).toContain("<title>Zapni Tailscale · Osobní Environment</title>");
 });
 
-test("the guide page leads back to the Dashboard without the tailnet: the rail's logo and a button", () => {
+test("the guide page says one thing to do, with the tailnet, and one small line for when it fails", () => {
+  const page = renderOfflineGuide({
+    locale: "cs",
+    environment: "Pracovní",
+    organization: "Example",
+    tailnet: "headscale.example.lazurio.io",
+    docs: "https://documentation.lazurio.ai/cs/guide/tailscale/",
+    dashboard: "https://dashboard.lazurio.ai/home",
+  });
+  // The command of a computer and of a phone; the script shows the one of
+  // the person's system.
+  expect(page).toContain(
+    '<span data-show="macos windows">Zapni Tailscale a vyber síť</span>',
+  );
+  expect(page).toContain(
+    '<span data-show="ios android" hidden>Otevři Tailscale a vyber síť</span>',
+  );
+  expect(page).toContain(
+    '<code class="net">headscale.example.lazurio.io</code>',
+  );
+  // Windows alone: the icon is right-clicked and may hide by the clock.
+  expect(page).toContain(
+    '<span data-show="windows" hidden>Na ikonu Tailscale klikni pravým tlačítkem.',
+  );
+  expect(page).toContain("Nepovedlo se? Pomůže");
+  // The system is detected and the page retries by itself: no switch between
+  // systems, no numbered steps, no retry button.
+  expect(page).not.toContain('role="tablist"');
+  expect(page).not.toContain('class="steps"');
+  expect(page).not.toContain("<button");
+  // A sketch for a Mac, Windows and a phone; each one's pointer ends on the
+  // tailnet, which the sketch names as the client lists it.
+  for (const os of ["macos", "windows", "phone"])
+    expect(page).toMatch(
+      new RegExp(`class="sc" data-os="${os}"[^>]*data-steps="[^"]*,select`),
+    );
+  expect(page.split("headscale.example.lazurio.io</text>").length - 1).toBe(3);
+});
+
+test("the guide page leads back to the Dashboard without the tailnet: the rail's logo and a link", () => {
   const input = {
     locale: "cs" as const,
     environment: "Team",
@@ -274,15 +319,15 @@ test("the guide page leads back to the Dashboard without the tailnet: the rail's
   expect(page).toContain(
     `<nav class="rail" aria-label="Lazurio"><a class="home" ${href}`,
   );
-  expect(page).toContain(`<a class="back" ${href}>`);
-  expect(page).toContain("Zpět do Dashboardu");
+  expect(page).toContain(`<a class="back" ${href}>Dashboardu</a>`);
+  expect(page).toContain("nebo se vrať do");
   expect(
     renderOfflineGuide({
       ...input,
       locale: "en",
       dashboard: "https://dashboard.lazurio.ai/home",
     }),
-  ).toContain("Back to the Dashboard");
+  ).toContain("or go back to the");
   // Only an https address: none, a path on the unreachable origin or another
   // scheme draws the logo without a link and no way back.
   for (const dashboard of [
@@ -296,6 +341,6 @@ test("the guide page leads back to the Dashboard without the tailnet: the rail's
       '<nav class="rail" aria-label="Lazurio"><span class="home">',
     );
     expect(without).not.toContain('class="back"');
-    expect(without).not.toContain("Zpět do Dashboardu");
+    expect(without).not.toContain("nebo se vrať do");
   }
 });
