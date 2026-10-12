@@ -13,11 +13,11 @@ import {
   unitPath,
   userUnitDirectory,
 } from "../update/service-control";
+import { unreadableHolderFiles } from "./contract/node";
 import {
   browserExtensionDigest,
   writeBrowserExtension,
 } from "./people/extension";
-import { unreadableHolderFiles } from "./people/holds";
 
 /** The Environment browser of a Remote Environment (root decision 0191,
  * decisions F38 and F39): one virtual screen, one Chromium with one

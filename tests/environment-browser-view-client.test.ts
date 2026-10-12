@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { isTargetId } from "../src/browser/contract/pure";
 import {
   buttonBit,
   clampInto,
@@ -21,7 +22,6 @@ import {
   decodeFrame,
   encodeFrame,
   type FrameHeader,
-  isTargetId,
   modifierBits,
   parseClientMessage,
 } from "../src/browser/people/protocol";

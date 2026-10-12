@@ -32,11 +32,56 @@ optional company services, not required dependencies of a self-hosted Lazurio En
 | Material | License boundary |
 | --- | --- |
 | Newly owned Platform code and documentation | Elastic-2.0 and the accompanying copyright notice |
+| The Environment browser's contract: `src/browser/contract/`, the shell artifact's `browserContract` files and the functions T3 Code's overlay copied from `holds.ts` at 49d54c9 | MIT, the module's own licence file ([below](#the-environment-browsers-contract-mit)) |
 | Supplied first-party runtime and embedded templates | Elastic-2.0; retain the license and notices when copying these portions into generated outputs |
 | Existing reused code/assets | Exact original license and provenance; separate permission for intended reuse |
 | Binaries and dependencies | First-party parts under Elastic-2.0; bundled third-party components retain their original licenses and notices |
 | User-authored data, custom profiles and projects | Running the generator does not relicense the user's content; copied supplied templates retain their own terms |
 | Marketplace submissions | Authors' own licenses and submission terms; catalog membership does not relicense them |
+
+## The Environment browser's contract: MIT
+
+Decision F50 point 6 (2026-10-12) licenses the Environment browser's contract
+under the MIT License. The forks that take it, T3 Code under MIT and Lazurio
+MausBot and agent-browser under Apache-2.0, can then vendor it without becoming
+mixed-licence, and it can go upstream with them. Its terms are the module's own
+[LICENSE](../src/browser/contract/LICENSE), which names the licensor of
+[NOTICE](../NOTICE). The exception covers exactly three parts:
+
+1. The directory `src/browser/contract/`: the contract module, its pure and
+   Node parts, and its executable vectors with their README. It holds nothing
+   from outside it; a later import from elsewhere into the module needs the
+   exception widened by a decision, or the code moved in.
+2. The files a release's shell artifact lists under `browserContract` in its
+   `artifact.json`. The artifact gains that listing, with the module's licence
+   file and NOTICE beside the files, in a later step of F50.
+3. By the grant recorded in decision F50 point 6 (2026-10-12), the functions
+   the T3 Code fork's overlay copied from `src/browser/people/holds.ts` at
+   49d54c9 into `apps/server/src/lazurio/holders.ts`, as that file's header
+   lists them: `BootTime`, `readBootClock`, `parseBootTime`, `RecordedTab`,
+   `LiveTabs`, `parseLiveTabs`, `keptTabs`, `isStrip`, `holderDirectory`,
+   `liveTabsPath`, `parseHolder`, `holderFileText`, `parseHolderRecords`,
+   `replaceOwnerFile`, `processAlive` and `watchHolds` (there
+   `watchDirectories`). They are the contract's code in an earlier place.
+
+Everything else stays Elastic-2.0, the repository's root LICENSE included, and
+so does every other Platform file an artifact ships. Platform code that
+imports the module carries the parts it uses into the files built from it,
+and those parts stay under the module's MIT terms and notice (its LICENSE, of
+the same licensor) inside files that are otherwise Elastic-2.0:
+
+- the shell artifact's `shell.js`: the target-id check, the strip grammar, the
+  view-address and view-path rules, and the Environment id (`environmentIdOf`,
+  `isEnvironmentId`);
+- the shell artifact's `contract.js`: `environmentIdOf` and `isEnvironmentId`,
+  which the shell's documents read;
+- the view page's script, which the view serves at `/assets/view.js`: the
+  target-id check, the view-path rule and the writers of the view's paths and
+  addresses, and the Environment id;
+- the Launchpad's own pages, which its executable serves: the rules Nová
+  karta and the browser panel read.
+
+A fork takes the contract from the module's own files, not from these.
 
 ## Provenance and audit
 

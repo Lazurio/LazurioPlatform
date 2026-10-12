@@ -17,17 +17,19 @@ import {
   exitUsage,
 } from "../update/errors";
 import { runProcess } from "../update/self-check";
-import { navigableAddress } from "./people/hub";
-import { browserCdpPort } from "./units";
-import { browserEntryOf, browserViewUrl } from "./view";
 import {
   agentBrowserSocketDirectory,
+  type DaemonSeams,
+  stopSessionDaemon,
+} from "./contract/node";
+import { browserViewUrl, threadSession } from "./contract/pure";
+import { navigableAddress } from "./people/hub";
+import { browserCdpPort } from "./units";
+import { browserEntryOf } from "./view";
+import {
   BrowserWindowFailure,
   cdpSeams,
-  type DaemonSeams,
   ensureThreadWindow,
-  stopSessionDaemon,
-  threadSession,
   type WindowSeams,
 } from "./window";
 

@@ -1,11 +1,14 @@
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
+import {
+  browserViewUrl,
+  isStrip,
+  launchpadStrip,
+} from "../browser/contract/pure";
 import { restartStaleBrowserView } from "../browser/units";
 import {
   type BrowserViewSeams,
   browserEntryOf,
-  browserViewUrl,
-  isBrowserSession,
   resolveBrowserView,
 } from "../browser/view";
 import { cdpSeams, ensureThreadWindow } from "../browser/window";
@@ -99,11 +102,7 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 import { issueMausbotLink } from "./mausbot";
 import { messages } from "./messages";
 import { createMaintainerCheck } from "./module-maintainer";
-import {
-  type LaunchpadHolder,
-  launchpadHolderOf,
-  launchpadStrip,
-} from "./new-tab/holder";
+import { type LaunchpadHolder, launchpadHolderOf } from "./new-tab/holder";
 import { openTab } from "./new-tab/hub-client";
 import { runningModules } from "./new-tab/modules";
 import {
@@ -994,7 +993,7 @@ export async function startLaunchpad(
         if (
           keys.some((key) => key !== "session") ||
           keys.length > 1 ||
-          (session !== null && !isBrowserSession(session))
+          (session !== null && !isStrip(session))
         )
           return response({ error: "invalid-request" }, 400);
         server.timeout(request, 30);

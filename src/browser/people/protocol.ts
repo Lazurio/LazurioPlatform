@@ -5,11 +5,6 @@
  * binary (`encodeFrame`). Shared by the service and the page, so both sides
  * read one definition. */
 
-/** A DevTools target id as Chrome writes it: 32 hexadecimal digits. The view
- * takes nothing else as `<id>`. */
-export const isTargetId = (value: unknown): value is string =>
-  typeof value === "string" && /^[0-9A-F]{32}$/i.test(value);
-
 /** The page area of the view in CSS pixels and its device pixel ratio. */
 export type ViewSize = Readonly<{ width: number; height: number; dpr: number }>;
 

@@ -173,6 +173,32 @@ describe("the page's messages", () => {
     for (const value of refused) expect(parseNewTabChoice(value)).toBeNull();
   });
 
+  test("a choice's view is a view address in the contract's strict form, on the view host of an Environment (decision F50 point 2)", () => {
+    for (const address of [
+      `https://browser.a.b.c.lazurio.io/t/${tab}`,
+      `https://browser.-vm.example.lazurio.io/t/${tab}`,
+      `https://t3code.vm-01.example.lazurio.io/t/${tab}`,
+      `https://example.com/t/${tab}`,
+    ])
+      expect(parseNewTabChoice({ kind: "tab", tab, view: address })).toBeNull();
+    // A view with its id in lower case is the tab's view, as the contract
+    // writes it.
+    expect(
+      parseNewTabChoice({
+        kind: "tab",
+        tab,
+        view: `${view}/t/${tab.toLowerCase()}`,
+      }),
+    ).toEqual({ kind: "tab", tab, view: `${view}/t/${tab}` });
+    // Another Environment's view is a view address all the same.
+    const other = `https://browser.vm-02.example.lazurio.io/t/${tab}`;
+    expect(parseNewTabChoice({ kind: "tab", tab, view: other })).toEqual({
+      kind: "tab",
+      tab,
+      view: other,
+    });
+  });
+
   test("the page says ready or what was chosen, and nothing else", () => {
     expect(parseNewTabPageMessage({ type: newTabMessage.ready })).toEqual({
       type: "lazurio-new-tab:ready",
