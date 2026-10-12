@@ -124,11 +124,20 @@ the Operator. Exact quotations and externally required formats stay exact.
 ## Customization in Launchpad — proposed
 
 Start with Settings → Agent communication in the existing Environment settings.
-Show the default in plain language, allow a person's own additions and provide
-examples for chat, uncertainty, handoff, email and agent instructions. Reuse the
-existing detail preference; tone is not expertise, initiative, delegation,
-permission or model choice. Avoid an array of personality sliders without a
-clear effect.
+Customization must be understandable without technical knowledge: a person
+should know that it is optional, what to write and how to save it.
+The proposal explains the default in one short paragraph and offers
+one optional field, “What should agents do differently?”, with an everyday
+example such as “Keep answers short. Explain complicated things with an example.”
+Leaving it empty keeps the default. One Save action applies the person's words;
+Cancel restores the saved text. Restoring the default clears the field and is
+saved the same way.
+
+No default/custom mode switch, style taxonomy, sample tabs, generated instruction
+text or simulation controls belong in this everyday flow. The existing detail
+preference keeps its owner in General settings; this voice form does not rewrite
+it. Tone is not expertise, initiative, delegation, permission or model choice.
+Show the selected Environment and, for a team, the shared effect in one sentence.
 
 The Operator selected per-Environment customization for the first wireframe
 on 2026-10-12, following today's profile owner. It explicitly shows the shared
@@ -166,20 +175,24 @@ AGENTS.md entrypoint must carry the compact rule and, if a separate document is
 chosen, instruct agents to load it before composing an answer. Qualify this in
 fresh sessions of each supported harness, including resident consumers.
 
-Future apply uses the existing profile transaction: preview the exact revision
-and scope, recheck it on apply, preserve custom text through upgrades, refuse
-drift and preserve the previous generation on failure. A draft edit or canceled
-preview changes nothing active. Later edits invalidate the preview. State when
+Future Save uses the existing profile transaction: prepare the exact revision
+and scope through its preview contract, recheck it on apply, preserve custom text
+through upgrades, refuse drift and preserve the previous generation on failure. A draft edit or canceled
+edit changes nothing active. A later edit invalidates any prepared candidate.
+The ordinary user makes one Save action; the transaction does not require a
+separate technical preview screen or second confirmation. State when
 a new chat is required; do not imply that an existing chat has reloaded its
-instructions. Restoring the default is a previewable edit, not deletion of a
-user-authored file without review.
+instructions. Restoring the default is an explicit draft edit, saved with the
+same action; it must not silently delete an Operator-authored source file.
 
 ## Review and qualification
 
-The wireframe is a decision aid with synthetic, browser-only state and editorial
-examples. It cannot prove model adherence or save a real Folder preference.
-Review default versus custom, clarity of scope, detail, preview, cancellation,
-restore-default, failed apply and switching Environments.
+The wireframe is a decision aid with synthetic, browser-only state. It cannot
+prove model adherence or save a real Folder preference. Review whether a person
+understands that customization is optional, knows what to write and can save,
+cancel, restore the default and distinguish two Environments without technical
+instruction. Failure and drift qualification belongs to the implementation
+contract below, not to controls on the user's settings page.
 
 After the Operator selects the design, implementation acceptance must cover:
 
