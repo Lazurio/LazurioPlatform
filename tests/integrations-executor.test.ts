@@ -21,7 +21,7 @@ import {
   executorCall,
   listenerOwnedBy,
 } from "../src/integrations/executor-client";
-import { readExecutor } from "../src/integrations/executor-source";
+import { healthState, readExecutor } from "../src/integrations/executor-source";
 import { startFakeExecutor } from "./fixtures/fake-executor-api";
 import { runChild } from "./fixtures/run-child";
 
@@ -245,6 +245,30 @@ test("an Executor answer of another shape makes the source unreadable", async ()
     await server.stop(true);
     expect([name, reading]).toEqual([name, { state: "unreadable" }]);
   }
+});
+
+// Executor's verdicts (1.6.10 `HealthStatus`, with its `HealthCheckReason`s)
+// as an account's state: whatever the reason, a degraded verdict means its
+// last check reached no working server, so it is failing (#322).
+test("Executor's health verdicts as an account's state: degraded is failing", () => {
+  const verdicts: [unknown, string][] = [
+    [null, "connected"],
+    [undefined, "connected"],
+    [{ status: "healthy", checkedAt: 1 }, "connected"],
+    [{ status: "unknown", checkedAt: 1 }, "connected"],
+    [{ status: "expired", reason: "credential_refresh_rejected" }, "expired"],
+    [{ status: "misconfigured", httpStatus: 403 }, "failed"],
+    [{ status: "degraded", reason: "tool_sync_failed" }, "failed"],
+    [{ status: "degraded", reason: "probe_failed" }, "failed"],
+    [{ status: "degraded", reason: "probe_timeout" }, "failed"],
+    [
+      { status: "degraded", reason: "upstream_status", httpStatus: 502 },
+      "failed",
+    ],
+    [{ status: "degraded" }, "failed"],
+  ];
+  for (const [verdict, state] of verdicts)
+    expect([verdict, healthState(verdict)]).toEqual([verdict, state]);
 });
 
 test.if(existsSync("/usr/sbin/lsof") || existsSync("/usr/bin/lsof"))(
