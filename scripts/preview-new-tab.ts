@@ -9,8 +9,10 @@
 // nobody knows), each with its heap but one; their service manager and
 // `/proc/meminfo` are fakes that put the Environment's memory at about 85 %
 // (warn) with two running Modules; their holder file lives in a temporary
-// runtime directory. A close ends a tab after 8 s, Vrátit within them brings
-// it back, Zastavit stops a fake Module, an address opens a fake tab. The
+// runtime directory, which starts with the Launchpad holding two tabs. A
+// close ends a tab after 8 s, Vrátit within them brings it back; × in the
+// panel's strip releases the Launchpad's hold; Zastavit stops a fake Module,
+// an address opens a fake tab. The
 // view's origin is a synthetic https one that does not resolve, so a
 // standalone choice navigates to an address that does not load, and a tab's
 // frame in the Launchpad's panel shows the browser's own error page; inside
@@ -299,10 +301,20 @@ const hub = Bun.serve({
 
 // ---- The Launchpad's side: its real routes over fakes ------------------------
 
-// The T3 Code thread `t3-x` names itself in its holder file (F47 point 4).
+// The T3 Code thread `t3-x` names itself in its holder file (F47 point 4),
+// and the Launchpad holds two tabs, one of them the thread's too: its strip
+// shows those two, Přehled every tab.
 await writeFile(
   join(holders, "t3-x.json"),
   holderFileText("t3-x", czech ? "Faktury za září" : "September invoices", [
+    { id: id(2), recordedAt: null },
+  ]),
+  { mode: 0o600 },
+);
+await writeFile(
+  join(holders, "launchpad.json"),
+  holderFileText("launchpad", "Launchpad", [
+    { id: id(3), recordedAt: null },
     { id: id(2), recordedAt: null },
   ]),
   { mode: 0o600 },

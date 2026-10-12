@@ -7373,6 +7373,15 @@ workstation, keep their apps' own "+".
    Nová karta, and so does closing the last tab. Zavřít in its strip is the close for everyone
    (point 6), with the warning when an agent works in the tab. A message during the grace
    never takes Vrátit away (wireframe #27).
+
+   **Addendum 2026-10-12, decided by Matěj: the strip shows the tabs the Launchpad holds.**
+   The Launchpad's strip lists the tabs the Launchpad holds (`holders/launchpad.json`), as a
+   T3 Code thread's strip lists the thread's, and Přehled lists every tab. × lets go of the
+   Launchpad's hold, with Vrátit while the hub's grace lasts; the tab stays in the
+   Environment and in Přehled as long as anything still needs it. Closing a tab for everyone
+   is Přehled's Zavřít alone. A tab chosen in the panel's Nová karta is held for the
+   Launchpad, as a page opened there is. This changes 0195 point 9's strip of every tab and
+   point 11's "or in the Launchpad's strip", which the root register will record.
 10. **T3 Code** (plan DEV-6646 task 2026-10-11-501): "+" opens a tab with `<lazurio-new-tab>`
     instead of the upstream menu. A page or a chosen tab turns it into the thread's tab, a tool
     into T3 Code's own surface. Its server keeps the threads' browser tabs and writes their
@@ -7532,9 +7541,12 @@ been measured yet.
   does not answer, Přehled says which and reads again; where the Environment has no
   browser, it says so and reads no more.
 - Zavřít asks first when an agent works in the tab (the wireframe's warning; keeping the
-  tab is the answer offered first). The tab leaves the list at once and Vrátit stays for
-  the 8 s of the grace: a later message shows above it, and a later overview neither
-  brings the tab back nor takes Vrátit away.
+  tab is the answer offered first). The tab leaves the list at once and stays gone until
+  the hub has accepted the close and an overview requested after that lists it as closing,
+  or comes back when the close fails. Vrátit lasts until the hub's deadline: the close
+  answers the time left (`left`, measured on the Environment's clock, which the deadline is
+  on), and the page counts it from its request, so a late answer never offers Vrátit past
+  the deadline. A later message shows above it and never takes it away.
 - `src/shell/new-tab-protocol.ts` is the protocol between the page and
   `<lazurio-new-tab>` (`src/shell/new-tab-element.ts`, defined with the shell's other
   elements). Interface v1 gains the element with its attributes `strip`, `tools`,
@@ -7550,15 +7562,26 @@ been measured yet.
   the Launchpad's strip with no tools; its address bar takes the focus, and a choice
   navigates that window to the tab's view. A page opened there is the Launchpad's to hold
   (`open` with the strip `launchpad`); choosing a tab that exists holds nothing.
-- The Launchpad's right panel (`browser-panel.ts`, `browser-panel-view.ts`) lists every tab
-  of the Environment from the overview, read every 5 s while the panel is open.
+- The Launchpad's right panel (`browser-panel.ts`, `browser-panel-view.ts`) lists the tabs
+  the Launchpad holds (point 9's addendum of 2026-10-12), from the overview read every 5 s
+  while the panel is open, in the order the strip first had them; every other tab is in
+  Přehled. The overview reports the Launchpad's hold as its holder last wrote it, so the
+  strip never waits for the hub to read the file again.
   - "+" shows Nová karta, `<lazurio-new-tab strip="launchpad" focus-address>`, and so do
-    the first opening and the close of the last tab. A page or tab chosen in it shows in
-    the panel.
-  - × closes for everyone, with the warning and Vrátit.
-  - A page's new tab that a view reports (`lazurio-browser:new-tab`) is held for the
-    Launchpad (`POST /api/new-tab/hold`) and shown; `lazurio-browser:closed` drops its
-    tab.
+    the first opening and the strip once its last tab goes. A page opened in it, which the
+    Launchpad holds, shows in the panel; a tab chosen in its Přehled shows once
+    `POST /api/new-tab/hold` has held it.
+  - × lets go of the Launchpad's hold, without a warning, since it never closes a tab
+    something still needs. `POST /api/new-tab/release` takes the holder file's own path:
+    one operation at a time, the file read again first, nothing written over a file that
+    cannot be read, and a tab not held is released already. The tab stays gone until the
+    release is done and a later overview says so, or comes back when it fails. The toast
+    says whether the tab closes or stays because an agent works in it or another place
+    holds it, and Vrátit holds it again for 8 s from the request, within the hub's grace.
+  - A page's new tab that a view reports (`lazurio-browser:new-tab`), and the sign-in tab
+    an Integrace opens, show only once the Launchpad holds them. A hold that failed says
+    why, with Zkusit znovu where trying again can help; for a sign-in, Integrace says that
+    the browser cannot open it now. `lazurio-browser:closed` drops its tab.
   - A closed panel mounts no frame and reads nothing.
 - `scripts/preview-new-tab.ts` shows it against fakes: the Launchpad's page with the
   panel, `/new-tab` standalone and inside a host page with T3 Code's tools, and switches
