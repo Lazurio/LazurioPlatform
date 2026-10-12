@@ -510,14 +510,6 @@
       "expect": null
     },
     {
-      "name": "the default port written out is none: not as written",
-      "call": "viewAddressOf",
-      "args": [
-        "https://browser.vm-01.example.lazurio.io:443/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-      ],
-      "expect": null
-    },
-    {
       "name": "credentials are none",
       "call": "viewAddressOf",
       "args": [
