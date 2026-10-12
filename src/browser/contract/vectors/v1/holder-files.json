@@ -341,7 +341,24 @@
         ],
         "1.2.3-rc.4"
       ],
-      "expect": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3-rc.4\",\"strip\":\"t3-a\",\"label\":\"Vlákno o webu\",\"tabs\":[\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\"],\"recordedAt\":{\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\":{\"boot\":\"6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f\",\"at\":5}}}\n"
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-holder.v1",
+          "contract": "1.2.3-rc.4",
+          "strip": "t3-a",
+          "label": "Vlákno o webu",
+          "tabs": [
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+          ],
+          "recordedAt": {
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 5
+            }
+          }
+        }
+      }
     },
     {
       "name": "the writer reads its record times back",
@@ -1010,14 +1027,11 @@
       }
     },
     {
-      "name": "the hub's reader remembers between readings and says when a file breaks, mends or goes",
+      "name": "the hub's reader remembers between readings: a file that breaks keeps what it held, one that mends or goes counts as it reads",
       "call": "holdsReader",
       "args": [
         {
           "holders": "$dir/holders"
-        },
-        {
-          "log": "$log"
         }
       ],
       "steps": [
@@ -1056,8 +1070,7 @@
             "bound": {
               "$map": {}
             }
-          },
-          "log": []
+          }
         },
         {
           "directory": {
@@ -1087,11 +1100,7 @@
             "bound": {
               "$map": {}
             }
-          },
-          "log": [
-            "launchpad.json cannot be read: it keeps the 2 tabs it held when it was last read; other files count",
-            "t3-a.json cannot be read: it was never read, so it holds no tab; other files count"
-          ]
+          }
         },
         {
           "directory": {
@@ -1112,11 +1121,7 @@
             "bound": {
               "$map": {}
             }
-          },
-          "log": [
-            "launchpad.json can be read again",
-            "t3-a.json is gone: it holds nothing now"
-          ]
+          }
         }
       ]
     },
