@@ -1,6 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
-import { browserViewUrl, isStrip } from "../browser/contract/pure";
+import {
+  browserViewUrl,
+  isStrip,
+  launchpadStrip,
+} from "../browser/contract/pure";
 import { restartStaleBrowserView } from "../browser/units";
 import {
   type BrowserViewSeams,
@@ -98,11 +102,7 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 import { issueMausbotLink } from "./mausbot";
 import { messages } from "./messages";
 import { createMaintainerCheck } from "./module-maintainer";
-import {
-  type LaunchpadHolder,
-  launchpadHolderOf,
-  launchpadStrip,
-} from "./new-tab/holder";
+import { type LaunchpadHolder, launchpadHolderOf } from "./new-tab/holder";
 import { openTab } from "./new-tab/hub-client";
 import { runningModules } from "./new-tab/modules";
 import {

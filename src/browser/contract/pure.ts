@@ -42,6 +42,40 @@ export function isStrip(value: unknown): value is string {
   return typeof value === "string" && stripPattern.test(value);
 }
 
+/** The Launchpad's one strip (F47 point 4). */
+export const launchpadStrip = "launchpad";
+
+/** The prefix of every other app's strips and sessions (F50 point 2): a T3
+ * Code thread's `t3-<thread>`, a Codex thread's `codex-<CODEX_THREAD_ID>`, a
+ * Claude Code session's `claude-<CLAUDE_CODE_SESSION_ID>`, and `bot-`,
+ * reserved for Lazurio MausBot's bots. The overview and the strips name an
+ * app by them, and an app writes and removes only the holder files of its
+ * own prefix; the Launchpad only `launchpad.json`. */
+export const stripPrefixes = Object.freeze({
+  t3code: "t3-",
+  codex: "codex-",
+  claude: "claude-",
+  mausbot: "bot-",
+});
+
+/** An app that names strips or agent-browser sessions. */
+export type StripApp = "launchpad" | keyof typeof stripPrefixes;
+
+const prefixedApps = Object.keys(stripPrefixes) as readonly Exclude<
+  StripApp,
+  "launchpad"
+>[];
+
+/** The app a strip's or a session's name belongs to; null for a name of no
+ * app (a session named by hand) and for anything that is no strip's name. */
+export function stripAppOf(name: unknown): StripApp | null {
+  if (!isStrip(name)) return null;
+  if (name === launchpadStrip) return "launchpad";
+  return (
+    prefixedApps.find((app) => name.startsWith(stripPrefixes[app])) ?? null
+  );
+}
+
 /** The agent-browser session of the calling thread: the name given on
  * purpose, used as given or refused; otherwise the one its harness gives it,
  * every character outside the alphabet a `-` and cut at 64. T3 Code sets
@@ -57,10 +91,10 @@ export function threadSession(
     env.AGENT_BROWSER_SESSION,
     env.CODEX_THREAD_ID === undefined
       ? undefined
-      : `codex-${env.CODEX_THREAD_ID}`,
+      : `${stripPrefixes.codex}${env.CODEX_THREAD_ID}`,
     env.CLAUDE_CODE_SESSION_ID === undefined
       ? undefined
-      : `claude-${env.CLAUDE_CODE_SESSION_ID}`,
+      : `${stripPrefixes.claude}${env.CLAUDE_CODE_SESSION_ID}`,
   ];
   for (const candidate of candidates) {
     if (candidate === undefined || candidate === "") continue;

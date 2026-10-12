@@ -1,6 +1,6 @@
 import type { Server, ServerWebSocket } from "bun";
 import type { EnvironmentIdentity } from "../../shell/view";
-import { isStrip } from "../contract/pure";
+import { isStrip, targetIdOf } from "../contract/pure";
 import { viewScript } from "./bundle" with { type: "macro" };
 import { browserSocketUrl, type CdpConnection, connectCdp } from "./cdp";
 import {
@@ -152,7 +152,7 @@ const json = (body: unknown, status = 200) =>
 const livePath = /^\/t\/([0-9A-Fa-f]{32})\/live$/;
 const filesPath = /^\/t\/([0-9A-Fa-f]{32})\/files$/;
 const viewPath = /^\/t\/([0-9A-Fa-f]{32})$/;
-const tabsPath = /^\/\.lazurio\/tabs(?:\/([0-9A-Fa-f]{32})\/(close|restore))?$/;
+const tabsPath = /^\/\.lazurio\/tabs(?:\/([^/]+)\/(close|restore))?$/;
 const maxTabsBodyBytes = 8 * 1024;
 
 export type RequestDecision =
@@ -193,7 +193,11 @@ export function classifyRequest(
       ? { kind: "health" }
       : { kind: "refused", status: 421, error: "wrong-host" };
   const tabs = tabsPath.exec(path);
-  if (tabs !== null) {
+  // A tab is named by its id in either case (decision F50, C1); any other
+  // segment is no path of these requests.
+  const named = tabs?.[1];
+  const targetId = named === undefined ? undefined : targetIdOf(named);
+  if (tabs !== null && targetId !== null) {
     // The Launchpad's requests (F47 point 6): through the gateway, which
     // sends the view's own host, they do not exist. Pages in the
     // Environment's own browser reach the loopback too, and a browser always
@@ -201,7 +205,6 @@ export function classifyRequest(
     if (!loopback) return { kind: "refused", status: 404, error: "not-found" };
     if (request.origin !== null || (request.fetchSite ?? null) !== null)
       return { kind: "refused", status: 403, error: "browser-request" };
-    const targetId = tabs[1]?.toUpperCase();
     if (targetId === undefined) {
       if (request.method === "GET") return { kind: "tabs" };
       if (request.method === "POST") return { kind: "open" };

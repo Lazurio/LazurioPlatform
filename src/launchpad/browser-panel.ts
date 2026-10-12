@@ -1,3 +1,4 @@
+import { launchpadStrip } from "../browser/contract/pure";
 import { newTabEventName } from "../shell/new-tab-protocol";
 import {
   browserFrame,
@@ -42,7 +43,6 @@ import {
   actionNoteMs,
   closeGraceMs,
   fill,
-  launchpadStrip,
   type NewTabAnswer,
   newTabCopy,
   noteMs,

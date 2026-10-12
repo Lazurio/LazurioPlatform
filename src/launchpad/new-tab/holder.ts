@@ -11,9 +11,11 @@ import {
   holderFileText,
   isStrip,
   keptTabs,
+  launchpadStrip,
   parseHolder,
   parseHolderRecords,
   parseLiveTabs,
+  targetIdOf,
 } from "../../browser/contract/pure";
 
 // The Launchpad's own holder file (decision F47 point 4): the remote tabs a
@@ -32,7 +34,6 @@ import {
 // taken after its record, lacks. A list that is missing or unreadable keeps
 // everything. Times come from the boot clock only, never the wall clock.
 
-export const launchpadStrip = "launchpad";
 export const launchpadLabel = "Launchpad";
 const fileName = `${launchpadStrip}.json`;
 
@@ -47,8 +48,6 @@ export class HolderFull extends Error {
     super("The Launchpad holds as many tabs as it may");
   }
 }
-
-const targetIdPattern = /^[0-9A-Fa-f]{32}$/;
 
 export type LaunchpadHolder = Readonly<{
   /** Reads the file, reconciles, then watches the list and reads it again
@@ -209,8 +208,8 @@ export function createLaunchpadHolder(seams: HolderSeams): LaunchpadHolder {
       await queue;
     },
     async hold(id: string) {
-      if (!targetIdPattern.test(id)) throw new Error("Invalid target id");
-      const tab = id.toUpperCase();
+      const tab = targetIdOf(id);
+      if (tab === null) throw new Error("Invalid target id");
       await serialized(async () => {
         if (stopped) throw new Error("The Launchpad is closing");
         let held: Map<string, BootTime | null>;
@@ -230,8 +229,8 @@ export function createLaunchpadHolder(seams: HolderSeams): LaunchpadHolder {
       });
     },
     async release(id: string) {
-      if (!targetIdPattern.test(id)) throw new Error("Invalid target id");
-      const tab = id.toUpperCase();
+      const tab = targetIdOf(id);
+      if (tab === null) throw new Error("Invalid target id");
       await serialized(async () => {
         if (stopped) throw new Error("The Launchpad is closing");
         let held: Map<string, BootTime | null>;

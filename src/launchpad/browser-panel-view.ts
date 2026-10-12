@@ -1,5 +1,10 @@
-import { browserViewUrl } from "../browser/contract/pure";
-import { isTargetId, parseNewTabChoice } from "../shell/new-tab-protocol";
+import {
+  browserViewUrl,
+  launchpadStrip,
+  stripAppOf,
+  targetIdOf,
+} from "../browser/contract/pure";
+import { parseNewTabChoice } from "../shell/new-tab-protocol";
 import type { PublicEntry } from "./chat";
 import {
   actionFailure,
@@ -7,7 +12,6 @@ import {
   hideAnswered,
   hideAsked,
   isNoBrowser,
-  launchpadStrip,
   type NewTabAnswer,
   type NewTabCopy,
   type NewTabOverview,
@@ -104,9 +108,10 @@ export function tabViewAddress(
   tab: string,
   pageOrigin: string,
 ): string | null {
-  if (!isTargetId(tab)) return null;
+  const id = targetIdOf(tab);
+  if (id === null) return null;
   return browserViewAddress(
-    { available: true, view: browserViewUrl(origin, tab.toUpperCase()) },
+    { available: true, view: browserViewUrl(origin, id) },
     origin,
     pageOrigin,
   );
@@ -575,7 +580,7 @@ export function releaseText(
   const places = [
     ...new Set(
       others.map((hold) =>
-        !hold.strip.startsWith("t3-")
+        stripAppOf(hold.strip) !== "t3code"
           ? copy.placeElsewhere
           : hold.label.trim() === ""
             ? copy.placeOtherThread
