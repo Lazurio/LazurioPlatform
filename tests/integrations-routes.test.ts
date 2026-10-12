@@ -813,7 +813,9 @@ test("two Composio sign-ins of one toolkit at once keep their own pending accoun
     expect(await salesforce(false)).toEqual([[left, "pending"]]);
     expect(await salesforce(true)).toEqual([[left, "pending"]]);
   }
-});
+  // Two rounds of a held link and a deliberate wait: beyond bun's default
+  // five seconds, as `bun run check` runs it (Pablo's fourth review of #337).
+}, 30_000);
 
 test("a second Composio account needs a name, and a name in use is refused before anything runs", async () => {
   const { world, app } = await setup(
