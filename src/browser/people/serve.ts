@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
+import { ensureAgentBrowserIdleTimeout } from "../agent-browser-config";
 import { browserCdpPort, browserScreenSize } from "../units";
 import { agentBrowserSocketDirectory } from "../window";
 import {
@@ -62,6 +63,17 @@ export async function runViewService(
   if (holders !== undefined)
     await mkdir(holders, { recursive: true, mode: 0o700 }).catch(
       () => undefined,
+    );
+  // An agent works in a tab while its agent-browser daemon runs (decision F47
+  // point 5), and agent-browser's own idle default skips the attached
+  // Environment browser: its user config gets the hour (#326).
+  const idle = await ensureAgentBrowserIdleTimeout(env).catch(
+    () => "unreadable" as const,
+  );
+  if (idle === "set") log("agent-browser idle timeout set to 1h");
+  else if (idle === "unreadable")
+    log(
+      "agent-browser config cannot be read: its daemons keep no idle timeout",
     );
   const sockets = agentBrowserSocketDirectory(env);
   const liveTabs = liveTabsPath(env);
