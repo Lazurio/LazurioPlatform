@@ -14,9 +14,9 @@ import { browserCdpPort, browserScreenSize } from "../units";
 import { agentBrowserSocketDirectory } from "../window";
 import {
   holderDirectory,
+  holdsReader,
   liveTabsPath,
   readBootClock,
-  readHolds,
   watchHolds,
   writeLiveTabs,
 } from "./holds";
@@ -116,7 +116,7 @@ export async function runViewService(
     identity: () => readViewIdentity(),
     hub: {
       connect: loopbackBrowser(browserCdpPort),
-      holds: () => readHolds({ holders, sockets }),
+      holds: holdsReader({ holders, sockets }, { log }),
       watchHolds: (changed) => watchHolds([holders, sockets], changed),
       ...(liveTabs === undefined
         ? {}

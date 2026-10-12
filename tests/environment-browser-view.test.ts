@@ -18,8 +18,8 @@ import {
 import {
   type Hold,
   type Holds,
+  holdsReader,
   noHolds,
-  readHolds,
 } from "../src/browser/people/holds";
 import {
   BrowserHub,
@@ -290,7 +290,7 @@ type HoldsState = {
   holders?: Readonly<Record<string, readonly string[]>>;
 };
 
-/** The holds a state names, as `readHolds` answers them. */
+/** The holds a state names, as `readHolds` answers them in `holds`. */
 function holdsOf(state: HoldsState): Holds {
   const holders = new Map<string, Hold[]>();
   for (const [strip, ids] of Object.entries(state.holders ?? {}))
@@ -1352,7 +1352,7 @@ test("a holder directory that cannot be read lets no tab go until a read succeed
   const { refresh } = await serve(browser, {
     releaseGraceMs: 40,
     unviewedGraceMs: 60_000,
-    holds: () => readHolds({ holders }),
+    holds: holdsReader({ holders }),
   });
   try {
     expect(
@@ -1377,6 +1377,46 @@ test("a holder directory that cannot be read lets no tab go until a read succeed
   }
 });
 
+// Root decision 0191 point 32, which changes F47 point 5: before, one holder
+// file the hub could not read kept every tab of the Environment.
+test("one holder file that cannot be read keeps only its own tabs: another app's release still ends a tab", async () => {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "people-holders-")));
+  const holders = join(dir, "holders");
+  await mkdir(holders, { mode: 0o700 });
+  const hold = (strip: string, tabs: string[]) =>
+    writeFile(
+      join(holders, `${strip}.json`),
+      JSON.stringify({ strip, label: strip, tabs }),
+    );
+  await hold("launchpad", [id(1)]);
+  await hold("t3-a", [id(2)]);
+  const browser = new FakeBrowser([tab(1), tab(2)]);
+  const { refresh } = await serve(browser, {
+    releaseGraceMs: 40,
+    unviewedGraceMs: 60_000,
+    holds: holdsReader({ holders }),
+  });
+  try {
+    expect(service?.hub.list().map((t) => t.holders.length)).toEqual([1, 1]);
+    // The Launchpad's file breaks; the thread lets go of its tab.
+    await writeFile(join(holders, "launchpad.json"), "{");
+    await hold("t3-a", []);
+    refresh();
+    await until(() => closedTargets(browser).includes(id(2)));
+    await settle(200);
+    expect(closedTargets(browser)).toEqual([id(2)]);
+    expect(service?.hub.list().find((t) => t.id === id(1))?.holders).toEqual([
+      { strip: "launchpad", label: "launchpad" },
+    ]);
+    // Mended, and the Launchpad let go: now its release counts.
+    await hold("launchpad", []);
+    refresh();
+    await until(() => closedTargets(browser).includes(id(1)));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("an agent whose .pid cannot be understood keeps its tab; a .pid of an ended process lets it go", async () => {
   const dir = await realpath(await mkdtemp(join(tmpdir(), "people-sockets-")));
   const sockets = join(dir, "agent-browser");
@@ -1390,7 +1430,7 @@ test("an agent whose .pid cannot be understood keeps its tab; a .pid of an ended
   const { refresh } = await serve(browser, {
     releaseGraceMs: 40,
     unviewedGraceMs: 60,
-    holds: () => readHolds({ sockets }),
+    holds: holdsReader({ sockets }),
   });
   try {
     await settle(300);

@@ -7461,7 +7461,8 @@ workstation, keep their apps' own "+".
    = `{"strip", "label", "tabs": [<target id>…]}`, mode 0600 in a directory of mode 0700. Only
    its app's server replaces it, atomically (a temporary file and a rename). One holder file
    the hub cannot read keeps the hub's last reading of every holder (step 1), so each app
-   keeps its file well inside the hub's limits.
+   keeps its file well inside the hub's limits. (Root decision 0191 point 32, below, narrows
+   this to the tabs that file held.)
    - T3 Code's server keeps each thread's browser tabs, so the strip is the same on every
      device, and writes `t3-<thread>.json` with the thread's title as `label`. A deleted
      thread's file goes.
@@ -7678,7 +7679,8 @@ ended before the app recorded it, a record from an earlier boot, and a step of t
     point 5;
   - re-reads the holds before it closes a tab, and keeps the tab when that read fails. Only a
     directory or file that does not exist reads as holding nothing; any other failure, and a
-    holder file that is not one, keeps the last reading;
+    holder file that is not one, keeps the last reading (for one file, only that file's
+    reading since root decision 0191 point 32, below);
   - keeps its blank window, which is in no list;
   - writes the list of live tabs from a fresh `Target.getTargets` snapshot, stamped with the
     boot-clock time the snapshot began, after each discovery, on every change and every 30 s
@@ -7911,6 +7913,35 @@ and the first bullet of step 3's panel; the rest of F47 stands.
   layout) with `tests/layout-view.test.ts`, and `new-tab-view.ts` with
   `tests/new-tab-view.test.ts`. The DOM: `browser-panel.ts` and `layout.ts`. How it looks and
   moves is checked in a browser (root decision 0178), never by a rendered-page test.
+
+**One holder file that cannot be read (2026-10-12, root decision 0191 point 32).** Matěj
+decided that one unreadable holder file stops the ending of its own tabs only. It changes
+point 5 and step 1's hub, where such a file kept the hub's last reading of every holder, so no
+tab of the Environment ended while it stayed broken.
+- **The rule.** `readHolds` reads each file on its own and remembers what each file it could
+  read held. A holder file that cannot be read (a permission, an I/O error) or is not a holder
+  file keeps holding the tabs it held at its last reading, and only those; every other file
+  counts as it reads now, a release included. Once it can be read again, what it says counts.
+  A file that went holds nothing and is forgotten.
+- **A file never read.** A file the hub has not read since it started holds nothing it knows
+  of. Holding every tab for it would bring back what point 32 removes. After the view starts,
+  a tab nothing else holds has the hub's 10 minutes (point 5), and the app's next write
+  replaces the file.
+- **Bindings and `.pid` files.** An agent-browser binding that cannot be read keeps its last
+  tab, and one never read binds none. A `.pid` that cannot be read is unclear, and unclear
+  counts as working, as an empty one did.
+- **The directory.** A holder or socket directory that cannot be listed is no single file:
+  the reading fails, and the hub keeps its last reading of everything, as before.
+- **Seen, not silent.** The hub's reader (`holdsReader`) reads one at a time, so each reading
+  remembers the one before. It logs a file that becomes unreadable, with what it keeps, and
+  again when the file can be read. `lazurio doctor` warns `browser-holder-unreadable` with the
+  `files` it could not read, or the directory.
+- **The writers are unchanged.** The Launchpad still takes no hold and writes nothing over its
+  own file while it cannot read it (step 2): that stops its own tabs only.
+- **Where it is.** `readHolds`, `holdsReader` and `unreadableHolderFiles` in
+  `src/browser/people/holds.ts`, with `tests/environment-browser-holds.test.ts`; the hub's case
+  in `tests/environment-browser-view.test.ts`; doctor's in `observeEnvironmentBrowser`
+  (`src/browser/units.ts`), with `tests/environment-browser.test.ts`.
 
 ## F48 — One shared GitHub App sign-in in a Work Environment (pilot)
 

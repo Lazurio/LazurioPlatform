@@ -40,6 +40,37 @@ export const noHolds: Holds = Object.freeze({
   bound: new Map(),
 });
 
+/** What the files said at their last reading, by file name (root decision
+ * 0191 point 32, which changes F47 point 5): a holder file that cannot be
+ * read keeps holding what it held then, and only that, and a binding that
+ * cannot be read keeps its tab. A file never read holds nothing. */
+export type HoldsMemory = Readonly<{
+  holders: ReadonlyMap<string, HolderReading>;
+  /** Each session's target id, by its binding's file name. */
+  bindings: ReadonlyMap<string, string>;
+}>;
+
+export const noHoldsMemory: HoldsMemory = Object.freeze({
+  holders: new Map(),
+  bindings: new Map(),
+});
+
+/** What one holder file holds. */
+export type HolderReading = Readonly<{
+  strip: string;
+  label: string;
+  tabs: readonly string[];
+}>;
+
+/** One reading of both directories: the holds, what the next reading
+ * remembers, and the files this one could not read. */
+export type HoldsReading = Readonly<{
+  holds: Holds;
+  memory: HoldsMemory;
+  /** Holder files (`<strip>.json`) and bindings (`<session>.target`). */
+  unreadable: readonly string[];
+}>;
+
 /** A strip's name is a file name: agent-browser's session alphabet, as T3
  * Code's `t3-<thread>` and the Launchpad's `launchpad` are. */
 const stripPattern = /^[A-Za-z0-9_-]{1,64}$/;
@@ -209,7 +240,7 @@ export function keptTabs(
 export function parseHolder(
   fileName: string,
   text: string,
-): Readonly<{ strip: string; label: string; tabs: readonly string[] }> | null {
+): HolderReading | null {
   if (!fileName.endsWith(".json")) return null;
   const name = fileName.slice(0, -".json".length);
   if (!isStrip(name) || text.length > maxHolderBytes) return null;
@@ -333,35 +364,53 @@ async function text(path: string): Promise<string | null> {
   }
 }
 
-/** Reads both directories, failing closed (F47 point 5): only a directory or
- * file that does not exist reads as holding nothing. Any other failure (a
- * permission, an I/O error) and a holder file that is not one are thrown, so
- * the hub keeps its last reading and no tab ends for a read it could not
- * make. A holder file is replaced atomically by its app, so a broken one is
- * a fault to see, not a release. Names that are no strip's file (an app's
- * temporary file) are skipped. An agent-browser session counts as ended only
- * when its `.pid` is gone or names a well-formed process id that no longer
- * runs; one that cannot be understood (empty, signed, zero) counts as
- * working, which keeps its tab. */
+/** A file's text, null when it is gone, or "unreadable" for any other
+ * failure: a permission, an I/O error. */
+const textOf = (path: string) => text(path).catch(() => "unreadable" as const);
+
+/** Reads both directories (F47 point 5 as root decision 0191 point 32
+ * changes it). Only a directory or file that does not exist reads as holding
+ * nothing. A directory that cannot be listed is thrown, so the hub keeps its
+ * last reading and no tab ends. A file that cannot be read (a permission, an
+ * I/O error) or is not a holder file stops the ending of its own tabs only:
+ * it keeps holding what it held at its last reading in `memory`, the other
+ * files count as they read now, and it is named in `unreadable`. A holder
+ * file is replaced atomically by its app, so a broken one is a fault to see,
+ * not a release. Names that are no strip's file (an app's temporary file)
+ * are skipped. An agent-browser session counts as ended only when its `.pid`
+ * is gone or names a well-formed process id that no longer runs; one that
+ * cannot be read or understood (empty, signed, zero) counts as working,
+ * which keeps its tab. */
 export async function readHolds(
   directories: Readonly<{
     holders?: string | undefined;
     sockets?: string | undefined;
   }>,
   alive: (pid: number) => boolean = processAlive,
-): Promise<Holds> {
+  memory: HoldsMemory = noHoldsMemory,
+): Promise<HoldsReading> {
   const holders = new Map<string, Hold[]>();
   const working = new Map<string, string[]>();
   const bound = new Map<string, string[]>();
+  const remembered = {
+    holders: new Map<string, HolderReading>(),
+    bindings: new Map<string, string>(),
+  };
+  const unreadable: string[] = [];
   if (directories.holders !== undefined) {
     const directory = directories.holders;
     for (const name of await names(directory)) {
       if (!name.endsWith(".json") || !isStrip(name.slice(0, -".json".length)))
         continue;
-      const content = await text(join(directory, name));
+      const content = await textOf(join(directory, name));
       if (content === null) continue;
-      const hold = parseHolder(name, content);
-      if (hold === null) throw new Error(`unreadable holder file ${name}`);
+      let hold = content === "unreadable" ? null : parseHolder(name, content);
+      if (hold === null) {
+        unreadable.push(name);
+        hold = memory.holders.get(name) ?? null;
+        if (hold === null) continue;
+      }
+      remembered.holders.set(name, hold);
       for (const id of hold.tabs) {
         const list = holders.get(id);
         const entry = { strip: hold.strip, label: hold.label };
@@ -376,30 +425,114 @@ export async function readHolds(
       if (!name.endsWith(".target")) continue;
       const session = name.slice(0, -".target".length);
       if (!isStrip(session)) continue;
-      const content = await text(join(directory, name));
+      const content = await textOf(join(directory, name));
       if (content === null) continue;
       let targetId: unknown;
-      try {
-        targetId = (JSON.parse(content) as { targetId?: unknown } | null)
-          ?.targetId;
-      } catch {
-        throw new Error(`unreadable binding file ${name}`);
+      let read = content !== "unreadable";
+      if (read)
+        try {
+          targetId = (JSON.parse(content) as { targetId?: unknown } | null)
+            ?.targetId;
+        } catch {
+          read = false;
+        }
+      if (!read) {
+        unreadable.push(name);
+        targetId = memory.bindings.get(name);
       }
       if (typeof targetId !== "string" || !targetIdPattern.test(targetId))
         continue;
       const id = targetId.toUpperCase();
+      remembered.bindings.set(name, id);
       add(bound, id, session);
-      const pidText = await text(join(directory, `${session}.pid`));
+      const pidText = await textOf(join(directory, `${session}.pid`));
       if (pidText === null) continue;
       // Only a well-formed process id proven ended releases the tab; an
-      // empty, signed or zero one is unclear, and unclear keeps it.
-      const digits = pidText.trim();
+      // unreadable, empty, signed or zero one is unclear, and unclear keeps
+      // it.
+      const digits = pidText === "unreadable" ? "" : pidText.trim();
       const pid = /^[0-9]{1,10}$/.test(digits) ? Number(digits) : Number.NaN;
       if (!(Number.isSafeInteger(pid) && pid >= 2) || alive(pid))
         add(working, id, session);
     }
   }
-  return { holders, working, bound };
+  return {
+    holds: { holders, working, bound },
+    memory: remembered,
+    unreadable,
+  };
+}
+
+/** The hub's reading of the holds: one reading at a time, each remembering
+ * what the files it could read held, so a file that cannot be read keeps
+ * holding what it held (root decision 0191 point 32). It logs when a file
+ * becomes unreadable and when it can be read again. A directory that cannot
+ * be listed is thrown, as `readHolds` does. */
+export function holdsReader(
+  directories: Readonly<{
+    holders?: string | undefined;
+    sockets?: string | undefined;
+  }>,
+  options: Readonly<{
+    alive?: (pid: number) => boolean;
+    log?: (line: string) => void;
+  }> = {},
+): () => Promise<Holds> {
+  let memory = noHoldsMemory;
+  let reported: ReadonlySet<string> = new Set();
+  let last: Promise<unknown> = Promise.resolve();
+  const read = async (): Promise<Holds> => {
+    const reading = await readHolds(directories, options.alive, memory);
+    memory = reading.memory;
+    const now = new Set(reading.unreadable);
+    for (const name of now) {
+      if (reported.has(name)) continue;
+      const tabs = memory.holders.get(name)?.tabs.length;
+      const kept = name.endsWith(".target")
+        ? memory.bindings.has(name)
+          ? "it keeps its tab"
+          : "it was never read, so it binds no tab"
+        : tabs !== undefined
+          ? `it keeps the ${tabs === 1 ? "tab" : `${tabs} tabs`} it held when it was last read`
+          : "it was never read, so it holds no tab";
+      options.log?.(`${name} cannot be read: ${kept}; other files count`);
+    }
+    for (const name of reported)
+      if (!now.has(name)) options.log?.(`${name} can be read again`);
+    reported = now;
+    return reading.holds;
+  };
+  return () => {
+    const next = last.then(read, read);
+    last = next.catch(() => undefined);
+    return next;
+  };
+}
+
+/** The holder files that cannot be read or are not holder files, for
+ * `lazurio doctor` (root decision 0191 point 32): their names, or the
+ * directory itself when it cannot be listed. Empty without the directory. */
+export async function unreadableHolderFiles(
+  env: Readonly<Record<string, string | undefined>>,
+): Promise<string[]> {
+  const directory = holderDirectory(env);
+  if (directory === undefined) return [];
+  let found: string[];
+  try {
+    found = await names(directory);
+  } catch {
+    return [directory];
+  }
+  const failed: string[] = [];
+  for (const name of found) {
+    if (!name.endsWith(".json") || !isStrip(name.slice(0, -".json".length)))
+      continue;
+    const content = await textOf(join(directory, name));
+    if (content === null) continue;
+    if (content === "unreadable" || parseHolder(name, content) === null)
+      failed.push(name);
+  }
+  return failed;
 }
 
 /** Calls `changed` whenever something in one of the directories changes.
