@@ -317,9 +317,10 @@ test.skipIf(!posix)(
         comment: null,
       });
       expect(listed.keys[5]).toMatchObject({ comment: null });
-      // Added at the end; the last line gets the newline it lacked.
+      // The last line has no newline, so the new line goes first and the
+      // file's own bytes stay exactly as they were.
       await add(location, knownKey, "alex-laptop");
-      const withDevice = `${foreign}\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSQ6IIHQipQN9YXjjwhCNuecXaQZ6xS2/QbEsUFltVy lazurio-device:alex-laptop:alex:2026-10-12\n`;
+      const withDevice = `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSQ6IIHQipQN9YXjjwhCNuecXaQZ6xS2/QbEsUFltVy lazurio-device:alex-laptop:alex:2026-10-12\n${foreign}`;
       expect(await readFile(keysPath(location), "utf8")).toBe(withDevice);
       expect((await lstat(keysPath(location))).mode & 0o777).toBe(0o600);
       // A key added outside Launchpad is refused and stays.
@@ -334,9 +335,9 @@ test.skipIf(!posix)(
         await removeDeviceKey(location, keyOf(edKey(9)).fingerprint),
       ).toEqual({ kind: "blocked", reason: "not-found" });
       expect(await readFile(keysPath(location), "utf8")).toBe(withDevice);
-      // Its own line goes; every other byte stays.
+      // Its own line goes; the file is byte for byte what it was before.
       await removeDeviceKey(location, knownFingerprint);
-      expect(await readFile(keysPath(location), "utf8")).toBe(`${foreign}\n`);
+      expect(await readFile(keysPath(location), "utf8")).toBe(foreign);
     } finally {
       await done();
     }
@@ -374,6 +375,60 @@ test.skipIf(!posix)(
         key: { origin: "outside", comment: "by-hand" },
       });
       expect(await readFile(keysPath(location))).toEqual(withForeign);
+    } finally {
+      await done();
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "a key whose first line outside Launchpad carries options is refused, and the file stays",
+  async () => {
+    const { location, done } = await home();
+    try {
+      await mkdir(join(location.home, ".ssh"), { mode: 0o700 });
+      // sshd uses the first line that matches a key: a restricted one makes
+      // the key unusable as an ordinary sign-in, and a line after it would
+      // never be reached.
+      const restricted = `from="192.0.2.42",command="false" ${edKey(7)} ops\n`;
+      await writeFile(keysPath(location), restricted);
+      expect(await add(location, edKey(7))).toEqual({
+        kind: "blocked",
+        reason: "key-restricted-outside",
+      });
+      expect(await readFile(keysPath(location), "utf8")).toBe(restricted);
+      // An unrestricted line first still counts as present; the restricted
+      // one after it is never reached.
+      const unrestrictedFirst = `${edKey(8)} by-hand\ncommand="false" ${edKey(8)} later\n`;
+      await writeFile(keysPath(location), unrestrictedFirst);
+      expect(await add(location, edKey(8))).toMatchObject({
+        kind: "ssh-key-added",
+        outcome: "already-present",
+        key: { origin: "outside", comment: "by-hand" },
+      });
+      expect(await readFile(keysPath(location), "utf8")).toBe(
+        unrestrictedFirst,
+      );
+    } finally {
+      await done();
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "a file without a final newline is restored byte for byte after add and remove",
+  async () => {
+    const { location, done } = await home();
+    try {
+      await mkdir(join(location.home, ".ssh"), { mode: 0o700 });
+      const original = `${edKey(1)} ops@provisioning\n# recovery note with no final newline`;
+      await writeFile(keysPath(location), original);
+      await add(location, knownKey);
+      expect(await readFile(keysPath(location), "utf8")).toBe(
+        `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSQ6IIHQipQN9YXjjwhCNuecXaQZ6xS2/QbEsUFltVy lazurio-device:alex-laptop:alex:2026-10-12\n${original}`,
+      );
+      await removeDeviceKey(location, knownFingerprint);
+      expect(await readFile(keysPath(location), "utf8")).toBe(original);
     } finally {
       await done();
     }

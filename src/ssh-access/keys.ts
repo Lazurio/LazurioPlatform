@@ -416,11 +416,17 @@ export type AddKeyResult =
       outcome: "added" | "already-present";
       key: ListedKey;
     }>
-  | Readonly<{ kind: "blocked"; reason: FileRefusal }>;
+  | Readonly<{ kind: "blocked"; reason: FileRefusal | "key-restricted-outside" }>;
 
 /** Adds one device key with the Launchpad's marker, unless the same key is
  * already allowed: then the line that allows it is answered and nothing is
- * written, so an agent may simply try again. */
+ * written, so an agent may simply try again. sshd uses the first line that
+ * matches a key, so when that first line was added outside the Launchpad
+ * with options (`from=`, `command=`, …) the key is refused rather than
+ * reported present: the device could not use it as an ordinary sign-in, and
+ * a second, unrestricted line after it would never be reached. The outside
+ * line stays as it is. A file whose last line has no newline keeps its bytes
+ * exactly: the new line goes first instead of a newline being added. */
 export function addDeviceKey(
   location: KeysLocation,
   input: Readonly<{
@@ -436,22 +442,27 @@ export function addDeviceKey(
     if ("refused" in read) return { kind: "blocked", reason: read.refused };
     for (const entry of lines(read.bytes)) {
       const key = listed(entry.line);
-      if (key?.fingerprint === input.key.fingerprint)
-        return { kind: "ssh-key-added", outcome: "already-present", key };
+      if (key?.fingerprint !== input.key.fingerprint) continue;
+      if (entry.line.kind === "key" && entry.line.options)
+        return { kind: "blocked", reason: "key-restricted-outside" };
+      return { kind: "ssh-key-added", outcome: "already-present", key };
     }
     const comment = markerComment(input.device, input.addedBy, input.date);
-    const line = `${input.key.type} ${input.key.key} ${comment}\n`;
-    const kept =
-      read.bytes.length === 0 || read.bytes[read.bytes.length - 1] === 0x0a
-        ? read.bytes
-        : Buffer.concat([read.bytes, Buffer.from("\n")]);
+    const line = Buffer.from(
+      `${input.key.type} ${input.key.key} ${comment}\n`,
+      "utf8",
+    );
+    const terminated =
+      read.bytes.length === 0 || read.bytes[read.bytes.length - 1] === 0x0a;
     if (!read.directory) await mkdir(directory, { mode: 0o700 });
     await writeDurableFile(
       directory,
       keysName,
-      Buffer.concat([kept, Buffer.from(line, "utf8")]),
+      terminated
+        ? Buffer.concat([read.bytes, line])
+        : Buffer.concat([line, read.bytes]),
     );
-    const added = listed(parseKeyLine(line));
+    const added = listed(parseKeyLine(line.toString("utf8")));
     if (added === null) throw new Error("The written line is not a key");
     return { kind: "ssh-key-added", outcome: "added", key: added };
   });

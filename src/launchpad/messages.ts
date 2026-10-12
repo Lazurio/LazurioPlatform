@@ -1297,6 +1297,8 @@ const en = {
   sshRefusedMultipleLines: "Paste exactly one key, on one line.",
   sshRefusedOptions:
     "Paste the key without options in front of it, such as command= or from=.",
+  sshRefusedKeyRestricted:
+    "This key is already allowed here with restrictions added outside Launchpad (such as from= or command=), so this device could not use it to sign in. Create a new key for this device, or ask whoever looks after this Environment.",
   sshRefusedType:
     "Only ed25519 keys are accepted (ssh-ed25519 or sk-ssh-ed25519@openssh.com). Create one with ssh-keygen -t ed25519.",
   sshRefusedInvalidKey:
@@ -2601,6 +2603,8 @@ const cs: Record<MessageKey, string> = {
   sshRefusedMultipleLines: "Vložte právě jeden klíč na jednom řádku.",
   sshRefusedOptions:
     "Vložte klíč bez voleb před ním, třeba command= nebo from=.",
+  sshRefusedKeyRestricted:
+    "Tenhle klíč už je tu povolený s omezením přidaným mimo Launchpad (třeba from= nebo command=), takže se jím toto zařízení přihlásit nemůže. Vytvořte pro toto zařízení nový klíč, nebo se obraťte na toho, kdo se o Environment stará.",
   sshRefusedType:
     "Přijímáme jen klíče ed25519 (ssh-ed25519 nebo sk-ssh-ed25519@openssh.com). Vytvoříte ho příkazem ssh-keygen -t ed25519.",
   sshRefusedInvalidKey:

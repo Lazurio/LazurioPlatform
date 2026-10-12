@@ -110,6 +110,7 @@ const refusalKeys: Readonly<Record<string, MessageKey>> = {
   "not-a-public-key": "sshRefusedNotKey",
   "invalid-name": "sshRefusedName",
   "invalid-added-by": "sshRefusedAddedBy",
+  "key-restricted-outside": "sshRefusedKeyRestricted",
   "unsupported-platform": "sshUnsupported",
 };
 
