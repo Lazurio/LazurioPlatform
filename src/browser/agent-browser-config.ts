@@ -1,6 +1,14 @@
-import { readFile } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
-import { replaceOwnerFile } from "./people/holds";
+import { randomBytes } from "node:crypto";
+import {
+  link,
+  lstat,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { dirname, isAbsolute, join } from "node:path";
 
 // agent-browser's idle timeout on the Environment browser (decision F47 point 5,
 // Lazurio/LazurioPlatform#326). An agent works in a tab while its session's
@@ -15,6 +23,11 @@ import { replaceOwnerFile } from "./people/holds";
 // part of the daemon's configuration fingerprint, and callers that differ would
 // make agent-browser restart the daemon. On the timeout an attached daemon only
 // disconnects and removes its `.pid`; the hub still decides when the tab ends.
+//
+// The file is the person's as much as ours, so nothing of theirs is ever lost
+// (Pablo's review of #333): a symbolic link or anything but a regular file is
+// left as it is, a missing file is created only while it is still missing, and
+// a file that changed since it was read is not replaced.
 
 /** An hour without a command, as F47 point 5 counts on. */
 export const agentBrowserIdleTimeout = "1h";
@@ -24,20 +37,68 @@ export type AgentBrowserConfigOutcome =
   | "set"
   /** The file names an idle timeout already: someone's explicit choice. */
   | "kept"
-  /** The file exists but cannot be read, or is not a JSON object: left as it
-   * is, never written over. */
+  /** The path is a symbolic link or not a regular file (a link into the
+   * person's own dotfiles, say): left as it is. */
+  | "not-a-file"
+  /** The file changed, or appeared, while this ran: left as the person left
+   * it; the next start looks again. */
+  | "changed"
+  /** The file cannot be read, or is not a JSON object: left as it is. */
   | "unreadable"
   /** No absolute HOME: no user config to write. */
   | "no-home";
 
+/** What `lstat` says of a path, or null when nothing is there. */
+export type PathState = Readonly<{ kind: "file" | "other" }> | null;
+
 export type AgentBrowserConfigSeams = Readonly<{
+  state: (path: string) => Promise<PathState>;
   readFile: (path: string) => Promise<string>;
-  write: (path: string, text: string) => Promise<void>;
+  /** Writes `text` to a temporary file beside `path` (owner-only) and
+   * returns it. */
+  stage: (path: string, text: string) => Promise<string>;
+  /** Puts the staged file at `path` only while nothing is there: an atomic
+   * create that fails when the path exists. False when it does. */
+  create: (staged: string, path: string) => Promise<boolean>;
+  /** Puts the staged file over `path` (an atomic rename). */
+  replace: (staged: string, path: string) => Promise<void>;
+  discard: (staged: string) => Promise<void>;
 }>;
 
-const defaultSeams: AgentBrowserConfigSeams = {
+const missing = (error: unknown) =>
+  (error as NodeJS.ErrnoException | null)?.code === "ENOENT";
+
+export const defaultAgentBrowserConfigSeams: AgentBrowserConfigSeams = {
+  state: async (path) => {
+    try {
+      const found = await lstat(path);
+      return { kind: found.isFile() ? "file" : "other" };
+    } catch (error) {
+      if (missing(error)) return null;
+      throw error;
+    }
+  },
   readFile: (path) => readFile(path, "utf8"),
-  write: replaceOwnerFile,
+  stage: async (path, text) => {
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+    const staged = `${path}.${randomBytes(6).toString("hex")}.tmp`;
+    await writeFile(staged, text, { mode: 0o600, flag: "wx" });
+    return staged;
+  },
+  create: async (staged, path) => {
+    try {
+      await link(staged, path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException | null)?.code === "EEXIST")
+        return false;
+      throw error;
+    } finally {
+      await rm(staged, { force: true });
+    }
+    return true;
+  },
+  replace: (staged, path) => rename(staged, path),
+  discard: (staged) => rm(staged, { force: true }),
 };
 
 /** agent-browser's user config file: `~/.agent-browser/config.json`. */
@@ -50,40 +111,76 @@ export function agentBrowserConfigPath(
     : undefined;
 }
 
-/** Makes sure agent-browser's user config names an idle timeout. A missing file
- * is created with only that setting; a file with other settings keeps them all
- * and gains `idleTimeout`; a file that names one already is left alone, as is a
- * file that cannot be read or is not a JSON object. The write is atomic and
- * owner-only (`replaceOwnerFile`). */
+/** The config with the hour added, or the outcome that leaves it alone. */
+function withIdleTimeout(
+  text: string,
+): Readonly<{ text: string }> | "kept" | "unreadable" {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return "unreadable";
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return "unreadable";
+  const config = value as Record<string, unknown>;
+  if (Object.hasOwn(config, "idleTimeout")) return "kept";
+  return {
+    text: `${JSON.stringify({ ...config, idleTimeout: agentBrowserIdleTimeout }, null, 2)}\n`,
+  };
+}
+
+/** Makes sure agent-browser's user config names an idle timeout, losing
+ * nothing of the person's:
+ * - a missing file is created with only that setting, and only while it is
+ *   still missing (an atomic create);
+ * - a regular file with other settings keeps them all and gains
+ *   `idleTimeout`, unless it changed since it was read, which is checked again
+ *   right before the atomic rename;
+ * - a file that names an idle timeout already is kept;
+ * - a symbolic link, anything but a regular file, a file that cannot be read
+ *   and one that is not a JSON object are left as they are. */
 export async function ensureAgentBrowserIdleTimeout(
   env: Readonly<Record<string, string | undefined>>,
-  seams: AgentBrowserConfigSeams = defaultSeams,
+  seams: AgentBrowserConfigSeams = defaultAgentBrowserConfigSeams,
 ): Promise<AgentBrowserConfigOutcome> {
   const path = agentBrowserConfigPath(env);
   if (path === undefined) return "no-home";
-  let config: Record<string, unknown> = {};
-  let text: string | null = null;
+  let state: PathState;
   try {
-    text = await seams.readFile(path);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException | null)?.code !== "ENOENT")
-      return "unreadable";
+    state = await seams.state(path);
+  } catch {
+    return "unreadable";
   }
-  if (text !== null) {
-    let value: unknown;
-    try {
-      value = JSON.parse(text);
-    } catch {
-      return "unreadable";
+  if (state === null) {
+    const staged = await seams.stage(
+      path,
+      `${JSON.stringify({ idleTimeout: agentBrowserIdleTimeout }, null, 2)}\n`,
+    );
+    return (await seams.create(staged, path)) ? "set" : "changed";
+  }
+  if (state.kind !== "file") return "not-a-file";
+  let before: string;
+  try {
+    before = await seams.readFile(path);
+  } catch {
+    return "unreadable";
+  }
+  const next = withIdleTimeout(before);
+  if (next === "kept" || next === "unreadable") return next;
+  const staged = await seams.stage(path, next.text);
+  try {
+    const now = await seams.state(path);
+    const unchanged =
+      now?.kind === "file" && (await seams.readFile(path)) === before;
+    if (!unchanged) {
+      await seams.discard(staged);
+      return "changed";
     }
-    if (typeof value !== "object" || value === null || Array.isArray(value))
-      return "unreadable";
-    config = value as Record<string, unknown>;
-    if (Object.hasOwn(config, "idleTimeout")) return "kept";
+  } catch {
+    await seams.discard(staged);
+    return "changed";
   }
-  await seams.write(
-    path,
-    `${JSON.stringify({ ...config, idleTimeout: agentBrowserIdleTimeout }, null, 2)}\n`,
-  );
+  await seams.replace(staged, path);
   return "set";
 }

@@ -7629,6 +7629,13 @@ page each read the overview every 5 s; step 5 measures that cost with the heaps.
   - A file that names an idle timeout already is kept, as someone's choice.
   - A file that cannot be read or is not a JSON object is never written over, and the service
     logs it.
+  - Nothing of the person's is lost (Pablo's review of #333):
+    - a symbolic link (into their own dotfiles, say) or anything but a regular file is left as
+      it is;
+    - a missing file is created only while it is still missing, by an atomic create that fails
+      when the path exists;
+    - a file that changed since it was read is not replaced: it is read again right before the
+      atomic rename.
   - The write is atomic and owner-only.
 - Daemons that run already pick the hour up when agent-browser next restarts them. The timeout
   is part of a daemon's configuration fingerprint, so the next command under the new config
