@@ -280,6 +280,15 @@ repaired forward.
 
 ## F5 — Profiles, evidence and the single marketplace
 
+**Agent voice, 2026-10-12:** the Operator requests a direct, conversational voice
+as the default for all agent communication, including authored artifacts and
+instructions for agents. [The definition](agent-voice.md) records the precise
+wording in Czech and English, audience adaptation and examples. The companion
+Launchpad wireframe explores customization through the existing profile owner.
+File placement, custom preference schema and loading/activation are deliberately
+left for the decision over that wireframe. This documentation does not change
+generated Folder bytes, deploy a setting or claim model adherence.
+
 Accepted: expertise and proactivity are independent, profiles are Machine-local and
 can propose Machine or Organization mandates without transferring effective consent.
 Generated instructions discover current access instead of embedding an ACL snapshot.
