@@ -69,6 +69,9 @@ export type HoldsReading = Readonly<{
   memory: HoldsMemory;
   /** Holder files (`<strip>.json`) and bindings (`<session>.target`). */
   unreadable: readonly string[];
+  /** Every holder file and binding there was at this reading, read or not:
+   * one missing here is gone. */
+  present: readonly string[];
 }>;
 
 /** A strip's name is a file name: agent-browser's session alphabet, as T3
@@ -397,6 +400,7 @@ export async function readHolds(
     bindings: new Map<string, string>(),
   };
   const unreadable: string[] = [];
+  const present: string[] = [];
   if (directories.holders !== undefined) {
     const directory = directories.holders;
     for (const name of await names(directory)) {
@@ -404,6 +408,7 @@ export async function readHolds(
         continue;
       const content = await textOf(join(directory, name));
       if (content === null) continue;
+      present.push(name);
       let hold = content === "unreadable" ? null : parseHolder(name, content);
       if (hold === null) {
         unreadable.push(name);
@@ -427,6 +432,7 @@ export async function readHolds(
       if (!isStrip(session)) continue;
       const content = await textOf(join(directory, name));
       if (content === null) continue;
+      present.push(name);
       let targetId: unknown;
       let read = content !== "unreadable";
       if (read)
@@ -460,14 +466,16 @@ export async function readHolds(
     holds: { holders, working, bound },
     memory: remembered,
     unreadable,
+    present,
   };
 }
 
 /** The hub's reading of the holds: one reading at a time, each remembering
  * what the files it could read held, so a file that cannot be read keeps
  * holding what it held (root decision 0191 point 32). It logs when a file
- * becomes unreadable and when it can be read again. A directory that cannot
- * be listed is thrown, as `readHolds` does. */
+ * becomes unreadable, and then whether it can be read again or is gone,
+ * which lets go of what it held. A directory that cannot be listed is
+ * thrown, as `readHolds` does. */
 export function holdsReader(
   directories: Readonly<{
     holders?: string | undefined;
@@ -497,8 +505,14 @@ export function holdsReader(
           : "it was never read, so it holds no tab";
       options.log?.(`${name} cannot be read: ${kept}; other files count`);
     }
+    const present = new Set(reading.present);
     for (const name of reported)
-      if (!now.has(name)) options.log?.(`${name} can be read again`);
+      if (!now.has(name))
+        options.log?.(
+          present.has(name)
+            ? `${name} can be read again`
+            : `${name} is gone: it holds nothing now`,
+        );
     reported = now;
     return reading.holds;
   };

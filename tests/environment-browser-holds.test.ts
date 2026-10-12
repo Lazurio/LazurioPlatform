@@ -292,6 +292,7 @@ test("the hub's reader remembers between readings, one at a time, and logs a fil
     "launchpad.json cannot be read: it keeps the 2 tabs it held when it was last read; other files count",
     "t3-a.json cannot be read: it was never read, so it holds no tab; other files count",
   ]);
+  // Mended, or gone (which lets go of what it held): two different lines.
   await writeFile(
     join(holders, "launchpad.json"),
     JSON.stringify({ strip: "launchpad", tabs: [] }),
@@ -300,7 +301,7 @@ test("the hub's reader remembers between readings, one at a time, and logs a fil
   expect((await read()).holders.size).toBe(0);
   expect(lines.slice(2)).toEqual([
     "launchpad.json can be read again",
-    "t3-a.json can be read again",
+    "t3-a.json is gone: it holds nothing now",
   ]);
 });
 

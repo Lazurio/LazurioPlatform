@@ -600,8 +600,9 @@ export async function observeEnvironmentBrowser(
     ))
   )
     return warn("browser-view-not-answering");
-  // Root decision 0191 point 32: the tabs such a file held do not end until
-  // it can be read again; the other tabs end as before.
+  // Root decision 0191 point 32: the tabs such a file held at the hub's last
+  // reading of it do not end until it can be read again, and a file the hub
+  // has not read since the view started holds none. Doctor cannot tell which.
   const unreadable = await unreadableHolderFiles(input.env);
   if (unreadable.length > 0)
     return warn("browser-holder-unreadable", { files: unreadable.join(", ") });
