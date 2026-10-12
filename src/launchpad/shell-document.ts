@@ -1,6 +1,11 @@
+import { hostname } from "node:os";
+import { join } from "node:path";
+import { withFolderReadLock } from "../folder/lock";
 import type { MachineBinding } from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
-import type { Catalog } from "../organizations/catalog";
+import { readFolderState } from "../folder/read-state";
+import { readMachineContext } from "../machine/context";
+import { type Catalog, readFolderCatalog } from "../organizations/catalog";
 import {
   dashboardSlug,
   environmentIdOf,
@@ -330,4 +335,65 @@ export function shellDocument(
   const parsed = parseShell(document);
   if (parsed === null) throw new Error("Invalid shell document");
   return parsed;
+}
+
+/** The owning Organization's own slug the Machine handover names
+ * (`owner.organization_key`); none for a personal Machine, a handover that
+ * names none, or no readable handover, as on a workstation. */
+export async function handoverOwnerKey(): Promise<string | null> {
+  try {
+    const { owner } = (await readMachineContext()).context;
+    return owner.kind === "organization"
+      ? (owner.organization_key ?? null)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** What `shellDocument` takes from the Folder, this computer and the Machine
+ * handover; `setup` stays the Launchpad's own. */
+export type ShellInputs = Readonly<{
+  preset: PresetName;
+  machine: MachineBinding | null;
+  locale: "cs" | "en";
+  catalog: Catalog;
+  computer: string;
+  ownerKey: string | null;
+}>;
+
+/** This Environment's inputs of `shellDocument`, read as every producer of
+ * its document reads them: the Folder's preset, Machine binding and language
+ * under one read of its state (waiting at most `lockWaitMs` for the Folder's
+ * lock), its catalog, this computer's name and the owner's own slug the
+ * handover names (`ownerKey`, by default `handoverOwnerKey`). The
+ * Launchpad's `/.lazurio/shell.json`, its page's boot document and its
+ * offline guide read them here, and so does the Environment browser's view
+ * for its own name (decision F39's addendum of 2026-10-12): one read, so the
+ * view and the switcher cannot drift apart. */
+export async function readShellInputs(
+  folder: string,
+  options: Readonly<{
+    ownerKey?: (() => Promise<string | null>) | undefined;
+    lockWaitMs?: number | undefined;
+  }> = {},
+): Promise<ShellInputs> {
+  const state = join(folder, ".lazurio");
+  const current = await withFolderReadLock(
+    state,
+    () => readFolderState(state),
+    options.lockWaitMs,
+  );
+  const [catalog, ownerKey] = await Promise.all([
+    readFolderCatalog(folder),
+    (options.ownerKey ?? handoverOwnerKey)(),
+  ]);
+  return Object.freeze({
+    preset: current.preferences.preset.name,
+    machine: current.preferences.machine,
+    locale: current.preferences.profile.locale === "cs" ? "cs" : "en",
+    catalog,
+    computer: hostname(),
+    ownerKey,
+  });
 }

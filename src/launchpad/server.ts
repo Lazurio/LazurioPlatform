@@ -1,5 +1,4 @@
 import { randomBytes } from "node:crypto";
-import { hostname } from "node:os";
 import { join } from "node:path";
 import { restartStaleBrowserView } from "../browser/units";
 import {
@@ -139,7 +138,7 @@ import {
   readContent,
   shellSetup,
 } from "./setup-state";
-import { shellDocument } from "./shell-document";
+import { readShellInputs, shellDocument } from "./shell-document";
 import {
   checkBundledPage,
   LaunchpadStartRefused,
@@ -243,20 +242,6 @@ async function machineTailnet(): Promise<string | null> {
     return (
       (await readMachineContext()).context.network?.headscale_server_url ?? null
     );
-  } catch {
-    return null;
-  }
-}
-
-/** The owning Organization's own slug the Machine handover names
- * (`owner.organization_key`); none for a personal Machine, a handover that
- * names none, or no readable handover, as on a workstation. */
-async function machineOwnerKey(): Promise<string | null> {
-  try {
-    const { owner } = (await readMachineContext()).context;
-    return owner.kind === "organization"
-      ? (owner.organization_key ?? null)
-      : null;
   } catch {
     return null;
   }
@@ -693,26 +678,14 @@ export async function startLaunchpad(
   async function pageBoot(): Promise<LaunchpadBoot | null> {
     let late: ReturnType<typeof setTimeout> | undefined;
     const read = (async () => {
-      const current = await withFolderReadLock(
-        state,
-        () => readFolderState(state),
-        bootLockWaitMs,
-      );
-      const [catalog, tailnet, ownerKey] = await Promise.all([
-        readFolderCatalog(folder),
+      const [inputs, tailnet] = await Promise.all([
+        readShellInputs(folder, {
+          ownerKey: hostedOptions.ownerKey,
+          lockWaitMs: bootLockWaitMs,
+        }),
         (hostedOptions.offlineTailnet ?? machineTailnet)(),
-        (hostedOptions.ownerKey ?? machineOwnerKey)(),
       ]);
-      return launchpadBoot({
-        preset: current.preferences.preset.name,
-        machine: current.preferences.machine,
-        locale: current.preferences.profile.locale === "cs" ? "cs" : "en",
-        catalog,
-        entry,
-        computer: hostname(),
-        tailnet,
-        ownerKey,
-      });
+      return launchpadBoot({ ...inputs, entry, tailnet });
     })().catch(() => null);
     try {
       return await Promise.race([
@@ -842,30 +815,21 @@ export async function startLaunchpad(
           return response({ error: "method-not-allowed" }, 405);
         if (closing) return response({ error: "closing" }, 503);
         try {
-          const current = await withFolderReadLock(state, () =>
-            readFolderState(state),
-          );
-          const preset = current.preferences.preset.name;
-          const [catalog, tailnet, ownerKey] = await Promise.all([
-            readFolderCatalog(folder),
+          const [inputs, tailnet] = await Promise.all([
+            readShellInputs(folder, { ownerKey: hostedOptions.ownerKey }),
             (hostedOptions.offlineTailnet ?? machineTailnet)(),
-            (hostedOptions.ownerKey ?? machineOwnerKey)(),
           ]);
           // GitHub and the content only where the Environment signs in as
           // its person (setup-state.ts).
-          const known = signsInAsPerson(preset) ? setup.peek() : undefined;
+          const known = signsInAsPerson(inputs.preset)
+            ? setup.peek()
+            : undefined;
           // Whether the elements register the offline guide's worker
           // (decision F41): only where the worker's address serves it.
           return response(
             withOfflineGuide(
               shellDocument({
-                preset,
-                machine: current.preferences.machine,
-                locale:
-                  current.preferences.profile.locale === "cs" ? "cs" : "en",
-                catalog,
-                computer: hostname(),
-                ownerKey,
+                ...inputs,
                 ...(known === undefined ? {} : { setup: known }),
               }),
               tailnet,
@@ -893,23 +857,15 @@ export async function startLaunchpad(
             hostedOptions.offlineTailnet ?? machineTailnet
           )();
           let page: string | null = null;
-          if (tailnet !== null) {
-            const current = await withFolderReadLock(state, () =>
-              readFolderState(state),
-            );
+          if (tailnet !== null)
             page = offlineGuidePage(
-              shellDocument({
-                preset: current.preferences.preset.name,
-                machine: current.preferences.machine,
-                locale:
-                  current.preferences.profile.locale === "cs" ? "cs" : "en",
-                catalog: await readFolderCatalog(folder),
-                computer: hostname(),
-                ownerKey: await (hostedOptions.ownerKey ?? machineOwnerKey)(),
-              }),
+              shellDocument(
+                await readShellInputs(folder, {
+                  ownerKey: hostedOptions.ownerKey,
+                }),
+              ),
               tailnet,
             );
-          }
           if (url.pathname === offlineWorkerPath)
             return new Response(
               offlineWorker(page, embeddedIdentity().version),
