@@ -120,13 +120,13 @@ describe("the right panel's width", () => {
 });
 
 describe("the left column's width", () => {
-  test("264 px by default, the person's width within 208–480 px, and never so wide that the page beside it has less than its narrowest width", () => {
+  test("256 px by default, the person's width within 208–480 px, and never so wide that the page beside it has less than its narrowest width", () => {
     expect([columnMinWidth, columnDefaultWidth, columnMaxWidth]).toEqual([
-      208, 264, 480,
+      208, 256, 480,
     ]);
     // The app right of the rail in a window 1800 px wide.
     const app = 1800 - 64 - 1;
-    expect(placeColumn(app, null)).toEqual({ width: 264, min: 208, max: 480 });
+    expect(placeColumn(app, null)).toEqual({ width: 256, min: 208, max: 480 });
     expect(placeColumn(app, 320)).toMatchObject({ width: 320 });
     expect(placeColumn(app, 320.6)).toMatchObject({ width: 321 });
     expect(placeColumn(app, 100)).toMatchObject({ width: 208 });

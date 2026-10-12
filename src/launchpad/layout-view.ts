@@ -21,10 +21,10 @@ export const panelMinWidth = 360;
 export const pageMinWidth = 400;
 
 /** The left column: T3 Code's narrowest sidebar, which the shell's column
- * head is drawn for, the width it had before it could be dragged, and the
- * widest that still leaves its navigation a column. */
+ * head is drawn for, four grid modules by default (Anna 2026-10-11, was
+ * 264 px), and the widest that still leaves its navigation a column. */
 export const columnMinWidth = 208;
-export const columnDefaultWidth = 264;
+export const columnDefaultWidth = 256;
 export const columnMaxWidth = 480;
 
 /** The right panel's width as the person left it: pixels, or all of the
@@ -159,7 +159,7 @@ export function keyPanel(place: PanelPlace, key: DividerKey): PanelWish | null {
 export type ColumnPlace = Readonly<{ width: number; min: number; max: number }>;
 
 /** The column in an app `appWidth` pixels wide (all right of the rail), as
- * the person wished, or 264 px: 208–480 px, and never so wide that the page
+ * the person wished, or 256 px: 208–480 px, and never so wide that the page
  * beside it has less than its narrowest width. */
 export function placeColumn(
   appWidth: number,

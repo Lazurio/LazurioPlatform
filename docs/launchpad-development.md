@@ -1999,7 +1999,7 @@ the Launchpad builds no viewer of its own.
   Integrace and the Marketplace hides it, the rail staying, and shows it again; while
   the page steps aside for the panel, the toggle stands in the panel's strip. Its right
   edge is a divider like the panel's, 208–480 px and never leaving the page less than
-  400 px, double-click for 264 px. Below 768 px it stays the sheet opened by the button
+  400 px, double-click for 256 px. Below 768 px it stays the sheet opened by the button
   at the top of the page.
 - **Remembered in this browser**: the panel's width or all of the room, the column's
   width and whether it is hidden, as one `localStorage` entry, `lazurio.layout`, read
