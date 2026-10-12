@@ -84,6 +84,36 @@ describe("the address bar (the wireframe's resolveAddress)", () => {
       expect(resolveAddress(typed, view)).toEqual(tab);
   });
 
+  // The address bar is Chrome's (F50 point 2, Address bars): like the scheme,
+  // the spaces and http above, a written default port and dot segments are
+  // the address they stand for, and the view-host rule applies to that
+  // address. So they open this tab or a new one, never a view inside the
+  // Environment browser. A link read elsewhere (`viewAddressOf`) is taken
+  // only as written.
+  test("the address bar reads a typed view address as Chrome does: a default port and dot segments are the address they stand for", () => {
+    const tab: AddressTarget = {
+      kind: "tab",
+      tab: id(10),
+      view: `${view}/t/${id(10)}`,
+    };
+    for (const typed of [
+      `https://browser.vm-01.example.lazurio.io:443/t/${id(10)}`,
+      `${view}/t/../t/${id(10)}`,
+      `${view}/x/../t/${id(10)}`,
+    ])
+      expect(resolveAddress(typed, view)).toEqual(tab);
+    expect(
+      resolveAddress("https://browser.vm-01.example.lazurio.io:443/", view),
+    ).toEqual({ kind: "page", url: "about:blank" });
+    // Another port is another address, and on a view host it is refused.
+    expect(
+      resolveAddress(
+        `https://browser.vm-01.example.lazurio.io:8443/t/${id(10)}`,
+        view,
+      ),
+    ).toEqual({ kind: "refused" });
+  });
+
   test("an address of another Environment's view is never opened here: the notice names it and links there", () => {
     const other = `https://browser.vm-02.example.lazurio.io/t/${id(10)}`;
     // Even with an id this Environment has (a tab is its browser and its id
