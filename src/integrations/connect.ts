@@ -153,11 +153,14 @@ type Session = {
   readonly expires: number;
   outcome: ConnectProgress;
   /** Composio: the toolkit and the pending account, or the active count
-   * before a dashboard link. */
+   * before a dashboard link; and the word ids of the toolkit's pending
+   * accounts before the link (sign-ins left unfinished earlier, never the
+   * one this link creates), null where they could not be read. */
   readonly composio?: Readonly<{
     toolkit: string;
     account: string | null;
     before: number;
+    stale: readonly string[] | null;
   }>;
   /** Executor: the OAuth flow's state. */
   readonly oauth?: Readonly<{ state: string }>;
@@ -741,6 +744,27 @@ export function createConnectSessions(host: () => ConnectHost) {
       own.some((account) => account.alias?.toLowerCase() === name.toLowerCase())
     )
       return { kind: "blocked", reason: "name-taken" };
+    // The toolkit's pending accounts before the link are sign-ins left
+    // unfinished earlier: while this one waits, the reading lists only a
+    // pending account that is none of them (decision F42, addendum of
+    // 2026-10-12); unknown, it lists none.
+    const earlier = await readComposioAccounts(composio.env, composio.command);
+    const stale =
+      earlier.state === "ok" &&
+      earlier.accounts.every(
+        (account) =>
+          account.toolkit !== toolkit ||
+          account.state !== "pending" ||
+          account.wordId !== null,
+      )
+        ? earlier.accounts.flatMap((account) =>
+            account.toolkit === toolkit &&
+            account.state === "pending" &&
+            account.wordId !== null
+              ? [account.wordId]
+              : [],
+          )
+        : null;
     const link = await linkComposio(
       composio.env,
       composio.command,
@@ -758,7 +782,7 @@ export function createConnectSessions(host: () => ConnectHost) {
               : link.reason,
       };
     const session = open(app.id, {
-      composio: { toolkit, account: link.account, before: own.length },
+      composio: { toolkit, account: link.account, before: own.length, stale },
     });
     journal({ event: "link", app: app.id, outcome: "pending" });
     // A Composio link opens in the person's own browser: it is Composio's page.
@@ -788,18 +812,33 @@ export function createConnectSessions(host: () => ConnectHost) {
       }
     },
 
-    /** The Composio toolkits a sign-in started here waits for: a session
-     * still pending and not yet expired. The reading lists a pending
-     * account only of these (decision F42, addendum of 2026-10-12). */
-    waitingToolkits(): ReadonlySet<string> {
-      const waiting = new Set<string>();
-      for (const session of sessions.values())
+    /** The Composio sign-ins started here that still wait, by toolkit: the
+     * word ids of the toolkit's pending accounts that existed before them,
+     * or null where those are unknown. The reading lists a pending account
+     * only of a toolkit here and only if it is none of those (decision F42,
+     * addendum of 2026-10-12). Two sign-ins of one toolkit: an account
+     * earlier than both stays out, one either of them may be is listed. */
+    waitingSignIns(): ReadonlyMap<string, ReadonlySet<string> | null> {
+      const waiting = new Map<string, ReadonlySet<string> | null>();
+      for (const session of sessions.values()) {
         if (
-          session.composio !== undefined &&
-          session.outcome.kind === "pending" &&
-          now() < session.expires
+          session.composio === undefined ||
+          session.outcome.kind !== "pending" ||
+          now() >= session.expires
         )
-          waiting.add(session.composio.toolkit);
+          continue;
+        const { toolkit, stale } = session.composio;
+        const mine = stale === null ? null : new Set(stale);
+        const prior = waiting.get(toolkit);
+        waiting.set(
+          toolkit,
+          prior === undefined
+            ? mine
+            : prior === null || mine === null
+              ? null
+              : new Set([...prior].filter((wordId) => mine.has(wordId))),
+        );
+      }
       return waiting;
     },
 

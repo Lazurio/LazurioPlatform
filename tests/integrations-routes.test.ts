@@ -694,9 +694,11 @@ test("through Composio: the link only for the request that asked, then connected
 });
 
 // A Composio sign-in nobody finishes is no account (decision F42, addendum
-// of 2026-10-12): its pending account is listed only while a sign-in
-// started here waits for its toolkit, also in the page's cached reading.
-test("a Composio sign-in nobody finishes is listed only while one started here waits", async () => {
+// of 2026-10-12): a pending account is listed only while a sign-in started
+// here waits for its toolkit, and never one left by an earlier sign-in, also
+// in the page's cached reading and when the person tries the same toolkit
+// again.
+test("a Composio sign-in nobody finishes is listed only while one started here waits, and never again", async () => {
   const { app } = await setup(
     {
       composio: {
@@ -719,31 +721,26 @@ test("a Composio sign-in nobody finishes is listed only while one started here w
       refresh ? "/api/integrations?refresh=1" : "/api/integrations",
     );
     const value = (await answer.json()) as IntegrationsOverview;
-    return value.apps.find((item) => item.id === "salesforce");
+    return value.apps
+      .find((item) => item.id === "salesforce")
+      ?.accounts.map((account) => [account.selector, account.state]);
   };
-  expect(await salesforce(true)).toMatchObject({
-    connected: false,
-    accounts: [],
-  });
+  expect(await salesforce(true)).toEqual([]);
+  // The person tries Salesforce again: the cached reading reads again and
+  // lists the pending account of this sign-in, not the old one.
   const started = (await (
     await app.post("/api/integrations/connect", { app: "salesforce" })
   ).json()) as { kind: string; session: string };
   expect(started.kind).toBe("authorize");
-  // The cached reading reads again: the sign-in waits, so its pending
-  // account is listed.
-  expect(
-    (await salesforce(false))?.accounts.map((account) => account.state),
-  ).toContain("pending");
+  expect(await salesforce(false)).toEqual([["word101", "pending"]]);
+  expect(await salesforce(true)).toEqual([["word101", "pending"]]);
   expect(
     await (
       await app.post("/api/integrations/cancel", { session: started.session })
     ).json(),
   ).toEqual({ kind: "cancelled" });
   // Cancelled: nothing waits, and no pending account is listed.
-  expect(await salesforce(false)).toMatchObject({
-    connected: false,
-    accounts: [],
-  });
+  expect(await salesforce(false)).toEqual([]);
 });
 
 test("a second Composio account needs a name, and a name in use is refused before anything runs", async () => {

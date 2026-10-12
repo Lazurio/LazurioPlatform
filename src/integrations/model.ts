@@ -172,9 +172,12 @@ export type MergeInput = Readonly<{
   tools: ToolsReading;
   executor: ExecutorReading;
   composio: ComposioReadingState;
-  /** The Composio toolkits a sign-in started here waits for. A pending
-   * account of any other toolkit is a sign-in nobody finishes: not listed. */
-  composioWaiting?: ReadonlySet<string>;
+  /** The Composio sign-ins started here that still wait, by toolkit: the
+   * word ids of the toolkit's pending accounts that existed before them, or
+   * null where those are unknown. A pending account is listed only where a
+   * sign-in waits for its toolkit and it is none of those; any other is a
+   * sign-in nobody finishes. */
+  composioWaiting?: ReadonlyMap<string, ReadonlySet<string> | null>;
   /** The CLI removes an account without a prompt (`connections remove
    * --yes`). */
   composioDisconnect?: boolean;
@@ -293,11 +296,16 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
   const viaComposio = new Map<string, IntegrationAccount[]>();
   if (composioUsable && input.composio.state === "ok")
     for (const account of input.composio.accounts) {
-      if (
-        account.state === "pending" &&
-        !(input.composioWaiting?.has(account.toolkit) ?? false)
-      )
-        continue;
+      if (account.state === "pending") {
+        const earlier = input.composioWaiting?.get(account.toolkit);
+        if (
+          earlier === undefined ||
+          earlier === null ||
+          account.wordId === null ||
+          earlier.has(account.wordId)
+        )
+          continue;
+      }
       const accounts = viaComposio.get(account.toolkit) ?? [];
       accounts.push({
         path: "composio",

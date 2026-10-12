@@ -66,10 +66,10 @@ export type IntegrationsHost = Readonly<{
    * (`createIntegrationsReader`); without them, as for `lazurio
    * integrations list`, every reading reads them. */
   composioNames?: ComposioNames;
-  /** The Composio toolkits a sign-in the Launchpad started waits for (its
-   * connect sessions); without them, as for `lazurio integrations list`,
-   * no pending account is listed. */
-  composioWaiting?: () => ReadonlySet<string>;
+  /** The Composio sign-ins the Launchpad started that still wait (its
+   * connect sessions, `waitingSignIns`); without them, as for `lazurio
+   * integrations list`, no pending account is listed. */
+  composioWaiting?: () => ReadonlyMap<string, ReadonlySet<string> | null>;
   catalog?: IntegrationsCatalog;
   now?: () => Date;
 }>;
@@ -199,7 +199,7 @@ export async function readIntegrations(
     tools,
     executor,
     composio,
-    composioWaiting: host.composioWaiting?.() ?? new Set(),
+    composioWaiting: host.composioWaiting?.() ?? new Map(),
     composioDisconnect,
     readAt: (host.now ?? (() => new Date()))().toISOString(),
   });
