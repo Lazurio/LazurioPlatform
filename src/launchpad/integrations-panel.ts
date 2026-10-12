@@ -755,7 +755,12 @@ export function createIntegrationsPanel(
     if (app.accounts.length > 0) {
       const list = element("ul", "integration-accounts");
       for (const account of app.accounts) {
-        const shown = accountView(app, account, copy);
+        const shown = accountView(
+          app,
+          account,
+          copy,
+          overview?.composio.disconnect === true,
+        );
         const row = element("li", "integration-account");
         row.dataset.state = account.spare ? "spare" : account.state;
         const words = element("div", "integration-account-text");

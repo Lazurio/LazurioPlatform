@@ -19,6 +19,7 @@ import { integrationsCatalog } from "./catalog";
 import type { IntegrationsCatalog } from "./catalog-schema";
 import {
   type ComposioNames,
+  composioRemovesWithoutPrompt,
   createComposioNames,
   nameComposioAccounts,
   readComposioAccounts,
@@ -27,6 +28,7 @@ import type { ExecutorEndpoint } from "./executor-client";
 import { readExecutor } from "./executor-source";
 import {
   type ComposioReadingState,
+  type ComposioSignIn,
   type IntegrationsOverview,
   mergeIntegrations,
   type ToolsReading,
@@ -65,6 +67,10 @@ export type IntegrationsHost = Readonly<{
    * (`createIntegrationsReader`); without them, as for `lazurio
    * integrations list`, every reading reads them. */
   composioNames?: ComposioNames;
+  /** The Composio sign-ins the Launchpad started (its connect sessions,
+   * `signIns`); without them, as for `lazurio integrations list`, no
+   * pending account is listed. */
+  composioSignIns?: () => ReadonlyMap<string, readonly ComposioSignIn[]>;
   catalog?: IntegrationsCatalog;
   now?: () => Date;
 }>;
@@ -150,6 +156,7 @@ export async function readIntegrations(
     composioTool.installed &&
     composioTool.signIn?.state === "signed-in";
   let composio: ComposioReadingState;
+  let composioDisconnect = false;
   if (overview === null) composio = { state: "unreadable" };
   else if (composioTool === undefined || !composioTool.installed)
     composio = { state: "unavailable" };
@@ -162,7 +169,11 @@ export async function readIntegrations(
   )
     composio = { state: "unavailable" };
   else {
-    const reading = await readComposioAccounts(host.tools, composioTool.path);
+    const [reading, removes] = await Promise.all([
+      readComposioAccounts(host.tools, composioTool.path),
+      composioRemovesWithoutPrompt(host.tools, composioTool.path),
+    ]);
+    composioDisconnect = removes;
     composio =
       reading.state === "ok"
         ? {
@@ -189,6 +200,8 @@ export async function readIntegrations(
     tools,
     executor,
     composio,
+    composioSignIns: host.composioSignIns?.() ?? new Map(),
+    composioDisconnect,
     readAt: (host.now ?? (() => new Date()))().toISOString(),
   });
 }

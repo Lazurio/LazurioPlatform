@@ -206,9 +206,12 @@ for (const tool of ["gh", "t3"])
   await writeFile(join(home, "bin", tool), "#!/bin/sh\nexit 1\n", {
     mode: 0o755,
   });
-// Integrace (decision F42): a fake composio signed in, two accounts (the
-// active one named, which only `link --list` tells), and a fake Executor
-// with Executor's token file of a synthetic token.
+// Integrace (decision F42): a fake composio signed in, with an active account
+// named only by `link --list`, an expired one, and for Gmail an expired
+// account beside a sign-in nobody finished, which the page leaves out (F42
+// addendum of 2026-10-12); its CLI removes only after a prompt, so the page
+// offers no "Odpojit". And a fake Executor with Executor's token file of a
+// synthetic token.
 await writeFile(
   join(home, "bin", "composio"),
   `#!/bin/sh\nexec '${process.execPath}' --no-env-file '${join(import.meta.dir, "..", "tests", "fixtures", "fake-composio.ts")}' "$@"\n`,
@@ -237,6 +240,20 @@ await writeFile(
         status: "EXPIRED",
         alias: null,
         word_id: "river",
+      },
+      {
+        id: "ca_3",
+        toolkit: "gmail",
+        status: "EXPIRED",
+        alias: "Práce",
+        word_id: "meadow",
+      },
+      {
+        id: "ca_4",
+        toolkit: "gmail",
+        status: "INITIATED",
+        alias: null,
+        word_id: "harbor",
       },
     ],
   }),

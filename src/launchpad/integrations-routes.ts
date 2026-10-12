@@ -94,6 +94,9 @@ export function createIntegrationsRoutes(
       ...(seams.policy === undefined ? {} : { policy: seams.policy }),
       ...(seams.catalog === undefined ? {} : { catalog: seams.catalog }),
       ...(seams.now === undefined ? {} : { now: seams.now }),
+      // A pending Composio account is listed only while a sign-in started
+      // here waits for it (decision F42, addendum of 2026-10-12).
+      composioSignIns: () => sessions.signIns(),
     };
   });
   // Connecting, signing in again or disconnecting a Composio account here
@@ -212,7 +215,9 @@ export function createIntegrationsRoutes(
             : undefined,
         );
         if (path.path === "composio") forgetNames(app.id);
-        if (started.kind === "connected") reader.forget();
+        // A Composio sign-in that now waits lists its pending account.
+        if (started.kind === "connected" || path.path === "composio")
+          reader.forget();
         return response(started, started.kind === "blocked" ? 409 : 200);
       }
       if (
@@ -229,6 +234,7 @@ export function createIntegrationsRoutes(
         extend(60);
         if (url.pathname === "/api/integrations/cancel") {
           const known = await sessions.cancel(value.session);
+          if (known) reader.forget();
           return known
             ? response({ kind: "cancelled" })
             : response({ kind: "blocked", reason: "session-unknown" }, 404);
@@ -236,10 +242,9 @@ export function createIntegrationsRoutes(
         const progress = await sessions.poll(value.session);
         if (progress === null)
           return response({ kind: "blocked", reason: "session-unknown" }, 404);
-        if (progress.kind === "connected") {
-          forgetNames(progress.app);
-          reader.forget();
-        }
+        // A sign-in that ended no longer waits: its pending account goes.
+        if (progress.kind === "connected") forgetNames(progress.app);
+        if (progress.kind !== "pending") reader.forget();
         return response(progress);
       }
       if (url.pathname === "/api/integrations/disconnect") {

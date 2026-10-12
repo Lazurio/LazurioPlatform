@@ -63,11 +63,23 @@ function connectedLine(app: IntegrationApp): string {
 /** The overview in a few plain lines; `--json` has everything. */
 export function integrationsText(overview: IntegrationsOverview): string {
   const connected = overview.apps.filter((app) => app.connected);
+  // Accounts on the app's way here, none of them working (signed out or
+  // failing): the person signs in again on the app's card.
+  const notWorking = overview.apps.filter(
+    (app) => !app.connected && app.accounts.some((account) => !account.spare),
+  );
   const lines = [
     connected.length === 0
       ? "Connected: none."
       : ["Connected:", ...connected.map(connectedLine)].join("\n"),
   ];
+  if (notWorking.length > 0)
+    lines.push(
+      [
+        "Not working (the person signs in again on the card):",
+        ...notWorking.map(connectedLine),
+      ].join("\n"),
+    );
   if (overview.custom.length > 0)
     lines.push(
       [

@@ -114,7 +114,12 @@ const overview = (
   locale: "en",
   scope: "organization",
   page: null,
-  composio: { allowed: true, source: "environment", ready: true },
+  composio: {
+    allowed: true,
+    source: "environment",
+    ready: true,
+    disconnect: true,
+  },
   sources: { tools: "ok", executor: "ok", composio: "ok" },
   tools: [],
   apps,
@@ -430,23 +435,23 @@ test("accounts: one line when they need the person or are spare, and what discon
     spare,
     manage: path === "direct" ? null : manageGmail,
   });
-  expect(accountView(notion, account("connected"), cs)).toEqual({
+  expect(accountView(notion, account("connected"), cs, true)).toEqual({
     name: "účet",
     line: null,
     retry: null,
     disconnect: true,
     menu: null,
   });
-  expect(accountView(notion, account("expired"), cs)).toMatchObject({
+  expect(accountView(notion, account("expired"), cs, true)).toMatchObject({
     line: "Přihlášení vypršelo — zkus to znovu",
     retry: "Přihlásit znovu",
   });
-  expect(accountView(notion, account("failed"), en)).toMatchObject({
+  expect(accountView(notion, account("failed"), en, true)).toMatchObject({
     retry: "Try again",
   });
-  expect(accountView(notion, account("pending"), cs).retry).toBeNull();
+  expect(accountView(notion, account("pending"), cs, true).retry).toBeNull();
   expect(
-    accountView(notion, account("connected", "composio", true), cs),
+    accountView(notion, account("connected", "composio", true), cs, true),
   ).toMatchObject({
     line: "Navíc přes Composio, nepoužívá se",
     retry: null,
@@ -490,7 +495,7 @@ test("a Composio account's menu: manage it in Composio and disconnect it; signin
     manage: manageGmail,
     ...extra,
   });
-  expect(accountView(gmail, composio("connected"), cs)).toEqual({
+  expect(accountView(gmail, composio("connected"), cs, true)).toEqual({
     name: "Práce",
     line: null,
     retry: null,
@@ -501,13 +506,20 @@ test("a Composio account's menu: manage it in Composio and disconnect it; signin
       disconnect: true,
     },
   });
-  expect(accountView(gmail, composio("connected"), en).menu?.label).toBe(
+  expect(accountView(gmail, composio("connected"), en, true).menu?.label).toBe(
     "More options for Práce in Gmail",
   );
   expect(cs.integrationsManageInComposio).toBe("Spravovat v Composiu");
   expect(en.integrationsManageInComposio).toBe("Manage in Composio");
+  // A CLI that removes only after a prompt: the menu leads to Composio,
+  // without "Odpojit".
+  expect(accountView(gmail, composio("connected"), cs, false).menu).toEqual({
+    label: "Další volby pro Práce v aplikaci Gmail",
+    manage: manageGmail,
+    disconnect: false,
+  });
   // An expired account: "Přihlásit znovu" in the row, the rest in the menu.
-  expect(accountView(gmail, composio("expired"), cs)).toMatchObject({
+  expect(accountView(gmail, composio("expired"), cs, true)).toMatchObject({
     retry: "Přihlásit znovu",
     disconnect: false,
     menu: { manage: manageGmail, disconnect: true },
@@ -519,6 +531,7 @@ test("a Composio account's menu: manage it in Composio and disconnect it; signin
       gmail,
       composio("connected", { label: null, selector: null }),
       cs,
+      true,
     ),
   ).toMatchObject({
     name: "účet",
@@ -530,7 +543,7 @@ test("a Composio account's menu: manage it in Composio and disconnect it; signin
   });
   // A spare Composio account has its menu too.
   expect(
-    accountView(gmail, composio("connected", { spare: true }), cs).menu,
+    accountView(gmail, composio("connected", { spare: true }), cs, true).menu,
   ).not.toBeNull();
   // Executor's account: no menu, "Odpojit" in the row, as before.
   expect(
@@ -545,6 +558,7 @@ test("a Composio account's menu: manage it in Composio and disconnect it; signin
         manage: null,
       },
       cs,
+      true,
     ),
   ).toEqual({
     name: "person@example.test",

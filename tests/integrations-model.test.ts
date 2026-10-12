@@ -11,6 +11,7 @@ import {
   parseComposioConnections,
 } from "../src/integrations/composio-source";
 import {
+  type ComposioSignIn,
   catalogAppOf,
   composioToolkitOf,
   forAdmin,
@@ -361,6 +362,7 @@ test("Composio not allowed: its accounts do not count, the source says why, and 
     allowed: false,
     source: "organization",
     ready: true,
+    disconnect: false,
   });
   const salesforce = overview.apps.find((item) => item.id === "salesforce");
   expect(salesforce).toMatchObject({
@@ -497,7 +499,8 @@ test("Composio's toolkits the catalog does not know are listed, and links follow
     id: "todoist",
     name: "todoist",
     path: { path: "composio", signIn: false },
-    connected: true,
+    // Its one account's sign-in expired: listed, but not connected.
+    connected: false,
     accounts: [
       {
         path: "composio",
@@ -511,6 +514,72 @@ test("Composio's toolkits the catalog does not know are listed, and links follow
     catalog: false,
     link: "https://launchpad.example.lazurio.io/integrations/app/todoist",
   });
+});
+
+// A Composio account still pending is a sign-in (decision F42, addendum of
+// 2026-10-12): listed only where a waiting sign-in started here may be it,
+// by the order the sign-ins started; otherwise nobody finishes it.
+test("a pending Composio account is listed only where a waiting sign-in started here may be it", () => {
+  const pending = (wordId: string | null) => ({
+    toolkit: "salesforce",
+    state: "pending" as const,
+    alias: null,
+    wordId,
+  });
+  const accounts = [
+    pending("old_abandoned"),
+    pending("word101"),
+    pending("word102"),
+    pending(null),
+    {
+      toolkit: "salesforce",
+      state: "expired" as const,
+      alias: "Obchod",
+      wordId: "castle",
+    },
+  ];
+  const rows = (signIns?: readonly ComposioSignIn[], toolkit = "salesforce") =>
+    mergeIntegrations({
+      ...base,
+      composio: { state: "ok" as const, accounts },
+      ...(signIns === undefined
+        ? {}
+        : { composioSignIns: new Map([[toolkit, signIns]]) }),
+    })
+      .apps.find((item) => item.id === "salesforce")
+      ?.accounts.map((account) => account.selector);
+  // No sign-in started here: no pending account, the expired one stays.
+  expect(rows()).toEqual(["castle"]);
+  // One waits, started after "old_abandoned": what appeared since is listed;
+  // a pending account without a word id cannot be told apart.
+  expect(rows([{ earlier: ["old_abandoned"], waiting: true }])).toEqual([
+    "word101",
+    "word102",
+    "castle",
+  ]);
+  // Two of the toolkit, the later one cancelled: only the earlier's own.
+  expect(
+    rows([
+      { earlier: ["old_abandoned"], waiting: true },
+      { earlier: ["old_abandoned", "word101"], waiting: false },
+    ]),
+  ).toEqual(["word101", "castle"]);
+  // The earlier one ended and the later waits: only the later's own.
+  expect(
+    rows([
+      { earlier: ["old_abandoned"], waiting: false },
+      { earlier: ["old_abandoned", "word101"], waiting: true },
+    ]),
+  ).toEqual(["word102", "castle"]);
+  // Any sign-in's earlier accounts unknown: no pending account at all.
+  expect(
+    rows([
+      { earlier: ["old_abandoned"], waiting: true },
+      { earlier: null, waiting: false },
+    ]),
+  ).toEqual(["castle"]);
+  // A sign-in of another toolkit lists none of these.
+  expect(rows([{ earlier: [], waiting: true }], "gmail")).toEqual(["castle"]);
 });
 
 test("the scope of a preset, and Composio's statuses and answers read exactly", () => {

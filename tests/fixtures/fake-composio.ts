@@ -18,6 +18,9 @@
 // A test may hold the next `link <toolkit> --list` (`hold-<toolkit>` in the
 // state's directory) until it releases it (`release-<toolkit>`): that call
 // answers what the state said when it started, as a slow CLI would.
+// It may hold the next `link <toolkit> --no-wait` the same way after the
+// pending account exists (`hold-link-<toolkit>`, `release-link-<toolkit>`),
+// as a slow link would.
 // State: `$HOME/.fake-composio/state.json`; every call is appended to
 // `calls.jsonl` there. It never reads `~/.composio/user_data.json` and never
 // reaches a vendor.
@@ -258,6 +261,7 @@ if (command === "link") {
   if (state.activateOnLink === true) account.status = "ACTIVE";
   state.accounts.push(account);
   save();
+  holdIfAsked(`link-${toolkit}`);
   // The CLI asks for an alias only after the link exists.
   if (alias === undefined && active.length > 0) {
     log(

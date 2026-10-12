@@ -213,6 +213,18 @@ export async function releaseList(
   await writeFile(join(home, ".fake-composio", `release-${toolkit}`), "");
 }
 
+/** Holds the next `link <toolkit> --no-wait` of the fake composio after it
+ * created its pending account, as a slow link would, until `releaseLink`. */
+export const holdLink = (home: string, toolkit: string) =>
+  holdList(home, `link-${toolkit}`);
+
+/** Waits until a held `link <toolkit> --no-wait` runs (at most 5 s). */
+export const linkHeld = (home: string, toolkit: string) =>
+  listHeld(home, `link-${toolkit}`);
+
+export const releaseLink = (home: string, toolkit: string) =>
+  releaseList(home, `link-${toolkit}`);
+
 /** Every argv the fake composio was called with, in order. */
 export async function composioCalls(home: string): Promise<string[][]> {
   try {

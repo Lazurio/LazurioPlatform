@@ -31,6 +31,7 @@ import {
 import { healthState, readExecutor } from "./executor-source";
 import {
   type AccountState,
+  type ComposioSignIn,
   catalogAppOf,
   composioToolkitOf,
   shownEndpoint,
@@ -153,11 +154,14 @@ type Session = {
   readonly expires: number;
   outcome: ConnectProgress;
   /** Composio: the toolkit and the pending account, or the active count
-   * before a dashboard link. */
+   * before a dashboard link; and the word ids of the toolkit's pending
+   * accounts before the link (sign-ins left unfinished earlier, never the
+   * one this link creates), null where they could not be read. */
   readonly composio?: Readonly<{
     toolkit: string;
     account: string | null;
     before: number;
+    stale: readonly string[] | null;
   }>;
   /** Executor: the OAuth flow's state. */
   readonly oauth?: Readonly<{ state: string }>;
@@ -706,6 +710,29 @@ export function createConnectSessions(host: () => ConnectHost) {
       : { settings, config, template };
   }
 
+  // One Composio sign-in of a toolkit starts at a time: its check of the
+  // names, its snapshot of the pending accounts, its link and its session, in
+  // that order. So the sessions' order is the order of the links, by which
+  // the reading weighs a pending account (`pendingOfSignIns`, decision F42,
+  // addendum of 2026-10-12), also where two start at once.
+  const composioStarts = new Map<string, Promise<void>>();
+  async function oneAtATime<T>(
+    toolkit: string,
+    start: () => Promise<T>,
+  ): Promise<T> {
+    const mine = (composioStarts.get(toolkit) ?? Promise.resolve()).then(start);
+    const done = mine.then(
+      () => undefined,
+      () => undefined,
+    );
+    composioStarts.set(toolkit, done);
+    try {
+      return await mine;
+    } finally {
+      if (composioStarts.get(toolkit) === done) composioStarts.delete(toolkit);
+    }
+  }
+
   async function connectComposio(
     app: CatalogApp,
     name: string | null,
@@ -714,6 +741,17 @@ export function createConnectSessions(host: () => ConnectHost) {
     const toolkit = app.composio;
     if (composio === null || toolkit === undefined)
       return { kind: "blocked", reason: "composio-signed-out" };
+    return oneAtATime(toolkit, () =>
+      startComposio(app, name, composio, toolkit),
+    );
+  }
+
+  async function startComposio(
+    app: CatalogApp,
+    name: string | null,
+    composio: NonNullable<Awaited<ReturnType<ConnectHost["composio"]>>>,
+    toolkit: string,
+  ): Promise<ConnectStart> {
     // The CLI asks for a name only after it created a link: the Launchpad
     // asks first (a second account needs one, and a name in use is refused).
     const own = await activeComposioAccounts(
@@ -741,6 +779,27 @@ export function createConnectSessions(host: () => ConnectHost) {
       own.some((account) => account.alias?.toLowerCase() === name.toLowerCase())
     )
       return { kind: "blocked", reason: "name-taken" };
+    // The toolkit's pending accounts before the link are sign-ins left
+    // unfinished earlier: while this one waits, the reading lists only a
+    // pending account that is none of them (decision F42, addendum of
+    // 2026-10-12); unknown, it lists none.
+    const earlier = await readComposioAccounts(composio.env, composio.command);
+    const stale =
+      earlier.state === "ok" &&
+      earlier.accounts.every(
+        (account) =>
+          account.toolkit !== toolkit ||
+          account.state !== "pending" ||
+          account.wordId !== null,
+      )
+        ? earlier.accounts.flatMap((account) =>
+            account.toolkit === toolkit &&
+            account.state === "pending" &&
+            account.wordId !== null
+              ? [account.wordId]
+              : [],
+          )
+        : null;
     const link = await linkComposio(
       composio.env,
       composio.command,
@@ -758,7 +817,7 @@ export function createConnectSessions(host: () => ConnectHost) {
               : link.reason,
       };
     const session = open(app.id, {
-      composio: { toolkit, account: link.account, before: own.length },
+      composio: { toolkit, account: link.account, before: own.length, stale },
     });
     journal({ event: "link", app: app.id, outcome: "pending" });
     // A Composio link opens in the person's own browser: it is Composio's page.
@@ -786,6 +845,29 @@ export function createConnectSessions(host: () => ConnectHost) {
         journal({ event: "connect", app: appId, outcome: "blocked", reason });
         return { kind: "blocked", reason };
       }
+    },
+
+    /** The Composio sign-ins started here, by toolkit, in the order they
+     * started (the sessions' own order), ended and cancelled ones too while
+     * the sessions keep them: the reading weighs a pending account by them
+     * (`pendingOfSignIns`, decision F42, addendum of 2026-10-12). A session
+     * is kept a minute beyond its expiry, and every one lasts as long, so a
+     * later sign-in outlives every earlier one. */
+    signIns(): ReadonlyMap<string, readonly ComposioSignIn[]> {
+      const byToolkit = new Map<string, ComposioSignIn[]>();
+      for (const session of sessions.values()) {
+        if (session.composio === undefined) continue;
+        const { toolkit, stale } = session.composio;
+        byToolkit.set(toolkit, [
+          ...(byToolkit.get(toolkit) ?? []),
+          Object.freeze({
+            earlier: stale,
+            waiting:
+              session.outcome.kind === "pending" && now() < session.expires,
+          }),
+        ]);
+      }
+      return byToolkit;
     },
 
     /** How a session goes. */

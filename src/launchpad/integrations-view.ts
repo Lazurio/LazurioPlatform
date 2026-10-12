@@ -129,6 +129,7 @@ export function parseIntegrations(value: unknown): IntegrationsOverview | null {
     typeof composio.allowed !== "boolean" ||
     (composio.source !== "organization" && composio.source !== "environment") ||
     typeof composio.ready !== "boolean" ||
+    typeof composio.disconnect !== "boolean" ||
     typeof sources !== "object" ||
     sources === null ||
     !["tools", "executor", "composio"].every((name) =>
@@ -365,7 +366,8 @@ export type AccountView = Readonly<{
   /** "Odpojit" in the row: an account in Executor that can be named. */
   disconnect: boolean;
   /** The "⋯" menu of a Composio account (#312): the label of its button,
-   * "Spravovat v Composiu" to `manage`, and whether "Odpojit" is in it. */
+   * "Spravovat v Composiu" to `manage`, and whether "Odpojit" is in it:
+   * only where the CLI removes an account without a prompt. */
   menu: Readonly<{
     label: string;
     manage: string;
@@ -377,6 +379,8 @@ export function accountView(
   app: IntegrationApp,
   account: IntegrationAccount,
   copy: Copy,
+  /** Composio's CLI removes an account here (`overview.composio.disconnect`). */
+  composioDisconnect: boolean,
 ): AccountView {
   const name = account.label ?? copy.integrationsAccountUnnamed;
   const named = account.selector !== null;
@@ -391,7 +395,7 @@ export function accountView(
             app: app.name,
           }),
           manage: account.manage,
-          disconnect: named,
+          disconnect: named && composioDisconnect,
         };
   const disconnect = menu === null && named;
   if (account.spare)
