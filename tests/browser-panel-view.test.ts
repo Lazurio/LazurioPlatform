@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import {
-  browserEntryOf,
-  browserViewUrl,
-  resolveBrowserView,
-} from "../src/browser/view";
+import { browserViewUrl } from "../src/browser/contract/pure";
+import { browserEntryOf, resolveBrowserView } from "../src/browser/view";
 import {
   browserFrame,
   browserHandOverPath,

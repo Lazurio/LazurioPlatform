@@ -1,11 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
+import { browserViewUrl, isStrip } from "../browser/contract/pure";
 import { restartStaleBrowserView } from "../browser/units";
 import {
   type BrowserViewSeams,
   browserEntryOf,
-  browserViewUrl,
-  isBrowserSession,
   resolveBrowserView,
 } from "../browser/view";
 import { cdpSeams, ensureThreadWindow } from "../browser/window";
@@ -994,7 +993,7 @@ export async function startLaunchpad(
         if (
           keys.some((key) => key !== "session") ||
           keys.length > 1 ||
-          (session !== null && !isBrowserSession(session))
+          (session !== null && !isStrip(session))
         )
           return response({ error: "invalid-request" }, 400);
         server.timeout(request, 30);

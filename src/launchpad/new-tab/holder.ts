@@ -1,18 +1,20 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
-  type BootTime,
   holderDirectory,
+  liveTabsPath,
+  replaceOwnerFile,
+  watchHolds,
+} from "../../browser/contract/node";
+import {
+  type BootTime,
   holderFileText,
   isStrip,
   keptTabs,
-  liveTabsPath,
   parseHolder,
   parseHolderRecords,
   parseLiveTabs,
-  replaceOwnerFile,
-  watchHolds,
-} from "../../browser/people/holds";
+} from "../../browser/contract/pure";
 
 // The Launchpad's own holder file (decision F47 point 4): the remote tabs a
 // person opened in the Launchpad, from its Nová karta or as a page's new tab

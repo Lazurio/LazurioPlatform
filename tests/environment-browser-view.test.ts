@@ -10,17 +10,17 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CdpConnection, CdpEvent } from "../src/browser/people/cdp";
-import {
-  browserExtensionFiles,
-  writeBrowserExtension,
-} from "../src/browser/people/extension";
 import {
   type Hold,
   type Holds,
   holdsReader,
   noHolds,
-} from "../src/browser/people/holds";
+} from "../src/browser/contract/node";
+import type { CdpConnection, CdpEvent } from "../src/browser/people/cdp";
+import {
+  browserExtensionFiles,
+  writeBrowserExtension,
+} from "../src/browser/people/extension";
 import {
   BrowserHub,
   jpegSize,

@@ -1,4 +1,4 @@
-import { isStrip } from "../../browser/people/holds";
+import { isStrip } from "../../browser/contract/pure";
 import type { GraceKind, TabFacts, TabOpener } from "../../browser/people/hub";
 import type { BrowserEntry } from "../../browser/units";
 

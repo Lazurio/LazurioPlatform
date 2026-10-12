@@ -14,19 +14,21 @@ import { join } from "node:path";
 import {
   holderDirectory,
   holdsReader,
-  isStrip,
-  keptTabs,
   liveTabsPath,
-  parseBootTime,
-  parseHolder,
-  parseLiveTabs,
   processAlive,
   readBootClock,
   readHolds,
   unreadableHolderFiles,
   watchHolds,
   writeLiveTabs,
-} from "../src/browser/people/holds";
+} from "../src/browser/contract/node";
+import {
+  isStrip,
+  keptTabs,
+  parseBootTime,
+  parseHolder,
+  parseLiveTabs,
+} from "../src/browser/contract/pure";
 
 // Who keeps a remote tab of the Environment browser (decision F47 points 4
 // and 5): the holder files the apps' servers write and the agent-browser

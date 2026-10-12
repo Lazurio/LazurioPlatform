@@ -1,4 +1,4 @@
-import { browserViewUrl } from "../browser/view";
+import { browserViewUrl } from "../browser/contract/pure";
 import { isTargetId, parseNewTabChoice } from "../shell/new-tab-protocol";
 import type { PublicEntry } from "./chat";
 import {
