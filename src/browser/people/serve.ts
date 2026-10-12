@@ -71,9 +71,13 @@ export async function runViewService(
     () => "unreadable" as const,
   );
   if (idle === "set") log("agent-browser idle timeout set to 1h");
-  else if (idle === "unreadable")
+  else if (idle === "unreadable" || idle === "not-a-file")
     log(
-      "agent-browser config cannot be read: its daemons keep no idle timeout",
+      `agent-browser config left as it is (${idle}): its daemons keep no idle timeout unless it names one`,
+    );
+  else if (idle === "changed")
+    log(
+      "agent-browser config changed meanwhile: left as it is until the next start",
     );
   const sockets = agentBrowserSocketDirectory(env);
   const liveTabs = liveTabsPath(env);
