@@ -1,3 +1,4 @@
+import { isStrip, targetIdOf } from "../browser/contract/pure";
 import { currentEnvironment, type Shell } from "./contract";
 import { shellElementInterface } from "./interface";
 
@@ -71,18 +72,6 @@ export type NewTabPageMessage =
 type Data = Readonly<Record<string, unknown>>;
 const isRecord = (value: unknown): value is Data =>
   typeof value === "object" && value !== null && !Array.isArray(value);
-
-/** A strip's name is a holder file's name (F47 point 4): the alphabet of an
- * agent-browser session, the same rule as `isStrip` of the hub's
- * holds.ts, which this browser-side module cannot import. */
-const stripPattern = /^[A-Za-z0-9_-]{1,64}$/;
-export const isNewTabStrip = (value: unknown): value is string =>
-  typeof value === "string" && stripPattern.test(value);
-
-/** A remote tab's id: a DevTools target id, 32 hexadecimal digits. */
-const targetIdPattern = /^[0-9A-Fa-f]{32}$/;
-export const isTargetId = (value: unknown): value is string =>
-  typeof value === "string" && targetIdPattern.test(value);
 
 const namePattern = /^[a-z0-9][a-z0-9-]{0,31}$/;
 const keyPattern = /^[A-Za-z0-9]$/;
@@ -178,8 +167,8 @@ export function parseNewTabChoice(value: unknown): NewTabChoice | null {
   switch (value.kind) {
     case "page":
     case "tab": {
-      if (!isTargetId(value.tab)) return null;
-      const tab = value.tab.toUpperCase();
+      const tab = targetIdOf(value.tab);
+      if (tab === null) return null;
       const view = newTabViewOf(value.view, tab);
       return view === null
         ? null
@@ -267,7 +256,7 @@ export function parseNewTabHostMessage(
   const tools = parseNewTabTools(value.tools);
   const theme = parseNewTabTheme(value.theme);
   if (
-    !isNewTabStrip(value.strip) ||
+    !isStrip(value.strip) ||
     tools === null ||
     typeof value.focusAddress !== "boolean" ||
     (value.lang !== "cs" && value.lang !== "en") ||
@@ -386,7 +375,7 @@ export function newTabHostMessageOf(
     role: (name: string) => string;
   }>,
 ): NewTabHostMessage | null {
-  if (!isNewTabStrip(input.strip)) return null;
+  if (!isStrip(input.strip)) return null;
   let tools: readonly NewTabTool[] = [];
   if (input.tools !== null) {
     try {

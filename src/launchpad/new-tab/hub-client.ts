@@ -1,4 +1,4 @@
-import { isStrip } from "../../browser/contract/pure";
+import { isStrip, targetIdOf } from "../../browser/contract/pure";
 import type { GraceKind, TabFacts, TabOpener } from "../../browser/people/hub";
 import type { BrowserEntry } from "../../browser/units";
 
@@ -36,7 +36,6 @@ export type HubRefusal = Readonly<{
 const refused = (reason: HubRefusal["reason"]): HubRefusal =>
   Object.freeze({ kind: "refused", reason });
 
-const targetIdPattern = /^[0-9A-Fa-f]{32}$/;
 const graceKinds: readonly GraceKind[] = ["release", "viewer", "unviewed"];
 const maxUrlLength = 2_048;
 const maxTitleLength = 500;
@@ -53,11 +52,6 @@ const isoTime = (value: unknown): string | null =>
     ? value
     : null;
 
-const targetId = (value: unknown): string | null =>
-  typeof value === "string" && targetIdPattern.test(value)
-    ? value.toUpperCase()
-    : null;
-
 function opener(value: unknown): TabOpener {
   const unknown = { kind: "unknown" } as const;
   if (!isRecord(value)) return unknown;
@@ -70,7 +64,7 @@ function opener(value: unknown): TabOpener {
         strip: isStrip(value.strip) ? value.strip : null,
       };
     case "page": {
-      const id = targetId(value.openerId);
+      const id = targetIdOf(value.openerId);
       return id === null ? unknown : { kind: "page", openerId: id };
     }
     case "agent":
@@ -102,7 +96,7 @@ function heapOf(
  * texts are cut for display. `heap` is read only when it was asked for. */
 function parseHubTab(value: unknown, heap: boolean): TabFacts | null {
   if (!isRecord(value)) return null;
-  const id = targetId(value.id);
+  const id = targetIdOf(value.id);
   const openedAt = isoTime(value.openedAt);
   const usedAt = isoTime(value.usedAt);
   const viewers = value.viewers;
@@ -274,7 +268,7 @@ export async function openTab(
     hubCalls.maxAnswerBytes,
   );
   if (answer?.status === 400) return refused("invalid-request");
-  const tab = targetId(isRecord(answer?.value) ? answer.value.id : undefined);
+  const tab = targetIdOf(isRecord(answer?.value) ? answer.value.id : undefined);
   if (answer?.status !== 201 || tab === null) return refused("hub-unreachable");
   return Object.freeze({ kind: "opened", tab });
 }
@@ -286,7 +280,7 @@ export async function closeTab(
   id: string,
   timeoutMs: number = hubCalls.actionTimeoutMs,
 ): Promise<Readonly<{ kind: "closing"; closing: string }> | HubRefusal> {
-  const tab = targetId(id);
+  const tab = targetIdOf(id);
   if (tab === null) return refused("invalid-request");
   const answer = await ask(
     entry,
@@ -311,7 +305,7 @@ export async function restoreTab(
   id: string,
   timeoutMs: number = hubCalls.actionTimeoutMs,
 ): Promise<Readonly<{ kind: "restored" }> | HubRefusal> {
-  const tab = targetId(id);
+  const tab = targetIdOf(id);
   if (tab === null) return refused("invalid-request");
   const answer = await ask(
     entry,

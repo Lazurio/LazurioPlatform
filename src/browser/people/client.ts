@@ -7,6 +7,7 @@ import {
   viewIdentityElementId,
 } from "../../shell/identity-protocol";
 import { type EnvironmentIdentity, titleWithIdentity } from "../../shell/view";
+import { isTargetId } from "../contract/pure";
 import {
   buttonBit,
   clampInto,
@@ -30,7 +31,6 @@ import {
   type ClientMessage,
   decodeFrame,
   type FrameHeader,
-  isTargetId,
   type ServerMessage,
   type ViewSize,
 } from "./protocol";

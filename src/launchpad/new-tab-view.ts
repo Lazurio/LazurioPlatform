@@ -1,11 +1,17 @@
-import { browserViewUrl } from "../browser/contract/pure";
+import {
+  browserViewUrl,
+  isStrip,
+  launchpadStrip,
+  type StripApp,
+  stripAppOf,
+  targetIdOf,
+} from "../browser/contract/pure";
 import type { Catalog } from "../organizations/catalog";
 import {
   catalogGroups,
   catalogOrganizationKey,
 } from "../organizations/catalog-selection";
 import { environmentIdOf } from "../shell/contract";
-import { isNewTabStrip, isTargetId } from "../shell/new-tab-protocol";
 import { moduleName, moduleStone, tileTarget } from "./apps-view";
 import type { PublicEntry } from "./chat";
 
@@ -250,8 +256,6 @@ export const noteMs = 4_000;
 export const actionNoteMs = 10_000;
 /** Without a host message within this time a framed page is standalone. */
 export const standaloneAfterMs = 1_500;
-/** The strip of the Launchpad (F47 point 4). */
-export const launchpadStrip = "launchpad";
 
 /** The strip a page opened from the Nová karta page is for: its host's
  * while an app hosts it. Standalone, as in Codex Desktop's browser, it is
@@ -351,12 +355,14 @@ function openerName(value: unknown): OpenerName {
   if (value.app === "codex" || value.app === "claude")
     return { app: value.app };
   if (value.person === true) return { person: true };
-  if (isTargetId(value.page)) return { page: value.page.toUpperCase() };
-  return {};
+  const page = targetIdOf(value.page);
+  return page === null ? {} : { page };
 }
 
 function parseTab(value: unknown): NewTabTab | null {
-  if (!isRecord(value) || !isTargetId(value.id)) return null;
+  if (!isRecord(value)) return null;
+  const id = targetIdOf(value.id);
+  if (id === null) return null;
   const url = text(value.url, 2_048);
   const title = text(value.title, 500);
   if (url === null || title === null) return null;
@@ -368,17 +374,15 @@ function parseTab(value: unknown): NewTabTab | null {
       : null;
   const heap = isRecord(value.heap) ? bytes(value.heap.used) : null;
   return {
-    id: value.id.toUpperCase(),
+    id,
     url,
     title,
     favicon,
     usedAt: time(value.usedAt),
-    agents: Array.isArray(value.agents)
-      ? value.agents.filter(isNewTabStrip)
-      : [],
+    agents: Array.isArray(value.agents) ? value.agents.filter(isStrip) : [],
     holders: Array.isArray(value.holders)
       ? value.holders.flatMap((hold: unknown) =>
-          isRecord(hold) && isNewTabStrip(hold.strip)
+          isRecord(hold) && isStrip(hold.strip)
             ? [
                 {
                   strip: hold.strip,
@@ -934,11 +938,13 @@ export function tabRows(
 
 // ---- Closing for everyone (F47 point 6, the wireframe's CloseWarning) ------
 
-const agentApps: readonly (readonly [string, string])[] = [
-  ["t3-", "T3 Code"],
-  ["codex-", "Codex"],
-  ["claude-", "Claude Code"],
-];
+/** The apps whose agents work in a tab, by the registry of prefixes
+ * (decision F50 point 2), and their names. */
+const agentApps: Readonly<Partial<Record<StripApp, string>>> = {
+  t3code: "T3 Code",
+  codex: "Codex",
+  claude: "Claude Code",
+};
 
 /** The warning before closing a tab an agent works in (0195 point 5):
  * which agent, by its app and a T3 Code thread's title where its holder
@@ -948,7 +954,8 @@ export function closeWarning(
   copy: NewTabCopy,
 ): Readonly<{ title: string; text: string; keep: string; close: string }> {
   const session = tab.agents[0] ?? "";
-  const app = agentApps.find(([prefix]) => session.startsWith(prefix))?.[1];
+  const owner = stripAppOf(session);
+  const app = owner === null ? undefined : agentApps[owner];
   const thread = tab.holders.find((hold) => hold.strip === session)?.label;
   const where =
     app === undefined
