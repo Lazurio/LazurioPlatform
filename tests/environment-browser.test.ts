@@ -661,6 +661,10 @@ test("a thread's window: the bound one while it is open, otherwise a new window 
     targetId: "OPEN",
     created: false,
   });
+  // An address never moves the open window (the Folder manual says so).
+  expect(
+    await ensureThreadWindow("codex-a", "https://example.org", reused.seams),
+  ).toEqual({ session: "codex-a", targetId: "OPEN", created: false });
   expect(reused.calls).toEqual([]);
 
   // Bound but closed, or never bound: a new window in the default context
@@ -875,6 +879,88 @@ test("the Folder opens a new page in a new tab and names T3 Code's preview tools
     expect(text).toContain("`lazurio browser link --url <");
     expect(text).toContain("`lazurio browser window --session <");
     expect(text).not.toMatch(/web T3 has none|ve webovém T3 nejsou/);
+  }
+});
+
+// How a page reaches the Operator is explained, not prescribed (F38 addendum of
+// 2026-10-12): a plain link, a link to a tab of the Environment, and what each
+// client does with them, with ChatGPT Desktop's own browser on the Operator's
+// computer, so the agent chooses the way.
+test("the Folder explains how a page reaches the Operator in each client and leaves the way to the agent", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const text = renderManual({
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationBrowser,
+      profile: presetProfile("hosted-organization-personal", "linux", {
+        locale,
+      }),
+    })["manual/this-machine.md"];
+    const section = text.slice(
+      text.indexOf(
+        locale === "cs"
+          ? "### Jak Operátor stránku uvidí"
+          : "### How the Operator sees a page",
+      ),
+      text.indexOf(
+        locale === "cs"
+          ? "### Práce v prohlížeči"
+          : "### Working in the browser",
+      ),
+    );
+    const ways =
+      locale === "cs"
+        ? [
+            "**Obyčejný odkaz**",
+            "**Odkaz na záložku Environmentu**",
+            "**Webové T3 Code**",
+            "**ChatGPT Desktop**",
+            "**Launchpad**",
+            "vyber tu, která mu dává největší smysl",
+            "rádi vidí rovnou vedle chatu",
+          ]
+        : [
+            "**A plain link**",
+            "**A link to a tab of the Environment**",
+            "**Web T3 Code**",
+            "**ChatGPT Desktop**",
+            "**The Launchpad**",
+            "choose the one that makes the most sense to them",
+            "right beside the chat",
+          ];
+    for (const way of ways) expect(section).toContain(way);
+    const bullet = (lead: string) =>
+      section.split("\n").find((line) => line.startsWith(`- **${lead}`)) ?? "";
+    // A plain address the Operator opens in ChatGPT Desktop runs on their
+    // computer: the agent opens it in a new tab of the Environment browser,
+    // never with `lazurio browser window --url`, which keeps a window it has.
+    const desktop = bullet("ChatGPT Desktop");
+    expect(desktop).toContain(
+      locale === "cs" ? "bod Nová záložka" : "the point A new tab",
+    );
+    expect(desktop).not.toContain("lazurio browser window");
+    // Web T3 opens the panel by itself only for a thread in view on a wide
+    // screen; otherwise the agent's tab waits in the strip.
+    expect(
+      bullet(locale === "cs" ? "Webové T3 Code" : "Web T3 Code"),
+    ).toContain(
+      locale === "cs"
+        ? "počká v liště panelu"
+        : "waits for them in the panel's strip",
+    );
+    const yourWindow =
+      text
+        .split("\n")
+        .find((line) =>
+          line.startsWith(
+            locale === "cs" ? "- **Tvoje okno.**" : "- **Your window.**",
+          ),
+        ) ?? "";
+    expect(yourWindow).toContain(
+      locale === "cs"
+        ? "Adresa z `--url` platí jen pro nové okno"
+        : "`--url` applies only to a new window",
+    );
+    expect(text).not.toMatch(/Pohled pro Operátora|The Operator's view\.\*\*/);
   }
 });
 

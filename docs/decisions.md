@@ -5739,6 +5739,33 @@ from there:
 The "A personal browser" point now points to this one instead of repeating it. Template
 revision `base-instructions-42`.
 
+**Addendum 2026-10-12, asked for by the Organization Admin: the Folder explains how a page
+reaches the Operator, and the agent chooses the way.** A page reaches the Operator in
+several ways:
+- a plain link opens it in their own browser on their computer;
+- a link to a tab of the Environment shows that tab of the Environment browser, with the
+  Environment's sign-ins and network;
+- web T3 Code puts the thread's window in its right panel's strip by itself, and opens the
+  panel on it while the thread is in view on a wide screen; otherwise the tab waits in the
+  strip.
+
+Each client does something else with each of them: ChatGPT Desktop's built-in browser and
+the right panel of the T3 Code desktop app run on the Operator's computer. Rules for which
+way to take would miss combinations, such as a plain address the Operator opens in ChatGPT
+Desktop's browser while the agent is to work in that page. So the Folder manual's browser
+section now explains the ways and what each client does with them, and leaves the choice
+to the agent. The aim is that the Operator sees the page as simply as possible and the
+same way in every client. The section also says that people mostly like to see the pages
+an agent works with beside the chat, even without asking, and close what they do not want.
+
+The boundaries stay:
+- browser work happens in the Environment's browser;
+- only the Operator signs in;
+- a new page opens in a new tab;
+- a window is let go of, never closed for everyone.
+
+Template revision `base-instructions-44`.
+
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
 **Decided by Matěj 2026-10-06 after the pilot (root decision 0191 points 11–18, plan
