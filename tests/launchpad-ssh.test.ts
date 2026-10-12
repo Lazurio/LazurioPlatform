@@ -298,6 +298,19 @@ test.skipIf(!posix)(
           comment: "ops@provisioning",
         },
       ]);
+      // The same key allowed outside Launchpad only with restrictions is
+      // refused as the file's state, and the line stays.
+      const restricted = `from="192.0.2.42",command="false" ${deviceKey} ops\n`;
+      await writeFile(join(s.host.home, ".ssh", "authorized_keys"), restricted);
+      expect(
+        await refused({ device: "alex-laptop", publicKey: deviceKey }),
+      ).toEqual({
+        status: 409,
+        body: { kind: "blocked", reason: "key-restricted-outside" },
+      });
+      expect(
+        await readFile(join(s.host.home, ".ssh", "authorized_keys"), "utf8"),
+      ).toBe(restricted);
     } finally {
       await s.close();
     }

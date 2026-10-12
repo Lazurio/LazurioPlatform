@@ -8074,16 +8074,22 @@ and public key into the form, writes the page's settings into `~/.ssh/config` an
    type. Refused, each with its own sentence beside its field: options in front of it
    (`command=`, `from=`, `restrict`…), several lines, anything with `PRIVATE KEY` (or a
    PuTTY key file), other types, a damaged key, a device name without letters or digits.
-   A pasted comment is dropped; the marker replaces it. A key that is already allowed,
-   by any line, is answered as present with that line and nothing is written, so an
-   agent may simply try again.
+   A pasted comment is dropped; the marker replaces it. A key that is already allowed
+   is answered as present with the line that allows it and nothing is written, so an
+   agent may simply try again. sshd uses the first line that matches a key, so when that
+   first line was added outside Launchpad with options (`from=`, `command=`…) the key is
+   refused (`key-restricted-outside`, 409) rather than reported present: the device could
+   not use it as an ordinary sign-in, a second line after it would never be reached, and
+   the outside line stays as it is (Pablo's review of #345).
 4. **How it is written.** Under one lock per file in the Launchpad's process, the file is
    opened without following a link and checked on the open handle: a link, something
    other than a regular file, a file of another account or one over 1 MB is refused with
    a clear sentence and left alone, as is a `~/.ssh` that is no real directory. The new
    content replaces the file in one rename through the existing durable writer (a 0600
    temporary file beside it, file sync, rename, directory sync); a missing `~/.ssh` is
-   created 0700. Removing a key does not end an SSH session already open with it.
+   created 0700. A new line goes at the end; when the file's last line has no newline,
+   it goes first instead, so no byte of the file changes and removing it again restores
+   the file exactly. Removing a key does not end an SSH session already open with it.
 5. **Settings for the computer, pinned, not trusted on first use.** The page shows an
    OpenSSH `Host <alias>` block (`HostName` the tailnet name, `User` the OS account,
    `IdentityFile ~/.ssh/<alias>-ed25519`, `IdentitiesOnly yes`, `HostKeyAlias <alias>`,

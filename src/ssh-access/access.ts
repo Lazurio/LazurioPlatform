@@ -72,6 +72,7 @@ export type AddRefusal =
   | "invalid-name"
   | "invalid-added-by"
   | FileRefusal
+  | "key-restricted-outside"
   | "unsupported-platform";
 
 export type AddAnswer =
