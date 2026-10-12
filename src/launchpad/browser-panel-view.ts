@@ -442,13 +442,19 @@ export function reduceStrip(state: StripState, event: StripEvent): StripState {
   if (entries.some((entry) => entryKey(entry) === active)) return next;
   if (entries.length === 0)
     return closedByPerson(event) ? { ...next, active: null } : withNewTab(next);
+  // The entry that took its place: the first one after it that is still
+  // there, else the nearest one before it, by the strip as it was, so that
+  // entries gone at once (one overview) never skip the next one (Pablo's
+  // review of #341).
   const before = stripEntries(state);
   const at = before.findIndex((entry) => entryKey(entry) === active);
-  const rest = before.filter((entry) =>
-    entries.some((left) => entryKey(left) === entryKey(entry)),
-  );
+  const stays = (entry: StripEntry) =>
+    entries.some((left) => entryKey(left) === entryKey(entry));
   const neighbour =
-    (at < 0 ? rest[rest.length - 1] : rest[Math.min(at, rest.length - 1)]) ??
+    (at < 0
+      ? undefined
+      : (before.slice(at + 1).find(stays) ??
+        before.slice(0, at).reverse().find(stays))) ??
     entries[entries.length - 1];
   return {
     ...next,
