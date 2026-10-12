@@ -285,8 +285,11 @@ as the default for all agent communication, including authored artifacts and
 instructions for agents. [The definition](agent-voice.md) records the precise
 wording in Czech and English, audience adaptation and examples. The companion
 Launchpad wireframe explores customization through the existing profile owner.
-File placement, custom preference schema and loading/activation are deliberately
-left for the decision over that wireframe. This documentation does not change
+The 2026-10-13 proposal follows the existing Environment locale, preserves
+independent Czech/English custom text and recommends storing the authored values
+in the existing preferences with the active voice generated inline in AGENTS.md.
+Exact schema migration and harness qualification remain implementation gates;
+the proposal is available for the decision over the wireframe. This documentation does not change
 generated Folder bytes, deploy a setting or claim model adherence.
 
 Accepted: expertise and proactivity are independent, profiles are Machine-local and
