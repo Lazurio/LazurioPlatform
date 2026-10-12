@@ -1,4 +1,5 @@
 import type { Server, ServerWebSocket } from "bun";
+import type { EnvironmentIdentity } from "../../shell/view";
 import { viewScript } from "./bundle" with { type: "macro" };
 import { browserSocketUrl, type CdpConnection, connectCdp } from "./cdp";
 import { isStrip } from "./holds";
@@ -27,12 +28,52 @@ export type ViewServiceOptions = Readonly<{
   port: number;
   hub: HubSeams;
   log: (line: string) => void;
+  /** How the shell names this Environment (F39's addendum of 2026-10-12),
+   * read for each page (`readViewIdentity`); absent: the page names none
+   * until the app around it does. */
+  identity?: (() => Promise<EnvironmentIdentity | null>) | undefined;
 }>;
 
 type SocketData = { targetId: string; viewer: Viewer | null };
 
 const script = viewScript();
 const maxUploadBytes = 256 * 1024 * 1024;
+
+/** How long a page waits for its Environment's identity: the Launchpad's
+ * page waits as long for its boot document. */
+export const identityWithinMs = 500;
+
+/** The identity for each page (F39's addendum of 2026-10-12): read anew,
+ * never awaited longer than `withinMs`. A read that fails or takes longer
+ * gives the last identity read (none before the first), and one that ends
+ * late is kept for the next page. A read that positively finds none (no
+ * hosted Folder) is none. */
+export function pageIdentitySource(
+  read: () => Promise<EnvironmentIdentity | null>,
+  withinMs = identityWithinMs,
+): () => Promise<EnvironmentIdentity | null> {
+  let last: EnvironmentIdentity | null = null;
+  return async () => {
+    let late: ReturnType<typeof setTimeout> | undefined;
+    const fresh = read().then(
+      (identity) => {
+        last = identity;
+        return identity;
+      },
+      () => last,
+    );
+    try {
+      return await Promise.race([
+        fresh,
+        new Promise<EnvironmentIdentity | null>((resolve) => {
+          late = setTimeout(() => resolve(last), withinMs);
+        }),
+      ]);
+    } finally {
+      clearTimeout(late);
+    }
+  };
+}
 
 /** `frame-ancestors` for the view: the Environment's own origins, the
  * siblings of the view's host (`https://*.<vm>.<org>.lazurio.io`), and the
@@ -213,7 +254,10 @@ export type ViewService = Readonly<{
 
 export function startViewService(options: ViewServiceOptions): ViewService {
   const hub = new BrowserHub(options.hub);
-  const page = viewPage();
+  const identity =
+    options.identity === undefined
+      ? async () => null
+      : pageIdentitySource(options.identity);
   const server = Bun.serve<SocketData>({
     hostname: "127.0.0.1",
     port: options.port,
@@ -244,8 +288,9 @@ export function startViewService(options: ViewServiceOptions): ViewService {
             hub.connected ? 200 : 503,
           );
         case "page":
-          // Per request: the app that asks for the page may frame it.
-          return new Response(page, {
+          // Per request: the app that asks for the page may frame it, and
+          // the page names its Environment as the shell does now.
+          return new Response(viewPage(await identity()), {
             headers: pageHeaders(
               options.origin,
               request.headers.get("referer"),

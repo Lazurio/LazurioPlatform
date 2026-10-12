@@ -1,4 +1,12 @@
-import { identityIcon, identityLabel, viewIdentity } from "./identity";
+import { environmentIdOf } from "../../shell/contract";
+import { environmentElement } from "../../shell/identity-element";
+import {
+  acceptIdentityReply,
+  identityMessage,
+  parseEmbeddedIdentity,
+  viewIdentityElementId,
+} from "../../shell/identity-protocol";
+import { type EnvironmentIdentity, identityText } from "../../shell/view";
 import {
   buttonBit,
   clampInto,
@@ -35,7 +43,7 @@ import {
 // the page, offers its new tabs and answers its dialogs and file choosers.
 // The gateway admits the person; the script carries no credential and talks
 // only to its own origin (inside an app's frame it also tells that app where
-// the tab is).
+// the tab is, and asks it how the Environment is named).
 
 const en = {
   connecting: "Connecting…",
@@ -119,23 +127,77 @@ function tell(message: Readonly<Record<string, string>>): void {
   } catch {}
 }
 
-// The view names its Environment at the start of the bar and in the title
-// (root decision 0191, addendum of 2026-10-09), so a person knows whose browser
-// this is in any app's panel, in a bare tab or on a phone. The app's own
+// The view names its Environment at the start of the bar and in the title,
+// so a person knows whose browser this is in any app's panel, in a bare tab
+// or on a phone, and names it as the switcher of the Environment's apps does
+// (F39's addendum of 2026-10-12): with the shell's own `<lazurio-environment>`
+// and identity. First the identity the service put into the page (the
+// Environment's own shell document); inside a frame, the answer of the app
+// around it, whose shell also knows the person's account and so a name the
+// Dashboard gave. An answer of none keeps the page's own. The app's own
 // messages keep the page's title alone.
-const identity = viewIdentity(location.hostname);
-const identityName = identity === null ? null : identityLabel(identity, czech);
-if (identity !== null && identityName !== null) {
-  const badge = byId("environment", HTMLSpanElement);
-  const badgeIcon = byId("environment-icon", HTMLImageElement);
-  byId("environment-label", HTMLSpanElement).textContent = identityName;
-  badge.title = identityName;
-  badgeIcon.addEventListener("error", () => {
-    badgeIcon.hidden = true;
-  });
-  badgeIcon.src = identityIcon(identity);
-  badge.hidden = false;
+const ownEnvironment = environmentIdOf(location.origin);
+const served = parseEmbeddedIdentity(
+  document.getElementById(viewIdentityElementId)?.textContent,
+);
+let answered: EnvironmentIdentity | null = null;
+const named = () => answered ?? served;
+const renamedListeners = new Set<() => void>();
+customElements.define(
+  "lazurio-environment",
+  environmentElement({
+    identity: () => named(),
+    listen: (changed) => {
+      renamedListeners.add(changed);
+      return () => {
+        renamedListeners.delete(changed);
+      };
+    },
+    request: () => undefined,
+  }),
+);
+const badge = byId("environment", HTMLElement);
+/** The remote page's title as last reported. */
+let pageTitle = "";
+
+function showTitle(): void {
+  const identity = named();
+  document.title = [identity === null ? "" : identityText(identity), pageTitle]
+    .filter((part) => part !== "")
+    .join(" — ");
 }
+
+function renamed(): void {
+  badge.hidden = named() === null;
+  for (const listener of renamedListeners) listener();
+  showTitle();
+}
+
+if (embedded) {
+  let replied = false;
+  window.addEventListener("message", (event) => {
+    const reply = acceptIdentityReply(
+      {
+        data: event.data,
+        origin: event.origin,
+        fromParent: event.source === window.parent,
+      },
+      ancestor,
+      ownEnvironment,
+    );
+    if (reply === null) return;
+    replied = true;
+    answered = reply.identity;
+    renamed();
+  });
+  // Asked again while the app has not answered: its shell may start to
+  // listen after this page asked.
+  for (const after of [0, 1_000, 4_000])
+    setTimeout(() => {
+      if (!replied) tell({ type: identityMessage.request });
+    }, after);
+}
+renamed();
 
 function byId<T extends HTMLElement>(id: string, kind: new () => T): T {
   const node = document.getElementById(id);
@@ -1108,9 +1170,8 @@ function showInfo(info: Info): void {
   loading = info.loading;
   reload.dataset.state = loading ? "stop" : "reload";
   label(reload, loading ? say.stop : say.reload);
-  const pageTitle = info.title || info.url;
-  document.title =
-    identityName === null ? pageTitle : `${identityName} — ${pageTitle}`;
+  pageTitle = info.title || info.url;
+  showTitle();
   const icon =
     info.favicon !== null && isHttps(info.favicon) ? info.favicon : defaultIcon;
   if (favicon.href !== icon) favicon.href = icon;

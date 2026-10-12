@@ -29,11 +29,6 @@ import {
   type Viewer,
 } from "../src/browser/people/hub";
 import {
-  identityIcon,
-  identityLabel,
-  viewIdentity,
-} from "../src/browser/people/identity";
-import {
   type ClientMessage,
   decodeFrame,
   type ServerMessage,
@@ -53,6 +48,11 @@ import {
   openTab,
   restoreTab,
 } from "../src/launchpad/new-tab/hub-client";
+import {
+  parseEmbeddedIdentity,
+  viewIdentityElementId,
+} from "../src/shell/identity-protocol";
+import type { EnvironmentIdentity } from "../src/shell/view";
 
 // The people's view of the Environment browser (decision F39) against a
 // scripted DevTools peer: no Chrome runs, every call is recorded and
@@ -320,6 +320,8 @@ async function serve(
     reconnectMs?: number;
     /** The real reader instead of the state above. */
     holds?: () => Promise<Holds>;
+    /** How the shell names the Environment, for the page. */
+    identity?: (() => Promise<EnvironmentIdentity | null>) | undefined;
   } = {},
 ) {
   root = await realpath(await mkdtemp(join(tmpdir(), "people-view-")));
@@ -335,6 +337,7 @@ async function serve(
     origin,
     port: 0,
     log: (line) => logs.push(line),
+    identity: options.identity,
     hub: {
       connect: browser.connect,
       holds:
@@ -576,35 +579,74 @@ test("a requesting T3 Code or Launchpad of another Environment may frame the vie
   ).toContain(`frame-ancestors ${siblings} https://t3code.someone.lazurio.io`);
 });
 
-test("the view names its Environment from its own address", () => {
-  expect(viewIdentity("browser.jana.acme.lazurio.io")).toEqual({
-    kind: "organization",
-    organization: "acme",
-    environment: "jana",
+// F39's addendum of 2026-10-12: the view names its Environment as the shell
+// does, never from its own address. Its page carries the identity the
+// service reads (the Environment's own shell document) as data the script
+// reads back, and the shell's `<lazurio-environment>` draws it.
+const embedded = (html: string) =>
+  parseEmbeddedIdentity(
+    new RegExp(
+      `<script type="application/json" id="${viewIdentityElementId}">([^<]*)</script>`,
+    ).exec(html)?.[1],
+  );
+
+test("the page carries the identity the service reads, for the shell's element; none without one", async () => {
+  const work: EnvironmentIdentity = {
+    id: "pilot.example",
+    name: "Pracovní",
+    who: "@jana",
+    glyph: {
+      kind: "avatar",
+      organization: "Example Works",
+      avatar: "https://avatars.githubusercontent.com/u/4242?v=4",
+      initials: "EW",
+    },
+  };
+  let reads = 0;
+  const browser = new FakeBrowser([tab(1)]);
+  const { base } = await serve(browser, {
+    identity: async () => {
+      reads += 1;
+      return work;
+    },
   });
-  expect(viewIdentity("browser.someone.lazurio.io")).toEqual({
-    kind: "personal",
-    login: "someone",
-  });
-  for (const hostname of [
-    "localhost",
-    "127.0.0.1",
-    "t3code.jana.acme.lazurio.io",
-    "browser.lazurio.io",
-    "browser.a.b.acme.lazurio.io",
-    "browser.jana.acme.example.com",
-    "browser.-bad.acme.lazurio.io",
-  ])
-    expect(viewIdentity(hostname)).toBeNull();
-  const work = viewIdentity("browser.jana.acme.lazurio.io");
-  const personal = viewIdentity("browser.someone.lazurio.io");
-  if (work === null || personal === null) throw new Error("no identity");
-  expect(identityLabel(work, true)).toBe("Acme · jana");
-  expect(identityLabel(work, false)).toBe("Acme · jana");
-  expect(identityLabel(personal, true)).toBe("Osobní · someone");
-  expect(identityLabel(personal, false)).toBe("Personal · someone");
-  expect(identityIcon(work)).toBe("https://github.com/acme.png?size=40");
-  expect(identityIcon(personal)).toBe("https://github.com/someone.png?size=40");
+  for (const path of ["/", `/t/${id(1)}`]) {
+    const page = await fetch(`${base}${path}`, { headers: { Host: host } });
+    expect(page.status).toBe(200);
+    const html = await page.text();
+    expect(html).toContain(
+      '<lazurio-environment id="environment" class="environment" hidden></lazurio-environment>',
+    );
+    expect(embedded(html)).toEqual(work);
+    // The data comes before the script that reads it, and the hostname rule
+    // of the addendum of 2026-10-09 names nothing.
+    expect(html.indexOf(viewIdentityElementId)).toBeLessThan(
+      html.indexOf("/assets/view.js"),
+    );
+    expect(html).not.toContain("pilot ·");
+    expect(html).not.toContain("github.com/example.png");
+  }
+  expect(reads).toBe(2);
+});
+
+test("a page without an identity to give, or whose read fails, names none and still loads", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  for (const identity of [
+    undefined,
+    async () => null,
+    async () => {
+      throw new Error("the Folder cannot be read");
+    },
+  ]) {
+    const { base } = await serve(browser, { identity });
+    const page = await fetch(`${base}/t/${id(1)}`, { headers: { Host: host } });
+    expect(page.status).toBe(200);
+    const html = await page.text();
+    expect(html).toContain('<lazurio-environment id="environment"');
+    expect(html).not.toContain(viewIdentityElementId);
+    await service?.stop();
+    service = undefined;
+  }
 });
 
 test("the page names the app that asks for it as the one that may frame it, end to end", async () => {
