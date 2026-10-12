@@ -7478,7 +7478,9 @@ workstation, keep their apps' own "+".
    opens Nová karta; the pinned Přehled of the first wireframe is gone. Its first opening shows
    Nová karta, and so does closing the last tab. Zavřít in its strip is the close for everyone
    (point 6), with the warning when an agent works in the tab. A message during the grace
-   never takes Vrátit away (wireframe #27).
+   never takes Vrátit away (wireframe #27). Matěj's tuning of 2026-10-12 (after the steps)
+   makes each Nová karta an entry of its own and closes the panel on the person's × of the
+   last entry.
 
    **Addendum 2026-10-12, decided by Matěj: the strip shows the tabs the Launchpad holds.**
    The Launchpad's strip lists the tabs the Launchpad holds (`holders/launchpad.json`), as a
@@ -7500,7 +7502,8 @@ workstation, keep their apps' own "+".
       `preview_open` opens or adopts, and from the agent's own window through its
       agent-browser binding (`t3-<thread>.target`).
     - **Nová karta:** "+" and the panel's empty state open it. Closing the last tab closes the
-      panel, as upstream does, unlike the Launchpad's panel.
+      panel, as upstream does; since Matěj's tuning of 2026-10-12 (below) the Launchpad's
+      panel does too.
     - **Order:** new tabs keep the holder file's order on every device, and an existing tab's
       position stays each device's. Tabs can be dragged: upstream's #17730, ported to v0.0.45.
     - **The panel opens by itself** only when the agent opens a tab or a new window.
@@ -7696,7 +7699,8 @@ been measured yet.
   - "+" shows Nová karta, `<lazurio-new-tab strip="launchpad" focus-address>`, and so do
     the first opening and the strip once its last tab goes. A page opened in it, which the
     Launchpad holds, shows in the panel; a tab chosen in its Přehled shows once
-    `POST /api/new-tab/hold` has held it.
+    `POST /api/new-tab/hold` has held it. (Matěj's tuning of 2026-10-12, below, changes the
+    first sentence.)
   - × lets go of the Launchpad's hold, without a warning, since it never closes a tab
     something still needs. `POST /api/new-tab/release` takes the holder file's own path:
     one operation at a time, the file read again first, nothing written over a file that
@@ -7755,6 +7759,60 @@ page each read the overview every 5 s; step 5 measures that cost with the heaps.
   A unit of the view's name that someone else wrote is never restarted.
 - **Effect.** A viewer reconnects; the browser and its tabs are untouched. After the restart, every tab nothing holds gets the hub's 10 minutes (point 5).
 - **Scope.** The new Launchpad does the check, so this works for updates from any older version.
+
+**Matěj's tuning of the Launchpad's panel (2026-10-12).** After trying the released F47 in his
+browser, Matěj asked for the following. It changes point 9's "and so does closing the last tab"
+and the first bullet of step 3's panel; the rest of F47 stands.
+- **Every Nová karta is a tab of the strip.** It is as wide as a remote tab and has its ×. The
+  strip lists the tabs the Launchpad holds, then its Nová karta entries.
+  - "+" always adds a new Nová karta after the others and shows it, as Chrome does; the one
+    shown before stays as it was. Only the shown entry is mounted, so the others read nothing.
+  - × on a Nová karta takes that entry away. It is no remote tab, so nothing is let go of and
+    there is no Vrátit. × on a tab keeps point 9's addendum: it lets go of the Launchpad's
+    hold, with Vrátit.
+  - The person's × on the strip's last entry, of either kind, closes the panel, as T3 Code's
+    does (root decision 0195 point 16). The toast with Vrátit stays reachable at the bottom of
+    the window, and Vrátit then opens the panel on the tab again.
+  - Opening the panel on an empty strip shows one Nová karta. A strip emptied any other way
+    (its tab ended, another device let go of it) shows a new Nová karta, so the panel never
+    closes by itself.
+- **The toggle slides the panel.** "Prohlížeč" slides the panel in from the window's right edge
+  and back out, in 200 ms; with reduced motion it appears and goes at once. The focus moves as
+  before. The toggle stays in the page's head, pressed, while the panel is open: the
+  wireframe hid it then, the product keeps it on Matěj's call.
+- **The panel's width.** Its left edge is a divider, as in T3 Code and Codex Desktop: drag it,
+  move it with the arrow keys (24 px, 96 with Shift), Home and End for the least and the
+  greatest width, a double-click for the default (half of the room, 360–960 px, as before).
+  - Beside the page the panel stops where the page keeps 400 px (the wireframe's
+    `CONTENT_MIN`).
+  - Dragged past half of that, the page steps aside and the panel takes all of the room right
+    of the column, as the wireframe's "Celá šířka"; dragged back, the page returns at its
+    narrowest. While the page is aside, the column's toggle stands in the panel's strip.
+  - A width that no longer fits the window is held where the page keeps its width; only the
+    person's drag or End steps the page aside.
+  - Below 1100 px the panel stays the full-window sheet, without a divider.
+- **The left column.** On a screen 768 px wide or wider, T3 Code's sidebar toggle at the start
+  of each page's head hides the column, the rail staying, and shows it again. Its right edge is
+  a divider like the panel's: 208–480 px (208 is T3 Code's narrowest sidebar, which the column
+  head is drawn for), never leaving the page less than 400 px, a double-click for 264 px.
+  - Below 768 px the column stays the sheet of the narrow page.
+  - The module's information page has no head row, so it has neither toggle.
+  - With the column hidden and the panel dragged wide, the browser fills the window but the
+    rail.
+- **Kept in this browser.** The panel's width (or all of the room), the column's width and
+  whether it is hidden are one `localStorage` entry, `lazurio.layout`, read field by field.
+  Nothing goes into the Folder, which a Team Environment shares.
+- **Nová karta's note.** "Přihlášení tady použijí všichni agenti tohoto Environmentu." is gone:
+  it only stood in the way. The Team Environment's note stays (the whole Team sees the
+  sign-ins made here, root decision 0191 point 7).
+- **"Uživatel".** Přehled names a tab a person opened "Uživatel" ("User"), not "Člověk". Who
+  opened a tab is a user, an agent, or once Lazurio MausBot is an app of Nová karta, a bot
+  ("Bot"). A user is still never named (F11).
+- **Where it is.** The pure rules: `browser-panel-view.ts` (the strip) with
+  `tests/browser-panel-view.test.ts`, `layout-view.ts` (the widths, the keys, the stored
+  layout) with `tests/layout-view.test.ts`, and `new-tab-view.ts` with
+  `tests/new-tab-view.test.ts`. The DOM: `browser-panel.ts` and `layout.ts`. How it looks and
+  moves is checked in a browser (root decision 0178), never by a rendered-page test.
 
 ## F48 — One shared GitHub App sign-in in a Work Environment (pilot)
 
