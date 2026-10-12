@@ -1,4 +1,10 @@
-import { currentEnvironment, parseShell, type Shell } from "../shell/contract";
+import { pageAccountJson } from "../shell/account";
+import {
+  currentEnvironment,
+  parseShell,
+  parseShellAccount,
+  type Shell,
+} from "../shell/contract";
 import { defineShellElements, provideShell } from "../shell/elements";
 import { shellMessages } from "../shell/messages";
 import { environmentName } from "../shell/view";
@@ -42,6 +48,7 @@ import { createRecoveryPanel } from "./recovery-panel";
 import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
 import { routeFrame, settingsPath } from "./routes";
 import { createShell } from "./shell";
+import { createSshPanel } from "./ssh-panel";
 import { createToolsPanel } from "./tools-panel";
 import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
@@ -510,6 +517,20 @@ const recovery = createRecoveryPanel({
   copy: () => copy,
   t3codeOrigin: () => chatHref(entry),
 });
+// Settings → SSH from your devices (decision F49): read on first view. Who
+// added a key is the login of the Lazurio account the gateway relays to this
+// page (`/.lazurio/account/environments`), a label and never evidence; a
+// workstation's page has no such account and its keys say `local`.
+const ssh = createSshPanel({
+  get: (path) => get(path),
+  post: (path, body) => post(path, body),
+  copy: () => copy,
+  addedBy: async () =>
+    token
+      ? null
+      : (parseShellAccount(await pageAccountJson())?.operator.login ?? null),
+  origin: () => location.origin,
+});
 // The left column as the person left it in this browser (Matěj's tuning of
 // 2026-10-12, layout.ts): hidden or shown, and its width; placed before the
 // page first shows, so it never moves on arrival.
@@ -579,6 +600,8 @@ const shell = createShell({
       !recovery.loaded
     )
       void recovery.refresh();
+    if (route.view === "settings" && route.section === "ssh" && !ssh.loaded)
+      void ssh.refresh();
     if (framed && route.view === "settings") {
       // Settings read what only they show the first time they are shown;
       // back in Tento Environment the content is read again.
@@ -702,6 +725,7 @@ function relabel() {
     guide.href = `https://documentation.lazurio.ai/${locale === "en" ? "en" : "cs"}/guide/?utm_source=launchpad&utm_medium=product&utm_campaign=guide`;
   shell.relabel();
   recovery.render();
+  ssh.render();
   files.relabel();
   integrations.relabel();
   column.relabel();
@@ -755,8 +779,10 @@ async function load() {
   // content operation as a person's work Environment.
   if (!first) void content.refresh();
   renderUpdate();
-  // A Team Environment's folder is the whole Team's.
+  // A Team Environment's folder is the whole Team's, and so are the devices
+  // that sign in to it.
   files.shared(current.preset.name === "hosted-organization-team");
+  ssh.shared(current.preset.name === "hosted-organization-team");
   if (relabelled) {
     relabel();
     catalog.render();
@@ -1066,6 +1092,10 @@ if (boot === null) {
   if (shellDocument === null) void readShell();
   if (boot.catalog === null) void catalog.refresh();
   files.shared(
+    shellDocument !== null &&
+      currentEnvironment(shellDocument)?.kind === "team",
+  );
+  ssh.shared(
     shellDocument !== null &&
       currentEnvironment(shellDocument)?.kind === "team",
   );

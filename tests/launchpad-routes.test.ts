@@ -57,6 +57,7 @@ test("a path names the view and the settings section; the canonical path is one"
     "/settings/general",
     "/settings/machine",
     "/settings/tools",
+    "/settings/ssh",
     "/settings/recovery",
   ]);
 });
@@ -78,6 +79,20 @@ test("the heading and document title follow the route in both languages", () => 
     heading: "Tento Environment",
     document: "Tento Environment · Nastavení — Lazurio Launchpad",
   });
+  // SSH from your devices (decision F49).
+  expect(pageRoute("/settings/ssh")).toEqual({
+    view: "settings",
+    section: "ssh",
+  });
+  expect(
+    routeTitle({ view: "settings", section: "ssh" }, messages("en")),
+  ).toEqual({
+    heading: "SSH from your devices",
+    document: "SSH from your devices · Settings — Lazurio Launchpad",
+  });
+  expect(
+    routeTitle({ view: "settings", section: "ssh" }, messages("cs")).heading,
+  ).toBe("SSH ze zařízení");
 });
 
 test("the catalog routes: an Organization and a module, deep-linkable, one canonical path", () => {

@@ -1226,6 +1226,106 @@ const en = {
   integrationsToolsOne: "{count} tool",
   integrationsToolsFew: "{count} tools",
   integrationsToolsMany: "{count} tools",
+  // Settings → SSH from your devices (decision F49).
+  sshTitle: "SSH from your devices",
+  sshIntro:
+    "Connect to this Environment over SSH from a terminal on your own computer. Each computer has its own key, which you can remove here at any time.",
+  sshShared:
+    "This is the whole Team's shared Environment: a device added here signs in to the Team's account, and everyone in the Team sees it and can remove it.",
+  sshUnsupported:
+    "SSH from your devices is available in Environments on Linux and macOS.",
+  sshRefresh: "Refresh",
+  sshLoading: "Reading SSH access…",
+  sshLoadFailed: "SSH access could not be read. Try Refresh.",
+  sshPromptTitle: "Prompt for your agent",
+  sshPromptNote:
+    "Give it to the agent on your computer, for example Codex. It opens this page in its browser panel, where you only sign in; it sets up the rest itself.",
+  sshPromptCopy: "Copy prompt",
+  sshPromptUnavailable:
+    "The prompt appears once the settings for your computer are known (below).",
+  sshPromptText:
+    'Set up SSH from this computer to my Lazurio Environment "{alias}".\n\n1. Open {url} in your browser panel. If a sign-in appears, wait until I have signed in with my Lazurio account; never type my password yourself.\n2. On this computer, use the key {keyPath} (on Windows {windowsKeyPath}). If it does not exist yet, create it: ssh-keygen -t ed25519 -N "" -C {alias} -f {keyPath}\n   Never show, copy or send the private key anywhere; only the .pub file leaves this computer.\n3. On the page, under "Add a device", fill in this computer\'s name and the whole content of {keyPath}.pub, then press "Add device".\n4. From "Settings for your computer", add the "SSH config" block to ~/.ssh/config and the "known_hosts" line to ~/.ssh/known_hosts_lazurio (create the files if they are missing). If ~/.ssh/config already has a "Host {alias}" block, or known_hosts_lazurio another key for {alias}, change nothing and tell me.\n5. Check the connection: ssh {alias} true\n\nRules: never change, switch or log out a Tailscale profile. Never turn StrictHostKeyChecking off and never accept a host key other than the one on the page. If ssh is refused or times out on the network, this device is not allowed to reach the Environment over SSH yet: tell me to ask my Organization\'s Admin to allow SSH from this device to the Environment "{alias}". Finally, tell me what you did and the result of the check.',
+  sshDevicesTitle: "Your devices",
+  sshDevicesNone: "No device has been added here yet.",
+  sshAddedBy: "Added {date} by {who}",
+  sshAddedLocal: "Added {date} without a Lazurio account",
+  sshRemove: "Remove",
+  sshRemoveNamed: "Remove {device}",
+  sshRemoveConfirm: "Remove {device}? It can no longer sign in over SSH.",
+  sshRemoveYes: "Remove",
+  sshRemoveCancel: "Cancel",
+  sshRemoved: "{device} was removed and can no longer sign in.",
+  sshRemovedStillAllowed:
+    "{device} was removed here, but the same key is still allowed by a line added outside Launchpad.",
+  sshRemoveFailed:
+    "The device could not be removed. Try Refresh, then remove it again.",
+  sshRemoveNotFound: "This key is no longer here. Try Refresh.",
+  sshRemoveNotOwn:
+    "This key was added outside Launchpad; Launchpad does not remove it.",
+  sshOutsideTitle: "Added outside Launchpad",
+  sshOutsideNote:
+    "Launchpad never changes or removes these keys, for example the key this Environment was set up with. Whoever looks after this Environment removes them.",
+  sshOutsideUnreadable: "A line Launchpad cannot read",
+  sshOutsideUntitled: "A key without a name",
+  sshProblemDirectory:
+    "~/.ssh in this Environment is not a regular folder, so Launchpad does not change it.",
+  sshProblemSymlink:
+    "~/.ssh/authorized_keys is a link, so Launchpad does not change it. An agent in this Environment can replace it with a regular file.",
+  sshProblemNotFile:
+    "~/.ssh/authorized_keys is not a regular file, so Launchpad does not change it.",
+  sshProblemForeignOwner:
+    "~/.ssh/authorized_keys belongs to another account, so Launchpad does not change it.",
+  sshProblemTooLarge:
+    "~/.ssh/authorized_keys is larger than 1 MB, so Launchpad does not change it.",
+  sshAddTitle: "Add a device",
+  sshAddNote:
+    "Its name and its public key: one line from the .pub file that starts with ssh-ed25519. Never the private key.",
+  sshDeviceName: "Device name",
+  sshDeviceNameHint: "For example alex-laptop.",
+  sshPublicKey: "Public key",
+  sshAdd: "Add device",
+  sshAdding: "Adding…",
+  sshAdded:
+    "{device} can now sign in. The settings for your computer are below.",
+  sshAlreadyPresent:
+    "This key can already sign in here; nothing was changed. The settings for your computer are below.",
+  sshAddFailed:
+    "The device could not be added. Try again; if it keeps failing, ask an agent in this Environment.",
+  sshRefusedKeyMissing: "Paste the public key.",
+  sshRefusedPrivateKey:
+    "This is a private key. Never paste it anywhere; paste the public key from the .pub file.",
+  sshRefusedMultipleLines: "Paste exactly one key, on one line.",
+  sshRefusedOptions:
+    "Paste the key without options in front of it, such as command= or from=.",
+  sshRefusedType:
+    "Only ed25519 keys are accepted (ssh-ed25519 or sk-ssh-ed25519@openssh.com). Create one with ssh-keygen -t ed25519.",
+  sshRefusedInvalidKey:
+    "This key is damaged or incomplete. Copy the whole line from the .pub file again.",
+  sshRefusedNotKey:
+    "This is not an SSH public key. It is one line that starts with ssh-ed25519.",
+  sshRefusedName: "Give the device a name with letters or digits.",
+  sshRefusedAddedBy:
+    "The signed-in account could not be recorded. Reload the page and try again.",
+  sshComputerTitle: "Settings for your computer",
+  sshComputerNote:
+    "Your agent writes these on your computer. The host key is this Environment's own, so your computer checks that it really talks to this Environment.",
+  sshConfigLabel: "SSH config",
+  sshConfigNote: "Add to ~/.ssh/config",
+  sshKnownHostsLabel: "known_hosts",
+  sshKnownHostsNote: "Add to ~/.ssh/known_hosts_lazurio",
+  sshCopy: "Copy",
+  sshCopied: "Copied.",
+  sshNetworkNote:
+    "If the connection is refused or times out, the network does not let that device reach this Environment over SSH yet: ask your Organization's Admin to allow SSH from that device to this Environment.",
+  sshComputerMissing: "The settings for your computer are not available yet:",
+  sshMissingTailscale: "Tailscale is not installed in this Environment.",
+  sshMissingTailscaleFailed: "Tailscale in this Environment did not answer.",
+  sshMissingNotRunning: "Tailscale is not connected in this Environment.",
+  sshMissingDnsName: "This Environment has no name in its tailnet (MagicDNS).",
+  sshMissingHostKey:
+    "This Environment has no ed25519 host key (/etc/ssh/ssh_host_ed25519_key.pub).",
+  sshMissingUser:
+    "This Environment's account has no name an SSH config can use.",
 } as const;
 export type MessageKey = keyof typeof en;
 const cs: Record<MessageKey, string> = {
@@ -2430,6 +2530,107 @@ const cs: Record<MessageKey, string> = {
   integrationsToolsOne: "{count} nástroj",
   integrationsToolsFew: "{count} nástroje",
   integrationsToolsMany: "{count} nástrojů",
+  // Settings → SSH from your devices (decision F49).
+  sshTitle: "SSH ze zařízení",
+  sshIntro:
+    "Připojte se do tohoto Environmentu přes SSH z terminálu na svém počítači. Každý počítač má vlastní klíč a tady ho můžete kdykoli odebrat.",
+  sshShared:
+    "Tohle je společný Environment celého Teamu: zařízení přidané tady se přihlašuje do účtu Teamu a každý z Teamu ho vidí a může odebrat.",
+  sshUnsupported:
+    "SSH ze zařízení je dostupné v Environmentech s Linuxem a macOS.",
+  sshRefresh: "Obnovit",
+  sshLoading: "Načítá se přístup přes SSH…",
+  sshLoadFailed: "Přístup přes SSH se nepodařilo načíst. Zkuste Obnovit.",
+  sshPromptTitle: "Prompt pro vašeho agenta",
+  sshPromptNote:
+    "Předejte ho agentovi na svém počítači, třeba Codexu. Otevře si tuhle stránku ve svém panelu prohlížeče, kde se jen přihlásíte; zbytek nastaví sám.",
+  sshPromptCopy: "Zkopírovat prompt",
+  sshPromptUnavailable:
+    "Prompt se objeví, jakmile budou známá nastavení pro váš počítač (níže).",
+  sshPromptText:
+    'Nastav SSH z tohoto počítače do mého Lazurio Environmentu „{alias}“.\n\n1. Otevři {url} ve svém panelu prohlížeče. Když se objeví přihlášení, počkej, až se přihlásím svým účtem Lazurio; moje heslo nikdy nezadávej sám.\n2. Na tomhle počítači použij klíč {keyPath} (ve Windows {windowsKeyPath}). Když ještě neexistuje, vytvoř ho: ssh-keygen -t ed25519 -N "" -C {alias} -f {keyPath}\n   Soukromý klíč nikdy nikomu neukazuj, nekopíruj ani neposílej; z počítače smí odejít jen soubor .pub.\n3. Na stránce v části „Přidat zařízení“ vyplň název tohoto počítače a celý obsah souboru {keyPath}.pub a stiskni „Přidat zařízení“.\n4. Z části „Nastavení pro váš počítač“ přidej blok „SSH config“ do ~/.ssh/config a řádek „known_hosts“ do ~/.ssh/known_hosts_lazurio (chybějící soubory vytvoř). Když ~/.ssh/config už má blok „Host {alias}“ nebo known_hosts_lazurio jiný klíč pro {alias}, nic neměň a řekni mi to.\n5. Ověř spojení: ssh {alias} true\n\nPravidla: profil Tailscale nikdy neměň, nepřepínej ani neodhlašuj. StrictHostKeyChecking nikdy nevypínej a nepřijímej jiný klíč hostu než ten ze stránky. Když síť ssh odmítne nebo vyprší, tohle zařízení zatím do Environmentu přes SSH nesmí: řekni mi, ať požádám Admina své Organizace, aby povolil SSH z tohoto zařízení do Environmentu „{alias}“. Nakonec mi řekni, co jsi udělal, a výsledek ověření.',
+  sshDevicesTitle: "Vaše zařízení",
+  sshDevicesNone: "Zatím tu není přidané žádné zařízení.",
+  sshAddedBy: "Přidáno {date}, účet {who}",
+  sshAddedLocal: "Přidáno {date} bez účtu Lazurio",
+  sshRemove: "Odebrat",
+  sshRemoveNamed: "Odebrat {device}",
+  sshRemoveConfirm: "Odebrat {device}? Už se nebude moct přihlásit přes SSH.",
+  sshRemoveYes: "Odebrat",
+  sshRemoveCancel: "Zrušit",
+  sshRemoved: "Zařízení {device} je odebrané a už se nepřihlásí.",
+  sshRemovedStillAllowed:
+    "Zařízení {device} je tady odebrané, ale stejný klíč dál povoluje řádek přidaný mimo Launchpad.",
+  sshRemoveFailed:
+    "Zařízení se nepodařilo odebrat. Zkuste Obnovit a odeberte ho znovu.",
+  sshRemoveNotFound: "Tenhle klíč už tu není. Zkuste Obnovit.",
+  sshRemoveNotOwn:
+    "Tenhle klíč byl přidaný mimo Launchpad; Launchpad ho neodebírá.",
+  sshOutsideTitle: "Přidané mimo Launchpad",
+  sshOutsideNote:
+    "Tyhle klíče Launchpad nikdy nemění ani neodebírá, třeba klíč, se kterým byl tenhle Environment zřízený. Odebírá je ten, kdo se o Environment stará.",
+  sshOutsideUnreadable: "Řádek, kterému Launchpad nerozumí",
+  sshOutsideUntitled: "Klíč bez názvu",
+  sshProblemDirectory:
+    "~/.ssh v tomhle Environmentu není běžná složka, proto ji Launchpad nemění.",
+  sshProblemSymlink:
+    "~/.ssh/authorized_keys je odkaz, proto ho Launchpad nemění. Agent v tomhle Environmentu ho může nahradit běžným souborem.",
+  sshProblemNotFile:
+    "~/.ssh/authorized_keys není běžný soubor, proto ho Launchpad nemění.",
+  sshProblemForeignOwner:
+    "~/.ssh/authorized_keys patří jinému účtu, proto ho Launchpad nemění.",
+  sshProblemTooLarge:
+    "~/.ssh/authorized_keys je větší než 1 MB, proto ho Launchpad nemění.",
+  sshAddTitle: "Přidat zařízení",
+  sshAddNote:
+    "Jeho název a veřejný klíč: jeden řádek ze souboru .pub, který začíná ssh-ed25519. Nikdy ne soukromý klíč.",
+  sshDeviceName: "Název zařízení",
+  sshDeviceNameHint: "Třeba alex-notebook.",
+  sshPublicKey: "Veřejný klíč",
+  sshAdd: "Přidat zařízení",
+  sshAdding: "Přidávám…",
+  sshAdded:
+    "Zařízení {device} se teď může přihlásit. Nastavení pro váš počítač je níže.",
+  sshAlreadyPresent:
+    "Tenhle klíč se tu už přihlásit může; nic se nezměnilo. Nastavení pro váš počítač je níže.",
+  sshAddFailed:
+    "Zařízení se nepodařilo přidat. Zkuste to znovu; když to nepomůže, požádejte o pomoc agenta v tomhle Environmentu.",
+  sshRefusedKeyMissing: "Vložte veřejný klíč.",
+  sshRefusedPrivateKey:
+    "Tohle je soukromý klíč. Nikam ho nevkládejte; vložte veřejný klíč ze souboru .pub.",
+  sshRefusedMultipleLines: "Vložte právě jeden klíč na jednom řádku.",
+  sshRefusedOptions:
+    "Vložte klíč bez voleb před ním, třeba command= nebo from=.",
+  sshRefusedType:
+    "Přijímáme jen klíče ed25519 (ssh-ed25519 nebo sk-ssh-ed25519@openssh.com). Vytvoříte ho příkazem ssh-keygen -t ed25519.",
+  sshRefusedInvalidKey:
+    "Klíč je poškozený nebo neúplný. Zkopírujte znovu celý řádek ze souboru .pub.",
+  sshRefusedNotKey:
+    "Tohle není veřejný klíč SSH. Je to jeden řádek, který začíná ssh-ed25519.",
+  sshRefusedName: "Pojmenujte zařízení písmeny nebo číslicemi.",
+  sshRefusedAddedBy:
+    "Přihlášený účet se nepodařilo zaznamenat. Načtěte stránku znovu a zkuste to ještě jednou.",
+  sshComputerTitle: "Nastavení pro váš počítač",
+  sshComputerNote:
+    "Váš agent je zapíše do vašeho počítače. Klíč hostu je vlastní klíč tohoto Environmentu, takže si počítač ověří, že opravdu mluví s ním.",
+  sshConfigLabel: "SSH config",
+  sshConfigNote: "Přidejte do ~/.ssh/config",
+  sshKnownHostsLabel: "known_hosts",
+  sshKnownHostsNote: "Přidejte do ~/.ssh/known_hosts_lazurio",
+  sshCopy: "Kopírovat",
+  sshCopied: "Zkopírováno.",
+  sshNetworkNote:
+    "Když spojení selže nebo vyprší, síť zatím nepouští to zařízení do tohoto Environmentu přes SSH: požádejte Admina své Organizace, aby SSH z toho zařízení do tohoto Environmentu povolil.",
+  sshComputerMissing: "Nastavení pro váš počítač zatím není k dispozici:",
+  sshMissingTailscale: "V tomhle Environmentu není nainstalovaný Tailscale.",
+  sshMissingTailscaleFailed: "Tailscale v tomhle Environmentu neodpověděl.",
+  sshMissingNotRunning: "Tailscale v tomhle Environmentu není připojený.",
+  sshMissingDnsName:
+    "Tenhle Environment nemá ve svém tailnetu jméno (MagicDNS).",
+  sshMissingHostKey:
+    "Tenhle Environment nemá klíč hostu ed25519 (/etc/ssh/ssh_host_ed25519_key.pub).",
+  sshMissingUser:
+    "Účet tohoto Environmentu nemá jméno, které by šlo použít v SSH config.",
 };
 export function messages(
   locale: unknown,

@@ -364,6 +364,10 @@ test.skipIf(!posix)(
       expect((await s.send("/api/ssh?x=1", {})).status).toBe(400);
       // Without the token nothing is read.
       expect((await fetch(new URL("/api/ssh", s.url.origin))).status).toBe(403);
+      // The page itself serves the section's route.
+      const page = await fetch(new URL("/settings/ssh", s.url.origin));
+      expect(page.status).toBe(200);
+      expect(await page.text()).toContain('data-section="ssh"');
     } finally {
       await s.close();
     }
