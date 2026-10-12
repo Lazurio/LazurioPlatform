@@ -147,8 +147,16 @@ The content follows the Environment's kind, which is the Folder's recorded prese
 | --- | --- | --- |
 | The person's own computer | `local` | Its Organizations and the Personalspace |
 | Personal Remote Environment | `hosted-personal` | Only the person's Personalspace, never an Organization repository; gh must work as the handover's owner (`github-identity-mismatch`) |
-| Work Environment of one operator | `hosted-organization-personal` | Only the Organization of its handover (`owner.organization`), never a Personalspace |
-| Team Environment, Automated Environment | `hosted-organization-team`, `hosted-organization-steward` | Prepared by the hosting (Machines); the operation answers `prepared-by-hosting` and does nothing |
+| Work Environment of one operator, Automated Environment | `hosted-organization-personal`, `hosted-organization-steward` | Only the Organization of its handover (`owner.organization`), never a Personalspace |
+| Team Environment | `hosted-organization-team` | Prepared by the hosting (Machines); the operation answers `prepared-by-hosting` and does nothing |
+
+The Automated Environment uses the ordinary explicit installation under its
+signed-in persona account (F9 amendment of 2026-10-12). Its preset describes the
+working arrangement and responsible human; it does not require a hosting archive,
+prove a Steward role, or grant repository access. Its repositories are ordinary
+Git clones, including tracked internal symlinks. CLI and Settings → This Environment
+use this same core; the content response owns UI availability. The first-run tour
+for a person's own account is separate and is unchanged.
 
 A request for an item the kind never holds is refused as a whole
 (`not-for-this-environment`). The identity is gh's sign-in on this Environment, found

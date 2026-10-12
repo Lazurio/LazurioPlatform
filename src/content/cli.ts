@@ -54,7 +54,8 @@ export const contentHelp = `organization install <github-login> [--role builder|
   GitHub does not confirm fails closed before anything is cloned
   (role-unverified). Only
   on a workstation (local) and a work Environment
-  (hosted-organization-personal, its own Organization only). One JSON line
+  (hosted-organization-personal or hosted-organization-steward, its own
+  Organization only). The Automated preset grants no GitHub role. One JSON line
   per step with --json, then the result.
 personalspace install [--folder <absolute Folder>] [--json]
   Installs the person's Personalspace into personalspace/<login>_GEN3: when
@@ -66,7 +67,7 @@ personalspace install [--folder <absolute Folder>] [--json]
   workstation (local) and a personal Remote Environment (hosted-personal,
   only for its owner's GitHub account). An existing Personalspace is left as
   it is.
-Neither runs on a Team or Automated Environment, whose content the hosting
+Neither runs on a Team Environment, whose content the hosting
 prepares (prepared-by-hosting). One content operation runs at a time per
 Folder (content-busy). The Folder is found as for organization list.
 Exit status: 0 installed, 1 failed (the step and its code are printed), 2
