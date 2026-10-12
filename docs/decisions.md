@@ -8084,3 +8084,106 @@ filesystem isolation is owner-only custody, not protection from the same OS user
 The pilot changes no Team broker, access grant, template revision or fleet release.
 Publication and rollout follow review and the actual pilot acceptance; they are not
 implied by writing this contract.
+
+## F49 — SSH from the person's devices is registered in Launchpad Settings
+
+**Decided by the Operator 2026-10-12; implemented in this revision.** A person connects
+SSH from their own computer into their Environment without touching a console inside
+it. They give the agent on their computer (Codex on macOS or Windows, which drives its
+own browser panel and runs commands there) the prompt the page offers. The agent opens
+this Environment's Settings → SSH from your devices (`/settings/ssh`, Czech "SSH ze
+zařízení") in its panel, where the person only signs in with their Lazurio account; then
+the agent creates an ed25519 key on the computer if it has none, fills the device's name
+and public key into the form, writes the page's settings into `~/.ssh/config` and
+`~/.ssh/known_hosts_lazurio`, and checks `ssh <alias> true`.
+
+1. **One truth: `authorized_keys`.** The keys live in `~/.ssh/authorized_keys` of the
+   account the Launchpad runs as, and nowhere else: no list in the Folder, no Dashboard
+   record, no second store (`src/ssh-access/keys.ts`). Removing a line there by hand is
+   as valid as removing it here.
+2. **The Launchpad's own lines carry a marker.** A line the Launchpad writes is
+   `<type> <base64> lazurio-device:<device>:<added-by>:<YYYY-MM-DD>`: no spaces, the
+   device's name reduced to `[a-z0-9-]` (at most 40 characters, accents dropped), the
+   added-by label and the UTC date. Only a line of a device type, without options, whose
+   comment is exactly such a marker is the Launchpad's: it is listed with its device and
+   may be removed by its fingerprint. Every other line (the provisioning or recovery key
+   Machines installs, a key added by hand, a comment, a blank line, a line nobody can
+   read) is listed as added outside Launchpad and is never changed or removed here; a
+   write keeps it byte for byte.
+3. **What a device may register.** Exactly one public key line of type `ssh-ed25519` or
+   `sk-ssh-ed25519@openssh.com` whose base64 decodes to a complete key naming that same
+   type. Refused, each with its own sentence beside its field: options in front of it
+   (`command=`, `from=`, `restrict`…), several lines, anything with `PRIVATE KEY` (or a
+   PuTTY key file), other types, a damaged key, a device name without letters or digits.
+   A pasted comment is dropped; the marker replaces it. A key that is already allowed,
+   by any line, is answered as present with that line and nothing is written, so an
+   agent may simply try again.
+4. **How it is written.** Under one lock per file in the Launchpad's process, the file is
+   opened without following a link and checked on the open handle: a link, something
+   other than a regular file, a file of another account or one over 1 MB is refused with
+   a clear sentence and left alone, as is a `~/.ssh` that is no real directory. The new
+   content replaces the file in one rename through the existing durable writer (a 0600
+   temporary file beside it, file sync, rename, directory sync); a missing `~/.ssh` is
+   created 0700. Removing a key does not end an SSH session already open with it.
+5. **Settings for the computer, pinned, not trusted on first use.** The page shows an
+   OpenSSH `Host <alias>` block (`HostName` the tailnet name, `User` the OS account,
+   `IdentityFile ~/.ssh/<alias>-ed25519`, `IdentitiesOnly yes`, `HostKeyAlias <alias>`,
+   `UserKnownHostsFile ~/.ssh/known_hosts_lazurio`, `StrictHostKeyChecking yes`) and the
+   line `<alias> ssh-ed25519 <host key>` for that file. The host key is read from
+   `/etc/ssh/ssh_host_ed25519_key.pub` and delivered over the signed-in page, so the
+   computer pins the key it was given rather than trusting the first answer; the
+   dedicated file and the alias keep tailnets that reuse the same 100.64.x addresses
+   apart. The tailnet name is `Self.DNSName` of `tailscale status --json` while
+   Tailscale runs with MagicDNS; the alias is its first label, the node's name. When
+   Tailscale is missing, stopped or names no node, or the host key or the account name
+   is unusable, the page says which, and gives no settings: nothing is guessed. Each
+   block, and the prompt, is one `<pre>` with a stable `data-ssh-block` (`prompt`,
+   `config`, `known-hosts`) and a copy button, so an agent reads it exactly.
+6. **The prompt.** In the page's language it names this Environment's own Settings URL
+   (`location.origin` + `/settings/ssh`), the key path, the labels the page shows and
+   the rules: the person only signs in; the agent never changes, switches or logs out a
+   Tailscale profile, never sends the private key anywhere, never turns
+   `StrictHostKeyChecking` off, never overwrites an existing `Host <alias>` block or a
+   different key for the alias (it stops and reports), and reports a refusal by the
+   network as a request to the Organization's Admin.
+7. **The network stays the Admin's.** Reaching the Environment on TCP/22 from a device
+   is a grant in the tailnet, approved by the Organization's Admin and enforced by
+   Headscale through the host owner's network intent (root decision 0192, F40). The
+   Launchpad neither checks nor opens it; its copy says that a refused or timed-out
+   connection means asking the Admin to allow SSH from that device to this Environment.
+8. **Who added a key is a label.** The page sends the login of the Lazurio account the
+   gateway relays to it (`/.lazurio/account/environments`, F37); the Launchpad checks its
+   shape and writes it lowercased, or `local` when the page names none (a workstation,
+   or a gateway without the relay yet). It is provenance, never evidence (F11):
+   whoever is admitted acts as this account anyway. The routes are behind the admission
+   every route has (locally the session token and the same Origin for a write; hosted
+   the gateway's revalidated session and `Sec-Fetch-Site: same-origin` with the entry's
+   Origin for a write), take `application/json` only through the bounded body reader and
+   exactly their fields. The journal names the operation, the outcome and the key's
+   public fingerprint.
+9. **The Dashboard only links.** The Dashboard (or any other surface) links to
+   `/settings/ssh` of the Environment and holds no generic SSH instructions of its own:
+   the page that knows the Environment's name, account and host key is the one that
+   explains it.
+
+Routes: `GET /api/ssh` (the keys and the settings for a computer), `POST /api/ssh/add`
+(`{device, publicKey, addedBy?}`; 400 for what was sent, 409 for the file) and
+`POST /api/ssh/remove` (`{fingerprint}`; 404 unknown, 409 a line added outside
+Launchpad). Windows is not handled: its OpenSSH keeps administrators' keys elsewhere,
+and the page says SSH from devices is for Linux and macOS Environments.
+
+**Alternatives rejected.** A key list of the Launchpad's own beside `authorized_keys`
+would be a second truth that drifts. Generating the key pair in the Environment or the
+browser would move a private key off the person's computer. Trust on first use would
+let the first answer through an unknown network choose the host key. Opening the
+network grant from the Launchpad would take the Admin's decision.
+
+**Known limits and open questions.** Two Organizations whose Environments share a node
+name give the same alias; the prompt's rule makes the agent stop instead of overwriting.
+On a computer with several tailnet profiles Tailscale names the node in the active one.
+**Team Environments:** everyone admitted there acts as the Team's account, so any of them
+may add or remove any device key; the page shows who added each and that the devices are
+the whole Team's, and enforces nothing more. Whether a Team Environment needs a narrower
+rule (per-person accounts, or approval of each device key) is an open question for the
+Operator. Consumer acceptance on a Remote Environment, with a real device, its network
+grant and `ssh <alias> true`, is still to be recorded.

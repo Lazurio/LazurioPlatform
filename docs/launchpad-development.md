@@ -773,7 +773,8 @@ the settings UX of T3 Code, as Matěj asked, in plain CSS inside
 look and open from the gear beside the column head's Environment picker (second
 iteration, 2026-10-04; the first target had the gear in the rail).
 
-**Routes.** `/settings/general`, `/settings/machine`, `/settings/tools` and
+**Routes.** `/settings/general`, `/settings/machine`, `/settings/tools`,
+`/settings/ssh` ([SSH from your devices](#ssh-from-your-devices)) and
 `/settings/recovery` (the read-only [Recovery page](recovery.md#the-recovery-page)); `/settings`
 and an unknown section open General and the address bar is rewritten to the canonical
 path. The paths live in `src/launchpad/routes.ts` (pure, tested in
@@ -1838,6 +1839,31 @@ links, back/forward, Escape, focus after navigation, the narrow sheet, the gh di
 round trip, light and dark, without page errors; the update pill and the shared
 Environment were shown by intercepting their answers in the browser. Screen-reader
 output and the clipboard path have not been qualified by a recorded manual run.
+
+## SSH from your devices
+
+Settings → SSH from your devices ([decision F49](decisions.md#f49--ssh-from-the-persons-devices-is-registered-in-launchpad-settings))
+lists the keys of the account's `~/.ssh/authorized_keys`, adds a device's key with the
+Launchpad's marker, removes only such keys, and shows the settings a computer writes and
+the prompt for the person's own agent. The core is `src/ssh-access/` (`keys.ts` the file,
+`host.ts` the account, tailnet name and host key, `access.ts` the use case), tested in
+temporary homes (`tests/ssh-access-keys.test.ts`, `tests/ssh-access-host.test.ts`, the
+fingerprint cross-checked with `ssh-keygen -lf`). The routes are `src/launchpad/ssh-routes.ts`
+(`tests/launchpad-ssh.test.ts`, locally and behind a fake auth endpoint); the page's pure
+part `src/launchpad/ssh-view.ts` (`tests/ssh-view.test.ts`) and its DOM
+`src/launchpad/ssh-panel.ts`. `startLaunchpad` takes the SSH host as its last
+trusted-composition argument, so a preview runs against a temporary home, a host key file
+and a tailnet answer of its own and never touches the real `~/.ssh`.
+
+On 2026-10-12 the section was driven in headless Chrome (Playwright, the installed
+Chrome) against such a preview: the page and its navigation, a private key and an
+options prefix refused beside the key field, a key `ssh-keygen` had just created added
+(its fingerprint as `ssh-keygen -lf` prints it, the marked line in the temporary
+`authorized_keys`), the config block and the known_hosts line read from their
+`data-ssh-block` and accepted by OpenSSH itself (`ssh -G -F`, `ssh-keygen -F`), Copy, the
+two-step Remove, a key added outside Launchpad shown without Remove, a 390 px wide
+screen, and Czech, without page errors. A real Remote Environment, its network grant and
+`ssh <alias> true` from a device are not part of that check.
 
 ## Files page
 

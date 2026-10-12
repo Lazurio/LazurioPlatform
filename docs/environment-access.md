@@ -143,6 +143,20 @@ Before admitting this cohort, broker/provider protections must deny the
 Environment's own approval, merge and direct protected-branch writes. A
 hidden UI action or process-only promise is not proof of this boundary.
 
+## SSH from a person's devices
+
+A person registers their own computer's SSH key for an Environment in that
+Environment's Launchpad Settings → SSH from your devices
+([decision F49](decisions.md#f49--ssh-from-the-persons-devices-is-registered-in-launchpad-settings)).
+The key goes into the Environment account's `authorized_keys` and nowhere
+else; the host key reaches the computer over the signed-in page and is pinned.
+This is entry to the account, not to the network: reaching the Environment on
+TCP/22 from that device remains a separate grant the Organization's Admin
+approves and Headscale enforces, and the Launchpad neither checks nor opens
+it. Removing a web grant or a device key does not remove the other. On a Team
+Environment every admitted person acts as the Team's account and may add or
+remove device keys; whether that needs a narrower rule is open.
+
 ## Platform consumer qualification
 
 - The shell lists only granted Environments/apps for the Lazurio subject,
