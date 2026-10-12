@@ -492,7 +492,7 @@ function workingHere(preset: PresetName): readonly Text[] {
     same("```text"),
     same("## Handoff"),
     t(
-      "Připravil jsem ti pull request: <URL> (base: <branch>, HEAD: <sha>)",
+      "Připravil jsem vám pull request: <URL> (base: <branch>, HEAD: <sha>)",
       "I prepared a pull request for you: <URL> (base: <branch>, HEAD: <sha>)",
     ),
     t(
@@ -504,7 +504,7 @@ function workingHere(preset: PresetName): readonly Text[] {
       "Verified: <checks and tests and their result>",
     ),
     t(
-      "Zkontroluj si to v aplikaci: <URL běžící z worktree, pokud existuje>",
+      "Zkontrolujte si to v aplikaci: <URL běžící z worktree, pokud existuje>",
       "Check it in the application: <URL running from the worktree, if any>",
     ),
     t(
@@ -521,7 +521,7 @@ function workingHere(preset: PresetName): readonly Text[] {
           same("```"),
           blank,
           t(
-            "Anglicky zní závěrečná otázka: “Whom should I ask to publish these changes?” Na týmovém Environmentu Publikovat tvým jménem nenabízej: změny vždy schválí a publikuje jmenovaný člověk (viz níže).",
+            "Anglicky zní závěrečná otázka: “Whom should I ask to publish these changes?” Na týmovém Environmentu „Publikovat vaším jménem“ nenabízej: změny vždy schválí a publikuje jmenovaný člověk (viz níže).",
             "In Czech the closing question reads: „Komu mám říct, aby tyhle změny publikoval?“ In a Team Environment never offer to Publish in the Operator's name: a named person always approves and publishes (see below).",
           ),
           blank,
@@ -532,14 +532,14 @@ function workingHere(preset: PresetName): readonly Text[] {
         ]
       : [
           t(
-            "Mám změny Publikovat tvým jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?",
+            "Mám změny Publikovat vaším jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?",
             "Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?",
           ),
           same("```"),
           blank,
           t(
             "Anglicky zní závěrečná dvojotázka: “Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?” Volbu vždy nabídni; nikdy ji nerozhoduj za Operátora.",
-            "In Czech the closing pair reads: „Mám změny Publikovat tvým jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?“ Always offer the choice; never decide it for the Operator.",
+            "In Czech the closing pair reads: „Mám změny Publikovat vaším jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?“ Always offer the choice; never decide it for the Operator.",
           ),
           blank,
         ]),

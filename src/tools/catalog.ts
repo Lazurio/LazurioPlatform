@@ -343,7 +343,7 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
         `Target state: the Bitwarden CLI at the version Lazurio pins (${bitwardenPin.version}, the OSS build of the official releases https://github.com/bitwarden/clients) runs as \`~/.local/bin/bw\`, and this Environment's account \`vaultwarden@<Environment address>\` exists in its network's vault, signed in and unlocked. The command \`lazurio vault connect --json\` does it: it installs the pinned \`bw\`, creates the account with a password generated here that no person knows, signs it in with its API key and returns the state. When it reports \`awaiting-invite\`, tell the Operator that an Admin or Owner of the vault's organization must invite the account's address with edit rights into the collection \`Environmenty/<name> · <machine>\` (the exact values are in the command's output), then run the command again. When it reports \`confirming\`, an Admin confirms the new member in the vault by the fingerprint in the output. Install no other version of \`bw\`, never overwrite a \`~/.local/bin/bw\` that is not Lazurio's, and copy the account's password, API key or session nowhere. Proof: \`lazurio vault refresh --json\` reports \`connected\`.`,
       ),
       purpose: {
-        cs: "Bitwarden CLI (`bw`) přihlášené k vlastnímu účtu tohoto Environmentu v jeho trezoru Vaultwarden. Co v něm najdeš, smíš použít bez ptaní.",
+        cs: "Bitwarden CLI (`bw`) přihlášené k vlastnímu účtu tohoto Environmentu v jeho trezoru Vaultwarden. Co v něm je, smějí agenti použít bez ptaní.",
         en: "Bitwarden CLI (`bw`) signed in to this Environment's own account in its Vaultwarden vault. What you find there you may use without asking.",
       },
       usage: writingUsage(
