@@ -7,6 +7,12 @@ import {
   type ConnectHost,
   createConnectSessions,
 } from "../integrations/connect";
+import {
+  type CustomKey,
+  type CustomServerInput,
+  customProblems,
+  resolveCwd,
+} from "../integrations/custom-server";
 import type { ExecutorEndpoint } from "../integrations/executor-client";
 import { composioToolkitOf } from "../integrations/model";
 import type { ComposioPolicySource } from "../integrations/policy";
@@ -25,7 +31,11 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //   POST /api/integrations/poll             {session}
 //   POST /api/integrations/cancel           {session}
 //   POST /api/integrations/disconnect       {app, path, account, confirm: true}
-//   POST /api/integrations/custom/add       {name, kind, target, secretName?, secretValue?}
+//   POST /api/integrations/custom/add       a custom server (custom-server.ts)
+//   GET  /api/integrations/custom/server?id=<slug>  its edit form, no value
+//   POST /api/integrations/custom/update    {id, …the same fields}, 400
+//                                           keys-required for a kept key that
+//                                           must come again
 //   POST /api/integrations/custom/remove    {id, confirm: true}
 //
 // The reading answers 200 with each source's own state, so an Executor that
@@ -57,8 +67,6 @@ export type IntegrationsSeams = Readonly<{
 const sessionPattern = /^[0-9a-f]{32}$/;
 const appPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const selectorPattern = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,383}$/;
-const headerPattern = /^[A-Za-z0-9-]{1,64}$/;
-const variablePattern = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
 export function createIntegrationsRoutes(
   input: Readonly<{
@@ -262,59 +270,68 @@ export function createIntegrationsRoutes(
         reader.forget();
         return response(result, result.kind === "blocked" ? 409 : 200);
       }
-      if (url.pathname === "/api/integrations/custom/add") {
-        const value = await body(
-          request,
-          ["name", "kind", "target"],
-          ["secretName", "secretValue"],
-        );
-        if (value instanceof Response) return value;
-        const name = accountName(value.name);
-        const withSecret = value.secretName !== undefined;
-        if (
-          name === null ||
-          name === "invalid" ||
-          (value.kind !== "url" && value.kind !== "command") ||
-          typeof value.target !== "string" ||
-          value.target.trim() === "" ||
-          value.target.length > 2048 ||
-          withSecret !== (value.secretValue !== undefined)
-        )
-          return response({ error: "invalid-server" }, 400);
-        if (value.kind === "url") {
-          try {
-            const target = new URL(value.target);
-            if (target.protocol !== "https:" && target.protocol !== "http:")
-              throw new Error("scheme");
-          } catch {
-            return response({ error: "invalid-server" }, 400);
-          }
+      if (
+        url.pathname === "/api/integrations/custom/add" ||
+        url.pathname === "/api/integrations/custom/update"
+      ) {
+        const update = url.pathname === "/api/integrations/custom/update";
+        if (request.method !== "POST")
+          return response({ error: "method-not-allowed" }, 405);
+        if (request.headers.get("content-type") !== "application/json")
+          return response({ error: "invalid-content-type" }, 415);
+        let parsed: ReturnType<typeof customServerBody>;
+        try {
+          parsed = customServerBody(await readJsonBody(request), update);
+        } catch (error) {
+          if (error instanceof BodyTooLarge)
+            return response({ error: "body-too-large" }, 413);
+          return response({ error: "invalid-request" }, 400);
         }
-        if (
-          withSecret &&
-          (typeof value.secretName !== "string" ||
-            !(value.kind === "url" ? headerPattern : variablePattern).test(
-              value.secretName,
-            ) ||
-            typeof value.secretValue !== "string" ||
-            value.secretValue === "" ||
-            value.secretValue.length > 4096)
-        )
-          return response({ error: "invalid-secret" }, 400);
+        if (parsed === null) return response({ error: "invalid-server" }, 400);
+        // A new server is checked whole here; an edited one against what
+        // it stores, in Executor's own answer.
+        const problems = update ? [] : customProblems(parsed.server, null);
+        const cwd =
+          parsed.server.type === "stdio"
+            ? resolveCwd(parsed.server.cwd, input.tools.home)
+            : null;
+        if (cwd === "unresolved")
+          problems.push({ field: "cwd", problem: "invalid" });
+        if (problems.length > 0)
+          return response({ error: "invalid-server", problems }, 400);
+        const server: CustomServerInput =
+          parsed.server.type === "stdio"
+            ? { ...parsed.server, cwd: cwd === "unresolved" ? null : cwd }
+            : parsed.server;
         extend(180);
-        const result = await sessions.addCustom({
-          name,
-          kind: value.kind,
-          target: value.target.trim(),
-          secret: withSecret
-            ? {
-                name: value.secretName as string,
-                value: value.secretValue as string,
-              }
-            : null,
-        });
+        const result =
+          parsed.id === undefined
+            ? await sessions.addCustom(server)
+            : await sessions.updateCustom(parsed.id, server);
         reader.forget();
+        if (
+          result.kind === "blocked" &&
+          (result.reason === "invalid-server" ||
+            result.reason === "keys-required")
+        )
+          return response({ error: result.reason }, 400);
         return response(result, result.kind === "blocked" ? 409 : 200);
+      }
+      if (url.pathname === "/api/integrations/custom/server") {
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        const keys = [...url.searchParams.keys()];
+        const id = url.searchParams.get("id");
+        if (
+          keys.length !== 1 ||
+          keys[0] !== "id" ||
+          id === null ||
+          !appPattern.test(id)
+        )
+          return response({ error: "invalid-query" }, 400);
+        extend(60);
+        const settings = await sessions.customSettings(id);
+        return response(settings, settings.kind === "blocked" ? 409 : 200);
       }
       if (url.pathname === "/api/integrations/custom/remove") {
         const value = await body(request, ["id", "confirm"]);
@@ -331,4 +348,100 @@ export function createIntegrationsRoutes(
       return response({ error: "not-found" }, 404);
     },
   });
+}
+
+const exactly = (
+  value: unknown,
+  required: readonly string[],
+  optional: readonly string[] = [],
+): Record<string, unknown> =>
+  stateFields(value, [
+    ...required,
+    ...optional.filter((key) => ownDataValue(value, key) !== undefined),
+  ]);
+
+/** A key row: exactly `{name, value}`, the value a string or (kept) null. */
+function keyOf(value: unknown): CustomKey | null {
+  const row = exactly(value, ["name", "value"]);
+  return typeof row.name === "string" &&
+    (typeof row.value === "string" || row.value === null)
+    ? { name: row.name, value: row.value }
+    : null;
+}
+
+/** The body of a custom server, its `type` choosing its fields, each with
+ * exactly these keys (and `id` on an edit); null for any other shape. The
+ * values are checked by `customProblems`. */
+function customServerBody(
+  input: unknown,
+  update: boolean,
+): Readonly<{ id?: string; server: CustomServerInput }> | null {
+  const type = ownDataValue(input, "type");
+  const id = update ? ["id"] : [];
+  const value =
+    type === "stdio"
+      ? exactly(
+          input,
+          [...id, "type", "name", "command", "args", "env"],
+          ["cwd"],
+        )
+      : type === "http"
+        ? exactly(input, [...id, "type", "name", "url", "headers"], ["bearer"])
+        : null;
+  if (value === null || typeof value.name !== "string") return null;
+  if (update && (typeof value.id !== "string" || !appPattern.test(value.id)))
+    return null;
+  const keyed = (rows: unknown): CustomKey[] | null => {
+    if (!Array.isArray(rows) || rows.length > 64) return null;
+    const keys = rows.map(keyOf);
+    return keys.every((key) => key !== null) ? (keys as CustomKey[]) : null;
+  };
+  const at = update ? { id: value.id as string } : {};
+  if (value.type === "stdio") {
+    const env = keyed(value.env);
+    if (
+      typeof value.command !== "string" ||
+      !Array.isArray(value.args) ||
+      value.args.length > 64 ||
+      !value.args.every((arg) => typeof arg === "string") ||
+      env === null ||
+      (value.cwd !== undefined &&
+        value.cwd !== null &&
+        typeof value.cwd !== "string")
+    )
+      return null;
+    return {
+      ...at,
+      server: {
+        type: "stdio",
+        name: value.name,
+        command: value.command,
+        args: value.args as string[],
+        env,
+        cwd: typeof value.cwd === "string" ? value.cwd : null,
+      },
+    };
+  }
+  const headers = keyed(value.headers);
+  const bearer = value.bearer;
+  if (
+    typeof value.url !== "string" ||
+    headers === null ||
+    (bearer !== undefined && bearer !== null && typeof bearer !== "string")
+  )
+    return null;
+  return {
+    ...at,
+    server: {
+      type: "http",
+      name: value.name,
+      url: value.url,
+      // Absent: no token; null: the stored one (an edit); else a new one.
+      bearer:
+        bearer === undefined
+          ? null
+          : { value: typeof bearer === "string" ? bearer : null },
+      headers,
+    },
+  };
 }

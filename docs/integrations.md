@@ -1,7 +1,8 @@
 # Integrace: the apps connected to an Environment
 
-Status: implemented (decision F42, root decision 0162 with its addendum of
-2026-10-09, plan DEV-6626 tasks 675, 683 and the Folder part of 681). Whether
+Status: implemented (decision F42 with its addenda of 2026-10-11, root decision 0162
+with its addendum of 2026-10-09, plan DEV-6626 tasks 675, 683 and the Folder part of
+681). Whether
 Composio is allowed on an Organization's Environment follows the Organization's
 settings since decision F45 (root decision 0194, plan DEV-6653 task 693). The
 company apps of Google Workspace and Microsoft 365 (task 685) are not part of it;
@@ -29,9 +30,10 @@ the sign-in is the person's consent, so they send the link to its card.
 | Composio's CLI as a source and a path | `src/integrations/composio-source.ts` |
 | The one list (pure merge) | `src/integrations/model.ts` |
 | One reading for the route and the CLI | `src/integrations/read.ts` |
-| Connecting and disconnecting | `src/integrations/connect.ts` |
+| Connecting and disconnecting; adding, reading and editing a custom MCP server | `src/integrations/connect.ts` |
+| A custom MCP server's rules and Executor's shapes of it (shared by the page and the server) | `src/integrations/custom-server.ts` |
 | The routes | `src/launchpad/integrations-routes.ts` |
-| The page | `src/launchpad/integrations-view.ts` (pure), `integrations-panel.ts` (DOM) |
+| The page | `src/launchpad/integrations-view.ts` and `custom-server-form.ts` (pure), `integrations-panel.ts` (DOM) |
 | `lazurio integrations list` | `src/integrations/cli.ts` |
 | The Folder's texts | `src/folder/render.ts` (`integrationsSection`), `src/folder/manual.ts` |
 
@@ -125,14 +127,16 @@ facts below were read from the source of tag `v1.6.10` on 2026-10-09
 | `GET /api/integrations` | `[{slug, name, description, kind, canRemove, canRefresh, authMethods, displayUrl?}]`; `kind` is the plugin (`mcp`, `openapi`, `graphql`); static namespaces (Executor's own tools) are left out |
 | `GET /api/integrations/<slug>` | one of them; `authMethods: [{id, label, kind: oauth\|apikey\|header\|none, template, oauth?: {discoveryUrl?, scopes?, …}}]` |
 | `GET /api/connections` | `[{owner: org\|user, name, integration, template, identityLabel, lastHealth: null\|{status, identity?, …}, …}]`; no id: a connection is `(owner, integration, name)`; `status` is `healthy`, `expired`, `misconfigured`, `degraded` or `unknown` |
-| `POST /api/connections` | `{owner, name, integration, template}` with exactly one of `value`, `values` or `from`; template `none` with `values: {}`, a header key as `value` |
+| `POST /api/connections` | `{owner, name, integration, template}` with exactly one of `value`, `values` or `from`; template `none` with `values: {}`, a custom server's keys as `values` by input; an account's values are only ever given here: `PATCH` changes its label and description, no call returns them |
 | `GET /api/connections/<owner>/<integration>/<name>` | one connection, the shape of the list's; read back after creating or signing in again |
 | `POST /api/connections/<owner>/<integration>/<name>/refresh` | re-syncs its tools (the array of them); fails when the server does not answer as it should |
 | `POST /api/connections/<owner>/<integration>/<name>/health` | Executor's liveness check (for MCP: dial the server, list its tools) → `{status, checkedAt, …}`, kept as the connection's `lastHealth` |
 | `DELETE /api/connections/<owner>/<integration>/<name>` | `{removed: true}` |
 | `POST /api/mcp/probe` | `{endpoint, headers?}` → `{connected, requiresAuthentication, requiresOAuth, supportsDynamicRegistration, toolCount, …}`; up to about 60 s |
-| `POST /api/mcp/servers` | remote `{transport: "remote", name, endpoint, slug?, remoteTransport: "auto", auth: {kind: none\|oauth2\|header, headerName?}}`; command `{transport: "stdio", name, command, args, env?}` → `{slug}`; 409 when the slug exists; a command server gets its `org/default` connection at once, a remote one does not |
-| `GET /api/mcp/servers/<slug>` | `{slug, config: {transport, endpoint\|command, args, env?, …}}`; `env` may hold a legacy plaintext environment and is never passed on |
+| `POST /api/mcp/servers` | remote `{transport: "remote", name, endpoint, slug?, remoteTransport: "auto"}` with `auth: {kind: none\|oauth2}` or `authenticationTemplate: [{slug: "apikey", type: "apiKey", headers: {Authorization: ["Bearer ", {type: "variable", name: "token"}], <header>: [{type: "variable", name: "header-<header>"}]}}]` (the request-shaped dialect, stored as canonical placements); command `{transport: "stdio", name, command, args, cwd?, env?}`, `env` one-shot values that become the account's (a `stdio_env` method names them) → `{slug}`; the slug is the name in lower case with `_` for anything else; 409 when the slug exists; a command server gets its `org/default` connection at once, a remote one does not |
+| `GET /api/mcp/servers/<slug>` | `{slug, config: {transport, endpoint\|command, args?, cwd?, env?, headers?, authenticationTemplate, …}}` or `null`; `env` and `headers` are a static environment and static headers set elsewhere, never shown or passed on; `authenticationTemplate` names the keys (placements, `stdio_env` vars), never a value |
+| `POST /api/mcp/servers/<slug>/config` | `{config}` replaces the whole config (canonical shape); the tools are synced again on their next read; the connections stay |
+| `PATCH /api/integrations/<slug>` | `{name}` renames it; the slug stays |
 | `DELETE /api/mcp/servers/<slug>` | `{removed: true}`, with the clients registered for it |
 | `GET /api/tools?integration=<slug>` | its tools (counted for a custom server) |
 | `POST /api/oauth/probe` | `{url}` → `{authorizationUrl, tokenUrl, registrationEndpoint?, resource?, scopesSupported?, issuer?, clientIdMetadataDocumentSupported?, …}` |
@@ -199,6 +203,55 @@ own, has no approval step.
   (`manual/working-here.md`, Integrace). Making Executor ask the person instead
   (elicitation mode `browser` or `native`) would be a change of F44's agent
   registration (`src/executor/agents.ts`) and is not made here.
+
+## Custom MCP servers (Vlastní)
+
+Apps → Integrace → Vlastní lists the custom MCP servers in Executor and adds them as
+Codex Desktop's "Connect to a custom MCP" does (decision F42, addendum of
+2026-10-11, which maps every field onto Executor 1.6.10 and names the two Codex
+fields left out). "Přidat MCP server" opens `/integrations/custom/new`, a server's
+name `/integrations/custom/server/<slug>`, the same page filled in. Agents add one
+only on the person's explicit instruction and only without keys (the prepared prompt
+of Settings → Tools); a key is entered on this page, by the person. The page explains
+none of what follows in text of its own, as Codex's does not: this section is where
+it is said.
+
+- **STDIO**: Název, Příkaz ke spuštění (as typed, never split), Argumenty (one row
+  each), Proměnné prostředí (key and value), Pracovní složka (absolute or `~/…`,
+  resolved against the account's home). Executor spawns the command without a shell;
+  the command gets the MCP SDK's safe list of the daemon's variables and the proxy and
+  CA variables, nothing else, so there is no passthrough.
+- **Streamable HTTP**: Název, URL (https, or http to `localhost`, `127.x.x.x` or
+  `[::1]`), Bearer token (the token itself, masked), Hlavičky (key and value).
+  Executor resolves no header from its environment, so there are no headers from
+  environment variables. Without keys the address is probed and a server that needs
+  a sign-in starts it; with keys it is probed with them.
+- **Keys.** Every value of an environment variable, the Bearer token and every header
+  value is a key: it goes only to this Environment's Executor, as the values of the
+  server's one account (`org/default`), the Bearer token as `Authorization: Bearer
+  <token>` and each header as an input of its own (`header-<name>`), and it is never
+  shown again. The page sends it once and keeps no copy; no answer, journal line or
+  Folder file carries it; an edited server's key fields open empty, marked
+  "Uloženo". Executor's config of the server names the keys only; Lazurio sets no
+  static header or static environment, which Executor's API and its agents'
+  `getServer` tool would return as they are.
+- **Editing.** The name is changed in place and the slug stays; the command, the
+  arguments, the working directory or the address replace the config
+  (`POST /api/mcp/servers/<slug>/config`, everything the page does not show carried
+  through); the type stays. A stored key's field opens empty in the state
+  "Uloženo": left empty, it keeps the stored value. Executor keeps an account's
+  values together and never returns or patches one of them, so an account cannot be
+  changed key by key: while no key changes the account stays, and once one does (a
+  new value, a key added or removed, the Bearer token added or removed) the account
+  is created anew with every key. Then every stored key's field turns to
+  "Zadejte znovu" and Save waits until each is typed again. The page says this only
+  through those two states; there is no line or note explaining it. An address left
+  as shown keeps the stored one with its query; a new address is a change of the keys
+  for a server that has any, since it is probed and reached with them, so its stored
+  keys turn to "Zadejte znovu" too (a server without keys just moves).
+- **Checked twice.** The page and the server share the rules
+  (`src/integrations/custom-server.ts`): what the page refuses as the person types, the
+  route refuses before Executor is asked.
 
 ## Composio (`composio` 0.4.x)
 
@@ -309,14 +362,16 @@ keeps its last reading for a minute and reads again on "Zkontrolovat připojení
 | `POST /api/integrations/poll` | `{session}` | `pending`, `{kind: "connected", app}` or `{kind: "ended", reason: failed\|expired\|cancelled}`; 404 for an unknown session |
 | `POST /api/integrations/cancel` | `{session}` | `{kind: "cancelled"}`; an OAuth flow is cancelled in Executor too |
 | `POST /api/integrations/disconnect` | `{app, path, account, confirm: true}` | `{kind: "disconnected"}`, `400 confirm-required` without `confirm: true`, or blocked `account-unknown`, `disconnect-unsupported`, `executor-unavailable`, `disconnect-failed` |
-| `POST /api/integrations/custom/add` | `{name, kind: url\|command, target, secretName?, secretValue?}` | like connect; a remote server that needs OAuth starts its sign-in |
+| `POST /api/integrations/custom/add` | STDIO `{type: "stdio", name, command, args: [string], env: [{name, value}], cwd?}`; Streamable HTTP `{type: "http", name, url, bearer?, headers: [{name, value}]}` | like connect; a remote server without keys that needs OAuth starts its sign-in; `400 {error: "invalid-server", problems}` for what the form refuses |
+| `GET /api/integrations/custom/server?id=<slug>` | | its edit form: `{kind: "custom-server", id, type, name, …}` with the command, the arguments and the working directory, or the address without userinfo or query, and its keys by name (`env`, `bearer`, `headers`), never a value; `409 account-unknown` for a catalog app's integration |
+| `POST /api/integrations/custom/update` | `{id, …}` as the add, a stored key's `value` (and `bearer`) `null` to keep it | `{kind: "saved", app}`, or `authorize` when the server now signs in; `409` `type-fixed`, `account-unknown`, `executor-unavailable`, `connect-failed`; `400 keys-required` when a kept key must come again (another key changed, or the address did), refused before any probe; `400 invalid-server` for what the form refuses |
 | `POST /api/integrations/custom/remove` | `{id, confirm: true}` | `{kind: "removed"}`; a catalog app's integration is never removed as custom |
 
 All behind the admission of every route (the local token and same origin, or the
 gateway's session); writes are POST with JSON bodies of exact keys, at most 16 KiB.
-A connect takes the app's path from the reading, never from the page. A key
-(`secretValue`) goes only to Executor (the remote server's header, or the
-command's variable), never back, never logged or journaled. The journal says
+A connect takes the app's path from the reading, never from the page. A key (an
+environment variable's value, the Bearer token, a header's value) goes only to
+Executor, never back, never logged or journaled. The journal says
 `{scope: "integrations", event, app, outcome, reason?}` and nothing else.
 
 ## The catalog

@@ -7,6 +7,28 @@ import type {
   IntegrationsOverview,
 } from "../integrations/model";
 import {
+  addRow,
+  type CustomForm,
+  customBody,
+  customFormView,
+  customInput,
+  customRefusal,
+  customSaved,
+  editCustomForm,
+  type FieldLine,
+  type FieldName,
+  type KeyList,
+  newCustomForm,
+  parseCustomSettings,
+  type RowList,
+  removeRow,
+  withArg,
+  withField,
+  withKey,
+  withoutStoredBearer,
+  withType,
+} from "./custom-server-form";
+import {
   type AccountView,
   accountView,
   appsPreview,
@@ -24,6 +46,7 @@ import {
 } from "./integrations-view";
 import type { MessageKey } from "./messages";
 import {
+  customServerPath,
   type IntegrationsTab,
   integrationsPath,
   type PageRoute,
@@ -47,6 +70,16 @@ type Session = Readonly<{
   id: string;
   app: string;
   window: Window | null;
+}>;
+
+/** The page of a custom MCP server while its route is shown: the server
+ * (null for a new one), its form once read, the line beside Save. */
+type CustomPage = Readonly<{
+  server: string | null;
+  form: CustomForm | null;
+  failed: boolean;
+  saving: boolean;
+  status: string;
 }>;
 
 export function createIntegrationsPanel(
@@ -93,6 +126,7 @@ export function createIntegrationsPanel(
   const alert = find<HTMLParagraphElement>("#integrations-alert");
   const status = find<HTMLParagraphElement>("#integrations-status");
   const body = find<HTMLDivElement>("#integrations-body");
+  const formHost = find<HTMLDivElement>("#integrations-form");
   const confirm = find<HTMLDialogElement>("#integrations-confirm");
   const confirmTitle = find<HTMLHeadingElement>("#integrations-confirm-title");
   const confirmText = find<HTMLParagraphElement>("#integrations-confirm-text");
@@ -114,13 +148,10 @@ export function createIntegrationsPanel(
   let forming: string | null = null;
   let formName = "";
   let formNeedsName = false;
-  /** The custom server form, while it is open. */
-  let draft: {
-    kind: "command" | "url";
-    name: string;
-    target: string;
-    secretName: string;
-  } | null = null;
+  /** The page of a custom MCP server, while its route is shown, and the
+   * nodes its refresh fills (lines, inputs, Save) by key. */
+  let custom: CustomPage | null = null;
+  const fields = new Map<string, HTMLElement>();
   /** A line under the tabs: a refusal, a pop-up blocked, an ended flow. */
   let note = "";
   /** The app a deep link opened, brought into view once drawn, and opened
@@ -155,6 +186,13 @@ export function createIntegrationsPanel(
     node.type = "button";
     node.addEventListener("click", action);
     return node;
+  };
+  /** A link that moves within the page (`data-route`, shell.ts). */
+  const routeLink = (href: string, className: string, content?: string) => {
+    const link = element("a", className, content);
+    link.href = href;
+    link.dataset.route = "";
+    return link;
   };
   const catalogOf = (id: string): CatalogApp | undefined =>
     integrationsCatalog.apps.find((app) => app.id === id);
@@ -816,20 +854,20 @@ export function createIntegrationsPanel(
     const head = element("div", "integrations-custom-head");
     head.append(element("h2", "", copy.integrationsMcpTitle));
     const unavailable = overview?.sources.executor !== "ok";
-    if (draft === null) {
-      const add = button(copy.integrationsMcpAdd, "primary", () => {
-        draft = { kind: "url", name: "", target: "", secretName: "" };
-        render();
-      });
+    if (unavailable) {
+      const add = button(copy.integrationsMcpAdd, "primary", () => {});
       add.prepend(icon("i-plus"));
-      add.disabled = unavailable;
+      add.disabled = true;
+      head.append(add);
+    } else {
+      const add = routeLink(customServerPath(null), "button primary");
+      add.append(icon("i-plus"), copy.integrationsMcpAdd);
       head.append(add);
     }
     const nodes: HTMLElement[] = [head];
     if (unavailable)
       nodes.push(element("p", "empty", copy.integrationsMcpUnavailable));
-    if (draft !== null) nodes.push(serverForm());
-    if (servers.length === 0 && draft === null && !unavailable)
+    if (servers.length === 0 && !unavailable)
       nodes.push(element("p", "empty", copy.integrationsMcpNone));
     if (servers.length > 0) {
       const list = element("ul", "card integration-servers");
@@ -839,9 +877,11 @@ export function createIntegrationsPanel(
         const main = element("div", "row-main");
         const words = element("div", "row-copy");
         const title = element("p", "row-title");
+        // The name opens the server's page, the same form filled in.
+        const open = routeLink(customServerPath(server.id), "", server.name);
         title.append(
           icon(server.kind === "remote" ? "i-globe" : "i-terminal"),
-          element("span", "", server.name),
+          open,
         );
         words.append(
           title,
@@ -856,6 +896,11 @@ export function createIntegrationsPanel(
         );
         const controls = element("div", "row-control");
         controls.append(
+          routeLink(
+            customServerPath(server.id),
+            "link-button",
+            copy.integrationsMcpEdit,
+          ),
           button(copy.integrationsMcpRemove, "link-button danger", () =>
             openConfirm(
               fill(copy.integrationsMcpRemoveTitle, { name: server.name }),
@@ -882,138 +927,560 @@ export function createIntegrationsPanel(
     return nodes;
   }
 
-  function serverForm(): HTMLFormElement {
+  // --- The page of a custom MCP server (F42's addendum of 2026-10-11) -----
+  // Codex Desktop's "Connect to a custom MCP" in the Lazurio look, below
+  // the tabs as Codex shows it below its own: back, the title and its docs,
+  // the card of the name and the type, the card of the type's fields, Save.
+  // It lives in a holder of its own beside the page's body, so a reading of
+  // the Integrace never draws it again under the person's hands: typing
+  // only updates its lines and Save; adding or removing a row, or another
+  // type, draws it anew with the focus where the person is.
+
+  /** Draws the page anew; `focus` names the field to focus after it. */
+  function drawCustom(focus?: string) {
     const copy = options.copy();
-    const current = draft as NonNullable<typeof draft>;
-    const form = element("form", "card integration-server-form");
-    const kinds = element("fieldset", "integration-kinds");
-    kinds.append(element("legend", "sr-only", copy.integrationsMcpKind));
-    for (const [kind, label] of [
-      ["url", copy.integrationsMcpUrl],
-      ["command", copy.integrationsMcpCommand],
-    ] as const) {
-      const option = element("label", "integration-kind");
-      const radio = element("input");
-      radio.type = "radio";
-      radio.name = "integration-kind";
-      radio.value = kind;
-      radio.checked = current.kind === kind;
-      radio.addEventListener("change", () => {
-        current.kind = kind;
-        current.target = "";
-        current.secretName = "";
-        render();
-      });
-      option.append(radio, element("span", "", label));
-      kinds.append(option);
+    const page = custom;
+    fields.clear();
+    if (page === null) {
+      formHost.replaceChildren();
+      return;
     }
-    const field = (
-      label: string,
-      value: string,
-      update: (value: string) => void,
-      attributes: Partial<HTMLInputElement> = {},
-    ) => {
-      const wrap = element("label", "integration-field");
-      const input = element("input");
-      Object.assign(input, attributes);
-      input.value = value;
-      input.addEventListener("input", () => update(input.value));
-      wrap.append(element("span", "", label), input);
-      return { wrap, input };
-    };
-    const name = field(
-      copy.integrationsMcpName,
-      current.name,
-      (value) => {
-        current.name = value;
-      },
-      { maxLength: 64, required: true },
+    const back = routeLink(integrationsPath("custom"), "back");
+    back.append(icon("i-chevron-left"), copy.integrationsMcpBack);
+    const head = element("div", "mcp-head");
+    const title = element(
+      "h2",
+      "mcp-title",
+      page.server === null
+        ? copy.integrationsMcpPageTitle
+        : copy.integrationsMcpEditTitle,
     );
-    const target = field(
-      current.kind === "command"
-        ? copy.integrationsMcpCommandLine
-        : copy.integrationsMcpAddress,
-      current.target,
-      (value) => {
-        current.target = value;
-      },
-      { required: true, className: "mono" },
+    const docs = element("a", "mcp-docs", copy.integrationsMcpDocs);
+    docs.href = integrationsHelp(options.locale());
+    docs.target = "_blank";
+    docs.rel = "noopener noreferrer";
+    docs.append(icon("i-external"));
+    head.append(title, docs);
+    if (page.form === null) {
+      formHost.replaceChildren(
+        back,
+        head,
+        element(
+          "p",
+          "row-status",
+          page.failed
+            ? copy.integrationsMcpLoadFailed
+            : copy.integrationsMcpLoading,
+        ),
+      );
+      return;
+    }
+    const form = page.form;
+    const node = element("form", "mcp-form");
+    node.noValidate = true;
+    const top = element("div", "card mcp-card");
+    top.append(
+      textSection("name", copy.integrationsMcpName, form.name, {
+        placeholder: copy.integrationsMcpNamePlaceholder,
+        maxLength: 64,
+      }),
+      typeRow(form),
     );
-    const secret = field(
-      current.kind === "command"
-        ? copy.integrationsMcpVariable
-        : copy.integrationsMcpHeader,
-      current.secretName,
-      (value) => {
-        current.secretName = value;
-        value_.input.disabled = value.trim() === "";
-      },
-      { className: "mono" },
+    const body = element("div", "card mcp-card");
+    if (form.type === "stdio")
+      body.append(
+        textSection(
+          "command",
+          copy.integrationsMcpCommand,
+          form.stdio.command,
+          {
+            placeholder: "npx",
+          },
+        ),
+        argsSection(form),
+        keysSection(form, "env"),
+        textSection("cwd", copy.integrationsMcpCwd, form.stdio.cwd, {
+          placeholder: "~/code",
+        }),
+      );
+    else
+      body.append(
+        textSection("url", copy.integrationsMcpUrl, form.http.url, {
+          placeholder: "https://mcp.example.com/mcp",
+          type: "url",
+        }),
+        bearerSection(form),
+        keysSection(form, "headers"),
+      );
+    const foot = element("div", "mcp-foot");
+    const note = element("div", "mcp-foot-text");
+    const status = element("p", "mcp-status");
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    note.append(status);
+    const save = element(
+      "button",
+      "primary mcp-save",
+      copy.integrationsMcpSave,
     );
-    // The key is typed into a masked field and only sent: never kept here.
-    const value_ = field(copy.integrationsMcpValue, "", () => {}, {
-      type: "password",
-      autocomplete: "off",
-      disabled: current.secretName.trim() === "",
+    save.type = "submit";
+    foot.append(note, save);
+    fields.set("status", status);
+    fields.set("save", save);
+    node.append(top, body, foot);
+    node.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void saveCustom();
     });
-    const actions = element("div", "dialog-foot");
-    const submit = element("button", "primary", copy.integrationsMcpSubmit);
-    submit.type = "submit";
-    actions.append(
-      submit,
-      button(copy.integrationsCancel, "ghost", () => {
-        draft = null;
-        render();
+    formHost.replaceChildren(back, head, node);
+    refreshCustom();
+    if (focus !== undefined)
+      formHost.querySelector<HTMLElement>(`[data-field="${focus}"]`)?.focus();
+  }
+
+  /** A section of one field: its label, the input and the line under it. */
+  function textSection(
+    field: FieldName,
+    label: string,
+    value: string,
+    attributes: Partial<HTMLInputElement>,
+  ): HTMLElement {
+    const section = element("div", "mcp-section");
+    const id = `mcp-${field}`;
+    const caption = element("label", "mcp-label", label);
+    caption.htmlFor = id;
+    const input = textInput(id, field, value, attributes, (next) => {
+      update(withField(custom?.form as CustomForm, field, next));
+    });
+    section.append(caption, input, line(field, input));
+    return section;
+  }
+
+  function textInput(
+    id: string,
+    field: string,
+    value: string,
+    attributes: Partial<HTMLInputElement>,
+    change: (value: string) => void,
+  ): HTMLInputElement {
+    const input = element("input", "mcp-input");
+    Object.assign(input, attributes);
+    input.id = id;
+    input.value = value;
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.dataset.field = field;
+    input.addEventListener("input", () => change(input.value));
+    fields.set(`input:${field}`, input);
+    return input;
+  }
+
+  /** The line under a field, filled by refreshCustom. */
+  function line(key: string, input: HTMLInputElement): HTMLElement {
+    const node = element("p", "mcp-line");
+    node.id = `mcp-line-${key}`;
+    node.hidden = true;
+    input.setAttribute("aria-describedby", node.id);
+    fields.set(key, node);
+    return node;
+  }
+
+  /** Name's card, second row: the type as Codex's segmented control. */
+  function typeRow(form: CustomForm): HTMLElement {
+    const copy = options.copy();
+    const row = element("div", "mcp-type");
+    const label = element("span", "mcp-label", copy.integrationsMcpType);
+    label.id = "mcp-type-label";
+    const group = element("div", "mcp-segments");
+    group.setAttribute("role", "radiogroup");
+    group.setAttribute("aria-labelledby", label.id);
+    const fixed = form.id !== null;
+    if (fixed) group.title = copy.integrationsMcpTypeFixed;
+    const types = [
+      ["stdio", "STDIO"],
+      ["http", "Streamable HTTP"],
+    ] as const;
+    for (const [type, text] of types) {
+      const option = element("button", "mcp-segment", text);
+      option.type = "button";
+      option.setAttribute("role", "radio");
+      option.setAttribute("aria-checked", String(form.type === type));
+      option.tabIndex = form.type === type ? 0 : -1;
+      option.dataset.field = `type-${type}`;
+      if (fixed && form.type !== type) option.disabled = true;
+      option.addEventListener("click", () => switchType(type));
+      option.addEventListener("keydown", (event) => {
+        if (fixed) return;
+        if (
+          !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(
+            event.key,
+          )
+        )
+          return;
+        event.preventDefault();
+        switchType(form.type === "stdio" ? "http" : "stdio");
+      });
+      group.append(option);
+    }
+    row.append(label, group);
+    return row;
+  }
+
+  function switchType(type: "stdio" | "http") {
+    const form = custom?.form;
+    if (form === null || form === undefined || form.type === type) return;
+    custom = { ...(custom as CustomPage), form: withType(form, type) };
+    drawCustom(`type-${type}`);
+  }
+
+  /** The "+ Přidat …" under a list: a full-width quiet button. */
+  function addButton(label: string, list: RowList, focus: () => string) {
+    const add = element("button", "mcp-add");
+    add.type = "button";
+    add.dataset.field = `add-${list}`;
+    add.append(icon("i-plus"), label);
+    add.addEventListener("click", () => {
+      const form = custom?.form;
+      if (form === null || form === undefined) return;
+      custom = { ...(custom as CustomPage), form: addRow(form, list) };
+      drawCustom(focus());
+    });
+    return add;
+  }
+
+  function trash(label: string, remove: () => void) {
+    const node = element("button", "mcp-remove");
+    node.type = "button";
+    node.setAttribute("aria-label", label);
+    node.title = label;
+    node.append(icon("i-trash"));
+    node.addEventListener("click", remove);
+    return node;
+  }
+
+  /** After a row went: focus the row now at its place, the one before it,
+   * or the list's "+ Přidat". */
+  function afterRemove(list: RowList, index: number, count: number): string {
+    if (count === 0) return `add-${list}`;
+    const at = Math.min(index, count - 1);
+    return list === "args" ? `args-${at}` : `${list}-${at}-name`;
+  }
+
+  function argsSection(form: CustomForm): HTMLElement {
+    const copy = options.copy();
+    const section = element("div", "mcp-section");
+    section.append(element("p", "mcp-label", copy.integrationsMcpArgs));
+    const rows = element("div", "mcp-rows");
+    form.stdio.args.forEach((arg, index) => {
+      const row = element("div", "mcp-row");
+      const input = textInput(
+        `mcp-args-${index}`,
+        `args-${index}`,
+        arg,
+        {},
+        (next) => update(withArg(custom?.form as CustomForm, index, next)),
+      );
+      input.setAttribute(
+        "aria-label",
+        `${copy.integrationsMcpArgs} ${index + 1}`,
+      );
+      row.append(
+        input,
+        trash(copy.integrationsMcpRemoveArg, () => {
+          const next = removeRow(custom?.form as CustomForm, "args", index);
+          custom = { ...(custom as CustomPage), form: next };
+          drawCustom(afterRemove("args", index, next.stdio.args.length));
+        }),
+      );
+      rows.append(row, line(`args-${index}`, input));
+    });
+    section.append(
+      rows,
+      addButton(copy.integrationsMcpAddArg, "args", () => {
+        const count = custom?.form?.stdio.args.length ?? 1;
+        return `args-${count - 1}`;
       }),
     );
-    form.append(
-      kinds,
-      name.wrap,
-      target.wrap,
-      secret.wrap,
-      value_.wrap,
-      actions,
+    return section;
+  }
+
+  function keysSection(form: CustomForm, list: KeyList): HTMLElement {
+    const copy = options.copy();
+    const section = element("div", "mcp-section");
+    section.append(
+      element(
+        "p",
+        "mcp-label",
+        list === "env" ? copy.integrationsMcpEnv : copy.integrationsMcpHeaders,
+      ),
     );
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const secretName = current.secretName.trim();
-      const secretValue = value_.input.value;
-      value_.input.value = "";
-      const reserved =
-        current.kind === "url" && !options.hosted()
-          ? window.open("about:blank", "_blank")
-          : null;
-      submit.disabled = true;
-      try {
-        const answer = await options.post("/api/integrations/custom/add", {
-          name: current.name.trim(),
-          kind: current.kind,
-          target: current.target.trim(),
-          ...(secretName === "" || secretValue === ""
-            ? {}
-            : { secretName, secretValue }),
-        });
-        const kind = (answer.value as { kind?: unknown } | null)?.kind;
-        if (kind === "connected" || kind === "authorize") draft = null;
-        if (kind === "blocked" || !answer.ok) {
-          reserved?.close();
-          const reason = (answer.value as { reason?: unknown } | null)?.reason;
-          say(
-            reason === "name-taken"
-              ? copy.integrationsMcpNameTaken
-              : copy.integrationsMcpAddFailed,
-          );
-          return;
-        }
-        await started(current.name.trim(), answer, reserved);
-      } catch {
-        reserved?.close();
-        say(copy.integrationsMcpAddFailed);
-      } finally {
-        submit.disabled = false;
-      }
+    const rows = element("div", "mcp-rows");
+    const own = list === "env" ? form.stdio.env : form.http.headers;
+    own.forEach((row, index) => {
+      const node = element("div", "mcp-row mcp-row-pair");
+      const name = textInput(
+        `mcp-${list}-${index}-name`,
+        `${list}-${index}-name`,
+        row.name,
+        { placeholder: copy.integrationsMcpKey },
+        (next) =>
+          update(
+            withKey(custom?.form as CustomForm, list, index, "name", next),
+          ),
+      );
+      name.setAttribute(
+        "aria-label",
+        `${list === "env" ? copy.integrationsMcpEnv : copy.integrationsMcpHeaders} ${index + 1}: ${copy.integrationsMcpKey}`,
+      );
+      const value = textInput(
+        `mcp-${list}-${index}-value`,
+        `${list}-${index}-value`,
+        row.value,
+        { placeholder: copy.integrationsMcpValue },
+        (next) =>
+          update(
+            withKey(custom?.form as CustomForm, list, index, "value", next),
+          ),
+      );
+      value.setAttribute(
+        "aria-label",
+        `${list === "env" ? copy.integrationsMcpEnv : copy.integrationsMcpHeaders} ${index + 1}: ${copy.integrationsMcpValue}`,
+      );
+      node.append(
+        name,
+        value,
+        trash(
+          list === "env"
+            ? copy.integrationsMcpRemoveEnv
+            : copy.integrationsMcpRemoveHeader,
+          () => {
+            const next = removeRow(custom?.form as CustomForm, list, index);
+            custom = { ...(custom as CustomPage), form: next };
+            drawCustom(
+              afterRemove(
+                list,
+                index,
+                list === "env"
+                  ? next.stdio.env.length
+                  : next.http.headers.length,
+              ),
+            );
+          },
+        ),
+      );
+      rows.append(node);
+      const lines = element("div", "mcp-row mcp-row-pair mcp-row-lines");
+      lines.append(
+        line(`${list}-${index}-name`, name),
+        line(`${list}-${index}-value`, value),
+      );
+      rows.append(lines);
     });
-    return form;
+    section.append(
+      rows,
+      addButton(
+        list === "env"
+          ? copy.integrationsMcpAddEnv
+          : copy.integrationsMcpAddHeader,
+        list,
+        () => {
+          const count =
+            list === "env"
+              ? (custom?.form?.stdio.env.length ?? 1)
+              : (custom?.form?.http.headers.length ?? 1);
+          return `${list}-${count - 1}-name`;
+        },
+      ),
+    );
+    return section;
+  }
+
+  function bearerSection(form: CustomForm): HTMLElement {
+    const copy = options.copy();
+    const section = element("div", "mcp-section");
+    const caption = element("label", "mcp-label", copy.integrationsMcpBearer);
+    caption.htmlFor = "mcp-bearer";
+    // The token is typed into a masked field and sent once; never kept.
+    const input = textInput(
+      "mcp-bearer",
+      "bearer",
+      form.http.bearer,
+      { type: "password" },
+      (next) => update(withField(custom?.form as CustomForm, "bearer", next)),
+    );
+    input.autocomplete = "new-password";
+    if (form.http.bearerStored) {
+      const row = element("div", "mcp-row");
+      row.append(
+        input,
+        trash(copy.integrationsMcpRemoveBearer, () => {
+          custom = {
+            ...(custom as CustomPage),
+            form: withoutStoredBearer(custom?.form as CustomForm),
+          };
+          drawCustom("bearer");
+        }),
+      );
+      section.append(caption, row, line("bearer", input));
+    } else section.append(caption, input, line("bearer", input));
+    return section;
+  }
+
+  function update(form: CustomForm) {
+    if (custom === null) return;
+    custom = { ...custom, form, status: "" };
+    refreshCustom();
+  }
+
+  /** The lines, the key fields' placeholders and Save, from the form. */
+  function refreshCustom() {
+    const page = custom;
+    if (page === null || page.form === null) return;
+    const copy = options.copy();
+    const view = customFormView(page.form, copy);
+    const show = (key: string, value: FieldLine | null) => {
+      const node = fields.get(key);
+      if (node === undefined) return;
+      node.hidden = value === null;
+      node.textContent = value?.text ?? "";
+      node.dataset.kind = value?.kind ?? "";
+      const input = fields.get(`input:${key}`);
+      if (input !== undefined) {
+        if (value?.kind === "error") input.setAttribute("aria-invalid", "true");
+        else input.removeAttribute("aria-invalid");
+      }
+    };
+    for (const field of ["name", "command", "cwd", "url", "bearer"] as const)
+      show(field, view[field]);
+    view.args.forEach((value, index) => {
+      show(`args-${index}`, value);
+    });
+    for (const list of ["env", "headers"] as const)
+      view[list].forEach((key, index) => {
+        show(`${list}-${index}-name`, key.name);
+        show(`${list}-${index}-value`, key.value);
+        const input = fields.get(`input:${list}-${index}-value`);
+        if (input instanceof HTMLInputElement)
+          input.placeholder = key.placeholder;
+      });
+    const bearer = fields.get("input:bearer");
+    if (bearer instanceof HTMLInputElement)
+      bearer.placeholder = view.bearerPlaceholder;
+    const status = fields.get("status");
+    if (status !== undefined) {
+      status.hidden = page.status === "";
+      status.textContent = page.status;
+    }
+    const save = fields.get("save");
+    if (save instanceof HTMLButtonElement) {
+      save.disabled = !view.canSave || page.saving;
+      save.textContent = page.saving
+        ? copy.integrationsMcpSaving
+        : copy.integrationsMcpSave;
+    }
+  }
+
+  /** Opens the page of a route: a new server's form, or reads a server's
+   * settings into it. The same page shown again keeps its form. */
+  function openCustom(server: string | null) {
+    if (custom !== null && custom.server === server) {
+      drawCustom();
+      return;
+    }
+    note = "";
+    const page: CustomPage = {
+      server,
+      form: server === null ? newCustomForm() : null,
+      failed: false,
+      saving: false,
+      status: "",
+    };
+    custom = page;
+    drawCustom(server === null ? "name" : undefined);
+    if (server === null) return;
+    void (async () => {
+      let settings: ReturnType<typeof parseCustomSettings> = null;
+      try {
+        const { value, ok } = await options.get(
+          `/api/integrations/custom/server?id=${encodeURIComponent(server)}`,
+        );
+        settings = ok ? parseCustomSettings(value) : null;
+      } catch {
+        settings = null;
+      }
+      if (custom !== page) return;
+      custom =
+        settings === null
+          ? { ...page, failed: true }
+          : { ...page, form: editCustomForm(settings) };
+      drawCustom(settings === null ? undefined : "name");
+    })();
+  }
+
+  async function saveCustom() {
+    const page = custom;
+    if (page === null || page.form === null || page.saving) return;
+    const copy = options.copy();
+    const form = page.form;
+    if (!customFormView(form, copy).canSave) return;
+    const input = customInput(form);
+    // A remote server without keys may need a sign-in in a window of this
+    // browser: claimed in the click, before anything is awaited.
+    const reserved =
+      input.type === "http" &&
+      input.bearer === null &&
+      input.headers.length === 0 &&
+      !options.hosted()
+        ? window.open("about:blank", "_blank")
+        : null;
+    custom = { ...page, saving: true, status: "" };
+    refreshCustom();
+    try {
+      const answer = await options.post(
+        form.id === null
+          ? "/api/integrations/custom/add"
+          : "/api/integrations/custom/update",
+        customBody(form),
+      );
+      const value = (answer.value ?? {}) as Record<string, unknown>;
+      if (custom !== page && custom?.server !== page.server) {
+        reserved?.close();
+        return;
+      }
+      if (value.kind === "connected" || value.kind === "saved") {
+        reserved?.close();
+        custom = null;
+        note = customSaved(form, copy);
+        options.navigate(integrationsPath("custom"));
+        await load(true);
+        return;
+      }
+      if (value.kind === "authorize") {
+        custom = null;
+        options.navigate(integrationsPath("custom"));
+        await started(
+          typeof value.app === "string" ? value.app : form.name.trim(),
+          answer,
+          reserved,
+        );
+        return;
+      }
+      reserved?.close();
+      custom = {
+        ...(custom as CustomPage),
+        saving: false,
+        status: customRefusal(value.reason ?? value.error, copy),
+      };
+    } catch {
+      reserved?.close();
+      if (custom !== null)
+        custom = {
+          ...custom,
+          saving: false,
+          status: copy.integrationsMcpSaveFailed,
+        };
+    }
+    refreshCustom();
   }
 
   function render() {
@@ -1035,9 +1502,13 @@ export function createIntegrationsPanel(
     alert.hidden = note === "";
     alert.textContent = note;
     if (overview === null) {
-      status.textContent = failed
-        ? copy.integrationsLoadFailed
-        : copy.integrationsLoading;
+      status.textContent =
+        custom !== null
+          ? ""
+          : failed
+            ? copy.integrationsLoadFailed
+            : copy.integrationsLoading;
+      formHost.hidden = custom === null;
       body.replaceChildren();
       return;
     }
@@ -1048,9 +1519,14 @@ export function createIntegrationsPanel(
       node.dataset.kind = "warning";
       return node;
     });
+    formHost.hidden = custom === null;
     body.replaceChildren(
       ...problems,
-      ...(route.tab === "custom" ? customSection() : appsSection(route.tab)),
+      ...(custom !== null
+        ? []
+        : route.tab === "custom"
+          ? customSection()
+          : appsSection(route.tab)),
     );
     if (focus !== null) {
       const target = document.getElementById(`integration-${focus}`);
@@ -1066,6 +1542,7 @@ export function createIntegrationsPanel(
     help.href = integrationsHelp(options.locale());
     search.placeholder = copy.integrationsSearch;
     refreshButton.title = copy.integrationsRefresh;
+    if (custom !== null) drawCustom();
     render();
   }
 
@@ -1081,6 +1558,8 @@ export function createIntegrationsPanel(
     show(next: PageRoute) {
       if (next.view !== "integrations") {
         route = null;
+        custom = null;
+        drawCustom();
         render();
         return;
       }
@@ -1089,6 +1568,11 @@ export function createIntegrationsPanel(
         tab: next.tab,
         ...(next.app === undefined ? {} : { app: next.app }),
       };
+      if (next.form !== undefined) openCustom(next.form.server);
+      else if (custom !== null) {
+        custom = null;
+        drawCustom();
+      }
       if (next.app !== undefined) {
         search.value = "";
         showAll = true;

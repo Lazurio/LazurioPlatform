@@ -6300,6 +6300,116 @@ Executor account (`tests/integrations-model.test.ts`); the menu's label, its ite
 "Přihlásit znovu" in the row, Executor's row unchanged and only a link to Composio's
 dashboard taken by the page (`tests/integrations-page.test.ts`).
 
+**Addendum 2026-10-11 (Vlastní), asked for by the Organization Admin: a custom MCP
+server is connected as in Codex Desktop.** "Prosím pojďme zkopírovat, jak to dělá
+Codex": Apps → Integrace → Vlastní had a form of its own (two radio buttons, narrow
+fields, one optional header or variable, a command line split into words) that did
+not read as a finished product. The page now follows Codex Desktop's "Connect to a
+custom MCP" field for field wherever Executor 1.6.10 can honour the field, and an
+existing server opens on the same page. Executor's behaviour below was read from its
+source at tag `v1.6.10` and confirmed by running its shipped program (the npm
+package's darwin-arm64 build, integrity checked) in isolation against two MCP servers
+that report what they receive. The reference is
+[integrations](integrations.md#custom-mcp-servers-vlastní).
+
+1. **The page.** "Přidat MCP server" opens `/integrations/custom/new` below the tabs,
+   as Codex shows it below its own: "Zpět", the title "Připojit vlastní MCP server",
+   "Návod ↗" (the Integrace documentation, the page "Jak to funguje" opens), a card
+   with Název and Typ (STDIO | Streamable HTTP, Streamable HTTP first), a card with the
+   type's fields in Codex's order, and Uložit at the bottom right, enabled only when
+   the server's own rules pass. A list is rows with a trash and a full-width "+
+   Přidat …" under them; switching the type keeps what each type has. A line under a
+   field says plainly what is wrong (an address is https, plain http only to this
+   Environment; a key twice; a header the Bearer token already sends); an empty
+   required field says nothing and Save waits for it. Like Codex's, the page explains
+   nothing in text of its own: where a key goes, that it is never shown again and why
+   changing one asks for every stored one again is said in the documentation; on the
+   page a stored key's field only shows its state, "Uloženo" or "Zadejte znovu". The
+   page and the Launchpad's server check with the same rules
+   (`src/integrations/custom-server.ts`). Plain http to another computer is now
+   refused: the route took any http address before. The Czech copy addresses the
+   person formally (vykání), per the brand rule of 2026-10-11 that the rest of the
+   Launchpad follows ("Zadejte znovu", "Doplňte hodnotu."); the English is unchanged.
+2. **The fields, mapped onto Executor 1.6.10.**
+
+   | Codex | Executor 1.6.10 | Lazurio |
+   | --- | --- | --- |
+   | Name | the integration's name; its slug is derived from it when it is added and never changes | Název; renamed in place (`PATCH /api/integrations/<slug>`), the slug and agents' addresses stay |
+   | Type | `transport: "stdio"` or `"remote"` (`remoteTransport: "auto"`: Streamable HTTP, SSE as fallback) | STDIO or Streamable HTTP; a saved server keeps its type |
+   | Command to launch | `command`, spawned without a shell | Příkaz ke spuštění, as typed, never split |
+   | Arguments | `args[]` | one row per argument |
+   | Environment variables | `env`: a `stdio_env` method names them, their values are the account's, in Executor's secret store | Proměnné prostředí; every value a key |
+   | Environment variable passthrough | none: a command gets the MCP SDK's safe list (HOME, LOGNAME, PATH, SHELL, TERM, USER) and the proxy and CA variables, never the rest of the daemon's environment | left out |
+   | Working directory | `cwd` | Pracovní složka; `~` resolved against this account's home, which Executor's service shares |
+   | URL | `endpoint` | URL |
+   | Bearer token env var | an `apikey` method rendering `Authorization: Bearer <token>`, the token the account's value | Bearer token: the token itself, masked, never shown again; an Environment has no variable a person could name |
+   | Headers | static `headers` in the config, or header placements of an `apikey` method with one input each | Hlavičky: placements of the same method as the Bearer token; every value a key |
+   | Headers from environment variables | none: Executor resolves no header from its environment; its credential providers are its file store, the keychain and 1Password | left out |
+3. **What is a key.** Every value of an environment variable, the Bearer token and
+   every header value goes only to Executor, as the server's one account
+   (`org/default`) in its secret store, and Executor never returns it: its config names
+   the keys only. Static headers and a static environment would sit in the server's
+   config, which Executor's API, its console and its agents' `getServer` tool return
+   as they are; Lazurio uses neither. The command, its arguments, the working
+   directory and the address are configuration, shown again when the server is
+   edited; the address without userinfo or a query, which may carry a key.
+4. **Editing in place.** A custom server's name in Vlastní opens
+   `/integrations/custom/server/<slug>`: the same page filled in, its keys by name,
+   each value field empty and marked "Uloženo", an empty field keeping the stored
+   value. Executor updates a server in place (`POST /api/mcp/servers/<slug>/config`
+   replaces its config; Lazurio carries through what the page does not show) but has
+   no call that changes one value of an account: values are given when an account is
+   created and never returned or patched. So the account stays while no key changes;
+   once one does (a new value, a key added or removed, the Bearer token added or
+   removed), Lazurio creates the account anew with every key, and the page asks for
+   each stored one again ("Zadejte znovu"). An unchanged address keeps the stored one
+   with its query. A new one is a change of the keys too where the server has keys
+   (review of 2026-10-12: probed without them, an address that refuses an
+   unauthenticated request turned a valid edit down while the fields said
+   "Uloženo"): every stored key is typed again, the new address is probed with them,
+   and a request that keeps one is refused (`keys-required`) before anything is
+   probed. A server without keys just moves. Nothing changes when the new address
+   does not answer. A remote server left without keys that needs a sign-in starts it. A saved
+   server keeps its type; another type means removing it and adding it again. A
+   catalog app's integration is never edited as custom (`account-unknown`), as it is
+   never removed as custom.
+
+Not in this addendum: Codex's environment variable passthrough and headers from
+environment variables, which Executor cannot honour; a remote server that needs both
+a sign-in and headers of its own (an account binds one method); changing one stored
+key without entering the others, which Executor's API does not offer.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Static headers and a static environment in the server's config | Each value kept or replaced on its own; but in plain text in the config that Executor's API, its console and its agents' `getServer` tool return, where Executor's own guidance keeps no secret; rejected: every value is a key of the account |
+| Split one command line into words, as before | One field fewer; but quoting rules the person cannot see; rejected: Codex's command and one row per argument |
+| Read an account's values back to keep the unchanged ones | Executor's API never returns them, and reading its file store would put the keys in Lazurio's process; rejected: a change asks for every key |
+| Show passthrough and headers from environment variables and ignore them | Looks like Codex and silently does nothing; rejected: left out, named as gaps |
+| Keep remove-and-add for an edit | Fewer calls; but every key and the server's tools go with a typo fixed; rejected: Executor updates a server in place |
+
+Verified by tests: a command added with its arguments as typed, a space kept, its
+variables as Executor's one-shot `env` and `~` resolved, its edit form with the
+variables' names only and no static environment; a remote server with the Bearer
+token and two headers probed with all three, declared as one method by name and given
+as the account's values; a remote server without keys that needs a sign-in starting
+it; an edit renaming, changing the arguments and the working directory and keeping the
+variable, refusing a kept variable beside a new one before Executor is asked, creating
+the account anew with every key, then without keys; another type and a catalog app's
+server refused; an unchanged address keeping its stored query, never shown, a header
+beside a kept token refused, a new token with the header creating the account anew,
+a new address with the stored keys kept refused (`keys-required`) without a probe,
+even where the address would refuse a probe without them, and with every key typed
+again probed with them, moved and its account made anew; a new address for a server
+without keys moved, and one that signs in signed in again; every value refused by
+the form refused by the route before Executor is asked, and no key in an answer, the
+journal or the Folder (`tests/integrations-routes.test.ts`); the rules for an address,
+a working directory, each field and an edit's keys, and Executor's shapes in both
+directions (`tests/integrations-custom-server.test.ts`); the routes of the page, the
+form as it opens, rows added and removed, the type switched and back without loss,
+Save enabled only when the rules pass, the lines under the fields, and an edit's
+stored keys marked "Uloženo" and then "Zadejte znovu" with no line or note beside them,
+and the refusals (`tests/integrations-custom-form.test.ts`).
+
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
 **Decided by Matěj 2026-10-08 and 2026-10-09 (root decision 0193, plan DEV-6631;

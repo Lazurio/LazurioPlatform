@@ -512,20 +512,59 @@ a.files-name:hover { text-decoration: underline; }
 .integration-menu .tile-menu-button .icon { width: 16px; height: 16px; }
 .integration-menu .tile-menu-list { top: 28px; min-width: 200px; }
 .tile-menu-item.danger { color: var(--destructive); }
-button.link-button { height: auto; padding: 0; border: 0; background: none; color: var(--link); font-size: 13px; cursor: pointer; }
-button.link-button:hover { background: none; text-decoration: underline; }
+button.link-button, a.link-button { height: auto; padding: 0; border: 0; background: none; color: var(--link); font-size: 13px; font-weight: var(--lz-weight-akce); text-decoration: none; cursor: pointer; }
+button.link-button:hover, a.link-button:hover { background: none; text-decoration: underline; }
 button.link-button.danger { color: var(--destructive); }
 .integrations-more { justify-self: center; margin-top: 12px; }
 .integrations-custom-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; }
 .integrations-custom-head h2 { font-size: 15px; }
 .integration-server .row-title { display: flex; align-items: center; gap: 8px; }
+.integration-server .row-title a { color: inherit; text-decoration: none; }
+.integration-server .row-title a:hover { text-decoration: underline; }
+.integration-server .row-control { gap: 14px; }
 .integration-server[data-state="failed"] .row-status { color: var(--destructive); }
-.integration-server-form { display: grid; gap: 12px; padding: 16px; }
-.integration-kinds { display: flex; flex-wrap: wrap; gap: 16px; margin: 0; padding: 0; border: 0; }
-.integration-kind { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
-.integration-field { display: grid; gap: 4px; font-size: 13px; color: var(--muted-fg); }
-.integration-field input { color: var(--fg); }
-.integration-field input.mono { font-family: var(--font-mono); font-size: 13px; }
+/* The page of a custom MCP server (decision F42, addendum of 2026-10-11):
+   Codex Desktop's "Connect to a custom MCP" in the Lazurio look, below the
+   tabs as Codex shows it below its own. Back, the title and "Návod"; a card
+   of the name and the type, the type as the shell's switch (a quiet track,
+   the chosen option raised with a hairline, never a shadow); a card of the
+   type's fields, one section each under a hairline, a list as rows with a
+   trash and a full-width quiet "+" under them; Save at the bottom right,
+   disabled until the form is right. */
+.mcp-page { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.mcp-page .back { margin-bottom: 0; }
+.mcp-head { display: grid; gap: 6px; margin-bottom: 4px; }
+.mcp-title { font-size: 22px; font-weight: var(--lz-weight-title); letter-spacing: var(--lz-track-title); line-height: 1.25; }
+.mcp-docs { display: inline-flex; align-items: center; gap: 6px; justify-self: start; color: var(--muted-fg); font-size: 14px; font-weight: var(--lz-weight-akce); text-decoration: none; }
+.mcp-docs:hover { color: var(--fg); }
+.mcp-docs .icon { width: 14px; height: 14px; }
+.mcp-form { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.mcp-section { display: grid; gap: 10px; padding: 14px 16px 16px; }
+.mcp-label { color: var(--fg); font-size: 14px; font-weight: var(--lz-weight-akce); }
+input.mcp-input { width: 100%; max-width: none; height: 36px; padding: 0 12px; font-size: 14px; }
+input.mcp-input[aria-invalid="true"] { border-color: var(--destructive-border); }
+.mcp-type { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; }
+.mcp-segments { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--lz-radius-md); background: var(--lz-gray-100); }
+button.mcp-segment { height: 30px; padding: 0 14px; border: 0; border-radius: calc(var(--lz-radius-md) - 3px); background: transparent; color: var(--muted-fg); font-size: 14px; }
+button.mcp-segment:hover { background: transparent; color: var(--fg); }
+button.mcp-segment[aria-checked="true"] { background: var(--lz-white); box-shadow: inset 0 0 0 1px var(--lz-line); color: var(--fg); }
+.mcp-rows { display: grid; gap: 8px; }
+.mcp-rows:empty { display: none; }
+.mcp-row { display: grid; grid-template-columns: minmax(0, 1fr) 36px; align-items: center; gap: 8px; }
+.mcp-row-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 36px; }
+.mcp-row-lines { align-items: start; margin-top: -4px; }
+.mcp-row-lines:not(:has(.mcp-line:not([hidden]))) { display: none; }
+button.mcp-remove { width: 36px; height: 36px; padding: 0; border: 0; background: transparent; color: var(--lz-ink-faint); }
+button.mcp-remove:hover { background: var(--lz-gray-50); color: var(--fg); }
+button.mcp-add { width: 100%; height: 34px; border: 0; background: var(--lz-gray-50); color: var(--fg); font-size: 14px; font-weight: 400; }
+button.mcp-add:hover { background: var(--lz-gray-100); }
+.mcp-line { color: var(--muted-fg); font-size: 12.5px; }
+.mcp-line[data-kind="error"] { color: var(--destructive); }
+.mcp-foot { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.mcp-foot-text { display: grid; gap: 4px; min-width: 0; }
+.mcp-status { color: var(--destructive); font-size: 13px; font-weight: var(--lz-weight-akce); }
+.mcp-status:empty { display: none; }
+button.mcp-save { flex: none; height: 34px; padding: 0 16px; font-size: 14px; }
 .menu-count { margin-left: auto; min-width: 18px; padding: 0 6px; border-radius: var(--lz-radius-pill); background: var(--warning-bg); color: var(--warning-fg); font-size: 11.5px; line-height: 18px; text-align: center; }
 button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); color: var(--fg); }
 .apps-head .browser-toggle, .market-head .browser-toggle, .integrations-head .browser-toggle { font-weight: var(--lz-weight-akce); }
@@ -616,7 +655,8 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
      src/shell/vendor/LICENSE-iconoir.txt), the design system's interface set,
      exactly as the shell wireframe draws them (prototypes-lazurio 1acd615,
      Icon.tsx, at its stroke of 1.6), inlined. i-browser, which the wireframe
-     does not draw, is Iconoir's app-window (iconoir-react 7.12.1 AppWindow). -->
+     does not draw, is Iconoir's app-window (iconoir-react 7.12.1 AppWindow),
+     and i-trash its trash (iconoir 7.12.1). -->
 <svg hidden aria-hidden="true">
 <symbol id="i-general" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.6224 10.3954L18.5247 7.7448L20 6L18 4L16.2647 5.48295L13.5578 4.36974L12.9353 2H10.981L10.3491 4.40113L7.70441 5.51596L6 4L4 6L5.45337 7.78885L4.3725 10.4463L2 11V13L4.40111 13.6555L5.51575 16.2997L4 18L6 20L7.79116 18.5403L10.397 19.6123L11 22H13L13.6045 19.6132L16.2551 18.5155C16.6969 18.8313 18 20 18 20L20 18L18.5159 16.2494L19.6139 13.598L21.9999 12.9772L22 11L19.6224 10.3954Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-machine" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 18.01L6.01 17.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6.01L6.01 5.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 9.4V2.6C2 2.26863 2.26863 2 2.6 2H21.4C21.7314 2 22 2.26863 22 2.6V9.4C22 9.73137 21.7314 10 21.4 10H2.6C2.26863 10 2 9.73137 2 9.4Z" stroke="currentColor"/><path d="M2 21.4V14.6C2 14.2686 2.26863 14 2.6 14H21.4C21.7314 14 22 14.2686 22 14.6V21.4C22 21.7314 21.7314 22 21.4 22H2.6C2.26863 22 2 21.7314 2 21.4Z" stroke="currentColor"/></symbol>
@@ -640,6 +680,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M8.58737 8.23597L11.1849 3.00376C11.5183 2.33208 12.4817 2.33208 12.8151 3.00376L15.4126 8.23597L21.2215 9.08017C21.9668 9.18848 22.2638 10.0994 21.7243 10.6219L17.5217 14.6918L18.5135 20.4414C18.6409 21.1798 17.8614 21.7428 17.1945 21.3941L12 18.678L6.80547 21.3941C6.1386 21.7428 5.35909 21.1798 5.48645 20.4414L6.47825 14.6918L2.27575 10.6219C1.73617 10.0994 2.03322 9.18848 2.77852 9.08017L8.58737 8.23597Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 11.5V16.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7.51L12.01 7.49889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 12H12M18 12H12M12 12V6M12 12V18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M20 9L18.005 20.3463C17.8369 21.3026 17.0062 22 16.0353 22H7.96474C6.99379 22 6.1631 21.3026 5.99496 20.3463L4 9" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 6L15.375 6M3 6L8.625 6M8.625 6V4C8.625 2.89543 9.52043 2 10.625 2H13.375C14.4796 2 15.375 2.89543 15.375 4V6M8.625 6L15.375 6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M5 20V19C5 15.134 8.13401 12 12 12V12C15.866 12 19 15.134 19 19V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M1 20V19C1 15.134 4.13401 12 8 12V12C11.866 12 15 15.134 15 19V20" stroke="currentColor" stroke-linecap="round"/><path d="M13 14V14C13 11.2386 15.2386 9 18 9V9C20.7614 9 23 11.2386 23 14V14.5" stroke="currentColor" stroke-linecap="round"/><path d="M8 12C10.2091 12 12 10.2091 12 8C12 5.79086 10.2091 4 8 4C5.79086 4 4 5.79086 4 8C4 10.2091 5.79086 12 8 12Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 9C19.6569 9 21 7.65685 21 6C21 4.34315 19.6569 3 18 3C16.3431 3 15 4.34315 15 6C15 7.65685 16.3431 9 18 9Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-laptop" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M3.2 14.2222V4C3.2 2.89543 4.09543 2 5.2 2H18.8C19.9046 2 20.8 2.89543 20.8 4V14.2222M3.2 14.2222H20.8M3.2 14.2222L1.71969 19.4556C1.35863 20.7321 2.31762 22 3.64418 22H20.3558C21.6824 22 22.6414 20.7321 22.2803 19.4556L20.8 14.2222" stroke="currentColor"/><path d="M11 19L13 19" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -756,6 +797,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <p id="integrations-alert" class="callout integrations-alert" role="status" aria-live="polite" hidden></p>
 <p id="integrations-status" class="row-status" role="status" aria-live="polite"></p>
 <div id="integrations-body" class="stack"></div>
+<div id="integrations-form" class="mcp-page" hidden></div>
 </main>
 
 <!-- Files (decision F35): the Documents folder of this Environment, `/files`

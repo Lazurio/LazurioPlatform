@@ -1086,32 +1086,174 @@ async function noKey(
   expect(JSON.stringify(world.executor.calls)).toContain(key);
 }
 
-test("Vlastní: a server at a URL with a header key; the key goes to Executor only", async () => {
+/** The bodies Executor got for one call, in order. */
+const bodiesOf = (world: IntegrationsWorld, method: string, path: string) =>
+  world.executor.calls
+    .filter((call) => call.method === method && call.path === path)
+    .map((call) => call.body as Record<string, unknown>);
+
+test("Vlastní: a command with its arguments, environment variables and working directory; the values go to Executor only", async () => {
   const console = captureConsole();
   try {
     const { parent, world, app } = await setup({ composio: false });
-    const key = "headerKeyCanary0000000000";
-    world.executor.probes.set("https://mcp.invoices.example.test/mcp", {
-      requiresOAuth: false,
-    });
+    const token = "envTokenCanary0000000000";
+    const region = "envRegionCanary000000000";
     const answer = await app.post("/api/integrations/custom/add", {
+      type: "stdio",
+      name: "Files",
+      command: "npx",
+      // One argument per row, as typed: never split, a space kept.
+      args: ["-y", "@example/files-mcp", "--root", "/tmp/my files"],
+      env: [
+        { name: "FILES_TOKEN", value: token },
+        { name: "FILES_REGION", value: region },
+      ],
+      cwd: "~/code",
+    });
+    const text = await answer.text();
+    expect(answer.status).toBe(200);
+    expect(JSON.parse(text)).toEqual({ kind: "connected", app: "files" });
+    expect(bodiesOf(world, "POST", "/api/mcp/servers")).toEqual([
+      {
+        transport: "stdio",
+        name: "Files",
+        command: "npx",
+        args: ["-y", "@example/files-mcp", "--root", "/tmp/my files"],
+        // `~` is this account's home, which Executor's service shares.
+        cwd: `${world.home}/code`,
+        env: { FILES_TOKEN: token, FILES_REGION: region },
+      },
+    ]);
+    expect(world.executor.connections).toMatchObject([
+      {
+        integration: "files",
+        template: "env",
+        values: { FILES_TOKEN: token, FILES_REGION: region },
+      },
+    ]);
+    const { text: reading, value } = await overview(app);
+    // A command's own line and environment are never in the reading.
+    expect(value.custom).toMatchObject([
+      { id: "files", kind: "command", target: null },
+    ]);
+    // Its edit form: the configuration and the variables' names only.
+    const settings = await app.get("/api/integrations/custom/server?id=files");
+    const form = await settings.text();
+    expect(settings.status).toBe(200);
+    expect(JSON.parse(form)).toEqual({
+      kind: "custom-server",
+      id: "files",
+      type: "stdio",
+      name: "Files",
+      command: "npx",
+      args: ["-y", "@example/files-mcp", "--root", "/tmp/my files"],
+      cwd: `${world.home}/code`,
+      env: ["FILES_TOKEN", "FILES_REGION"],
+    });
+    expect(`${reading}${form}`).not.toContain("legacy-env-value");
+    for (const key of [token, region])
+      await noKey(
+        parent,
+        world,
+        `${text}${reading}${form}${console.text()}`,
+        key,
+      );
+    // The journal names the operation, the server and the outcome only.
+    expect(console.text()).toContain("custom-add");
+  } finally {
+    console.restore();
+  }
+});
+
+test("Vlastní: a server at a URL with a Bearer token and two headers; the values go to Executor only", async () => {
+  const console = captureConsole();
+  try {
+    const { parent, world, app } = await setup({ composio: false });
+    const bearer = "bearerTokenCanary000000000";
+    const apiKey = "headerKeyCanary0000000000";
+    const endpoint = "https://mcp.invoices.example.test/mcp";
+    world.executor.probes.set(endpoint, { requiresOAuth: false });
+    const answer = await app.post("/api/integrations/custom/add", {
+      type: "http",
       name: "Invoices",
-      kind: "url",
-      target: "https://mcp.invoices.example.test/mcp",
-      secretName: "Authorization",
-      secretValue: key,
+      url: endpoint,
+      bearer,
+      headers: [
+        { name: "X-Api-Key", value: apiKey },
+        { name: "X-Region", value: "eu" },
+      ],
     });
     const text = await answer.text();
     expect(answer.status).toBe(200);
     expect(JSON.parse(text)).toEqual({ kind: "connected", app: "invoices" });
-    expect(world.executor.connections).toMatchObject([
-      { integration: "invoices", template: "header", secret: key },
+    // The probe sends what every call will: the token and both headers.
+    expect(bodiesOf(world, "POST", "/api/mcp/probe")).toEqual([
+      {
+        endpoint,
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          "X-Api-Key": apiKey,
+          "X-Region": "eu",
+        },
+      },
+    ]);
+    // The server declares the keys by name; their values are its account's.
+    expect(bodiesOf(world, "POST", "/api/mcp/servers")).toEqual([
+      {
+        transport: "remote",
+        name: "Invoices",
+        endpoint,
+        remoteTransport: "auto",
+        authenticationTemplate: [
+          {
+            slug: "apikey",
+            type: "apiKey",
+            headers: {
+              Authorization: ["Bearer ", { type: "variable", name: "token" }],
+              "X-Api-Key": [{ type: "variable", name: "header-x-api-key" }],
+              "X-Region": [{ type: "variable", name: "header-x-region" }],
+            },
+          },
+        ],
+      },
+    ]);
+    expect(bodiesOf(world, "POST", "/api/connections")).toEqual([
+      {
+        owner: "org",
+        name: "default",
+        integration: "invoices",
+        template: "apikey",
+        values: {
+          token: bearer,
+          "header-x-api-key": apiKey,
+          "header-x-region": "eu",
+        },
+      },
     ]);
     const { text: reading, value } = await overview(app);
     expect(value.custom).toMatchObject([
-      { id: "invoices", kind: "remote", state: "connected", tools: 3 },
+      { id: "invoices", kind: "remote", target: endpoint, state: "connected" },
     ]);
-    await noKey(parent, world, `${text}${reading}${console.text()}`, key);
+    const settings = await app.get(
+      "/api/integrations/custom/server?id=invoices",
+    );
+    const form = await settings.text();
+    expect(JSON.parse(form)).toEqual({
+      kind: "custom-server",
+      id: "invoices",
+      type: "http",
+      name: "Invoices",
+      url: endpoint,
+      bearer: true,
+      headers: ["X-Api-Key", "X-Region"],
+    });
+    for (const key of [bearer, apiKey])
+      await noKey(
+        parent,
+        world,
+        `${text}${reading}${form}${console.text()}`,
+        key,
+      );
     // Removing needs an explicit confirmation.
     expect(
       (await app.post("/api/integrations/custom/remove", { id: "invoices" }))
@@ -1131,64 +1273,428 @@ test("Vlastní: a server at a URL with a header key; the key goes to Executor on
   }
 });
 
-test("Vlastní: a command with its variable; a catalog app's integration is never removed as custom", async () => {
-  const { parent, world, app } = await setup({
-    composio: false,
-    executorSeed: { integrations: [notion] },
-  });
-  const key = "variableKeyCanary000000";
+test("Vlastní: a server at a URL without keys that needs a sign-in starts it", async () => {
+  const { world, app } = await setup({ composio: false });
+  const endpoint = "https://mcp.signin.example.test/mcp";
+  world.executor.probes.set(endpoint, { requiresOAuth: true });
   const answer = await app.post("/api/integrations/custom/add", {
-    name: "Files",
-    kind: "command",
-    target: 'npx -y "@example/files-mcp" --root /tmp',
-    secretName: "FILES_TOKEN",
-    secretValue: key,
+    type: "http",
+    name: "Sign In",
+    url: endpoint,
+    headers: [],
   });
-  const text = await answer.text();
-  expect(JSON.parse(text)).toEqual({ kind: "connected", app: "files" });
-  expect(world.executor.integrations.at(-1)).toMatchObject({
-    transport: "stdio",
-    command: "npx",
-    args: ["-y", "@example/files-mcp", "--root", "/tmp"],
+  expect(answer.status).toBe(200);
+  expect(await answer.json()).toMatchObject({
+    kind: "authorize",
+    url: expect.stringContaining("https://auth.example.test/authorize"),
   });
-  const { text: reading, value } = await overview(app);
-  // A command's own line and environment are never shown.
-  expect(value.custom).toMatchObject([
-    { id: "files", kind: "command", target: null },
+  expect(bodiesOf(world, "POST", "/api/mcp/servers")).toMatchObject([
+    { transport: "remote", endpoint, auth: { kind: "oauth2" } },
   ]);
-  expect(reading).not.toContain("legacy-env-value");
-  await noKey(parent, world, `${text}${reading}`, key);
+  expect(bodiesOf(world, "POST", "/api/oauth/start")).toMatchObject([
+    { integration: "sign_in", name: "default", newConnection: true },
+  ]);
+});
+
+test("Vlastní: an edit keeps what it does not change; changing a key sends every key again", async () => {
+  const console = captureConsole();
+  try {
+    const { parent, world, app } = await setup({
+      composio: false,
+      executorSeed: { integrations: [notion] },
+    });
+    const first = "firstValueCanary000000000";
+    const second = "secondValueCanary00000000";
+    await app.post("/api/integrations/custom/add", {
+      type: "stdio",
+      name: "Files",
+      command: "npx",
+      args: ["files-mcp"],
+      env: [{ name: "FILES_TOKEN", value: first }],
+    });
+    const update = (body: Record<string, unknown>) =>
+      app.post("/api/integrations/custom/update", {
+        id: "files",
+        type: "stdio",
+        name: "Files",
+        command: "npx",
+        args: ["files-mcp"],
+        env: [{ name: "FILES_TOKEN", value: null }],
+        ...body,
+      });
+    // The name, the arguments and the working directory change in place;
+    // the variable is kept as Executor stores it.
+    const kept = await update({
+      name: "Company files",
+      args: ["files-mcp", "--readonly"],
+      cwd: "/srv/files",
+    });
+    expect(kept.status).toBe(200);
+    expect(await kept.json()).toEqual({ kind: "saved", app: "files" });
+    expect(bodiesOf(world, "PATCH", "/api/integrations/files")).toEqual([
+      { name: "Company files" },
+    ]);
+    expect(bodiesOf(world, "POST", "/api/mcp/servers/files/config")).toEqual([
+      {
+        config: {
+          transport: "stdio",
+          command: "npx",
+          args: ["files-mcp", "--readonly"],
+          cwd: "/srv/files",
+          // Set elsewhere, carried through, never shown.
+          env: { LEGACY: "legacy-env-value" },
+          authenticationTemplate: [
+            { slug: "env", kind: "stdio_env", vars: ["FILES_TOKEN"] },
+          ],
+        },
+      },
+    ]);
+    expect(world.executor.connections).toMatchObject([
+      { integration: "files", values: { FILES_TOKEN: first } },
+    ]);
+    // Another variable changes the account: a kept one is refused, as the
+    // page says, and nothing is asked of Executor.
+    const calls = world.executor.calls.length;
+    const partial = await update({
+      env: [
+        { name: "FILES_TOKEN", value: null },
+        { name: "FILES_REGION", value: "eu" },
+      ],
+    });
+    expect(partial.status).toBe(400);
+    expect(
+      world.executor.calls.slice(calls).map((call) => call.method),
+    ).toEqual(["GET", "GET", "GET"]);
+    const again = await update({
+      env: [
+        { name: "FILES_TOKEN", value: second },
+        { name: "FILES_REGION", value: "eu" },
+      ],
+    });
+    expect(await again.json()).toEqual({ kind: "saved", app: "files" });
+    expect(world.executor.connections).toMatchObject([
+      {
+        integration: "files",
+        template: "env",
+        values: { FILES_TOKEN: second, FILES_REGION: "eu" },
+      },
+    ]);
+    expect(
+      bodiesOf(world, "POST", "/api/mcp/servers/files/config").at(-1),
+    ).toMatchObject({
+      config: {
+        authenticationTemplate: [
+          {
+            slug: "env",
+            kind: "stdio_env",
+            vars: ["FILES_TOKEN", "FILES_REGION"],
+          },
+        ],
+      },
+    });
+    // Without variables the account carries no key.
+    expect(await (await update({ env: [] })).json()).toEqual({
+      kind: "saved",
+      app: "files",
+    });
+    expect(world.executor.connections).toMatchObject([
+      { integration: "files", template: "none" },
+    ]);
+    expect(world.executor.connections[0]?.values).toBeUndefined();
+    // The type stays: another is refused; so is a catalog app's server.
+    const typed = await app.post("/api/integrations/custom/update", {
+      id: "files",
+      type: "http",
+      name: "Files",
+      url: "https://files.example.test/mcp",
+      headers: [],
+    });
+    expect([typed.status, await typed.json()]).toEqual([
+      409,
+      { kind: "blocked", reason: "type-fixed" },
+    ]);
+    const notionEdit = await app.post("/api/integrations/custom/update", {
+      id: "notion-com",
+      type: "http",
+      name: "Notion",
+      url: "https://mcp.notion.com/mcp",
+      headers: [],
+    });
+    expect(await notionEdit.json()).toEqual({
+      kind: "blocked",
+      reason: "account-unknown",
+    });
+    expect(
+      await (
+        await app.get("/api/integrations/custom/server?id=notion-com")
+      ).json(),
+    ).toEqual({ kind: "blocked", reason: "account-unknown" });
+    for (const key of [first, second])
+      await noKey(parent, world, console.text(), key);
+  } finally {
+    console.restore();
+  }
+});
+
+test("Vlastní: an edited address keeps its stored key in the query; the token is kept or sent again with every header; a new address takes every key again", async () => {
+  const { world, app } = await setup({ composio: false });
+  const stored = "https://mcp.query.example.test/mcp?key=queryCanary000000";
+  const shown = "https://mcp.query.example.test/mcp";
+  const bearer = "keptBearerCanary000000000";
+  world.executor.probes.set(stored, { requiresOAuth: false });
+  await app.post("/api/integrations/custom/add", {
+    type: "http",
+    name: "Query",
+    url: stored,
+    bearer,
+    headers: [],
+  });
+  const form = await (
+    await app.get("/api/integrations/custom/server?id=query")
+  ).text();
+  // The page never sees the query, which may carry a key.
+  expect(JSON.parse(form)).toMatchObject({ url: shown, bearer: true });
+  expect(form).not.toContain("queryCanary");
+  const update = (body: Record<string, unknown>) =>
+    app.post("/api/integrations/custom/update", {
+      id: "query",
+      type: "http",
+      name: "Query",
+      url: shown,
+      bearer: null,
+      headers: [],
+      ...body,
+    });
+  // The address as shown and the token as stored: nothing changes.
+  expect(await (await update({})).json()).toEqual({
+    kind: "saved",
+    app: "query",
+  });
+  expect(bodiesOf(world, "POST", "/api/mcp/servers/query/config")).toEqual([]);
+  expect(world.executor.integrations[0]?.endpoint).toBe(stored);
+  // A header beside the kept token: the token must come again.
+  expect(
+    (await update({ headers: [{ name: "X-Team", value: "a" }] })).status,
+  ).toBe(400);
+  const newer = "newBearerCanary0000000000";
   expect(
     await (
-      await app.post("/api/integrations/custom/remove", {
-        id: "notion-com",
-        confirm: true,
-      })
+      await update({ bearer: newer, headers: [{ name: "X-Team", value: "a" }] })
     ).json(),
-  ).toEqual({ kind: "blocked", reason: "account-unknown" });
-  // Bad input is refused before Executor is asked.
+  ).toEqual({ kind: "saved", app: "query" });
+  expect(world.executor.connections).toMatchObject([
+    {
+      integration: "query",
+      template: "apikey",
+      values: { token: newer, "header-x-team": "a" },
+    },
+  ]);
+  expect(world.executor.integrations[0]?.endpoint).toBe(stored);
+  // A new address is a change of the keys (review 5485707630): with the
+  // stored ones kept it is refused before anything is probed or changed,
+  // here at an address that refuses a probe without its token.
+  const moved = "https://mcp.moved.example.test/mcp";
+  world.executor.probes.set(moved, {
+    requiresOAuth: false,
+    authorization: `Bearer ${newer}`,
+  });
+  const before = world.executor.calls.length;
+  const kept = await update({
+    url: moved,
+    bearer: null,
+    headers: [{ name: "X-Team", value: null }],
+  });
+  expect([kept.status, await kept.json()]).toEqual([
+    400,
+    { error: "keys-required" },
+  ]);
+  // Only the reading of the server: no probe, no config, no account.
+  expect(world.executor.calls.slice(before).map((call) => call.method)).toEqual(
+    ["GET", "GET", "GET"],
+  );
+  expect(world.executor.integrations[0]?.endpoint).toBe(stored);
+  // Every key typed again: the new address is probed with them, the
+  // server moves, and its account is made anew with them.
+  const again = await update({
+    url: moved,
+    bearer: newer,
+    headers: [{ name: "X-Team", value: "b" }],
+  });
+  expect(await again.json()).toEqual({ kind: "saved", app: "query" });
+  expect(bodiesOf(world, "POST", "/api/mcp/probe").at(-1)).toEqual({
+    endpoint: moved,
+    headers: { Authorization: `Bearer ${newer}`, "X-Team": "b" },
+  });
+  expect(world.executor.integrations[0]?.endpoint).toBe(moved);
+  expect(world.executor.connections).toMatchObject([
+    {
+      integration: "query",
+      template: "apikey",
+      values: { token: newer, "header-x-team": "b" },
+    },
+  ]);
+});
+
+test("Vlastní: a new address for a server without stored keys is probed and saved as before", async () => {
+  const { world, app } = await setup({ composio: false });
+  const first = "https://mcp.open.example.test/mcp";
+  const moved = "https://mcp.open-moved.example.test/mcp";
+  world.executor.probes.set(first, { requiresOAuth: false });
+  world.executor.probes.set(moved, { requiresOAuth: false });
+  await app.post("/api/integrations/custom/add", {
+    type: "http",
+    name: "Open",
+    url: first,
+    headers: [],
+  });
+  const answer = await app.post("/api/integrations/custom/update", {
+    id: "open",
+    type: "http",
+    name: "Open",
+    url: moved,
+    headers: [],
+  });
+  expect(await answer.json()).toEqual({ kind: "saved", app: "open" });
+  expect(bodiesOf(world, "POST", "/api/mcp/probe").at(-1)).toEqual({
+    endpoint: moved,
+  });
+  expect(world.executor.integrations[0]?.endpoint).toBe(moved);
+  expect(world.executor.connections).toMatchObject([
+    { integration: "open", template: "none" },
+  ]);
+  // One that signs in signs in again at its new address.
+  const signIn = "https://mcp.signin.example.test/mcp";
+  const signInMoved = "https://mcp.signin-moved.example.test/mcp";
+  world.executor.probes.set(signIn, { requiresOAuth: true });
+  world.executor.probes.set(signInMoved, { requiresOAuth: true });
+  await app.post("/api/integrations/custom/add", {
+    type: "http",
+    name: "Sign In",
+    url: signIn,
+    headers: [],
+  });
+  const resigned = await app.post("/api/integrations/custom/update", {
+    id: "sign_in",
+    type: "http",
+    name: "Sign In",
+    url: signInMoved,
+    headers: [],
+  });
+  expect(await resigned.json()).toMatchObject({ kind: "authorize" });
+  expect(world.executor.integrations.at(-1)?.endpoint).toBe(signInMoved);
+});
+
+test("Vlastní: what the form refuses, the route refuses before Executor is asked", async () => {
+  const { world, app } = await setup({ composio: false });
+  const http = {
+    type: "http",
+    name: "x",
+    url: "https://x.example.test/mcp",
+    headers: [],
+  };
+  const stdio = {
+    type: "stdio",
+    name: "x",
+    command: "run",
+    args: [],
+    env: [],
+  };
+  const refused: [Record<string, unknown>, unknown][] = [
+    [{ ...http, name: "" }, [{ field: "name", problem: "required" }]],
+    [{ ...http, name: "a\nb" }, [{ field: "name", problem: "invalid" }]],
+    [
+      { ...http, url: "ftp://x.example.test/" },
+      [{ field: "url", problem: "invalid" }],
+    ],
+    [
+      { ...http, url: "http://x.example.test/mcp" },
+      [{ field: "url", problem: "insecure" }],
+    ],
+    [
+      { ...http, headers: [{ name: "Bad Header", value: "v" }] },
+      [{ field: "header", index: 0, part: "name", problem: "invalid" }],
+    ],
+    [
+      {
+        ...http,
+        headers: [
+          { name: "X-A", value: "v" },
+          { name: "x-a", value: "w" },
+        ],
+      },
+      [{ field: "header", index: 1, part: "name", problem: "duplicate" }],
+    ],
+    [
+      {
+        ...http,
+        bearer: "t",
+        headers: [{ name: "authorization", value: "v" }],
+      },
+      [{ field: "header", index: 0, part: "name", problem: "taken" }],
+    ],
+    [
+      { ...http, headers: [{ name: "X-A", value: "v\r\nX-B: w" }] },
+      [{ field: "header", index: 0, part: "value", problem: "invalid" }],
+    ],
+    [{ ...http, bearer: "" }, [{ field: "bearer", problem: "required" }]],
+    [{ ...http, bearer: null }, [{ field: "bearer", problem: "required" }]],
+    [
+      { ...stdio, env: [{ name: "1BAD", value: "v" }] },
+      [{ field: "env", index: 0, part: "name", problem: "invalid" }],
+    ],
+    [
+      { ...stdio, env: [{ name: "OK", value: null }] },
+      [{ field: "env", index: 0, part: "value", problem: "required" }],
+    ],
+    [{ ...stdio, command: " " }, [{ field: "command", problem: "required" }]],
+    [{ ...stdio, cwd: "code" }, [{ field: "cwd", problem: "invalid" }]],
+  ];
+  for (const [body, problems] of refused) {
+    const answer = await app.post("/api/integrations/custom/add", body);
+    expect([body, answer.status, await answer.json()]).toEqual([
+      body,
+      400,
+      { error: "invalid-server", problems },
+    ]);
+  }
+  // Plain http on this computer is allowed.
+  world.executor.probes.set("http://127.0.0.1:8931/mcp", {
+    requiresOAuth: false,
+  });
+  expect(
+    (
+      await app.post("/api/integrations/custom/add", {
+        ...http,
+        name: "Local",
+        url: "http://127.0.0.1:8931/mcp",
+      })
+    ).status,
+  ).toBe(200);
+  const calls = world.executor.calls.length;
+  // Another shape: a field of the other type, a missing one, an unknown one.
   for (const body of [
-    { name: "", kind: "url", target: "https://x.example.test/mcp" },
-    { name: "x", kind: "url", target: "ftp://x.example.test/" },
-    {
-      name: "x",
-      kind: "url",
-      target: "https://x.example.test/",
-      secretName: "Bad Header",
-      secretValue: "v",
-    },
-    {
-      name: "x",
-      kind: "command",
-      target: "run",
-      secretName: "1BAD",
-      secretValue: "v",
-    },
-    { name: "x", kind: "command", target: "run", secretName: "OK" },
+    { ...http, command: "run" },
+    { ...stdio, args: undefined },
+    { ...stdio, args: ["a", 1] },
+    { ...http, headers: [{ name: "X", value: "v", extra: true }] },
+    { ...http, type: "sse" },
+    { ...http, kind: "url" },
   ])
     expect((await app.post("/api/integrations/custom/add", body)).status).toBe(
       400,
     );
+  expect(world.executor.calls.length).toBe(calls);
+  // An edit names its server; the reading of one asks for exactly one id.
+  expect(
+    (await app.post("/api/integrations/custom/update", { ...http })).status,
+  ).toBe(400);
+  expect((await app.get("/api/integrations/custom/server")).status).toBe(400);
+  expect(
+    (await app.get("/api/integrations/custom/server?id=a&id=b")).status,
+  ).toBe(400);
+  expect(
+    await (await app.get("/api/integrations/custom/server?id=missing")).json(),
+  ).toEqual({ kind: "blocked", reason: "account-unknown" });
 });
 
 test("`lazurio integrations list --json` answers what the route answers", async () => {
