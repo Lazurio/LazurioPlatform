@@ -10,16 +10,16 @@ import {
   environmentIdentity,
 } from "../../shell/view";
 import { ensureAgentBrowserIdleTimeout } from "../agent-browser-config";
-import { browserCdpPort, browserScreenSize } from "../units";
-import { agentBrowserSocketDirectory } from "../window";
 import {
+  agentBrowserSocketDirectory,
   holderDirectory,
   holdsReader,
   liveTabsPath,
   readBootClock,
   watchHolds,
   writeLiveTabs,
-} from "./holds";
+} from "../contract/node";
+import { browserCdpPort, browserScreenSize } from "../units";
 import { loopbackBrowser, startViewService } from "./service";
 
 /** `lazurio browser serve --port <port> --origin <origin>`: the people's view

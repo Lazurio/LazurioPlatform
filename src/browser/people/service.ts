@@ -1,8 +1,8 @@
 import type { Server, ServerWebSocket } from "bun";
 import type { EnvironmentIdentity } from "../../shell/view";
+import { isStrip } from "../contract/pure";
 import { viewScript } from "./bundle" with { type: "macro" };
 import { browserSocketUrl, type CdpConnection, connectCdp } from "./cdp";
-import { isStrip } from "./holds";
 import {
   BrowserHub,
   type HubSeams,

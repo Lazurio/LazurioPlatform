@@ -1,4 +1,4 @@
-import { browserViewUrl } from "../browser/view";
+import { browserViewUrl } from "../browser/contract/pure";
 import type { Catalog } from "../organizations/catalog";
 import {
   catalogGroups,

@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { type Hold, type Holds, noHolds } from "../contract/node";
+import type { BootTime } from "../contract/pure";
 import type { CdpConnection, CdpEvent } from "./cdp";
-import { type BootTime, type Hold, type Holds, noHolds } from "./holds";
 import {
   type ClientMessage,
   encodeFrame,

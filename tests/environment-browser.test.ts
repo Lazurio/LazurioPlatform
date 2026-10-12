@@ -19,6 +19,12 @@ import {
   browserLink,
   runBrowserCommand,
 } from "../src/browser/cli";
+import { stopSessionDaemon } from "../src/browser/contract/node";
+import {
+  browserViewUrl,
+  isStrip,
+  threadSession,
+} from "../src/browser/contract/pure";
 import { browserExtensionDigest } from "../src/browser/people/extension";
 import {
   browserCdpPort,
@@ -32,17 +38,10 @@ import {
   renderBrowserViewUnit,
   renderDisplayUnit,
 } from "../src/browser/units";
-import {
-  browserEntryOf,
-  browserViewUrl,
-  isBrowserSession,
-  resolveBrowserView,
-} from "../src/browser/view";
+import { browserEntryOf, resolveBrowserView } from "../src/browser/view";
 import {
   BrowserWindowFailure,
   ensureThreadWindow,
-  stopSessionDaemon,
-  threadSession,
   type WindowSeams,
 } from "../src/browser/window";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
@@ -613,7 +612,7 @@ test("the session follows the thread: named, T3 Code's, Codex's, Claude Code's; 
   expect(
     threadSession(undefined, { CODEX_THREAD_ID: "x".repeat(100) })?.length,
   ).toBe(64);
-  expect(isBrowserSession("a".repeat(65))).toBe(false);
+  expect(isStrip("a".repeat(65))).toBe(false);
 });
 
 function windowSeams(

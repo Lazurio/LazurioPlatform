@@ -20,6 +20,11 @@
 // has a third document of its own, `lazurio.shell-signed-out.v1` (below,
 // F36's addendum of 2026-10-06), under the same rule.
 
+import {
+  environmentIdOf as environmentIdOfOrigin,
+  isEnvironmentId as environmentIdRule,
+} from "../browser/contract/pure";
+
 export const shellSchema = "lazurio.shell.v1";
 
 /** What kind of place an Environment is (decision 0165, 0169): the Operator's
@@ -202,63 +207,30 @@ const isPageUrl = (value: unknown): value is string =>
     !value.includes("#"));
 
 // The identity of an Environment entry (F37's addendum of 2026-10-04): its
-// base host in lowercase DNS form. Every hosted Environment has its own
-// addresses (root decision 0146): `<app>.<machine>.<org>.lazurio.io` for an
-// Organization's Environment, `<app>.<personal-dns-slug>.lazurio.io` for a
-// personal Remote Environment. What stands between the app label and
-// `lazurio.io` is unique by DNS, so it tells two Organizations' `vm-01`
-// apart, where the bare machine name repeats. The Dashboard derives the same
-// value from the registry's Apps address. A workstation, which has no such
-// address, keeps its local id (one label, `local`).
-const hostedDomain = ".lazurio.io";
-const dnsLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+// base host in lowercase DNS form, `<machine>.<org>` or a personal Remote
+// Environment's slug, derived from an app origin of its own; a workstation,
+// which has no such address, keeps its local id. The Environment browser's
+// contract defines both (decision F50 point 1): its view addresses name the
+// Environment by the same id, and the forks take that contract alone. These
+// bindings pass the one definition on, typed here, so the declarations of
+// `contract.js` that the shell artifact ships stay complete on their own.
 
 /** A workstation's id: it has no hosted address to take one from. */
 export const workstationId = "local";
 
 /** An Environment id: one lowercase DNS label (a personal Remote
  * Environment's slug, a workstation's `local`) or two (`<machine>.<org>`). */
-export function isEnvironmentId(value: unknown): value is string {
-  if (typeof value !== "string") return false;
-  const labels = value.split(".");
-  return (
-    labels.length >= 1 &&
-    labels.length <= 2 &&
-    labels.every((label) => dnsLabel.test(label))
-  );
-}
+export const isEnvironmentId: (value: unknown) => value is string =
+  environmentIdRule;
 
 /** The id of a hosted Environment from an app origin of its own
  * (`https://<app>.<base>.lazurio.io`, with or without the trailing slash of
  * an Apps address): `<base>` in lowercase, one label for a personal Remote
  * Environment, two for an Organization's. Null for anything else: another
  * scheme, a port, credentials, a path, a query or a fragment, another
- * domain, or a base of another depth. The one place the id is derived. */
-export function environmentIdOf(origin: string): string | null {
-  let url: URL;
-  try {
-    url = new URL(origin);
-  } catch {
-    return null;
-  }
-  const written = origin.toLowerCase();
-  if (
-    url.protocol !== "https:" ||
-    url.username !== "" ||
-    url.password !== "" ||
-    url.port !== "" ||
-    (written !== url.origin && written !== `${url.origin}/`)
-  )
-    return null;
-  const host = url.hostname;
-  if (!host.endsWith(hostedDomain)) return null;
-  const labels = host.slice(0, -hostedDomain.length).split(".");
-  // The app's label, then the base of one or two labels.
-  if (labels.length < 2 || labels.length > 3) return null;
-  if (!labels.every((label) => dnsLabel.test(label))) return null;
-  const id = labels.slice(1).join(".");
-  return isEnvironmentId(id) ? id : null;
-}
+ * domain, or a base of another depth. */
+export const environmentIdOf: (origin: string) => string | null =
+  environmentIdOfOrigin;
 
 /** Whether an entry's id is the one its Apps address gives it: an https
  * Apps address is the Environment's own, so the id is its base host

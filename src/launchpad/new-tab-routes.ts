@@ -1,12 +1,16 @@
 import { readFile } from "node:fs/promises";
-import { type BootTime, isStrip, readBootClock } from "../browser/people/holds";
+import { readBootClock } from "../browser/contract/node";
+import {
+  type BootTime,
+  browserViewUrl,
+  isStrip,
+} from "../browser/contract/pure";
 import {
   navigableAddress,
   type TabFacts,
   type TabOpener,
 } from "../browser/people/hub";
 import type { BrowserEntry } from "../browser/units";
-import { browserViewUrl } from "../browser/view";
 import type { MachineEntry } from "../folder/machine-binding";
 import { ownDataValue, stateFields } from "../folder/state-fields";
 import {

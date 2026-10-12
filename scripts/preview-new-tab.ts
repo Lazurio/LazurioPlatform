@@ -45,7 +45,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { holderFileText } from "../src/browser/people/holds";
+import { holderFileText } from "../src/browser/contract/pure";
 import type { TabFacts } from "../src/browser/people/hub";
 import type { LaunchpadBoot } from "../src/launchpad/boot";
 import { withBoot } from "../src/launchpad/boot-document";

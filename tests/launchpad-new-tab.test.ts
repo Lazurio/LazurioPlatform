@@ -13,14 +13,16 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  type BootTime,
   holderDirectory,
-  holderFileText,
   liveTabsPath,
+  writeLiveTabs,
+} from "../src/browser/contract/node";
+import {
+  type BootTime,
+  holderFileText,
   parseHolder,
   parseHolderRecords,
-  writeLiveTabs,
-} from "../src/browser/people/holds";
+} from "../src/browser/contract/pure";
 import type { TabFacts } from "../src/browser/people/hub";
 import {
   initializeFolder,
