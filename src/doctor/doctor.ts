@@ -3,6 +3,7 @@ import {
   environmentBrowserReasons,
   observeEnvironmentBrowser,
 } from "../browser/units";
+import { chatDefaults } from "../chat/defaults";
 import { agentRegistrations } from "../executor/agents";
 import {
   type ExecutorHost,
@@ -116,6 +117,7 @@ export const doctorCheckIds = [
   // Machine
   "machine-entry",
   "codex-app-server",
+  "chat-defaults",
   "environment-browser",
 ] as const;
 export type DoctorCheckId = (typeof doctorCheckIds)[number];
@@ -151,6 +153,7 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     "launchpad-health": "launchpad",
     "machine-entry": "machine",
     "codex-app-server": "machine",
+    "chat-defaults": "machine",
     "environment-browser": "machine",
   });
 
@@ -159,6 +162,8 @@ export type DoctorOutcome = "ok" | "warn" | "fail" | "skipped";
 /** The reasons doctor itself names; a mapped check keeps the code or skip
  * reason of the reader it comes from. */
 const ownReasons = [
+  "chat-defaults-outdated",
+  "chat-defaults-unavailable",
   // product
   "not-installed",
   "running-not-active",
@@ -855,6 +860,10 @@ export async function collectDoctor(
     tools: environment.tools,
   });
 
+  const chat = observed.preferences?.machine?.entry
+    ? await chatDefaults(environment.tools)
+    : null;
+
   const executor = await executorCheck(
     environment.executor ??
       processExecutorHost({
@@ -931,6 +940,17 @@ export async function collectDoctor(
       answerOf(answer),
     ),
     check("codex-app-server", codex.outcome, codex.reason, codex.context),
+    chat === null
+      ? check("chat-defaults", "skipped", "not-hosted")
+      : chat.state === "managed" || chat.state === "custom"
+        ? check("chat-defaults", "ok")
+        : check(
+            "chat-defaults",
+            "warn",
+            chat.state === "outdated"
+              ? "chat-defaults-outdated"
+              : "chat-defaults-unavailable",
+          ),
     check(
       "environment-browser",
       browser.outcome,
