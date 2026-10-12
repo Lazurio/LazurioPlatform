@@ -7961,19 +7961,29 @@ said). Each tab then stayed held by that session's daemon for up to an hour afte
 command. The manual also told agents to finish with `agent-browser … tab close`, which closes
 the tab for everyone who holds or views it. Matěj decided:
 - **An agent lets go of its window; it does not close it (point 28).** `lazurio browser done
-  [--session <name>]` stops the session's agent-browser daemon (`stopSessionDaemon` in
-  `src/browser/window.ts`):
-  - only a well-formed id in `<session>.pid` of a live process whose command line is
-    agent-browser's gets SIGTERM;
-  - the daemon of an attached browser then disconnects without closing a tab and removes its
-    `.pid` (agent-browser `cli/src/native/daemon.rs`), so the hub no longer counts the agent
+  [--session <name>]` asks the session's own agent-browser daemon to shut down
+  (`stopSessionDaemon` in `src/browser/window.ts`):
+  - it sends agent-browser's own graceful shutdown, `{"action":
+    "__agent_browser_internal_shutdown"}`, on that session's socket `<session>.sock`, as
+    agent-browser's CLI does before it restarts a daemon (`request_graceful_daemon_shutdown`
+    in `cli/src/connection.rs`), and waits up to 5 s for the `.pid` to go;
+  - the daemon of an attached browser then disconnects without closing a tab, answers, exits
+    and removes its `.pid` (`cli/src/native/daemon.rs`), so the hub no longer counts the agent
     as working in it (point 5);
   - the tab ends once nothing holds it and nobody views it, and a person who has it open keeps
     it;
-  - never `agent-browser close`, which first starts a daemon when none runs. T3 Code's overlay
-    stops an archived thread's daemon the same way.
-  - Outcomes: `stopped`, `none` (no daemon runs; done all the same) and `not-agent-browser`
-    (another program has the id; nothing stopped, exit 1).
+  - nothing is signalled by a process id. A first version sent SIGTERM to the process the
+    `.pid` named after checking its command line; Pablo's review of #348 showed that a stale
+    `.pid` whose number another session's daemon has now would stop that daemon, and that
+    the check and the signal race. The socket belongs to its session only, and nothing
+    listening there means no daemon;
+  - never `agent-browser close` or `tab close`: the tab would close for everyone, and the CLI
+    starts a daemon first when none runs. The action is internal to the agent-browser release
+    Machines pin; the distribution's contract check (task 706) covers it.
+  - Outcomes: `stopped`, `none` (nothing listens on the session's socket; done all the same)
+    and `failed` (the daemon did not answer within 5 s or refused; nothing changed, exit 1).
+  - T3 Code's overlay stops an archived thread's daemon by process id the same way the first
+    version did; it moves to this path when it takes over the contract (task 703).
   - The manual's "When done" now says `lazurio browser done`, and never `tab close` or
     `close`. Over SSH in a work Environment it is `lazurio browser done --session <session>`.
 - **Pages for the person nobody holds (point 29).**

@@ -53,8 +53,10 @@ browser done [--session <name>] [--folder <absolute Folder>] [--json]
   Lets go of the calling thread's window when its work there is done (root
   decision 0191 point 28): its agent-browser daemon stops, and the tab ends
   once nothing holds it and nobody views it. A person who has it open keeps
-  it. --json prints {kind: "browser-done", session, outcome}, outcome being
-  stopped, none (no daemon ran) or not-agent-browser (nothing was stopped).
+  it. It asks the session's own agent-browser daemon on its socket to shut
+  down; it never signals a process. --json prints {kind: "browser-done",
+  session, outcome}, outcome being stopped, none (no daemon listens) or
+  failed (the daemon did not answer or refused; nothing changed).
   Exit status: 0 done, 10 this Environment has no Environment browser, 2
   usage, 1 failure.
 browser serve --port <loopback port> --origin <https://browser.…>
@@ -99,8 +101,8 @@ const text = {
       "Your window is let go: it ends once nothing holds it and nobody views it. Whoever has it open keeps it.",
     "no-daemon":
       "Your session has no running agent-browser: nothing to let go.",
-    "not-agent-browser":
-      "The session's .pid names a process that is not agent-browser: nothing was stopped.",
+    "daemon-failed":
+      "Your session's agent-browser did not shut down (no answer, or it refused). Nothing changed; try again, or run lazurio doctor.",
   },
   cs: {
     "not-declared":
@@ -125,8 +127,8 @@ const text = {
     stopped:
       "Okno je puštěné: skončí, až ho nic nedrží a nikdo se na něj nedívá. Kdo ho má otevřené, tomu zůstane.",
     "no-daemon": "Tvoje sezení nemá spuštěný agent-browser: není co pustit.",
-    "not-agent-browser":
-      "Soubor .pid sezení patří procesu, který není agent-browser: nic se nezastavilo.",
+    "daemon-failed":
+      "agent-browser tvého sezení se neukončil (neodpověděl nebo odmítl). Nic se nezměnilo; zkus to znovu, nebo spusť lazurio doctor.",
   },
 } as const;
 
@@ -280,7 +282,7 @@ export async function runBrowserCommand(
           ? ("none" as const)
           : await stopSessionDaemon(sockets, session, context.daemonSeams);
       return Object.freeze({
-        code: outcome === "not-agent-browser" ? exitFailure : exitOk,
+        code: outcome === "failed" ? exitFailure : exitOk,
         ...(json
           ? {
               stdout: JSON.stringify({
@@ -293,7 +295,7 @@ export async function runBrowserCommand(
             ? { stdout: copy.stopped }
             : outcome === "none"
               ? { stdout: copy["no-daemon"] }
-              : { stderr: copy["not-agent-browser"] }),
+              : { stderr: copy["daemon-failed"] }),
       });
     }
     const session = named as string;

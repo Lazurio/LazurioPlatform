@@ -7,8 +7,10 @@ import {
   realpath,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
+import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -1095,50 +1097,91 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
-// Root decision 0191 point 28: letting go stops only the session's own
-// agent-browser daemon, never another process its stale .pid names.
-test("letting go of a window stops only a live agent-browser daemon of that session", async () => {
-  const sockets = await temporary("browser-daemon-");
-  const terminated: number[] = [];
-  const seams = (commandLine: string, alive = true) => ({
-    alive: () => alive,
-    commandLine: async () => commandLine,
-    terminate: (pid: number) => {
-      terminated.push(pid);
-    },
-  });
-  // No .pid: no daemon runs.
-  expect(
-    await stopSessionDaemon(sockets, "codex-1", seams("agent-browser")),
-  ).toBe("none");
-  await writeFile(join(sockets, "codex-1.pid"), "4242\n");
-  expect(
-    await stopSessionDaemon(
-      sockets,
-      "codex-1",
-      seams("/home/operator/.local/bin/agent-browser\0"),
-    ),
-  ).toBe("stopped");
-  expect(terminated).toEqual([4242]);
-  // A daemon that ended, and a .pid that is no process id.
-  expect(
-    await stopSessionDaemon(sockets, "codex-1", seams("agent-browser", false)),
-  ).toBe("none");
-  await writeFile(join(sockets, "codex-1.pid"), "1");
-  expect(
-    await stopSessionDaemon(sockets, "codex-1", seams("agent-browser")),
-  ).toBe("none");
-  // A process id another program has taken: nothing is stopped.
-  await writeFile(join(sockets, "codex-1.pid"), "4242");
-  expect(
-    await stopSessionDaemon(sockets, "codex-1", seams("/usr/bin/python3\0x")),
-  ).toBe("not-agent-browser");
-  // A name outside the session alphabet is no session.
-  expect(
-    await stopSessionDaemon(sockets, "../codex-1", seams("agent-browser")),
-  ).toBe("none");
-  expect(terminated).toEqual([4242]);
-});
+// Root decision 0191 point 28: letting go asks the session's own daemon on
+// that session's socket to shut down and never signals a process id (Pablo's
+// review of #348): a stale .pid whose number a live process named
+// agent-browser now has, even another session's daemon, is never touched.
+test.skipIf(process.platform === "win32")(
+  "letting go asks the session's own daemon on its socket and signals no process",
+  async () => {
+    const sockets = await temporary("browser-daemon-");
+    const heard: Record<string, string[]> = { "codex-1": [], "codex-2": [] };
+    const servers: Server[] = [];
+    const daemon = (
+      session: "codex-1" | "codex-2",
+      reply: (line: string) => string | null,
+    ) =>
+      new Promise<void>((resolve) => {
+        const server = createServer((socket) => {
+          socket.on("data", async (chunk) => {
+            const line = chunk.toString("utf8").trim();
+            heard[session]?.push(line);
+            const answer = reply(line);
+            if (answer === null) return;
+            // agent-browser answers, then exits and removes its .pid.
+            socket.write(`${answer}\n`);
+            await rm(join(sockets, `${session}.pid`), { force: true });
+          });
+        });
+        servers.push(server);
+        server.listen(join(sockets, `${session}.sock`), () => resolve());
+      });
+    const acknowledged = (line: string) =>
+      JSON.stringify({
+        id: (JSON.parse(line) as { id: string }).id,
+        success: true,
+        data: { closed: true },
+      });
+    // A live process named agent-browser whose id codex-1's stale .pid
+    // names: a daemon by process id would end it.
+    const named = join(sockets, "agent-browser");
+    await symlink("/bin/sleep", named);
+    const sleeper = Bun.spawn([named, "30"]);
+    try {
+      expect(await stopSessionDaemon(sockets, "codex-1")).toBe("none");
+      await writeFile(join(sockets, "codex-1.pid"), String(sleeper.pid));
+      await daemon("codex-2", acknowledged);
+      expect(await stopSessionDaemon(sockets, "codex-1")).toBe("none");
+      expect(heard["codex-2"]).toEqual([]);
+      expect(sleeper.killed || sleeper.exitCode !== null).toBe(false);
+      // A socket file nobody listens on is no daemon either.
+      await writeFile(join(sockets, "codex-3.sock"), "");
+      expect(await stopSessionDaemon(sockets, "codex-3")).toBe("none");
+      // codex-1's own daemon: one shutdown line, then its .pid is gone.
+      await daemon("codex-1", acknowledged);
+      expect(await stopSessionDaemon(sockets, "codex-1")).toBe("stopped");
+      expect(heard["codex-1"]?.map((line) => JSON.parse(line))).toEqual([
+        {
+          id: "lazurio-browser-done",
+          action: "__agent_browser_internal_shutdown",
+        },
+      ]);
+      expect(
+        await readFile(join(sockets, "codex-1.pid")).catch(() => null),
+      ).toBeNull();
+      expect(sleeper.exitCode).toBeNull();
+      // A daemon that refuses, or does not answer: failed, nothing changes.
+      expect(
+        await stopSessionDaemon(sockets, "codex-2", {
+          ask: async () => ({
+            kind: "reply",
+            line: JSON.stringify({ success: false, error: "busy" }),
+          }),
+        }),
+      ).toBe("failed");
+      expect(
+        await stopSessionDaemon(sockets, "codex-2", {
+          ask: async () => ({ kind: "no-answer" }),
+        }),
+      ).toBe("failed");
+      // A name outside the session alphabet is no session.
+      expect(await stopSessionDaemon(sockets, "../codex-1")).toBe("none");
+    } finally {
+      sleeper.kill();
+      for (const server of servers) server.close();
+    }
+  },
+);
 
 // Root decision 0191 points 28 and 29: `done` lets go of the thread's window;
 // `link --url` opens a page for the person that nobody holds.
@@ -1148,14 +1191,15 @@ test.skipIf(process.platform === "win32")(
     const { home, folder } = await folderWith(bindings.organizationBrowser);
     const socketDir = join(home, "sockets");
     await mkdir(socketDir);
-    await writeFile(join(socketDir, "codex-019a.pid"), "4242");
-    const terminated: number[] = [];
+    const asked: string[] = [];
     const daemonSeams = {
-      alive: () => true,
-      commandLine: async () => "agent-browser",
-      terminate: (pid: number) => {
-        terminated.push(pid);
+      ask: async (socketPath: string) => {
+        asked.push(socketPath);
+        return socketPath.endsWith("/codex-019a.sock")
+          ? ({ kind: "reply", line: '{"success":true}' } as const)
+          : ({ kind: "absent" } as const);
       },
+      exists: async () => false,
     };
     const env = {
       HOME: home,
@@ -1175,7 +1219,7 @@ test.skipIf(process.platform === "win32")(
       session: "codex-019a",
       outcome: "stopped",
     });
-    expect(terminated).toEqual([4242]);
+    expect(asked).toEqual([join(socketDir, "codex-019a.sock")]);
     // No daemon runs for another session: nothing to let go, and done.
     const none = await runBrowserCommand(
       ["done", "--session", "codex-other", "--folder", folder, "--json"],
@@ -1183,13 +1227,15 @@ test.skipIf(process.platform === "win32")(
     );
     expect(JSON.parse(none.stdout ?? "")).toMatchObject({ outcome: "none" });
     expect(none.code).toBe(0);
-    // A .pid of another program: a failure, nothing stopped.
-    const foreign = await runBrowserCommand(["done", "--folder", folder], {
+    // A daemon that refuses: a failure, nothing changed.
+    const refused = await runBrowserCommand(["done", "--folder", folder], {
       ...context(env),
-      daemonSeams: { ...daemonSeams, commandLine: async () => "python3" },
+      daemonSeams: {
+        ask: async () =>
+          ({ kind: "reply", line: '{"success":false}' }) as const,
+      },
     });
-    expect(foreign.code).toBe(1);
-    expect(terminated).toEqual([4242]);
+    expect(refused.code).toBe(1);
     // done has no --url, and needs a session.
     expect(
       (
@@ -1209,14 +1255,14 @@ test.skipIf(process.platform === "win32")(
     ).toBe(2);
 
     // link --url: one loopback request for a tab without a strip.
-    const asked: unknown[] = [];
+    const opened: unknown[] = [];
     const tab = "AB".repeat(16);
     const openTab = async (
       _entry: { listenPort: number },
       url: string,
       strip: string | null,
     ) => {
-      asked.push([url, strip]);
+      opened.push([url, strip]);
       return { kind: "opened", tab } as const;
     };
     const link = await runBrowserCommand(
@@ -1230,7 +1276,7 @@ test.skipIf(process.platform === "win32")(
       targetId: tab,
       link: `${origin}/t/${tab}`,
     });
-    expect(asked).toEqual([["https://example.com/x", null]]);
+    expect(opened).toEqual([["https://example.com/x", null]]);
     // The hub refused or did not answer: a failure. With a session: usage.
     const unreachable = await runBrowserCommand(
       ["link", "--url", "https://example.com/x", "--folder", folder],
@@ -1257,7 +1303,7 @@ test.skipIf(process.platform === "win32")(
         )
       ).code,
     ).toBe(2);
-    expect(asked).toHaveLength(1);
+    expect(opened).toHaveLength(1);
   },
 );
 
