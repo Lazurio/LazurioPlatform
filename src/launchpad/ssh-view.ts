@@ -40,15 +40,43 @@ function parseKey(value: unknown): ListedKey | null {
   return null;
 }
 
+function validCodexLink(value: unknown, alias: unknown): boolean {
+  if (
+    !isRecord(value) ||
+    !text(value.projectPath, 4096) ||
+    !text(value.url, 16384)
+  )
+    return false;
+  try {
+    const url = new URL(value.url);
+    return (
+      url.protocol === "codex:" &&
+      url.hostname === "settings" &&
+      url.pathname === "/connections/ssh/add" &&
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      !url.hash &&
+      url.searchParams.get("name") === alias &&
+      url.searchParams.get("projectPath") === value.projectPath &&
+      url.searchParams.get("enabled") === "true" &&
+      [...url.searchParams].length === 3
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** The computer's settings in an answer, or null when it has none. */
 export function parseComputer(value: unknown): ComputerAnswer | null {
   if (!isRecord(value)) return null;
   if (
     value.state === "ready" &&
-    text(value.alias, 63) &&
-    text(value.keyPath, 128) &&
+    text(value.alias, 200) &&
+    text(value.keyPath, 256) &&
     text(value.config, 2048) &&
-    text(value.knownHosts, 1024)
+    text(value.knownHosts, 1024) &&
+    (value.codex === undefined || validCodexLink(value.codex, value.alias))
   )
     return value as ComputerAnswer;
   if (
@@ -220,9 +248,14 @@ export function keyGroups(keys: readonly ListedKey[]): Readonly<{
 }
 
 /** The prompt the person gives the agent on their own computer: this
- * Environment's page, the key, the four steps, and the rules. */
+ * Environment's page, the key and the Environment-provided Codex connection. */
 export function sshPrompt(
-  input: Readonly<{ url: string; alias: string; keyPath: string }>,
+  input: Readonly<{
+    url: string;
+    alias: string;
+    keyPath: string;
+    desktopLink?: string;
+  }>,
   copy: Copy,
 ): string {
   return fill(copy.sshPromptText, {
@@ -230,5 +263,6 @@ export function sshPrompt(
     alias: input.alias,
     keyPath: input.keyPath,
     windowsKeyPath: `%USERPROFILE%\\.ssh\\${input.alias}-ed25519`,
+    desktopLink: input.desktopLink ?? "",
   });
 }

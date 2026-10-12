@@ -34,7 +34,7 @@ const fingerprintPattern = /^SHA256:[A-Za-z0-9+/]{43}$/;
 
 export function createSshRoutes(
   input: Readonly<{
-    host: () => SshAccessHost;
+    host: () => SshAccessHost | Promise<SshAccessHost>;
     headers: Readonly<Record<string, string>>;
     journal?: (entry: Readonly<Record<string, string>>) => void;
   }>,
@@ -76,12 +76,12 @@ export function createSshRoutes(
           return response({ error: "method-not-allowed" }, 405);
         if ([...url.searchParams.keys()].length > 0)
           return response({ error: "invalid-query" }, 400);
-        return response(await sshAccessOverview(input.host()));
+        return response(await sshAccessOverview(await input.host()));
       }
       if (url.pathname === sshRoutePaths.add) {
         const value = await body(request, ["device", "publicKey"], ["addedBy"]);
         if (value instanceof Response) return value;
-        const answer = await addDevice(input.host(), {
+        const answer = await addDevice(await input.host(), {
           device: value.device,
           publicKey: value.publicKey,
           addedBy: value.addedBy,
@@ -110,7 +110,10 @@ export function createSshRoutes(
           !fingerprintPattern.test(value.fingerprint)
         )
           return response({ error: "invalid-fingerprint" }, 400);
-        const answer = await removeDevice(input.host(), value.fingerprint);
+        const answer = await removeDevice(
+          await input.host(),
+          value.fingerprint,
+        );
         if (answer.kind === "blocked") {
           journal({
             operation: "remove",

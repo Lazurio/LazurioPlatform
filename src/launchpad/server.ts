@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { restartStaleBrowserView } from "../browser/units";
 import {
@@ -645,7 +646,16 @@ export async function startLaunchpad(
   // and the settings a computer writes; journaled as the operation, the
   // outcome and the key's public fingerprint.
   const ssh = createSshRoutes({
-    host: () => sshHost,
+    host: async () => {
+      const current = await withFolderReadLock(state, () =>
+        readFolderState(state),
+      );
+      return {
+        ...sshHost,
+        machine: current.preferences.machine,
+        folder: await realpath(folder),
+      };
+    },
     headers,
     journal: (line) => console.log(JSON.stringify(line)),
   });

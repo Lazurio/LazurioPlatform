@@ -7,6 +7,7 @@ import {
   keyGroups,
   keyView,
   missingTexts,
+  parseComputer,
   parseSshOverview,
   removeRefusal,
   sshPrompt,
@@ -23,66 +24,50 @@ const page = await readFile(
   "utf8",
 );
 
-test("the prompt names this page, the key, the page's own labels and the rules", () => {
+test("the laptop handoff carries the Environment recipe without inventing connection parameters", () => {
   for (const locale of ["en", "cs"] as const) {
-    const copy = messages(locale);
-    const prompt = sshPrompt(
-      {
-        url: "https://launchpad.alex-work.example-org.lazurio.io/settings/ssh",
-        alias: "alex-work",
-        keyPath: "~/.ssh/alex-work-ed25519",
-      },
-      copy,
-    );
-    expect(prompt).toContain(
-      "https://launchpad.alex-work.example-org.lazurio.io/settings/ssh",
-    );
-    expect(prompt).toContain("~/.ssh/alex-work-ed25519.pub");
-    expect(prompt).toContain("%USERPROFILE%\\.ssh\\alex-work-ed25519");
-    expect(prompt).toContain(
-      'ssh-keygen -t ed25519 -N "" -C alex-work -f ~/.ssh/alex-work-ed25519',
-    );
-    expect(prompt).toContain("~/.ssh/known_hosts_lazurio");
-    expect(prompt).toContain("ssh alex-work true");
-    expect(prompt).toContain("Host alex-work");
-    expect(prompt).toContain("StrictHostKeyChecking");
-    expect(prompt).toContain("Tailscale");
-    expect(prompt).toContain("Admin");
-    // The labels it sends the agent to are the ones on the page.
-    for (const label of [
-      copy.sshAddTitle,
-      copy.sshAdd,
-      copy.sshComputerTitle,
-      copy.sshConfigLabel,
-      copy.sshKnownHostsLabel,
-    ])
-      expect(prompt).toContain(label);
-    expect(prompt).not.toMatch(/\{\w+\}/);
+    for (const organization of ["north", "south"]) {
+      const alias = `lazurio.org.${organization}.alex-work`;
+      const url = `https://launchpad.alex-work.${organization}.example/settings/ssh`;
+      const desktopLink = `codex://settings/connections/ssh/add?${new URLSearchParams({ name: alias, projectPath: "/home/alex/Lazurio Folder", enabled: "true" })}`;
+      const prompt = sshPrompt(
+        { url, alias, keyPath: `~/.ssh/${alias}-ed25519`, desktopLink },
+        messages(locale),
+      );
+      expect(prompt).toContain(url);
+      expect(prompt).toContain(desktopLink);
+      expect(prompt).toContain(`~/.ssh/${alias}-ed25519`);
+      expect(prompt).toContain(`%USERPROFILE%\\.ssh\\${alias}-ed25519`);
+      expect(prompt).toContain("Tailscale");
+      expect(prompt).not.toMatch(/\{\w+\}/);
+      expect(prompt).not.toContain(
+        organization === "north" ? "lazurio.org.south" : "lazurio.org.north",
+      );
+    }
   }
 });
 
-test("Codex handoffs keep two work Environments distinct and request a verified remote project", () => {
-  for (const locale of ["en", "cs"] as const) {
-    const aliases = ["north-alex-work", "south-alex-work"];
-    for (const alias of aliases) {
-      const prompt = sshPrompt(
-        {
-          url: `https://launchpad.${alias}.example.test/settings/ssh`,
-          alias,
-          keyPath: `~/.ssh/${alias}-ed25519`,
-        },
-        messages(locale),
-      );
-      expect(prompt).toContain(`ssh -G ${alias}`);
-      expect(prompt).toContain("codex://settings/connections/ssh/add?name=");
-      expect(prompt).toContain("&projectPath=");
-      expect(prompt).toContain("&enabled=true");
-      expect(prompt).toContain("URLSearchParams");
-      expect(prompt).toContain("HostKeyAlias");
-      expect(prompt).not.toContain(
-        aliases.find((other) => other !== alias) ?? "missing-other-alias",
-      );
-    }
+test("the rendered Codex link must match this connection and Folder", () => {
+  const base = {
+    state: "ready" as const,
+    alias: "lazurio.org.north.alex",
+    keyPath: "~/.ssh/key",
+    config: "Host lazurio.org.north.alex",
+    knownHosts: "pin",
+  };
+  const codex = {
+    projectPath: "/home/alex/Lazurio",
+    url: "codex://settings/connections/ssh/add?name=lazurio.org.north.alex&projectPath=%2Fhome%2Falex%2FLazurio&enabled=true",
+  };
+  expect(parseComputer(base)).toEqual(base);
+  expect(parseComputer({ ...base, codex })).not.toBeNull();
+  for (const url of [
+    "javascript:alert(1)",
+    codex.url.replace("north", "south"),
+    `${codex.url}&name=other`,
+    codex.url.replace("Lazurio", "Other"),
+  ]) {
+    expect(parseComputer({ ...base, codex: { ...codex, url } })).toBeNull();
   }
 });
 

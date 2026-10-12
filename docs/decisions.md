@@ -8244,8 +8244,8 @@ browser would move a private key off the person's computer. Trust on first use w
 let the first answer through an unknown network choose the host key. Opening the
 network grant from the Launchpad would take the Admin's decision.
 
-**Known limits and open questions.** Two Organizations whose Environments share a node
-name give the same alias; the prompt's rule makes the agent stop instead of overwriting.
+**Known limits and open questions.** Legacy unbound Environments use the node label
+as their alias. The binding-based alias below separates hosted Environment identities.
 On a computer with several tailnet profiles Tailscale names the node in the active one.
 **Team Environments:** everyone admitted there acts as the Team's account, so any of them
 may add or remove any device key; the page shows who added each and that the devices are
@@ -8260,30 +8260,27 @@ grant and `ssh <alias> true`, is still to be recorded.
 A review of two work Environments of the same Operator found independently generated
 laptop prompts using the same `Host` alias. Retargeting that alias could replace the
 first connection; a leftover `HostKeyAlias` could also select the first host's pin.
-The generated Folder must therefore route requests for a laptop prompt to the existing
-`/settings/ssh` page, rather than invent a second console-based registration workflow.
-The page remains the owner of live SSH settings and key registration. The Folder's
-`manual/this-machine.md` explains the client handoff, identity, failure diagnosis and
-completion evidence; `AGENTS.md` points agents there when asked for laptop access.
-This changes guidance, not grants, key storage or the F49 alias derivation.
+The Platform now derives a work alias as `lazurio.org.<organization>.<machine>` and a
+personal alias as `lazurio.personal.<owner>.<machine>` from the validated Machine
+binding. Dot-separated identity components avoid the ambiguity of concatenating
+hyphenated names. Host, key path, HostKeyAlias and the known_hosts pin share that
+alias. An unbound installation retains the original node-label convention.
 
-For work connections, the alias and human-readable link/connection label distinguish
-both Organization and Environment. Reusing a person's name alone is insufficient.
-An ambiguous or occupied alias is a conflict, not permission to overwrite it. The
-laptop agent checks effective OpenSSH settings (`ssh -G`, including wildcard/Include
-settings, host-key alias and proxies), then tests authentication, the remote account,
-the actual Folder path and remote Codex availability. A timeout alone is not proof of
-a missing network grant; diagnose the actual error before asking the Admin. F49's
-network-failure wording above is refined accordingly.
+`GET /api/ssh` also returns the actual canonical Folder path and a Codex link. The
+page owns these values; agents copy the recipe rather than infer identity, paths or
+URI parameters. The concise generated manual explains which device does which part,
+where the recipe lives, and the separate Admin-owned network grant. It delegates
+ordinary SSH setup and diagnosis to the laptop agent. The link carries `name` (the
+OpenSSH alias), `projectPath` (the canonical remote Folder) and `enabled=true`, with
+URLSearchParams encoding and no credentials. The page validates these fields before
+rendering the link. A client without this capability uses Settings → Connections → SSH.
 
-Once SSH works, the agent gives a clickable desktop link with URL-encoded `name`
-(the exact OpenSSH alias), `projectPath` (the verified absolute remote Folder path)
-and `enabled=true`. No credentials appear in the link. The desktop requests connection
-and creates or reuses a project for that host+path after successful connection and any
-required sign-in. The link cannot authorize a device, register its key, or bypass login.
-Do not report a finished project until the actual desktop shows the intended remote
-host and Folder. Manual Settings → Connections → SSH remains the fallback for clients
-without this capability. No laptop configuration or live access is changed by this PR.
+The change does not rewrite a laptop's existing aliases, revoke keys or move Codex
+history. A new binding-based alias may create a separate desktop connection from an
+old alias; the operator can retire the old connection after verifying the new one.
+The link registers a host and creates/reuses its project only once SSH works. It does
+not grant network admission or replace the laptop's private key. Desktop completion
+requires a real client acceptance check; source inspection is not that evidence.
 
 **Capability evidence.** OpenAI's [remote connections documentation](https://learn.chatgpt.com/docs/remote-connections)
 confirms concrete OpenSSH aliases, remote Codex availability and remote-folder selection.

@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import { access, open } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
+import type { MachineBinding } from "../folder/machine-binding";
 import type { ToolsEnvironment } from "../tools/overview";
 import { resolveOnPath } from "../tools/status";
 import type { KeysLocation } from "./keys";
@@ -45,6 +46,8 @@ export type SshAccessHost = KeysLocation &
     /** The Environment's public ed25519 host key file. */
     hostKeyPath: string;
     tailnet: () => Promise<TailnetName>;
+    machine?: MachineBinding | null;
+    folder?: string;
   }>;
 
 const dnsName =
@@ -142,7 +145,22 @@ export async function readHostKey(path: string): Promise<HostKey | null> {
 
 /** The name a computer gives this Environment in its SSH config: the first
  * label of the tailnet name, which is the node's own name. */
-export function sshAlias(name: string): string | null {
+export function sshAlias(
+  name: string,
+  machine?: MachineBinding | null,
+): string | null {
+  if (machine) {
+    const owner = machine.owner;
+    const scoped =
+      owner.kind === "organization"
+        ? `lazurio.org.${owner.organization}.${machine.name}`
+        : `lazurio.personal.${owner.githubLogin}.${machine.name}`;
+    // Dots delimit the independently validated GitHub and Machine names.
+    // A hyphen-only concatenation would collide for org a-b/c and a/b-c.
+    return /^[a-z0-9.-]{1,200}$/.test(scoped.toLowerCase())
+      ? scoped.toLowerCase()
+      : null;
+  }
   const alias = name.split(".")[0] ?? "";
   return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(alias) ? alias : null;
 }
@@ -160,6 +178,8 @@ export type ComputerSettings = Readonly<{
   config: string;
   /** The line for `~/.ssh/known_hosts_lazurio`. */
   knownHosts: string;
+  /** An optional desktop handoff, absent for callers without a Folder. */
+  codex?: Readonly<{ projectPath: string; url: string }>;
 }>;
 
 /** Why there are no settings for a computer yet. */
@@ -178,11 +198,15 @@ export function computerSettings(
     user: string;
     tailnet: TailnetName;
     hostKey: HostKey | null;
+    machine?: MachineBinding | null;
+    folder?: string;
   }>,
 ): ComputerAnswer {
   const missing: ComputerMissing[] = [];
   const alias =
-    input.tailnet.state === "known" ? sshAlias(input.tailnet.dnsName) : null;
+    input.tailnet.state === "known"
+      ? sshAlias(input.tailnet.dnsName, input.machine)
+      : null;
   if (input.tailnet.state === "unavailable") missing.push(input.tailnet.reason);
   else if (alias === null) missing.push("no-dns-name");
   if (input.hostKey === null) missing.push("host-key-missing");
@@ -212,6 +236,16 @@ export function computerSettings(
       "  StrictHostKeyChecking yes",
     ].join("\n"),
     knownHosts: `${alias} ${input.hostKey.type} ${input.hostKey.key}`,
+    ...(input.folder === undefined
+      ? {}
+      : {
+          codex: {
+            projectPath: input.folder,
+            // Verified in Codex Desktop 26.1007.30912. name is the SSH alias;
+            // projectPath registers the host+path project. No label/model field.
+            url: `codex://settings/connections/ssh/add?${new URLSearchParams({ name: alias, projectPath: input.folder, enabled: "true" })}`,
+          },
+        }),
   };
 }
 

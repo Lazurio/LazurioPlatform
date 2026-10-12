@@ -474,8 +474,8 @@ function hostedLines(
   const origin = machine.entry?.externalOrigin;
   return [
     pick({
-      cs: "- Když Operátor chce připojit svůj laptop přes SSH nebo připravit prompt pro Codex Desktop na laptopu, nejdřív čti oddíl Připojení laptopu a projektu Codex v `manual/this-machine.md`: použij Nastavení → SSH ze zařízení a rozliš Organizaci i Environment v aliasu a názvu připojení.",
-      en: "- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in `manual/this-machine.md`: use Settings → SSH from your devices and distinguish the Organization and Environment in the alias and connection name.",
+      cs: "- Když Operátor chce připojit svůj laptop přes SSH nebo připravit prompt pro Codex Desktop na laptopu, nejdřív čti oddíl Připojení laptopu a projektu Codex v `manual/this-machine.md`.",
+      en: "- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in `manual/this-machine.md`.",
     }),
     pick({
       cs: "- SSH na jiný Environment nebo zařízení jen na jeho tailnet hostname, s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu `100.64.0.x` (`manual/this-machine.md`).",

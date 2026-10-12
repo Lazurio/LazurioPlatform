@@ -131,7 +131,7 @@ exports[`rendered AGENTS.md snapshot: hosted-personal / cs 1`] = `
 - Profil neuděluje přístup, publikační mandát ani oprávnění k práci na pozadí. Nečti cizí Personalspace a nekopíruj přihlašovací údaje.
 - Zachovej existující cesty a obsah Organizations a Personalspace. Jazyk profilu nepřejmenovává složky ani nepřekládá uživatelská data.
 - Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.
-- Když Operátor chce připojit svůj laptop přes SSH nebo připravit prompt pro Codex Desktop na laptopu, nejdřív čti oddíl Připojení laptopu a projektu Codex v \`manual/this-machine.md\`: použij Nastavení → SSH ze zařízení a rozliš Organizaci i Environment v aliasu a názvu připojení.
+- Když Operátor chce připojit svůj laptop přes SSH nebo připravit prompt pro Codex Desktop na laptopu, nejdřív čti oddíl Připojení laptopu a projektu Codex v \`manual/this-machine.md\`.
 - SSH na jiný Environment nebo zařízení jen na jeho tailnet hostname, s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu \`100.64.0.x\` (\`manual/this-machine.md\`).
 - \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu (dřív Codex Desktop) připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
 ## Nástroje
@@ -188,7 +188,7 @@ exports[`rendered AGENTS.md snapshot: hosted-personal / en 1`] = `
 - A profile grants no access, publication mandate or background-work authority. Do not read anyone else's Personalspace or copy credentials.
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
-- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`: use Settings → SSH from your devices and distinguish the Organization and Environment in the alias and connection name.
+- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
 - \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
@@ -245,7 +245,7 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-personal / cs 1`] = `
 - Profil neuděluje přístup, publikační mandát ani oprávnění k práci na pozadí. Nečti cizí Personalspace a nekopíruj přihlašovací údaje.
 - Zachovej existující cesty a obsah Organizations a Personalspace. Jazyk profilu nepřejmenovává složky ani nepřekládá uživatelská data.
 - Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.
-- Když Operátor chce připojit svůj laptop přes SSH nebo připravit prompt pro Codex Desktop na laptopu, nejdřív čti oddíl Připojení laptopu a projektu Codex v \`manual/this-machine.md\`: použij Nastavení → SSH ze zařízení a rozliš Organizaci i Environment v aliasu a názvu připojení.
+- Když Operátor chce připojit svůj laptop přes SSH nebo připravit prompt pro Codex Desktop na laptopu, nejdřív čti oddíl Připojení laptopu a projektu Codex v \`manual/this-machine.md\`.
 - SSH na jiný Environment nebo zařízení jen na jeho tailnet hostname, s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu \`100.64.0.x\` (\`manual/this-machine.md\`).
 - \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu (dřív Codex Desktop) připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
 ## Nástroje
@@ -302,7 +302,7 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-personal / en 1`] = `
 - A profile grants no access, publication mandate or background-work authority. Do not read anyone else's Personalspace or copy credentials.
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
-- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`: use Settings → SSH from your devices and distinguish the Organization and Environment in the alias and connection name.
+- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
 - \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
@@ -359,7 +359,7 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-team / cs 1`] = `
 - Profil neuděluje přístup, publikační mandát ani oprávnění k práci na pozadí. Nečti cizí Personalspace a nekopíruj přihlašovací údaje.
 - Zachovej existující cesty a obsah Organizations a Personalspace. Jazyk profilu nepřejmenovává složky ani nepřekládá uživatelská data.
 - Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.
-- Když Operátor chce připojit svůj laptop přes SSH nebo připravit prompt pro Codex Desktop na laptopu, nejdřív čti oddíl Připojení laptopu a projektu Codex v \`manual/this-machine.md\`: použij Nastavení → SSH ze zařízení a rozliš Organizaci i Environment v aliasu a názvu připojení.
+- Když Operátor chce připojit svůj laptop přes SSH nebo připravit prompt pro Codex Desktop na laptopu, nejdřív čti oddíl Připojení laptopu a projektu Codex v \`manual/this-machine.md\`.
 - SSH na jiný Environment nebo zařízení jen na jeho tailnet hostname, s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu \`100.64.0.x\` (\`manual/this-machine.md\`).
 - \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu (dřív Codex Desktop) připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
 ## Nástroje
@@ -417,7 +417,7 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-team / en 1`] = `
 - A profile grants no access, publication mandate or background-work authority. Do not read anyone else's Personalspace or copy credentials.
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
-- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`: use Settings → SSH from your devices and distinguish the Organization and Environment in the alias and connection name.
+- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
 - \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
@@ -480,7 +480,7 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-steward / cs 1`] = `
 - Profil neuděluje přístup, publikační mandát ani oprávnění k práci na pozadí. Nečti cizí Personalspace a nekopíruj přihlašovací údaje.
 - Zachovej existující cesty a obsah Organizations a Personalspace. Jazyk profilu nepřejmenovává složky ani nepřekládá uživatelská data.
 - Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.
-- Když Operátor chce připojit svůj laptop přes SSH nebo připravit prompt pro Codex Desktop na laptopu, nejdřív čti oddíl Připojení laptopu a projektu Codex v \`manual/this-machine.md\`: použij Nastavení → SSH ze zařízení a rozliš Organizaci i Environment v aliasu a názvu připojení.
+- Když Operátor chce připojit svůj laptop přes SSH nebo připravit prompt pro Codex Desktop na laptopu, nejdřív čti oddíl Připojení laptopu a projektu Codex v \`manual/this-machine.md\`.
 - SSH na jiný Environment nebo zařízení jen na jeho tailnet hostname, s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu \`100.64.0.x\` (\`manual/this-machine.md\`).
 - \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu (dřív Codex Desktop) připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
 ## Nástroje
@@ -542,7 +542,7 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-steward / en 1`] = `
 - A profile grants no access, publication mandate or background-work authority. Do not read anyone else's Personalspace or copy credentials.
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
-- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`: use Settings → SSH from your devices and distinguish the Organization and Environment in the alias and connection name.
+- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
 - \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
@@ -603,7 +603,7 @@ Tailnet peers as the handover records them (this Environment is in the personal 
 - A profile grants no access, publication mandate or background-work authority. Do not read anyone else's Personalspace or copy credentials.
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
-- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`: use Settings → SSH from your devices and distinguish the Organization and Environment in the alias and connection name.
+- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
 - The Operator connects here over SSH. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) opens \`localhost\` from here, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
@@ -661,7 +661,7 @@ exports[`the Assignment line renders the handover's owner.assignment and nothing
 - A profile grants no access, publication mandate or background-work authority. Do not read anyone else's Personalspace or copy credentials.
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
-- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`: use Settings → SSH from your devices and distinguish the Organization and Environment in the alias and connection name.
+- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
 - \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
@@ -719,7 +719,7 @@ exports[`the Assignment line renders the handover's owner.assignment and nothing
 - A profile grants no access, publication mandate or background-work authority. Do not read anyone else's Personalspace or copy credentials.
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
-- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`: use Settings → SSH from your devices and distinguish the Organization and Environment in the alias and connection name.
+- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
 - \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
@@ -777,7 +777,7 @@ exports[`the Owner line names the Team only under hosted-organization-team 1`] =
 - A profile grants no access, publication mandate or background-work authority. Do not read anyone else's Personalspace or copy credentials.
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
-- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`: use Settings → SSH from your devices and distinguish the Organization and Environment in the alias and connection name.
+- When the Operator wants to connect their laptop over SSH or asks for a prompt for Codex Desktop on the laptop, first read Connecting a laptop and a Codex project in \`manual/this-machine.md\`.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
 - \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
