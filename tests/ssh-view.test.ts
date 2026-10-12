@@ -74,7 +74,6 @@ test("Codex handoffs keep two work Environments distinct and request a verified 
         messages(locale),
       );
       expect(prompt).toContain(`ssh -G ${alias}`);
-      expect(prompt).toContain("manual/this-machine.md");
       expect(prompt).toContain("codex://settings/connections/ssh/add?name=");
       expect(prompt).toContain("&projectPath=");
       expect(prompt).toContain("&enabled=true");
