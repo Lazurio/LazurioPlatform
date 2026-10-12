@@ -7278,6 +7278,9 @@ been measured yet.
   without a document is `new-tab-view.ts`: the overview read field by field, the address
   bar, the memory and its tone, "when last used", who opened a tab, the order, the
   warning, the toast, the Modules' names from the boot catalog and the suggestions.
+- The Czech copy of the page and the panel addresses the person formally (vykání), as the
+  brand rule of 2026-10-11 asks of the whole Launchpad; where the wireframe speaks
+  informally, the rule wins.
 - The address bar opens a link to a tab of this Environment's view as that tab. It never
   opens an address of another Environment's view: it says so, as the wireframe does, with
   a link that opens it in a tab of the person's own browser. An http(s) or host-like
