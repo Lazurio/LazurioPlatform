@@ -1,16 +1,72 @@
-import { describe, expect, test } from "bun:test";
-import { restartStaleBrowserView } from "../src/browser/units";
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  type BrowserEntry,
+  browserViewUnit,
+  renderBrowserViewUnit,
+  restartStaleBrowserView,
+} from "../src/browser/units";
+import { renderLaunchpadUnit } from "../src/update/install";
+import { layout } from "../src/update/layout";
 import type { ProcessResult } from "../src/update/self-check";
+import { launchpadUnit, unitMarker } from "../src/update/service-control";
 
 // The view keeps running the installation it started with after an update,
-// whose convergence does not restart it (its unit text stays the same). The
-// Launchpad, which every update restarts, restarts a view that runs another
-// installation (decision F47).
+// whose convergence does not restart it (its unit text stays the same, #334).
+// The supervised Launchpad, which every update restarts, restarts the view
+// only when the view's unit is the installer's for this base and entry (its
+// marker and its exact ExecStart line), and the Launchpad itself is the
+// installed version (Pablo's review of #336).
 
-const own = "/home/person/.local/share/lazurio/versions/0.1.8-rc.52/lazurio";
-const older = "/home/person/.local/share/lazurio/versions/0.1.8-rc.51/lazurio";
+const entry: BrowserEntry = Object.freeze({
+  origin: "https://browser.vm.example.lazurio.io",
+  listenPort: 4848,
+});
+const homes: string[] = [];
+afterEach(async () => {
+  for (const home of homes.splice(0))
+    await rm(home, { recursive: true, force: true });
+});
 
-function harness(
+/** A home whose user units are as `units` says, and a base in it. `view`
+ * gives the view unit's text from the base's selector (null: no unit); the
+ * installer's own text by default. */
+async function world(
+  units: Readonly<{
+    launchpad?: "ours" | "other-base" | "none";
+    view?: (selector: string) => string | null;
+  }> = {},
+) {
+  const home = await mkdtemp(join(tmpdir(), "view-refresh-"));
+  homes.push(home);
+  const base = join(home, ".local", "share", "lazurio");
+  const directory = join(home, ".config", "systemd", "user");
+  await mkdir(directory, { recursive: true });
+  const folder = join(home, "Lazurio");
+  if ((units.launchpad ?? "ours") === "ours")
+    await writeFile(
+      join(directory, launchpadUnit),
+      renderLaunchpadUnit(base, folder),
+    );
+  if (units.launchpad === "other-base")
+    await writeFile(
+      join(directory, launchpadUnit),
+      renderLaunchpadUnit(join(home, "other-base"), folder),
+    );
+  const selector = layout(base).selector;
+  const view = (
+    units.view ?? ((own: string) => renderBrowserViewUnit(entry, own))
+  )(selector);
+  if (view !== null) await writeFile(join(directory, browserViewUnit), view);
+  return { home, base, selector };
+}
+
+const installed = "/versions/0.1.8-rc.52/lazurio";
+const older = "/versions/0.1.8-rc.51/lazurio";
+
+function runner(
   answers: Readonly<{ pid?: string; show?: ProcessResult; restart?: number }>,
 ) {
   const commands: string[][] = [];
@@ -23,112 +79,146 @@ function harness(
   return { commands, run };
 }
 
-describe("a view that runs another installation is restarted", () => {
+async function refresh(
+  w: Awaited<ReturnType<typeof world>>,
+  r: ReturnType<typeof runner>,
+  options: Readonly<{
+    running?: string;
+    own?: string;
+    readlinkFails?: boolean;
+  }> = {},
+) {
+  return restartStaleBrowserView({
+    base: w.base,
+    platform: "linux",
+    entry,
+    run: r.run,
+    env: { HOME: w.home },
+    executable: "/process/exec/path",
+    realpath: async (path) =>
+      path === w.selector ? installed : (options.own ?? installed),
+    readlink: async () => {
+      if (options.readlinkFails) throw new Error("EACCES");
+      return options.running ?? older;
+    },
+  });
+}
+
+const restarts = (r: ReturnType<typeof runner>) =>
+  r.commands.filter((command) => command.includes("try-restart"));
+
+describe("the supervised Launchpad restarts its own view when it runs another installation", () => {
   test("a view of an older installation is restarted, and one of this installation is not", async () => {
-    const stale = harness({ pid: "4242" });
-    expect(
-      await restartStaleBrowserView({
-        run: stale.run,
-        env: {},
-        executable: own,
-        readlink: async () => older,
-        realpath: async (path) => path,
-      }),
-    ).toBe("restarted");
-    expect(stale.commands.at(-1)).toEqual([
-      "systemctl",
-      "--user",
-      "try-restart",
-      "lazurio-browser-view.service",
+    const w = await world();
+    const stale = runner({ pid: "4242" });
+    expect(await refresh(w, stale)).toBe("restarted");
+    expect(restarts(stale)).toEqual([
+      ["systemctl", "--user", "try-restart", browserViewUnit],
     ]);
-    const current = harness({ pid: "4242" });
-    expect(
-      await restartStaleBrowserView({
-        run: current.run,
-        env: {},
-        executable: own,
-        readlink: async () => own,
-        realpath: async (path) => path,
-      }),
-    ).toBe("current");
-    expect(current.commands.some((c) => c.includes("try-restart"))).toBe(false);
+    const current = runner({ pid: "4242" });
+    expect(await refresh(w, current, { running: installed })).toBe("current");
+    expect(restarts(current)).toEqual([]);
   });
 
   test("a view whose file was replaced is restarted", async () => {
-    const replaced = harness({ pid: "4242" });
+    const w = await world();
+    const replaced = runner({ pid: "4242" });
     expect(
-      await restartStaleBrowserView({
-        run: replaced.run,
-        env: {},
-        executable: own,
-        readlink: async () => `${own} (deleted)`,
-        realpath: async (path) => path,
-      }),
+      await refresh(w, replaced, { running: `${installed} (deleted)` }),
     ).toBe("restarted");
   });
 
-  test("our executable is compared by its real path", async () => {
-    const viaSelector = harness({ pid: "4242" });
-    expect(
-      await restartStaleBrowserView({
-        run: viaSelector.run,
-        env: {},
-        executable: "/home/person/.local/share/lazurio/bin/lazurio",
-        readlink: async () => own,
-        realpath: async () => own,
-      }),
-    ).toBe("current");
+  test("a unit the installer wrote in another version's words is still the view's own", async () => {
+    const w = await world({
+      view: (own) =>
+        renderBrowserViewUnit(entry, own).replace(
+          /^Description=.*$/m,
+          "Description=The view, as an older installer described it",
+        ),
+    });
+    const r = runner({ pid: "4242" });
+    expect(await refresh(w, r)).toBe("restarted");
   });
 
-  test("no running view, an unknown manager or an unreadable process changes nothing", async () => {
-    for (const pid of ["0", "", "x"]) {
-      const idle = harness({ pid });
-      expect(
-        await restartStaleBrowserView({
-          run: idle.run,
-          env: {},
-          executable: own,
-          readlink: async () => older,
-          realpath: async (path) => path,
-        }),
-      ).toBe("not-running");
-      expect(idle.commands.some((c) => c.includes("try-restart"))).toBe(false);
+  test("a unit of the view's name that is not the installer's for this base and entry is never restarted, nor even asked", async () => {
+    const others: Readonly<Record<string, (own: string) => string>> = {
+      "someone else's": () =>
+        "[Unit]\nDescription=someone else's view\n[Service]\nExecStart=/usr/bin/true\n",
+      "without the marker": (own) =>
+        renderBrowserViewUnit(entry, own).slice(unitMarker.length + 1),
+      "of another base": () =>
+        renderBrowserViewUnit(entry, "/elsewhere/.local/bin/lazurio"),
+      "of another port": (own) =>
+        renderBrowserViewUnit({ ...entry, listenPort: 4849 }, own),
+      "of another origin": (own) =>
+        renderBrowserViewUnit(
+          { ...entry, origin: "https://browser.other.example.lazurio.io" },
+          own,
+        ),
+    };
+    for (const [name, view] of Object.entries(others)) {
+      const w = await world({ view });
+      const r = runner({ pid: "4242" });
+      expect([name, await refresh(w, r)]).toEqual([name, "foreign-unit"]);
+      expect(r.commands).toEqual([]);
     }
-    const unknown = harness({ show: "timeout" });
+  });
+
+  test("an unsupervised base, or the unit of another base, changes nothing", async () => {
+    for (const launchpad of ["none", "other-base"] as const) {
+      const w = await world({ launchpad });
+      const r = runner({ pid: "4242" });
+      expect(await refresh(w, r)).toBe("not-supervised");
+      expect(r.commands).toEqual([]);
+    }
+    const w = await world();
+    const r = runner({ pid: "4242" });
     expect(
       await restartStaleBrowserView({
-        run: unknown.run,
-        env: {},
-        executable: own,
+        base: w.base,
+        platform: "darwin",
+        entry,
+        run: r.run,
+        env: { HOME: w.home },
+        executable: installed,
       }),
-    ).toBe("unknown");
-    const unreadable = harness({ pid: "4242" });
-    expect(
-      await restartStaleBrowserView({
-        run: unreadable.run,
-        env: {},
-        executable: own,
-        readlink: async () => {
-          throw new Error("EACCES");
-        },
-        realpath: async (path) => path,
-      }),
-    ).toBe("unknown");
-    expect(unreadable.commands.some((c) => c.includes("try-restart"))).toBe(
-      false,
+    ).toBe("not-supervised");
+    expect(r.commands).toEqual([]);
+  });
+
+  test("a Launchpad that is not the installed version (a source checkout) changes nothing", async () => {
+    const w = await world();
+    const r = runner({ pid: "4242" });
+    expect(await refresh(w, r, { own: "/source/checkout/lazurio" })).toBe(
+      "not-installed",
     );
+    expect(r.commands).toEqual([]);
+  });
+
+  test("no view unit, no running view, an unknown manager or an unreadable process change nothing", async () => {
+    const none = await world({ view: () => null });
+    const noUnit = runner({ pid: "4242" });
+    expect(await refresh(none, noUnit)).toBe("not-running");
+    expect(noUnit.commands).toEqual([]);
+    const w = await world();
+    for (const pid of ["0", "", "x"]) {
+      const idle = runner({ pid });
+      expect(await refresh(w, idle)).toBe("not-running");
+      expect(restarts(idle)).toEqual([]);
+    }
+    const unknown = runner({ show: "timeout" });
+    expect(await refresh(w, unknown)).toBe("unknown");
+    const unreadable = runner({ pid: "4242" });
+    expect(await refresh(w, unreadable, { readlinkFails: true })).toBe(
+      "unknown",
+    );
+    expect(restarts(unreadable)).toEqual([]);
   });
 
   test("a restart the manager refuses is reported", async () => {
-    const refused = harness({ pid: "4242", restart: 1 });
-    expect(
-      await restartStaleBrowserView({
-        run: refused.run,
-        env: {},
-        executable: own,
-        readlink: async () => older,
-        realpath: async (path) => path,
-      }),
-    ).toBe("failed");
+    const w = await world();
+    expect(await refresh(w, runner({ pid: "4242", restart: 1 }))).toBe(
+      "failed",
+    );
   });
 });

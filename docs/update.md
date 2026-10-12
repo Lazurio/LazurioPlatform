@@ -610,7 +610,9 @@ and started. `install` and `update` never stop or restart the screen. They resta
 browser only when its own text changed: a new flag or a new extension, whose digest is
 in the text. That restart closes every window; agents open theirs again, and the
 profile keeps its sign-ins (F39 point 10). They restart the view when its own text
-changed. The result carries
+changed; after an update, the supervised Launchpad also restarts its own view when that
+still runs another installation ([F47](decisions.md#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview),
+"The view after an update"). The result carries
 `environmentBrowser`: `{"state":"enabled"}`, `{"state":"skipped-not-hosted"}`,
 `{"state":"skipped-not-declared"}` (no `entry.browser`; nothing is written or stopped),
 `{"state":"foreign-unit","unit","next"}` or `{"state":"failed","step","next"}`; never a
