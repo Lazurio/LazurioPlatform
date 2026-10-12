@@ -120,8 +120,10 @@ h1, h2, h3, h4 { margin: 0; font-size: 14px; }
 .icon { width: 16px; height: 16px; flex: none; }
 
 /* The frame: the rail is fixed on the left and sets --lazurio-rail-width;
-   the app sits beside it on the white surface, as a fork's root does. */
-.app { display: flex; min-height: 100vh; margin-left: var(--lazurio-rail-width, 64px); background: var(--bg); border-left: 1px solid var(--lz-line); }
+   the app sits beside it on the white surface, as a fork's root does. It
+   clips what slides past its right edge (the right panel coming and going),
+   without becoming a scroller, so the column and the panel still stick. */
+.app { display: flex; min-height: 100vh; margin-left: var(--lazurio-rail-width, 64px); background: var(--bg); border-left: 1px solid var(--lz-line); overflow-x: clip; }
 .column { position: sticky; top: 0; z-index: 20; display: flex; flex: none; flex-direction: column; gap: 10px; width: var(--column-width); height: 100vh; padding: 16px 10px 10px; background: var(--lz-gray-25); border-right: 1px solid var(--lz-line-faint); }
 .column-apps, .column-settings { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 10px; }
 .column-scroll { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 14px; overflow-y: auto; }
@@ -569,7 +571,17 @@ button.mcp-save { flex: none; height: 34px; padding: 0 16px; font-size: 14px; }
 button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); color: var(--fg); }
 .apps-head .browser-toggle, .market-head .browser-toggle, .integrations-head .browser-toggle { font-weight: var(--lz-weight-akce); }
 .market-head .browser-toggle { margin-left: auto; }
-.browser-panel { position: sticky; top: 0; z-index: 3; display: flex; flex: none; flex-direction: column; width: clamp(360px, calc((100vw - var(--lazurio-rail-width, 64px) - var(--column-width)) / 2), 960px); height: 100vh; background: var(--card); border-left: 1px solid var(--lz-line-faint); }
+/* The panel slides in from the window's right edge and back out (Matěj
+   2026-10-12): beside the page its margin gives way, so the page makes room
+   while the panel keeps its width and what it shows does not reflow; as a
+   sheet it comes in from the right. 200 ms, the length browser-panel.ts
+   waits before it hides the panel; none with reduced motion. */
+.browser-panel { --browser-panel-width: clamp(360px, calc((100vw - var(--lazurio-rail-width, 64px) - var(--column-width)) / 2), 960px); position: sticky; top: 0; z-index: 3; display: flex; flex: none; flex-direction: column; width: var(--browser-panel-width); height: 100vh; background: var(--card); border-left: 1px solid var(--lz-line-faint); animation: browser-panel-in 200ms ease-out; }
+.browser-panel.is-leaving { animation: browser-panel-out 200ms ease-in forwards; }
+@keyframes browser-panel-in { from { margin-right: calc(-1 * var(--browser-panel-width)); } }
+@keyframes browser-panel-out { to { margin-right: calc(-1 * var(--browser-panel-width)); } }
+@keyframes browser-sheet-in { from { opacity: 0; transform: translateX(32px); } }
+@keyframes browser-sheet-out { to { opacity: 0; transform: translateX(32px); } }
 .browser-title:focus { outline: none; }
 /* The strip (decision F47 point 9, the wireframe's BrowserPanel): the tabs
    the Launchpad holds and its Nová karta entries, then "+", and the panel's
@@ -618,7 +630,10 @@ button.browser-action, a.browser-action { flex: none; width: 30px; padding: 0; }
 .browser-toast-line:not(:has(button)) { padding-right: 8px; }
 .browser-toast-line.is-note { color: var(--muted-fg); }
 button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; padding: 0 10px; }
-@media (max-width: 1099px) { .browser-panel { position: fixed; inset: 0; z-index: 50; width: auto; height: auto; border-left: 0; } }
+@media (max-width: 1099px) {
+  .browser-panel { position: fixed; inset: 0; z-index: 50; width: auto; height: auto; border-left: 0; animation-name: browser-sheet-in; }
+  .browser-panel.is-leaving { animation-name: browser-sheet-out; }
+}
 @media (max-width: 767px) { .browser-toggle-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
 
 /* Narrow viewport: the column is an off-canvas sheet beside the rail,
@@ -683,7 +698,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
 .tour-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
 button.tour-quit { height: auto; margin-left: auto; padding: 0; border: 0; background: transparent; color: var(--muted-fg); font-size: 12px; font-weight: 400; }
 button.tour-quit:hover { background: transparent; color: var(--fg); }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } .spinner { animation: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } .spinner, .browser-panel, .browser-panel.is-leaving { animation: none; } }
 </style>
 <noscript><style>body { visibility: visible !important; animation: none !important; }</style></noscript>
 </head>

@@ -62,8 +62,9 @@ export type PanelTransport = (
 // panel (Matěj's tuning of 2026-10-12). A tab is shown here only once the
 // Launchpad holds it. Closed on every page load; what it shows is
 // browser-panel-view.ts. A closed panel mounts no frame, so it streams and
-// reads nothing. Below 1100 px it covers the window like a sheet and what
-// lies behind it is inert.
+// reads nothing. It slides in and out (Matěj 2026-10-12), never with reduced
+// motion. Below 1100 px it covers the window like a sheet and what lies
+// behind it is inert.
 export function createBrowserPanel(
   options: Readonly<{
     copy: () => Copy;
@@ -99,9 +100,13 @@ export function createBrowserPanel(
     find<HTMLElement>(selector),
   );
   const sheet = window.matchMedia("(max-width: 1099px)");
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const words = () => newTabCopy(options.locale());
 
   let open = false;
+  /** While the closed panel slides out: it stays drawn, inert, until this
+   * timer hides it. */
+  let leaving: ReturnType<typeof setTimeout> | undefined;
   let state: StripState = emptyStrip;
   /** What the body shows: one tab's view, or one Nová karta of the strip. */
   let surface:
@@ -276,6 +281,8 @@ export function createBrowserPanel(
    * the strip's other Nová karta entries cost nothing. The sentence instead
    * of a frame, or null. */
   function drawSurface(shown: StripEntry | null): string | null {
+    // Sliding out, the panel keeps what it showed until it is hidden.
+    if (leaving !== undefined) return null;
     const origin = options.origin();
     if (!open || origin === null || shown === null) {
       removeSurface();
@@ -360,7 +367,7 @@ export function createBrowserPanel(
   }
 
   function draw(force = false) {
-    panel.hidden = !open;
+    panel.hidden = !open && leaving === undefined;
     for (const toggle of toggles)
       toggle.setAttribute("aria-expanded", String(open));
     const shown = shownEntry(state);
@@ -598,8 +605,33 @@ export function createBrowserPanel(
 
   // ---- Opening and closing the panel -----------------------------------------
 
+  // The Browser toggle slides the panel in and out (Matěj 2026-10-12): it
+  // slides in by its stylesheet's animation whenever it is shown again, and
+  // out for as long below, before it is hidden and drops its frame. With
+  // reduced motion it just appears and goes.
+  const motionMs = 200;
+
+  function slideOut() {
+    if (reducedMotion.matches) return;
+    panel.classList.add("is-leaving");
+    panel.inert = true;
+    leaving = setTimeout(() => {
+      stopSliding();
+      draw();
+    }, motionMs);
+  }
+
+  /** The panel shows again while it slides out, or has gone. */
+  function stopSliding() {
+    clearTimeout(leaving);
+    leaving = undefined;
+    panel.classList.remove("is-leaving");
+    panel.inert = false;
+  }
+
   function show() {
     if (open || options.origin() === null) return;
+    stopSliding();
     open = true;
     closedOn = null;
     dispatch({ kind: "opened" });
@@ -619,6 +651,7 @@ export function createBrowserPanel(
     if (tab === null || tabViewAddress(origin, tab, location.origin) === null)
       return false;
     const opening = !open;
+    stopSliding();
     open = true;
     closedOn = null;
     dispatch({ kind: "show", tab });
@@ -638,6 +671,7 @@ export function createBrowserPanel(
     // A hidden strip loses its scroll: the next opening draws it anew, with
     // the shown entry in view.
     drawnStrip = "";
+    slideOut();
     draw();
     // Back to the toggle of the page shown.
     if (returnFocus)
