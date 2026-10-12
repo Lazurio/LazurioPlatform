@@ -421,7 +421,7 @@ const indexPage =
   () => `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><title>Nová karta – preview</title>
 <style>body{margin:0;padding:40px;font:15px/1.5 system-ui,sans-serif;color:#1a1a1a}a{color:#0d12db}li{margin:6px 0}code{font-size:13px}</style></head>
 <body><h1>Nová karta – preview (F47 step 3)</h1><ul>
-<li><a href="/">/</a> – the Launchpad's page: Prohlížeč opens the right panel with the strip of every tab, "+" and Nová karta (strip <code>launchpad</code>, focus-address). A tab's frame shows the browser's error page: the view's origin is synthetic.</li>
+<li><a href="/">/</a> – the Launchpad's page: Prohlížeč opens the right panel with the strip of the tabs the Launchpad holds, "+" and Nová karta (strip <code>launchpad</code>, focus-address). A tab's frame shows the browser's error page: the view's origin is synthetic.</li>
 <li><a href="/new-tab">/new-tab</a> – standalone, as Codex Desktop's browser opens it: strip <code>launchpad</code>, no tools, the address bar takes the focus; a choice navigates this window to the tab's (synthetic, unreachable) view.</li>
 <li><a href="/host">/host</a> – inside <code>&lt;lazurio-new-tab&gt;</code> with T3 Code's tools and the strip <code>t3-x</code>; choices are logged, never navigated.</li>
 </ul><p>Everything here is fake: five tabs, memory at about 85 %, two running Modules. A close ends a tab after 8 s; Vrátit within them brings it back.</p>
