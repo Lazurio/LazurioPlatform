@@ -745,10 +745,9 @@ async function load() {
     revision: current.revision,
     machine: current.machine?.name ?? null,
   };
-  // "Obsah Environmentu" only where the Environment signs in as its person.
-  const person = signsInAsPerson(current.preset.name);
-  content.show(person);
-  if (person && !first) void content.refresh();
+  // The content core owns availability; a persona account uses the same
+  // content operation as a person's work Environment.
+  if (!first) void content.refresh();
   renderUpdate();
   // A Team Environment's folder is the whole Team's.
   files.shared(current.preset.name === "hosted-organization-team");
@@ -794,13 +793,13 @@ async function load() {
 }
 /** Reads, once, what only Settings show and the first run's line needs: the
  * tools with their sign-ins, which may ask the providers, and where the
- * Environment signs in as its person its content, which asks GitHub. Never
+ * content core admits it its content, which asks GitHub. Never
  * on the way to the page's first paint (F36's addendum of 2026-10-08). */
 function readBackground() {
   if (backgroundRead || !loaded) return;
   backgroundRead = true;
   void tools.refresh();
-  if (signsInAsPerson(current.preset.name)) void content.refresh();
+  void content.refresh();
 }
 /** Runs `task` once the page is idle, at the latest after two seconds. */
 function whenIdle(task: () => void) {

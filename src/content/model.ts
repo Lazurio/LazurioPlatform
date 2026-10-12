@@ -9,9 +9,9 @@ import type { PresetName } from "../folder/presets";
 //   Personalspace;
 // - `hosted-personal` (the person's personal Remote Environment): only the
 //   Personalspace, never an Organization repository;
-// - `hosted-organization-personal` (a work Environment assigned to one
-//   operator): only the Organization of its handover, never a Personalspace;
-// - `hosted-organization-team` and `hosted-organization-steward`: content the
+// - `hosted-organization-personal` and `hosted-organization-steward`: only
+//   the Organization of the handover, never a Personalspace;
+// - `hosted-organization-team`: content the
 //   hosting prepares; this operation reports them and does nothing there.
 // Nothing here grants access: GitHub decides at every operation boundary.
 
@@ -40,7 +40,7 @@ export type ContentItem =
     }>;
 
 /** Why this Environment does not install content at all, or not this item:
- * `prepared-by-hosting` (a Team or Automated Environment, whose content the
+ * `prepared-by-hosting` (a Team Environment, whose content the
  * hosting prepares), `not-for-this-environment` (an item its kind never
  * holds), `folder-unreadable` (the Folder's state could not be read). */
 export type ContentRefusal =
@@ -169,6 +169,7 @@ export function contentScope(
             : null,
       });
     case "hosted-organization-personal":
+    case "hosted-organization-steward":
       // A work Environment holds the Organization of its handover only. A
       // binding without one (impossible for this preset) admits nothing.
       return machine?.owner.kind === "organization"
@@ -185,7 +186,6 @@ export function contentScope(
             personalOwner: null,
           });
     case "hosted-organization-team":
-    case "hosted-organization-steward":
       return Object.freeze({ allowed: false, reason: "prepared-by-hosting" });
   }
 }

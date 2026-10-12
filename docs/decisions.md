@@ -450,6 +450,43 @@ upgrades tools or runs data migrations. Content synchronization is explicit only
 blocks on dirty or wrong-branch checkouts instead of stashing and switching, a
 deliberate change from the legacy engine that requires the 0129 amendment above.
 
+### Amendment of 2026-10-12: ordinary content installation for Automated Environments
+
+**Decided by Matěj in the Henry commissioning task (DEV-6632).** An Automated
+Environment is an ordinary Organization work Environment whose tools use the
+persona's own GitHub account, with a responsible human Operator. Its profile
+instructs autonomous work within the mandate; it creates no person, role, grant
+or separate content lifecycle. This supersedes only the Automated Environment's
+`prepared-by-hosting` clause below. The brokered Team Environment stays unchanged.
+
+Use the existing content core for `hosted-organization-steward` with exactly the
+handover's Organization and no Personalspace, as for an individual work
+Environment. Resolve the installed scope from the signed-in account's live rights;
+a Write account may use the Builder form even when its persona is named Steward.
+CLI and Launchpad expose the same explicit operation. Settings follows the core's
+content availability rather than the first-run tour's person classification.
+
+| Alternative | Decision |
+| --- | --- |
+| Deliver Organization source as a hosting archive | Reject for account-based Automated setup: a second content path, unable to clone modules by the signed-in account, and rejects ordinary tracked symlinks |
+| Relabel the Environment as a person's to pass the old gate | Reject: hides its real assignment and loses the responsible-human/persona distinction |
+| Use the existing work-content operation under the persona's account | Selected: same Git preservation, provider role, restricted-slot and preparation contracts; no extra installer or ACL |
+
+Failures remain the ordinary ones: signed-out or unverified rights fail before a
+clone; another Organization and Personalspace are refused; occupied/dirty existing
+content is preserved; unreadable children are reported. Never run installation
+implicitly on login, start or product upgrade. No account elevation, admission,
+MausBot permission or publication mandate is implied. The first-run tour is not
+changed by this content operation.
+
+Acceptance uses an Automated handover and a separate persona login with Write,
+real Git root/module clones including a tracked internal symlink, a second run
+preserving local work, sign-out failure, and CLI/Launchpad admission and scope
+checks. The actual consumer must subsequently use released, attested Platform
+bytes, install its Organization normally and show modules in the browser before
+its real PR review pilot is called active. Product update and content install are
+separate explicit steps. Existing installed content is never rebuilt on rollout.
+
 ### Addendum of 2026-10-04: content installation, the Personalspace and the presets
 
 **Decided by Matěj (Organization Admin) on 2026-10-04; root decision 0188 in

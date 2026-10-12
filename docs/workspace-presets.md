@@ -130,7 +130,11 @@ OpenMausBot. `hosted-organization-steward` is that Environment's preset:
   automation and answers for it. Only the operator connects over SSH, for service
   interventions; colleagues work with the persona through GitHub. Personalspace is
   never present; Organization repositories are mounted under `organizations/<org>/`
-  exactly as on the other Organization presets.
+  exactly as on the other Organization presets. The responsible operator installs
+  them with the ordinary explicit content operation in Settings or
+  `lazurio organization install`, under the persona's live GitHub role; the
+  Automated label neither grants Steward rights nor requires a hosting archive
+  (F9 amendment of 2026-10-12).
 - **Provider identity `persona-account`.** The persona's own GitHub user account
   (a bot account), one per Organization (not a GitHub App: a code owner, a requested reviewer
   and an assignee must be users). It is neither the operator's account nor Lazurio for

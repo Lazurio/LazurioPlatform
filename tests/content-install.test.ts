@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { lstat, readdir, readFile } from "node:fs/promises";
+import { lstat, readdir, readFile, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { installContent, planContentInstall } from "../src/content/install";
 import { tryContentLock } from "../src/content/lock";
@@ -1144,28 +1144,31 @@ posixTest(
       personalspace,
     ]);
 
-    // A work Environment: only its own Organization.
-    const work = await presetFolder(
-      world,
-      "hosted-organization-personal",
-      bindings.organization,
-    );
-    expect(await contentStatus(work, host)).toEqual({
-      allowed: true,
-      items: [{ kind: "organization", login: "example", state: "absent" }],
-    });
-    for (const item of [
-      personalspace,
-      { kind: "organization", login: "other" } as const,
-    ])
-      expect(await planContentInstall(work, { items: [item] }, host)).toEqual({
-        kind: "not-allowed",
-        reason: "not-for-this-environment",
+    // Both account-based work Environments hold only their own Organization.
+    for (const [preset, machine] of [
+      ["hosted-organization-personal", bindings.organization],
+      ["hosted-organization-steward", bindings.automated],
+    ] as const) {
+      const work = await presetFolder(world, preset, machine);
+      expect(await contentStatus(work, host)).toEqual({
+        allowed: true,
+        items: [{ kind: "organization", login: "example", state: "absent" }],
       });
-    const workPlan = await planContentInstall(work, {}, host);
-    expect(workPlan.kind === "planned" && workPlan.items).toEqual([
-      organization,
-    ]);
+      for (const item of [
+        personalspace,
+        { kind: "organization", login: "other" } as const,
+      ])
+        expect(await planContentInstall(work, { items: [item] }, host)).toEqual(
+          {
+            kind: "not-allowed",
+            reason: "not-for-this-environment",
+          },
+        );
+      const workPlan = await planContentInstall(work, {}, host);
+      expect(workPlan.kind === "planned" && workPlan.items).toEqual([
+        organization,
+      ]);
+    }
 
     // The person's own computer: its Organizations and the Personalspace.
     const local = await presetFolder(world, "local");
@@ -1187,10 +1190,9 @@ posixTest(
       },
     ]);
 
-    // Team and Automated Environments: prepared by the hosting.
+    // The brokered Team Environment remains prepared by the hosting.
     for (const [preset, machine] of [
       ["hosted-organization-team", bindings.assignedTeam],
-      ["hosted-organization-steward", bindings.automated],
     ] as const) {
       const folder = await presetFolder(world, preset, machine);
       expect(await contentStatus(folder, host)).toEqual({
@@ -1204,6 +1206,76 @@ posixTest(
       ).toEqual({ kind: "not-allowed", reason: "prepared-by-hosting" });
       expect(steps).toEqual([]);
     }
+  },
+  60_000,
+);
+
+posixTest(
+  "an Automated Environment installs ordinary Git content as its signed-in account, without a Steward grant",
+  async () => {
+    world = await createWorld();
+    if (bindings.automated.owner.kind !== "organization")
+      throw new Error("Wrong fixture owner");
+    await remoteRepository(world, "Alpha/alpha_GEN3", async (directory) => {
+      await writeOrganizationRoot(directory, {
+        slug: "alpha",
+        forge: "Alpha",
+        root: "Alpha/alpha_GEN3",
+        slots: [alphaSlots[0] as Slot],
+      });
+      await writeFile(join(directory, "content.txt"), "tracked content");
+      await symlink("content.txt", join(directory, "content-link"));
+    });
+    await remoteRepository(world, "Alpha/web", (directory) =>
+      writeModule(directory, "alpha", { id: "web" }),
+    );
+    const folder = await presetFolder(world, "hosted-organization-steward", {
+      ...bindings.automated,
+      owner: {
+        ...bindings.automated.owner,
+        kind: "organization",
+        organization: "alpha",
+      },
+    });
+    const { github } = stubGitHub(world, {
+      viewer: {
+        kind: "signed-in",
+        viewer: { login: "alpha-helper", databaseId: 45678 },
+      },
+      membership: { kind: "member", role: "member", state: "active" },
+      repositories: {
+        "Alpha/alpha_GEN3": { permission: "write" },
+        "Alpha/web": { permission: "write" },
+      },
+    });
+    const host = contentHost(world, github);
+    const result = await installContent(folder, {}, () => {}, host);
+    expect(result.kind === "content-install" && result.state).toBe("succeeded");
+    expect(result.kind === "content-install" && result.items[0]?.role).toBe(
+      "builder",
+    );
+    const root = join(folder, "organizations", "alpha_GEN3");
+    expect(await exists(join(root, "workspace", "web", ".git"))).toBe(true);
+    expect((await lstat(join(root, "content-link"))).isSymbolicLink()).toBe(
+      true,
+    );
+    expect(await readFile(join(root, "content-link"), "utf8")).toBe(
+      "tracked content",
+    );
+    await writeFile(join(root, "content.txt"), "resident work");
+    await installContent(folder, {}, () => {}, host);
+    expect(await readFile(join(root, "content.txt"), "utf8")).toBe(
+      "resident work",
+    );
+    const signedOut = stubGitHub(world, { viewer: { kind: "signed-out" } });
+    const steps: ContentStep[] = [];
+    await installContent(
+      folder,
+      {},
+      (step) => steps.push(step),
+      contentHost(world, signedOut.github),
+    );
+    expect(summary(steps)).toEqual(["access:failed:github-signed-out"]);
   },
   60_000,
 );

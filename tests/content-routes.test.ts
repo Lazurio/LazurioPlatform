@@ -685,3 +685,99 @@ posixTest(
       ).rejects.toBeInstanceOf(ContentUsageError);
   },
 );
+
+posixTest(
+  "the Automated account installs its Organization through both CLI and Launchpad",
+  async () => {
+    world = await createWorld();
+    if (bindings.automated.owner.kind !== "organization")
+      throw new Error("Wrong fixture owner");
+    await alphaRemotes(world);
+    const machine = {
+      ...bindings.automated,
+      owner: {
+        ...bindings.automated.owner,
+        kind: "organization" as const,
+        organization: "alpha",
+      },
+    };
+    const { github } = stubGitHub(world, {
+      viewer: {
+        kind: "signed-in",
+        viewer: { login: "alpha-helper", databaseId: 45678 },
+      },
+      membership: { kind: "member", state: "active", role: "member" },
+      repositories: {
+        "Alpha/alpha_GEN3": { permission: "write" },
+        "Alpha/web": { permission: "write" },
+        "Alpha/mission-control": { permission: "write" },
+        "Alpha/firmware": { permission: "write" },
+      },
+    });
+    const host = contentHost(world, github);
+    const cliFolder = await presetFolder(
+      world,
+      "hosted-organization-steward",
+      machine,
+    );
+    const lines: string[] = [];
+    expect(
+      await runContentCommand(
+        [
+          "organization",
+          "install",
+          "Alpha",
+          "--role",
+          "builder",
+          "--folder",
+          cliFolder,
+          "--json",
+        ],
+        cliContext(world.home),
+        (line) => lines.push(line),
+        () => host,
+      ),
+    ).toBe(0);
+    expect(JSON.parse(lines.at(-1) as string).items[0].role).toBe("builder");
+    const folder = await presetFolder(
+      world,
+      "hosted-organization-steward",
+      machine,
+    );
+    const { get, post } = await launchpad(folder, host);
+    expect(await (await get("/api/content")).json()).toEqual({
+      allowed: true,
+      items: [{ kind: "organization", login: "alpha", state: "absent" }],
+    });
+    for (const item of [
+      { kind: "personalspace" },
+      { kind: "organization", login: "Other" },
+    ]) {
+      const refused = await post("/api/content/install", { items: [item] });
+      expect(refused.status).toBe(403);
+      expect(await refused.json()).toEqual({
+        error: "not-allowed",
+        reason: "not-for-this-environment",
+      });
+    }
+    const started = await post("/api/content/install", {});
+    expect(started.status).toBe(202);
+    const { job } = (await started.json()) as { job: string };
+    const ended = (await untilEnded(get, job)) as {
+      state: string;
+      steps: { key: string; detail?: string }[];
+    };
+    expect(ended.state).toBe("succeeded");
+    expect(ended.steps.find((step) => step.key === "access")?.detail).toBe(
+      "as alpha-helper (builder, restricted slots excluded); root Alpha/alpha_GEN3 (by name)",
+    );
+    expect(
+      (
+        (await (await get("/api/content")).json()) as {
+          items: { state: string }[];
+        }
+      ).items[0]?.state,
+    ).toBe("present");
+  },
+  60_000,
+);

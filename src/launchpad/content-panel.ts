@@ -18,9 +18,9 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // `lazurio personalspace install`, through the content routes. While it
 // runs the steps say in plain words what happens; when one stops, one plain
 // sentence, the technical detail under "Podrobnosti" and "Vyřešit v Chatu".
-// Only where the Environment signs in as its person (a Team or an Automated
-// Environment is prepared by its hosting) and only where the content routes
-// answer. Every value from the server is drawn with textContent.
+// The content core decides availability, including the persona's own GitHub
+// account on an Automated Environment. A Team's brokered content stays with
+// its hosting. Every value from the server is drawn with textContent.
 
 export function createContentPanel(
   options: Readonly<{
@@ -46,9 +46,6 @@ export function createContentPanel(
   };
   const group = find<HTMLElement>("#content-group");
   const box = find<HTMLDivElement>("#content-list");
-  // Null until the profile says whether the Environment signs in as its
-  // person.
-  let visible: boolean | null = null;
   let list: ContentList | null | "loading" = "loading";
   let job: ContentJob | null = null;
   let following: string | null = null;
@@ -152,7 +149,7 @@ export function createContentPanel(
   function render() {
     const copy = options.copy();
     const read = list;
-    group.hidden = visible !== true || read === "loading" || read === null;
+    group.hidden = read === "loading" || read === null || !read.allowed;
     if (group.hidden || read === "loading" || read === null) {
       box.replaceChildren();
       return;
@@ -262,15 +259,8 @@ export function createContentPanel(
     refresh,
     start,
     render,
-    /** Shown only where the Environment signs in as its person. */
-    show(value: boolean) {
-      visible = value;
-      render();
-    },
     /** Where the content stands, for the line and the tour. */
     fact(): ContentFact {
-      if (visible === null) return { state: "loading" };
-      if (!visible) return { state: "none" };
       return contentFact(list, job);
     },
     list: (): ContentList | null => (list === "loading" ? null : list),
