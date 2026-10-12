@@ -835,8 +835,10 @@ Choosing a section keeps the focus on the navigation item as in T3 Code, but eve
 other move (Settings, Back, the breadcrumb, back/forward, a section chosen in the
 narrow sheet) focuses the heading of the new view and the document title names it.
 Escape does not leave Settings from a form field, so an unsaved note is not left
-behind by a stray key. T3 Code's settings search, `/` shortcut, resizable sidebar and
-per-row reset are not built: the page has three sections and no defaults to reset to.
+behind by a stray key. T3 Code's settings search, `/` shortcut and per-row reset are
+not built: the page has three sections and no defaults to reset to. Its sidebar toggle
+and resizable sidebar are built for the left column since 2026-10-12
+([the right panel](#the-right-panel-the-environment-browser)).
 The General settings keep the explicit Preview → Apply of a Folder change instead of
 T3 Code's immediate apply. Icons are Iconoir (MIT), the design system's interface set, inlined as SVG symbols (Lucide before decision F36's addendum of 2026-10-04).
 
@@ -1901,9 +1903,10 @@ Root decision 0191 point 8a (#207, [F38's addendum of
 2026-10-05](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)):
 the Environment browser, and in the second wave the desktop, are views of the
 Environment in each app's right panel, never a fourth mode beside Chat · Apps ·
-Automate. The Launchpad's own right panel shows, when the person opens it, the view of
-every window, the same view T3 Code's panel embeds (Lazurio/t3code#41); the Launchpad
-builds no viewer of its own.
+Automate. The Launchpad's own right panel shows, when the person opens it, the tabs the
+Launchpad holds and its Nová karta entries ([F47](decisions.md#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview) point 9 and Matěj's tuning
+of 2026-10-12), each tab in the same view T3 Code's panel embeds (Lazurio/t3code#41);
+the Launchpad builds no viewer of its own.
 
 - **Offered** only where `GET /api/entry` answers an entry with `browserOrigin` (the
   handover's `entry.browser`): never on a workstation (no entry), on a Remote
@@ -1912,33 +1915,59 @@ builds no viewer of its own.
   each page: beside Guide on the Apps home, last among the header's actions in Settings
   and Files, in the Marketplace's head; one at a time, only its icon below 768 px. The
   module's information page has no head row for it; a panel left open stays open
-  there, as across every move within the page. Pressed, it takes the quiet surface. The
-  panel is closed on every page load and nothing is remembered.
+  there, as across every move within the page. Pressed, it takes the quiet surface, and
+  it stays in the head while the panel is open (the wireframe hid it then; Matěj's call
+  of 2026-10-12). It slides the panel in from the window's right edge and back out in
+  200 ms, the focus moving to the panel and back to the toggle; with reduced motion the
+  panel appears and goes at once. The panel is closed on every page load; only its width
+  is remembered (below).
 - **The panel** is an `<aside>` after the page in the `.app` row, so the page shrinks:
-  beside the rail and the column the page and the panel share the width (the panel
-  360–960 px), and the Apps tiles count their columns from their own width, as the
-  wireframe does (prototypes-lazurio#10). Below 1100 px there is no room for the page
-  beside it, so it covers the window like a sheet with Close in view, and the rail, the
-  column and the page are inert behind it. Its slim header has "Prohlížeč
-  Environmentu" / "Environment browser", Reload, "Otevřít v nové kartě" / "Open in a
-  new tab" and Close; Escape inside it closes it. The first-run tour steps aside while
-  it is open.
-- **What it shows** (`browser-panel-view.ts`, pure; `browser-panel.ts` draws it).
-  Opening and Reload ask `GET /.lazurio/browser.json` on this origin without a session,
-  which answers the people's view of a new remote tab (F39; the view of every window is
-  retired, root decision 0191 point 18): `credentials: "same-origin"`, no cache, no
-  redirect followed, given up after 20 s. The view is embedded only from `{available: true, view}` whose `view`
-  is an https URL on exactly the recorded `browserOrigin`, without credentials, as
-  written and never on the page's own origin, in a frame with `allow="clipboard-read;
-  clipboard-write; fullscreen"`, `referrerpolicy="no-referrer"` and the sandbox of T3
-  Code's panel (the view keeps its own origin and cookie and cannot navigate the
-  Launchpad). Each answer builds a new frame and closing removes it, so a closed panel
-  streams nothing. Otherwise one sentence: `available: false` says the Environment
-  browser is not available right now; no usable answer (an expired session, a refusal,
-  a timeout, another shape) says to open it in a new tab, where the gateway's sign-in
-  can show, which a frame cannot.
-- **"Open in a new tab"** leads to the view once it is known and to the hand-over
-  `/.lazurio/browser` otherwise. The view's address carries no token (F39 point 8).
+  beside the rail and the column the page and the panel share the room, and the Apps
+  tiles count their columns from their own width, as the wireframe does
+  (prototypes-lazurio#10). Its strip has the entries, "+", Reload, "Otevřít v nové
+  kartě" / "Open in a new tab" and Close; Escape inside it closes it. The first-run tour
+  steps aside while it is open. Below 1100 px there is no room for the page beside it,
+  so it covers the window like a sheet with Close in view, and the rail, the column and
+  the page are inert behind it.
+- **Its width** (`layout-view.ts`, pure; `layout.ts` and `browser-panel.ts` draw it): the
+  panel's left edge is a divider, as in T3 Code and Codex Desktop, a focusable `separator`
+  whose value is the width. Drag it, move it with the arrow keys (24 px, 96 with Shift),
+  Home and End for the least and the greatest width, double-click it for the default,
+  half of the room within 360–960 px. Beside the page it stops where the page keeps
+  400 px. Dragged past half of that, the page steps aside (`data-browser="wide"` on
+  `.app`) and the panel takes all of the room right of the column, as the wireframe's
+  "Celá šířka"; dragged back, the page returns at its narrowest. A width that no longer
+  fits the window is held where the page keeps its width. The sheet has no divider.
+- **The strip** ([F47](decisions.md#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview) point 9, its addendum and Matěj's tuning of 2026-10-12;
+  `browser-panel-view.ts`): the tabs the Launchpad holds, then its Nová karta entries,
+  each a tab of the same width with its ×. "+" adds a Nová karta after the others and
+  shows it; only the shown entry is mounted. × on a tab lets go of the Launchpad's hold,
+  with Vrátit; × on a Nová karta takes it away. The person's × on the last entry closes
+  the panel (Vrátit then opens it on the tab again), and opening it on an empty strip
+  shows a Nová karta; a strip emptied any other way shows a new one.
+- **What it shows** (`browser-panel.ts`): the strip's shown entry. A tab's view is framed
+  only as `/t/<id>` on exactly the recorded `browserOrigin`, never the page's own, with
+  `allow="clipboard-read; clipboard-write; fullscreen"`, `referrerpolicy="no-referrer"`
+  and the sandbox of T3 Code's panel (the view keeps its own origin and cookie and
+  cannot navigate the Launchpad); anything else is one sentence that says to open it in
+  a new tab, where the gateway's sign-in can show, which a frame cannot. Nová karta is
+  `<lazurio-new-tab strip="launchpad" focus-address>`. Closing removes what was shown,
+  so a closed panel streams and reads nothing.
+- **"Open in a new tab"** leads to the shown tab's view, and with Nová karta to the
+  hand-over `/.lazurio/browser`. The view's address carries no token (F39 point 8).
+- **The left column** on a screen 768 px wide or wider (Matěj 2026-10-12, as T3 Code's
+  sidebar; `layout.ts`): T3 Code's sidebar toggle (Iconoir's sidebar-collapse and
+  sidebar-expand) at the start of the head of Settings and Files, the Apps home,
+  Integrace and the Marketplace hides it, the rail staying, and shows it again; while
+  the page steps aside for the panel, the toggle stands in the panel's strip. Its right
+  edge is a divider like the panel's, 208–480 px and never leaving the page less than
+  400 px, double-click for 264 px. Below 768 px it stays the sheet opened by the button
+  at the top of the page.
+- **Remembered in this browser**: the panel's width or all of the room, the column's
+  width and whether it is hidden, as one `localStorage` entry, `lazurio.layout`, read
+  field by field; a field that is not what it should be is its default alone. As the
+  favourites and the tour's progress, never in the Folder, which a Team Environment
+  shares.
 - **Verified** by `tests/browser-panel-view.test.ts` (where it is offered, from the
   projected handovers with and without the route; the view accepted from the server's
   own resolution and refused in every other shape; the read's request and its failures;
@@ -1951,7 +1980,11 @@ builds no viewer of its own.
   both sentences with the hand-over link, and Recovery mode closing the panel. These are
   no rendered-page CI gates (root decision 0178). A real gateway, agent-browser's
   dashboard in the frame and the gateway's framing rules were **not** exercised; they
-  belong to the DEV-6646 integration review.
+  belong to the DEV-6646 integration review. Matěj's tuning of 2026-10-12 is covered by
+  `tests/browser-panel-view.test.ts` (several Nová karta entries, "+", × on either kind,
+  the last ×, the strip emptied from elsewhere) and `tests/layout-view.test.ts` (the
+  widths, the step aside and back, the keys, the stored layout); how it looks and moves
+  belongs to a check in a browser.
 
 ## First run of an Environment
 
