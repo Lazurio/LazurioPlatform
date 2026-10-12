@@ -8422,11 +8422,14 @@ and hands control between bot and person by a lease (`server/browser-runtime.ts:
      is dropped), a message as nothing. Readers deployed before the module do not look at `v`
      at all (`browser-panel-view.ts:491-520`, T3 Code's `environmentBrowser.ts:147-176`), so a
      message they get must stay v1 (Pablo's review of #350).
-   - **Capabilities travel with the identity exchange.** An app that knows majors other than 1
-     names them in its identity answer (`"majors": [1, 2]`, an addition within v1). A view sends
-     each message once, in the highest major both know, and in v1 to an app whose answer names
-     none, so a receiver deployed today never gets a message it would take for another v1
-     action.
+   - **Capabilities come from the app that parses the messages.** An app names the majors its
+     own message parser accepts in its identity answer (`"majors": [1, 2]`, an addition within
+     v1). The shell's identity responder never names majors by itself: it passes on only the
+     list the app hands it when it installs the responder. A newer `/.lazurio/shell.js` inside
+     an older app therefore still answers without `majors` (Pablo's second review of #350). A
+     view sends each message once, in the highest major both know, and in v1 to an app whose
+     answer names none: that is the fallback, so a receiver deployed today never gets a message
+     it would take for another v1 action.
    - The contract's major is 1, and `artifact.json` names it (`browserContract`). Every holder
      file also names the Platform release its writer's module came from (`"contract":
      "<version>"`); the hub ignores it and doctor reads it (point 7).
@@ -8455,7 +8458,9 @@ and hands control between bot and person by a lease (`server/browser-runtime.ts:
        applied to an attached daemon.
    - **Complete.** The Platform's test fails when an exported function has no case or a case
      names no export. The messages' cases include one per major against a receiver as deployed
-     today (no `majors` in its answer): it gets v1 and nothing else. v1 files only gain cases; a changed expectation is a major change (point 3),
+     today (no `majors` in its answer), and a newer shell inside an app as deployed today (the
+     Launchpad's `viewMessage` and T3 Code's `readEnvironmentBrowserMessage` at their current
+     releases): each gets v1 and nothing else. v1 files only gain cases; a changed expectation is a major change (point 3),
      seen in review as a changed line, not an added one.
    - **Who runs what.**
      - The Platform runs every case against the module (`bun test`).
@@ -8504,18 +8509,29 @@ and hands control between bot and person by a lease (`server/browser-runtime.ts:
      servers and what their pages still parse themselves.
 
 6. **The contract is MIT (Matěj).** The contract module's source, its built files and its vectors
-   are licensed under MIT. The exception is exactly the module's directory and the files the
-   artifact lists under `browserContract`, which hold nothing from outside that directory
-   (`environmentIdOf` moved in, point 1); a later import from elsewhere into the module needs
-   the exception widened by Matěj or the code moved in. `NOTICE` and `docs/licensing.md` name the
-   exception; the rest of the Platform stays Elastic-2.0 (`package.json` `license`, `LICENSE`). The forks can then vendor the
-   contract without becoming mixed-licence, and it can go upstream with them. The forks' licences:
+   are licensed under MIT. The exception covers exactly:
+   - the module's directory, which holds nothing from outside it (`environmentIdOf` moved in,
+     point 1); a later import from elsewhere into the module needs the exception widened by
+     Matěj or the code moved in;
+   - the files the artifact lists under `browserContract`;
+   - by Matěj's grant of 2026-10-12, the functions T3 Code's overlay copied from
+     `src/browser/people/holds.ts` at 49d54c9 into `apps/server/src/lazurio/holders.ts`, as that
+     file's header lists them (`BootTime`, `readBootClock`, `parseBootTime`, `RecordedTab`,
+     `LiveTabs`, `parseLiveTabs`, `keptTabs`, `isStrip`, `holderDirectory`, `liveTabsPath`,
+     `parseHolder`, `holderFileText`, `parseHolderRecords`, `replaceOwnerFile`, `processAlive`
+     and `watchHolds` as `watchDirectories`). They are the contract's code in an earlier place.
+
+   The MIT terms ship as the module's own licence file (for example
+   `src/browser/contract/LICENSE`, naming the Platform's licensor), which the artifact lists
+   under `browserContract`. The repository's root `LICENSE` stays the Elastic-2.0 text for
+   everything else, and any other Platform file an artifact ships keeps those terms. `NOTICE`
+   and `docs/licensing.md` name the exception and its three parts. The forks can then vendor
+   the contract without becoming mixed-licence, and it can go upstream with them. The forks' licences:
    the T3 Code fork is MIT (its `LICENSE`), the MausBot fork Apache-2.0 with `enterprise/` under a
    licence of its own (`LICENSING.md`), and the agent-browser fork Apache-2.0.
-   - The same terms cover the functions T3 Code's overlay copied from `holds.ts`
-     (`apps/server/src/lazurio/holders.ts`) until phase 2 replaces them with the vendored files.
-     Phase 1 adds the MIT terms beside the module and writes the exception down; the fork's
-     runbook points to it.
+   - Phase 1 adds the module's MIT licence file and writes the exception down. The fork's runbook
+     records the grant for its copied functions with their provenance (`holds.ts` at 49d54c9,
+     MIT by Matěj's grant of 2026-10-12) until phase 2 replaces them with the vendored files.
    - What Elastic-2.0 alone would have meant (the analysis behind the decision):
      - Elastic-2.0 lets anyone copy, distribute and adapt the software, so vendoring the contract
      into the forks would be allowed, on its conditions: whoever gets a copy of any part also gets the
@@ -8571,7 +8587,8 @@ and hands control between bot and person by a lease (`server/browser-runtime.ts:
    1. **Phase 1, task 2026-10-12-701.** The module, its vectors and the artifact; every Platform
       reader and writer on it; `schema`, `contract` and `v` written; the divergences of C3, C8,
       C10, C13–C16 settled as point 2 says; the root table.
-   2. **Phase 1c, task 2026-10-12-702** (#347 merged as fdbf332, #349 as 40bec6a, #348 open): the
+   2. **Phase 1c, task 2026-10-12-702** (merged: #347 as fdbf332, #348 as a2f6b2c, #349 as
+      40bec6a, and #351, which narrows #348's error paths, as 752e522c): the
       per-file reading of holder files, `lazurio browser done` and `link --url`, the Integrace
       sign-in through the hub. They land before or with phase 1 and move into the module as they
       are.
@@ -8625,7 +8642,7 @@ and hands control between bot and person by a lease (`server/browser-runtime.ts:
 | The view and the Launchpad of one installation differ after an update | The Launchpad restarts the view (#334); tabs nothing holds get the hub's 10 minutes | `lazurio doctor`'s `environment-browser` fact |
 | A fork stays on an old tag | It keeps working, since v1 only grows; what came after stays off | Doctor's information line about its older `contract` |
 | The artifact grows | Hosts that pin it ignore listed files and members they do not use | The Dashboard's next vendoring |
-| The MIT terms or the exception missing beside vendored files | A fork carries contract files without their licence | The vendor script copies `LICENSE` (the MIT terms) and `NOTICE` beside the files, and the fork's CI checks them with the digests |
+| The MIT terms or the exception missing beside vendored files | A fork carries contract files without their licence | The vendor script copies the module's own `LICENSE` (the MIT terms) and the Platform's `NOTICE` beside the files, both listed in `artifact.json`; the fork's CI checks them with the digests. The repository's root `LICENSE` (Elastic-2.0) is never shipped as the contract's |
 
 **Not decided here.** The interface of the browser-tab element (task 2026-10-12-704); desktop T3
 Code (task 2026-10-12-705); the strips' scenarios (task 2026-10-12-706); MausBot's strips, names and co-control
@@ -8674,8 +8691,8 @@ where in each fork the vendored files live, which is the fork runbook's.
      holder file or a message outside the vendored files, and its CLI decoders take answers with
      members they do not know;
    - a fixture with a renamed upstream label keeps every tool's id and icon (it fails today);
-   - archiving a thread lets its window go through the daemon's socket (Lazurio/t3code#56 does
-     this ahead of the contract);
+   - archiving a thread lets its window go through the daemon's socket (Lazurio/t3code#56,
+     merged as a6915a2e, does this ahead of the contract);
    - the overlay touches no more upstream files than before. The fork's allowlist covers
      `apps/web`, `apps/mobile`, `apps/desktop` and `packages/`
      (`.github/workflows/lazurio-fork-ci.yml:112-114`):
@@ -8702,7 +8719,8 @@ where in each fork the vendored files live, which is the fork runbook's.
    point 2.
 
 **Matěj's decisions (2026-10-12).** His answers to the proposal's five questions:
-1. **Licence:** MIT for the contract ("souhlasím s MIT"), point 6.
+1. **Licence:** MIT for the contract ("souhlasím s MIT"), and, asked about T3 Code's earlier copy
+   of the same functions, MIT for that copy too ("MIT i pro kopii"), point 6.
 2. **Doctor's version signal:** left to the agent, on the condition that it makes sense to the
    agents who read doctor every day. Settled as the `contract` member in holder files and the
    three warnings of point 7, each with its next step.
