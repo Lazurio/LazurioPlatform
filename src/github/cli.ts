@@ -636,10 +636,7 @@ export async function runGithubCommand(
           "wired",
           "gh and Git are wired: lazurio github pilot unwire first.",
         );
-      const credentials = await readSettledSignIn(
-        paths,
-        config.application.login,
-      );
+      const credentials = await readSettledSignIn(paths, config.application);
       if (
         credentials === "unreadable" ||
         (credentials !== null &&

@@ -308,7 +308,7 @@ test("a refresh killed before its rename leaves its pair aside; the next locked 
   );
   await writeFile(
     join(directory, ".sign-in.json.tmp-fedcba9876543210"),
-    "{par",
+    JSON.stringify(stored),
   );
   // Unrelated state is never touched.
   await writeFile(join(directory, ".other.json.tmp-0123456789abcdef"), "{}");

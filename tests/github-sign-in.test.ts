@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { githubHttp } from "../src/github/oauth";
 import type { PilotApplication } from "../src/github/pilot";
@@ -392,6 +392,59 @@ test("sign-out preserves unreadable, other-owner and other-App credentials witho
     expect(github.requests).toEqual([]);
   }
 });
+
+test.each(["unknown", "malformed", "other-owner", "other-app"])(
+  "sign-out preserves all custody before refusing a %s interrupted write",
+  async (kind) => {
+    for (const settled of [true, false]) {
+      const github = startFakeGithub();
+      const world = await pilotWorld({ preset: null });
+      cleanups.push(github.close, world.cleanup);
+      await enablePilot(world);
+      await storeSignIn(world, github, exampleOrganization);
+      const canonical = signInFile(world.paths);
+      const originalBytes = await readFile(canonical, "utf8");
+      const original = JSON.parse(originalBytes);
+      const ownPath = join(
+        world.paths.stateDirectory,
+        ".sign-in.json.tmp-0123456789abcdef",
+      );
+      const ownBytes = JSON.stringify({
+        ...original,
+        refreshedAt: new Date(Date.now() + 1000).toISOString(),
+      });
+      await writeFile(ownPath, ownBytes);
+      const foreignPath = join(
+        world.paths.stateDirectory,
+        ".sign-in.json.tmp-fedcba9876543210",
+      );
+      const foreignBytes =
+        kind === "malformed"
+          ? "{partial"
+          : JSON.stringify(
+              kind === "unknown"
+                ? { schema: "unknown", recovery: "retain" }
+                : kind === "other-owner"
+                  ? { ...original, organization: { login: "Other", id: 999 } }
+                  : { ...original, clientId: "Iv23liOtherApp0001" },
+            );
+      await writeFile(foreignPath, foreignBytes);
+      if (!settled) await rm(canonical);
+      expect(
+        await signOut({
+          paths: world.paths,
+          organization: exampleOrganization,
+        }),
+      ).toMatchObject({ kind: "failed", reason: "state-unreadable" });
+      expect(await readFile(canonical, "utf8").catch(() => null)).toBe(
+        settled ? originalBytes : null,
+      );
+      expect(await readFile(ownPath, "utf8")).toBe(ownBytes);
+      expect(await readFile(foreignPath, "utf8")).toBe(foreignBytes);
+      expect(github.requests).toEqual([]);
+    }
+  },
+);
 
 test("sign-out removes a pair a killed write left aside without remote revocation", async () => {
   const github = startFakeGithub();

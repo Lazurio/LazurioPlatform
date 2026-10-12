@@ -176,74 +176,76 @@ export async function removeStoredSignIn(paths: PilotPaths): Promise<void> {
 // Only temporary writes of this single App chain, not arbitrary state files.
 const temporaryPattern = /^\.sign-in\.json\.tmp-[0-9a-f]{16}$/;
 
-/** The shared chain's temporary files, with the time of the sign-in each
- * holds when it is a whole, readable one bound to the expected owner (a write killed
- * after its sync and before its rename), else null; newest first. */
+/** Validate every matching entry before changing any custody. Unknown, foreign
+ * or non-file entries require explicit local recovery, never automatic cleanup. */
 async function interruptedWrites(
   paths: PilotPaths,
-  login: string,
-): Promise<{ name: string; time: number | null }[]> {
+  organization: PilotApplication,
+): Promise<{ name: string; time: number }[] | "unreadable"> {
   let names: string[];
   try {
     names = await readdir(paths.stateDirectory);
-  } catch {
-    return [];
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT"
+      ? []
+      : "unreadable";
   }
-  const pattern = temporaryPattern;
-  const found: { name: string; time: number | null }[] = [];
+  const found: { name: string; time: number }[] = [];
   for (const name of names) {
-    if (!pattern.test(name)) continue;
-    let time: number | null = null;
+    if (!temporaryPattern.test(name)) continue;
     try {
+      const path = join(paths.stateDirectory, name);
+      if (!(await lstat(path)).isFile()) return "unreadable";
       const signIn = parseStoredSignIn(
-        parseUniqueJson(
-          await readFile(join(paths.stateDirectory, name), "utf8"),
-        ),
+        parseUniqueJson(await readFile(path, "utf8")),
       );
-      if (sameLogin(signIn.organization.login, login))
-        time = Date.parse(signIn.refreshedAt ?? signIn.signedInAt);
-    } catch {}
-    found.push({ name, time });
+      if (
+        !sameLogin(signIn.organization.login, organization.login) ||
+        signIn.clientId !== organization.clientId
+      )
+        return "unreadable";
+      found.push({
+        name,
+        time: Date.parse(signIn.refreshedAt ?? signIn.signedInAt),
+      });
+    } catch {
+      return "unreadable";
+    }
   }
-  return found.sort((a, b) => (b.time ?? -1) - (a.time ?? -1));
+  return found.sort((a, b) => b.time - a.time);
 }
 
-/** Under the shared chain's lock only (every writer of its file holds it): a
- * killed refresh may have left the one working pair in a temporary file
- * while the file still holds the pair GitHub ended. The newest whole one
- * newer than the file is put in place; every other temporary file of this
- * chain goes. Unrelated state files are never touched. */
-async function settleInterruptedWrites(
+/** Under the shared chain's lock only: recover the newest complete write for
+ * this owner and App. Inspect the canonical file and every interrupted write
+ * before renaming or deleting any file, preserving all bytes if any is foreign
+ * or unreadable. A partial write needs explicit recovery too. */
+export async function readSettledSignIn(
   paths: PilotPaths,
-  login: string,
-): Promise<void> {
-  const writes = await interruptedWrites(paths, login);
-  if (writes.length === 0) return;
-  const current = await readStoredSignIn(paths, login);
-  if (current === "unreadable") return;
+  organization: PilotApplication,
+): Promise<StoredSignIn | null | "unreadable"> {
+  const current = await readStoredSignIn(paths, organization.login);
+  if (
+    current === "unreadable" ||
+    (current !== null && current.clientId !== organization.clientId)
+  )
+    return "unreadable";
+  const writes = await interruptedWrites(paths, organization);
+  if (writes === "unreadable") return "unreadable";
+  if (writes.length === 0) return current;
   const currentTime =
     current === null
       ? Number.NEGATIVE_INFINITY
       : Date.parse(current.refreshedAt ?? current.signedInAt);
   const [newest] = writes;
   const promote =
-    newest?.time != null && newest.time > currentTime ? newest.name : undefined;
+    newest !== undefined && newest.time > currentTime ? newest.name : undefined;
   if (promote !== undefined)
     await rename(join(paths.stateDirectory, promote), signInFile(paths));
   for (const write of writes)
     if (write.name !== promote)
       await rm(join(paths.stateDirectory, write.name), { force: true });
   await syncDirectory(paths.stateDirectory).catch(() => undefined);
-}
-
-/** Under the shared chain's lock: the sign-in as its writes left it, an
- * interrupted one settled first. */
-export async function readSettledSignIn(
-  paths: PilotPaths,
-  login: string,
-): Promise<StoredSignIn | null | "unreadable"> {
-  await settleInterruptedWrites(paths, login);
-  return readStoredSignIn(paths, login);
+  return readStoredSignIn(paths, organization.login);
 }
 
 /** The kernel lock of this Environment's one App sign-in (src/platform/flock.ts):
@@ -348,7 +350,7 @@ export async function applicationToken(
   try {
     // Another process may have refreshed while this one waited, or a killed
     // one may have left its pair in a temporary file.
-    const current = settle(await readSettledSignIn(paths, organization.login));
+    const current = settle(await readSettledSignIn(paths, organization));
     if ("kind" in current) return current;
     if (fresh(current, now(), refreshMarginMs)) return handOut(current, false);
     if (Date.parse(current.refreshTokenExpiresAt) <= now()) {

@@ -115,6 +115,28 @@ test.each(["unknown", "other-app"])(
   },
 );
 
+test("interrupted unknown custody blocks sign-in, sign-out and disable with recovery guidance", async () => {
+  const { world, github, run } = await setup();
+  expect((await signIn(run)).code).toBe(0);
+  const path = signInFile(world.paths);
+  const original = await readFile(path, "utf8");
+  const aside = join(
+    world.paths.stateDirectory,
+    ".sign-in.json.tmp-0123456789abcdef",
+  );
+  const unknown = "{partial";
+  await writeFile(aside, unknown);
+  const before = github.requests.length;
+  for (const args of [["sign-out"], ["sign-in"], ["pilot", "disable"]]) {
+    const result = await run(args);
+    expect(result.code).not.toBe(0);
+    expect(result.stdout).toContain("local recovery");
+    expect(await readFile(path, "utf8")).toBe(original);
+    expect(await readFile(aside, "utf8")).toBe(unknown);
+  }
+  expect(github.requests).toHaveLength(before);
+});
+
 test("sign-out waits for an in-flight device flow and removes its resulting authorization", async () => {
   const { world, run } = await setup();
   expect((await run(enable)).code).toBe(0);

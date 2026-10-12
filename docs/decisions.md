@@ -7764,7 +7764,10 @@ command flag nor a repository URL can select another account or mint permission.
 5. Explicit `pilot wire` installs the reversible official-gh launcher and Git
    include after successful sign-in. HTTPS rewrites preserve existing SSH remote
    URLs. `pilot unwire` restores the prior entry/config without discarding work.
-   `sign-out` removes only the local chain, including interrupted-write copies.
+   `sign-out` removes only the local chain, including known interrupted-write copies.
+   The canonical file and every matching interrupted file are checked for the
+   configured owner and App before any rename or deletion. Unknown, malformed
+   or foreign state preserves all those files and requires explicit local recovery.
    It makes no provider revocation request: the real pilot observed the token
    reporting endpoint invalidate a second authorization of the same person/App.
    The result names `scope: "environment"`; help states that the GitHub

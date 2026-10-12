@@ -677,7 +677,9 @@ No other App is registered and no personal access token is used.
   `https://github.com/login/device` to approve in the person's own browser.
   It checks the assigned account id and the App's active owning installation.
   Other installations of that same App are accepted. Expiring token pairs are
-  retained owner-only; Ctrl-C cancels. `sign-out` removes the local pair and interrupted-write copies without a
+  retained owner-only; Ctrl-C cancels. Unknown or foreign interrupted-write files are
+  preserved with all current custody for explicit local recovery; only complete
+  writes for the configured owner and App are recovered or removed. `sign-out` removes the local pair and known interrupted-write copies without a
   provider request. Its JSON result names `scope: "environment"`. GitHub
   authorization and copied credentials remain valid; ending the authorization
   under GitHub Settings → Applications → Authorized GitHub Apps affects the
