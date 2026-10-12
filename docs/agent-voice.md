@@ -6,6 +6,10 @@ not an implemented setting. This document does not activate instructions in an
 installed Folder. Review the Launchpad wireframe before choosing the file layout
 and the activation contract.
 
+The companion [Launchpad wireframe PR](https://github.com/HumanAndMachine-ai/prototypes-lazurio/pull/42)
+implements the review surface with synthetic, per-Environment state. It requires
+access to that repository; this definition remains complete without it.
+
 ## What the default covers
 
 Use this voice for everything an agent writes: chat answers, progress updates,
@@ -127,9 +131,9 @@ permission or model choice. Avoid an array of personality sliders without a
 clear effect.
 
 The Operator selected per-Environment customization for the first wireframe
-on 2026-10-12, following today's profile owner. It explicitly shows the shared effect in a team
-Environment. Personal preference across Environments is outside this selected first design;
-it would require an account owner, offline behavior, and
+on 2026-10-12, following today's profile owner. It explicitly shows the shared
+effect in a team Environment. Personal preference across Environments is outside
+this selected first design; it would require an account owner, offline behavior, and
 attribution on shared Environments. A browser's last signed-in person must not
 silently replace the instructions every agent shares.
 
