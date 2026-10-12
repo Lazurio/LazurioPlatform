@@ -13,6 +13,7 @@ export const settingsSections = [
   "general",
   "machine",
   "tools",
+  "ssh",
   "recovery",
 ] as const;
 export type SettingsSection = (typeof settingsSections)[number];
@@ -224,6 +225,7 @@ export const sectionLabels: Readonly<Record<SettingsSection, MessageKey>> = {
   general: "settingsGeneral",
   machine: "machineTitle",
   tools: "toolsTitle",
+  ssh: "sshTitle",
   recovery: "recoveryTitle",
 };
 

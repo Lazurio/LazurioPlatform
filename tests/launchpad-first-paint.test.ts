@@ -69,6 +69,8 @@ test("the page's first frame is the frame its route shows", () => {
     "/settings/machine",
     "/settings/tools",
     "/settings/tools/",
+    "/settings/ssh",
+    "/settings/ssh/",
     "/settings/recovery",
     "/settings/unknown",
     "/settings/tools/x",
