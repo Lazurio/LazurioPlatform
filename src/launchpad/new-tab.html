@@ -137,10 +137,6 @@ button { cursor: pointer; }
 .nt-tile:hover { border-color: var(--nt-line); background: var(--nt-control); }
 .nt-tile-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* On a Team Environment only: the whole Team sees the sign-ins made here
-   (Matěj 2026-10-12 dropped the note elsewhere). */
-.nt-note { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; border-radius: var(--lz-radius-sm); background: var(--lz-blue-100); color: var(--lz-ink); font-size: 13.5px; }
-
 /* The toast: why a closed tab ends and Vrátit for its grace; a later
    message shows above that line and never takes Vrátit away. */
 .nt-toast-region { position: fixed; z-index: 6; right: 16px; bottom: 18px; left: 16px; display: grid; justify-items: center; pointer-events: none; }
@@ -195,7 +191,6 @@ button { cursor: pointer; }
 <section class="nt-section" id="tools" aria-labelledby="tools-title" hidden><h2 class="nt-title" id="tools-title"></h2><div class="nt-tools" id="tools-list"></div></section>
 <section class="nt-section" id="overview" aria-labelledby="overview-title"><h2 class="nt-title" id="overview-title"></h2><div class="nto" id="overview-body"></div></section>
 <section class="nt-section" id="suggested" aria-labelledby="suggested-title" hidden><h2 class="nt-title" id="suggested-title"></h2><div class="nt-group"><h3 class="nt-caption" id="suggested-caption"></h3><div class="nt-grid" id="suggested-list"></div></div></section>
-<p class="nt-note" id="note" hidden></p>
 </main>
 <div class="nt-toast-region" id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="./new-tab-page.ts"></script>
