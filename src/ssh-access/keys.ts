@@ -416,7 +416,10 @@ export type AddKeyResult =
       outcome: "added" | "already-present";
       key: ListedKey;
     }>
-  | Readonly<{ kind: "blocked"; reason: FileRefusal | "key-restricted-outside" }>;
+  | Readonly<{
+      kind: "blocked";
+      reason: FileRefusal | "key-restricted-outside";
+    }>;
 
 /** Adds one device key with the Launchpad's marker, unless the same key is
  * already allowed: then the line that allows it is answered and nothing is
