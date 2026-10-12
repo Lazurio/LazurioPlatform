@@ -200,7 +200,7 @@ describe("memory (the wireframe's formatMemory and memoryTone)", () => {
           title: "Launchpad, T3 Code, brána Environmentu, agenti a systém",
         },
       ],
-      hint: "Paměť je skoro plná. Zavři těžké záložky a zastav Moduly, které nepotřebuješ.",
+      hint: "Paměť je skoro plná. Zavřete těžké záložky a zastavte Moduly, které nepotřebujete.",
     });
     const calm = memoryModel({ ...known, used: 4 * GiB }, en, "en");
     expect([calm?.tone, calm?.percent, calm?.hint]).toEqual(["ok", 50, null]);
@@ -832,7 +832,7 @@ describe("running Modules, Navrhované and the notes", () => {
       team: false,
     });
     expect(environmentNote(shell("team"), cs)).toEqual({
-      text: "Přihlášení tady uvidí celý Team. Používej týmové a firemní účty.",
+      text: "Přihlášení tady uvidí celý Team. Používejte týmové a firemní účty.",
       team: true,
     });
     expect(environmentNote(null, cs).team).toBe(false);
@@ -935,14 +935,14 @@ describe("where things are, the tools' letters and what failed", () => {
       ].map((failed) => actionFailure(failed, fallback, cs)),
     ).toEqual([
       "Tento Environment nemá prohlížeč.",
-      "Prohlížeč Environmentu teď neodpovídá, zkus to za chvíli znovu.",
-      "Launchpad teď neodpovídá, zkus to za chvíli znovu.",
-      "Launchpad teď neodpovídá, zkus to za chvíli znovu.",
+      "Prohlížeč Environmentu teď neodpovídá, zkuste to za chvíli znovu.",
+      "Launchpad teď neodpovídá, zkuste to za chvíli znovu.",
+      "Launchpad teď neodpovídá, zkuste to za chvíli znovu.",
       "Záložku se nepodařilo zavřít.",
       "Záložku se nepodařilo zavřít.",
       // A Launchpad that closes does not answer for long; any other reason
       // it gives is the action's own failure.
-      "Launchpad teď neodpovídá, zkus to za chvíli znovu.",
+      "Launchpad teď neodpovídá, zkuste to za chvíli znovu.",
       "Záložku se nepodařilo zavřít.",
     ]);
   });

@@ -133,7 +133,7 @@ const en = {
 type Words = { readonly [K in keyof typeof en]: string };
 const cs: Words = {
   pageTitle: "Nová karta",
-  address: "Hledej nebo zadej adresu",
+  address: "Hledejte nebo zadejte adresu",
   tools: "Nástroje",
   overview: "Přehled",
   memoryTitle: "Paměť Environmentu",
@@ -143,18 +143,18 @@ const cs: Words = {
   memoryOther: "Ostatní {value}",
   memoryOtherTitle: "Launchpad, T3 Code, brána Environmentu, agenti a systém",
   memoryHint:
-    "Paměť je skoro plná. Zavři těžké záložky a zastav Moduly, které nepotřebuješ.",
+    "Paměť je skoro plná. Zavřete těžké záložky a zastavte Moduly, které nepotřebujete.",
   tabsTitle: "Záložky Environmentu",
   tabsEmpty:
-    "V prohlížeči Environmentu není otevřená žádná záložka. Zadej adresu nahoře.",
+    "V prohlížeči Environmentu není otevřená žádná záložka. Zadejte adresu nahoře.",
   hubUnreachable: "Prohlížeč Environmentu teď neodpovídá. Zkouším to znovu…",
   noBrowser: "Tento Environment nemá prohlížeč.",
   overviewLoading: "Načítám přehled…",
   overviewFailed: "Přehled se teď nepodařilo načíst. Zkouším to znovu…",
   launchpadUnreachable: "Launchpad teď neodpovídá. Zkouším to znovu…",
   browserDown:
-    "Prohlížeč Environmentu teď neodpovídá, zkus to za chvíli znovu.",
-  launchpadDown: "Launchpad teď neodpovídá, zkus to za chvíli znovu.",
+    "Prohlížeč Environmentu teď neodpovídá, zkuste to za chvíli znovu.",
+  launchpadDown: "Launchpad teď neodpovídá, zkuste to za chvíli znovu.",
   whoTitle: "Kdo záložku otevřel",
   whoT3Thread: "Agent · T3 Code · {thread}",
   whoT3: "Agent · T3 Code",
@@ -192,7 +192,8 @@ const cs: Words = {
   suggested: "Navrhované",
   appsCaption: "Aplikace Environmentu",
   note: "Přihlášení tady použijí všichni agenti tohoto Environmentu.",
-  noteTeam: "Přihlášení tady uvidí celý Team. Používej týmové a firemní účty.",
+  noteTeam:
+    "Přihlášení tady uvidí celý Team. Používejte týmové a firemní účty.",
   foreign: "Tahle záložka patří jinému Environmentu",
   foreignOpen: "Otevřít v něm",
   dismiss: "Zavřít",
@@ -211,7 +212,7 @@ const cs: Words = {
   restoreFailed: "Záložku už nejde vrátit.",
   holdFailed: "Záložku se nepodařilo v Launchpadu ponechat.",
   holdFull:
-    "Launchpad už má tolik záložek, kolik unese. Zavři některé a zkus to znovu.",
+    "Launchpad už má tolik záložek, kolik unese. Zavřete některé a zkuste to znovu.",
   holdGone: "Záložka už v Environmentu není.",
   retry: "Zkusit znovu",
   closeInLaunchpad: "Zavřít v Launchpadu",

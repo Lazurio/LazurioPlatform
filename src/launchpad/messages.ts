@@ -2247,7 +2247,7 @@ const cs: Record<MessageKey, string> = {
   browserClose: "Zavřít",
   browserFrame: "Záložka prohlížeče Environmentu",
   browserFailed:
-    "Prohlížeč Environmentu se tu nepodařilo načíst; otevři ho v nové kartě, kde se můžeš znovu přihlásit.",
+    "Prohlížeč Environmentu se tu nepodařilo načíst; otevřete ho v nové kartě, kde se můžete znovu přihlásit.",
   integrationsTitle: "Integrace",
   integrationsSubtitle:
     "Co tu připojíš, používají všichni agenti a boti tohoto Environmentu.",
