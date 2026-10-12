@@ -25,6 +25,7 @@ import {
   elementIdentity,
   environmentIdentity,
   identityText,
+  viewIdentity,
 } from "../src/shell/view";
 
 // F39's addendum of 2026-10-12: Matěj asked that the switcher and the bar of
@@ -627,6 +628,76 @@ describe("the host answers its own frames on a view's origin", () => {
         "vm-01.acme",
         cs,
       ),
+    ]);
+  });
+});
+
+describe("the answer names a view's Environment as the column heads of its apps do", () => {
+  test("for each hosted kind, merged or not, in every space its pages stand in; a workstation, which has no view, never", () => {
+    const head = (shell: Shell, space: string | null) =>
+      columnHead(shell, cs, { space, active: "apps", settings: null })
+        ?.picker as EnvironmentIdentity | undefined;
+    for (const merged of [false, true])
+      for (const [id, space] of [
+        ["vm-01.acme", "acme"],
+        ["vm-02.acme", "acme"],
+        ["vm-03.acme", "acme"],
+        ["jana", "personal"],
+      ] as const) {
+        const page = parsed({ ...acmeDocument(), current: id });
+        const shell = merged ? mergeAccount(page, accountOf("cs")) : page;
+        // The Launchpad of a hosted Environment names no space, or its own.
+        for (const named of [null, space])
+          expect([id, named, viewIdentity(shell, id, cs)]).toEqual([
+            id,
+            named,
+            head(shell, named) ?? null,
+          ]);
+      }
+    // A workstation opened for one Organization: its column head shows that
+    // Organization's mark, and no view is ever answered as the computer, so
+    // a person's own Environment that reads as `local` is never named so.
+    const studio = parsed(
+      acmeDocument({
+        current: "local",
+        environments: [
+          {
+            id: "local",
+            label: "Studio",
+            kind: "workstation",
+            organizations: ["acme"],
+            assignee: null,
+            apps: { apps: "/", chat: null, automate: null },
+          },
+        ],
+      }),
+    );
+    expect(viewIdentity(studio, "local", cs)).toBeNull();
+    expect(viewEnvironmentId("https://browser.local.lazurio.io")).toBe("local");
+    const self = {};
+    const responder = createIdentityResponder({
+      self,
+      identity: (environment) => viewIdentity(studio, environment, cs),
+      request: () => {},
+    });
+    const { frame, posted } = fakeFrame(self);
+    responder.receive({
+      data: ask,
+      origin: "https://browser.local.lazurio.io",
+      source: frame,
+    });
+    expect(posted).toEqual([[reply(null), "https://browser.local.lazurio.io"]]);
+    // On a hosted page the whole path, request to answer, is the column head's.
+    const hosted = parsed(acmeDocument());
+    const answering = createIdentityResponder({
+      self,
+      identity: (environment) => viewIdentity(hosted, environment, cs),
+      request: () => {},
+    });
+    const second = fakeFrame(self);
+    answering.receive({ data: ask, origin: view, source: second.frame });
+    expect(second.posted).toEqual([
+      [reply(head(hosted, "acme") ?? null), view],
     ]);
   });
 });

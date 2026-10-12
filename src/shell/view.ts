@@ -456,6 +456,26 @@ export function environmentIdentity(
       );
 }
 
+/** How the app around a framed view of the Environment browser answers the
+ * view's question (F39's addendum of 2026-10-12): its Environment in its own
+ * space. A view belongs to a hosted Environment, which holds one Organization
+ * (or is personal), so each page of its apps stands in that same space and
+ * every column head of them names it alike. A workstation has no view: its
+ * id, `local`, is never answered, so a view whose address reads as `local`
+ * (a person's own Environment with that slug) is never named as this
+ * computer (Pablo's review of #339). Null too for an Environment the
+ * document does not know. */
+export function viewIdentity(
+  shell: Shell,
+  environment: string,
+  copy: ShellCopy,
+): EnvironmentIdentity | null {
+  const found = shell.environments.find((entry) => entry.id === environment);
+  return found === undefined || found.kind === "workstation"
+    ? null
+    : environmentIdentity(shell, environment, copy);
+}
+
 /** The identity `<lazurio-environment>` draws for its attributes: of the
  * Environment `environment` names (an Environment id, in any case), else of
  * the page's own (`current`), in the language `lang` names, else the

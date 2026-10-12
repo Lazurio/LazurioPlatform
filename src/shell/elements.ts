@@ -26,7 +26,6 @@ import {
   type ColumnSetupLine,
   columnHead,
   elementIdentity,
-  environmentIdentity,
   hereOf,
   initialsOf,
   railHome,
@@ -39,6 +38,7 @@ import {
   signedOutRail,
   switcherKey,
   switcherList,
+  viewIdentity,
 } from "./view";
 
 // The Lazurio shell as framework-free custom elements (decision F36,
@@ -1013,7 +1013,7 @@ function answerFramedViews(): void {
       const shell = state.drawn();
       return shell === null
         ? null
-        : environmentIdentity(shell, environment, shellMessages(shell.locale));
+        : viewIdentity(shell, environment, shellMessages(shell.locale));
     },
     request: requestShell,
   });
