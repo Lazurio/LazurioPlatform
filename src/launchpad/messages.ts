@@ -2378,7 +2378,7 @@ const cs: Record<MessageKey, string> = {
   integrationsMcpNamePlaceholder: "Název MCP serveru",
   integrationsMcpType: "Typ",
   integrationsMcpTypeFixed:
-    "Uložený server si typ nechává: když ho chceš změnit, server odeber a přidej znovu.",
+    "Uložený server si typ nechává: když ho chcete změnit, server odeberte a přidejte znovu.",
   integrationsMcpCommand: "Příkaz ke spuštění",
   integrationsMcpArgs: "Argumenty",
   integrationsMcpAddArg: "Přidat argument",
@@ -2396,7 +2396,7 @@ const cs: Record<MessageKey, string> = {
   integrationsMcpKey: "Klíč",
   integrationsMcpValue: "Hodnota",
   integrationsMcpStored: "Uloženo",
-  integrationsMcpEnterAgain: "Zadej znovu",
+  integrationsMcpEnterAgain: "Zadejte znovu",
   integrationsMcpSave: "Uložit",
   integrationsMcpSaving: "Ukládám…",
   integrationsMcpLoading: "Načítám nastavení serveru…",
@@ -2405,20 +2405,20 @@ const cs: Record<MessageKey, string> = {
   integrationsMcpSaved: "Změny serveru „{name}“ jsou uložené.",
   integrationsMcpSaveFailed: "MCP server se nepodařilo uložit.",
   integrationsMcpGone: "Tenhle MCP server už v Executoru není.",
-  integrationsMcpInvalid: "Některé údaje nesedí, zkontroluj je.",
+  integrationsMcpInvalid: "Některé údaje nesedí, zkontrolujte je.",
   integrationsMcpNameInvalid: "Název má nejvýš 64 znaků na jednom řádku.",
   integrationsMcpTextInvalid:
     "Tenhle text nejde použít: má řídicí znak, nebo je moc dlouhý.",
   integrationsMcpUrlInvalid:
-    "Zadej celou adresu, třeba https://mcp.example.com/mcp.",
+    "Zadejte celou adresu, třeba https://mcp.example.com/mcp.",
   integrationsMcpUrlInsecure:
     "Adresa musí začínat https://. http:// jde jen na tomto Environmentu (localhost).",
-  integrationsMcpCwdInvalid: "Zadej celou cestu, třeba ~/code nebo /srv/mcp.",
+  integrationsMcpCwdInvalid: "Zadejte celou cestu, třeba ~/code nebo /srv/mcp.",
   integrationsMcpEnvNameInvalid:
     "Jen písmena, číslice a podtržítko, na začátku ne číslice.",
   integrationsMcpHeaderNameInvalid: "Název hlavičky je bez mezer a dvojteček.",
-  integrationsMcpKeyRequired: "Doplň klíč.",
-  integrationsMcpValueRequired: "Doplň hodnotu.",
+  integrationsMcpKeyRequired: "Doplňte klíč.",
+  integrationsMcpValueRequired: "Doplňte hodnotu.",
   integrationsMcpValueInvalid:
     "Hodnota má nejvýš 4 096 znaků, u hlavičky na jednom řádku.",
   integrationsMcpDuplicate: "Tenhle klíč je tu dvakrát.",

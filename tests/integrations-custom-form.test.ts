@@ -186,7 +186,7 @@ test("lines under the fields: plain words for what is wrong, quiet hints for wha
   form = withKey(form, "headers", 0, "name", "X-Team");
   view = customFormView(form, cs);
   expect(view.headers[0]?.value).toEqual({
-    text: "Doplň hodnotu.",
+    text: "Doplňte hodnotu.",
     kind: "hint",
   });
   expect(view.canSave).toBe(false);
@@ -258,7 +258,7 @@ test("an edit opens with the names of its keys, their fields empty and stored; e
   expect(view.headers[0]).toEqual({
     name: null,
     value: null,
-    placeholder: "Zadej znovu",
+    placeholder: "Zadejte znovu",
     stored: true,
   });
   expect(view.canSave).toBe(false);
@@ -278,7 +278,7 @@ test("an edit opens with the names of its keys, their fields empty and stored; e
   let renamed = editCustomForm(settings as NonNullable<typeof settings>);
   renamed = withKey(renamed, "headers", 0, "name", "X-Group");
   expect(customFormView(renamed, cs).headers[0]?.value).toEqual({
-    text: "Doplň hodnotu.",
+    text: "Doplňte hodnotu.",
     kind: "hint",
   });
   // A stored key whose name is cleared, value left empty, is removed.
@@ -312,7 +312,7 @@ test("an edit's new address asks for every stored key again; without stored keys
     view.headers[0]?.value,
     view.url,
     view.canSave,
-  ]).toEqual(["Zadej znovu", "Zadej znovu", null, null, null, false]);
+  ]).toEqual(["Zadejte znovu", "Zadejte znovu", null, null, null, false]);
   form = type(form, "bearer", "token");
   expect(customFormView(form, cs).canSave).toBe(false);
   form = withKey(form, "headers", 0, "value", "a");

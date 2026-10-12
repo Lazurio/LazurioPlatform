@@ -244,11 +244,11 @@ it is said.
   changed key by key: while no key changes the account stays, and once one does (a
   new value, a key added or removed, the Bearer token added or removed) the account
   is created anew with every key. Then every stored key's field turns to
-  "Zadej znovu" and Save waits until each is typed again. The page says this only
+  "Zadejte znovu" and Save waits until each is typed again. The page says this only
   through those two states; there is no line or note explaining it. An address left
   as shown keeps the stored one with its query; a new address is a change of the keys
   for a server that has any, since it is probed and reached with them, so its stored
-  keys turn to "Zadej znovu" too (a server without keys just moves).
+  keys turn to "Zadejte znovu" too (a server without keys just moves).
 - **Checked twice.** The page and the server share the rules
   (`src/integrations/custom-server.ts`): what the page refuses as the person types, the
   route refuses before Executor is asked.

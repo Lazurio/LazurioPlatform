@@ -6324,10 +6324,12 @@ that report what they receive. The reference is
    required field says nothing and Save waits for it. Like Codex's, the page explains
    nothing in text of its own: where a key goes, that it is never shown again and why
    changing one asks for every stored one again is said in the documentation; on the
-   page a stored key's field only shows its state, "Uloženo" or "Zadej znovu". The
+   page a stored key's field only shows its state, "Uloženo" or "Zadejte znovu". The
    page and the Launchpad's server check with the same rules
    (`src/integrations/custom-server.ts`). Plain http to another computer is now
-   refused: the route took any http address before.
+   refused: the route took any http address before. The Czech copy addresses the
+   person formally (vykání), per the brand rule of 2026-10-11 that the rest of the
+   Launchpad follows ("Zadejte znovu", "Doplňte hodnotu."); the English is unchanged.
 2. **The fields, mapped onto Executor 1.6.10.**
 
    | Codex | Executor 1.6.10 | Lazurio |
@@ -6360,7 +6362,7 @@ that report what they receive. The reference is
    created and never returned or patched. So the account stays while no key changes;
    once one does (a new value, a key added or removed, the Bearer token added or
    removed), Lazurio creates the account anew with every key, and the page asks for
-   each stored one again ("Zadej znovu"). An unchanged address keeps the stored one
+   each stored one again ("Zadejte znovu"). An unchanged address keeps the stored one
    with its query. A new one is a change of the keys too where the server has keys
    (review of 2026-10-12: probed without them, an address that refuses an
    unauthenticated request turned a valid edit down while the fields said
@@ -6405,7 +6407,7 @@ a working directory, each field and an edit's keys, and Executor's shapes in bot
 directions (`tests/integrations-custom-server.test.ts`); the routes of the page, the
 form as it opens, rows added and removed, the type switched and back without loss,
 Save enabled only when the rules pass, the lines under the fields, and an edit's
-stored keys marked "Uloženo" and then "Zadej znovu" with no line or note beside them,
+stored keys marked "Uloženo" and then "Zadejte znovu" with no line or note beside them,
 and the refusals (`tests/integrations-custom-form.test.ts`).
 
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents

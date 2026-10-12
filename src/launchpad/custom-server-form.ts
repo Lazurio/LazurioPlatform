@@ -300,7 +300,7 @@ export type FieldLine = Readonly<{ text: string; kind: "error" | "hint" }>;
 export type KeyView = Readonly<{
   name: FieldLine | null;
   value: FieldLine | null;
-  /** The value field's placeholder: "Hodnota", "Uloženo", "Zadej znovu". */
+  /** The value field's placeholder: "Hodnota", "Uloženo", "Zadejte znovu". */
   placeholder: string;
   stored: boolean;
 }>;
@@ -327,7 +327,7 @@ function problemText(
   const error = (text: string): FieldLine => ({ text, kind: "error" });
   const hint = (text: string): FieldLine => ({ text, kind: "hint" });
   const kind = problem.problem;
-  // A stored key to type again says so in its own field ("Zadej znovu"),
+  // A stored key to type again says so in its own field ("Zadejte znovu"),
   // never in a line under it: the page explains nothing in text of its own.
   if (kind === "again") return null;
   if (kind === "duplicate") return error(copy.integrationsMcpDuplicate);
