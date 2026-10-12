@@ -5745,7 +5745,9 @@ several ways:
 - a plain link opens it in their own browser on their computer;
 - a link to a tab of the Environment shows that tab of the Environment browser, with the
   Environment's sign-ins and network;
-- web T3 Code shows the thread's window in its right panel by itself.
+- web T3 Code puts the thread's window in its right panel's strip by itself, and opens the
+  panel on it while the thread is in view on a wide screen; otherwise the tab waits in the
+  strip.
 
 Each client does something else with each of them: ChatGPT Desktop's built-in browser and
 the right panel of the T3 Code desktop app run on the Operator's computer. Rules for which

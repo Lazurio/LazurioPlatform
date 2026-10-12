@@ -661,6 +661,10 @@ test("a thread's window: the bound one while it is open, otherwise a new window 
     targetId: "OPEN",
     created: false,
   });
+  // An address never moves the open window (the Folder manual says so).
+  expect(
+    await ensureThreadWindow("codex-a", "https://example.org", reused.seams),
+  ).toEqual({ session: "codex-a", targetId: "OPEN", created: false });
   expect(reused.calls).toEqual([]);
 
   // Bound but closed, or never bound: a new window in the default context
@@ -924,9 +928,38 @@ test("the Folder explains how a page reaches the Operator in each client and lea
             "right beside the chat",
           ];
     for (const way of ways) expect(section).toContain(way);
+    const bullet = (lead: string) =>
+      section.split("\n").find((line) => line.startsWith(`- **${lead}`)) ?? "";
     // A plain address the Operator opens in ChatGPT Desktop runs on their
-    // computer; the agent takes it into its window and sends that tab's link.
-    expect(section).toContain("`lazurio browser window --url <");
+    // computer: the agent opens it in a new tab of the Environment browser,
+    // never with `lazurio browser window --url`, which keeps a window it has.
+    const desktop = bullet("ChatGPT Desktop");
+    expect(desktop).toContain(
+      locale === "cs" ? "bod Nová záložka" : "the point A new tab",
+    );
+    expect(desktop).not.toContain("lazurio browser window");
+    // Web T3 opens the panel by itself only for a thread in view on a wide
+    // screen; otherwise the agent's tab waits in the strip.
+    expect(
+      bullet(locale === "cs" ? "Webové T3 Code" : "Web T3 Code"),
+    ).toContain(
+      locale === "cs"
+        ? "počká v liště panelu"
+        : "waits for them in the panel's strip",
+    );
+    const yourWindow =
+      text
+        .split("\n")
+        .find((line) =>
+          line.startsWith(
+            locale === "cs" ? "- **Tvoje okno.**" : "- **Your window.**",
+          ),
+        ) ?? "";
+    expect(yourWindow).toContain(
+      locale === "cs"
+        ? "Adresa z `--url` platí jen pro nové okno"
+        : "`--url` applies only to a new window",
+    );
     expect(text).not.toMatch(/Pohled pro Operátora|The Operator's view\.\*\*/);
   }
 });
