@@ -171,7 +171,7 @@ describe("one identity names an Environment", () => {
     expect(environmentIdentity(shell, "jana", cs)).toEqual({
       id: "jana",
       name: "Osobní",
-      who: "jen tvůj",
+      who: "jen váš",
       glyph: { kind: "initials", text: "JA" },
     });
     // Without the person's initials, the kind's icon.
@@ -294,7 +294,7 @@ describe("one identity names an Environment", () => {
     expect(identityText(identity("vm-01.acme"))).toBe(
       "Acme Works · Pracovní · @jana",
     );
-    expect(identityText(identity("jana"))).toBe("Osobní · jen tvůj");
+    expect(identityText(identity("jana"))).toBe("Osobní · jen váš");
     // An Organization's Dashboard names it once.
     expect(
       identityText({ glyph: acmeMark, name: "Acme Works", who: "Dashboard" }),
