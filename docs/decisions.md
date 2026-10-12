@@ -5937,6 +5937,9 @@ Decided:
    always visible. The page title starts with the label, so a bare tab, a phone or any
    app's panel says whose browser it is. The view's messages to its app keep the page's
    own title (`src/browser/people/identity.ts`, `client.ts`, `page.ts`).
+
+   *Superseded by the addendum of 2026-10-12 below: the view still names its Environment in
+   its bar and title, but as the shell does, never from its address.*
 2. **A requesting T3 Code or Launchpad of another Environment may frame the view.**
    `frame-ancestors` keeps the Environment's own origins. For each page request it adds the
    origin named by the request's `Referer`, when that origin is
@@ -5950,6 +5953,82 @@ Decided:
 Residual risk: a page served as `t3code.` or `launchpad.` of an Environment is Lazurio's own
 app, not an Organization's module, so it is trusted to frame. A browser that sends no
 `Referer` gets the old rule.
+
+**Addendum 2026-10-12: the view names its Environment as the shell does** (asked for by the
+Organization Admin, plan DEV-6656 task 917). On one screen the Launchpad's column head named a
+work Environment "Pracovní" over "@login" with its Organization's avatar, while the view in
+the right panel named the same Environment "<Organization> · <machine>". Matěj: these must be
+the same, bound systemically (one component, one library, one line of code), so that when one
+changes the other changes too. Point 1 of the addendum of 2026-10-09 read the name from the
+view's address, a second rule beside the shell's, and T3 Code's fork kept a third copy of it.
+This addendum replaces that point; its point 2 (who may frame the view) stands.
+
+1. **One identity, one drawing.** `environmentIdentity` (`src/shell/view.ts`) names an
+   Environment from a shell document: its id; its name and who line (`environmentName`,
+   `environmentWho`: a name the Dashboard gave, its Team or persona, else its kind, never the
+   machine's technical name); and its glyph (the owning Organization's avatar or initials, with
+   its name, your initials for a personal Environment, else the kind's icon). The column
+   head's picker draws it, unchanged to the eye. A new shell element,
+   `<lazurio-environment environment="<id>">`, draws it on one line with the same drawing
+   (`drawIdentity`, `src/shell/identity-element.ts`). Without `environment` it names the page's
+   own Environment. Until the page knows that Environment it shows its own children, so a host
+   may put a plain label inside it. Interface v1 gains the element with `environment` and
+   `lang`, and no event.
+2. **Framed, the app around the view answers.** The view cannot read the person's account: the
+   gateway relays it only on the apps' origins. Inside a frame the view posts
+   `{type: "lazurio-browser:identity-request"}` to its parent. The shell on the parent's page
+   answers `{type: "lazurio-browser:identity", identity}` from its merged state: the identity
+   of the Environment whose view asked, or `null` when it does not know that Environment.
+   `defineShellElements` installs the answer, so the Launchpad, T3 Code and MausBot answer
+   without code of their own. The shell answers again whenever its answer changes, so an
+   account that arrives later renames the view. The view draws the answer with the same
+   element, and its title starts with the same identity in words
+   (`<Organization> · <name> · <who>`).
+3. **Unframed, the server's identity.** The view service reads its own Environment's shell
+   document with the Launchpad's reader and producer (`readShellInputs`, `shellDocument`, as
+   `/.lazurio/shell.json`) and names it with the same `environmentIdentity`. It puts the identity
+   into each page as data before the script (`<script type="application/json">`, never run). A
+   bare tab, the panel's pop-out, Codex Desktop's browser and a phone show the name at once,
+   with no other wording first. It can differ from the switcher only by what the person's
+   account adds in the merge (F37): a name or who line the Dashboard gave, the account's
+   initials on a personal Environment, an Organization's avatar the Folder lacks. A framed
+   view takes those from the app.
+
+**Failure modes.**
+
+| Failure | What happens |
+| --- | --- |
+| No app answers (Codex Desktop's panel, a page without `/.lazurio/shell.js`, a shell that starts to listen late) | The view asks at once, after 1 s and after 4 s, and keeps the server's identity |
+| The app does not know the Environment (another Environment's T3 Code whose person's account does not list it, or not yet) | It answers `null`, and the view keeps its own identity until a later answer names it |
+| The person's account arrives after the page | The app answers again; the view and `<lazurio-environment>` redraw |
+| The Folder is locked or unreadable when a page is served | The page waits at most 500 ms, then carries the last identity read (none before the first); an unframed view without one shows no name |
+| Another window or origin posts a request or a reply | Ignored, by the rules below |
+
+**Security.** The identity is display data only: a name, a who line, and an Organization's
+name, avatar address and initials. It carries no address, slug, token or Dashboard link. The
+app answers only a frame of its own page (a window whose `parent` is the page's window) on a
+view's origin (`https://browser.<base>.lazurio.io`), only about that origin's Environment, and
+posts to exactly that origin, never `*`. The view takes a reply only from its parent window,
+on the parent's origin as the browser names it (`location.ancestorOrigins`; elsewhere an app
+origin of an Environment, the only pages its `frame-ancestors` admits), and only about its own
+Environment. The view parses every field of an answer and of its page's data
+(`parseEnvironmentIdentity`): text without control characters, an https avatar without
+credentials or fragment, a known glyph. Text is set as text, never as markup, and the page's
+JSON escapes `<` and the line separators.
+
+**T3 Code.** The fork's `foreignEnvironmentLabel` (`apps/web/src/lazurio/environmentBrowser.ts`),
+the third copy of the address rule, is to be replaced by
+`<lazurio-environment environment="<base host of the view's origin>">`. The view inside the
+panel already takes the panel's answer: the fork loads the Launchpad's `/.lazurio/shell.js`,
+so this needs no release of its own.
+
+Tests:
+- `tests/shell-identity.test.ts`: the identity, the element's attributes, the wire form, the
+  app's answer and the view's acceptance;
+- `tests/environment-browser-view.test.ts`: the page carries the identity;
+- `tests/environment-browser-view-identity.test.ts`: the view's identity equals the one of
+  the Launchpad's `/.lazurio/shell.json` for the same Folder, and the bounded read;
+- `tests/shell-interface.test.ts`: interface v1.
 
 ## F40 — Lazurio-account entry, approved devices and internal Environment sharing
 
