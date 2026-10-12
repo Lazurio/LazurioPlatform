@@ -338,9 +338,15 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
 - **Library.** `src/shell/`: `contract.ts` (`lazurio.shell.v1` and its parser, and
   the identity of an Environment entry below),
   `view.ts` (the rail's spaces, the Environment picker's list, names and who lines, the
-  switch, as pure functions), `elements.ts` (`<lazurio-rail>`, `<lazurio-column-head>`),
-  `styles.ts` (the vendored tokens on `:host`, the colour roles with their
-  fallbacks, the design system's selection rule),
+  switch, and the one identity that names an Environment everywhere, `environmentIdentity`,
+  as pure functions), `elements.ts` (`<lazurio-rail>`, `<lazurio-column-head>`),
+  `identity-element.ts` (`<lazurio-environment>` and the drawing of an identity, which the
+  column head's picker shares), `identity-protocol.ts` (the answer to the Environment
+  browser's framed view that asks how its Environment is named, [F39's addendum of
+  2026-10-12](decisions.md#f39--the-peoples-view-of-the-environment-browser-one-tab-of-a-person-is-one-remote-tab)),
+  `base-styles.ts` (the vendored tokens on `:host`, the colour roles with their
+  fallbacks), `identity-styles.ts` (an identity's drawing), `styles.ts` (the rail, the
+  picker and the switch, the design system's selection rule),
   `stones.ts`, `fonts.ts`, `last.ts` (the report of the last Environment used,
   below), `account.ts` and `merge.ts` (the person's account and its merge into the
   rail, below), `state.ts` (what the elements draw, shared by the page's elements and
@@ -350,7 +356,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `tests/shell-last.test.ts`, `tests/shell-account.test.ts`,
   `tests/shell-host.test.ts`, `tests/shell-signed-out.test.ts`,
   `tests/shell-picker.test.ts`, `tests/shell-interface.test.ts`,
-  `tests/launchpad-shell-routes.test.ts`,
+  `tests/shell-identity.test.ts`, `tests/launchpad-shell-routes.test.ts`,
   `tests/apps-view.test.ts`, `tests/account.test.ts`, `tests/app-opening.test.ts`,
   `tests/organization-owner.test.ts`, `tests/module-maintainer.test.ts`.
 - **Identity of an Environment entry** ([F37's addendum of
