@@ -324,6 +324,56 @@ const teamPublication: Text = t(
 function workingHere(preset: PresetName): readonly Text[] {
   const team = preset === "hosted-organization-team";
   return [
+    t(
+      "## Nejdřív pochop, o čem je řeč",
+      "## First understand what the person means",
+    ),
+    t(
+      "Lazurio propojuje firemní know-how a nástroje, se kterými lidé pracují. Člověk ti proto nemusí diktovat technický název modulu ani jeho adresu. Když řekne forecast, může tím myslet pohled uvnitř obchodní aplikace. Tvoje práce je ten význam dohledat v jeho kontextu. Není to globální překlad názvů: stejný pojem může v jiné Organizaci znamenat něco jiného.",
+      "Lazurio brings together a company's knowledge and the tools people use. The person should not need to dictate a module's technical name or its address. When they say forecast, they may mean a view inside a sales application. Your job is to find that meaning in their context. This is not a global translation of names: the same term can mean something else in another Organization.",
+    ),
+    blank,
+    t("### Najdi správné místo", "### Find the right place"),
+    preset === "hosted-personal"
+      ? t(
+          "Na tomhle osobním Environmentu vycházej z kontextu jeho Ownera a jeho vlastních modulů (`lazurio module list personalspace --json`). Firemní checkouty tu nejsou. Pokud zadání patří Organizaci, pokračuj na příslušném pracovním Environmentu podle zaznamenaných vztahů v `manual/this-machine.md` a ověř jeho identitu i přístup. Nejasný cíl si nech upřesnit; Organizaci sem kvůli hledání neklonuj. Následující postup pro Organizace použiješ až tam.",
+          "In this personal Environment, start with its Owner's context and their own modules (`lazurio module list personalspace --json`). Organization checkouts do not live here. If the task belongs to an Organization, continue in the relevant work Environment using the recorded relationships in `manual/this-machine.md`, and verify its identity and access. Ask for clarification when the destination is unclear; do not clone the Organization here to search it. Apply the following Organization procedure there.",
+        )
+      : t(
+          "Začni zadáním a kontextem vlákna, potom si přes `lazurio organization list --json` ověř dostupné Organizace a jejich skutečné cesty. Vlastník Environmentu, jméno Teamu ani název složky sám nerozhoduje, komu patří konkrétní úkol. Když Organizace není jasná, katalog slouží k orientaci; neprocházej kvůli tomu plošně obchodní data všech firem. Pokud pořád zbývá víc možností, zeptej se, pro kterou Organizaci člověk pracuje.",
+          "Start with the request and thread context, then use `lazurio organization list --json` to check the available Organizations and their actual paths. The Environment's Owner, a Team name or a directory name alone does not decide who owns a particular task. If the Organization is unclear, use the catalog for orientation; do not search every company's business data. If several possibilities remain, ask which Organization the person is working for.",
+        ),
+    t(
+      "V Organizaci nejdřív načti její `AGENTS.md` a dodrž její kaskádu včetně příslušné role, person overlaye, workspace a bližšího modulového `AGENTS.md`. Pro orientaci použij její `MAP.md`, `GLOSSARY.md`, README a doporučené skills, pokud je má. `lazurio.organization.json` a manifest modulů, na který ukazuje, říkají, co kam patří; starší deklarace čte produkt přes svůj katalog. Neodvozuj cesty jen z názvu firmy. Tenhle manuál ti dává postup, firemní významy a pravidla drží Organizace.",
+      "In the Organization, first read its `AGENTS.md` and follow its cascade, including the applicable role, person overlay, workspace and nearer module `AGENTS.md`. Use its `MAP.md`, `GLOSSARY.md`, README and recommended skills for orientation when present. `lazurio.organization.json` and the modules manifest it points to say what belongs where; the product reads older declarations through its catalog. Do not infer paths from a company name alone. This manual supplies the procedure; the Organization owns its meanings and rules.",
+    ),
+    blank,
+    t(
+      "### Projdi moduly, potom připojené služby",
+      "### Look through modules, then connected services",
+    ),
+    t(
+      "`lazurio module list <Org> --json` ukáže moduly, jejich deklarované aplikace a případný důvod, proč nejsou dostupné. Název pohledu nemusí být názvem modulu. Otevři dokumentaci a podle potřeby kód relevantních modulů; když Organizace má vlastní vyhledávací nástroj, použij ho podle jejího návodu. Jinak použij `rg` přímo v konkrétních checkout cestách z manifestu. Rootové hledání respektuje gitignore a připojené repozitáře může úplně vynechat. Neřeš to plošným vypnutím ignorování nad celým Folderem: secrets, runtime adresáře, cizí Personalspace a jiné Organizace nejsou hledaný obsah.",
+      "`lazurio module list <Org> --json` shows modules, their declared applications and any reason they are unavailable. A view's name need not be a module's name. Open the relevant modules' documentation and, when needed, code; if the Organization has its own search tool, use it as its instructions describe. Otherwise use `rg` directly in the specific checkout paths from the manifest. Root searches respect gitignore and can omit mounted repositories entirely. Do not solve this by disabling ignore rules across the whole Folder: secrets, runtime directories, another person's Personalspace and other Organizations are outside the search.",
+    ),
+    t(
+      "Připojené služby a jejich účty ověříš přes `lazurio integrations list --json`. Interní modul a Integrace jsou dvě různé cesty k aplikaci. Nula nálezů v jedné z nich nic nedokazuje o té druhé. Když člověk jednoznačně určí externí službu nebo dá konkrétní URL, můžeš jít přímo touto cestou; neurčitý firemní pojem ale neposílej do veřejného vyhledávání a nenahrazuj ho stejnojmenným produktem. Nalezený význam vždy potvrď v aktuálním zdroji, ne jen v úryvku výsledku hledání.",
+      "Check connected services and their accounts with `lazurio integrations list --json`. An internal module and an Integration are two different ways to reach an application. Zero matches in one say nothing about the other. When the person unambiguously identifies an external service or supplies a specific URL, you can take that route directly; do not send an unclear workplace term to public search or replace it with a product that shares its name. Always confirm the meaning in its current source, not just a search-result excerpt.",
+    ),
+    blank,
+    t(
+      "### Otevři ověřený cíl, ne odhad",
+      "### Open a verified destination, not a guess",
+    ),
+    t(
+      "U nalezeného modulu použij `lazurio module status <Org>/<modul> --json`; pokud je potřeba, spusť ho postupem z `manual/troubleshooting.md`. Na macOS patří spuštění do Launchpadu. Odkaz vezmi přesně z `runtime.url` zdravé aplikace nebo z Launchpadu. Když start selže nebo URL chybí, pojmenuj problém a adresu si nevymýšlej. Cestu ke konkrétnímu pohledu ověř v aplikaci nebo její dokumentaci. Otevřenou stránku zkontroluj v prohlížeči; pouhé odeslání navigace není důkaz, že člověk vidí správnou aplikaci.",
+      "For the module you found, use `lazurio module status <Org>/<module> --json`; if needed, start it as `manual/troubleshooting.md` describes. On macOS, start it through the Launchpad. Take the exact link from the healthy application's `runtime.url` or from the Launchpad. If startup fails or the URL is missing, explain the problem without inventing an address. Verify the route to a particular view in the application or its documentation. Check the opened page in the browser; issuing a navigation alone does not prove the person sees the correct application.",
+    ),
+    t(
+      "Když význam není jasný, řekni krátce, co se podařilo najít, a polož konkrétní otázku. Chybějící checkout, chybějící přístup a nejasný pojem jsou různé situace. Stejně tak obchodní záznam o službě není samotné založení té služby: nejdřív zjisti, co má člověk na mysli, a až potom posuzuj potřebná práva. Neodmítej úkol kvůli oprávnění k jiné operaci. Použitelné upřesnění patří do slovníku nebo instrukcí owning Organizace obvyklým review postupem; nekopíruj ho do generovaných souborů Folderu ani do jiné firmy.",
+      "When the meaning is unclear, briefly say what you found and ask a specific question. A missing checkout, missing access and an unclear term are different situations. Likewise, a business record about a service is not the act of provisioning that service: first establish what the person means, then check the rights it requires. Do not refuse a task because of the rights for a different operation. A useful clarification belongs in the owning Organization's glossary or instructions through its normal review process; do not copy it into the generated Folder files or another company.",
+    ),
+    blank,
     t("## Draft, Publikace, Release", "## Draft, Publication, Release"),
     t(
       "- **Draft** je tvoje práce: vratný a hlavně editovatelný kus práce, změna ve worktree, rozepsaný e-mail, otevřený pull request.",
