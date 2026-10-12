@@ -28,6 +28,7 @@ import type { ExecutorEndpoint } from "./executor-client";
 import { readExecutor } from "./executor-source";
 import {
   type ComposioReadingState,
+  type ComposioSignIn,
   type IntegrationsOverview,
   mergeIntegrations,
   type ToolsReading,
@@ -66,10 +67,10 @@ export type IntegrationsHost = Readonly<{
    * (`createIntegrationsReader`); without them, as for `lazurio
    * integrations list`, every reading reads them. */
   composioNames?: ComposioNames;
-  /** The Composio sign-ins the Launchpad started that still wait (its
-   * connect sessions, `waitingSignIns`); without them, as for `lazurio
-   * integrations list`, no pending account is listed. */
-  composioWaiting?: () => ReadonlyMap<string, ReadonlySet<string> | null>;
+  /** The Composio sign-ins the Launchpad started (its connect sessions,
+   * `signIns`); without them, as for `lazurio integrations list`, no
+   * pending account is listed. */
+  composioSignIns?: () => ReadonlyMap<string, readonly ComposioSignIn[]>;
   catalog?: IntegrationsCatalog;
   now?: () => Date;
 }>;
@@ -199,7 +200,7 @@ export async function readIntegrations(
     tools,
     executor,
     composio,
-    composioWaiting: host.composioWaiting?.() ?? new Map(),
+    composioSignIns: host.composioSignIns?.() ?? new Map(),
     composioDisconnect,
     readAt: (host.now ?? (() => new Date()))().toISOString(),
   });

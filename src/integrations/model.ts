@@ -172,12 +172,11 @@ export type MergeInput = Readonly<{
   tools: ToolsReading;
   executor: ExecutorReading;
   composio: ComposioReadingState;
-  /** The Composio sign-ins started here that still wait, by toolkit: the
-   * word ids of the toolkit's pending accounts that existed before them, or
-   * null where those are unknown. A pending account is listed only where a
-   * sign-in waits for its toolkit and it is none of those; any other is a
-   * sign-in nobody finishes. */
-  composioWaiting?: ReadonlyMap<string, ReadonlySet<string> | null>;
+  /** The Composio sign-ins started in this Launchpad, by toolkit, in the
+   * order they started, ended ones too while the Launchpad keeps them. A
+   * pending account is listed only where a waiting one of them may be it
+   * (`pendingOfSignIns`); any other is a sign-in nobody finishes. */
+  composioSignIns?: ReadonlyMap<string, readonly ComposioSignIn[]>;
   /** The CLI removes an account without a prompt (`connections remove
    * --yes`). */
   composioDisconnect?: boolean;
@@ -234,6 +233,44 @@ export function catalogAppOf(
       app.direct.endpoint !== undefined &&
       canonicalEndpoint(app.direct.endpoint) === target,
   );
+}
+
+/** A Composio sign-in started in this Launchpad, as the reading weighs its
+ * toolkit's pending accounts (decision F42, addendum of 2026-10-12). */
+export type ComposioSignIn = Readonly<{
+  /** The word ids of the toolkit's pending accounts just before its link;
+   * null where they could not be read. */
+  earlier: readonly string[] | null;
+  /** It still waits: not connected, ended, cancelled or expired. */
+  waiting: boolean;
+}>;
+
+/** The pending accounts of one toolkit that a waiting sign-in started here
+ * may be: one that appeared after the sign-in started and before the next
+ * one of the toolkit did (or by now, after the last). The CLI names a
+ * pending account only by its word id, so the sign-ins in their order are
+ * the only correlation: an account older than every sign-in is one nobody
+ * waits for, and one that appeared after a sign-in that has ended is no
+ * longer waited for. Where any sign-in's earlier accounts are unknown,
+ * none. */
+export function pendingOfSignIns(
+  signIns: readonly ComposioSignIn[] | undefined,
+  pendingNow: ReadonlySet<string>,
+): ReadonlySet<string> {
+  const listed = new Set<string>();
+  if (
+    signIns === undefined ||
+    signIns.some((signIn) => signIn.earlier === null)
+  )
+    return listed;
+  signIns.forEach((signIn, index) => {
+    if (!signIn.waiting) return;
+    const earlier = new Set(signIn.earlier ?? []);
+    const next = signIns[index + 1];
+    const until = next === undefined ? pendingNow : (next.earlier ?? []);
+    for (const wordId of until) if (!earlier.has(wordId)) listed.add(wordId);
+  });
+  return listed;
 }
 
 /** The one list (decision F42). */
@@ -294,18 +331,29 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
   const composioUsable =
     policy.allowed && input.composioReady && input.composio.state === "ok";
   const viaComposio = new Map<string, IntegrationAccount[]>();
+  // A pending account is listed only where a waiting sign-in started here
+  // may be it (decision F42, addendum of 2026-10-12).
+  const pendingNow = new Map<string, Set<string>>();
+  if (input.composio.state === "ok")
+    for (const account of input.composio.accounts)
+      if (account.state === "pending" && account.wordId !== null) {
+        const wordIds = pendingNow.get(account.toolkit) ?? new Set<string>();
+        wordIds.add(account.wordId);
+        pendingNow.set(account.toolkit, wordIds);
+      }
+  const awaited = (toolkit: string) =>
+    pendingOfSignIns(
+      input.composioSignIns?.get(toolkit),
+      pendingNow.get(toolkit) ?? new Set(),
+    );
   if (composioUsable && input.composio.state === "ok")
     for (const account of input.composio.accounts) {
-      if (account.state === "pending") {
-        const earlier = input.composioWaiting?.get(account.toolkit);
-        if (
-          earlier === undefined ||
-          earlier === null ||
-          account.wordId === null ||
-          earlier.has(account.wordId)
-        )
-          continue;
-      }
+      if (
+        account.state === "pending" &&
+        (account.wordId === null ||
+          !awaited(account.toolkit).has(account.wordId))
+      )
+        continue;
       const accounts = viaComposio.get(account.toolkit) ?? [];
       accounts.push({
         path: "composio",

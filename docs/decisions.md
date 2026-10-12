@@ -6463,15 +6463,19 @@ things in the reading were wrong. The reference is
    `lazurio integrations list`.
 2. **A sign-in nobody finishes is no account.** `composio link --no-wait` creates a
    pending (`INITIATED`) account at once, and one whose sign-in is never finished
-   stays pending. The reading lists a pending account only of a toolkit for which a
-   sign-in started in this Launchpad waits (a connect session still pending and not
-   expired), and only if it is not one of the toolkit's pending accounts that
-   existed before that sign-in: the session keeps their word ids, read just before
-   the link, because the CLI names a pending account only by its word id. Where
-   they could not be read, or a pending account has no word id, none is listed.
-   The Launchpad's cached reading is read again when such a sign-in starts, ends or
-   is cancelled. Any other pending account is left out, on the page and for
-   agents.
+   stays pending. The CLI names a pending account only by its word id, so each
+   sign-in started in this Launchpad keeps the word ids of its toolkit's pending
+   accounts read just before its link, and the sign-ins' order is the
+   correlation. A pending account is listed only where a sign-in that still waits
+   (a connect session pending and not expired) may be it: it appeared after that
+   sign-in started and before the toolkit's next sign-in did (or by now, after the
+   last), counting sign-ins that ended or were cancelled, which the sessions keep a
+   minute beyond their expiry. So trying a toolkit again never lists an earlier,
+   abandoned sign-in, and cancelling one of two sign-ins of a toolkit leaves only
+   the other's account. Where any of those word ids could not be read, or a
+   pending account has none, no pending account is listed. The Launchpad's cached
+   reading is read again when a sign-in starts, ends or is cancelled. Any other
+   pending account is left out, on the page and for agents.
 3. **"Odpojit" only where it can work.** Composio's CLI (0.4.2, and `next` on
    2026-10-12) removes an account only after a prompt, which no Launchpad answers for
    a person, so "Odpojit" always failed (`disconnect-unsupported`). The reading says
@@ -6490,11 +6494,13 @@ things in the reading were wrong. The reference is
 
 Verified by tests: an app whose only account expired listed but not connected
 (`tests/integrations-model.test.ts`, `tests/integrations-routes.test.ts`); a pending
-account left out without a waiting sign-in, with one that started after it, where
-the earlier ones are unknown and without a word id, and the new sign-in's own listed
+account left out without a waiting sign-in, older than every sign-in, after a sign-in
+that ended, where any earlier word ids are unknown and without a word id, and a
+waiting sign-in's own listed, by the order of two sign-ins of one toolkit too
 (`tests/integrations-model.test.ts`); an unfinished sign-in left out, and when the
 person tries the same toolkit again only the new sign-in's pending account listed,
-in the cached reading too, and none once it is cancelled; `composio.disconnect` false for a CLI without `--yes` and
+in the cached reading too, none once it is cancelled, and of two sign-ins at once
+only the earlier's after the later is cancelled; `composio.disconnect` false for a CLI without `--yes` and
 true with it; `lazurio integrations list` naming the expired app under "Not working"
 (`tests/integrations-routes.test.ts`); the "⋯" menu without "Odpojit" where the CLI
 cannot remove (`tests/integrations-page.test.ts`).

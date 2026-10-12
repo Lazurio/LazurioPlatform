@@ -96,7 +96,7 @@ export function createIntegrationsRoutes(
       ...(seams.now === undefined ? {} : { now: seams.now }),
       // A pending Composio account is listed only while a sign-in started
       // here waits for it (decision F42, addendum of 2026-10-12).
-      composioWaiting: () => sessions.waitingSignIns(),
+      composioSignIns: () => sessions.signIns(),
     };
   });
   // Connecting, signing in again or disconnecting a Composio account here

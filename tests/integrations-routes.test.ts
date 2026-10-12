@@ -741,6 +741,24 @@ test("a Composio sign-in nobody finishes is listed only while one started here w
   ).toEqual({ kind: "cancelled" });
   // Cancelled: nothing waits, and no pending account is listed.
   expect(await salesforce(false)).toEqual([]);
+  // Two sign-ins of the toolkit at once (Pablo's review of #337): each
+  // lists its own pending account; cancelling the later one leaves only
+  // the earlier's, cancelling that too leaves none.
+  const first = (await (
+    await app.post("/api/integrations/connect", { app: "salesforce" })
+  ).json()) as { session: string };
+  const second = (await (
+    await app.post("/api/integrations/connect", { app: "salesforce" })
+  ).json()) as { session: string };
+  expect(await salesforce(true)).toEqual([
+    ["word102", "pending"],
+    ["word103", "pending"],
+  ]);
+  await app.post("/api/integrations/cancel", { session: second.session });
+  expect(await salesforce(false)).toEqual([["word102", "pending"]]);
+  expect(await salesforce(true)).toEqual([["word102", "pending"]]);
+  await app.post("/api/integrations/cancel", { session: first.session });
+  expect(await salesforce(false)).toEqual([]);
 });
 
 test("a second Composio account needs a name, and a name in use is refused before anything runs", async () => {

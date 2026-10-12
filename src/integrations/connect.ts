@@ -31,6 +31,7 @@ import {
 import { healthState, readExecutor } from "./executor-source";
 import {
   type AccountState,
+  type ComposioSignIn,
   catalogAppOf,
   composioToolkitOf,
   shownEndpoint,
@@ -812,34 +813,27 @@ export function createConnectSessions(host: () => ConnectHost) {
       }
     },
 
-    /** The Composio sign-ins started here that still wait, by toolkit: the
-     * word ids of the toolkit's pending accounts that existed before them,
-     * or null where those are unknown. The reading lists a pending account
-     * only of a toolkit here and only if it is none of those (decision F42,
-     * addendum of 2026-10-12). Two sign-ins of one toolkit: an account
-     * earlier than both stays out, one either of them may be is listed. */
-    waitingSignIns(): ReadonlyMap<string, ReadonlySet<string> | null> {
-      const waiting = new Map<string, ReadonlySet<string> | null>();
+    /** The Composio sign-ins started here, by toolkit, in the order they
+     * started (the sessions' own order), ended and cancelled ones too while
+     * the sessions keep them: the reading weighs a pending account by them
+     * (`pendingOfSignIns`, decision F42, addendum of 2026-10-12). A session
+     * is kept a minute beyond its expiry, and every one lasts as long, so a
+     * later sign-in outlives every earlier one. */
+    signIns(): ReadonlyMap<string, readonly ComposioSignIn[]> {
+      const byToolkit = new Map<string, ComposioSignIn[]>();
       for (const session of sessions.values()) {
-        if (
-          session.composio === undefined ||
-          session.outcome.kind !== "pending" ||
-          now() >= session.expires
-        )
-          continue;
+        if (session.composio === undefined) continue;
         const { toolkit, stale } = session.composio;
-        const mine = stale === null ? null : new Set(stale);
-        const prior = waiting.get(toolkit);
-        waiting.set(
-          toolkit,
-          prior === undefined
-            ? mine
-            : prior === null || mine === null
-              ? null
-              : new Set([...prior].filter((wordId) => mine.has(wordId))),
-        );
+        byToolkit.set(toolkit, [
+          ...(byToolkit.get(toolkit) ?? []),
+          Object.freeze({
+            earlier: stale,
+            waiting:
+              session.outcome.kind === "pending" && now() < session.expires,
+          }),
+        ]);
       }
-      return waiting;
+      return byToolkit;
     },
 
     /** How a session goes. */

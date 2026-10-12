@@ -11,6 +11,7 @@ import {
   parseComposioConnections,
 } from "../src/integrations/composio-source";
 import {
+  type ComposioSignIn,
   catalogAppOf,
   composioToolkitOf,
   forAdmin,
@@ -515,57 +516,70 @@ test("Composio's toolkits the catalog does not know are listed, and links follow
   });
 });
 
-// A Composio account still pending is a sign-in: listed only while one
-// started here waits for its toolkit, and only if it is no pending account
-// that existed before that sign-in (decision F42, addendum of 2026-10-12);
-// otherwise nobody finishes it and it is no account.
-test("a pending Composio account is listed only as the sign-in started here waits for it", () => {
+// A Composio account still pending is a sign-in (decision F42, addendum of
+// 2026-10-12): listed only where a waiting sign-in started here may be it,
+// by the order the sign-ins started; otherwise nobody finishes it.
+test("a pending Composio account is listed only where a waiting sign-in started here may be it", () => {
   const pending = (wordId: string | null) => ({
     toolkit: "salesforce",
     state: "pending" as const,
     alias: null,
     wordId,
   });
-  const composio = {
-    state: "ok" as const,
-    accounts: [
-      pending("old_abandoned"),
-      pending("new_live"),
-      pending(null),
-      {
-        toolkit: "salesforce",
-        state: "expired" as const,
-        alias: "Obchod",
-        wordId: "castle",
-      },
-    ],
-  };
-  const rows = (
-    composioWaiting?: ReadonlyMap<string, ReadonlySet<string> | null>,
-  ) =>
+  const accounts = [
+    pending("old_abandoned"),
+    pending("word101"),
+    pending("word102"),
+    pending(null),
+    {
+      toolkit: "salesforce",
+      state: "expired" as const,
+      alias: "Obchod",
+      wordId: "castle",
+    },
+  ];
+  const rows = (signIns?: readonly ComposioSignIn[], toolkit = "salesforce") =>
     mergeIntegrations({
       ...base,
-      composio,
-      ...(composioWaiting === undefined ? {} : { composioWaiting }),
+      composio: { state: "ok" as const, accounts },
+      ...(signIns === undefined
+        ? {}
+        : { composioSignIns: new Map([[toolkit, signIns]]) }),
     })
       .apps.find((item) => item.id === "salesforce")
-      ?.accounts.map((account) => [account.selector, account.state]);
-  // No sign-in waits: no pending account, the expired one stays.
-  expect(rows()).toEqual([["castle", "expired"]]);
-  // One waits, started after "old_abandoned": only what it may be is listed;
-  // a pending account without a word id cannot be told apart and stays out.
-  expect(rows(new Map([["salesforce", new Set(["old_abandoned"])]]))).toEqual([
-    ["new_live", "pending"],
-    ["castle", "expired"],
+      ?.accounts.map((account) => account.selector);
+  // No sign-in started here: no pending account, the expired one stays.
+  expect(rows()).toEqual(["castle"]);
+  // One waits, started after "old_abandoned": what appeared since is listed;
+  // a pending account without a word id cannot be told apart.
+  expect(rows([{ earlier: ["old_abandoned"], waiting: true }])).toEqual([
+    "word101",
+    "word102",
+    "castle",
   ]);
-  // Its earlier accounts unknown: no pending account at all.
-  expect(rows(new Map([["salesforce", null]]))).toEqual([
-    ["castle", "expired"],
-  ]);
+  // Two of the toolkit, the later one cancelled: only the earlier's own.
+  expect(
+    rows([
+      { earlier: ["old_abandoned"], waiting: true },
+      { earlier: ["old_abandoned", "word101"], waiting: false },
+    ]),
+  ).toEqual(["word101", "castle"]);
+  // The earlier one ended and the later waits: only the later's own.
+  expect(
+    rows([
+      { earlier: ["old_abandoned"], waiting: false },
+      { earlier: ["old_abandoned", "word101"], waiting: true },
+    ]),
+  ).toEqual(["word102", "castle"]);
+  // Any sign-in's earlier accounts unknown: no pending account at all.
+  expect(
+    rows([
+      { earlier: ["old_abandoned"], waiting: true },
+      { earlier: null, waiting: false },
+    ]),
+  ).toEqual(["castle"]);
   // A sign-in of another toolkit lists none of these.
-  expect(rows(new Map([["gmail", new Set<string>()]]))).toEqual([
-    ["castle", "expired"],
-  ]);
+  expect(rows([{ earlier: [], waiting: true }], "gmail")).toEqual(["castle"]);
 });
 
 test("the scope of a preset, and Composio's statuses and answers read exactly", () => {
