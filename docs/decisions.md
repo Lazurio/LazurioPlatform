@@ -8253,3 +8253,417 @@ the whole Team's, and enforces nothing more. Whether a Team Environment needs a 
 rule (per-person accounts, or approval of each device key) is an open question for the
 Operator. Consumer acceptance on a Remote Environment, with a real device, its network
 grant and `ssh <alias> true`, is still to be recorded.
+
+## F50 — The Environment browser's contract: one module, executable vectors and an attested artifact for the forks
+
+**Proposed by the agent for Matěj's decision (root decision 0191's addendum of 2026-10-12,
+points 28–35; plan DEV-6646 task 2026-10-12-701).** The Environment browser (F38, F39, F47) is
+one Chromium per Remote Environment that several apps show in their right panel: the Launchpad,
+web and desktop T3 Code (`Lazurio/t3code`), Codex Desktop over SSH in its own browser and, last,
+Lazurio MausBot (`Lazurio/OpenMausBot`). The view's hub, the view page, the Launchpad, the
+`lazurio browser` CLI, T3 Code's server and web client and agent-browser (`Lazurio/agent-browser`)
+meet through files, `postMessage` messages, addresses, a shell element's interface, CLI answers
+and timings. Most of them keep their own copy of those rules. The Platform alone defines a remote
+tab's id in nine places. T3 Code carries a hand copy of the holder files' code whose tests
+transcribe the Platform's cases at one commit. The readers of a view's address, of the view's
+messages and of Nová karta's choices disagree on inputs the code accepts today. Nothing is
+versioned, and the programs move at different times: the Platform by rollout, T3 Code by each
+person's Update, MausBot and agent-browser by Machines' pins, and two Environments of different
+Platform releases meet whenever one shows the other's tab.
+
+This decision makes one Platform module the only definition of those rules, makes executable
+vectors their truth, versions what crosses a program's boundary and hands the module to the forks
+in the attested shell artifact. It does not decide the shell element for a browser tab, the forks'
+own words in one language, desktop T3 Code on a Remote Environment, the strips' shared scenarios
+or MausBot's move to the Environment browser (tasks 2026-10-12-704 to -706 and 2026-10-05-510); it
+gives them the contract they build on. The licence of the vendored files is Matěj's (open
+question 1).
+
+**Inventory of the contracts.** Read on 2026-10-12 at: the Platform's `main` 40bec6a (with #349;
+#347 at c2618ba3, merged since as fdbf332, and #348 then at a3ebdb8b), the T3 Code fork's `main` b122de46, the MausBot
+fork's `main` e24ad700 and the agent-browser fork's `v0.37.0-lazurio.1` (83c4241). **P** is the
+Platform (`src/…`, `tests/…`), **T3** the T3 Code fork (`apps/…`, `scripts/…`), **MB** the MausBot
+fork (`server/…`) and **AB** the agent-browser fork (`cli/src/…`, `docs/…`). "Probed" means the
+cell's inputs were run through the functions themselves; everything else is read from the code.
+MausBot appears only where it touches a contract today: it is not on the Environment browser yet,
+runs a headless browser per bot through agent-browser's MCP mode (`server/browser-engine.ts:408-465`)
+and hands control between bot and person by a lease (`server/browser-runtime.ts:10,401-455`), where
+0191 points 13 and 34 ask for co-control.
+
+| # | Contract and its form | Owner today | Writers and readers | Copies and divergences |
+| --- | --- | --- | --- | --- |
+| C1 | **Remote tab id.** A DevTools target id, 32 hexadecimal digits, upper case as Chrome and the Platform write it. | Chrome; the rule: P (F39 point 1) | P defines it in nine places: `src/browser/people/holds.ts:46`, `src/browser/people/protocol.ts:10-11`, `src/browser/people/service.ts:152-155`, `src/shell/new-tab-protocol.ts:83-85`, `src/launchpad/new-tab-routes.ts:115`, `src/launchpad/new-tab/holder.ts:49`, `src/launchpad/new-tab/hub-client.ts:39`, `src/launchpad/browser-panel-view.ts:122`, `src/launchpad/new-tab-view.ts:529`. T3: `apps/server/src/lazurio/holders.ts:31`, `apps/server/src/lazurio/browserView.ts:44`, `apps/web/src/lazurio/browserView.ts:41`, `apps/web/src/lazurio/environmentBrowser.ts:27`, `apps/web/src/lazurio/LazurioNewTab.tsx:87`, `apps/web/src/lazurio/threadTabs.ts:68-69`. | The same 32-digit rule everywhere but: P `src/browser/window.ts:119-135` takes any non-empty id from a binding; T3 decodes `lazurio browser window --json`'s `targetId` as upstream's `PreviewTabId`, any trimmed text up to 128 characters (`apps/server/src/lazurio/environmentBrowser.ts:107-115`); T3's web takes upper case only, from its own server. Until 40bec6a, `src/launchpad/server.ts:194` took `[A-Za-z0-9_-]{1,128}`. |
+| C2 | **Session and strip names.** `[A-Za-z0-9_-]{1,64}`. Strips are `launchpad` and `t3-<thread>`, and a holder file is `<strip>.json`. Agent sessions are `t3-…`, `codex-<CODEX_THREAD_ID>`, `claude-<CLAUDE_CODE_SESSION_ID>` or a given `--session`. | P (the grammar, F47 point 4); T3 (`t3-` names); AB (a daemon's session) | P: `holds.ts:45,51-53` (`isStrip`), `src/browser/view.ts:11-12` (`isBrowserSession`), `src/shell/new-tab-protocol.ts:78-80` (`isNewTabStrip`, a copy "this browser-side module cannot import"), `src/browser/window.ts:24-46` (`threadSession`); `launchpad` in `src/launchpad/new-tab/holder.ts:33` and `src/launchpad/new-tab-view.ts:254`; an app named by prefix in `src/launchpad/new-tab-routes.ts:150-153`, `src/launchpad/new-tab-view.ts:926-928` and `src/launchpad/browser-panel-view.ts:578`. T3: `apps/server/src/lazurio/holders.ts:30`, `apps/server/src/lazurio/agentBrowserSession.ts:35-41` (an id outside the alphabet or too long is cut and ends in 32 hex digits of its SHA-256), `apps/server/src/lazurio/threadTabs.ts:193`. MB: `server/browser-engine.ts:37,66,547-551`. AB: `cli/src/flags.rs:736-741` (`--session` as given), `cli/src/validation.rs:2-8` (restore keys and renames only), `cli/src/native/stream/dashboard.rs:947` (1–64). | P's three copies agree and T3 conforms. MB names sessions `bot-<id>`, `guest-<uuid>` or a profile partition in `[A-Za-z0-9_.-]{1,96}`: a dot or more than 64 characters is outside the grammar, and the hub would skip such a binding (`holds.ts:378`). AB accepts more (any daemon name; Unicode letters in restore names), so Lazurio's grammar is a subset that no document states. |
+| C3 | **A view's address and its Environment.** `https://browser.<base>.lazurio.io/t/<id>`, `<base>` being `<machine>.<org>` or a personal slug; the bare origin opens a new tab. The Environment's id is `environmentIdOf` of the origin. | P (F39 point 1; `src/shell/contract.ts:237-264`, "the one place the id is derived") | Produced: P `src/browser/view.ts:36-41`, `src/browser/people/service.ts:326` (relative) and `:371` (absolute), `src/browser/people/client.ts:1240`; T3 `apps/web/src/lazurio/threadTabs.ts:120`. Read: P `service.ts:152-154`, `client.ts:1390`, `src/shell/identity-protocol.ts:138-144`, `src/launchpad/browser-panel-view.ts:75-98,117-127`, `src/shell/new-tab-protocol.ts:156-172`, `src/launchpad/new-tab-view.ts:529-563`; T3 `apps/server/src/lazurio/browserView.ts:33-56` and its web copy `apps/web/src/lazurio/browserView.ts:30-53` (kept equal by `scripts/lazurio-release-contract.test.mjs:720-752`), `apps/web/src/lazurio/environmentBrowser.ts:35-110`, `apps/server/src/lazurio/environmentBrowser.ts:261-277`, `apps/web/src/lazurio/LazurioNewTab.tsx:93-107`. | Probed: `…/t/<ID>?x=1` is a tab for the Launchpad's `viewTabOf`, not for `newTabViewOf` or T3. `…/t/<ID>/` is a tab for Nová karta's address bar only. `browser.a.b.c.lazurio.io` and `browser.-vm.acme.lazurio.io` are another Environment's view for T3 (ids `a.b.c` and `-vm.acme`, which `isEnvironmentId` refuses) and no view for P, so Nová karta's address bar opens them as pages in this Environment's browser. A lower-case id passes `viewTabOf` and T3, not `newTabViewOf`. Read: T3's `isViewOf` compares the path upper-cased and takes `/T/<ID>`, which the service never serves. |
+| C4 | **Boot clock.** `{"boot": "<boot_id>", "at": <seconds>}` from `/proc/sys/kernel/random/boot_id` and the first number of `/proc/uptime`. | P (F47 point 4) | P `holds.ts:82-117`, read before each snapshot (`src/browser/people/serve.ts:125`, `src/browser/people/hub.ts:1621-1663`), each record and each reconciliation (`src/launchpad/new-tab/holder.ts:140,221`). T3 `apps/server/src/lazurio/holders.ts:86-116`, read in `apps/server/src/lazurio/threadTabs.ts:274,342,866`. | T3's copy equals P's (bodies compared; only trailing commas differ). |
+| C5 | **Holder file.** `$XDG_RUNTIME_DIR/lazurio-browser/holders/<strip>.json` = `{"strip", "label", "tabs": […], "recordedAt": {<id>: <boot time>}}`, mode 0600 in a 0700 directory, replaced atomically by its app only. The hub reads at most 64 Ki characters, 500 tabs and a 200-character label; only the writer reads `recordedAt`. | P (the format); each file its app | Written: P `src/launchpad/new-tab/holder.ts:118-160` (read first, then replaced; at most 256 tabs `:40`; an empty strip writes an empty file); T3 `apps/server/src/lazurio/threadTabs.ts:257-268,295-307` (at most 128 tabs `:72` and 60 KiB of UTF-8 `:74,306`; an empty strip removes its file `:297-298`; files of threads no longer live go at start `:487-505`). Read: P hub `holds.ts:346-403` (#347 adds the per-file memory, `holdsReader` and doctor's `unreadableHolderFiles`); T3 `threadTabs.ts:397-412` (others' holds for "also held by"; an unreadable file is left out). | T3 copies `parseHolder`, `holderFileText` and `parseHolderRecords` (`apps/server/src/lazurio/holders.ts:190-262`) "from … holds.ts at 49d54c9" (`:14-20`). The bodies equal today's. The fork's contract test pins only that sentence (`scripts/lazurio-release-contract.test.mjs:638`) and its tests transcribe P's cases at that commit (`apps/server/src/lazurio/holders.test.ts:27-29`), so a later change such as #347 goes unseen. The writers differ in bounds and in an empty strip. No `schema`. |
+| C6 | **List of live tabs and the reconciliation.** `$XDG_RUNTIME_DIR/lazurio-browser/tabs.json` = `{"tabs": […], "takenAt": <boot time>}` from a fresh `Target.getTargets`; an app drops an id only by `keptTabs`. | P hub | Written: P `holds.ts:148-154`, `hub.ts:1608-1663` (after discovery, on each change, every 30 s). Read: P `src/launchpad/new-tab/holder.ts:132-149` (at start, on change, every 30 s `:92`, before each write); T3 `apps/server/src/lazurio/threadTabs.ts:270-292` (the same, `:204-205`). | T3's `parseLiveTabs` and `keptTabs` (`holders.ts:144-188`) equal P's. No `schema`. |
+| C7 | **agent-browser's session files and idle timeout.** `<socket dir>/<session>.target` = `{"targetId", "url", "pinned"}`, written atomically and kept past the daemon; `<session>.pid`, written at start and removed at exit; `<session>.sock`. The socket directory is `AGENT_BROWSER_SOCKET_DIR`, else `$XDG_RUNTIME_DIR/agent-browser`, else `~/.agent-browser`, else the temporary directory, under `namespaces/<ns>/run` with `AGENT_BROWSER_NAMESPACE`. `idleTimeout` in `~/.agent-browser/config.json`; the default hour skips an attached browser. Idle or shut down, an attached daemon disconnects without closing a tab. | AB. The files are explained only in source comments (`cli/src/native/tab_binding.rs:1-17`); the docs mention the socket directory and that its `doctor` cleans stale `.sock` and `.pid` files (`docs/src/app/configuration/page.mdx:317`, `docs/src/app/installation/page.mdx:99-101`), not the binding or what a `.pid` means; the fork's runbook names none of them | AB: `cli/src/native/tab_binding.rs:24-44,102-140`, `cli/src/native/daemon.rs:66-67,146-158,167-205,315-333`, `cli/src/native/browser.rs:459-461,1286-1306`, `cli/src/connection.rs:22,100-139,160-182,774-784`, `cli/src/flags.rs:331-360` (`AGENT_BROWSER_CONFIG` replaces the user config) and `:644-648`. P: hub `holds.ts:373-400`; `src/browser/window.ts:50-59,119-135`; `src/browser/agent-browser-config.ts:33` (writes `"1h"` unless one is set); #348's `stopSessionDaemon` sends agent-browser's internal shutdown (`__agent_browser_internal_shutdown`, `pub(crate)` at `cli/src/connection.rs:22`) on `<session>.sock`. T3: `apps/server/src/lazurio/holders.ts:71-80,286-356,381-396`. MB: `server/browser-engine.ts:41-62,438-441,450-454`. | P and T3 resolve the socket directory only from an absolute `AGENT_BROWSER_SOCKET_DIR` or `XDG_RUNTIME_DIR`, without AB's fallbacks and namespaces. The hub requires a 32-digit `targetId`, `boundTarget` any text. T3 skips an unreadable binding where the hub keeps it (documented), and stops a daemon by SIGTERM to its `.pid` after a `/proc/<pid>/cmdline` check, the way #348 dropped after its review found that a stale `.pid` can name another session's daemon. MB points `AGENT_BROWSER_CONFIG` at its own `{}` file, so the Platform's idle timeout never reaches its daemons. |
+| C8 | **The view's messages to its app.** `postMessage` to `location.ancestorOrigins[0]`, or `"*"` where the browser names none: `{type: "lazurio-browser:info", url, title, view}`, `{type: "lazurio-browser:new-tab", view, url}`, `{type: "lazurio-browser:closed", view}`. No version. | P view (F39 point 4, F47 point 4) | Sent: P `src/browser/people/client.ts:120-128,1175-1180,1238-1242,1344`. Taken: P `src/launchpad/browser-panel-view.ts:491-520` (`viewMessage`); T3 `apps/web/src/lazurio/environmentBrowser.ts:147-176` (`readEnvironmentBrowserMessage`), wired in `apps/web/src/lazurio/LazurioEnvironmentBrowser.tsx:447-463`. | Both take only the frame's window on the view's origin. The Launchpad drops every message without a valid `view`; T3 takes `info` and `closed` without one. The Launchpad takes a `view` with a query, T3 refuses it. The Launchpad needs `url` on `new-tab`, T3 ignores it. The Launchpad cuts a title at 500 and an address at 2048 characters, T3 does not. |
+| C9 | **Identity messages and `<lazurio-environment>`.** View → app `{type: "lazurio-browser:identity-request"}`, at 0, 1 and 4 s; app → view `{type: "lazurio-browser:identity", identity}` to exactly the frame's origin. The element's attributes `environment`, `lang`, `space` (interface v1). | P shell (F39's addendum of 2026-10-12) | P `src/shell/identity-protocol.ts:27-30,91-109,163-171,189-241,250-268`, installed by `src/shell/elements.ts:1010-1021`; the view `client.ts:139,173-196`; `src/shell/interface.ts:45`. The forks load both from `/.lazurio/shell.js` at runtime (T3 `apps/web/index.html:482`, MB `index.html:9`). | No copy. T3 hands the element an id from its own `viewEnvironmentId` (`apps/web/src/lazurio/environmentBrowser.ts:109-110`, see C3) and `lang` from the browser's language (`apps/web/src/lazurio/LazurioEnvironmentBrowser.tsx:233-245`). The view and the app answering it can run different Platform releases: another Environment's tab. |
+| C10 | **Nová karta's interface to an app.** `<lazurio-new-tab strip tools focus-address lang>`. `tools` is JSON `[{id, label, key?, icon?}]`: at most 12, id `^[a-z0-9][a-z0-9-]{0,31}$`, key one letter or digit, label at most 48 characters. The event `lazurio-new-tab` with `detail` `{kind: "page" \| "tab", tab, view}` or `{kind: "tool", id}`. The page↔element messages (`lazurio-new-tab:ready`, `:choice`, `:host`) stay inside one Launchpad. | P shell (F47 point 2; `src/shell/interface.ts:37-42,53`) | P `src/shell/new-tab-protocol.ts:117-195`, `src/shell/new-tab-element.ts:60,143-144,206-210`, the icons `src/launchpad/new-tab-page.ts:181-188`; the Launchpad's panel `src/launchpad/browser-panel-view.ts:599`. T3 `apps/web/src/lazurio/LazurioNewTab.tsx:61-107,137-159,315-320`. | T3's copy of `parseNewTabChoice` takes any text as a tool id and any `view` (its `isViewOf` checks the view later); P's takes only its id grammar and the tab's exact view. T3 makes each tool's `id` and `icon` from upstream's English label and leaves Browser out by its label (`:62-77,139`): "Linked pull requests" becomes `linked-pull-requests`, which the page's icon set lacks, so it draws `grid`; a renamed upstream label renames a tool or brings Browser back. |
+| C11 | **The hub's loopback requests.** `GET /.lazurio/tabs[?heap=1]` → `{tabs}`; `POST /.lazurio/tabs {url, strip?}` → 201 `{id, view}`; `POST …/<id>/close` → 202 `{closing}`; `POST …/<id>/restore` → `{restored: true}`. Loopback `Host` only, never with `Origin` or `Sec-Fetch-Site`. | P hub (F47 point 6) | P `src/browser/people/service.ts:155,188-215,348-388`, `src/browser/people/hub.ts:82-102`; the client `src/launchpad/new-tab/hub-client.ts:13-43,262`; callers: the Launchpad, its Integrace sign-in since 40bec6a (`src/launchpad/server.ts:188-213`) and `lazurio browser link --url` in #348. | No fork calls it, and none may. Producer and client agree. The view's own `POST /api/tabs` answers a relative `view` (`service.ts:326`), `open` an absolute one (`:371`). |
+| C12 | **The Launchpad's view routes.** `GET /.lazurio/browser.json[?session=]` → `{available, view, session}` or `{available: false, reason}`; `GET /.lazurio/browser` → 302. | P Launchpad (F38 point 5, F39 point 11) | P `src/browser/view.ts:14-66`, `src/launchpad/server.ts:272-273,964-997`, the path again in `src/launchpad/browser-panel-view.ts:40-44`, `src/browser/cli.ts:102-110`. T3 0.0.45-lazurio.7 asked `?session=`; lazurio.8 does not (`docs/operations/lazurio-fork-release.md`, "Vazba na vydání Platformy"). | Kept for lazurio.7 until lazurio.8 is everywhere. The path is defined twice. |
+| C13 | **`lazurio browser … --json`.** `window` → `{kind: "browser-window", session, targetId, created, link, command}`; `link` → `{kind: "browser-link", session, link}`, with `targetId` for `--url` (#348); `done` → `{kind: "browser-done", session, outcome}`, outcome `stopped`, `none`, `refused` or `unconfirmed` (#348). Without a browser: exit 10 and `{kind: "browser-window", available: false}`. Exits 0, 10, 2, 1; stderr's first line is the reason in the Operator's language. | P CLI | P `src/browser/cli.ts:31-48,176-188,195-203,212-223`; tests `tests/environment-browser.test.ts:975-1033` and #348's. T3 `apps/server/src/lazurio/environmentBrowser.ts:92-115,226-244,452-492`: the Environment declares its browser when `link --json` exits 0 with `kind: "browser-link"`; the window is decoded from `kind`, `targetId` and `created`; stderr's first line becomes the tool's error. | The answer without a browser names `browser-window` also for `link` and `done` (`cli.ts:176-188`). `link --json` without `--url`, the shape T3 depends on, and the JSON answers without a browser are untested. |
+| C14 | **Times and bounds.** | P hub; typed by hand elsewhere | Hub: last hold 8 s, last viewer 30 s, never viewed or held 10 min, holds read every 30 s, reconnect 2 s, changes joined in 100 ms, snapshots in 50 ms, a new tab awaited 2 s (`hub.ts:297-301,383,1585-1590,1608-1619`). Launchpad: Vrátit until 8 s after the request (`src/launchpad/new-tab-view.ts:245`, `src/launchpad/browser-panel.ts:544`), beat 30 s and 100 ms (`src/launchpad/new-tab/holder.ts:92-93`), Přehled and strip every 5 s, standalone after 1.5 s (`new-tab-view.ts:242-252`, `browser-panel-view.ts:58`). T3: Vrátit 7 s "within the hub's 8 s grace" (`apps/web/src/lazurio/threadTabs.ts:660-686`), beat 30 s and 100 ms (`apps/server/src/lazurio/threadTabs.ts:204-205`), another Environment's view must name its tab 4 s after loading or within 15 s (`apps/web/src/lazurio/LazurioEnvironmentBrowser.tsx:218-219`). View: identity asked at 0, 1 and 4 s (`client.ts:192`). agent-browser: 1 h (`src/browser/agent-browser-config.ts:33`). DevTools port 9222 and a 1280×800 page in a 1280×900 window (`src/browser/units.ts:51,62,144`, `src/browser/window.ts:203-210`). | Vrátit is 8 s in the Launchpad and 7 s in T3, each typed from the hub's 8 s. T3 repeats 9222 and 1280×900 (`apps/server/src/lazurio/environmentBrowserConnection.ts:40,43`). |
+| C15 | **Framing.** The frame: `allow="clipboard-read; clipboard-write; fullscreen"`, sandbox `allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals`, never on the page's own origin. The view: `frame-ancestors 'self' https://*.<base>.lazurio.io`, plus the `t3code.` or `launchpad.` of another Environment named by `Referer`. Nová karta's page: `frame-ancestors 'self'` and the Environment's own `apps`, `chat` and `automate` origins (F47 point 1). | P view (F39 point 8 and its addendum of 2026-10-09); P Launchpad for Nová karta | P `src/browser/people/service.ts:85-140`; the Launchpad's frame `src/launchpad/browser-panel-view.ts:50-55`; Nová karta's frame `src/shell/new-tab-element.ts:42-47,174-175` and page `src/launchpad/new-tab-routes.ts:134`. T3 `apps/web/src/lazurio/LazurioEnvironmentBrowser.tsx:525-536`. | The Launchpad frames with `referrerpolicy="no-referrer"`, T3 with `origin`. Another Environment's view admits only T3, so the Launchpad cannot show such a tab, which 0191 point 31 asks for. |
+| C16 | **Address-bar input.** What a typed text opens in the view's bar and in Nová karta; the hub navigates only to http(s) and `about:blank`. | P | P `src/browser/people/protocol.ts:303-321` (`addressOf`), `src/launchpad/new-tab-view.ts:505-563` (`resolveAddress`), `src/browser/people/hub.ts:240-250` (`navigableAddress`), `src/browser/cli.ts:153-154` (`--url`, by a prefix check of its own). | Probed: `localhost:3000` opens `http://localhost:3000/` in the view's bar and searches in Nová karta; `192.168.1.10` searches in the view's bar and opens over https in Nová karta; `user@example.cz` opens `https://user@example.cz/` in the view's bar and searches in Nová karta; this Environment's bare view origin is a page for Nová karta, which loads the view inside the Environment browser. |
+| C17 | **Language.** 0191 point 33: the shell's language everywhere; the browser's only for a view opened on its own. | P shell | P: the view `client.ts:108` (the browser's, framed too); Nová karta, framed, the element's `lang` or the shell's language (`src/shell/new-tab-element.ts:143-144`), standalone the boot document's, else the browser's (`src/launchpad/new-tab-page.ts:87-89`). T3: the overlay's words (`apps/web/src/lazurio/threadTabs.ts:228`), also for `<lazurio-environment lang>`. | A framed view and T3's overlay speak the browser's language. T3 sets no `lang` on `<lazurio-new-tab>`, so Nová karta already follows the shell there. |
+
+**Decisions.**
+
+1. **One contract module.** The Platform has one module, for example `src/browser/contract/`, that
+   is the only definition of C1–C10 and C13–C17 and of the shapes of C11 and C12. Every Platform
+   reader and writer imports it, and so do the forks (point 5). Its internal layout is the
+   implementer's. It has two parts and nothing else:
+   - **Pure**, with no I/O, no DOM and no runtime built-ins, so it runs in a page, in Node and in
+     Bun: the grammars (C1–C3, C16), the parsers and writers of every text (C4–C6, C8–C10, C13),
+     the acceptance of a message from a described event (C8, C9), `keptTabs`, the registries
+     (strip prefixes, tools and their icons) and the constants (C14, C15). It builds on
+     `environmentIdOf` of the shell's contract and never repeats it.
+   - **Node**, with only `node:` built-ins:
+     - the paths of the holder directory, of `tabs.json` and of agent-browser's socket directory,
+       the last resolved as agent-browser resolves it;
+     - the boot clock and the atomic owner-only replace;
+     - one reading of holder files and bindings for every reader: the hub passes the memory of
+       0191 point 32, a reader for display passes none;
+     - the write of one strip's holder file: read first, never over a file that cannot be read,
+       reconciled with `tabs.json` by `keptTabs`, refused past its bound, removed when empty;
+     - the reading of `tabs.json`;
+     - letting go of a session's window through its daemon's socket (#348).
+
+   The hub's decisions (when a tab ends), the view's own WebSocket messages, Nová karta's
+   page↔element messages, the Launchpad's `/api/new-tab/*` and the shell's elements stay where
+   they are: one release serves both ends of each. The module's exported names are pinned by a
+   snapshot test, as `tests/shell-interface.test.ts` pins interface v1.
+
+2. **What the module settles.** One rule replaces each set of copies. Where the copies disagree,
+   this is the rule:
+   - **Ids and names (C1, C2).** One target-id check and its upper-case form. One session and
+     strip grammar, `[A-Za-z0-9_-]{1,64}`, stated as Lazurio's deliberate subset of agent-browser's
+     names. One sanitizer for a name taken from a harness (`threadSession`). A registry of
+     prefixes, `launchpad`, `t3-`, `codex-`, `claude-` and `bot-` reserved for MausBot, by which
+     the overview and the strips name apps. An app writes and removes only holder files of its
+     own prefix.
+   - **View addresses (C3, C16).** A link becomes a tab only in the strict form
+     `https://browser.<base>.lazurio.io/t/<32 hex digits>`, `<base>` an id `environmentIdOf`
+     gives, with no port, credentials, query, fragment or trailing slash: T3's form today, now
+     everyone's. No Lazurio surface, neither an address bar nor T3's tools, loads an address on
+     a `browser.` host of `lazurio.io` in the Environment browser: this Environment's tab opens
+     as that tab, its bare origin as a new tab, another Environment's tab as that Environment's
+     (Nová karta's notice where it cannot frame it), and any other address there is refused.
+     Agents keep the Folder manual's rule, and the browser itself stays unrestricted (0191 point
+     21). One address-bar grammar serves the view's bar and Nová karta (open question 3).
+   - **Files (C4–C6).** The functions of `holds.ts` with the members of point 3. Each app keeps
+     its own bound below the hub's ceiling of 64 Ki characters and 500 tabs.
+   - **agent-browser (C7).** Lazurio's agents and bots run with the Environment's
+     `XDG_RUNTIME_DIR` and set neither `AGENT_BROWSER_SOCKET_DIR`, `AGENT_BROWSER_NAMESPACE` nor
+     `AGENT_BROWSER_CONFIG`; the Folder manual and MausBot's runbook say so. A window is let go
+     only through its daemon's socket (#348), never by a process id. The agent-browser fork's
+     runbook lists the session files and the internal shutdown action as what the Platform relies
+     on, and its CI tests them (point 4).
+   - **Messages (C8, C9).** Each message names its tab by a strict `view` on the frame's origin
+     and is taken only from that frame's window; texts are cut for display at 500 and 2048
+     characters. The identity reply gains `lang`, the language of the host's shell, which a
+     framed view uses (0191 point 33). Unframed, the view keeps the browser's language.
+   - **Nová karta (C10).** The Platform's choice parser. A registry of tool ids, each with its
+     icon in the page's set: `terminal`, `files`, `diff`, `pull-request`, `linked-pull-requests`,
+     `agents`, `device`. An app maps its own surfaces to these ids without reading their labels;
+     an id outside the registry draws the default icon.
+   - **CLI (C13).** The shapes of every answer, each with its own `kind` also without a browser
+     (`{kind: "browser-link", available: false}`).
+   - **Times (C14).** One set of constants. Every app offers Vrátit for at most 1 s less than the
+     hub's grace after its release request: 7 s with today's 8 s, as T3 Code does; the Launchpad
+     moves from 8 s (open question 4). The DevTools port and the window size are the module's. No
+     fork types one of them.
+   - **Frames (C15).** One set of frame attributes, with `referrerpolicy="origin"` (T3's), which
+     another Environment's view needs to admit the Launchpad (0191 point 31).
+   - **Platform-internal (C11, C12).** Their shapes live in the module so the hub and its client,
+     and the route and its panel, share one definition. They are not part of the forks' promise
+     and are not shipped to them; no fork calls C11.
+
+3. **Versions: `schema` on a document, `v` on a message, only additions within a major.**
+   - A holder file carries `"schema": "lazurio.browser-holder.v1"`, `tabs.json`
+     `"lazurio.browser-tabs.v1"`, every CLI JSON answer `"lazurio.browser-cli.v1"` beside its
+     `kind`, a vector file `"lazurio.browser-vectors.v1"`. Each `lazurio-browser:*` message
+     carries `"v": 1`. agent-browser's files keep the shape of the release Machines pin, which its
+     fork tests (point 4).
+   - A missing `schema` or `v` means v1, for good: every file and message written before this
+     module stays valid.
+   - Within v1 the contract only grows, the rule F36's addendum of 2026-10-05 set for the shell's
+     documents. A release may add members, values, messages and cases and accept what it refused
+     before. It never removes, renames or narrows anything, never changes what a member means or
+     what a case expects, and never shortens a grace or a bound another program relies on.
+   - A reader ignores members it does not know. A document or a message of another major is one
+     it cannot read: a holder file then counts as 0191 point 32 says (it holds what it held at its
+     last reading), `tabs.json` as no list (nothing is dropped), a message as nothing.
+   - The contract's major is 1, and `artifact.json` names it (`browserContract`). Every holder
+     file also names the Platform release its writer's module came from (`"contract":
+     "<version>"`); the hub ignores it and doctor reads it (point 7).
+   - **A major change** is decided as an addendum to this decision and announced in the forks'
+     runbooks first.
+     - The Platform release that brings v2 reads v1 and v2.
+     - What the Platform writes or sends to programs whose version it cannot know, it writes or
+       sends in both forms during a window: `tabs.json` beside a v2 file, both messages, a v2 CLI
+       answer only behind an explicit flag.
+     - Apps write v2 only once the Platform that reads it runs on every Environment that declares
+       the browser.
+     - v1 goes in a later release, after doctor on those Environments shows no v1 writer and
+       Matěj records the end of the window.
+
+4. **Executable vectors are the truth.**
+   - **Format.** One JSON file per contract under the module's `vectors/v1/`:
+     `{"schema": "lazurio.browser-vectors.v1", "contract": "<name>", "cases": [{"name", "call",
+     "args", "expect"}]}`.
+     - A case of the Node part describes a directory instead of a path (files by name with their
+       text, or unreadable), the live process ids, a daemon's answer on its socket and the hub's
+       memory, and expects the reading or the write.
+     - A case of agent-browser describes commands against a browser and the files they leave:
+       the members of `<session>.target`, a `.pid` while the daemon runs and none after it ends,
+       the tab still open after an idle or socket shutdown, the idle timeout of the user config
+       applied to an attached daemon.
+   - **Complete.** The Platform's test fails when an exported function has no case or a case
+     names no export. v1 files only gain cases; a changed expectation is a major change (point 3),
+     seen in review as a changed line, not an added one.
+   - **Who runs what.**
+     - The Platform runs every case against the module (`bun test`).
+     - Each fork's CI runs every pure and Node case against its vendored copy, in each toolchain
+       that imports it (T3 Code: the server's and the web's test runner), and the cases about its
+       own code: every name T3 Code's `agentBrowserSessionName` makes is a strip, every surface it
+       hands Nová karta maps to a registry id, and its decoders take CLI answers with members they
+       do not know.
+     - The agent-browser fork's CI runs the session-file and shutdown cases against its own
+       binary before each release, so Machines never pins an agent-browser that breaks the hub.
+     - The strips' scenarios of task 2026-10-12-706 join the same files, with each app's flags.
+
+5. **The forks take the module from the attested shell artifact, by digest.**
+   - `lazurio-shell.tar.gz` gains the module as unminified ES modules with their declarations,
+     the pure part and the Node part, and the vector files, each listed with its SHA-256 in
+     `artifact.json`, which also gains `browserContract` (an addition to
+     `lazurio.shell-artifact.v1`). `scripts/release-shell.ts` builds them as it builds
+     `contract.js`; the release's one attestation names the archive already
+     (`.github/workflows/release.yml:241-264`). The Dashboard's check of the artifact
+     (`checkShellArtifact` in its `scripts/vendor-lazurio-shell.ts`) accepts listed files and
+     members it does not use, so it keeps working.
+   - A fork vendors one exact tag the way the Dashboard vendors the shell:
+     - `gh release download` of that tag's archive and attestation bundle;
+     - `gh attestation verify` against `release.yml` at that tag and the repository's and
+       owner's immutable ids;
+     - only the listed regular files unpacked, `artifact.json` and every digest checked;
+     - `LICENSE` and `NOTICE` kept beside the files, and a `provenance.json` written.
+
+     Its CI checks the vendored bytes against `provenance.json` on every run and runs the
+     vectors. A bump is a reviewed PR made by that script; nothing is edited by hand. Where two
+     toolchains of one fork cannot import one directory, each gets a byte-identical copy, checked
+     the same way.
+   - **Why this channel** (the alternatives below compare them):
+     - the attested artifact by digest: one trust path the Dashboard already verifies, only
+       qualified releases, nothing in the forks' upstream-owned files;
+     - an npm package: a second channel and trust path, and a dependency in each fork's
+       upstream-owned `package.json` and lockfile;
+     - a git submodule or subtree: a commit rather than a release, no attestation, a fetch in
+       every build of the fork;
+     - hand copies with a CI drift check: two implementations, a text comparison, and `main`
+       rather than a released tag.
+   - What runs in the person's browser keeps coming at runtime from the Environment's own
+     `/.lazurio/shell.js` (F36, interface v1): the identity answer and `<lazurio-environment>`
+     today, the browser-tab element of task 2026-10-12-704 next, which takes the frame, its
+     attributes and its messages out of the forks' pages. The vendored module serves the forks'
+     servers and what their pages still parse themselves.
+
+6. **The licence of the vendored files is Matěj's to decide.** The Platform is Elastic-2.0
+   (`package.json` `license`, `LICENSE`, `NOTICE`, `docs/licensing.md`). The T3 Code fork is MIT
+   (its `LICENSE`), the MausBot fork Apache-2.0 with `enterprise/` under a licence of its own
+   (`LICENSING.md`), and the agent-browser fork Apache-2.0.
+   - Elastic-2.0 lets anyone copy, distribute and adapt the software, so vendoring the contract
+     into the forks is allowed, on its conditions: whoever gets a copy of any part also gets the
+     Elastic terms, the licensor's notices stay, a modified copy says so, and nobody provides it to
+     third parties as a hosted or managed service that gives access to a substantial set of its
+     features.
+   - The licence is non-sublicensable, so the vendored files stay Elastic-2.0 inside an MIT or
+     Apache repository. The forks become mixed-licence, MausBot cannot propose those files
+     upstream, and a third party that hosts a fork's build for others meets the hosted-service
+     limit for them.
+   - The hand copy T3 Code carries today (`apps/server/src/lazurio/holders.ts`, "Copied from
+     LazurioPlatform `src/browser/people/holds.ts`") is in the same position, and the fork
+     carries no Elastic-2.0 text.
+   - Only the licensor can give the contract files other terms: open question 1.
+
+7. **Version skew at runtime.**
+   - **Who moves when.** The Platform moves by rollout, T3 Code by each person's Update, MausBot
+     and agent-browser by Machines' pins. Two Environments of different Platform releases meet in
+     one panel whenever one shows the other's tab. Inside one Environment the view can lag the
+     Launchpad until it restarts, which F47's "The view after an update" (#334) handles.
+   - **Capabilities, not version numbers.** A consumer uses a feature only when its signal is
+     there (the element is defined; the member is in the file, the message or the answer; the
+     file exists) and otherwise keeps its earlier behaviour, as T3 Code already does with
+     `<lazurio-new-tab>`. A version number is compared only where no signal exists, as
+     `chatPromptsSince` does for the prepared prompt (`src/launchpad/chat.ts:144-147`), and each
+     such comparison is a row of the compatibility table.
+   - **The producer first.** A consumer release that needs a new member is published after the
+     Platform release that provides it runs on every Environment that declares the browser. This
+     generalizes T3 Code's runbook, "Vazba na vydání Platformy".
+   - **Doctor names it.** The `environment-browser` fact of `lazurio doctor` warns, and never
+     fails, about:
+     - a holder file it cannot read (#347), or of another major;
+     - a holder file whose `contract` names a newer Platform release than the installed one: that
+       app expects a Platform this Environment does not have yet, so update Lazurio. An older
+       `contract` is a line of information: that app has not been updated, and what came after
+       stays off;
+     - an agent-browser binding whose session name is outside the grammar, which the hub skips.
+
+     Doctor keeps no state of its own; it reads the files the hub reads.
+   - **One table.** The root `manual/environment-browser.md` carries the table of contracts that
+     task 2026-10-12-701 asks for: each contract's owner, readers and schema, and the first
+     Platform and fork releases of each addition that a consumer depends on.
+
+8. **Migration order.** Each phase is usable on its own and changes no behaviour beyond what it
+   names.
+   1. **Phase 1, task 2026-10-12-701.** The module, its vectors and the artifact; every Platform
+      reader and writer on it; `schema`, `contract` and `v` written; the divergences of C3, C8,
+      C10, C13–C16 settled as point 2 says; the root table.
+   2. **Phase 1c, task 2026-10-12-702** (#347 merged as fdbf332, #349 as 40bec6a, #348 open): the
+      per-file reading of holder files, `lazurio browser done` and `link --url`, the Integrace
+      sign-in through the hub. They land before or with phase 1 and move into the module as they
+      are.
+   3. **Phase 2, task 2026-10-12-703.** T3 Code vendors the artifact and deletes its copies (C1–C8,
+      C10, C13, C14), lets an archived thread's window go through its daemon's socket and maps its
+      tools to registry ids.
+   4. **Phase 3, task 2026-10-12-704.** The browser-tab element in the shell, on the module; the
+      Launchpad and Nová karta show another Environment's tab (0191 point 31); one language
+      through the identity reply's `lang` (point 33).
+   5. **Phase 4, task 2026-10-12-705.** T3 Code's pages on the element; desktop T3 Code on a Remote
+      Environment (point 30); T3 Code's DevTools domains limited to the thread's tabs.
+   6. **Phases 5 and 6, task 2026-10-12-706.** The strips' scenario cases, run by the Launchpad and
+      T3 Code; doctor's warnings and the compatibility table; the agent-browser fork's CI on its
+      session files.
+   7. **MausBot, task 2026-10-05-510,** last and after the separate discussion of point 34: it
+      vendors the module as T3 Code does, names its strips and sessions within the grammar and
+      stops masking the idle timeout.
+
+**Alternatives.**
+
+| Alternative | Disposition |
+| --- | --- |
+| Keep the hand copies and let each fork's CI run the vectors downloaded from the release | The cases stay aligned, but every rule is still written twice and drifts where no case looks; the vendored module costs the same check without a second implementation; rejected |
+| Keep the copies with a CI check that compares their text with the Platform's | Formatting breaks it, it needs the Platform's source at CI time, and it compares with `main`, not a released and qualified tag; rejected |
+| An npm package of the contract | A second release channel and trust path beside the attested GitHub release, and a dependency in each fork's upstream-owned `package.json` and lockfile, which conflicts at every upstream refresh and widens the overlay; rejected |
+| A git submodule or subtree of the Platform | Pins a commit, not a qualified release, without an attestation; the forks' CI, image and archive builds must fetch it; a subtree mixes the Platform's history into rolling patch stacks; rejected |
+| Load the module at runtime from the Environment's Launchpad, as `/.lazurio/shell.js` | Right for what runs in the person's browser and kept for it; a fork's server would run code it fetched over HTTP and could not start without the Launchpad; rejected for server code |
+| A repository and release cycle of its own for the contract | A third release train, attestation and coordination for a few hundred lines, while the shell artifact already reaches the forks; rejected |
+| JSON Schema files as the truth | They describe shapes, not rules: the order of `keptTabs`, DNS labels, acceptance by window and origin, fail-closed reads; every consumer would still implement those; rejected (a schema can be generated later) |
+| The version in the message type (`lazurio-browser:info.v1`) | Every receiver in the field would drop today's messages; a `v` member where missing means v1 keeps them valid; rejected |
+| A version handshake between the view and its app | A protocol for a problem the additive rule avoids; rejected |
+| A minor version counter of the contract, bumped by hand | Bookkeeping to keep honest; the writer's Platform release in `contract` tells doctor the same without it; rejected |
+| One module in the Platform, vectors as the truth, versions on what crosses a boundary, vendored by digest from the attested shell artifact, the person's browser served at runtime (selected) | One definition and one trust path the forks already know from the Dashboard; no change to Machines or the gateway |
+
+**Failure modes.**
+
+| Failure | What happens | How it is detected |
+| --- | --- | --- |
+| A vendored file is edited by hand, or copied from another tag | The fork's CI refuses it: its bytes differ from `provenance.json` | The fork's CI, on every run |
+| The downloaded asset is not the tag's (a moved tag, a tampered asset) | The vendor script refuses it and the vendored files stay as they were | The script's own checks: attestation, `artifact.json`, digests |
+| A rule changes in the Platform without a case | A fork can diverge where no case looks | The completeness test fails for an export without a case; review |
+| A case's expectation changes within v1 | A fork's own code can break at its next bump | Review sees a changed line in a v1 file; the fork's vectors at the bump |
+| T3 Code older than the module (no `schema`, `contract` or `v`) on a newer Platform | Read as v1; holds, lists and messages work as today | Doctor names its holder files as written by an older or no `contract` |
+| T3 Code newer than the Platform | It finds no signal for the newer feature and keeps its earlier behaviour; holds work | Doctor warns that the writer's `contract` is newer |
+| A v2 holder file reaches a hub that reads only v1 (the order broken) | The hub cannot read it and keeps what the file held at its last reading; after a restart of the view such a file holds nothing, and its tabs can end after the hub's 10 minutes | Doctor's warning for a file of another major or one it cannot read; the rule that apps write v2 only after the Platform reads it everywhere |
+| Another Environment's view of another release in an app's frame | Members unknown to either side are ignored and a message of another major is dropped; the view keeps its server's identity and language; a tab that ended shows the view's own "this tab no longer exists" | Visible in the panel; nothing is lost |
+| No app around the view (Codex Desktop, a bare tab, a phone) | No message is sent or needed; the view names its Environment from its server; apps learn a tab's end from `tabs.json` | Nothing to detect |
+| agent-browser changes a session file or the shutdown action at a fork refresh | The hub keeps a binding it read before (0191 point 32) and misses new ones, so a working agent's window that nothing holds or views can end after the hub's grace; `lazurio browser done` answers `refused` or `unconfirmed` | The agent-browser fork's CI cases before its release; Machines pin only released forks |
+| A bot or agent sets its own `AGENT_BROWSER_CONFIG`, socket directory or namespace | Its daemons ignore the Platform's idle timeout or bind where the hub does not look: its window never idles out, or counts as nobody's work | Not by doctor, which cannot see another process's environment; MausBot's runbook and vectors state and test the rule |
+| A session name outside the grammar (a dot, more than 64 characters) | The hub skips that binding, so the window does not count as worked in | Doctor names the binding |
+| The view and the Launchpad of one installation differ after an update | The Launchpad restarts the view (#334); tabs nothing holds get the hub's 10 minutes | `lazurio doctor`'s `environment-browser` fact |
+| A fork stays on an old tag | It keeps working, since v1 only grows; what came after stays off | Doctor's information line about its older `contract` |
+| The artifact grows | Hosts that pin it ignore listed files and members they do not use | The Dashboard's next vendoring |
+| Elastic-2.0 files vendored into an MIT or Apache repository without their terms | A licence condition is broken | The vendor script keeps `LICENSE` and `NOTICE` beside the files and the fork's CI checks them; open question 1 |
+
+**Not decided here.** The interface of the browser-tab element (task 2026-10-12-704); desktop T3
+Code (task 2026-10-12-705); the strips' scenarios (task 2026-10-12-706); MausBot's strips, names and co-control
+(0191 point 34, task 2026-10-05-510), including whether its session names conform or the grammar
+grows to admit them (adding is allowed within v1; conforming is simpler); the visible marking of
+another Environment (point 35, a direction only); putting tabs to sleep (DEV-6656 spike 916);
+where in each fork the vendored files live, which is the fork runbook's.
+
+**Steps.** Each step names its consumers and what proves it.
+
+1. **The module (task 2026-10-12-701).** Consumers: the hub and its service (`hub.ts`,
+   `service.ts`, `serve.ts`), the view (`client.ts`), the Launchpad (`new-tab/holder.ts`,
+   `new-tab/hub-client.ts`, `browser-panel-view.ts`, `browser-panel.ts`, `new-tab-view.ts`,
+   `new-tab-page.ts`, `new-tab-routes.ts`, `server.ts`), the CLI (`cli.ts`, `window.ts`) and the
+   shell (`identity-protocol.ts`, `new-tab-protocol.ts`, `new-tab-element.ts`). Proof:
+   - a new test runs every v1 case against the module, with the completeness check and the
+     exported-names snapshot;
+   - the existing suites pass unchanged where nothing is settled: `environment-browser-holds`,
+     `environment-browser`, `environment-browser-view`, `launchpad-new-tab`, `new-tab-view`,
+     `browser-panel-view`, `shell-identity`, `shell-new-tab`, `shell-interface`;
+   - each settled divergence is a case that fails on today's code and passes after the change: a
+     `view` with a query, `/t/<ID>/` and `/T/<ID>`, a three-label base, a message without `view`,
+     `link --json` without a browser, `linked-pull-requests` without an icon, the Launchpad's
+     Vrátit, the address-bar inputs of open question 3, a Launchpad frame that another
+     Environment's view admits.
+2. **The artifact and the table (task 2026-10-12-701).** `scripts/release-shell.ts` packs the
+   module and the vectors; `tests/shell-artifact.test.ts` checks the listing, the digests and
+   `browserContract`; `docs/update.md`, "The shell artifact", lists the files. The Dashboard's
+   `checkShellArtifact` is run once on a locally built archive. The root
+   `manual/environment-browser.md` gets the table of contracts, with C1–C17 as its rows.
+3. **Phase 1c (task 2026-10-12-702).** #347 (merged) and #348 move into the module as they are;
+   #349 is merged. Proof: their tests stay, and the vectors gain point 32's cases (a file read once keeps
+   its tabs, a file unreadable since the view started holds nothing, a directory that cannot be
+   listed stops every end) and #348's (no socket is `none`, an acknowledged shutdown whose `.pid`
+   goes is `stopped`, a refusal is `refused`, no answer or a `.pid` that stays is `unconfirmed`).
+4. **T3 Code takes the contract (task 2026-10-12-703).** Consumers: its server (`holders.ts`,
+   `threadTabs.ts`, `threadLifecycle.ts`, `environmentBrowser.ts`, `environmentBrowserConnection.ts`,
+   `browserView.ts`, `agentBrowserSession.ts`) and its web client (`browserView.ts`,
+   `environmentBrowser.ts`, `threadTabs.ts`, `LazurioNewTab.tsx`, `LazurioEnvironmentBrowser.tsx`).
+   Proof:
+   - the fork's CI verifies the vendored bytes and runs every case in the server's and the web's
+     runner;
+   - its release contract test finds no definition of a target id, a strip, a view address, a
+     holder file or a message outside the vendored files, and its CLI decoders take answers with
+     members they do not know;
+   - a fixture with a renamed upstream label keeps every tool's id and icon (it fails today);
+   - archiving a thread lets its window go through the daemon's socket;
+   - the overlay touches no more upstream files than before. The fork's allowlist covers
+     `apps/web`, `apps/mobile`, `apps/desktop` and `packages/`
+     (`.github/workflows/lazurio-fork-ci.yml:112-114`):
+     vendored files under `apps/web` get their lines there, and under `apps/server` the contract
+     test covers them.
+5. **The element and one language (task 2026-10-12-704).** Consumers: the Launchpad's panel and
+   Nová karta. Proof: the element's tests for this Environment's tab, another Environment's tab
+   and a refused address, and for the shell's language through the identity reply's `lang`;
+   Matěj's check in a browser (root decision 0178): a work Environment's tab in the personal
+   Environment's Launchpad, marked as another Environment's, without a view inside a view.
+6. **T3 Code on the element, and desktop T3 Code (task 2026-10-12-705).** Proof: the contract
+   test finds no frame or foreign label of T3 Code's own; Matěj's check in desktop T3 Code
+   connected to a Remote Environment (0178).
+7. **Scenarios and skew (task 2026-10-12-706).** Proof: the Launchpad's strip reducer and T3
+   Code's strip sync pass the same scenario cases; doctor's tests cover each warning of point 7,
+   with a holder file whose `contract` is newer, one without `schema` and a binding outside the
+   grammar; the agent-browser fork's CI runs the session-file and shutdown cases on Linux before
+   each release.
+8. **MausBot (task 2026-10-05-510).** After the discussion of point 34: its vectors and doctor's
+   grammar warning prove its names; its runbook states that it sets none of the variables of
+   point 2.
+
+**Open questions for Matěj.**
+
+1. **The licence of the contract for the forks.** Vendoring the Elastic-2.0 files is allowed, but
+   they stay Elastic-2.0 inside the MIT and Apache forks and cannot go upstream. *Recommendation:*
+   license exactly the contract module's source, its built files and its vectors under MIT, named
+   as an exception in `NOTICE` and `docs/licensing.md`; the rest of the Platform stays
+   Elastic-2.0.
+2. **The version signal for doctor.** Task 2026-10-12-706 asks doctor to name a skew between T3
+   Code and the Platform. *Recommendation:* the `contract` member in holder files (the writer's
+   Platform release): one member, no counter to keep, and doctor warns only when a writer is
+   newer than the installed Platform.
+3. **One address bar.** The view's bar and Nová karta disagree on `localhost:3000`, an IPv4
+   address and `user@host`. *Recommendation:* a loopback host, with or without a port, opens over
+   http (the Environment's development servers); an IPv4 address or a host with a letter
+   top-level domain opens over https; text with `@` before its host is a search; addresses on a
+   `browser.` host follow point 2.
+4. **Vrátit 7 s in every app.** *Recommendation:* yes, 1 s inside the hub's 8 s grace, as in T3
+   Code; the Launchpad moves from 8 s.
+5. **agent-browser's internal shutdown.** `lazurio browser done` (#348) relies on an action
+   agent-browser keeps internal. *Recommendation:* rely on it with the fork's CI case, and ask
+   upstream for a documented "let this session go" command at the fork's next refresh.
