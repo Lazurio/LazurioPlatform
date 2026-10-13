@@ -129,6 +129,8 @@ export function statusText(status: VaultStatus): string {
   switch (status.state) {
     case "not-set-up":
       return `Not set up yet: ${where}; the next step is ${stepText[status.next]}. The Launchpad sets it up at its start; lazurio vault setup does the same.`;
+    case "creating":
+      return `Being created: the creation of this Environment's vault for ${where} is not confirmed yet (its answer was lost, or the vault does not list it yet). The next setup looks for it again and never creates a second one; lazurio vault setup does it now.`;
     case "not-allowed":
       return `Not allowed yet: the vault refused to register ${where}. The network has not pre-allowed this address, or removed an unused pre-allowance; the network's operator allows it again at the next apply of its host, then run lazurio vault setup.`;
     case "connected": {
@@ -226,7 +228,9 @@ export async function runVaultCommand(
               if (!json) context.progress?.(phaseText[phase]);
             });
     const code =
-      status.state === "failed" || status.state === "unreachable"
+      status.state === "failed" ||
+      status.state === "unreachable" ||
+      (command === "setup" && status.state === "creating")
         ? exitFailure
         : command === "setup" &&
             (status.state === "unsupported" ||

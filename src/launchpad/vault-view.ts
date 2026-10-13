@@ -14,6 +14,7 @@ type Copy = Readonly<Record<MessageKey, string>>;
 const states = [
   "unsupported",
   "not-set-up",
+  "creating",
   "not-allowed",
   "connected",
   "revoked",
@@ -121,6 +122,8 @@ export function parseVaultStatus(input: unknown): VaultStatus | null {
             next: value.next as VaultPhase,
           }
         : null;
+    case "creating":
+      return { kind: "vault-status", state: "creating", ...facts };
     case "not-allowed":
       return { kind: "vault-status", state: "not-allowed", ...facts };
     case "connected":
@@ -220,6 +223,8 @@ export function vaultRowLine(
       };
     case "not-set-up":
       return { text: copy.vaultRowNotSetUp, state: "unknown" };
+    case "creating":
+      return { text: copy.vaultRowCreating, state: "unknown" };
     case "not-allowed":
       return { text: copy.vaultRowNotAllowed, state: "signed-out" };
     case "connected":
@@ -238,9 +243,10 @@ export function vaultRowLine(
 }
 
 /** The row's one action besides "Otevřít trezor": set the own vault up
- * when nothing set it up yet, or try again after a setup that stopped. A
- * vault the network has not allowed or has revoked waits for a person of the
- * network, and a 0197 pilot is only read: neither offers one. */
+ * when nothing set it up yet, or try again after a setup that stopped or a
+ * creation not confirmed yet. A vault the network has not allowed or has
+ * revoked waits for a person of the network, and a 0197 pilot is only read:
+ * neither offers one. */
 export function vaultAction(
   status: VaultStatus | null,
   running: VaultPhase | null,
@@ -254,7 +260,9 @@ export function vaultAction(
   )
     return null;
   if (status.state === "not-set-up") return copy.vaultActionSetUp;
-  return status.state === "failed" || status.state === "unreachable"
+  return status.state === "failed" ||
+    status.state === "unreachable" ||
+    status.state === "creating"
     ? copy.vaultActionRetry
     : null;
 }

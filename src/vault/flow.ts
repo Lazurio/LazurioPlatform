@@ -156,15 +156,21 @@ const notSetUp = (facts: VaultFacts, next: VaultPhase): VaultStatus => ({
   next,
 });
 
+const creating = (facts: VaultFacts): VaultStatus => ({
+  kind: "vault-status",
+  state: "creating",
+  ...facts,
+});
+
 /** Whether the Launchpad's start moves this vault on (the Executor pattern,
- * decision F44's addendum of 2026-10-11): an own vault not set up yet, one
- * whose session is not the unlocked one, or one whose name is no longer the
- * handover's. Never a 0197 pilot, a vault that is not supported here, or
- * one that ended in a failure or a revocation: those wait for a person or an
- * agent. */
+ * decision F44's addendum of 2026-10-11): an own vault not set up yet or
+ * whose creation is not confirmed yet, one whose session is not the
+ * unlocked one, or one whose name is no longer the handover's. Never a 0197
+ * pilot, a vault that is not supported here, or one that ended in a failure
+ * or a revocation: those wait for a person or an agent. */
 export function setUpAtStart(status: VaultStatus): boolean {
   if (status.state === "unsupported" || status.origin !== "own") return false;
-  if (status.state === "not-set-up") return true;
+  if (status.state === "not-set-up" || status.state === "creating") return true;
   return (
     status.state === "connected" &&
     (status.locked === true || status.organization !== status.name)
@@ -268,7 +274,13 @@ async function ownState(
   }
   const recorded = recordedVault(record);
   if (recorded === null)
-    return { kind: "status", status: notSetUp(facts, "vault") };
+    return {
+      kind: "status",
+      status:
+        record.organizationId === null && record.pendingKey !== null
+          ? creating(facts)
+          : notSetUp(facts, "vault"),
+    };
   return { kind: "ready", account, recorded };
 }
 
@@ -460,7 +472,13 @@ async function ensureVault(
       device: deviceOf(account),
       record,
       save: (next) => writeRecord(paths, next),
+      now: () => host.now?.() ?? new Date(),
+      // Never a key or an id: that a creation never happened, nothing else.
+      discarded: () =>
+        host.journal?.({ operation: "vault", outcome: "receipt-expired" }),
     });
+    if (own.kind === "creating")
+      return { kind: "status", status: creating(facts) };
     if (own.kind === "gone")
       return {
         kind: "status",

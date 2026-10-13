@@ -38,6 +38,13 @@ export const agentsCollection = "Agenti";
  * the organization's key. */
 const confirmed = 2;
 
+/** How long a creation's receipt keeps every new creation back: far longer
+ * than any request may take (30 s), so an organization whose answer was
+ * lost, that the vault lists late or whose request arrived late is found by
+ * its receipt and never made twice. Only a receipt this old that still
+ * matches no organization is taken for a creation that never happened. */
+export const receiptBoundMs = 15 * 60_000;
+
 export type OwnVault =
   | Readonly<{
       kind: "ready";
@@ -56,15 +63,26 @@ export type OwnVault =
   /** The organization's collections do not say which one is Agenti (an
    * organization recognized by its receipt after other collections were
    * added): nothing is guessed by a name. */
-  | Readonly<{ kind: "collection-unknown" }>;
+  | Readonly<{ kind: "collection-unknown" }>
+  /** A creation was asked for and no organization carries its receipt yet
+   * (its answer was lost, the vault lists it late, or the request is still
+   * under way), or the one that does is not confirmed for the account yet:
+   * nothing is created again (unmatched, until the receipt is older than
+   * `receiptBoundMs`); the next run looks again. */
+  | Readonly<{ kind: "creating" }>;
 
-type Membership = Readonly<{ id: string; name: string }>;
+type Membership = Readonly<{ id: string; name: string; confirmed: boolean }>;
 
 const unexpected = () => new VaultwardenError("unexpected");
 
-/** The organizations the account is a confirmed member of, from its
- * profile; every entry must read, or the whole answer is unexpected. */
-function membershipsOf(profile: unknown): Membership[] {
+/** The organizations the account is a member of, from its profile: the
+ * confirmed ones, or (`any`) those of every status, where a creation's
+ * receipt is looked for; every entry must read, or the whole answer is
+ * unexpected. */
+function membershipsOf(
+  profile: unknown,
+  status: "confirmed" | "any" = "confirmed",
+): Membership[] {
   const value = plainObject(profile);
   if (value === null || !Array.isArray(value.organizations)) throw unexpected();
   return value.organizations.flatMap((entry: unknown) => {
@@ -77,11 +95,21 @@ function membershipsOf(profile: unknown): Membership[] {
       typeof organization.status !== "number"
     )
       throw unexpected();
-    return organization.status === confirmed
-      ? [{ id: organization.id, name: organization.name }]
+    const member = organization.status === confirmed;
+    return status === "any" || member
+      ? [{ id: organization.id, name: organization.name, confirmed: member }]
       : [];
   });
 }
+
+/** Whether an answer of the vault refuses the request itself (4xx but a
+ * rate limit): it was not carried out. */
+const refused = (error: unknown): boolean =>
+  error instanceof VaultwardenError &&
+  error.status !== undefined &&
+  error.status >= 400 &&
+  error.status < 500 &&
+  error.status !== 429;
 
 /**
  * Makes the account's own vault exist, as the record and the handover say,
@@ -97,8 +125,16 @@ function membershipsOf(profile: unknown): Membership[] {
  *   key pair, its private key wrapped by the organization key; the billing
  *   e-mail the account; the name `vault.name`; and the first collection,
  *   Agenti, its name encrypted with the organization key. Its public key is
- *   recorded first as the creation's receipt, so a creation whose answer was
- *   lost is recognized by it afterwards and never made twice;
+ *   recorded first, with the time, as the creation's receipt;
+ * - a receipt not resolved yet: the organization that carries its public
+ *   key, among the account's memberships of any status, recorded once the
+ *   membership is confirmed (until then `creating`). While none carries it,
+ *   nothing is created again (`creating`) until the receipt is older than
+ *   `receiptBoundMs`: an answer that was lost, a profile that lists it late
+ *   or a request that arrives late never makes a second vault. Only then is
+ *   the receipt taken for a creation that never happened, discarded
+ *   (`discarded`) and the vault created anew. A creation the vault refuses
+ *   with its answer discards the receipt at once;
  * - Agenti: the one collection of the organization, by its ID.
  *
  * Every step is saved as soon as it is known; a step the vault refuses
@@ -113,6 +149,9 @@ export async function ensureOwnVault(
     device: Device;
     record: VaultRecord;
     save: (record: VaultRecord) => Promise<void>;
+    now: () => Date;
+    /** A receipt older than the bound that matched nothing was discarded. */
+    discarded?: (() => void) | undefined;
   }>,
 ): Promise<OwnVault> {
   const { account, client, server } = input;
@@ -135,24 +174,60 @@ export async function ensureOwnVault(
     record = next;
     await input.save(next);
   };
-  const memberships = membershipsOf(await ask("/api/accounts/profile"));
+  const profile = await ask("/api/accounts/profile");
+  const memberships = membershipsOf(profile);
 
-  // A creation whose answer was lost: its organization carries the public
-  // key recorded before it was asked for.
-  if (record.organizationId === null && record.pendingKey !== null)
-    for (const membership of memberships) {
-      const answer = plainObject(
-        await ask(`/api/organizations/${membership.id}/public-key`),
-      );
+  // A creation not resolved yet: its organization carries the public key
+  // recorded before it was asked for, under a membership of any status. A
+  // membership whose key the vault refuses to show is not it; any other
+  // failure throws, and the receipt stays for the next run.
+  if (record.organizationId === null && record.pendingKey !== null) {
+    let found: Membership | null = null;
+    for (const membership of membershipsOf(profile, "any")) {
+      let answer: Record<string, unknown> | null;
+      try {
+        answer = plainObject(
+          await ask(`/api/organizations/${membership.id}/public-key`),
+        );
+      } catch (error) {
+        if (refused(error)) continue;
+        throw error;
+      }
       if (answer?.publicKey === record.pendingKey) {
-        await save({
-          organizationId: membership.id,
-          collectionId: null,
-          pendingKey: null,
-        });
+        found = membership;
         break;
       }
     }
+    if (found?.confirmed === true)
+      await save({
+        organizationId: found.id,
+        collectionId: null,
+        pendingKey: null,
+        pendingSince: null,
+      });
+    // Created, but the account's membership is not confirmed yet: it is
+    // this vault, so it is waited for however long it takes.
+    else if (found !== null) return Object.freeze({ kind: "creating" });
+    // Young, or of a time that does not read: wait.
+    else if (
+      !(
+        input.now().getTime() - Date.parse(record.pendingSince ?? "") >=
+        receiptBoundMs
+      )
+    )
+      return Object.freeze({ kind: "creating" });
+    else {
+      // Older than the bound and found nowhere: that creation never
+      // happened, so the vault is created anew.
+      await save({
+        organizationId: null,
+        collectionId: null,
+        pendingKey: null,
+        pendingSince: null,
+      });
+      input.discarded?.();
+    }
+  }
 
   let organization: Membership;
   let created = false;
@@ -171,33 +246,53 @@ export async function ensureOwnVault(
       organizationId: null,
       collectionId: null,
       pendingKey: keys.publicKey,
+      pendingSince: input.now().toISOString(),
     });
-    const answer = plainObject(
-      await ask("/api/organizations", {
-        json: {
-          name: input.name,
-          billingEmail: account.email,
-          key: await rsaEncrypt(await publicKeyOf(privateKey), organizationKey),
-          keys: {
-            publicKey: keys.publicKey,
-            encryptedPrivateKey: keys.encryptedPrivateKey,
+    let answer: Record<string, unknown> | null;
+    try {
+      answer = plainObject(
+        await ask("/api/organizations", {
+          json: {
+            name: input.name,
+            billingEmail: account.email,
+            key: await rsaEncrypt(
+              await publicKeyOf(privateKey),
+              organizationKey,
+            ),
+            keys: {
+              publicKey: keys.publicKey,
+              encryptedPrivateKey: keys.encryptedPrivateKey,
+            },
+            collectionName: await encrypt(
+              agentsCollection,
+              symmetricKey(organizationKey),
+            ),
+            // Ignored by Vaultwarden, which has one plan; the web vault
+            // sends it.
+            planType: 0,
           },
-          collectionName: await encrypt(
-            agentsCollection,
-            symmetricKey(organizationKey),
-          ),
-          // Ignored by Vaultwarden, which has one plan; the web vault sends it.
-          planType: 0,
-        },
-      }),
-    );
+        }),
+      );
+    } catch (error) {
+      // Refused by its answer, it created nothing: the receipt goes. No
+      // answer, or a server error, may have created it: the receipt stays.
+      if (refused(error))
+        await save({
+          organizationId: null,
+          collectionId: null,
+          pendingKey: null,
+          pendingSince: null,
+        });
+      throw error;
+    }
     if (!isVaultId(answer?.id)) throw unexpected();
     await save({
       organizationId: answer.id,
       collectionId: null,
       pendingKey: null,
+      pendingSince: null,
     });
-    organization = { id: answer.id, name: input.name };
+    organization = { id: answer.id, name: input.name, confirmed: true };
     created = true;
   } else {
     const recorded = memberships.find(
@@ -231,6 +326,7 @@ export async function ensureOwnVault(
       organizationId: organization.id,
       collectionId,
       pendingKey: null,
+      pendingSince: null,
     });
   }
 

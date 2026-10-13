@@ -120,6 +120,7 @@ test.skipIf(!posix)(
         organizationId: organization.id,
         collectionId: first?.id ?? "?",
         pendingKey: null,
+        pendingSince: null,
       });
     } finally {
       await w.close();
@@ -163,6 +164,7 @@ test.skipIf(!posix)(
         organizationId: organization.id,
         collectionId: null,
         pendingKey: null,
+        pendingSince: null,
       });
       expect(w.vault.organizationsOf(ownAccount)).toHaveLength(1);
       expect(w.journal).not.toContainEqual({
