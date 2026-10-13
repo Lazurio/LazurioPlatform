@@ -7990,9 +7990,9 @@ the toggle that stays pressed while the panel is open included.
   the tabs' row; short of room they go above the tabs.
 - **The column's toggle.** In the column's head, right under `<lazurio-column-head>`, where
   Chat keeps T3 Code's toggle under the same head. While the column is hidden, one toggle
-  stands at the page's top left, where ChatGPT and Codex keep theirs, and the page keeps that
-  corner free; while the page also steps aside for the panel, the panel strip's stands in for
-  it. The shell's column head is unchanged: it offers no slot for a host's control; beside it
+  stands at the page's top left, where ChatGPT and Codex keep theirs. The page's content never
+  moves for it: only a title row it would reach steps aside (Matěj, 2026-10-13). While the
+  page also steps aside for the panel, the panel strip's stands in for it. The shell's column head is unchanged: it offers no slot for a host's control; beside it
   the head would narrow (at the column's narrowest, 208 px, it would draw only its glyphs),
   and above it the head would no longer stand where Chat and Automate draw it.
 - **Where it is.** `index.html` (the markup and the stylesheet) and `layout.ts` (the column's

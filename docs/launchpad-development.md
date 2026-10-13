@@ -842,7 +842,11 @@ Choosing a section keeps the focus on the navigation item as in T3 Code, but eve
 other move (Settings, Back, the breadcrumb, back/forward, a section chosen in the
 narrow sheet) focuses the heading of the new view and the document title names it.
 Escape does not leave Settings from a form field, so an unsaved note is not left
-behind by a stray key. T3 Code's settings search, `/` shortcut and per-row reset are
+behind by a stray key. The header (also Files') keeps its 52 px row but wraps rather
+than run past its edge or under the page's top right corner (#365): below 768 px its
+actions show only their icon, their words kept for screen readers, as the Browser
+toggle does there, and a breadcrumb that leaves no room puts the action on a second
+row at the right. T3 Code's settings search, `/` shortcut and per-row reset are
 not built: the page has three sections and no defaults to reset to. Its sidebar toggle
 and resizable sidebar are built for the left column since 2026-10-12
 ([the right panel](#the-right-panel-the-environment-browser)).
@@ -2000,8 +2004,12 @@ the Launchpad builds no viewer of its own.
   sidebar-expand) stands in the column's head, right under `<lazurio-column-head>`,
   where Chat keeps T3 Code's toggle under the same head, and hides the column, the rail
   staying. While the column is hidden, one toggle at the page's top left, where ChatGPT
-  and Codex keep theirs, shows it again, and the page keeps that corner free; while the
-  page also steps aside for the panel, the one in the panel's strip stands in for it.
+  and Codex keep theirs, shows it again. The page's content never moves for it: only a
+  title row it would reach steps aside (Matěj 2026-10-13), that is Settings' and Files'
+  header, the first row of the Apps home, Integrace and a module's page, and the
+  Marketplace's head only while its centred column comes that close (a container query
+  on `.page`). While the page also steps aside for the panel, the one in the panel's
+  strip stands in for it.
   One of them is drawn at a time, and the focus a toggle had moves on to the one drawn
   now. The shell's column head stays as it is: it offers no slot for a host's control.
   Its right edge is a divider like the panel's, 208–480 px and never leaving the page
@@ -2033,13 +2041,15 @@ the Launchpad builds no viewer of its own.
   in the corner after the page's help link, outside every view and head; the column's
   toggle under the column head, at the page's top left and in the strip; heads with
   their titles only; Integrace's search and refresh with the tabs) and were checked in
-  Chrome against the hosted preview in Czech and English at 1440×900 and 900×900: the
-  Apps home, Integrace, the Marketplace, Settings, Files and a module's page with the
-  column shown and hidden and the panel closed and open (the toggle pressed in the
-  corner beside the open panel, its click closing it), the panel taking all of the room
-  and the page scrolled; the focus back on the toggle after Close and after Escape, and
-  moving by keyboard between the column's toggles; and the Apps home, Integrace and
-  Settings at 390×844.
+  Chrome against the hosted preview in Czech and English at 1440×900, 900×900 and
+  390×844: the Apps home, Integrace, the Marketplace, every section of Settings, Files
+  and a module's page with the column shown and hidden, at the two wider sizes with the
+  panel closed and open (the toggle pressed in the corner beside the open panel, its
+  click closing it), the panel taking all of the room and the page scrolled; on every
+  page and size the page's content where it is for the hidden column's toggle, and
+  Settings' and Files' header within its edge, every control in it in reach and nothing
+  under a corner; the focus back on the toggle after Close and after Escape, and moving
+  by keyboard between the column's toggles.
 
 ## First run of an Environment
 
