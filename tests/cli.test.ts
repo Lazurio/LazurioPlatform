@@ -189,9 +189,29 @@ test.skipIf(process.platform === "win32")(
       expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(
         initial.desired["AGENTS.md"].content,
       );
-      const updated = await invoke("1", "cs");
+      // The compiled CLI uses the same voice transaction, preserving text
+      // from a file without shell escaping or a second writer.
+      const voiceFile = join(temporary, "voice.txt");
+      await writeFile(voiceFile, "Piš jasně.\n\nVysvětli další krok.");
+      expect(
+        (
+          await invoke("1", "cs", [
+            "--voice-file",
+            voiceFile,
+            "--voice-default",
+          ])
+        ).exit,
+      ).toBe(1);
+      const updated = await invoke("1", "cs", ["--voice-file", voiceFile]);
       expect(updated.exit, updated.error).toBe(0);
       expect(JSON.parse(updated.out)).toEqual({ kind: "updated", revision: 2 });
+      expect(
+        JSON.parse(await readFile(join(state, "preferences.json"), "utf8"))
+          .agentVoice.overrides.cs,
+      ).toBe("Piš jasně.\n\nVysvětli další krok.");
+      expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toContain(
+        "Piš jasně.\n\nVysvětli další krok.",
+      );
       const stale = await invoke("1", "en");
       expect(stale.exit).toBe(2);
       expect(JSON.parse(stale.out)).toEqual({

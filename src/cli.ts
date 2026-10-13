@@ -520,6 +520,8 @@ profile-preview uses the same profile choices and --folder, plus required
 creates/removes only its operation lock. It does not apply the proposed change.
 Both profile commands accept optional --preset <name> to change the workspace preset
 within what the recorded Environment handover allows; omitted keeps the current preset.
+Both also accept --voice-file <UTF-8 text file> or --voice-default for the selected
+locale. Other language overrides are preserved. A custom text is limited to 8192 bytes.
 profile-update takes the same inputs as profile-preview and APPLIES the change:
 it replaces owned instructions/preferences/manifest and archives the transaction.
 In an installed Environment the Folder is the operator's ~/Lazurio; the change is applied
@@ -625,6 +627,8 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       "bun-executable": { type: "string" },
       "application-runner": { type: "string" },
       profile: { type: "string" },
+      "voice-file": { type: "string" },
+      "voice-default": { type: "boolean" },
       "previous-digest": { type: "string" },
       "expected-revision": { type: "string" },
       "target-revision": { type: "string" },
@@ -636,6 +640,17 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       coordination: { type: "string" },
     },
   });
+  if (
+    (values["voice-file"] !== undefined ||
+      values["voice-default"] !== undefined) &&
+    !["profile-preview", "profile-update"].includes(positionals[0] ?? "")
+  )
+    throw new Error("Voice options belong only to profile commands");
+  if (
+    values["voice-file"] !== undefined &&
+    values["voice-default"] !== undefined
+  )
+    throw new Error("Choose a voice file or restore default");
   const supplied = new Set<string>();
   for (const token of tokens) {
     if (token.kind !== "option") continue;
@@ -897,13 +912,22 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
         : inspectProfileChange;
     let result: Awaited<ReturnType<typeof operation>>;
     try {
-      result = await operation(
-        folder,
-        Number(values["expected-revision"]),
-        values.preset === undefined
-          ? { profile }
-          : { preset: values.preset, profile },
-      );
+      result = await operation(folder, Number(values["expected-revision"]), {
+        profile,
+        ...(values.preset === undefined ? {} : { preset: values.preset }),
+        ...(values["voice-file"] !== undefined ||
+        values["voice-default"] === true
+          ? {
+              voice: {
+                locale: profile.locale,
+                text:
+                  values["voice-default"] === true
+                    ? null
+                    : await Bun.file(values["voice-file"] as string).text(),
+              },
+            }
+          : {}),
+      });
     } catch (error) {
       // A foreign top-level entry is a named refusal before any write.
       if (!(error instanceof FolderAdoptionError)) throw error;

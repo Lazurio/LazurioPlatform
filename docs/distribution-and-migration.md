@@ -287,7 +287,7 @@ repository read-only; clones and fetches keep working.
 | `lazurio module …` lifecycle without a Launchpad session | Built on Linux (P5); on macOS the control socket is **not built** | daily work | P14 |
 | Recovery mode instead of rollback | Built in the pre-releases (F21) | every Environment | — |
 | Worktree discipline as a mechanism (root `worktrees:*`, `pr:preflight`) | Manual text only (F14); the browser Git client is not carried (F22 point 6) | daily work | S7 |
-| Skills package and the Claude Code entry (`CLAUDE.md` → `AGENTS.md`) | **Not built**: the Folder generates `AGENTS.md` and `manual/` only; whether Claude Code reads `AGENTS.md` without a bridge is **unverified** | daily work | S7 |
+| Skills package and Claude Code entry | The Folder generates `AGENTS.md` and `manual/` only. Native AGENTS.md loading was exercised with Claude Code 2.1.296 on macOS in the [voice qualification](agent-voice.md#verification-on-2026-10-13); ancestor CLAUDE files, older versions, other entrypoints and OS combinations remain unqualified. No compatibility bridge or packaged-skill gate is claimed here. | daily work | S7 |
 | Desktop launcher (macOS `.app`) | **Not built** | non-technical operators | P15 |
 | Windows install, Folder and lock | **Not built** | Windows users | S10 |
 | Intel macOS | **Not built**; whether such users exist is **unknown** | only if they exist | — |

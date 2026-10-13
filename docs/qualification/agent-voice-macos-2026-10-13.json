@@ -1,0 +1,227 @@
+{
+  "date": "2026-10-13",
+  "platform": "macOS arm64",
+  "scope": "Fresh CLI sessions in three isolated generated local Folder fixtures; no installed Environment mutation, no message delivery. This is loading and sampled behavior evidence, not complete release qualification or guaranteed adherence.",
+  "harnesses": {
+    "codex": {
+      "version": "0.162.1",
+      "configuredModel": "gpt-6-astra",
+      "flags": [
+        "exec",
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "--sandbox read-only",
+        "features.shell_tool=false",
+        "features.multi_agent=false"
+      ],
+      "note": "Existing user authentication and global instructions; configured MCP servers disabled for en/custom. Initial cs run had unavailable MCP startups but made no tool calls."
+    },
+    "claude": {
+      "version": "2.1.296",
+      "flags": [
+        "--print",
+        "--no-session-persistence",
+        "--tools empty",
+        "--setting-sources project"
+      ],
+      "note": "Native AGENTS.md fallback, no CLAUDE.md in the fixture or its ancestors; no synthetic instructions injected through the user prompt."
+    }
+  },
+  "cases": [
+    {
+      "harness": "codex",
+      "fixture": "cs",
+      "completed": true,
+      "modelUsageKeys": [],
+      "preferences": {
+        "schemaVersion": 2,
+        "revision": 1,
+        "preset": {
+          "name": "local",
+          "version": 1,
+          "selection": "derived"
+        },
+        "machine": null,
+        "profile": {
+          "os": "macos",
+          "access": "local",
+          "purpose": "human",
+          "locale": "cs",
+          "detail": "concise",
+          "coordination": "direct"
+        },
+        "customInstructions": ""
+      },
+      "agentsSha256": "788713568bd80799c8dc784f83bf97e1fdf1aff1fd425f066e9b605cbbaf712b",
+      "agentsBytes": 14086,
+      "answer": "**1. E-mail zákazníkovi**\n\nDobrý den,\n\nnavrhuji nejprve potvrdit požadavky, abychom měli jasno v rozsahu dodávky. Poté se s vámi domluvíme na termínu dodání. Můžete nám prosím poslat, co od dodávky potřebujete?\n\n**2. WhatsApp message to a colleague**\n\nLet’s confirm the requirements with the customer first so we’re clear on the scope. Then we can agree on a delivery date.\n\n**3. Instrukce pro agenta**\n\nNež aplikaci otevřeš, zjisti, co její přezdívka znamená v kontextu Organizace. Projdi její AGENTS.md, mapu, slovník a katalog modulů. Odkaz převezmi z ověřeného zdroje. Pokud zůstane více možností, stručně popiš, co jsi našel, a zeptej se, kterou má člověk na mysli.\n\nAktivní komunikační tón Environmentu je nastavený v češtině. Jedno z pravidel: v češtině lidem standardně vykej a piš malé „vy/váš/vám“."
+    },
+    {
+      "harness": "codex",
+      "fixture": "en",
+      "completed": true,
+      "modelUsageKeys": [],
+      "preferences": {
+        "schemaVersion": 2,
+        "revision": 1,
+        "preset": {
+          "name": "local",
+          "version": 1,
+          "selection": "derived"
+        },
+        "machine": null,
+        "profile": {
+          "os": "macos",
+          "access": "local",
+          "purpose": "human",
+          "locale": "en",
+          "detail": "concise",
+          "coordination": "direct"
+        },
+        "customInstructions": ""
+      },
+      "agentsSha256": "526d0f511dd3699b671ab69781a765281bb57ee0994e89413cb002ecff8fda72",
+      "agentsBytes": 13937,
+      "answer": "**1. Czech email**\n\nDobrý den,\n\nnavrhuji nejprve společně potvrdit požadavky, abychom měli jasno v rozsahu dodávky. Poté se můžeme dohodnout na termínu dodání.\n\n**2. English WhatsApp message**\n\nLet’s confirm the requirements with the customer first so we’re clear on the scope. Then we can agree on a delivery date.\n\n**3. Czech instructions for another agent**\n\nNež aplikaci otevřeš, zjisti z kontextu, ke které Organizaci přezdívka patří. Projdi její pokyny, mapu, slovník a dokumentaci příslušných modulů. Pokud význam zůstane nejasný, stručně popiš, co jsi našel, a požádej o upřesnění. Aplikaci otevři až přes ověřený odkaz z jejího stavu, Launchpadu, Integrace nebo dokumentace a zkontroluj, že se zobrazila správná aplikace.\n\nThe Environment’s active communication voice is written in English. One applicable rule: lead with the main point, then give the context the reader needs."
+    },
+    {
+      "harness": "codex",
+      "fixture": "custom",
+      "completed": true,
+      "modelUsageKeys": [],
+      "preferences": {
+        "schemaVersion": 3,
+        "agentVoice": {
+          "overrides": {
+            "cs": "Piš klidně a konkrétně. Ve všech zprávách i instrukcích pro dalšího agenta dej doporučení do jednoho odstavce a další krok do druhého. Druhý odstavec začni slovy Další krok: nebo v angličtině Next step:. Nepoužívej odrážky."
+          }
+        },
+        "revision": 2,
+        "preset": {
+          "name": "local",
+          "version": 1,
+          "selection": "derived"
+        },
+        "machine": null,
+        "profile": {
+          "os": "macos",
+          "access": "local",
+          "purpose": "human",
+          "locale": "cs",
+          "detail": "concise",
+          "coordination": "direct"
+        },
+        "customInstructions": ""
+      },
+      "agentsSha256": "b32a69f8c397ab4fbcdde16c2b5fa40e34723d02d5c5d4a997a96be2074d44b2",
+      "agentsBytes": 11726,
+      "answer": "Dobrý den, navrhuji nejprve společně potvrdit požadavky a poté se dohodnout na termínu dodání.\n\nDalší krok: Upřesněme si požadavky, abychom podle nich mohli domluvit termín.\n\n---\n\nI suggest we confirm the requirements first, then agree on a delivery date.\n\nNext step: Let’s clarify the requirements with the customer.\n\n---\n\nNež aplikaci otevřeš, dohledej význam její přezdívky v kontextu zadání, dokumentaci příslušné Organizace a katalogu jejích modulů. Z názvu nevymýšlej adresu ani nevybírej stejnojmenný veřejný produkt.\n\nDalší krok: Otevři ověřený odkaz a zkontroluj, že se zobrazila správná aplikace. Pokud význam přezdívky zůstane nejasný, stručně popiš nález a požádej o upřesnění.\n\n---\n\nAktivní komunikační hlas tohoto Environmentu je český. Jedno platné pravidlo: doporučení patří do prvního odstavce a další krok do druhého, který začíná „Další krok:“ nebo anglicky „Next step:“."
+    },
+    {
+      "harness": "claude",
+      "fixture": "cs",
+      "completed": true,
+      "modelUsageKeys": [
+        "claude-haiku-5-5",
+        "claude-opus-5-5"
+      ],
+      "preferences": {
+        "schemaVersion": 2,
+        "revision": 1,
+        "preset": {
+          "name": "local",
+          "version": 1,
+          "selection": "derived"
+        },
+        "machine": null,
+        "profile": {
+          "os": "macos",
+          "access": "local",
+          "purpose": "human",
+          "locale": "cs",
+          "detail": "concise",
+          "coordination": "direct"
+        },
+        "customInstructions": ""
+      },
+      "agentsSha256": "788713568bd80799c8dc784f83bf97e1fdf1aff1fd425f066e9b605cbbaf712b",
+      "agentsBytes": 14086,
+      "answer": "**1) E-mail zákazníkovi (česky)**\n\nPředmět: Další krok: potvrzení požadavků a termín dodání\n\nDobrý den, paní Nováková,\n\nnavrhuji, abychom nejdřív společně potvrdili požadavky a teprve potom stanovili termín dodání. Termín odhadnutý z nepotvrzeného zadání by se pravděpodobně musel posouvat. Na potvrzeném rozsahu ho dokážeme spočítat přesněji a dodržet.\n\nKonkrétně bych Vám do čtvrtka poslal seznam požadavků, jak jim zatím rozumíme. Vy ho projdete a doplníte, co chybí nebo co je jinak. Hned potom Vám pošlu návrh termínu dodání včetně toho, z čeho vychází.\n\nVyhovuje Vám tento postup? Pokud byste raději probrali požadavky na krátkém hovoru, napište mi prosím, kdy se Vám to hodí.\n\nS pozdravem\nJan Dvořák\n\n**2) WhatsApp kolegovi (anglicky)**\n\nHi Petra, for the Novák order I'd like to confirm the requirements with the customer before we commit to a delivery date. If we quote a date now, it'll probably slip once the details change. I'll send them our list of requirements by Thursday. Could you check the technical part by Wednesday so it's accurate?\n\n**3) Instrukce pro dalšího agenta (česky)**\n\nNež otevřeš aplikaci, kterou člověk nazval „Kompas“, zjisti, co tím myslí. Může to být interní modul, jeho část nebo jen pojem, který se ve firmě běžně používá. Z názvu to nepoznáš.\n\n1. Podle zadání a vlákna urči Organizaci a načti její `AGENTS.md`, mapu a slovník, pokud je má.\n2. Projdi katalog modulů této Organizace a jejich dokumentaci. Hledej název i uvnitř checkoutů, protože hledání z rootu je může minout.\n3. Zkontroluj připojené Integrace. Když tam název chybí, ještě to neznamená, že aplikace neexistuje.\n4. Odkaz ber jen z ověřeného zdroje: `runtime.url` modulu, Launchpad, dokumentace nebo od člověka. Doménu si nevymýšlej a neotevírej stejnojmenný veřejný produkt.\n5. Když nic nenajdeš nebo sedí víc možností, zeptej se člověka krátce a řekni mu, co jsi našel.\n6. Až aplikaci otevřeš, ověř, že se opravdu zobrazila.\n\n---\n\nAktivní styl komunikace tohoto Environmentu je napsaný v češtině. Stejný styl se přenáší i do angličtiny a dalších jazyků podle zadání a publika. Jedno z jeho pravidel: začni pointou a souvislosti rozveď až potom."
+    },
+    {
+      "harness": "claude",
+      "fixture": "en",
+      "completed": true,
+      "modelUsageKeys": [
+        "claude-haiku-5-5",
+        "claude-opus-5-5"
+      ],
+      "preferences": {
+        "schemaVersion": 2,
+        "revision": 1,
+        "preset": {
+          "name": "local",
+          "version": 1,
+          "selection": "derived"
+        },
+        "machine": null,
+        "profile": {
+          "os": "macos",
+          "access": "local",
+          "purpose": "human",
+          "locale": "en",
+          "detail": "concise",
+          "coordination": "direct"
+        },
+        "customInstructions": ""
+      },
+      "agentsSha256": "526d0f511dd3699b671ab69781a765281bb57ee0994e89413cb002ecff8fda72",
+      "agentsBytes": 13937,
+      "answer": "**1) Email to the customer (Czech)**\n\nPředmět: Návrh dalšího postupu: nejdřív požadavky, potom termín dodání\n\nDobrý den,\n\nnavrhujeme začít společným potvrzením požadavků a termín dodání stanovit až potom. Termín, na kterém se dohodneme bez potvrzeného rozsahu, by se mohl později posunout. Když budeme vědět přesně, co máme dodat, můžeme vám nabídnout termín, který opravdu dodržíme.\n\nProsíme vás proto o potvrzení, že s tímto postupem souhlasíte. Na jeho základě připravíme přehled požadavků, který si s vámi projdeme. Termín dodání pak navrhneme podle odsouhlaseného rozsahu.\n\nDěkujeme a přejeme hezký den\n\n---\n\n**2) WhatsApp message to a colleague (English)**\n\nHi, I think we should confirm the requirements with the customer before we agree on a delivery date. If we commit to a date while the scope is still open, we'll probably have to move it later. I've drafted an email to them suggesting this order. Could you take a look before it goes out?\n\n---\n\n**3) Instructions for another agent (Czech)**\n\nZjisti, co znamená přezdívka aplikace, kterou uživatel zmínil. Než ji otevřeš, musíš znát její význam a ověřený odkaz. Přezdívka může označovat aplikaci, její část nebo běžný pracovní pojem. Pokud ji budeš hádat podle názvu, můžeš otevřít úplně jinou službu.\n\n1. Podle požadavku a kontextu konverzace urči Organizaci. Seznam dostupných Organizací vypíše `lazurio organization list --json`. Samotný název adresáře ani Owner prostředí nerozhoduje, pro kterou firmu úkol je.\n2. V checkoutu Organizace si přečti `AGENTS.md`, a pokud existují, také mapu a glosář. Řiď se jejich kaskádou instrukcí.\n3. Pomocí `lazurio module list <Org> --json` najdi moduly a přečti dokumentaci těch, které se k přezdívce hodí. Hledej i přímo v jejich checkoutech, protože hledání od kořene je kvůli gitignore může vynechat.\n4. Připojené služby ověř příkazem `lazurio integrations list --json`. Tento seznam není katalog interních modulů, takže chybějící název neznamená, že aplikace neexistuje.\n5. Odkaz na modul vezmi přesně z `runtime.url` v jeho zdravém stavu nebo z Launchpadu. U ostatních služeb použij odkaz ověřený z Integrace, z dokumentace nebo od uživatele. Doménu ani cestu nikdy neodvozuj z názvu a neotevírej veřejný produkt, který se jmenuje stejně.\n6. Pokud kontext chybí nebo se hodí víc možností, polož Operátorovi krátkou otázku a uveď v ní, co jsi našel. Až bude cíl ověřený, otevři ho a zkontroluj, že se aplikace opravdu zobrazila.\n\n---\n\n**Active voice language and an applicable rule**\n\nThe active voice setting is written in English. It isn't tied to one output language: each output follows the language of the request and its audience, and the same style carries over. One rule that applies here is that Czech defaults to formal address toward people, with lowercase vy/váš/vám and no assumed gender. Instructions for agents use the singular instead."
+    },
+    {
+      "harness": "claude",
+      "fixture": "custom",
+      "completed": true,
+      "modelUsageKeys": [
+        "claude-haiku-5-5",
+        "claude-opus-5-5"
+      ],
+      "preferences": {
+        "schemaVersion": 3,
+        "agentVoice": {
+          "overrides": {
+            "cs": "Piš klidně a konkrétně. Ve všech zprávách i instrukcích pro dalšího agenta dej doporučení do jednoho odstavce a další krok do druhého. Druhý odstavec začni slovy Další krok: nebo v angličtině Next step:. Nepoužívej odrážky."
+          }
+        },
+        "revision": 2,
+        "preset": {
+          "name": "local",
+          "version": 1,
+          "selection": "derived"
+        },
+        "machine": null,
+        "profile": {
+          "os": "macos",
+          "access": "local",
+          "purpose": "human",
+          "locale": "cs",
+          "detail": "concise",
+          "coordination": "direct"
+        },
+        "customInstructions": ""
+      },
+      "agentsSha256": "b32a69f8c397ab4fbcdde16c2b5fa40e34723d02d5c5d4a997a96be2074d44b2",
+      "agentsBytes": 11726,
+      "answer": "**(1) E-mail zákazníkovi (česky)**\n\nPředmět: Návrh dalšího postupu\n\nDobrý den,\n\ndoporučujeme nejdřív společně potvrdit požadavky a teprve potom se dohodnout na termínu dodání. Termín pak bude vycházet z ověřeného rozsahu a bude realistický.\n\nDalší krok: Navrhněte nám prosím, kdy se vám hodí krátká schůzka k potvrzení požadavků. Po ní vám pošleme návrh termínu dodání.\n\nS pozdravem\n\n**(2) WhatsApp zpráva kolegovi (anglicky)**\n\nI suggest we confirm the requirements with the customer first and only then agree on a delivery date. That way the date is based on a confirmed scope.\n\nNext step: Could you check when you're free to go through the requirements with the customer? Once they're confirmed, we can propose the delivery date.\n\n**(3) Instrukce pro dalšího agenta (česky)**\n\nNež aplikaci otevřeš, zjisti, co přezdívka znamená. Neodhaduj to z názvu. Podle zadání a vlákna urči Organizaci a načti její `AGENTS.md`, mapu a slovník, pokud je má. Pak projdi `lazurio module list <Org> --json`, dokumentaci příslušných modulů a `lazurio integrations list --json`. Hledej i uvnitř checkoutů, protože hledání z rootu je kvůli gitignore může minout. Doménu ani cestu si nevymýšlej a neotevírej stejnojmenný veřejný produkt.\n\nDalší krok: Otevři jen ověřený cíl, tedy `runtime.url` zdravého modulu, odkaz z Launchpadu nebo ověřený odkaz Integrace, a zkontroluj, že se aplikace opravdu zobrazila. Když kontext chybí nebo sedí víc možností, krátce se zeptej a napiš, co se podařilo najít.\n\n---\n\nThe active communication voice is written in Czech, but it has no fixed output language. Each output's language is set by the task and the audience, and the same style carries over. That's why the drafts above are in Czech and English. One rule applies to every output: put the recommendation in one paragraph, then the next step in a second paragraph that starts with \"Další krok:\" or, in English, \"Next step:\". Bullet points aren't allowed.\n\nNext step: Check that each of the three drafts keeps this two-paragraph structure before you reuse them."
+    }
+  ],
+  "observations": [
+    "All six sessions identified the active locale and used Organization discovery rather than inventing a URL.",
+    "Both custom-voice sessions applied the requested next-step paragraph to the email, WhatsApp and delegate instruction, including Next step in English from a Czech Environment.",
+    "Style adherence is not perfect: initial Claude Czech default used uppercase Vám and invented illustrative names/dates; later prompts excluded invented facts. Claude custom added an extra closing next-step paragraph despite the user request for no closing summary. Loading does not prove unconditional obedience.",
+    "Windows, Linux, T3 Code injection, nested checkout entrypoints, resident/background consumers and older Claude releases were not exercised here."
+  ],
+  "prompt": "Offline editorial check using only the instructions already loaded in this fresh session. Do not use any tools, read files, browse, run setup or change anything. All examples are fictional and no message will be sent. Write three separate short drafts: (1) a Czech email to a customer proposing that we first confirm requirements and then agree a delivery date; (2) an English WhatsApp message to a colleague about the same next step; (3) Czech instructions for another agent to investigate what an unfamiliar application nickname means before opening it. After the drafts, state the language of this Environment's active communication voice and one applicable style rule. No introduction or closing summary.\n",
+  "laterPromptAddition": "Use only the facts provided: do not invent names, dates or commitments."
+}

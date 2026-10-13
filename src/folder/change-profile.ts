@@ -45,22 +45,37 @@ import {
   withToolSelection,
 } from "./state";
 import { ownDataValue, stateFields } from "./state-fields";
+import {
+  type AgentVoice,
+  editVoice,
+  parseAgentVoice,
+  parseVoiceEdit,
+  type VoiceEdit,
+} from "./voice";
 
 // One request shape for CLI, Launchpad and a future typed owner request: the
 // preset (absent means keep the current one) and the full profile. The Machine
 // binding is never part of a request; it is immutable.
 export type ProfileRequest = Readonly<{
+  voice?: VoiceEdit;
   preset: PresetName | undefined;
   profile: FolderProfile;
 }>;
 
 export function parseProfileRequest(input: unknown): ProfileRequest {
+  const withVoice = ownDataValue(input, "voice") !== undefined;
   const withPreset = ownDataValue(input, "preset") !== undefined;
-  const value = stateFields(
-    input,
-    withPreset ? ["preset", "profile"] : ["profile"],
-  );
+  const value = stateFields(input, [
+    "profile",
+    ...(withPreset ? ["preset"] : []),
+    ...(withVoice ? ["voice"] : []),
+  ]);
+  const profile = parseFolderProfile(value.profile);
+  const voice = withVoice ? parseVoiceEdit(value.voice) : undefined;
+  if (voice !== undefined && voice.locale !== profile.locale)
+    throw new Error("Voice locale differs from the requested profile");
   return Object.freeze({
+    ...(voice === undefined ? {} : { voice }),
     preset: withPreset ? parsePresetName(value.preset) : undefined,
     profile: parseFolderProfile(value.profile),
   });
@@ -85,6 +100,9 @@ export async function planProfileChange(
     expectedRevision,
     {
       ...requested,
+      ...(requested.voice === undefined
+        ? {}
+        : { agentVoice: editVoice(current.agentVoice, requested.voice) }),
       machine: current.machine,
       tools: enabledTools(current),
       notes: toolNotes(current),
@@ -216,6 +234,8 @@ function keptNotes(notes: ToolNotes, tools: readonly string[]): ToolNotes {
 // and declares the same entry is `unchanged` and is not recorded, so a
 // re-apply that only rewrote `installed` never bumps the revision.
 export type FolderChange = Readonly<{
+  // Undefined keeps the record; null removes the last override.
+  agentVoice?: AgentVoice | null;
   preset: PresetName | undefined;
   profile: FolderProfile;
   machine: MachineBinding | null;
@@ -256,6 +276,12 @@ export async function planFolderChange(
       kind: "blocked",
       reason: "custom-composition-unavailable",
     } as const;
+  const nextVoice =
+    change.agentVoice === undefined
+      ? current.agentVoice
+      : change.agentVoice === null
+        ? undefined
+        : parseAgentVoice(change.agentVoice);
   const machine = parseMachineBinding(change.machine);
   const tools = parseEnabledTools(change.tools);
   const notes = parseToolNotes(change.notes, tools);
@@ -306,6 +332,7 @@ export async function planFolderChange(
 
   const preview = await previewFolder(
     {
+      ...(nextVoice === undefined ? {} : { agentVoice: nextVoice }),
       preset: preset.name,
       machine,
       profile: change.profile,
@@ -317,6 +344,14 @@ export async function planFolderChange(
     inspect,
   );
   if (preview.plan.kind === "blocked") return preview.plan;
+  // Bound the full generated document, including the fence and other settings.
+  // An oversized composition is never staged or silently truncated.
+  if (
+    (nextVoice !== undefined || change.agentVoice !== undefined) &&
+    new TextEncoder().encode(preview.desired["AGENTS.md"].content).length >
+      32 * 1024
+  )
+    return { kind: "blocked", reason: "voice-context-too-large" } as const;
   // The entry is the one part of the binding the product acts on, not only
   // renders: the Launchpad serves and admits from the recorded one. A changed
   // entry is recorded even when the Folder renders the same bytes. So is a
@@ -326,6 +361,7 @@ export async function planFolderChange(
   // Tools and `lazurio tools` act on (decision F45).
   if (
     preview.plan.kind === "unchanged" &&
+    JSON.stringify(nextVoice) === JSON.stringify(current.agentVoice) &&
     JSON.stringify(machine?.entry) === JSON.stringify(current.machine?.entry) &&
     JSON.stringify(tools) === JSON.stringify(enabledTools(current)) &&
     JSON.stringify(notes) === JSON.stringify(toolNotes(current)) &&
@@ -335,11 +371,15 @@ export async function planFolderChange(
     return { kind: "unchanged" } as const;
   if (current.revision === Number.MAX_SAFE_INTEGER)
     return { kind: "blocked", reason: "revision-exhausted" } as const;
+  const { agentVoice: _previousVoice, ...currentFields } = current;
   const preferences = parseFolderPreferences(
     withOrganizationSettings(
       withToolSelection(
         {
-          ...current,
+          ...currentFields,
+          schemaVersion:
+            current.schemaVersion === 3 || nextVoice !== undefined ? 3 : 2,
+          ...(nextVoice === undefined ? {} : { agentVoice: nextVoice }),
           revision: current.revision + 1,
           preset,
           machine,

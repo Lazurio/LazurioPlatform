@@ -35,6 +35,7 @@ import { readFolderState } from "../folder/read-state";
 import { enabledTools, stateFields } from "../folder/state";
 import { ownDataValue } from "../folder/state-fields";
 import { updateProfile, updateTools } from "../folder/update-profile";
+import { resolvedVoice } from "../folder/voice";
 import { processExecutorEndpoint } from "../integrations/executor-client";
 import { readMachineContext } from "../machine/context";
 import { hostedOperatorFolder } from "../machine/operator";
@@ -1384,6 +1385,10 @@ export async function startLaunchpad(
             ),
             machine: current.preferences.machine,
             profile: current.preferences.profile,
+            voice: resolvedVoice(
+              current.preferences.profile.locale,
+              current.preferences.agentVoice,
+            ),
             // The catalog tools agents may be told to use, with tier and
             // whether each is on in this Folder (decision F18).
             tools: toolSelection(enabledTools(current.preferences)),
@@ -1645,25 +1650,24 @@ export async function startLaunchpad(
         }
         if (!["/api/preview", "/api/update"].includes(url.pathname))
           return response({ error: "not-found" }, 404);
+        const withVoice = ownDataValue(input, "voice") !== undefined;
         const withPreset = ownDataValue(input, "preset") !== undefined;
-        const value = stateFields(
-          input,
-          withPreset
-            ? ["expectedRevision", "preset", "profile"]
-            : ["expectedRevision", "profile"],
-        );
+        const value = stateFields(input, [
+          "expectedRevision",
+          "profile",
+          ...(withPreset ? ["preset"] : []),
+          ...(withVoice ? ["voice"] : []),
+        ]);
         const expectedRevision = revisionOf(value.expectedRevision);
         if (expectedRevision === null)
           return response({ error: "invalid-revision" }, 400);
         const operation =
           url.pathname === "/api/update" ? updateProfile : inspectProfileChange;
-        const result = await operation(
-          folder,
-          expectedRevision,
-          withPreset
-            ? { preset: value.preset, profile: value.profile }
-            : { profile: value.profile },
-        );
+        const result = await operation(folder, expectedRevision, {
+          profile: value.profile,
+          ...(withPreset ? { preset: value.preset } : {}),
+          ...(withVoice ? { voice: value.voice } : {}),
+        });
         // A profile change that makes this a Team Environment ends a running
         // gh sign-in or key linking at once: its holder reads the refusal.
         if (url.pathname === "/api/update" && result.kind === "updated") {

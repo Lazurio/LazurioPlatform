@@ -285,12 +285,17 @@ as the default for all agent communication, including authored artifacts and
 instructions for agents. [The definition](agent-voice.md) records the precise
 wording in Czech and English, audience adaptation and examples. The companion
 Launchpad wireframe explores customization through the existing profile owner.
-The 2026-10-13 proposal follows the existing Environment locale, preserves
-independent Czech/English custom text and recommends storing the authored values
-in the existing preferences with the active voice generated inline in AGENTS.md.
-Exact schema migration and harness qualification remain implementation gates;
-the proposal is available for the decision over the wireframe. This documentation does not change
-generated Folder bytes, deploy a setting or claim model adherence.
+**Approved 2026-10-13 and implemented in this branch:** the Environment locale
+selects a default or its separately preserved custom Czech/English text. Preferences
+schema 3 owns the optional override map; schema 2 remains readable. The active
+voice is generated inline near the beginning of AGENTS.md, through the existing
+profile preview/update/recovery operation, with text and output size bounds.
+Launchpad provides one prefilled editor and Save/Cancel/Restore; its drafts survive
+language switches within the page. This is not an account-wide preference.
+Codex and current Claude Code cold CLI loading are evidenced on macOS in the
+voice document; other entrypoints and OS combinations retain their qualification
+gates. Merge does not install or activate this branch in existing Environments.
+
 
 Accepted: expertise and proactivity are independent, profiles are Machine-local and
 can propose Machine or Organization mandates without transferring effective consent.

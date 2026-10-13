@@ -10,6 +10,31 @@ const capitalized = (text: string) =>
   `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 
 const en = {
+  voiceContextLarge:
+    "The combined agent instructions are too long. Shorten this voice or your tool notes, then load current settings and try again.",
+  voiceTitle: "Agent communication",
+  voiceEditor: "Tone of Voice for agents",
+  voiceIntro:
+    "Set how agents communicate in this Environment, including emails, WhatsApp messages and instructions for other agents.",
+  voiceShared: "Everyone in this team Environment uses the same voice.",
+  voiceLanguageLink: "Change language in General",
+  voiceHint:
+    "Edit the text to suit you. Saved changes apply to new conversations.",
+  voiceSave: "Save",
+  voiceCancel: "Cancel changes",
+  voiceRestore: "Restore default",
+  voiceDefault: "Default tone",
+  voiceCustom: "Custom tone",
+  voiceDirty: "Unsaved changes",
+  voiceSaved: "Saved. New conversations will use this voice.",
+  voiceInvalid:
+    "Enter a text up to 8 KB, or restore the default tone. Shorten long text before saving.",
+  voiceFailed:
+    "Could not save. Your draft is kept. Load current settings before trying again.",
+  voiceStale:
+    "Settings changed elsewhere. Your draft is kept. Load current settings, check your text and save again.",
+  voiceRefresh: "Load current settings",
+
   appPrepare: "Prepare dependencies",
   appCleanPrepare: "Reinstall dependencies (remove node_modules)",
   appPrepared:
@@ -1341,6 +1366,32 @@ const en = {
 } as const;
 export type MessageKey = keyof typeof en;
 const cs: Record<MessageKey, string> = {
+  voiceContextLarge:
+    "Celé instrukce pro agenty jsou příliš dlouhé. Zkraťte tón nebo vlastní poznámky k nástrojům, pak načtěte aktuální nastavení a zkuste uložení znovu.",
+  voiceTitle: "Komunikace agentů",
+  voiceEditor: "Tone of Voice pro agenty",
+  voiceIntro:
+    "Nastavte, jak mají agenti v tomto Environmentu komunikovat — včetně e-mailů, zpráv na WhatsAppu a instrukcí pro další agenty.",
+  voiceShared:
+    "Tento týmový Environment používá jeden společný tón pro všechny.",
+  voiceLanguageLink: "Změnit jazyk v Obecném nastavení",
+  voiceHint:
+    "Text si můžete upravit. Uložené změny se projeví v nových konverzacích.",
+  voiceSave: "Uložit",
+  voiceCancel: "Zrušit úpravy",
+  voiceRestore: "Obnovit výchozí tón",
+  voiceDefault: "Výchozí tón",
+  voiceCustom: "Vlastní tón",
+  voiceDirty: "Neuložené úpravy",
+  voiceSaved: "Uloženo. Nové konverzace budou používat tento tón.",
+  voiceInvalid:
+    "Napište text do 8 kB, nebo obnovte výchozí tón. Delší text před uložením zkraťte.",
+  voiceFailed:
+    "Uložení se nepodařilo. Rozepsaný text zůstává. Před dalším pokusem načtěte aktuální nastavení.",
+  voiceStale:
+    "Nastavení se mezitím změnilo. Rozepsaný text zůstává. Načtěte aktuální nastavení, zkontrolujte text a uložte ho znovu.",
+  voiceRefresh: "Načíst aktuální nastavení",
+
   appPrepare: "Připravit závislosti",
   appCleanPrepare: "Přeinstalovat závislosti (odstranit node_modules)",
   appPrepared:

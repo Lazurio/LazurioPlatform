@@ -19,7 +19,7 @@
   else if (trimmed === "/settings" || trimmed.indexOf("/settings/") === 0) {
     frame = "settings";
     section = trimmed.slice("/settings/".length);
-    if (["general", "machine", "tools", "ssh", "recovery"].indexOf(section) < 0) section = "general";
+    if (["general", "communication", "machine", "tools", "ssh", "recovery"].indexOf(section) < 0) section = "general";
   }
   root.setAttribute("data-frame", frame);
   if (section) root.setAttribute("data-section", section);
@@ -98,6 +98,7 @@ html[data-frame="integrations"] [data-view]:not([data-view~="integrations"]),
 html[data-frame="marketplace"] [data-view]:not([data-view~="marketplace"]),
 html[data-frame="settings"] [data-view]:not([data-view~="settings"]),
 html:not([data-frame]) [data-view]:not([data-view~="catalog"]),
+html:not([data-section="communication"]) #view-settings > [data-section="communication"],
 html:not([data-section="general"]) #view-settings > [data-section="general"],
 html:not([data-section="machine"]) #view-settings > [data-section="machine"],
 html:not([data-section="tools"]) #view-settings > [data-section="tools"],
@@ -192,6 +193,10 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
 .container.wide { max-width: 1152px; margin: 0; padding: 24px 32px 64px; }
 .backdrop { display: none; }
 main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+.card.voice-card { padding: 20px; display: grid; gap: 14px; }
+.voice-meta, .voice-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.voice-meta { justify-content: space-between; color: var(--muted-fg); font-size: 14px; }
+#voice-text { width: 100%; resize: vertical; min-height: 320px; font: inherit; line-height: 1.65; padding: 14px; }
 .section-head-text { display: grid; gap: 0.75rem; }
 
 /* The Apps home (decision F36): the Organization on top, then the two
@@ -836,6 +841,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <span class="sr-only" id="settings-nav-label" data-message="settingsTitle">Settings</span>
 <ul class="menu">
 <li><a class="menu-item" href="/settings/general" data-section="general" data-route><svg class="icon" aria-hidden="true"><use href="#i-general"/></svg><span class="menu-name" data-message="settingsGeneral">General</span></a></li>
+<li><a class="menu-item" href="/settings/communication" data-section="communication" data-route><svg class="icon" aria-hidden="true"><use href="#i-general"/></svg><span class="menu-name" data-message="voiceTitle">Agent communication</span></a></li>
 <li><a class="menu-item" href="/settings/machine" data-section="machine" data-route><svg class="icon" aria-hidden="true"><use href="#i-machine"/></svg><span class="menu-name" data-message="machineTitle">This Environment</span></a></li>
 <li><a class="menu-item" href="/settings/tools" data-section="tools" data-route><svg class="icon" aria-hidden="true"><use href="#i-tools"/></svg><span class="menu-name" data-message="toolsTitle">Tools</span></a></li>
 <li><a class="menu-item" href="/settings/ssh" data-section="ssh" data-route><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg><span class="menu-name" data-message="sshTitle">SSH from your devices</span></a></li>
@@ -951,6 +957,24 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <details class="technical"><summary data-message="technicalDetails">Technical details</summary><pre id="result"></pre></details>
 </section>
 
+<section id="section-communication" data-section="communication" aria-labelledby="page-heading">
+<p class="intro" data-message="voiceIntro">Set how agents communicate in this Environment, including emails, WhatsApp messages and instructions for other agents.</p>
+<p id="voice-shared" class="row-desc" hidden data-message="voiceShared">Everyone in this team Environment uses the same voice.</p>
+<form id="voice-form" class="group">
+<fieldset id="voice-fields" disabled class="group">
+<legend><h2 data-message="voiceEditor">Tone of Voice for agents</h2></legend>
+<div class="card voice-card">
+<div class="voice-meta"><span id="voice-meta"></span><a href="/settings/general" data-route data-message="voiceLanguageLink">Change language in General</a></div>
+<label for="voice-text" class="sr-only" data-message="voiceEditor">Tone of Voice for agents</label>
+<textarea id="voice-text" rows="16" aria-describedby="voice-hint voice-status"></textarea>
+<p id="voice-hint" class="row-desc" data-message="voiceHint">Edit the text to suit you. Saved changes apply to new conversations.</p>
+</div>
+<div class="voice-actions"><button type="submit" class="primary" id="voice-save" data-message="voiceSave">Save</button><button type="button" id="voice-cancel" data-message="voiceCancel">Cancel changes</button><button type="button" class="ghost" id="voice-default" data-message="voiceRestore">Restore default</button></div>
+</fieldset>
+<p id="voice-status" class="row-status" role="status" aria-live="polite"></p>
+<button type="button" id="voice-refresh" hidden data-message="voiceRefresh">Load current settings</button>
+</form>
+</section>
 <section id="section-machine" data-section="machine" aria-labelledby="page-heading">
 <!-- "Obsah Environmentu" (root decision 0188): what lives here and its
      preparation by the Lazurio CLI, drawn by content-panel.ts; only where

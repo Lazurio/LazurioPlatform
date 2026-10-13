@@ -18,6 +18,7 @@ import { inspectToolsChange } from "../src/folder/inspect-tools-change";
 import { executionOs } from "../src/folder/platform";
 import { type PresetName, presetProfile } from "../src/folder/presets";
 import { refreshFolder } from "../src/folder/update-profile";
+import { resolvedVoice } from "../src/folder/voice";
 import { startLaunchpad } from "../src/launchpad/server";
 import { toolSelection } from "../src/tools/catalog";
 import { bindings } from "./fixtures/machine-bindings";
@@ -251,6 +252,7 @@ test.skipIf(process.platform === "win32")(
         preset: { name: "local", version: 1, selection: "derived" },
         allowedPresets: ["local"],
         machine: null,
+        voice: resolvedVoice(profile.locale as "cs" | "en"),
         profile,
         tools: [
           { name: "gh", tier: "required", setup: "launchpad", enabled: true },
@@ -370,6 +372,7 @@ test.skipIf(process.platform === "win32")(
         ],
         machine: bindings.organization,
         profile: session.profile,
+        voice: resolvedVoice(session.profile.locale),
         tools: toolSelection([]),
       });
       const change = {

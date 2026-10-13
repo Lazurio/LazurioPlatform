@@ -55,6 +55,7 @@ test("a path names the view and the settings section; the canonical path is one"
     "/marketplace",
     "/settings",
     "/settings/general",
+    "/settings/communication",
     "/settings/machine",
     "/settings/tools",
     "/settings/ssh",

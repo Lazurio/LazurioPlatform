@@ -21,8 +21,8 @@ import { bindings } from "./fixtures/machine-bindings";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-46",
-  digest: "a46f1bf3826e6c24f0bc3733fc26a0a057812814266f4f267ad6d4a24436039f",
+  revision: "base-instructions-47",
+  digest: "a2ae8554ef3a3ec400aef5a5ab46d6e666b4592e30597c801459c52ed4089230",
 } as const;
 
 const optionalTools = activatableTools()
@@ -161,4 +161,20 @@ test("the generated Folder renders the bytes pinned for the current template rev
     );
   // Rendering is deterministic: the same compositions, the same bytes.
   expect(renderedDigest()).toBe(digest);
+});
+
+test("default and maximum plain voice fit the generated-document budget across preset compositions", () => {
+  for (const composition of compositions()) {
+    expect(
+      Buffer.byteLength(renderOutputs(composition)["AGENTS.md"]),
+    ).toBeLessThanOrEqual(32 * 1024);
+    const custom = renderOutputs({
+      ...composition,
+      agentVoice: {
+        overrides: { [composition.profile.locale]: "x".repeat(8192) },
+      },
+    })["AGENTS.md"];
+    expect(Buffer.byteLength(custom)).toBeLessThanOrEqual(32 * 1024);
+    expect(custom.indexOf("x".repeat(8192))).toBeLessThan(1500);
+  }
 });
