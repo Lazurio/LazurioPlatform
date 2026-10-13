@@ -94,7 +94,6 @@ async function until<T>(
 
 const cookieName = "__Secure-lazurio-workspace";
 const workHost = "workspace.example.lazurio.io";
-const personalHost = "example.lazurio.io";
 const workName = "Example Pracovní workspace";
 const reassigned = Object.freeze({
   kind: "operator",
