@@ -34,19 +34,29 @@ export type MouseButton =
 
 export type TouchPoint = Readonly<{ x: number; y: number; id: number }>;
 
+/** How finely the view draws the remote page, the person's choice in the
+ * bar (F39's addendum of 2026-10-13): Standard, the frames as they always
+ * were, or Data saver, smaller frames for a slow connection. */
+export type Picture = "standard" | "saver";
+
 /** From the page to the service. Coordinates are CSS pixels of the remote
  * page's viewport, already mapped by the page from the frame it shows. */
 export type ClientMessage =
   /** First message: the page area. `resize` false keeps the window's size
-   * (a pop-up shown over the page keeps the size its opener asked for). */
+   * (a pop-up shown over the page keeps the size its opener asked for).
+   * Without `picture` (a page from before the choice) the viewer is
+   * Standard. */
   | Readonly<{
       t: "hello";
       width: number;
       height: number;
       dpr: number;
       resize: boolean;
+      picture?: Picture;
     }>
   | Readonly<{ t: "size"; width: number; height: number; dpr: number }>
+  /** The person chose another picture quality in the bar. */
+  | Readonly<{ t: "picture"; picture: Picture }>
   | Readonly<{
       t: "mouse";
       type: "mousePressed" | "mouseReleased" | "mouseMoved" | "mouseWheel";
@@ -190,6 +200,7 @@ const coordinate = (value: unknown) => finite(value, -100_000, 100_000);
 const small = (value: unknown) => finite(value, 0, 0xffff);
 const text = (value: unknown, max: number) =>
   typeof value === "string" && value.length <= max;
+const picture = (value: unknown) => value === "standard" || value === "saver";
 
 const mouseTypes = new Set([
   "mousePressed",
@@ -224,11 +235,15 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     finite(m.dpr, 0.1, 10);
   switch (m.t) {
     case "hello":
-      return size() && typeof m.resize === "boolean"
+      return size() &&
+        typeof m.resize === "boolean" &&
+        (m.picture === undefined || picture(m.picture))
         ? (m as ClientMessage)
         : null;
     case "size":
       return size() ? (m as ClientMessage) : null;
+    case "picture":
+      return picture(m.picture) ? (m as ClientMessage) : null;
     case "mouse":
       return mouseTypes.has(m.type as string) &&
         coordinate(m.x) &&

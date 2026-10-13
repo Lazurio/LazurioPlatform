@@ -8,6 +8,7 @@ import {
   type ClientMessage,
   encodeFrame,
   type FrameHeader,
+  type Picture,
   type ServerMessage,
   type ViewSize,
   viewSizeLimits,
@@ -30,6 +31,9 @@ export type Viewer = {
   close: () => void;
   size: ViewSize | null;
   resize: boolean;
+  /** The person's picture quality (F39's addendum of 2026-10-13): Standard
+   * until the viewer's `hello` says otherwise. */
+  picture: Picture;
 };
 
 export type HubSeams = Readonly<{
@@ -110,6 +114,13 @@ type Info = {
   loading: boolean;
 };
 
+/** A screencast's frames: their largest size in pixels and JPEG quality. */
+export type Screencast = Readonly<{
+  width: number;
+  height: number;
+  quality: number;
+}>;
+
 type Tab = {
   targetId: string;
   sessionId: string | null;
@@ -118,7 +129,7 @@ type Tab = {
   mainFrameId: string | null;
   info: Info;
   viewers: Set<Viewer>;
-  screencast: { width: number; height: number } | null;
+  screencast: Screencast | null;
   pendingAck: number | null;
   lastFrame: Uint8Array | null;
   /** A screencast frame came since the tab was last watched: the first
@@ -192,7 +203,46 @@ const metaEveryMs = 2_000;
 const heapReadMs = 500;
 
 const ackThreshold = 1 << 20;
-const jpegQuality = 70;
+
+/** The frames of each picture quality (F39's addendum of 2026-10-13).
+ * Standard: as they always were, the viewer's page area in device pixels
+ * at JPEG quality 70. Data saver: two thirds of the area's CSS size at
+ * quality 40, measured to send 2.9–3.8 times fewer bytes per frame while
+ * text from 12 px stays readable drawn at full size. A scale, not a smaller
+ * device pixel ratio: the Environment's Chrome draws at device scale 1 and a
+ * screencast never sends a frame larger than the page's CSS size, so the
+ * ratio alone makes no frame smaller. */
+export const pictureFrames = Object.freeze({
+  standard: Object.freeze({ quality: 70 }),
+  saver: Object.freeze({ scale: 2 / 3, quality: 40 }),
+});
+
+/** The one screencast that serves every viewer of a tab: the most demanding
+ * viewer wins. Each viewer that said its size asks for its frame (Standard:
+ * its CSS size × its device pixel ratio; Data saver: two thirds of its CSS
+ * size) at its quality, and the screencast takes the largest width, height
+ * and quality asked, within the protocol's limits. Null while no viewer has
+ * said its size. */
+export function screencastFor(
+  viewers: Iterable<Readonly<Pick<Viewer, "size" | "picture">>>,
+): Screencast | null {
+  let width = 0;
+  let height = 0;
+  let quality = 0;
+  for (const { size, picture } of viewers) {
+    if (size === null) continue;
+    const scale = picture === "saver" ? pictureFrames.saver.scale : size.dpr;
+    width = Math.max(width, Math.round(size.width * scale));
+    height = Math.max(height, Math.round(size.height * scale));
+    quality = Math.max(quality, pictureFrames[picture].quality);
+  }
+  if (width === 0) return null;
+  return {
+    width: Math.min(width, viewSizeLimits.maxWidth),
+    height: Math.min(height, viewSizeLimits.maxHeight),
+    quality,
+  };
+}
 
 /** The size of a JPEG from its first start-of-frame marker; null when the
  * bytes are not a JPEG the parser understands. */
@@ -570,9 +620,17 @@ export class BrowserHub {
     if (tab === undefined) return;
     if (message.t === "hello" || message.t === "size") {
       viewer.size = clampSize(message);
-      if (message.t === "hello") viewer.resize = message.resize;
+      if (message.t === "hello") {
+        viewer.resize = message.resize;
+        viewer.picture = message.picture ?? "standard";
+      }
       if (viewer.resize) tab.lastActor = viewer;
       this.scheduleResize(tab);
+      await this.updateScreencast(tab);
+      return;
+    }
+    if (message.t === "picture") {
+      viewer.picture = message.picture;
       await this.updateScreencast(tab);
       return;
     }
@@ -1158,15 +1216,18 @@ export class BrowserHub {
   }
 
   /** A screenshot right away, so a new viewer does not wait for the page's
-   * next paint. */
+   * next paint: at the quality of the viewers that said their choice,
+   * Standard's before any has. */
   private async firstFrame(tab: Tab): Promise<void> {
     const cdp = this.cdp;
     if (cdp === null || tab.sessionId === null) return;
+    const quality =
+      screencastFor(tab.viewers)?.quality ?? pictureFrames.standard.quality;
     try {
       const [shot, metrics] = await Promise.all([
         cdp.send(
           "Page.captureScreenshot",
-          { format: "jpeg", quality: jpegQuality },
+          { format: "jpeg", quality },
           tab.sessionId,
         ),
         cdp.send("Page.getLayoutMetrics", {}, tab.sessionId),
@@ -1192,7 +1253,8 @@ export class BrowserHub {
     } catch {}
   }
 
-  /** (Re)starts the screencast at the largest size any viewer shows. */
+  /** (Re)starts the screencast that serves every viewer (`screencastFor`)
+   * whenever its size or its quality changes, once per change. */
   private async updateScreencast(tab: Tab): Promise<void> {
     const cdp = this.cdp;
     const session = tab.sessionId;
@@ -1200,41 +1262,38 @@ export class BrowserHub {
     // Only viewers that said their size (`hello` comes right after the
     // socket opens): no screencast at a guessed size to restart a moment
     // later.
-    let width = 0;
-    let height = 0;
-    for (const viewer of tab.viewers) {
-      const size = viewer.size;
-      if (size === null) continue;
-      width = Math.max(width, Math.round(size.width * size.dpr));
-      height = Math.max(height, Math.round(size.height * size.dpr));
-    }
-    if (width === 0) return;
-    width = Math.min(width, viewSizeLimits.maxWidth);
-    height = Math.min(height, viewSizeLimits.maxHeight);
+    const wanted = screencastFor(tab.viewers);
+    if (wanted === null) return;
+    const before = tab.screencast;
     if (
-      tab.screencast !== null &&
-      tab.screencast.width === width &&
-      tab.screencast.height === height
+      before !== null &&
+      before.width === wanted.width &&
+      before.height === wanted.height &&
+      before.quality === wanted.quality
     )
       return;
-    if (tab.screencast !== null)
-      await cdp.send("Page.stopScreencast", {}, session).catch(() => undefined);
-    tab.screencast = { width, height };
+    // Recorded before the awaits, so a second change meanwhile (a `hello`
+    // and a `picture` at once) restarts it once more, never twice for one.
+    tab.screencast = wanted;
     tab.pendingAck = null;
+    if (before !== null)
+      await cdp.send("Page.stopScreencast", {}, session).catch(() => undefined);
+    // A later change took over while Chrome stopped: it starts its own.
+    if (tab.screencast !== wanted) return;
     await cdp
       .send(
         "Page.startScreencast",
         {
           format: "jpeg",
-          quality: jpegQuality,
-          maxWidth: width,
-          maxHeight: height,
+          quality: wanted.quality,
+          maxWidth: wanted.width,
+          maxHeight: wanted.height,
           everyNthFrame: 1,
         },
         session,
       )
       .catch((error: unknown) => {
-        tab.screencast = null;
+        if (tab.screencast === wanted) tab.screencast = null;
         this.seams.log(`startScreencast failed: ${String(error)}`);
       });
   }

@@ -25,6 +25,8 @@ import {
   BrowserHub,
   jpegSize,
   navigableAddress,
+  pictureFrames,
+  screencastFor,
   type TabFacts,
   type Viewer,
 } from "../src/browser/people/hub";
@@ -1914,6 +1916,7 @@ test("a slow viewer holds Chrome's next frame instead of the service's memory", 
     close: () => {},
     size: null,
     resize: true,
+    picture: "standard",
   };
   await until(() => hub.attach(id(1), viewer));
   await hub.handle(id(1), viewer, {
@@ -1941,6 +1944,173 @@ test("a slow viewer holds Chrome's next frame instead of the service's memory", 
   // A pop-up viewer (resize false) never resizes its window.
   expect(browser.called("Browser.setWindowBounds")).toHaveLength(0);
   hub.stop();
+});
+
+// ---- Picture quality (F39's addendum of 2026-10-13) ----------------------------
+
+test("one screencast serves the most demanding viewer: Standard asks for its size × dpr at 70, Data saver for two thirds of its CSS size at 40", () => {
+  const viewer = (
+    picture: "standard" | "saver",
+    width: number,
+    height: number,
+    dpr: number,
+  ) => ({ size: { width, height, dpr }, picture });
+  expect(pictureFrames).toEqual({
+    standard: { quality: 70 },
+    saver: { scale: 2 / 3, quality: 40 },
+  });
+  expect(screencastFor([])).toBeNull();
+  expect(screencastFor([{ size: null, picture: "saver" }])).toBeNull();
+  expect(screencastFor([viewer("standard", 700, 500, 2)])).toEqual({
+    width: 1400,
+    height: 1000,
+    quality: 70,
+  });
+  // Data saver: two thirds of the CSS size, whatever the device pixel
+  // ratio, since Chrome draws at device scale 1.
+  for (const dpr of [1, 2, 3])
+    expect(screencastFor([viewer("saver", 900, 600, dpr)])).toEqual({
+      width: 600,
+      height: 400,
+      quality: 40,
+    });
+  // Standard and Data saver: Standard's frames for both.
+  expect(
+    screencastFor([
+      viewer("standard", 700, 500, 2),
+      viewer("saver", 900, 600, 2),
+    ]),
+  ).toEqual({ width: 1400, height: 1000, quality: 70 });
+  // A viewer that has not said its size asks for nothing yet.
+  expect(
+    screencastFor([
+      viewer("saver", 900, 600, 1),
+      { size: null, picture: "standard" },
+    ]),
+  ).toEqual({ width: 600, height: 400, quality: 40 });
+  // Within the protocol's limits.
+  expect(screencastFor([viewer("standard", 3000, 2000, 3)])).toEqual({
+    width: 3840,
+    height: 2400,
+    quality: 70,
+  });
+});
+
+test("viewers of one tab in Standard and Data saver get Standard's frames; Data saver alone, smaller frames at a lower quality", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { base } = await serve(browser);
+  const starts = () =>
+    browser.called("Page.startScreencast").map((call) => call.params);
+  const standard = await person(base, id(1));
+  await until(() => standard.of("info").length > 0);
+  standard.send({ t: "hello", width: 700, height: 500, dpr: 2, resize: true });
+  await until(() => starts().length === 1);
+  expect(starts()[0]).toEqual({
+    format: "jpeg",
+    quality: 70,
+    maxWidth: 1400,
+    maxHeight: 1000,
+    everyNthFrame: 1,
+  });
+  const saver = await person(base, id(1));
+  await until(() => saver.of("info").length > 0);
+  saver.send({
+    t: "hello",
+    width: 900,
+    height: 600,
+    dpr: 2,
+    resize: false,
+    picture: "saver",
+  });
+  await settle(100);
+  // Standard's frames serve both: nothing restarts.
+  expect(starts()).toHaveLength(1);
+  expect(browser.called("Page.stopScreencast")).toHaveLength(0);
+  // The Standard viewer leaves: the screencast restarts once for Data saver.
+  standard.socket.close();
+  await until(() => starts().length === 2);
+  expect(browser.called("Page.stopScreencast")).toHaveLength(1);
+  expect(starts()[1]).toEqual({
+    format: "jpeg",
+    quality: 40,
+    maxWidth: 600,
+    maxHeight: 400,
+    everyNthFrame: 1,
+  });
+  saver.socket.close();
+});
+
+test("a change of the picture quality restarts the screencast once; the same choice again changes nothing, and a hello without one is Standard", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { base } = await serve(browser);
+  const starts = () =>
+    browser.called("Page.startScreencast").map((call) => call.params);
+  const stops = () => browser.called("Page.stopScreencast").length;
+  const view = await person(base, id(1));
+  await until(() => view.of("info").length > 0);
+  // A page from before the choice says none: Standard.
+  view.send({ t: "hello", width: 900, height: 600, dpr: 1, resize: true });
+  await until(() => starts().length === 1);
+  expect(starts()[0]).toMatchObject({
+    quality: 70,
+    maxWidth: 900,
+    maxHeight: 600,
+  });
+  view.send({ t: "picture", picture: "saver" });
+  await until(() => starts().length === 2);
+  expect(stops()).toBe(1);
+  expect(starts()[1]).toMatchObject({
+    quality: 40,
+    maxWidth: 600,
+    maxHeight: 400,
+  });
+  view.send({ t: "picture", picture: "saver" });
+  view.send({ t: "size", width: 900, height: 600, dpr: 1 });
+  await settle(100);
+  expect(starts()).toHaveLength(2);
+  expect(stops()).toBe(1);
+  view.send({ t: "picture", picture: "standard" });
+  await until(() => starts().length === 3);
+  expect(stops()).toBe(2);
+  expect(starts()[2]).toMatchObject({
+    quality: 70,
+    maxWidth: 900,
+    maxHeight: 600,
+  });
+  view.socket.close();
+});
+
+test("the first screenshot of a watched tab has the quality its viewers chose", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { base } = await serve(browser);
+  const shots = () =>
+    browser.called("Page.captureScreenshot").map((call) => call.params);
+  const view = await person(base, id(1));
+  await until(() => view.of("info").length > 0);
+  // Watched before the page said anything: Standard's.
+  await until(() => shots().length === 1);
+  expect(shots()[0]).toEqual({ format: "jpeg", quality: 70 });
+  view.send({
+    t: "hello",
+    width: 900,
+    height: 600,
+    dpr: 1,
+    resize: true,
+    picture: "saver",
+  });
+  await until(() => browser.called("Page.startScreencast").length === 1);
+  // The browser comes back, and the tab is watched again for a viewer in
+  // Data saver: its first screenshot and its screencast are Data saver's.
+  browser.drop();
+  await until(() => browser.connections >= 2 && shots().length === 2);
+  expect(shots()[1]).toEqual({ format: "jpeg", quality: 40 });
+  await until(() => browser.called("Page.startScreencast").length === 2);
+  expect(browser.called("Page.startScreencast")[1]?.params).toMatchObject({
+    quality: 40,
+    maxWidth: 600,
+    maxHeight: 400,
+  });
+  view.socket.close();
 });
 
 test("jpegSize reads a frame's size and refuses other bytes", () => {
