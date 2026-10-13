@@ -53,6 +53,7 @@ import { createToolsPanel } from "./tools-panel";
 import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
 import { fill, pillView, pillVisible } from "./update-view";
+import { type VoiceView, voicePanel } from "./voice-panel";
 
 // The fragment of the first address: locally the session token, and a start
 // request of the first run (`#lazurio-start=…`, root decision 0188) from the
@@ -638,6 +639,7 @@ let current: {
   allowedPresets: string[];
   machine: MachineView | null;
   profile: Record<string, string>;
+  voice: VoiceView;
 };
 let pending: {
   expectedRevision: number;
@@ -799,6 +801,7 @@ async function load() {
   // The shell document follows a change of the Folder (its language, its
   // preset); the page's start reads it once, or carries it.
   if (!first) void readShell();
+  voice.load(current);
   drawMachine();
   controls.presetSelect.replaceChildren(
     ...current.allowedPresets.map(
@@ -872,6 +875,15 @@ const tools = createToolsPanel({
     content.render();
     firstRun();
   },
+  post,
+  copy: () => copy,
+  changed: async () => {
+    pending = null;
+    controls.apply.disabled = true;
+    await load();
+  },
+});
+const voice = voicePanel({
   post,
   copy: () => copy,
   changed: async () => {

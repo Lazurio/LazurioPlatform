@@ -96,6 +96,7 @@ export async function validatePreparation(
     previousManifest,
     previousPreferences.revision,
     {
+      agentVoice: preferences.agentVoice ?? null,
       preset: preferences.preset.name,
       profile: preferences.profile,
       machine: preferences.machine,

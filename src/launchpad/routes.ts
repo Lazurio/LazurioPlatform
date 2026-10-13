@@ -11,6 +11,7 @@ import type { MessageKey } from "./messages";
 /** The sections of Settings, in the order of the settings navigation. */
 export const settingsSections = [
   "general",
+  "communication",
   "machine",
   "tools",
   "ssh",
@@ -223,6 +224,7 @@ export function routePath(route: PageRoute): string {
  * breadcrumb and the document title. */
 export const sectionLabels: Readonly<Record<SettingsSection, MessageKey>> = {
   general: "settingsGeneral",
+  communication: "voiceTitle",
   machine: "machineTitle",
   tools: "toolsTitle",
   ssh: "sshTitle",

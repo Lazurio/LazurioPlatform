@@ -20,13 +20,14 @@ import {
 } from "./presets";
 import { type FolderProfile, parseFolderProfile } from "./profile";
 import { ownDataValue, stateFields } from "./state-fields";
+import { type AgentVoice, parseAgentVoice } from "./voice";
 
 export { stateFields } from "./state-fields";
 
 // Schema versions this product can read; a release declares them in its
 // artifact identity so staging can check backward read compatibility.
 export const folderStateSchemas = Object.freeze({
-  preferences: Object.freeze([2]),
+  preferences: Object.freeze([2, 3]),
   manifest: Object.freeze([2]),
 });
 
@@ -50,7 +51,8 @@ export const folderStateSchemas = Object.freeze({
 // section, in one representation (keys sorted, nothing empty), only on an
 // Environment an Organization governs; absent when it governs nothing here.
 export type FolderPreferences = Readonly<{
-  schemaVersion: 2;
+  schemaVersion: 2 | 3;
+  agentVoice?: AgentVoice;
   revision: number;
   preset: PresetReference;
   machine: MachineBinding | null;
@@ -161,6 +163,7 @@ export function parseOutputDigests(input: unknown): OutputDigests {
 }
 
 export function parseFolderPreferences(input: unknown): FolderPreferences {
+  const withVoice = ownDataValue(input, "agentVoice") !== undefined;
   const withTools = ownDataValue(input, "tools") !== undefined;
   const withNotes = ownDataValue(input, "toolNotes") !== undefined;
   const withSettings =
@@ -172,11 +175,16 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
     "machine",
     "profile",
     "customInstructions",
+    ...(withVoice ? ["agentVoice"] : []),
     ...(withTools ? ["tools"] : []),
     ...(withNotes ? ["toolNotes"] : []),
     ...(withSettings ? ["organizationSettings"] : []),
   ]);
-  if (value.schemaVersion !== 2 || typeof value.customInstructions !== "string")
+  if (
+    (value.schemaVersion !== 2 && value.schemaVersion !== 3) ||
+    (withVoice && value.schemaVersion !== 3) ||
+    typeof value.customInstructions !== "string"
+  )
     throw new Error("Unsupported Folder preferences");
   const tools = withTools ? parseEnabledTools(value.tools) : undefined;
   if (tools?.length === 0)
@@ -202,7 +210,8 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
       throw new Error("No Organization governs this Environment");
   }
   return Object.freeze({
-    schemaVersion: 2,
+    schemaVersion: value.schemaVersion,
+    ...(withVoice ? { agentVoice: parseAgentVoice(value.agentVoice) } : {}),
     revision: revision(value.revision),
     preset,
     machine,

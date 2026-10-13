@@ -1,10 +1,10 @@
 # The default voice of Lazurio's agents
 
-Status: default direction requested by the Operator on 2026-10-12; the exact
-wording below is the reviewable definition. Customization is an early design,
-not an implemented setting. This document does not activate instructions in an
-installed Folder. Language and file placement below are concrete proposals
-for review against the current Platform, not implemented runtime contracts.
+Status: the Operator approved the Environment-local design on 2026-10-13.
+This branch implements it in the shared Folder transaction and the real Launchpad.
+It changes generated instructions after installation/Folder refresh; editing this
+source or merging its PR does not itself activate an installed Environment.
+Cold CLI evidence and its limits are recorded below.
 
 The companion [Launchpad wireframe PR](https://github.com/HumanAndMachine-ai/prototypes-lazurio/pull/42)
 implements the review surface with synthetic, per-Environment state. It requires
@@ -126,7 +126,7 @@ translating Czech phrases word for word. A custom brand voice for a customer's
 email applies to that artifact. It need not change the agent's explanation to
 the Operator. Exact quotations and externally required formats stay exact.
 
-## Customization in Launchpad — proposed
+## Customization in Launchpad
 
 Start with Settings → Agent communication in the existing Environment settings.
 Customization must be understandable without technical knowledge. The editor is
@@ -160,7 +160,7 @@ this selected first design; it would require an account owner, offline behavior,
 attribution on shared Environments. A browser's last signed-in person must not
 silently replace the instructions every agent shares.
 
-The proposed composition is:
+The composition is:
 
 - Product voice supplies the complete default shown in the editor.
 - A saved Environment voice replaces that default's stylistic wording for that
@@ -171,7 +171,7 @@ The proposed composition is:
 - Harness constraints, truthfulness, access boundaries and publication authority
   remain binding. A tone setting cannot relax them.
 
-This precedence is a style proposal, not a new general instruction hierarchy.
+This precedence applies to style, not a new general instruction hierarchy.
 Existing presets and Organization instructions keep their current owners.
 
 Voice presets or Marketplace templates are a possible later source of editor
@@ -180,7 +180,7 @@ the same editable draft and use the same Save and recovery path. It must not
 create a second active voice store, silently overwrite a draft or grant access.
 Do not add invented presets or a nonfunctional Marketplace control to this form.
 
-## Languages — proposed against the current consumer
+## Languages — the existing Environment profile
 
 The current Platform has one Environment-owned `profile.locale` (`cs` or `en`).
 Launchpad reads it from `/api/profile`, uses it for UI messages and updates it
@@ -212,8 +212,7 @@ a Czech Environment uses the active voice's style in English. It does not switch
 the Environment or silently select the other language's saved customization.
 This preserves one active voice per Environment, including mixed-language work.
 Switching the Environment to English explicitly selects its English custom voice
-if one exists. This is the proposed behavior to review, not a second automatic
-recipient-language preference system.
+if one exists. There is no automatic recipient-language preference system.
 
 Default/custom is an internal distinction: no override means “follow this
 language's current product default”; a custom string means “preserve these exact
@@ -222,17 +221,15 @@ unchanged. Unsupported locales fail before mutation; do not silently fall back
 from a selected language. Future Marketplace text becomes an ordinary custom
 snapshot in its declared language, with no subscription or automatic overwrite.
 
-## File placement and activation — recommended design
+## File placement and activation
 
-Keep the authored values in **`<Folder>/.lazurio/preferences.json`**, extending
-its existing versioned schema with an optional locale-keyed voice override map.
-For example, conceptually `agentVoice.overrides.cs` contains the full custom Czech
-text and `agentVoice.overrides.en` the English text. Missing locale keys resolve
-to defaults; omit an empty map. Exact schema/version is an implementation change,
-not a field already accepted by today's strict parser. Restore default removes
-only that locale's override through the transaction. Do not use the existing
-`customInstructions` field: non-empty custom composition is explicitly refused
-by today's [preview consumer](../src/folder/preview.ts).
+The authored values live in **`<Folder>/.lazurio/preferences.json`** as optional
+`agentVoice.overrides.cs` and `agentVoice.overrides.en` in schema 3. Missing locale
+keys resolve to product defaults; an empty map is omitted. The strict parser still
+reads schema 2. The first saved customization upgrades that Folder to 3; subsequent
+changes preserve 3, including resetting the last override. Other writers keep the
+map. The existing `customInstructions` field keeps its separate, unsupported
+composition contract; voice does not reuse it.
 
 **Generate the complete active voice into a named section near the beginning of
 `<Folder>/AGENTS.md`.** The first sentence states that it covers all authored
@@ -247,16 +244,16 @@ product sections. The source is separate from this generated projection.
 | Full active voice generated into AGENTS.md | Recommended for this bounded setting: the agent receives it with the entrypoint; no extra lookup on every reply and no dependency on following a link. |
 | Separate generated `manual/agent-voice.md` with a mandatory startup pointer | Viable for a longer future profile. Adds a required read and a failure path before the first answer; a link alone does not prove loading. Do not add it alongside a duplicate active block. |
 | Directly edited AGENTS.md or a new manually maintained voice file | Creates another writer or output drift. The editor writes preferences; the renderer writes generated output. |
-| Account-wide storage | Changes the already selected Environment ownership and shared-use behavior; outside this proposal. |
+| Account-wide storage | Changes the already selected Environment ownership and shared-use behavior; outside this implementation. |
 
-At the inspected base, a local macOS profile renders an AGENTS.md of 10,982 UTF-8
-bytes in Czech and 11,145 in English. The current default voice is a few additional
-kilobytes. This supports evaluating an inline section; it does not prove every
-hosted/tool composition fits every harness. Before implementation, measure the
-largest supported compositions and set an explicit input and full-document size
-budget from the qualified loaders. Refuse an oversized save with the draft
-preserved; never truncate or secretly summarize the person's text. Keep examples
-and lengthy design explanations in documentation, outside the startup payload.
+Each custom variant is limited to 8192 UTF-8 bytes. An operation carrying a voice
+also refuses a generated AGENTS.md over 32 KiB before staging, including the
+literal-block fence and other profile settings. It never truncates the text.
+Representative macOS/local and Linux/hosted compositions with every optional tool
+render 14.4–18.5 KB with defaults, and 20.1–24.3 KB with an 8 KiB plain custom text.
+The regression matrix checks every fixture composition against the same budget.
+A user's extra ancestor/nested instructions share Codex's context budget and need
+entrypoint qualification; this product does not rewrite global harness settings.
 
 `<Folder>/.lazurio/instructions.json` continues to record the preference revision,
 template revision and output digests. Extend the existing profile change planner,
@@ -271,11 +268,14 @@ older products must refuse incompatible state rather than drop custom text.
 New sessions load the active generation; running sessions keep their snapshot
 and require a new session for the new voice. Codex, Claude Code, T3 Code and
 resident/background consumers must each be qualified at their real entrypoint.
-The [migration inventory](distribution-and-migration.md)
-currently records the Claude Code bridge as unbuilt/unverified: producing
-AGENTS.md does not establish that Claude Code loads it. Implement the required
-adapter/entrypoint bridge from the same canonical generation, without another
-editable policy copy, and test a cold session before claiming delivery there.
+Claude Code 2.1.277+ can load AGENTS.md natively when no project/ancestor
+CLAUDE.md or CLAUDE.local.md takes precedence. This branch therefore adds no
+second file or bridge. See the [official Claude loading rules](https://code.claude.com/docs/en/memory#agents-md).
+The [Codex loading rules](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
+use the project root/current-directory instruction chain, with a combined default
+32 KiB cap. Existing overrides, excluded project instructions and older harnesses
+must be checked at their real entrypoint; a generated file alone proves none of them.
+
 A harness that starts in a nested checkout or a resident that injects its own
 prompt needs the same explicit entrypoint evidence. A delegated task carries the
 applicable voice or a readable canonical reference within the permitted scope;
@@ -288,9 +288,8 @@ required structured formats, exact quotations and an explicitly requested brand
 voice still govern their own output. A messaging tool is transport, not another
 voice owner. Tone does not authorize sending; publication rules remain separate.
 
-This is a shaped proposal in this PR, not an implemented schema or installed
-Folder change. The companion prototype exercises language selection and editing;
-fresh-harness and transaction evidence belongs to the implementation slice.
+The companion wireframe remains browser-only. The actual Launchpad editor in this
+branch saves through `/api/update`; it has no separate filesystem writer.
 
 ## Review and qualification
 
@@ -301,7 +300,7 @@ cancel, restore the default and distinguish two Environments without technical
 instruction. Failure and drift qualification belongs to the implementation
 contract below, not to controls on the user's settings page.
 
-After the Operator selects the design, implementation acceptance must cover:
+Implementation and release qualification cover:
 
 1. The same product default in every preset and locale, available to every
    supported agent entrypoint, without importing personal or Organization data.
@@ -324,5 +323,56 @@ After the Operator selects the design, implementation acceptance must cover:
 
 The profile architecture in [ARCHITECTURE.md](../ARCHITECTURE.md#coordinator-collaboration-contract)
 and [F5](decisions.md#f5--profiles-evidence-and-the-single-marketplace) remains the
-owner of custom profile composition. This work adds no persistence or activation
-mechanism before the prototype decision.
+owner of custom profile composition. The approved voice setting uses that existing persistence and activation mechanism.
+
+## Implementation contract — approved 2026-10-13
+
+The approved first consumer is the real Launchpad, using the existing profile
+preview/update transaction. A request may additionally name `voice: {locale,
+text}`: `text` is the exact custom string, or null to restore the product default.
+Its locale must match the requested profile locale and the revision must match
+current state. The operation preserves the other locale. Other Folder writers
+carry both variants forward. Preparation, activation and recovery regenerate the
+same voice and verify owned output digests together with the preferences.
+
+Preferences schema 3 adds optional `agentVoice: {overrides: {cs?, en?}}`.
+Schema 2 remains readable and retains its bytes until a custom voice is saved;
+a Folder that has upgraded to 3 never downgrades. An empty map is omitted.
+Older products reject schema 3 instead of erasing its new field. The instruction
+manifest stays schema 2: the set of owned outputs does not change.
+
+A custom text must be nonblank and at most 8192 UTF-8 bytes. Reject invalid input
+before staging; preserve original whitespace. The full active text appears near
+the beginning of AGENTS.md, inside a dynamically sized code fence so Markdown
+headings and Claude imports in authored text stay literal. An instruction before
+the fence explicitly applies its contents as style guidance to all authored
+communication. Authority and truthfulness remain outside the editable text.
+
+The consumer tests in `tests/folder-voice.test.ts` cover per-language defaults,
+exact preservation, restoration, schema compatibility, stale requests, invalid
+input, owned-file drift, other writers and interrupted activation/recovery.
+
+## Verification on 2026-10-13
+
+The [cold-session record](qualification/agent-voice-macos-2026-10-13.json) contains
+six bounded, offline editorial runs: Codex CLI 0.162.1 (configured gpt-6-astra) and
+Claude Code 2.1.296 (reported Opus 5.5, with Haiku auxiliary usage), each on a
+fresh generated Czech default, English default and Czech custom Folder. No tools
+were invoked and no messages sent. Both custom runs carried the active Czech
+style into an English WhatsApp draft and instructions for another agent.
+
+This proves loading and sampled behavior on macOS arm64. It does not guarantee
+stylistic obedience: the first Claude Czech run used uppercase “Vám”, and the
+custom run added an unwanted closing next step. Those deviations remain visible
+in the record. Windows/Linux native sessions, T3 Code's actual prompt injection,
+nested repository starts, resident/background consumers and older harnesses
+remain outside this evidence. The broader first-transition gate in acceptance.md
+still applies; this feature PR is not a declaration that those gates passed.
+
+The browser walkthrough of the real isolated Launchpad exercised Czech default,
+a Czech unsaved draft surviving English activation, an English custom save,
+return to the Czech draft, save/reload, restore/cancel and independent restore.
+The fixture's written preferences and AGENTS.md were checked as well as the UI.
+The page keeps drafts in memory for its Environment and locale; a browser reload
+loads saved settings. The API refuses stale, wrong-locale, empty and oversized
+writes without losing stored variants. Transaction tests cover drift and recovery.
