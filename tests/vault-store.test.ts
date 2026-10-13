@@ -1,16 +1,21 @@
 import { expect, test } from "bun:test";
 import {
   lstat,
+  mkdir,
   mkdtemp,
   readdir,
   readFile,
   realpath,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
+import { findTool } from "../src/tools/catalog";
+import { type ToolRunner, toolsStatus } from "../src/tools/status";
 import {
+  bwCli,
   bwFailureOf,
   parseBwStatus,
   parseCollections,
@@ -222,3 +227,86 @@ test("bw's answers are read in their shapes and its failures by its fixed messag
   expect(failure("something else")).toBe("failed");
   expect(bwFailureOf("timeout")).toBe("timeout");
 });
+
+// bw rewrites its store on every start, so a run without a data directory of
+// its own would rewrite a default profile, a person's own bw included. No
+// path of this product can start one: the vault's bw refuses before anything
+// runs and sets its directory last on every run, and the version probe of
+// Settings → Tools gives a bw on PATH a fresh temporary one.
+test.skipIf(process.platform === "win32")(
+  "bw never starts without a data directory of its own",
+  async () => {
+    const parent = await realpath(
+      await mkdtemp(join(tmpdir(), "vault-bw-data-")),
+    );
+    try {
+      const home = join(parent, "home");
+      const runs: {
+        command: readonly string[];
+        data: string | undefined;
+        existed: boolean;
+      }[] = [];
+      const run: ToolRunner = async (command, _timeoutMs, env) => {
+        const data = env.BITWARDENCLI_APPDATA_DIR;
+        runs.push({
+          command,
+          data,
+          existed:
+            data !== undefined &&
+            (await stat(data).then(
+              (found) => found.isDirectory(),
+              () => false,
+            )),
+        });
+        return { exitCode: 0, stdout: "2026.7.0\n", stderr: "" };
+      };
+      const data = join(parent, "state", "bw");
+      const binary = join(parent, "tools", "bw");
+      for (const [path, directory] of [
+        [binary, ""],
+        [binary, "bw"],
+        [binary, "./state/bw"],
+        ["bw", data],
+      ] as const)
+        expect(() =>
+          bwCli({ binary: path, data: directory, home, path: undefined, run }),
+        ).toThrow();
+      expect(runs).toEqual([]);
+      const bw = bwCli({ binary, data, home, path: undefined, run });
+      expect(await bw.version()).toBe("2026.7.0");
+      expect((await bw.loginApiKey("user.example", "example")).ok).toBe(true);
+      expect(runs.map((entry) => entry.data)).toEqual([data, data]);
+
+      // Settings → Tools: a bw on PATH (a person's own) runs its version
+      // command with a fresh temporary data directory, gone afterwards.
+      runs.length = 0;
+      const bin = join(parent, "bin");
+      await mkdir(bin, { recursive: true });
+      await writeFile(join(bin, "bw"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      const bitwarden = findTool("bitwarden");
+      if (bitwarden === undefined) throw new Error("Expected bitwarden");
+      expect(bitwarden.isolatedData).toBe("BITWARDENCLI_APPDATA_DIR");
+      await toolsStatus({
+        path: bin,
+        home,
+        platform: process.platform,
+        run,
+        catalog: [bitwarden],
+      });
+      expect(runs).toHaveLength(1);
+      const probe = runs[0]?.data ?? "";
+      expect(runs[0]?.command).toEqual([join(bin, "bw"), "--version"]);
+      expect(runs[0]?.existed).toBe(true);
+      expect(isAbsolute(probe)).toBe(true);
+      expect(probe.startsWith(home)).toBe(false);
+      expect(
+        await stat(probe).then(
+          () => true,
+          () => false,
+        ),
+      ).toBe(false);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);

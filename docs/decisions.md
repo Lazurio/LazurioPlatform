@@ -10600,7 +10600,11 @@ session of F43.
    its address, stays beside it untouched. `lazurio-vault.json` now holds the vault's
    organization id, its collection Agenti's id and, while a creation is under way,
    its receipt; a record that cannot be read refuses (`record-unreadable`) and nothing
-   is ever created over it.
+   is ever created over it. No bw this product starts ever runs without a data
+   directory of its own, because bw rewrites its store on every start: the vault's
+   `bwCli` refuses to start without an absolute one and sets it last on every run,
+   and the version probe of Settings → Tools gives a `bw` on PATH a fresh temporary
+   one (the catalog's `isolatedData`).
 3. **Registration, then the vault** (`src/vault/organization.ts`). The account is
    registered by F43's flow; the network pre-allowed the address, so a refusal is
    `not-allowed` (not pre-allowed yet, or an unused pre-allowance pruned). Then the
@@ -10702,7 +10706,9 @@ recognized by the receipt, gone and refused (`tests/vault-flow.test.ts`); the ac
 opening its own organization key from its master password down to Agenti's name and
 the organization's private key (`tests/vault-organization.test.ts`); the pilot with
 and without `vault` (`tests/vault-pilot.test.ts`); the CLI (`tests/vault-cli.test.ts`)
-and the Launchpad over HTTP with its start (`tests/launchpad-vault.test.ts`); the
+and the Launchpad over HTTP with its start (`tests/launchpad-vault.test.ts`); bw
+refused without its own data directory, and the Tools probe's temporary one
+(`tests/vault-store.test.ts`); the
 member, an earlier Platform refusing it and its redaction
 (`tests/vault-handover.test.ts`); F46 on the own vault (`tests/vault-secrets.test.ts`,
 `tests/runtime-secrets.test.ts`, `tests/module-runtime-secrets.test.ts`); no value or
