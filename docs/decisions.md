@@ -6011,7 +6011,7 @@ F38 points 1, 5 and 6 as stated below; points 2–4 and 7 stand.
 | The browser restarts (crash, update) | The service reconnects every 2 s; open views show "reconnecting" and resume on their tab if it survived, else "this tab no longer exists" with "open a new tab" |
 | The tab is closed by an agent or a page | Its views say so and offer a new tab |
 | The person's network drops | The view reconnects with backoff; frames are not queued, the next frame is current |
-| A slow viewer | Frames are acknowledged to Chrome only when every viewer's socket has drained below 1 MiB, so Chrome slows down instead of the service buffering |
+| A slow viewer | Frames are acknowledged to Chrome only when every viewer's socket has drained below 1 MiB, so Chrome slows down instead of the service buffering. *Since the addendum of 2026-10-13 (point 6), a page that acknowledges its frames has at most two on the way.* |
 | Two people and an agent type at once | Accepted (co-control); keys interleave as they would on one keyboard |
 | A request from another `*.lazurio.io` page | Refused by the Origin check (403) |
 | A page answers a passkey request before the extension runs | The content script runs at `document_start` in every frame, before page scripts |
@@ -6249,12 +6249,11 @@ end.
    - **Clicks land where they did.** The page maps the pointer through the frame header's CSS
      sizes (`mapPoint`), never through the image's pixels, so a smaller frame of the same page
      sends every click to the same place.
-   - **What stays.** The flow control (Chrome is acked once every viewer has drained below
-     1 MiB), the frame rate (`everyNthFrame` 1) and the window's size (point 3) are unchanged.
-     On a slow connection fewer bytes per frame bring each change of the page sooner and more
-     frames per second. A page that changes faster than the link carries still lags seconds
-     behind, in either choice, by that 1 MiB and the kernel's and the network's buffers
-     (measured locally at 1 Mbit/s, Lazurio/LazurioPlatform#370).
+   - **What stays.** The frame rate (`everyNthFrame` 1) and the window's size (point 3) are
+     unchanged. On a slow connection fewer bytes per frame bring each change of the page
+     sooner and more frames per second. How far the picture can lag behind the page is point
+     6's: before it, a page that changed faster than the link carried lagged seconds behind in
+     either choice (Lazurio/LazurioPlatform#370).
 4. **Otevřít samostatně ("Open in a new tab").** Inside an app's frame (`window.parent !==
    window`), the bar ends with a button that opens this view's own address, `<view
    origin>/t/<id>` of the tab shown, in a new tab of the person's browser (`noopener`). It
@@ -6269,6 +6268,78 @@ end.
    service ship together, so this is no contract of F50, whose point 1 keeps the view's own
    WebSocket messages where they are. A page from before this addendum says `hello` without
    `picture` and gets Standard; a service from before it ignores the member and the message.
+6. **The page acknowledges its frames, and each viewer has at most two on the way**
+   (Lazurio/LazurioPlatform#370). On a slow link a page that changed faster than the link
+   carried lagged seconds behind: the hub acked Chrome until 1 MiB waited for a viewer, and the
+   kernel and the network buffered more, which the service's byte count does not see. Data
+   saver shortened that lag but could not bound it, and it exists for exactly that link.
+   - **The page says when it is done with a frame.** Every frame carries its number in its
+     tab (`FrameHeader.seq`, from 1). The page acknowledges a frame once it has drawn it, or
+     knows it never will: it does not decode, or a newer frame took its place while it waited
+     (`{t: "ack", frame}`). One acknowledgement covers every frame before it (`FramePump`,
+     `src/browser/people/frames.ts`). Done means drawn, not received: a device that decodes
+     slowly then gets no frames it could only skip.
+   - **At most two on the way.** The hub sends a viewer that acknowledges (its `hello` says
+     `acks: true`) at most two frames it has not acknowledged. Past them the newest frame
+     waits in the hub, taking the place of older ones, and goes out with the viewer's next
+     acknowledgement; the frames it replaced are never sent. A viewer that joins gets the
+     newest frame at once, and it counts in its window like any other.
+   - **Chrome waits for the slowest viewer.** Chrome sends three screencast frames without an
+     ack and then one for each ack. The hub acks a frame only as far as every viewer has room
+     for what comes: fewer than two frames unacknowledged (a viewer that acknowledges) and
+     less than 1 MiB waiting in its socket (every viewer). The 4 MiB guard stays: a viewer that
+     far behind gets no frame until it drains, and then the newest. The two guards bound the
+     service's memory for each viewer, as before.
+   - **No viewer holds the others for long.** A viewer that holds Chrome for 2 s without
+     progress (no acknowledgement, no drain) holds the others no longer until it acknowledges
+     or drains again; it gets no more frames than its window meanwhile. With every viewer
+     stalled Chrome waits, as nobody would see what it draws. A hung or sleeping page therefore
+     stops the others' picture for at most 2 s. A page from before this point (open across an
+     update) says no `acks` in its `hello` and is held by the 1 MiB guard alone, as before.
+   - **The numbers, measured** on 2026-10-13 with the harness of #370: the real view service
+     and Chrome for Testing 155, the person's Chrome reaching the view through a TCP proxy
+     that carries the service-to-person direction at 125 000 B/s (1 Mbit/s) through a 64 KiB
+     bottleneck queue. The page shows the time in 16 black and white squares, and the
+     person's canvas is decoded every 100 ms, so the lag is what the person sees; 20 s per
+     row, a 1280×760 page, the median and the 90th percentile.
+
+     | Page | Picture | Before: frames/s, KiB per frame | Before: lag, median (90th) | After: frames/s, KiB per frame | After: lag, median (90th) |
+     | --- | --- | ---: | ---: | ---: | ---: |
+     | An animated area, 10 changes/s | Standard | 2.2, 52.2 | 12.1 s (16.9 s) | 2.2, 51.8 | 1.1 s (1.3 s) |
+     | An animated area, 10 changes/s | Data saver | 5.2, 21.5 | 7.6 s (11.3 s) | 5.4, 20.8 | 0.4 s (0.5 s) |
+     | The same area, 1 change/s | Standard | 1.0, 52.9 | 1.0 s (1.4 s) | 1.0, 52.3 | 1.0 s (1.4 s) |
+     | The same area, 1 change/s | Data saver | 1.0, 22.0 | 0.7 s (1.1 s) | 1.0, 21.1 | 0.7 s (1.1 s) |
+     | A small change every 500 ms | Standard | 2.0, 11.7 | 0.3 s (0.5 s) | 2.0, 11.3 | 0.3 s (0.5 s) |
+     | A small change every 500 ms | Data saver | 2.0, 6.5 | 0.3 s (0.5 s) | 2.0, 5.6 | 0.2 s (0.4 s) |
+     | The animated area with a 200 ms round trip | Standard | 2.2, 51.9 | 12.2 s (16.6 s) | 2.2, 52.1 | 1.0 s (1.2 s) |
+     | The animated area with a 200 ms round trip | Data saver | 5.4, 21.2 | 7.2 s (11.0 s) | 5.0, 21.0 | 0.4 s (0.5 s) |
+
+     The frame rate stays what the link carries; what the person sees is about two frames
+     behind the page instead of 1 MiB and the buffers behind it. Pages that change slower than
+     the link carries were never held up and are unchanged.
+
+     Two frames, from the same harness: one frame on the way halves the frames wherever a
+     round trip is long beside a frame's transfer, at about the same lag; three add a frame's
+     lag and no frames.
+
+     | The animated area | Picture | One frame: frames/s, lag | Two: frames/s, lag | Three: frames/s, lag |
+     | --- | --- | ---: | ---: | ---: |
+     | 1 Mbit/s, no added delay | Standard | 2.0, 0.7 s | 2.0, 1.2 s | 2.1, 1.6 s |
+     | 1 Mbit/s, no added delay | Data saver | 5.0, 0.3 s | 5.0, 0.5 s | 5.3, 0.6 s |
+     | 1 Mbit/s, 200 ms round trip | Standard | 1.4, 0.9 s | 2.2, 1.0 s | 2.2, 1.4 s |
+     | 1 Mbit/s, 200 ms round trip | Data saver | 2.5, 0.5 s | 5.0, 0.4 s | 5.4, 0.5 s |
+     | 10 Mbit/s, 100 ms round trip | Standard | 5.0, 0.2 s | 10.0, 0.1 s | 10.0, 0.1 s |
+     | 10 Mbit/s, 100 ms round trip | Data saver | 5.0, 0.1 s | 10.0, 0.2 s | 10.0, 0.1 s |
+
+     2 s is longer than a Standard frame of the animated page takes at 1 Mbit/s with a 200 ms
+     round trip (1.2 s at the 90th percentile) and a Data saver frame at 200 kbit/s, and short
+     enough that a page that hangs stops the others only briefly.
+   - **The protocol.** `hello`'s `acks` is a boolean, and a frame's `seq` and the `ack`'s
+     `frame` are whole numbers from 1; `parseClientMessage` and `decodeFrame` refuse anything
+     else. An acknowledgement of a frame the viewer was never sent is ignored. A service from
+     before this point sends frames without a number, which the page draws and does not
+     acknowledge, and it ignores `acks` and `ack`. The messages stay the view's own, as
+     `picture` does (F50 point 1).
 
 **Failure modes.**
 
@@ -6280,10 +6351,15 @@ end.
 | A page from before this addendum (open across an update) | No `picture`: Standard, as before; a reload brings the bar's new controls |
 | A service older than the page (a rollback while the page is open) | It ignores the choice: Standard's frames while the button says Data saver, until a reload brings the older page |
 | An app's frame without `allow-popups-to-escape-sandbox` | The new tab keeps the frame's sandbox flags; the view still runs there, as those flags allow scripts and its own origin |
+| A page that hangs or sleeps (a laptop's lid closed) while others view the tab | It holds Chrome for at most 2 s, then the others go on; it gets nothing past its two frames, and the newest when it acknowledges again |
+| Every viewer of the tab stalled | Chrome waits; the next acknowledgement or drain lets it go on |
+| A page from before acknowledgements (open across an update) | No `acks`: every frame, held by its socket's 1 MiB as before, and holding the others no longer after 2 s above 1 MiB |
+| A frame the page cannot decode or draw | Acknowledged all the same, so the hub never waits for it |
+| A link that carries nothing for a while (a tunnel) | The viewer stalls after 2 s; when the link comes back its acknowledgements bring the newest frame |
 
-**Not decided here.** How far a page that changes faster than a slow link carries may lag
-behind: point 3's 1 MiB per viewer before Chrome waits, and the buffers after it (#370 proposes
-an acknowledgement from the view page for each frame). A frame rate of its own for Data saver.
+**Not decided here.** A frame rate of its own for Data saver. A view in a hidden tab of the
+person's browser still draws and acknowledges its frames, so it takes its share of the link;
+pausing it while hidden would hold the others for 2 s each time.
 
 Tests:
 - `tests/environment-browser-view-client.test.ts`: `hello` with and without `picture` and the
@@ -6292,7 +6368,14 @@ Tests:
   frame; the bar's words in both languages;
 - `tests/environment-browser-view.test.ts`: the bar's markup; the screencast for mixed
   viewers, Data saver alone, one restart per change, `hello` without `picture` as Standard, and
-  the first screenshot's quality.
+  the first screenshot's quality;
+- point 6: `tests/environment-browser-view-client.test.ts` parses `acks`, `seq` and `ack` and
+  runs `FramePump` (an acknowledgement after drawing, the newest frame in the place of the ones
+  that waited, a frame that cannot be decoded or drawn, a frame without a number);
+  `tests/environment-browser-view.test.ts` drives the hub's gate with a fast viewer, a slow one,
+  one that never acknowledges, every viewer stalled, a page from before acknowledgements with
+  the 1 and 4 MiB guards, a viewer that leaves, one that joins mid-stream, and a pop-up's
+  tab of its own.
 
 Checked in a browser (root decision 0178) on 2026-10-13 against the real view service, a
 headless Chrome for Testing 155 as the Environment's browser and a person's Chrome for Testing
@@ -6304,6 +6387,12 @@ in Data saver; Standard frames while a Standard viewer watches too; and inside a
 on another origin of the same site, Otevřít samostatně opening the view's own address in a new
 tab without an opener. The apps' frames without their head row, and a real Environment, are
 checked after the release.
+
+Point 6 was checked the same way, at full speed and through the 1 Mbit/s proxy: every page's
+`hello` says `acks: true` and the page acknowledges the frames it draws; all of the checks above
+pass through the proxy too, Data saver's frames and the clicks on 10×10 px targets included;
+and with a second view of the same tab hung (an endless loop in its script), the first view's
+frames stopped for 1.9 s and went on at 10 a second.
 
 ## F40 — Lazurio-account entry, approved devices and internal Environment sharing
 
