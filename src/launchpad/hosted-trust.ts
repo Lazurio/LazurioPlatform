@@ -64,9 +64,23 @@ export type Denial =
   | "auth-denied"
   | "auth-redirect"
   | "auth-unavailable";
+/** An admitted request names its person only by the gateway's own answer
+ * (`subject`), never by anything the request carries: see `admit`. */
 export type Admission =
-  | Readonly<{ ok: true }>
+  | Readonly<{ ok: true; subject: string | null }>
   | Readonly<{ ok: false; reason: Denial }>;
+
+/** A Lazurio account's subject as the Environment gateway's oauth2-proxy
+ * names it: the identity provider's `sub`, a Keycloak user id, a lowercase
+ * UUID. Anything else names nobody. */
+export const isAccountSubject = (value: unknown): value is string =>
+  typeof value === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
+
+/** Where the gateway's answer names the admitted session's person: its
+ * oauth2-proxy runs with `set_xauthrequest = true` and its user claim is
+ * `sub` (Machines `workloads/workspace-vm/gateway.ts`). */
+const subjectHeader = "x-auth-request-user";
 
 /** The session cookie of the name in a bounded header, whole or in chunks:
  * its value, or why not.
@@ -145,6 +159,15 @@ export type HostedTrustOptions = Readonly<{
  * alone, makes the configured auth endpoint answer 2xx within the timeout.
  * Nothing else is evidence — not a forwarded identity header, not another
  * cookie, not the request's own URL.
+ *
+ * The same answer names the admitted session's person: the subject in its
+ * `X-Auth-Request-User`, a lowercase UUID or nobody (decision F11's
+ * amendment of 2026-10-14). It comes server to server from the endpoint the
+ * Launchpad itself asked, with the session it selected, so it is exactly as
+ * trustworthy as the admission; a header of the request never names anyone.
+ * Its one use is the membership of the Environment's own vault, whose
+ * access is access to the Environment (root decision 0198 point 2); it is
+ * never a repository right, an operator or a role.
  */
 export function createHostedTrust(
   entry: HostedEntry,
@@ -155,15 +178,21 @@ export function createHostedTrust(
   const cacheMs = options.cacheMs ?? 120_000;
   const timeoutMs = options.timeoutMs ?? 3_000;
   const host = new URL(entry.externalOrigin).host;
-  const admitted = new Map<string, number>();
+  // Each admitted session, until when it is admitted and whom the
+  // gateway's answer named.
+  const admitted = new Map<
+    string,
+    Readonly<{ until: number; subject: string | null }>
+  >();
 
   async function revalidate(
     cookie: Readonly<{ value: string; chunks?: readonly string[] }>,
   ): Promise<Admission> {
     // Keyed by the reassembled value: the session the auth endpoint decodes.
     const key = createHash("sha256").update(cookie.value).digest("hex");
-    const until = admitted.get(key);
-    if (until !== undefined && until > now()) return { ok: true };
+    const known = admitted.get(key);
+    if (known !== undefined && known.until > now())
+      return { ok: true, subject: known.subject };
     let response: Response;
     try {
       response = await fetcher(entry.authCheckUrl, {
@@ -193,11 +222,15 @@ export function createHostedTrust(
       return { ok: false, reason: "auth-redirect" };
     if (response.status < 200 || response.status >= 300)
       return { ok: false, reason: "auth-denied" };
-    admitted.set(key, now() + cacheMs);
+    // Whom the gateway's own answer names; one exact subject or nobody.
+    const named = response.headers.get(subjectHeader);
+    const subject = isAccountSubject(named) ? named : null;
+    admitted.set(key, { until: now() + cacheMs, subject });
     // Bounded memory: forget expired entries when the map grows.
     if (admitted.size > 1024)
-      for (const [k, t] of admitted) if (t <= now()) admitted.delete(k);
-    return { ok: true };
+      for (const [k, entry] of admitted)
+        if (entry.until <= now()) admitted.delete(k);
+    return { ok: true, subject };
   }
 
   return Object.freeze({

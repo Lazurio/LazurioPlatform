@@ -125,7 +125,7 @@ test("admission forwards exactly the named cookie to the configured auth endpoin
     await trust.admit(
       request("GET", { cookie: "other=1; __Secure-lazurio-workspace=valid" }),
     ),
-  ).toEqual({ ok: true });
+  ).toEqual({ ok: true, subject: null });
   expect(calls).toEqual(["__Secure-lazurio-workspace=valid"]);
   // Forged identity headers change nothing; a wrong cookie is denied.
   expect(
@@ -172,7 +172,7 @@ test("admission forwards exactly the named cookie to the configured auth endpoin
         "sec-fetch-site": "same-origin",
       }),
     ),
-  ).toEqual({ ok: true });
+  ).toEqual({ ok: true, subject: null });
   // The internal namespace (the gateway's `ensure`) is state-changing even on
   // GET: the same-origin rule applies; any other GET keeps the read rule.
   const internal = (headers: Record<string, string>) =>
@@ -201,14 +201,20 @@ test("admission forwards exactly the named cookie to the configured auth endpoin
         "sec-fetch-site": "same-origin",
       }),
     ),
-  ).toEqual({ ok: true });
+  ).toEqual({ ok: true, subject: null });
   // A positive answer is cached for two minutes, keyed by the cookie value.
   expect(calls.length).toBe(2);
   clock += 119_000;
-  expect(await trust.admit(request("GET", good))).toEqual({ ok: true });
+  expect(await trust.admit(request("GET", good))).toEqual({
+    ok: true,
+    subject: null,
+  });
   expect(calls.length).toBe(2);
   clock += 2_000;
-  expect(await trust.admit(request("GET", good))).toEqual({ ok: true });
+  expect(await trust.admit(request("GET", good))).toEqual({
+    ok: true,
+    subject: null,
+  });
   expect(calls.length).toBe(3);
 });
 
@@ -332,12 +338,12 @@ test("a chunked session is admitted with its chunks forwarded unchanged; the Hos
         cookie: `other=1; ${chunked("va", "lid").reverse().join("; ")}`,
       }),
     ),
-  ).toEqual({ ok: true });
+  ).toEqual({ ok: true, subject: null });
   expect(calls).toEqual([chunked("va", "lid").join("; ")]);
   // Four chunks near the header bound.
   expect(
     await trust.admit(request("GET", { cookie: chunked(...four).join("; ") })),
-  ).toEqual({ ok: true });
+  ).toEqual({ ok: true, subject: null });
   expect(calls[1]).toBe(chunked(...four).join("; "));
   // The auth endpoint still decides: other chunks are denied.
   expect(
@@ -373,5 +379,89 @@ test("a chunked session is admitted with its chunks forwarded unchanged; the Hos
         "sec-fetch-site": "same-origin",
       }),
     ),
-  ).toEqual({ ok: true });
+  ).toEqual({ ok: true, subject: null });
+});
+
+// The person of an admitted session (decision F11's amendment of
+// 2026-10-14): only the gateway's own answer names them, in its
+// `X-Auth-Request-User` (oauth2-proxy with `set_xauthrequest`, its user
+// claim `sub`), and only as a lowercase UUID; nothing the request carries
+// ever names anyone.
+const subject = "0f4c8a2e-6b1d-4e9a-8c3f-7d2b5a9e1c40";
+
+test("an admitted session names the subject of the gateway's own answer, and nothing else names anyone", async () => {
+  let clock = 1_000_000;
+  const named = new Map<string, string>([
+    ["__Secure-lazurio-workspace=valid", subject],
+    ["__Secure-lazurio-workspace=upper", subject.toUpperCase()],
+    ["__Secure-lazurio-workspace=login", "example-login"],
+    ["__Secure-lazurio-workspace=two", `${subject}, ${subject}`],
+  ]);
+  const { calls, fetcher } = fakeAuth((cookie) => {
+    const user = cookie === null ? undefined : named.get(cookie);
+    if (cookie === "__Secure-lazurio-workspace=anonymous")
+      return new Response("ok", { status: 202 });
+    return user === undefined
+      ? new Response("no", {
+          status: 401,
+          headers: { "x-auth-request-user": subject },
+        })
+      : new Response("ok", {
+          status: 202,
+          headers: { "x-auth-request-user": user },
+        });
+  });
+  const trust = createHostedTrust(entry, { fetcher, now: () => clock });
+  expect(await trust.admit(request("GET", good))).toEqual({
+    ok: true,
+    subject,
+  });
+  // Forged identity headers of the request name nobody: the session the
+  // gateway answers for without a user is admitted as nobody's.
+  const forged = {
+    "x-auth-request-user": subject,
+    "x-auth-request-email": `${subject}@vaultwarden-identity.lazurio.ai`,
+    "x-forwarded-user": subject,
+    "x-forwarded-email": "someone@example.invalid",
+    "x-lazurio-subject": subject,
+  };
+  expect(
+    await trust.admit(
+      request("GET", {
+        cookie: "__Secure-lazurio-workspace=anonymous",
+        ...forged,
+      }),
+    ),
+  ).toEqual({ ok: true, subject: null });
+  // ...and change nothing of a named one, nor of a denied one, whose
+  // answer's header is never read.
+  expect(
+    await trust.admit(
+      request("GET", {
+        ...good,
+        ...forged,
+        "x-auth-request-user": "1f4c8a2e-6b1d-4e9a-8c3f-7d2b5a9e1c41",
+      }),
+    ),
+  ).toEqual({ ok: true, subject });
+  expect(
+    await trust.admit(
+      request("GET", { cookie: "__Secure-lazurio-workspace=x", ...forged }),
+    ),
+  ).toEqual({ ok: false, reason: "auth-denied" });
+  // Only one exact lowercase UUID names someone.
+  for (const value of ["upper", "login", "two"])
+    expect(
+      await trust.admit(
+        request("GET", { cookie: `__Secure-lazurio-workspace=${value}` }),
+      ),
+    ).toEqual({ ok: true, subject: null });
+  // The subject is kept with the admission of its session, keyed by it.
+  const asked = calls.length;
+  clock += 60_000;
+  expect(await trust.admit(request("GET", good))).toEqual({
+    ok: true,
+    subject,
+  });
+  expect(calls.length).toBe(asked);
 });
