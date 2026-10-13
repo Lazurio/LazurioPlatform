@@ -5518,8 +5518,9 @@ with the remembered account removed (that holds now only within the guard).
 
 Tests: `tests/shell-account-reentry.test.ts`, through the rail's state and the page's
 account read (one navigation per guard, a second `401` final, `403` and `404` without
-navigation, a success clearing the guard, a refusal after a transient failure, Apps
-sharing the read, no tab memory, a framed page, the poll's redirect counting as a
+navigation, an account success followed by a Launchpad `401` on every page load
+re-entering only once per guard, a refusal after a transient failure, Apps sharing
+the read, no tab memory, a framed page, the poll's redirect counting as a
 refusal, one guard per tab). Installed consumers receive it only through a qualified
 Platform release and the pins of their Machines lanes.
 
