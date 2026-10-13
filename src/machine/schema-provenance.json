@@ -2,12 +2,12 @@
   "source_repository": "HumanAndMachine-ai/Machines",
   "source_version": null,
   "source_tag": null,
-  "source_pull_request": "https://github.com/HumanAndMachine-ai/Machines/pull/449",
-  "source_commit": "30c2fcf8a77914b5a44c652265e927683b2b413c",
+  "source_pull_request": "https://github.com/HumanAndMachine-ai/Machines/pull/500",
+  "source_commit": "14d448682be5d0a666b39b4c2b2f2bf6867fc448",
   "source_path": "workloads/workspace-vm/lazurio-machine.v1.schema.json",
-  "source_sha256": "fbbd159b8e6dfc8580a7b8460ddb4a2b2d3158a1b74ab2a420d8ff68005ae53f",
-  "sha256": "d6a5dce89f5fa0ee6616c929a48cccef28346b6e92c4b1c320b13c1f71040a0e",
+  "source_sha256": "76a058045be25b718caed8a04e533d67fa8666945bfa4fa0153d618bc4d78957",
+  "sha256": "76a058045be25b718caed8a04e533d67fa8666945bfa4fa0153d618bc4d78957",
   "publication_authorization": "https://github.com/HumanAndMachine-ai/Machines/pull/124#issuecomment-5688845105",
-  "pin_update": "https://github.com/HumanAndMachine-ai/Machines/pull/449",
-  "pending": "DEV-6631 contract C2: the optional member `vault` {server_url, account, name} is drafted here from the contract and the Machines shared contract (workloads/shared/environment-vault.ts) until the Machines pull request of DEV-6631 task 637 publishes it; the vendored file is replaced byte for byte by that one, and this provenance by its pin, before merge."
+  "pin_update": "https://github.com/HumanAndMachine-ai/Machines/pull/500",
+  "pending": "Vendored byte for byte from the head of the open Machines pull request #500 (DEV-6631 task 637, guest side), which adds only the optional member `vault` to #449's schema. Re-pin to its merge commit (and the release that carries it) before this Platform merges; a digest other than this one is a new re-pin."
 }

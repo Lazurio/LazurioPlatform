@@ -40,10 +40,10 @@ const bytes = (value: unknown) => Buffer.from(JSON.stringify(value));
 const { team: _, ...withoutTeam } = organization.owner;
 const workVm = { ...organization, owner: withoutTeam };
 
-test("the vendored schema is Machines #449's, which adds only entry.environment_relay", () => {
-  expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/449",
-  );
+test("the vendored schema carries Machines #449's entry.environment_relay exactly", () => {
+  // Re-pinned since to Machines #500, which adds only the top-level `vault`
+  // (tests/vault-handover.test.ts).
+  expect(provenance.source_repository).toBe("HumanAndMachine-ai/Machines");
   const relay = (
     schema as unknown as {
       $defs: {

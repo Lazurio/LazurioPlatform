@@ -15,12 +15,13 @@ from the merge of Machines pull request **#449** into `main` (commit
 `30c2fcf8a77914b5a44c652265e927683b2b413c`, SHA-256
 `fbbd159b8e6dfc8580a7b8460ddb4a2b2d3158a1b74ab2a420d8ff68005ae53f`), which adds the
 optional `entry.environment_relay` ([below](#the-hosted-entry-decision-f16), root
-decision 0194, decision F45) and changes nothing else. **Pending:** the vendored file
-also carries the optional top-level member `vault` ([below](#the-environments-own-vault-decision-f52),
-DEV-6631 contract C2), drafted here from the contract and the Machines shared contract
-until the Machines pull request of DEV-6631 task 637 publishes it; before this
-Platform merges, the file is replaced byte for byte by that one and
-`schema-provenance.json` by its pin (its `pending` field says so meanwhile). No Machines release carries it
+decision 0194, decision F45) and changes nothing else. **Pending re-pin:** the file is
+now vendored byte for byte from the head of the open Machines pull request **#500**
+(commit `14d448682be5d0a666b39b4c2b2f2bf6867fc448`, SHA-256
+`76a058045be25b718caed8a04e533d67fa8666945bfa4fa0153d618bc4d78957`), which adds only
+the optional top-level member `vault` ([below](#the-environments-own-vault-decision-f52),
+DEV-6631 contract C2) to #449's; before this Platform merges, it is re-pinned to that
+pull request's merge (`schema-provenance.json`'s `pending` says so meanwhile). No Machines release carries it
 yet, so the provenance names no version and no tag; the first release that does may
 add them with the same digest, and a digest other than this one is a new re-pin.
 Before it, the pin was the merge of Machines
