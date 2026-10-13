@@ -7,6 +7,7 @@ import {
   mkdtemp,
   readdir,
   readFile,
+  readlink,
   realpath,
   rm,
   stat,
@@ -654,10 +655,20 @@ test.skipIf(!posix)(
 // ~/.composio beside the files already there (the sign-in), and a link in
 // ~/.local/bin. The binary prints the version of the tag it came from, or
 // `installs` where the fake ignores the request.
-const composioInstaller = (installs?: string) => `#!/bin/sh
+const composioInstaller = (
+  installs?: string,
+  // The digest of the archive it downloads: Lazurio's pinned one unless a
+  // test gives another, which the fork's installer refuses before it
+  // extracts or replaces anything when COMPOSIO_INSTALL_SHA256 names
+  // another.
+  archive: string = composioBuild.archives["linux-x64"],
+) => `#!/bin/sh
 set -eu
 [ "\${COMPOSIO_GITHUB_OWNER:-}" = "Lazurio" ] || { echo "error: not the fork's release" >&2; exit 1; }
 [ "\${COMPOSIO_GITHUB_REPO:-}" = "composio" ] || { echo "error: not the fork's release" >&2; exit 1; }
+if [ -n "\${COMPOSIO_INSTALL_SHA256:-}" ] && [ "$COMPOSIO_INSTALL_SHA256" != "${archive}" ]; then
+  echo "error: Checksum mismatch for composio-linux-x64.zip" >&2; exit 1
+fi
 requested="\${COMPOSIO_INSTALL_VERSION:-}"
 version="\${requested#@composio/cli@}"
 ${installs === undefined ? "" : `version="${installs}"`}
@@ -681,7 +692,20 @@ test("composio: the pinned build is Lazurio's 0.4.3-lazurio.1, installed by the 
     installerCommit: "c2cecf946112bf87ea8d7553e3bd2e7e1e1e69e0",
     installer:
       "https://raw.githubusercontent.com/Lazurio/composio/c2cecf946112bf87ea8d7553e3bd2e7e1e1e69e0/install.sh",
+    archives: {
+      "linux-x64":
+        "a87cc25373ebe1efc6d819e8dd8b40cc54f96bfa71916cac5755623ca1892b19",
+      "linux-arm64":
+        "c5dac856c31bc22d9b9bf9bd275b6a637359fca08d93f0e6aa1a36ff283d1488",
+      "darwin-x64":
+        "e7fee0737a3816fe004efe950d1373e12bd7fa8071fe6ebf0acbabf288dc9a5b",
+      "darwin-arm64":
+        "be9a2c84c32621dff02b9c96b727e478372ba0c7348904197dce8f6353b9b588",
+    },
   });
+  // Every target the recipe installs has its archive pinned.
+  for (const digest of Object.values(composioBuild.archives))
+    expect(digest).toMatch(/^[0-9a-f]{64}$/);
   expect(pinnedInstaller("composio")).toEqual({
     url: composioBuild.installer,
     version: "0.4.3-lazurio.1",
@@ -734,6 +758,9 @@ test.skipIf(!posix)(
         COMPOSIO_GITHUB_OWNER: "Lazurio",
         COMPOSIO_GITHUB_REPO: "composio",
         COMPOSIO_INSTALL_VERSION: "@composio/cli@0.4.3-lazurio.1",
+        // This target's archive, pinned (linux-x64 here).
+        COMPOSIO_INSTALL_SHA256:
+          "a87cc25373ebe1efc6d819e8dd8b40cc54f96bfa71916cac5755623ca1892b19",
       });
       // The private script is gone.
       expect(
@@ -922,7 +949,24 @@ test.skipIf(!posix)(
       expect(older.before.version).toBe("0.4.2-lazurio.1");
       expect(older.after.version).toBe("0.4.3-lazurio.1");
       expect(await readFile(join(home, "user_data.json"), "utf8")).toBe(signIn);
-      // An installer that does not end with the pinned build is no update.
+      // An archive that is not the pinned one: the installer refuses it
+      // before it replaces anything, so the working build, its entry and the
+      // sign-in stay byte for byte (Pablo's review of #395).
+      const binaryBefore = await readFile(join(home, "composio"));
+      const linkBefore = await readlink(join(box.bin, "composio"));
+      const tampered = fakeSource({
+        [composioBuild.installer]: composioInstaller(undefined, "0".repeat(64)),
+      });
+      expect(await update(tampered.fetcher)).toMatchObject({
+        kind: "tool-update-failed",
+        tool: "composio",
+        output: expect.stringContaining("installer: exit-1"),
+      });
+      expect(await readFile(join(home, "composio"))).toEqual(binaryBefore);
+      expect(await readlink(join(box.bin, "composio"))).toBe(linkBefore);
+      expect(await readFile(join(home, "user_data.json"), "utf8")).toBe(signIn);
+      // An installer that ignores the pins and ends with another build is no
+      // update: what runs stays and is said as a failure.
       const other = fakeSource({
         [composioBuild.installer]: composioInstaller("0.4.4"),
       });

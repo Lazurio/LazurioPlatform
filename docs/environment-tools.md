@@ -261,9 +261,12 @@ arm64. CLI first; the Launchpad serves the same core. The tools set up by an age
   immutable), downloaded into a private file first, then run with
   `COMPOSIO_INSTALL_PLUGINS=0 COMPOSIO_INSTALL_SHELL=none COMPOSIO_INSTALL_HELP=0
   COMPOSIO_GITHUB_OWNER=Lazurio COMPOSIO_GITHUB_REPO=composio
-  COMPOSIO_INSTALL_VERSION=@composio/cli@0.4.3-lazurio.1` (bundle in `~/.composio`,
-  link in `~/.local/bin`, no agent plugins, no shell files); only exactly that version
-  afterwards is installed (`verify`, `version-mismatch` otherwise).
+  COMPOSIO_INSTALL_VERSION=@composio/cli@0.4.3-lazurio.1` and the target's
+  `COMPOSIO_INSTALL_SHA256` (bundle in `~/.composio`, link in `~/.local/bin`, no agent
+  plugins, no shell files). The installer refuses any archive but the pinned one, and
+  a missing checksum, before it extracts or replaces anything (`installer`: nothing
+  changed); only exactly that version afterwards is installed (`verify`,
+  `version-mismatch` otherwise, what then runs staying).
   A tool that works anywhere on PATH, or in the standard path, is not touched
   (`already-installed`); a broken copy elsewhere on PATH is not shadowed
   (`install-failed` at `preflight`). Failures name the stage (`resolve`, `download`,

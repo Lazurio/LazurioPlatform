@@ -7406,11 +7406,18 @@ list's ids and names in #4809). The reference is
    `X.Y.Z` or `X.Y.Z-beta.N` (its `normalize_version`, read 2026-10-13) and resolves
    "latest" only among plain `@composio/cli@X.Y.Z` tags, so it cannot install this
    build. The fork's `install.sh` is Composio's with that one check widened to accept
-   `X.Y.Z-lazurio.N`; everything else is Composio's installer. Pinned by commit, its
-   URL is immutable: what runs is exactly the reviewed script, whatever happens later
-   to a branch or a tag of the fork. The installed tool must print exactly the pinned
-   version: another version fails at `verify` with `version-mismatch`, and what runs
-   stays (it is not removed, and never said to be the build).
+   `X.Y.Z-lazurio.N`, a source of `Lazurio/composio` strict (no `checksums.txt`, no
+   entry or no SHA-256 tool refuses the installation) and `COMPOSIO_INSTALL_SHA256`;
+   everything else is Composio's installer. Pinned by commit, its URL is immutable:
+   what runs is exactly the reviewed script, whatever happens later to a branch or a
+   tag of the fork. The commit pins the script, not the archive it downloads, so the
+   Launchpad also passes the SHA-256 of the target's archive (`composioBuild.archives`,
+   from the release's `checksums.txt` and the archives themselves): the installer
+   refuses any other archive before it extracts or replaces anything, and a refused
+   installation or update changes nothing (Pablo's review of #395). The installed tool
+   must then print exactly the pinned version. Were another version to run after an
+   installer that ignored the pins, it fails at `verify` with `version-mismatch`, and
+   what runs stays (it is not removed, and never said to be the build).
 3. **Updated to it on request.** `lazurio tools update composio` (the updater kind
    `curated`) runs the same installer again at the pinned build, whatever runs now:
    Composio's stable CLI, an older build or a newer release of Composio's. The

@@ -124,6 +124,12 @@ type Recipe =
       /** The build the recipe pins: the installed tool must report exactly
        * this version, and an update (`reinstallTool`) installs it again. */
       version?: string;
+      /** More environment for one target only (composio: the SHA-256 of
+       * that target's pinned archive). Where a recipe has it, a target
+       * without an entry is not installed at all. */
+      targetEnv?: Readonly<
+        Partial<Record<Target, Readonly<Record<string, string>>>>
+      >;
     }>;
 
 // The official sources of the curated tools. gh and wacli publish release
@@ -186,6 +192,16 @@ export const curatedInstallers: Readonly<Record<string, Recipe>> =
       },
       targets: ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"],
       version: composioBuild.version,
+      // The archive's bytes, pinned: the installer refuses any other archive
+      // before it extracts or replaces anything.
+      targetEnv: Object.freeze(
+        Object.fromEntries(
+          Object.entries(composioBuild.archives).map(([name, digest]) => [
+            name,
+            Object.freeze({ COMPOSIO_INSTALL_SHA256: digest }),
+          ]),
+        ),
+      ),
     },
   });
 
@@ -472,6 +488,7 @@ async function installRelease(
 async function installScript(
   recipe: Extract<Recipe, { kind: "script" }>,
   env: InstallEnvironment,
+  platformTarget: Target,
 ): Promise<string> {
   const script = await download(
     env.fetch ?? fetchOfficial,
@@ -491,6 +508,7 @@ async function installScript(
     const result = await env.run(["/bin/sh", file], limits.installerMs, {
       ...baseEnv(env),
       ...recipe.env,
+      ...recipe.targetEnv?.[platformTarget],
     });
     if (result === "timeout")
       throw new InstallStageError("installer", "timeout");
@@ -562,7 +580,10 @@ async function place(
   const platformTarget = target(env.platform, arch);
   if (
     platformTarget === undefined ||
-    (recipe.kind === "script" && !recipe.targets.includes(platformTarget))
+    (recipe.kind === "script" &&
+      (!recipe.targets.includes(platformTarget) ||
+        (recipe.targetEnv !== undefined &&
+          recipe.targetEnv[platformTarget] === undefined)))
   )
     return {
       result: {
@@ -623,7 +644,7 @@ async function place(
   try {
     if (recipe.kind === "release")
       await installRelease(entry, recipe, platformTarget, env, destination);
-    else output = await installScript(recipe, env);
+    else output = await installScript(recipe, env, platformTarget);
   } catch (error) {
     if (error instanceof InstallStageError)
       return fail(error.stage, error.reason, error.detail);
@@ -640,8 +661,12 @@ async function place(
       await rm(destination, { force: true });
     return fail("verify", "version-failed");
   }
-  // A pinned build is installed exactly (decision F42 addendum (3)): another
-  // version that runs stays, said as a failure, never as that build.
+  // A pinned build is installed exactly (decision F42 addendum (3)). The
+  // pinned installer refuses any archive but the pinned one before it
+  // replaces anything, so a refused update changes nothing (`installer`
+  // stage). This check is the last one: were another version to run after an
+  // installer that ignored the pins, what runs stays, said as a failure,
+  // never as that build.
   if (
     recipe.kind === "script" &&
     recipe.version !== undefined &&

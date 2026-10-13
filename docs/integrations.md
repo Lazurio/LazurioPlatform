@@ -374,9 +374,15 @@ changes (proposed upstream in ComposioHQ/composio#4817, issue #4816, and #4809).
   cannot install the build: it accepts an explicit version only as `X.Y.Z` or
   `X.Y.Z-beta.N` (`normalize_version`) and "latest" only among plain
   `@composio/cli@X.Y.Z` tags. The fork's `install.sh` is Composio's with that one
-  check widened to accept `X.Y.Z-lazurio.N`; everything else is Composio's installer.
-  The installation is done only when `composio --version` prints exactly
-  `0.4.3-lazurio.1`; another version fails at `verify` (`version-mismatch`) and stays.
+  check widened to accept `X.Y.Z-lazurio.N`, a source of `Lazurio/composio` strict
+  (no `checksums.txt`, no entry or no SHA-256 tool is an error) and
+  `COMPOSIO_INSTALL_SHA256`; everything else is Composio's installer. The Launchpad
+  passes the SHA-256 of the target's archive (`composioBuild.archives`), so the
+  installer refuses any other archive before it extracts or replaces anything: a
+  refused installation or update changes nothing. The installation is done only when
+  `composio --version` then prints exactly `0.4.3-lazurio.1`. Were another version to
+  run after an installer that ignored the pins, it would fail at `verify`
+  (`version-mismatch`), and what runs would stay.
 - **Update** (`lazurio tools update composio`; "Aktualizovat" / "Update" in Settings →
   Tools): the same installation again, whatever runs now (Composio's stable CLI, an
   older build, a newer release of Composio's), in place: the bundle in `~/.composio`

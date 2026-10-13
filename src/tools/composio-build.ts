@@ -49,4 +49,20 @@ export const composioBuild = Object.freeze({
   installerCommit,
   /** Composio's installer from the fork, pinned by commit: immutable. */
   installer: `https://raw.githubusercontent.com/Lazurio/composio/${installerCommit}/install.sh`,
+  /** The SHA-256 of each target's release archive (`composio-<target>.zip`,
+   * as the release's `checksums.txt` lists them and as the downloaded
+   * archives hash, read 2026-10-13). The pinned installer takes it as
+   * `COMPOSIO_INSTALL_SHA256` and refuses any other archive before it
+   * extracts or replaces anything: the commit pins the script, these pin the
+   * bytes it installs (Pablo's review of #395). */
+  archives: Object.freeze({
+    "linux-x64":
+      "a87cc25373ebe1efc6d819e8dd8b40cc54f96bfa71916cac5755623ca1892b19",
+    "linux-arm64":
+      "c5dac856c31bc22d9b9bf9bd275b6a637359fca08d93f0e6aa1a36ff283d1488",
+    "darwin-x64":
+      "e7fee0737a3816fe004efe950d1373e12bd7fa8071fe6ebf0acbabf288dc9a5b",
+    "darwin-arm64":
+      "be9a2c84c32621dff02b9c96b727e478372ba0c7348904197dce8f6353b9b588",
+  }),
 });
