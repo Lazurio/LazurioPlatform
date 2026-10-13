@@ -91,6 +91,7 @@ test.skipIf(process.platform === "win32")(
         source: "organization",
         ready: false,
         disconnect: false,
+        organization: null,
       });
       expect(overview.sources.composio).toBe("not-allowed");
       expect(
@@ -136,6 +137,7 @@ for (const [name, settings, source] of [
           source,
           ready: true,
           disconnect: false,
+          organization: null,
         });
         if (composioOnly === undefined)
           throw new Error("The catalog has an app only Composio connects");

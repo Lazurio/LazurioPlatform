@@ -472,6 +472,10 @@ test.skipIf(!posix)(
           { id: "org_1", name: "First", current: true },
           { id: "org_2", name: "Second", current: false },
         ],
+        // A computer: the person chooses the organization (decision F42,
+        // addendum of 2026-10-13).
+        organization: null,
+        personal: false,
       });
       expect(
         (await opened.json("/api/tools/composio/organization", { id: "org_2" }))

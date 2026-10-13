@@ -30,7 +30,12 @@
 // stands in for a Remote Environment's Executor, so the page shows the
 // direct paths (decision F44 installs none on a computer); in a Remote
 // Environment the page follows Settings → Tools → executor, as in
-// production. With `composio-off` anywhere after the mode, a hosted
+// production. A hosted preview's Composio has the person's own
+// organization of the example Organization's name ("Example Company"),
+// which the first reading makes current; with `composio-org-missing`
+// anywhere after the mode it lacks it, and Apps → Integrace says to create
+// it (decision F42, addendum of 2026-10-13). With `composio-off` anywhere
+// after the mode, a hosted
 // preview's example Organization does not allow Composio (root decision
 // 0194, decision F45): its root becomes a Git checkout whose `main` says so,
 // which the Launchpad reads as on an Organization's Environment without the
@@ -74,6 +79,9 @@ const mode =
     : "local";
 const fresh = process.argv[6] === "fresh";
 const composioOff = process.argv.slice(3).includes("composio-off");
+const composioOrgMissing = process.argv
+  .slice(3)
+  .includes("composio-org-missing");
 const locale = process.argv[3] === "en" ? "en" : "cs";
 const listenPort = Number(process.argv[4] ?? 24611);
 const role =
@@ -226,6 +234,13 @@ await writeFile(
     next: 100,
     activateOnLink: true,
     organization: "Příklad s.r.o.",
+    // The person's own organization of the example Organization's name,
+    // which the hosted preview's first reading makes current (decision F42,
+    // addendum of 2026-10-13); without it, the page says to create it.
+    organizations: [
+      { id: "org_1", name: "Příklad s.r.o." },
+      ...(composioOrgMissing ? [] : [{ id: "org_2", name: "Example Company" }]),
+    ],
     accounts: [
       {
         id: "ca_1",

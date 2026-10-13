@@ -9,14 +9,19 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
-import { initializeFolder } from "../../src/folder/initialize-folder";
+import {
+  initializeFolder,
+  initializeHandoverFolder,
+} from "../../src/folder/initialize-folder";
+import type { MachineBinding } from "../../src/folder/machine-binding";
 import { executionOs } from "../../src/folder/platform";
-import { presetProfile } from "../../src/folder/presets";
+import { type PresetName, presetProfile } from "../../src/folder/presets";
 import { updateTools } from "../../src/folder/update-profile";
 import type { ExecutorEndpoint } from "../../src/integrations/executor-client";
 import type { IntegrationsSeams } from "../../src/launchpad/integrations-routes";
 import { startLaunchpad } from "../../src/launchpad/server";
 import { toolsEnvironmentOf } from "../../src/tools/overview";
+import { writeOrganization } from "./catalog-folder";
 import { type FakeExecutor, startFakeExecutor } from "./fake-executor-api";
 
 // The world of the Integrace contract (decision F42): a private home whose
@@ -45,6 +50,9 @@ export type FakeComposioState = {
   /** The current organization `whoami` names: `First` by default, none
    * where null. */
   organization?: string | null;
+  /** The account's organizations `orgs list` prints, `organization` the
+   * current one by its name; `orgs switch --org-id` makes one current. */
+  organizations?: { id: string; name: string }[];
 };
 
 /** Executor's console token: it may reach the fake Executor only. */
@@ -306,15 +314,45 @@ export async function worldLaunchpad(
     /** The tools switched on for agents (composio, wacli…). */
     tools?: readonly string[];
     seams?: Partial<IntegrationsSeams>;
+    /** A Remote Environment's Folder instead of a computer's: its preset,
+     * its Machine binding (without an entry, so the Launchpad keeps the
+     * local token) and the Organization root it owns, by slug and display
+     * name. */
+    handover?: Readonly<{
+      preset: PresetName;
+      machine: MachineBinding;
+      organization?: Readonly<{ slug: string; displayName: string }>;
+    }>;
   }> = {},
 ) {
   const folder = join(parent, "Lazurio");
-  await initializeFolder(
-    folder,
-    presetProfile("local", executionOs(process.platform), {
-      locale: options.locale ?? "en",
-    }),
+  const profile = presetProfile(
+    options.handover?.preset ?? "local",
+    executionOs(process.platform),
+    { locale: options.locale ?? "en" },
   );
+  if (options.handover === undefined) await initializeFolder(folder, profile);
+  else {
+    await mkdir(join(folder, "organizations"), {
+      recursive: true,
+      mode: 0o700,
+    });
+    if (options.handover.preset === "hosted-personal")
+      await mkdir(join(folder, "personalspace"), { mode: 0o700 });
+    await initializeHandoverFolder(folder, {
+      preset: options.handover.preset,
+      machine: options.handover.machine,
+      profile,
+    });
+    const organization = options.handover.organization;
+    if (organization !== undefined)
+      await writeOrganization(folder, organization.slug, {
+        slug: organization.slug,
+        state: "current",
+        modules: [],
+        displayName: organization.displayName,
+      });
+  }
   if (options.tools !== undefined && options.tools.length > 0) {
     const updated = await updateTools(folder, 1, [...options.tools].sort());
     if (updated.kind !== "updated") throw new Error("Tools not recorded");

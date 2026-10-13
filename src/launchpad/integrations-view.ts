@@ -44,7 +44,26 @@ const sourceStates = new Set([
   "unreadable",
   "signed-out",
   "not-allowed",
+  "organization",
 ]);
+const organizationStates = new Set([
+  "matches",
+  "missing",
+  "ambiguous",
+  "elsewhere",
+]);
+
+/** The Composio organization of the reading: null, or its name and state. */
+function isTarget(value: unknown): boolean {
+  if (value === null) return true;
+  if (typeof value !== "object") return false;
+  const target = value as Record<string, unknown>;
+  return (
+    typeof target.name === "string" &&
+    target.name !== "" &&
+    organizationStates.has(target.state as string)
+  );
+}
 
 function isChoice(value: unknown): value is PathChoice {
   if (typeof value !== "object" || value === null) return false;
@@ -130,6 +149,7 @@ export function parseIntegrations(value: unknown): IntegrationsOverview | null {
     (composio.source !== "organization" && composio.source !== "environment") ||
     typeof composio.ready !== "boolean" ||
     typeof composio.disconnect !== "boolean" ||
+    !isTarget(composio.organization) ||
     typeof sources !== "object" ||
     sources === null ||
     !["tools", "executor", "composio"].every((name) =>
@@ -459,6 +479,28 @@ export function sourceLines(
   if (overview.sources.tools !== "ok")
     lines.push(copy.integrationsToolsUnreadable);
   return lines;
+}
+
+/** What the page says where Composio works in no organization of this
+ * Environment's Organization's name (decision F42, addendum of 2026-10-13):
+ * the organization is missing, there more than once, or not made current;
+ * null where nothing is to say. */
+export function composioOrganizationLine(
+  overview: IntegrationsOverview,
+  copy: Copy,
+): string | null {
+  const target = overview.composio.organization;
+  if (overview.sources.composio !== "organization" || target === null)
+    return null;
+  const key =
+    target.state === "missing"
+      ? "integrationsComposioOrganizationMissing"
+      : target.state === "ambiguous"
+        ? "integrationsComposioOrganizationAmbiguous"
+        : target.state === "elsewhere"
+          ? "integrationsComposioOrganizationElsewhere"
+          : null;
+  return key === null ? null : fill(copy[key], { name: target.name });
 }
 
 /** "Připojeno · 5 nástrojů", "Nepodařilo se spustit", "Spouštím…". */

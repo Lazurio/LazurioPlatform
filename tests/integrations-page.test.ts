@@ -119,6 +119,7 @@ const overview = (
     source: "environment",
     ready: true,
     disconnect: true,
+    organization: null,
   },
   sources: { tools: "ok", executor: "ok", composio: "ok" },
   tools: [],

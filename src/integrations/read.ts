@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { ExecutorContext } from "../executor/flow";
 import { withFolderReadLock } from "../folder/lock";
+import type { MachineBinding } from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import { folderOrganizationSettings } from "../folder/state";
@@ -17,6 +18,11 @@ import {
 } from "../tools/overview";
 import { integrationsCatalog } from "./catalog";
 import type { IntegrationsCatalog } from "./catalog-schema";
+import {
+  type ComposioOrganizationRule,
+  composioOrganizationRule,
+  convergeComposioOrganization,
+} from "./composio-organization";
 import {
   type ComposioNames,
   composioRemovesWithoutPrompt,
@@ -73,6 +79,12 @@ export type IntegrationsHost = Readonly<{
   composioSignIns?: () => ReadonlyMap<string, readonly ComposioSignIn[]>;
   catalog?: IntegrationsCatalog;
   now?: () => Date;
+  /** The journal of a change the reading makes (the Composio organization
+   * it makes current): the operation and the outcome, never a value. */
+  journal?: (entry: Readonly<Record<string, string>>) => void;
+  /** Test and preview seam: the rule of this Environment's Composio
+   * organization, instead of the one its Machine binding gives. */
+  composioOrganization?: ComposioOrganizationRule;
 }>;
 
 /** The scope of the rule: a personal Environment and the person's own
@@ -111,6 +123,88 @@ export function connectedTools(tools: readonly ToolOverview[]): AppTool[] {
       ? [name]
       : [];
   });
+}
+
+/** Composio as this Environment reads it: its accounts, whether its CLI
+ * removes one without a prompt, the organization it works in, and the
+ * organization of this Environment's Organization's name where it has one
+ * (decision F42, addendum of 2026-10-13), made current first. */
+async function readComposioSource(
+  host: IntegrationsHost,
+  tool: ToolOverview | undefined,
+  allowed: boolean,
+  machine: MachineBinding | null,
+): Promise<
+  Readonly<{
+    composio: ComposioReadingState;
+    disconnect: boolean;
+    organization: string | null;
+    target: IntegrationsOverview["composio"]["organization"];
+  }>
+> {
+  const signedIn = tool?.signIn?.organization ?? null;
+  const only = (composio: ComposioReadingState) =>
+    ({
+      composio,
+      disconnect: false,
+      organization: signedIn,
+      target: null,
+    }) as const;
+  if (tool === undefined || !tool.installed)
+    return only({ state: "unavailable" });
+  if (tool.signIn?.state !== "signed-in") return only({ state: "signed-out" });
+  if (!allowed || !tool.enabled || tool.path === undefined)
+    return only({ state: "unavailable" });
+  const command = tool.path;
+  let organization = signedIn;
+  let target: IntegrationsOverview["composio"]["organization"] = null;
+  const rule =
+    host.composioOrganization ??
+    (await composioOrganizationRule(host.folder, machine));
+  if (rule.kind === "named") {
+    const converged = await convergeComposioOrganization(
+      host.tools,
+      command,
+      rule,
+      host.journal,
+    );
+    if (converged === null) return only({ state: "unreadable" });
+    const { verdict } = converged;
+    target = Object.freeze({ name: rule.name, state: verdict.kind });
+    // Accounts of another organization are not this Environment's: none
+    // are listed, and nothing connects through Composio until it matches.
+    if (verdict.kind !== "matches")
+      return {
+        composio: { state: "organization" },
+        disconnect: false,
+        organization,
+        target,
+      };
+    organization = verdict.organization.name;
+  }
+  const [reading, disconnect] = await Promise.all([
+    readComposioAccounts(host.tools, command),
+    composioRemovesWithoutPrompt(host.tools, command),
+  ]);
+  return {
+    composio:
+      reading.state === "ok"
+        ? {
+            state: "ok",
+            accounts: await nameComposioAccounts(
+              host.tools,
+              command,
+              reading.accounts,
+              host.composioNames === undefined
+                ? {}
+                : { names: host.composioNames },
+            ),
+          }
+        : reading,
+    disconnect,
+    organization,
+    target,
+  };
 }
 
 export async function readIntegrations(
@@ -155,40 +249,20 @@ export async function readIntegrations(
     composioTool?.enabled === true &&
     composioTool.installed &&
     composioTool.signIn?.state === "signed-in";
-  let composio: ComposioReadingState;
-  let composioDisconnect = false;
-  if (overview === null) composio = { state: "unreadable" };
-  else if (composioTool === undefined || !composioTool.installed)
-    composio = { state: "unavailable" };
-  else if (composioTool.signIn?.state !== "signed-in")
-    composio = { state: "signed-out" };
-  else if (
-    !policy.allowed ||
-    !composioTool.enabled ||
-    composioTool.path === undefined
-  )
-    composio = { state: "unavailable" };
-  else {
-    const [reading, removes] = await Promise.all([
-      readComposioAccounts(host.tools, composioTool.path),
-      composioRemovesWithoutPrompt(host.tools, composioTool.path),
-    ]);
-    composioDisconnect = removes;
-    composio =
-      reading.state === "ok"
-        ? {
-            state: "ok",
-            accounts: await nameComposioAccounts(
-              host.tools,
-              composioTool.path,
-              reading.accounts,
-              host.composioNames === undefined
-                ? {}
-                : { names: host.composioNames },
-            ),
-          }
-        : reading;
-  }
+  const source =
+    overview === null
+      ? ({
+          composio: { state: "unreadable" },
+          disconnect: false,
+          organization: null,
+          target: null,
+        } as const)
+      : await readComposioSource(
+          host,
+          composioTool,
+          policy.allowed,
+          preferences.machine,
+        );
   return mergeIntegrations({
     catalog,
     locale,
@@ -196,12 +270,13 @@ export async function readIntegrations(
     origin: preferences.machine?.entry?.externalOrigin ?? null,
     policy,
     composioReady,
-    composioOrganization: composioTool?.signIn?.organization ?? null,
+    composioOrganization: source.organization,
+    composioTarget: source.target,
     tools,
     executor,
-    composio,
+    composio: source.composio,
     composioSignIns: host.composioSignIns?.() ?? new Map(),
-    composioDisconnect,
+    composioDisconnect: source.disconnect,
     readAt: (host.now ?? (() => new Date()))().toISOString(),
   });
 }

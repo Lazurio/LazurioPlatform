@@ -144,6 +144,8 @@ test("one reading: the catalog with one path per app, tool and Executor and Comp
       ready: true,
       // This composio removes an account only after a prompt.
       disconnect: false,
+      // A computer's Folder: the person chooses the organization.
+      organization: null,
     });
     // gh is signed in: GitHub goes through its tool.
     expect(app_("github")).toMatchObject({

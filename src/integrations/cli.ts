@@ -93,6 +93,17 @@ export function integrationsText(overview: IntegrationsOverview): string {
   lines.push(
     `Sources: tools ${overview.sources.tools} · Executor ${overview.sources.executor} · Composio ${overview.sources.composio}.`,
   );
+  // Composio in no organization of this Environment's Organization's name
+  // (decision F42, addendum of 2026-10-13): the person sees to it.
+  const target = overview.composio.organization;
+  if (overview.sources.composio === "organization" && target !== null)
+    lines.push(
+      target.state === "missing"
+        ? `Composio: the person's account has no organization named "${target.name}" (this Environment's Organization); nothing connects through Composio until the person creates it in Composio. Send them to Apps → Integrations.`
+        : target.state === "ambiguous"
+          ? `Composio: the person's account has more than one organization named "${target.name}"; nothing connects through Composio until the person keeps one. Send them to Apps → Integrations.`
+          : `Composio: it could not be switched to the organization "${target.name}"; "Check connections" in Apps → Integrations tries again.`,
+    );
   lines.push(
     overview.page === null
       ? "A missing app is connected by the person in the Launchpad under Apps → Integrations; --json lists every app with what it needs."

@@ -125,6 +125,9 @@ export type ConnectRefusal =
   | "account-unknown"
   | "path-unavailable"
   | "composio-signed-out"
+  /** Composio works in no organization of this Environment's
+   * Organization's name (decision F42, addendum of 2026-10-13). */
+  | "composio-organization"
   | "name-required"
   | "name-taken"
   | "name-invalid"

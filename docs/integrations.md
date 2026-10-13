@@ -318,9 +318,48 @@ Read from the CLI's source (ComposioHQ/composio, `ts/packages/cli`, 2026-10-09):
   accounts belong to the Composio account and its organization, so disconnecting
   reaches every Environment signed in the same way.
 
+- `orgs list` prints `[{id, name, is_selected_global_org}]` (the JSON array on
+  stdout, after the CLI's own lines), and `orgs switch --org-id <id>` makes one
+  organization current. The CLI has no command that creates one, and Composio's
+  API documents only `GET /api/v3.1/org/list`.
+
 Every process gets only `PATH`, `HOME`, the XDG base directories and `NO_COLOR`,
 runs in its own process group and is bounded (15 s); its raw output is never
 returned or logged.
+
+### The Composio organization of an Environment
+
+Decision F42, addendum of 2026-10-13. Each person has one Composio account. In it
+they have one organization of their own for each Lazurio Organization, named as
+the Organization is, with nobody else in it, and the default one Composio made
+when they signed up.
+
+- **The rule** (`composioOrganizationRule`): an Environment whose Machine binding
+  names an owning Organization works in the organization of that Organization's
+  display name (`organization.display_name` of its manifest, as the Folder's
+  catalog reads it). Any other Environment, a personal one or a computer, works
+  in the organization the person chose; the sign-in dialog advises a personal
+  Environment to choose the default one. A name matches whatever its case, its
+  spaces and its diacritics (`organizationKey`: "Human and Machine" is
+  `humanandmachine`); punctuation counts.
+- **The verdict** (`composioOrganizationVerdict`), over `orgs list`: `matches`
+  where the one organization of that name is current; `elsewhere` where it
+  exists and another is current; `missing` where the account has none;
+  `ambiguous` where it has more than one, and none is guessed.
+- **Brought current** (`convergeComposioOrganization`): the reading (only where
+  Composio is installed, signed in, on and allowed), and the sign-in dialog of
+  Settings → Tools after a sign-in, make an `elsewhere` organization current
+  with `orgs switch`, journaled as `composio-organization` with its outcome and
+  nothing else. A person's choice is never changed.
+- **Where it does not match**, the Composio source reads `organization`: none of
+  its accounts is listed (they are another organization's), a connect through
+  Composio is refused (`409 composio-organization`), Apps → Integrace says what
+  to do with a link to Composio's dashboard and the model drawn, and `lazurio
+  integrations list` tells agents. The reading's `composio.organization` is
+  `{name, state}` on an Organization's Environment, null elsewhere.
+- **Creating one** is the person's, in Composio's dashboard: neither its CLI nor
+  its documented API creates an organization. "Zkontrolovat připojení" finds it
+  by name afterwards.
 
 ### Account names and Composio's dashboard
 
@@ -394,7 +433,7 @@ keeps its last reading for a minute and reads again on "Zkontrolovat připojení
 | Route | Body | Answer |
 | --- | --- | --- |
 | `GET /api/integrations[?refresh=1]` | | the reading |
-| `POST /api/integrations/connect` | `{app, name?, account?}` | `{kind: "authorize", session, url}` (a window of this browser), `{kind: "authorize", session, view}` (the Environment browser's tab), `{kind: "connected", app}`, or `409 {kind: "blocked", reason}`: `app-unknown`, `path-unavailable`, `composio-signed-out`, `name-required`, `name-taken`, `account-unknown`, `executor-unavailable`, `browser-unavailable`, `integration-conflict` (Executor holds the app's slug for another server), `still-failing` (Executor cannot use the account, read back after the attempt), `connect-failed` |
+| `POST /api/integrations/connect` | `{app, name?, account?}` | `{kind: "authorize", session, url}` (a window of this browser), `{kind: "authorize", session, view}` (the Environment browser's tab), `{kind: "connected", app}`, or `409 {kind: "blocked", reason}`: `app-unknown`, `path-unavailable`, `composio-signed-out`, `composio-organization` (Composio works in no organization of this Environment's Organization's name), `name-required`, `name-taken`, `account-unknown`, `executor-unavailable`, `browser-unavailable`, `integration-conflict` (Executor holds the app's slug for another server), `still-failing` (Executor cannot use the account, read back after the attempt), `connect-failed` |
 | `POST /api/integrations/poll` | `{session}` | `pending`, `{kind: "connected", app}` or `{kind: "ended", reason: failed\|expired\|cancelled}`; 404 for an unknown session |
 | `POST /api/integrations/cancel` | `{session}` | `{kind: "cancelled"}`; an OAuth flow is cancelled in Executor too |
 | `GET /api/integrations/oauth/callback?state=…&code=…` | | an authorization server's return in the person's own browser (a Remote Environment): `state`, `code`, `error`, `error_description`, `domain` and `site`, each once and at most 8 KiB, are handed to Executor's callback once, only for a sign-in started here for this address that still waits (anything else stays here); a page saying how it went, without a script, a link or anything of the return (200), or that the sign-in is no longer valid (400 where no sign-in here has the state) |

@@ -605,6 +605,19 @@ button.link-button.danger { color: var(--destructive); }
 .integrations-more { justify-self: center; margin-top: 12px; }
 .integrations-custom-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; }
 .integrations-custom-head h2 { font-size: 15px; }
+.composio-organization { display: grid; justify-items: start; gap: 10px; }
+.composio-organization p { margin: 0; }
+.composio-model { display: grid; gap: 8px; width: 100%; margin: 4px 0 0; }
+.composio-model figcaption { font-size: 13px; font-weight: var(--lz-weight-akce); }
+.composio-model-grid { display: grid; grid-template-columns: minmax(110px, 1fr) auto minmax(130px, 1.3fr) auto minmax(130px, 1.3fr); align-items: center; gap: 8px 10px; }
+.composio-model-account { display: grid; align-content: center; align-self: stretch; gap: 2px; padding: 10px 12px; border: 1px solid var(--lz-line-faint); border-radius: var(--radius-control); background: var(--card); font-size: 13px; }
+.composio-model-account span, .composio-model-caption { color: var(--muted-fg); font-size: 13px; }
+/* Above the warning callout's own colour for its emphasis. */
+.composio-model .composio-model-account strong { color: var(--fg); }
+.composio-model-node { padding: 8px 10px; border: 1px solid var(--lz-line-faint); border-radius: var(--radius-control); background: var(--card); font-size: 13px; }
+.composio-model-node.is-here { border-color: var(--lz-accent); }
+.composio-model-arrow { color: var(--muted-fg); }
+.composio-model-caption { margin: 0; }
 .integration-server .row-title { display: flex; align-items: center; gap: 8px; }
 .integration-server .row-title a { color: inherit; text-decoration: none; }
 .integration-server .row-title a:hover { text-decoration: underline; }
