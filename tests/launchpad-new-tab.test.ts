@@ -970,7 +970,9 @@ test("reconciliation: a tab closed for everyone, or ended, while no app shows it
   await world.holder.hold(id(2));
   // The hub's snapshot after the tab ended; no view and no strip shows it.
   await world.list([id(2)], at(110));
-  await until(async () => (await world.stored())?.length === 1);
+  // The holder remembers a file after writing it: once its memory has one
+  // tab, the file has too (#384).
+  await until(() => world.holder.tabs().length === 1);
   expect(await world.stored()).toEqual([{ id: id(2), recordedAt: at(100) }]);
   expect(world.holder.tabs()).toEqual([id(2)]);
 });
@@ -1149,8 +1151,9 @@ test("the holder reads the list again on its beat, retries the watch there, and 
   // Nothing went: the file is the same one.
   expect((await stat(world.file)).ino).toBe(written);
   await world.list([id(2)], at(110));
-  await until(async () => (await world.stored())?.length === 1);
+  await until(() => world.holder.tabs().length === 1);
   expect(world.holder.tabs()).toEqual([id(2)]);
+  expect((await world.stored())?.map((tab) => tab.id)).toEqual([id(2)]);
 });
 
 test("a burst of changes to the hub's list is one reconciliation", async () => {
