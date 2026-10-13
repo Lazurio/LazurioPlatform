@@ -1956,9 +1956,10 @@ the Launchpad builds no viewer of its own.
 - **The panel** is an `<aside>` after the page in the `.app` row, so the page shrinks:
   beside the rail and the column the page and the panel share the room, and the Apps
   tiles count their columns from their own width, as the wireframe does
-  (prototypes-lazurio#10). Its strip has the entries, "+", Reload, "Otevřít v nové
-  kartě" / "Open in a new tab" and Close; Escape inside it closes it. The first-run tour
-  steps aside while it is open. Below 1100 px there is no room for the page beside it,
+  (prototypes-lazurio#10). Its strip has the entries, "+" and Close; Reload and "Otevřít
+  v nové kartě" left it on 2026-10-13 for an entry's menu (below). Escape inside it
+  closes it, or an entry's open menu alone. The first-run tour steps aside while it is
+  open. Below 1100 px there is no room for the page beside it,
   so it covers the window like a sheet with Close in view, and the rail, the column and
   the page are inert behind it.
 - **Its width** (`layout-view.ts`, pure; `layout.ts` and `browser-panel.ts` draw it): the
@@ -1977,16 +1978,41 @@ the Launchpad builds no viewer of its own.
   with Vrátit; × on a Nová karta takes it away. The person's × on the last entry closes
   the panel (Vrátit then opens it on the tab again), and opening it on an empty strip
   shows a Nová karta; a strip emptied any other way shows a new one.
+- **An entry's menu** ([F47](decisions.md#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview)
+  point 9's addendum of 2026-10-13; `tabMenu` in `browser-panel-view.ts`) opens by a
+  right-click on the entry, or by the context-menu key or Shift+F10 while it has the
+  focus, at the pointer or under the entry, inside the window. A tab offers "Otevřít
+  samostatně" / "Open in a new tab" and "Načíst znovu" / "Reload" (a fresh frame for the
+  shown entry; one not shown is mounted fresh whenever it is shown), then every entry
+  "Zavřít", "Zavřít ostatní" and "Zavřít vpravo" / "Close", "Close others" and "Close to
+  the right", which work as × does; a Nová karta has the closes alone. "Zavřít" on the
+  last entry closes the panel. A close with nothing to close is greyed. One command is
+  one toast with one Vrátit for every tab it let go of, and a command that ends no tab
+  leaves the Vrátit of one that ends, its own line above it. The arrows, Home and End
+  move in the menu, Enter and Space run a command, Escape closes only the menu and gives
+  the focus back to the entry, Tab closes it and moves on from the entry, and a press
+  elsewhere closes it. Checked on 2026-10-13 in Chrome against
+  `scripts/preview-new-tab.ts` with a stand-in view, in Czech and English, at 1440×900
+  and as the sheet at 900×760: the menu by the pointer and by Shift+F10, the arrows,
+  Escape and the focus, "Otevřít samostatně" in a new tab without an opener, "Načíst
+  znovu" with one new frame, "Zavřít vpravo" and "Zavřít ostatní" with one toast and one
+  Vrátit that brought every tab back, the shown one shown, a later × that ended nothing
+  keeping that Vrátit, and "Zavřít" on the last entry closing the panel, whose Vrátit
+  opened it again.
 - **What it shows** (`browser-panel.ts`): the strip's shown entry. A tab's view is framed
   only as `/t/<id>` on exactly the recorded `browserOrigin`, never the page's own, with
   `allow="clipboard-read; clipboard-write; fullscreen"`, `referrerpolicy="no-referrer"`
-  and the sandbox of T3 Code's panel (the view keeps its own origin and cookie and
-  cannot navigate the Launchpad); anything else is one sentence that says to open it in
-  a new tab, where the gateway's sign-in can show, which a frame cannot. Nová karta is
+  and the sandbox of T3 Code's panel with `allow-popups-to-escape-sandbox` since
+  2026-10-13 (the view keeps its own origin and cookie and cannot navigate the Launchpad,
+  and a tab it opens, its own "Otevřít samostatně" above all, is an ordinary tab of this
+  browser, not a sandboxed one; checked in Chrome, where the same tab opened from a frame
+  with the earlier sandbox is sandboxed); anything else is one sentence that the tab
+  cannot be shown here. Nová karta is
   `<lazurio-new-tab strip="launchpad" focus-address>`. Closing removes what was shown,
   so a closed panel streams and reads nothing.
-- **"Open in a new tab"** leads to the shown tab's view, and with Nová karta to the
-  hand-over `/.lazurio/browser`. The view's address carries no token (F39 point 8).
+- **"Otevřít samostatně" / "Open in a new tab"** in an entry's menu opens the tab's view
+  in a new tab of this browser, without an opener, where the gateway's sign-in can show,
+  which a frame cannot. The view's address carries no token (F39 point 8).
 - **The left column** on a screen 768 px wide or wider (Matěj 2026-10-12, as T3 Code's
   sidebar; `layout.ts`): T3 Code's sidebar toggle (Iconoir's sidebar-collapse and
   sidebar-expand) at the start of the head of Settings and Files, the Apps home,

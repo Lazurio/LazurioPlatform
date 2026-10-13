@@ -7906,6 +7906,57 @@ workstation, keep their apps' own "+".
    is Přehled's Zavřít alone. A tab chosen in the panel's Nová karta is held for the
    Launchpad, as a page opened there is. This changes 0195 point 9's strip of every tab and
    point 11's "or in the Launchpad's strip", which the root register will record.
+
+   **Addendum 2026-10-13, approved by the Admin: the strip's actions move into a tab's menu.**
+   The Admin approved the right panel without a head row in every app (the wireframe
+   `HumanAndMachine-ai/prototypes-lazurio` #44, its section "Schváleno 2026-10-13"). For the
+   Launchpad's panel it changes the following; the rest of this point, its addendum of
+   2026-10-12 and the tuning of the same day stand.
+   - **The strip** keeps its entries, "+" and the panel's Close. Reload ("Načíst znovu") and
+     "Otevřít v nové kartě" leave it: the view's own bar offers "Otevřít samostatně" while it
+     is framed (the view page's change, separate from this one), and an entry's menu has
+     both for every tab.
+   - **An entry's menu** opens by a right-click on the entry, or by the context-menu key or
+     Shift+F10 while it has the focus, at the pointer or under the entry. A tab of the
+     Environment browser offers "Otevřít samostatně" (its view, `tabViewAddress`, in a new
+     tab of the person's browser, without an opener, where the gateway's sign-in can show)
+     and "Načíst znovu" (a fresh frame of its view: the shown entry mounts its frame anew;
+     an entry not shown has no frame, and showing it mounts one fresh), then "Zavřít",
+     "Zavřít ostatní" and "Zavřít vpravo". A Nová karta offers the three closes alone. In
+     English: "Open in a new tab", "Reload", "Close", "Close others", "Close to the right".
+     A close with nothing to close is disabled, and so are the first two where the tab has
+     no view the panel may frame.
+   - **The closes work as × does.** Every Nová karta among the entries goes, and the
+     Launchpad lets go of its hold on every tab among them, one release each, all at once.
+     "Zavřít" on the strip's last entry is the person's × there: the strip is left empty and
+     the panel closes. "Zavřít ostatní" and "Zavřít vpravo" keep the entry they were chosen
+     on, so they never close the panel; when what the panel showed goes, the entry after it
+     that stays takes its place, else the nearest one before it.
+   - **One command, one Vrátit.** The toast says what happens to the tabs the command let go
+     of, one tab in this point's words, several as all closing, all staying or some of each,
+     and its Vrátit holds them all again, each back in its place and the one shown shown
+     again, within 8 s of the first release request. A command that ends no tab while the
+     Vrátit of one that ends is offered leaves that Vrátit and says its own line above it,
+     so the tab that ends is not lost; until now a later × always took the Vrátit's place.
+     A later message still never takes Vrátit away (the review of #27).
+   - **The keyboard.** The arrows, Home and End move between the commands, Enter and Space
+     run one; Escape closes only the menu and gives the focus back to the entry, Tab closes
+     it and moves on from the entry, and a press elsewhere closes it.
+   - **The frame's sandbox gains `allow-popups-to-escape-sandbox`.** Without it, a tab the
+     view opens, its own "Otevřít samostatně" above all, inherits the frame's sandbox: a
+     sandboxed tab of the person's browser instead of an ordinary one. Nová karta's frame has
+     the flag for the same reason (`newTabFrameSandbox`). It loosens nothing toward the
+     Launchpad: the frame keeps its sandbox and still cannot navigate the Launchpad, and what
+     it opens is a tab of its own on the view's origin. T3 Code's panel frames the view with
+     its own attributes (F50's C15, as read on 2026-10-12) and follows in its repository.
+   - **A tab the panel may not frame** says so in one sentence, which no longer points to the
+     strip's link.
+   - **Where it is.** The menu's model and one command's Vrátit in `browser-panel-view.ts`
+     (`tabMenu`, `closedBy`, `letGoUndo`, `releaseFailure`, `restoreFailure`), the undo
+     model in `new-tab-view.ts` (`PendingUndo` with every tab of a command, `replacesUndo`),
+     the DOM in `browser-panel.ts` and `index.html`; `tests/browser-panel-view.test.ts` and
+     `tests/new-tab-view.test.ts`. How the menu looks and moves is checked in a browser (root
+     decision 0178).
 10. **T3 Code** (plan DEV-6646 task 2026-10-11-501): "+" opens a tab with `<lazurio-new-tab>`
     instead of the upstream menu. A page or a chosen tab turns it into the thread's tab, a tool
     into T3 Code's own surface. Its server keeps the threads' browser tabs and writes their
