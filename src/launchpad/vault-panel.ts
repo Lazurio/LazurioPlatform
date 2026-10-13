@@ -32,8 +32,9 @@ export function createVaultPanel(
     copy: () => Copy;
     /** The vault's state changed: the tools section draws again. */
     changed: () => void;
-    /** A setup this page followed ended connected: the agents' switch turns
-     * on, as after a sign-in completed in this Launchpad session. */
+    /** A setup this page followed ended connected: the page reads the
+     * Folder again (the setup in which the vault became ready turned the
+     * agents' switch on there, decision F52). */
     connected: () => void;
   }>,
 ) {

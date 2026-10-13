@@ -2049,8 +2049,10 @@ controls are "Otevřít trezor" once connected, a link in a new tab to
 vault on: "Nastavit" when nothing set it up yet and "Zkusit znovu" after a setup that
 stopped or a vault that did not answer. A vault the network has not allowed or has
 revoked, and a 0197 pilot, offer none; there is no dialog, no details section and no
-disconnect. A setup this page followed that ends connected turns the agents' switch on,
-as after a curated sign-in. The state is accepted only in its exact form
+disconnect. The setup in which the vault becomes ready turns the agents' switch on in the
+Folder itself, once per vault (decision F52), so a person who turns it off keeps it off;
+the page never turns it on, and after a setup it followed that ends connected it reads
+the Folder again to show it. The state is accepted only in its exact form
 (`src/launchpad/vault-view.ts`, `tests/vault-view.test.ts`); the DOM is
 `src/launchpad/vault-panel.ts`.
 

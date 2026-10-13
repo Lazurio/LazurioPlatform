@@ -98,7 +98,7 @@ import { toolsUpdate } from "../tools/update";
 import { embeddedIdentity } from "../update/identity";
 import { runProcess } from "../update/self-check";
 import type { VaultHost } from "../vault/flow";
-import { processVaultHost } from "../vault/host";
+import { enableVaultForAgents, processVaultHost } from "../vault/host";
 import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, withBoot } from "./boot-document";
 import { createChatPromptCheck, issueChatLink, publicEntry } from "./chat";
@@ -572,11 +572,19 @@ export async function startLaunchpad(
           journal: vaultJournal,
         })
       : undefined;
+  // The setup in which the vault becomes ready turns the agents' switch on
+  // in this Launchpad's Folder (decision F52): the default host does so
+  // already, a given one gets it here.
   const vault = createVaultRoutes({
     host: () =>
       vaultHost === undefined
         ? (defaultVault as VaultHost)
-        : { ...vaultHost, journal: vaultHost.journal ?? vaultJournal },
+        : {
+            ...vaultHost,
+            journal: vaultHost.journal ?? vaultJournal,
+            enableForAgents:
+              vaultHost.enableForAgents ?? (() => enableVaultForAgents(folder)),
+          },
     // A closing Launchpad starts no setup (`start` asks it last).
     closing: () => closing,
   });

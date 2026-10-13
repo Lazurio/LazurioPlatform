@@ -117,6 +117,11 @@ export type VaultHost = Readonly<{
   download?: InstallFetch | undefined;
   pin?: BitwardenPin | undefined;
   journal?: ((entry: VaultJournalEntry) => void) | undefined;
+  /** "Používají agenti" on for the vault (decision F52): called once per
+   * vault, after the setup in which it became ready (its collection Agenti
+   * recorded), and never by a later setup, so a person who turns the switch
+   * off keeps it off. A failure is journaled and is never the setup's. */
+  enableForAgents?: (() => Promise<void>) | undefined;
   now?: (() => Date) | undefined;
   /** How long a mutation waits for another one (default 10 s; setup, which
    * may download the CLI, waits longer). */
@@ -436,7 +441,7 @@ async function ensureVault(
   facts: VaultFacts,
   paths: VaultPaths,
   account: ReadyAccount,
-): Promise<Step<Recorded>> {
+): Promise<Step<Recorded & Readonly<{ becameReady: boolean }>>> {
   let record: VaultRecord;
   try {
     record = await readRecord(paths);
@@ -468,11 +473,16 @@ async function ensureVault(
       };
     if (own.created) host.journal?.({ operation: "vault", outcome: "created" });
     if (own.renamed) host.journal?.({ operation: "vault", outcome: "renamed" });
+    // Ready from now on: this run recorded its collection Agenti, which
+    // happens once per vault.
+    const becameReady = record.collectionId === null;
+    if (becameReady) host.journal?.({ operation: "vault", outcome: "ready" });
     return {
       kind: "ready",
       value: {
         organizationId: own.organizationId,
         collectionId: own.collectionId,
+        becameReady,
       },
     };
   } catch (error) {
@@ -511,6 +521,19 @@ async function signIn(
   return login.ok ? { ok: true } : login;
 }
 
+/** The vault became ready in this setup: "Používají agenti" on for it, by
+ * the composition (decision F52), after the account's lock is released. Best
+ * effort: a failure is journaled and is never the setup's, and the switch
+ * stays where it is for a person to turn. */
+async function turnAgentsOn(host: VaultHost): Promise<void> {
+  if (host.enableForAgents === undefined) return;
+  try {
+    await host.enableForAgents();
+  } catch {
+    host.journal?.({ operation: "vault", outcome: "agents-not-enabled" });
+  }
+}
+
 const unreachableOr = (
   facts: VaultFacts,
   stage: VaultFailureStage,
@@ -525,8 +548,9 @@ const unreachableOr = (
  * when the handover's name changed), signs bw in with the API key, unlocks
  * the one session and syncs. Idempotent: a vault that is set up is checked,
  * renamed when needed, unlocked and synced again. Never runs twice at once.
- * A 0197 pilot is only read: no Environment is connected the old way any
- * more. */
+ * The setup in which the vault becomes ready turns the agents' switch on
+ * (`enableForAgents`); no later one does. A 0197 pilot is only read: no
+ * Environment is connected the old way any more. */
 export async function vaultSetup(
   host: VaultHost,
   onPhase: (phase: VaultPhase) => void = () => undefined,
@@ -545,7 +569,8 @@ export async function vaultSetup(
     return status;
   };
   await ensureVaultDirectories(paths);
-  return withLock(
+  const ready = { became: false };
+  const status = await withLock(
     paths,
     host.lockMs ?? setupLockMs,
     () => journal(failedStatus(facts, "install", "busy")),
@@ -581,6 +606,7 @@ export async function vaultSetup(
         account.value,
       );
       if (vault.kind === "status") return journal(vault.status);
+      ready.became = vault.value.becameReady;
       onPhase("sign-in");
       const bw = cliOf(host, paths);
       const signedIn = await signIn(bw, account.value);
@@ -602,6 +628,8 @@ export async function vaultSetup(
       return journal(statusOf(facts, vault.value, observation));
     },
   );
+  if (ready.became) await turnAgentsOn(host);
+  return status;
 }
 
 /** `refresh`: a sync with the vault, a new unlock when the session is no

@@ -102,9 +102,11 @@ export function createToolsPanel(
   const loginBody = find<HTMLDivElement>("#tools-login-body");
   const loginClose = find<HTMLButtonElement>("#tools-login-close");
   // The Environment's own vault (decision F52): its own state, read beside
-  // the tools; the Environment sets it up itself, and a setup this page
-  // followed that ends connected turns the agents' switch on, as a completed
-  // sign-in does.
+  // the tools; the Environment sets it up itself, and the setup in which the
+  // vault becomes ready turns the agents' switch on in the Folder, once per
+  // vault (never this page, so a person's "off" stays). A setup this page
+  // followed that ends connected may have changed the Folder: the whole page
+  // reads it again.
   const vault = createVaultPanel({
     post: options.post,
     copy: options.copy,
@@ -112,13 +114,7 @@ export function createToolsPanel(
     connected: () => {
       // The setup is the next act on the row: the notice before it ends.
       endNotice(vaultToolName);
-      void refresh().then(() => {
-        const tool = overview?.tools.find(
-          (entry) => entry.name === vaultToolName,
-        );
-        if (tool !== undefined && tool.tier !== "required" && !tool.enabled)
-          void toggle(tool, true);
-      });
+      void reloadPage();
     },
   });
 
