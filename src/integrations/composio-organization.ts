@@ -3,6 +3,7 @@ import { withFolderReadLock } from "../folder/lock";
 import type { MachineBinding } from "../folder/machine-binding";
 import { readFolderState } from "../folder/read-state";
 import { readFolderCatalog } from "../organizations/catalog";
+import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import {
   type ComposioOrganization,
   parseComposioOrganizations,
@@ -99,18 +100,26 @@ export function composioOrganizationVerdict(
 /** The rule of an Environment: the name of the Organization that owns it
  * (its Machine binding's Organization, named as the Organization's manifest
  * names it); `unverified` where an Organization owns it but its name cannot
- * be read; the person's choice where no Organization owns it. */
+ * be read; the person's choice where no Organization owns it.
+ *
+ * The owning Organization is the one Organization settings select (F45):
+ * `selectCatalogOrganization` with the handover's owner, its manifest slug
+ * compared whatever the case (the handover names `example`, a manifest keeps
+ * `Example`), else its directory name. Composio and the Organization's
+ * settings, which say whether Composio is allowed there, so never disagree on
+ * the owner. Missing or ambiguous: `unverified`. */
 export async function composioOrganizationRule(
   folder: string,
   machine: MachineBinding | null,
 ): Promise<ComposioOrganizationRule> {
   if (machine?.owner.kind !== "organization") return { kind: "chosen" };
-  const slug = machine.owner.organization;
   try {
-    const catalog = await readFolderCatalog(folder);
-    const name = catalog.organizations.find(
-      (organization) => organization.organization === slug,
-    )?.displayName;
+    const selection = selectCatalogOrganization(
+      await readFolderCatalog(folder),
+      machine.owner.organization,
+    );
+    const name =
+      selection.kind === "found" ? selection.organization.displayName : null;
     return typeof name === "string" && organizationKey(name) !== ""
       ? { kind: "named", name }
       : { kind: "unverified" };
