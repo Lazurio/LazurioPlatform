@@ -35,6 +35,7 @@ import {
   browserViewDocumentPath as serverDocumentPath,
   browserViewPath as serverHandOverPath,
 } from "../src/launchpad/server";
+import { newTabFrameSandbox } from "../src/shell/new-tab-element";
 import { bindings } from "./fixtures/machine-bindings";
 
 const cs = newTabCopy("cs");
@@ -182,13 +183,27 @@ test("the panel and the server name the same two routes, and a tab's frame keeps
   expect(browserViewDocumentPath).toBe(serverDocumentPath);
   expect(browserHandOverPath).toBe(serverHandOverPath);
   // The sandbox of T3 Code's panel (Lazurio/t3code#41): the view keeps its
-  // own origin, cookie and scripts, and cannot navigate this page.
+  // own origin, cookie and scripts, and cannot navigate this page. Since
+  // 2026-10-13 a tab the view opens escapes it, as a tab opened from Nová
+  // karta's frame does: the view's own "Otevřít samostatně" is an ordinary
+  // tab of the person's browser, not a sandboxed one.
   expect(browserFrame).toEqual({
     allow: "clipboard-read; clipboard-write; fullscreen",
     referrerpolicy: "no-referrer",
     sandbox:
-      "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals",
+      "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals",
   });
+  expect(newTabFrameSandbox.split(" ")).toContain(
+    "allow-popups-to-escape-sandbox",
+  );
+  // Nothing that would let the view navigate the Launchpad or run outside
+  // its own origin's rules comes with it.
+  for (const token of [
+    "allow-top-navigation",
+    "allow-top-navigation-by-user-activation",
+    "allow-top-navigation-to-custom-protocols",
+  ])
+    expect(browserFrame.sandbox.split(" ")).not.toContain(token);
   expect(stripEveryMs).toBe(5_000);
 });
 
