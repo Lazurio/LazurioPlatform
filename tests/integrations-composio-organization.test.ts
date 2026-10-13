@@ -18,6 +18,8 @@ import {
 } from "../src/launchpad/integrations-view";
 import { messages } from "../src/launchpad/messages";
 import { organizationRule } from "../src/launchpad/tools-view";
+import { readFolderCatalog } from "../src/organizations/catalog";
+import { selectCatalogOrganization } from "../src/organizations/catalog-selection";
 import { embeddedIdentity } from "../src/update/identity";
 import { writeOrganization } from "./fixtures/catalog-folder";
 import {
@@ -141,10 +143,24 @@ test("the rule: an Organization's Environment by its Organization's name, unveri
 });
 
 // The Machine handover names the owner by its lowercased GitHub login; a
-// manifest's slug and login keep their capitals (a real Environment of rc.65:
-// owner `example`, slug and login `Example`). Found whatever the case, by
-// login or slug; two Organizations answering the owner: unverified.
-test("the rule finds the owning Organization by its GitHub login or slug, whatever the case", async () => {
+// manifest keeps its capitals (a real Environment of rc.65: owner `example`,
+// slug and login `Example`). The owner is the Organization that Organization
+// settings select (F45, `selectCatalogOrganization`): by its slug whatever the
+// case, else by its directory; a GitHub login alone selects nothing (Pablo's
+// review of #398), and two slugs answering the owner select nothing either.
+test("the rule takes the owning Organization that Organization settings select (F45), whatever the case", async () => {
+  const owner = bindings.organization.owner;
+  if (owner.kind !== "organization") throw new Error("organization binding");
+  const agree = async (folder: string) => {
+    const selection = selectCatalogOrganization(
+      await readFolderCatalog(folder),
+      owner.organization,
+    );
+    const rule = await composioOrganizationRule(folder, bindings.organization);
+    expect(rule.kind === "named").toBe(selection.kind === "found");
+    return rule;
+  };
+
   const capitals = join(await parent(), "Lazurio");
   await mkdir(capitals, { recursive: true, mode: 0o700 });
   await writeOrganization(capitals, "Example_GEN3", {
@@ -153,10 +169,10 @@ test("the rule finds the owning Organization by its GitHub login or slug, whatev
     modules: [],
     displayName: "Example",
   });
-  expect(
-    await composioOrganizationRule(capitals, bindings.organization),
-  ).toEqual({ kind: "named", name: "Example" });
+  expect(await agree(capitals)).toEqual({ kind: "named", name: "Example" });
 
+  // Only the GitHub login answers the owner: F45 reads no settings
+  // (organization-absent), so Composio counts nothing either.
   const byLogin = join(await parent(), "Lazurio");
   await mkdir(byLogin, { recursive: true, mode: 0o700 });
   await writeOrganization(byLogin, "Corp", {
@@ -166,20 +182,21 @@ test("the rule finds the owning Organization by its GitHub login or slug, whatev
     modules: [],
     displayName: "Example Corp",
   });
-  expect(
-    await composioOrganizationRule(byLogin, bindings.organization),
-  ).toEqual({ kind: "named", name: "Example Corp" });
+  expect(await agree(byLogin)).toEqual({ kind: "unverified" });
 
-  await writeOrganization(byLogin, "Other", {
-    slug: "example",
-    forge: "elsewhere",
-    state: "current",
-    modules: [],
-    displayName: "Other",
-  });
-  expect(
-    await composioOrganizationRule(byLogin, bindings.organization),
-  ).toEqual({ kind: "unverified" });
+  const twice = join(await parent(), "Lazurio");
+  await mkdir(twice, { recursive: true, mode: 0o700 });
+  for (const [directory, slug] of [
+    ["One", "Example"],
+    ["Two", "example"],
+  ] as const)
+    await writeOrganization(twice, directory, {
+      slug,
+      state: "current",
+      modules: [],
+      displayName: directory,
+    });
+  expect(await agree(twice)).toEqual({ kind: "unverified" });
 });
 
 const gmail = {

@@ -3,6 +3,7 @@ import { withFolderReadLock } from "../folder/lock";
 import type { MachineBinding } from "../folder/machine-binding";
 import { readFolderState } from "../folder/read-state";
 import { readFolderCatalog } from "../organizations/catalog";
+import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import {
   type ComposioOrganization,
   parseComposioOrganizations,
@@ -101,25 +102,24 @@ export function composioOrganizationVerdict(
  * names it); `unverified` where an Organization owns it but its name cannot
  * be read; the person's choice where no Organization owns it.
  *
- * The Machine handover names the owner by its lowercased GitHub login
- * (`example`), the Folder an Organization by its manifest's slug and GitHub
- * login (`Example`): the owner is the one Organization of the Folder whose
- * GitHub login or slug it is, whatever the case, as the shell finds it
- * (`shell-document.ts`). None, or more than one: `unverified`. */
+ * The owning Organization is the one Organization settings select (F45):
+ * `selectCatalogOrganization` with the handover's owner, its manifest slug
+ * compared whatever the case (the handover names `example`, a manifest keeps
+ * `Example`), else its directory name. Composio and the Organization's
+ * settings, which say whether Composio is allowed there, so never disagree on
+ * the owner. Missing or ambiguous: `unverified`. */
 export async function composioOrganizationRule(
   folder: string,
   machine: MachineBinding | null,
 ): Promise<ComposioOrganizationRule> {
   if (machine?.owner.kind !== "organization") return { kind: "chosen" };
-  const owner = machine.owner.organization.toLowerCase();
   try {
-    const catalog = await readFolderCatalog(folder);
-    const owning = catalog.organizations.filter(
-      (organization) =>
-        organization.forgeLogin?.toLowerCase() === owner ||
-        organization.organization?.toLowerCase() === owner,
+    const selection = selectCatalogOrganization(
+      await readFolderCatalog(folder),
+      machine.owner.organization,
     );
-    const name = owning.length === 1 ? owning[0]?.displayName : undefined;
+    const name =
+      selection.kind === "found" ? selection.organization.displayName : null;
     return typeof name === "string" && organizationKey(name) !== ""
       ? { kind: "named", name }
       : { kind: "unverified" };
