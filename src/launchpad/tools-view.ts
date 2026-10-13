@@ -1410,6 +1410,8 @@ export type OrganizationRuleView =
       name: string;
       state: "matches" | "missing" | "ambiguous" | "elsewhere";
     }>
+  /** An Organization owns the Environment, but its name cannot be read. */
+  | Readonly<{ kind: "unverified" }>
   | Readonly<{ kind: "chosen"; personal: boolean }>;
 
 export function organizationRule(input: unknown): OrganizationRuleView {
@@ -1420,6 +1422,7 @@ export function organizationRule(input: unknown): OrganizationRuleView {
   const organization = value.organization;
   if (organization && typeof organization === "object") {
     const { name, state } = organization as Record<string, unknown>;
+    if (state === "unverified" && name === null) return { kind: "unverified" };
     if (
       text(name) &&
       (state === "matches" ||

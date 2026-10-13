@@ -740,6 +740,21 @@ export function createToolsPanel(
     // its Organization's name, which the Launchpad made current; the person
     // chooses elsewhere (decision F42, addendum of 2026-10-13).
     const rule = organizationRule(value);
+    if (rule.kind === "unverified") {
+      const again = element("button", "", copy.toolsComposioOrgCheckAgain);
+      again.type = "button";
+      again.addEventListener("click", () => {
+        box.remove();
+        void organizations();
+      });
+      const actions = element("p", "tool-actions");
+      actions.append(again);
+      box.replaceChildren(
+        element("p", "", copy.toolsComposioOrgUnverified),
+        actions,
+      );
+      return;
+    }
     if (rule.kind === "named") {
       const parts: HTMLElement[] = [
         element(

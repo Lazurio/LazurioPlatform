@@ -157,6 +157,10 @@ if (command === "orgs" && sub === "list") {
 
 if (command === "orgs" && sub === "switch") {
   requireAuth();
+  if (state.switchFails === true) {
+    log("Failed to switch the organization.");
+    end(1);
+  }
   const id = option("--org-id");
   const organization = (state.organizations ?? []).find(
     (entry) => entry.id === id,

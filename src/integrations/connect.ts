@@ -791,11 +791,14 @@ export function createConnectSessions(host: () => ConnectHost) {
     }
   }
 
-  /** Whether Composio may write here: in the organization of this
-   * Environment's Organization's name, made current where another one is,
-   * asked live before every link and removal. The page's reading may be a
-   * minute old, and the CLI's choice may have changed since (Pablo's review
-   * of #372). Where the person chooses, always. */
+  /** Whether Composio may write here, asked live before every link and
+   * removal: the page's reading may be a minute old, and the CLI's choice
+   * may have changed since (Pablo's review of #372). In the organization of
+   * this Environment's Organization's name, made current where another one
+   * is; in the person's current one where the account has none of that name
+   * or more than one (the Operator's decision of 2026-10-13: a notice,
+   * nothing breaks); never elsewhere while it exists, and never where the
+   * Organization's name cannot be read. Where the person chooses, always. */
   async function inOwnOrganization(
     composio: NonNullable<Awaited<ReturnType<ConnectHost["composio"]>>>,
   ): Promise<boolean> {
@@ -803,13 +806,14 @@ export function createConnectSessions(host: () => ConnectHost) {
       kind: "chosen",
     };
     if (rule.kind === "chosen") return true;
+    if (rule.kind === "unverified") return false;
     const converged = await convergeComposioOrganization(
       composio.env,
       composio.command,
       rule,
       (entry) => host().journal?.(entry),
     );
-    return converged?.verdict.kind === "matches";
+    return converged !== null && converged.verdict.kind !== "elsewhere";
   }
 
   async function connectComposio(

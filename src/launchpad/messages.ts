@@ -413,12 +413,14 @@ const en = {
   toolsComposioOrgMatches:
     "This Environment uses your Composio organization “{name}”, named as its Organization is.",
   toolsComposioOrgMissing:
-    "Your Composio account has no organization named “{name}”, as this Environment's Organization is. Create it in Composio, for yourself alone, then click Check again.",
+    "Your Composio account has no organization named “{name}”, as this Environment's Organization is. Until you create it, this Environment connects in the organization you have selected. Create it in Composio, for yourself alone, then click Check again.",
   toolsComposioOrgAmbiguous:
-    "Your Composio account has more than one organization named “{name}”. Keep one, then click Check again.",
+    "Your Composio account has more than one organization named “{name}”. Until only one is left, this Environment connects in the organization you have selected. Keep one, then click Check again.",
   toolsComposioOrgElsewhere:
     "Composio could not be switched to your organization “{name}”. Click Check again.",
   toolsComposioOrgCheckAgain: "Check again",
+  toolsComposioOrgUnverified:
+    "The name of this Environment's Organization cannot be read, so its Composio organization cannot be checked. Click Check again; if that does not help, ask the agent in Chat to check this Environment's Folder.",
   toolsComposioOrgPersonal:
     "On a personal Environment, choose your default organization, the one Composio made when you signed up.",
   toolsPromptTitle: "Connect {name} with an agent",
@@ -1122,11 +1124,13 @@ const en = {
   integrationsComposioUnreadable:
     "The connections through Composio could not be read.",
   integrationsComposioOrganizationMissing:
-    "Your Composio account has no organization named “{name}”. This Environment belongs to the Organization {name}, so it connects through Composio only in your own organization of the same name. Create it in Composio, then click Check connections.",
+    "Your Composio account has no organization named “{name}”. This Environment belongs to the Organization {name} and should connect through Composio in your own organization of the same name; until you create it, it connects in the organization you have selected. Create it in Composio, then click Check connections.",
   integrationsComposioOrganizationAmbiguous:
-    "Your Composio account has more than one organization named “{name}”. Keep one, then click Check connections.",
+    "Your Composio account has more than one organization named “{name}”. Until only one is left, this Environment connects in the organization you have selected. Keep one, then click Check connections.",
   integrationsComposioOrganizationElsewhere:
-    "Composio could not be switched to your organization “{name}”. Click Check connections to try again.",
+    "Composio could not be switched to your organization “{name}”, so nothing connects through it now. Click Check connections to try again.",
+  integrationsComposioOrganizationUnverified:
+    "The name of this Environment's Organization cannot be read, so its Composio organization cannot be checked and nothing connects through Composio now. Click Check connections; if that does not help, ask the agent in Chat to check this Environment's Folder.",
   integrationsComposioOpen: "Open Composio",
   integrationsComposioOrganizationChanged:
     "Composio does not work in this Environment's organization now. Click Check connections.",
@@ -1793,12 +1797,14 @@ const cs: Record<MessageKey, string> = {
   toolsComposioOrgMatches:
     "Tento Environment používá vaši organizaci v Composiu „{name}“, pojmenovanou stejně jako jeho Organizace.",
   toolsComposioOrgMissing:
-    "Ve vašem účtu Composia chybí organizace „{name}“, pojmenovaná jako Organizace tohoto Environmentu. Založte ji v Composiu jen pro sebe a klikněte na Zkontrolovat znovu.",
+    "Ve vašem účtu Composia chybí organizace „{name}“, pojmenovaná jako Organizace tohoto Environmentu. Dokud ji nezaložíte, připojuje se tento Environment v organizaci, kterou máte vybranou. Založte ji v Composiu jen pro sebe a klikněte na Zkontrolovat znovu.",
   toolsComposioOrgAmbiguous:
-    "Ve vašem účtu Composia je víc organizací se jménem „{name}“. Nechte jen jednu a klikněte na Zkontrolovat znovu.",
+    "Ve vašem účtu Composia je víc organizací se jménem „{name}“. Dokud nezůstane jen jedna, připojuje se tento Environment v organizaci, kterou máte vybranou. Nechte jen jednu a klikněte na Zkontrolovat znovu.",
   toolsComposioOrgElsewhere:
     "Composio se nepodařilo přepnout do vaší organizace „{name}“. Klikněte na Zkontrolovat znovu.",
   toolsComposioOrgCheckAgain: "Zkontrolovat znovu",
+  toolsComposioOrgUnverified:
+    "Jméno Organizace tohoto Environmentu se nepodařilo přečíst, a tak nejde ověřit jeho organizaci v Composiu. Klikněte na Zkontrolovat znovu; když to nepomůže, požádejte agenta v Chatu, ať zkontroluje Folder tohoto Environmentu.",
   toolsComposioOrgPersonal:
     "Na osobním Environmentu vyberte svou výchozí organizaci, tu, kterou Composio založilo při vaší registraci.",
   toolsPromptTitle: "Připojit {name} s pomocí agenta",
@@ -2498,11 +2504,13 @@ const cs: Record<MessageKey, string> = {
   integrationsComposioUnreadable:
     "Připojení přes Composio se nepodařilo načíst.",
   integrationsComposioOrganizationMissing:
-    "Ve vašem účtu Composia chybí organizace „{name}“. Tento Environment patří Organizaci {name}, a tak se přes Composio připojuje jen ve vaší vlastní organizaci stejného jména. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
+    "Ve vašem účtu Composia chybí organizace „{name}“. Tento Environment patří Organizaci {name} a má se přes Composio připojovat ve vaší vlastní organizaci stejného jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
   integrationsComposioOrganizationAmbiguous:
-    "Ve vašem účtu Composia je víc organizací se jménem „{name}“. Nechte jen jednu a klikněte na Zkontrolovat připojení.",
+    "Ve vašem účtu Composia je víc organizací se jménem „{name}“. Dokud nezůstane jen jedna, připojuje se tento Environment v organizaci, kterou máte vybranou. Nechte jen jednu a klikněte na Zkontrolovat připojení.",
   integrationsComposioOrganizationElsewhere:
-    "Composio se nepodařilo přepnout do vaší organizace „{name}“. Klikněte na Zkontrolovat připojení a zkuste to znovu.",
+    "Composio se nepodařilo přepnout do vaší organizace „{name}“, a tak se přes něj teď nic nepřipojí. Klikněte na Zkontrolovat připojení a zkuste to znovu.",
+  integrationsComposioOrganizationUnverified:
+    "Jméno Organizace tohoto Environmentu se nepodařilo přečíst, a tak nejde ověřit jeho organizaci v Composiu a přes Composio se teď nic nepřipojí. Klikněte na Zkontrolovat připojení; když to nepomůže, požádejte agenta v Chatu, ať zkontroluje Folder tohoto Environmentu.",
   integrationsComposioOpen: "Otevřít Composio",
   integrationsComposioOrganizationChanged:
     "Composio teď nepracuje v organizaci tohoto Environmentu. Klikněte na Zkontrolovat připojení.",

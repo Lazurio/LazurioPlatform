@@ -161,6 +161,16 @@ async function readComposioSource(
   const rule =
     host.composioOrganization ??
     (await composioOrganizationRule(host.folder, machine));
+  // Nothing of Composio counts where its organization cannot be told: an
+  // Organization's name that cannot be read (Pablo's review of #372), or an
+  // organization of that name that could not be made current.
+  const closed = (state: "unverified" | "elsewhere", name: string | null) => ({
+    composio: { state: "organization" } as const,
+    disconnect: false,
+    organization,
+    target: Object.freeze({ name, state }),
+  });
+  if (rule.kind === "unverified") return closed("unverified", null);
   if (rule.kind === "named") {
     const converged = await convergeComposioOrganization(
       host.tools,
@@ -170,17 +180,12 @@ async function readComposioSource(
     );
     if (converged === null) return only({ state: "unreadable" });
     const { verdict } = converged;
+    if (verdict.kind === "elsewhere") return closed("elsewhere", rule.name);
     target = Object.freeze({ name: rule.name, state: verdict.kind });
-    // Accounts of another organization are not this Environment's: none
-    // are listed, and nothing connects through Composio until it matches.
-    if (verdict.kind !== "matches")
-      return {
-        composio: { state: "organization" },
-        disconnect: false,
-        organization,
-        target,
-      };
-    organization = verdict.organization.name;
+    // Missing or there more than once: the person's current organization,
+    // with a notice (the Operator's decision of 2026-10-13: nothing breaks
+    // for people who already connect through Composio).
+    if (verdict.kind === "matches") organization = verdict.organization.name;
   }
   const [reading, disconnect] = await Promise.all([
     readComposioAccounts(host.tools, command),

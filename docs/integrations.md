@@ -337,8 +337,9 @@ when they signed up.
 - **The rule** (`composioOrganizationRule`): an Environment whose Machine binding
   names an owning Organization works in the organization of that Organization's
   display name (`organization.display_name` of its manifest, as the Folder's
-  catalog reads it). Any other Environment, a personal one or a computer, works
-  in the organization the person chose; the sign-in dialog advises a personal
+  catalog reads it); `unverified` where that name cannot be read, never the
+  person's choice. Any other Environment, a personal one or a computer, works in
+  the organization the person chose; the sign-in dialog advises a personal
   Environment to choose the default one. A name matches whatever its case, its
   spaces and its diacritics (`organizationKey`: "Human and Machine" is
   `humanandmachine`); punctuation counts.
@@ -352,14 +353,21 @@ when they signed up.
   with `orgs switch`, journaled as `composio-organization` with its outcome and
   nothing else (`lazurio integrations list` writes the line on stderr). Every
   link and every removal asks it live first (`inOwnOrganization`), never the
-  cached reading, and refuses with `composio-organization` where it does not
-  match then. A person's choice is never changed.
-- **Where it does not match**, the Composio source reads `organization`: none of
-  its accounts is listed (they are another organization's), a connect through
-  Composio is refused (`409 composio-organization`), Apps → Integrace says what
-  to do with a link to Composio's dashboard and the model drawn, and `lazurio
-  integrations list` tells agents. The reading's `composio.organization` is
-  `{name, state}` on an Organization's Environment, null elsewhere.
+  cached reading: it switches back where another organization was chosen, goes
+  to the current one where the account has none of the name or several, and
+  refuses with `composio-organization` where the organization cannot be told. A
+  person's choice is never changed.
+- **Missing or there more than once** (the Operator's decision of 2026-10-13):
+  Composio works in the person's current organization, its accounts count and
+  links and removals go there; Apps → Integrace says what to do with a link to
+  Composio's dashboard and the model drawn, and `lazurio integrations list` tells
+  agents. The next reading after the person created it makes it current.
+- **Where its organization cannot be told** (`unverified`, or an `elsewhere`
+  organization that could not be made current), the Composio source reads
+  `organization`: none of its accounts is listed, and a link or a removal is
+  refused (`409 composio-organization`) with nothing written. The reading's
+  `composio.organization` is `{name, state}` on an Organization's Environment
+  (the name null where it is `unverified`), null elsewhere.
 - **Creating one** is the person's, in Composio's dashboard: neither its CLI nor
   its documented API creates an organization. "Zkontrolovat připojení" finds it
   by name afterwards.

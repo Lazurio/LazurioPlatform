@@ -24,11 +24,17 @@ import { type ComposioEnvironment, runComposio } from "./composio-source";
 // the person. Server only: the page draws what the reading says.
 
 /** What decides an Environment's Composio organization: the name of its
- * Organization, or the person's own choice where it has none. */
+ * Organization, or the person's own choice where it has none. An
+ * Organization's Environment whose Organization's name cannot be read is
+ * `unverified`: nothing is guessed, and Composio does not write there
+ * (Pablo's review of #372). */
 export type ComposioOrganizationRule =
   | Readonly<{ kind: "named"; name: string }>
-  | Readonly<{ kind: "chosen" }>;
+  | Readonly<{ kind: "chosen" }>
+  | Readonly<{ kind: "unverified" }>;
 type NamedRule = Extract<ComposioOrganizationRule, { kind: "named" }>;
+/** A rule that decides: by the name, or by the person. */
+type DecidingRule = Exclude<ComposioOrganizationRule, { kind: "unverified" }>;
 
 /** An Environment's Composio organization as its account's list reads. */
 export type ComposioOrganizationVerdict =
@@ -68,11 +74,11 @@ export function composioOrganizationVerdict(
   organizations: readonly ComposioOrganization[],
 ): NamedVerdict;
 export function composioOrganizationVerdict(
-  rule: ComposioOrganizationRule,
+  rule: DecidingRule,
   organizations: readonly ComposioOrganization[],
 ): ComposioOrganizationVerdict;
 export function composioOrganizationVerdict(
-  rule: ComposioOrganizationRule,
+  rule: DecidingRule,
   organizations: readonly ComposioOrganization[],
 ): ComposioOrganizationVerdict {
   const current =
@@ -92,8 +98,8 @@ export function composioOrganizationVerdict(
 
 /** The rule of an Environment: the name of the Organization that owns it
  * (its Machine binding's Organization, named as the Organization's manifest
- * names it), or the person's choice where no Organization owns it or its
- * name cannot be read. */
+ * names it); `unverified` where an Organization owns it but its name cannot
+ * be read; the person's choice where no Organization owns it. */
 export async function composioOrganizationRule(
   folder: string,
   machine: MachineBinding | null,
@@ -107,9 +113,9 @@ export async function composioOrganizationRule(
     )?.displayName;
     return typeof name === "string" && organizationKey(name) !== ""
       ? { kind: "named", name }
-      : { kind: "chosen" };
+      : { kind: "unverified" };
   } catch {
-    return { kind: "chosen" };
+    return { kind: "unverified" };
   }
 }
 

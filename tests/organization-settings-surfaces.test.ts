@@ -14,6 +14,7 @@ import { integrationsCatalog } from "../src/integrations/catalog";
 import { readIntegrations } from "../src/integrations/read";
 import { runToolsCommand } from "../src/tools/cli";
 import { toolsEnvironmentOf, toolsOverview } from "../src/tools/overview";
+import { writeOrganization } from "./fixtures/catalog-folder";
 import {
   composioCalls,
   integrationsWorld,
@@ -56,7 +57,28 @@ async function environment(
   });
   await updateTools(folder, 1, ["composio"]);
   if (settings !== null) await recordOrganizationSettings(folder, settings);
-  const world = await integrationsWorld(parent);
+  // An Organization's Environment has its Organization's root, and the
+  // person's Composio its organization of the same name (decision F42,
+  // addendum (2) of 2026-10-13).
+  const owned = machine.owner.kind === "organization";
+  if (owned)
+    await writeOrganization(folder, "example", {
+      slug: "example",
+      state: "current",
+      modules: [],
+      displayName: "Example Company",
+    });
+  const world = await integrationsWorld(
+    parent,
+    owned
+      ? {
+          composio: {
+            organization: "Example Company",
+            organizations: [{ id: "org_1", name: "Example Company" }],
+          },
+        }
+      : {},
+  );
   const tools = toolsEnvironmentOf(
     { PATH: world.path, HOME: world.home },
     process.platform,
@@ -137,7 +159,7 @@ for (const [name, settings, source] of [
           source,
           ready: true,
           disconnect: false,
-          organization: null,
+          organization: { name: "Example Company", state: "matches" },
         });
         if (composioOnly === undefined)
           throw new Error("The catalog has an app only Composio connects");

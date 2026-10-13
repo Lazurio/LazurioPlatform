@@ -1514,6 +1514,19 @@ export async function startLaunchpad(
                 // By advice the account's default organization.
                 personal: preferences.preset.name === "hosted-personal",
               });
+            // An Organization's name that cannot be read is said, never
+            // guessed, and nothing is switched.
+            if (rule.kind === "unverified") {
+              const listed = await logins.composioOrganizations();
+              return response(
+                listed.kind === "composio-organizations"
+                  ? {
+                      ...listed,
+                      organization: { name: null, state: "unverified" },
+                    }
+                  : listed,
+              );
+            }
             const command = await resolveOnPath(
               "composio",
               toolsEnvironment.path,

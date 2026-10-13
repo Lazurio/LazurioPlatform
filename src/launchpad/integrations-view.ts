@@ -53,11 +53,13 @@ const organizationStates = new Set([
   "elsewhere",
 ]);
 
-/** The Composio organization of the reading: null, or its name and state. */
+/** The Composio organization of the reading: null, or its name and state;
+ * the name null only where the Organization's name cannot be read. */
 function isTarget(value: unknown): boolean {
   if (value === null) return true;
   if (typeof value !== "object") return false;
   const target = value as Record<string, unknown>;
+  if (target.state === "unverified") return target.name === null;
   return (
     typeof target.name === "string" &&
     target.name !== "" &&
@@ -481,26 +483,27 @@ export function sourceLines(
   return lines;
 }
 
-/** What the page says where Composio works in no organization of this
- * Environment's Organization's name (decision F42, addendum of 2026-10-13):
- * the organization is missing, there more than once, or not made current;
- * null where nothing is to say. */
+/** What the page says where Composio does not work in the organization of
+ * this Environment's Organization's name (decision F42, addendum (2) of
+ * 2026-10-13): missing or there more than once, while Composio works in the
+ * person's current organization; not made current, or the Organization's
+ * name unreadable, while nothing of it counts. Null where nothing is to
+ * say. */
 export function composioOrganizationLine(
   overview: IntegrationsOverview,
   copy: Copy,
 ): string | null {
   const target = overview.composio.organization;
-  if (overview.sources.composio !== "organization" || target === null)
-    return null;
+  if (target === null || target.state === "matches") return null;
+  if (target.state === "unverified" || target.name === null)
+    return copy.integrationsComposioOrganizationUnverified;
   const key =
     target.state === "missing"
       ? "integrationsComposioOrganizationMissing"
       : target.state === "ambiguous"
         ? "integrationsComposioOrganizationAmbiguous"
-        : target.state === "elsewhere"
-          ? "integrationsComposioOrganizationElsewhere"
-          : null;
-  return key === null ? null : fill(copy[key], { name: target.name });
+        : "integrationsComposioOrganizationElsewhere";
+  return fill(copy[key], { name: target.name });
 }
 
 /** "Připojeno · 5 nástrojů", "Nepodařilo se spustit", "Spouštím…". */

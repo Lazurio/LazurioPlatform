@@ -115,12 +115,13 @@ test("the verdict over the account's organizations", () => {
   });
 });
 
-test("the rule: an Organization's Environment by its Organization's name, anything else chosen", async () => {
+test("the rule: an Organization's Environment by its Organization's name, unverified where it cannot be read, anything else chosen", async () => {
   const folder = join(await parent(), "Lazurio");
   await mkdir(folder, { recursive: true, mode: 0o700 });
-  // No Organization of that slug in the Folder: chosen, never a guess.
+  // No Organization of that slug in the Folder: unverified, never the
+  // person's choice and never a guess (Pablo's review of #372).
   expect(await composioOrganizationRule(folder, bindings.organization)).toEqual(
-    { kind: "chosen" },
+    { kind: "unverified" },
   );
   await writeOrganization(folder, "example", {
     slug: "example",
@@ -149,7 +150,7 @@ const gmail = {
 
 async function launchpad(
   composio: Partial<FakeComposioState>,
-  rule: { kind: "named"; name: string } | null,
+  rule: { kind: "named"; name: string } | { kind: "unverified" } | null,
 ) {
   const directory = await parent();
   const world = await integrationsWorld(directory, {
@@ -218,7 +219,7 @@ test("an Organization's Environment is made current in the organization of its O
   }
 });
 
-test("an account without the organization: nothing of Composio counts, connecting through it is refused, and the page and agents say why", async () => {
+test("an account without the organization: Composio works in the person's current one, with a notice for the person and the agents (the Operator's decision)", async () => {
   const { world, app, read } = await launchpad(
     {
       organization: "jana_workspace",
@@ -227,39 +228,44 @@ test("an account without the organization: nothing of Composio counts, connectin
     { kind: "named", name: "Příklad" },
   );
   const overview = await read();
-  expect(overview.sources.composio).toBe("organization");
+  expect(overview.sources.composio).toBe("ok");
   expect(overview.composio.organization).toEqual({
     name: "Příklad",
     state: "missing",
   });
-  // The accounts of another organization are not this Environment's.
+  // Nothing breaks for a person who already connects through Composio.
   const card = overview.apps.find((item) => item.id === "gmail");
-  expect(card?.accounts).toEqual([]);
-  expect(card?.connected).toBe(false);
-  const salesforce = overview.apps.find((item) => item.id === "salesforce");
-  expect(salesforce?.path).toEqual({ path: "composio", signIn: false });
-  const refused = await app.post("/api/integrations/connect", {
+  expect(card?.accounts).toMatchObject([
+    { path: "composio", state: "connected" },
+  ]);
+  expect(card?.connected).toBe(true);
+  const connect = await app.post("/api/integrations/connect", {
     app: "salesforce",
   });
-  expect(refused.status).toBe(409);
-  expect(await refused.json()).toEqual({
-    kind: "blocked",
-    reason: "composio-organization",
-  });
-  // Nothing was switched or linked.
+  expect(connect.status).toBe(200);
+  expect(await connect.json()).toMatchObject({ kind: "authorize" });
+  // Linked in the current organization; nothing was switched.
   const calls = await composioCalls(world.home);
   expect(
-    calls.some((call) => call[0] === "link" && !call.includes("--list")),
-  ).toBe(false);
+    calls.some(
+      (call) =>
+        call[0] === "link" &&
+        call[1] === "salesforce" &&
+        !call.includes("--list"),
+    ),
+  ).toBe(true);
   expect(calls.some((call) => call[0] === "orgs" && call[1] === "switch")).toBe(
     false,
   );
+  expect((await readComposioState(world.home)).organization).toBe(
+    "jana_workspace",
+  );
   expect(integrationsText(overview)).toContain(
-    'Composio: the person\'s account has no organization named "Příklad"',
+    "Composio: the person's account has no organization named \"Příklad\" (this Environment's Organization), so Composio works in the person's current organization meanwhile.",
   );
 });
 
-test("more than one organization of the name: none is guessed", async () => {
+test("more than one organization of the name: none is guessed, Composio works in the current one with a notice", async () => {
   const { world, read } = await launchpad(
     {
       organization: "jana_workspace",
@@ -272,11 +278,123 @@ test("more than one organization of the name: none is guessed", async () => {
     { kind: "named", name: "Příklad" },
   );
   const overview = await read();
-  expect(overview.sources.composio).toBe("organization");
+  expect(overview.sources.composio).toBe("ok");
   expect(overview.composio.organization).toEqual({
     name: "Příklad",
     state: "ambiguous",
   });
+  expect((await readComposioState(world.home)).organization).toBe(
+    "jana_workspace",
+  );
+});
+
+test("an organization of the name that cannot be made current: nothing of Composio counts, nothing is written", async () => {
+  const { world, app, read } = await launchpad(
+    {
+      organization: "jana_workspace",
+      removeYes: true,
+      switchFails: true,
+      organizations: [
+        { id: "org_1", name: "jana_workspace" },
+        { id: "org_2", name: "priklad" },
+      ],
+    },
+    { kind: "named", name: "Příklad" },
+  );
+  const overview = await read();
+  expect(overview.sources.composio).toBe("organization");
+  expect(overview.composio.organization).toEqual({
+    name: "Příklad",
+    state: "elsewhere",
+  });
+  expect(overview.apps.find((item) => item.id === "gmail")?.accounts).toEqual(
+    [],
+  );
+  for (const [path, body] of [
+    ["/api/integrations/connect", { app: "salesforce" }],
+    [
+      "/api/integrations/disconnect",
+      { app: "gmail", path: "composio", account: "castle", confirm: true },
+    ],
+  ] as const) {
+    const answer = await app.post(path, body);
+    expect(answer.status).toBe(409);
+    expect(await answer.json()).toEqual({
+      kind: "blocked",
+      reason: "composio-organization",
+    });
+  }
+  const calls = await composioCalls(world.home);
+  expect(
+    calls.some((call) => call[0] === "link" && !call.includes("--list")),
+  ).toBe(false);
+  expect(calls.some(removes)).toBe(false);
+});
+
+test("an Organization's Environment whose Organization's name cannot be read: nothing of Composio counts, nothing is written (Pablo's review of #372)", async () => {
+  const directory = await parent();
+  const world = await integrationsWorld(directory, {
+    composio: {
+      accounts: [gmail],
+      organization: "jana_workspace",
+      removeYes: true,
+      organizations: [
+        { id: "org_1", name: "jana_workspace" },
+        { id: "org_2", name: "priklad" },
+      ],
+    },
+  });
+  cleanups.push(() => world.executor.stop());
+  const app = await worldLaunchpad(directory, world, {
+    tools: ["composio"],
+    handover: {
+      preset: "hosted-organization-personal",
+      machine: bindings.organization,
+      organization: { slug: "example", displayName: "Příklad" },
+    },
+  });
+  cleanups.push(() => app.close());
+  const read = async () =>
+    (await (
+      await app.get("/api/integrations?refresh=1")
+    ).json()) as IntegrationsOverview;
+  expect((await read()).composio.organization?.state).toBe("matches");
+  // The Organization's root becomes unreadable, and another organization is
+  // chosen behind the cached reading.
+  await rm(join(directory, "Lazurio", "organizations", "example"), {
+    recursive: true,
+    force: true,
+  });
+  await app.post("/api/tools/composio/organization", { id: "org_1" });
+  for (const [path, body] of [
+    ["/api/integrations/connect", { app: "salesforce" }],
+    [
+      "/api/integrations/disconnect",
+      { app: "gmail", path: "composio", account: "castle", confirm: true },
+    ],
+  ] as const) {
+    const answer = await app.post(path, body);
+    expect(answer.status).toBe(409);
+    expect(await answer.json()).toEqual({
+      kind: "blocked",
+      reason: "composio-organization",
+    });
+  }
+  const calls = await composioCalls(world.home);
+  expect(
+    calls.some((call) => call[0] === "link" && !call.includes("--list")),
+  ).toBe(false);
+  expect(calls.some(removes)).toBe(false);
+  const overview = await read();
+  expect(overview.sources.composio).toBe("organization");
+  expect(overview.composio.organization).toEqual({
+    name: null,
+    state: "unverified",
+  });
+  expect(overview.apps.find((item) => item.id === "gmail")?.accounts).toEqual(
+    [],
+  );
+  // Nothing is switched where the name is unknown.
   expect((await readComposioState(world.home)).organization).toBe(
     "jana_workspace",
   );
@@ -344,9 +462,8 @@ test("an Organization's Environment by its Folder: the sign-in dialog makes the 
       await app.get("/api/integrations?refresh=1")
     ).json()) as IntegrationsOverview;
     expect(reading.composio.organization).toEqual({ name: "Příklad", state });
-    expect(reading.sources.composio).toBe(
-      state === "matches" ? "ok" : "organization",
-    );
+    // Missing: the person's current organization, with a notice.
+    expect(reading.sources.composio).toBe("ok");
   }
 });
 
@@ -400,17 +517,27 @@ test("the page's words for each state of the organization", () => {
       },
     }) as unknown as IntegrationsOverview;
   expect(composioOrganizationLine(overview("matches", "ok"), copy)).toBeNull();
-  expect(
-    composioOrganizationLine(overview("missing", "organization"), copy),
-  ).toBe(
-    "Ve vašem účtu Composia chybí organizace „Human and Machine“. Tento Environment patří Organizaci Human and Machine, a tak se přes Composio připojuje jen ve vaší vlastní organizaci stejného jména. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
+  expect(composioOrganizationLine(overview("missing", "ok"), copy)).toBe(
+    "Ve vašem účtu Composia chybí organizace „Human and Machine“. Tento Environment patří Organizaci Human and Machine a má se přes Composio připojovat ve vaší vlastní organizaci stejného jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
+  );
+  expect(composioOrganizationLine(overview("ambiguous", "ok"), copy)).toContain(
+    "víc organizací se jménem „Human and Machine“. Dokud nezůstane jen jedna",
   );
   expect(
-    composioOrganizationLine(overview("ambiguous", "organization"), copy),
-  ).toContain("víc organizací se jménem „Human and Machine“");
-  expect(
     composioOrganizationLine(overview("elsewhere", "organization"), copy),
-  ).toContain("nepodařilo přepnout");
+  ).toContain("nepodařilo přepnout do vaší organizace „Human and Machine“");
+  expect(
+    composioOrganizationLine(
+      {
+        ...overview("matches", "organization"),
+        composio: {
+          ...overview("matches", "organization").composio,
+          organization: { name: null, state: "unverified" },
+        },
+      },
+      copy,
+    ),
+  ).toBe(copy.integrationsComposioOrganizationUnverified);
   expect(
     organizationRule({
       kind: "composio-organizations",
@@ -505,7 +632,7 @@ test("a link after the organization was switched away goes to this Environment's
   expect((await readComposioState(world.home)).organization).toBe("priklad");
 });
 
-test("a link or a removal when the organization is gone since the reading is refused, nothing written", async () => {
+test("a link or a removal when the organization is gone since the reading happens in the person's current one, as the Operator decided", async () => {
   const { world, app, read } = await launchpad(
     {
       organization: "jana_workspace",
@@ -531,29 +658,25 @@ test("a link or a removal when the organization is gone since the reading is ref
   const connect = await app.post("/api/integrations/connect", {
     app: "salesforce",
   });
-  expect(connect.status).toBe(409);
-  expect(await connect.json()).toEqual({
-    kind: "blocked",
-    reason: "composio-organization",
-  });
+  expect(connect.status).toBe(200);
+  expect(await connect.json()).toMatchObject({ kind: "authorize" });
   const removal = await app.post("/api/integrations/disconnect", {
     app: "gmail",
     path: "composio",
     account: "castle",
     confirm: true,
   });
-  expect(removal.status).toBe(409);
-  expect(await removal.json()).toEqual({
-    kind: "blocked",
-    reason: "composio-organization",
-  });
+  expect(await removal.json()).toEqual({ kind: "disconnected" });
+  // Neither switched anywhere: there is no organization of the name.
   const calls = await composioCalls(world.home);
-  // No link (the reading's `link <toolkit> --list` only names accounts).
-  expect(
-    calls.some((call) => call[0] === "link" && !call.includes("--list")),
-  ).toBe(false);
-  expect(calls.some(removes)).toBe(false);
-  expect((await readComposioState(world.home)).accounts).toHaveLength(1);
+  expect(switches(calls)).toEqual(["org_2"]);
+  expect((await readComposioState(world.home)).organization).toBe(
+    "jana_workspace",
+  );
+  expect((await read()).composio.organization).toEqual({
+    name: "Příklad",
+    state: "missing",
+  });
 });
 
 test("a removal after the organization was switched away removes in this Environment's organization", async () => {

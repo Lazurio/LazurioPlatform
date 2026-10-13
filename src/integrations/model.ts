@@ -149,13 +149,16 @@ export type IntegrationsOverview = Readonly<{
      * one without a prompt (`connections remove --yes`). */
     disconnect: boolean;
     /** The Composio organization of this Environment's Organization's name
-     * and how the person's account stands to it (decision F42, addendum of
-     * 2026-10-13): current, missing, there more than once, or there but not
-     * made current. Null where the person chooses the organization (a
-     * personal Environment, a computer) or it was not read. */
+     * and how the person's account stands to it (decision F42, addendum (2)
+     * of 2026-10-13): current; missing or there more than once, where
+     * Composio works in the person's current organization with a notice;
+     * there but not made current, or `unverified` where the Organization's
+     * name (null) cannot be read, where nothing of Composio counts. Null
+     * where the person chooses the organization (a personal Environment, a
+     * computer) or it was not read. */
     organization: Readonly<{
-      name: string;
-      state: "matches" | "missing" | "ambiguous" | "elsewhere";
+      name: string | null;
+      state: "matches" | "missing" | "ambiguous" | "elsewhere" | "unverified";
     }> | null;
   }>;
   sources: Readonly<{

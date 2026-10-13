@@ -53,6 +53,8 @@ export type FakeComposioState = {
   /** The account's organizations `orgs list` prints, `organization` the
    * current one by its name; `orgs switch --org-id` makes one current. */
   organizations?: { id: string; name: string }[];
+  /** `orgs switch` fails, as a CLI that cannot reach Composio would. */
+  switchFails?: boolean;
 };
 
 /** Executor's console token: it may reach the fake Executor only. */

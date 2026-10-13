@@ -97,16 +97,18 @@ export function integrationsText(overview: IntegrationsOverview): string {
   lines.push(
     `Sources: tools ${overview.sources.tools} · Executor ${overview.sources.executor} · Composio ${overview.sources.composio}.`,
   );
-  // Composio in no organization of this Environment's Organization's name
-  // (decision F42, addendum of 2026-10-13): the person sees to it.
+  // Composio not in the organization of this Environment's Organization's
+  // name (decision F42, addendum (2) of 2026-10-13): the person sees to it.
   const target = overview.composio.organization;
-  if (overview.sources.composio === "organization" && target !== null)
+  if (target !== null && target.state !== "matches")
     lines.push(
-      target.state === "missing"
-        ? `Composio: the person's account has no organization named "${target.name}" (this Environment's Organization); nothing connects through Composio until the person creates it in Composio. Send them to Apps → Integrations.`
-        : target.state === "ambiguous"
-          ? `Composio: the person's account has more than one organization named "${target.name}"; nothing connects through Composio until the person keeps one. Send them to Apps → Integrations.`
-          : `Composio: it could not be switched to the organization "${target.name}"; "Check connections" in Apps → Integrations tries again.`,
+      target.state === "unverified" || target.name === null
+        ? "Composio: the name of this Environment's Organization cannot be read, so its Composio organization cannot be checked; nothing of Composio counts and nothing connects through it now. Check this Environment's Folder (lazurio doctor)."
+        : target.state === "missing"
+          ? `Composio: the person's account has no organization named "${target.name}" (this Environment's Organization), so Composio works in the person's current organization meanwhile. Send them to Apps → Integrations to create it.`
+          : target.state === "ambiguous"
+            ? `Composio: the person's account has more than one organization named "${target.name}", so Composio works in the person's current organization meanwhile. Send them to Apps → Integrations to keep one.`
+            : `Composio: it could not be switched to the organization "${target.name}"; nothing of Composio counts now, and "Check connections" in Apps → Integrations tries again.`,
     );
   lines.push(
     overview.page === null
