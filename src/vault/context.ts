@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { isAbsolute, join } from "node:path";
 import type { MachineContext } from "../machine/context";
 
@@ -30,6 +31,11 @@ export type VaultContext = Readonly<{
    * It decides which applications read runtime secrets (decision F46 as F53
    * amends it). */
   organization: string | null;
+  /** Whom an Organization's Environment is assigned to, as a fingerprint
+   * (`assignmentOf`); null for a personal Environment, which never changes
+   * hands. When it changes, the Správci of a work Environment leave its
+   * vault (`src/vault/members.ts`). */
+  assignment: string | null;
 }>;
 
 /** Why an Environment has no vault here; every reason refuses before
@@ -75,7 +81,37 @@ export function vaultContextOf(
     name: vault.name,
     environment: input.environment,
     organization: owner.kind === "organization" ? owner.organization : null,
+    assignment: assignmentOf(input.handover),
   });
+}
+
+/**
+ * Whom an Organization's Environment is assigned to, as a fingerprint the
+ * vault's state keeps (DEV-6631 task 638b): the Organization that owns it
+ * and its handover `owner.assignment` by kind and GitHub id, never a login
+ * or a name, so a renamed login is the same assignment and a reassignment is
+ * another one. A SHA-256, so the vault's state holds no person. Null for a
+ * personal Environment: its Owner is its only person and never changes.
+ */
+export function assignmentOf(handover: MachineContext): string | null {
+  const { owner } = handover;
+  if (owner.kind !== "organization") return null;
+  const assignment = owner.assignment;
+  const whom =
+    assignment === undefined
+      ? null
+      : assignment.kind === "team"
+        ? ["team"]
+        : [assignment.kind, assignment.github_id];
+  return createHash("sha256")
+    .update(
+      JSON.stringify([
+        "lazurio.vault.assignment.v1",
+        owner.organization.toLowerCase(),
+        whom,
+      ]),
+    )
+    .digest("hex");
 }
 
 /** Where one account keeps its files: `${XDG_STATE_HOME:-~/.local/state}/

@@ -129,7 +129,7 @@ export type VaultHost = Readonly<{
 }>;
 
 export type VaultJournalEntry = Readonly<{
-  operation: "setup" | "refresh" | "unlock" | "secrets" | "vault";
+  operation: "setup" | "refresh" | "unlock" | "secrets" | "vault" | "members";
   outcome: string;
   reason?: string;
   /** The Launchpad's own setup after its start. */
@@ -208,7 +208,10 @@ async function observe(
   };
 }
 
-type Recorded = Readonly<{ organizationId: string; collectionId: string }>;
+export type Recorded = Readonly<{
+  organizationId: string;
+  collectionId: string;
+}>;
 
 function statusOf(
   facts: VaultFacts,
@@ -319,7 +322,8 @@ export async function vaultStatus(host: VaultHost): Promise<VaultStatus> {
   return statusOf(facts, recorded, observation);
 }
 
-const deviceOf = (account: VaultAccount): Device => ({
+/** The Environment's one device in its account's logins. */
+export const deviceOf = (account: VaultAccount): Device => ({
   identifier: account.deviceIdentifier,
   name: "Lazurio Launchpad",
   type: DEVICE_TYPE_SDK,
@@ -746,7 +750,7 @@ export async function vaultEnv(host: VaultHost): Promise<VaultEnvResult> {
 
 /** The ready account and the recorded vault, or null: nothing else is the
  * Environment's connected vault. */
-async function connectedAccount(
+export async function connectedAccount(
   paths: VaultPaths,
   context: VaultContext,
 ): Promise<Readonly<{ account: ReadyAccount; recorded: Recorded }> | null> {

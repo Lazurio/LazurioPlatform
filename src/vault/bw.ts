@@ -70,6 +70,19 @@ export type BwCollection = Readonly<{
   name: string;
 }>;
 
+/** One member of an organization, as `bw list org-members` lists it: only
+ * what the Správci's membership reads (`src/vault/members.ts`). The member's
+ * name and everything else is dropped here; the e-mail is compared, never
+ * logged or returned. `type` as the vault reports it: 0 Owner, 1 Admin,
+ * 2 User, 3 Manager, 4 Custom; `status` -1 revoked, 0 invited, 1 accepted,
+ * 2 confirmed. */
+export type BwMember = Readonly<{
+  id: string;
+  email: string;
+  status: number;
+  type: number;
+}>;
+
 const timeouts = {
   local: 60_000,
   network: 120_000,
@@ -189,6 +202,38 @@ export function parseCollections(stdout: string): BwCollection[] | null {
     );
   }
   return collections;
+}
+
+/** `bw list org-members`: every entry must read, or the whole answer is
+ * unreadable rather than guessed. */
+export function parseOrgMembers(stdout: string): BwMember[] | null {
+  const value = jsonOf(stdout);
+  if (!Array.isArray(value)) return null;
+  const members: BwMember[] = [];
+  for (const entry of value) {
+    const item = record(entry);
+    if (
+      item === null ||
+      !isVaultId(item.id) ||
+      typeof item.email !== "string" ||
+      item.email.length === 0 ||
+      item.email.length > 320 ||
+      typeof item.status !== "number" ||
+      !Number.isInteger(item.status) ||
+      typeof item.type !== "number" ||
+      !Number.isInteger(item.type)
+    )
+      return null;
+    members.push(
+      Object.freeze({
+        id: item.id,
+        email: item.email,
+        status: item.status,
+        type: item.type,
+      }),
+    );
+  }
+  return members;
 }
 
 /** One item of the Environment's vault that is a candidate for a declared
@@ -419,6 +464,48 @@ export function bwCli(environment: BwEnvironment) {
         session(value),
         timeouts.local,
         itemsMaxBytes,
+      );
+    },
+    /** The members of one organization, as the vault answers now (bw asks
+     * the server; the organization must be in bw's synced copy). */
+    orgMembers(
+      value: string,
+      organizationId: string,
+    ): Promise<BwResult<BwMember[]>> {
+      return step(
+        [
+          "list",
+          "org-members",
+          "--organizationid",
+          organizationId,
+          "--nointeraction",
+        ],
+        parseOrgMembers,
+        session(value),
+        timeouts.network,
+      );
+    },
+    /** Confirms an accepted member: bw encrypts the organization's key to
+     * the member's public key, which the vault hands out (0198 point 2: the
+     * fingerprint is not compared, the host's root is the higher boundary).
+     * The ids are not secret and go on argv. */
+    confirmMember(
+      value: string,
+      memberId: string,
+      organizationId: string,
+    ): Promise<BwResult<true>> {
+      return step(
+        [
+          "confirm",
+          "org-member",
+          memberId,
+          "--organizationid",
+          organizationId,
+          "--nointeraction",
+        ],
+        () => true as const,
+        session(value),
+        timeouts.network,
       );
     },
     logout(value: string | null): Promise<BwResult<true>> {

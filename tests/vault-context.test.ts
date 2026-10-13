@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 import { parseMachineContext } from "../src/machine/context";
-import { vaultContextOf, vaultStateDirectory } from "../src/vault/context";
+import {
+  assignmentOf,
+  vaultContextOf,
+  vaultStateDirectory,
+} from "../src/vault/context";
 import { pilotContextOf, pilotVaultOf } from "../src/vault/legacy-0197/context";
 import {
   ownAccount,
@@ -51,6 +55,7 @@ test("a personal Remote Environment's vault is exactly the handover's member", (
     name: vaultName,
     environment: "personal",
     organization: null,
+    assignment: null,
   });
 });
 
@@ -64,7 +69,42 @@ test("a work, Team or Automated Environment's vault names the Organization that 
       name: "Example work",
       environment,
       organization: "example",
+      assignment: assignmentOf(workVm()),
     });
+});
+
+// Whom an Organization's Environment is assigned to, as the vault's state
+// keeps it (DEV-6631 task 638b): a fingerprint of the Organization and the
+// assignment's kind and GitHub id, so a renamed login is the same assignment
+// and anything else is another one; a personal Environment has none.
+test("the assignment's fingerprint changes with whom the Environment is assigned to, not with a login", () => {
+  const assigned = (assignment: unknown, owner: object = withoutTeam) =>
+    assignmentOf(
+      handover({
+        ...organization,
+        owner: { ...owner, ...(assignment === null ? {} : { assignment }) },
+        entry: handoverEntry("workspace.example.lazurio.io"),
+      }),
+    );
+  const first = assigned(assignments.operator);
+  expect(first).toMatch(/^[0-9a-f]{64}$/);
+  // The same person under a new login is the same assignment.
+  expect(
+    assigned({ ...assignments.operator, github_login: "renamed-example" }),
+  ).toBe(first);
+  // Another person, another kind, no assignment, another Organization: each
+  // is another assignment.
+  const others = [
+    assigned({ ...assignments.operator, github_id: 67890 }),
+    assigned(assignments.automation),
+    assigned(assignments.team),
+    assigned(null),
+    assigned(assignments.operator, { ...withoutTeam, organization: "other" }),
+  ];
+  expect(new Set([first, ...others]).size).toBe(others.length + 1);
+  // Nothing of the person is in it.
+  expect(first).not.toContain("example");
+  expect(assignmentOf(personalVm())).toBeNull();
 });
 
 test("without the member the Environment has no vault yet, whatever else the handover says", () => {

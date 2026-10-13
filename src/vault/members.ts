@@ -1,0 +1,424 @@
+import type { BwFailure, BwMember } from "./bw";
+import type { VaultContext } from "./context";
+import { connectedAccount, deviceOf, type VaultHost } from "./flow";
+import {
+  apiKeyLogin,
+  type VaultClient,
+  VaultwardenError,
+  vaultRequest,
+} from "./register";
+import { cliOf, lockMs, usableSession, withLock } from "./session";
+import {
+  plainObject,
+  type ReadyAccount,
+  readAssignment,
+  type VaultPaths,
+  vaultPaths,
+  writeAssignment,
+} from "./store";
+
+// The Správci of the Environment's own vault (root decision 0198 point 2,
+// DEV-6631 task 638b, decision F52's addendum of 2026-10-14): whoever has
+// access to the Environment is an Admin of its vault and has all of its
+// passwords. The Environment adds the person the gateway admitted (the
+// subject of its own answer, never a header of the request), once that
+// person has an account in the network's vault, and a work Environment's
+// Správci all leave the vault when the Environment is assigned to someone
+// else. The vault's membership is the only list of who is in it; Lazurio
+// keeps none, only the fingerprint of the assignment the Správci were added
+// under. Everything happens under the account's lock, as the Environment
+// account, the vault's only Owner: bw lists and confirms, the vault's API
+// invites and removes (bw does neither). Nothing here returns, logs or
+// journals a person's address, a member's id or a token.
+
+/** Where Lazurio Auth's vault client puts every person (root decision 0197
+ * point 2, DEV-6631 contract C1): `<subject>@vaultwarden-identity.lazurio.ai`,
+ * never a mailbox. */
+export const vaultIdentityDomain = "vaultwarden-identity.lazurio.ai";
+
+/** The admitted person's address in every network vault. */
+export const personAddress = (subject: string): string =>
+  `${subject}@${vaultIdentityDomain}`;
+
+// The vault's organization roles (`type`) and membership statuses.
+const ownerType = 0;
+const adminType = 1;
+const revoked = -1;
+const invited = 0;
+const accepted = 1;
+const confirmed = 2;
+
+/** Where the person at the browser stands in the Environment's vault. */
+export type VaultMemberState =
+  /** No account in the network's vault yet: the person signs in to it once
+   * with the Lazurio account, then the Environment adds them. */
+  | "no-account"
+  /** An account that signed in but has no master password yet. */
+  | "awaiting-password"
+  /** Accepted, but the Environment's confirmation did not go through now;
+   * the next look confirms. */
+  | "accepted"
+  /** In the vault: a Správce, or a person a Správce shared collections
+   * with. */
+  | "member"
+  /** Revoked in the vault by the network's operator: never restored here. */
+  | "revoked";
+
+/** Why nothing is known of the person. */
+export type VaultMemberUnknown =
+  /** The gateway named nobody (and a workstation names nobody). */
+  | "no-identity"
+  /** No vault of the Environment's own here (none yet, a workstation, a
+   * 0197 pilot). */
+  | "no-vault"
+  /** The own vault is not set up, or its account lost it. */
+  | "not-connected"
+  /** A Team or Automated Environment adds and removes nobody until a live
+   * answer of who may enter it exists (DEV-6631 C4). */
+  | "not-managed"
+  /** Another operation holds the account's lock, or the vault's rate
+   * limit: later. */
+  | "busy"
+  | "unreachable"
+  | "failed";
+
+export type VaultMembership =
+  | Readonly<{ kind: "vault-member"; state: VaultMemberState }>
+  | Readonly<{ kind: "vault-member-unknown"; reason: VaultMemberUnknown }>;
+
+const known = (state: VaultMemberState): VaultMembership =>
+  Object.freeze({ kind: "vault-member", state });
+const unknown = (reason: VaultMemberUnknown): VaultMembership =>
+  Object.freeze({ kind: "vault-member-unknown", reason });
+
+/** Whether the Environment adds the person it admits: a personal or work
+ * Environment. A Team Environment does not until removal works there too,
+ * and an Automated one names no person whose access ends. */
+const addsPeople = (context: VaultContext): boolean =>
+  context.environment === "personal" || context.environment === "work";
+
+/** Whether the Správci leave when the assignment changes: a work
+ * Environment. A personal Environment never removes: its Owner is its only
+ * person. */
+const removesOnReassignment = (context: VaultContext): boolean =>
+  context.environment === "work" && context.assignment !== null;
+
+class MembershipFailure extends Error {
+  constructor(readonly reason: VaultMemberUnknown) {
+    super(reason);
+  }
+}
+
+const ofBw = (reason: BwFailure): MembershipFailure =>
+  new MembershipFailure(
+    reason === "unauthenticated" || reason === "invalid-credentials"
+      ? "not-connected"
+      : reason === "unreachable" || reason === "timeout"
+        ? "unreachable"
+        : reason === "rate-limited"
+          ? "busy"
+          : "failed",
+  );
+
+const ofVault = (error: unknown): MembershipFailure =>
+  error instanceof MembershipFailure
+    ? error
+    : new MembershipFailure(
+        !(error instanceof VaultwardenError)
+          ? "failed"
+          : error.reason === "unreachable"
+            ? "unreachable"
+            : error.reason === "rate-limited"
+              ? "busy"
+              : error.reason === "invalid-credentials"
+                ? "not-connected"
+                : "failed",
+      );
+
+/** One turn under the account's lock: bw with the unlocked session for the
+ * list and the confirmation, and, only when it is needed, one sign-in with
+ * the account's API key for the vault's own API (its rate limit counts
+ * sign-ins). */
+type Turn = Readonly<{
+  host: VaultHost;
+  context: VaultContext;
+  paths: VaultPaths;
+  account: ReadyAccount;
+  organizationId: string;
+  members: () => Promise<readonly BwMember[]>;
+  confirm: (memberId: string) => Promise<boolean>;
+  api: (
+    path: string,
+    options: Parameters<typeof vaultRequest>[3],
+  ) => Promise<unknown>;
+}>;
+
+/** The connected own vault of `context` under its lock, with a turn of
+ * work, or why there is none. */
+async function underLock<T>(
+  host: VaultHost,
+  context: VaultContext,
+  work: (turn: Turn) => Promise<T>,
+  failed: (reason: VaultMemberUnknown) => T,
+): Promise<T> {
+  const paths = vaultPaths(host.directory(context.host, context.account));
+  const ready = await connectedAccount(paths, context);
+  if (ready === null) return failed("not-connected");
+  return withLock(
+    paths,
+    host.lockMs ?? lockMs,
+    () => failed("busy"),
+    async () => {
+      const bw = cliOf(host, paths);
+      const session = await usableSession(host, bw, paths, ready.account);
+      if (!session.ok) return failed(ofBw(session.reason).reason);
+      const { organizationId } = ready.recorded;
+      const client: VaultClient = { fetch: host.fetch };
+      let token: string | null = null;
+      const turn: Turn = {
+        host,
+        context,
+        paths,
+        account: ready.account,
+        organizationId,
+        async members() {
+          const listed = await bw.orgMembers(session.session, organizationId);
+          if (!listed.ok) throw ofBw(listed.reason);
+          return listed.value;
+        },
+        async confirm(memberId) {
+          const done = await bw.confirmMember(
+            session.session,
+            memberId,
+            organizationId,
+          );
+          return done.ok;
+        },
+        async api(path, options) {
+          token ??= (
+            await apiKeyLogin(client, {
+              serverUrl: context.vault,
+              clientId: ready.account.clientId,
+              clientSecret: ready.account.clientSecret,
+              device: deviceOf(ready.account),
+            })
+          ).accessToken;
+          return vaultRequest(client, context.vault, path, {
+            ...options,
+            token,
+          });
+        },
+      };
+      try {
+        return await work(turn);
+      } catch (error) {
+        const failure = ofVault(error);
+        host.journal?.({
+          operation: "members",
+          outcome: "failed",
+          reason: failure.reason,
+        });
+        return failed(failure.reason);
+      }
+    },
+  );
+}
+
+/** One member leaves the vault, by the vault's API as its Owner. */
+async function remove(turn: Turn, member: BwMember): Promise<void> {
+  await turn.api(
+    `/api/organizations/${turn.organizationId}/users/${member.id}`,
+    { method: "DELETE" },
+  );
+}
+
+/**
+ * The audience of a work Environment (DEV-6631 C4, "remove when the
+ * audience changes"): when its assignment is not the one recorded, every
+ * Admin-type member leaves the vault, then the assignment is recorded. A
+ * missing or unreadable record counts as a change, so a lost file never
+ * keeps anyone in. Only Admins leave: the Environment added them, and only
+ * an Owner can add one. The Owner (the Environment's account) and the
+ * Users, Managers and Custom members, people a Správce shared collections
+ * with, are never touched. Those who still have access are added again
+ * when they next come. Returns the members after it.
+ */
+async function settleAudience(
+  turn: Turn,
+  members: readonly BwMember[],
+): Promise<readonly BwMember[]> {
+  const { context } = turn;
+  if (!removesOnReassignment(context) || context.assignment === null)
+    return members;
+  if ((await readAssignment(turn.paths)) === context.assignment) return members;
+  const leaving = members.filter((member) => member.type === adminType);
+  for (const member of leaving) {
+    await remove(turn, member);
+    turn.host.journal?.({ operation: "members", outcome: "removed" });
+  }
+  await writeAssignment(turn.paths, context.assignment);
+  return members.filter((member) => member.type !== adminType);
+}
+
+const sameAddress = (member: BwMember, address: string) =>
+  member.email.trim().toLowerCase() === address;
+
+/**
+ * The person at the browser, by their address: invited as an Admin when
+ * they are not a member, confirmed when accepted. The Environment never
+ * leaves an invitation pending: Vaultwarden lets anyone who knows an
+ * address with a pending invitation set that account's master password
+ * through its registration unless the network requires SSO of people
+ * (`SSO_ONLY`), and an invitation to an account without a master password
+ * stays pending. So such an invitation is withdrawn at once
+ * (`awaiting-password`) and made again once the person has set their master
+ * password, when the vault accepts it at once. Only Admins the Environment
+ * added are ever changed.
+ */
+async function settlePerson(
+  turn: Turn,
+  members: readonly BwMember[],
+  subject: string,
+): Promise<VaultMembership> {
+  const address = personAddress(subject);
+  const journal = (outcome: string) =>
+    turn.host.journal?.({ operation: "members", outcome });
+  let member = members.find((entry) => sameAddress(entry, address));
+  if (member === undefined) {
+    try {
+      await turn.api(`/api/organizations/${turn.organizationId}/users/invite`, {
+        // Exactly what Vaultwarden's `InviteData` reads: the Admin role sees
+        // every collection, so none is named.
+        json: {
+          emails: [address],
+          groups: [],
+          type: adminType,
+          collections: [],
+          permissions: {},
+        },
+      });
+      journal("invited");
+    } catch (error) {
+      if (error instanceof VaultwardenError && error.reason === "no-account") {
+        journal("no-account");
+        return known("no-account");
+      }
+      // Added meanwhile by another look: read below.
+      if (
+        !(error instanceof VaultwardenError) ||
+        error.reason !== "already-member"
+      )
+        throw error;
+    }
+    member = (await turn.members()).find((entry) =>
+      sameAddress(entry, address),
+    );
+    if (member === undefined) throw new MembershipFailure("failed");
+  }
+  if (member.type === ownerType) return known("member");
+  if (member.status === revoked) return known("revoked");
+  if (member.status === confirmed) return known("member");
+  if (member.type !== adminType)
+    return known(member.status === accepted ? "accepted" : "awaiting-password");
+  if (member.status === invited) {
+    await remove(turn, member);
+    journal("withdrawn");
+    return known("awaiting-password");
+  }
+  if (member.status === accepted) {
+    if (await turn.confirm(member.id)) {
+      journal("confirmed");
+      return known("member");
+    }
+    journal("not-confirmed");
+    return known("accepted");
+  }
+  throw new MembershipFailure("failed");
+}
+
+/**
+ * The membership of the person the gateway admitted (`subject`, its
+ * answer's subject; null when it named nobody), and the audience of a work
+ * Environment first. A personal or work Environment adds the person; a Team
+ * or Automated Environment touches nobody. Status-driven and idempotent:
+ * every look reads the vault's members and moves them on.
+ */
+export async function vaultMembership(
+  host: VaultHost,
+  subject: string | null,
+): Promise<VaultMembership> {
+  const context = await host.context();
+  if (context.kind !== "own") return unknown("no-vault");
+  if (!addsPeople(context)) return unknown("not-managed");
+  if (subject === null) {
+    // Nobody named: nobody is added, and the audience needs nobody (it asks
+    // the vault only when the assignment changed).
+    const audience = await vaultAudience(host);
+    return unknown(
+      audience === "unchanged" || audience === "settled"
+        ? "no-identity"
+        : audience,
+    );
+  }
+  return underLock(
+    host,
+    context,
+    async (turn) =>
+      settlePerson(
+        turn,
+        await settleAudience(turn, await turn.members()),
+        subject,
+      ),
+    unknown,
+  );
+}
+
+/** What a look at the audience did. */
+export type VaultAudience = "unchanged" | "settled" | VaultMemberUnknown;
+
+/**
+ * The audience alone, for the Launchpad's start and its periodic look
+ * (DEV-6631 task 638b): nothing is asked of the vault unless a work
+ * Environment's assignment is not the one recorded; then its Správci leave
+ * as `vaultMembership` would make them, without waiting for anyone to open
+ * the vault page.
+ */
+export async function vaultAudience(host: VaultHost): Promise<VaultAudience> {
+  const context = await host.context();
+  if (context.kind !== "own" || !removesOnReassignment(context))
+    return "unchanged";
+  const paths = vaultPaths(host.directory(context.host, context.account));
+  if ((await readAssignment(paths)) === context.assignment) return "unchanged";
+  return underLock(
+    host,
+    context,
+    async (turn): Promise<VaultAudience> => {
+      await settleAudience(turn, await turn.members());
+      return "settled";
+    },
+    (reason): VaultAudience => reason,
+  );
+}
+
+/**
+ * Whether the network's vault takes a sign-in with the Lazurio account, so
+ * a person without an account there can create one: Vaultwarden's public
+ * `GET /identity/sso/prevalidate` answers with a token only while its SSO is
+ * on. The token is dropped unread. A vault that does not answer does not.
+ */
+export async function vaultSignIn(host: VaultHost): Promise<boolean> {
+  const context = await host.context();
+  if (context.kind === "unsupported") return false;
+  try {
+    const answer = plainObject(
+      await vaultRequest(
+        { fetch: host.fetch },
+        context.vault,
+        "/identity/sso/prevalidate",
+      ),
+    );
+    return typeof answer?.token === "string" && answer.token !== "";
+  } catch {
+    return false;
+  }
+}
