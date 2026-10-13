@@ -10681,8 +10681,9 @@ point 9). Organization creation stays open to every account of the network
 (`ORG_CREATION_USERS`), so people can create other organizations outside this model;
 the threat model of the network's vault records it. People's access to an
 Environment's vault (Správci, task 638b) is not in this revision: until then only the
-Environment's account is a member of its vault. The vendored handover schema carries
-the drafted `vault` member until the Machines pull request of task 637 publishes it
+Environment's account is a member of its vault. The vendored handover schema is the
+head of the open Machines pull request #500, which writes the member behind its
+Platform gate; it is re-pinned to that pull request's merge before this one merges
 (`schema-provenance.json`'s `pending`).
 
 | Alternative | Trade-off / disposition |

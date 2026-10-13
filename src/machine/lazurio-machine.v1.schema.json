@@ -49,7 +49,7 @@
         "network": { "$ref": "#/$defs/network" },
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "work" } } }] },
         "entry": { "$ref": "#/$defs/entry" },
-        "vault": { "$ref": "#/$defs/vault" },
+        "vault": { "$ref": "#/$defs/vault_work" },
         "installed": { "$ref": "#/$defs/installed" },
         "account": { "$ref": "#/$defs/account" }
       }
@@ -96,7 +96,7 @@
         "network": { "$ref": "#/$defs/network" },
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "personal" } } }] },
         "entry": { "$ref": "#/$defs/entry" },
-        "vault": { "$ref": "#/$defs/vault" },
+        "vault": { "$ref": "#/$defs/vault_personal" },
         "installed": { "$ref": "#/$defs/installed" },
         "account": { "$ref": "#/$defs/account" }
       }
@@ -282,20 +282,33 @@
         }
       }
     },
-    "vault": {
-      "description": "This Environment's own vault (root decision 0198 point 1, DEV-6631 contract C2): its network's Lazurio Vaultwarden, the technical account the network generated and pre-allowed for this Environment alone, and the name of the Environment's vault there. The Environment registers the account itself and creates its own organization with it. The account address is a one-time enrollment capability until it is registered (root decision 0197 point 3). Omitted until the Machine runs a LazurioPlatform release that reads it; a reader vendoring an earlier schema refuses a document carrying it.",
+    "account": {
+      "description": "Reserved for the Machine's Lazurio account identity issued by the Dashboard; null until that contract exists.",
+      "type": "null"
+    },
+    "vault_work": {
+      "description": "This Environment's technical account in its network's vault (root decisions 0197 point 3 and 0198 point 1; docs/machine-identity.md#vault): the vault of its Conglomerate Host, the account vaultwarden-<26 lowercase base32>@<vm>.<organization>.lazurio.io the network pre-allowed for exactly this Environment, and the name of the vault the Environment creates. Not a secret once registered; before, a one-time enrollment capability inside the Environment boundary. Omitted until the Machine runs a LazurioPlatform release that reads it; a reader vendoring an earlier schema refuses a document carrying it.",
       "type": "object",
       "additionalProperties": false,
       "required": ["server_url", "account", "name"],
       "properties": {
-        "server_url": { "description": "Origin of the network's Lazurio Vaultwarden: https://vaultwarden.<zone>.lazurio.io.", "type": "string", "pattern": "^https://vaultwarden\\.[a-z0-9]+(?:-[a-z0-9]+)*\\.lazurio\\.io$" },
-        "account": { "description": "The Environment's technical account: vaultwarden-<26 lowercase base32 characters>@<Environment address>.", "type": "string", "maxLength": 119, "pattern": "^vaultwarden-[a-z2-7]{26}@[a-z0-9]+(?:-[a-z0-9]+)*(?:\\.[a-z0-9]+(?:-[a-z0-9]+)*)?\\.lazurio\\.io$" },
-        "name": { "description": "Name of the Environment's vault, <short Organization> <Environment name> <login>: letters, digits and single spaces, unique within the network.", "type": "string", "maxLength": 50, "pattern": "^[\\p{L}0-9]+(?: [\\p{L}0-9]+)*$" }
+        "server_url": { "$ref": "#/$defs/vault_server_url" },
+        "account": { "type": "string", "maxLength": 128, "pattern": "^vaultwarden-[a-z2-7]{26}@[a-z0-9]+(?:-[a-z0-9]+)*\\.[a-z0-9]+(?:-[a-z0-9]+)*\\.lazurio\\.io$" },
+        "name": { "$ref": "#/$defs/vault_name" }
       }
     },
-    "account": {
-      "description": "Reserved for the Machine's Lazurio account identity issued by the Dashboard; null until that contract exists.",
-      "type": "null"
-    }
+    "vault_personal": {
+      "description": "The same member of a personal VM: its account is vaultwarden-<26 lowercase base32>@<login>.lazurio.io.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["server_url", "account", "name"],
+      "properties": {
+        "server_url": { "$ref": "#/$defs/vault_server_url" },
+        "account": { "type": "string", "maxLength": 128, "pattern": "^vaultwarden-[a-z2-7]{26}@[a-z0-9]+(?:-[a-z0-9]+)*\\.lazurio\\.io$" },
+        "name": { "$ref": "#/$defs/vault_name" }
+      }
+    },
+    "vault_server_url": { "description": "https://vaultwarden.<network zone>, the vault of the Environment's Conglomerate Host.", "type": "string", "maxLength": 120, "pattern": "^https://vaultwarden\\.[a-z0-9]+(?:-[a-z0-9]+)*\\.lazurio\\.io$" },
+    "vault_name": { "description": "The vault's name: letters, digits and single spaces, at most 50 characters, unique within the network.", "type": "string", "minLength": 1, "maxLength": 50, "pattern": "^[\\p{L}0-9]+(?: [\\p{L}0-9]+)*$" }
   }
 }

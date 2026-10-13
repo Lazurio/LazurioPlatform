@@ -7,6 +7,7 @@ import {
   parseMachineContext,
 } from "../src/machine/context";
 import schema from "../src/machine/lazurio-machine.v1.schema.json";
+import provenance from "../src/machine/schema-provenance.json";
 import { contextValues } from "../src/recover/private-values";
 import { createSanitizer } from "../src/recover/sanitize";
 import { ownAccount, vaultMember, workAccount } from "./fixtures/fake-vault";
@@ -34,6 +35,44 @@ const documents = {
     vault: vaultMember(workAccount, "Example Pracovní workspace"),
   },
 };
+
+test("the vendored schema is Machines #500's: the member with a work and a personal account shape", () => {
+  expect(provenance.source_pull_request).toBe(
+    "https://github.com/HumanAndMachine-ai/Machines/pull/500",
+  );
+  const defs = (
+    schema as unknown as {
+      $defs: Record<
+        string,
+        { properties?: Record<string, unknown> } & Record<string, unknown>
+      >;
+    }
+  ).$defs;
+  expect(defs.organization_workspace_vm?.properties?.vault).toEqual({
+    $ref: "#/$defs/vault_work",
+  });
+  expect(defs.personal_vm?.properties?.vault).toEqual({
+    $ref: "#/$defs/vault_personal",
+  });
+  for (const name of ["vault_work", "vault_personal"])
+    expect(defs[name]).toMatchObject({
+      type: "object",
+      additionalProperties: false,
+      required: ["server_url", "account", "name"],
+    });
+  // A work Environment's account is of its <vm>.<org> address, a personal
+  // one's of its <login> address; neither takes the other's.
+  expect(() =>
+    parseMachineContext(
+      bytes({ ...documents.personal, vault: vaultMember(workAccount) }),
+    ),
+  ).toThrow("machine-context-invalid");
+  expect(() =>
+    parseMachineContext(
+      bytes({ ...documents.work, vault: vaultMember(ownAccount) }),
+    ),
+  ).toThrow("machine-context-invalid");
+});
 
 test("the member is read exactly as written on both branches", () => {
   for (const document of Object.values(documents)) {
@@ -117,7 +156,13 @@ test("a Platform whose vendored schema predates the member refuses the whole han
   };
   for (const branch of ["organization_workspace_vm", "personal_vm"])
     delete earlier.$defs[branch]?.properties?.vault;
-  delete earlier.$defs.vault;
+  for (const name of [
+    "vault_work",
+    "vault_personal",
+    "vault_server_url",
+    "vault_name",
+  ])
+    delete earlier.$defs[name];
   const validate = new Ajv2020({ strict: true }).compile(earlier);
   for (const document of Object.values(documents)) {
     const { vault: __, ...without } = document;
