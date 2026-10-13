@@ -318,7 +318,9 @@ export function planModuleScaffold(
     stack,
     listener_id: scaffoldListenerId,
     listener_env_prefix: `LAZURIO_RUNTIME_LISTENER_${scaffoldListenerId.toUpperCase().replaceAll("-", "_")}`,
-    runtime_id: runtimeId(owner.name, slug),
+    // A personal app's runtime id names no person: the catalog shows it
+    // (`display.id`), and no output names a personal module's owner.
+    runtime_id: runtimeId(personal ? personalspaceName : owner.name, slug),
     python_package: slug.replaceAll("-", "_"),
     port: lease ? String(lease.port) : "",
     bun_version: pinned.bun,

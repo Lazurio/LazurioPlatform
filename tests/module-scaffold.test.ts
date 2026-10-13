@@ -314,7 +314,7 @@ describe("planModuleScaffold, every stack", () => {
         expect(packageJson.packageManager).toBe(`bun@${scaffoldBunVersion}`);
         const runtime = parseAppRuntime(packageJson.lazurio.runtime);
         expect(runtime.id, label).toBe(
-          `${owner === "organization" ? "acme" : "example"}-x-${stack}-v1`,
+          `${owner === "organization" ? "acme" : "personalspace"}-x-${stack}-v1`,
         );
         expect(runtime.company, label).toBe(manifest.company);
         expect(packageJson.scripts.check).toBeString();
@@ -492,7 +492,7 @@ describe("planModuleScaffold, the personal form", () => {
     const runtime = JSON.parse(file(result, "app/v1/package.json")).lazurio
       .runtime;
     expect(runtime).toMatchObject({
-      id: "example-notes-v1",
+      id: "personalspace-notes-v1",
       company: "example",
       module: "notes",
       title: "Poznámky",
@@ -782,6 +782,9 @@ describe("the Platform reads a generated personal module", () => {
           await materialize(personal({ stack, slug: `notes-${stack}` })),
         );
       const catalog = await readFolderCatalog(folder, heldBy("example"));
+      // No output names a personal module's owner: not its login (its
+      // runtime id is `personalspace-<slug>-v1`), not its directory.
+      expect(JSON.stringify(catalog.personalspace)).not.toContain("example");
       const listed = new Map(
         (catalog.personalspace?.modules ?? []).map((module) => [
           module.module,

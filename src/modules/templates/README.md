@@ -53,7 +53,7 @@ A path segment that starts with `dot-` is written with a dot (`dot-gitignore`
 | `organization` | the Organization's slug | the person's GitHub login |
 | `github_org` | the Organization's GitHub login | the person's GitHub login |
 | `listener_id`, `listener_env_prefix` | `app`, `LAZURIO_RUNTIME_LISTENER_APP` | same |
-| `runtime_id` | `<organization>-<slug>-v1`, lowercase | `<login>-<slug>-v1`, lowercase |
+| `runtime_id` | `<organization>-<slug>-v1`, lowercase | `personalspace-<slug>-v1` |
 | `python_package` | the slug with `_` for `-` | same |
 | `port` | the lease's port | same |
 | `bun_version`, `module_kit_version`, `uv_version` | the pinned versions | same |

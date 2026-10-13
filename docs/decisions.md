@@ -9658,8 +9658,9 @@ form moves here too.
    here; until then a change to a stack's files belongs in both repositories.
 2. **The personal form** (`owner: {kind: "personal", login}`). The module's `company`
    is the person's GitHub login, as the resident required of a personal app
-   (`R:lazurio/runtime/personalspace-lib.mjs`), and its runtime id is
-   `<login>-<slug>-v1`. Its slot is the Organization slot's shape without Teams, private
+   (`R:lazurio/runtime/personalspace-lib.mjs`). Its runtime id is
+   `personalspace-<slug>-v1`, naming no person: the catalog shows a runtime id
+   (`display.id`), and no output names a personal module's owner. Its slot is the Organization slot's shape without Teams, private
    to its owner, as the template's example slot declares one:
    `{path: "workspace/<slug>", slug, space: "workspace", category, default_access:
    "private", required_roles: ["owner"], source_of_truth: "git-native", status:
