@@ -23,8 +23,11 @@ export type ToolRunner = (
   timeoutMs: number,
   env: Readonly<Record<string, string>>,
   /** `maxBytes`: the bound of each stream (default 256 KiB); a command
-   * whose answer is a whole list (the vault's items) takes a larger one. */
-  options?: Readonly<{ maxBytes?: number }>,
+   * whose answer is a whole list (the vault's items) takes a larger one.
+   * `stdin`: what the process reads on its standard input, which is then
+   * closed; without it the process reads nothing. A value a command must
+   * never see on its argv (a vault item, decision F53) goes here. */
+  options?: Readonly<{ maxBytes?: number; stdin?: string }>,
 ) => Promise<ToolProcessResult>;
 
 const maxStreamBytes = 256 * 1024;
@@ -55,14 +58,21 @@ async function readBounded(
 // helpers included — and nothing keeps writing after "timeout" was reported.
 export const runTool: ToolRunner = async (command, timeoutMs, env, options) => {
   const maxBytes = options?.maxBytes ?? maxStreamBytes;
+  const input = options?.stdin;
   const [executable, ...args] = command;
   if (!executable) throw new Error("A command is required");
   const child = spawn(executable, args, {
     env: { ...env },
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     detached: process.platform !== "win32",
     windowsHide: true,
   });
+  if (input !== undefined && child.stdin !== null) {
+    // A process that exits without reading all of it closes the pipe: that
+    // is its answer to read, not an error of this runner.
+    child.stdin.on("error", () => undefined);
+    child.stdin.end(input);
+  }
   const killAll = () => {
     if (process.platform !== "win32" && child.pid) {
       try {

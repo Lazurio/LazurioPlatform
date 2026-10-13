@@ -13,7 +13,9 @@ import { isSession, isVaultId } from "./store";
 // BW_CLIENTID/BW_CLIENTSECRET, the master password in a private file that
 // `--passwordfile` reads and that is removed at once. bw's own output is
 // parsed here and never leaves this module: `bw login --apikey` even prints
-// a (still locked) session.
+// a (still locked) session, and `bw create item` the item with its values.
+// A new item (decision F53) goes to bw's standard input, encoded as bw reads
+// it, never to argv.
 
 export type BwEnvironment = Readonly<{
   /** The pinned binary, by its absolute path. */
@@ -238,15 +240,46 @@ export function parseOrgMembers(stdout: string): BwMember[] | null {
 
 /** One item of the Environment's vault that is a candidate for a declared
  * name: only what the selection of decision F46 reads. Every other field of
- * the item (its notes, fields, username, TOTP, URIs) is dropped here and
- * never leaves this module. */
+ * the item (its notes, its text fields, username, TOTP, URIs) is dropped
+ * here and never leaves this module. */
 export type BwSecretItem = Readonly<{
   name: string;
   organizationId: string | null;
   collectionIds: readonly string[];
   /** `login.password`; null when the item has no login or no password. */
   password: string | null;
+  /** A Secure note's hidden custom fields (decision F46 as F53 amends it):
+   * how many it has and, only when it has exactly one, that one's value;
+   * null for every other kind of item. */
+  hidden: Readonly<{ count: number; value: string | null }> | null;
 }>;
+
+/** bw's item types: a Secure note is 2; a hidden custom field is 1, a text
+ * one 0. */
+const secureNoteType = 2;
+const hiddenFieldType = 1;
+const textFieldType = 0;
+
+/** The hidden custom fields of a Secure note, or undefined when its fields
+ * are not of bw's shape. */
+function hiddenFields(
+  item: Record<string, unknown>,
+): BwSecretItem["hidden"] | undefined {
+  if (item.type !== secureNoteType) return null;
+  const fields = item.fields ?? [];
+  if (!Array.isArray(fields)) return undefined;
+  const hidden: unknown[] = [];
+  for (const entry of fields) {
+    const field = record(entry);
+    if (field === null) return undefined;
+    if (field.type === hiddenFieldType) hidden.push(field.value);
+  }
+  const [only] = hidden;
+  return Object.freeze({
+    count: hidden.length,
+    value: hidden.length === 1 && typeof only === "string" ? only : null,
+  });
+}
 
 /** `bw list items`: the items whose name is one of `names`, exactly. An
  * entry that is not an item object, or a candidate whose ids are not of the
@@ -275,16 +308,72 @@ export function parseSecretItems(
       login !== null && typeof login.password === "string"
         ? login.password
         : null;
+    const hidden = hiddenFields(item);
+    if (hidden === undefined) return null;
     items.push(
       Object.freeze({
         name: item.name,
         organizationId,
         collectionIds: Object.freeze([...collectionIds]),
         password,
+        hidden,
       }),
     );
   }
   return items;
+}
+
+/** A Secure note for the Environment's own vault (decision F53): the item an
+ * agent's secret request becomes, one custom field per field of the
+ * request, hidden for a secret one. */
+export type BwNote = Readonly<{
+  organizationId: string;
+  collectionId: string;
+  name: string;
+  notes: string;
+  fields: readonly Readonly<{ name: string; value: string; hidden: boolean }>[];
+}>;
+
+/** The note as `bw create item` reads it: the JSON of bw's item template,
+ * base64-encoded (what `bw encode` prints). */
+export function encodedNote(note: BwNote): string {
+  const item = {
+    organizationId: note.organizationId,
+    collectionIds: [note.collectionId],
+    folderId: null,
+    type: secureNoteType,
+    name: note.name,
+    notes: note.notes,
+    favorite: false,
+    fields: note.fields.map((field) => ({
+      name: field.name,
+      value: field.value,
+      type: field.hidden ? hiddenFieldType : textFieldType,
+      linkedId: null,
+    })),
+    login: null,
+    secureNote: { type: 0 },
+    card: null,
+    identity: null,
+    reprompt: 0,
+  };
+  return Buffer.from(JSON.stringify(item), "utf8").toString("base64");
+}
+
+/** `bw create item`: the new item's id, and only that. bw prints the whole
+ * item, values included; nothing else of it is read or kept. An item that is
+ * not in the organization asked for is not taken for the one created. */
+export function parseCreatedItem(
+  stdout: string,
+  organizationId: string,
+): string | null {
+  const value = record(jsonOf(stdout));
+  return value !== null &&
+    value.object === "item" &&
+    isVaultId(value.id) &&
+    value.organizationId === organizationId
+    ? value.id
+    : null;
 }
 
 export type BwCli = ReturnType<typeof bwCli>;
@@ -307,13 +396,19 @@ export function bwCli(environment: BwEnvironment) {
     extra: Readonly<Record<string, string>> = {},
     timeoutMs: number = timeouts.local,
     maxBytes?: number,
+    stdin?: string,
   ): Promise<ToolProcessResult | "spawn-failed"> {
     try {
       return await environment.run(
         [environment.binary, ...args],
         timeoutMs,
         { ...base, ...extra, BITWARDENCLI_APPDATA_DIR: data },
-        maxBytes === undefined ? undefined : { maxBytes },
+        maxBytes === undefined && stdin === undefined
+          ? undefined
+          : {
+              ...(maxBytes === undefined ? {} : { maxBytes }),
+              ...(stdin === undefined ? {} : { stdin }),
+            },
       );
     } catch {
       return "spawn-failed";
@@ -325,8 +420,9 @@ export function bwCli(environment: BwEnvironment) {
     extra: Readonly<Record<string, string>> = {},
     timeoutMs?: number,
     maxBytes?: number,
+    stdin?: string,
   ): Promise<BwResult<T>> {
-    const result = await run(args, extra, timeoutMs, maxBytes);
+    const result = await run(args, extra, timeoutMs, maxBytes, stdin);
     if (result === "spawn-failed") return fail("spawn-failed");
     if (result === "timeout" || result.exitCode !== 0)
       return fail(bwFailureOf(result));
@@ -506,6 +602,20 @@ export function bwCli(environment: BwEnvironment) {
         () => true as const,
         session(value),
         timeouts.network,
+      );
+    },
+    /** Creates one Secure note in the Environment's own vault (decision
+     * F53): the item, values included, goes to bw's standard input, encoded
+     * as `bw encode` would, never to argv; of bw's answer only the new
+     * item's id is read. */
+    createNote(value: string, note: BwNote): Promise<BwResult<string>> {
+      return step(
+        ["create", "item", "--nointeraction"],
+        (stdout) => parseCreatedItem(stdout, note.organizationId),
+        session(value),
+        timeouts.network,
+        undefined,
+        encodedNote(note),
       );
     },
     logout(value: string | null): Promise<BwResult<true>> {
