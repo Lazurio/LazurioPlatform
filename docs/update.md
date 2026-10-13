@@ -127,9 +127,12 @@ client.
 ([F36](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer))
 for a host outside an Environment, such as the Lazurio Dashboard: it pins the shell
 of one release by its tag and the asset's digest instead of loading
-`/.lazurio/shell.js` from some Environment. `scripts/release-shell.ts` builds it once
-in the publishing job, because nothing in it depends on a target. The update never
-downloads it, and an installed Lazurio never reads it.
+`/.lazurio/shell.js` from some Environment. It also carries the Environment
+browser's contract, which the forks (T3 Code first, then Lazurio MausBot) vendor
+from it by the same tag and digest ([F50](decisions.md#f50--the-environment-browsers-contract-one-module-executable-vectors-and-an-attested-artifact-for-the-forks) point 5).
+`scripts/release-shell.ts` builds it once in the publishing job, because nothing in
+it depends on a target. The update never downloads it, and an installed Lazurio never
+reads it.
 
 | File | Content |
 | --- | --- |
@@ -137,7 +140,11 @@ downloads it, and an installed Lazurio never reads it.
 | `contract.js` | `src/shell/contract.ts` alone as an ES module without imports (`parseShell`, `parseShellAccount`, `parseShellSignedOut`, `dashboardSlug` and the rest), for a host's server code and tests: importing `shell.js` defines the elements and so needs a DOM |
 | `contract.d.ts` | its declarations, which need neither DOM nor Bun types |
 | `fonts/*.woff2`, `fonts/LICENSE-*.txt` | the fonts exactly as served at `/.lazurio/fonts/<file>`, where the elements request them, with their licences |
-| `LICENSE`, `NOTICE`, `LICENSE-iconoir.txt` | the Platform's licence and notice, and the licence of the interface icons inside `shell.js` |
+| `browser-contract/pure.js`, `browser-contract/node.js` | the Environment browser's contract module, `src/browser/contract/`, its pure and its Node part, each an ES module of its own: transpiled, not bundled and not minified, with the module's comments; `node.js` imports `./pure.js` and otherwise only `node:` built-ins |
+| `browser-contract/pure.d.ts`, `browser-contract/node.d.ts` | their declarations, which need no DOM, Node or Bun types |
+| `browser-contract/vectors/README.md`, `browser-contract/vectors/v1/*.json` | the contract's executable vectors and the description of their format, byte for byte |
+| `browser-contract/LICENSE` | the module's own licence file, the MIT terms that cover every `browser-contract/` file ([licensing](licensing.md#the-environment-browsers-contract-mit)) |
+| `LICENSE`, `NOTICE`, `LICENSE-iconoir.txt` | the Platform's licence (Elastic-2.0, for every file but the contract's) and its notice, which names the MIT exception, and the licence of the interface icons inside `shell.js` |
 | `artifact.json` | the listing below |
 
 ```json
@@ -146,16 +153,33 @@ downloads it, and an installed Lazurio never reads it.
   "version": "1.4.0",
   "sourceCommit": "<40 hex>",
   "interface": 1,
-  "files": { "shell.js": "<sha256>", "fonts/inter-tight-latin-wght-normal.woff2": "<sha256>" }
+  "browserContract": {
+    "major": 1,
+    "files": ["browser-contract/LICENSE", "browser-contract/node.d.ts", "browser-contract/node.js", "…"]
+  },
+  "files": { "shell.js": "<sha256>", "browser-contract/pure.js": "<sha256>", "…": "<sha256>" }
 }
 ```
 
 `interface` is the version of the elements' promised interface
-(`src/shell/interface.ts`). `files` names every other file of the archive with its
-SHA-256, and the archive holds nothing else. The archive is deterministic: regular
-files in path order, mode `0644`, owner and group 0, time 0, and a gzip header
-without a time or an operating system, so the same source and Bun give the same
-bytes.
+(`src/shell/interface.ts`). `browserContract` names the contract's major
+([F50](decisions.md#f50--the-environment-browsers-contract-one-module-executable-vectors-and-an-attested-artifact-for-the-forks) point 3) and its files, which are exactly the files the
+contract's MIT exception covers. `files` names every other file of the archive with
+its SHA-256, the contract's included, and the archive holds nothing else. The archive
+is deterministic: regular files in path order, mode `0644`, owner and group 0, time
+0, and a gzip header without a time or an operating system, so the same source, Bun
+and TypeScript give the same bytes.
+
+`browserContract` is an addition to `lazurio.shell-artifact.v1`, not a new version.
+Every file the archive held keeps its path and its meaning and stays listed in
+`files` with its digest, `interface` stays 1, and nothing is renamed or removed: the
+archive gained listed files and one member. A host reads the members it knows, requires `files` to
+name exactly the archive's other files, which still holds, and ignores members and
+files it does not use; the Dashboard's vendoring does exactly that, and a
+`lazurio.shell-artifact.v2` would only make it refuse a release for no change of its
+own. The artifact follows the rule of the shell's v1 documents ([F36](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer)'s
+addendum of 2026-10-05): within v1 it only grows, and a change that would break a
+reader is its v2, decided and announced first.
 
 A host verifies the asset of the exact tag it pins, never of `latest`, with the
 check `install.sh` runs on an executable:
@@ -177,7 +201,16 @@ the tag, the commit and the SHA-256 of the archive as its pin; its vendored copy
 be checked against `artifact.json` at any time. A Sigstore outage may block a bump;
 it is never a reason to skip the check. The asset exists only for tags whose
 `release.yml` builds it: earlier releases carry none, and an immutable release never
-gains one.
+gains one. Likewise only the releases after the browser contract entered the
+archive carry `browserContract`.
+
+A fork that vendors the browser contract runs the same check and also requires the
+certificate's repository and owner ids (`sourceRepositoryIdentifier` `1361711425`,
+`sourceRepositoryOwnerIdentifier` `309688040`), as the Dashboard's vendoring does. It
+unpacks only the listed regular files, checks every digest, keeps `browser-contract/`
+with its `LICENSE` and the archive's `NOTICE`, and writes a `provenance.json` its CI
+checks the vendored bytes against on every run. The commands are in [F50](decisions.md#f50--the-environment-browsers-contract-one-module-executable-vectors-and-an-attested-artifact-for-the-forks)
+point 5's addendum of 2026-10-14.
 
 **Check.** The client requests
 `https://github.com/<origin>/releases/latest/download/manifest.json`, records the

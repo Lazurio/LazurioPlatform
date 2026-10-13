@@ -240,9 +240,12 @@ jobs:
         run: cp install.sh "$RUNNER_TEMP/release/install.sh"
       # The shell of this tag for a host outside an Environment (decision F36):
       # shell.js as every Launchpad of the tag serves it, its contract, fonts
-      # and licences, and artifact.json listing their digests. Nothing in it
-      # depends on a target, so it is built once, here. It is not in the
-      # manifest either; the update never downloads it.
+      # and licences, the Environment browser's contract module and vectors
+      # the forks vendor (decision F50 point 5), and artifact.json listing
+      # their digests. Nothing in it depends on a target, so it is built once,
+      # here, and the one attestation below covers every file in it through
+      # the archive's digest. It is not in the manifest either; the update
+      # never downloads it.
       - name: lazurio-shell.tar.gz is a release asset
         run: |
           bun run scripts/release-shell.ts --version "$VERSION" --commit "$GITHUB_SHA" \

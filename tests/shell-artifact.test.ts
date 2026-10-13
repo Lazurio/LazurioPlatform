@@ -9,12 +9,14 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { gunzipSync } from "node:zlib";
 import ts from "typescript";
 import {
+  browserContractDirectory,
   buildShellArtifact,
   shellArtifactFile,
 } from "../scripts/release-shell";
+import * as browserNode from "../src/browser/contract/node";
+import * as browserPure from "../src/browser/contract/pure";
 import { privatePage, shellSource } from "../src/launchpad/page";
 import * as contract from "../src/shell/contract";
 import { shellFonts } from "../src/shell/fonts";
@@ -22,73 +24,29 @@ import { shellElementInterface } from "../src/shell/interface";
 import { sha256Hex } from "../src/update/manifest";
 import { accountDocument } from "./fixtures/account-document";
 import { runChild } from "./fixtures/run-child";
+import { tarEntries } from "./fixtures/ustar";
 
 // Decision F36; docs/update.md "The shell artifact": every release attaches
 // `lazurio-shell.tar.gz`, the shell of that release, for a host outside an
-// Environment (the Lazurio Dashboard) to pin by its tag and digest. What such
-// a host relies on: the bytes are the ones every Environment of the release
-// serves, `artifact.json` lists them, a standard tar reads the archive, the
-// contract runs and type-checks without a DOM, the same inputs give the same
-// archive, and the release workflow attests and attaches it.
+// Environment (the Lazurio Dashboard) to pin by its tag and digest, and the
+// Environment browser's contract for the forks to vendor by it (decision F50
+// point 5). What a host and a fork rely on: the bytes are the ones every
+// Environment of the release serves, `artifact.json` lists them, a standard
+// tar reads the archive, the contract runs and type-checks without a DOM, the
+// browser contract's files are its module's, under its own MIT licence, and
+// type-check without any runtime's declarations, the same inputs give the
+// same archive, and the release workflow attests and attaches it.
+// tests/browser-contract-artifact.test.ts runs the contract's vectors against
+// the packed module.
 
 const posixTest = test.skipIf(process.platform === "win32");
 const root = join(import.meta.dir, "..");
 const vendor = join(root, "src", "shell", "vendor");
+const browserContractSource = join(root, "src", "browser", "contract");
 const release = {
   version: "1.2.3-rc.4",
   sourceCommit: "0123456789abcdef0123456789abcdef01234567",
 };
-
-type Entry = Readonly<{
-  header: Readonly<{
-    path: string;
-    mode: number;
-    uid: number;
-    gid: number;
-    mtime: number;
-    type: string;
-    magic: string;
-    owner: string;
-    group: string;
-  }>;
-  data: Uint8Array;
-}>;
-
-/** The entries of the archive as an independent reader sees them. */
-function entries(archive: Uint8Array): Entry[] {
-  const tar = new Uint8Array(gunzipSync(archive));
-  const text = (block: Uint8Array, start: number, length: number) => {
-    const bytes = block.subarray(start, start + length);
-    const end = bytes.indexOf(0);
-    return new TextDecoder().decode(
-      end === -1 ? bytes : bytes.subarray(0, end),
-    );
-  };
-  const octal = (block: Uint8Array, start: number, length: number) =>
-    Number.parseInt(text(block, start, length), 8);
-  const found: Entry[] = [];
-  for (let at = 0; at + 512 <= tar.length; ) {
-    const block = tar.subarray(at, at + 512);
-    if (block.every((byte) => byte === 0)) break;
-    const size = octal(block, 124, 12);
-    found.push({
-      header: {
-        path: text(block, 0, 100),
-        mode: octal(block, 100, 8),
-        uid: octal(block, 108, 8),
-        gid: octal(block, 116, 8),
-        mtime: octal(block, 136, 12),
-        type: text(block, 156, 1),
-        magic: new TextDecoder().decode(block.subarray(257, 265)),
-        owner: text(block, 265, 32),
-        group: text(block, 297, 32),
-      },
-      data: tar.subarray(at + 512, at + 512 + size),
-    });
-    at += 512 + Math.ceil(size / 512) * 512;
-  }
-  return found;
-}
 
 let archive: Uint8Array = new Uint8Array();
 let packed = new Map<string, Uint8Array>();
@@ -96,7 +54,7 @@ let scratch = "";
 beforeAll(async () => {
   archive = await buildShellArtifact(release);
   packed = new Map(
-    entries(archive).map((entry) => [entry.header.path, entry.data]),
+    tarEntries(archive).map((entry) => [entry.header.path, entry.data]),
   );
   scratch = await mkdtemp(join(tmpdir(), "shell-artifact-"));
 }, 60_000);
@@ -108,6 +66,29 @@ function bytesOf(path: string): Uint8Array {
   const bytes = packed.get(path);
   if (bytes === undefined) throw new Error(`${path} is not packed`);
   return bytes;
+}
+
+const textOf = (path: string) => new TextDecoder().decode(bytesOf(path));
+
+/** The browser contract's files as the archive must hold them, read from the
+ * module's own directory: each part as an ES module and its declarations, the
+ * module's licence, and its vectors with their README. */
+async function browserContractPaths(): Promise<string[]> {
+  const parts = (await readdir(browserContractSource))
+    .filter((name) => name.endsWith(".ts"))
+    .map((name) => name.slice(0, -".ts".length));
+  const vectors = [
+    ...new Bun.Glob("**").scanSync({
+      cwd: join(browserContractSource, "vectors"),
+    }),
+  ];
+  return [
+    ...parts.flatMap((part) => [`${part}.js`, `${part}.d.ts`]),
+    "LICENSE",
+    ...vectors.map((path) => `vectors/${path.replaceAll("\\", "/")}`),
+  ]
+    .map((path) => `${browserContractDirectory}/${path}`)
+    .sort();
 }
 
 // A `lazurio.shell.v1` document of a workstation with one Organization,
@@ -188,10 +169,12 @@ test("the fonts are the vendored files with their licences, beside the licences 
     expect(`${path} ${sha256Hex(bytesOf(path))}`).toBe(
       `${path} ${sha256Hex(await readFile(source))}`,
     );
-  // Besides them only the shell's own files and the listing.
+  // Besides them only the shell's own files, the browser contract's and the
+  // listing.
   expect([...packed.keys()].sort()).toEqual(
     [
       ...Object.keys(sources),
+      ...(await browserContractPaths()),
       "artifact.json",
       "contract.d.ts",
       "contract.js",
@@ -200,14 +183,13 @@ test("the fonts are the vendored files with their licences, beside the licences 
   );
 });
 
-test("artifact.json names the release and lists every other packed file with its SHA-256", () => {
-  expect(
-    JSON.parse(new TextDecoder().decode(bytesOf("artifact.json"))),
-  ).toEqual({
+test("artifact.json names the release, the browser contract's major and files, and lists every other packed file with its SHA-256", async () => {
+  expect(JSON.parse(textOf("artifact.json"))).toEqual({
     schema: "lazurio.shell-artifact.v1",
     version: release.version,
     sourceCommit: release.sourceCommit,
     interface: shellElementInterface.version,
+    browserContract: { major: 1, files: await browserContractPaths() },
     files: Object.fromEntries(
       [...packed]
         .filter(([path]) => path !== "artifact.json")
@@ -216,8 +198,106 @@ test("artifact.json names the release and lists every other packed file with its
   });
 });
 
+// Decision F50 points 5 and 6: what the forks vendor is the module's own
+// files under its own MIT licence, and NOTICE names the exception by this
+// very listing.
+test("the browser contract's licence, vectors and README are the module's own files, its licence the MIT text and not the Platform's", async () => {
+  const { browserContract } = JSON.parse(textOf("artifact.json")) as {
+    browserContract: { files: string[] };
+  };
+  const copied = browserContract.files.filter(
+    (path) => !path.endsWith(".js") && !path.endsWith(".d.ts"),
+  );
+  expect(copied.length).toBeGreaterThan(2);
+  for (const path of copied) {
+    const source = join(
+      browserContractSource,
+      path.slice(`${browserContractDirectory}/`.length),
+    );
+    expect(`${path} ${sha256Hex(bytesOf(path))}`).toBe(
+      `${path} ${sha256Hex(await readFile(source))}`,
+    );
+  }
+  expect(textOf(`${browserContractDirectory}/LICENSE`)).toStartWith(
+    "MIT License\n",
+  );
+  expect(textOf("LICENSE")).toStartWith("Elastic License 2.0\n");
+  expect(browserContract.files).not.toContain("LICENSE");
+  expect(textOf("NOTICE")).toContain("under browserContract in its");
+});
+
+test("each packed part of the browser contract imports nothing but node: built-ins and the other part's file", () => {
+  // TypeScript's own reading of a file's imports, type-only ones included.
+  const importsOf = (path: string) =>
+    ts
+      .preProcessFile(textOf(`${browserContractDirectory}/${path}`), true, true)
+      .importedFiles.map((found) => found.fileName);
+  expect(importsOf("pure.js")).toEqual([]);
+  expect(importsOf("pure.d.ts")).toEqual([]);
+  expect(
+    importsOf("node.js").filter((path) => !path.startsWith("node:")),
+  ).toEqual(["./pure.js"]);
+  expect(importsOf("node.d.ts")).toEqual(["./pure.js"]);
+});
+
+test("the browser contract's declarations type every export of both parts for a host with neither DOM, Node nor Bun types", async () => {
+  const directory = join(scratch, "browser-contract");
+  await mkdir(directory);
+  for (const file of ["pure.js", "pure.d.ts", "node.js", "node.d.ts"])
+    await writeFile(
+      join(directory, file),
+      bytesOf(`${browserContractDirectory}/${file}`),
+    );
+  // Node's own resolution needs an ES module package for `./pure.js`.
+  await writeFile(join(directory, "package.json"), '{"type": "module"}\n');
+  const pureNames = Object.keys(browserPure).sort().join(", ");
+  const nodeNames = Object.keys(browserNode).sort().join(", ");
+  const host = join(directory, "host.ts");
+  await writeFile(
+    host,
+    [
+      `import { ${pureNames}, type BootTime, type LiveTabs, type RecordedTab } from "./pure.js";`,
+      `import { ${nodeNames}, type HoldsReading } from "./node.js";`,
+      `export const used = [${pureNames}, ${nodeNames}];`,
+      "export const kept = (stored: readonly RecordedTab[], text: string, at: BootTime | null): string[] => {",
+      "  const list: LiveTabs | null = parseLiveTabs(text);",
+      "  return keptTabs(stored, list, at?.boot ?? null);",
+      "};",
+      "export const read = (directory: string): Promise<HoldsReading> => readHolds({ holders: directory });",
+      "",
+    ].join("\n"),
+  );
+  // Both the bundlers' and Node's own module resolution.
+  for (const resolution of [
+    {
+      module: ts.ModuleKind.Preserve,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+    },
+    {
+      module: ts.ModuleKind.NodeNext,
+      moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    },
+  ]) {
+    const program = ts.createProgram([host], {
+      lib: ["lib.esnext.d.ts"],
+      types: [],
+      strict: true,
+      exactOptionalPropertyTypes: true,
+      noEmit: true,
+      ...resolution,
+    });
+    expect(
+      ts
+        .getPreEmitDiagnostics(program)
+        .map((diagnostic) =>
+          ts.flattenDiagnosticMessageText(diagnostic.messageText, " "),
+        ),
+    ).toEqual([]);
+  }
+}, 30_000);
+
 test("the same inputs give the same archive: sorted regular files, 0644, owner 0, time 0, a gzip header without time or operating system", async () => {
-  const headers = entries(archive).map((entry) => entry.header);
+  const headers = tarEntries(archive).map((entry) => entry.header);
   const paths = headers.map((header) => header.path);
   expect(paths).toEqual([...paths].sort());
   expect(headers).toEqual(
