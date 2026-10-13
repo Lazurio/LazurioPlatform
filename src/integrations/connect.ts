@@ -26,7 +26,9 @@ import {
   type ExecutorEndpoint,
   type ExecutorResult,
   executorCall,
+  executorOAuthReturn,
   executorPort,
+  type oauthReturnParameters,
 } from "./executor-client";
 import { healthState, readExecutor } from "./executor-source";
 import {
@@ -53,10 +55,15 @@ import {
 // - with OAuth, Executor's client for the authorization server is created
 //   from its client ID metadata document (`POST /api/oauth/clients`) or
 //   registered dynamically (`POST /api/oauth/clients/register-dynamic`),
-//   then `POST /api/oauth/start` answers the authorization URL; the person
-//   signs in where Executor's callback on localhost is reachable (the
-//   Environment browser on a Remote Environment, their own browser on their
-//   computer) and `GET /api/oauth/await/<state>` tells the outcome;
+//   then `POST /api/oauth/start` answers the authorization URL and
+//   `GET /api/oauth/await/<state>` tells the outcome. On a Remote
+//   Environment a client registered with the Launchpad's own address lets
+//   the person sign in in their own browser: the authorization server
+//   returns there and the Launchpad hands the return to Executor's callback
+//   (`GET /api/oauth/callback`). Where the server registers no such client,
+//   the person signs in where Executor's callback on localhost is reachable:
+//   the Environment browser on a Remote Environment, their own browser on
+//   their computer (decision F42, addendum of 2026-10-13);
 // - a key (a custom server's header or variable) goes only from this server
 //   to Executor (`POST /api/connections` with the value, or the command's
 //   environment), never back, never logged.
@@ -75,6 +82,11 @@ export const executorClientMetadata =
 /** The client name an authorization server shows on its consent screen. */
 const clientName = "Lazurio";
 const oauthAwaitMs = 30_000;
+/** Executor's callback exchanges the code with the authorization server. */
+const oauthReturnMs = 60_000;
+/** How long a return waits for the outcome Executor then tells the long
+ * poll, which it wakes as it answers. */
+const oauthSettleMs = 5_000;
 
 export type ConnectHost = Readonly<{
   executor: ExecutorEndpoint | null;
@@ -89,6 +101,11 @@ export type ConnectHost = Readonly<{
   environmentBrowser:
     | ((url: string) => Promise<Readonly<{ view: string }> | null>)
     | null;
+  /** The Launchpad's own address an authorization server returns a direct
+   * sign-in to, the person's own browser passing the gateway as it does to
+   * the Launchpad (a Remote Environment); null or absent where Executor's
+   * callback on localhost is the person's own (a workstation). */
+  oauthCallback?: string | null;
   catalog?: IntegrationsCatalog;
   now?: () => number;
   /** The journal: the operation, the app and the outcome; never a value. */
@@ -163,8 +180,12 @@ type Session = {
     before: number;
     stale: readonly string[] | null;
   }>;
-  /** Executor: the OAuth flow's state. */
-  readonly oauth?: Readonly<{ state: string }>;
+  /** Executor: the OAuth flow's state, and whether the authorization
+   * server returns it to the Launchpad (the person's own browser) rather
+   * than to Executor's callback on localhost. */
+  readonly oauth?: Readonly<{ state: string; launchpad: boolean }>;
+  /** The authorization server's return was handed to Executor once. */
+  returned?: true;
 };
 
 /** An account name: plain text, one line, at most 64 characters. */
@@ -326,7 +347,11 @@ export function createConnectSessions(host: () => ConnectHost) {
   }
 
   /** Starts Executor's OAuth for one integration: the authorization URL
-   * and the flow's state. */
+   * and the flow. A client registered dynamically with the Launchpad's own
+   * address comes first, so that the person signs in in their own browser;
+   * where the authorization server refuses that address or registers no
+   * client dynamically, Executor's client for its callback on localhost
+   * (decision F42, addendum of 2026-10-13). */
   async function startOAuth(
     executor: ExecutorEndpoint,
     integration: string,
@@ -334,7 +359,7 @@ export function createConnectSessions(host: () => ConnectHost) {
     name: string | null,
     /** Signing an existing connection in again: its name in Executor. */
     again?: string,
-  ): Promise<Readonly<{ url: string; state: string }>> {
+  ): Promise<Readonly<{ url: string; oauth: NonNullable<Session["oauth"]> }>> {
     const described = record(
       answerOf(
         await executorCall(
@@ -381,58 +406,81 @@ export function createConnectSessions(host: () => ConnectHost) {
         : Array.isArray(probe.scopesSupported)
           ? probe.scopesSupported
           : [];
-    let client: string;
-    if (probe.clientIdMetadataDocumentSupported === true) {
-      // A public client: the metadata document is its identity.
-      client = `cimd-${slugify(hostOf(authorizationUrl)) || "authorization-server"}`;
-      answerOf(
-        await executorCall(executor, "POST", "/oauth/clients", {
+    const registration =
+      typeof probe.registrationEndpoint === "string"
+        ? probe.registrationEndpoint
+        : null;
+    /** A client registered dynamically for `redirectUri`: its slug, or
+     * null where the authorization server refused the registration. */
+    const register = async (
+      registrationEndpoint: string,
+      redirectUri: string,
+    ): Promise<string | null> => {
+      const issuer = typeof probe.issuer === "string" ? probe.issuer : null;
+      const answer = await executorCall(
+        executor,
+        "POST",
+        "/oauth/clients/register-dynamic",
+        {
           owner: "org",
-          slug: client,
+          slug: `dcr-${slugify(hostOf(issuer ?? registrationEndpoint)) || "authorization-server"}`,
+          issuer,
+          registrationEndpoint,
           authorizationUrl,
           tokenUrl,
           resource,
-          grant: "authorization_code",
-          clientId: executorClientMetadata,
-          clientSecret: "",
-        }),
-        200,
+          scopes,
+          ...(Array.isArray(probe.tokenEndpointAuthMethodsSupported)
+            ? {
+                tokenEndpointAuthMethodsSupported:
+                  probe.tokenEndpointAuthMethodsSupported,
+              }
+            : {}),
+          clientName,
+          redirectUri,
+          originIntegration: integration,
+        },
       );
-    } else if (typeof probe.registrationEndpoint === "string") {
-      const issuer = typeof probe.issuer === "string" ? probe.issuer : null;
-      const registered = record(
-        answerOf(
-          await executorCall(
-            executor,
-            "POST",
-            "/oauth/clients/register-dynamic",
-            {
-              owner: "org",
-              slug: `dcr-${slugify(hostOf(issuer ?? probe.registrationEndpoint)) || "authorization-server"}`,
-              issuer,
-              registrationEndpoint: probe.registrationEndpoint,
-              authorizationUrl,
-              tokenUrl,
-              resource,
-              scopes,
-              ...(Array.isArray(probe.tokenEndpointAuthMethodsSupported)
-                ? {
-                    tokenEndpointAuthMethodsSupported:
-                      probe.tokenEndpointAuthMethodsSupported,
-                  }
-                : {}),
-              clientName,
-              redirectUri: executorCallback,
-              originIntegration: integration,
-            },
-          ),
-          200,
-        ),
-      );
+      // Executor's OAuthRegisterDynamicError: the server said no, often
+      // to an address that is not loopback (RFC 8252).
+      if (answer.kind === "answer" && answer.status === 400) return null;
+      const registered = record(answerOf(answer, 200));
       if (typeof registered.client !== "string")
         throw new ConnectBlocked("connect-failed");
-      client = registered.client;
-    } else throw new ConnectBlocked("path-unavailable");
+      return registered.client;
+    };
+    /** Executor's client for its callback on localhost: from its client ID
+     * metadata document where the server reads one, else registered. */
+    const localClient = async (): Promise<string> => {
+      if (probe.clientIdMetadataDocumentSupported === true) {
+        // A public client: the metadata document is its identity.
+        const slug = `cimd-${slugify(hostOf(authorizationUrl)) || "authorization-server"}`;
+        answerOf(
+          await executorCall(executor, "POST", "/oauth/clients", {
+            owner: "org",
+            slug,
+            authorizationUrl,
+            tokenUrl,
+            resource,
+            grant: "authorization_code",
+            clientId: executorClientMetadata,
+            clientSecret: "",
+          }),
+          200,
+        );
+        return slug;
+      }
+      if (registration === null) throw new ConnectBlocked("path-unavailable");
+      const registered = await register(registration, executorCallback);
+      if (registered === null) throw new ConnectBlocked("connect-failed");
+      return registered;
+    };
+    const callback = host().oauthCallback ?? null;
+    const own =
+      callback !== null && registration !== null
+        ? await register(registration, callback)
+        : null;
+    const client = own ?? (await localClient());
     const started = record(
       answerOf(
         await executorCall(executor, "POST", "/oauth/start", {
@@ -445,6 +493,9 @@ export function createConnectSessions(host: () => ConnectHost) {
           // A new account gets a free name; signing in again keeps its own.
           ...(again === undefined ? { newConnection: true } : {}),
           ...(name === null ? {} : { identityLabel: name }),
+          // The address the client was registered with; Executor's own
+          // callback otherwise.
+          ...(own === null ? {} : { redirectUri: callback }),
         }),
         200,
       ),
@@ -458,7 +509,7 @@ export function createConnectSessions(host: () => ConnectHost) {
       !/^https:\/\//.test(url)
     )
       throw new ConnectBlocked("connect-failed");
-    return { url, state };
+    return { url, oauth: { state, launchpad: own !== null } };
   }
 
   /** Waits for Executor's OAuth outcome in the background, one long poll
@@ -505,14 +556,16 @@ export function createConnectSessions(host: () => ConnectHost) {
     })();
   }
 
-  /** Where the person signs in: the Environment browser on a Remote
-   * Environment, their own browser on their computer. */
+  /** Where the person signs in: their own browser where the authorization
+   * server returns to the Launchpad or to Executor on their own computer;
+   * the Environment browser where it returns to Executor on a Remote
+   * Environment. */
   async function authorize(
     session: Session,
     url: string,
   ): Promise<ConnectStart> {
     const browser = host().environmentBrowser;
-    if (browser === null)
+    if (session.oauth?.launchpad === true || browser === null)
       return { kind: "authorize", session: session.id, url };
     const opened = await browser(url).catch(() => null);
     if (opened === null) {
@@ -569,16 +622,10 @@ export function createConnectSessions(host: () => ConnectHost) {
         : { kind: "blocked", reason: "still-failing" };
     }
     const endpoint = app.direct?.endpoint as string;
-    const { url, state } = await startOAuth(
-      executor,
-      slug,
-      endpoint,
-      name,
-      againName,
-    );
-    const session = open(app.id, { oauth: { state } });
-    awaitOAuth(executor, session, state);
-    return authorize(session, url);
+    const started = await startOAuth(executor, slug, endpoint, name, againName);
+    const session = open(app.id, { oauth: started.oauth });
+    awaitOAuth(executor, session, started.oauth.state);
+    return authorize(session, started.url);
   }
 
   /** One account of an integration as Executor reads it now; null where it
@@ -913,6 +960,46 @@ export function createConnectSessions(host: () => ConnectHost) {
       return true;
     },
 
+    /** An authorization server's return to the Launchpad's own address
+     * (decision F42, addendum of 2026-10-13): handed once to Executor's
+     * callback, and only for a sign-in started here that returns here and
+     * still waits; then how it went, as soon as Executor tells it. Null for
+     * a state no such sign-in has. */
+    async returned(
+      parameters: Readonly<
+        Partial<Record<(typeof oauthReturnParameters)[number], string>>
+      >,
+    ): Promise<Readonly<{ app: string; progress: ConnectProgress }> | null> {
+      const session = [...sessions.values()].find(
+        (item) =>
+          item.oauth?.launchpad === true &&
+          item.oauth.state === parameters.state,
+      );
+      if (session === undefined) return null;
+      if (session.outcome.kind === "pending" && now() >= session.expires)
+        session.outcome = { kind: "ended", reason: "expired" };
+      // A second return of the same sign-in (a reload) is never handed on.
+      if (session.outcome.kind === "pending" && session.returned !== true) {
+        session.returned = true;
+        const executor = host().executor;
+        const delivered =
+          executor === null
+            ? "unavailable"
+            : await executorOAuthReturn(executor, parameters, oauthReturnMs);
+        if (delivered !== "delivered" && session.outcome.kind === "pending") {
+          session.outcome = { kind: "ended", reason: "failed" };
+          journal({ event: "connect", app: session.app, outcome: "failed" });
+        }
+      }
+      for (
+        let waited = 0;
+        session.outcome.kind === "pending" && waited < oauthSettleMs;
+        waited += 50
+      )
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      return { app: session.app, progress: session.outcome };
+    },
+
     /** Disconnects one account of an app, named as the reading names it. */
     async disconnect(
       appId: string,
@@ -1085,14 +1172,14 @@ export function createConnectSessions(host: () => ConnectHost) {
         if (typeof slug !== "string")
           return { kind: "blocked", reason: "connect-failed" };
         if (oauth) {
-          const { url, state } = await startOAuth(
+          const { url, oauth } = await startOAuth(
             executor,
             slug,
             endpoint,
             null,
           );
-          const session = open(slug, { oauth: { state } });
-          awaitOAuth(executor, session, state);
+          const session = open(slug, { oauth });
+          awaitOAuth(executor, session, oauth.state);
           return authorize(session, url);
         }
         answerOf(
@@ -1287,14 +1374,14 @@ export function createConnectSessions(host: () => ConnectHost) {
                 : "connect-failed",
             );
           if (account === "oauth2") {
-            const { url, state } = await startOAuth(
+            const { url, oauth } = await startOAuth(
               executor,
               id,
               endpoint,
               null,
             );
-            const session = open(id, { oauth: { state } });
-            awaitOAuth(executor, session, state);
+            const session = open(id, { oauth });
+            awaitOAuth(executor, session, oauth.state);
             journal({ event: "custom-update", app: id, outcome: "pending" });
             return authorize(session, url);
           }

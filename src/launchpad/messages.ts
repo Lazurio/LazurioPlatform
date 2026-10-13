@@ -1104,6 +1104,15 @@ const en = {
     "Finish the sign-in in the Environment browser on the right.",
   integrationsWaiting: "Waiting for the sign-in…",
   integrationsConnectedNow: "{app} is connected.",
+  integrationsReturnTitle: "Sign-in",
+  integrationsReturnConnected:
+    "{app} is connected. You can close this window and go back to the Launchpad.",
+  integrationsReturnFailed:
+    "The sign-in to {app} could not be finished. Go back to the Launchpad and try again.",
+  integrationsReturnPending:
+    "The sign-in to {app} is finishing. The Launchpad shows how it went; you can close this window.",
+  integrationsReturnUnknown:
+    "This sign-in is no longer valid. Start connecting again in the Launchpad.",
   integrationsConnectFailed: "The connection could not be started.",
   integrationsIntegrationConflict:
     "Executor holds another server under this app's name. You find it in Custom: remove it there and connect the app again.",
@@ -2412,6 +2421,15 @@ const cs: Record<MessageKey, string> = {
     "Dokonči přihlášení v prohlížeči Environmentu vpravo.",
   integrationsWaiting: "Čekám na přihlášení…",
   integrationsConnectedNow: "{app} je připojená.",
+  integrationsReturnTitle: "Přihlášení",
+  integrationsReturnConnected:
+    "{app} je připojená. Toto okno můžete zavřít a vrátit se do Launchpadu.",
+  integrationsReturnFailed:
+    "Přihlášení do {app} se nepodařilo dokončit. Vraťte se do Launchpadu a zkuste to znovu.",
+  integrationsReturnPending:
+    "Přihlášení do {app} se dokončuje. Jak dopadlo, uvidíte v Launchpadu; toto okno můžete zavřít.",
+  integrationsReturnUnknown:
+    "Toto přihlášení už neplatí. Spusťte připojení znovu v Launchpadu.",
   integrationsConnectFailed: "Připojení se nepodařilo spustit.",
   integrationsIntegrationConflict:
     "V Executoru je pod jménem téhle aplikace jiný server. Najdeš ho ve Vlastní: odeber ho tam a aplikaci připoj znovu.",

@@ -58,13 +58,13 @@ type Copy = Readonly<Record<MessageKey, string>>;
 
 // Apps → Integrace (decision F42): the page's DOM over integrations-view.ts.
 // The server drives Executor and Composio; this page only opens what the
-// person signs in to: a window of their own browser for Composio and, on
-// their computer, for a direct sign-in (claimed in the click, so no pop-up
-// blocker stops it), or the Environment browser's view in the right panel on
-// a Remote Environment, where Executor's sign-in returns to localhost. A
-// link URL lives only in that window and in page memory; a key typed for a
-// custom server goes to the server once and is never kept. Every value from
-// the server is drawn with textContent.
+// person signs in to: a window of their own browser (claimed in the click,
+// so no pop-up blocker stops it, and closed once the app is connected), or
+// the Environment browser's view in the right panel where a direct sign-in
+// can return only to Executor on a Remote Environment (decision F42,
+// addendum of 2026-10-13). A link URL lives only in that window and in page
+// memory; a key typed for a custom server goes to the server once and is
+// never kept. Every value from the server is drawn with textContent.
 
 type Session = Readonly<{
   id: string;
@@ -92,9 +92,6 @@ export function createIntegrationsPanel(
     copy: () => Copy;
     locale: () => "cs" | "en";
     navigate: (path: string) => void;
-    /** Whether a direct sign-in opens in the Environment browser (a Remote
-     * Environment with its browser), not in a window of this browser. */
-    hosted: () => boolean;
     /** Opens the right panel on the Environment browser's view. */
     showBrowser: (view: string) => void;
     /** Opens Composio's sign-in of Settings → Tools; false when it could
@@ -303,6 +300,8 @@ export function createIntegrationsPanel(
       sessions.delete(session.id);
       busy = new Set([...busy].filter((id) => id !== session.app));
       if (kind === "connected") {
+        // Its window has done its part; the person is back on the card.
+        session.window?.close();
         const name =
           overview?.apps.find((app) => app.id === session.app)?.name ??
           session.app;
@@ -379,12 +378,9 @@ export function createIntegrationsPanel(
     again?: IntegrationAccount,
   ) {
     if (busy.has(app.id)) return;
-    const path = app.path.path;
-    // Claimed in the click, before anything is awaited.
-    const reserved =
-      path === "composio" || !options.hosted()
-        ? window.open("about:blank", "_blank")
-        : null;
+    // Claimed in the click, before anything is awaited; closed again where
+    // the server answers no address for it.
+    const reserved = window.open("about:blank", "_blank");
     busy = new Set([...busy, app.id]);
     note = "";
     render();
@@ -1434,8 +1430,7 @@ export function createIntegrationsPanel(
     const reserved =
       input.type === "http" &&
       input.bearer === null &&
-      input.headers.length === 0 &&
-      !options.hosted()
+      input.headers.length === 0
         ? window.open("about:blank", "_blank")
         : null;
     custom = { ...page, saving: true, status: "" };

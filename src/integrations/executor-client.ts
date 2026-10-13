@@ -22,7 +22,9 @@ import { readOwnerOnlyFileBytes } from "../providers/owned-json";
 //   of the environment (HTTP_PROXY, ALL_PROXY, NODE_USE_ENV_PROXY) ever sees
 //   the token, as Bun's `fetch` would let it;
 // - follows no redirect, bounds the time and the size of every answer and
-//   parses only JSON; the caller checks the exact shape.
+//   parses only JSON; the caller checks the exact shape. The one page it
+//   asks for, Executor's callback after an authorization server's return,
+//   is dropped unread.
 
 /** Executor's port as `executor install` serves it. */
 export const executorPort = 4789;
@@ -199,14 +201,19 @@ export const directTransport: ExecutorTransport = (input) =>
     outgoing.end();
   });
 
-/** One call of Executor's API: `path` below `/api`, a JSON body or none. */
-export async function executorCall(
+/** One exchange with Executor's API, once its listener and token are
+ * proven this account's: `path` below `/api`, a JSON body or none. */
+async function exchange(
   host: ExecutorEndpoint,
   method: "GET" | "POST" | "PATCH" | "DELETE",
   path: string,
-  body?: unknown,
-  timeoutMs: number = executorTimeoutMs,
-): Promise<ExecutorResult> {
+  body: unknown,
+  timeoutMs: number,
+  accept: string,
+): Promise<
+  | Extract<ExecutorResult, { kind: "unavailable" }>
+  | Awaited<ReturnType<ExecutorTransport>>
+> {
   if (!path.startsWith("/") || path.startsWith("//"))
     throw new Error("An Executor API path");
   if (!(await host.ownsListener(host.port)))
@@ -216,20 +223,38 @@ export async function executorCall(
     return { kind: "unavailable", reason: "token-missing" };
   if (token === "unreadable")
     return { kind: "unavailable", reason: "token-unreadable" };
-  const answer = await (host.transport ?? directTransport)({
+  return (host.transport ?? directTransport)({
     method,
     port: host.port,
     path: `/api${path}`,
     headers: {
       authorization: `Bearer ${token}`,
-      accept: "application/json",
+      accept,
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
     body: body === undefined ? null : JSON.stringify(body),
     timeoutMs,
     maxBytes: answerBytesMax,
   });
-  if (answer.kind === "failed") return answer;
+}
+
+/** One call of Executor's API: `path` below `/api`, a JSON body or none. */
+export async function executorCall(
+  host: ExecutorEndpoint,
+  method: "GET" | "POST" | "PATCH" | "DELETE",
+  path: string,
+  body?: unknown,
+  timeoutMs: number = executorTimeoutMs,
+): Promise<ExecutorResult> {
+  const answer = await exchange(
+    host,
+    method,
+    path,
+    body,
+    timeoutMs,
+    "application/json",
+  );
+  if (answer.kind !== "answer") return answer;
   if (answer.status >= 300 && answer.status < 400)
     return { kind: "failed", reason: "redirect" };
   // Executor refuses a token in plain text; the status says it all.
@@ -243,4 +268,48 @@ export async function executorCall(
   } catch {
     return { kind: "failed", reason: "not-json" };
   }
+}
+
+/** The parameters of an authorization server's return that Executor's own
+ * callback reads (Executor 1.6.10, `GET /api/oauth/callback`): the flow's
+ * state, the code or the error, and the region hints of a multi-site
+ * server. */
+export const oauthReturnParameters = [
+  "state",
+  "code",
+  "error",
+  "error_description",
+  "domain",
+  "site",
+] as const;
+
+/** Hands an authorization server's return to Executor's own callback, as a
+ * browser on the Environment would (decision F42, addendum of 2026-10-13):
+ * Executor exchanges the code and answers its own popup page, which is
+ * dropped unread; the outcome comes from `GET /api/oauth/await/<state>`.
+ * Delivered on any 2xx: Executor's page answers a failed exchange too. */
+export async function executorOAuthReturn(
+  host: ExecutorEndpoint,
+  parameters: Readonly<
+    Partial<Record<(typeof oauthReturnParameters)[number], string>>
+  >,
+  timeoutMs: number,
+): Promise<"delivered" | "unavailable" | "failed"> {
+  const query = new URLSearchParams();
+  for (const key of oauthReturnParameters) {
+    const value = parameters[key];
+    if (value !== undefined) query.set(key, value);
+  }
+  const answer = await exchange(
+    host,
+    "GET",
+    `/oauth/callback?${query}`,
+    undefined,
+    timeoutMs,
+    "text/html",
+  );
+  if (answer.kind === "unavailable") return "unavailable";
+  return answer.kind === "answer" && answer.status >= 200 && answer.status < 300
+    ? "delivered"
+    : "failed";
 }

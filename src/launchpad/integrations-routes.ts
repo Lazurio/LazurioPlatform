@@ -1,10 +1,14 @@
+import { join } from "node:path";
 import type { ExecutorContext } from "../executor/flow";
+import { withFolderReadLock } from "../folder/lock";
+import { readFolderState } from "../folder/read-state";
 import { ownDataValue, stateFields } from "../folder/state-fields";
 import { integrationsCatalog } from "../integrations/catalog";
 import type { IntegrationsCatalog } from "../integrations/catalog-schema";
 import {
   accountName,
   type ConnectHost,
+  type ConnectProgress,
   createConnectSessions,
 } from "../integrations/connect";
 import {
@@ -13,13 +17,19 @@ import {
   customProblems,
   resolveCwd,
 } from "../integrations/custom-server";
-import type { ExecutorEndpoint } from "../integrations/executor-client";
+import {
+  type ExecutorEndpoint,
+  oauthReturnParameters,
+} from "../integrations/executor-client";
 import { composioToolkitOf } from "../integrations/model";
 import type { ComposioPolicySource } from "../integrations/policy";
 import { createIntegrationsReader } from "../integrations/read";
+import { escapeHtml } from "../shell/offline-page";
 import type { ToolsEnvironment } from "../tools/overview";
 import { resolveOnPath } from "../tools/status";
 import { BodyTooLarge, readJsonBody } from "./json-body";
+import { messages } from "./messages";
+import { fill } from "./update-view";
 
 // Apps → Integrace in the Launchpad (decision F42), behind the admission of
 // every `/api/*` route (the local token and same origin, or the gateway's
@@ -31,6 +41,12 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //   POST /api/integrations/poll             {session}
 //   POST /api/integrations/cancel           {session}
 //   POST /api/integrations/disconnect       {app, path, account, confirm: true}
+//   GET  /api/integrations/oauth/callback?state=…&code=…  an authorization
+//                                           server's return in the person's
+//                                           own browser (a Remote
+//                                           Environment): handed to
+//                                           Executor's callback, answered
+//                                           with a page saying how it went
 //   POST /api/integrations/custom/add       a custom server (custom-server.ts)
 //   GET  /api/integrations/custom/server?id=<slug>  its edit form, no value
 //   POST /api/integrations/custom/update    {id, …the same fields}, 400
@@ -53,6 +69,10 @@ export type IntegrationsSeams = Readonly<{
   environmentBrowser:
     | ((url: string) => Promise<Readonly<{ view: string }> | null>)
     | null;
+  /** The address of `GET /api/integrations/oauth/callback` as the person's
+   * browser reaches it (a Remote Environment's entry); null on a
+   * workstation, where Executor's own callback is the person's. */
+  oauthCallback?: string | null | undefined;
   /** Whether Lazurio sets Executor up for this Environment (decision F44's
    * context); the Launchpad's Executor host answers it. */
   executorContext?: (() => Promise<ExecutorContext>) | undefined;
@@ -67,6 +87,44 @@ export type IntegrationsSeams = Readonly<{
 const sessionPattern = /^[0-9a-f]{32}$/;
 const appPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const selectorPattern = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,383}$/;
+/** The longest parameter of an authorization server's return handed on. */
+const returnParameterMax = 8 * 1024;
+
+/** The page an authorization server's return lands on in the person's own
+ * browser: how the sign-in went, in words, and nothing else (no script, no
+ * link, nothing of the return). */
+function returnPage(
+  locale: "cs" | "en",
+  outcome: Readonly<{ app: string; progress: ConnectProgress }> | null,
+): string {
+  const copy = messages(locale);
+  const app = escapeHtml(outcome?.app ?? "");
+  const text =
+    outcome === null
+      ? copy.integrationsReturnUnknown
+      : outcome.progress.kind === "connected"
+        ? fill(copy.integrationsReturnConnected, { app })
+        : outcome.progress.kind === "pending"
+          ? fill(copy.integrationsReturnPending, { app })
+          : outcome.progress.reason === "failed"
+            ? fill(copy.integrationsReturnFailed, { app })
+            : copy.integrationsReturnUnknown;
+  return `<!doctype html>
+<html lang="${locale}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(copy.integrationsReturnTitle)}</title>
+<style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f6f7f9;color:#1d2433}
+main{max-width:28rem;padding:2rem}
+@media (prefers-color-scheme:dark){body{background:#14171c;color:#e6e9ef}}
+</style>
+</head>
+<body><main><p>${text}</p></main></body>
+</html>
+`;
+}
 
 export function createIntegrationsRoutes(
   input: Readonly<{
@@ -118,6 +176,7 @@ export function createIntegrationsRoutes(
         return command === undefined ? null : { env: input.tools, command };
       },
       environmentBrowser: seams.environmentBrowser,
+      oauthCallback: seams.oauthCallback ?? null,
       ...(seams.catalog === undefined ? {} : { catalog: seams.catalog }),
       ...(input.journal === undefined ? {} : { journal: input.journal }),
     };
@@ -219,6 +278,62 @@ export function createIntegrationsRoutes(
         if (started.kind === "connected" || path.path === "composio")
           reader.forget();
         return response(started, started.kind === "blocked" ? 409 : 200);
+      }
+      if (url.pathname === "/api/integrations/oauth/callback") {
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        const page = async (
+          outcome: Parameters<typeof returnPage>[1],
+          status: number,
+        ) => {
+          let locale: "cs" | "en" = "en";
+          try {
+            const state = join(input.folder, ".lazurio");
+            const { preferences } = await withFolderReadLock(state, () =>
+              readFolderState(state),
+            );
+            if (preferences.profile.locale === "cs") locale = "cs";
+          } catch {
+            // The page says it in English.
+          }
+          const named =
+            outcome === null
+              ? null
+              : {
+                  ...outcome,
+                  app:
+                    (input.seams().catalog ?? integrationsCatalog).apps.find(
+                      (item) => item.id === outcome.app,
+                    )?.name[locale] ?? outcome.app,
+                };
+          return new Response(returnPage(locale, named), {
+            status,
+            headers: {
+              ...input.headers,
+              "Content-Type": "text/html; charset=utf-8",
+            },
+          });
+        };
+        // Only what Executor's callback reads, each once and bounded; what
+        // else a server adds (Google's `scope`, RFC 9207's `iss`) stays here.
+        const parameters: Partial<
+          Record<(typeof oauthReturnParameters)[number], string>
+        > = {};
+        for (const key of oauthReturnParameters) {
+          const values = url.searchParams.getAll(key);
+          const value = values[0];
+          if (values.length > 1 || (value?.length ?? 0) > returnParameterMax)
+            return page(null, 400);
+          if (value !== undefined) parameters[key] = value;
+        }
+        if (parameters.state === undefined) return page(null, 400);
+        extend(90);
+        const outcome = await sessions.returned(parameters);
+        if (outcome === null) return page(null, 400);
+        // As a poll that sees it: a sign-in that ended no longer waits.
+        if (outcome.progress.kind === "connected") forgetNames(outcome.app);
+        if (outcome.progress.kind !== "pending") reader.forget();
+        return page(outcome, 200);
       }
       if (
         url.pathname === "/api/integrations/poll" ||

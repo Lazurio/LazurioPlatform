@@ -653,6 +653,268 @@ test("an OAuth flow the person does not finish, or cancels, ends without a conne
   expect(world.executor.connections).toEqual([]);
 });
 
+// A direct sign-in in the person's own browser (decision F42, addendum of
+// 2026-10-13): on a Remote Environment the Launchpad registers its own
+// address with an authorization server that takes it and hands the server's
+// return to Executor's callback; the Environment browser stays for a server
+// that returns only to Executor on localhost.
+const returnAddress =
+  "https://launchpad.workspace.example.lazurio.io/api/integrations/oauth/callback";
+const environmentView = `https://browser.workspace.example.lazurio.io/t/${"0".repeat(32)}`;
+
+async function remote(
+  locale: "cs" | "en" = "en",
+): Promise<Awaited<ReturnType<typeof setup>> & { opened: string[] }> {
+  const opened: string[] = [];
+  const context = await setup(
+    { composio: false },
+    {
+      locale,
+      seams: {
+        oauthCallback: returnAddress,
+        environmentBrowser: async (url) => {
+          opened.push(url);
+          return { view: environmentView };
+        },
+      },
+    },
+  );
+  context.world.executor.probes.set("https://mcp.linear.app/mcp", {
+    requiresOAuth: true,
+  });
+  return { ...context, opened };
+}
+
+async function settled(
+  app: Awaited<ReturnType<typeof setup>>["app"],
+  session: string,
+): Promise<unknown> {
+  let progress: unknown = null;
+  for (let tries = 0; tries < 50; tries += 1) {
+    progress = await (
+      await app.post("/api/integrations/poll", { session })
+    ).json();
+    if ((progress as { kind: string }).kind !== "pending") break;
+    await Bun.sleep(50);
+  }
+  return progress;
+}
+
+const registeredFor = (world: IntegrationsWorld) =>
+  world.executor.calls
+    .filter((call) => call.path === "/api/oauth/clients/register-dynamic")
+    .map((call) => (call.body as { redirectUri: string }).redirectUri);
+
+const handedOn = (world: IntegrationsWorld) =>
+  world.executor.calls.filter((call) =>
+    call.path.startsWith("/api/oauth/callback"),
+  );
+
+test("on a Remote Environment a direct sign-in opens in the person's own browser and returns to the Launchpad", async () => {
+  const { world, app, opened } = await remote();
+  const started = (await (
+    await app.post("/api/integrations/connect", { app: "linear", name: "Work" })
+  ).json()) as { kind: string; session: string; url?: string; view?: string };
+  // An address for a window of the person's browser, not the Environment
+  // browser's view.
+  expect(started).toEqual({
+    kind: "authorize",
+    session: expect.any(String),
+    url: "https://auth.example.test/authorize?state=state1",
+  });
+  expect(opened).toEqual([]);
+  // The client is registered with the Launchpad's own address, and the flow
+  // returns there.
+  expect(registeredFor(world)).toEqual([returnAddress]);
+  expect(
+    world.executor.calls.find((call) => call.path === "/api/oauth/start")?.body,
+  ).toMatchObject({ redirectUri: returnAddress, name: "work" });
+  // The server returns the person's browser with what it adds of its own.
+  const back = await app.get(
+    "/api/integrations/oauth/callback?state=state1&code=codeCanary0001&scope=read&iss=https%3A%2F%2Fauth.example.test",
+  );
+  expect(back.status).toBe(200);
+  expect(back.headers.get("content-type")).toBe("text/html; charset=utf-8");
+  expect(back.headers.get("referrer-policy")).toBe("no-referrer");
+  expect(back.headers.get("cache-control")).toBe("no-store");
+  const page = await back.text();
+  expect(page).toContain(
+    "Linear is connected. You can close this window and go back to the Launchpad.",
+  );
+  expect(page).not.toContain("codeCanary0001");
+  expect(page).not.toContain("<script");
+  // Executor's callback got exactly what it reads, with the token.
+  expect(handedOn(world)).toEqual([
+    {
+      method: "GET",
+      path: "/api/oauth/callback?state=state1&code=codeCanary0001",
+      authorized: true,
+      body: null,
+    },
+  ]);
+  expect(await settled(app, started.session)).toEqual({
+    kind: "connected",
+    app: "linear",
+  });
+  expect(
+    (await overview(app)).value.apps.find((item) => item.id === "linear"),
+  ).toMatchObject({
+    connected: true,
+    accounts: [{ label: "Work", state: "connected" }],
+  });
+  // A reload hands nothing on again and still says how it went.
+  const again = await app.get(
+    "/api/integrations/oauth/callback?state=state1&code=codeCanary0001",
+  );
+  expect(again.status).toBe(200);
+  expect(await again.text()).toContain("Linear is connected.");
+  expect(handedOn(world)).toHaveLength(1);
+});
+
+test("a sign-in the person refuses at the server returns to the Launchpad and ends without a connection", async () => {
+  const { world, app } = await remote("cs");
+  const started = (await (
+    await app.post("/api/integrations/connect", { app: "linear" })
+  ).json()) as { session: string };
+  const back = await app.get(
+    "/api/integrations/oauth/callback?state=state1&error=access_denied&error_description=The%20person%20said%20no",
+  );
+  expect(back.status).toBe(200);
+  const page = await back.text();
+  expect(page).toContain('<html lang="cs">');
+  expect(page).toContain(
+    "Přihlášení do Linear se nepodařilo dokončit. Vraťte se do Launchpadu a zkuste to znovu.",
+  );
+  expect(handedOn(world).map((call) => call.path)).toEqual([
+    "/api/oauth/callback?state=state1&error=access_denied&error_description=The+person+said+no",
+  ]);
+  expect(await settled(app, started.session)).toEqual({
+    kind: "ended",
+    reason: "failed",
+  });
+  expect(world.executor.connections).toEqual([]);
+});
+
+test("a server that registers only loopback addresses keeps the sign-in in the Environment browser", async () => {
+  const { world, app, opened } = await remote();
+  world.executor.authorizationServer.loopbackOnly = true;
+  const started = (await (
+    await app.post("/api/integrations/connect", { app: "linear" })
+  ).json()) as { kind: string; session: string; view?: string };
+  expect(started).toEqual({
+    kind: "authorize",
+    session: expect.any(String),
+    view: environmentView,
+  });
+  expect(opened).toEqual(["https://auth.example.test/authorize?state=state1"]);
+  // Refused for the Launchpad's address, registered for Executor's own.
+  expect(registeredFor(world)).toEqual([
+    returnAddress,
+    "http://localhost:4789/api/oauth/callback",
+  ]);
+  expect(
+    world.executor.calls.find((call) => call.path === "/api/oauth/start")?.body,
+  ).not.toHaveProperty("redirectUri");
+  // Its state never returns through the Launchpad.
+  const back = await app.get(
+    "/api/integrations/oauth/callback?state=state1&code=codeCanary0002",
+  );
+  expect(back.status).toBe(400);
+  expect(await back.text()).toContain(
+    "This sign-in is no longer valid. Start connecting again in the Launchpad.",
+  );
+  expect(handedOn(world)).toEqual([]);
+  // Executor's own callback finishes it, as before.
+  world.executor.finish("state1", true);
+  expect(await settled(app, started.session)).toEqual({
+    kind: "connected",
+    app: "linear",
+  });
+});
+
+test("the person's own browser is preferred to a client ID metadata document, which keeps the Environment browser alone", async () => {
+  const both = await remote();
+  both.world.executor.authorizationServer.metadataDocument = true;
+  const own = (await (
+    await both.app.post("/api/integrations/connect", { app: "linear" })
+  ).json()) as { url?: string };
+  expect(own.url).toBe("https://auth.example.test/authorize?state=state1");
+  expect(registeredFor(both.world)).toEqual([returnAddress]);
+  expect(
+    both.world.executor.calls.some(
+      (call) => call.path === "/api/oauth/clients",
+    ),
+  ).toBe(false);
+
+  const only = await remote();
+  only.world.executor.authorizationServer.registration = false;
+  only.world.executor.authorizationServer.metadataDocument = true;
+  const local = (await (
+    await only.app.post("/api/integrations/connect", { app: "linear" })
+  ).json()) as { view?: string };
+  expect(local.view).toBe(environmentView);
+  expect(registeredFor(only.world)).toEqual([]);
+  expect(
+    only.world.executor.calls.find((call) => call.path === "/api/oauth/clients")
+      ?.body,
+  ).toMatchObject({
+    clientId: "https://executor.sh/api/oauth/client-id-metadata/local.json",
+  });
+});
+
+test("a return no sign-in here waits for is refused without reaching Executor", async () => {
+  const { world, app } = await remote();
+  await app.post("/api/integrations/connect", { app: "linear" });
+  for (const query of [
+    "code=codeCanary0003",
+    "state=state9&code=codeCanary0003",
+    "state=state1&state=state1&code=codeCanary0003",
+    `state=state1&code=${"c".repeat(8 * 1024 + 1)}`,
+  ]) {
+    const answer = await app.get(`/api/integrations/oauth/callback?${query}`);
+    expect(answer.status).toBe(400);
+    expect(await answer.text()).toContain("This sign-in is no longer valid.");
+  }
+  expect(
+    (
+      await app.post("/api/integrations/oauth/callback", {
+        state: "state1",
+        code: "codeCanary0003",
+      })
+    ).status,
+  ).toBe(405);
+  // A cancelled sign-in no longer takes its return either.
+  const second = (await (
+    await app.post("/api/integrations/connect", { app: "linear" })
+  ).json()) as { session: string };
+  await app.post("/api/integrations/cancel", { session: second.session });
+  const late = await app.get(
+    "/api/integrations/oauth/callback?state=state2&code=codeCanary0003",
+  );
+  expect(late.status).toBe(200);
+  expect(await late.text()).toContain("This sign-in is no longer valid.");
+  expect(handedOn(world)).toEqual([]);
+});
+
+test("a return Executor cannot take ends the sign-in, and the page says so", async () => {
+  const { world, app } = await remote();
+  const started = (await (
+    await app.post("/api/integrations/connect", { app: "linear" })
+  ).json()) as { session: string };
+  await world.executor.stop();
+  const back = await app.get(
+    "/api/integrations/oauth/callback?state=state1&code=codeCanary0004",
+  );
+  expect(back.status).toBe(200);
+  expect(await back.text()).toContain(
+    "The sign-in to Linear could not be finished.",
+  );
+  expect(await settled(app, started.session)).toEqual({
+    kind: "ended",
+    reason: "failed",
+  });
+});
+
 test("through Composio: the link only for the request that asked, then connected; never journaled", async () => {
   const console = captureConsole();
   try {
