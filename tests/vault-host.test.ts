@@ -126,6 +126,7 @@ test.skipIf(!posix || uid === 0)(
         name: vaultName,
         environment: "personal",
         organization: null,
+        assignment: null,
       });
       expect(await read(vms.team)).toMatchObject({
         kind: "own",

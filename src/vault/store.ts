@@ -27,6 +27,9 @@ import { syncDirectory, writeDurableFile } from "../update/durable-file";
 //       lazurio-session                        0600, the one BW_SESSION
 //       lazurio-vault.json                     0600, not secret: the ids of
 //                                              the Environment's own vault
+//       lazurio-assignment.json                0600, not secret: the last
+//                                              assignment the Správci were
+//                                              added under (a fingerprint)
 //
 // No secret is ever written anywhere else: not to the Folder, a log, the
 // journal, Diagnostics or an error.
@@ -39,6 +42,7 @@ export type VaultPaths = Readonly<{
   account: string;
   session: string;
   record: string;
+  assignment: string;
 }>;
 
 export function vaultPaths(directory: string): VaultPaths {
@@ -50,6 +54,7 @@ export function vaultPaths(directory: string): VaultPaths {
     account: join(data, "lazurio-account.json"),
     session: join(data, "lazurio-session"),
     record: join(data, "lazurio-vault.json"),
+    assignment: join(data, "lazurio-assignment.json"),
   });
 }
 
@@ -313,6 +318,43 @@ export async function writeRecord(
       pendingKey: record.pendingKey,
       pendingSince: record.pendingSince,
     }),
+  );
+}
+
+const fingerprint = /^[0-9a-f]{64}$/;
+
+/** The assignment the vault's Správci were last added or removed under
+ * (`assignmentOf`, DEV-6631 task 638b): a fingerprint, never a list of
+ * people; the vault's membership itself is the only list. Null when there
+ * is none or it cannot be read: the caller then treats the assignment as
+ * changed, so a lost file never keeps anyone in the vault. */
+export async function readAssignment(
+  paths: VaultPaths,
+): Promise<string | null> {
+  try {
+    const text = await readOwned(paths.assignment);
+    if (text === null) return null;
+    const value = plainObject(parseUniqueJson(text));
+    return value !== null &&
+      Object.keys(value).join() === "assignment" &&
+      typeof value.assignment === "string" &&
+      fingerprint.test(value.assignment)
+      ? value.assignment
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeAssignment(
+  paths: VaultPaths,
+  assignment: string,
+): Promise<void> {
+  if (!fingerprint.test(assignment)) throw new Error("Invalid assignment");
+  await writeDurableFile(
+    paths.data,
+    "lazurio-assignment.json",
+    serialize({ assignment }),
   );
 }
 

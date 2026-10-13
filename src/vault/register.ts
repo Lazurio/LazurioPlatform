@@ -336,6 +336,12 @@ export type VaultwardenFailure =
   | "organization-refused"
   /** The password login was refused. */
   | "invalid-credentials"
+  /** "User does not exist": an invitation to an address without an account
+   * in this vault (`INVITATIONS_ALLOWED=false`); the person signs in to the
+   * network's vault once first (DEV-6631 task 638b). */
+  | "no-account"
+  /** "User already in organization": the address is a member already. */
+  | "already-member"
   /** A KDF other than PBKDF2-SHA256. */
   | "unsupported-kdf"
   /** No answer, a timeout, a 5xx or a non-https address. */
@@ -426,6 +432,10 @@ export async function vaultRequest(
       throw new VaultwardenError("rate-limited", response.status);
     if (/not allowed to create organizations/i.test(message))
       throw new VaultwardenError("organization-refused", response.status);
+    if (/^user does not exist\b/i.test(message))
+      throw new VaultwardenError("no-account", response.status);
+    if (/^user already in organization\b/i.test(message))
+      throw new VaultwardenError("already-member", response.status);
     if (
       path === "/identity/connect/token" ||
       /username or password is incorrect|invalid_grant/i.test(message)

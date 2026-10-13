@@ -121,8 +121,28 @@ list)
   organizations) cat "$store/orgs.json" 2>/dev/null || echo '[]';;
   collections) cat "$store/collections.json" 2>/dev/null || echo '[]';;
   items) cat "$store/items.json" 2>/dev/null || echo '[]';;
+  org-members)
+    # Asked of the server: the organization must be in the synced copy.
+    offline
+    org=$(after --organizationid "$@") || { echo "--organizationid <organizationid> required." >&2; exit 1; }
+    grep -q "\"id\":\"$org\"" "$store/orgs.json" 2>/dev/null || { echo "Organization not found." >&2; exit 1; }
+    if [ -f "$world/members-$org" ]; then
+      awk 'BEGIN { printf "[" } { if (NR > 1) printf ","; printf "{\"object\":\"org-member\",\"email\":\"%s\",\"name\":null,\"id\":\"%s\",\"status\":%s,\"type\":%s,\"twoFactorEnabled\":false}", $4, $1, $2, $3 } END { print "]" }' "$world/members-$org"
+    else echo '[]'; fi;;
   *) echo "Unknown object." >&2; exit 1;;
   esac
+  exit 0;;
+confirm)
+  unlocked
+  offline
+  [ "$2" = "org-member" ] || { echo "Unknown object." >&2; exit 1; }
+  org=$(after --organizationid "$@") || { echo "--organizationid <organizationid> required." >&2; exit 1; }
+  if [ -f "$world/confirm-fails" ]; then echo "An error has occurred." >&2; exit 1; fi
+  file="$world/members-$org"
+  line=$(grep "^$3 " "$file" 2>/dev/null)
+  [ -n "$line" ] || { echo "The specified user isn't a member of the organization" >&2; exit 1; }
+  [ "$(echo "$line" | awk '{ print $2 }')" = "1" ] || { echo "User in invalid state" >&2; exit 1; }
+  awk -v id="$3" '$1 == id { $2 = 2 } { print }' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
   exit 0;;
 esac
 echo "fake bw: unknown command $1" >&2
@@ -235,6 +255,21 @@ export type FakeOrganization = {
   collections: { id: string; name: string }[];
 };
 
+/** One member of an organization as the fake keeps it, in
+ * `$HOME/bw-world/members-<organization id>`, one line each
+ * (`<member id> <status> <type> <email>`): the fake vault's API and the fake
+ * bw read and write the same file. */
+export type FakeMember = {
+  id: string;
+  status: number;
+  type: number;
+  email: string;
+};
+
+/** A person's account in the fake vault, by its address: signed in once
+ * through SSO without a master password yet (a stub), or with one. */
+export type FakePerson = { password: boolean };
+
 export type FakeRequest = {
   method: string;
   path: string;
@@ -261,7 +296,54 @@ export async function startFakeVault(home: string) {
     plainToken: false,
     /** `ORG_CREATION_USERS` leaves this account out. */
     organizationRefused: false,
+    /** SSO with the Lazurio account is on: `/identity/sso/prevalidate`
+     * answers with a token. */
+    sso: true,
+    /** `INVITATIONS_ALLOWED`: an invitation to an address without an
+     * account creates a stub for it (Vaultwarden's default) instead of
+     * "User does not exist". */
+    invitationsAllowed: false,
   };
+  /** People's accounts, by address. */
+  const people = new Map<string, FakePerson>();
+  /** The addresses with a pending invitation row (Vaultwarden's
+   * `invitations`, kept while SMTP is off): while one is there and the
+   * account has no master password, a password registration of the address
+   * is accepted. */
+  const invitations = new Set<string>();
+  const membersFile = (organization: string) =>
+    join(world, `members-${organization}`);
+  async function readMembers(organization: string): Promise<FakeMember[]> {
+    const text = await readFile(membersFile(organization), "utf8").catch(
+      () => "",
+    );
+    return text
+      .split("\n")
+      .filter((line) => line !== "")
+      .map((line) => {
+        const [id, status, type, email] = line.split(" ");
+        return {
+          id: String(id),
+          status: Number(status),
+          type: Number(type),
+          email: String(email),
+        };
+      });
+  }
+  async function writeMembers(
+    organization: string,
+    members: readonly FakeMember[],
+  ) {
+    await writeFile(
+      membersFile(organization),
+      members
+        .map(
+          (member) =>
+            `${member.id} ${member.status} ${member.type} ${member.email}\n`,
+        )
+        .join(""),
+    );
+  }
   /** The person's organization of a 0197 pilot, as a sync brings it. */
   let pilotWorld: {
     orgs: unknown[];
@@ -431,6 +513,10 @@ export async function startFakeVault(home: string) {
         invited.delete(email);
         return json({ object: "registerFinish" });
       }
+      if (url.pathname === "/identity/sso/prevalidate")
+        return flags.sso
+          ? json({ token: `eyJ.${randomBytes(12).toString("hex")}.sig` })
+          : refusal("SSO sign-in is not available");
       if (url.pathname === "/identity/accounts/prelogin")
         return json({
           kdf: 0,
@@ -542,8 +628,96 @@ export async function startFakeVault(home: string) {
             collections: [{ id: randomUUID(), name: value.collectionName }],
           };
           organizations.set(organization.id, organization);
+          await writeMembers(organization.id, [
+            { id: randomUUID(), status: 2, type: 0, email: user.email },
+          ]);
           await syncWorld();
           return json(organizationJson(organization));
+        }
+        // The members of an organization, as its Owner changes them:
+        // Vaultwarden's `send_invite` and `delete_member` with their
+        // messages (SMTP off).
+        const memberPath =
+          /^\/api\/organizations\/([0-9a-f-]{36})\/users\/(invite|[0-9a-f-]{36})$/.exec(
+            url.pathname,
+          );
+        if (memberPath !== null) {
+          const id = memberPath[1] as string;
+          const owned = organizations.get(id);
+          const role = owned?.members.get(user.id);
+          if (owned === undefined || role === undefined)
+            return refusal("Organization not found", 404);
+          if (role.type > 1) return refusal("Resource not found.", 404);
+          const members = await readMembers(id);
+          if (memberPath[2] === "invite" && request.method === "POST") {
+            if (
+              Object.keys(value).sort().join() !==
+                "collections,emails,groups,permissions,type" ||
+              !Array.isArray(value.emails) ||
+              !Array.isArray(value.groups) ||
+              value.groups.length > 0 ||
+              !(value.collections === null || Array.isArray(value.collections))
+            )
+              return refusal("Invalid invitation", 422);
+            const type = Number(value.type);
+            if (type !== 2 && role.type !== 0)
+              return refusal(
+                "Only Owners can invite Managers, Admins or Owners",
+              );
+            for (const entry of value.emails as unknown[]) {
+              const email = String(entry);
+              let person =
+                people.get(email) ??
+                (users.has(email) ? { password: true } : undefined);
+              if (person === undefined) {
+                if (!flags.invitationsAllowed)
+                  return refusal(`User does not exist: ${email}`);
+                person = { password: false };
+                people.set(email, person);
+              }
+              if (members.some((member) => member.email === email))
+                return refusal(`User already in organization: ${email}`);
+              if (!person.password) invitations.add(email);
+              members.push({
+                id: randomUUID(),
+                status: person.password ? 1 : 0,
+                type,
+                email,
+              });
+            }
+            await writeMembers(id, members);
+            return new Response(null, { status: 200 });
+          }
+          if (request.method === "DELETE") {
+            const target = members.find(
+              (member) => member.id === memberPath[2],
+            );
+            if (target === undefined)
+              return refusal("User to delete isn't member of the organization");
+            if (target.type !== 2 && role.type !== 0)
+              return refusal("Only Owners can delete Admins or Owners");
+            if (
+              target.type === 0 &&
+              members.filter((member) => member.type === 0).length <= 1
+            )
+              return refusal("Can't delete the last owner");
+            await writeMembers(
+              id,
+              members.filter((member) => member !== target),
+            );
+            // The invitation row goes with the last pending membership.
+            let pending = false;
+            for (const other of organizations.keys())
+              if (
+                (await readMembers(other)).some(
+                  (member) =>
+                    member.email === target.email && member.status === 0,
+                )
+              )
+                pending = true;
+            if (!pending) invitations.delete(target.email);
+            return new Response(null, { status: 200 });
+          }
         }
         const match =
           /^\/api\/organizations\/([0-9a-f-]{36})(\/public-key|\/collections)?$/.exec(
@@ -698,6 +872,48 @@ export async function startFakeVault(home: string) {
     },
     /** The items a sync brings. */
     items: (list: readonly unknown[]) => write("items.json", list),
+    /** A person's account at their address (`<subject>@…`): signed in once
+     * through SSO without a master password yet, or with one. */
+    person(email: string, password: boolean) {
+      people.set(email, { password });
+    },
+    /** The person sets their master password: every pending invitation of
+     * theirs is accepted, as Vaultwarden does on `set-password`. */
+    async setPassword(email: string) {
+      people.set(email, { password: true });
+      invitations.delete(email);
+      for (const id of organizations.keys())
+        await writeMembers(
+          id,
+          (await readMembers(id)).map((member) =>
+            member.email === email && member.status === 0
+              ? { ...member, status: 1 }
+              : member,
+          ),
+        );
+    },
+    /** The members of an organization. */
+    members: (organization: string) => readMembers(organization),
+    /** A member added as someone else would add them (a Správce sharing a
+     * collection, the network's operator). */
+    async addMember(organization: string, member: Omit<FakeMember, "id">) {
+      const id = randomUUID();
+      await writeMembers(organization, [
+        ...(await readMembers(organization)),
+        { id, ...member },
+      ]);
+      return id;
+    },
+    /** Whether Vaultwarden would let anyone register this address with a
+     * master password now (SSO_ONLY off): an invitation row is there and the
+     * account has no master password. */
+    registerable: (email: string) =>
+      invitations.has(email) && people.get(email)?.password !== true,
+    /** `bw confirm org-member` fails from now on. */
+    confirmFails: (on: boolean) =>
+      on
+        ? writeFile(join(world, "confirm-fails"), "")
+        : rm(join(world, "confirm-fails"), { force: true }),
     unreachable: (on: boolean) =>
       on
         ? writeFile(join(world, "unreachable"), "")
@@ -741,19 +957,21 @@ export function personalHandoverAt(
 /** The personal Remote Environment of `example`, with its own vault. */
 export const personalHandover = personalHandoverAt("example.lazurio.io");
 
-/** The work Environment `workspace` of the Organization `example`. */
+/** The work Environment `workspace` of the Organization `example`,
+ * assigned as `assignment` says (none by default). */
 export function workHandover(
   vault: ReturnType<typeof vaultMember> | null = vaultMember(
     workAccount,
     "Example Pracovní workspace",
   ),
+  assignment?: Readonly<Record<string, unknown>>,
 ) {
   const { team: _, ...owner } = organization.owner;
   return parseMachineContext(
     Buffer.from(
       JSON.stringify({
         ...organization,
-        owner,
+        owner: assignment === undefined ? owner : { ...owner, assignment },
         network: {
           ...organization.network,
           headscale_server_url: `https://headscale.${zone}`,
