@@ -7,6 +7,7 @@
 
 export const en = {
   connecting: "Connecting…",
+  loading: "Loading the page…",
   reconnecting: "The Environment browser is reconnecting…",
   closed: "This tab no longer exists.",
   openNewTab: "Open a new tab",
@@ -42,6 +43,7 @@ export const en = {
 export type Words = { readonly [K in keyof typeof en]: string };
 export const cs: Words = {
   connecting: "Připojuji…",
+  loading: "Stránka se načítá…",
   reconnecting: "Prohlížeč Environmentu se znovu připojuje…",
   closed: "Tahle záložka už neexistuje.",
   openNewTab: "Otevřít novou záložku",

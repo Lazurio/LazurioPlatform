@@ -32,6 +32,7 @@ import {
   modifierBits,
   parseClientMessage,
 } from "../src/browser/people/protocol";
+import { viewStatus } from "../src/browser/people/status";
 import { cs, en, viewLanguage, words } from "../src/browser/people/words";
 
 // The people's view of the Environment browser (decision F39): what the view
@@ -1035,5 +1036,37 @@ describe("the frames the page draws and acknowledges", () => {
         acks: true,
       }),
     ).toBe(true);
+  });
+});
+
+describe("what the view says while no frame is drawn (#392)", () => {
+  const at = (
+    open: boolean,
+    drawn: boolean,
+    browserReconnecting = false,
+    ended = false,
+  ) => viewStatus({ ended, open, drawn, browserReconnecting });
+
+  test("connecting until the socket opens, loading until the tab paints, nothing once it has", () => {
+    expect(at(false, false)).toBe("connecting");
+    expect(at(true, false)).toBe("loading");
+    expect(at(true, true)).toBe("hidden");
+  });
+
+  test("the browser reconnecting is not a page that loads, across the outage and the recovery", () => {
+    // Connected to a known tab before its first frame, then the hub loses
+    // Chrome: the socket stays open and the hub says "reconnecting".
+    expect(at(true, false, true)).toBe("connecting");
+    // Chrome is back ("connected"), and the tab has still painted nothing.
+    expect(at(true, false, false)).toBe("loading");
+    // A frame drawn before the outage keeps the page; the banner says the rest.
+    expect(at(true, true, true)).toBe("hidden");
+  });
+
+  test("a closed socket says connecting, also over the last frame, and an ended view says nothing", () => {
+    expect(at(false, true)).toBe("connecting");
+    expect(at(false, true, true)).toBe("connecting");
+    expect(at(true, false, false, true)).toBe("hidden");
+    expect(at(false, false, true, true)).toBe("hidden");
   });
 });
