@@ -1,6 +1,12 @@
 import type { FileLock } from "../platform/flock";
 import { FileLockError } from "../platform/flock";
-import { type BwCli, type BwFailure, type BwStatus, bwCli } from "./bw";
+import {
+  type BwCli,
+  type BwFailure,
+  type BwSecretItem,
+  type BwStatus,
+  bwCli,
+} from "./bw";
 import type { VaultHost } from "./flow";
 import { pinnedBinary, pinnedInstalled } from "./install";
 import type { VaultSecret } from "./status";
@@ -158,12 +164,17 @@ export type ReadRefusal =
 /** The values of `names` in one scope of the vault (decision F46): a sync
  * first, so a value changed in the vault takes effect at the next start,
  * then the one item named exactly so in the scope, its login password the
- * value. `connect` gives the shared session (again, when another bw run
- * replaced it meanwhile). Values are returned to the caller only. */
+ * value. With `notes` (the Environment's own vault, decision F53) a Secure
+ * note gives the value of its one hidden custom field; a note with more than
+ * one is `ambiguous`, never guessed. The frozen 0197 pilot reads login
+ * passwords only, as before. `connect` gives the shared session (again,
+ * when another bw run replaced it meanwhile). Values are returned to the
+ * caller only. */
 export async function readSecrets(
   connect: () => Promise<SharedSession>,
   scope: Readonly<{ organizationId: string; collectionId?: string }>,
   names: readonly string[],
+  options: Readonly<{ notes?: boolean }> = {},
 ): Promise<
   | Readonly<{ ok: true; secrets: ReadonlyMap<string, VaultSecret> }>
   | Readonly<{ ok: false; reason: ReadRefusal }>
@@ -224,10 +235,21 @@ export async function readSecrets(
         ? { kind: "absent", reason: "missing" }
         : matches.length > 1
           ? { kind: "absent", reason: "ambiguous" }
-          : only.password === null || only.password === ""
-            ? { kind: "absent", reason: "empty" }
-            : { kind: "value", value: only.password },
+          : secretOf(only, options.notes === true),
     );
   }
   return { ok: true, secrets };
+}
+
+/** The value of the one item of a name: its login password, or, where notes
+ * count, the one hidden field of a Secure note. */
+function secretOf(item: BwSecretItem, notes: boolean): VaultSecret {
+  if (item.password !== null && item.password !== "")
+    return { kind: "value", value: item.password };
+  if (notes && item.hidden !== null) {
+    if (item.hidden.count > 1) return { kind: "absent", reason: "ambiguous" };
+    if (item.hidden.value !== null && item.hidden.value !== "")
+      return { kind: "value", value: item.hidden.value };
+  }
+  return { kind: "absent", reason: "empty" };
 }

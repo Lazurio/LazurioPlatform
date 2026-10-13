@@ -281,8 +281,8 @@ test.skipIf(!posix)(
     const w = await world("work");
     try {
       await w.seed();
-      await w.vault.items(
-        [
+      await w.vault.items([
+        ...[
           { name: "EXAMPLE_TOKEN", collectionIds: [collectionId] },
           // The same name in another collection is not the pilot's.
           { name: "OTHER_TOKEN", collectionIds: [otherCollectionId] },
@@ -295,8 +295,21 @@ test.skipIf(!posix)(
           collectionIds: item.collectionIds,
           login: { username: "example", password: value },
         })),
-      );
-      const names = ["EXAMPLE_TOKEN", "OTHER_TOKEN"];
+        // A Secure note is read only from an own vault (decision F53): the
+        // frozen pilot reads login passwords, as before.
+        {
+          object: "item",
+          id: randomUUID(),
+          type: 2,
+          name: "NOTE_TOKEN",
+          organizationId,
+          collectionIds: [collectionId],
+          secureNote: { type: 0 },
+          login: null,
+          fields: [{ name: "Token", value, type: 1 }],
+        },
+      ]);
+      const names = ["EXAMPLE_TOKEN", "OTHER_TOKEN", "NOTE_TOKEN"];
       const result = await vaultSecrets(w.host, {
         company: "Example",
         personalspace: false,
@@ -311,6 +324,10 @@ test.skipIf(!posix)(
       expect(result.secrets.get("OTHER_TOKEN")).toEqual({
         kind: "absent",
         reason: "missing",
+      });
+      expect(result.secrets.get("NOTE_TOKEN")).toEqual({
+        kind: "absent",
+        reason: "empty",
       });
       // F46's rule of 0197: never a Personalspace module, never another
       // Organization.

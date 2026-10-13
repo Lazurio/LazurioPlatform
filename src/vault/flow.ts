@@ -129,7 +129,14 @@ export type VaultHost = Readonly<{
 }>;
 
 export type VaultJournalEntry = Readonly<{
-  operation: "setup" | "refresh" | "unlock" | "secrets" | "vault" | "members";
+  operation:
+    | "setup"
+    | "refresh"
+    | "unlock"
+    | "secrets"
+    | "vault"
+    | "members"
+    | "request";
   outcome: string;
   reason?: string;
   /** The Launchpad's own setup after its start. */
@@ -146,7 +153,8 @@ const ownFacts = (context: VaultContext): VaultFacts => ({
   origin: "own",
 });
 
-const ownPaths = (host: VaultHost, context: VaultContext): VaultPaths =>
+/** The custody of the Environment's own account on this host. */
+export const ownPaths = (host: VaultHost, context: VaultContext): VaultPaths =>
   vaultPaths(host.directory(context.host, context.account));
 
 const notSetUp = (facts: VaultFacts, next: VaultPhase): VaultStatus => ({
@@ -208,6 +216,7 @@ async function observe(
   };
 }
 
+/** The ids of the Environment's own vault and of its collection Agenti. */
 export type Recorded = Readonly<{
   organizationId: string;
   collectionId: string;
@@ -806,8 +815,10 @@ export async function vaultSecretsAdmission(
 /** The values of the runtime secrets `names` of an application (decision
  * F46, root decision 0177): a sync first, then the one item named exactly
  * so anywhere in the Environment's own vault (any of its collections), its
- * login password the value. Values are returned to the caller only; the
- * journal gets the outcome and a fixed reason. */
+ * login password the value, or the one hidden field of a Secure note
+ * (decision F53: the item an agent's secret request becomes). Values are
+ * returned to the caller only; the journal gets the outcome and a fixed
+ * reason. */
 export async function vaultSecrets(
   host: VaultHost,
   input: SecretApplication & Readonly<{ names: readonly string[] }>,
@@ -842,6 +853,7 @@ async function readVaultSecrets(
     () => sharedSession(host, paths, ready.account),
     { organizationId: ready.recorded.organizationId },
     input.names,
+    { notes: true },
   );
   return read.ok
     ? { kind: "vault-secrets", secrets: read.secrets }

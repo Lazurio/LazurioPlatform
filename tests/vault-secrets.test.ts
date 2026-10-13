@@ -121,6 +121,7 @@ async function connected() {
     journal,
     items,
     organizationId,
+    agents,
     data: paths.data,
     async close() {
       await vault.stop();
@@ -251,6 +252,71 @@ test.skipIf(!posix)(
           ...(result.kind === "vault-secrets" ? result.secrets : []),
         ]),
       ).not.toContain(value);
+    } finally {
+      await w.close();
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "a Secure note gives the value of its one hidden field; two hidden fields are ambiguous and none is empty",
+  async () => {
+    const w = await connected();
+    try {
+      // What an agent's secret request becomes (decision F53): text fields
+      // for what is not secret, a hidden one for the secret.
+      const note = (name: string, fields: readonly unknown[]) => ({
+        object: "item",
+        id: crypto.randomUUID(),
+        type: 2,
+        name,
+        organizationId: w.organizationId,
+        collectionIds: [w.agents],
+        notes: "fake-unrelated-note-8b1d",
+        secureNote: { type: 0 },
+        login: null,
+        fields,
+      });
+      await w.vault.items([
+        note("NOTE_KEY", [
+          { name: "Client ID", value: "fake-client-id-3c9e", type: 0 },
+          { name: "Client secret", value, type: 1 },
+        ]),
+        note("TWO_HIDDEN", [
+          { name: "Key", value: "fake-first-hidden-5a0b", type: 1 },
+          { name: "Secret", value: "fake-second-hidden-7e2c", type: 1 },
+        ]),
+        note("NO_HIDDEN", [
+          { name: "Account", value: "fake-text-value-1f4d", type: 0 },
+        ]),
+        note("EMPTY_HIDDEN", [{ name: "Key", value: "", type: 1 }]),
+      ]);
+      const result = await vaultSecrets(w.host, {
+        ...application,
+        names: ["NOTE_KEY", "TWO_HIDDEN", "NO_HIDDEN", "EMPTY_HIDDEN"],
+      });
+      expect(result).toEqual({
+        kind: "vault-secrets",
+        secrets: new Map([
+          ["NOTE_KEY", { kind: "value", value }],
+          ["TWO_HIDDEN", { kind: "absent", reason: "ambiguous" }],
+          ["NO_HIDDEN", { kind: "absent", reason: "empty" }],
+          ["EMPTY_HIDDEN", { kind: "absent", reason: "empty" }],
+        ]),
+      });
+      // Nothing of a note but the one hidden value reaches the answer.
+      const answer = JSON.stringify([
+        ...(result.kind === "vault-secrets" ? result.secrets : []),
+      ]);
+      for (const kept of [
+        "fake-client-id-3c9e",
+        "fake-first-hidden-5a0b",
+        "fake-text-value-1f4d",
+        "fake-unrelated-note-8b1d",
+      ])
+        expect(answer).not.toContain(kept);
+      expect(await w.vault.calls()).not.toContain(value);
+      expect(JSON.stringify(w.journal)).not.toContain(value);
     } finally {
       await w.close();
     }
@@ -410,10 +476,65 @@ test("the item reader keeps only the declared names and only what the selection 
       organizationId,
       collectionIds: [collectionId],
       password: value,
+      hidden: null,
     },
   ]);
   expect(JSON.stringify(items)).not.toContain("fake-other-value");
   expect(JSON.stringify(items)).not.toContain("fake-field-value");
+  // A Secure note (decision F53): only how many hidden fields it has and the
+  // value of the only one; its text fields and notes are dropped.
+  const notes = parseSecretItems(
+    JSON.stringify([
+      {
+        name: "EXTERNAL_API_KEY",
+        type: 2,
+        organizationId,
+        collectionIds: [collectionId],
+        notes: "fake-unrelated-note",
+        secureNote: { type: 0 },
+        fields: [
+          { name: "Client ID", value: "fake-text-value", type: 0 },
+          { name: "Client secret", value: "fake-hidden-value", type: 1 },
+        ],
+      },
+      {
+        name: "EXTERNAL_API_KEY",
+        type: 2,
+        organizationId,
+        collectionIds: [collectionId],
+        fields: [
+          { name: "A", value: "fake-first-hidden", type: 1 },
+          { name: "B", value: "fake-second-hidden", type: 1 },
+        ],
+      },
+    ]),
+    names,
+  );
+  expect(notes).toEqual([
+    {
+      name: "EXTERNAL_API_KEY",
+      organizationId,
+      collectionIds: [collectionId],
+      password: null,
+      hidden: { count: 1, value: "fake-hidden-value" },
+    },
+    {
+      name: "EXTERNAL_API_KEY",
+      organizationId,
+      collectionIds: [collectionId],
+      password: null,
+      hidden: { count: 2, value: null },
+    },
+  ]);
+  for (const kept of ["fake-text-value", "fake-unrelated-note", "fake-first"])
+    expect(JSON.stringify(notes)).not.toContain(kept);
+  // A note whose fields are not bw's shape is unreadable, not guessed.
+  expect(
+    parseSecretItems(
+      JSON.stringify([{ name: "EXTERNAL_API_KEY", type: 2, fields: {} }]),
+      names,
+    ),
+  ).toBeNull();
   // A candidate whose ids are not the vault's shape is unreadable, not
   // guessed; so is an answer that is not a list of items.
   expect(
