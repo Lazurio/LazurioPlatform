@@ -54,6 +54,7 @@ import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
 import { fill, pillView, pillVisible } from "./update-view";
 import { createVaultPagePanel } from "./vault-page-panel";
+import { createVaultRequestsPanel } from "./vault-requests-panel";
 import { type VoiceView, voicePanel } from "./voice-panel";
 
 // The fragment of the first address: locally the session token, and a start
@@ -574,6 +575,13 @@ const vaultPage = createVaultPagePanel({
     return route?.view === "settings" && route.section === "vault";
   },
 });
+// Nastavení → Trezor: the agents' secret requests (decision F53), the
+// section of those that wait and one request's page; read when shown.
+const vaultRequests = createVaultRequestsPanel({
+  get: (path) => get(path),
+  post: (path, body) => post(path, body),
+  copy: () => copy,
+});
 // The left column as the person left it in this browser (Matěj's tuning of
 // 2026-10-12, layout.ts): hidden or shown, and its width; placed before the
 // page first shows, so it never moves on arrival. The heads of the page
@@ -646,6 +654,7 @@ const shell = createShell({
       !vaultPage.loaded
     )
       void vaultPage.refresh();
+    vaultRequests.show(route);
     if (framed && route.view === "settings") {
       // Settings read what only they show the first time they are shown;
       // back in Tento Environment the content is read again.
@@ -773,6 +782,7 @@ function relabel() {
   recovery.render();
   ssh.render();
   vaultPage.render();
+  vaultRequests.relabel();
   files.relabel();
   integrations.relabel();
   column.relabel();

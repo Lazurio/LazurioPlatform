@@ -1,6 +1,7 @@
 import { filesUrlPath, parseUrlPath } from "../files/rules";
 import { customServerIdPattern } from "../integrations/custom-server";
 import { integrationIdPattern } from "../integrations/path";
+import { isSecretRequestId, secretRequestPath } from "../vault/request-id";
 import type { MessageKey } from "./messages";
 
 // The page routes of the Launchpad: one document served under each path, the
@@ -34,7 +35,9 @@ export type PageRoute =
   | Readonly<{ view: "home" }>
   | Readonly<{ view: "organization"; organization: string }>
   | Readonly<{ view: "module"; organization: string; module: string }>
-  | Readonly<{ view: "settings"; section: SettingsSection }>
+  /** A section of Settings; in Trezor, `/settings/vault/requests/<id>` is
+   * the page of one agent's secret request (`request`, decision F53). */
+  | Readonly<{ view: "settings"; section: SettingsSection; request?: string }>
   /** A folder of the Documents folder (decision F35): `/files` is the
    * folder itself, `/files/<name>/<name>` one below it. */
   | Readonly<{ view: "files"; path: readonly string[] }>
@@ -93,6 +96,7 @@ export const pagePaths: readonly string[] = [
   "/marketplace",
   "/settings",
   ...settingsSections.map((section) => `/settings/${section}`),
+  "/settings/vault/requests/:id",
 ];
 
 export function settingsPath(section: SettingsSection): string {
@@ -183,6 +187,17 @@ export function pageRoute(pathname: string): PageRoute {
   }
   if (path !== "/settings" && !path.startsWith("/settings/"))
     return { view: "home" };
+  // An agent's secret request: its page in Trezor; anything else below
+  // `requests` opens Trezor itself.
+  if (
+    path === "/settings/vault/requests" ||
+    path.startsWith("/settings/vault/requests/")
+  ) {
+    const request = segment(path.slice("/settings/vault/requests/".length));
+    return request !== null && isSecretRequestId(request)
+      ? { view: "settings", section: "vault", request }
+      : { view: "settings", section: "vault" };
+  }
   const section = path.slice("/settings/".length);
   return {
     view: "settings",
@@ -220,6 +235,7 @@ export function routePath(route: PageRoute): string {
       ? customServerPath(route.form.server)
       : integrationsPath(route.tab, route.app);
   if (route.view === "marketplace") return "/marketplace";
+  if (route.request !== undefined) return secretRequestPath(route.request);
   return settingsPath(route.section);
 }
 
@@ -286,6 +302,9 @@ export function routeTitle(
   const heading = copy[sectionLabels[route.section]];
   return {
     heading,
-    document: `${heading} · ${copy.settingsTitle} — ${copy.title}`,
+    document:
+      route.request === undefined
+        ? `${heading} · ${copy.settingsTitle} — ${copy.title}`
+        : `${copy.vaultRequestTitle} · ${heading} · ${copy.settingsTitle} — ${copy.title}`,
   };
 }

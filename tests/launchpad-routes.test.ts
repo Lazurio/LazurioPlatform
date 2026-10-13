@@ -61,7 +61,40 @@ test("a path names the view and the settings section; the canonical path is one"
     "/settings/vault",
     "/settings/ssh",
     "/settings/recovery",
+    "/settings/vault/requests/:id",
   ]);
+});
+
+test("an agent's secret request has its page in Trezor; any other path below it opens Trezor", () => {
+  const id = "abcdefghijklmnopqrstuvwx";
+  const route = { view: "settings", section: "vault", request: id } as const;
+  expect(pageRoute(`/settings/vault/requests/${id}`)).toEqual(route);
+  expect(pageRoute(`/settings/vault/requests/${id}/`)).toEqual(route);
+  expect(routePath(route)).toBe(`/settings/vault/requests/${id}`);
+  expect(routeFrame(route)).toBe("settings");
+  for (const path of [
+    "/settings/vault",
+    "/settings/vault/requests",
+    "/settings/vault/requests/",
+    "/settings/vault/requests/x",
+    "/settings/vault/requests/ABCDEFGHIJKLMNOPQRSTUVWX",
+    `/settings/vault/requests/${id}/extra`,
+    `/settings/vault/requests/${id.slice(0, 23)}%2F`,
+  ])
+    expect([path, pageRoute(path)]).toEqual([
+      path,
+      { view: "settings", section: "vault" },
+    ]);
+  expect(routeTitle(route, messages("cs"))).toEqual({
+    heading: "Trezor",
+    document: "Žádost agenta · Trezor · Nastavení — Lazurio Launchpad",
+  });
+  expect(
+    routeTitle({ view: "settings", section: "vault" }, messages("en")),
+  ).toEqual({
+    heading: "Vault",
+    document: "Vault · Settings — Lazurio Launchpad",
+  });
 });
 
 test("the heading and document title follow the route in both languages", () => {
