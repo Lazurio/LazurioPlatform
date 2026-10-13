@@ -842,7 +842,11 @@ Choosing a section keeps the focus on the navigation item as in T3 Code, but eve
 other move (Settings, Back, the breadcrumb, back/forward, a section chosen in the
 narrow sheet) focuses the heading of the new view and the document title names it.
 Escape does not leave Settings from a form field, so an unsaved note is not left
-behind by a stray key. T3 Code's settings search, `/` shortcut and per-row reset are
+behind by a stray key. The header (also Files') keeps its 52 px row but wraps rather
+than run past its edge or under the page's top right corner (#365): below 768 px its
+actions show only their icon, their words kept for screen readers, as the Browser
+toggle does there, and a breadcrumb that leaves no room puts the action on a second
+row at the right. T3 Code's settings search, `/` shortcut and per-row reset are
 not built: the page has three sections and no defaults to reset to. Its sidebar toggle
 and resizable sidebar are built for the left column since 2026-10-12
 ([the right panel](#the-right-panel-the-environment-browser)).
@@ -1943,14 +1947,22 @@ the Launchpad builds no viewer of its own.
 - **Offered** only where `GET /api/entry` answers an entry with `browserOrigin` (the
   handover's `entry.browser`): never on a workstation (no entry), on a Remote
   Environment whose gateway routes no view, or in Recovery mode.
-- **The toggle** "Prohlížeč" / "Browser" (Iconoir's app-window) stands in the head of
-  each page: beside Guide on the Apps home, last among the header's actions in Settings
-  and Files, in the Marketplace's head; one at a time, only its icon below 768 px. The
-  module's information page has no head row for it; a panel left open stays open
-  there, as across every move within the page. Pressed, it takes the quiet surface, and
-  it stays in the head while the panel is open (the wireframe hid it then; Matěj's call
-  of 2026-10-12). It slides the panel in from the window's right edge and back out in
-  200 ms, the focus moving to the panel and back to the toggle; with reduced motion the
+- **The toggle** "Prohlížeč" / "Browser" (Iconoir's app-window) stands in the page's top
+  right corner, the wireframe's `apps-corner` ([F47's addendum of 2026-10-12,
+  evening](decisions.md#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview)):
+  one toggle in the same place on every page, Settings, Files and a module's information
+  page included, after the page's help link (the Guide on the Apps home, "Jak to
+  funguje" on Integrace, none elsewhere); only its icon below 768 px. Pressed, it takes
+  the quiet surface, and it stays in the corner while the panel is open (the wireframe
+  hid it then; Matěj's call of 2026-10-12); a click on it closes the panel. The corner is
+  the page's, left of the panel, so the panel beside the page never covers it; when the
+  page steps aside for a panel that takes all of the room, the corner goes with the
+  page, as the heads' toggle did, and below 1100 px the sheet covers the page, corner
+  included. The corner stays in view as the page scrolls, on the page's own surface;
+  page heads hold only their titles and leave it free, as wide as it is
+  (`--page-corner`, measured by `layout.ts`). A panel left open stays open across every
+  move within the page. It slides the panel in from the window's right edge and back out
+  in 200 ms, the focus moving to the panel and back to the toggle; with reduced motion the
   panel appears and goes at once. The panel is closed on every page load; only its width
   is remembered (below).
 - **The panel** is an `<aside>` after the page in the `.app` row, so the page shrinks:
@@ -2015,12 +2027,20 @@ the Launchpad builds no viewer of its own.
   which a frame cannot. The view's address carries no token (F39 point 8).
 - **The left column** on a screen 768 px wide or wider (Matěj 2026-10-12, as T3 Code's
   sidebar; `layout.ts`): T3 Code's sidebar toggle (Iconoir's sidebar-collapse and
-  sidebar-expand) at the start of the head of Settings and Files, the Apps home,
-  Integrace and the Marketplace hides it, the rail staying, and shows it again; while
-  the page steps aside for the panel, the toggle stands in the panel's strip. Its right
-  edge is a divider like the panel's, 208–480 px and never leaving the page less than
-  400 px, double-click for 264 px. Below 768 px it stays the sheet opened by the button
-  at the top of the page.
+  sidebar-expand) stands in the column's head, right under `<lazurio-column-head>`,
+  where Chat keeps T3 Code's toggle under the same head, and hides the column, the rail
+  staying. While the column is hidden, one toggle at the page's top left, where ChatGPT
+  and Codex keep theirs, shows it again. The page's content never moves for it: only a
+  title row it would reach steps aside (Matěj 2026-10-13), that is Settings' and Files'
+  header, the first row of the Apps home, Integrace and a module's page, and the
+  Marketplace's head only while its centred column comes that close (a container query
+  on `.page`). While the page also steps aside for the panel, the one in the panel's
+  strip stands in for it.
+  One of them is drawn at a time, and the focus a toggle had moves on to the one drawn
+  now. The shell's column head stays as it is: it offers no slot for a host's control.
+  Its right edge is a divider like the panel's, 208–480 px and never leaving the page
+  less than 400 px, double-click for 264 px. Below 768 px it stays the sheet opened by
+  the button at the top of the page.
 - **Remembered in this browser**: the panel's width or all of the room, the column's
   width and whether it is hidden, as one `localStorage` entry, `lazurio.layout`, read
   field by field; a field that is not what it should be is its default alone. As the
@@ -2042,7 +2062,20 @@ the Launchpad builds no viewer of its own.
   `tests/browser-panel-view.test.ts` (several Nová karta entries, "+", × on either kind,
   the last ×, the strip emptied from elsewhere) and `tests/layout-view.test.ts` (the
   widths, the step aside and back, the keys, the stored layout); how it looks and moves
-  belongs to a check in a browser.
+  belongs to a check in a browser. The controls in the page's corners (2026-10-12,
+  evening) are pinned by `tests/launchpad-page-corners.test.ts` (the one Browser toggle
+  in the corner after the page's help link, outside every view and head; the column's
+  toggle under the column head, at the page's top left and in the strip; heads with
+  their titles only; Integrace's search and refresh with the tabs) and were checked in
+  Chrome against the hosted preview in Czech and English at 1440×900, 900×900 and
+  390×844: the Apps home, Integrace, the Marketplace, every section of Settings, Files
+  and a module's page with the column shown and hidden, at the two wider sizes with the
+  panel closed and open (the toggle pressed in the corner beside the open panel, its
+  click closing it), the panel taking all of the room and the page scrolled; on every
+  page and size the page's content where it is for the hidden column's toggle, and
+  Settings' and Files' header within its edge, every control in it in reach and nothing
+  under a corner; the focus back on the toggle after Close and after Escape, and moving
+  by keyboard between the column's toggles.
 
 ## First run of an Environment
 

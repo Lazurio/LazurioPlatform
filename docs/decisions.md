@@ -8255,7 +8255,9 @@ and the first bullet of step 3's panel; the rest of F47 stands.
 - **The toggle slides the panel.** "Prohlížeč" slides the panel in from the window's right edge
   and back out, in 200 ms; with reduced motion it appears and goes at once. The focus moves as
   before. The toggle stays in the page's head, pressed, while the panel is open: the
-  wireframe hid it then, the product keeps it on Matěj's call.
+  wireframe hid it then, the product keeps it on Matěj's call. (The heads' controls in the
+  page's corners, below, move it to the page's top right corner, where it stays, pressed,
+  while the panel is open.)
 - **The panel's width.** Its left edge is a divider, as in T3 Code and Codex Desktop: drag it,
   move it with the arrow keys (24 px, 96 with Shift), Home and End for the least and the
   greatest width, a double-click for the default (half of the room, 360–960 px, as before).
@@ -8275,6 +8277,8 @@ and the first bullet of step 3's panel; the rest of F47 stands.
   - The module's information page has no head row, so it has neither toggle.
   - With the column hidden and the panel dragged wide, the browser fills the window but the
     rail.
+  - The heads' controls in the page's corners, below, move this toggle to the column's head
+    and, while the column is hidden, to the page's top left.
 - **Kept in this browser.** The panel's width (or all of the room), the column's width and
   whether it is hidden are one `localStorage` entry, `lazurio.layout`, read field by field.
   Nothing goes into the Folder, which a Team Environment shares.
@@ -8292,6 +8296,37 @@ and the first bullet of step 3's panel; the rest of F47 stands.
   layout) with `tests/layout-view.test.ts`, and `new-tab-view.ts` with
   `tests/new-tab-view.test.ts`. The DOM: `browser-panel.ts` and `layout.ts`. How it looks and
   moves is checked in a browser (root decision 0178), never by a rendered-page test.
+
+**The heads' controls in the page's corners (2026-10-12, evening).** After using the tuning,
+Matěj asked that the controls in the pages' heads move where the wireframe puts them: the
+column's toggle in every head, the Guide and "Prohlížeč" on the Apps home, and Integrace's row
+of "Jak to funguje", the search, Zkontrolovat připojení and "Prohlížeč". It changes only
+where the tuning puts the toggles, "in the page's head" and "at the start of each page's head",
+its "The module's information page has no head row, so it has neither toggle", and point 1 of
+F38's addendum of 2026-10-05 ("in the head of each page"). The rest of the panel stands,
+the toggle that stays pressed while the panel is open included.
+- **One corner, top right.** The wireframe's `apps-corner`, in the same place on every page,
+  as ChatGPT and Codex Desktop keep theirs: the page's help link (the Guide on the Apps home,
+  "Jak to funguje" on Integrace, none elsewhere, so none on a module's information page), then
+  "Prohlížeč", which stays there, pressed, while the panel is open, as the tuning decided (the
+  wireframe hides it then); a click on it closes the panel. The corner is the page's, left of
+  the panel, so the panel beside the page never covers it; with the page stepped aside for a
+  panel that takes all of the room, it goes with the page, as the heads' toggle did. Page heads
+  hold only their titles and leave the corner free. The corner stays in view as the page
+  scrolls, on the page's own surface.
+- **Integrace.** The search and Zkontrolovat připojení stay on the page, at the right end of
+  the tabs' row; short of room they go above the tabs.
+- **The column's toggle.** In the column's head, right under `<lazurio-column-head>`, where
+  Chat keeps T3 Code's toggle under the same head. While the column is hidden, one toggle
+  stands at the page's top left, where ChatGPT and Codex keep theirs. The page's content never
+  moves for it: only a title row it would reach steps aside (Matěj, 2026-10-13). While the
+  page also steps aside for the panel, the panel strip's stands in for it. The shell's column head is unchanged: it offers no slot for a host's control; beside it
+  the head would narrow (at the column's narrowest, 208 px, it would draw only its glyphs),
+  and above it the head would no longer stand where Chat and Automate draw it.
+- **Where it is.** `index.html` (the markup and the stylesheet) and `layout.ts` (the column's
+  toggles, the corner's width as `--page-corner`), pinned by
+  `tests/launchpad-page-corners.test.ts`. How it looks is checked in a browser (root decision
+  0178).
 
 **One holder file that cannot be read (2026-10-12, root decision 0191 point 32).** Matěj
 decided that one unreadable holder file stops the ending of its own tabs only. It changes
