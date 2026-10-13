@@ -8516,6 +8516,12 @@ Automated Environments (Machines #382) and immediate delivery.
 > Organization that owns it, on a personal one the Personalspace's modules
 > (`personal-environment`, `personalspace`); the open question of the Personalspace is
 > answered. A 0197 pilot keeps this decision's reading unchanged.
+>
+> **Amended by [F54](#f54--an-agents-secret-request-a-person-fills-it-in-the-launchpad-the-environment-saves-it-into-its-own-vault)
+> (root decision 0198 point 9, 2026-10-13).** In the Environment's own vault a value may
+> also be the one hidden custom field of a Secure note, which is what an agent's secret
+> request becomes; a note with more than one hidden field is `ambiguous`, one without
+> or with an empty one `empty`. A 0197 pilot still reads login passwords only.
 
 **Proposed with issue #129 (root decision 0177, HumanAndMachines/Lazurio#480; the
 optional secrets of root decision 0196, the Environment ceiling); implemented in this
@@ -10697,7 +10703,8 @@ session of F43.
    649 has moved the items.
 7. **Runtime secrets** (F46 as amended). A value is the login password of the one
    item named exactly like the secret anywhere in the Environment's own vault (any
-   of its collections); secure-note fields follow with task 651. On a work
+   of its collections), or since [F54](#f54--an-agents-secret-request-a-person-fills-it-in-the-launchpad-the-environment-saves-it-into-its-own-vault)
+   the one hidden field of a Secure note. On a work
    Environment the applications of the Organization that owns it read them; on a
    personal Environment the Personalspace's modules do (0198 point 4: personal and
    work alike); everything else is refused with its reason (`other-organization`,
@@ -10707,7 +10714,7 @@ session of F43.
    `base-instructions-49`) says only what is true now: the Environment's own vault,
    used freely by its agents; `lazurio vault status` read before anything is said
    about the vault; never a secret asked for in chat. How a secret reaches the vault
-   (0198 point 9, paths a, b and c) follows with task 652.
+   (0198 point 9, paths a, b and c) is told since F54 (`base-instructions-50`).
 9. **Recovery evidence** withholds the handover's `vault.account`, `vault.name` and
    the vault's host (`<vault-account>`, `<vault-name>`).
 
@@ -10879,3 +10886,125 @@ journal, bw's argv or an answer), the admission's subject
 (`tests/launchpad-hosted-trust.test.ts`), the page's pure part
 (`tests/vault-page-view.test.ts`) and the assignment's fingerprint
 (`tests/vault-context.test.ts`).
+
+## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
+
+**Decided by the Admin on 2026-10-13 (root decision 0198 point 9; plan DEV-6631 tasks
+651 and 652; the wireframe of HumanAndMachine-ai/prototypes-lazurio#33:
+`screens/SecretRequest.tsx`, `vault-requests.ts` and the section of `EnvVault.tsx`);
+implemented in this revision for Remote Environments on Linux. Amends F46 and F53
+points 7 and 8.** A secret never reaches agents through chat or a file, and a person
+needs no account in the vault to hand one over. An agent gets it in this order: (a)
+where the Environment's shared browser window has the Bitwarden extension, the person
+signs in to the service there and confirms saving it into the Environment's vault (the
+extension arrives with a later task, so agents are told this conditionally); (b) a
+secret the agent can create itself in a signed-in session of the service (a new API
+key or client secret) it creates and stores in the vault with `bw`; (c) otherwise it
+asks a person for it with a secret request, put so that the person understands what is
+wanted: what the agent needs, why, and where in the service the person finds it. This
+decision is (c), and the agents' guidance for all three.
+
+1. **The request** (`lazurio vault request`, `src/vault/cli.ts`; the core
+   `src/vault/requests.ts`). `--item <name>` (the vault item it becomes, one line of
+   at most 100 characters), `--need <what>` (as said mid-sentence, 3–200), `--why`
+   and `--where` (3–300 each), and 1 to 10 `--field <Name>[:secret]` (the name the
+   service gives the value, at most 60 characters, unique regardless of case). One
+   line each, no control or reordering characters. It prints the request's id and its
+   page, `<the Folder's recorded external origin>/settings/vault/requests/<id>` (the
+   page's path where no entry is recorded); `--json` the request with `link`.
+   `status <id>` answers `pending`, `saved` (with the item's name: read it from the
+   vault) or `declined`; `list` every request, oldest first. Only where the
+   Environment's own vault is connected (`not-connected`; a 0197 pilot is
+   `pilot-0197`, and every reason the vault is not here is its own), and at most 50
+   waiting (`too-many`). Exit 0 created, 2 refused, 1 a failure.
+2. **The store.** One JSON per request in the account's custody (F53 point 2),
+   `<state>/lazurio/vault/<vault host>/<account>/requests/<id>.json` (0600 in 0700):
+   `{id, item, need, why, where, fields: [{name, secret}], createdAt, state,
+   answeredAt}`, the id 24 random lowercase base32 characters (safe in a path, a file
+   name and on a command line); read only in this exact form and as the request of its
+   own name. Written whole under the account's kernel lock, read without it. Never a
+   value. The CLI and the Launchpad share this core through the files and the lock;
+   the CLI never calls the Launchpad.
+3. **The routes** (`src/launchpad/vault-request-routes.ts`), behind the admission of
+   every `/api/*` route (locally the token and same origin; behind the gateway its
+   session and same origin for a write): `GET /api/vault/requests` (the waiting ones;
+   none where the Environment has no own vault), `GET /api/vault/requests/<id>`,
+   `POST /api/vault/requests/<id>/save {values}` and `POST
+   /api/vault/requests/<id>/decline {}`. Any admitted person answers; no account in
+   the vault is needed (0198 point 9). A refusal is `{kind: "blocked", reason}`: 400
+   for values that are not the request's fields, 404 an unknown request, 409 one
+   answered already (with its `state`) or a vault that cannot take it, 503 a vault
+   that is busy, locked or unreachable.
+4. **The item.** A save holds the account's lock, so a request is answered once. The
+   values are exactly the request's fields, each a non-empty text (white space around
+   it, which a copy brings along, removed) of at most 10 000 characters. The
+   Environment writes exactly one Secure note named `item` into its collection Agenti:
+   one custom field per request field, hidden for a secret one and text otherwise, and
+   the need, why and where as its notes, so a person who opens it in the vault knows
+   what it is; never a value in the notes. `bw create item` reads the item, encoded as
+   `bw encode` prints it, on its standard input (the ToolRunner's new `stdin`), never
+   on argv; of bw's answer, which prints the whole item with its values, only the new
+   item's id is read. Then `bw sync`, and the request is `saved`. A vault that refuses
+   the item, is locked or does not answer leaves the request waiting.
+5. **The page.** Nastavení → Trezor (F53's addendum of 2026-10-14) gets the sub-route
+   `/settings/vault/requests/<id>`, as Integrace has its forms (`routes.ts`; the
+   first-paint script agrees). `vault-requests-panel.ts` draws "Žádosti agentů" (the
+   count and one row per waiting request: what the agent needs, its fields, "Zadat")
+   into the Trezor page's slot `#vault-requests` above its vault, and a request's page
+   into `#vault-request`, which alone shows of the section on its route: the need as its title, then why and where, one input per field (a
+   password input with "Zobrazit" for a secret one), the item it becomes, "Uložit do
+   trezoru" once every field has a value, and "Odmítnout". A value goes from its input
+   into the one save request and nowhere else: not to browser storage, the address or
+   a log; the inputs are emptied once the request is answered and kept after a refusal
+   the person can retry. Formal Czech (root decision 0199), minimal texts; every value
+   of the server is drawn as text.
+6. **Runtime secrets** (F46 as amended). In the own vault a value may also be the one
+   hidden custom field of a Secure note; more than one hidden field is `ambiguous`,
+   none or an empty one `empty`. A note's text fields and notes are dropped by the
+   reader as before. The frozen 0197 pilot reads login passwords only.
+7. **The agents' guidance** (the catalog entry `bitwarden` and the manual's Secrets,
+   template revision `base-instructions-50`). Never ask for a secret in chat and never
+   take one from a file or a message; check `lazurio vault status` again before saying
+   anything about the vault; read secrets only from the vault through the shared
+   session and never print a value; get what the vault lacks by (a), (b) and (c) in
+   this order, (b) piped through `bw encode` into `bw create item`, never as an
+   argument, and (c) with the link handed to the person and other work continued
+   meanwhile. This computer (the local preset) has no vault yet: its manual keeps the
+   store the Operator names and gains only the rule against chat and files.
+8. **The journal** of the unit gets `{"scope":"tools-vault","operation":"request",
+   "outcome":"created|saved|declined|refused","reason":…}` only (a refused save's
+   fixed reason; `sync-<reason>` after a save whose sync failed).
+
+**Honest limits.** Who answered is not recorded: the Launchpad knows that a browser
+is admitted, not who it is (F11), and the vault records the item as the Environment's.
+A save interrupted after bw created the item and before the request was marked saved
+(the Launchpad stopped in between, or a timeout whose request reached the vault) leaves
+the request waiting while the item is in the vault; saving it again creates a second
+item of that name, which runtime secrets read as `ambiguous` until a person removes one
+in the vault. An agent can word a request misleadingly; the page shows it as the
+agent's request, and the person decides. Answered requests are kept, not pruned.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The values in chat, then the agent stores them | A secret through chat; rejected by 0198 point 9 |
+| A page that writes the values into a file the agent reads | A secret in a file; rejected for the vault |
+| `bw create item <encoded item>` | The values on argv, readable in the process list; rejected for stdin |
+| A Login item per request | One password only, while a service often gives an id and a secret; a Secure note with one field per value kept, and F46 reads its one hidden field |
+| The CLI calling the Launchpad's API | A local process needing the browser's admission, two writers of one state; rejected for one core over files and the lock |
+| Recognizing an item saved by an interrupted save by a marker in it | Exact, but a technical line in the person's item and a second lookup on every save; left as the limit above |
+
+Verified by tests against the real consumers, the fake Vaultwarden and a fake bw that
+creates items from stdin as the real one does (`tests/vault-requests.test.ts`): create,
+list and status; invalid words and fields; no vault, a pilot, too many; the save
+creating exactly one Secure note with the right fields in Agenti, read right away as a
+runtime secret; the values in the vault only (not on argv, in a request file or any
+file of this Platform, the journal or an answer); decline; values that are not the
+fields; an unadmitted or cross-origin request refused, locally and behind the gateway;
+a refused or unreachable vault keeping the request; the runner's stdin. The reader of
+Secure notes (`tests/vault-secrets.test.ts`, `tests/vault-pilot.test.ts`), the routes
+and the first paint (`tests/launchpad-routes.test.ts`,
+`tests/launchpad-first-paint.test.ts`), the page's texts
+(`tests/vault-requests-view.test.ts`) and the rendered guidance on every preset in both
+languages (`tests/folder-manual.test.ts`). Checked in a browser with the fake vault
+(root decision 0178): the section, filling in, show and hide, save, decline, an
+unreachable vault and the retry, a narrow screen.

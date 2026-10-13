@@ -326,7 +326,7 @@ declared runtime, on top of the closed base `HOME`, `PATH` and optional `TMPDIR`
 | `COMPANYASCODE_APP_ID`, `COMPANYASCODE_RUNTIME_KEY`, `COMPANYASCODE_RUNTIME_SOURCE` | the runtime `id`, the runtime `id`, `main` | always |
 | `COMPANYASCODE_ORGANIZATION_ROOT` | the Organization root | an Organization's module, not a Personalspace module |
 | `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` | the loopback origin `<protocol>://<host>:<port>` of the entrypoint of a sibling module's default app, from its lease, read at this start (F26 addendum of 2026-10-10) | each `workspace/<slug>` the app declares in `required_module_slots` that is a module of its own Organization with a readable HTTP(S) default-app entrypoint; whether it runs is not asked (a required slot that is not there refuses the start) |
-| `LAZURIO_RUNTIME_SECRET_<NAME>` | the login password of the one item named exactly `<NAME>` in the Environment's vault collection, read before every start ([F46](decisions.md#f46--runtime-secrets-declared-names-read-from-the-environment-vault-before-every-start-fail-closed)) | each name of `lazurio.runtime` `secrets` and `optional_secrets` with a value, for an application of the Organization that owns the Environment; never to the preparation's processes |
+| `LAZURIO_RUNTIME_SECRET_<NAME>` | the login password of the one item named exactly `<NAME>` in the Environment's vault, or the one hidden field of a Secure note of that name (F54), read before every start ([F46](decisions.md#f46--runtime-secrets-declared-names-read-from-the-environment-vault-before-every-start-fail-closed)) | each name of `lazurio.runtime` `secrets` and `optional_secrets` with a value, for an application of the Organization that owns the Environment; never to the preparation's processes |
 | `NODE_PATH` | `<application directory>/node_modules` | always |
 | `NODE_ENV`, `ASTRO_DEV_BACKGROUND`, `ASTRO_PREVIEW_BACKGROUND` | `development`, `1`, `1` | always |
 
@@ -342,7 +342,10 @@ only, never values:
 
 Before every start the value of each is read from the Environment's own vault (F43,
 F53): a sync, then the login password of the one item named exactly so anywhere in
-that vault. On a work Environment only an application of the Organization that owns
+that vault, or the one hidden field of a Secure note of that name (F54: what an
+agent's secret request becomes; a note with two hidden fields is ambiguous). When a
+value is missing, the agent asks for it with `lazurio vault request --item <NAME>`
+and exactly one `--field "<the service's name for it>:secret"`, never in chat. On a work Environment only an application of the Organization that owns
 it reads it, on a personal Environment only a Personalspace module; another mounted
 Organization's application, a Personalspace module on a work Environment and an
 Organization's application on a personal one do not.
