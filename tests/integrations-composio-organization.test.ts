@@ -69,13 +69,13 @@ test("the verdict over the account's organizations", () => {
   expect(
     composioOrganizationVerdict(
       { kind: "chosen" },
-      listed("matej_workspace", "matej_workspace", "humanandmachine"),
+      listed("jana_workspace", "jana_workspace", "humanandmachine"),
     ),
-  ).toEqual({ kind: "chosen", current: "matej_workspace" });
+  ).toEqual({ kind: "chosen", current: "jana_workspace" });
   expect(
     composioOrganizationVerdict(
       named,
-      listed("humanandmachine", "matej_workspace", "humanandmachine"),
+      listed("humanandmachine", "jana_workspace", "humanandmachine"),
     ),
   ).toEqual({
     kind: "matches",
@@ -84,12 +84,12 @@ test("the verdict over the account's organizations", () => {
   expect(
     composioOrganizationVerdict(
       named,
-      listed("matej_workspace", "matej_workspace", "humanandmachine"),
+      listed("jana_workspace", "jana_workspace", "humanandmachine"),
     ),
   ).toEqual({
     kind: "elsewhere",
     organization: { id: "org_2", name: "humanandmachine", current: false },
-    current: "matej_workspace",
+    current: "jana_workspace",
   });
   expect(
     composioOrganizationVerdict(named, listed("spectoda", "spectoda")),
@@ -168,9 +168,9 @@ test("an Organization's Environment is made current in the organization of its O
   try {
     const { world, read } = await launchpad(
       {
-        organization: "matej_workspace",
+        organization: "jana_workspace",
         organizations: [
-          { id: "org_1", name: "matej_workspace" },
+          { id: "org_1", name: "jana_workspace" },
           { id: "org_2", name: "priklad" },
         ],
       },
@@ -216,8 +216,8 @@ test("an Organization's Environment is made current in the organization of its O
 test("an account without the organization: nothing of Composio counts, connecting through it is refused, and the page and agents say why", async () => {
   const { world, app, read } = await launchpad(
     {
-      organization: "matej_workspace",
-      organizations: [{ id: "org_1", name: "matej_workspace" }],
+      organization: "jana_workspace",
+      organizations: [{ id: "org_1", name: "jana_workspace" }],
     },
     { kind: "named", name: "Příklad" },
   );
@@ -255,9 +255,9 @@ test("an account without the organization: nothing of Composio counts, connectin
 test("more than one organization of the name: none is guessed", async () => {
   const { world, read } = await launchpad(
     {
-      organization: "matej_workspace",
+      organization: "jana_workspace",
       organizations: [
-        { id: "org_1", name: "matej_workspace" },
+        { id: "org_1", name: "jana_workspace" },
         { id: "org_2", name: "Příklad" },
         { id: "org_3", name: "priklad" },
       ],
@@ -271,16 +271,16 @@ test("more than one organization of the name: none is guessed", async () => {
     state: "ambiguous",
   });
   expect((await readComposioState(world.home)).organization).toBe(
-    "matej_workspace",
+    "jana_workspace",
   );
 });
 
 test("where the person chooses, the organization is never read or changed", async () => {
   const { world, read } = await launchpad(
     {
-      organization: "matej_workspace",
+      organization: "jana_workspace",
       organizations: [
-        { id: "org_1", name: "matej_workspace" },
+        { id: "org_1", name: "jana_workspace" },
         { id: "org_2", name: "priklad" },
       ],
     },
@@ -421,8 +421,8 @@ test("the page's words for each state of the organization", () => {
 test("the page takes a reading with the organization's state, and refuses a malformed one", async () => {
   const { read } = await launchpad(
     {
-      organization: "matej_workspace",
-      organizations: [{ id: "org_1", name: "matej_workspace" }],
+      organization: "jana_workspace",
+      organizations: [{ id: "org_1", name: "jana_workspace" }],
     },
     { kind: "named", name: "Příklad" },
   );
