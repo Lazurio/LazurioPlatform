@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { isTargetId } from "../src/browser/contract/pure";
 import {
+  aloneAddress,
+  menuStep,
+  pictureKey,
+  pictureOf,
+} from "../src/browser/people/bar";
+import {
   buttonBit,
   clampInto,
   clickCount,
@@ -25,6 +31,7 @@ import {
   modifierBits,
   parseClientMessage,
 } from "../src/browser/people/protocol";
+import { cs, en, viewLanguage, words } from "../src/browser/people/words";
 
 // The people's view of the Environment browser (decision F39): what the view
 // page sends for the person's pointer, keys and clipboard (point 6), and the
@@ -176,6 +183,73 @@ describe("the frame in the page area", () => {
       expect(Math.abs((small?.x ?? 0) - (exact?.x ?? 0))).toBeLessThan(0.5);
       expect(Math.abs((small?.y ?? 0) - (exact?.y ?? 0))).toBeLessThan(0.5);
     }
+  });
+});
+
+describe("the bar (F39's addendum of 2026-10-13)", () => {
+  test("the picture quality is Data saver only when that is stored", () => {
+    expect(pictureKey).toBe("lazurio.view.picture");
+    expect(pictureOf("saver")).toBe("saver");
+    for (const value of [null, undefined, "", "standard", "Saver", "1", "hd"])
+      expect(pictureOf(value)).toBe("standard");
+  });
+
+  test("the menu's keys move the focus and wrap; other keys are left alone", () => {
+    expect(menuStep("ArrowDown", 0, 2)).toBe(1);
+    expect(menuStep("ArrowDown", 1, 2)).toBe(0);
+    expect(menuStep("ArrowUp", 1, 2)).toBe(0);
+    expect(menuStep("ArrowUp", 0, 2)).toBe(1);
+    expect(menuStep("Home", 1, 2)).toBe(0);
+    expect(menuStep("End", 0, 2)).toBe(1);
+    // Nothing focused yet: down to the first, up to the last.
+    expect(menuStep("ArrowDown", -1, 2)).toBe(0);
+    expect(menuStep("ArrowUp", -1, 2)).toBe(1);
+    for (const key of ["Enter", " ", "Escape", "Tab", "a"])
+      expect(menuStep(key, 0, 2)).toBeNull();
+    expect(menuStep("ArrowDown", -1, 0)).toBeNull();
+  });
+
+  test("Otevřít samostatně opens the view's own address only inside an app's frame", () => {
+    const origin = "https://browser.pilot.example.lazurio.io";
+    const tab = "0123456789ABCDEF0123456789ABCDEF";
+    expect(aloneAddress(true, origin, tab)).toBe(`${origin}/t/${tab}`);
+    // A view that is a tab of its own (a bare tab, a phone) has no button.
+    expect(aloneAddress(false, origin, tab)).toBeNull();
+    // Before the view has its tab there is nothing to open.
+    expect(aloneAddress(true, origin, null)).toBeNull();
+  });
+
+  test("the bar's words are there in both languages", () => {
+    expect(viewLanguage("cs-CZ")).toBe("cs");
+    expect(viewLanguage("CS")).toBe("cs");
+    expect(viewLanguage("en-US")).toBe("en");
+    expect(viewLanguage("de-DE")).toBe("en");
+    expect(words).toEqual({ cs, en });
+    expect(Object.keys(cs).sort()).toEqual(Object.keys(en).sort());
+    for (const said of [cs, en])
+      for (const word of Object.values(said))
+        expect(word.trim().length).toBeGreaterThan(0);
+    const bar = (said: typeof cs) => ({
+      picture: said.picture,
+      pictureStandard: said.pictureStandard,
+      pictureSaver: said.pictureSaver,
+      pictureSaverHint: said.pictureSaverHint,
+      openAlone: said.openAlone,
+    });
+    expect(bar(cs)).toEqual({
+      picture: "Kvalita obrazu",
+      pictureStandard: "Standardní",
+      pictureSaver: "Úsporná",
+      pictureSaverHint: "nižší rozlišení pro pomalé připojení",
+      openAlone: "Otevřít samostatně",
+    });
+    expect(bar(en)).toEqual({
+      picture: "Picture quality",
+      pictureStandard: "Standard",
+      pictureSaver: "Data saver",
+      pictureSaverHint: "lower resolution for a slow connection",
+      openAlone: "Open in a new tab",
+    });
   });
 });
 

@@ -13,6 +13,7 @@ import {
   viewPath,
   viewPathTab,
 } from "../contract/pure";
+import { aloneAddress, menuStep, pictureKey, pictureOf } from "./bar";
 import {
   buttonBit,
   clampInto,
@@ -36,9 +37,11 @@ import {
   type ClientMessage,
   decodeFrame,
   type FrameHeader,
+  type Picture,
   type ServerMessage,
   type ViewSize,
 } from "./protocol";
+import { viewLanguage, type Words, words } from "./words";
 
 // The script of the people's view of the Environment browser (decision
 // F39), served as `/assets/view.js` to the page of `page.ts`: one tab of a
@@ -50,68 +53,8 @@ import {
 // only to its own origin (inside an app's frame it also tells that app where
 // the tab is, and asks it how the Environment is named).
 
-const en = {
-  connecting: "Connecting…",
-  reconnecting: "The Environment browser is reconnecting…",
-  closed: "This tab no longer exists.",
-  openNewTab: "Open a new tab",
-  startFailed: "The new tab could not be opened.",
-  retry: "Try again",
-  newTab: "The page opened a new tab",
-  open: "Open",
-  dismiss: "Dismiss",
-  back: "Back",
-  forward: "Forward",
-  reload: "Reload",
-  stop: "Stop",
-  address: "Search or enter an address",
-  page: "Page in the Environment browser",
-  closeWindow: "Close the window",
-  ok: "OK",
-  cancel: "Cancel",
-  leaveTitle: "Leave this page?",
-  leaveText: "Changes you made may not be saved.",
-  stay: "Stay",
-  leave: "Leave",
-  file: "The page wants to upload a file",
-  files: "The page wants to upload files",
-  upload: "Upload",
-  uploading: "Uploading…",
-  uploadFailed: "The files could not be uploaded.",
-};
-type Words = { readonly [K in keyof typeof en]: string };
-const cs: Words = {
-  connecting: "Připojuji…",
-  reconnecting: "Prohlížeč Environmentu se znovu připojuje…",
-  closed: "Tahle záložka už neexistuje.",
-  openNewTab: "Otevřít novou záložku",
-  startFailed: "Novou záložku se nepodařilo otevřít.",
-  retry: "Zkusit znovu",
-  newTab: "Stránka otevřela novou záložku",
-  open: "Otevřít",
-  dismiss: "Zavřít",
-  back: "Zpět",
-  forward: "Vpřed",
-  reload: "Obnovit",
-  stop: "Zastavit",
-  address: "Hledat nebo zadat adresu",
-  page: "Stránka v prohlížeči Environmentu",
-  closeWindow: "Zavřít okno",
-  ok: "OK",
-  cancel: "Zrušit",
-  leaveTitle: "Opustit stránku?",
-  leaveText: "Provedené změny nemusí být uložené.",
-  stay: "Zůstat",
-  leave: "Opustit",
-  file: "Stránka chce nahrát soubor",
-  files: "Stránka chce nahrát soubory",
-  upload: "Nahrát",
-  uploading: "Nahrávám…",
-  uploadFailed: "Soubory se nepodařilo nahrát.",
-};
-
-const czech = navigator.language.toLowerCase().startsWith("cs");
-const say: Words = czech ? cs : en;
+const language = viewLanguage(navigator.language);
+const say: Words = words[language];
 
 // The person's shortcuts use ⌘ on a Mac, an iPhone and an iPad (whose
 // Safari says "Macintosh").
@@ -276,7 +219,7 @@ const banner = byId("banner", HTMLDivElement);
 const favicon = byId("icon", HTMLLinkElement);
 const defaultIcon = favicon.href;
 
-document.documentElement.lang = czech ? "cs" : "en";
+document.documentElement.lang = language;
 label(back, say.back);
 label(forward, say.forward);
 label(reload, say.reload);
@@ -333,6 +276,20 @@ const modifierKeys = new Set([
   "CapsLock",
 ]);
 const sizeKey = (size: ViewSize) => `${size.width}x${size.height}@${size.dpr}`;
+
+/** The person's picture quality (F39's addendum of 2026-10-13), kept in the
+ * browser's storage of the view's origin: one choice per Environment on this
+ * device. Where the browser keeps no storage for the page it is Standard, and
+ * a choice holds for the page's life. Every viewer, the page's own and its
+ * pop-ups', says it in its `hello` and when the person changes it. */
+function storedPicture(): Picture {
+  try {
+    return pictureOf(localStorage.getItem(pictureKey));
+  } catch {
+    return "standard";
+  }
+}
+let picture: Picture = storedPicture();
 
 /** One remote tab in one box of the page: its socket, its frames and the
  * person's input to it. The page's own tab and each pop-up over it are one
@@ -455,7 +412,7 @@ class Viewer {
       if (this.socket !== socket) return;
       const size = this.size();
       this.sentSize = sizeKey(size);
-      this.send({ t: "hello", ...size, resize: this.options.resize });
+      this.send({ t: "hello", ...size, resize: this.options.resize, picture });
       this.showStatus();
     });
     socket.addEventListener("message", (event: MessageEvent) => {
@@ -1232,6 +1189,150 @@ address.addEventListener("blur", () => {
   submitted = false;
 });
 
+// ---- Kvalita obrazu and Otevřít samostatně (F39's addendum of 2026-10-13) --
+
+const pictureBox = byId("picture-box", HTMLDivElement);
+const pictureButton = byId("picture", HTMLButtonElement);
+const pictureMenu = byId("picture-menu", HTMLDivElement);
+const pictureItems = [
+  ...pictureMenu.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'),
+];
+const alone = byId("alone", HTMLButtonElement);
+
+pictureMenu.setAttribute("aria-label", say.picture);
+byId("picture-title", HTMLDivElement).textContent = say.picture;
+for (const item of pictureItems) {
+  const saver = pictureOf(item.dataset.picture) === "saver";
+  const name = item.querySelector(".menu-label");
+  if (name !== null)
+    name.textContent = saver ? say.pictureSaver : say.pictureStandard;
+  const hint = item.querySelector(".menu-hint");
+  if (hint !== null) hint.textContent = say.pictureSaverHint;
+}
+// Only inside an app's frame: a view that is a tab of its own is the tab on
+// its own already.
+alone.hidden = !embedded;
+label(alone, say.openAlone);
+
+/** The button names the choice and is marked while Data saver is on; the
+ * menu checks the chosen item. */
+function showPicture(): void {
+  pictureButton.dataset.picture = picture;
+  label(
+    pictureButton,
+    `${say.picture}: ${picture === "saver" ? say.pictureSaver : say.pictureStandard}`,
+  );
+  for (const item of pictureItems)
+    item.setAttribute(
+      "aria-checked",
+      String(pictureOf(item.dataset.picture) === picture),
+    );
+}
+
+/** A choice for the page's own tab and every pop-up over it, at once; a
+ * viewer whose socket is down says it in its next `hello`. */
+function applyPicture(next: Picture): void {
+  if (next === picture) return;
+  picture = next;
+  showPicture();
+  main?.send({ t: "picture", picture });
+  for (const popup of popups.values())
+    popup.viewer.send({ t: "picture", picture });
+}
+
+/** The person's choice, kept for this Environment on this device. */
+function choosePicture(next: Picture): void {
+  try {
+    if (next === "saver") localStorage.setItem(pictureKey, next);
+    else localStorage.removeItem(pictureKey);
+  } catch {}
+  applyPicture(next);
+}
+
+function openMenu(focus: "chosen" | "first" | "last"): void {
+  pictureMenu.hidden = false;
+  pictureButton.setAttribute("aria-expanded", "true");
+  const chosen = pictureItems.findIndex(
+    (item) => pictureOf(item.dataset.picture) === picture,
+  );
+  const index =
+    focus === "first"
+      ? 0
+      : focus === "last"
+        ? pictureItems.length - 1
+        : Math.max(0, chosen);
+  pictureItems[index]?.focus();
+}
+
+function closeMenu(returnFocus: boolean): void {
+  if (pictureMenu.hidden) return;
+  pictureMenu.hidden = true;
+  pictureButton.setAttribute("aria-expanded", "false");
+  if (returnFocus) pictureButton.focus();
+}
+
+// Enter and Space on the button click it.
+pictureButton.addEventListener("click", () => {
+  if (pictureMenu.hidden) openMenu("chosen");
+  else closeMenu(true);
+});
+pictureButton.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  event.preventDefault();
+  openMenu(event.key === "ArrowDown" ? "first" : "last");
+});
+pictureMenu.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeMenu(true);
+    return;
+  }
+  // Tab moves on, and the menu closes behind it.
+  if (event.key === "Tab") {
+    closeMenu(false);
+    return;
+  }
+  const focused = document.activeElement;
+  const next = menuStep(
+    event.key,
+    focused instanceof HTMLButtonElement ? pictureItems.indexOf(focused) : -1,
+    pictureItems.length,
+  );
+  if (next === null) return;
+  event.preventDefault();
+  pictureItems[next]?.focus();
+});
+for (const item of pictureItems)
+  item.addEventListener("click", () => {
+    closeMenu(false);
+    choosePicture(pictureOf(item.dataset.picture));
+    // The keys go back to the page, as after the bar's other buttons.
+    main?.focus();
+  });
+// A press anywhere else closes the menu and still does what it does; so does
+// leaving the window (a click in the app around the view).
+document.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (event.target instanceof Node && pictureBox.contains(event.target))
+      return;
+    closeMenu(false);
+  },
+  true,
+);
+window.addEventListener("blur", () => closeMenu(false));
+// Another tab of this browser changed the choice for this Environment.
+window.addEventListener("storage", (event) => {
+  if (event.key === pictureKey || event.key === null)
+    applyPicture(storedPicture());
+});
+showPicture();
+
+alone.addEventListener("click", () => {
+  const view = aloneAddress(embedded, location.origin, main?.id ?? null);
+  if (view !== null) window.open(view, "_blank", "noopener");
+});
+
 /** A page's new tab without access to its opener (F39 point 4): offered with
  * one click, and to the app around the view. */
 function offerNewTab(id: string, url: string): void {
@@ -1344,7 +1445,8 @@ function showEnd(text: string, action: string, act: () => void): HTMLElement {
 }
 
 function tabClosed(): void {
-  for (const control of [back, forward, reload, address])
+  closeMenu(false);
+  for (const control of [back, forward, reload, address, alone])
     control.disabled = true;
   showEnd(say.closed, say.openNewTab, () => location.assign("/"));
   // The app around the view drops the tab from its strip (F47 point 6).
@@ -1386,6 +1488,7 @@ function open(id: string, fresh: boolean): void {
     closed: tabClosed,
   });
   area.append(popupLayer);
+  alone.disabled = false;
   main.start();
   // A new tab waits for an address, as a browser's new tab does.
   if (fresh) address.focus();

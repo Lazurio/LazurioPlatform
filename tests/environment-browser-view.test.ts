@@ -711,6 +711,116 @@ test("the page names the app that asks for it as the one that may frame it, end 
   expect(otherPolicy).not.toContain("evil");
 });
 
+// F39's addendum of 2026-10-13: the view's bar is the only toolbar above a
+// remote tab in every app. It ends with Kvalita obrazu, a menu button with
+// two choices, and Otevřít samostatně, which the script shows only inside an
+// app's frame. The script names them in the person's language (both
+// languages in `environment-browser-view-client.test.ts`); all behaviour is
+// the script's, as the page's policy allows no inline script.
+test("the bar ends with Kvalita obrazu and, hidden until the view is framed, Otevřít samostatně", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { base } = await serve(browser);
+  for (const path of ["/", `/t/${id(1)}`]) {
+    const page = await fetch(`${base}${path}`, { headers: { Host: host } });
+    const bar: string[] = [];
+    const byId = new Map<string, Record<string, string>>();
+    const items: Record<string, string>[] = [];
+    const scripts: Record<string, string>[] = [];
+    const attributes = (element: { attributes: Iterable<[string, string]> }) =>
+      Object.fromEntries(element.attributes);
+    await new HTMLRewriter()
+      .on("header.bar > *", {
+        element(element) {
+          bar.push(element.getAttribute("id") ?? element.tagName);
+        },
+      })
+      .on("[id]", {
+        element(element) {
+          byId.set(element.getAttribute("id") ?? "", attributes(element));
+        },
+      })
+      .on('#picture-menu [role="menuitemradio"]', {
+        element(element) {
+          items.push(attributes(element));
+        },
+      })
+      .on("script", {
+        element(element) {
+          scripts.push(attributes(element));
+        },
+      })
+      .transform(page)
+      .text();
+    expect(bar).toEqual([
+      "environment",
+      "back",
+      "forward",
+      "reload",
+      "address",
+      "picture-box",
+      "alone",
+    ]);
+    expect(byId.get("picture")).toEqual({
+      id: "picture",
+      class: "tool",
+      type: "button",
+      "aria-haspopup": "menu",
+      "aria-expanded": "false",
+      "aria-controls": "picture-menu",
+      "data-picture": "standard",
+    });
+    expect(byId.get("picture-menu")).toEqual({
+      id: "picture-menu",
+      class: "menu",
+      role: "menu",
+      hidden: "",
+    });
+    // Each choice is named by its label; Data saver's hint describes it.
+    expect(items).toEqual([
+      {
+        class: "menu-item",
+        type: "button",
+        role: "menuitemradio",
+        "aria-checked": "true",
+        "data-picture": "standard",
+        tabindex: "-1",
+        "aria-labelledby": "picture-standard",
+      },
+      {
+        class: "menu-item",
+        type: "button",
+        role: "menuitemradio",
+        "aria-checked": "false",
+        "data-picture": "saver",
+        tabindex: "-1",
+        "aria-labelledby": "picture-saver",
+        "aria-describedby": "picture-saver-hint",
+      },
+    ]);
+    for (const part of [
+      "picture-standard",
+      "picture-saver",
+      "picture-saver-hint",
+    ])
+      expect(byId.has(part)).toBe(true);
+    // Hidden and disabled until the script finds an app's frame and a tab.
+    expect(byId.get("alone")).toEqual({
+      id: "alone",
+      class: "tool",
+      type: "button",
+      hidden: "",
+      disabled: "",
+    });
+    expect(
+      scripts.every(
+        (script) =>
+          script.src === "/assets/view.js" ||
+          script.type === "application/json",
+      ),
+    ).toBe(true);
+  }
+});
+
 test("the service refuses another host and a socket from another origin end to end", async () => {
   const browser = new FakeBrowser([tab(1)]);
   const { base } = await serve(browser);

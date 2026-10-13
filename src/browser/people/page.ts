@@ -6,22 +6,31 @@ import type { EnvironmentIdentity } from "../../shell/view";
 
 /** The page of the people's view (decision F39 point 1), one document for
  * `/` and for `/t/<id>`: a thin bar (the Environment's name, back, forward,
- * reload and the address), a row for a page's new tab, and the page area.
- * The script (`/assets/view.js`, `client.ts`) does the rest: it names the
- * Environment, opens a remote tab for `/`, fills in the words in the person's
- * language and draws the remote tab. No inline script and nothing from another
- * origin in the document: the service's policy is `script-src 'self'`, and
- * only icons (the page's and the Environment's) come over https:. The
- * Environment's name is the shell's `<lazurio-environment>` (F39's addendum
- * of 2026-10-12), first from the identity the service puts into the page as
- * data (`<script type="application/json">`, never run). */
+ * reload, the address, Kvalita obrazu and, inside an app's frame, Otevřít
+ * samostatně: F39's addendum of 2026-10-13), a row for a page's new tab, and
+ * the page area. The script (`/assets/view.js`, `client.ts`) does the rest:
+ * it names the Environment, opens a remote tab for `/`, fills in the words in
+ * the person's language, runs the bar's menu and draws the remote tab. No
+ * inline script and nothing from another origin in the document: the
+ * service's policy is `script-src 'self'`, and only icons (the page's and the
+ * Environment's) come over https:. The Environment's name is the shell's
+ * `<lazurio-environment>` (F39's addendum of 2026-10-12), first from the
+ * identity the service puts into the page as data
+ * (`<script type="application/json">`, never run). */
 
 // Icons drawn for this page, in the current colour, hidden from assistive
 // technology (each button names itself).
-const icon = (paths: string, className = "") =>
-  `<svg${className === "" ? "" : ` class="${className}"`} viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+const icon = (paths: string, className = "", size = 18) =>
+  `<svg${className === "" ? "" : ` class="${className}"`} viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 
 const cross = '<path d="M7 7l10 10M17 7L7 17"/>';
+// A screen with "HD" on it, as the wireframe marks Kvalita obrazu.
+const hd =
+  '<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 8.5v7M10 8.5v7M6 12h4M13.5 8.5v7H15a3.5 3.5 0 0 0 0-7z"/>';
+// A box with an arrow out of its corner: open on its own.
+const external =
+  '<path d="M13.5 4.5h6v6M19.5 4.5l-8 8"/><path d="M18 13.5V18a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18V7a1.5 1.5 0 0 1 1.5-1.5H10"/>';
+const check = '<path d="M5 12.5l4.5 4.5L19 7.5"/>';
 
 // The page's icon until the remote page has one of its own (a globe).
 const defaultIcon =
@@ -76,6 +85,28 @@ body {
 .tool:disabled { opacity: 0.35; cursor: default; }
 .tool:focus-visible, .button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 #reload[data-state="reload"] .stop-icon, #reload[data-state="stop"] .reload-icon { display: none; }
+/* Kvalita obrazu: its button, marked while Data saver is on or its menu is
+   open, and the menu under it. */
+.picture { position: relative; flex: none; display: flex; margin-left: 6px; }
+#picture[data-picture="saver"], #picture[aria-expanded="true"] { background: var(--hover); }
+.menu {
+  position: absolute; z-index: 10; top: calc(100% + 6px); right: 0;
+  width: max-content; min-width: 220px; max-width: min(320px, calc(100vw - 12px)); padding: 6px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.menu-title { padding: 6px 8px 4px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.menu-item {
+  display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 7px 8px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--text);
+  font: inherit; font-size: 13.5px; text-align: left; cursor: pointer;
+}
+.menu-item:hover, .menu-item:focus-visible { background: var(--hover); }
+.menu-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.menu-item .check { flex: none; margin-top: 1px; }
+.menu-item[aria-checked="false"] .check { visibility: hidden; }
+.menu-text { display: grid; gap: 1px; min-width: 0; }
+.menu-hint { color: var(--muted); font-size: 12px; }
 .address {
   flex: 1; min-width: 0; height: 30px; margin-left: 4px; padding: 0 12px;
   border: 1px solid var(--line); border-radius: 15px; background: var(--field);
@@ -168,6 +199,15 @@ const page = `<!doctype html>
 <button id="forward" class="tool" type="button" disabled>${icon('<path d="M9 5l7 7-7 7"/>')}</button>
 <button id="reload" class="tool" type="button" data-state="reload">${icon('<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>', "reload-icon")}${icon(cross, "stop-icon")}</button>
 <input id="address" class="address" type="text" inputmode="url" enterkeyhint="go" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+<div id="picture-box" class="picture">
+<button id="picture" class="tool" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="picture-menu" data-picture="standard">${icon(hd)}</button>
+<div id="picture-menu" class="menu" role="menu" hidden>
+<div id="picture-title" class="menu-title" aria-hidden="true"></div>
+<button class="menu-item" type="button" role="menuitemradio" aria-checked="true" data-picture="standard" tabindex="-1" aria-labelledby="picture-standard">${icon(check, "check", 16)}<span class="menu-text"><span id="picture-standard" class="menu-label"></span></span></button>
+<button class="menu-item" type="button" role="menuitemradio" aria-checked="false" data-picture="saver" tabindex="-1" aria-labelledby="picture-saver" aria-describedby="picture-saver-hint">${icon(check, "check", 16)}<span class="menu-text"><span id="picture-saver" class="menu-label"></span><span id="picture-saver-hint" class="menu-hint"></span></span></button>
+</div>
+</div>
+<button id="alone" class="tool" type="button" hidden disabled>${icon(external)}</button>
 </header>
 <div id="notice" class="notice" role="status" hidden>
 <span id="notice-text" class="notice-text"></span>
