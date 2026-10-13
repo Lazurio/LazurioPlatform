@@ -689,9 +689,9 @@ test("composio: the pinned build is Lazurio's 0.4.3-lazurio.1, installed by the 
     repository: "composio",
     version: "0.4.3-lazurio.1",
     tag: "@composio/cli@0.4.3-lazurio.1",
-    installerCommit: "c2cecf946112bf87ea8d7553e3bd2e7e1e1e69e0",
+    installerCommit: "107730453eb41c0233b26e8b738534fbd4d69ff7",
     installer:
-      "https://raw.githubusercontent.com/Lazurio/composio/c2cecf946112bf87ea8d7553e3bd2e7e1e1e69e0/install.sh",
+      "https://raw.githubusercontent.com/Lazurio/composio/107730453eb41c0233b26e8b738534fbd4d69ff7/install.sh",
     archives: {
       "linux-x64":
         "a87cc25373ebe1efc6d819e8dd8b40cc54f96bfa71916cac5755623ca1892b19",
@@ -743,7 +743,7 @@ test.skipIf(!posix)(
       // The installer is the fork's at its pinned commit, never
       // composio.dev's.
       expect(source.requests).toEqual([
-        "https://raw.githubusercontent.com/Lazurio/composio/c2cecf946112bf87ea8d7553e3bd2e7e1e1e69e0/install.sh",
+        "https://raw.githubusercontent.com/Lazurio/composio/107730453eb41c0233b26e8b738534fbd4d69ff7/install.sh",
       ]);
       const installer = seen.find((call) => call.command[0] === "/bin/sh");
       expect(installer?.command[1]).toMatch(
