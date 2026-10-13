@@ -51,11 +51,15 @@ export const toolsHelp = `tools status [--json]
 tools update <tool> [--json]
   Runs that one tool's official update path as the current user: the tool's
   own updater (claude update, bun upgrade) or the vendor's installer script
-  (codex). Tools without one (gh, git, node, npm) are reported with their
-  official source and nothing runs. Run it only with the Operator's
-  consent. Never pins or downgrades; never touches another tool. A running
-  Codex app-server is never stopped: after Codex changed its version, the
-  answer says it keeps the old version until it is replaced.
+  (codex). composio, which Lazurio uses in its own build, runs its curated
+  installer again at that pinned build, whatever version runs now, in place
+  in ~/.local/bin and ~/.composio and keeping its sign-in; the update is
+  done only when composio --version prints that build. Tools without an
+  update path (gh, git, node, npm) are reported with their official source
+  and nothing runs. Run it only with the Operator's consent. Never
+  downgrades on its own; never touches another tool. A running Codex
+  app-server is never stopped: after Codex changed its version, the answer
+  says it keeps the old version until it is replaced.
 tools list --folder <absolute Folder> [--sign-in] [--json]
   The catalog tools agents may be told to use (gh required, composio and
   bitwarden recommended, wacli, gogcli and neon optional): tier, setup mode (launchpad:
@@ -96,7 +100,9 @@ tools install <tool> [--json]
   for the current user, without root, into ~/.local/bin/<tool> from the
   tool's official source at its latest release (gh and wacli: the release
   archive, verified against the release's published SHA-256 checksums;
-  composio: its official installer without agent plugins or shell changes).
+  composio: Lazurio's pinned build of the Composio CLI, by Composio's
+  installer from Lazurio's fork, pinned, without agent plugins or shell
+  changes).
   A tool that already works is not touched; a broken copy elsewhere on PATH
   is not shadowed. On failure it points to the prepared agent prompt. In a
   Team Environment gh is installed only, never signed in afterwards.
@@ -341,7 +347,18 @@ export async function runToolsCommand(
     };
   }
   if (positionals[0] === "update" && positionals.length === 2) {
-    const result = await toolsUpdate({ ...common, tool: positionals[1] ?? "" });
+    // A curated update (composio) runs its installer as `tools install`
+    // does: with the XDG base directories, and the same test seams.
+    const result = await toolsUpdate({
+      ...common,
+      tool: positionals[1] ?? "",
+      install: {
+        xdg: xdgOf(context.env),
+        fetch: context.install?.fetch,
+        arch: context.install?.arch,
+        temporaryDirectory: context.install?.temporaryDirectory,
+      },
+    });
     const code =
       result.kind === "tool-updated"
         ? 0

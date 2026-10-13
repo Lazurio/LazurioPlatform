@@ -17,13 +17,15 @@ import {
   UnsafeArchiveError,
 } from "./archive";
 import { type ActivatableTool, activatableTools } from "./catalog";
+import { composioBuild } from "./composio-build";
 import { safeTail } from "./redact";
 import { resolveOnPath, type ToolRunner, versionOf } from "./status";
 
 /** The curated installation of a `setup: "launchpad"` catalog tool (decision
  * F19): for the current user, without root, into the standard path
  * `~/.local/bin/<command>` (F17), from the official source only, at the latest
- * release resolved at install time. A tool that already works is never
+ * release resolved at install time, or at the build Lazurio pins for the tool
+ * (composio, decision F42 addendum (3)). A tool that already works is never
  * touched; a broken one elsewhere on PATH is not shadowed by a second copy. A
  * failure names its stage and offers the prepared agent prompt (`fallback:
  * "agent"`), whose text is the tool's written target state. */
@@ -119,12 +121,26 @@ type Recipe =
       /** The controlled environment of the official installer. */
       env: Readonly<Record<string, string>>;
       targets: readonly Target[];
+      /** The build the recipe pins: the installed tool must report exactly
+       * this version, and an update (`reinstallTool`) installs it again. */
+      version?: string;
+      /** More environment for one target only (composio: the SHA-256 of
+       * that target's pinned archive). Where a recipe has it, a target
+       * without an entry is not installed at all. */
+      targetEnv?: Readonly<
+        Partial<Record<Target, Readonly<Record<string, string>>>>
+      >;
     }>;
 
 // The official sources of the curated tools. gh and wacli publish release
 // archives with a checksums file (GoReleaser); composio documents an
-// installer script that verifies its own bundle, keeps it in ~/.composio and
-// links ~/.local/bin/composio.
+// installer script that verifies its own bundle against the release's
+// checksums, keeps it in ~/.composio (beside the sign-in, which it leaves
+// alone) and links ~/.local/bin/composio. Lazurio installs its own build of
+// composio (`composioBuild`, decision F42 addendum (3)): Composio's installer
+// from Lazurio's fork, pinned by commit (its version check accepts the
+// build's `-lazurio.N`), pointed at the fork's releases and pinned to the
+// build's tag.
 export const curatedInstallers: Readonly<Record<string, Recipe>> =
   Object.freeze({
     gh: {
@@ -161,17 +177,46 @@ export const curatedInstallers: Readonly<Record<string, Recipe>> =
     },
     composio: {
       kind: "script",
-      url: "https://composio.dev/install",
+      url: composioBuild.installer,
       // No agent plugins, no shell startup files: only the bundle in its own
-      // home and the ~/.local/bin entry. No version: the latest stable.
+      // home and the ~/.local/bin entry. The release is Lazurio's build,
+      // from the fork's releases at its tag, never a latest one; the script
+      // is the fork's at a fixed commit.
       env: {
         COMPOSIO_INSTALL_PLUGINS: "0",
         COMPOSIO_INSTALL_SHELL: "none",
         COMPOSIO_INSTALL_HELP: "0",
+        COMPOSIO_GITHUB_OWNER: composioBuild.owner,
+        COMPOSIO_GITHUB_REPO: composioBuild.repository,
+        COMPOSIO_INSTALL_VERSION: composioBuild.tag,
       },
       targets: ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"],
+      version: composioBuild.version,
+      // The archive's bytes, pinned: the installer refuses any other archive
+      // before it extracts or replaces anything.
+      targetEnv: Object.freeze(
+        Object.fromEntries(
+          Object.entries(composioBuild.archives).map(([name, digest]) => [
+            name,
+            Object.freeze({ COMPOSIO_INSTALL_SHA256: digest }),
+          ]),
+        ),
+      ),
     },
   });
+
+/** The installer and the build Lazurio pins for a curated tool (composio,
+ * decision F42 addendum (3)), or undefined where the tool's latest release
+ * is installed. */
+export function pinnedInstaller(
+  name: string,
+): Readonly<{ url: string; version: string }> | undefined {
+  if (!Object.hasOwn(curatedInstallers, name)) return undefined;
+  const recipe = curatedInstallers[name] as Recipe;
+  return recipe.kind === "script" && recipe.version !== undefined
+    ? Object.freeze({ url: recipe.url, version: recipe.version })
+    : undefined;
+}
 
 const limits = {
   metadataBytes: 1024 * 1024,
@@ -196,6 +241,32 @@ function target(platform: string, arch: string): Target | undefined {
   if (platform !== "linux" && platform !== "darwin") return undefined;
   if (arch !== "x64" && arch !== "arm64") return undefined;
   return `${platform}-${arch}`;
+}
+
+/** The target an installer script downloads for. Composio's installer, as
+ * its `detect_target` does, takes the arm64 archive for an x64 process that
+ * Rosetta 2 translates on Apple silicon (`sysctl.proc_translated` is 1), so
+ * the pinned archive's digest follows it (Pablo's review of #395). Anything
+ * the probe cannot tell keeps the process's target. */
+async function installerTarget(
+  platformTarget: Target,
+  env: InstallEnvironment,
+): Promise<Target> {
+  if (platformTarget !== "darwin-x64") return platformTarget;
+  try {
+    const result = await env.run(
+      ["/usr/sbin/sysctl", "-n", "sysctl.proc_translated"],
+      limits.versionMs,
+      baseEnv(env),
+    );
+    return result !== "timeout" &&
+      result.exitCode === 0 &&
+      result.stdout.trim() === "1"
+      ? "darwin-arm64"
+      : platformTarget;
+  } catch {
+    return platformTarget;
+  }
 }
 
 /** The tools that have a curated installer: exactly the `launchpad` ones. */
@@ -439,11 +510,12 @@ async function installRelease(
 
 // The official installer script, in two steps: downloaded into a private
 // file, then run with the controlled environment. A failed download runs
-// nothing.
+// nothing. Answers the bounded, safe tail of what the installer printed.
 async function installScript(
   recipe: Extract<Recipe, { kind: "script" }>,
   env: InstallEnvironment,
-): Promise<void> {
+  platformTarget: Target,
+): Promise<string> {
   const script = await download(
     env.fetch ?? fetchOfficial,
     recipe.url,
@@ -462,15 +534,18 @@ async function installScript(
     const result = await env.run(["/bin/sh", file], limits.installerMs, {
       ...baseEnv(env),
       ...recipe.env,
+      ...recipe.targetEnv?.[platformTarget],
     });
     if (result === "timeout")
       throw new InstallStageError("installer", "timeout");
+    const output = safeTail(`${result.stdout}\n${result.stderr}`);
     if (result.exitCode !== 0)
       throw new InstallStageError(
         "installer",
         `exit-${result.exitCode}`,
-        safeTail(`${result.stdout}\n${result.stderr}`),
+        output,
       );
+    return output;
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -480,68 +555,127 @@ export async function installTool(
   name: string,
   env: InstallEnvironment,
 ): Promise<InstallResult> {
+  return (await place(name, env, "install")).result;
+}
+
+/** The update of a curated tool whose recipe pins a build (composio,
+ * decision F42 addendum (3)): the same installer runs again at that build,
+ * whatever version works now, and replaces the installation in the standard
+ * path in place; the installer keeps the tool's own files beside it (the
+ * sign-in). An installation elsewhere on PATH, working or not, stays the
+ * operator's: a second copy in `~/.local/bin` would shadow it or hide behind
+ * it (`install-failed` at `preflight`, `installation-elsewhere`). A missing
+ * tool is installed. It runs only when the person, or an agent on their
+ * explicit instruction, asks for the update (decision 0161, F17). `output`
+ * is the bounded, safe tail of the installer's output. */
+export async function reinstallTool(
+  name: string,
+  env: InstallEnvironment,
+): Promise<Readonly<{ result: InstallResult; output: string }>> {
+  if (pinnedInstaller(name) === undefined)
+    throw new Error("Only a curated tool with a pinned build is reinstalled");
+  return place(name, env, "update");
+}
+
+async function place(
+  name: string,
+  env: InstallEnvironment,
+  mode: "install" | "update",
+): Promise<Readonly<{ result: InstallResult; output: string }>> {
   const entry = curatedTool(name);
   if (entry === undefined)
     throw new Error("Only a curated catalog tool is installed here");
   const recipe = curatedInstallers[name] as Recipe;
+  let output = "";
   const fail = (
     stage: InstallStage,
     reason: string,
     detail?: string,
-  ): InstallResult => ({
-    kind: "install-failed",
-    tool: name,
-    stage,
-    reason,
-    ...(detail ? { detail } : {}),
-    fallback: "agent",
+  ): Readonly<{ result: InstallResult; output: string }> => ({
+    result: {
+      kind: "install-failed",
+      tool: name,
+      stage,
+      reason,
+      ...(detail ? { detail } : {}),
+      fallback: "agent",
+    },
+    output: detail ?? output,
   });
   const arch = env.arch ?? process.arch;
   const platformTarget = target(env.platform, arch);
   if (
     platformTarget === undefined ||
-    (recipe.kind === "script" && !recipe.targets.includes(platformTarget))
+    (recipe.kind === "script" &&
+      (!recipe.targets.includes(platformTarget) ||
+        (recipe.targetEnv !== undefined &&
+          recipe.targetEnv[platformTarget] === undefined)))
   )
     return {
-      kind: "unsupported-platform",
-      tool: name,
-      platform: env.platform,
-      arch,
-      fallback: "agent",
+      result: {
+        kind: "unsupported-platform",
+        tool: name,
+        platform: env.platform,
+        arch,
+        fallback: "agent",
+      },
+      output,
     };
   if (!env.home?.startsWith("/")) return fail("preflight", "no-home");
   const processEnv = baseEnv(env);
   const bin = join(env.home, ".local", "bin");
   const destination = join(bin, entry.command);
-  // A tool that works, on PATH or in the standard path, is never touched.
   const onPathNow = await resolveOnPath(entry.command, env.path, env.platform);
-  const found = onPathNow ? await probe(onPathNow, env, processEnv) : undefined;
-  if (found?.works)
-    return {
-      kind: "already-installed",
-      tool: name,
-      path: found.path,
-      ...(found.version ? { version: found.version } : {}),
-    };
-  if (onPathNow === undefined && (await exists(destination))) {
-    const standard = await probe(destination, env, processEnv);
-    if (standard.works)
+  // A tool that works, on PATH or in the standard path, is never touched by
+  // an installation; an update replaces it in the standard path.
+  if (mode === "install") {
+    const found = onPathNow
+      ? await probe(onPathNow, env, processEnv)
+      : undefined;
+    if (found?.works)
       return {
-        kind: "already-installed",
-        tool: name,
-        path: destination,
-        ...(standard.version ? { version: standard.version } : {}),
+        result: {
+          kind: "already-installed",
+          tool: name,
+          path: found.path,
+          ...(found.version ? { version: found.version } : {}),
+        },
+        output,
       };
+    if (onPathNow === undefined && (await exists(destination))) {
+      const standard = await probe(destination, env, processEnv);
+      if (standard.works)
+        return {
+          result: {
+            kind: "already-installed",
+            tool: name,
+            path: destination,
+            ...(standard.version ? { version: standard.version } : {}),
+          },
+          output,
+        };
+    }
   }
-  // A broken installation elsewhere stays the operator's: a second copy in
-  // ~/.local/bin would only hide it. The agent's prompt covers the repair.
+  // An installation elsewhere stays the operator's: a second copy in
+  // ~/.local/bin would only hide a broken one, and an update beside a
+  // working one would leave two. The agent's prompt covers the repair.
   if (onPathNow !== undefined && onPathNow !== destination)
-    return fail("preflight", "broken-installation-elsewhere");
+    return fail(
+      "preflight",
+      mode === "install"
+        ? "broken-installation-elsewhere"
+        : "installation-elsewhere",
+    );
   const before = await identity(destination);
   try {
     if (recipe.kind === "release")
       await installRelease(entry, recipe, platformTarget, env, destination);
-    else await installScript(recipe, env);
+    else
+      output = await installScript(
+        recipe,
+        env,
+        await installerTarget(platformTarget, env),
+      );
   } catch (error) {
     if (error instanceof InstallStageError)
       return fail(error.stage, error.reason, error.detail);
@@ -558,11 +692,26 @@ export async function installTool(
       await rm(destination, { force: true });
     return fail("verify", "version-failed");
   }
+  // A pinned build is installed exactly (decision F42 addendum (3)). The
+  // pinned installer refuses any archive but the pinned one before it
+  // replaces anything, so a refused update changes nothing (`installer`
+  // stage). This check is the last one: were another version to run after an
+  // installer that ignored the pins, what runs stays, said as a failure,
+  // never as that build.
+  if (
+    recipe.kind === "script" &&
+    recipe.version !== undefined &&
+    installed.version !== recipe.version
+  )
+    return fail("verify", "version-mismatch", output);
   return {
-    kind: "installed",
-    tool: name,
-    path: destination,
-    onPath: onPath(bin, env.path),
-    ...(installed.version ? { version: installed.version } : {}),
+    result: {
+      kind: "installed",
+      tool: name,
+      path: destination,
+      onPath: onPath(bin, env.path),
+      ...(installed.version ? { version: installed.version } : {}),
+    },
+    output,
   };
 }

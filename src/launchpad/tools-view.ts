@@ -121,6 +121,7 @@ function parseTool(input: unknown): ToolOverview | null {
     !optionalText(value.versionError) ||
     (value.standardPath !== undefined &&
       typeof value.standardPath !== "boolean") ||
+    !optionalText(value.pinned) ||
     !optionalText(value.note)
   )
     return null;
@@ -153,6 +154,7 @@ function parseTool(input: unknown): ToolOverview | null {
     ...(value.standardPath === undefined
       ? {}
       : { standardPath: value.standardPath }),
+    ...(value.pinned === undefined ? {} : { pinned: value.pinned }),
     ...(signIn === undefined ? {} : { signIn }),
     ...(value.note === undefined ? {} : { note: value.note }),
     ...(organization === undefined ? {} : { organization }),
@@ -448,6 +450,82 @@ export type ToolStatusView = Readonly<{
   fix: boolean;
 }>;
 
+/** An installed tool that is not the build Lazurio pins for it (composio,
+ * decision F42 addendum (3)); a version that could not be read is not it
+ * either. */
+function notPinned(tool: ToolOverview): boolean {
+  return (
+    tool.installed && tool.pinned !== undefined && tool.version !== tool.pinned
+  );
+}
+
+/** "Update" on the row of a tool that is not the build Lazurio pins for it
+ * (composio, decision F42 addendum (3)): its update installs exactly that
+ * build in the standard path, keeping the sign-in. Only where it can work:
+ * a `launchpad` tool this Environment offers and the Organization does not
+ * refuse, installed in the standard path (an installation elsewhere is
+ * never shadowed by a second one). The person's click is the consent. */
+export function updateAction(
+  tool: ToolOverview,
+  copy: Copy,
+): Readonly<{ label: string; named: string }> | null {
+  return tool.setup === "launchpad" &&
+    tool.offered &&
+    tool.organization?.allowed !== false &&
+    tool.standardPath !== false &&
+    notPinned(tool)
+    ? {
+        label: copy.toolsUpdateAction,
+        named: fill(copy.toolsUpdateActionNamed, { name: tool.name }),
+      }
+    : null;
+}
+
+/** What an update answered (`lazurio tools update`'s result): one plain
+ * sentence, and the technical part (why it did not end with the pinned
+ * build) for the Details. */
+export function updateOutcome(
+  input: unknown,
+  name: string,
+  copy: Copy,
+): ToolChangeOutcome {
+  const value =
+    input && typeof input === "object" && !Array.isArray(input)
+      ? (input as Record<string, unknown>)
+      : {};
+  const after =
+    value.after && typeof value.after === "object"
+      ? (value.after as Record<string, unknown>)
+      : {};
+  if (value.kind === "tool-updated" && typeof after.version === "string")
+    return {
+      kind: "updated",
+      reload: false,
+      message: fill(copy.toolsUpdatedNow, { name, version: after.version }),
+    };
+  if (value.kind === "tool-update-failed")
+    return {
+      kind: "failed",
+      reload: false,
+      message: copy.toolsUpdateFailed,
+      ...(typeof value.output === "string" && value.output !== ""
+        ? {
+            detail: fill(copy.toolsUpdateFailedDetail, {
+              reason: value.output,
+            }),
+          }
+        : {}),
+    };
+  if (value.kind === "blocked" && value.reason === "busy")
+    return { kind: "blocked", reload: false, message: copy.toolsInstallBusy };
+  return {
+    kind: "failed",
+    message: copy.toolsFailed,
+    detail: copy.toolsFailedDetail,
+    reload: true,
+  };
+}
+
 /** On a hosted Machine a tool outside `~/.local/bin` is something an agent
  * straightens (decision 0161); on a local workstation any tool on PATH is
  * fine. People see no sentence about paths, only the fix action. */
@@ -465,10 +543,16 @@ export function toolStatusView(
       notes: [],
       fix: false,
     };
-  const notes =
-    tool.versionError === undefined
+  const notes = [
+    ...(tool.versionError === undefined
       ? []
-      : [fill(copy.toolsVersionError, { error: tool.versionError })];
+      : [fill(copy.toolsVersionError, { error: tool.versionError })]),
+    // Not the build Lazurio pins for it (composio, decision F42 addendum
+    // (3)): said as a fact; "Update" is offered where it can work.
+    ...(notPinned(tool)
+      ? [fill(copy.toolsNotPinned, { pinned: tool.pinned ?? "" })]
+      : []),
+  ];
   return {
     state: notes.length === 0 ? "ready" : "attention",
     headline:
@@ -816,7 +900,7 @@ export type ToolNotice = Readonly<{
   revision: number;
   act: Readonly<
     | { kind: "change"; action: ToolChange["action"]; answer: unknown }
-    | { kind: "team-install" | "logout"; answer: unknown }
+    | { kind: "team-install" | "logout" | "update"; answer: unknown }
   >;
   /** The selection and the notes before a recorded change: what Undo
    * restores, at `revision`. */
@@ -841,7 +925,9 @@ export function toolNoticeView(
     );
   return act.kind === "team-install"
     ? teamInstallOutcome(act.answer, notice.name, copy)
-    : logoutOutcome(act.answer, notice.name, copy);
+    : act.kind === "update"
+      ? updateOutcome(act.answer, notice.name, copy)
+      : logoutOutcome(act.answer, notice.name, copy);
 }
 
 /** Whether a notice still holds after the page read the tools: only at its

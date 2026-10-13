@@ -7,6 +7,7 @@ import {
   type ComposioAccount,
   composioAppsUrl,
   composioManageUrl,
+  composioSelector,
 } from "./composio-source";
 import {
   type AppTool,
@@ -94,10 +95,13 @@ export type ToolsReading =
 
 export type IntegrationAccount = Readonly<{
   path: Path;
-  /** What disconnects it: Executor's connection id, Composio's word id;
-   * null where this account cannot be named from here. */
+  /** What disconnects it: Executor's connection id; Composio's id where its
+   * list prints one (Lazurio's build of the CLI, decision F42 addendum (3)),
+   * else its word id; null where this account cannot be named from here. */
   selector: string | null;
-  /** The name the person gave it, Composio's alias or Executor's name. */
+  /** Its name: Executor's name, or Composio's alias, else the provider's
+   * identity Composio knows for it (a mail address, a login, where the
+   * list prints one); null where it has none ("účet"). */
   label: string | null;
   state: AccountState;
   /** On another way than the app's one path: not used by the agents. */
@@ -402,8 +406,8 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
       const accounts = viaComposio.get(account.toolkit) ?? [];
       accounts.push({
         path: "composio",
-        selector: account.wordId,
-        label: account.alias,
+        selector: composioSelector(account),
+        label: account.alias ?? account.displayName ?? null,
         state: account.state,
         spare: false,
         manage: composioManageUrl(input.composioOrganization, account.toolkit),

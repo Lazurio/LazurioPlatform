@@ -136,6 +136,7 @@ const en = {
   toolsInstalledNoVersion: "Installed, version unknown",
   toolsNotInstalled: "Not installed",
   toolsVersionError: "The version check failed: {error}.",
+  toolsNotPinned: "This is not the build Lazurio uses ({pinned}).",
   toolsFixWithAgent: "Fix with an agent",
   toolsFixWithAgentNamed: "Fix {name} with an agent",
   toolsFixPromptHint:
@@ -283,6 +284,14 @@ const en = {
     "~/.local/bin is not on the PATH of this Launchpad, so agents may not find the tool until it is added to the shell profile.",
   toolsInstallBusy:
     "This tool is being installed already. Wait for it to finish, then refresh the status.",
+  toolsUpdateAction: "Update",
+  toolsUpdateActionNamed: "Update {name}",
+  toolsUpdating:
+    "Updating {name} to the build Lazurio uses. This can take a minute.",
+  toolsUpdatedNow: "{name} {version} is installed; the sign-in stays.",
+  toolsUpdateFailed:
+    "The update did not finish. Refresh the status to see which version runs now.",
+  toolsUpdateFailedDetail: "Why: {reason}",
   toolsFinishWithAgent: "Finish with an agent",
   toolsAgentFallback:
     "An agent can finish the setup by the written target state of this tool.",
@@ -1547,6 +1556,7 @@ const cs: Record<MessageKey, string> = {
   toolsInstalledNoVersion: "Nainstalováno, verze neznámá",
   toolsNotInstalled: "Není nainstalováno",
   toolsVersionError: "Zjištění verze selhalo: {error}.",
+  toolsNotPinned: "Tohle není sestavení, které Lazurio používá ({pinned}).",
   toolsFixWithAgent: "Opravit s agentem",
   toolsFixWithAgentNamed: "Opravit {name} s agentem",
   toolsFixPromptHint:
@@ -1686,6 +1696,14 @@ const cs: Record<MessageKey, string> = {
     "~/.local/bin není na PATH tohoto Launchpadu, takže ho agenti nemusí najít, dokud se nepřidá do profilu shellu.",
   toolsInstallBusy:
     "Tenhle nástroj se už instaluje. Počkejte, až instalace skončí, a obnovte stav.",
+  toolsUpdateAction: "Aktualizovat",
+  toolsUpdateActionNamed: "Aktualizovat {name}",
+  toolsUpdating:
+    "{name} se aktualizuje na sestavení, které Lazurio používá. Může to chvíli trvat.",
+  toolsUpdatedNow: "{name} {version} je nainstalovaný; přihlášení zůstává.",
+  toolsUpdateFailed:
+    "Aktualizace nedoběhla. Obnovte stav a uvidíte, která verze teď běží.",
+  toolsUpdateFailedDetail: "Proč: {reason}",
   toolsFinishWithAgent: "Dokončit s agentem",
   toolsAgentFallback:
     "Nastavení může dokončit agent podle sepsaného cílového stavu tohoto nástroje.",

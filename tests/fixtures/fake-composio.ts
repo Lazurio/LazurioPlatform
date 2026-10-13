@@ -3,7 +3,9 @@
 // from the CLI's help and its source (`ComposioHQ/composio`,
 // `ts/packages/cli`, read 2026-10-08 and 2026-10-09):
 // - `connections list` prints every status, an alias only when the toolkit
-//   has more than one account, and no ids;
+//   has more than one account, and no ids; as Lazurio's build (the state's
+//   `lazurioBuild`, decision F42 addendum (3)) every account's id, its alias
+//   (null for none) and its `display_name` where it has one;
 // - `link <toolkit> --list` prints the active accounts with their ids, word
 //   ids and aliases;
 // - `whoami` names the account and its current organization (`First`, or
@@ -13,8 +15,9 @@
 //   second account without an alias only after it created the link, which
 //   then stays pending; both refusals log the error and exit 0;
 // - `connections remove` asks for confirmation, and without a terminal it
-//   removes nothing; `--yes` exists only when the state says so (not in the
-//   CLI as of 0.4.3; Lazurio removes only where it is).
+//   removes nothing; `--yes` (and `-y`) exists only when the state says so
+//   (not in Composio's CLI as of 0.4.3, in Lazurio's build; Lazurio removes
+//   only where it is).
 // A test may hold the next `link <toolkit> --list` (`hold-<toolkit>` in the
 // state's directory) until it releases it (`release-<toolkit>`): that call
 // answers what the state said when it started, as a slow CLI would.
@@ -187,14 +190,27 @@ if (command === "connections" && sub === "list") {
   const grouped: Record<string, unknown[]> = {};
   for (const account of listed) {
     const entries = grouped[account.toolkit] ?? [];
-    entries.push({
-      status: account.status,
-      ...((counts.get(account.toolkit) ?? 0) > 1
-        ? { alias: account.alias }
-        : {}),
-      word_id: account.word_id,
-      permission_group: null,
-    });
+    entries.push(
+      state.lazurioBuild === true
+        ? {
+            id: account.id,
+            status: account.status,
+            alias: account.alias,
+            word_id: account.word_id,
+            ...(account.display_name === undefined
+              ? {}
+              : { display_name: account.display_name }),
+            permission_group: null,
+          }
+        : {
+            status: account.status,
+            ...((counts.get(account.toolkit) ?? 0) > 1
+              ? { alias: account.alias }
+              : {}),
+            word_id: account.word_id,
+            permission_group: null,
+          },
+    );
     grouped[account.toolkit] = entries;
   }
   print(grouped);
@@ -211,13 +227,17 @@ if (command === "connections" && sub === "remove") {
         "DESCRIPTION",
         "  Interactively remove a connected toolkit account. The command prompts for confirmation and defaults to No.",
         ...(state.removeYes
-          ? ["", "FLAGS", "  --yes    Remove without asking for confirmation"]
+          ? [
+              "",
+              "FLAGS",
+              "  -y, --yes    Remove without asking for confirmation",
+            ]
           : []),
       ].join("\n"),
     );
     end(0);
   }
-  const yes = args.includes("--yes");
+  const yes = args.includes("--yes") || args.includes("-y");
   if (yes && !state.removeYes) {
     log("Unrecognized flag: --yes");
     end(1);

@@ -386,7 +386,8 @@ export function cardView(
 }
 
 export type AccountView = Readonly<{
-  /** Its name (Composio's alias, Executor's name), else "účet". */
+  /** Its name (Executor's name, Composio's alias or the provider's
+   * identity its list gives), else "účet". */
   name: string;
   /** Why it is not active, or that it is on another way; none when ok. */
   line: string | null;

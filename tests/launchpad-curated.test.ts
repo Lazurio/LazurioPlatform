@@ -14,6 +14,7 @@ import { gzipSync } from "node:zlib";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { startLaunchpad } from "../src/launchpad/server";
+import { composioBuild } from "../src/tools/composio-build";
 import type { InstallFetch } from "../src/tools/install";
 import { runTool } from "../src/tools/status";
 import {
@@ -126,6 +127,7 @@ async function files(directory: string): Promise<string[]> {
 
 const routes = [
   "/api/tools/install",
+  "/api/tools/upgrade",
   "/api/tools/login/start",
   "/api/tools/login/poll",
   "/api/tools/login/cancel",
@@ -169,6 +171,7 @@ test.skipIf(!posix)(
       // No field beyond the named ones: not a path, not a command.
       for (const [route, body] of [
         ["/api/tools/install", { tool: "gh", path: "/usr/bin" }],
+        ["/api/tools/upgrade", { tool: "composio", version: "0.4.4" }],
         ["/api/tools/login/start", { tool: "gh", command: ["sh"] }],
         ["/api/tools/logout", {}],
         ["/api/tools/composio/organizations", { tool: "composio" }],
@@ -537,6 +540,75 @@ test.skipIf(!posix)(
         version: "0.19.0",
         path: join(opened.home, ".local", "bin", "wacli"),
         onPath: true,
+      });
+    } finally {
+      await opened.close();
+    }
+  },
+);
+
+// "Update" of Settings → Tools (decision F42, addendum (3)): composio's update
+// is its curated installer at Lazurio's build, the core of `lazurio tools
+// update`; a tool without a pinned build has none.
+test.skipIf(!posix)(
+  "upgrade: Update installs Lazurio's build of composio in place; a tool without a pinned build has none",
+  async () => {
+    // Composio's installer as a stand-in: the requested build in place of
+    // the fake composio, which keeps its mode.
+    const installer = `#!/bin/sh
+set -eu
+requested="\${COMPOSIO_INSTALL_VERSION:-}"
+[ "\${COMPOSIO_GITHUB_OWNER:-}" = "Lazurio" ] || exit 3
+printf '#!/bin/sh\\necho %s\\n' "\${requested#@composio/cli@}" > "$HOME/.local/bin/composio"
+echo "Installing Composio CLI $requested"
+`;
+    const requests: string[] = [];
+    const fetcher: InstallFetch = async (url) => {
+      requests.push(url);
+      return url === composioBuild.installer
+        ? new Response(installer)
+        : new Response("", { status: 404 });
+    };
+    const opened = await session(["gh", "composio"], fetcher);
+    try {
+      const composio = async () =>
+        (
+          (await opened.json("/api/tools/status", {})).body.tools as Json[]
+        ).find((tool) => tool.name === "composio");
+      // The fake composio is 0.3.1, not the build Lazurio pins.
+      expect(await composio()).toMatchObject({
+        installed: true,
+        version: "0.3.1",
+        pinned: "0.4.3-lazurio.1",
+      });
+      expect(
+        await opened.json("/api/tools/upgrade", { tool: "gh" }),
+      ).toMatchObject({
+        status: 409,
+        body: { kind: "blocked", reason: "update-unavailable", tool: "gh" },
+      });
+      expect(requests).toEqual([]);
+      const updated = await opened.json("/api/tools/upgrade", {
+        tool: "composio",
+      });
+      expect(updated).toMatchObject({
+        status: 200,
+        body: {
+          kind: "tool-updated",
+          tool: "composio",
+          installer: {
+            url: composioBuild.installer,
+            version: "0.4.3-lazurio.1",
+          },
+          before: { version: "0.3.1" },
+          after: { version: "0.4.3-lazurio.1" },
+          changed: true,
+        },
+      });
+      expect(requests).toEqual([composioBuild.installer]);
+      expect(await composio()).toMatchObject({
+        version: "0.4.3-lazurio.1",
+        pinned: "0.4.3-lazurio.1",
       });
     } finally {
       await opened.close();

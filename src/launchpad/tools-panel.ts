@@ -46,6 +46,8 @@ import {
   toolGroups,
   toolNoticeView,
   toolStatusView,
+  updateAction,
+  updateOutcome,
 } from "./tools-view";
 import { fill } from "./update-view";
 import { createVaultPanel } from "./vault-panel";
@@ -950,6 +952,34 @@ export function createToolsPanel(
     await refresh({ signIn: true });
   }
 
+  // The tool's update (`lazurio tools update`'s core, decision F42 addendum
+  // (3)): only on the person's click, said on the row like an installation.
+  async function update(tool: ToolOverview) {
+    if (busy) return;
+    const copy = options.copy();
+    busy = true;
+    notice = null;
+    render();
+    say(fill(copy.toolsUpdating, { name: tool.name }));
+    let value: unknown = null;
+    try {
+      ({ value } = await options.post("/api/tools/upgrade", {
+        tool: tool.name,
+      }));
+    } catch {}
+    busy = false;
+    notice = {
+      name: tool.name,
+      revision: overview?.revision ?? 0,
+      act: { kind: "update", answer: value },
+      undo: null,
+    };
+    say(updateOutcome(value, tool.name, copy).message);
+    // Back on "Update" while it stays; else the row's first action.
+    focus = { name: tool.name, control: "update" };
+    await refresh({ signIn: true });
+  }
+
   async function logout(tool: ToolOverview) {
     if (busy) return;
     const copy = options.copy();
@@ -1160,6 +1190,20 @@ export function createToolsPanel(
                 : copy.toolsSignInActionNamed,
             { name: tool.name },
           ),
+        ),
+      );
+    // Not the build Lazurio pins for the tool (composio, decision F42
+    // addendum (3)): "Update" installs exactly that build in place, keeping
+    // the sign-in.
+    const updating = vaultRow === null ? updateAction(tool, copy) : null;
+    if (updating !== null)
+      controls.append(
+        button(
+          updating.label,
+          tool.name,
+          "update",
+          () => void update(tool),
+          updating.named,
         ),
       );
     // A signed-in gh whose SSH key is not linked (F19 addendum 2026-09-28):

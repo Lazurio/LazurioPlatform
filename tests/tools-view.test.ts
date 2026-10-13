@@ -32,6 +32,8 @@ import {
   toolGroups,
   toolNoticeView,
   toolStatusView,
+  updateAction,
+  updateOutcome,
 } from "../src/launchpad/tools-view";
 import type { ToolOverview, ToolsOverview } from "../src/tools/overview";
 import { qrMatrix, qrSvg } from "../src/tools/qr";
@@ -239,6 +241,152 @@ test("one status line per tool: version and path, or not installed, and what to 
     notes: ["The version check failed: exit 7."],
     fix: false,
   });
+});
+
+// Lazurio's build of composio (decision F42, addendum (3)): a composio that
+// is not that build says so in its Details and offers "Update" where the
+// update can work, the person's click being the consent.
+test("a tool that is not the build Lazurio pins says so, and offers Update only where it can work", () => {
+  const installed = {
+    installed: true,
+    path: "/home/o/.local/bin/composio",
+    realPath: "/home/o/.composio/composio",
+    standardPath: true,
+    pinned: "0.4.3-lazurio.1",
+  } as const;
+  const stock = tool({ ...installed, version: "0.4.3" });
+  for (const locale of ["en", "cs"] as const) {
+    const copy = messages(locale);
+    expect(toolStatusView(stock, copy, true)).toEqual({
+      state: "attention",
+      headline: copy.toolsInstalled.replace("{version}", "0.4.3"),
+      path: "/home/o/.local/bin/composio → /home/o/.composio/composio",
+      notes: [copy.toolsNotPinned.replace("{pinned}", "0.4.3-lazurio.1")],
+      fix: false,
+    });
+    expect(updateAction(stock, copy)).toEqual({
+      label: copy.toolsUpdateAction,
+      named: copy.toolsUpdateActionNamed.replace("{name}", "composio"),
+    });
+    // Signed in or not: the update keeps the sign-in. A version that could
+    // not be read is not the pinned build either, and an older build of
+    // the fork is not it.
+    for (const other of [
+      tool({ ...installed, version: "0.4.3", signIn: { state: "signed-in" } }),
+      tool({ ...installed, versionError: "exit 7" }),
+      tool({ ...installed, version: "0.4.2-lazurio.1" }),
+    ])
+      expect(updateAction(other, copy)?.label).toBe(copy.toolsUpdateAction);
+    // The pinned build, a tool without a pin, one not installed, one
+    // elsewhere on PATH (never shadowed by a second copy), one this
+    // Environment does not offer, one the Organization does not allow, and
+    // a tool an agent sets up: no "Update".
+    for (const other of [
+      tool({ ...installed, version: "0.4.3-lazurio.1" }),
+      tool({
+        installed: true,
+        version: "0.4.3",
+        path: "/home/o/.local/bin/composio",
+        standardPath: true,
+      }),
+      tool({ pinned: "0.4.3-lazurio.1" }),
+      tool({ ...installed, version: "0.4.3", standardPath: false }),
+      tool({ ...installed, version: "0.4.3", offered: false }),
+      tool({
+        ...installed,
+        version: "0.4.3",
+        organization: { allowed: false },
+      }),
+      tool({ ...installed, version: "0.4.3", setup: "agent" }),
+    ])
+      expect(updateAction(other, copy)).toBeNull();
+    expect(
+      toolStatusView(
+        tool({ ...installed, version: "0.4.3-lazurio.1" }),
+        copy,
+        true,
+      ),
+    ).toMatchObject({ state: "ready", notes: [] });
+    // What the update answered, in one sentence; why it failed in Details.
+    expect(
+      updateOutcome(
+        {
+          kind: "tool-updated",
+          tool: "composio",
+          after: { version: "0.4.3-lazurio.1" },
+          changed: true,
+        },
+        "composio",
+        copy,
+      ),
+    ).toEqual({
+      kind: "updated",
+      reload: false,
+      message: copy.toolsUpdatedNow
+        .replace("{name}", "composio")
+        .replace("{version}", "0.4.3-lazurio.1"),
+    });
+    expect(
+      updateOutcome(
+        {
+          kind: "tool-update-failed",
+          tool: "composio",
+          output: "verify: version-mismatch",
+        },
+        "composio",
+        copy,
+      ),
+    ).toEqual({
+      kind: "failed",
+      reload: false,
+      message: copy.toolsUpdateFailed,
+      detail: copy.toolsUpdateFailedDetail.replace(
+        "{reason}",
+        "verify: version-mismatch",
+      ),
+    });
+    expect(
+      updateOutcome({ kind: "blocked", reason: "busy" }, "composio", copy),
+    ).toEqual({
+      kind: "blocked",
+      reload: false,
+      message: copy.toolsInstallBusy,
+    });
+    expect(updateOutcome("<html>", "composio", copy)).toMatchObject({
+      kind: "failed",
+      message: copy.toolsFailed,
+    });
+    // The notice on the row says the same from the answer it got.
+    expect(
+      toolNoticeView(
+        {
+          name: "composio",
+          revision: 4,
+          act: {
+            kind: "update",
+            answer: {
+              kind: "tool-update-failed",
+              tool: "composio",
+              output: "download: http-404",
+            },
+          },
+          undo: null,
+        },
+        stock,
+        copy,
+      ).message,
+    ).toBe(copy.toolsUpdateFailed);
+  }
+  expect([
+    messages("en").toolsUpdateAction,
+    messages("cs").toolsUpdateAction,
+  ]).toEqual(["Update", "Aktualizovat"]);
+  // The page takes the pin from the server's answer, only as text.
+  const answer = { ...overview([stock]) };
+  expect(parseToolsOverview(answer)?.tools[0]?.pinned).toBe("0.4.3-lazurio.1");
+  expect(
+    parseToolsOverview({ ...answer, tools: [{ ...stock, pinned: 4 }] }),
+  ).toBeNull();
 });
 
 test("a request carries the full next selection, sorted, without required tools", () => {

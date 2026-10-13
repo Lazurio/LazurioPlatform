@@ -1,8 +1,9 @@
 # Integrace: the apps connected to an Environment
 
-Status: implemented (decision F42 with its addenda of 2026-10-11 to 2026-10-14, root decision 0162
-with its addendum of 2026-10-09, plan DEV-6626 tasks 675, 683 and the Folder part of
-681). Whether
+Status: implemented (decision F42 with its addenda of 2026-10-11 to 2026-10-14, root
+decision 0162 with its addendum of 2026-10-09, plan DEV-6626 tasks 675, 683 and the
+Folder part of 681). Lazurio installs its own build of Composio's CLI (F42, addendum
+(3) of 2026-10-13: [Lazurio's build](#lazurios-build-of-the-cli)). Whether
 Composio is allowed on an Organization's Environment follows the Organization's
 settings since decision F45 (root decision 0194, plan DEV-6653 task 693). The
 company apps of Google Workspace and Microsoft 365 (task 685) are not part of it;
@@ -28,6 +29,7 @@ the sign-in is the person's consent, so they send the link to its card.
 | The catalog's curated input and its build | `scripts/integrations-apps.ts`, `scripts/integrations-catalog.ts` |
 | Executor's client and reading | `src/integrations/executor-client.ts`, `executor-source.ts` |
 | Composio's CLI as a source and a path | `src/integrations/composio-source.ts` |
+| Lazurio's build of Composio's CLI (the pin), its installation and update | `src/tools/composio-build.ts`, `src/tools/install.ts`, `src/tools/update.ts` |
 | The one list (pure merge) | `src/integrations/model.ts` |
 | One reading for the route and the CLI | `src/integrations/read.ts` |
 | Connecting and disconnecting; adding, reading and editing a custom MCP server | `src/integrations/connect.ts` |
@@ -274,11 +276,16 @@ it is said.
 
 ## Composio (`composio` 0.4.x)
 
-Read from the CLI's source (ComposioHQ/composio, `ts/packages/cli`, 2026-10-09):
+Read from the CLI's source (ComposioHQ/composio, `ts/packages/cli`, 2026-10-09). The
+Environment runs Lazurio's build of it, which differs in two commands
+([below](#lazurios-build-of-the-cli)); what follows holds for both where it does not
+say otherwise.
 
 - `connections list` prints `{<toolkit>: [{status, alias?, word_id?,
   permission_group}]}` on stdout, every status, an alias only where a toolkit has
-  several accounts, no ids. Statuses map to four states: `ACTIVE` connected;
+  several accounts, no ids. Lazurio's build prints on every entry its `id` too, its
+  `alias` wherever it has one and `display_name` where Composio knows the provider's
+  identity. Statuses map to four states: `ACTIVE` connected;
   `EXPIRED`, `REVOKED` expired; `INITIATED`, `INITIALIZING` pending; anything else
   failed. Only a connected account connects its app: one whose sign-in expired or
   failed is listed with its state, and the app is not connected. A pending
@@ -309,14 +316,16 @@ Read from the CLI's source (ComposioHQ/composio, `ts/packages/cli`, 2026-10-09):
   Composio's dashboard, opened the same way. A link lives ten minutes; the page
   asks every two seconds whether its account is active.
 - `connections remove <selector>` asks for a confirmation and, without a terminal,
-  removes nothing; it has no `--yes` (0.4.2, and `next` on 2026-10-12; proposed
-  upstream in ComposioHQ/composio#4817). The Launchpad removes only when
-  `connections remove --help` offers `--yes` and never answers the prompt for the
-  person. The reading says whether it does (`composio.disconnect`, read with the
-  accounts), and only then the page offers "Odpojit" for a Composio account; the
-  route still answers `disconnect-unsupported` to a request without it. Composio's
-  accounts belong to the Composio account and its organization, so disconnecting
-  reaches every Environment signed in the same way.
+  removes nothing; Composio's own CLI has no `--yes` (0.4.2 and 0.4.3, and `next` on
+  2026-10-12; proposed upstream in ComposioHQ/composio#4817), Lazurio's build has it
+  (and `-y`). The Launchpad removes only when `connections remove --help` offers
+  `--yes` and never answers the prompt for the person. The reading says whether it
+  does (`composio.disconnect`, read with the accounts), and only then the page offers
+  "Odpojit" for a Composio account; the route still answers `disconnect-unsupported`
+  to a request without it. The selector is the account's id where the list gives one
+  (Lazurio's build), else its word id. Composio's accounts belong to the Composio
+  account and its organization, so disconnecting reaches every Environment signed in
+  the same way.
 
 - `orgs list` prints `[{id, name, is_selected_global_org}]` (the JSON array on
   stdout, after the CLI's own lines), and `orgs switch --org-id <id>` makes one
@@ -326,6 +335,71 @@ Read from the CLI's source (ComposioHQ/composio, `ts/packages/cli`, 2026-10-09):
 Every process gets only `PATH`, `HOME`, the XDG base directories and `NO_COLOR`,
 runs in its own process group and is bounded (15 s); its raw output is never
 returned or logged.
+
+### Lazurio's build of the CLI
+
+Decision F42, addendum (3) of 2026-10-13 (the Operator's decision). Composio's stable
+CLI cannot remove an account without a prompt and names no account but by an alias,
+so Lazurio installs its own build until a stable release of Composio's has both
+changes (proposed upstream in ComposioHQ/composio#4817, issue #4816, and #4809).
+
+- **The build.** Composio's stable 0.4.3 with exactly two changes, the GitHub release
+  `@composio/cli@0.4.3-lazurio.1` of the fork Lazurio/composio (assets
+  `composio-<target>.zip` and `checksums.txt`, as Composio's); `composio --version`
+  prints `0.4.3-lazurio.1`. `connections remove <account> --yes` (and `-y`) removes
+  without a prompt; `connections list` prints on every entry its `id` (`ca_…`), its
+  `alias` wherever it has one (a toolkit's only account too; `alias: null` may stand
+  for none) and, where Composio knows the provider's identity, `display_name`
+  (trimmed, at most 200 characters), for example `{"gmail":[{"id":"ca_example123",
+  "status":"ACTIVE","alias":"work","word_id":"castle","display_name":
+  "ada@example.com","permission_group":null}]}`. Its `composio upgrade`, update
+  check, skill installation and companion self-repair default to the fork's releases.
+- **The pin** is one constant, `composioBuild` (`src/tools/composio-build.ts`): the
+  fork, the version and its tag, and the commit of the fork's installer
+  (`installerCommit`). The tag and the commit come from the same release of the fork
+  and change together, in one reviewed change; the constant goes, and the recipe
+  returns to Composio's installer and latest stable release, once Composio's own
+  stable CLI has both changes.
+- **Installation** (`lazurio tools install composio`, Settings → Tools): Composio's
+  installer from Lazurio's fork, pinned by commit
+  (`https://raw.githubusercontent.com/Lazurio/composio/<installerCommit>/install.sh`;
+  pinned by commit, the URL is immutable), downloaded into a private file first and
+  run with `COMPOSIO_INSTALL_PLUGINS=0`,
+  `COMPOSIO_INSTALL_SHELL=none`, `COMPOSIO_INSTALL_HELP=0`,
+  `COMPOSIO_GITHUB_OWNER=Lazurio`, `COMPOSIO_GITHUB_REPO=composio` and
+  `COMPOSIO_INSTALL_VERSION=@composio/cli@0.4.3-lazurio.1`. It downloads the release's
+  archive for the platform, checks it against the release's `checksums.txt`, publishes
+  the bundle into `~/.composio` beside the files already there and links
+  `~/.local/bin/composio`. The installer served at `https://composio.dev/install`
+  cannot install the build: it accepts an explicit version only as `X.Y.Z` or
+  `X.Y.Z-beta.N` (`normalize_version`) and "latest" only among plain
+  `@composio/cli@X.Y.Z` tags. The fork's `install.sh` is Composio's with that one
+  check widened to accept `X.Y.Z-lazurio.N`, a source of `Lazurio/composio` strict
+  (no `checksums.txt`, no entry or no SHA-256 tool is an error) and
+  `COMPOSIO_INSTALL_SHA256`; everything else is Composio's installer. The Launchpad
+  passes the SHA-256 of the archive the installer downloads (`composioBuild.archives`;
+  on macOS an x64 process that Rosetta 2 translates gets the arm64 one, as the
+  installer's `detect_target` chooses), so the
+  installer refuses any other archive before it extracts or replaces anything: a
+  refused installation or update changes nothing. The installation is done only when
+  `composio --version` then prints exactly `0.4.3-lazurio.1`. Were another version to
+  run after an installer that ignored the pins, it would fail at `verify`
+  (`version-mismatch`), and what runs would stay.
+- **Update** (`lazurio tools update composio`; "Aktualizovat" / "Update" in Settings →
+  Tools): the same installation again, whatever runs now (Composio's stable CLI, an
+  older build, a newer release of Composio's), in place: the bundle in `~/.composio`
+  replaced, the sign-in (`~/.composio/user_data.json`) and the link kept. Never beside
+  a composio elsewhere on PATH (`preflight`, `installation-elsewhere`), never without
+  the person's request (decision 0161): no rollout, `lazurio update` or Launchpad start
+  runs it. The tools reading carries the pin (`pinned`); a composio that is not the
+  build says so in its Details and its row offers "Update" where the update can work.
+  Not `composio upgrade`: it takes the highest non-prerelease release by semver, so
+  from the build it moves to newer builds of the fork rather than the pinned one, from
+  Composio's CLI it reaches the fork only with `GITHUB_*` overrides, and it also
+  installs the CLI's skill for Claude Code, which the installation keeps out.
+- **Integrace** reads the richer list: names and removal by id
+  ([Account names](#account-names-and-composios-dashboard)), and "Odpojit" appears by
+  itself, since the build has `--yes`.
 
 ### The Composio organization of an Environment
 
@@ -382,14 +456,23 @@ when they signed up.
 
 ### Account names and Composio's dashboard
 
-Decision F42, addendum of 2026-10-11 (#312). An account's **label** is its name:
-Composio's alias, or the name Executor gives a direct account (the name given when
-connecting, or the account the provider names). Without one the page says "účet"
-("account"); a word id is a selector, never shown as a name.
+Decision F42, addenda of 2026-10-11 (#312) and (3) of 2026-10-13. An account's
+**label** is its name: Composio's alias, else the provider's identity Lazurio's build
+of the CLI prints (`display_name`: a mail address, a login), or the name Executor
+gives a direct account (the name given when connecting, or the account the provider
+names). Without one the page says "účet" ("account"); a word id is a selector, never
+shown as a name.
 
-- `connections list` leaves out the alias of a toolkit's only account. Where that
-  account is active and has no alias there, the reading asks `link <toolkit>
-  --list` (`nameComposioAccounts`): once per such toolkit and for no other, at
+- Lazurio's build prints every account's alias and its id: where every entry of
+  `connections list` carries an id, the list names every account and no lookup
+  below runs. An id is taken only as a plain selector (`^[A-Za-z0-9_-]{1,128}$`) and
+  any other refuses the list, as an alias that is not a plain label does; a
+  `display_name` is taken only as trimmed plain text of at most 200 characters
+  without control or bidirectional characters, and any other is left out without
+  refusing the list.
+- Composio's own `connections list` leaves out the alias of a toolkit's only
+  account. Where that account is active and has no alias there, the reading asks
+  `link <toolkit> --list` (`nameComposioAccounts`): once per such toolkit and for no other, at
   most two at a time for all readings of the Launchpad together (each `composio`
   process takes about 200 MB), each call started only within one Composio budget
   (15 s) and bounded by it, so naming adds at most two budgets to a reading and
@@ -425,9 +508,9 @@ connecting, or the account the provider names). Without one the page says "úče
   rather than in the row, where the CLI removes an account without a prompt
   (`composio.disconnect`). "Přihlásit znovu" stays in the row of an expired
   account; an Executor account keeps "Odpojit" in its row and has no menu.
-- No rename and no provider identity: renaming needs a project API key and the
-  CLI has no rename, and the CLI strips the identity Composio keeps for an account
-  (`state.val.displayName`) from every output. Both wait for the CLI.
+- No rename: it needs a project API key, and the CLI has no rename. The provider's
+  identity (`state.val.displayName`) is printed only by Lazurio's build; Composio's
+  own CLI strips it from every output.
 
 ### Composio's own Apps ("Aplikace v Composiu")
 
@@ -476,7 +559,8 @@ readiness, whether its CLI removes an account here (`disconnect`) and its
 Apps in Composio's dashboard (`apps`: [Composio's own Apps](#composios-own-apps-aplikace-v-composiu)), each
 source's state (`ok`, `unavailable`, `absent` for an Environment
 without Executor, `unreadable`, `signed-out`, `not-allowed`), the tools for one app that are connected, every catalog app with
-its path, `connected`, its accounts (path, the selector that disconnects it, its
+its path, `connected`, its accounts (path, the selector that disconnects it: Executor's
+connection id, Composio's id where its list gives one, else its word id; its
 `label`, state, spare, and `manage`, a Composio account's page in Composio's
 dashboard: [Account names](#account-names-and-composios-dashboard)) and its card link (`<origin>/integrations/app/<id>`, which
 lists and focuses that card even where nothing connects the app here), the

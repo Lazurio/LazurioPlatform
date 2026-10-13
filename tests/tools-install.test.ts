@@ -7,6 +7,7 @@ import {
   mkdtemp,
   readdir,
   readFile,
+  readlink,
   realpath,
   rm,
   stat,
@@ -21,15 +22,19 @@ import {
   extractArchiveFile,
   UnsafeArchiveError,
 } from "../src/tools/archive";
+import { runToolsCommand } from "../src/tools/cli";
+import { composioBuild } from "../src/tools/composio-build";
 import {
   checksumOf,
   curatedTool,
   type InstallEnvironment,
   type InstallFetch,
   installTool,
+  pinnedInstaller,
 } from "../src/tools/install";
 import { looksSecret, safeTail } from "../src/tools/redact";
 import { runTool, type ToolRunner } from "../src/tools/status";
+import { toolsUpdate } from "../src/tools/update";
 
 const posix = process.platform !== "win32";
 
@@ -644,8 +649,74 @@ test.skipIf(!posix)(
   },
 );
 
+// Lazurio's build of the Composio CLI (decision F42, addendum (3)): a fake of
+// Composio's installer that does with the environment Lazurio gives it what
+// the real one does: the fork's release at the requested tag, its binary in
+// ~/.composio beside the files already there (the sign-in), and a link in
+// ~/.local/bin. The binary prints the version of the tag it came from, or
+// `installs` where the fake ignores the request.
+const composioInstaller = (
+  installs?: string,
+  // The digest of the archive it downloads: Lazurio's pinned one unless a
+  // test gives another, which the fork's installer refuses before it
+  // extracts or replaces anything when COMPOSIO_INSTALL_SHA256 names
+  // another.
+  archive: string = composioBuild.archives["linux-x64"],
+) => `#!/bin/sh
+set -eu
+[ "\${COMPOSIO_GITHUB_OWNER:-}" = "Lazurio" ] || { echo "error: not the fork's release" >&2; exit 1; }
+[ "\${COMPOSIO_GITHUB_REPO:-}" = "composio" ] || { echo "error: not the fork's release" >&2; exit 1; }
+if [ -n "\${COMPOSIO_INSTALL_SHA256:-}" ] && [ "$COMPOSIO_INSTALL_SHA256" != "${archive}" ]; then
+  echo "error: Checksum mismatch for composio-linux-x64.zip" >&2; exit 1
+fi
+requested="\${COMPOSIO_INSTALL_VERSION:-}"
+version="\${requested#@composio/cli@}"
+${installs === undefined ? "" : `version="${installs}"`}
+mkdir -p "$HOME/.composio" "$HOME/.local/bin"
+printf '#!/bin/sh\\necho %s\\n' "$version" > "$HOME/.composio/composio"
+chmod 755 "$HOME/.composio/composio"
+ln -sf "$HOME/.composio/composio" "$HOME/.local/bin/composio"
+env > "$HOME/installer.env"
+echo "Installing Composio CLI $requested"
+`;
+
+// The tag and the installer's commit come from one release of the fork and
+// are pinned together; the installer's URL names the commit, so it is
+// immutable.
+test("composio: the pinned build is Lazurio's 0.4.3-lazurio.1, installed by the fork's installer at a fixed commit", () => {
+  expect(composioBuild).toEqual({
+    owner: "Lazurio",
+    repository: "composio",
+    version: "0.4.3-lazurio.1",
+    tag: "@composio/cli@0.4.3-lazurio.1",
+    installerCommit: "107730453eb41c0233b26e8b738534fbd4d69ff7",
+    installer:
+      "https://raw.githubusercontent.com/Lazurio/composio/107730453eb41c0233b26e8b738534fbd4d69ff7/install.sh",
+    archives: {
+      "linux-x64":
+        "a87cc25373ebe1efc6d819e8dd8b40cc54f96bfa71916cac5755623ca1892b19",
+      "linux-arm64":
+        "c5dac856c31bc22d9b9bf9bd275b6a637359fca08d93f0e6aa1a36ff283d1488",
+      "darwin-x64":
+        "e7fee0737a3816fe004efe950d1373e12bd7fa8071fe6ebf0acbabf288dc9a5b",
+      "darwin-arm64":
+        "be9a2c84c32621dff02b9c96b727e478372ba0c7348904197dce8f6353b9b588",
+    },
+  });
+  // Every target the recipe installs has its archive pinned.
+  for (const digest of Object.values(composioBuild.archives))
+    expect(digest).toMatch(/^[0-9a-f]{64}$/);
+  expect(pinnedInstaller("composio")).toEqual({
+    url: composioBuild.installer,
+    version: "0.4.3-lazurio.1",
+  });
+  // gh and wacli install their latest release: nothing is pinned.
+  for (const name of ["gh", "wacli", "neon", "unknown"])
+    expect(pinnedInstaller(name)).toBeUndefined();
+});
+
 test.skipIf(!posix)(
-  "composio: the official installer is downloaded first and run with the controlled environment",
+  "composio: Composio's installer from Lazurio's fork at its pinned commit, run with the fork's release pinned and the controlled environment",
   async () => {
     const box = await sandbox();
     try {
@@ -657,27 +728,23 @@ test.skipIf(!posix)(
         seen.push({ command: [...command], env: { ...env } });
         return runTool(command, timeout, env);
       };
-      // The fake installer does what the real one does: the bundle in
-      // ~/.composio and a link in ~/.local/bin.
-      const script = `#!/bin/sh
-set -eu
-mkdir -p "$HOME/.composio" "$HOME/.local/bin"
-printf '#!/bin/sh\\necho 0.3.1\\n' > "$HOME/.composio/composio"
-chmod 755 "$HOME/.composio/composio"
-ln -sf "$HOME/.composio/composio" "$HOME/.local/bin/composio"
-env > "$HOME/installer.env"
-echo "Installed composio"
-`;
-      const source = fakeSource({ "https://composio.dev/install": script });
+      const source = fakeSource({
+        [composioBuild.installer]: composioInstaller(),
+      });
       expect(
         await installTool("composio", box.environment(source.fetcher, { run })),
       ).toEqual({
         kind: "installed",
         tool: "composio",
-        version: "0.3.1",
+        version: "0.4.3-lazurio.1",
         path: join(box.bin, "composio"),
         onPath: true,
       });
+      // The installer is the fork's at its pinned commit, never
+      // composio.dev's.
+      expect(source.requests).toEqual([
+        "https://raw.githubusercontent.com/Lazurio/composio/107730453eb41c0233b26e8b738534fbd4d69ff7/install.sh",
+      ]);
       const installer = seen.find((call) => call.command[0] === "/bin/sh");
       expect(installer?.command[1]).toMatch(
         /lazurio-install-[^/]+\/install\.sh$/,
@@ -688,6 +755,12 @@ echo "Installed composio"
         COMPOSIO_INSTALL_PLUGINS: "0",
         COMPOSIO_INSTALL_SHELL: "none",
         COMPOSIO_INSTALL_HELP: "0",
+        COMPOSIO_GITHUB_OWNER: "Lazurio",
+        COMPOSIO_GITHUB_REPO: "composio",
+        COMPOSIO_INSTALL_VERSION: "@composio/cli@0.4.3-lazurio.1",
+        // This target's archive, pinned (linux-x64 here).
+        COMPOSIO_INSTALL_SHA256:
+          "a87cc25373ebe1efc6d819e8dd8b40cc54f96bfa71916cac5755623ca1892b19",
       });
       // The private script is gone.
       expect(
@@ -695,8 +768,67 @@ echo "Installed composio"
           name.startsWith("lazurio-install-"),
         ),
       ).toEqual([]);
-      const env = await readFile(join(box.home, "installer.env"), "utf8");
-      expect(env).not.toContain("COMPOSIO_INSTALL_VERSION");
+      // Working now: a second installation changes nothing and downloads
+      // nothing.
+      const again = fakeSource({});
+      expect(
+        await installTool("composio", box.environment(again.fetcher, { run })),
+      ).toEqual({
+        kind: "already-installed",
+        tool: "composio",
+        version: "0.4.3-lazurio.1",
+        path: join(box.bin, "composio"),
+      });
+      expect(again.requests).toEqual([]);
+    } finally {
+      await box.close();
+    }
+  },
+);
+
+// Composio's installer takes the arm64 archive for an x64 process that
+// Rosetta 2 translates (`sysctl.proc_translated` 1), so the pinned digest
+// follows it; untranslated, or where the probe fails, the process's target
+// stays (Pablo's review of #395).
+test.skipIf(!posix)(
+  "composio: on macOS under Rosetta 2 the pinned digest is the arm64 archive's, as the installer downloads it",
+  async () => {
+    const box = await sandbox();
+    try {
+      const pinned = async (translated: string | "fails") => {
+        const seen: Record<string, string>[] = [];
+        const run: ToolRunner = async (command, timeout, env) => {
+          if (command[0] === "/usr/sbin/sysctl") {
+            expect(command).toEqual([
+              "/usr/sbin/sysctl",
+              "-n",
+              "sysctl.proc_translated",
+            ]);
+            return translated === "fails"
+              ? { exitCode: 1, stdout: "", stderr: "unknown oid" }
+              : { exitCode: 0, stdout: `${translated}\n`, stderr: "" };
+          }
+          if (command[0] === "/bin/sh") seen.push({ ...env });
+          return runTool(command, timeout, env);
+        };
+        await rm(join(box.home, ".composio"), { recursive: true, force: true });
+        await rm(join(box.bin, "composio"), { force: true });
+        const source = fakeSource({
+          [composioBuild.installer]: composioInstaller(),
+        });
+        await installTool(
+          "composio",
+          box.environment(source.fetcher, {
+            run,
+            platform: "darwin",
+            arch: "x64",
+          }),
+        );
+        return seen[0]?.COMPOSIO_INSTALL_SHA256;
+      };
+      expect(await pinned("1")).toBe(composioBuild.archives["darwin-arm64"]);
+      expect(await pinned("0")).toBe(composioBuild.archives["darwin-x64"]);
+      expect(await pinned("fails")).toBe(composioBuild.archives["darwin-x64"]);
     } finally {
       await box.close();
     }
@@ -704,7 +836,7 @@ echo "Installed composio"
 );
 
 test.skipIf(!posix)(
-  "composio: a failed download runs nothing; a failing installer reports a safe tail",
+  "composio: a failed download runs nothing; a failing installer reports a safe tail; another build is never taken for the pinned one",
   async () => {
     const box = await sandbox();
     try {
@@ -727,7 +859,7 @@ test.skipIf(!posix)(
       });
       expect(seen.filter((command) => command[0] === "/bin/sh")).toEqual([]);
       const failing = fakeSource({
-        "https://composio.dev/install":
+        [composioBuild.installer]:
           "#!/bin/sh\necho 'resolving release'\necho 'Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123456789' >&2\necho 'unsupported libc' >&2\nexit 4\n",
       });
       const result = await installTool(
@@ -746,7 +878,7 @@ test.skipIf(!posix)(
       // An installer that succeeds and leaves a tool that does not run: the
       // entry in the standard path is not left behind.
       const broken = fakeSource({
-        "https://composio.dev/install":
+        [composioBuild.installer]:
           '#!/bin/sh\nset -eu\nmkdir -p "$HOME/.composio" "$HOME/.local/bin"\nprintf \'#!/bin/sh\\nexit 7\\n\' > "$HOME/.composio/composio"\nchmod 755 "$HOME/.composio/composio"\nln -sf "$HOME/.composio/composio" "$HOME/.local/bin/composio"\n',
       });
       expect(
@@ -759,13 +891,36 @@ test.skipIf(!posix)(
         fallback: "agent",
       });
       expect(await readdir(box.bin)).toEqual([]);
+      // An installer that installs another release than the pinned one (as
+      // an installer ignoring the requested version would): it runs, so it
+      // stays, but it is said as a failure, never as Lazurio's build.
+      const other = fakeSource({
+        [composioBuild.installer]: composioInstaller("0.4.4"),
+      });
+      expect(
+        await installTool("composio", box.environment(other.fetcher, { run })),
+      ).toMatchObject({
+        kind: "install-failed",
+        tool: "composio",
+        stage: "verify",
+        reason: "version-mismatch",
+        detail: "Installing Composio CLI @composio/cli@0.4.3-lazurio.1",
+        fallback: "agent",
+      });
+      expect(
+        await readFile(join(box.home, ".composio", "composio"), "utf8"),
+      ).toBe("#!/bin/sh\necho 0.4.4\n");
+      expect((await lstat(join(box.bin, "composio"))).isSymbolicLink()).toBe(
+        true,
+      );
       // An installer that succeeds and places nothing: a broken entry that
       // was there before the attempt stays the operator's.
+      await rm(join(box.bin, "composio"));
       await writeFile(join(box.bin, "composio"), "#!/bin/sh\nexit 9\n", {
         mode: 0o755,
       });
       const idle = fakeSource({
-        "https://composio.dev/install": "#!/bin/sh\necho done\n",
+        [composioBuild.installer]: "#!/bin/sh\necho done\n",
       });
       expect(
         await installTool("composio", box.environment(idle.fetcher, { run })),
@@ -773,6 +928,172 @@ test.skipIf(!posix)(
       expect(await readFile(join(box.bin, "composio"), "utf8")).toBe(
         "#!/bin/sh\nexit 9\n",
       );
+    } finally {
+      await box.close();
+    }
+  },
+);
+
+// The update of composio (decision F42 addendum (3)): Composio's installer
+// at Lazurio's build again, in place, whatever runs now; the sign-in in
+// ~/.composio stays, and only exactly that build ends the update.
+test.skipIf(!posix)(
+  "composio: the update installs Lazurio's build in place over the stock CLI and over an older build, keeping the sign-in",
+  async () => {
+    const box = await sandbox();
+    try {
+      // The stock CLI as Composio's installer leaves it: the binary in
+      // ~/.composio, the sign-in beside it, a link in ~/.local/bin.
+      const home = join(box.home, ".composio");
+      await mkdir(home, { recursive: true });
+      await mkdir(box.bin, { recursive: true });
+      await writeFile(join(home, "composio"), "#!/bin/sh\necho 0.4.3\n", {
+        mode: 0o755,
+      });
+      const signIn = '{"api_key":"signInCanary0000","org_id":"org_1"}\n';
+      await writeFile(join(home, "user_data.json"), signIn, { mode: 0o600 });
+      await symlink(join(home, "composio"), join(box.bin, "composio"));
+      const source = fakeSource({
+        [composioBuild.installer]: composioInstaller(),
+      });
+      const update = (fetcher: InstallFetch = source.fetcher) =>
+        toolsUpdate({
+          tool: "composio",
+          path: box.environment(fetcher).path,
+          home: box.home,
+          platform: "linux",
+          run: runTool,
+          install: {
+            fetch: fetcher,
+            arch: "x64",
+            temporaryDirectory: box.home,
+          },
+        });
+      const stock = await update();
+      expect(stock).toMatchObject({
+        kind: "tool-updated",
+        tool: "composio",
+        installer: {
+          url: composioBuild.installer,
+          version: "0.4.3-lazurio.1",
+        },
+        changed: true,
+        output: "Installing Composio CLI @composio/cli@0.4.3-lazurio.1",
+      });
+      if (stock.kind !== "tool-updated") throw new Error("not updated");
+      expect(stock.before.version).toBe("0.4.3");
+      expect(stock.after.version).toBe("0.4.3-lazurio.1");
+      expect(stock.after.path).toBe(join(box.bin, "composio"));
+      expect("command" in stock).toBe(false);
+      expect(await readFile(join(home, "user_data.json"), "utf8")).toBe(signIn);
+      // An older build of the fork: the same installer, the pinned build.
+      await writeFile(
+        join(home, "composio"),
+        "#!/bin/sh\necho 0.4.2-lazurio.1\n",
+        { mode: 0o755 },
+      );
+      const older = await update();
+      expect(older).toMatchObject({ kind: "tool-updated", changed: true });
+      if (older.kind !== "tool-updated") throw new Error("not updated");
+      expect(older.before.version).toBe("0.4.2-lazurio.1");
+      expect(older.after.version).toBe("0.4.3-lazurio.1");
+      expect(await readFile(join(home, "user_data.json"), "utf8")).toBe(signIn);
+      // An archive that is not the pinned one: the installer refuses it
+      // before it replaces anything, so the working build, its entry and the
+      // sign-in stay byte for byte (Pablo's review of #395).
+      const binaryBefore = await readFile(join(home, "composio"));
+      const linkBefore = await readlink(join(box.bin, "composio"));
+      const tampered = fakeSource({
+        [composioBuild.installer]: composioInstaller(undefined, "0".repeat(64)),
+      });
+      expect(await update(tampered.fetcher)).toMatchObject({
+        kind: "tool-update-failed",
+        tool: "composio",
+        output: expect.stringContaining("installer: exit-1"),
+      });
+      expect(await readFile(join(home, "composio"))).toEqual(binaryBefore);
+      expect(await readlink(join(box.bin, "composio"))).toBe(linkBefore);
+      expect(await readFile(join(home, "user_data.json"), "utf8")).toBe(signIn);
+      // An installer that ignores the pins and ends with another build is no
+      // update: what runs stays and is said as a failure.
+      const other = fakeSource({
+        [composioBuild.installer]: composioInstaller("0.4.4"),
+      });
+      expect(await update(other.fetcher)).toMatchObject({
+        kind: "tool-update-failed",
+        tool: "composio",
+        installer: { version: "0.4.3-lazurio.1" },
+        output:
+          "verify: version-mismatch\nInstalling Composio CLI @composio/cli@0.4.3-lazurio.1",
+      });
+      // A composio elsewhere on PATH stays the operator's: no second copy,
+      // nothing downloaded.
+      await rm(join(box.bin, "composio"));
+      await writeFile(join(box.system, "composio"), "#!/bin/sh\necho 0.4.3\n", {
+        mode: 0o755,
+      });
+      const elsewhere = fakeSource({
+        [composioBuild.installer]: composioInstaller(),
+      });
+      expect(await update(elsewhere.fetcher)).toMatchObject({
+        kind: "tool-update-failed",
+        tool: "composio",
+        output: "preflight: installation-elsewhere",
+      });
+      expect(elsewhere.requests).toEqual([]);
+    } finally {
+      await box.close();
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "composio: `lazurio tools update composio` reports the stock version and Lazurio's build after it",
+  async () => {
+    const box = await sandbox();
+    try {
+      const home = join(box.home, ".composio");
+      await mkdir(home, { recursive: true });
+      await mkdir(box.bin, { recursive: true });
+      await writeFile(join(home, "composio"), "#!/bin/sh\necho 0.4.3\n", {
+        mode: 0o755,
+      });
+      await symlink(join(home, "composio"), join(box.bin, "composio"));
+      const source = fakeSource({
+        [composioBuild.installer]: composioInstaller(),
+      });
+      const context = {
+        env: {
+          PATH: box.environment(source.fetcher).path,
+          HOME: box.home,
+        },
+        platform: "linux",
+        install: {
+          fetch: source.fetcher,
+          arch: "x64",
+          temporaryDirectory: box.home,
+        },
+      };
+      const text = await runToolsCommand(["update", "composio"], context);
+      expect(text.code).toBe(0);
+      expect(text.text).toBe("composio: 0.4.3 -> 0.4.3-lazurio.1");
+      const json = await runToolsCommand(
+        ["update", "composio", "--json"],
+        context,
+      );
+      expect(json.code).toBe(0);
+      expect(JSON.parse(json.text)).toMatchObject({
+        kind: "tool-updated",
+        installer: { version: "0.4.3-lazurio.1" },
+        changed: false,
+      });
+      // A failed update exits 1 and says why.
+      const failed = await runToolsCommand(["update", "composio"], {
+        ...context,
+        install: { ...context.install, fetch: fakeSource({}).fetcher },
+      });
+      expect(failed.code).toBe(1);
+      expect(failed.text).toBe("composio: update failed\ndownload: http-404");
     } finally {
       await box.close();
     }

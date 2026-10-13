@@ -42,6 +42,7 @@ import {
   type ServerMessage,
   type ViewSize,
 } from "./protocol";
+import { viewStatus } from "./status";
 import { viewLanguage, type Words, words } from "./words";
 
 // The script of the people's view of the Environment browser (decision
@@ -308,6 +309,9 @@ class Viewer {
   private retry: ReturnType<typeof setTimeout> | null = null;
   private retryMs = firstRetryMs;
   private ended = false;
+  /** The Environment's browser reconnects (the hub said so): the view is
+   * connected, but the tab is not loading anything meanwhile. */
+  private browserReconnecting = false;
   private bitmap: ImageBitmap | null = null;
   private header: FrameHeader | null = null;
   /** The frames: the newest drawn while one decodes, each acknowledged once
@@ -485,6 +489,8 @@ class Viewer {
         return;
       case "browser":
         banner.hidden = message.state !== "reconnecting";
+        this.browserReconnecting = message.state === "reconnecting";
+        this.showStatus();
         return;
       case "closed":
         this.stop();
@@ -494,9 +500,16 @@ class Viewer {
   }
 
   private showStatus(): void {
-    this.status.hidden =
-      this.ended ||
-      (this.socket?.readyState === WebSocket.OPEN && this.bitmap !== null);
+    const status = viewStatus({
+      ended: this.ended,
+      open: this.socket?.readyState === WebSocket.OPEN,
+      drawn: this.bitmap !== null,
+      browserReconnecting: this.browserReconnecting,
+    });
+    this.status.hidden = status === "hidden";
+    if (status !== "hidden")
+      this.status.textContent =
+        status === "loading" ? say.loading : say.connecting;
   }
 
   // ---- Frames and size -----------------------------------------------------
