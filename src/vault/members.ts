@@ -40,6 +40,12 @@ export const vaultIdentityDomain = "vaultwarden-identity.lazurio.ai";
 export const personAddress = (subject: string): string =>
   `${subject}@${vaultIdentityDomain}`;
 
+/** A Lazurio account's subject, the only one that names a person here: a
+ * lowercase UUID (the gateway's `sub`, decision F11's amendment). */
+const isSubject = (value: string | null): value is string =>
+  value !== null &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
+
 // The vault's organization roles (`type`) and membership statuses.
 const ownerType = 0;
 const adminType = 1;
@@ -350,7 +356,7 @@ export async function vaultMembership(
   const context = await host.context();
   if (context.kind !== "own") return unknown("no-vault");
   if (!addsPeople(context)) return unknown("not-managed");
-  if (subject === null) {
+  if (!isSubject(subject)) {
     // Nobody named: nobody is added, and the audience needs nobody (it asks
     // the vault only when the assignment changed).
     const audience = await vaultAudience(host);
