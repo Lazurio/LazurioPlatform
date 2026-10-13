@@ -22,6 +22,10 @@ import {
 /** How long a decision is reused: the setup probe's minute. */
 export const personalspaceHolderTtlMs = 60_000;
 
+// How often a decision that a forget overtook while it was made is made
+// again before it is answered as not verified.
+const decideAttempts = 3;
+
 type Owner = Extract<PersonalspaceLayout, { kind: "owner" }>;
 
 const unverified: PersonalspaceHolder = Object.freeze({
@@ -69,8 +73,11 @@ export function createPersonalspaceHolder(
       done: Promise<PersonalspaceHolder>;
     }>
   >();
-  // A forget makes every decision being made then stale: it answers its
-  // caller and is not kept.
+  // A forget makes every decision being made then stale: it is neither kept
+  // nor answered by `decide` (the review of #382: a request that overlaps a
+  // sign-out through the Launchpad must not act on the answer GitHub gave
+  // before it). `known` holds only decisions made wholly after the last
+  // forget, so `peek` never shows a stale one either.
   let generation = 0;
 
   function ask(folder: string, layout: Owner): Promise<PersonalspaceHolder> {
@@ -103,17 +110,30 @@ export function createPersonalspaceHolder(
     return entry?.key === keyOf(layout) ? entry : undefined;
   };
 
+  // One decision: one made within the TTL for the same checkout, otherwise
+  // one made now (a question of this generation already running is joined).
+  async function decideOnce(folder: string): Promise<PersonalspaceHolder> {
+    const layout = await personalspaceLayout(folder);
+    if (layout.kind === "decided") return layout.holder;
+    const entry = remembered(folder, layout);
+    if (entry !== undefined && now() - entry.at < ttl) return entry.holder;
+    return ask(folder, layout);
+  }
+
   return Object.freeze({
     /** The decision, reusing one made within the TTL for the same checkout,
      * otherwise made now (a question already running is joined). For what
      * acts on the Personalspace or reports it as it is: `GET /api/content`,
-     * the module lifecycle, the CLI. */
+     * the module lifecycle, the CLI. A decision that a forget overtook while
+     * it was made is never answered: it is made again with what is current
+     * then, and one overtaken again and again is not verified. */
     async decide(folder: string): Promise<PersonalspaceHolder> {
-      const layout = await personalspaceLayout(folder);
-      if (layout.kind === "decided") return layout.holder;
-      const entry = remembered(folder, layout);
-      if (entry !== undefined && now() - entry.at < ttl) return entry.holder;
-      return ask(folder, layout);
+      for (let attempt = 0; attempt < decideAttempts; attempt += 1) {
+        const started = generation;
+        const decided = await decideOnce(folder);
+        if (started === generation) return decided;
+      }
+      return unverified;
     },
     /** The decision at once, never waiting for GitHub: for what a page
      * shows first (the catalog of `POST /api/catalog` and of the boot
@@ -142,7 +162,8 @@ export function createPersonalspaceHolder(
       generation += 1;
       known.clear();
     },
-    /** Resolves when the decisions being made now have ended. */
+    /** Resolves when the decisions being made now have ended, stale ones
+     * included; it answers no decision. */
     async settled(): Promise<void> {
       await Promise.all([...asking.values()].map((entry) => entry.done));
     },

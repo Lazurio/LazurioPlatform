@@ -1005,9 +1005,12 @@ read on every call) and makes the first in the background as it starts. The page
 catalog (`POST /api/catalog`, the boot document) takes the last decision and never
 waits for GitHub: before the first one the group is `personalspace-unverified`, and
 the page reads the catalog again after 1, 2, 4, 8 and 16 seconds while the group is
-`personalspace-unverified` or `github-unavailable` (`personalspaceRereadMs`). An
-Organization's module never waits for the decision: the lifecycle and `lazurio module
-list` decide only where the group can be selected or is shown. The resident addressed these apps
+`personalspace-unverified` or `github-unavailable` (`personalspaceRereadMs`). A
+decision being made when a gh sign-in or sign-out drops it is never answered: it is
+made again. An Organization's module never waits for the decision: the lifecycle
+decides it only for `personalspace/<module>` and, for the gateway's `ensure`, only
+for an id the Personalspace alone may have (below); `lazurio module list` only where
+the group is shown. The resident addressed these apps
 as `<owner login>/<module>` (its `company` was the owner,
 `R:lazurio/runtime/personalspace-lib.mjs:1126`, selected by
 `R:lazurio/core/module-lifecycle-client-lib.mjs:297,385`) and its CLI refused them on a
@@ -1403,7 +1406,14 @@ the Personalspace group counting as one (`personalspace` in `candidates`);
 every group that lists it counts, runnable or not, because the gateway serves the
 id at one hostname and routes it to one of their declared ports. Two or more:
 `module-ambiguous` with every candidate's directory (the fix is `{organization}` in
-Machines' origin template, launchpad-parity B4). Then the catalog's own rules, as for
+Machines' origin template, launchpad-parity B4). The Personalspace counts as the
+gateway's catalog sees it, whoever holds it (#186): when its one owner directory has
+`workspace/<id>/lazurio.module.json` (`personalspaceMayOwn`; only that path is looked
+at). So an Organization's module is resolved without GitHub, an id that the
+Personalspace's directory has too stays ambiguous, and only an id the Personalspace
+alone may have asks whose it is (decision F9's addendum of 2026-10-05), for at most
+the request's wait; a Personalspace this Environment's account does not hold lists no
+module (`module-unknown`). Then the catalog's own rules, as for
 `lazurio module`: a module that cannot run is refused with its catalog reason. Only the
 module's default app (`default_app`) is ever started: `ensure` takes no `--app` and never
 falls back to another declared app.
@@ -1428,7 +1438,7 @@ duration of one start, not state.
 | Status | Body | Gateway shows | When |
 |---|---|---|---|
 | 204 | none | the app | the default app reports healthy |
-| 503 | the `lazurio module status` answer with `operation: "ensure"` (`outcome: "start-pending"` while the start still runs) | "starting", reload in 2 s | not yet healthy; a report-only request to an app that does not run; `closing`, `coordination-busy` |
+| 503 | the `lazurio module status` answer with `operation: "ensure"` (`outcome: "start-pending"` while the start still runs) | "starting", reload in 2 s | not yet healthy; a report-only request to an app that does not run; `closing`, `coordination-busy`; `personalspace-unverified` (whose Personalspace this is was not decided within the wait; the decision goes on) |
 | 404 | `{kind: "blocked", operation: "ensure", reason, …}` | "not available here" | `module-unknown` (also for a string that is not a valid id, which is not echoed), the catalog reasons (`no-app`, `default-app-invalid`, `organization-not-executable`, …), `folder-unreadable` |
 | 409 | `{kind: "blocked", operation: "ensure", reason: "module-ambiguous", candidates}`, or the start's or status read's refusal with `operation: "start"` or `"status"` (`toolchain-missing`, `prerequisites-not-ready`, `port-occupied`, …) | "could not be prepared" (502) | the id is ambiguous; the lifecycle refused |
 | 401 | `{error: "denied", reason}` | "could not be prepared" (502) | admission refused |

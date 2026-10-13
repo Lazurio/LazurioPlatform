@@ -71,7 +71,9 @@ async function workstation(name: string, origin: string) {
 }
 
 /** A stub GitHub whose viewer can change between reads and whose reads can
- * wait at a gate; `calls` logs every read. */
+ * wait at a gate: each read answers with the sign-in at the moment it was
+ * asked, delivered when the gate opens, as a response in flight. `calls`
+ * logs every read. */
 function changingGitHub(repositories: Repositories) {
   const { github, calls } = stubGitHub(world as World, { repositories });
   let viewer: ViewerAnswer = {
@@ -84,9 +86,11 @@ function changingGitHub(repositories: Repositories) {
     ...github,
     async viewer() {
       calls.push({ kind: "viewer", args: [] });
+      const answer = viewer;
+      const failing = fail;
       await gate;
-      if (fail) throw new Error("gh could not be run");
-      return viewer;
+      if (failing) throw new Error("gh could not be run");
+      return answer;
     },
   };
   return {
@@ -96,13 +100,16 @@ function changingGitHub(repositories: Repositories) {
     signIn(answer: ViewerAnswer) {
       viewer = answer;
     },
+    /** Holds every read asked from now on until the returned function
+     * opens this gate; a later hold makes a gate of its own. */
     hold() {
       let open = () => {};
-      gate = new Promise<void>((resolve) => {
+      const held = new Promise<void>((resolve) => {
         open = resolve;
       });
+      gate = held;
       return () => {
-        gate = Promise.resolve();
+        if (gate === held) gate = Promise.resolve();
         open();
       };
     },
@@ -438,17 +445,58 @@ posixTest(
     expect(await holder.peek(folder)).toEqual(held);
     expect(await holder.decide(folder)).toEqual(held);
     expect(gh.count("viewer")).toBe(4);
-    // A decision forgotten while it runs answers its caller and is not kept.
+    // GitHub's answer, asked while signed in, is still on its way when the
+    // Launchpad signs gh out and forgets: that decision is never answered
+    // (#382 review), the decision is made again with what is current.
     const late = gh.hold();
     holder.forget();
     const stale = holder.decide(folder);
     while (gh.count("viewer") < 5) await Bun.sleep(5);
+    gh.signIn({ kind: "signed-out" });
     holder.forget();
     late();
-    expect(await stale).toEqual(held);
-    gh.signIn({ kind: "signed-out" });
+    expect(await stale).toEqual(signedOut);
+    expect(gh.count("viewer")).toBe(6);
+    // Nor is it kept, or shown by peek: only what was decided after the
+    // forget.
+    expect(await holder.peek(folder)).toEqual(signedOut);
     expect(await holder.decide(folder)).toEqual(signedOut);
     expect(gh.count("viewer")).toBe(6);
+    // A background decision of peek overtaken by a forget is not kept
+    // either: peek says unverified, never the stale answer.
+    gh.signIn({
+      kind: "signed-in",
+      viewer: { login: "example", databaseId: 12345 },
+    });
+    holder.forget();
+    const overtaken = gh.hold();
+    expect(await holder.peek(folder)).toEqual(unverified);
+    while (gh.count("viewer") < 7) await Bun.sleep(5);
+    gh.signIn({ kind: "signed-out" });
+    holder.forget();
+    overtaken();
+    await holder.settled();
+    expect(await holder.peek(folder)).toEqual(unverified);
+    await holder.settled();
+    expect(await holder.peek(folder)).toEqual(signedOut);
+    // Forgotten again and again while it decides: never held, not verified.
+    gh.signIn({
+      kind: "signed-in",
+      viewer: { login: "example", databaseId: 12345 },
+    });
+    holder.forget();
+    let release = gh.hold();
+    const asked = gh.count("viewer");
+    const unsettled = holder.decide(folder);
+    for (let round = 1; round <= 3; round += 1) {
+      while (gh.count("viewer") < asked + round) await Bun.sleep(5);
+      holder.forget();
+      const previous = release;
+      release = round < 3 ? gh.hold() : () => {};
+      previous();
+    }
+    expect(await unsettled).toEqual(unverified);
+    expect(gh.count("viewer")).toBe(asked + 3);
   },
   60_000,
 );

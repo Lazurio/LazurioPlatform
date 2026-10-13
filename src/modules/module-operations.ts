@@ -14,13 +14,11 @@ import {
   type CatalogOrganization,
   readFolderCatalog,
 } from "../organizations/catalog";
-import {
-  catalogGroups,
-  selectCatalogOrganization,
-} from "../organizations/catalog-selection";
+import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import {
   observePersonalspaceModule,
   type PersonalspaceHolderRead,
+  personalspaceMayOwn,
   personalspaceName,
   resolvePersonalspaceApplication,
   unverifiedPersonalspace,
@@ -434,9 +432,9 @@ export function createModuleOperations(input: {
   const { folder, owner, host } = input;
   const holder = input.personalspace ?? unverifiedPersonalspace;
   // The catalog with its Personalspace group decided where the group can be
-  // selected (its name, or every group for `ensure`), and left unread
-  // otherwise: an Organization's module never waits for GitHub's answer
-  // whose Personalspace this is.
+  // selected (its name, or for `ensure` an id the Personalspace alone may
+  // have), and left unread otherwise: an Organization's module never waits
+  // for GitHub's answer whose Personalspace this is.
   const readCatalog = (folder: string, personalspace: boolean) =>
     input.readCatalog !== undefined
       ? input.readCatalog(folder)
@@ -546,28 +544,54 @@ export function createModuleOperations(input: {
   // Personalspace group counting as one (B11). Every group that lists the id
   // counts, runnable or not, because the gateway routes the hostname to one
   // of their declared ports; which one is its choice, so none is guessed here
-  // (`module-ambiguous`).
-  async function resolveId(id: string): Promise<Target | ModuleBlocked> {
+  // (`module-ambiguous`). The Personalspace counts as the gateway sees it,
+  // whoever holds it: when its one owner directory has a module of that id
+  // (`personalspaceMayOwn`, #186). So the Organizations are resolved without
+  // GitHub, and whose the Personalspace is is asked only when it alone may
+  // own the id, until the request's `deadline`.
+  async function resolveId(
+    id: string,
+    deadline: number,
+  ): Promise<Target | ModuleBlocked> {
     if (!isModuleId(id)) return blocked("ensure", "module-unknown");
+    const lists = (group: CatalogOrganization | undefined) =>
+      group?.modules.some((entry) => entry.module === id) === true;
     let catalog: Catalog;
+    let personal: boolean;
     try {
-      catalog = await readCatalog(folder, true);
+      catalog = await readCatalog(folder, false);
+      personal =
+        lists(catalog.personalspace) || (await personalspaceMayOwn(folder, id));
     } catch {
       return blocked("ensure", "folder-unreadable");
     }
-    const owners = catalogGroups(catalog).filter((organization) =>
-      organization.modules.some((entry) => entry.module === id),
-    );
-    const only = owners[0];
-    if (only === undefined)
-      return blocked("ensure", "module-unknown", { module: id });
-    if (owners.length > 1)
+    const owners = catalog.organizations.filter(lists);
+    if (owners.length + (personal ? 1 : 0) > 1)
       return blocked("ensure", "module-ambiguous", {
         module: id,
-        candidates: Object.freeze(owners.map((entry) => entry.directory)),
+        candidates: Object.freeze([
+          ...owners.map((entry) => entry.directory),
+          ...(personal ? [personalspaceName] : []),
+        ]),
       });
     // The module's default app only: ensure takes no `--app`.
-    return targetOf("ensure", only, only === catalog.personalspace, id, {});
+    const [only] = owners;
+    if (only !== undefined) return targetOf("ensure", only, false, id, {});
+    if (!personal) return blocked("ensure", "module-unknown", { module: id });
+    let decided: Catalog | undefined;
+    try {
+      decided = await within(readCatalog(folder, true), deadline - Date.now());
+    } catch {
+      return blocked("ensure", "folder-unreadable");
+    }
+    // Not decided within the request: the gateway's starting page asks
+    // again, and the decision goes on (`ensureStatus`: 503).
+    if (decided === undefined)
+      return blocked("ensure", "personalspace-unverified", { module: id });
+    const group = decided.personalspace;
+    if (group === undefined || !lists(group))
+      return blocked("ensure", "module-unknown", { module: id });
+    return targetOf("ensure", group, true, id, {});
   }
 
   async function targetOf(
@@ -1145,7 +1169,7 @@ export function createModuleOperations(input: {
       const deadline = Date.now() + waitMs;
       if (closing) return blocked("ensure", "closing");
       if (host.home === undefined) return blocked("ensure", "home-unknown");
-      const target = await resolveId(id);
+      const target = await resolveId(id, deadline);
       if ("kind" in target) return target;
       const prepared = await owned("ensure", target);
       if ("kind" in prepared) return prepared;

@@ -3,6 +3,7 @@ import { mkdtemp, readdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { GitHubRepository, ViewerAnswer } from "../src/content/github";
+import { createPersonalspaceHolder } from "../src/content/holder";
 import { personalspaceHolder } from "../src/content/status";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
@@ -14,7 +15,7 @@ import {
   parseCatalog,
 } from "../src/launchpad/catalog-view";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
-import { startLaunchpad } from "../src/launchpad/server";
+import { ensureStatus, startLaunchpad } from "../src/launchpad/server";
 import { runModuleCommand } from "../src/modules/module-cli";
 import {
   createModuleOperations,
@@ -25,9 +26,10 @@ import { applicationUnitName } from "../src/modules/systemd-user-runner";
 import { readFolderCatalog } from "../src/organizations/catalog";
 import { selectCatalogOrganization } from "../src/organizations/catalog-selection";
 import { runCatalogCommand } from "../src/organizations/cli";
-import type {
-  PersonalspaceBlockedReason,
-  PersonalspaceHolderRead,
+import {
+  type PersonalspaceBlockedReason,
+  type PersonalspaceHolderRead,
+  resolvePersonalspaceApplication,
 } from "../src/organizations/personalspace";
 import type { CliContext } from "../src/update/cli";
 import {
@@ -150,6 +152,56 @@ function github(
   const holder: PersonalspaceHolderRead = (folder) =>
     personalspaceHolder(folder, host);
   return { host, holder, calls };
+}
+
+/** gh as the Launchpad asks it around a sign-out (#382 review): GitHub knows
+ * the fixture's repository as the account's own, private one; each viewer
+ * read answers with the sign-in at the moment it is asked, and the answer
+ * to a held read arrives only when it is released, as a response in
+ * flight. */
+function signingOut() {
+  const { github: stub } = stubGitHub(world as World, {
+    repositories: {
+      [`${login}/${owner}`]: {
+        owner: { login, databaseId: loginId, kind: "User" },
+      },
+    },
+  });
+  let signedIn = true;
+  let reads = 0;
+  const held = new Map<number, Promise<void>>();
+  const host = contentHost(world as World, {
+    ...stub,
+    async viewer() {
+      const read = ++reads;
+      const answer: ViewerAnswer = signedIn
+        ? { kind: "signed-in", viewer: { login, databaseId: loginId } }
+        : { kind: "signed-out" };
+      await held.get(read);
+      return answer;
+    },
+  });
+  return {
+    host,
+    reads: () => reads,
+    signIn() {
+      signedIn = true;
+    },
+    signOut() {
+      signedIn = false;
+    },
+    /** Holds the answer to the `read`-th viewer read until released. */
+    hold(read: number) {
+      let release = () => {};
+      held.set(
+        read,
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+      );
+      return () => release();
+    },
+  };
 }
 
 const privateNames = (text: string) => {
@@ -525,6 +577,163 @@ posixTest(
     });
   },
   60_000,
+);
+
+posixTest(
+  "an operation that overlaps a gh sign-out through the Launchpad never acts on the decision GitHub was asked for before it",
+  async () => {
+    await folderFixture(async (folder) => {
+      const home = join(folder, "..", "home");
+      await mkdir(home);
+      await personalspace(folder);
+      const manager = createFakeServiceManager({
+        runtimeDirectory: join(folder, "..", "runtime"),
+      });
+      await mkdir(manager.runtimeDirectory);
+      const gh = signingOut();
+      // The Launchpad's memory of the decision, with every read asking
+      // GitHub, as after the minute.
+      const holder = createPersonalspaceHolder(() => gh.host, { ttlMs: 0 });
+      const operations = createModuleOperations({
+        folder,
+        owner: "cli",
+        host: linuxHost(manager, home, 1, binary),
+        personalspace: holder.decide,
+      });
+      expect(await operations.status("personalspace/notes")).toMatchObject({
+        kind: "module",
+        organization: "personalspace",
+        module: "notes",
+        state: "stopped",
+      });
+      // The selection reads the catalog (one question), then decides again
+      // for its target (the next). GitHub's answer to that one, asked while
+      // gh was signed in, arrives after the Launchpad signed gh out and
+      // forgot, as `server.ts` does on a sign-out.
+      const target = gh.reads() + 2;
+      const release = gh.hold(target);
+      const status = operations.status("personalspace/notes");
+      while (gh.reads() < target) await Bun.sleep(5);
+      gh.signOut();
+      holder.forget();
+      release();
+      expect(await status).toEqual({
+        kind: "blocked",
+        operation: "status",
+        reason: "github-signed-out",
+        organization: "personalspace",
+        module: "notes",
+      });
+      // The lifecycle's authorization at an operation boundary, the same.
+      gh.signIn();
+      const space = join(folder, "personalspace", owner);
+      const selection = {
+        company,
+        module: "notes",
+        package: "app/package.json",
+      };
+      expect(
+        await resolvePersonalspaceApplication(space, selection, holder.decide),
+      ).toEqual({ moduleDirectory: join(space, "workspace", "notes") });
+      const authorizing = gh.hold(gh.reads() + 1);
+      const asked = gh.reads();
+      const authorized = resolvePersonalspaceApplication(
+        space,
+        selection,
+        holder.decide,
+      );
+      while (gh.reads() === asked) await Bun.sleep(5);
+      gh.signOut();
+      holder.forget();
+      authorizing();
+      await expect(authorized).rejects.toThrow(
+        "Selected Personalspace unavailable",
+      );
+    });
+  },
+  30_000,
+);
+
+posixTest(
+  "the gateway's ensure resolves an Organization's module without the decision whose Personalspace this is; an id the Personalspace's directory also has stays ambiguous; the Personalspace alone waits at most the request's deadline",
+  async () => {
+    await folderFixture(async (folder) => {
+      const home = join(folder, "..", "home");
+      await mkdir(home);
+      await personalspace(folder);
+      // The Personalspace's directory also has `web`, as alpha does.
+      await writePersonalspaceModule(folder, owner, company, { id: "web" });
+      // A decision that never comes, as GitHub that does not answer.
+      const asked: string[] = [];
+      const never: PersonalspaceHolderRead = (folder) => {
+        asked.push(folder);
+        return new Promise(() => {});
+      };
+      const manager = createFakeServiceManager({
+        runtimeDirectory: join(folder, "..", "runtime"),
+      });
+      await mkdir(manager.runtimeDirectory);
+      const operations = createModuleOperations({
+        folder,
+        owner: "cli",
+        host: linuxHost(manager, home, 1, binary),
+        personalspace: never,
+      });
+      const within = <T>(work: Promise<T>) =>
+        Promise.race([work, Bun.sleep(5_000).then(() => "waited" as const)]);
+      // An Organization's module: nothing is asked about the Personalspace.
+      expect(
+        await within(
+          operations.ensure("api", { mayStart: false, waitMs: 100 }),
+        ),
+      ).toMatchObject({
+        kind: "module",
+        operation: "ensure",
+        organization: "beta",
+        module: "api",
+        state: "stopped",
+      });
+      // An id an Organization and the Personalspace's directory both have:
+      // the gateway routes it to one of their ports, whoever holds the
+      // Personalspace, so none is guessed.
+      expect(
+        await within(operations.ensure("web", { mayStart: true, waitMs: 100 })),
+      ).toEqual({
+        kind: "blocked",
+        operation: "ensure",
+        reason: "module-ambiguous",
+        module: "web",
+        candidates: ["alpha_GEN3", "personalspace"],
+      });
+      expect(
+        await operations.ensure("nothing", { mayStart: true, waitMs: 100 }),
+      ).toEqual({
+        kind: "blocked",
+        operation: "ensure",
+        reason: "module-unknown",
+        module: "nothing",
+      });
+      expect(asked).toEqual([]);
+      // The Personalspace alone may own `notes`: its holder is asked, at
+      // most for the request's deadline, and the gateway's starting page
+      // asks again (503).
+      const began = performance.now();
+      const pending = await within(
+        operations.ensure("notes", { mayStart: true, waitMs: 100 }),
+      );
+      expect(performance.now() - began).toBeLessThan(2_000);
+      expect(pending).toEqual({
+        kind: "blocked",
+        operation: "ensure",
+        reason: "personalspace-unverified",
+        module: "notes",
+      });
+      expect(asked).toHaveLength(1);
+      if (pending !== "waited") expect(ensureStatus(pending)).toBe(503);
+      expect(manager.commands("systemd-run")).toEqual([]);
+    });
+  },
+  30_000,
 );
 
 posixTest(

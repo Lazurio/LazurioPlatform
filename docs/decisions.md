@@ -658,7 +658,9 @@ Personalspace this is (Mission Control task-2026-10-05-611, plan DEV-6644):
    its `.git` and its Git configuration, which a new clone or another `origin`
    rewrites. A gh sign-in or sign-out through the Launchpad, a Tools reading that
    changes gh's state and a content installation (as it starts and as it ends) drop
-   it.
+   it. A decision being made when it is dropped is neither kept nor answered: an
+   operation that asked GitHub before a sign-out gets the decision made after it (the
+   review of #382), and one overtaken three times is `personalspace-unverified`.
 5. **The page's first paint never waits for GitHub.** `POST /api/catalog` and the boot
    document take the last decision: an older one is made again in the background, and
    before the first one the group is `personalspace-unverified` ("Ověřujeme na GitHubu,
@@ -668,10 +670,17 @@ Personalspace this is (Mission Control task-2026-10-05-611, plan DEV-6644):
    point 4), the Launchpad makes its first decision in the background as it starts:
    the decision reads no Folder lock. `GET /api/content`, the lifecycle and the CLI
    wait for a current decision.
-6. **An Organization's module never waits for it.** The lifecycle decides the
-   Personalspace only where its group can be selected (`personalspace/<module>`, and
-   every group for `ensure`); `lazurio module list` only for an output that shows its
-   modules (every module, `personalspace`, `organization list --json`).
+6. **An Organization's module never waits for it.** `lazurio module …` and the
+   Launchpad's module routes decide the Personalspace only for `personalspace/<module>`;
+   `lazurio module list` only for an output that shows its modules (every module,
+   `personalspace`, `organization list --json`). The gateway's `ensure` counts the
+   Personalspace as the gateway does, whoever holds it: when its one owner directory
+   has `workspace/<id>/lazurio.module.json` (only that path is looked at). An id an
+   Organization has is resolved without GitHub, and one that the Personalspace's
+   directory has too stays `module-ambiguous` (the review of #382). Only an id the
+   Personalspace alone may have asks whose it is, for at most the request's deadline;
+   undecided by then, `ensure` answers 503 `personalspace-unverified`, the gateway's
+   starting page asks again, and the decision goes on.
 
 Unchanged: the install and its codes, the answers of the content routes, the catalog's
 shape (the group with `reason` and no modules, as `personalspace-ambiguous` already
@@ -695,7 +704,10 @@ module list`, start, status and stop of a Personalspace that is not held, for ea
 reason (`tests/personalspace-modules.test.ts`); `GET /api/content`, `POST /api/catalog`
 and the module route agreeing, and the catalog answering before GitHub does
 (`tests/content-routes.test.ts`); the page's sentences and its re-read schedule
-(`tests/catalog-view.test.ts`). Risks: an app of a Personalspace that stops being held
+(`tests/catalog-view.test.ts`). After the review of #382: an operation and the
+lifecycle's authorization overlapping a sign-out, and the gateway's `ensure` for an
+Organization's module, an id both have and the Personalspace alone, with a decision
+that never comes (`tests/personalspace-modules.test.ts`). Risks: an app of a Personalspace that stops being held
 (signed out, GitHub silent past the minute) cannot be stopped from Lazurio until it is
 held again, only through the service manager; a login renamed on GitHub no longer
 verifies `<login>_GEN3`, as before (a separate issue).

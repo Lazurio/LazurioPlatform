@@ -325,7 +325,14 @@ export function ensureMayStart(headers: Headers): boolean {
  * else (409 here) shows "could not be prepared". */
 export function ensureStatus(result: ModuleAnswer | ModuleBlocked): number {
   if (result.kind === "module") return result.healthy ? 204 : 503;
-  if (["closing", "coordination-busy"].includes(result.reason)) return 503;
+  // Asked again shortly: a closing Launchpad, a busy coordination, or a
+  // Personalspace whose holder is not decided within the request (#186).
+  if (
+    ["closing", "coordination-busy", "personalspace-unverified"].includes(
+      result.reason,
+    )
+  )
+    return 503;
   if (result.reason === "module-ambiguous") return 409;
   // The id names no single runnable default app of this Folder.
   if (result.operation === "ensure") return 404;

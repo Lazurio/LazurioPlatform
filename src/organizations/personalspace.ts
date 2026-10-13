@@ -156,6 +156,28 @@ export const unverifiedPersonalspace: PersonalspaceHolderRead = async (
   };
 };
 
+/** Whether the Folder's Personalspace may have the module `id` as the
+ * Machines gateway sees it, whoever holds it: the gateway's catalog globs
+ * every `personalspace/<owner>/workspace/<id>/lazurio.module.json`. Here: on
+ * a preset that has a Personalspace, its one owner directory has that file.
+ * Only that path is looked at; nothing is read from it. For the gateway's
+ * ambiguity rule (#186): an id that both an Organization and the
+ * Personalspace's directory have stays ambiguous, and one that only an
+ * Organization has needs no decision whose the Personalspace is. A path
+ * that cannot be looked at may be there. */
+export async function personalspaceMayOwn(
+  folder: string,
+  id: string,
+): Promise<boolean> {
+  if (!moduleId.test(id) || !(await folderHasPersonalspace(folder)))
+    return false;
+  const located = await locatePersonalspace(folder);
+  if (located.kind !== "owner") return false;
+  return !(await absent(
+    join(located.directory, "workspace", id, "lazurio.module.json"),
+  ).catch(() => false));
+}
+
 /** The ids of the modules in an owner directory: every directory in
  * `workspace/` named like a module id that holds a `lazurio.module.json`.
  * Throws when `workspace/` is not a real, caller-owned directory
