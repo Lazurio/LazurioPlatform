@@ -32,9 +32,21 @@ these brand assets in this public repository (2026-10-03).
 Only the tokens, the logo symbol and the module stones (below) are vendored:
 the shell and the Launchpad page draw their own components from the tokens, so
 `components.css` is not needed. The tokens declare their values on `:root`; inside a shadow root the
-shell applies the same text to `:host` (`src/shell/styles.ts`), so the file
+shell applies the same text to `:host` (`src/shell/base-styles.ts`), so the file
 stays byte-for-byte and the tokens work inside the elements, as the design
 system asks for the rail in the forks.
+
+Since F36's addendum of 2026-10-13 (root decision 0200) the shell also puts the
+file, without its comments, on the root of an app's document that has no tokens
+of its own, marked `data-lazurio-theme="light"` (`src/shell/tokens.ts`): the
+T3 Code fork maps its standard light look onto a short list of its names
+(`declares.tokens` in `src/shell/interface.ts`). A new copy therefore reaches
+every Environment's apps with the Platform. Both uses rely on the file's shape,
+and `tests/shell-tokens.test.ts` fails when a copy is anything but one `:root`
+rule of `--lz-*` custom properties, or lacks a promised name (dropping or
+renaming one is an interface change, decided and announced first, not a
+re-vendor). A changed value, a new name, or a change to a name nobody is
+promised needs no other edit.
 
 ## Module stones
 
