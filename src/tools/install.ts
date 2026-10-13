@@ -243,6 +243,32 @@ function target(platform: string, arch: string): Target | undefined {
   return `${platform}-${arch}`;
 }
 
+/** The target an installer script downloads for. Composio's installer, as
+ * its `detect_target` does, takes the arm64 archive for an x64 process that
+ * Rosetta 2 translates on Apple silicon (`sysctl.proc_translated` is 1), so
+ * the pinned archive's digest follows it (Pablo's review of #395). Anything
+ * the probe cannot tell keeps the process's target. */
+async function installerTarget(
+  platformTarget: Target,
+  env: InstallEnvironment,
+): Promise<Target> {
+  if (platformTarget !== "darwin-x64") return platformTarget;
+  try {
+    const result = await env.run(
+      ["/usr/sbin/sysctl", "-n", "sysctl.proc_translated"],
+      limits.versionMs,
+      baseEnv(env),
+    );
+    return result !== "timeout" &&
+      result.exitCode === 0 &&
+      result.stdout.trim() === "1"
+      ? "darwin-arm64"
+      : platformTarget;
+  } catch {
+    return platformTarget;
+  }
+}
+
 /** The tools that have a curated installer: exactly the `launchpad` ones. */
 export function curatedTool(name: string): ActivatableTool | undefined {
   const entry = activatableTools().find((tool) => tool.name === name);
@@ -644,7 +670,12 @@ async function place(
   try {
     if (recipe.kind === "release")
       await installRelease(entry, recipe, platformTarget, env, destination);
-    else output = await installScript(recipe, env, platformTarget);
+    else
+      output = await installScript(
+        recipe,
+        env,
+        await installerTarget(platformTarget, env),
+      );
   } catch (error) {
     if (error instanceof InstallStageError)
       return fail(error.stage, error.reason, error.detail);

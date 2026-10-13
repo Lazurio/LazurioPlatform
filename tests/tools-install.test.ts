@@ -786,6 +786,55 @@ test.skipIf(!posix)(
   },
 );
 
+// Composio's installer takes the arm64 archive for an x64 process that
+// Rosetta 2 translates (`sysctl.proc_translated` 1), so the pinned digest
+// follows it; untranslated, or where the probe fails, the process's target
+// stays (Pablo's review of #395).
+test.skipIf(!posix)(
+  "composio: on macOS under Rosetta 2 the pinned digest is the arm64 archive's, as the installer downloads it",
+  async () => {
+    const box = await sandbox();
+    try {
+      const pinned = async (translated: string | "fails") => {
+        const seen: Record<string, string>[] = [];
+        const run: ToolRunner = async (command, timeout, env) => {
+          if (command[0] === "/usr/sbin/sysctl") {
+            expect(command).toEqual([
+              "/usr/sbin/sysctl",
+              "-n",
+              "sysctl.proc_translated",
+            ]);
+            return translated === "fails"
+              ? { exitCode: 1, stdout: "", stderr: "unknown oid" }
+              : { exitCode: 0, stdout: `${translated}\n`, stderr: "" };
+          }
+          if (command[0] === "/bin/sh") seen.push({ ...env });
+          return runTool(command, timeout, env);
+        };
+        await rm(join(box.home, ".composio"), { recursive: true, force: true });
+        await rm(join(box.bin, "composio"), { force: true });
+        const source = fakeSource({
+          [composioBuild.installer]: composioInstaller(),
+        });
+        await installTool(
+          "composio",
+          box.environment(source.fetcher, {
+            run,
+            platform: "darwin",
+            arch: "x64",
+          }),
+        );
+        return seen[0]?.COMPOSIO_INSTALL_SHA256;
+      };
+      expect(await pinned("1")).toBe(composioBuild.archives["darwin-arm64"]);
+      expect(await pinned("0")).toBe(composioBuild.archives["darwin-x64"]);
+      expect(await pinned("fails")).toBe(composioBuild.archives["darwin-x64"]);
+    } finally {
+      await box.close();
+    }
+  },
+);
+
 test.skipIf(!posix)(
   "composio: a failed download runs nothing; a failing installer reports a safe tail; another build is never taken for the pinned one",
   async () => {
