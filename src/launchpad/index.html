@@ -784,7 +784,9 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
      the heads leave it a few pixels more. */
   #catalog-head, .market-head, .integrations-head { padding-right: calc(var(--page-corner, 0px) + 8px); }
   .container, .container.wide { padding: 20px 14px 48px; }
-  #view-catalog { padding-top: 56px; }
+  /* Settings and Files start under the header; every page without it
+     starts its head below #nav-toggle, as the Apps home does (#366). */
+  #view-catalog, #view-marketplace, #view-integrations { padding-top: 56px; }
   .apps-title, .module-title { font-size: 22px; }
   .group-head, .group > legend, details.technical { padding: 0 2px; }
   .row { padding: 12px; }
