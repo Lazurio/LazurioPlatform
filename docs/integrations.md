@@ -338,7 +338,12 @@ when they signed up.
   names an owning Organization works in the organization of that Organization's
   display name (`organization.display_name` of its manifest, as the Folder's
   catalog reads it); `unverified` where that name cannot be read, never the
-  person's choice. Any other Environment, a personal one or a computer, works in
+  person's choice. The owning Organization is the one Organization of the
+  Folder whose GitHub login or slug the binding's owner is, whatever the case:
+  Machines hands the owner over as a lowercased GitHub login (`example`), while
+  a manifest keeps its capitals (`Example`), as the shell finds it. None, or
+  more than one, is `unverified` (fixed on 2026-10-13 after rc.65, whose exact
+  comparison left every such Environment `unverified`). Any other Environment, a personal one or a computer, works in
   the organization the person chose; the sign-in dialog advises a personal
   Environment to choose the default one. A name matches whatever its case, its
   spaces and its diacritics (`organizationKey`: "Human and Machine" is

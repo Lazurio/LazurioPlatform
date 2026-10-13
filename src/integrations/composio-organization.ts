@@ -99,18 +99,27 @@ export function composioOrganizationVerdict(
 /** The rule of an Environment: the name of the Organization that owns it
  * (its Machine binding's Organization, named as the Organization's manifest
  * names it); `unverified` where an Organization owns it but its name cannot
- * be read; the person's choice where no Organization owns it. */
+ * be read; the person's choice where no Organization owns it.
+ *
+ * The Machine handover names the owner by its lowercased GitHub login
+ * (`example`), the Folder an Organization by its manifest's slug and GitHub
+ * login (`Example`): the owner is the one Organization of the Folder whose
+ * GitHub login or slug it is, whatever the case, as the shell finds it
+ * (`shell-document.ts`). None, or more than one: `unverified`. */
 export async function composioOrganizationRule(
   folder: string,
   machine: MachineBinding | null,
 ): Promise<ComposioOrganizationRule> {
   if (machine?.owner.kind !== "organization") return { kind: "chosen" };
-  const slug = machine.owner.organization;
+  const owner = machine.owner.organization.toLowerCase();
   try {
     const catalog = await readFolderCatalog(folder);
-    const name = catalog.organizations.find(
-      (organization) => organization.organization === slug,
-    )?.displayName;
+    const owning = catalog.organizations.filter(
+      (organization) =>
+        organization.forgeLogin?.toLowerCase() === owner ||
+        organization.organization?.toLowerCase() === owner,
+    );
+    const name = owning.length === 1 ? owning[0]?.displayName : undefined;
     return typeof name === "string" && organizationKey(name) !== ""
       ? { kind: "named", name }
       : { kind: "unverified" };

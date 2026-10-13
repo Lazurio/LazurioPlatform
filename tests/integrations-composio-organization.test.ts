@@ -140,6 +140,48 @@ test("the rule: an Organization's Environment by its Organization's name, unveri
   });
 });
 
+// The Machine handover names the owner by its lowercased GitHub login; a
+// manifest's slug and login keep their capitals (a real Environment of rc.65:
+// owner `example`, slug and login `Example`). Found whatever the case, by
+// login or slug; two Organizations answering the owner: unverified.
+test("the rule finds the owning Organization by its GitHub login or slug, whatever the case", async () => {
+  const capitals = join(await parent(), "Lazurio");
+  await mkdir(capitals, { recursive: true, mode: 0o700 });
+  await writeOrganization(capitals, "Example_GEN3", {
+    slug: "Example",
+    state: "current",
+    modules: [],
+    displayName: "Example",
+  });
+  expect(
+    await composioOrganizationRule(capitals, bindings.organization),
+  ).toEqual({ kind: "named", name: "Example" });
+
+  const byLogin = join(await parent(), "Lazurio");
+  await mkdir(byLogin, { recursive: true, mode: 0o700 });
+  await writeOrganization(byLogin, "Corp", {
+    slug: "ExampleCorp",
+    forge: "Example",
+    state: "current",
+    modules: [],
+    displayName: "Example Corp",
+  });
+  expect(
+    await composioOrganizationRule(byLogin, bindings.organization),
+  ).toEqual({ kind: "named", name: "Example Corp" });
+
+  await writeOrganization(byLogin, "Other", {
+    slug: "example",
+    forge: "elsewhere",
+    state: "current",
+    modules: [],
+    displayName: "Other",
+  });
+  expect(
+    await composioOrganizationRule(byLogin, bindings.organization),
+  ).toEqual({ kind: "unverified" });
+});
+
 const gmail = {
   id: "ca_1",
   toolkit: "gmail",

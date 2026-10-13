@@ -7275,7 +7275,14 @@ reference is [integrations](integrations.md#the-composio-organization-of-an-envi
    missing from the Folder, its manifest unreadable), the rule is `unverified`:
    never taken for the person's choice and never guessed (Pablo's review of
    #372). Any other Environment, a personal one or a computer, works in the
-   organization the person chose.
+   organization the person chose. *(Amended 2026-10-13, after rc.65:)* the owning
+   Organization is the Folder's one Organization whose GitHub login or slug is the
+   binding's `owner.organization`, compared case-insensitively as GitHub compares
+   slugs, the rule of F45 and of the shell. The handover names the owner by its
+   lowercased login (`example`) while a manifest keeps its capitals (`Example`);
+   rc.65 compared them exactly and so left every Environment whose Organization's
+   slug has capitals `unverified`, with nothing of Composio counted there. None, or
+   more than one Organization answering the owner, is `unverified`.
 2. **The Launchpad brings it current.** The reading, and the sign-in dialog of
    Settings → Tools after a sign-in, make the organization of that name current
    with the CLI's `orgs switch` where another one is, so that agents using
