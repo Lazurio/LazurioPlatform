@@ -188,16 +188,26 @@ test("a 403 or a 404 never navigates and stays final, removing the remembered ac
   }
 });
 
-test("a success after the re-entry clears the guard, so a later expiry re-enters at once", async () => {
+test("a success never clears the guard: an account success then a Launchpad 401 on every page load reloads once per guard, never in a loop", async () => {
   const browser = tab();
   await browser.load(401);
   expect(browser.navigations).toHaveLength(1);
-  browser.advance(5_000);
-  const signedIn = await browser.load(200);
-  expect(signedIn.state.drawn()?.environments.length).toBeGreaterThan(1);
-  expect(browser.session.values.has(reentryKey)).toBe(false);
-  browser.advance(60_000);
-  await browser.load(401);
+  // The reloaded page signs in and reads the account, but the Launchpad
+  // keeps answering 401 on its own: each page load is an account success
+  // followed by a Launchpad refusal.
+  for (let load = 0; load < 3; load += 1) {
+    browser.advance(10_000);
+    const signedIn = await browser.load(200);
+    expect(signedIn.state.drawn()?.environments.length).toBeGreaterThan(1);
+    expect(browser.session.values.has(reentryKey)).toBe(true);
+    expect(browser.reentry().refused()).toBe(false);
+  }
+  expect(browser.navigations).toHaveLength(1);
+  // A separate expiry after the guard re-enters again, once.
+  browser.advance(reentryGuardMs);
+  expect(browser.reentry().refused()).toBe(true);
+  expect(browser.navigations).toHaveLength(2);
+  expect(browser.reentry().refused()).toBe(false);
   expect(browser.navigations).toHaveLength(2);
 });
 
@@ -252,7 +262,6 @@ test("without a tab memory, or with one that fails, nothing navigates: the refus
     },
   };
   expect(createReentry(failing, navigate).refused()).toBe(false);
-  createReentry(failing, navigate).answered();
   const full = { ...spyStore(), setItem: failing.setItem };
   expect(createReentry(full, navigate).refused()).toBe(false);
   expect(navigations).toEqual([]);
