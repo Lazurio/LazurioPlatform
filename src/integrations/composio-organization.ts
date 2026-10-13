@@ -1,4 +1,7 @@
+import { join } from "node:path";
+import { withFolderReadLock } from "../folder/lock";
 import type { MachineBinding } from "../folder/machine-binding";
+import { readFolderState } from "../folder/read-state";
 import { readFolderCatalog } from "../organizations/catalog";
 import {
   type ComposioOrganization,
@@ -108,6 +111,17 @@ export async function composioOrganizationRule(
   } catch {
     return { kind: "chosen" };
   }
+}
+
+/** The rule of the Environment of a Folder, by its Machine binding. */
+export async function folderComposioOrganizationRule(
+  folder: string,
+): Promise<ComposioOrganizationRule> {
+  const state = join(folder, ".lazurio");
+  const { preferences } = await withFolderReadLock(state, () =>
+    readFolderState(state),
+  );
+  return composioOrganizationRule(folder, preferences.machine);
 }
 
 /** The person's Composio organizations, the current one marked (`composio

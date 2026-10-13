@@ -2,6 +2,10 @@ import { randomBytes } from "node:crypto";
 import { integrationsCatalog } from "./catalog";
 import type { CatalogApp, IntegrationsCatalog } from "./catalog-schema";
 import {
+  type ComposioOrganizationRule,
+  convergeComposioOrganization,
+} from "./composio-organization";
+import {
   activeComposioAccounts,
   type ComposioEnvironment,
   linkComposio,
@@ -106,6 +110,10 @@ export type ConnectHost = Readonly<{
    * the Launchpad (a Remote Environment); null or absent where Executor's
    * callback on localhost is the person's own (a workstation). */
   oauthCallback?: string | null;
+  /** The rule of this Environment's Composio organization (decision F42,
+   * addendum (2) of 2026-10-13), asked before every link and removal;
+   * absent, the person chooses it. */
+  composioOrganization?: () => Promise<ComposioOrganizationRule>;
   catalog?: IntegrationsCatalog;
   now?: () => number;
   /** The journal: the operation, the app and the outcome; never a value. */
@@ -783,6 +791,27 @@ export function createConnectSessions(host: () => ConnectHost) {
     }
   }
 
+  /** Whether Composio may write here: in the organization of this
+   * Environment's Organization's name, made current where another one is,
+   * asked live before every link and removal. The page's reading may be a
+   * minute old, and the CLI's choice may have changed since (Pablo's review
+   * of #372). Where the person chooses, always. */
+  async function inOwnOrganization(
+    composio: NonNullable<Awaited<ReturnType<ConnectHost["composio"]>>>,
+  ): Promise<boolean> {
+    const rule = (await host().composioOrganization?.()) ?? {
+      kind: "chosen",
+    };
+    if (rule.kind === "chosen") return true;
+    const converged = await convergeComposioOrganization(
+      composio.env,
+      composio.command,
+      rule,
+      (entry) => host().journal?.(entry),
+    );
+    return converged?.verdict.kind === "matches";
+  }
+
   async function connectComposio(
     app: CatalogApp,
     name: string | null,
@@ -802,6 +831,9 @@ export function createConnectSessions(host: () => ConnectHost) {
     composio: NonNullable<Awaited<ReturnType<ConnectHost["composio"]>>>,
     toolkit: string,
   ): Promise<ConnectStart> {
+    // Its accounts and its link are an organization's: this Environment's.
+    if (!(await inOwnOrganization(composio)))
+      return { kind: "blocked", reason: "composio-organization" };
     // The CLI asks for a name only after it created a link: the Launchpad
     // asks first (a second account needs one, and a name in use is refused).
     const own = await activeComposioAccounts(
@@ -1033,7 +1065,8 @@ export function createConnectSessions(host: () => ConnectHost) {
             | "account-unknown"
             | "disconnect-unsupported"
             | "executor-unavailable"
-            | "disconnect-failed";
+            | "disconnect-failed"
+            | "composio-organization";
         }>
     > {
       if (path === "direct") {
@@ -1090,6 +1123,9 @@ export function createConnectSessions(host: () => ConnectHost) {
       const toolkit = composioToolkitOf(catalog(), appId);
       if (composio === null)
         return { kind: "blocked", reason: "disconnect-failed" };
+      // An account is removed in this Environment's organization only.
+      if (!(await inOwnOrganization(composio)))
+        return { kind: "blocked", reason: "composio-organization" };
       const before = await readComposioAccounts(composio.env, composio.command);
       if (
         before.state !== "ok" ||

@@ -25,9 +25,13 @@ export const integrationsHelp = `integrations list [--folder <absolute Folder>] 
   Executor, Composio), so a source that cannot be read is never taken for
   "nothing connected". Use an Integration where it is connected, in the
   order tool → Executor → Composio; never connect one yourself: send the
-  person the card's link. Read-only, but the tools' sign-in checks and
-  Composio may reach the network. Without --folder, the Environment's own
-  Folder. Exit status: 0 read, 2 usage or no Folder, 1 failure.`;
+  person the card's link. It connects and removes nothing. On an
+  Organization's Environment it makes the person's Composio organization of
+  the Organization's name current where another one is, and says so on
+  stderr (the operation and its outcome, never a name or an id); the tools'
+  sign-in checks and Composio may reach the network. Without --folder, the
+  Environment's own Folder. Exit status: 0 read, 2 usage or no Folder, 1
+  failure.`;
 
 export type IntegrationsCliContext = CliContext &
   Readonly<{
@@ -155,9 +159,13 @@ export async function runIntegrationsCommand(
             stderr: "No Folder known: name it with --folder <absolute Folder>.",
           }),
     };
+  // The Composio organization the reading makes current, journaled as the
+  // Launchpad journals it (decision F42, addendum (2) of 2026-10-13).
+  const journaled: string[] = [];
   try {
     const overview = await readIntegrations({
       folder,
+      journal: (entry) => journaled.push(JSON.stringify(entry)),
       tools: toolsEnvironmentOf(context.env, context.platform, runTool),
       executor:
         context.executorEndpoint !== undefined
@@ -177,6 +185,7 @@ export async function runIntegrationsCommand(
     return {
       code: exitOk,
       stdout: json ? JSON.stringify(overview) : integrationsText(overview),
+      ...(journaled.length === 0 ? {} : { stderr: journaled.join("\n") }),
     };
   } catch {
     return {

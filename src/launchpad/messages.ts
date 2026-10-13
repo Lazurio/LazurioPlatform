@@ -1128,6 +1128,8 @@ const en = {
   integrationsComposioOrganizationElsewhere:
     "Composio could not be switched to your organization “{name}”. Click Check connections to try again.",
   integrationsComposioOpen: "Open Composio",
+  integrationsComposioOrganizationChanged:
+    "Composio does not work in this Environment's organization now. Click Check connections.",
   composioModelTitle: "How this Environment uses Composio",
   composioModelAccount: "Your Composio account",
   composioModelAccountNote: "signed in with GitHub",
@@ -2502,6 +2504,8 @@ const cs: Record<MessageKey, string> = {
   integrationsComposioOrganizationElsewhere:
     "Composio se nepodařilo přepnout do vaší organizace „{name}“. Klikněte na Zkontrolovat připojení a zkuste to znovu.",
   integrationsComposioOpen: "Otevřít Composio",
+  integrationsComposioOrganizationChanged:
+    "Composio teď nepracuje v organizaci tohoto Environmentu. Klikněte na Zkontrolovat připojení.",
   composioModelTitle: "Jak tento Environment používá Composio",
   composioModelAccount: "Váš účet Composia",
   composioModelAccountNote: "přihlášení přes GitHub",

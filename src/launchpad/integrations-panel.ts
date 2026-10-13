@@ -372,7 +372,7 @@ export function createIntegrationsPanel(
     else if (reason === "composio-organization")
       note =
         (overview === null ? null : composioOrganizationLine(overview, copy)) ??
-        copy.integrationsConnectFailed;
+        copy.integrationsComposioOrganizationChanged;
     else note = copy.integrationsConnectFailed;
     render();
   }
@@ -457,6 +457,13 @@ export function createIntegrationsPanel(
         });
         const answer = (value ?? {}) as Record<string, unknown>;
         if (answer.kind === "disconnected") return null;
+        if (answer.reason === "composio-organization")
+          return (
+            (overview === null
+              ? null
+              : composioOrganizationLine(overview, copy)) ??
+            copy.integrationsComposioOrganizationChanged
+          );
         return answer.reason === "disconnect-unsupported"
           ? copy.integrationsDisconnectUnsupported
           : copy.integrationsDisconnectFailed;

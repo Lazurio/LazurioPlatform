@@ -350,7 +350,10 @@ when they signed up.
   Composio is installed, signed in, on and allowed), and the sign-in dialog of
   Settings → Tools after a sign-in, make an `elsewhere` organization current
   with `orgs switch`, journaled as `composio-organization` with its outcome and
-  nothing else. A person's choice is never changed.
+  nothing else (`lazurio integrations list` writes the line on stderr). Every
+  link and every removal asks it live first (`inOwnOrganization`), never the
+  cached reading, and refuses with `composio-organization` where it does not
+  match then. A person's choice is never changed.
 - **Where it does not match**, the Composio source reads `organization`: none of
   its accounts is listed (they are another organization's), a connect through
   Composio is refused (`409 composio-organization`), Apps → Integrace says what
@@ -437,7 +440,7 @@ keeps its last reading for a minute and reads again on "Zkontrolovat připojení
 | `POST /api/integrations/poll` | `{session}` | `pending`, `{kind: "connected", app}` or `{kind: "ended", reason: failed\|expired\|cancelled}`; 404 for an unknown session |
 | `POST /api/integrations/cancel` | `{session}` | `{kind: "cancelled"}`; an OAuth flow is cancelled in Executor too |
 | `GET /api/integrations/oauth/callback?state=…&code=…` | | an authorization server's return in the person's own browser (a Remote Environment): `state`, `code`, `error`, `error_description`, `domain` and `site`, each once and at most 8 KiB, are handed to Executor's callback once, only for a sign-in started here for this address that still waits (anything else stays here); a page saying how it went, without a script, a link or anything of the return (200), or that the sign-in is no longer valid (400 where no sign-in here has the state) |
-| `POST /api/integrations/disconnect` | `{app, path, account, confirm: true}` | `{kind: "disconnected"}`, `400 confirm-required` without `confirm: true`, or blocked `account-unknown`, `disconnect-unsupported`, `executor-unavailable`, `disconnect-failed` |
+| `POST /api/integrations/disconnect` | `{app, path, account, confirm: true}` | `{kind: "disconnected"}`, `400 confirm-required` without `confirm: true`, or blocked `account-unknown`, `disconnect-unsupported`, `executor-unavailable`, `disconnect-failed`, `composio-organization` |
 | `POST /api/integrations/custom/add` | STDIO `{type: "stdio", name, command, args: [string], env: [{name, value}], cwd?}`; Streamable HTTP `{type: "http", name, url, bearer?, headers: [{name, value}]}` | like connect; a remote server without keys that needs OAuth starts its sign-in; `400 {error: "invalid-server", problems}` for what the form refuses |
 | `GET /api/integrations/custom/server?id=<slug>` | | its edit form: `{kind: "custom-server", id, type, name, …}` with the command, the arguments and the working directory, or the address without userinfo or query, and its keys by name (`env`, `bearer`, `headers`), never a value; `409 account-unknown` for a catalog app's integration |
 | `POST /api/integrations/custom/update` | `{id, …}` as the add, a stored key's `value` (and `bearer`) `null` to keep it | `{kind: "saved", app}`, or `authorize` when the server now signs in; `409` `type-fixed`, `account-unknown`, `executor-unavailable`, `connect-failed`; `400 keys-required` when a kept key must come again (another key changed, or the address did), refused before any probe; `400 invalid-server` for what the form refuses |

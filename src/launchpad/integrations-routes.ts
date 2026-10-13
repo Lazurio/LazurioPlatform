@@ -5,7 +5,10 @@ import { readFolderState } from "../folder/read-state";
 import { ownDataValue, stateFields } from "../folder/state-fields";
 import { integrationsCatalog } from "../integrations/catalog";
 import type { IntegrationsCatalog } from "../integrations/catalog-schema";
-import type { ComposioOrganizationRule } from "../integrations/composio-organization";
+import {
+  type ComposioOrganizationRule,
+  folderComposioOrganizationRule,
+} from "../integrations/composio-organization";
 import {
   accountName,
   type ConnectHost,
@@ -186,6 +189,11 @@ export function createIntegrationsRoutes(
       },
       environmentBrowser: seams.environmentBrowser,
       oauthCallback: seams.oauthCallback ?? null,
+      // Asked live before every Composio link and removal (decision F42,
+      // addendum (2) of 2026-10-13).
+      composioOrganization: async () =>
+        seams.composioOrganization ??
+        (await folderComposioOrganizationRule(input.folder)),
       ...(seams.catalog === undefined ? {} : { catalog: seams.catalog }),
       ...(input.journal === undefined ? {} : { journal: input.journal }),
     };

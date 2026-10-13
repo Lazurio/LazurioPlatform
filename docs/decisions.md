@@ -6953,9 +6953,12 @@ reference is [integrations](integrations.md#the-composio-organization-of-an-envi
 2. **The Launchpad brings it current.** The reading, and the sign-in dialog of
    Settings → Tools after a sign-in, make the organization of that name current
    with the CLI's `orgs switch` where another one is, so that agents using
-   Composio work in it too. The switch is journaled as `composio-organization`
-   with its outcome, nothing else. Where the person chooses, nothing is read or
-   changed.
+   Composio work in it too. Every link and every removal through Composio asks
+   it live first, never the page's reading, which may be a minute old while the
+   CLI's choice changed (Pablo's review of #372). The switch is journaled as
+   `composio-organization` with its outcome, nothing else; `lazurio
+   integrations list` writes that line on stderr. Where the person chooses,
+   nothing is read or changed.
 3. **Nothing of another organization counts.** Where the account has no
    organization of that name, or more than one (none is guessed), or the switch
    failed, the Composio source reads `organization`. None of its accounts is
@@ -6998,9 +7001,12 @@ without a name or an id, its accounts listed with "Spravovat v Composiu" in that
 organization, and a second reading switching nothing; without the organization,
 no account listed, a connect through Composio refused with nothing linked or
 switched, and the agents' text saying why; two organizations of the name, none
-chosen; and where the person chooses, no organization read or changed (the same
-file); the sign-in dialog's answer naming no rule on a computer
-(`tests/launchpad-curated.test.ts`).
+chosen; and where the person chooses, no organization read or changed; a link
+and a removal after the organization was switched away behind the reading made
+in this Environment's organization again, switched back first, and refused with
+nothing written where it is gone since; `lazurio integrations list` journaling
+its switch on stderr without a name or an id (the same file); the sign-in
+dialog's answer naming no rule on a computer (`tests/launchpad-curated.test.ts`).
 
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
