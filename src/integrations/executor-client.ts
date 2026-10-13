@@ -22,7 +22,9 @@ import { readOwnerOnlyFileBytes } from "../providers/owned-json";
 //   of the environment (HTTP_PROXY, ALL_PROXY, NODE_USE_ENV_PROXY) ever sees
 //   the token, as Bun's `fetch` would let it;
 // - follows no redirect, bounds the time and the size of every answer and
-//   parses only JSON; the caller checks the exact shape.
+//   parses only JSON; the caller checks the exact shape. The one page it
+//   asks for, Executor's callback after an authorization server's return,
+//   is dropped unread.
 
 /** Executor's port as `executor install` serves it. */
 export const executorPort = 4789;
@@ -199,6 +201,47 @@ export const directTransport: ExecutorTransport = (input) =>
     outgoing.end();
   });
 
+/** The token, once the listener of the port and the token file are proven
+ * this account's; why not otherwise. */
+async function proven(
+  host: ExecutorEndpoint,
+): Promise<string | Extract<ExecutorResult, { kind: "unavailable" }>> {
+  if (!(await host.ownsListener(host.port)))
+    return { kind: "unavailable", reason: "listener-unproven" };
+  const token = await readToken(host);
+  if (token === "missing")
+    return { kind: "unavailable", reason: "token-missing" };
+  if (token === "unreadable")
+    return { kind: "unavailable", reason: "token-unreadable" };
+  return token;
+}
+
+/** One request to Executor's API with a proven token: `path` below `/api`,
+ * a JSON body or none. It goes out in the turn this is called. */
+function send(
+  host: ExecutorEndpoint,
+  token: string,
+  method: "GET" | "POST" | "PATCH" | "DELETE",
+  path: string,
+  body: unknown,
+  timeoutMs: number,
+  accept: string,
+): ReturnType<ExecutorTransport> {
+  return (host.transport ?? directTransport)({
+    method,
+    port: host.port,
+    path: `/api${path}`,
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept,
+      ...(body === undefined ? {} : { "content-type": "application/json" }),
+    },
+    body: body === undefined ? null : JSON.stringify(body),
+    timeoutMs,
+    maxBytes: answerBytesMax,
+  });
+}
+
 /** One call of Executor's API: `path` below `/api`, a JSON body or none. */
 export async function executorCall(
   host: ExecutorEndpoint,
@@ -209,26 +252,17 @@ export async function executorCall(
 ): Promise<ExecutorResult> {
   if (!path.startsWith("/") || path.startsWith("//"))
     throw new Error("An Executor API path");
-  if (!(await host.ownsListener(host.port)))
-    return { kind: "unavailable", reason: "listener-unproven" };
-  const token = await readToken(host);
-  if (token === "missing")
-    return { kind: "unavailable", reason: "token-missing" };
-  if (token === "unreadable")
-    return { kind: "unavailable", reason: "token-unreadable" };
-  const answer = await (host.transport ?? directTransport)({
+  const token = await proven(host);
+  if (typeof token !== "string") return token;
+  const answer = await send(
+    host,
+    token,
     method,
-    port: host.port,
-    path: `/api${path}`,
-    headers: {
-      authorization: `Bearer ${token}`,
-      accept: "application/json",
-      ...(body === undefined ? {} : { "content-type": "application/json" }),
-    },
-    body: body === undefined ? null : JSON.stringify(body),
+    path,
+    body,
     timeoutMs,
-    maxBytes: answerBytesMax,
-  });
+    "application/json",
+  );
   if (answer.kind === "failed") return answer;
   if (answer.status >= 300 && answer.status < 400)
     return { kind: "failed", reason: "redirect" };
@@ -243,4 +277,57 @@ export async function executorCall(
   } catch {
     return { kind: "failed", reason: "not-json" };
   }
+}
+
+/** The parameters of an authorization server's return that Executor's own
+ * callback reads (Executor 1.6.10, `GET /api/oauth/callback`): the flow's
+ * state, the code or the error, and the region hints of a multi-site
+ * server. */
+export const oauthReturnParameters = [
+  "state",
+  "code",
+  "error",
+  "error_description",
+  "domain",
+  "site",
+] as const;
+
+/** Hands an authorization server's return to Executor's own callback, as a
+ * browser on the Environment would (decision F42, addendum of 2026-10-13):
+ * Executor exchanges the code and answers its own popup page, which is
+ * dropped unread; the outcome comes from `GET /api/oauth/await/<state>`.
+ * Delivered on any 2xx: Executor's page answers a failed exchange too.
+ * `proceed` is asked once the listener and the token are proven, in the
+ * turn the request goes out: a sign-in cancelled or expired meanwhile is
+ * withheld, never sent. */
+export async function executorOAuthReturn(
+  host: ExecutorEndpoint,
+  parameters: Readonly<
+    Partial<Record<(typeof oauthReturnParameters)[number], string>>
+  >,
+  timeoutMs: number,
+  proceed: () => boolean,
+): Promise<"delivered" | "withheld" | "unavailable" | "failed"> {
+  const query = new URLSearchParams();
+  for (const key of oauthReturnParameters) {
+    const value = parameters[key];
+    if (value !== undefined) query.set(key, value);
+  }
+  const token = await proven(host);
+  if (typeof token !== "string") return "unavailable";
+  // Asked in the turn the request goes out: nothing can end the sign-in
+  // between this answer and the request.
+  if (!proceed()) return "withheld";
+  const answer = await send(
+    host,
+    token,
+    "GET",
+    `/oauth/callback?${query}`,
+    undefined,
+    timeoutMs,
+    "text/html",
+  );
+  return answer.kind === "answer" && answer.status >= 200 && answer.status < 300
+    ? "delivered"
+    : "failed";
 }

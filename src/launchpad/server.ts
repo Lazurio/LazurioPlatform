@@ -179,14 +179,16 @@ export type HostedOptions = Readonly<{
   ownerKey?: () => Promise<string | null>;
 }>;
 
-/** Where a direct sign-in of an Integrace opens (decision F42): Executor's
- * OAuth returns to localhost, so on a Remote Environment the person signs in
- * in the Environment browser, a new tab the panel shows; a workstation (no
- * entry) answers null and the person's own browser opens the address. An
- * entry whose gateway routes no browser view has none to offer. The tab is
- * the hub's like every other (root decision 0191's addendum of 2026-10-12,
- * F47 point 6): its own window, opened from Nová karta of the Launchpad's
- * strip. */
+/** Where a direct sign-in of an Integrace opens when its authorization
+ * server returns only to Executor's callback on localhost (decision F42 and
+ * its addendum of 2026-10-13; one that takes the Launchpad's own address
+ * returns to the person's own browser instead): on a Remote Environment the
+ * person signs in in the Environment browser, a new tab the panel shows; a
+ * workstation (no entry) answers null and the person's own browser opens
+ * the address. An entry whose gateway routes no browser view has none to
+ * offer. The tab is the hub's like every other (root decision 0191's
+ * addendum of 2026-10-12, F47 point 6): its own window, opened from Nová
+ * karta of the Launchpad's strip. */
 export function environmentBrowserOf(
   entry: MachineEntry | null,
   hold: (target: string) => Promise<void>,
@@ -625,6 +627,15 @@ export async function startLaunchpad(
         integrationSeams?.environmentBrowser !== undefined
           ? integrationSeams.environmentBrowser
           : environmentBrowserOf(entry, launchpadHoldOf(holder)),
+      // A direct sign-in returns to the Launchpad in the person's own
+      // browser, through the gateway it passes to reach the Launchpad
+      // (decision F42, addendum of 2026-10-13).
+      oauthCallback:
+        integrationSeams?.oauthCallback !== undefined
+          ? integrationSeams.oauthCallback
+          : entry === null
+            ? null
+            : `${entry.externalOrigin}/api/integrations/oauth/callback`,
       // Whether Lazurio sets Executor up here: F44's context of this
       // Launchpad's Executor host.
       executorContext:

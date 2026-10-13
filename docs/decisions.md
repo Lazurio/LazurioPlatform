@@ -6329,7 +6329,9 @@ preferences), which was never merged. The reference is
    the Environment, so on a Remote Environment the person signs in in the
    Environment browser (a tab the right panel shows) and on their own computer in
    their own browser; a Remote Environment without the Environment browser says it
-   cannot. The console token is read for each call from an owner-only regular file,
+   cannot. *Amended 2026-10-13 (addendum below):* on a Remote Environment a server
+   that registers the Launchpad's own address returns the person's own browser to
+   the Launchpad, and the Environment browser stays only where that cannot work. The console token is read for each call from an owner-only regular file,
    sent only after the listener of the port is proven this account's, over
    `node:http` so that no proxy of the environment sees it, and never answered,
    logged or kept. A custom server's key goes from the page to the Launchpad once
@@ -6647,6 +6649,66 @@ the first link's answer held, each keeping its own account whichever is cancelle
 true with it; `lazurio integrations list` naming the expired app under "Not working"
 (`tests/integrations-routes.test.ts`); the "⋯" menu without "Odpojit" where the CLI
 cannot remove (`tests/integrations-page.test.ts`).
+
+
+**Addendum 2026-10-13, asked for by the Organization Admin: a direct sign-in opens in
+the person's own browser.** On a Remote Environment, connecting an app directly
+(ClickUp) opened its sign-in in a new tab of the Environment browser, not in the
+browser of the person's own computer, where they use the Launchpad and have their
+passwords, passkeys and second factor. The person asked for sign-ins in their own
+browser wherever that can work. The reference is
+[integrations](integrations.md#executor-api-executor-1610).
+
+1. **The Launchpad's own address for the return.** On a Remote Environment the
+   Launchpad registers Executor's client with the authorization server for its own
+   address, `<entry>/api/integrations/oauth/callback` (dynamic client registration
+   with that `redirectUri`), and starts the flow for it. The person signs in in a
+   window of the browser they use the Launchpad in. The server returns that window
+   to the Launchpad through the gateway it already passes (the gateway's session
+   cookie is `SameSite=Lax`, sent on that top-level navigation), and the Launchpad
+   hands the return to Executor's own callback (`GET /api/oauth/callback`, the code
+   path of a return on localhost): Executor exchanges the code, syncs the tools in
+   the background, and its long poll tells the outcome as before. The window then
+   says how the sign-in went.
+2. **Only a sign-in started here.** The Launchpad hands on only what Executor's
+   callback reads (`state`, `code`, `error`, `error_description`, `domain`, `site`),
+   each once and bounded, and only for a sign-in this Launchpad started for its own
+   address that still waits. Anything else gets a page saying that the sign-in is no
+   longer valid, and Executor never hears of it; a reload hands nothing on again.
+   The page has no script and no link and shows nothing of the return.
+3. **The Environment browser where that cannot work.** A server that refuses the
+   Launchpad's address (some register only loopback addresses, RFC 8252, as
+   Vercel's does) or registers no client dynamically (Executor's client ID metadata
+   document lists only loopback addresses) keeps the way of point 2: Executor's
+   client for its callback on localhost, and the sign-in in the Environment browser.
+   Where a server offers both, the person's own browser wins: dynamic registration
+   for the Launchpad's address comes before the metadata document. A workstation is
+   unchanged: Executor's callback on localhost is the person's own.
+4. **One window, claimed in the click.** The page opens a window of this browser in
+   the click for every sign-in, on every Environment, and closes it again where the
+   answer is the Environment browser's view or a connection without sign-in. Once
+   the app is connected, the page closes the window the sign-in used, Composio's
+   too; Composio's sign-in already opened in the person's own browser (point 3).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep every direct sign-in in the Environment browser | One way for every server; but the person signs in to their apps in a browser that is not theirs, which the Admin asked to change; rejected |
+| A client ID metadata document of Lazurio's listing every Environment's address | Would cover servers with only a metadata document; but a public document on an address the gateway does not guard, a new mechanism for servers the catalog does not have; rejected |
+| Complete through `POST /api/oauth/complete` | A typed JSON answer; but it waits for the tool sync (a slow server keeps the window waiting, a failing sync fails a connection Executor already stored) and tells no long poll; rejected: Executor's own callback |
+
+Verified by tests: on a Remote Environment a direct sign-in answers an address for the
+person's browser, registers and starts the flow for the Launchpad's address, and its
+return (with a server's own parameters beside Executor's) reaches Executor's callback
+exactly once with only what it reads, answers a page without the code or a script
+that says the app is connected, and connects the account, a reload handing nothing on
+again; a refusal at the server returns, ends the sign-in and says so in Czech; a
+server that registers only loopback addresses registers Executor's own callback after
+the refusal and keeps the Environment browser, whose state never returns through the
+Launchpad; dynamic registration preferred to a metadata document, and a server with
+only the document in the Environment browser; a return without a state, with an
+unknown or repeated one, an oversized code or a cancelled sign-in, and a POST, never
+reaching Executor; a return Executor cannot take ending the sign-in, said on the page
+(`tests/integrations-routes.test.ts`).
 
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 

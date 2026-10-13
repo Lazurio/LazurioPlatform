@@ -467,16 +467,16 @@ const files = createFilesPanel({
   copy: () => copy,
   locale: () => locale,
 });
-// Apps → Integrace (decision F42): the apps of this Environment. A direct
-// sign-in opens in the Environment browser's panel on a Remote Environment
-// and in a window of this browser on the person's own computer.
+// Apps → Integrace (decision F42): the apps of this Environment. A sign-in
+// opens in a window of this browser, and in the Environment browser's panel
+// only where a direct sign-in can return to Executor alone on a Remote
+// Environment (its addendum of 2026-10-13).
 const integrations = createIntegrationsPanel({
   get: (path) => get(path),
   post: (path, body) => post(path, body),
   copy: () => copy,
   locale: () => locale,
   navigate: (path) => shell.navigate(path),
-  hosted: () => entry !== null,
   showBrowser: (view) => {
     if (!browser.showView(view))
       window.open(view, "_blank", "noopener,noreferrer");

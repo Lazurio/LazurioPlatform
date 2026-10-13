@@ -141,17 +141,26 @@ facts below were read from the source of tag `v1.6.10` on 2026-10-09
 | `GET /api/tools?integration=<slug>` | its tools (counted for a custom server) |
 | `POST /api/oauth/probe` | `{url}` → `{authorizationUrl, tokenUrl, registrationEndpoint?, resource?, scopesSupported?, issuer?, clientIdMetadataDocumentSupported?, …}` |
 | `POST /api/oauth/clients` | a public client of the client ID metadata document `https://executor.sh/api/oauth/client-id-metadata/local.json` (loopback redirect URIs on any port), `clientSecret: ""`; replaces a client of the same `(owner, slug)` |
-| `POST /api/oauth/clients/register-dynamic` | RFC 7591 registration, reused when it matches; `redirectUri` `http://localhost:4789/api/oauth/callback`, `clientName` `Lazurio` |
-| `POST /api/oauth/start` | `{client, clientOwner, owner, name, integration, template, newConnection?, identityLabel?}` → `{status: "redirect", authorizationUrl, state}` |
+| `POST /api/oauth/clients/register-dynamic` | RFC 7591 registration, reused when it matches the exact `redirectUri`: the Launchpad's `<entry>/api/integrations/oauth/callback` on a Remote Environment, else (or after the server refused it, 400) `http://localhost:4789/api/oauth/callback`; `clientName` `Lazurio` |
+| `POST /api/oauth/start` | `{client, clientOwner, owner, name, integration, template, newConnection?, identityLabel?, redirectUri?}` → `{status: "redirect", authorizationUrl, state}`; `redirectUri` the address the client was registered with, Executor's own callback without it |
+| `GET /api/oauth/callback?state=…&code=…` | Executor's own callback (`error`, `error_description`, `domain`, `site` too): exchanges the code, syncs the tools in the background, tells the long poll and answers its popup page, on a failure too |
 | `GET /api/oauth/await/<state>` | a long poll of up to 25 s: `null` (pending) or `{type: "executor:oauth-result", ok, …}`, answered once |
 | `POST /api/oauth/cancel` | `{state}` |
 
 Executor's OAuth callback is `http://localhost:4789/api/oauth/callback` on the
-Environment. So the person signs in where that address is the Environment's
-own: in the Environment browser on a Remote Environment (the Launchpad opens the
-authorization URL there with `Target.createTarget` and shows its view in the
-right panel) and in their own browser on their computer. A Remote Environment
-without the Environment browser cannot finish a direct sign-in, and says so.
+Environment, reachable only from a browser there. So on a Remote Environment the
+Launchpad registers the client for its own address instead,
+`<entry>/api/integrations/oauth/callback` (decision F42, addendum of 2026-10-13):
+the person signs in in a window of their own browser, the server returns it to the
+Launchpad through the gateway (whose session cookie is `SameSite=Lax`, sent on that
+top-level navigation), and the Launchpad hands the return to Executor's callback.
+A server that refuses that address (some register only loopback addresses, RFC
+8252) or offers only a client ID metadata document (whose addresses are loopback)
+returns to Executor's callback on localhost, so the person signs in where that
+address is the Environment's own: in the Environment browser on a Remote
+Environment (the Launchpad opens the authorization URL there and shows its view in
+the right panel) and in their own browser on their computer. A Remote Environment
+without the Environment browser cannot finish such a sign-in, and says so.
 Connections are created with owner `org`: the Environment is one boundary.
 
 **Which integration is an app's.** Only a remote MCP server at the catalog's
@@ -388,6 +397,7 @@ keeps its last reading for a minute and reads again on "Zkontrolovat připojení
 | `POST /api/integrations/connect` | `{app, name?, account?}` | `{kind: "authorize", session, url}` (a window of this browser), `{kind: "authorize", session, view}` (the Environment browser's tab), `{kind: "connected", app}`, or `409 {kind: "blocked", reason}`: `app-unknown`, `path-unavailable`, `composio-signed-out`, `name-required`, `name-taken`, `account-unknown`, `executor-unavailable`, `browser-unavailable`, `integration-conflict` (Executor holds the app's slug for another server), `still-failing` (Executor cannot use the account, read back after the attempt), `connect-failed` |
 | `POST /api/integrations/poll` | `{session}` | `pending`, `{kind: "connected", app}` or `{kind: "ended", reason: failed\|expired\|cancelled}`; 404 for an unknown session |
 | `POST /api/integrations/cancel` | `{session}` | `{kind: "cancelled"}`; an OAuth flow is cancelled in Executor too |
+| `GET /api/integrations/oauth/callback?state=…&code=…` | | an authorization server's return in the person's own browser (a Remote Environment): `state`, `code`, `error`, `error_description`, `domain` and `site`, each once and at most 8 KiB, are handed to Executor's callback once, only for a sign-in started here for this address that still waits (anything else stays here); a page saying how it went, without a script, a link or anything of the return (200), or that the sign-in is no longer valid (400 where no sign-in here has the state) |
 | `POST /api/integrations/disconnect` | `{app, path, account, confirm: true}` | `{kind: "disconnected"}`, `400 confirm-required` without `confirm: true`, or blocked `account-unknown`, `disconnect-unsupported`, `executor-unavailable`, `disconnect-failed` |
 | `POST /api/integrations/custom/add` | STDIO `{type: "stdio", name, command, args: [string], env: [{name, value}], cwd?}`; Streamable HTTP `{type: "http", name, url, bearer?, headers: [{name, value}]}` | like connect; a remote server without keys that needs OAuth starts its sign-in; `400 {error: "invalid-server", problems}` for what the form refuses |
 | `GET /api/integrations/custom/server?id=<slug>` | | its edit form: `{kind: "custom-server", id, type, name, …}` with the command, the arguments and the working directory, or the address without userinfo or query, and its keys by name (`env`, `bearer`, `headers`), never a value; `409 account-unknown` for a catalog app's integration |

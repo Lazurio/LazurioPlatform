@@ -51,11 +51,27 @@ export type FakeExecutor = Readonly<{
   probes: Map<string, { requiresOAuth: boolean; authorization?: string }>;
   /** Every call: method, path and whether it carried the right token. */
   calls: { method: string; path: string; authorized: boolean; body: unknown }[];
-  /** The OAuth flows started and not finished: state → connection. */
+  /** The OAuth flows started and not finished: state → connection, and
+   * the address the authorization server returns it to (null: Executor's
+   * own callback). */
   flows: Map<
     string,
-    { integration: string; name: string; label: string | null }
+    {
+      integration: string;
+      name: string;
+      label: string | null;
+      redirectUri: string | null;
+    }
   >;
+  /** The authorization server every OAuth integration signs in with, as
+   * Executor's probe reads it: whether it registers clients dynamically,
+   * reads a client ID metadata document, and registers only loopback
+   * redirects (RFC 8252, as Vercel's does). */
+  authorizationServer: {
+    registration: boolean;
+    metadataDocument: boolean;
+    loopbackOnly: boolean;
+  };
   /** The person signs in (or not) at the authorization URL of `state`. */
   finish: (state: string, ok: boolean) => void;
   stop: () => Promise<void>;
@@ -132,6 +148,11 @@ export async function startFakeExecutor(
   const calls: FakeExecutor["calls"] = [];
   const flows: FakeExecutor["flows"] = new Map();
   const results = new Map<string, unknown>();
+  const authorizationServer: FakeExecutor["authorizationServer"] = {
+    registration: true,
+    metadataDocument: false,
+    loopbackOnly: false,
+  };
   let nextState = 1;
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -496,14 +517,36 @@ export async function startFakeExecutor(
           issuer: "https://auth.example.test",
           authorizationUrl: "https://auth.example.test/authorize",
           tokenUrl: "https://auth.example.test/token",
-          registrationEndpoint: "https://auth.example.test/register",
+          ...(authorizationServer.registration
+            ? { registrationEndpoint: "https://auth.example.test/register" }
+            : {}),
+          ...(authorizationServer.metadataDocument
+            ? { clientIdMetadataDocumentSupported: true }
+            : {}),
           scopesSupported: ["read"],
         });
       if (
         request.method === "POST" &&
         path === "/oauth/clients/register-dynamic"
-      )
+      ) {
+        // Executor 1.6.10 answers the server's refusal as its
+        // OAuthRegisterDynamicError, 400.
+        if (
+          authorizationServer.loopbackOnly &&
+          !/^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(
+            String(input.redirectUri),
+          )
+        )
+          return json(
+            {
+              _tag: "OAuthRegisterDynamicError",
+              message:
+                "Automatic OAuth setup failed: this server only approves loopback redirect URLs",
+            },
+            400,
+          );
         return json({ client: input.slug });
+      }
       if (request.method === "POST" && path === "/oauth/clients")
         return json({ client: { slug: input.slug } });
       if (request.method === "POST" && path === "/oauth/start") {
@@ -515,6 +558,8 @@ export async function startFakeExecutor(
             typeof input.identityLabel === "string"
               ? input.identityLabel
               : null,
+          redirectUri:
+            typeof input.redirectUri === "string" ? input.redirectUri : null,
         });
         if (autoFinishMs !== undefined)
           setTimeout(() => {
@@ -529,6 +574,28 @@ export async function startFakeExecutor(
       if (request.method === "POST" && path === "/oauth/cancel") {
         flows.delete(String(input.state));
         return json({});
+      }
+      // Executor's own callback: the code exchanged (any code will do here)
+      // or the server's error, its outcome told to the long poll, and its
+      // popup page answered whatever happened.
+      if (request.method === "GET" && path === "/oauth/callback") {
+        const state = url.searchParams.get("state") ?? "";
+        if (flows.has(state))
+          finish(
+            state,
+            url.searchParams.get("code") !== null &&
+              url.searchParams.get("error") === null,
+          );
+        else
+          results.set(state, {
+            type: "executor:oauth-result",
+            ok: false,
+            sessionId: state,
+            error: "OAuth session not found",
+          });
+        return new Response("<!doctype html><title>Executor</title>", {
+          headers: { "content-type": "text/html; charset=utf-8" },
+        });
       }
       const awaited = /^\/oauth\/await\/([^/]+)$/.exec(path);
       if (request.method === "GET" && awaited !== null) {
@@ -575,6 +642,7 @@ export async function startFakeExecutor(
     probes,
     calls,
     flows,
+    authorizationServer,
     finish,
     stop: async () => {
       await server.stop(true);
