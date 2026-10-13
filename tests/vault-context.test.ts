@@ -1,20 +1,21 @@
 import { expect, test } from "bun:test";
 import { parseMachineContext } from "../src/machine/context";
+import { vaultContextOf, vaultStateDirectory } from "../src/vault/context";
+import { pilotContextOf, pilotVaultOf } from "../src/vault/legacy-0197/context";
 import {
-  collectionNameOf,
-  environmentNameOf,
-  isEnvironmentCollection,
-  vaultContextOf,
-  vaultOriginOf,
-  vaultStateDirectory,
-} from "../src/vault/context";
+  ownAccount,
+  vaultMember,
+  vaultName,
+  workAccount,
+} from "./fixtures/fake-vault";
 import { assignments, handoverEntry } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
 
-// The Environment vault's facts (decision F43): the vault from the handover's
-// tailnet control server, the account from the Environment's address, the
-// collection from its name and machine. Invented hosts only.
+// The Environment's vault facts (decision F52): everything from the
+// handover's `vault` member, nothing derived or guessed; and the 0197 pilot's
+// facts, derived as F43 derived them, only where the handover names no
+// vault. Invented hosts only.
 
 const network = {
   headscale_server_url: "https://headscale.example.lazurio.io",
@@ -22,30 +23,71 @@ const network = {
 };
 const handover = (document: unknown) =>
   parseMachineContext(Buffer.from(JSON.stringify(document)));
-const personalVm = handover({
-  ...personal,
-  network,
-  entry: handoverEntry("example.lazurio.io"),
-});
 const { team: _, ...withoutTeam } = organization.owner;
-const workVm = handover({
-  ...organization,
-  owner: { ...withoutTeam, assignment: assignments.operator },
-  network: { ...network, headscale_hostname: "example-workspace" },
-  entry: handoverEntry("workspace.example.lazurio.io"),
-});
-const teamVm = handover({
-  ...organization,
-  owner: { ...organization.owner, assignment: assignments.team },
-  network: { ...network, headscale_hostname: "example-workspace" },
-  entry: handoverEntry("workspace.example.lazurio.io"),
+const personalVm = (vault: unknown = vaultMember()) =>
+  handover({
+    ...personal,
+    network,
+    entry: handoverEntry("example.lazurio.io"),
+    ...(vault === null ? {} : { vault }),
+  });
+const workVm = (vault: unknown = vaultMember(workAccount, "Example work")) =>
+  handover({
+    ...organization,
+    owner: { ...withoutTeam, assignment: assignments.operator },
+    network: { ...network, headscale_hostname: "example-workspace" },
+    entry: handoverEntry("workspace.example.lazurio.io"),
+    ...(vault === null ? {} : { vault }),
+  });
+
+test("a personal Remote Environment's vault is exactly the handover's member", () => {
+  expect(
+    vaultContextOf({ handover: personalVm(), environment: "personal" }),
+  ).toEqual({
+    kind: "own",
+    vault: "https://vaultwarden.example.lazurio.io",
+    host: "vaultwarden.example.lazurio.io",
+    account: ownAccount,
+    name: vaultName,
+    environment: "personal",
+    organization: null,
+  });
 });
 
-test("the vault of a network is vaultwarden.<zone> of its headscale.<zone>, nothing else", () => {
-  expect(vaultOriginOf("https://headscale.example.lazurio.io")).toBe(
+test("a work, Team or Automated Environment's vault names the Organization that owns it", () => {
+  for (const environment of ["work", "team", "automated"] as const)
+    expect(vaultContextOf({ handover: workVm(), environment })).toEqual({
+      kind: "own",
+      vault: "https://vaultwarden.example.lazurio.io",
+      host: "vaultwarden.example.lazurio.io",
+      account: workAccount,
+      name: "Example work",
+      environment,
+      organization: "example",
+    });
+});
+
+test("without the member the Environment has no vault yet, whatever else the handover says", () => {
+  for (const document of [personalVm(null), workVm(null)])
+    expect(
+      vaultContextOf({ handover: document, environment: "personal" }),
+    ).toEqual({ kind: "unsupported", reason: "no-vault" });
+  // Neither the tailnet nor the address derives a vault any more.
+  const { entry: _entry, ...noEntry } = {
+    ...personal,
+    network,
+    vault: vaultMember(),
+  } as Record<string, unknown>;
+  expect(
+    vaultContextOf({ handover: handover(noEntry), environment: "personal" }),
+  ).toMatchObject({ kind: "own", account: ownAccount });
+});
+
+test("the pilot's vault is vaultwarden.<zone> of its headscale.<zone>, nothing else", () => {
+  expect(pilotVaultOf("https://headscale.example.lazurio.io")).toBe(
     "https://vaultwarden.example.lazurio.io",
   );
-  expect(vaultOriginOf("https://headscale.example.lazurio.io/")).toBe(
+  expect(pilotVaultOf("https://headscale.example.lazurio.io/")).toBe(
     "https://vaultwarden.example.lazurio.io",
   );
   for (const refused of [
@@ -59,154 +101,90 @@ test("the vault of a network is vaultwarden.<zone> of its headscale.<zone>, noth
     "https://xheadscale.example.lazurio.io",
     "not a url",
   ])
-    expect([refused, vaultOriginOf(refused)]).toEqual([refused, null]);
+    expect([refused, pilotVaultOf(refused)]).toEqual([refused, null]);
 });
 
-test("a personal Remote Environment: its slug, its kind's name, the person's network", () => {
+test("the pilot's account is vaultwarden@<address>, and without an address or a vault there is no pilot", () => {
   expect(
-    vaultContextOf({ handover: personalVm, kind: "personal", label: null }),
+    pilotContextOf({ handover: personalVm(null), environment: "personal" }),
   ).toEqual({
+    kind: "pilot",
     vault: "https://vaultwarden.example.lazurio.io",
     host: "vaultwarden.example.lazurio.io",
     address: "example.lazurio.io",
     account: "vaultwarden@example.lazurio.io",
-    machine: "example",
-    kind: "personal",
-    name: "Osobní",
-    collection: "Environmenty/Osobní · example",
-    // A person owns it: no Organization's application reads its secrets.
+    environment: "personal",
     organization: null,
   });
-});
-
-test("a work, Team and Automated Environment: <machine>.<org> and the name the rail gives it", () => {
   expect(
-    vaultContextOf({ handover: workVm, kind: "work", label: null }),
+    pilotContextOf({ handover: workVm(null), environment: "work" }),
   ).toMatchObject({
     address: "workspace.example.lazurio.io",
     account: "vaultwarden@workspace.example.lazurio.io",
-    machine: "workspace",
-    name: "Pracovní",
-    collection: "Environmenty/Pracovní · workspace",
-    // The handover's owning Organization (decision F46).
     organization: "example",
   });
-  expect(
-    vaultContextOf({ handover: teamVm, kind: "team", label: "Team Sales" }),
-  ).toMatchObject({
-    name: "Team Sales",
-    collection: "Environmenty/Team Sales · workspace",
-  });
-  // Without the catalog's label: the kind's name, as the rail shows it.
-  expect(
-    vaultContextOf({ handover: teamVm, kind: "team", label: null }),
-  ).toMatchObject({ collection: "Environmenty/Týmový · workspace" });
-  expect(
-    vaultContextOf({ handover: workVm, kind: "automated", label: "Steward" }),
-  ).toMatchObject({ collection: "Environmenty/Steward · workspace" });
-});
-
-test("without an entry, a tailnet or a known vault the context fails closed", () => {
   const { entry: _entry, ...noEntry } = { ...personal, network } as Record<
     string,
     unknown
   >;
-  for (const [document, reason] of [
-    [noEntry, "no-address"],
-    [
-      {
-        ...personal,
-        network: {
-          ...network,
-          headscale_server_url: "https://network.example.invalid",
-        },
-        entry: handoverEntry("example.lazurio.io"),
+  for (const document of [
+    noEntry,
+    {
+      ...personal,
+      network: {
+        ...network,
+        headscale_server_url: "https://network.example.invalid",
       },
-      "vault-unknown",
-    ],
+      entry: handoverEntry("example.lazurio.io"),
+    },
     // A personal VM whose entry names an Organization's address.
-    [
-      {
-        ...personal,
-        network,
-        entry: handoverEntry("workspace.example.lazurio.io"),
-      },
-      "no-address",
-    ],
-    // An entry outside lazurio.io.
-    [
-      { ...personal, network, entry: handoverEntry("example.example.invalid") },
-      "no-address",
-    ],
-  ] as const)
+    {
+      ...personal,
+      network,
+      entry: handoverEntry("workspace.example.lazurio.io"),
+    },
+    { ...personal, network, entry: handoverEntry("example.example.invalid") },
+  ])
     expect(
-      vaultContextOf({
+      pilotContextOf({
         handover: handover(document),
-        kind: "personal",
-        label: null,
+        environment: "personal",
       }),
-    ).toEqual({ kind: "unsupported", reason });
-  const { network: _network, ...noNetwork } = organization;
-  expect(
-    vaultContextOf({
-      handover: handover({
-        ...noNetwork,
-        entry: handoverEntry("workspace.example.lazurio.io"),
-      }),
-      kind: "work",
-      label: null,
-    }),
-  ).toEqual({ kind: "unsupported", reason: "no-network" });
+    ).toBeNull();
 });
 
-test("the collection is the Environment's by its machine; a label that would nest is not used", () => {
-  expect(collectionNameOf("Osobní", "example")).toBe(
-    "Environmenty/Osobní · example",
-  );
-  const context = { machine: "workspace" };
-  for (const [name, own] of [
-    ["Environmenty/Pracovní · workspace", true],
-    ["Environmenty/Team Sales · workspace", true],
-    ["Environmenty/ · workspace", false],
-    ["Environmenty/Pracovní · workspace-2", false],
-    ["Infrastruktura", false],
-    ["Pracovní · workspace", false],
-  ] as const)
-    expect([name, isEnvironmentCollection(name, context)]).toEqual([name, own]);
-  expect(environmentNameOf("team", "Sales/EU")).toBe("Týmový");
-  expect(environmentNameOf("team", " ")).toBe("Týmový");
-  expect(environmentNameOf("team", "Team\u0007")).toBe("Týmový");
-  expect(environmentNameOf("automated", "Steward")).toBe("Steward");
-});
-
-test("the account's state directory is its whole identity and follows XDG_STATE_HOME when it is absolute", () => {
-  const identity = {
-    host: "vaultwarden.example.lazurio.io",
-    address: "workspace.example.lazurio.io",
-  };
-  expect(vaultStateDirectory(identity, "/home/operator", {})).toBe(
-    "/home/operator/.local/state/lazurio/vault/vaultwarden.example.lazurio.io/workspace.example.lazurio.io",
+test("the account's state directory is keyed by the vault and the account, follows XDG_STATE_HOME when it is absolute, and refuses a path", () => {
+  const host = "vaultwarden.example.lazurio.io";
+  expect(vaultStateDirectory(host, ownAccount, "/home/operator", {})).toBe(
+    `/home/operator/.local/state/lazurio/vault/${host}/${ownAccount}`,
   );
   expect(
-    vaultStateDirectory(identity, "/home/operator", {
+    vaultStateDirectory(host, ownAccount, "/home/operator", {
       XDG_STATE_HOME: "/var/state/operator",
     }),
-  ).toBe(
-    "/var/state/operator/lazurio/vault/vaultwarden.example.lazurio.io/workspace.example.lazurio.io",
-  );
+  ).toBe(`/var/state/operator/lazurio/vault/${host}/${ownAccount}`);
   expect(
-    vaultStateDirectory(identity, "/home/operator", {
+    vaultStateDirectory(host, ownAccount, "/home/operator", {
       XDG_STATE_HOME: "relative/state",
     }),
-  ).toBe(
-    "/home/operator/.local/state/lazurio/vault/vaultwarden.example.lazurio.io/workspace.example.lazurio.io",
-  );
-  // Another address in the same vault is another directory.
+  ).toBe(`/home/operator/.local/state/lazurio/vault/${host}/${ownAccount}`);
+  // A pilot's directory (its address) is another one beside it.
   expect(
-    vaultStateDirectory(
-      { ...identity, address: "workspace-2.example.lazurio.io" },
-      "/home/operator",
-      {},
-    ),
-  ).not.toBe(vaultStateDirectory(identity, "/home/operator", {}));
+    vaultStateDirectory(host, "example.lazurio.io", "/home/operator", {}),
+  ).not.toBe(vaultStateDirectory(host, ownAccount, "/home/operator", {}));
+  for (const [refusedHost, key] of [
+    [host, "../escape"],
+    [host, ".."],
+    [host, "a/b"],
+    ["", ownAccount],
+    [host, ""],
+  ])
+    expect(() =>
+      vaultStateDirectory(
+        refusedHost as string,
+        key as string,
+        "/home/operator",
+        {},
+      ),
+    ).toThrow();
 });

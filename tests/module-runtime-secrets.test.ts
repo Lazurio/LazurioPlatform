@@ -17,6 +17,7 @@ import {
 import type { RuntimeSecretSource } from "../src/modules/runtime-secrets";
 import { readFolderCatalog } from "../src/organizations/catalog";
 import type { CliContext } from "../src/update/cli";
+import type { SecretApplication, VaultSecretsRefusal } from "../src/vault/flow";
 import {
   folderFixture,
   heldBy,
@@ -24,7 +25,10 @@ import {
   writePersonalspaceModule,
 } from "./fixtures/catalog-folder";
 import { createFakeServiceManager } from "./fixtures/fake-service-manager";
-import { organizationWithEntry } from "./fixtures/machine-bindings";
+import {
+  organizationWithEntry,
+  personalWithEntry,
+} from "./fixtures/machine-bindings";
 import {
   compilePlatform,
   linuxHost,
@@ -36,8 +40,8 @@ import {
 } from "./fixtures/owned-files";
 
 // The declared runtime secrets of an application, through the module
-// operations the CLI and the Launchpad share (decision F46, root decisions
-// 0177 and 0196): read before every start, passed to the application's own
+// operations the CLI and the Launchpad share (decision F46 as F52 amends it,
+// root decisions 0177, 0196 and 0198): read before every start, passed to the application's own
 // unit only, never as an argument of a process, never to the preparation's
 // check, never in an answer; a required one without a value refuses the
 // start with `runtime-secret-unavailable`, an optional one is a note. The
@@ -72,17 +76,36 @@ function cliContext(home: string): CliContext {
   };
 }
 
-/** The vault of the work Environment of `example`: only its own apps read
- * it, and it holds what `values` holds now. */
-function fakeVault(values: Record<string, string>) {
-  const reads: { company: string; names: readonly string[] }[] = [];
+/** Which applications a vault serves, as the vault core decides it. */
+type Rule = (application: SecretApplication) => VaultSecretsRefusal | null;
+/** The work Environment of `example`: only its own apps. */
+const workVault: Rule = ({ company, personalspace }) =>
+  personalspace
+    ? "personalspace"
+    : company.toLowerCase() === "example"
+      ? null
+      : "other-organization";
+/** A personal Environment: only the Personalspace's modules. */
+const personalVault: Rule = ({ personalspace }) =>
+  personalspace ? null : "personal-environment";
+/** This computer: no vault yet. */
+const workstationVault: Rule = () => "workstation";
+
+/** A vault that serves what `rule` admits and holds what `values` holds
+ * now. */
+function fakeVault(values: Record<string, string>, rule: Rule = workVault) {
+  const reads: {
+    company: string;
+    personalspace: boolean;
+    names: readonly string[];
+  }[] = [];
   const source: RuntimeSecretSource = {
-    admit: async (company) =>
-      company.toLowerCase() === "example" ? null : "other-organization",
-    read: async ({ company, names }) => {
-      reads.push({ company, names });
-      if (company.toLowerCase() !== "example")
-        return { kind: "vault-secrets-refused", reason: "other-organization" };
+    admit: async (application) => rule(application),
+    read: async ({ company, personalspace, names }) => {
+      reads.push({ company, personalspace, names });
+      const refused = rule({ company, personalspace });
+      if (refused !== null)
+        return { kind: "vault-secrets-refused", reason: refused };
       return {
         kind: "vault-secrets",
         secrets: new Map(
@@ -196,7 +219,11 @@ posixTest(
     });
     expect(JSON.stringify(started)).not.toContain(value);
     expect(vault.reads).toEqual([
-      { company: "example", names: ["EXTERNAL_API_KEY", "OPTIONAL_KEY"] },
+      {
+        company: "example",
+        personalspace: false,
+        names: ["EXTERNAL_API_KEY", "OPTIONAL_KEY"],
+      },
     ]);
     const [unit] = [...manager.units.values()];
     const environment = Object.fromEntries(
@@ -435,7 +462,77 @@ posixTest(
 );
 
 posixTest(
-  "a Personalspace module's required secrets have no vault: the catalog and the start say so, and optional ones are a note",
+  "a Personalspace module reads its secrets in its person's personal Environment, never on a workstation: the catalog and the start say so, and optional ones are a note there",
+  async () => {
+    // Its person's personal Remote Environment: the vault serves it.
+    const parent = await realpath(await mkdtemp(join(root, "personal-")));
+    const folder = join(parent, "Lazurio");
+    await mkdir(folder);
+    await mkdir(join(folder, "organizations"), { mode: 0o755 });
+    await mkdir(join(folder, "personalspace"), { mode: 0o700 });
+    const preset = "hosted-personal";
+    await initializeHandoverFolder(folder, {
+      preset,
+      machine: personalWithEntry(),
+      profile: presetProfile(preset, executionOs(process.platform)),
+    });
+    const home = join(parent, "home");
+    await mkdir(home);
+    const module = await writePersonalspaceModule(
+      folder,
+      "privateowner",
+      "privatelogin",
+      { id: "notes" },
+    );
+    const port = await runnableModule(module, home);
+    const pkgPath = join(module, "app", "package.json");
+    const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
+    pkg.lazurio.runtime.secrets = ["EXTERNAL_API_KEY"];
+    await writeFile(pkgPath, JSON.stringify(pkg));
+    const vault = fakeVault({ EXTERNAL_API_KEY: value }, personalVault);
+    const manager = createFakeServiceManager({
+      runtimeDirectory: join(parent, "runtime"),
+    });
+    await mkdir(manager.runtimeDirectory);
+    const host: ModuleHost = {
+      ...linuxHost(manager, home, port, binary),
+      runtimeSecrets: () => vault.source,
+    };
+    // The account holds this Personalspace (#186).
+    const holder = heldBy("privateowner");
+    const catalogued = (await readFolderCatalog(folder, holder)).personalspace
+      ?.modules[0];
+    expect(catalogued).toMatchObject({ executable: true });
+    expect(catalogued).not.toHaveProperty("secrets");
+    const operations = createModuleOperations({
+      folder,
+      owner: "cli",
+      host,
+      personalspace: holder,
+    });
+    const started = await operations.start("personalspace/notes");
+    expect(started).toMatchObject({ outcome: "started", healthy: true });
+    expect(JSON.stringify(started)).not.toContain(value);
+    expect(vault.reads).toEqual([
+      {
+        company: "privatelogin",
+        personalspace: true,
+        names: ["EXTERNAL_API_KEY"],
+      },
+    ]);
+    const [unit] = [...manager.units.values()];
+    expect(unit?.environment).toContain(
+      `LAZURIO_RUNTIME_SECRET_EXTERNAL_API_KEY=${value}`,
+    );
+    await operations.stop("personalspace/notes");
+    await operations.close();
+    await rm(parent, { recursive: true, force: true });
+  },
+  60_000,
+);
+
+posixTest(
+  "on a workstation a Personalspace module's required secrets have no vault: the catalog and the start say so, and optional ones are a note",
   async () => {
     await folderFixture(async (folder) => {
       const home = join(folder, "..", "home");
@@ -451,7 +548,7 @@ posixTest(
       const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
       pkg.lazurio.runtime.secrets = ["EXTERNAL_API_KEY"];
       await writeFile(pkgPath, JSON.stringify(pkg));
-      const vault = fakeVault({ EXTERNAL_API_KEY: value });
+      const vault = fakeVault({ EXTERNAL_API_KEY: value }, workstationVault);
       const manager = createFakeServiceManager({
         runtimeDirectory: join(folder, "..", "runtime"),
       });
@@ -460,7 +557,7 @@ posixTest(
         ...linuxHost(manager, home, port, binary),
         runtimeSecrets: () => vault.source,
       };
-      const finding = [{ name: "EXTERNAL_API_KEY", reason: "personalspace" }];
+      const finding = [{ name: "EXTERNAL_API_KEY", reason: "workstation" }];
       // The account holds this Personalspace (#186).
       const holder = heldBy("privateowner");
       expect(
@@ -492,7 +589,6 @@ posixTest(
         outcome: "started",
         secretsNotProvided: finding,
       });
-      expect(vault.reads).toEqual([]);
       await operations.stop("personalspace/notes");
       await operations.close();
     });

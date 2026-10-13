@@ -340,15 +340,18 @@ only, never values:
 "optional_secrets": ["OPTIONAL_SERVICE_TOKEN"]
 ```
 
-Before every start the value of each is read from the Environment vault (F43): a
-sync, then the login password of the one item named exactly so in the Environment's
-collection. Only an application of the Organization that owns the Environment reads
-it; another mounted Organization's application and every Personalspace module do not.
+Before every start the value of each is read from the Environment's own vault (F43,
+F52): a sync, then the login password of the one item named exactly so anywhere in
+that vault. On a work Environment only an application of the Organization that owns
+it reads it, on a personal Environment only a Personalspace module; another mounted
+Organization's application, a Personalspace module on a work Environment and an
+Organization's application on a personal one do not.
 That is a rule about declarations, not isolation: all Modules on one Environment run
 under its one account and are one trust domain (F46 point 3, root decision 0196).
 A required name without a value refuses the start with `runtime-secret-unavailable`
 and each name's reason (`missing`, `ambiguous`, `empty`, `not-connected`,
-`unreachable`, `other-organization`, `personalspace`, `workstation`, …); an optional
+`unreachable`, `other-organization`, `personalspace`, `personal-environment`,
+`workstation`, …); an optional
 name without an item, or one an unusable vault does not give, is only reported
 (`secretsNotProvided`) and the application starts without the variable, while an
 optional name held by more than one item or with an empty password refuses the start

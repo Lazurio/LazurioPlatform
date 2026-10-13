@@ -62,6 +62,11 @@ function privateValue(random: Random, kind: PrivateKind): string {
         : `${random.word(1).toUpperCase()}${random.word(random.int(4, 10))}`;
     case "github-id":
       return String(random.int(100_000, 99_999_999));
+    // The Environment's own vault (decision F52): its account and its name.
+    case "vault-account":
+      return `vaultwarden-${random.word(26, "abcdefghijklmnopqrstuvwxyz234567")}@${slug()}.lazurio.io`;
+    case "vault-name":
+      return `${random.word(1).toUpperCase()}${random.word(random.int(2, 5))} ${random.word(random.int(4, 9))} ${slug()}`;
     case "hostname":
       return `${slug()}.${random.word(5)}.example`;
     default:

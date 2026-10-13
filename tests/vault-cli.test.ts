@@ -19,9 +19,10 @@ import {
   exportsOf,
   runVaultCommand,
   shellQuote,
+  statusText,
   type VaultCliContext,
 } from "../src/vault/cli";
-import { readSession, vaultPaths } from "../src/vault/store";
+import { readRecord, readSession, vaultPaths } from "../src/vault/store";
 import {
   collectionId,
   fakeBw,
@@ -29,15 +30,18 @@ import {
   fakePin,
   fakeRelease,
   organizationId,
+  ownAccount,
   startFakeVault,
+  stateDirectory,
+  vaultName,
+  vaultOrigin,
   zipOf,
 } from "./fixtures/fake-vault";
 
-// `lazurio vault` (decision F43): what an agent's shell gets, what it reads
-// when there is nothing to get, and the commands over the same core.
+// `lazurio vault` (decisions F43, F52): what an agent's shell gets, what it
+// reads when there is nothing to get, and the commands over the same core.
 
 const posix = process.platform !== "win32";
-const account = "vaultwarden@example.lazurio.io";
 
 async function world() {
   const parent = await realpath(await mkdtemp(join(tmpdir(), "vault-cli-")));
@@ -67,15 +71,7 @@ async function world() {
     context,
     progress,
     paths: vaultPaths(
-      join(
-        home,
-        ".local",
-        "state",
-        "lazurio",
-        "vault",
-        "vaultwarden.example.lazurio.io",
-        "example.lazurio.io",
-      ),
+      stateDirectory(home, "vaultwarden.example.lazurio.io", ownAccount),
     ),
     async close() {
       await vault.stop();
@@ -115,32 +111,47 @@ test.skipIf(!posix)(
   async () => {
     const w = await world();
     try {
-      // Not connected: a refusal an agent can read, exit 2, no stdout.
+      // Not set up: a refusal an agent can read, exit 2, no stdout.
       const refused = await runVaultCommand(["env"], w.context);
       expect(refused.code).toBe(2);
       expect(refused.stdout).toBeUndefined();
       expect(refused.stderr?.split("\n")).toHaveLength(1);
-      expect(refused.stderr).toContain("Settings → Tools → bitwarden");
+      expect(refused.stderr).toContain("not set up yet");
+      expect(refused.stderr).toContain("lazurio vault status");
 
-      // An agent connects (the fallback of the Launchpad's flow).
-      w.vault.invite(account);
-      const connect = await runVaultCommand(["connect"], w.context);
-      expect(connect.code).toBe(0);
-      expect(connect.stdout).toContain("Waiting for the confirmation");
-      expect(connect.stdout).toContain("steep-flavor-uncut-scouring-unnoticed");
+      // Not allowed by the network yet: exit 2, waiting for a person.
+      const notAllowed = await runVaultCommand(["setup"], w.context);
+      expect(notAllowed.code).toBe(2);
+      expect(notAllowed.stdout).toContain("Not allowed yet");
+
+      // An agent sets it up (what the Launchpad does at its start).
+      w.vault.allow(ownAccount);
+      w.progress.length = 0;
+      const setup = await runVaultCommand(["setup"], w.context);
+      expect(setup.code).toBe(0);
+      const record = await readRecord(w.paths);
+      expect(setup.stdout).toBe(
+        `Connected: this Environment's own vault "${vaultName}", ${ownAccount} in ${vaultOrigin}; it holds 0 items. Open it at ${vaultOrigin}/#/vault?organizationId=${record.organizationId}.`,
+      );
       expect(w.progress).toEqual([
         "Installing the pinned Bitwarden CLI…",
-        "Creating the account…",
+        "Registering the account…",
+        "Setting up the Environment's vault…",
         "Signing in…",
       ]);
-      await w.vault.confirm("Environmenty/Osobní · example", 2);
+      const status = await runVaultCommand(["status", "--json"], w.context);
+      expect(status.code).toBe(0);
+      expect(JSON.parse(status.stdout ?? "")).toMatchObject({
+        kind: "vault-status",
+        state: "connected",
+        origin: "own",
+        organizationId: record.organizationId,
+        collectionId: record.collectionId,
+      });
       const refreshed = await runVaultCommand(["refresh", "--json"], w.context);
       expect(refreshed.code).toBe(0);
       expect(JSON.parse(refreshed.stdout ?? "")).toMatchObject({
-        kind: "vault-status",
         state: "connected",
-        collections: 1,
-        items: 2,
       });
 
       const env = await runVaultCommand(["env"], w.context);
@@ -151,8 +162,8 @@ test.skipIf(!posix)(
         [
           `export BITWARDENCLI_APPDATA_DIR='${w.paths.data}'`,
           `export BW_SESSION='${session}'`,
-          `export LAZURIO_VAULT_ORGANIZATION_ID='${organizationId}'`,
-          `export LAZURIO_VAULT_COLLECTION_ID='${collectionId}'`,
+          `export LAZURIO_VAULT_ORGANIZATION_ID='${record.organizationId}'`,
+          `export LAZURIO_VAULT_COLLECTION_ID='${record.collectionId}'`,
         ].join("\n"),
       );
       const json = await runVaultCommand(["env", "--json"], w.context);
@@ -161,15 +172,14 @@ test.skipIf(!posix)(
         env: {
           BITWARDENCLI_APPDATA_DIR: w.paths.data,
           BW_SESSION: session,
-          LAZURIO_VAULT_ORGANIZATION_ID: organizationId,
-          LAZURIO_VAULT_COLLECTION_ID: collectionId,
+          LAZURIO_VAULT_ORGANIZATION_ID: record.organizationId,
+          LAZURIO_VAULT_COLLECTION_ID: record.collectionId,
         },
       });
       // The status never carries a secret.
-      const status = await runVaultCommand(["status", "--json"], w.context);
       expect(status.stdout).not.toContain(session ?? "?");
-      expect(status.code).toBe(0);
-      // An agent's `bw` after eval: the pinned one, with the session.
+      // An agent's `bw` after eval: the pinned one, with the session, sees
+      // the vault's collection Agenti.
       const shell = spawnSync(
         "/bin/sh",
         [
@@ -182,7 +192,11 @@ test.skipIf(!posix)(
         { encoding: "utf8", env: { HOME: w.home, PATH: "/usr/bin:/bin" } },
       );
       expect(JSON.parse(shell.stdout)).toEqual([
-        expect.objectContaining({ id: collectionId }),
+        expect.objectContaining({
+          id: record.collectionId,
+          organizationId: record.organizationId,
+          name: "Agenti",
+        }),
       ]);
       // Without eval the wrapper still uses this Environment's data, which
       // says locked instead of reaching a default profile.
@@ -204,6 +218,47 @@ test.skipIf(!posix)(
   },
   60_000,
 );
+
+test("the status in words names what is missing and never a secret", () => {
+  const facts = {
+    kind: "vault-status",
+    vault: vaultOrigin,
+    account: ownAccount,
+    name: vaultName,
+    team: false,
+    origin: "own",
+  } as const;
+  expect(
+    statusText({
+      kind: "vault-status",
+      state: "unsupported",
+      reason: "no-vault",
+    }),
+  ).toBe(
+    "Not available: this Environment has no vault yet: its Machine handover names none.",
+  );
+  expect(statusText({ ...facts, state: "not-set-up", next: "vault" })).toBe(
+    `Not set up yet: ${ownAccount} in ${vaultOrigin}; the next step is creating the Environment's vault. The Launchpad sets it up at its start; lazurio vault setup does the same.`,
+  );
+  expect(statusText({ ...facts, state: "revoked" })).toContain(
+    "The network's operator decides",
+  );
+  expect(
+    statusText({
+      ...facts,
+      name: null,
+      origin: "pilot-0197",
+      account: "vaultwarden@example.lazurio.io",
+      state: "connected",
+      organizationId,
+      collectionId,
+      organization: "Example Organization",
+      items: 2,
+    }),
+  ).toBe(
+    `Connected the 0197 way (read only until this Environment's own vault replaces it): vaultwarden@example.lazurio.io in ${vaultOrigin}, collection ${collectionId} of Example Organization; it holds 2 items.`,
+  );
+});
 
 test("a wrong invocation is a usage error with the help", async () => {
   const context: VaultCliContext = {
@@ -230,6 +285,8 @@ test("a wrong invocation is a usage error with the help", async () => {
   for (const args of [
     [],
     ["login"],
+    ["connect"],
+    ["disconnect"],
     ["env", "extra"],
     ["env", "--json", "--json"],
     ["status", "--session", "x"],
@@ -290,7 +347,7 @@ test.skipIf(!posix)(
           kind: "blocked",
           reason: "setup-vault",
           tool: "bitwarden",
-          command: "lazurio vault connect",
+          command: "lazurio vault setup",
         });
       }
     } finally {

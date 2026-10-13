@@ -288,9 +288,9 @@
       "additionalProperties": false,
       "required": ["server_url", "account", "name"],
       "properties": {
-        "server_url": { "description": "Origin of the network's Lazurio Vaultwarden.", "$ref": "#/$defs/https_origin" },
-        "account": { "description": "The Environment's technical account: vaultwarden-<26 lowercase base32 characters>@<Environment address>.", "type": "string", "maxLength": 254, "pattern": "^vaultwarden-[a-z2-7]{26}@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\\.lazurio\\.io$" },
-        "name": { "description": "Name of the Environment's vault, <short Organization> <Environment name> <login>: letters, digits and single spaces, unique within the network.", "type": "string", "maxLength": 50, "pattern": "^[\\p{L}\\p{Nd}]+(?: [\\p{L}\\p{Nd}]+)*$" }
+        "server_url": { "description": "Origin of the network's Lazurio Vaultwarden: https://vaultwarden.<zone>.lazurio.io.", "type": "string", "pattern": "^https://vaultwarden\\.[a-z0-9]+(?:-[a-z0-9]+)*\\.lazurio\\.io$" },
+        "account": { "description": "The Environment's technical account: vaultwarden-<26 lowercase base32 characters>@<Environment address>.", "type": "string", "maxLength": 119, "pattern": "^vaultwarden-[a-z2-7]{26}@[a-z0-9]+(?:-[a-z0-9]+)*(?:\\.[a-z0-9]+(?:-[a-z0-9]+)*)?\\.lazurio\\.io$" },
+        "name": { "description": "Name of the Environment's vault, <short Organization> <Environment name> <login>: letters, digits and single spaces, unique within the network.", "type": "string", "maxLength": 50, "pattern": "^[\\p{L}0-9]+(?: [\\p{L}0-9]+)*$" }
       }
     },
     "account": {

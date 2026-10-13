@@ -15,7 +15,12 @@ from the merge of Machines pull request **#449** into `main` (commit
 `30c2fcf8a77914b5a44c652265e927683b2b413c`, SHA-256
 `fbbd159b8e6dfc8580a7b8460ddb4a2b2d3158a1b74ab2a420d8ff68005ae53f`), which adds the
 optional `entry.environment_relay` ([below](#the-hosted-entry-decision-f16), root
-decision 0194, decision F45) and changes nothing else. No Machines release carries it
+decision 0194, decision F45) and changes nothing else. **Pending:** the vendored file
+also carries the optional top-level member `vault` ([below](#the-environments-own-vault-decision-f52),
+DEV-6631 contract C2), drafted here from the contract and the Machines shared contract
+until the Machines pull request of DEV-6631 task 637 publishes it; before this
+Platform merges, the file is replaced byte for byte by that one and
+`schema-provenance.json` by its pin (its `pending` field says so meanwhile). No Machines release carries it
 yet, so the provenance names no version and no tag; the first release that does may
 add them with the same digest, and a digest other than this one is a new re-pin.
 Before it, the pin was the merge of Machines
@@ -454,6 +459,36 @@ because it is declaration, not identity. On a Machine that has not switched, the
 resident keeps the Launchpad port, and the recorded entry serves the CLI's module
 links and `lazurio doctor`. Until a Machines release writes it, no Folder records an
 entry and the Launchpad stays local.
+
+## The Environment's own vault (decision F52)
+
+Root decision 0198 point 1, DEV-6631 contract C2: the handover may carry, on both
+branches, the optional and closed top-level member
+
+```json
+"vault": {
+  "server_url": "https://vaultwarden.<zone>.lazurio.io",
+  "account": "vaultwarden-<26 lowercase base32>@<Environment address>",
+  "name": "<short Organization> <Environment name> <login>"
+}
+```
+
+`server_url` is the network's Lazurio Vaultwarden; `account` the Environment's
+technical account, which the network generated and pre-allowed for this Environment
+alone at its Conglomerate Host's apply (`/admin/invite`), and which until it is
+registered is a one-time enrollment capability inside the Environment boundary; `name`
+the name of the Environment's own vault: letters, digits and single spaces, at most 50
+characters, unique within the network. The Environment registers the account itself,
+creates its own organization with it and remembers it by ID; the name only names it
+and a change of it renames it ([environment tools](environment-tools.md#the-environments-own-vault-decisions-f43-and-f52)).
+Machines writes the member only for a pinned Platform that reads it, as for
+`entry.environment_relay`: a Platform vendoring an earlier schema refuses the whole
+handover that carries it (`tests/vault-handover.test.ts` shows it). Absent, the
+Environment has no vault yet, or, where it was connected the 0197 way, keeps reading
+that collection (`src/vault/legacy-0197/`). The member is not part of the Machine's
+identity and is not recorded in the Folder's binding: the vault reads the live
+handover at every operation. Recovery evidence withholds the account, the name and
+the vault's host (`<vault-account>`, `<vault-name>`, `<hostname-n>`).
 
 ## Delivery by the Machines role (agreed 2026-09-23, Machines #199, v0.12.70)
 

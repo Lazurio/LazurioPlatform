@@ -9,15 +9,14 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { vaultContextOf } from "../src/vault/context";
 import {
+  setUpAtStart,
   type VaultHost,
   type VaultJournalEntry,
   type VaultStatus,
-  vaultConnect,
-  vaultDisconnect,
   vaultEnv,
   vaultRefresh,
+  vaultSetup,
   vaultStatus,
 } from "../src/vault/flow";
 import { pinnedBinary } from "../src/vault/install";
@@ -28,24 +27,29 @@ import {
   vaultPaths,
 } from "../src/vault/store";
 import {
-  collectionId,
   fakeBw,
   fakeHost,
   fakePin,
   fakeRelease,
-  fingerprint,
-  organizationId,
-  otherCollectionId,
-  personalHandover,
+  ownAccount,
+  ownContext,
   personalHandoverAt,
   startFakeVault,
+  stateDirectory,
+  vaultMember,
+  vaultName,
   vaultOrigin,
   zipOf,
 } from "./fixtures/fake-vault";
 
+// The Environment's own vault (root decision 0198, decision F52) through its
+// one core: the account the handover names registers itself, creates the
+// Environment's own organization with the collection Agenti, keeps it by ID
+// and one shared session for its agents. Against the fake Vaultwarden and the
+// fake bw; every name, id and value is invented.
+
 const posix = process.platform !== "win32";
-const account = "vaultwarden@example.lazurio.io";
-const collection = "Environmenty/Osobní · example";
+const host = "vaultwarden.example.lazurio.io";
 
 async function world() {
   const parent = await realpath(await mkdtemp(join(tmpdir(), "vault-flow-")));
@@ -55,32 +59,24 @@ async function world() {
   const pin = fakePin(zip);
   const release = fakeRelease(pin, zip);
   const journal: VaultJournalEntry[] = [];
-  const host = fakeHost({
+  const host_ = fakeHost({
     home,
     vault,
     pin,
     download: release.fetch,
     journal,
   });
-  const paths = vaultPaths(
-    join(
-      home,
-      ".local",
-      "state",
-      "lazurio",
-      "vault",
-      "vaultwarden.example.lazurio.io",
-      "example.lazurio.io",
-    ),
-  );
+  const paths = vaultPaths(stateDirectory(home, host, ownAccount));
   return {
     home,
     vault,
     pin,
     release,
     journal,
-    host,
+    host: host_,
     paths,
+    /** The own organizations of the account. */
+    owned: () => vault.organizationsOf(ownAccount),
     async close() {
       await vault.stop();
       await rm(parent, { recursive: true, force: true });
@@ -89,144 +85,136 @@ async function world() {
 }
 
 const mode = async (path: string) => (await lstat(path)).mode & 0o777;
+const facts = {
+  vault: vaultOrigin,
+  account: ownAccount,
+  name: vaultName,
+  team: false,
+  origin: "own",
+} as const;
 
 test.skipIf(!posix)(
-  "an Environment connects: not invited, invited and confirming, confirmed and connected, revoked, disconnected and back",
+  "an Environment sets up its own vault: not allowed, then registered, its organization created with Agenti, connected, and set up again without a change",
   async () => {
     const w = await world();
     try {
-      // Nothing yet: the facts the operator needs to invite the account.
+      // Nothing yet, and nothing is read from the network.
       expect(await vaultStatus(w.host)).toEqual({
         kind: "vault-status",
-        state: "not-installed",
-        vault: vaultOrigin,
-        account,
-        collection,
-        name: "Osobní",
-        team: false,
-        registered: false,
+        state: "not-set-up",
+        ...facts,
+        next: "install",
       });
+      expect(w.vault.requests).toHaveLength(0);
 
-      // Not invited: the vault refuses the registration and nothing of the
-      // account is left behind (the CLI is installed by then).
+      // Not pre-allowed: the vault refuses the registration and nothing of
+      // the account is left behind (the CLI is installed by then).
       const phases: string[] = [];
-      expect(
-        await vaultConnect(w.host, (phase) => phases.push(phase)),
-      ).toMatchObject({ state: "awaiting-invite", account, collection });
+      expect(await vaultSetup(w.host, (phase) => phases.push(phase))).toEqual({
+        kind: "vault-status",
+        state: "not-allowed",
+        ...facts,
+      });
       expect(phases).toEqual(["install", "account"]);
       expect(await readAccount(w.paths)).toBeNull();
       expect(w.vault.users.size).toBe(0);
       expect(await vaultStatus(w.host)).toMatchObject({
-        state: "none",
-        registered: false,
+        state: "not-set-up",
+        next: "account",
       });
 
-      // Invited: the account is created, signed in and unlocked; it waits
-      // for the Admin's confirmation by its fingerprint.
-      w.vault.invite(account);
+      // Pre-allowed by the network: registered, its own vault created, bw
+      // signed in and unlocked.
+      w.vault.allow(ownAccount);
       phases.length = 0;
-      expect(await vaultConnect(w.host, (phase) => phases.push(phase))).toEqual(
-        {
-          kind: "vault-status",
-          state: "confirming",
-          vault: vaultOrigin,
-          account,
-          collection,
-          name: "Osobní",
-          team: false,
-          fingerprint,
-          organization: null,
-        },
-      );
-      expect(phases).toEqual(["install", "account", "sign-in"]);
-      const stored = await readAccount(w.paths);
-      expect(stored).toMatchObject({
-        email: account,
-        server: vaultOrigin,
+      const connected = await vaultSetup(w.host, (phase) => phases.push(phase));
+      expect(phases).toEqual(["install", "account", "vault", "sign-in"]);
+      const [organization] = w.owned();
+      if (organization === undefined) throw new Error("Expected the vault");
+      const agentsId = organization.collections[0]?.id ?? "?";
+      expect(connected).toEqual({
+        kind: "vault-status",
+        state: "connected",
+        ...facts,
+        organizationId: organization.id,
+        collectionId: agentsId,
+        organization: vaultName,
+        items: 0,
       });
+      // Exactly one organization, named as the handover says, with the
+      // account its only member, an Owner, and one collection.
+      expect(w.owned()).toHaveLength(1);
+      expect(organization.name).toBe(vaultName);
+      expect(organization.billingEmail).toBe(ownAccount);
+      expect([...organization.members.values()]).toEqual([
+        expect.objectContaining({ type: 0, status: 2 }),
+      ]);
+      expect(organization.collections).toHaveLength(1);
+      // The request carries keys only in their encrypted forms.
+      const [created] = w.vault.of("/api/organizations", "POST");
+      expect(created?.body).toEqual({
+        name: vaultName,
+        billingEmail: ownAccount,
+        key: expect.stringMatching(/^4\./),
+        keys: {
+          publicKey: expect.stringMatching(/^[A-Za-z0-9+/]+=*$/),
+          encryptedPrivateKey: expect.stringMatching(/^2\./),
+        },
+        collectionName: expect.stringMatching(/^2\./),
+        planType: 0,
+      });
+      // The vault is remembered by its ID, and so is Agenti.
+      expect(await readRecord(w.paths)).toEqual({
+        organizationId: organization.id,
+        collectionId: agentsId,
+        pendingKey: null,
+      });
+      expect(w.journal).toContainEqual({
+        operation: "vault",
+        outcome: "created",
+      });
+      const stored = await readAccount(w.paths);
+      expect(stored).toMatchObject({ email: ownAccount, server: vaultOrigin });
       expect(stored?.clientId).toBe(
-        `user.${w.vault.users.get(account)?.id ?? "?"}`,
+        `user.${w.vault.users.get(ownAccount)?.id ?? "?"}`,
       );
-      // The one device of the Environment is the account file's.
-      expect(w.vault.users.get(account)?.devices).toEqual([
+      // The one device of the Environment is the account file's, for the
+      // password and the API-key logins alike.
+      expect(w.vault.users.get(ownAccount)?.devices).toEqual([
         stored?.deviceIdentifier ?? "?",
       ]);
       expect(await mode(w.paths.directory)).toBe(0o700);
       expect(await mode(w.paths.data)).toBe(0o700);
       expect(await mode(w.paths.account)).toBe(0o600);
       expect(await mode(w.paths.session)).toBe(0o600);
-      expect(await vaultStatus(w.host)).toMatchObject({
-        state: "confirming",
-        fingerprint,
-      });
-      // Not connected yet: agents get nothing.
-      expect(await vaultEnv(w.host)).toEqual({
-        kind: "vault-env-refused",
-        reason: "not-connected",
-      });
+      expect(await mode(w.paths.record)).toBe(0o600);
 
-      // Confirmed by the Admin: the next refresh sees the collection.
-      await w.vault.confirm(collection, 3, ["Infrastruktura"]);
-      const connected: VaultStatus = {
-        kind: "vault-status",
-        state: "connected",
-        vault: vaultOrigin,
-        account,
-        collection,
-        name: "Osobní",
-        team: false,
-        fingerprint,
-        organization: "Example Organization",
-        collections: 2,
-        items: 3,
-      };
-      expect(await vaultRefresh(w.host)).toEqual(connected);
       // The local status reads the same from bw's copy.
       expect(await vaultStatus(w.host)).toEqual(connected);
+      expect(setUpAtStart(connected)).toBe(false);
 
-      // Agents get the one unlocked session and the collection.
+      // Agents get the one unlocked session, the vault and Agenti.
       const session = await readSession(w.paths);
       expect(await vaultEnv(w.host)).toEqual({
         kind: "vault-env",
         env: {
           BITWARDENCLI_APPDATA_DIR: w.paths.data,
           BW_SESSION: session ?? "?",
-          LAZURIO_VAULT_ORGANIZATION_ID: organizationId,
-          LAZURIO_VAULT_COLLECTION_ID: collectionId,
+          LAZURIO_VAULT_ORGANIZATION_ID: organization.id,
+          LAZURIO_VAULT_COLLECTION_ID: agentsId,
         },
       });
 
-      // Revoked in the vault: the sync says so, and so does the local
-      // status afterwards.
-      await w.vault.remove();
-      expect(await vaultRefresh(w.host)).toMatchObject({
-        state: "revoked",
-        fingerprint,
-      });
-      expect(await vaultStatus(w.host)).toMatchObject({ state: "revoked" });
-
-      // Disconnect: bw's store, the session and the record go; the account
-      // stays and connecting again signs it in without a registration.
-      expect(await vaultDisconnect(w.host)).toMatchObject({
-        state: "none",
-        registered: true,
-      });
-      expect(await readSession(w.paths)).toBeNull();
-      expect((await readAccount(w.paths))?.clientId).toBe(stored?.clientId);
-      const registrations = w.vault.requests.filter(
-        (entry) => entry.path === "/identity/accounts/register/finish",
-      ).length;
-      await w.vault.confirm(collection, 1);
-      expect(await vaultConnect(w.host)).toMatchObject({
-        state: "connected",
-        collections: 1,
-        items: 1,
-      });
-      expect(
-        w.vault.requests.filter(
-          (entry) => entry.path === "/identity/accounts/register/finish",
-        ).length,
-      ).toBe(registrations);
+      // Set up again: the same vault, no registration, creation or rename.
+      const before = w.vault.requests.length;
+      expect(await vaultSetup(w.host)).toEqual(connected);
+      const again = w.vault.requests.slice(before).map((entry) => entry.path);
+      expect(again).not.toContain("/identity/accounts/register/finish");
+      expect(again).not.toContain("/api/organizations");
+      expect(w.vault.of("/api/organizations", "POST")).toHaveLength(1);
+      expect(w.vault.requests.some((entry) => entry.method === "PUT")).toBe(
+        false,
+      );
 
       // No secret ever reached argv, and the journal holds codes only.
       const calls = await w.vault.calls();
@@ -250,8 +238,184 @@ test.skipIf(!posix)(
         for (const secret of secrets)
           expect(JSON.stringify(entry)).not.toContain(secret as string);
       }
-      // The release was downloaded once; the second connect found it.
+      // The release was downloaded once; the later setups found it.
       expect(w.release.requests).toHaveLength(1);
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "a new name in the handover renames the vault, which stays the same by its ID",
+  async () => {
+    const w = await world();
+    try {
+      w.vault.allow(ownAccount);
+      const first = await vaultSetup(w.host);
+      expect(first).toMatchObject({ state: "connected" });
+      const renamed: VaultHost = {
+        ...w.host,
+        context: async () =>
+          ownContext(
+            personalHandoverAt(
+              "example.lazurio.io",
+              vaultMember(ownAccount, "Example Osobní renamed"),
+            ),
+          ),
+      };
+      // The local status sees the name the handover now gives: the start
+      // sets it up again.
+      const before = await vaultStatus(renamed);
+      expect(before).toMatchObject({
+        state: "connected",
+        name: "Example Osobní renamed",
+        organization: vaultName,
+      });
+      expect(setUpAtStart(before)).toBe(true);
+      const after = await vaultSetup(renamed);
+      expect(after).toMatchObject({
+        state: "connected",
+        organization: "Example Osobní renamed",
+      });
+      expect(setUpAtStart(after)).toBe(false);
+      expect(w.owned()).toHaveLength(1);
+      expect(w.owned()[0]?.name).toBe("Example Osobní renamed");
+      const [rename] = w.vault.requests.filter(
+        (entry) => entry.method === "PUT",
+      );
+      expect(rename?.body).toEqual({
+        name: "Example Osobní renamed",
+        billingEmail: ownAccount,
+      });
+      expect(w.journal).toContainEqual({
+        operation: "vault",
+        outcome: "renamed",
+      });
+      // The record is the same: the ID is the vault.
+      expect((await readRecord(w.paths)).organizationId).toBe(
+        first.state === "connected" ? first.organizationId : "?",
+      );
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "a creation whose answer was lost is recognized by its receipt and never made twice",
+  async () => {
+    const w = await world();
+    try {
+      w.vault.allow(ownAccount);
+      // The vault creates the organization, then the answer is lost.
+      let lose = true;
+      const host_: VaultHost = {
+        ...w.host,
+        fetch: async (url, init) => {
+          const answer = await w.vault.fetch(url, init);
+          if (lose && url.endsWith("/api/organizations"))
+            throw new Error("connection reset");
+          return answer;
+        },
+      };
+      expect(await vaultSetup(host_)).toMatchObject({
+        state: "unreachable",
+        reason: "unreachable",
+      });
+      expect(w.owned()).toHaveLength(1);
+      const receipt = await readRecord(w.paths);
+      expect(receipt).toEqual({
+        organizationId: null,
+        collectionId: null,
+        pendingKey: w.owned()[0]?.publicKey ?? "?",
+      });
+      expect(await vaultStatus(host_)).toMatchObject({
+        state: "not-set-up",
+        next: "vault",
+      });
+      lose = false;
+      const connected = await vaultSetup(host_);
+      expect(connected).toMatchObject({
+        state: "connected",
+        organizationId: w.owned()[0]?.id,
+      });
+      expect(w.owned()).toHaveLength(1);
+      expect(w.vault.of("/api/organizations", "POST")).toHaveLength(1);
+      expect(await readRecord(w.paths)).toMatchObject({ pendingKey: null });
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "a vault that is gone or an API key refused is revoked and never replaced; a damaged record is never written over",
+  async () => {
+    const w = await world();
+    try {
+      w.vault.allow(ownAccount);
+      const connected = await vaultSetup(w.host);
+      if (connected.state !== "connected") throw new Error("Expected it");
+      // The network's operator deletes the organization.
+      await w.vault.deleteOrganization(connected.organizationId);
+      expect(await vaultRefresh(w.host)).toEqual({
+        kind: "vault-status",
+        state: "revoked",
+        ...facts,
+      });
+      expect(await vaultStatus(w.host)).toMatchObject({ state: "revoked" });
+      expect(setUpAtStart(await vaultStatus(w.host))).toBe(false);
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "revoked" });
+      expect(w.vault.of("/api/organizations", "POST")).toHaveLength(1);
+      expect((await readRecord(w.paths)).organizationId).toBe(
+        connected.organizationId,
+      );
+
+      // A damaged record: the setup refuses and leaves it as it is.
+      await writeFile(w.paths.record, "{damaged", { mode: 0o600 });
+      const damaged = {
+        state: "failed",
+        stage: "vault",
+        reason: "record-unreadable",
+        fallback: "agent",
+      };
+      expect(await vaultStatus(w.host)).toMatchObject(damaged);
+      expect(await vaultSetup(w.host)).toMatchObject(damaged);
+      expect(await readFile(w.paths.record, "utf8")).toBe("{damaged");
+      expect(w.vault.of("/api/organizations", "POST")).toHaveLength(1);
+      expect(await vaultEnv(w.host)).toEqual({
+        kind: "vault-env-refused",
+        reason: "not-connected",
+      });
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "a refused API key is revoked, and a vault that does not let the account create organizations says so",
+  async () => {
+    const w = await world();
+    try {
+      w.vault.allow(ownAccount);
+      w.vault.flags.organizationRefused = true;
+      expect(await vaultSetup(w.host)).toMatchObject({
+        state: "failed",
+        stage: "vault",
+        reason: "organization-refused",
+        fallback: "agent",
+      });
+      expect(w.owned()).toHaveLength(0);
+      w.vault.flags.organizationRefused = false;
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "connected" });
+      await w.vault.rotateApiKey(ownAccount);
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "revoked" });
     } finally {
       await w.close();
     }
@@ -264,14 +428,21 @@ test.skipIf(!posix)(
   async () => {
     const w = await world();
     try {
-      w.vault.invite(account);
-      await w.vault.confirm(collection);
-      expect(await vaultConnect(w.host)).toMatchObject({ state: "connected" });
+      w.vault.allow(ownAccount);
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "connected" });
       const first = await readSession(w.paths);
       // A rogue `bw lock` (agents never run it): the session is no longer
       // the unlocked one.
       const store = join(w.paths.data, "fake", "session");
       await rm(store);
+      const locked = await vaultStatus(w.host);
+      expect(locked).toMatchObject({
+        state: "connected",
+        locked: true,
+        organization: null,
+        items: null,
+      });
+      expect(setUpAtStart(locked)).toBe(true);
       const env = await vaultEnv(w.host);
       expect(env.kind).toBe("vault-env");
       const second = await readSession(w.paths);
@@ -286,13 +457,9 @@ test.skipIf(!posix)(
       await rm(store);
       expect(await vaultRefresh(w.host)).toMatchObject({ state: "connected" });
       expect(await readSession(w.paths)).not.toBe(second);
-      expect(w.journal.filter((entry) => entry.operation === "unlock")).toEqual(
-        [
-          { operation: "unlock", outcome: "unlocked" },
-          { operation: "unlock", outcome: "unlocked" },
-          { operation: "unlock", outcome: "unlocked" },
-        ],
-      );
+      expect(
+        w.journal.filter((entry) => entry.operation === "unlock"),
+      ).toHaveLength(3);
     } finally {
       await w.close();
     }
@@ -305,9 +472,9 @@ test.skipIf(!posix)(
   async () => {
     const w = await world();
     try {
-      w.vault.invite(account);
+      w.vault.allow(ownAccount);
       w.vault.flags.rateLimit = true;
-      expect(await vaultConnect(w.host)).toMatchObject({
+      expect(await vaultSetup(w.host)).toMatchObject({
         state: "failed",
         stage: "account",
         reason: "rate-limited",
@@ -315,7 +482,7 @@ test.skipIf(!posix)(
       });
       w.vault.flags.rateLimit = false;
       w.vault.flags.smtp = true;
-      expect(await vaultConnect(w.host)).toMatchObject({
+      expect(await vaultSetup(w.host)).toMatchObject({
         state: "failed",
         stage: "account",
         reason: "smtp-enabled",
@@ -325,15 +492,13 @@ test.skipIf(!posix)(
       // registers now.
       const pending = await readAccount(w.paths);
       expect(pending?.clientId).toBeUndefined();
-      expect(await vaultConnect(w.host)).toMatchObject({ state: "confirming" });
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "connected" });
       expect((await readAccount(w.paths))?.masterPassword).toBe(
         pending?.masterPassword,
       );
-      await w.vault.confirm(collection);
       await w.vault.unreachable(true);
       expect(await vaultRefresh(w.host)).toMatchObject({
         state: "unreachable",
-        fingerprint,
       });
       await w.vault.unreachable(false);
       expect(await vaultRefresh(w.host)).toMatchObject({ state: "connected" });
@@ -349,11 +514,11 @@ test.skipIf(!posix)(
   async () => {
     const w = await world();
     try {
-      w.vault.invite(account);
+      w.vault.allow(ownAccount);
       // The vault answers the registration, then the network drops before
       // the login.
       let drop = true;
-      const host: VaultHost = {
+      const host_: VaultHost = {
         ...w.host,
         fetch: async (url, init) => {
           if (drop && url.endsWith("/identity/accounts/prelogin"))
@@ -361,34 +526,28 @@ test.skipIf(!posix)(
           return w.vault.fetch(url, init);
         },
       };
-      expect(await vaultConnect(host)).toMatchObject({
+      expect(await vaultSetup(host_)).toMatchObject({
         state: "unreachable",
         reason: "unreachable",
       });
-      expect(w.vault.users.has(account)).toBe(true);
+      expect(w.vault.users.has(ownAccount)).toBe(true);
       const pending = await readAccount(w.paths);
       expect(pending?.clientId).toBeUndefined();
       drop = false;
       // The vault refuses the login of the registered account (here: it no
       // longer takes the password), so the resumed run asks to register,
       // and the vault refuses that too, as it refuses an address that is
-      // not invited. The account file is the only copy of the registered
+      // not allowed. The account file is the only copy of the registered
       // account's password: it stays.
-      const user = w.vault.users.get(account);
+      const user = w.vault.users.get(ownAccount);
       if (user === undefined) throw new Error("registered user");
       const hash = user.hash;
       user.hash = "refused";
-      expect(await vaultConnect(host)).toMatchObject({
-        state: "awaiting-invite",
-      });
+      expect(await vaultSetup(host_)).toMatchObject({ state: "not-allowed" });
       expect(await readAccount(w.paths)).toEqual(pending);
       user.hash = hash;
-      expect(await vaultConnect(host)).toMatchObject({ state: "confirming" });
-      expect(
-        w.vault.requests.filter(
-          (entry) => entry.path === "/identity/accounts/register/finish",
-        ),
-      ).toHaveLength(1);
+      expect(await vaultSetup(host_)).toMatchObject({ state: "connected" });
+      expect(w.vault.of("/identity/accounts/register/finish")).toHaveLength(1);
     } finally {
       await w.close();
     }
@@ -397,107 +556,79 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "an Environment whose address changes in the same network never gets the account it had, and an account file out of place is never used",
+  "an account the handover replaces starts in a directory of its own, the earlier one is untouched, and an account file out of place is never used",
   async () => {
     const w = await world();
     try {
-      w.vault.invite(account);
-      await w.vault.confirm(collection);
-      expect(await vaultConnect(w.host)).toMatchObject({ state: "connected" });
+      w.vault.allow(ownAccount);
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "connected" });
       const before = {
         account: await readFile(w.paths.account, "utf8"),
         session: await readSession(w.paths),
+        record: await readFile(w.paths.record, "utf8"),
       };
-      // The same Remote Environment now answers at another address in the
-      // same network: the vault is the same, the account is not.
-      const moved = "vaultwarden@moved.lazurio.io";
-      const host: VaultHost = {
+      // The network hands this Environment another account.
+      const replaced =
+        "vaultwarden-aaaabbbbccccddddeeeeffffgg@example.lazurio.io";
+      const host_: VaultHost = {
         ...w.host,
         context: async () =>
-          vaultContextOf({
-            handover: personalHandoverAt("moved.lazurio.io"),
-            kind: "personal",
-            label: null,
-          }),
+          ownContext(
+            personalHandoverAt(
+              "example.lazurio.io",
+              vaultMember(replaced, "Example Osobní replaced"),
+            ),
+          ),
       };
       const unlocks = () =>
         w.journal.filter((entry) => entry.operation === "unlock").length;
       const unlocked = unlocks();
-      expect(await vaultStatus(host)).toEqual({
+      expect(await vaultStatus(host_)).toEqual({
         kind: "vault-status",
-        state: "none",
+        state: "not-set-up",
         vault: vaultOrigin,
-        account: moved,
-        collection: "Environmenty/Osobní · moved",
-        name: "Osobní",
+        account: replaced,
+        name: "Example Osobní replaced",
         team: false,
-        registered: false,
+        origin: "own",
+        next: "account",
       });
-      expect(await vaultRefresh(host)).toMatchObject({
-        state: "none",
-        account: moved,
-      });
-      expect(await vaultEnv(host)).toEqual({
+      expect(await vaultEnv(host_)).toEqual({
         kind: "vault-env-refused",
         reason: "not-connected",
       });
       expect(unlocks()).toBe(unlocked);
-      // Connecting registers the new address, which waits for its own
-      // invitation.
-      expect(await vaultConnect(host)).toMatchObject({
-        state: "awaiting-invite",
-        account: moved,
+      // Not allowed by the network yet: refused, nothing of it left.
+      expect(await vaultSetup(host_)).toMatchObject({
+        state: "not-allowed",
+        account: replaced,
       });
-      // The earlier account's files are untouched, and it still serves the
-      // address it belongs to.
+      // The earlier account's files are untouched.
       expect(await readFile(w.paths.account, "utf8")).toBe(before.account);
       expect(await readSession(w.paths)).toBe(before.session);
-      const own = await vaultEnv(w.host);
-      expect(own.kind === "vault-env" ? own.env.BW_SESSION : null).toBe(
-        before.session,
-      );
+      expect(await readFile(w.paths.record, "utf8")).toBe(before.record);
 
-      // The earlier account's files copied under the new address are not
-      // the new address's account: everything refuses, nothing runs, and
-      // the file is never replaced.
-      const misplaced = vaultPaths(
-        w.host.directory({
-          host: "vaultwarden.example.lazurio.io",
-          address: "moved.lazurio.io",
-        }),
-      );
+      // The earlier account's files copied under the new account are not the
+      // new account's: everything refuses, nothing runs, and the file is
+      // never replaced.
+      const misplaced = vaultPaths(stateDirectory(w.home, host, replaced));
       await writeFile(misplaced.account, before.account, { mode: 0o600 });
-      await writeFile(misplaced.session, before.session ?? "", {
-        mode: 0o600,
-      });
       const mismatch = {
         state: "failed",
         stage: "account",
         reason: "account-mismatch",
       };
-      const logouts = async () =>
-        (await w.vault.calls())
-          .split("\n")
-          .filter((line) => line.startsWith("logout")).length;
-      const loggedOut = await logouts();
-      const store = await readFile(join(misplaced.data, "data.json"), "utf8");
-      expect(await vaultStatus(host)).toMatchObject(mismatch);
-      expect(await vaultRefresh(host)).toMatchObject(mismatch);
-      expect(await vaultConnect(host)).toMatchObject(mismatch);
-      expect(await vaultDisconnect(host)).toMatchObject(mismatch);
-      expect(await vaultEnv(host)).toEqual({
+      expect(await vaultStatus(host_)).toMatchObject(mismatch);
+      expect(await vaultRefresh(host_)).toMatchObject(mismatch);
+      expect(await vaultSetup(host_)).toMatchObject(mismatch);
+      expect(await vaultEnv(host_)).toEqual({
         kind: "vault-env-refused",
         reason: "not-connected",
       });
       expect(unlocks()).toBe(unlocked);
-      expect(await logouts()).toBe(loggedOut);
       expect(await readFile(misplaced.account, "utf8")).toBe(before.account);
-      expect(await readSession(misplaced)).toBe(before.session);
-      expect(await readFile(join(misplaced.data, "data.json"), "utf8")).toBe(
-        store,
-      );
       expect(w.journal.at(-1)).toEqual({
-        operation: "disconnect",
+        operation: "setup",
         outcome: "failed",
         reason: "account-mismatch",
       });
@@ -509,13 +640,12 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "a damaged or missing account file changes nothing: every operation, disconnect included, leaves the sign-in as it is, and the file restored restores the connection",
+  "a damaged or missing account file changes nothing, and the file restored restores the vault",
   async () => {
     const w = await world();
     try {
-      w.vault.invite(account);
-      await w.vault.confirm(collection);
-      expect(await vaultConnect(w.host)).toMatchObject({ state: "connected" });
+      w.vault.allow(ownAccount);
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "connected" });
       const original = await readFile(w.paths.account, "utf8");
       const session = await readSession(w.paths);
       const files = async () =>
@@ -529,21 +659,10 @@ test.skipIf(!posix)(
         );
       const before = await files();
       expect(before).not.toContain(null);
-      const logouts = async () =>
-        (await w.vault.calls())
-          .split("\n")
-          .filter((line) => line.startsWith("logout")).length;
       const unlocks = () =>
         w.journal.filter((entry) => entry.operation === "unlock").length;
-      const counts = { logouts: await logouts(), unlocks: unlocks() };
-      const untouched = async () => {
-        expect(await files()).toEqual(before);
-        expect(await logouts()).toBe(counts.logouts);
-        expect(unlocks()).toBe(counts.unlocks);
-      };
+      const unlocked = unlocks();
 
-      // Damaged: every operation refuses, and nothing is replaced or
-      // removed.
       await writeFile(w.paths.account, "{invalid", { mode: 0o600 });
       const unreadable = {
         state: "failed",
@@ -552,22 +671,14 @@ test.skipIf(!posix)(
       };
       expect(await vaultStatus(w.host)).toMatchObject(unreadable);
       expect(await vaultRefresh(w.host)).toMatchObject(unreadable);
-      expect(await vaultConnect(w.host)).toMatchObject(unreadable);
-      expect(await vaultDisconnect(w.host)).toMatchObject(unreadable);
+      expect(await vaultSetup(w.host)).toMatchObject(unreadable);
       expect(await vaultEnv(w.host)).toEqual({
         kind: "vault-env-refused",
         reason: "not-connected",
       });
       expect(await readFile(w.paths.account, "utf8")).toBe("{invalid");
-      await untouched();
-
-      // Missing: there is no account of this Environment to disconnect.
-      await rm(w.paths.account);
-      expect(await vaultDisconnect(w.host)).toMatchObject({
-        state: "none",
-        registered: false,
-      });
-      await untouched();
+      expect(await files()).toEqual(before);
+      expect(unlocks()).toBe(unlocked);
 
       // Restored: connected as before, with the same session.
       await writeFile(w.paths.account, original, { mode: 0o600 });
@@ -584,229 +695,32 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "a bw profile signed in to another account in the Environment's data directory is never used, and connecting signs the Environment's own account in again",
+  "a bw profile signed in to another account in the Environment's data directory is never used, and setup signs the Environment's own account in again",
   async () => {
     const w = await world();
     try {
-      w.vault.invite(account);
-      await w.vault.confirm(collection);
-      expect(await vaultConnect(w.host)).toMatchObject({ state: "connected" });
-      // An agent signed bw in to a person's account in this data directory
-      // (the wrapper's default); the session file still holds the session
-      // bw answers to.
+      w.vault.allow(ownAccount);
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "connected" });
       const email = join(w.paths.data, "fake", "email");
       await writeFile(email, "person@example.lazurio.io\n");
       const unlocks = () =>
         w.journal.filter((entry) => entry.operation === "unlock").length;
       const unlocked = unlocks();
-      expect(await vaultStatus(w.host)).toMatchObject({
-        state: "none",
-        registered: true,
-      });
+      const signedOut = await vaultStatus(w.host);
+      expect(signedOut).toMatchObject({ state: "not-set-up", next: "sign-in" });
+      expect(setUpAtStart(signedOut)).toBe(true);
       expect(await vaultRefresh(w.host)).toMatchObject({
-        state: "none",
-        registered: true,
+        state: "not-set-up",
+        next: "sign-in",
       });
       expect(await vaultEnv(w.host)).toEqual({
         kind: "vault-env-refused",
         reason: "not-connected",
       });
       expect(unlocks()).toBe(unlocked);
-      // Connecting signs that profile out and the Environment's account in.
-      expect(await vaultConnect(w.host)).toMatchObject({ state: "connected" });
-      expect((await readFile(email, "utf8")).trim()).toBe(account);
-      const env = await vaultEnv(w.host);
-      expect(env.kind === "vault-env" ? env.env.BW_SESSION : null).toBe(
-        await readSession(w.paths),
-      );
-    } finally {
-      await w.close();
-    }
-  },
-  60_000,
-);
-
-test.skipIf(!posix)(
-  "the only collection the account sees is the Environment's, whatever its name, and it stays so by its ID",
-  async () => {
-    const w = await world();
-    try {
-      w.vault.invite(account);
-      expect(await vaultConnect(w.host)).toMatchObject({
-        state: "confirming",
-        organization: null,
-      });
-      // The operator named the collection as he likes (root decision 0193,
-      // addendum 2026-10-11).
-      await w.vault.confirm("Osobní Environment", 2);
-      expect(await vaultRefresh(w.host)).toMatchObject({
-        state: "connected",
-        collection: "Osobní Environment",
-        collections: 1,
-        items: 2,
-      });
-      const collectionOf = async () => {
-        const env = await vaultEnv(w.host);
-        return env.kind === "vault-env"
-          ? env.env.LAZURIO_VAULT_COLLECTION_ID
-          : null;
-      };
-      expect(await collectionOf()).toBe(collectionId);
-      // Renamed: still its collection, by its ID.
-      await w.vault.confirm("Osobní Environment Example", 2);
-      expect(await vaultRefresh(w.host)).toMatchObject({
-        state: "connected",
-        collection: "Osobní Environment Example",
-      });
-      // Another collection appears, even under the suggested name: the
-      // recorded one stays the Environment's.
-      await w.vault.confirm("Osobní Environment Example", 2, [collection]);
-      expect(await vaultRefresh(w.host)).toMatchObject({
-        state: "connected",
-        collection: "Osobní Environment Example",
-        collections: 2,
-      });
-      expect(await collectionOf()).toBe(collectionId);
-    } finally {
-      await w.close();
-    }
-  },
-  60_000,
-);
-
-test.skipIf(!posix)(
-  "with several collections the suggested name decides, and a recorded collection that is gone is revoked, never replaced",
-  async () => {
-    const w = await world();
-    try {
-      w.vault.invite(account);
-      await vaultConnect(w.host);
-      // Two collections, neither named for this Environment: it waits.
-      await w.vault.confirm("Infrastruktura", 0, ["Banky"]);
-      expect(await vaultRefresh(w.host)).toMatchObject({
-        state: "confirming",
-        organization: "Example Organization",
-      });
-      // One of them gets the suggested name: that one.
-      await w.vault.confirm(collection, 3, ["Banky"]);
-      expect(await vaultRefresh(w.host)).toMatchObject({
-        state: "connected",
-        collection,
-        collections: 2,
-      });
-      // The Environment's collection is deleted and another one stays
-      // visible, under any name, even the suggested one or one named for
-      // this machine: the access is revoked, nothing else takes its place,
-      // and the record keeps the original collection.
-      const only = async (name: string) =>
-        writeFile(
-          join(w.vault.world, "collections.json"),
-          `${JSON.stringify([
-            {
-              object: "collection",
-              id: otherCollectionId,
-              organizationId,
-              name,
-              externalId: null,
-            },
-          ])}\n`,
-        );
-      for (const name of [
-        "Banky",
-        collection,
-        "Environmenty/Jiný název · example",
-      ]) {
-        await only(name);
-        expect([name, await vaultRefresh(w.host)]).toMatchObject([
-          name,
-          { state: "revoked" },
-        ]);
-        expect([name, (await readRecord(w.paths)).collectionId]).toEqual([
-          name,
-          collectionId,
-        ]);
-      }
-    } finally {
-      await w.close();
-    }
-  },
-  60_000,
-);
-
-test.skipIf(!posix)(
-  "connecting again keeps the collection it was connected to, also after a revoked access; only a disconnect forgets it",
-  async () => {
-    const w = await world();
-    try {
-      w.vault.invite(account);
-      await vaultConnect(w.host);
-      await w.vault.confirm(collection, 1);
-      expect(await vaultRefresh(w.host)).toMatchObject({
-        state: "connected",
-      });
-      // Its collection is gone; another one is visible under the suggested
-      // name.
-      await writeFile(
-        join(w.vault.world, "collections.json"),
-        `${JSON.stringify([
-          {
-            object: "collection",
-            id: otherCollectionId,
-            organizationId,
-            name: collection,
-            externalId: null,
-          },
-        ])}\n`,
-      );
-      expect(await vaultRefresh(w.host)).toMatchObject({ state: "revoked" });
-      // "Připojit znovu": still revoked, the record keeps the original.
-      expect(await vaultConnect(w.host)).toMatchObject({ state: "revoked" });
-      expect((await readRecord(w.paths)).collectionId).toBe(collectionId);
-      // Only a disconnect forgets it: the next connection is a first one.
-      await vaultDisconnect(w.host);
-      expect(await vaultConnect(w.host)).toMatchObject({
-        state: "connected",
-        collection,
-      });
-      expect((await readRecord(w.paths)).collectionId).toBe(otherCollectionId);
-    } finally {
-      await w.close();
-    }
-  },
-  60_000,
-);
-
-test.skipIf(!posix)(
-  "a new connection after a disconnect is a first connection again: a collection under its own name only while it is the only one",
-  async () => {
-    const w = await world();
-    try {
-      w.vault.invite(account);
-      await vaultConnect(w.host);
-      await w.vault.confirm("Osobní Environment Example", 1);
-      expect(await vaultRefresh(w.host)).toMatchObject({
-        state: "connected",
-        collection: "Osobní Environment Example",
-      });
-      // Another collection is shared meanwhile: still connected, by its ID.
-      await w.vault.confirm("Osobní Environment Example", 1, ["Banky"]);
-      expect(await vaultRefresh(w.host)).toMatchObject({
-        state: "connected",
-        collections: 2,
-      });
-      // Disconnected and connected again: the record is gone, and among
-      // several collections only the suggested name decides.
-      expect(await vaultDisconnect(w.host)).toMatchObject({ state: "none" });
-      expect(await vaultConnect(w.host)).toMatchObject({
-        state: "confirming",
-        organization: "Example Organization",
-      });
-      // Under the suggested name it is recognized again.
-      await w.vault.confirm(collection, 1, ["Banky"]);
-      expect(await vaultRefresh(w.host)).toMatchObject({
-        state: "connected",
-        collection,
-      });
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "connected" });
+      expect((await readFile(email, "utf8")).trim()).toBe(ownAccount);
+      expect(w.owned()).toHaveLength(1);
     } finally {
       await w.close();
     }
@@ -819,8 +733,8 @@ test.skipIf(!posix)(
   async () => {
     const w = await world();
     try {
-      w.vault.invite(account);
-      await vaultConnect(w.host);
+      w.vault.allow(ownAccount);
+      await vaultSetup(w.host);
       const binary = pinnedBinary(w.host.base, w.pin);
       expect(await mode(binary)).toBe(0o755);
       const entry = join(w.home, ".local", "bin", "bw");
@@ -829,19 +743,19 @@ test.skipIf(!posix)(
       expect(wrapper).toContain(`BITWARDENCLI_APPDATA_DIR='${w.paths.data}'`);
       // A tampered release is refused before anything is read from it.
       await rm(binary);
-      const host: VaultHost = {
+      const host_: VaultHost = {
         ...w.host,
         download: async () =>
           new Response(new Uint8Array(zipOf("bw", "#!/bin/sh\nexit 0\n"))),
       };
-      expect(await vaultConnect(host)).toMatchObject({
+      expect(await vaultSetup(host_)).toMatchObject({
         state: "failed",
         stage: "install",
         reason: "checksum-mismatch",
       });
       // A `bw` in ~/.local/bin that is not Lazurio's is never replaced.
       await writeFile(entry, "#!/bin/sh\necho mine\n", { mode: 0o755 });
-      expect(await vaultConnect(w.host)).toMatchObject({
+      expect(await vaultSetup(w.host)).toMatchObject({
         state: "failed",
         stage: "install",
         reason: "entry-conflict",
@@ -857,44 +771,63 @@ test.skipIf(!posix)(
 test("a Remote Environment without a vault refuses everything before anything runs", async () => {
   const parent = await realpath(await mkdtemp(join(tmpdir(), "vault-none-")));
   try {
-    const host: VaultHost = {
-      context: async () => ({ kind: "unsupported", reason: "workstation" }),
-      directory: () => join(parent, "never"),
-      base: join(parent, "never"),
-      bin: join(parent, "never"),
-      home: parent,
-      path: undefined,
-      platform: "darwin",
-      arch: "arm64",
-      run: async () => {
-        throw new Error("nothing may run");
-      },
-    };
-    const unsupported: VaultStatus = {
-      kind: "vault-status",
-      state: "unsupported",
-      reason: "workstation",
-    };
-    expect(await vaultStatus(host)).toEqual(unsupported);
-    expect(await vaultConnect(host)).toEqual(unsupported);
-    expect(await vaultRefresh(host)).toEqual(unsupported);
-    expect(await vaultDisconnect(host)).toEqual(unsupported);
-    expect(await vaultEnv(host)).toEqual({
-      kind: "vault-env-refused",
-      reason: "workstation",
-    });
+    for (const reason of ["workstation", "no-vault"] as const) {
+      const host_: VaultHost = {
+        context: async () => ({ kind: "unsupported", reason }),
+        directory: () => join(parent, "never"),
+        base: join(parent, "never"),
+        bin: join(parent, "never"),
+        home: parent,
+        path: undefined,
+        platform: "linux",
+        arch: "x64",
+        run: async () => {
+          throw new Error("nothing may run");
+        },
+        fetch: async () => {
+          throw new Error("nothing may be asked");
+        },
+      };
+      const unsupported: VaultStatus = {
+        kind: "vault-status",
+        state: "unsupported",
+        reason,
+      };
+      expect(await vaultStatus(host_)).toEqual(unsupported);
+      expect(await vaultSetup(host_)).toEqual(unsupported);
+      expect(await vaultRefresh(host_)).toEqual(unsupported);
+      expect(setUpAtStart(unsupported)).toBe(false);
+      expect(await vaultEnv(host_)).toEqual({
+        kind: "vault-env-refused",
+        reason,
+      });
+    }
     expect(await lstat(join(parent, "never")).catch(() => null)).toBeNull();
   } finally {
     await rm(parent, { recursive: true, force: true });
   }
 });
 
-test("the context of the fixture is the personal Environment of example", () => {
+test("the start sets up only an own vault that needs it", () => {
+  const status = (value: object) => value as VaultStatus;
   expect(
-    vaultContextOf({
-      handover: personalHandover,
-      kind: "personal",
-      label: null,
-    }),
-  ).toMatchObject({ account, collection, vault: vaultOrigin });
+    setUpAtStart(status({ state: "not-set-up", origin: "own", next: "vault" })),
+  ).toBe(true);
+  for (const state of ["not-allowed", "revoked", "unreachable", "failed"])
+    expect([state, setUpAtStart(status({ state, origin: "own" }))]).toEqual([
+      state,
+      false,
+    ]);
+  // A 0197 pilot is only read.
+  expect(
+    setUpAtStart(
+      status({
+        state: "connected",
+        origin: "pilot-0197",
+        locked: true,
+        organization: null,
+        name: null,
+      }),
+    ),
+  ).toBe(false);
 });

@@ -9,78 +9,59 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseMachineContext } from "../src/machine/context";
 import { parseSecretItems } from "../src/vault/bw";
-import {
-  type VaultContext,
-  type VaultUnsupported,
-  vaultContextOf,
-} from "../src/vault/context";
+import type { VaultContext, VaultUnsupported } from "../src/vault/context";
 import {
   type VaultHost,
   type VaultJournalEntry,
-  vaultConnect,
-  vaultRefresh,
   vaultSecrets,
   vaultSecretsAdmission,
+  vaultSetup,
 } from "../src/vault/flow";
+import { readRecord, vaultPaths } from "../src/vault/store";
 import {
-  collectionId,
   fakeBw,
   fakeHost,
   fakePin,
   fakeRelease,
-  organizationId,
-  otherCollectionId,
+  ownContext,
   personalHandover,
   startFakeVault,
+  stateDirectory,
+  workAccount,
+  workHandover,
   zipOf,
-  zone,
 } from "./fixtures/fake-vault";
-import { handoverEntry } from "./fixtures/machine-bindings";
-import organization from "./fixtures/machine-context.json";
 
-// The runtime secrets of an application from the Environment vault
-// (decision F46, root decision 0177): a sync, then the one item of each
-// declared name in the Environment's collection, its login password the
-// value. Against the fake Vaultwarden and the fake bw of the vault's own
-// tests; every name, id and value is invented.
+// The runtime secrets of an application from the Environment's own vault
+// (decision F46 as F52 amends it, root decision 0177): a sync, then the one
+// item of each declared name anywhere in the vault, its login password the
+// value. A work Environment serves its owning Organization's applications, a
+// personal one the Personalspace's (0198 point 4). Against the fake
+// Vaultwarden and the fake bw; every name, id and value is invented.
 
 const posix = process.platform !== "win32";
 const otherOrganizationId = "9c8b7a6f-5e4d-4c3b-8a29-1f0e9d8c7b6a";
+const otherCollectionId = "1f2e3d4c-5b6a-4f9e-8d7c-6b5a4f3e2d1c";
 // A value that must never appear anywhere but in the result.
 const value = "fake-runtime-secret-value-7f3a9c";
 const changed = "fake-runtime-secret-value-changed-2b8e4d";
 
 /** The work Environment `workspace` of the Organization `example`. */
-const workHandover = parseMachineContext(
-  Buffer.from(
-    JSON.stringify({
-      ...organization,
-      owner: { kind: "organization", organization: "example" },
-      network: {
-        headscale_server_url: `https://headscale.${zone}`,
-        headscale_hostname: "example-workspace",
-      },
-      entry: handoverEntry("workspace.example.lazurio.io"),
-    }),
-  ),
-);
-const workContext = vaultContextOf({
-  handover: workHandover,
-  kind: "work",
-  label: null,
-});
+const workContext = ownContext(workHandover(), "work");
+const application = { company: "Example", personalspace: false } as const;
 
 type Item = Readonly<{
   name: string;
   password?: string | null;
-  organization?: string | null;
-  collections?: readonly string[];
+  /** Another organization's (`foreign`) or the account's own (`personal`). */
+  owner?: "foreign" | "personal";
+  /** Agenti by default. */
+  collection?: "other";
   notes?: string;
 }>;
 
-/** A connected work Environment: invited, connected, confirmed, refreshed. */
+/** A work Environment whose own vault is set up. */
 async function connected() {
   const parent = await realpath(
     await mkdtemp(join(tmpdir(), "vault-secrets-")),
@@ -89,53 +70,58 @@ async function connected() {
   const vault = await startFakeVault(home);
   const zip = zipOf("bw", fakeBw);
   const pin = fakePin(zip);
-  const release = fakeRelease(pin, zip);
   const journal: VaultJournalEntry[] = [];
   const host = fakeHost({
     home,
     vault,
     pin,
-    download: release.fetch,
+    download: fakeRelease(pin, zip).fetch,
     journal,
     context: async () => workContext,
   });
-  if (workContext.kind === "unsupported") throw new Error("unsupported");
-  vault.invite(workContext.account);
-  await vaultConnect(host);
-  await vault.confirm(workContext.collection, 0);
-  expect(await vaultRefresh(host)).toMatchObject({ state: "connected" });
+  vault.allow(workAccount);
+  expect(await vaultSetup(host)).toMatchObject({ state: "connected" });
+  const paths = vaultPaths(
+    stateDirectory(home, "vaultwarden.example.lazurio.io", workAccount),
+  );
+  const record = await readRecord(paths);
+  const organizationId = record.organizationId ?? "?";
+  const agents = record.collectionId ?? "?";
   /** What the next sync brings: the items of the vault. */
   const items = (list: readonly Item[]) =>
-    writeFile(
-      join(vault.world, "items.json"),
-      JSON.stringify(
-        list.map((item) => ({
-          object: "item",
-          id: crypto.randomUUID(),
-          type: 1,
-          name: item.name,
-          organizationId:
-            item.organization === undefined
-              ? organizationId
-              : item.organization,
-          collectionIds: item.collections ?? [collectionId],
-          notes: item.notes ?? null,
-          login:
-            item.password === undefined
-              ? { username: "example", password: value }
-              : item.password === null
-                ? null
-                : { username: "example", password: item.password },
-        })),
-      ),
+    vault.items(
+      list.map((item) => ({
+        object: "item",
+        id: crypto.randomUUID(),
+        type: 1,
+        name: item.name,
+        organizationId:
+          item.owner === "foreign"
+            ? otherOrganizationId
+            : item.owner === "personal"
+              ? null
+              : organizationId,
+        collectionIds:
+          item.owner === "personal"
+            ? []
+            : [item.collection === "other" ? otherCollectionId : agents],
+        notes: item.notes ?? null,
+        login:
+          item.password === undefined
+            ? { username: "example", password: value }
+            : item.password === null
+              ? null
+              : { username: "example", password: item.password },
+      })),
     );
   return {
-    parent,
     home,
     vault,
     host,
     journal,
     items,
+    organizationId,
+    data: paths.data,
     async close() {
       await vault.stop();
       await rm(parent, { recursive: true, force: true });
@@ -162,32 +148,41 @@ async function everyFile(directory: string, skip?: string): Promise<string> {
 }
 
 test.skipIf(!posix)(
-  "a declared name is the login password of the one item of that name in the Environment's collection, read after a sync and never written anywhere",
+  "a declared name is the login password of the one item of that name anywhere in the Environment's vault, read after a sync and never written anywhere",
   async () => {
     const w = await connected();
     try {
       await w.items([
         { name: "EXTERNAL_API_KEY", notes: "fake-unrelated-note-5c1e" },
+        // Another collection of the same vault holds one as well.
+        {
+          name: "SECOND_KEY",
+          collection: "other",
+          password: "fake-second-value-4e2a",
+        },
         { name: "UNRELATED_ITEM", password: "fake-unrelated-value-0d4f" },
       ]);
       const result = await vaultSecrets(w.host, {
-        company: "Example",
-        names: ["EXTERNAL_API_KEY"],
+        ...application,
+        names: ["EXTERNAL_API_KEY", "SECOND_KEY"],
       });
       expect(result).toEqual({
         kind: "vault-secrets",
-        secrets: new Map([["EXTERNAL_API_KEY", { kind: "value", value }]]),
+        secrets: new Map([
+          ["EXTERNAL_API_KEY", { kind: "value", value }],
+          ["SECOND_KEY", { kind: "value", value: "fake-second-value-4e2a" }],
+        ]),
       });
-      // A sync came first; the items of exactly the connected collection
-      // were listed; no value was ever an argument.
+      // A sync came first; the items of exactly the own vault were listed;
+      // no value was ever an argument.
       const calls = await w.vault.calls();
       const lines = calls.trim().split("\n");
       const sync = lastIndex(lines, "sync ");
-      const list = lastIndex(lines, "list items");
+      const list = lastIndex(lines, "list items --organizationid");
       expect(sync).toBeGreaterThan(-1);
       expect(list).toBeGreaterThan(sync);
       expect(lines[list]).toBe(
-        `list items --organizationid ${organizationId} --collectionid ${collectionId} --nointeraction|session=yes`,
+        `list items --organizationid ${w.organizationId} --nointeraction|session=yes`,
       );
       expect(calls).not.toContain(value);
       // The journal says what happened, never a value or a name.
@@ -201,15 +196,7 @@ test.skipIf(!posix)(
       // `fake/` of its data directory, where the real bw keeps its
       // encrypted store; that copy is bw's, not this Platform's.
       const state = join(w.home, ".local", "state");
-      const data = join(
-        state,
-        "lazurio",
-        "vault",
-        "vaultwarden.example.lazurio.io",
-        "workspace.example.lazurio.io",
-        "bw",
-      );
-      expect(await everyFile(state, join(data, "fake"))).not.toContain(value);
+      expect(await everyFile(state, join(w.data, "fake"))).not.toContain(value);
       expect(await everyFile(join(w.home, ".local", "share"))).not.toContain(
         value,
       );
@@ -220,27 +207,26 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "missing, held twice, in another collection or organization, or without a password: no value, and why",
+  "missing, held twice, in another organization or the account's own vault, or without a password: no value, and why",
   async () => {
     const w = await connected();
     try {
       await w.items([
         { name: "TWICE" },
-        { name: "TWICE", password: "fake-second-value-6a1c" },
-        { name: "ELSEWHERE", collections: [otherCollectionId] },
-        { name: "FOREIGN", organization: otherOrganizationId },
-        { name: "PERSONAL", organization: null, collections: [] },
+        // Twice across two collections of the vault is twice too.
+        { name: "TWICE", collection: "other", password: "fake-second-6a1c" },
+        { name: "FOREIGN", owner: "foreign" },
+        { name: "PERSONAL", owner: "personal" },
         { name: "EMPTY", password: "" },
         { name: "NO_LOGIN", password: null },
         // Another case of the name is another name.
         { name: "external_api_key" },
       ]);
       const result = await vaultSecrets(w.host, {
-        company: "example",
+        ...application,
         names: [
           "MISSING",
           "TWICE",
-          "ELSEWHERE",
           "FOREIGN",
           "PERSONAL",
           "EMPTY",
@@ -253,7 +239,6 @@ test.skipIf(!posix)(
         secrets: new Map([
           ["MISSING", { kind: "absent", reason: "missing" }],
           ["TWICE", { kind: "absent", reason: "ambiguous" }],
-          ["ELSEWHERE", { kind: "absent", reason: "missing" }],
           ["FOREIGN", { kind: "absent", reason: "missing" }],
           ["PERSONAL", { kind: "absent", reason: "missing" }],
           ["EMPTY", { kind: "absent", reason: "empty" }],
@@ -280,7 +265,7 @@ test.skipIf(!posix)(
       await w.items([{ name: "EXTERNAL_API_KEY" }]);
       const read = async () => {
         const result = await vaultSecrets(w.host, {
-          company: "example",
+          ...application,
           names: ["EXTERNAL_API_KEY"],
         });
         return result.kind === "vault-secrets"
@@ -297,20 +282,18 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "an unreachable vault and a revoked access refuse every name with a fixed reason",
+  "an unreachable vault and a refused grant refuse every name with a fixed reason",
   async () => {
     const w = await connected();
     try {
       await w.items([{ name: "EXTERNAL_API_KEY" }]);
       await w.vault.unreachable(true);
-      const unreachable = await vaultSecrets(w.host, {
-        company: "example",
-        names: ["EXTERNAL_API_KEY"],
-      });
-      expect(unreachable).toEqual({
-        kind: "vault-secrets-refused",
-        reason: "unreachable",
-      });
+      expect(
+        await vaultSecrets(w.host, {
+          ...application,
+          names: ["EXTERNAL_API_KEY"],
+        }),
+      ).toEqual({ kind: "vault-secrets-refused", reason: "unreachable" });
       expect(w.journal.at(-1)).toEqual({
         operation: "secrets",
         outcome: "refused",
@@ -321,7 +304,7 @@ test.skipIf(!posix)(
       await writeFile(join(w.vault.world, "invalid-grant"), "");
       expect(
         await vaultSecrets(w.host, {
-          company: "example",
+          ...application,
           names: ["EXTERNAL_API_KEY"],
         }),
       ).toEqual({ kind: "vault-secrets-refused", reason: "not-connected" });
@@ -331,7 +314,7 @@ test.skipIf(!posix)(
   },
 );
 
-test("a workstation, an Environment without a vault account and an application of another Organization never run bw", async () => {
+test("which applications read the own vault: the owning Organization's on a work Environment, the Personalspace's on a personal one; everything else is refused before bw runs", async () => {
   const calls: string[][] = [];
   const host = (context: VaultContext | VaultUnsupported): VaultHost => ({
     ...fakeHost({
@@ -346,46 +329,67 @@ test("a workstation, an Environment without a vault account and an application o
       return { exitCode: 1, stdout: "", stderr: "" };
     },
   });
-  const read = (
-    context: VaultContext | VaultUnsupported,
-    company = "example",
-  ) => vaultSecrets(host(context), { company, names: ["EXTERNAL_API_KEY"] });
-  expect(await read({ kind: "unsupported", reason: "workstation" })).toEqual({
-    kind: "vault-secrets-refused",
-    reason: "workstation",
-  });
-  expect(
-    await read({ kind: "unsupported", reason: "handover-missing" }),
-  ).toEqual({ kind: "vault-secrets-refused", reason: "no-vault-identity" });
-  // The work Environment of `example`: an app of `gamma` reads nothing from
-  // its collection; the slug compares as GitHub's, case-insensitively.
-  expect(await read(workContext, "gamma")).toEqual({
-    kind: "vault-secrets-refused",
-    reason: "other-organization",
-  });
-  // A person's Environment: no Organization's app reads its secrets.
-  const personal = vaultContextOf({
-    handover: personalHandover,
-    kind: "personal",
-    label: null,
-  });
-  expect(await read(personal)).toEqual({
-    kind: "vault-secrets-refused",
-    reason: "other-organization",
-  });
+  const personal = ownContext(personalHandover, "personal");
+  const cases = [
+    // A work Environment of `example`: its own apps (slugs compare as
+    // GitHub's, case-insensitively), never another Organization's or a
+    // Personalspace module.
+    [workContext, { company: "EXAMPLE", personalspace: false }, null],
+    [
+      workContext,
+      { company: "gamma", personalspace: false },
+      "other-organization",
+    ],
+    [workContext, { company: "example", personalspace: true }, "personalspace"],
+    // A personal Environment: the Personalspace's modules, never an
+    // Organization's app.
+    [personal, { company: "personalspace", personalspace: true }, null],
+    [
+      personal,
+      { company: "example", personalspace: false },
+      "personal-environment",
+    ],
+    // No vault here: a workstation, or no vault named or readable.
+    [
+      { kind: "unsupported", reason: "workstation" },
+      { company: "example", personalspace: false },
+      "workstation",
+    ],
+    [
+      { kind: "unsupported", reason: "no-vault" },
+      { company: "example", personalspace: false },
+      "no-vault-identity",
+    ],
+    [
+      { kind: "unsupported", reason: "handover-missing" },
+      { company: "example", personalspace: true },
+      "no-vault-identity",
+    ],
+  ] as const;
+  for (const [context, app, reason] of cases) {
+    expect([app, await vaultSecretsAdmission(host(context), app)]).toEqual([
+      app,
+      reason,
+    ]);
+    // Admitted, but the vault is not set up here: refused before bw reads
+    // anything of the vault.
+    expect([
+      app,
+      await vaultSecrets(host(context), { ...app, names: ["KEY"] }),
+    ]).toEqual([
+      app,
+      {
+        kind: "vault-secrets-refused",
+        reason: reason ?? "not-connected",
+      },
+    ]);
+  }
   expect(calls).toEqual([]);
-  expect(await vaultSecretsAdmission(host(workContext), "EXAMPLE")).toBeNull();
-  expect(await vaultSecretsAdmission(host(workContext), "gamma")).toBe(
-    "other-organization",
-  );
-  // Not connected: refused before bw reads anything of the vault.
-  expect(await read(workContext)).toEqual({
-    kind: "vault-secrets-refused",
-    reason: "not-connected",
-  });
 });
 
 test("the item reader keeps only the declared names and only what the selection reads", () => {
+  const organizationId = "0b9e2f3a-5c1d-4e8f-9a7b-1c2d3e4f5a6b";
+  const collectionId = "6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d";
   const names = new Set(["EXTERNAL_API_KEY"]);
   const stdout = JSON.stringify([
     {

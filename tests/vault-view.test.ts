@@ -1,345 +1,268 @@
 import { expect, test } from "bun:test";
 import { messages } from "../src/launchpad/messages";
 import {
-  parseVaultConnecting,
+  parseVaultSettingUp,
   parseVaultStatus,
-  vaultActions,
-  vaultAfterConnect,
-  vaultLink,
-  vaultPhaseMarks,
+  vaultAction,
+  vaultOpenLink,
   vaultRowLine,
-  vaultSeen,
-  vaultStartStep,
-  vaultStepTitles,
 } from "../src/launchpad/vault-view";
 import type { VaultStatus } from "../src/vault/flow";
 
-// The Environment vault on the tools screen (decision F43, the wireframe of
-// prototypes-lazurio#24): the row's states, its one next step, the dialog's
-// steps and the server's answers taken only in their exact form.
+// The Environment's own vault on the tools screen (decision F52, the
+// wireframe of prototypes-lazurio#33): the row's states, "Otevřít trezor",
+// the one action where a setup moves the vault on, and the server's answers
+// taken only in their exact form.
 
 const cs = messages("cs");
 const en = messages("en");
+const organizationId = "0b9e2f3a-5c1d-4e8f-9a7b-1c2d3e4f5a6b";
+const collectionId = "6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d";
 const facts = {
   vault: "https://vaultwarden.example.lazurio.io",
-  account: "vaultwarden@example.lazurio.io",
-  collection: "Environmenty/Osobní · example",
-  name: "Osobní",
+  account: "vaultwarden-ndbrmzvjpwxtt3q7m2e4fihgsa@example.lazurio.io",
+  name: "Example Osobní example",
   team: false,
+  origin: "own",
 };
-const fingerprint = "steep-flavor-uncut-scouring-unnoticed";
 const status = (value: Record<string, unknown>): VaultStatus => {
   const parsed = parseVaultStatus({ kind: "vault-status", ...facts, ...value });
   if (parsed === null) throw new Error("Unexpected refusal");
   return parsed;
 };
+const connected = {
+  state: "connected",
+  organizationId,
+  collectionId,
+  organization: "Example Osobní example",
+  items: 14,
+};
 
 test("every state the server answers is read back exactly; anything else is refused", () => {
   for (const value of [
-    { state: "none", registered: false },
-    { state: "not-installed", registered: true },
-    { state: "awaiting-invite" },
-    { state: "confirming", fingerprint, organization: null },
-    { state: "confirming", fingerprint, organization: "Example", locked: true },
-    {
-      state: "connected",
-      fingerprint,
-      organization: "Example",
-      collections: 2,
-      items: 14,
-    },
-    {
-      state: "connected",
-      fingerprint,
-      organization: null,
-      collections: null,
-      items: null,
-      locked: true,
-    },
-    { state: "revoked", fingerprint: null },
-    { state: "unreachable", fingerprint, reason: "unreachable" },
+    { state: "not-set-up", next: "install" },
+    { state: "not-set-up", next: "vault" },
+    { state: "not-allowed" },
+    connected,
+    { ...connected, organization: null, items: null, locked: true },
+    { state: "revoked" },
+    { state: "unreachable", reason: "unreachable" },
     {
       state: "failed",
-      stage: "install",
-      reason: "checksum-mismatch",
+      stage: "vault",
+      reason: "organization-refused",
       fallback: "agent",
     },
   ])
-    expect(status(value) as unknown).toEqual({
+    expect(status(value)).toEqual({
       kind: "vault-status",
       ...facts,
       ...value,
-    });
+    } as VaultStatus);
+  // A 0197 pilot's status carries no vault name.
   expect(
     parseVaultStatus({
       kind: "vault-status",
-      state: "unsupported",
-      reason: "workstation",
+      ...facts,
+      name: null,
+      origin: "pilot-0197",
+      ...connected,
     }),
-  ).toEqual({
-    kind: "vault-status",
-    state: "unsupported",
-    reason: "workstation",
-  });
+  ).toMatchObject({ origin: "pilot-0197", name: null });
+  for (const reason of [
+    "workstation",
+    "folder-unreadable",
+    "handover-missing",
+    "handover-unreadable",
+    "not-operator",
+    "no-vault",
+  ] as const)
+    expect(
+      parseVaultStatus({ kind: "vault-status", state: "unsupported", reason }),
+    ).toEqual({ kind: "vault-status", state: "unsupported", reason });
   for (const refused of [
-    { ...facts, kind: "vault-status", state: "connected", fingerprint },
-    { ...facts, kind: "vault-status", state: "none" },
-    { ...facts, kind: "vault-status", state: "elsewhere" },
-    {
-      ...facts,
-      kind: "vault-status",
-      state: "awaiting-invite",
-      vault: "https://evil.example.invalid",
-    },
-    {
-      ...facts,
-      kind: "vault-status",
-      state: "awaiting-invite",
-      account: "a\u202eb",
-    },
-    {
-      ...facts,
-      kind: "vault-status",
-      state: "confirming",
-      fingerprint: "two words",
-      organization: null,
-    },
-    { kind: "vault-status", state: "unsupported", reason: "maybe" },
     null,
     [],
-    "connected",
+    { kind: "vault-status", state: "unsupported", reason: "vault-unknown" },
+    { kind: "vault-status", ...facts, state: "confirming" },
+    { kind: "vault-status", ...facts, state: "awaiting-invite" },
+    { kind: "vault-status", ...facts, state: "not-set-up", next: "connect" },
+    { kind: "vault-status", ...facts, origin: "theirs", ...connected },
+    {
+      kind: "vault-status",
+      ...facts,
+      vault: "http://vaultwarden.example.lazurio.io",
+      ...connected,
+    },
+    {
+      kind: "vault-status",
+      ...facts,
+      vault: "https://vaultwarden.example.lazurio.io/path",
+      ...connected,
+    },
+    { kind: "vault-status", ...facts, ...connected, organizationId: "x" },
+    { kind: "vault-status", ...facts, ...connected, items: -1 },
+    { kind: "vault-status", ...facts, ...connected, locked: false },
+    { kind: "vault-status", ...facts, account: "a\u202eb", ...connected },
+    {
+      kind: "vault-status",
+      ...facts,
+      state: "failed",
+      stage: "confirm",
+      reason: "x",
+      fallback: "agent",
+    },
   ])
-    expect(parseVaultStatus(refused)).toBeNull();
+    expect([refused, parseVaultStatus(refused)]).toEqual([refused, null]);
+});
+
+test("a running setup is read with its job and phase only", () => {
   const job = "0123456789abcdef0123456789abcdef";
-  expect(
-    parseVaultConnecting({ kind: "vault-connecting", job, phase: "account" }),
-  ).toEqual({ job, phase: "account" });
-  expect(
-    parseVaultConnecting({ kind: "vault-connecting", job, phase: "x" }),
-  ).toBeNull();
-  expect(
-    parseVaultConnecting({
-      kind: "vault-connecting",
-      job: "1",
-      phase: "install",
-    }),
-  ).toBeNull();
+  for (const phase of ["install", "account", "vault", "sign-in"] as const)
+    expect(
+      parseVaultSettingUp({ kind: "vault-setting-up", job, phase }),
+    ).toEqual({ job, phase });
+  for (const refused of [
+    { kind: "vault-connecting", job, phase: "install" },
+    { kind: "vault-setting-up", job: "x", phase: "install" },
+    { kind: "vault-setting-up", job, phase: "confirm" },
+    null,
+  ])
+    expect(parseVaultSettingUp(refused)).toBeNull();
 });
 
-test("the third step asks for the confirmation, and once confirmed only for the collection", () => {
-  const third = (value: Record<string, unknown>, copy = cs) =>
-    vaultStepTitles(status(value), copy).confirm;
-  const waiting = { state: "confirming", fingerprint, organization: null };
-  const confirmed = {
-    state: "confirming",
-    fingerprint,
-    organization: "Example",
-  };
-  expect(third(waiting)).toBe("Potvrďte účet v trezoru");
-  expect(third(waiting, en)).toBe("Confirm the account in the vault");
-  expect(third(confirmed)).toBe("Nasdílejte účtu kolekci");
-  expect(third(confirmed, en)).toBe("Share the collection with the account");
-  // Every other step keeps its title.
-  expect(vaultStepTitles(status(confirmed), cs)).toEqual({
-    invite: cs.vaultStepInvite,
-    connect: cs.vaultStepConnect,
-    confirm: "Nasdílejte účtu kolekci",
-    done: cs.vaultStepDone,
-  });
-  expect(vaultStepTitles(null, en).confirm).toBe(
-    "Confirm the account in the vault",
-  );
-});
-
-test("the row says the wireframe's states, with Czech plurals", () => {
-  const line = (value: Record<string, unknown>, copy = cs) =>
-    vaultRowLine(status(value), copy).text;
-  expect(line({ state: "none", registered: false })).toBe("Nepřipojeno");
-  expect(line({ state: "confirming", fingerprint, organization: null })).toBe(
-    "Čeká na potvrzení v trezoru",
-  );
-  // Confirmed in an organization, without the Environment's collection.
-  expect(
-    line({ state: "confirming", fingerprint, organization: "Example" }),
-  ).toBe("Potvrzeno, čeká na kolekci");
-  expect(
-    line({ state: "confirming", fingerprint, organization: "Example" }, en),
-  ).toBe("Confirmed, waiting for the collection");
-  const connected = (collections: number, items: number) =>
-    line({
-      state: "connected",
-      fingerprint,
-      organization: "Example",
-      collections,
-      items,
-    });
-  expect(connected(2, 14)).toBe("Připojeno · 2 kolekce · 14 položek");
-  expect(connected(1, 1)).toBe("Připojeno · 1 kolekce · 1 položka");
-  expect(connected(5, 3)).toBe("Připojeno · 5 kolekcí · 3 položky");
-  expect(connected(0, 0)).toBe("Připojeno · 0 kolekcí · 0 položek");
-  expect(
-    line(
-      {
-        state: "connected",
-        fingerprint,
-        organization: "Example",
-        collections: 1,
-        items: 2,
-      },
-      en,
-    ),
-  ).toBe("Connected · 1 collection · 2 items");
-  expect(line({ state: "revoked", fingerprint })).toBe(
-    "Přístup odebrán v trezoru",
-  );
-  expect(line({ state: "unreachable", fingerprint, reason: "timeout" })).toBe(
-    "Trezor neodpovídá",
-  );
-  expect(
-    vaultRowLine(
-      { kind: "vault-status", state: "unsupported", reason: "workstation" },
-      cs,
-    ).text,
-  ).toBe("Brzy · druhá vlna");
-  expect(vaultRowLine(null, cs).text).toBe("Zjišťuji stav…");
-  expect(vaultSeen(3, 21, cs)).toBe("3 kolekce · 21 položek");
-});
-
-test("each state offers one next step, and Odpojit once an account is signed in", () => {
-  const actions = (value: Record<string, unknown>) => {
-    const { primary, disconnect } = vaultActions(status(value), cs);
-    return [primary?.action ?? null, primary?.label ?? null, disconnect];
-  };
-  expect(actions({ state: "none", registered: false })).toEqual([
-    "connect",
-    "Připojit",
-    false,
+test("the row says the state in few words, formally in Czech, and the step of a setup that runs", () => {
+  const lines = (copy: typeof cs) =>
+    [
+      vaultRowLine(null, null, copy),
+      vaultRowLine(status(connected), null, copy),
+      vaultRowLine(
+        status({ state: "not-set-up", next: "install" }),
+        null,
+        copy,
+      ),
+      vaultRowLine(status({ state: "not-allowed" }), null, copy),
+      vaultRowLine(status({ state: "revoked" }), null, copy),
+      vaultRowLine(
+        status({ state: "revoked", origin: "pilot-0197", name: null }),
+        null,
+        copy,
+      ),
+      vaultRowLine(
+        status({ state: "unreachable", reason: "unreachable" }),
+        null,
+        copy,
+      ),
+      vaultRowLine(
+        status({
+          state: "failed",
+          stage: "vault",
+          reason: "x",
+          fallback: "agent",
+        }),
+        null,
+        copy,
+      ),
+      vaultRowLine(
+        { kind: "vault-status", state: "unsupported", reason: "no-vault" },
+        null,
+        copy,
+      ),
+      vaultRowLine(
+        { kind: "vault-status", state: "unsupported", reason: "workstation" },
+        null,
+        copy,
+      ),
+      vaultRowLine(null, "vault", copy),
+    ].map((line) => `${line.state}: ${line.text}`);
+  expect(lines(cs)).toEqual([
+    "unknown: Zjišťuji stav…",
+    "signed-in: Připojeno",
+    "unknown: Zatím nenastaveno",
+    "signed-out: Síť zatím účet trezoru nepovolila",
+    "signed-out: Trezor byl odebrán",
+    "signed-out: Přístup odebrán v trezoru",
+    "signed-out: Trezor neodpovídá",
+    "signed-out: Nastavení se nedokončilo",
+    "unknown: Tento Environment zatím trezor nemá",
+    "unknown: Brzy · druhá vlna",
+    "unknown: Připravuje se trezor…",
   ]);
-  expect(
-    actions({ state: "confirming", fingerprint, organization: null }),
-  ).toEqual(["continue", "Pokračovat", true]);
-  expect(
-    actions({
-      state: "connected",
-      fingerprint,
-      organization: null,
-      collections: 1,
-      items: 1,
-    }),
-  ).toEqual([null, null, true]);
-  expect(actions({ state: "revoked", fingerprint })).toEqual([
-    "reconnect",
-    "Připojit znovu",
-    true,
+  expect(lines(en)).toEqual([
+    "unknown: Checking…",
+    "signed-in: Connected",
+    "unknown: Not set up yet",
+    "signed-out: The network has not allowed its account yet",
+    "signed-out: The vault was removed",
+    "signed-out: Access removed in the vault",
+    "signed-out: The vault does not answer",
+    "signed-out: The setup did not finish",
+    "unknown: This Environment has no vault yet",
+    "unknown: Soon · second wave",
+    "unknown: Preparing the vault…",
   ]);
-  expect(
-    actions({ state: "unreachable", fingerprint, reason: "timeout" }),
-  ).toEqual(["retry", "Zkusit znovu", true]);
-  expect(
-    vaultActions(
-      { kind: "vault-status", state: "unsupported", reason: "workstation" },
-      cs,
-    ),
-  ).toEqual({ primary: null, disconnect: false });
 });
 
-test("the dialog starts where the state is and goes where a connect ends", () => {
+test("the row opens the connected vault and offers one action only where a setup moves it on", () => {
+  expect(vaultOpenLink(status(connected))).toBe(
+    `https://vaultwarden.example.lazurio.io/#/vault?organizationId=${organizationId}`,
+  );
+  expect(cs.vaultOpen).toBe("Otevřít trezor");
+  for (const value of [
+    { state: "not-set-up", next: "vault" },
+    { state: "not-allowed" },
+    { state: "revoked" },
+  ])
+    expect(vaultOpenLink(status(value))).toBeNull();
+  expect(vaultOpenLink(null)).toBeNull();
+  // Set up when nothing did, try again after a setup that stopped; never a
+  // disconnect, never for a vault the network has to act on, a pilot or a
+  // setup that runs.
   expect(
-    vaultStartStep(status({ state: "none", registered: false }), "connect"),
-  ).toBe("invite");
-  // An account that exists only signs in again.
+    vaultAction(status({ state: "not-set-up", next: "install" }), null, cs),
+  ).toBe("Nastavit");
   expect(
-    vaultStartStep(status({ state: "none", registered: true }), "connect"),
-  ).toBe("connect");
+    vaultAction(status({ state: "unreachable", reason: "x" }), null, cs),
+  ).toBe("Zkusit znovu");
   expect(
-    vaultStartStep(
-      status({ state: "confirming", fingerprint, organization: null }),
-      "continue",
-    ),
-  ).toBe("confirm");
-  expect(
-    vaultStartStep(status({ state: "revoked", fingerprint }), "reconnect"),
-  ).toBe("invite");
-  expect(vaultAfterConnect(status({ state: "awaiting-invite" }), cs)).toEqual({
-    step: "invite",
-    failure: "Adresa ještě není v trezoru pozvaná.",
-    agent: false,
-  });
-  // A connect keeps the collection it was connected to: another one needs a
-  // disconnect first, and the dialog says so.
-  expect(
-    vaultAfterConnect(status({ state: "revoked", fingerprint }), cs),
-  ).toEqual({
-    step: "invite",
-    failure:
-      "Účet nevidí kolekci, ke které byl připojený. Pozvěte ho do ní znovu, nebo Environment odpojte a připojte ho k jiné kolekci.",
-    agent: false,
-  });
-  expect(
-    vaultAfterConnect(
-      status({ state: "confirming", fingerprint, organization: null }),
-      cs,
-    ),
-  ).toEqual({ step: "confirm", failure: null, agent: false });
-  expect(
-    vaultAfterConnect(
-      status({
-        state: "connected",
-        fingerprint,
-        organization: null,
-        collections: 1,
-        items: 0,
-      }),
-      cs,
-    ),
-  ).toEqual({ step: "done", failure: null, agent: false });
-  expect(
-    vaultAfterConnect(
-      status({
-        state: "unreachable",
-        fingerprint: null,
-        reason: "unreachable",
-      }),
-      cs,
-    ),
-  ).toEqual({ step: "connect", failure: "Trezor neodpovídá.", agent: false });
-  expect(
-    vaultAfterConnect(
+    vaultAction(
       status({
         state: "failed",
-        stage: "account",
-        reason: "rate-limited",
+        stage: "install",
+        reason: "x",
         fallback: "agent",
       }),
+      null,
       cs,
     ),
-  ).toEqual({
-    step: "connect",
-    failure: "Připojení se nedokončilo (account: rate-limited).",
-    agent: true,
-  });
-  expect(vaultPhaseMarks("account", cs)).toEqual([
-    { label: "Instaluji Bitwarden", mark: "done" },
-    { label: "Zakládám účet", mark: "running" },
-    { label: "Přihlašuji", mark: "next" },
-  ]);
-  expect(vaultPhaseMarks("done", cs).map((entry) => entry.mark)).toEqual([
-    "done",
-    "done",
-    "done",
-  ]);
-});
-
-test("only the Environment's own vault becomes a link", () => {
-  expect(vaultLink("https://vaultwarden.example.lazurio.io")).toBe(
-    "https://vaultwarden.example.lazurio.io/",
-  );
-  for (const refused of [
-    "http://vaultwarden.example.lazurio.io",
-    "https://vault.example.lazurio.io",
-    "https://vaultwarden.example.lazurio.io:8443",
-    "https://vaultwarden.example.lazurio.io/admin",
-    "javascript:alert(1)",
+  ).toBe("Zkusit znovu");
+  for (const value of [
+    connected,
+    { state: "not-allowed" },
+    { state: "revoked" },
+    {
+      state: "unreachable",
+      reason: "x",
+      origin: "pilot-0197",
+      name: null,
+    },
   ])
-    expect(vaultLink(refused)).toBeNull();
+    expect([value, vaultAction(status(value), null, cs)]).toEqual([
+      value,
+      null,
+    ]);
+  expect(
+    vaultAction(
+      status({ state: "not-set-up", next: "install" }),
+      "install",
+      cs,
+    ),
+  ).toBeNull();
+  expect(
+    vaultAction(
+      { kind: "vault-status", state: "unsupported", reason: "no-vault" },
+      null,
+      cs,
+    ),
+  ).toBeNull();
 });

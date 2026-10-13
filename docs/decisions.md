@@ -7832,6 +7832,16 @@ Verified by tests:
 
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
+> **Superseded in part by [F52](#f52--every-environment-owns-its-vault-its-own-organization-in-the-networks-vaultwarden-created-by-its-technical-account)
+> (root decision 0198, 2026-10-13).** The account and its vault now come from the
+> handover's `vault` member, and the Environment owns its vault, its own organization;
+> the guessed `vaultwarden@<address>` account, the vault derived from Headscale, the
+> collection in a person's organization recognized by its name, the Admin's invitation
+> and fingerprint confirmation, the four-step dialog and the disconnect are gone. The
+> pinned CLI (point 3), the custody's form (point 1, now keyed by the account) and the
+> one session (point 5) stay. Environments connected the way below keep working read
+> only through the frozen `src/vault/legacy-0197/` until their items move.
+
 **Decided by Matěj 2026-10-08 and 2026-10-09 (root decision 0193, plan DEV-6631;
 the Settings wireframe approved in HumanAndMachine-ai/prototypes-lazurio#24);
 implemented in this revision for Remote Environments on Linux.** Every
@@ -8483,6 +8493,15 @@ Google Workspace and Microsoft 365 (DEV-6626 task 685), the relay on Team and
 Automated Environments (Machines #382) and immediate delivery.
 
 ## F46 — Runtime secrets: declared names, read from the Environment vault before every start, fail closed
+
+> **Amended by [F52](#f52--every-environment-owns-its-vault-its-own-organization-in-the-networks-vaultwarden-created-by-its-technical-account)
+> (root decision 0198, 2026-10-13).** A value is now the login password of the one
+> item named exactly like the secret anywhere in the Environment's own vault (point 2
+> below read one collection of an Organization's vault), and point 3's boundary
+> becomes the vault's rule: on a work Environment the applications of the
+> Organization that owns it, on a personal one the Personalspace's modules
+> (`personal-environment`, `personalspace`); the open question of the Personalspace is
+> answered. A 0197 pilot keeps this decision's reading unchanged.
 
 **Proposed with issue #129 (root decision 0177, HumanAndMachines/Lazurio#480; the
 optional secrets of root decision 0196, the Environment ceiling); implemented in this
@@ -10549,3 +10568,142 @@ of every stack read by the Platform's own readers, every generated personal modu
 listed by the catalog as `personalspace/<module>` (a Bun app executable, `python-uv`
 not yet, as the plan warns, `none` without an app), and the embedded templates equal to
 their directory.
+
+## F53 — Every Environment owns its vault: its own organization in the network's Vaultwarden, created by its technical account
+
+**Decided by the Admin on 2026-10-12 and 2026-10-13 (root decision 0198 points 1, 2,
+4, 6 and 7, with 0197 points 3 and 7–9; plan DEV-6631 task 638 part A, contract C3;
+the wireframe of HumanAndMachine-ai/prototypes-lazurio#33); implemented in this
+revision for Remote Environments on Linux. Supersedes F43's collection model and
+amends F46.** Each Environment has its own vault: its own organization in its
+network's Lazurio Vaultwarden. The Environment's technical account creates it, is its
+only Owner, and the Environment remembers it by ID; names never decide what it is.
+The Environment sets it up itself; its agents use it freely, through the one unlocked
+session of F43.
+
+1. **The account and the vault come from the handover.** Machines writes the
+   optional, closed member `vault: {server_url, account, name}` (contract C2) only for
+   a Platform release that reads it, as it gates `entry.environment_relay`, because a
+   Platform vendoring an earlier schema refuses the whole handover
+   ([machine handover](machine-handover.md#the-environments-own-vault-decision-f52)).
+   `account` is `vaultwarden-<26 lowercase base32>@<Environment address>`, generated
+   and pre-allowed by the network (`/admin/invite`) for this Environment alone;
+   `name` is "<short Organization> <Environment name> <login>", letters, digits and
+   single spaces, at most 50 characters, unique within the network. Nothing is
+   derived any more: no `vaultwarden@<address>`, no vault from the tailnet's control
+   server, no collection matched by a name, including F43's
+   `Environmenty/<name> · <machine>`. Without the member the Environment has no vault
+   yet and says so (`unsupported`, `no-vault`).
+2. **Custody keyed by the account.** F43's files, in
+   `${XDG_STATE_HOME:-~/.local/state}/lazurio/vault/<vault host>/<account>/`, so an
+   account the handover replaces starts afresh and a 0197 pilot's directory, keyed by
+   its address, stays beside it untouched. `lazurio-vault.json` now holds the vault's
+   organization id, its collection Agenti's id and, while a creation is under way,
+   its receipt; a record that cannot be read refuses (`record-unreadable`) and nothing
+   is ever created over it.
+3. **Registration, then the vault** (`src/vault/organization.ts`). The account is
+   registered by F43's flow; the network pre-allowed the address, so a refusal is
+   `not-allowed` (not pre-allowed yet, or an unused pre-allowance pruned). Then the
+   core signs in with the API key (`client_credentials`), reads the account's
+   confirmed organizations from its profile and, without a record, creates the vault
+   with `POST /api/organizations`: the organization key (64 random bytes)
+   RSA-OAEP-SHA1-encrypted to the account's own public key, which it derives from its
+   own private key unlocked by the master password (so the key is one this
+   Environment can open whatever the server says); the organization's RSA-2048 key
+   pair, its private key wrapped by the organization key; the billing e-mail, the
+   account; the name, `vault.name`; and the first collection, "Agenti", its name
+   encrypted with the organization key. bw cannot create an organization; these are
+   the web vault's requests, proven against 1.37.4-lazurio.1 by the DEV-6631 study of
+   2026-10-12. The new organization's public key is recorded before the request: an
+   organization whose answer was lost is recognized by it
+   (`GET /api/organizations/<id>/public-key`) and never created twice. Agenti is the
+   organization's one collection, by its ID; several without a record of it are
+   `collection-unknown`, never chosen by a name. A recorded organization the account
+   no longer belongs to is `revoked` and is never replaced (only the network's
+   operator can delete it, 0198 point 2); a refused API key is `revoked` too. When
+   `vault.name` changes, the setup renames the organization
+   (`PUT /api/organizations/<id>`). `ORG_CREATION_USERS` that leaves the account out
+   is `organization-refused`.
+4. **The flow.** install → account → own vault → sign-in and the one shared session,
+   in one setup (`vaultSetup`, `src/vault/flow.ts`), idempotent and under the
+   account's lock. `lazurio vault setup` runs it, and so does the installed Launchpad
+   in the background after its start, by Executor's pattern (F44's addendum of
+   2026-10-11): on a supervised base of the hosted operator (`vaultAtStart`), once,
+   where `setUpAtStart` says the vault needs it (not set up, its session locked, or
+   its name no longer the handover's); never a 0197 pilot, a revoked vault or one
+   whose setup stopped, which wait for the row's action or an agent. The states:
+   `unsupported` (with `no-vault`), `not-set-up` (with the `next` step),
+   `not-allowed`, `connected` (`organizationId`, `collectionId`, `organization`,
+   `items`; `locked`), `revoked`, `unreachable` and `failed` (`stage` now also
+   `vault`). `lazurio vault status` stays the one source of truth for agents and the
+   Launchpad. The Admin's approval, the fingerprint confirmation and their states,
+   the four-step dialog and its copy, the name-based adoption and the disconnect are
+   removed; `connect` is replaced by `setup`.
+5. **The Tools row** (Settings → Tools → bitwarden) shows only the state and "Otevřít
+   trezor", a link to `<server_url>/#/vault?organizationId=<id>`, plus one action only
+   where a setup moves the vault on ("Nastavit", "Zkusit znovu", as the wireframe's
+   unreachable state does); no disconnect for the Environment's own vault. Czech copy
+   addresses people formally and says little (root decision 0199). The routes are
+   `POST /api/tools/bitwarden/status|refresh|setup`; a running setup answers
+   `202 {kind: "vault-setting-up", job, phase}` from all three.
+6. **Pilot safety** (`src/vault/legacy-0197/`, frozen). A few Environments were
+   connected the 0197 way: an account `vaultwarden@<address>` in a person's
+   organization with a recorded collection. While such an Environment's handover
+   names no vault, it keeps working read only exactly as before: its status
+   (connected, revoked, unreachable or failed), the shared session unlocked for its
+   agents, and F46 from the recorded collection under F46's rule of 0197. Nothing
+   connects the old way any more. When its handover gains `vault`, the own vault is
+   set up with the new account in a directory of its own, and the pilot's directory
+   is left untouched for DEV-6631 task 649 to move its items. Its README names the
+   condition of its deletion: every Environment's handover carries `vault` and task
+   649 has moved the items.
+7. **Runtime secrets** (F46 as amended). A value is the login password of the one
+   item named exactly like the secret anywhere in the Environment's own vault (any
+   of its collections); secure-note fields follow with task 651. On a work
+   Environment the applications of the Organization that owns it read them; on a
+   personal Environment the Personalspace's modules do (0198 point 4: personal and
+   work alike); everything else is refused with its reason (`other-organization`,
+   `personalspace`, `personal-environment`). The catalog's check without the vault
+   follows the same rule.
+8. **The agents' text** (the catalog entry `bitwarden`, template revision
+   `base-instructions-49`) says only what is true now: the Environment's own vault,
+   used freely by its agents; `lazurio vault status` read before anything is said
+   about the vault; never a secret asked for in chat. How a secret reaches the vault
+   (0198 point 9, paths a, b and c) follows with task 652.
+9. **Recovery evidence** withholds the handover's `vault.account`, `vault.name` and
+   the vault's host (`<vault-account>`, `<vault-name>`).
+
+**Honest limits.** The pre-allowed address is the one credential of the
+registration: before it is registered, anyone in the Environment boundary who reads
+the handover could register it, which is the boundary of root decision 0172 anyway.
+Agents with full access can read the account's secrets on the Environment (F43
+point 9). Organization creation stays open to every account of the network
+(`ORG_CREATION_USERS`), so people can create other organizations outside this model;
+the threat model of the network's vault records it. People's access to an
+Environment's vault (Správci, task 638b) is not in this revision: until then only the
+Environment's account is a member of its vault. The vendored handover schema carries
+the drafted `vault` member until the Machines pull request of task 637 publishes it
+(`schema-provenance.json`'s `pending`).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep a collection per Environment in an Organization's vault (F43) | An Admin's approval for every Environment and an Organization vault that holds every Environment's passwords; rejected by 0198 points 1 and 2 |
+| Derive the account from the address and the vault from the tailnet | A guessable account and a convention instead of a finished value; rejected for the handover's member |
+| Adopt the organization the account owns, or one named like the vault | A name or a role is not an identity; rejected for the ID and the creation's receipt |
+| Encrypt the organization key to the public key the server reports | Trusts the server for the one key the Environment must open; rejected for the key derived from its own private key |
+| Recreate a vault that is gone | Would hide a deletion only the network's operator can make; rejected for `revoked` |
+| Keep connect, the dialog and disconnect beside the own vault | Two models of one tool; rejected, the pilot subset is read only and has a deletion condition |
+
+Verified by unit tests against the fake Vaultwarden (`tests/fixtures/fake-vault.ts`,
+extended with the API-key login, the profile and the organization endpoints) and the
+fake bw: the setup from not allowed to connected, idempotent, renamed, its lost answer
+recognized by the receipt, gone and refused (`tests/vault-flow.test.ts`); the account
+opening its own organization key from its master password down to Agenti's name and
+the organization's private key (`tests/vault-organization.test.ts`); the pilot with
+and without `vault` (`tests/vault-pilot.test.ts`); the CLI (`tests/vault-cli.test.ts`)
+and the Launchpad over HTTP with its start (`tests/launchpad-vault.test.ts`); the
+member, an earlier Platform refusing it and its redaction
+(`tests/vault-handover.test.ts`); F46 on the own vault (`tests/vault-secrets.test.ts`,
+`tests/runtime-secrets.test.ts`, `tests/module-runtime-secrets.test.ts`); no value or
+token on argv, in the journal or in an answer.
+
