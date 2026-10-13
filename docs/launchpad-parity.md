@@ -481,7 +481,8 @@ until then an agent in T3 edits the file.
 `personalspace` after the Organizations; discovery reads the one Personalspace present
 on a preset whose policy is `present` (`src/folder/presets.ts`), never on an
 Organization preset, and with more than one owner directory reads none
-(`personalspace-ambiguous`). The resident named these apps `<owner login>/<module>`
+(`personalspace-ambiguous`); since #186 only the one this Environment's GitHub account
+holds (decision F9's addendum of 2026-10-05). The resident named these apps `<owner login>/<module>`
 (`R:lazurio/runtime/personalspace-lib.mjs:1126`); the Platform's name carries no
 login. The gateway's `ensure` counts the group like an Organization for
 `module-ambiguous`. As built: `docs/launchpad-development.md`, "The Personalspace

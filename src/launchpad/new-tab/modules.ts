@@ -12,18 +12,19 @@ import {
   catalogOrganizationKey,
 } from "../../organizations/catalog-selection";
 import {
-  locatePersonalspace,
   observePersonalspaceModule,
+  type PersonalspaceHolderRead,
+  unverifiedPersonalspace,
 } from "../../organizations/personalspace";
 
 // The running Modules of the overview of Nová karta (decision F47 point 7):
-// the transient user units of the Environment's Organizations (and its
-// Personalspace) that run now, each named by the catalog's Organization, its
-// module and app, so that Zastavit is the existing
-// `POST /api/modules/<org>/<module>/stop` with `{app}`. Nothing is recorded:
-// the service manager lists what runs (`runner.list()`), and each app of the
-// catalog is named by the runner's own rule (`identify`), so the two meet
-// without a registry of the Launchpad's.
+// the transient user units of the Environment's Organizations (and of the
+// Personalspace its GitHub account holds, #186) that run now, each named by
+// the catalog's Organization, its module and app, so that Zastavit is the
+// existing `POST /api/modules/<org>/<module>/stop` with `{app}`. Nothing is
+// recorded: the service manager lists what runs (`runner.list()`), and each
+// app of the catalog is named by the runner's own rule (`identify`), so the
+// two meet without a registry of the Launchpad's.
 
 export type ModuleUnit = Readonly<{
   /** The name `/api/modules/<org>/…` takes: `catalogOrganizationKey`. */
@@ -39,6 +40,9 @@ export type ModulesSeams = Readonly<{
   /** The Launchpad's module host: who owns started apps and their runner. */
   host: Pick<ModuleHost, "runnerKind" | "createRunner">;
   readCatalog?: ((folder: string) => Promise<Catalog>) | undefined;
+  /** Whose Personalspace this Environment holds (#186), as the Launchpad
+   * last decided it: only a held Personalspace's apps are listed. */
+  personalspace?: PersonalspaceHolderRead | undefined;
 }>;
 
 /** Where a group's apps run and under which company each module's are
@@ -50,6 +54,7 @@ async function groupScope(
   folder: string,
   catalog: Catalog,
   group: CatalogOrganization,
+  holder: PersonalspaceHolderRead,
 ): Promise<Readonly<{
   directory: string;
   company: (module: string) => Promise<string | null>;
@@ -64,9 +69,9 @@ async function groupScope(
         ),
         company: async () => slug,
       };
-    const located = await locatePersonalspace(folder);
-    if (located.kind !== "owner") return null;
-    const directory = await canonicalCheckoutDirectory(located.directory);
+    const decided = await holder(folder);
+    if (decided.kind !== "held") return null;
+    const directory = await canonicalCheckoutDirectory(decided.directory);
     return {
       directory,
       company: async (module) => {
@@ -88,13 +93,14 @@ async function groupUnits(
   seams: ModulesSeams,
   catalog: Catalog,
   group: CatalogOrganization,
+  holder: PersonalspaceHolderRead,
 ): Promise<ModuleUnit[] | null> {
   const org = catalogOrganizationKey(catalog, group);
   const runnable = group.modules.filter((module) =>
     module.apps.some((app) => app.kind === "runtime-declared"),
   );
   if (org === null || runnable.length === 0) return [];
-  const scope = await groupScope(seams.folder, catalog, group);
+  const scope = await groupScope(seams.folder, catalog, group, holder);
   if (scope === null) return [];
   let runner: ApplicationRunner;
   try {
@@ -141,11 +147,14 @@ export async function runningModules(
 ): Promise<readonly ModuleUnit[] | null> {
   try {
     if ((await seams.host.runnerKind()) !== "systemd-user") return null;
-    const catalog = await (seams.readCatalog ?? readFolderCatalog)(
-      seams.folder,
-    );
+    const holder = seams.personalspace ?? unverifiedPersonalspace;
+    const catalog = await (
+      seams.readCatalog ?? ((folder) => readFolderCatalog(folder, holder))
+    )(seams.folder);
     const groups = await Promise.all(
-      catalogGroups(catalog).map((group) => groupUnits(seams, catalog, group)),
+      catalogGroups(catalog).map((group) =>
+        groupUnits(seams, catalog, group, holder),
+      ),
     );
     return groups.some((units) => units === null)
       ? null

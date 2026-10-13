@@ -19,9 +19,11 @@ import {
   selectCatalogOrganization,
 } from "../organizations/catalog-selection";
 import {
-  locatePersonalspace,
   observePersonalspaceModule,
+  type PersonalspaceHolderRead,
+  personalspaceName,
   resolvePersonalspaceApplication,
+  unverifiedPersonalspace,
 } from "../organizations/personalspace";
 import { checkoutRefusal } from "../providers/checkout-custody";
 import { runTool } from "../tools/status";
@@ -64,7 +66,10 @@ import {
 // through the catalog's selection rule and runs its declared app through the
 // existing lifecycle, runners and adapters. There is no state of its own: what
 // runs is what the OS service manager (Linux) or the Launchpad's session
-// (macOS) reports, and every call reads the catalog again.
+// (macOS) reports, and every call reads the catalog again. A Personalspace
+// module runs only from the Personalspace this Environment's GitHub account
+// holds (#186): the holder decision is asked with the catalog, at the
+// selection and again by the lifecycle's own authorization.
 
 export type ModuleVerb = "start" | "prepare" | "stop" | "status" | "logs";
 export const moduleVerbs: readonly ModuleVerb[] = [
@@ -421,9 +426,24 @@ export function createModuleOperations(input: {
   host: ModuleHost;
   /** Test seam: the catalog core; the product reads the Folder. */
   readCatalog?: (folder: string) => Promise<Catalog>;
+  /** Whose Personalspace this Environment holds (#186): the content core's
+   * decision through this Environment's gh. Without one, no Personalspace
+   * module runs (`personalspace-unverified`). */
+  personalspace?: PersonalspaceHolderRead;
 }) {
   const { folder, owner, host } = input;
-  const readCatalog = input.readCatalog ?? readFolderCatalog;
+  const holder = input.personalspace ?? unverifiedPersonalspace;
+  // The catalog with its Personalspace group decided where the group can be
+  // selected (its name, or every group for `ensure`), and left unread
+  // otherwise: an Organization's module never waits for GitHub's answer
+  // whose Personalspace this is.
+  const readCatalog = (folder: string, personalspace: boolean) =>
+    input.readCatalog !== undefined
+      ? input.readCatalog(folder)
+      : readFolderCatalog(
+          folder,
+          personalspace ? holder : unverifiedPersonalspace,
+        );
   const held = new Map<string, Lifecycle>();
   // Starts `ensure` has begun and not yet seen end, per app: a burst of
   // gateway subrequests (a page and its assets, the reloads of the
@@ -492,7 +512,10 @@ export function createModuleOperations(input: {
     const [organizationName, moduleName] = parts as [string, string];
     let catalog: Catalog;
     try {
-      catalog = await readCatalog(folder);
+      catalog = await readCatalog(
+        folder,
+        organizationName.toLowerCase() === personalspaceName,
+      );
     } catch {
       return blocked(operation, "folder-unreadable");
     }
@@ -528,7 +551,7 @@ export function createModuleOperations(input: {
     if (!isModuleId(id)) return blocked("ensure", "module-unknown");
     let catalog: Catalog;
     try {
-      catalog = await readCatalog(folder);
+      catalog = await readCatalog(folder, true);
     } catch {
       return blocked("ensure", "folder-unreadable");
     }
@@ -634,14 +657,16 @@ export function createModuleOperations(input: {
       ...(preparationFault === undefined ? {} : { preparationFault }),
     };
     if (personalspace) {
-      // The owner directory again, by the same rule as the catalog, and the
-      // company its module declares: selected by, never shown.
+      // The holder again, by the same decision as the catalog (#186), and
+      // the company its module declares: selected by, never shown.
       const unavailable = () =>
         blocked(operation, "personalspace-unavailable", where);
-      const located = await locatePersonalspace(folder);
-      if (located.kind !== "owner") return unavailable();
+      const decided = await holder(folder).catch(() => null);
+      if (decided?.kind === "blocked")
+        return blocked(operation, decided.reason, where);
+      if (decided?.kind !== "held") return unavailable();
       try {
-        const directory = await canonicalCheckoutDirectory(located.directory);
+        const directory = await canonicalCheckoutDirectory(decided.directory);
         const { path, observed } = await observePersonalspaceModule(
           directory,
           module.module,
@@ -698,7 +723,8 @@ export function createModuleOperations(input: {
         runner,
         ...(target.personalspace
           ? {
-              resolveApplication: resolvePersonalspaceApplication,
+              resolveApplication: (space: string, selection: unknown) =>
+                resolvePersonalspaceApplication(space, selection, holder),
               personalspace: true,
             }
           : { organizationRoot: organizationDirectory }),

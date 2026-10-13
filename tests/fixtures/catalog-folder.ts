@@ -5,6 +5,11 @@ import { initializeFolder } from "../../src/folder/initialize-folder";
 import { executionOs } from "../../src/folder/platform";
 import { expectedLegacyProjection } from "../../src/organizations/legacy-projection";
 import {
+  locatePersonalspace,
+  type PersonalspaceHolderRead,
+  unverifiedPersonalspace,
+} from "../../src/organizations/personalspace";
+import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
 } from "./owned-files";
@@ -312,6 +317,25 @@ export async function folderFixture(run: (folder: string) => Promise<void>) {
     await rm(parent, { recursive: true, force: true });
   }
 }
+
+/** The holder decision (#186) taking the one owner directory in
+ * personalspace/ for `login`'s own Personalspace, for the tests of what
+ * follows once a Personalspace is held; the decision itself is tested in
+ * personalspace-holder.test.ts. The layout's own answers stay. */
+export const heldBy =
+  (login: string): PersonalspaceHolderRead =>
+  async (folder) => {
+    const decided = await unverifiedPersonalspace(folder);
+    if (
+      decided.kind !== "blocked" ||
+      decided.reason !== "personalspace-unverified"
+    )
+      return decided;
+    const located = await locatePersonalspace(folder);
+    return located.kind === "owner"
+      ? { kind: "held", login, directory: located.directory }
+      : decided;
+  };
 
 /** A module of the Personalspace (launchpad-parity B11) in
  * <Folder>/personalspace/<owner>/workspace/<id>, declaring `company`. */

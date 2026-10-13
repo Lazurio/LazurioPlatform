@@ -566,6 +566,20 @@ const en = {
     "personalspace/ holds more than one directory; only the Operator's own may be there, and none is read until it is the only one.",
   catalogReasonPersonalspaceUnavailable:
     "The Personalspace cannot be read: its directories must be real directories owned by you.",
+  catalogReasonPersonalspaceForeign:
+    "personalspace/ holds a checkout that is not the personal space of the GitHub account signed in here, so it is not read and none of its apps run. It was left untouched.",
+  catalogReasonPersonalspaceNotOwned:
+    "GitHub does not know this personal space as a repository of the account signed in here, so it is not read.",
+  catalogReasonPersonalspacePublic:
+    "This personal space's repository is public on GitHub. A personal space must be private, so it is not read until it is.",
+  catalogReasonGithubSignedOut:
+    "GitHub is not signed in here, so it cannot be verified that this personal space is yours. Sign in to GitHub in Settings → Tools.",
+  catalogReasonGithubUnavailable:
+    "GitHub did not answer, so it cannot be verified now that this personal space is yours. It is checked again once GitHub answers.",
+  catalogReasonGithubIdentityMismatch:
+    "GitHub is signed in here with another account than this Environment's owner, so this personal space is not read.",
+  catalogReasonPersonalspaceUnverified:
+    "Checking with GitHub that this personal space is yours…",
   catalogReasonDeclaration:
     "The module's declaration in modules.manifest.json conflicts with another.",
   catalogReasonModuleUnavailable:
@@ -1948,6 +1962,20 @@ const cs: Record<MessageKey, string> = {
     "V personalspace/ je víc než jedna složka; smí tam být jen ta Operátorova a žádná se nečte, dokud nezůstane jediná.",
   catalogReasonPersonalspaceUnavailable:
     "Personalspace nelze přečíst: jeho složky musí být skutečné složky, které vlastníte.",
+  catalogReasonPersonalspaceForeign:
+    "V personalspace/ je checkout, který není osobním prostorem účtu GitHub přihlášeného na tomto Environmentu. Proto se nečte a žádná jeho aplikace se nespustí. Zůstal, jak byl.",
+  catalogReasonPersonalspaceNotOwned:
+    "GitHub tento osobní prostor nezná jako repozitář účtu přihlášeného na tomto Environmentu, proto se nečte.",
+  catalogReasonPersonalspacePublic:
+    "Repozitář tohoto osobního prostoru je na GitHubu veřejný. Osobní prostor musí být soukromý, proto se nečte, dokud jím nebude.",
+  catalogReasonGithubSignedOut:
+    "GitHub tu není přihlášený, proto nejde ověřit, že je tento osobní prostor váš. Přihlaste GitHub v Nastavení → Nástroje.",
+  catalogReasonGithubUnavailable:
+    "GitHub neodpověděl, proto teď nejde ověřit, že je tento osobní prostor váš. Ověří se znovu, jakmile GitHub odpoví.",
+  catalogReasonGithubIdentityMismatch:
+    "GitHub je tu přihlášený jiným účtem, než má vlastník tohoto Environmentu, proto se osobní prostor nečte.",
+  catalogReasonPersonalspaceUnverified:
+    "Ověřujeme na GitHubu, že je tento osobní prostor váš…",
   catalogReasonDeclaration:
     "Deklarace modulu v modules.manifest.json je v konfliktu s jinou.",
   catalogReasonModuleUnavailable:

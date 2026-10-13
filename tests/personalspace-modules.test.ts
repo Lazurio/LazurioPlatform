@@ -1,10 +1,13 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdtemp, readdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { GitHubRepository, ViewerAnswer } from "../src/content/github";
+import { personalspaceHolder } from "../src/content/status";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
+import { bootElementId, parseBoot } from "../src/launchpad/boot";
 import {
   catalogSelection,
   moduleRoute,
@@ -22,12 +25,23 @@ import { applicationUnitName } from "../src/modules/systemd-user-runner";
 import { readFolderCatalog } from "../src/organizations/catalog";
 import { selectCatalogOrganization } from "../src/organizations/catalog-selection";
 import { runCatalogCommand } from "../src/organizations/cli";
+import type {
+  PersonalspaceBlockedReason,
+  PersonalspaceHolderRead,
+} from "../src/organizations/personalspace";
 import type { CliContext } from "../src/update/cli";
 import {
   folderFixture,
   writeOrganization,
   writePersonalspaceModule,
 } from "./fixtures/catalog-folder";
+import {
+  checkoutWithOrigin,
+  contentHost,
+  createWorld,
+  stubGitHub,
+  type World,
+} from "./fixtures/content-world";
 import { createFakeServiceManager } from "./fixtures/fake-service-manager";
 import {
   organizationWithEntry,
@@ -43,26 +57,34 @@ import { mkdirOwnedFixture as mkdir } from "./fixtures/owned-files";
 // The Personalspace's workspace modules (launchpad-parity B11): one more
 // catalog group `personalspace` on the presets that have a Personalspace,
 // addressed as `personalspace/<module>` by `lazurio module`, the Launchpad and
-// the gateway's `ensure`, and never read on an Organization preset. The owner
+// the gateway's `ensure`, and never read on an Organization preset. Only the
+// Personalspace this Environment's GitHub account holds is read (#186): any
+// other is listed blocked with its reason, and none of it runs. The owner
 // directory and the company a module declares are private: no output names
 // them. Synthetic names only; nothing touches the account's home.
 const supported = ["darwin", "linux"].includes(process.platform);
 const posixTest = test.skipIf(!supported);
 let root = "";
 let binary = "";
+let world: World | undefined;
 beforeAll(async () => {
   if (!supported) return;
   root = await realpath(await mkdtemp(join(tmpdir(), "personalspace-")));
   binary = join(root, "platform");
   await compilePlatform(binary);
+  world = await createWorld();
 });
 afterAll(async () => {
+  await world?.close();
   if (root) await rm(root, { recursive: true, force: true });
 });
 
 // Names that must never appear in any output.
 const owner = "privateowner_GEN3";
 const company = "privatelogin";
+// The GitHub account whose Personalspace the fixture is.
+const login = "privateowner";
+const loginId = 4242;
 
 function cliContext(home: string): CliContext {
   return {
@@ -74,9 +96,10 @@ function cliContext(home: string): CliContext {
   };
 }
 
-// The fixture Personalspace: `notes` runs, `diary`'s default app has no
-// runtime declaration; a directory without a module declaration and a hidden
-// entry in personalspace/ are neither modules nor owners.
+// The fixture Personalspace: a checkout of the account's own
+// `privateowner/privateowner_GEN3`; `notes` runs, `diary`'s default app has
+// no runtime declaration; a directory without a module declaration and a
+// hidden entry in personalspace/ are neither modules nor owners.
 async function personalspace(folder: string) {
   const notes = await writePersonalspaceModule(folder, owner, company, {
     id: "notes",
@@ -87,7 +110,46 @@ async function personalspace(folder: string) {
   });
   await mkdir(join(folder, "personalspace", owner, "workspace", "scratch"));
   await mkdir(join(folder, "personalspace", ".git"));
+  await checkoutWithOrigin(
+    join(folder, "personalspace", owner),
+    `${login}/${owner}`,
+  );
   return notes;
+}
+
+/** This Environment's gh and git as the holder decision reads them: gh
+ * signed in as `viewer` (the fixture's own account by default), and GitHub
+ * knowing the fixture's repository as that account's own, private one. */
+function github(
+  options: {
+    viewer?: ViewerAnswer;
+    id?: number;
+    repository?: Partial<GitHubRepository> | "unavailable" | "missing";
+  } = {},
+) {
+  const id = options.id ?? loginId;
+  const { github: stub, calls } = stubGitHub(world as World, {
+    viewer: options.viewer ?? {
+      kind: "signed-in",
+      viewer: { login, databaseId: id },
+    },
+    repositories:
+      options.repository === "missing"
+        ? {}
+        : {
+            [`${login}/${owner}`]:
+              options.repository === "unavailable"
+                ? "unavailable"
+                : {
+                    owner: { login, databaseId: id, kind: "User" },
+                    ...options.repository,
+                  },
+          },
+  });
+  const host = contentHost(world as World, stub);
+  const holder: PersonalspaceHolderRead = (folder) =>
+    personalspaceHolder(folder, host);
+  return { host, holder, calls };
 }
 
 const privateNames = (text: string) => {
@@ -101,11 +163,12 @@ posixTest(
     await folderFixture(async (folder) => {
       const home = join(folder, "..", "home");
       await mkdir(home);
-      const before = await readFolderCatalog(folder);
+      const { host, holder } = github();
+      const before = await readFolderCatalog(folder, holder);
       // folder-init of a workstation creates an empty personalspace/: no group.
       expect(before.personalspace).toBeUndefined();
       await personalspace(folder);
-      const catalog = await readFolderCatalog(folder);
+      const catalog = await readFolderCatalog(folder, holder);
       expect(catalog.organizations).toEqual(before.organizations);
       const module = {
         organization: "personalspace",
@@ -152,7 +215,11 @@ posixTest(
       privateNames(JSON.stringify(catalog));
 
       const run = async (...args: string[]) =>
-        runCatalogCommand([...args, "--folder", folder], cliContext(home));
+        runCatalogCommand(
+          [...args, "--folder", folder],
+          cliContext(home),
+          (folder) => readFolderCatalog(folder, holder),
+        );
       const organizations = await run("organization", "list", "--json");
       expect(JSON.parse(organizations.text)).toEqual(
         JSON.parse(JSON.stringify(catalog)),
@@ -181,9 +248,25 @@ posixTest(
         modules: JSON.parse(JSON.stringify(catalog.personalspace?.modules)),
       });
 
-      // The Launchpad's catalog route answers the same.
-      const app = await startLaunchpad(folder);
+      // The Launchpad's catalog route answers the same, from its own
+      // decision through this Environment's gh.
+      const app = await startLaunchpad(
+        folder,
+        undefined,
+        undefined,
+        undefined,
+        {},
+        undefined,
+        {},
+        undefined,
+        undefined,
+        undefined,
+        host,
+      );
       try {
+        // The page's catalog never waits for GitHub: once the Launchpad's
+        // first decision is made, it answers with it.
+        await (await fetchContent(app)).json();
         const session = new URL(app.url);
         const answer = await fetch(new URL("/api/catalog", session), {
           method: "POST",
@@ -301,6 +384,216 @@ posixTest(
 );
 
 posixTest(
+  "a Personalspace this Environment's GitHub account does not hold is listed blocked with its reason; none of it is read, listed or started",
+  async () => {
+    await folderFixture(async (folder) => {
+      const home = join(folder, "..", "home");
+      await mkdir(home);
+      await personalspace(folder);
+      const manager = createFakeServiceManager({
+        runtimeDirectory: join(folder, "..", "runtime"),
+      });
+      const host = linuxHost(manager, home, 1, binary);
+      const cases: {
+        gh: ReturnType<typeof github>;
+        reason: PersonalspaceBlockedReason;
+      }[] = [
+        // gh works as another account: this is not its Personalspace.
+        {
+          gh: github({
+            viewer: {
+              kind: "signed-in",
+              viewer: { login: "stranger", databaseId: 777 },
+            },
+          }),
+          reason: "personalspace-foreign",
+        },
+        // GitHub does not know it as the account's own, or it is public.
+        {
+          gh: github({ repository: "missing" }),
+          reason: "personalspace-not-owned",
+        },
+        {
+          gh: github({ repository: { private: false } }),
+          reason: "personalspace-public",
+        },
+        // Without a sign-in or GitHub's answer it is never runnable.
+        {
+          gh: github({ viewer: { kind: "signed-out" } }),
+          reason: "github-signed-out",
+        },
+        {
+          gh: github({ viewer: { kind: "unavailable" } }),
+          reason: "github-unavailable",
+        },
+        {
+          gh: github({ repository: "unavailable" }),
+          reason: "github-unavailable",
+        },
+      ];
+      for (const { gh, reason } of cases) {
+        const catalog = await readFolderCatalog(folder, gh.holder);
+        expect([reason, catalog.personalspace]).toEqual([
+          reason,
+          {
+            directory: "personalspace",
+            organization: "personalspace",
+            displayName: "Personalspace",
+            state: null,
+            issues: [],
+            executable: false,
+            reason,
+            teams: [],
+            modules: [],
+            repositories: [],
+          },
+        ]);
+        const listed = await runCatalogCommand(
+          ["module", "list", "personalspace", "--folder", folder],
+          cliContext(home),
+          (folder) => readFolderCatalog(folder, gh.holder),
+        );
+        expect(listed.text).toBe(`personalspace: ${reason}`);
+        for (const verb of ["start", "status", "stop"] as const) {
+          const refused = await runModuleCommand(
+            [
+              "module",
+              verb,
+              "personalspace/notes",
+              "--folder",
+              folder,
+              "--json",
+            ],
+            cliContext(home),
+            host,
+            gh.holder,
+          );
+          expect([verb, refused.code, refused.result]).toEqual([
+            verb,
+            2,
+            {
+              kind: "blocked",
+              operation: verb,
+              reason,
+              organization: "personalspace",
+              module: "notes",
+            },
+          ]);
+          privateNames(refused.text);
+        }
+        // The gateway's id finds no module: a blocked group lists none.
+        expect(
+          await createModuleOperations({
+            folder,
+            owner: "cli",
+            host,
+            personalspace: gh.holder,
+          }).ensure("notes", { mayStart: true }),
+        ).toEqual({
+          kind: "blocked",
+          operation: "ensure",
+          reason: "module-unknown",
+          module: "notes",
+        });
+        privateNames(`${JSON.stringify(catalog)}${listed.text}`);
+      }
+      expect(manager.calls).toEqual([]);
+      // Left as it was.
+      expect(
+        (
+          await readdir(join(folder, "personalspace", owner, "workspace"))
+        ).sort(),
+      ).toEqual(["diary", "notes", "scratch"]);
+      // A reader given no decision takes no owner directory for the
+      // Operator's.
+      expect((await readFolderCatalog(folder)).personalspace).toMatchObject({
+        executable: false,
+        reason: "personalspace-unverified",
+        modules: [],
+      });
+      expect(
+        await createModuleOperations({ folder, owner: "cli", host }).start(
+          "personalspace/notes",
+        ),
+      ).toEqual({
+        kind: "blocked",
+        operation: "start",
+        reason: "personalspace-unverified",
+        organization: "personalspace",
+        module: "notes",
+      });
+    });
+  },
+  60_000,
+);
+
+posixTest(
+  "an Organization's module and lists that do not show the Personalspace never wait for the decision whose it is",
+  async () => {
+    await folderFixture(async (folder) => {
+      const home = join(folder, "..", "home");
+      await mkdir(home);
+      await personalspace(folder);
+      // A decision that never comes, as GitHub that does not answer.
+      const asked: string[] = [];
+      const never: PersonalspaceHolderRead = (folder) => {
+        asked.push(folder);
+        return new Promise(() => {});
+      };
+      const manager = createFakeServiceManager({
+        runtimeDirectory: join(folder, "..", "runtime"),
+      });
+      await mkdir(manager.runtimeDirectory);
+      const operations = createModuleOperations({
+        folder,
+        owner: "cli",
+        host: linuxHost(manager, home, 1, binary),
+        personalspace: never,
+      });
+      expect(
+        await Promise.race([
+          operations.status("alpha/web"),
+          Bun.sleep(5_000).then(() => "waited"),
+        ]),
+      ).toMatchObject({
+        kind: "module",
+        organization: "alpha",
+        module: "web",
+        state: "stopped",
+      });
+      expect(asked).toEqual([]);
+      // The CLI asks only for an output that shows the group's modules.
+      const decided: [string, boolean][] = [];
+      for (const args of [
+        ["organization", "list"],
+        ["organization", "list", "--json"],
+        ["module", "list"],
+        ["module", "list", "alpha"],
+        ["module", "list", "personalspace"],
+        ["module", "list", "PersonalSpace", "--json"],
+      ])
+        await runCatalogCommand(
+          [...args, "--folder", folder],
+          cliContext(home),
+          async (folder, personalspace) => {
+            decided.push([args.join(" "), personalspace]);
+            return readFolderCatalog(folder);
+          },
+        );
+      expect(decided).toEqual([
+        ["organization list", false],
+        ["organization list --json", true],
+        ["module list", true],
+        ["module list alpha", false],
+        ["module list personalspace", true],
+        ["module list PersonalSpace --json", true],
+      ]);
+    });
+  },
+  30_000,
+);
+
+posixTest(
   "an Organization preset never reads personalspace/",
   async () => {
     const parent = await realpath(await mkdtemp(join(root, "organization-")));
@@ -351,6 +644,15 @@ posixTest(
   30_000,
 );
 
+/** `GET /api/content` of a local Launchpad, as the page reads it once idle:
+ * it waits for the Launchpad's decision whose Personalspace this is. */
+function fetchContent(app: Awaited<ReturnType<typeof startLaunchpad>>) {
+  const url = new URL(app.url);
+  return fetch(new URL("/api/content", url), {
+    headers: { Authorization: `Bearer ${url.hash.slice(1)}` },
+  });
+}
+
 // Local Launchpad requests with the fragment token, as the page sends them.
 function client(app: Awaited<ReturnType<typeof startLaunchpad>>) {
   const url = new URL(app.url);
@@ -392,11 +694,13 @@ posixTest(
       });
       await mkdir(manager.runtimeDirectory);
       const host = linuxHost(manager, home, port, binary);
+      const gh = github();
       const cli = async (...args: string[]) => {
         const result = await runModuleCommand(
           ["module", ...args, "--folder", folder, "--json"],
           cliContext(home),
           host,
+          gh.holder,
         );
         return { code: result.code, body: JSON.parse(result.text) };
       };
@@ -417,6 +721,8 @@ posixTest(
         {},
         undefined,
         host,
+        undefined,
+        gh.host,
       );
       try {
         const http = client(app);
@@ -447,6 +753,7 @@ posixTest(
           ["module", "status", "personalspace/notes", "--folder", folder],
           cliContext(home),
           host,
+          gh.holder,
         );
         expect(human.text).toStartWith("personalspace/notes: running, healthy");
         privateNames(human.text);
@@ -508,6 +815,8 @@ posixTest(
         {},
         undefined,
         host,
+        undefined,
+        github().host,
       );
       let closed = false;
       try {
@@ -591,6 +900,9 @@ posixTest(
     });
     await mkdir(manager.runtimeDirectory);
     const host = linuxHost(manager, home, port, binary);
+    // gh is signed in as the handover's Owner (GitHub id 12345), under the
+    // login whose Personalspace this is.
+    const gh = github({ id: 12345 });
     const app = await startLaunchpad(
       folder,
       undefined,
@@ -601,6 +913,8 @@ posixTest(
       {},
       undefined,
       host,
+      undefined,
+      gh.host,
     );
     // The Machines gateway's subrequest (see launchpad-ensure.test.ts).
     const ensure = async (id: string) => {
@@ -628,6 +942,7 @@ posixTest(
           ["module", "status", "personalspace/notes", "--folder", folder],
           cliContext(home),
           host,
+          gh.holder,
         )
       ).result;
       expect(status).toMatchObject({
@@ -635,6 +950,22 @@ posixTest(
         state: "running",
         healthy: true,
         runtime: { url: "https://notes.example.lazurio.io/" },
+      });
+      // The page's first paint carries the group as last decided (#186).
+      const page = await fetch(`http://127.0.0.1:${entry.listenPort}/`, {
+        headers: {
+          host: "launchpad.example.lazurio.io",
+          cookie: `${cookieName}=valid`,
+        },
+      });
+      const boot = parseBoot(
+        new RegExp(
+          `<script type="application/json" id="${bootElementId}">([\\s\\S]*?)</script>`,
+        ).exec(await page.text())?.[1],
+      );
+      expect(boot?.catalog?.personalspace).toMatchObject({
+        executable: true,
+        modules: [{ module: "diary" }, { module: "notes" }],
       });
       const refused = await ensure("diary");
       expect(refused.code).toBe(404);
@@ -663,6 +994,7 @@ posixTest(
         ["module", "stop", "personalspace/notes", "--folder", folder],
         cliContext(home),
         host,
+        gh.holder,
       );
     } finally {
       expect(await app.close()).toEqual({ kind: "closed" });

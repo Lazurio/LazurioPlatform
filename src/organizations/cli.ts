@@ -1,5 +1,6 @@
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { processPersonalspaceHolder } from "../content/holder";
 import { type CliContext, operatorFolder } from "../update/cli";
 import {
   type Catalog,
@@ -9,6 +10,7 @@ import {
   findCatalogOrganization,
   readFolderCatalog,
 } from "./catalog";
+import { personalspaceName, unverifiedPersonalspace } from "./personalspace";
 
 /** `lazurio organization list` and `lazurio module list`: the terminal surface
  * of the Folder catalog (launchpad-parity B1). The Launchpad's
@@ -39,7 +41,13 @@ module list [<Organization>] [--folder <absolute Folder>] [--json]
   personalspace/<owner>/workspace/ follow as personalspace/<module>, with no
   Teams; name the group personalspace to list only them. More than one
   directory in personalspace/ is refused (personalspace-ambiguous) and none
-  of them is read. Same Folder and rules as organization list.
+  of them is read. Only the Personalspace of the GitHub account gh is signed
+  in with here (on a personal Remote Environment, its Owner's) is read: its
+  own private <login>/<login>_GEN3 in personalspace/<login>_GEN3, as GitHub
+  confirms. Another is listed with its reason and no modules
+  (personalspace-foreign, personalspace-not-owned, personalspace-public,
+  github-signed-out, github-unavailable, github-identity-mismatch). Same
+  Folder and rules as organization list.
 Exit status: 0 listed, 2 usage, unknown Organization or no Folder known,
 1 the Folder could not be read.`;
 
@@ -153,8 +161,19 @@ function moduleLines(
 export async function runCatalogCommand(
   args: string[],
   context: CliContext,
-  // Test seam: the catalog core; the product reads the Folder.
-  read: (folder: string) => Promise<Catalog> = readFolderCatalog,
+  // Test seam: the catalog core; the product reads the Folder, and whose
+  // Personalspace this is (#186) through this process's gh where the output
+  // shows the Personalspace group (`personalspace`).
+  read: (folder: string, personalspace: boolean) => Promise<Catalog> = (
+    folder,
+    personalspace,
+  ) =>
+    readFolderCatalog(
+      folder,
+      personalspace
+        ? processPersonalspaceHolder(context.env, context.platform)
+        : unverifiedPersonalspace,
+    ),
 ): Promise<CatalogCommandOutput> {
   let values: { folder?: string | undefined; json?: boolean | undefined };
   let positionals: string[];
@@ -205,9 +224,16 @@ export async function runCatalogCommand(
       { kind: "blocked", reason: "folder-unknown" },
       "No Folder known: name it with --folder <absolute Folder>.",
     );
+  // GitHub is asked whose Personalspace this is only for an output that
+  // shows its modules: every module, the group's own, the whole catalog.
+  const name = rest[0];
+  const personalspace =
+    noun === "module"
+      ? name === undefined || name.toLowerCase() === personalspaceName
+      : json;
   let catalog: Catalog;
   try {
-    catalog = await read(folder);
+    catalog = await read(folder, personalspace);
   } catch {
     // No raw filesystem error: it could quote a private path.
     return done(
@@ -218,7 +244,6 @@ export async function runCatalogCommand(
   }
   if (noun === "organization")
     return done(0, catalog, organizationLines(catalog));
-  const name = rest[0];
   const organization =
     name === undefined ? undefined : findCatalogOrganization(catalog, name);
   if (name !== undefined && organization === undefined)

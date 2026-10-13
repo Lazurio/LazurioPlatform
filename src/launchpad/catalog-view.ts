@@ -41,6 +41,13 @@ const reasonKeys: Readonly<
   "organization-duplicate": "catalogReasonDuplicate",
   "personalspace-ambiguous": "catalogReasonPersonalspaceAmbiguous",
   "personalspace-unavailable": "catalogReasonPersonalspaceUnavailable",
+  "personalspace-foreign": "catalogReasonPersonalspaceForeign",
+  "personalspace-not-owned": "catalogReasonPersonalspaceNotOwned",
+  "personalspace-public": "catalogReasonPersonalspacePublic",
+  "github-signed-out": "catalogReasonGithubSignedOut",
+  "github-unavailable": "catalogReasonGithubUnavailable",
+  "github-identity-mismatch": "catalogReasonGithubIdentityMismatch",
+  "personalspace-unverified": "catalogReasonPersonalspaceUnverified",
   "declaration-conflict": "catalogReasonDeclaration",
   "module-unavailable": "catalogReasonModuleUnavailable",
   "explicit-apps-required": "catalogReasonExplicitApps",
@@ -148,6 +155,27 @@ export function catalogStatus(
           ),
     code: reason,
   };
+}
+
+// When the page reads the catalog again for a Personalspace group whose
+// holder is not decided yet.
+const personalspaceRereads = [1_000, 2_000, 4_000, 8_000, 16_000] as const;
+
+/** How long the page waits before it reads the catalog again because its
+ * Personalspace group is not decided yet (#186), for the `attempt`-th time
+ * in a row; null when it is decided or there is none, or after the last
+ * attempt. The catalog never waits for GitHub: before the Launchpad's first
+ * answer whose Personalspace this is the group is `personalspace-unverified`,
+ * and where GitHub did not answer it is asked again behind the next read. */
+export function personalspaceRereadMs(
+  catalog: Catalog,
+  attempt: number,
+): number | null {
+  const reason = catalog.personalspace?.reason;
+  return reason === "personalspace-unverified" ||
+    reason === "github-unavailable"
+    ? (personalspaceRereads[attempt] ?? null)
+    : null;
 }
 
 /** The Organization a route names, under the CLI's rule

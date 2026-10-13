@@ -984,7 +984,30 @@ are skipped): with two or more, which one is the Operator's is not guessed, none
 read, and the group is listed with `personalspace-ambiguous` and no modules (decision
 0091); an owner directory or `workspace/` that is not the Operator's own is
 `personalspace-unavailable`. An Organization whose slug is `personalspace` is
-ambiguous with the group under the selection rule. The resident addressed these apps
+ambiguous with the group under the selection rule.
+
+**Whose Personalspace (#186, decision F9's addendum of 2026-10-05).** The one owner
+directory is read only when this Environment's GitHub account holds it: gh's account
+(the Launchpad's and the CLI's own sign-in) and, on a personal Remote Environment, the
+handover's Owner; the directory `<login>_GEN3`, its `origin` `<login>/<login>_GEN3`
+and GitHub's answer that the repository is the account's own and private.
+`personalspaceHolder` in `src/content/status.ts` makes the decision for
+`GET /api/content`, the catalog (`readFolderCatalog(folder, holder)`), the module
+lifecycle (at the selection and in `resolvePersonalspaceApplication`) and Nová karta's
+running modules. Otherwise the group is listed with the reason and no modules
+(`personalspace-foreign`, `-not-owned`, `-public`, `github-signed-out`,
+`github-unavailable`, `github-identity-mismatch`), every operation on
+`personalspace/<module>` answers it, and `ensure` finds no module. A reader given no
+decision (the Doctor, the vault, the shell document, the Organization routes) lists
+the group as `personalspace-unverified`. The Launchpad keeps one decision per checkout
+for a minute (`createPersonalspaceHolder` in `src/content/holder.ts`; the layout is
+read on every call) and makes the first in the background as it starts. The page's
+catalog (`POST /api/catalog`, the boot document) takes the last decision and never
+waits for GitHub: before the first one the group is `personalspace-unverified`, and
+the page reads the catalog again after 1, 2, 4, 8 and 16 seconds while the group is
+`personalspace-unverified` or `github-unavailable` (`personalspaceRereadMs`). An
+Organization's module never waits for the decision: the lifecycle and `lazurio module
+list` decide only where the group can be selected or is shown. The resident addressed these apps
 as `<owner login>/<module>` (its `company` was the owner,
 `R:lazurio/runtime/personalspace-lib.mjs:1126`, selected by
 `R:lazurio/core/module-lifecycle-client-lib.mjs:297,385`) and its CLI refused them on a

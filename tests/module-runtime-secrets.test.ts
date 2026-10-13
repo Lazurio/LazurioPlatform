@@ -19,6 +19,7 @@ import { readFolderCatalog } from "../src/organizations/catalog";
 import type { CliContext } from "../src/update/cli";
 import {
   folderFixture,
+  heldBy,
   writeOrganization,
   writePersonalspaceModule,
 } from "./fixtures/catalog-folder";
@@ -460,14 +461,21 @@ posixTest(
         runtimeSecrets: () => vault.source,
       };
       const finding = [{ name: "EXTERNAL_API_KEY", reason: "personalspace" }];
+      // The account holds this Personalspace (#186).
+      const holder = heldBy("privateowner");
       expect(
-        (await readFolderCatalog(folder)).personalspace?.modules[0],
+        (await readFolderCatalog(folder, holder)).personalspace?.modules[0],
       ).toMatchObject({
         executable: false,
         reason: "runtime-secret-unavailable",
         secrets: finding,
       });
-      const operations = createModuleOperations({ folder, owner: "cli", host });
+      const operations = createModuleOperations({
+        folder,
+        owner: "cli",
+        host,
+        personalspace: holder,
+      });
       expect(await operations.start("personalspace/notes")).toMatchObject({
         kind: "blocked",
         reason: "runtime-secret-unavailable",
@@ -478,7 +486,7 @@ posixTest(
       pkg.lazurio.runtime.optional_secrets = ["EXTERNAL_API_KEY"];
       await writeFile(pkgPath, JSON.stringify(pkg));
       expect(
-        (await readFolderCatalog(folder)).personalspace?.modules[0],
+        (await readFolderCatalog(folder, holder)).personalspace?.modules[0],
       ).toMatchObject({ executable: true, secretsNotProvided: finding });
       expect(await operations.start("personalspace/notes")).toMatchObject({
         outcome: "started",

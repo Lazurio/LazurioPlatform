@@ -40,6 +40,7 @@ import {
   organizationName,
   organizationRoute,
   parseCatalog,
+  personalspaceRereadMs,
   routeOrganization,
 } from "./catalog-view";
 import type { PublicEntry } from "./chat";
@@ -1288,6 +1289,24 @@ export function createCatalogPanel(
     }
   }
 
+  // A Personalspace group whose holder is not decided yet (#186): the
+  // catalog never waits for GitHub, so the page reads it again shortly, a
+  // few times at most, until the Launchpad's decision is there.
+  let reread: ReturnType<typeof setTimeout> | undefined;
+  let rereads = 0;
+  function followPersonalspace() {
+    clearTimeout(reread);
+    if (catalog === null || personalspaceRereadMs(catalog, 0) === null) {
+      // Decided: a group undecided again later starts over.
+      rereads = 0;
+      return;
+    }
+    const wait = personalspaceRereadMs(catalog, rereads);
+    if (wait === null) return;
+    rereads += 1;
+    reread = setTimeout(() => void refresh(), wait);
+  }
+
   /** Reads the catalog again (on load, on the way back to "Všechny moduly"
    * and on a language change). */
   async function refresh() {
@@ -1310,8 +1329,12 @@ export function createCatalogPanel(
     } finally {
       render();
       options.loaded();
+      followPersonalspace();
     }
   }
+
+  // The catalog the page carries (its boot document) is followed the same.
+  followPersonalspace();
 
   return {
     render(route?: PageRoute) {

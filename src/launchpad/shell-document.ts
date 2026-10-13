@@ -6,6 +6,7 @@ import type { PresetName } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import { readMachineContext } from "../machine/context";
 import { type Catalog, readFolderCatalog } from "../organizations/catalog";
+import type { PersonalspaceHolderRead } from "../organizations/personalspace";
 import {
   dashboardSlug,
   environmentIdOf,
@@ -376,6 +377,10 @@ export async function readShellInputs(
   options: Readonly<{
     ownerKey?: (() => Promise<string | null>) | undefined;
     lockWaitMs?: number | undefined;
+    /** Whose Personalspace this Environment holds (#186), for the
+     * catalog's Personalspace group: the page's boot document gives the
+     * Launchpad's last decision, never waiting for GitHub. */
+    personalspace?: PersonalspaceHolderRead | undefined;
   }> = {},
 ): Promise<ShellInputs> {
   const state = join(folder, ".lazurio");
@@ -385,7 +390,7 @@ export async function readShellInputs(
     options.lockWaitMs,
   );
   const [catalog, ownerKey] = await Promise.all([
-    readFolderCatalog(folder),
+    readFolderCatalog(folder, options.personalspace),
     (options.ownerKey ?? handoverOwnerKey)(),
   ]);
   return Object.freeze({

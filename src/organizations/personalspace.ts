@@ -16,7 +16,10 @@ import { observeModuleDirectory } from "./read-applications";
 // is a module, its id is its directory name. The Personalspace is private
 // (decision 0091): nothing here reads more than the owner directory's module
 // declarations, and exactly one owner directory is read; with more than one,
-// none is, because which one is the Operator's is not guessed.
+// none is, because which one is the Operator's is not guessed. And only when
+// it is the Personalspace of this Environment's GitHub account (#186): the
+// holder decision of `src/content/status.ts`, which the catalog and the
+// lifecycle are given (`PersonalspaceHolderRead`).
 
 /** The name the Personalspace group is addressed by: `personalspace/<module>`
  * in `lazurio module …`, `/o/personalspace` on the page, the `organization`
@@ -75,7 +78,8 @@ export type PersonalspaceLocation =
 
 /** The owner directory of `<Folder>/personalspace/`: absent without one,
  * blocked with more than one or when it is not a real, caller-owned
- * directory. Its name is returned only to the caller, never shown. */
+ * directory. Its name is returned only to the caller, never shown. Whose it
+ * is, it does not say: that is the holder decision (below). */
 export async function locatePersonalspace(
   folder: string,
 ): Promise<PersonalspaceLocation> {
@@ -94,6 +98,63 @@ export async function locatePersonalspace(
     return { kind: "blocked", reason: "personalspace-unavailable" };
   }
 }
+
+/** Why the Folder's Personalspace is not held: its layout
+ * (`locatePersonalspace`), whose it is (`verifyPersonalspaceCheckout`), gh's
+ * account (signed out, GitHub silent, another account than the handover's
+ * Owner), or not decided yet (`personalspace-unverified`: the page's
+ * catalog before GitHub's first answer, or a reader given no decision). */
+export type PersonalspaceBlockedReason =
+  | "personalspace-ambiguous"
+  | "personalspace-unavailable"
+  | "personalspace-foreign"
+  | "personalspace-not-owned"
+  | "personalspace-public"
+  | "github-signed-out"
+  | "github-unavailable"
+  | "github-identity-mismatch"
+  | "personalspace-unverified";
+
+/** Whose Personalspace this Environment holds (Lazurio/LazurioPlatform#186,
+ * decided by Matěj on 2026-10-05): `held` by the GitHub account its gh is
+ * signed in with, when the one owner directory is that account's own,
+ * private Personalspace (and on a personal Remote Environment that account
+ * is the handover's Owner); `absent` where there is none or the preset has
+ * none; `blocked` otherwise, with the reason. `login` is gh's account where
+ * GitHub said it, never shown by the catalog; `directory` is for the caller
+ * only. */
+export type PersonalspaceHolder =
+  | Readonly<{ kind: "absent" }>
+  | Readonly<{ kind: "held"; login: string; directory: string }>
+  | Readonly<{
+      kind: "blocked";
+      reason: PersonalspaceBlockedReason;
+      login: string | null;
+    }>;
+
+/** The holder decision of one Folder, as its reader is given it: the
+ * content core's (`personalspaceHolder`, or the Launchpad's remembered one
+ * in `src/content/holder.ts`). Never throws. */
+export type PersonalspaceHolderRead = (
+  folder: string,
+) => Promise<PersonalspaceHolder>;
+
+/** The decision of a reader that has no way to ask GitHub (fail closed):
+ * the layout's own answers, and an owner directory is never taken for the
+ * Operator's (`personalspace-unverified`). */
+export const unverifiedPersonalspace: PersonalspaceHolderRead = async (
+  folder,
+) => {
+  if (!(await folderHasPersonalspace(folder))) return { kind: "absent" };
+  const located = await locatePersonalspace(folder);
+  if (located.kind === "absent") return located;
+  return {
+    kind: "blocked",
+    reason:
+      located.kind === "blocked" ? located.reason : "personalspace-unverified",
+    login: null,
+  };
+};
 
 /** The ids of the modules in an owner directory: every directory in
  * `workspace/` named like a module id that holds a `lazurio.module.json`.
@@ -132,19 +193,21 @@ export async function observePersonalspaceModule(space: string, id: string) {
 
 /** The lifecycle's authorization of a Personalspace app, the counterpart of
  * `resolveOrganizationApplication`, invoked again at every operation
- * boundary: `space` must still be the one owner directory of its Folder, the
- * module must declare the selected company and id, and the package must be a
+ * boundary: `space` must still be the one owner directory of its Folder and
+ * held by this Environment's GitHub account (`holder`, #186), the module
+ * must declare the selected company and id, and the package must be a
  * declared app whose runtime names the module. */
 export async function resolvePersonalspaceApplication(
   space: string,
   input: unknown,
+  holder: PersonalspaceHolderRead,
 ) {
   const value = object(input, ["company", "module", "package"]);
   const company = text(value.company, /^[A-Za-z0-9][A-Za-z0-9-]*$/);
   const module = text(value.module, moduleId);
   const pkg = text(value.package, /\S/);
-  const located = await locatePersonalspace(dirname(dirname(space)));
-  if (located.kind !== "owner" || located.directory !== space)
+  const decided = await holder(dirname(dirname(space)));
+  if (decided.kind !== "held" || decided.directory !== space)
     throw new Error("Selected Personalspace unavailable");
   const { path, observed } = await observePersonalspaceModule(space, module);
   if (
