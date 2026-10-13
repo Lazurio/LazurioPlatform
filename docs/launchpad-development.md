@@ -1348,6 +1348,82 @@ compiled Launchpad's session. A real systemd user manager and a real Remote Envi
 were **not** exercised; `scripts/smoke-application-service.ts` was updated for the new
 start and not run.
 
+## Module creation (decision F52)
+
+A person's own module: `lazurio module create personalspace/<module>` plans a private
+repository `<login>/<module>` on the GitHub account gh is signed in with, checked out in
+the held Personalspace's `workspace/<module>`, with no Organization and no Teams, its slot
+declared by a pull request into the Personalspace (root decision 0171, addendum of
+2026-10-13). One generator, `planModuleScaffold` in `src/modules/scaffold.ts`, ported from
+the root with its templates (`src/modules/templates/README.md`); the use case is
+`planModuleCreate` in `src/modules/module-create.ts`, the CLI `src/modules/module-create-cli.ts`.
+
+**CLI first.** `lazurio module create personalspace/<module> --stack <stack> [--name
+<name>] [--port N] --dry-run [--folder <F>] [--json]`. The Launchpad has no route for it:
+the person's agent runs it (M1's prompt hands it over). `--json` prints one line per step
+(`{"kind": "module-create-step", "key": "plan", "state": …}`), then the report
+`lazurio.module_create.report.v1`: `status` and `reason`, `module` (`name`, `slug`,
+`stack`, `display_name`), `repository` (`full_name`, `private: true`, `create`), `slot`,
+`lease`, `files` (path and size), `generated_by_install`, `tree_hash`, `plan` (a digest of
+everything the person confirms), `manifest` (the manifest that receives the slot, its
+`module_port_pool` and whether the slot's pull request adds it), `worktree`,
+`module_root`, `warnings`, `issues` and `next_steps`. Exit status: 0 planned, 2 refused
+or usage. The real run follows on #359.
+
+**Checks, in order, all reading only.** Codes the root's `module create` has keep its
+spelling; codes the content core has keep the content core's.
+
+1. The name and the stack, with nothing read: `invalid_selector`, `unknown_stack`,
+   `invalid_slug`, `reserved_slug` (the root's list and the gateway's labels), and
+   `organization-form-unavailable` for `<Organization>/<module>` until #267. `--teams`
+   with `personalspace` is a usage error.
+2. A Personalspace on this preset (`personalspace-not-here`) and installed
+   (`personalspace-absent`, next step `lazurio personalspace install`).
+3. Held by gh's account (#186): the holder decision's reasons (`github-signed-out`,
+   `github-unavailable`, `github-identity-mismatch`, `personalspace-ambiguous`,
+   `personalspace-unavailable`, `personalspace-foreign`, `personalspace-not-owned`,
+   `personalspace-public`).
+4. The layout. The task worktree is the cwd's checkout when it shares the held
+   Personalspace's Git and is not the Personalspace itself; the slot goes into its
+   `modules.manifest.json`, otherwise into the Personalspace's
+   (`modules_manifest_missing`, `manifest_invalid`). A declared `module_port_pool` must lie
+   in `23000`–`23099` (`personalspace-pool-invalid`); without one the reserved range is
+   used and the slot's pull request declares it. `workspace/` is a real directory of the
+   operator (`personalspace-unavailable`), Git ignores `workspace/<module>`
+   (`personalspace-workspace-tracked`), and no directory (`directory_exists`) and no slot
+   of the Personalspace or the task branch (`slot_exists`) has that name, letter case
+   ignored. The template's example slot `workspace/personal-notes` is an ordinary
+   declared slot: it is left as it is and conflicts only with that name. A Personalspace
+   that still names the template's placeholder owner (`owner-github-username`, #377) is
+   a warning with its next step, never a refusal; the command does not name the owner.
+5. The plan: the slot and a lease of the pool (`port_outside_pool`, `port_taken`,
+   `pool_exhausted`, `port_not_allowed`), avoiding every lease the Folder's modules
+   declare (every Organization's `workspace/*`, `mission-control`, `design-system`, and
+   the Personalspace's modules) and the Environment's own ports.
+6. GitHub has no `<login>/<module>`, letter case ignored (`repository-exists`; an
+   existing repository is never taken over; `github-unavailable` when GitHub does not
+   answer).
+
+A dry run writes nothing and asks GitHub only reads: whose the Personalspace is (`GET
+user`, `GET repos/<login>/<login>_GEN3`) and `GET repos/<login>/<module>`. Its next steps
+name the task worktree (`personalspace/.worktrees/<task>`, beside the owner directory,
+never in it and never a second directory of `personalspace/`), ask the agent to show the
+person the plan and create nothing before they confirm it.
+
+**`module prepare` is dispatched.** `src/cli.ts` sent only `start`, `stop`, `status` and
+`logs` to the module command, so `lazurio module prepare` fell to the catalog's usage
+(issue #114); every verb of `moduleVerbs` reaches it now, and `create` its own command.
+
+**Verification.** `tests/personal-module-create.test.ts`: the exact plan from a task
+worktree and from outside one, on a workstation and on a personal Remote Environment;
+the filesystem unchanged and only GitHub reads in the stub's log; leases of an
+Organization's module and of a personal module avoided; a declared pool; and every
+refusal above against Personalspaces as the install leaves them
+(`tests/fixtures/personalspace-template.ts`, the template's own files with their
+placeholders). `tests/module-create-cli.test.ts`: through `runCli`, the usage errors,
+the refusals by name, `module prepare` reaching the lifecycle and the help; and the plan
+end to end in a child process of `src/cli.ts` with a fake gh and the real git.
+
 ## Doctor
 
 Slice P8 of the Launchpad parity (shaping `docs/launchpad-parity.md` B9): the

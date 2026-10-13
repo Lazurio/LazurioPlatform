@@ -65,6 +65,12 @@ import {
   moduleHelp,
   runModuleCommand,
 } from "./modules/module-cli";
+import {
+  ModuleCreateUsageError,
+  moduleCreateHelp,
+  runModuleCreateCommand,
+} from "./modules/module-create-cli";
+import { type ModuleVerb, moduleVerbs } from "./modules/module-operations";
 import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
 import {
   createServiceManagerProcess,
@@ -408,10 +414,23 @@ async function runOtherCommand(args: string[]): Promise<number> {
       process.removeListener("SIGINT", onInterrupt);
     }
   }
-  if (
-    args[0] === "module" &&
-    ["start", "stop", "status", "logs"].includes(args[1] ?? "")
-  ) {
+  // A module of the person's own (decision F52): steps as they happen, then
+  // the report.
+  if (args[0] === "module" && args[1] === "create") {
+    try {
+      return await runModuleCreateCommand(
+        args,
+        { ...processContext(), cwd: process.cwd() },
+        (line) => console.log(line),
+      );
+    } catch (error) {
+      if (!(error instanceof ModuleCreateUsageError)) throw error;
+      console.error(`${error.message}\n${moduleCreateHelp}`);
+      return 2;
+    }
+  }
+  // Every verb of the module lifecycle, `prepare` included (issue #114).
+  if (args[0] === "module" && moduleVerbs.includes(args[1] as ModuleVerb)) {
     try {
       const { code, text } = await runModuleCommand(args, processContext());
       console.log(text);

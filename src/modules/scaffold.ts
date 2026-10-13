@@ -287,7 +287,7 @@ export type ModuleScaffoldPlan = Readonly<{
 export function planModuleScaffold(
   input: ModuleScaffoldInput,
 ): ModuleScaffoldPlan {
-  const stack = stackOf(input.stack);
+  const stack = assertStack(input.stack);
   const spec: StackSpec = stacks[stack];
   const slug = assertSlug(input.slug);
   const displayName = normalizeDisplayName(input.displayName, slug);
@@ -563,7 +563,8 @@ export function insertModuleSlotText(
 
 // ---- inputs ----------------------------------------------------------------
 
-function stackOf(value: unknown): ModuleStack {
+/** The stack of a new module, or `unknown_stack`. */
+export function assertStack(value: unknown): ModuleStack {
   if (typeof value === "string" && Object.hasOwn(stacks, value))
     return value as ModuleStack;
   throw new ModuleScaffoldError(
