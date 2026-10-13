@@ -19,6 +19,7 @@
   else if (trimmed === "/settings" || trimmed.indexOf("/settings/") === 0) {
     frame = "settings";
     section = trimmed.slice("/settings/".length);
+    if (section === "vault/requests" || section.indexOf("vault/requests/") === 0) section = "vault";
     if (["general", "communication", "machine", "tools", "vault", "ssh", "recovery"].indexOf(section) < 0) section = "general";
   }
   root.setAttribute("data-frame", frame);
@@ -486,6 +487,20 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .vault-list dt { color: var(--muted-fg); }
 .vault-list dd { margin: 0; overflow-wrap: anywhere; }
 .vault-facts a.button .icon, .row-control a.button .icon { width: 14px; height: 14px; }
+/* An agent's secret request (decision F53, the wireframe's
+   screens/SecretRequest.tsx): the agent's words, one input per field, a
+   secret one hidden until "Zobrazit". */
+.vault-requests-slot, #vault-request { display: grid; gap: 18px; }
+.vault-requests-count { margin-left: 4px; }
+.vault-request-head { gap: 6px; }
+.vault-request-head h2 { font-size: 18px; }
+.vault-request-why, .vault-request-where { color: var(--fg); font-size: 14px; }
+.vault-request-field { display: grid; gap: 0.4rem; }
+.vault-request-value { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.vault-request-value input { width: min(26rem, 100%); font-family: var(--font-mono); font-size: 13px; }
+.vault-request-error { color: var(--destructive); font-size: 13px; }
+.vault-request-error:empty { display: none; }
+.vault-request-state[data-state="saved"] { border-color: var(--success-border); background: var(--success-bg); }
 
 /* Files (decision F35): the Documents folder as a list of rows, the path as
    links, the upload queue and the drop overlay. Below 36 rem of the list's
@@ -1115,15 +1130,19 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <p class="intro" id="vault-page-note" hidden></p>
 <p id="vault-page-status" class="row-status" role="status" aria-live="polite"></p>
 </div>
-<!-- Žádosti agentů (root decision 0198 point 9 (c), DEV-6631 task 651):
-     the agents' secret requests wait here, above the vault, each opening its
-     request's page. Filled by the requests' own change; empty and hidden
-     until then. -->
+<!-- Žádosti agentů (root decision 0198 point 9 (c), decision F53): the
+     agents' secret requests wait here, above the vault, each opening its
+     request's page; drawn by vault-requests-panel.ts, hidden while none
+     waits. -->
 <section class="group" id="vault-requests" hidden></section>
 <section class="group" id="vault-page-group" hidden>
 <div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" id="vault-page-name"></p><p class="row-status vault-page-state" id="vault-page-state" role="status" aria-live="polite"></p></div><div class="row-control" id="vault-page-actions"></div></div></div></div>
 <p class="group-note" id="vault-page-hint" hidden></p>
 </section>
+<!-- One agent's secret request (/settings/vault/requests/<id>, decision
+     F53): on its route it alone shows of this section (`data-request`),
+     drawn by vault-requests-panel.ts. -->
+<div id="vault-request" hidden></div>
 </section>
 
 <!-- SSH from your devices (decision F49): the keys of this account's

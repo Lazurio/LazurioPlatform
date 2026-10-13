@@ -11,8 +11,11 @@ import {
   type Recorded,
   type VaultHost,
 } from "./flow";
+import { isSecretRequestId } from "./request-id";
 import { cliOf, lockMs, usableSession, withLock } from "./session";
 import { plainObject, readOwned, serialize, type VaultPaths } from "./store";
+
+export { isSecretRequestId } from "./request-id";
 
 // An agent's secret request (root decision 0198 point 9 (c), decision F53):
 // what an agent cannot get any other way, it asks a person for in words the
@@ -215,11 +218,7 @@ export function secretRequestDraft(
 
 // --- Store ---------------------------------------------------------------
 
-const idPattern = /^[a-z2-7]{24}$/;
 const fileName = /^([a-z2-7]{24})\.json$/;
-
-export const isSecretRequestId = (value: unknown): value is string =>
-  typeof value === "string" && idPattern.test(value);
 
 const base32 = "abcdefghijklmnopqrstuvwxyz234567";
 

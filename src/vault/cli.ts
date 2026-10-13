@@ -16,6 +16,7 @@ import {
   vaultStatus,
 } from "./flow";
 import { processVaultHost } from "./host";
+import { secretRequestPath } from "./request-id";
 import {
   createSecretRequest,
   listSecretRequests,
@@ -293,10 +294,6 @@ const vaultHostOf = (context: VaultCliContext): VaultHost =>
 const requestSynopsis = `vault request --item <name> --need <text> --why <text> --where <text> --field <Name>[:secret] [--field ...] [--json]
        vault request status <id> [--json]
        vault request list [--json]`;
-
-/** The page of a request in this Environment's Launchpad. */
-export const secretRequestPath = (id: string): string =>
-  `/settings/vault/requests/${encodeURIComponent(id)}`;
 
 /** Its link: the Launchpad's external origin and the page; null where the
  * Folder records no entry (the page is then only in the Launchpad itself). */

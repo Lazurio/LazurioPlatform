@@ -793,6 +793,17 @@ test.skipIf(!posix)(
       expect(await page.get(`/api/vault/requests/${id}`)).toMatchObject({
         body: { state: "pending" },
       });
+      // The page itself serves the request's route and Trezor's.
+      for (const route of [
+        `/settings/vault/requests/${id}`,
+        "/settings/vault",
+      ]) {
+        const served = await fetch(new URL(route, page.url.origin));
+        expect([route, served.status]).toEqual([route, 200]);
+        const html = await served.text();
+        expect(html).toContain('id="vault-request"');
+        expect(html).toContain('id="vault-requests"');
+      }
     } finally {
       await page.close();
       await w.close();
