@@ -241,17 +241,21 @@ async function entriesOf(
   return found;
 }
 
-/** Starts the daemon a case describes, on its socket below the directory. */
+/** Starts the daemon a case describes, on its socket below the directory.
+ * What it does after its answer (`removes`, `locks`) goes into `steps`, which
+ * the case awaits before it cleans up: the call under test may return before
+ * the daemon has done it. */
 async function listen(
   context: Context,
   daemon: Daemon,
   heard: string[],
   locked: string[],
+  steps: Promise<void>[],
 ): Promise<Server> {
   const path = join(context.dir, daemon.socket);
   const server = createServer((socket) => {
     let buffer = "";
-    socket.on("data", async (chunk) => {
+    socket.on("data", (chunk) => {
       buffer += chunk.toString("utf8");
       const end = buffer.indexOf("\n");
       if (end < 0) return;
@@ -262,12 +266,16 @@ async function listen(
         return;
       }
       socket.write(`${daemon.reply}\n`);
-      for (const file of daemon.removes ?? [])
-        await rm(join(context.dir, file), { force: true });
-      if (daemon.locks === true) {
-        await chmod(context.dir, 0o000);
-        locked.push(context.dir);
-      }
+      steps.push(
+        (async () => {
+          for (const file of daemon.removes ?? [])
+            await rm(join(context.dir, file), { force: true });
+          if (daemon.locks === true) {
+            locked.push(context.dir);
+            await chmod(context.dir, 0o000);
+          }
+        })(),
+      );
     });
   });
   await new Promise<void>((resolve) => server.listen(path, () => resolve()));
@@ -300,10 +308,11 @@ async function runNodeCase(entry: Case, call: Call): Promise<void> {
   const locked: string[] = [];
   const servers: Server[] = [];
   const heard: string[] = [];
+  const steps: Promise<void>[] = [];
   try {
     await layOut(context, entry.directory ?? {}, locked);
     if (entry.daemon !== undefined)
-      servers.push(await listen(context, entry.daemon, heard, locked));
+      servers.push(await listen(context, entry.daemon, heard, locked, steps));
     const args = decode(entry.args ?? [], context) as unknown[];
     if (throws(entry.expect)) {
       let threw = false;
@@ -334,6 +343,9 @@ async function runNodeCase(entry: Case, call: Call): Promise<void> {
       }
     }
   } finally {
+    // The daemon's own steps first, so nothing it locks after the call
+    // returned stays locked.
+    await Promise.allSettled(steps);
     for (const path of locked.reverse())
       await chmod(path, 0o700).catch(() => undefined);
     for (const server of servers)
