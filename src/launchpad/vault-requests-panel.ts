@@ -108,10 +108,10 @@ export function createVaultRequestsPanel(
 
   const copy = () => options.copy();
 
-  function sectionOf(requests: readonly RequestView[]): HTMLElement {
+  /** What the slot holds: its head with the count, and one row per
+   * request that waits. */
+  function sectionOf(requests: readonly RequestView[]): HTMLElement[] {
     const text = copy();
-    const group = element("section", "group vault-requests");
-    group.setAttribute("aria-labelledby", "vault-requests-heading");
     const head = element("div", "group-head");
     const title = element("h2", "", text.vaultRequestsTitle);
     title.id = "vault-requests-heading";
@@ -138,8 +138,7 @@ export function createVaultRequestsPanel(
       row.append(main);
       list.append(row);
     }
-    group.append(head, list);
-    return group;
+    return [head, list];
   }
 
   /** The inputs of the form now shown, emptied; nothing typed stays. */
@@ -310,10 +309,14 @@ export function createVaultRequestsPanel(
     if (section !== null) {
       const list = onVault && id === null ? (waiting ?? []) : [];
       section.hidden = list.length === 0;
-      section.replaceChildren(...(list.length === 0 ? [] : [sectionOf(list)]));
+      section.setAttribute("aria-labelledby", "vault-requests-heading");
+      section.replaceChildren(...(list.length === 0 ? [] : sectionOf(list)));
     }
     if (page === null) return;
     page.hidden = id === null;
+    // On a request's page it alone shows of the Trezor section.
+    const trezor = page.closest<HTMLElement>('[data-section="vault"]');
+    if (trezor !== null) trezor.toggleAttribute("data-request", id !== null);
     if (kept !== undefined && id !== null && page.contains(kept)) {
       const save = kept.querySelector<HTMLButtonElement>("button[type=submit]");
       if (save !== null)

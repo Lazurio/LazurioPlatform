@@ -490,7 +490,8 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 /* An agent's secret request (decision F53, the wireframe's
    screens/SecretRequest.tsx): the agent's words, one input per field, a
    secret one hidden until "Zobrazit". */
-.vault-requests-slot, #vault-request { display: grid; gap: 18px; }
+#vault-request { display: grid; gap: 18px; }
+#section-vault[data-request] > :not(#vault-request) { display: none !important; }
 .vault-requests-count { margin-left: 4px; }
 .vault-request-head { gap: 6px; }
 .vault-request-head h2 { font-size: 18px; }
