@@ -203,6 +203,26 @@ test("the vault's state: the items in Czech plural, the creation, no answer, and
     tone: "busy",
   });
   expect(creating.actions).toEqual([]);
+  // A creation not confirmed yet, with no setup running: the same words,
+  // and no way in until it is the vault's.
+  const unresolved = vaultPageView(
+    model({ kind: "vault-status", state: "creating", ...facts }),
+    member,
+    cs,
+  );
+  expect(unresolved.row).toMatchObject({
+    line: "Zakládání trezoru…",
+    tone: "busy",
+  });
+  expect(unresolved.actions).toEqual([]);
+  expect(
+    parseVaultPage({
+      kind: "vault-page",
+      status: { kind: "vault-status", state: "creating", ...facts },
+      setup: null,
+      environment: "work",
+    })?.status.state,
+  ).toBe("creating");
   // The vault's own answer is newer than the recorded state; while it does
   // not answer, the recorded ids still lead into it.
   const away = vaultPageView(model(connected()), member, cs, {

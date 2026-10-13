@@ -205,6 +205,10 @@ function rowLine(
             ),
             tone: "ok",
           };
+    // A creation asked for and not confirmed yet: the next setup (at the
+    // Launchpad's start, or the Tools row's "Zkusit znovu") finds it.
+    case "creating":
+      return { line: copy.vaultPageCreating, tone: "busy" };
     case "unreachable":
       return { line: copy.vaultPageUnreachable, tone: "warn" };
     case "not-set-up":
@@ -219,7 +223,8 @@ function rowLine(
       };
     case "failed":
       return { line: copy.vaultRowFailed, tone: "warn" };
-    default:
+    // Every state has its words: a new one fails to compile here.
+    case "unsupported":
       return { line: copy.vaultRowUnavailable, tone: "quiet" };
   }
 }

@@ -10760,8 +10760,9 @@ whoever has access to the Environment is a Správce, an Admin, of its vault.
 
 1. **The page.** Settings → Vault (`/settings/vault`, Czech "Trezor"), after Tools: the
    rule "Kdo má přístup do Prostředí, má všechna jeho hesla.", one row with the vault's
-   name and its state (the item count; "Zakládání trezoru…" while a setup runs;
-   "Neodpovídá" when the vault does not answer; the Tools row's words otherwise) and
+   name and its state (the item count; "Zakládání trezoru…" while a setup runs or
+   while the vault's creation is not confirmed yet, state `creating`; "Neodpovídá"
+   when the vault does not answer; the Tools row's words otherwise) and
    the actions the person's membership decides. With an account in the network's
    vault: "Přidat položku", which opens
    `<server_url>/#/vault?organizationId=<vault>&collectionId=<Agenti>`, where the web
