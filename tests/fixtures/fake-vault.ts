@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { deflateRawSync } from "node:zlib";
 import { parseMachineContext } from "../../src/machine/context";
@@ -49,6 +49,10 @@ export const otherCollectionId = "1f2e3d4c-5b6a-4f9e-8d7c-6b5a4f3e2d1c";
 // The fake CLI: the commands and messages of bw 2026.7.0 that the vault core
 // uses. A session is valid while it is the last one `unlock` printed; every
 // call appends its argv and whether BW_SESSION was set to `$HOME/bw.calls`.
+// `create item` reads the encoded item from its argument or, as the real bw
+// does without one, from stdin; the vault keeps it in `bw-world/created/` and
+// in the items a sync brings, and bw's answer is the whole item, values
+// included, as the real one prints it.
 export const fakeBw = String.raw`#!/bin/sh
 data="$BITWARDENCLI_APPDATA_DIR"
 if [ -z "$data" ]; then echo "fake bw: no BITWARDENCLI_APPDATA_DIR" >&2; exit 97; fi
@@ -143,6 +147,26 @@ confirm)
   [ -n "$line" ] || { echo "The specified user isn't a member of the organization" >&2; exit 1; }
   [ "$(echo "$line" | awk '{ print $2 }')" = "1" ] || { echo "User in invalid state" >&2; exit 1; }
   awk -v id="$3" '$1 == id { $2 = 2 } { print }' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+  exit 0;;
+create)
+  unlocked
+  [ "$2" = "item" ] || { echo "Unknown object." >&2; exit 1; }
+  offline
+  case "$3" in ""|--*) encoded=$(cat);; *) encoded="$3";; esac
+  [ -n "$encoded" ] || { echo "\`requestJson\` was not provided." >&2; exit 1; }
+  item=$(printf '%s' "$encoded" | base64 -d 2>/dev/null)
+  case "$item" in "{"*"}") ;; *) echo "Error parsing the encoded request data." >&2; exit 1;; esac
+  if [ -f "$world/create-fails" ]; then echo "Internal error" >&2; exit 1; fi
+  hex=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+  id=$(printf '%s' "$hex" | sed -E 's/^(.{8})(.{4})(.{4})(.{4})(.{12})$/\1-\2-\3-\4-\5/')
+  entry=$(printf '%s' "$item" | sed "s/^{/{\"object\":\"item\",\"id\":\"$id\",/")
+  mkdir -p "$world/created"
+  printf '%s\n' "$entry" > "$world/created/$id.json"
+  for list in "$world/items.json" "$store/items.json"; do
+    current=$(cat "$list" 2>/dev/null)
+    case "$current" in ""|"[]") printf '[%s]\n' "$entry" > "$list";; *) printf '%s,%s]\n' "$(printf '%s' "$current" | sed 's/]$//')" "$entry" > "$list";; esac
+  done
+  printf '%s\n' "$entry"
   exit 0;;
 esac
 echo "fake bw: unknown command $1" >&2
@@ -948,6 +972,25 @@ export async function startFakeVault(home: string) {
       on
         ? writeFile(join(world, "confirm-fails"), "")
         : rm(join(world, "confirm-fails"), { force: true }),
+    /** The items `bw create item` created in the vault, as bw sent them. */
+    async created(): Promise<Record<string, unknown>[]> {
+      const directory = join(world, "created");
+      const names = await readdir(directory).catch(() => [] as string[]);
+      return Promise.all(
+        names.map(
+          async (name) =>
+            JSON.parse(await readFile(join(directory, name), "utf8")) as Record<
+              string,
+              unknown
+            >,
+        ),
+      );
+    },
+    /** `bw create item` fails (the vault refuses it). */
+    createFails: (on: boolean) =>
+      on
+        ? writeFile(join(world, "create-fails"), "")
+        : rm(join(world, "create-fails"), { force: true }),
     unreachable: (on: boolean) =>
       on
         ? writeFile(join(world, "unreachable"), "")
