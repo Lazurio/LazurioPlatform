@@ -504,14 +504,14 @@ wave (`unsupported`, `workstation`).
   `lazurio-account.json` (0600: email, server, device identifier, master password, API
   key, createdAt), `lazurio-session` (0600), `lazurio-vault.json` (0600, not
   secret: the vault's organization id, Agenti's collection id, and a creation's
-  receipt with its time while it is unresolved) and, on a work Environment,
+  receipt with its time while it is unresolved), on a work Environment
   `lazurio-assignment.json` (0600, not secret: the fingerprint of the assignment its
-  Správci were added under, F53's addendum of 2026-10-14). A record that is there but
-  cannot be read refuses
-  (`record-unreadable`): nothing is ever created over it. An account file whose
-  account or vault is not the handover's is refused by every operation
-  (`account-mismatch`). Nothing else anywhere; no secret on argv, in a log, the
-  journal or an error.
+  Správci were added under, F53's addendum of 2026-10-14), and `requests/` (0700) with
+  one `<id>.json` (0600) per agent's secret request (decision F54), never a value. A
+  record that is there but cannot be read refuses (`record-unreadable`): nothing is
+  ever created over it. An account file whose account or vault is not the handover's
+  is refused by every operation (`account-mismatch`). Nothing else anywhere; no secret
+  on argv, in a log, the journal or an error.
 - **The pinned CLI** (`src/vault/pin.ts`, `src/vault/install.ts`): bw-oss 2026.7.0
   from `https://github.com/bitwarden/clients/releases/download/cli-v2026.7.0/`,
   the zip of the platform verified against its SHA-256 in the source, its one entry
@@ -573,10 +573,12 @@ wave (`unsupported`, `workstation`).
   server`, `bw login --apikey` (the key in `BW_CLIENTID`/`BW_CLIENTSECRET`; the session
   it prints is still locked and is never read), `bw unlock --passwordfile <private
   file> --raw` (the file removed at once), `bw sync`, `bw list
-  organizations|collections|items`, and for the Správci `bw list org-members
-  --organizationid <id>` and `bw confirm org-member <id> --organizationid <id>`, each
-  with the session in `BW_SESSION`. bw's output
-  never leaves the module; failures are fixed codes (`locked`, `unauthenticated`,
+  organizations|collections|items`, for the Správci `bw list org-members
+  --organizationid <id>` and `bw confirm org-member <id> --organizationid <id>`, and,
+  for a secret request (decision F54), `bw create item` with the encoded item on its
+  standard input (never on argv), each with the session in `BW_SESSION`. bw's output
+  never leaves the module (`bw create item` prints the whole item; only its id is
+  read); failures are fixed codes (`locked`, `unauthenticated`,
   `unreachable`, `rate-limited`, `invalid-credentials`, `logout-required`, `timeout`,
   `spawn-failed`, `unreadable`, `failed`).
 - **States** (`src/vault/flow.ts`, `kind: "vault-status"` with `vault`, `account`,
@@ -601,7 +603,12 @@ wave (`unsupported`, `workstation`).
   `unlock-failed` exit 1). `status`, `refresh` and `setup [--json]` print the state
   (setup: exit 0 connected, 2 waiting for a person: no vault named, not allowed,
   revoked or unsupported; 1 failed or unreachable; its steps go to stderr). `status`
-  is the one source of truth for agents and the Launchpad.
+  is the one source of truth for agents and the Launchpad. `request --item <name>
+  --need <what> --why <why> --where <where in the service> --field <Name>[:secret]
+  ... [--json]` asks a person for a secret (decision F54) and prints the request's id
+  and its page `<external origin>/settings/vault/requests/<id>`; `request status <id>`
+  answers `pending`, `saved` (with the item's name) or `declined`, `request list`
+  every request (exit 0, 2 refused, 1 a failure).
 - **Launchpad**: `POST /api/tools/bitwarden/status|refresh` with `{}`, and `POST
   /api/tools/bitwarden/setup` with `{}` (starts or joins the one setup) or `{job}`
   (asks about it): `202 {kind: "vault-setting-up", job, phase}` while it runs
@@ -618,8 +625,15 @@ wave (`unsupported`, `workstation`).
   tool is not offered or the Organization does not allow it. Once per vault, so a
   person who turns it off keeps it off; a failure is journaled (`agents-not-enabled`),
   never the setup's. The journal of the unit gets
-  `{"scope":"tools-vault","operation":"setup|refresh|unlock|vault|secrets","outcome":…,"reason":…}`
-  (with `"trigger":"start"` for the start's setup) only.
+  `{"scope":"tools-vault","operation":"setup|refresh|unlock|vault|secrets|request","outcome":…,"reason":…}`
+  (with `"trigger":"start"` for the start's setup) only. An agent's secret request
+  (decision F54) is answered on Nastavení → Trezor (`/settings/vault`, "Žádosti
+  agentů") and its own page `/settings/vault/requests/<id>` over `GET
+  /api/vault/requests`, `GET /api/vault/requests/<id>`, `POST
+  /api/vault/requests/<id>/save {values}` and `POST /api/vault/requests/<id>/decline
+  {}`, behind the same admission (same origin for a write); any admitted person
+  answers, without an account in the vault, and a save writes exactly one Secure note
+  into Agenti.
 - **The vault page and its Správci** (F53's addendum of 2026-10-14,
   `src/vault/members.ts`): Settings → Vault (`/settings/vault`, "Trezor") shows the
   rule, the vault's name and state, and "Přidat položku" and "Otevřít trezor", or
@@ -645,9 +659,12 @@ wave (`unsupported`, `workstation`).
   application on a personal one `personal-environment`. They are read through the
   same one session as `env`: `bw sync`, then `bw list items --organizationid <id>`,
   of which `secretItems` keeps only the items of the declared names, and of those
-  only name, organization, collections and login password. A value is the password
-  of the one item named exactly so anywhere in the Environment's vault (otherwise
-  `missing`, `ambiguous` or `empty`). Values go to the caller only; a refusal is a
+  only name, organization, collections, login password and, of a Secure note, how many
+  hidden fields it has and the value of the only one. A value is the password of the
+  one item named exactly so anywhere in the Environment's vault, or the one hidden
+  field of a Secure note (decision F54: what an agent's secret request becomes; two
+  hidden fields are `ambiguous`), otherwise `missing`, `ambiguous` or `empty`. Values
+  go to the caller only; a refusal is a
   fixed code (`workstation`, `no-vault-identity`, `personalspace`,
   `personal-environment`, `other-organization`, `not-connected`, `locked`, `busy`,
   `unreachable`, `vault-failed`).
@@ -659,13 +676,19 @@ wave (`unsupported`, `workstation`).
   its items. Its README names the condition of its deletion.
 
 The agents' texts are the catalog entry's (`purpose` in `AGENTS.md`, `usage` in
-`manual/this-machine.md`, template revision `base-instructions-49`): read `lazurio
-vault status` before saying anything about the vault, start with `eval "$(lazurio
-vault env)"`, never `bw login`, `unlock`, `lock`, `logout` or `bw config`, `bw sync`
-before reading, values straight into commands, new secrets into the Environment's
-vault (Agenti), nothing in the account's own vault, never a secret asked for in chat,
-and an externally visible write a Publication. How a secret reaches the vault (root
-decision 0198 point 9) follows with DEV-6631 task 652.
+`manual/this-machine.md`) and the manual's Secrets (`manual/working-here.md`),
+template revision `base-instructions-50`: read `lazurio vault status` again before
+saying anything about the vault, start with `eval "$(lazurio vault env)"`, never `bw
+login`, `unlock`, `lock`, `logout` or `bw config`, `bw sync` before reading, values
+straight into commands and never printed, nothing in the account's own vault, and an
+externally visible write a Publication. A secret is never asked for in chat or taken
+from a file or a message; what the vault lacks an agent gets in the order of root
+decision 0198 point 9 (decision F54): (a) where the shared browser window has the
+Bitwarden extension, the person's sign-in saved into the Environment's vault; (b) a
+secret the agent creates itself in a signed-in session, stored with `bw create item`
+(the template piped through `bw encode`, never as an argument); (c) otherwise
+`lazurio vault request`, in words the person understands, with its link handed over
+and other work continued meanwhile.
 
 ### Executor (decision F44)
 

@@ -2058,6 +2058,27 @@ the Folder again to show it. The state is accepted only in its exact form
 (`src/launchpad/vault-view.ts`, `tests/vault-view.test.ts`); the DOM is
 `src/launchpad/vault-panel.ts`.
 
+**An agent's secret request** (decision F54, root decision 0198 point 9 (c); the
+wireframe's `screens/SecretRequest.tsx` and the section of `EnvVault.tsx`). Settings
+have the section `vault` (Nastavení → Trezor, `/settings/vault`) and below it the page
+of one request, `/settings/vault/requests/<id>`, a sub-route as Integrace has its
+forms (`pageRoute`; the first-paint script agrees, `tests/launchpad-first-paint.test.ts`).
+`src/launchpad/vault-requests-panel.ts` draws two places the Trezor page holds:
+`#vault-requests`, "Žádosti agentů" with the count and one row per waiting request
+(what the agent needs, its fields, "Zadat" to its page), shown only while one waits;
+and `#vault-request`, the request's page: the need as its title, then why and where,
+one input per field (a password input with "Zobrazit" for a secret one), the item it
+becomes ("Uloží se do trezoru Prostředí jako položka …"), "Uložit do trezoru" once every
+field has a value, and "Odmítnout"; afterwards "Uloženo do trezoru." or "Odmítnuto.".
+A value goes from its input into the one `POST /api/vault/requests/<id>/save` and
+nowhere else (no storage, address or log); the inputs are emptied once the request is
+answered and kept after a refusal the person can retry ("Trezor teď neodpovídá. Zkuste
+to prosím za chvíli."). A request answered meanwhile by someone else is read again.
+The routes' answers are read in their exact shape and the texts made by
+`src/launchpad/vault-requests-view.ts` (`tests/vault-requests-view.test.ts`). The Trezor
+page (F53's addendum of 2026-10-14) holds `#vault-requests` above its vault and
+`#vault-request` as the last of its section.
+
 **Executor** (decision F44). The `executor` row reads its own state
 (`/api/tools/executor/status`, beside every read of the tools) and says it in plain
 words: "Běží", "Není nainstalovaný", "Čeká na aktualizaci", "Neběží", "Běží,

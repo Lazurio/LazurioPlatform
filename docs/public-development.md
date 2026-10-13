@@ -16,7 +16,9 @@ master password, its API key and its one Bitwarden CLI session itself,
 owner-only, beside the CLI's store on that Environment and nowhere else; the
 key of the Environment's own vault exists only in memory while the vault is
 created, then only in the vault, encrypted to the account. Every other secret
-stays in the vault. The shared GitHub App sign-in pilot
+stays in the vault; a value a person enters for an agent's secret request (decision
+F54) passes through the Launchpad's memory to bw's standard input and is never
+written. The shared GitHub App sign-in pilot
 (decision F48) is a second exception while switched on: GitHub hands its expiring
 user/refresh pair to the Environment that signed in, so Platform keeps one
 owner-only chain in that Environment user's state directory, as gh keeps its own
