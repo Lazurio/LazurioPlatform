@@ -5441,6 +5441,69 @@ Tests: `tests/shell.test.ts` (the document and its merge with the account),
 `tests/launchpad-offline-guide.test.ts` (the server reads the key from the
 handover for the document and for the offline guide).
 
+### Addendum 2026-10-12 — an account 401 re-enters the Environment once instead of shrinking the rail
+
+The rail reads the account once per page load. Point 4 and the failure mode "Session
+expired between page load and the request" above assumed that "the next navigation
+signs in again", but nothing made that navigation: a `401` ended the read, removed the
+remembered account and logged one debug line, so the rail shrank to this Environment
+until the person happened to navigate. The Launchpad's own requests already reloaded
+the page on a `401`, but its ten-second update poll followed the gateway's redirect to
+the sign-in, which a background request cannot follow (a cross-origin answer without
+CORS), and swallowed the failure.
+
+1. **A `401` of the account read re-enters the Environment:** one reload of the
+   top-level page, so that its gateway signs the person in again. The read stops
+   there; it makes no further attempt.
+2. **At most once per tab within five minutes** (`reentryGuardMs`), guarded by a
+   timestamp in the tab's `sessionStorage` (`lazurio.account.reentry`, per tab and
+   origin). Five minutes is longer than a sign-in round trip plus the bounded read cycle
+   (37 s at most), so the page a re-entry leads to never reloads again if it did not
+   help; it is short enough that a later, separate expiry in the same tab recovers.
+   Within the guard a `401` is final, as before. A successful account read clears the
+   guard. Where the guard cannot be kept (no `sessionStorage`, or one that throws) or
+   the page is framed (the sign-in would land in the frame), there is no re-entry and
+   the refusal stays final.
+3. **The rail does not shrink while the page reloads.** A `401` that re-enters keeps
+   the remembered account; its keying is unchanged (only the Environment's operator's
+   own account, never on a Team Environment or a workstation). A final refusal removes
+   it as before.
+4. **A `403` or `404` never navigates.** A new sign-in does not change a refusal of the
+   person, and a `404` is an Environment without the relay. A workstation's Launchpad
+   answers a request without its token with `403`.
+5. **The Launchpad shares the guard.** Its own denial (a `401` of any of its requests)
+   goes through the same guarded re-entry, so the shell's account read and the
+   Launchpad on one page re-enter once between them; a framed Launchpad no longer
+   reloads into its frame. Its update poll asks with `redirect: "manual"`: the
+   redirect to the sign-in is then an `opaqueredirect` answer, which counts as a denial
+   like a `401`. The Launchpad's API never redirects, so behind a gateway a redirect
+   there is only ever the sign-in.
+
+There is no retry loop, poller, session refresh or new state owner: a navigation comes
+only from the page's one account read or an existing request, at most once per tab
+within the guard.
+
+**The gateway's half ships separately (Machines).** The gateway answers a refused
+background request with `401` instead of a redirect, and ends its session when the
+account relay gets a `401`, so the top-level navigation signs in again instead of
+reloading into the same stale session. Until a gateway does so, a re-entry there costs
+one reload per tab within the guard and changes nothing else. Telling a stale token
+from a refused person stays with the gateway and the Dashboard (`401` against `403`):
+a Dashboard that keeps answering `401` to fresh tokens would end every new session,
+and the guard bounds the reloads to one per tab within five minutes, not the
+sign-outs.
+
+This supersedes the failure mode's "the next navigation signs in again" (the page
+navigates once itself) and, in the addendum of 2026-10-09, a `401` ending the cycle
+with the remembered account removed (that holds now only within the guard).
+
+Tests: `tests/shell-account-reentry.test.ts`, through the rail's state and the page's
+account read (one navigation per guard, a second `401` final, `403` and `404` without
+navigation, a success clearing the guard, a refusal after a transient failure, Apps
+sharing the read, no tab memory, a framed page, the poll's redirect counting as a
+refusal, one guard per tab). Installed consumers receive it only through a qualified
+Platform release and the pins of their Machines lanes.
+
 ## F38 — The Environment browser of a Remote Environment: one Chromium, a window per thread, a view behind the gateway
 
 **Decided by Matěj 2026-10-05 (plan DEV-6646, root decision 0191); implemented in this

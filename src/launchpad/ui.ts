@@ -1,4 +1,4 @@
-import { pageAccountJson } from "../shell/account";
+import { pageAccountJson, pageReentry, sessionRefused } from "../shell/account";
 import {
   currentEnvironment,
   parseShell,
@@ -62,13 +62,16 @@ const token = fragment.token;
 let pendingStart: StartRequest | null = fragment.start;
 history.replaceState(null, "", location.pathname);
 // Local: the fragment token is the credential. Hosted (no token): the
-// gateway's session cookie is, sent by the browser itself; a denial means the
-// session ended and the page re-enters through the gateway. Defined first:
-// the page's first drawing already reads with it.
+// gateway's session cookie is, sent by the browser itself; a denial (a 401,
+// or the update poll's redirect to the sign-in) means the session ended and
+// the page re-enters through the gateway, at most once per tab within five
+// minutes, the same guard as the shell's account read (F37's addendum of
+// 2026-10-12). Defined first: the page's first drawing already reads with it.
 const credential = (): Record<string, string> =>
   token ? { Authorization: `Bearer ${token}` } : {};
-function denied(response: Response) {
-  if (!token && response.status === 401) location.assign(location.href);
+const reentry = pageReentry();
+function denied(response: Pick<Response, "status" | "type">) {
+  if (!token && sessionRefused(response)) reentry.refused();
 }
 const form = document.querySelector<HTMLFormElement>("#profile");
 const choices = document.querySelector<HTMLFieldSetElement>("#choices");
@@ -461,9 +464,7 @@ const files = createFilesPanel({
   get: (path) => get(path),
   credential: () => credential(),
   linkDownloads: () => !token,
-  denied: (status) => {
-    if (!token && status === 401) location.assign(location.href);
-  },
+  denied: (status) => denied({ status, type: "default" }),
   copy: () => copy,
   locale: () => locale,
 });
@@ -1203,9 +1204,13 @@ function renderUpdate() {
 }
 async function refreshUpdate() {
   try {
+    // A redirect is never followed: behind a gateway it is the sign-in,
+    // which a background request cannot follow (a cross-origin answer
+    // without CORS), so the poll sees it as a denial instead of a failure.
     const response = await fetch("/api/update/status", {
       headers: credential(),
       cache: "no-store",
+      redirect: "manual",
     });
     denied(response);
     if (!response.ok) {

@@ -9,7 +9,10 @@ import { parseShellAccount, type ShellAccount } from "./contract";
 // `/.lazurio/shell.json`, never polled. Transient failures retry within that
 // shared cycle. On refusal, an invalid answer or exhaustion, the result is
 // null and the rail keeps its local/remembered fallback with one debug line.
-// Apps shares the same answer (`src/launchpad/account.ts`).
+// A `401` first re-enters the Environment: one reload of the top-level page,
+// at most once per tab within `reentryGuardMs`, so that the gateway signs the
+// person in again (F37's addendum of 2026-10-12, `pageReentry`). Apps shares
+// the same answer (`src/launchpad/account.ts`).
 
 export const accountDocumentPath = "/.lazurio/account/environments";
 /** The unchanged deadline for account writes (favourites). */
@@ -32,10 +35,11 @@ const debug: Debug = (message) => console.debug(message);
  * responsible operator of an Automated one), when it is written and when it
  * is read. A Team Environment and a workstation name no operator, so they
  * neither keep nor use one: another person may open a shared origin, and
- * only the fresh answer is theirs. A refusal (`401`, `403`) or no relay
- * (`404`) removes it; a slow or failed answer keeps it. It holds only the
- * members `parseShellAccount` reads, never anything else the answer carried,
- * so never a token. */
+ * only the fresh answer is theirs. A final refusal (`401`, `403`) or no
+ * relay (`404`) removes it; a slow or failed answer keeps it, and so does a
+ * `401` that re-enters the Environment, for the page that signs in again.
+ * It holds only the members `parseShellAccount` reads, never anything else
+ * the answer carried, so never a token. */
 export const accountCacheKey = "lazurio.account.v1";
 
 export type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -106,15 +110,91 @@ export function cachedAccountFor(
   return ownAccount(account, login) ? account : null;
 }
 
+/** Where a tab keeps when its page last re-entered the Environment on its
+ * own (`sessionStorage`: per tab and origin, F37's addendum of 2026-10-12). */
+export const reentryKey = "lazurio.account.reentry";
+/** At most one automatic re-entry per tab and origin within five minutes:
+ * longer than a sign-in round trip and the account's bounded read cycle
+ * (37 s at most), so a re-entry that did not help is never repeated by the
+ * page it led to; short enough that a later, separate expiry recovers. */
+export const reentryGuardMs = 5 * 60_000;
+
+/** Re-entering the Environment after its gateway refused this page's
+ * session: `refused` navigates the top-level page once (the gateway then
+ * signs the person in again) unless this tab already did within
+ * `reentryGuardMs`, and says whether it did; `answered` says the session
+ * works again, so the next refusal may re-enter at once. */
+export type Reentry = Readonly<{
+  refused: () => boolean;
+  answered: () => void;
+}>;
+
+/** A re-entry guarded by a timestamp in `store`. Without a store, or when
+ * it cannot be read or written, there is no guard against a loop, so there
+ * is no re-entry: the refusal stays final. */
+export function createReentry(
+  store: Store | null,
+  navigate: () => void,
+  now: () => number = Date.now,
+): Reentry {
+  return {
+    refused() {
+      if (store === null) return false;
+      try {
+        const kept = store.getItem(reentryKey);
+        const since = kept === null ? Number.NaN : now() - Number(kept);
+        if (since >= 0 && since < reentryGuardMs) return false;
+        store.setItem(reentryKey, String(now()));
+      } catch {
+        return false;
+      }
+      navigate();
+      return true;
+    },
+    answered() {
+      try {
+        store?.removeItem(reentryKey);
+      } catch {}
+    },
+  };
+}
+
+/** This page's re-entry: a reload, guarded in the tab's `sessionStorage`.
+ * Only a top-level page re-enters; a framed one would take the sign-in into
+ * its frame, so there its refusal stays final. */
+export function pageReentry(): Reentry {
+  let store: Store | null = null;
+  try {
+    if (typeof window !== "undefined" && window.top === window.self)
+      store = window.sessionStorage;
+  } catch {
+    store = null;
+  }
+  return createReentry(store, () => window.location.reload());
+}
+
+/** Whether an answer to one of a page's own requests says the gateway no
+ * longer admits its session: a `401`, or the redirect to the sign-in that a
+ * request made with `redirect: "manual"` sees, since a background request
+ * cannot follow it (the Launchpad's update poll). The account read follows
+ * no redirect, so for it only a `401` is a refusal. */
+export const sessionRefused = (
+  answer: Pick<Response, "status" | "type">,
+): boolean => answer.status === 401 || answer.type === "opaqueredirect";
+
 /** One bounded account read cycle shared by the rail and Apps. Transient
  * failures retry; refusals and malformed answers stop immediately. The local
- * rail remains usable throughout. A terminal result logs the failure once. */
+ * rail remains usable throughout. A terminal result logs the failure once.
+ * A `401` re-enters the Environment through `reentry` and keeps the
+ * remembered account for the page that signs in again; where the tab
+ * already re-entered within the guard, it is final like a `403`. */
 export async function readAccountJson(
   fetcher: Fetch = fetch,
   timeoutMs = accountDocumentReadMs,
   log: Debug = debug,
   store: Store | null = browserStore(),
   retryDelaysMs: readonly number[] = accountRetryDelaysMs,
+  reentry: Reentry = pageReentry(),
 ): Promise<unknown> {
   let reason = "unreachable";
   for (let attempt = 0; ; attempt += 1) {
@@ -129,12 +209,22 @@ export async function readAccountJson(
         headers: { Accept: "application/json" },
         signal: controller.signal,
       });
-      if (response.ok) return (await response.json()) as unknown;
+      if (response.ok) {
+        const value = (await response.json()) as unknown;
+        reentry.answered();
+        return value;
+      }
+      // No error body is used; release this response before a new attempt.
+      void response.body?.cancel().catch(() => {});
+      if (response.status === 401 && reentry.refused()) {
+        log(
+          "Lazurio shell: the account was refused (401); the page re-enters the Environment to sign in again.",
+        );
+        return null;
+      }
       if ([401, 403, 404].includes(response.status)) forget(store);
       reason = String(response.status);
       retry = response.status === 408 || response.status >= 500;
-      // No error body is used; release this response before a new attempt.
-      void response.body?.cancel().catch(() => {});
     } catch (error) {
       reason = controller.signal.aborted
         ? "timeout"
