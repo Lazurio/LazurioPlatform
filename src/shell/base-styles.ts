@@ -1,13 +1,12 @@
-import { vendorText } from "./vendor-text" with { type: "macro" };
-
-const tokens = vendorText("tokens.css");
+import { designTokens } from "./design-tokens";
 
 // What every shell element's stylesheet starts from, inside its shadow root:
 // the Lazurio design system's tokens (vendored byte-for-byte, declared on
-// `:root`, here applied to `:host` so they hold inside the shadow root and
-// nowhere else), the colour roles and an Organization's mark. The rail's and
-// the column head's components are in styles.ts, one identity's drawing in
-// identity-styles.ts; kept apart so a page that draws only
+// `:root`, here applied to `:host` so they hold inside the shadow root
+// whatever the document's root declares; tokens.ts declares them on the
+// document for the app), the colour roles and an Organization's mark. The
+// rail's and the column head's components are in styles.ts, one identity's
+// drawing in identity-styles.ts; kept apart so a page that draws only
 // `<lazurio-environment>` (the Environment browser's view) carries only
 // what it uses.
 //
@@ -24,7 +23,7 @@ const tokens = vendorText("tokens.css");
 // fallback.
 
 /** The tokens, scoped to the element. */
-export const hostTokens = tokens.replace(":root", ":host");
+export const hostTokens = designTokens.replace(":root", ":host");
 
 /** The colour roles bound to the shell's names, the element's own text, and
  * an Organization's mark (its avatar or initials). */
