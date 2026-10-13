@@ -14,6 +14,7 @@ import {
   viewPathTab,
 } from "../contract/pure";
 import { aloneAddress, menuStep, pictureKey, pictureOf } from "./bar";
+import { FramePump } from "./frames";
 import {
   buttonBit,
   clampInto,
@@ -232,7 +233,6 @@ banner.textContent = say.reconnecting;
 type Info = Extract<ServerMessage, { t: "info" }>;
 type Dialog = Extract<ServerMessage, { t: "dialog" }>;
 type Files = Extract<ServerMessage, { t: "files" }>;
-type Frame = Readonly<{ header: FrameHeader; jpeg: Uint8Array }>;
 type Touch = {
   id: number;
   x: number;
@@ -310,8 +310,19 @@ class Viewer {
   private ended = false;
   private bitmap: ImageBitmap | null = null;
   private header: FrameHeader | null = null;
-  private waiting: Frame | null = null;
-  private decoding = false;
+  /** The frames: the newest drawn while one decodes, each acknowledged once
+   * the view is done with it (F39's addendum of 2026-10-13). */
+  private readonly frames = new FramePump<Uint8Array, ImageBitmap>({
+    // The frame's bytes are a view of the socket's own ArrayBuffer.
+    decode: (jpeg) =>
+      createImageBitmap(
+        new Blob([jpeg as Uint8Array<ArrayBuffer>], { type: "image/jpeg" }),
+      ),
+    show: (bitmap, header) => this.show(bitmap, header),
+    ack: (frame) => {
+      this.send({ t: "ack", frame });
+    },
+  });
   private sizeTimer: ReturnType<typeof setTimeout> | null = null;
   private sentSize = "";
   private selection = "";
@@ -412,7 +423,13 @@ class Viewer {
       if (this.socket !== socket) return;
       const size = this.size();
       this.sentSize = sizeKey(size);
-      this.send({ t: "hello", ...size, resize: this.options.resize, picture });
+      this.send({
+        t: "hello",
+        ...size,
+        resize: this.options.resize,
+        picture,
+        acks: true,
+      });
       this.showStatus();
     });
     socket.addEventListener("message", (event: MessageEvent) => {
@@ -421,7 +438,7 @@ class Viewer {
       if (typeof event.data === "string") this.message(event.data);
       else if (event.data instanceof ArrayBuffer) {
         const frame = decodeFrame(event.data);
-        if (frame !== null) this.frame(frame);
+        if (frame !== null) this.frames.push(frame);
       }
     });
     socket.addEventListener("close", () => {
@@ -484,38 +501,20 @@ class Viewer {
 
   // ---- Frames and size -----------------------------------------------------
 
-  private frame(frame: Frame): void {
-    // While one frame decodes only the newest waits: it is the current one.
-    this.waiting = frame;
-    if (!this.decoding) void this.decode();
-  }
-
-  private async decode(): Promise<void> {
-    this.decoding = true;
-    for (let frame = this.waiting; frame !== null; frame = this.waiting) {
-      this.waiting = null;
-      // The frame's bytes are a view of the socket's own ArrayBuffer.
-      const jpeg = frame.jpeg as Uint8Array<ArrayBuffer>;
-      const bitmap = await createImageBitmap(
-        new Blob([jpeg], { type: "image/jpeg" }),
-      ).catch(() => null);
-      if (bitmap === null) continue;
-      const before = this.header;
-      this.bitmap?.close();
-      this.bitmap = bitmap;
-      this.header = frame.header;
-      this.draw();
-      this.showStatus();
-      if (
-        before?.deviceWidth !== frame.header.deviceWidth ||
-        before?.deviceHeight !== frame.header.deviceHeight
-      )
-        this.options.viewport?.(
-          frame.header.deviceWidth,
-          frame.header.deviceHeight,
-        );
-    }
-    this.decoding = false;
+  /** A frame drawn: the newest that waited while the one before decoded
+   * (`FramePump`, which then acknowledges it). */
+  private show(bitmap: ImageBitmap, header: FrameHeader): void {
+    const before = this.header;
+    this.bitmap?.close();
+    this.bitmap = bitmap;
+    this.header = header;
+    this.draw();
+    this.showStatus();
+    if (
+      before?.deviceWidth !== header.deviceWidth ||
+      before?.deviceHeight !== header.deviceHeight
+    )
+      this.options.viewport?.(header.deviceWidth, header.deviceHeight);
   }
 
   private draw(): void {

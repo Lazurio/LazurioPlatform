@@ -34,6 +34,9 @@ export type Viewer = {
   /** The person's picture quality (F39's addendum of 2026-10-13): Standard
    * until the viewer's `hello` says otherwise. */
   picture: Picture;
+  /** The page acknowledges the frames it is done with (its `hello` says
+   * so); a page from before acknowledgements never does. */
+  acks: boolean;
 };
 
 export type HubSeams = Readonly<{
@@ -67,6 +70,12 @@ export type HubSeams = Readonly<{
   releaseGraceMs?: number;
   holdsEveryMs?: number;
   reconnectMs?: number;
+  /** Overridable for tests and measurements: how many frames a viewer that
+   * acknowledges may have unacknowledged (`frameWindow`), and how long a
+   * viewer may hold Chrome without progress before it no longer holds the
+   * others (`stallMs`). */
+  frameWindow?: number;
+  stallMs?: number;
 }>;
 
 /** Who opened a tab, as far as the hub knows: the people's view (`/`), Nová
@@ -121,6 +130,15 @@ export type Screencast = Readonly<{
   quality: number;
 }>;
 
+/** One viewer's frames (F39's addendum of 2026-10-13): the newest it was
+ * sent, those it has not acknowledged yet (oldest first, at most
+ * `keptUnacked`), and since when it has held Chrome without progress. */
+type Flow = {
+  sent: number;
+  unacked: number[];
+  heldSince: number | null;
+};
+
 type Tab = {
   targetId: string;
   sessionId: string | null;
@@ -130,8 +148,18 @@ type Tab = {
   info: Info;
   viewers: Set<Viewer>;
   screencast: Screencast | null;
-  pendingAck: number | null;
-  lastFrame: Uint8Array | null;
+  /** Chrome's screencast session, whose frames are acked with its number,
+   * and how many of them Chrome still waits for an ack of: it sends three
+   * frames without one, then one for each ack. */
+  ackSession: number | null;
+  owed: number;
+  /** The frames' numbers in this tab (`FrameHeader.seq`), and the newest
+   * frame, for a viewer that joins or has room for it again. */
+  seq: number;
+  lastFrame: Readonly<{ seq: number; bytes: Uint8Array }> | null;
+  flows: Map<Viewer, Flow>;
+  /** Opens the gate when a viewer that holds it stalls (`stallMs`). */
+  ackTimer: ReturnType<typeof setTimeout> | null;
   /** A screencast frame came since the tab was last watched: the first
    * screenshot, if it is slower, is older and is not shown. */
   live: boolean;
@@ -203,6 +231,22 @@ const metaEveryMs = 2_000;
 const heapReadMs = 500;
 
 const ackThreshold = 1 << 20;
+/** Flow control (F39's addendum of 2026-10-13, #370). A viewer that
+ * acknowledges its frames has at most `frameWindow` of them on the way, so
+ * what the person sees lags the page by about that many frames, not by what
+ * the buffers on the way hold; the newest frame waits in the hub for room.
+ * Two, measured at 1 Mbit/s: one frame left the link idle for each round
+ * trip (half the frames at a 200 ms round trip), three only added a frame's
+ * lag. A viewer that holds Chrome for `stallMs` without progress (no ack, no
+ * drain) no longer holds the others until it makes progress: long enough
+ * for a Data saver frame (20–45 KiB) over 200 kbit/s or a Standard one
+ * (50–130 KiB) over 1 Mbit/s, short enough that a hung or sleeping page
+ * stops the others' picture only briefly. */
+const frameWindow = 2;
+const stallMs = 2_000;
+/** Unacknowledged frames remembered per viewer: enough for any window, and
+ * a bound for a viewer that never acknowledges. */
+const keptUnacked = 32;
 
 /** The frames of each picture quality (F39's addendum of 2026-10-13).
  * Standard: as they always were, the viewer's page area in device pixels
@@ -343,6 +387,8 @@ export class BrowserHub {
   private readonly releaseGraceMs: number;
   private readonly holdsEveryMs: number;
   private readonly reconnectMs: number;
+  private readonly frameWindow: number;
+  private readonly stallMs: number;
 
   constructor(private readonly seams: HubSeams) {
     this.graceMs = seams.graceMs ?? 30_000;
@@ -350,6 +396,8 @@ export class BrowserHub {
     this.releaseGraceMs = seams.releaseGraceMs ?? 8_000;
     this.holdsEveryMs = seams.holdsEveryMs ?? 30_000;
     this.reconnectMs = seams.reconnectMs ?? 2_000;
+    this.frameWindow = seams.frameWindow ?? frameWindow;
+    this.stallMs = seams.stallMs ?? stallMs;
   }
 
   get connected(): boolean {
@@ -573,6 +621,7 @@ export class BrowserHub {
     const tab = this.tabs.get(targetId);
     if (tab === undefined) return false;
     tab.viewers.add(viewer);
+    tab.flows.set(viewer, { sent: 0, unacked: [], heldSince: null });
     tab.usedAt = Date.now();
     this.review(tab);
     viewer.send({
@@ -586,7 +635,8 @@ export class BrowserHub {
     if (tab.selection !== "")
       viewer.send({ t: "selection", text: tab.selection });
     if (tab.dialog !== null) viewer.send(tab.dialog);
-    if (tab.lastFrame !== null) viewer.sendFrame(tab.lastFrame);
+    // Joining mid-stream: the newest frame now, numbered as any other.
+    this.offer(tab, viewer);
     void this.watch(tab);
     return true;
   }
@@ -595,9 +645,12 @@ export class BrowserHub {
     const tab = this.tabs.get(targetId);
     if (tab === undefined) return;
     tab.viewers.delete(viewer);
+    tab.flows.delete(viewer);
     if (tab.lastActor === viewer) tab.lastActor = null;
     tab.usedAt = Date.now();
     if (tab.viewers.size > 0) {
+      // A viewer that held Chrome no longer does.
+      this.maybeAck(tab);
       void this.updateScreencast(tab);
       return;
     }
@@ -605,10 +658,13 @@ export class BrowserHub {
     this.review(tab);
   }
 
-  /** Called when a viewer's socket drained, to release a held frame. */
+  /** Called when a viewer's socket drained: a viewer that was too far
+   * behind for a frame gets the newest, and Chrome may go on. */
   drained(targetId: string): void {
     const tab = this.tabs.get(targetId);
-    if (tab !== undefined) this.maybeAck(tab);
+    if (tab === undefined) return;
+    for (const viewer of tab.viewers) this.offer(tab, viewer);
+    this.maybeAck(tab);
   }
 
   async handle(
@@ -623,6 +679,7 @@ export class BrowserHub {
       if (message.t === "hello") {
         viewer.resize = message.resize;
         viewer.picture = message.picture ?? "standard";
+        viewer.acks = message.acks === true;
       }
       if (viewer.resize) tab.lastActor = viewer;
       this.scheduleResize(tab);
@@ -632,6 +689,10 @@ export class BrowserHub {
     if (message.t === "picture") {
       viewer.picture = message.picture;
       await this.updateScreencast(tab);
+      return;
+    }
+    if (message.t === "ack") {
+      this.acked(tab, viewer, message.frame);
       return;
     }
     // A person may act before the tab's session is attached (a new tab, a
@@ -884,7 +945,7 @@ export class BrowserHub {
     for (const tab of this.tabs.values()) {
       tab.sessionId = null;
       tab.screencast = null;
-      tab.pendingAck = null;
+      this.forgetAcks(tab);
       tab.watched = false;
       tab.attaching = false;
       tab.world = null;
@@ -923,6 +984,7 @@ export class BrowserHub {
         if (tab !== undefined) {
           tab.sessionId = null;
           tab.screencast = null;
+          this.forgetAcks(tab);
         }
         return;
       }
@@ -968,8 +1030,12 @@ export class BrowserHub {
         },
         viewers: new Set(),
         screencast: null,
-        pendingAck: null,
+        ackSession: null,
+        owed: 0,
+        seq: 0,
         lastFrame: null,
+        flows: new Map(),
+        ackTimer: null,
         live: false,
         selection: "",
         dialog: null,
@@ -1121,7 +1187,7 @@ export class BrowserHub {
     tab.resizeTimer = null;
     if (cdp === null || session === null || tab.screencast === null) return;
     tab.screencast = null;
-    tab.pendingAck = null;
+    this.forgetAcks(tab);
     await cdp.send("Page.stopScreencast", {}, session).catch(() => undefined);
   }
 
@@ -1275,7 +1341,7 @@ export class BrowserHub {
     // Recorded before the awaits, so a second change meanwhile (a `hello`
     // and a `picture` at once) restarts it once more, never twice for one.
     tab.screencast = wanted;
-    tab.pendingAck = null;
+    this.forgetAcks(tab);
     if (before !== null)
       await cdp.send("Page.stopScreencast", {}, session).catch(() => undefined);
     // A later change took over while Chrome stopped: it starts its own.
@@ -1298,29 +1364,121 @@ export class BrowserHub {
       });
   }
 
+  /** A new frame of the tab, numbered, for every viewer with room for it. */
   private deliver(tab: Tab, header: FrameHeader, jpeg: Uint8Array): void {
-    const frame = encodeFrame(header, jpeg);
-    tab.lastFrame = frame;
-    for (const viewer of tab.viewers) {
-      // A viewer that is far behind skips frames; the next one is current.
-      if (viewer.buffered() < 4 * ackThreshold) viewer.sendFrame(frame);
-    }
+    tab.seq += 1;
+    tab.lastFrame = {
+      seq: tab.seq,
+      bytes: encodeFrame({ ...header, seq: tab.seq }, jpeg),
+    };
+    for (const viewer of tab.viewers) this.offer(tab, viewer);
   }
 
-  /** Chrome sends the next frame only after an ack: ack when every viewer
-   * has drained, so a slow viewer slows Chrome down, not the service's
-   * memory (F39 failure modes). */
+  /** Sends a viewer the tab's newest frame when it does not have it yet and
+   * has room for it (F39's addendum of 2026-10-13). A viewer that
+   * acknowledges its frames has room for `frameWindow` unacknowledged ones:
+   * past them the newest frame waits here for its next ack, and older ones
+   * it never needs are not sent. Any viewer far behind (4 MiB waiting in its
+   * socket) gets nothing until it drains: the bound of the service's memory.
+   * A page from before acknowledgements gets every frame, as before. */
+  private offer(tab: Tab, viewer: Viewer): void {
+    const frame = tab.lastFrame;
+    const flow = tab.flows.get(viewer);
+    if (frame === null || flow === undefined || flow.sent >= frame.seq) return;
+    if (viewer.buffered() >= 4 * ackThreshold) return;
+    if (viewer.acks && flow.unacked.length >= this.frameWindow) return;
+    viewer.sendFrame(frame.bytes);
+    flow.sent = frame.seq;
+    flow.unacked.push(frame.seq);
+    if (flow.unacked.length > keptUnacked) flow.unacked.shift();
+  }
+
+  /** The viewer is done with every frame up to `seq`: it has room again for
+   * the newest frame, and Chrome may go on. A number it was never sent is
+   * ignored. */
+  private acked(tab: Tab, viewer: Viewer, seq: number): void {
+    const flow = tab.flows.get(viewer);
+    if (flow === undefined || seq > flow.sent) return;
+    while (flow.unacked.length > 0 && (flow.unacked[0] as number) <= seq)
+      flow.unacked.shift();
+    // Progress: its stall clock starts again should it hold Chrome anew.
+    flow.heldSince = null;
+    this.offer(tab, viewer);
+    this.maybeAck(tab);
+  }
+
+  /** Chrome sends three frames without an ack and then one for each ack: it
+   * makes the next frame only when it is acked. Acked here only as far as
+   * every viewer has room for what comes (F39's addendum of 2026-10-13): a
+   * viewer that acknowledges has fewer than `frameWindow` frames
+   * unacknowledged, and every viewer has less than 1 MiB waiting in its
+   * socket. A page from before acknowledgements holds Chrome only by those
+   * 1 MiB, as before. A viewer that holds Chrome for `stallMs` without
+   * progress (a hung or sleeping page, a link that carries nothing) holds the
+   * others no longer, until it acks or drains again; it gets no more frames
+   * than its room meanwhile. With every viewer stalled, Chrome waits: nobody
+   * would see what it draws. */
   private maybeAck(tab: Tab): void {
+    if (tab.ackTimer !== null) clearTimeout(tab.ackTimer);
+    tab.ackTimer = null;
     const cdp = this.cdp;
-    if (cdp === null || tab.sessionId === null || tab.pendingAck === null)
-      return;
-    for (const viewer of tab.viewers)
-      if (viewer.buffered() >= ackThreshold) return;
-    const ack = tab.pendingAck;
-    tab.pendingAck = null;
-    void cdp
-      .send("Page.screencastFrameAck", { sessionId: ack }, tab.sessionId)
-      .catch(() => undefined);
+    const session = tab.sessionId;
+    const ackSession = tab.ackSession;
+    // Whether Chrome waits for an ack: only then does a viewer without room
+    // hold it, and only then does its stall clock run.
+    const waiting =
+      cdp !== null && session !== null && ackSession !== null && tab.owed > 0;
+    const now = Date.now();
+    let room = Number.POSITIVE_INFINITY;
+    let someone = false;
+    let stallsAt = Number.POSITIVE_INFINITY;
+    for (const viewer of tab.viewers) {
+      const flow = tab.flows.get(viewer);
+      if (flow === undefined) continue;
+      const free =
+        viewer.buffered() >= ackThreshold
+          ? 0
+          : viewer.acks
+            ? Math.max(0, this.frameWindow - flow.unacked.length)
+            : Number.POSITIVE_INFINITY;
+      if (free > 0) {
+        flow.heldSince = null;
+        someone = true;
+        room = Math.min(room, free);
+        continue;
+      }
+      if (!waiting) continue;
+      flow.heldSince ??= now;
+      const stalls = flow.heldSince + this.stallMs;
+      if (now >= stalls) continue;
+      someone = true;
+      room = 0;
+      stallsAt = Math.min(stallsAt, stalls);
+    }
+    if (!waiting) return;
+    if (stallsAt !== Number.POSITIVE_INFINITY)
+      tab.ackTimer = setTimeout(
+        () => {
+          tab.ackTimer = null;
+          this.maybeAck(tab);
+        },
+        stallsAt - now + 1,
+      );
+    if (!someone || room === 0) return;
+    const acks = Math.min(tab.owed, room);
+    tab.owed -= acks;
+    for (let i = 0; i < acks; i++)
+      void cdp
+        .send("Page.screencastFrameAck", { sessionId: ackSession }, session)
+        .catch(() => undefined);
+  }
+
+  /** A new screencast, or none: Chrome forgets the acks it waited for. */
+  private forgetAcks(tab: Tab): void {
+    tab.ackSession = null;
+    tab.owed = 0;
+    if (tab.ackTimer !== null) clearTimeout(tab.ackTimer);
+    tab.ackTimer = null;
   }
 
   private pageEvent(tab: Tab, event: CdpEvent): void {
@@ -1330,7 +1488,9 @@ export class BrowserHub {
         const metadata = (p.metadata ?? {}) as Record<string, number>;
         const jpeg = Buffer.from(String(p.data), "base64");
         const size = jpegSize(jpeg);
-        tab.pendingAck = Number(p.sessionId);
+        // Every frame of one screencast carries its session's number.
+        tab.ackSession = Number(p.sessionId);
+        tab.owed += 1;
         tab.live = true;
         if (size !== null && tab.watched)
           this.deliver(
@@ -1753,6 +1913,7 @@ export class BrowserHub {
       tab.infoTimer,
       tab.selectionTimer,
       tab.pendingOpen?.timer ?? null,
+      tab.ackTimer,
     ])
       if (timer !== null) clearTimeout(timer);
     tab.graceTimer = null;
@@ -1761,6 +1922,7 @@ export class BrowserHub {
     tab.infoTimer = null;
     tab.selectionTimer = null;
     tab.pendingOpen = null;
+    tab.ackTimer = null;
     if (tab.metaTimer !== null) clearInterval(tab.metaTimer);
     tab.metaTimer = null;
   }

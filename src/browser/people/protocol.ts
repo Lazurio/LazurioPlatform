@@ -45,7 +45,8 @@ export type ClientMessage =
   /** First message: the page area. `resize` false keeps the window's size
    * (a pop-up shown over the page keeps the size its opener asked for).
    * Without `picture` (a page from before the choice) the viewer is
-   * Standard. */
+   * Standard. `acks` true: the page acknowledges every frame it is done
+   * with (`ack`); without it (a page from before) it never does. */
   | Readonly<{
       t: "hello";
       width: number;
@@ -53,10 +54,15 @@ export type ClientMessage =
       dpr: number;
       resize: boolean;
       picture?: Picture;
+      acks?: boolean;
     }>
   | Readonly<{ t: "size"; width: number; height: number; dpr: number }>
   /** The person chose another picture quality in the bar. */
   | Readonly<{ t: "picture"; picture: Picture }>
+  /** The page is done with every frame up to this one (`FrameHeader.seq`):
+   * it drew it, or never will (it could not decode it, or a newer one took
+   * its place while it waited). */
+  | Readonly<{ t: "ack"; frame: number }>
   | Readonly<{
       t: "mouse";
       type: "mousePressed" | "mouseReleased" | "mouseMoved" | "mouseWheel";
@@ -146,6 +152,9 @@ export type FrameHeader = Readonly<{
    * emulated mobile top bar). */
   offsetTop: number;
   pageScaleFactor: number;
+  /** The frame's number in its tab, 1 and up, which the page acknowledges
+   * (`ack`); absent from a service from before acknowledgements. */
+  seq?: number;
 }>;
 
 /** One binary message per frame: a 4-byte big-endian length, the header as
@@ -184,6 +193,7 @@ export function decodeFrame(
     ];
     if (!numbers.every((n) => typeof n === "number" && Number.isFinite(n)))
       return null;
+    if (header.seq !== undefined && !frameNumber(header.seq)) return null;
     return { header, jpeg: bytes.subarray(4 + length) };
   } catch {
     return null;
@@ -195,6 +205,11 @@ const finite = (value: unknown, min: number, max: number) =>
   Number.isFinite(value) &&
   value >= min &&
   value <= max;
+
+/** A frame's number: a whole number from 1. */
+function frameNumber(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 1;
+}
 
 const coordinate = (value: unknown) => finite(value, -100_000, 100_000);
 const small = (value: unknown) => finite(value, 0, 0xffff);
@@ -237,13 +252,16 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case "hello":
       return size() &&
         typeof m.resize === "boolean" &&
-        (m.picture === undefined || picture(m.picture))
+        (m.picture === undefined || picture(m.picture)) &&
+        (m.acks === undefined || typeof m.acks === "boolean")
         ? (m as ClientMessage)
         : null;
     case "size":
       return size() ? (m as ClientMessage) : null;
     case "picture":
       return picture(m.picture) ? (m as ClientMessage) : null;
+    case "ack":
+      return frameNumber(m.frame) ? (m as ClientMessage) : null;
     case "mouse":
       return mouseTypes.has(m.type as string) &&
         coordinate(m.x) &&
