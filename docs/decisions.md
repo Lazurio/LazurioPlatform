@@ -9630,3 +9630,91 @@ recording the recommendation is not evidence that inference is available.
 Fresh startup, repeated startup, custom model preservation and direct command
 refusals are the acceptance boundaries. Upstream standalone T3 stays unchanged
 when the managed Folder configuration is absent.
+
+## F52 — One module generator in the Platform; a person's own modules in their Personalspace
+
+**Decided by the Operator 2026-10-13 (root decision 0171, addendum of 2026-10-13;
+plan DEV-6662 M2, Lazurio/LazurioPlatform#359). Built in steps: the generator in this
+revision, the command `lazurio module create personalspace/<slug>` after it.** A person
+who holds their personal space asks an agent for a new module of their own. The module
+is theirs alone: a private repository on their own GitHub account, checked out in their
+Personalspace, with no Organization and no Teams. The Platform, the product since root
+decision 0167, generates it, and the root's generator retires once the Organization
+form moves here too.
+
+1. **One generator.** `planModuleScaffold` (`src/modules/scaffold.ts`) is the pure plan
+   of a new module: its files, its slot in `modules.manifest.json`, its port lease and a
+   tree hash over the files; `insertModuleSlotText` adds the slot to a manifest without
+   changing any other byte. It is the root's `lazurio/module-scaffold-lib.mjs` at
+   HumanAndMachines/Lazurio `a5615be0`, ported with its stacks (`vite-react`, `astro`,
+   `astro-starlight`, `bun-service`, `python-uv`, `none`), slug rules, placeholder engine,
+   slug-derived port choice and refusal codes. The stack templates
+   (`src/modules/templates/`, provenance and every change in its `README.md`) are
+   embedded in the compiled executable as text (`src/modules/scaffold-templates.ts`), so
+   an installed Lazurio plans without any file of a source checkout. An Organization's
+   plan is the root's byte for byte: `tests/module-scaffold.test.ts` holds the root's
+   tree hash of every stack. The Organization form of the command stays in the root
+   until Lazurio/LazurioPlatform#267 brings `lazurio module create <Organization>/<slug>`
+   here; until then a change to a stack's files belongs in both repositories.
+2. **The personal form** (`owner: {kind: "personal", login}`). The module's `company`
+   is the person's GitHub login, as the resident required of a personal app
+   (`R:lazurio/runtime/personalspace-lib.mjs`), and its runtime id is
+   `<login>-<slug>-v1`. Its slot is the Organization slot's shape without Teams, private
+   to its owner, as the template's example slot declares one:
+   `{path: "workspace/<slug>", slug, space: "workspace", category, default_access:
+   "private", required_roles: ["owner"], source_of_truth: "git-native", status:
+   "active", notes, git: {url: "git@github.com:<login>/<slug>.git", branch: "main"}}`.
+   Teams are refused (`teams_not_allowed`). A layer `_personal`, applied last, gives the
+   module its own `AGENTS.md`: the person's alone, never shared, its slot declared by a
+   pull request into the Personalspace. Where the root's wording named the
+   Organization, four placeholders render the owner (`owner_label`, `pool_label`,
+   `module_name`, `verify_command`); for an Organization they render the root's words.
+3. **Personal leases: `23000`–`23099`.** A personal module's lease comes from the
+   `module_port_pool` its Personalspace declares in `modules.manifest.json`, a range no
+   Organization's pool ever uses (root 0171 addendum, point 2). The range is
+   `personalModulePortPool`, `23000`–`23099`:
+   - 100 ports, the size of an Organization's pool;
+   - below every Organization pool on record: they start at `24000` and grow upward in
+     blocks of 100 (the root manual's example is `24000`–`24099`, the Organization
+     template's `24900`–`24999`), and the Machines example's is `20100`–`20199`;
+   - clear of the Environment's own ports (`environmentPorts`): 443 and 4180 (the
+     gateway), 20000 (the Launchpad), 3773 (T3 Code), 4102 and 4103 (Lazurio MausBot and
+     its webhook receiver), 4848 and 9222 (the Environment browser), 4789 (Executor) and
+     4174 (a workstation's resident Launchpad);
+   - below every ephemeral range (Linux from 32768, macOS and Windows from 49152), so
+     an outgoing connection never holds a lease port.
+
+   The template Lazurio/PersonalspaceTemplate_GEN3 carries the pool; a Personalspace
+   created before it gets it in the pull request that declares its first module.
+   Within the pool the port is chosen as for an Organization (the slug's offset, the
+   next free port), avoiding every lease in the Folder and the Environment's own ports.
+4. **Reserved slugs.** Besides the root's (the boundaries of an Organization and of the
+   Folder), the labels the gateway of a Remote Environment keeps for itself are no
+   module's slug, since a module's hostname is its slug: `launchpad`, `t3code`,
+   `mausbot`, `mausbot-webhook`, `browser`, `oauth2`, `api`, `well-known`
+   (`M:workloads/workspace-vm/gateway.ts`, `gateway-catalog.py`). This holds for an
+   Organization's module too.
+5. **Not in this revision.** The command and its checks; the conformance checks of
+   `lazurio module setup` (#267, which today only the root runs for an Organization);
+   cloning a person's declared modules on their other Environment (later, M2b); vault
+   secrets for personal modules (F46).
+
+**Alternatives rejected.** Modules as tracked directories of the one Personalspace
+repository: the template ignores `workspace/*`, one module could no longer be shared,
+moved or transferred alone, and CI and boundary checks would not apply. A personal
+GitHub Organization: the Personalspace is no Organization (root 0046), and it brings
+Teams and roles that mean nothing here. Module repositories outside the Personalspace
+directory: a second directory in `personalspace/` makes the Personalspace ambiguous,
+and the gateway would not serve them. One product constant instead of a declared pool:
+the Personalspace's own tools then could not read it. Templates read from disk at run
+time: the installed executable has no source checkout. One JSON document of templates:
+unreviewable.
+
+**Verification.** `tests/module-scaffold.test.ts`: the root's planner tests (plans,
+ports, wrap-around, refusals, slot insert) on the port, the root's tree hash of every
+stack at `a5615be0`, the personal form against the template's own placeholders and
+example slot (`tests/fixtures/personalspace-template.ts`), the runtime and preparation
+of every stack read by the Platform's own readers, every generated personal module
+listed by the catalog as `personalspace/<module>` (a Bun app executable, `python-uv`
+not yet, as the plan warns, `none` without an app), and the embedded templates equal to
+their directory.
