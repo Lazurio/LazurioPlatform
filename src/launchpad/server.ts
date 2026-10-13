@@ -168,6 +168,7 @@ import {
 } from "./start-check";
 import type { UpdatePill } from "./update-pill";
 import { createVaultPageRoutes } from "./vault-page-routes";
+import { createVaultRequestRoutes } from "./vault-request-routes";
 import { createVaultRoutes, isVaultJob } from "./vault-routes";
 
 // One local owner. Optional application adapters are trusted composition, never
@@ -601,6 +602,12 @@ export async function startLaunchpad(
   const vaultPage = createVaultPageRoutes({
     host: vaultHostOf,
     setup: () => vault.running(),
+    headers,
+  });
+  // An agent's secret request (decision F53): the same vault host, so the
+  // page and `lazurio vault request` share one store and one lock.
+  const vaultRequests = createVaultRequestRoutes({
+    host: vaultHostOf,
     headers,
   });
   // Executor (decision F44): its setup journals the outcome and a fixed
@@ -1397,6 +1404,17 @@ export async function startLaunchpad(
         try {
           return await vaultPage.handle(request, url, subject);
         } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      if (vaultRequests.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        try {
+          return await vaultRequests.handle(request, url, (seconds) =>
+            server.timeout(request, seconds),
+          );
+        } catch {
+          // Never a value, a path or an output of bw.
           return response({ error: "operation-failed" }, 500);
         }
       }
