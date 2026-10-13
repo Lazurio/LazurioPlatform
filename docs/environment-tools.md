@@ -262,7 +262,9 @@ arm64. CLI first; the Launchpad serves the same core. The tools set up by an age
   `COMPOSIO_INSTALL_PLUGINS=0 COMPOSIO_INSTALL_SHELL=none COMPOSIO_INSTALL_HELP=0
   COMPOSIO_GITHUB_OWNER=Lazurio COMPOSIO_GITHUB_REPO=composio
   COMPOSIO_INSTALL_VERSION=@composio/cli@0.4.3-lazurio.1` and the target's
-  `COMPOSIO_INSTALL_SHA256` (bundle in `~/.composio`, link in `~/.local/bin`, no agent
+  `COMPOSIO_INSTALL_SHA256` (of the archive the installer downloads: on macOS an x64
+  process that Rosetta 2 translates gets the arm64 one, as its `detect_target` chooses;
+  bundle in `~/.composio`, link in `~/.local/bin`, no agent
   plugins, no shell files). The installer refuses any archive but the pinned one, and
   a missing checksum, before it extracts or replaces anything (`installer`: nothing
   changed); only exactly that version afterwards is installed (`verify`,

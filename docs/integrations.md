@@ -377,7 +377,9 @@ changes (proposed upstream in ComposioHQ/composio#4817, issue #4816, and #4809).
   check widened to accept `X.Y.Z-lazurio.N`, a source of `Lazurio/composio` strict
   (no `checksums.txt`, no entry or no SHA-256 tool is an error) and
   `COMPOSIO_INSTALL_SHA256`; everything else is Composio's installer. The Launchpad
-  passes the SHA-256 of the target's archive (`composioBuild.archives`), so the
+  passes the SHA-256 of the archive the installer downloads (`composioBuild.archives`;
+  on macOS an x64 process that Rosetta 2 translates gets the arm64 one, as the
+  installer's `detect_target` chooses), so the
   installer refuses any other archive before it extracts or replaces anything: a
   refused installation or update changes nothing. The installation is done only when
   `composio --version` then prints exactly `0.4.3-lazurio.1`. Were another version to

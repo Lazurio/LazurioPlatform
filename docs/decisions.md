@@ -7412,7 +7412,10 @@ list's ids and names in #4809). The reference is
    what runs is exactly the reviewed script, whatever happens later to a branch or a
    tag of the fork. The commit pins the script, not the archive it downloads, so the
    Launchpad also passes the SHA-256 of the target's archive (`composioBuild.archives`,
-   from the release's `checksums.txt` and the archives themselves): the installer
+   from the release's `checksums.txt` and the archives themselves), of the archive the
+   installer downloads: on macOS an x64 process that Rosetta 2 translates
+   (`sysctl.proc_translated` 1) gets the arm64 one, as the installer's `detect_target`
+   chooses (Pablo's second review of #395). The installer
    refuses any other archive before it extracts or replaces anything, and a refused
    installation or update changes nothing (Pablo's review of #395). The installed tool
    must then print exactly the pinned version. Were another version to run after an
