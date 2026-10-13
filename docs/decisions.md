@@ -9613,6 +9613,162 @@ where in each fork the vendored files live, which is the fork runbook's.
    the fork, offered upstream and kept by Lazurio until upstream takes it, point 2,
    agent-browser.
 
+**Addendum 2026-10-14 (plan DEV-6646, task 2026-10-12-701): point 5 is built; what the shell
+artifact holds of the contract and how a fork verifies it.** The text above stays as decided;
+this records how point 5 was carried out and the one place where it is built differently from
+its wording.
+
+1. **What the archive holds.** `lazurio-shell.tar.gz` holds the module below
+   `browser-contract/`, laid out as `src/browser/contract/`: `pure.js` and `node.js`, each part
+   an ES module of its own, with `pure.d.ts` and `node.d.ts`; the module's MIT licence file,
+   `LICENSE`; and `vectors/README.md` with every file of `vectors/v1/`, byte for byte.
+   `artifact.json` gains `"browserContract": {"major": 1, "files": [...]}`, the contract's major
+   (point 3) and exactly those files, which are the files point 6's exception covers. `files`
+   lists them with their SHA-256 beside every other file. The first release that carries them is
+   the first one built after this addendum; earlier tags carry none and never gain them.
+2. **Transpiled, not bundled.** Point 5 says the release script builds the files "as it builds
+   `contract.js`", which Bun bundles into one file. Bundled, `node.js` would carry its own copy
+   of the pure rules it uses, a second definition beside `pure.js` in a fork's server. The
+   pinned TypeScript, which already writes `contract.d.ts`, therefore writes both parts and their
+   declarations in one program with the repository's compiler options, checked against Node's
+   declarations alone (the Node part needs only `node:` built-ins, never Bun's); any diagnostic
+   refuses the build. The modules are not minified and keep the module's comments, so a fork
+   reviews a bump as a diff. The one import between the parts names the file the archive holds,
+   `./pure.js`, which Node's own module loader needs and bundlers and TypeScript accept. The
+   declarations type both parts for a host with no DOM, Node or Bun types, under bundler and
+   under Node resolution.
+3. **An addition to `lazurio.shell-artifact.v1`, not a new version.** Every file the archive
+   held keeps its path and meaning and stays listed with its digest, `interface` stays 1, and
+   nothing is renamed or removed: the archive gained listed files and one member. A host reads
+   the members it knows and ignores the rest. The Dashboard's `checkShellArtifact` reads
+   `schema`, `version`, `sourceCommit`, `interface` and `files`, requires `files` to name exactly
+   the archive's other files and its own required files to be present, and ignores
+   `browserContract`; its start check and its test of the vendored copy check the files
+   `artifact.json` lists, the contract's included. On a locally built archive its
+   `unpackShellArtifact`, `checkShellArtifact`, `vendorLazurioShell` (with a stand-in for the
+   attestation, which a local build has none of) and `loadHostedShell` all passed, and the
+   vendored copy held exactly the listed files. A `v2` would only make the Dashboard refuse a
+   release in which nothing of its own changed. The artifact follows the rule F36's addendum of
+   2026-10-05 set for the shell's v1 documents: within v1 it only grows.
+4. **One trust path.** `release.yml` builds the archive once, in its publishing job, before the
+   release's one attestation, whose subjects already name the archive; only a comment of the
+   workflow changes. The contract's files are bound to that attestation by the archive's digest
+   and by `artifact.json` inside it: no second subject, bundle, signature or channel.
+5. **The licence in the archive.** The `browser-contract/` files carry the module's MIT
+   `LICENSE`; the archive's root `LICENSE` is the Elastic text for its other files; `NOTICE` says
+   which is which, by the `browserContract` listing. A fork keeps the module's `LICENSE` and the
+   archive's `NOTICE` beside the vendored files; the root `LICENSE` is never shipped as the
+   contract's.
+6. **How a fork vendors one exact tag.** The steps of point 5, as the commands of a fork's script
+   (`bash`, with `gh` signed in, `jq`, `tar` and `sha256sum`); a bump is a reviewed PR made by
+   it. Where in the fork the files live is the fork runbook's (`$dest` below); laid out as the
+   module's directory, the vectors README's `../LICENSE` still resolves.
+
+   ```sh
+   set -euo pipefail
+   tag=$1 dest=$2   # one exact tag, never latest; the fork's directory for the contract
+   repo=Lazurio/LazurioPlatform
+   work=$(mktemp -d)
+   trap 'rm -rf "$work"' EXIT
+   archive=$work/lazurio-shell.tar.gz
+
+   # 1. The tag's archive and the release's one attestation bundle.
+   gh release download "$tag" --repo "$repo" --dir "$work" \
+     --pattern lazurio-shell.tar.gz --pattern lazurio.sigstore.json
+
+   # 2. The attestation: release.yml at exactly this tag, of the repository and its
+   #    owner by their immutable ids. It names the release's commit.
+   gh attestation verify "$archive" --bundle "$work/lazurio.sigstore.json" \
+     --repo "$repo" --signer-workflow "$repo/.github/workflows/release.yml" \
+     --source-ref "refs/tags/$tag" --format json > "$work/attestation.json"
+   commit=$(jq -er --arg ref "refs/tags/$tag" \
+     --arg signer "https://github.com/$repo/.github/workflows/release.yml@refs/tags/$tag" '
+     select(length == 1) | .[0].verificationResult.signature.certificate
+     | select(.sourceRepositoryIdentifier == "1361711425"
+         and .sourceRepositoryOwnerIdentifier == "309688040"
+         and .sourceRepositoryRef == $ref and .githubWorkflowRef == $ref
+         and .buildSignerURI == $signer
+         and .buildSignerDigest == .sourceRepositoryDigest)
+     | .sourceRepositoryDigest | select(test("^[0-9a-f]{40}$"))' "$work/attestation.json")
+
+   # 3. artifact.json, read without unpacking anything: this tag, this commit, the
+   #    contract's major 1, plain relative paths, the contract's files listed.
+   tar -xzOf "$archive" artifact.json > "$work/artifact.json"
+   jq -e --arg version "${tag#v}" --arg commit "$commit" '
+     .schema == "lazurio.shell-artifact.v1" and .version == $version
+     and .sourceCommit == $commit and .browserContract.major == 1
+     and (.files | keys | all(test("^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*$")))
+     and (.browserContract.files | length > 0)
+     and (.browserContract.files - (.files | keys) == [])' "$work/artifact.json" > /dev/null
+
+   # 4. The archive holds regular files only, exactly artifact.json and the listed
+   #    ones. Only then is it unpacked, and every digest is checked.
+   tar -tvzf "$archive" | awk 'substr($0, 1, 1) != "-" { exit 1 }'
+   tar -tzf "$archive" | LC_ALL=C sort > "$work/held"
+   { echo artifact.json; jq -r '.files | keys[]' "$work/artifact.json"; } | LC_ALL=C sort > "$work/listed"
+   cmp -s "$work/held" "$work/listed"
+   mkdir "$work/unpacked"
+   tar -xzf "$archive" -C "$work/unpacked"
+   jq -r '.files | to_entries[] | "\(.value)  \(.key)"' "$work/artifact.json" > "$work/sums"
+   (cd "$work/unpacked" && sha256sum --check --strict --quiet "$work/sums")
+
+   # 5. The contract's files, its MIT LICENSE among them, and the Platform's NOTICE
+   #    beside them replace the fork's copy; provenance.json says where they came from.
+   rm -rf "$dest.new"
+   mkdir -p "$dest.new"
+   jq -r '.browserContract.files[] | ltrimstr("browser-contract/")' "$work/artifact.json" |
+     while read -r path; do
+       mkdir -p "$(dirname "$dest.new/$path")"
+       cp "$work/unpacked/browser-contract/$path" "$dest.new/$path"
+     done
+   cp "$work/unpacked/NOTICE" "$dest.new/NOTICE"
+   jq --arg tag "$tag" --arg asset "$(sha256sum "$archive" | cut -d' ' -f1)" '{
+     schema: "lazurio.vendored-browser-contract.v1",
+     repository: {name: "Lazurio/LazurioPlatform", id: "1361711425", ownerId: "309688040"},
+     tag: $tag, version, sourceCommit, major: .browserContract.major,
+     asset: {name: "lazurio-shell.tar.gz", sha256: $asset},
+     attestation: {bundle: "lazurio.sigstore.json",
+       signerWorkflow: "Lazurio/LazurioPlatform/.github/workflows/release.yml",
+       sourceRef: "refs/tags/\($tag)"},
+     files: (.files as $digests | [(.browserContract.files[], "NOTICE")
+       | {key: ltrimstr("browser-contract/"), value: $digests[.]}] | from_entries)
+   }' "$work/artifact.json" > "$dest.new/provenance.json"
+   rm -rf "$dest"
+   mv "$dest.new" "$dest"
+   ```
+
+   The fork's CI then checks on every run, from `$dest`, that the vendored bytes are the ones
+   `provenance.json` names and that nothing else is there, and runs the vectors:
+
+   ```sh
+   jq -r '.files | to_entries[] | "\(.value)  \(.key)"' provenance.json | sha256sum --check --strict --quiet -
+   diff <(find . -type f ! -name provenance.json | sed 's|^\./||' | LC_ALL=C sort) \
+     <(jq -r '.files | keys[]' provenance.json | LC_ALL=C sort)
+   ```
+
+   Run against `v0.1.8-rc.65`, the commands pass the attestation, read the commit `081e610` from
+   it with both ids, and refuse at step 3, since that release carries no contract; nothing is
+   written. With a stand-in for steps 1 and 2 on a locally built archive they vendor the
+   contract, and the CI check passes. An archive with an edited file, one with an unlisted
+   file, another attested commit or another tag are refused before anything is written, and a
+   hand edit of a vendored file fails the CI check.
+7. **What this step does not do.** Nothing in the forks (task 2026-10-12-703), the browser-tab
+   element (704) or the strips (706), and no change to what the module does: the archive
+   carries it as it stands, C1–C7 with their vectors. The rest of point 1 (C8–C17, the Node
+   part's holder-file write) is still to move into the module; T3 Code's copies of C8, C10, C13
+   and C14 can go only once it has.
+
+Verified by `tests/shell-artifact.test.ts` (the listing with `browserContract`, the licence,
+vectors and README as the module's own files, MIT beside Elastic, each part importing only
+`node:` built-ins and `./pure.js`, the declarations under both resolutions) and
+`tests/browser-contract-artifact.test.ts`, which builds the archive as the release does,
+unpacks only the files `browserContract` lists, each against its listed digest, imports both
+parts from there and runs every vector against them. The vector runner is shared with
+`tests/browser-contract-vectors.test.ts` (`tests/fixtures/browser-contract-vectors.ts`). Broken
+on purpose once each, a build without the `./pure.js` specifier failed the import and
+declaration tests, and a packed rule that differs from the source failed the vectors run
+against the packed module.
+
 ## F51 — Managed Chat starts in the Folder; Platform owns the model recommendation
 
 A new hosted Chat must already have its Lazurio project. The Folder is the
