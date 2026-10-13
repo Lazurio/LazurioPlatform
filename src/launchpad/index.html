@@ -664,7 +664,20 @@ button.browser-tab-close:hover { background: var(--lz-gray-100); color: var(--lz
 .browser-actions { display: flex; flex: none; align-items: center; gap: 2px; }
 .browser-action { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 8px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted-fg); font: 400 13px/1 var(--font-sans); text-decoration: none; white-space: nowrap; cursor: pointer; }
 .browser-action:hover { background: var(--hover); color: var(--fg); }
-button.browser-action, a.browser-action { flex: none; width: 30px; padding: 0; }
+button.browser-action { flex: none; width: 30px; padding: 0; }
+/* An entry's menu (F47 point 9's addendum of 2026-10-13, the wireframe's
+   TabMenu), which has for each tab what the strip's own actions offered
+   for the shown one before: a right-click on an entry, or the context-menu
+   key or Shift+F10 on it, opens it at the pointer or under the entry, over
+   the panel and inside the window (browser-panel.ts places it). Its
+   commands in groups with a line between them; one with nothing to do is
+   greyed. */
+.browser-menu { position: fixed; z-index: 8; display: grid; width: 220px; padding: 6px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); box-shadow: var(--lz-shadow-float); color: var(--fg); }
+.browser-menu:focus { outline: none; }
+button.browser-menu-item { justify-content: flex-start; width: 100%; height: auto; min-height: 32px; padding: 7px 10px; border: 0; border-radius: var(--lz-radius-sm); background: transparent; color: inherit; font: 400 13.5px/1.25 var(--font-sans); text-align: left; white-space: normal; }
+button.browser-menu-item:hover, button.browser-menu-item:focus-visible { background: var(--lz-gray-50); }
+button.browser-menu-item:disabled { opacity: 1; color: var(--lz-ink-faint); }
+.browser-menu-line { height: 1px; margin: 4px 6px; background: var(--lz-line-faint); }
 .browser-body { position: relative; display: flex; flex: 1; min-height: 0; background: var(--lz-gray-25); }
 .browser-frame { display: block; flex: 1; width: 100%; height: 100%; border: 0; background: var(--lz-white); }
 .browser-new-tab { display: block; flex: 1; width: 100%; height: 100%; background: var(--lz-white); }
@@ -1039,11 +1052,13 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 </div>
 <!-- The right panel (decision F38's addendum of 2026-10-05, decision F47
      point 9): the strip of the tabs the Launchpad holds and its Nová karta
-     entries, "+" for another Nová karta, then the shown entry: one tab's view
-     (the same view every app of the Environment embeds, never a viewer of
-     our own) or Nová karta itself (<lazurio-new-tab>); drawn by
-     browser-panel.ts. Its link leads to the tab's view, or to the hand-over,
-     which passes the gateway's sign-in a frame cannot show. -->
+     entries, "+" for another Nová karta and the panel's Close, then the
+     shown entry: one tab's view (the same view every app of the Environment
+     embeds, never a viewer of our own) or Nová karta itself
+     (<lazurio-new-tab>); drawn by browser-panel.ts. An entry's menu
+     (F47 point 9's addendum of 2026-10-13) opens a tab's view on its own,
+     in a new tab where the gateway's sign-in can show, which a frame
+     cannot; frames it anew; and closes entries. -->
 <aside class="browser-panel" id="browser-panel" aria-labelledby="browser-title" hidden>
 <h2 class="sr-only browser-title" id="browser-title" tabindex="-1" data-message="browserTitle">Environment browser</h2>
 <div class="browser-divider" id="browser-divider" role="separator" aria-orientation="vertical" aria-controls="browser-panel" tabindex="0"></div>
@@ -1054,11 +1069,10 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <button type="button" class="browser-action" id="browser-new"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
 </div>
 <div class="browser-actions">
-<button type="button" class="browser-action" id="browser-reload"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span class="sr-only" data-message="browserReload">Reload</span></button>
-<a class="browser-action" id="browser-tab" href="/.lazurio/browser" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only" data-message="browserOpenTab">Open in a new tab</span></a>
 <button type="button" class="browser-action" id="browser-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="browserClose">Close</span></button>
 </div>
 </div>
+<div class="browser-menu" id="browser-menu" role="menu" tabindex="-1" hidden></div>
 <div class="browser-body" id="browser-body"><p class="browser-message" id="browser-message" role="status" aria-live="polite" hidden></p></div>
 <div class="browser-toast-slot" id="browser-toast-slot" role="status" aria-live="polite"></div>
 </aside>

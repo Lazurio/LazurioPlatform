@@ -1,12 +1,15 @@
 import { describe, expect, test } from "bun:test";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { browserViewUrl } from "../src/browser/contract/pure";
 import { browserEntryOf, resolveBrowserView } from "../src/browser/view";
 import {
   browserFrame,
-  browserHandOverPath,
   browserPanelOrigin,
   browserViewAddress,
   browserViewDocumentPath,
+  type CloseCommand,
+  closedBy,
   closesPanel,
   emptyStrip,
   entryKey,
@@ -27,17 +30,18 @@ import {
   stripEntries,
   stripEveryMs,
   stripTabs,
+  type TabMenu,
+  tabMenu,
+  tabMenuLabels,
   tabViewAddress,
   viewMessage,
   viewTabOf,
 } from "../src/launchpad/browser-panel-view";
 import { publicEntry } from "../src/launchpad/chat";
 import { parseEntryAnswer } from "../src/launchpad/chat-view";
+import { messages } from "../src/launchpad/messages";
 import { newTabCopy, parseOverview } from "../src/launchpad/new-tab-view";
-import {
-  browserViewDocumentPath as serverDocumentPath,
-  browserViewPath as serverHandOverPath,
-} from "../src/launchpad/server";
+import { browserViewDocumentPath as serverDocumentPath } from "../src/launchpad/server";
 import { newTabFrameSandbox } from "../src/shell/new-tab-element";
 import { bindings } from "./fixtures/machine-bindings";
 
@@ -182,9 +186,10 @@ test("the view only as an https URL on exactly the recorded origin, as written: 
   ).toBeNull();
 });
 
-test("the panel and the server name the same two routes, and a tab's frame keeps the view's attributes", () => {
+test("the panel and the server name the same route, and a tab's frame keeps the view's attributes", () => {
+  // The view's address for a new tab; since the strip lost its link
+  // (2026-10-13) the panel no longer uses the server's hand-over.
   expect(browserViewDocumentPath).toBe(serverDocumentPath);
-  expect(browserHandOverPath).toBe(serverHandOverPath);
   // The sandbox of T3 Code's panel (Lazurio/t3code#41): the view keeps its
   // own origin, cookie and scripts, and cannot navigate this page. Since
   // 2026-10-13 a tab the view opens escapes it, as a tab opened from Nová
@@ -779,6 +784,222 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
       tab: { id: id(9) },
     });
     expect([listed.live, listed.overrides]).toEqual([[], []]);
+  });
+});
+
+describe("an entry's menu (F47 point 9's addendum of 2026-10-13)", () => {
+  const words = { cs: messages("cs"), en: messages("en") };
+  const place = { origin, pageOrigin: page };
+  /** A menu's commands in its words, a line between groups as "—", one
+   * with nothing to do marked. */
+  const read = (menu: TabMenu | null, locale: "cs" | "en") =>
+    (menu?.groups ?? []).flatMap((group, index) => [
+      ...(index === 0 ? [] : ["—"]),
+      ...group.map(
+        (item) =>
+          `${words[locale][tabMenuLabels[item.command]]}${item.disabled ? " (disabled)" : ""}`,
+      ),
+    ]);
+  // Tabs 1, 2 and 3, then two Nová karta entries, the second one shown.
+  const five = run(
+    [{ kind: "new-tab" }],
+    openWith([listedTab(1), listedTab(2), listedTab(3)]),
+  );
+
+  test("a tab of the Environment browser offers Otevřít samostatně and Načíst znovu, then the closes; a Nová karta the closes alone; in Czech and in English", () => {
+    expect([keys(five), shown(five)]).toEqual([
+      [id(1), id(2), id(3), "new-1", "new-2"],
+      "new-2",
+    ]);
+    expect(read(tabMenu(five, id(2), place), "cs")).toEqual([
+      "Otevřít samostatně",
+      "Načíst znovu",
+      "—",
+      "Zavřít",
+      "Zavřít ostatní",
+      "Zavřít vpravo",
+    ]);
+    expect(read(tabMenu(five, id(2), place), "en")).toEqual([
+      "Open in a new tab",
+      "Reload",
+      "—",
+      "Close",
+      "Close others",
+      "Close to the right",
+    ]);
+    expect(read(tabMenu(five, "new-1", place), "cs")).toEqual([
+      "Zavřít",
+      "Zavřít ostatní",
+      "Zavřít vpravo",
+    ]);
+    // Otevřít samostatně opens the tab's view on exactly the recorded
+    // origin; a Nová karta is no remote tab and has none.
+    expect(tabMenu(five, id(2), place)?.view).toBe(`${origin}/t/${id(2)}`);
+    expect(tabMenu(five, "new-1", place)?.view).toBeNull();
+    // An entry the strip does not have has no menu.
+    expect(tabMenu(five, id(9), place)).toBeNull();
+    expect(tabMenu(five, "new-9", place)).toBeNull();
+  });
+
+  test("a close with nothing to close is greyed, and so are Otevřít samostatně and Načíst znovu where the tab has no view the panel may frame", () => {
+    // The last entry has nothing on its right.
+    expect(read(tabMenu(five, "new-2", place), "cs")).toEqual([
+      "Zavřít",
+      "Zavřít ostatní",
+      "Zavřít vpravo (disabled)",
+    ]);
+    // The strip's only entry has no others either.
+    const alone = run([{ kind: "opened" }]);
+    expect(read(tabMenu(alone, "new-1", place), "cs")).toEqual([
+      "Zavřít",
+      "Zavřít ostatní (disabled)",
+      "Zavřít vpravo (disabled)",
+    ]);
+    const one = run(
+      [{ kind: "chosen", tab: id(1), from: "new-1" }],
+      openWith([listedTab(1)]),
+    );
+    expect(read(tabMenu(one, id(1), place), "en")).toEqual([
+      "Open in a new tab",
+      "Reload",
+      "—",
+      "Close",
+      "Close others (disabled)",
+      "Close to the right (disabled)",
+    ]);
+    // No view to frame: the view on the page's own origin, or no panel.
+    for (const nowhere of [
+      { origin, pageOrigin: origin },
+      { origin: null, pageOrigin: page },
+    ]) {
+      const menu = tabMenu(five, id(2), nowhere);
+      expect(menu?.view).toBeNull();
+      expect(read(menu, "cs")).toEqual([
+        "Otevřít samostatně (disabled)",
+        "Načíst znovu (disabled)",
+        "—",
+        "Zavřít",
+        "Zavřít ostatní",
+        "Zavřít vpravo",
+      ]);
+    }
+  });
+
+  test("Zavřít takes the entry, Zavřít ostatní every other one, Zavřít vpravo every one after it, Nová karta entries among them, at once; what was shown falls to the entry the command was chosen on", () => {
+    expect(closedBy(five, id(2), "close")).toEqual([id(2)]);
+    expect(closedBy(five, id(2), "close-others")).toEqual([
+      id(1),
+      id(3),
+      "new-1",
+      "new-2",
+    ]);
+    expect(closedBy(five, id(2), "close-right")).toEqual([
+      id(3),
+      "new-1",
+      "new-2",
+    ]);
+    expect(closedBy(five, "new-1", "close-right")).toEqual(["new-2"]);
+    for (const command of ["close", "close-others", "close-right"] as const)
+      expect(closedBy(five, id(9), command)).toEqual([]);
+    const after = (state: StripState, key: string, command: CloseCommand) =>
+      run([{ kind: "close", keys: closedBy(state, key, command) }], state);
+    // Zavřít ostatní on tab 2 while a Nová karta shows: tab 2 alone stays,
+    // and shows; tabs 1 and 3 are let go of, the Nová karta entries go.
+    const others = after(five, id(2), "close-others");
+    expect([
+      keys(others),
+      shown(others),
+      closesPanel(others),
+      others.newTabs,
+      others.overrides.map((override) => override.id),
+    ]).toEqual([[id(2)], id(2), false, [], [id(1), id(3)]]);
+    // Zavřít vpravo on tab 2: what was shown, right of it, falls to tab 2.
+    const right = after(five, id(2), "close-right");
+    expect([keys(right), shown(right)]).toEqual([[id(1), id(2)], id(2)]);
+    // What is shown left of it stays shown.
+    const left = run([{ kind: "select", entry: id(1) }], five);
+    const kept = after(left, id(2), "close-right");
+    expect([keys(kept), shown(kept)]).toEqual([[id(1), id(2)], id(1)]);
+    // From a Nová karta the tabs go too.
+    const fromNew = after(five, "new-1", "close-others");
+    expect([keys(fromNew), shown(fromNew)]).toEqual([["new-1"], "new-1"]);
+  });
+
+  test("Zavřít on the strip's last entry is its ×: the strip is left empty and the panel closes; Zavřít ostatní and Zavřít vpravo never empty it", () => {
+    const tab = run(
+      [{ kind: "chosen", tab: id(1), from: "new-1" }],
+      openWith([listedTab(1)]),
+    );
+    const closed = run(
+      [{ kind: "close", keys: closedBy(tab, id(1), "close") }],
+      tab,
+    );
+    expect([keys(closed), shown(closed), closesPanel(closed)]).toEqual([
+      [],
+      null,
+      true,
+    ]);
+    const newTab = run([{ kind: "opened" }]);
+    expect(
+      closesPanel(
+        run(
+          [{ kind: "close", keys: closedBy(newTab, "new-1", "close") }],
+          newTab,
+        ),
+      ),
+    ).toBe(true);
+    for (const key of keys(five))
+      for (const command of ["close-others", "close-right"] as const)
+        expect(
+          closesPanel(
+            run([{ kind: "close", keys: closedBy(five, key, command) }], five),
+          ),
+        ).toBe(false);
+  });
+
+  test("the markup: the strip keeps its entries, + and Close, without Reload and the link to a new tab; the menu waits in the panel, hidden", async () => {
+    const html = await readFile(
+      join(import.meta.dir, "..", "src", "launchpad", "index.html"),
+      "utf8",
+    );
+    const inside: {
+      id: string | null;
+      classes: readonly string[];
+      role: string | null;
+      message: string | null;
+      hidden: boolean;
+    }[] = [];
+    await new HTMLRewriter()
+      .on("#browser-panel *", {
+        element(node) {
+          inside.push({
+            id: node.getAttribute("id"),
+            classes: (node.getAttribute("class") ?? "").split(/\s+/),
+            role: node.getAttribute("role"),
+            message: node.getAttribute("data-message"),
+            hidden: node.hasAttribute("hidden"),
+          });
+        },
+      })
+      .transform(new Response(html))
+      .text();
+    const ids = inside.flatMap((node) => (node.id === null ? [] : [node.id]));
+    for (const gone of ["browser-reload", "browser-tab"])
+      expect(ids).not.toContain(gone);
+    for (const gone of ["browserReload", "browserOpenTab"])
+      expect(inside.some((node) => node.message === gone)).toBe(false);
+    // "+" beside the entries, and the panel's Close, are its actions now.
+    expect(
+      inside
+        .filter((node) => node.classes.includes("browser-action"))
+        .map((node) => node.id),
+    ).toEqual(["browser-new", "browser-close"]);
+    for (const kept of ["browser-tablist", "browser-body", "browser-menu"])
+      expect(ids).toContain(kept);
+    expect(inside.find((node) => node.id === "browser-menu")).toMatchObject({
+      role: "menu",
+      hidden: true,
+    });
   });
 });
 
