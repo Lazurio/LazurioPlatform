@@ -1,26 +1,26 @@
 import { randomUUID } from "node:crypto";
-import type { FileLock } from "../platform/flock";
-import { FileLockError } from "../platform/flock";
 import type { InstallFetch } from "../tools/install";
 import type { ToolRunner } from "../tools/status";
-import {
-  type BwCli,
-  type BwCollection,
-  type BwFailure,
-  type BwOrganization,
-  type BwStatus,
-  bwCli,
-} from "./bw";
-import {
-  isEnvironmentCollection,
-  type VaultContext,
-  type VaultUnsupported,
-  type VaultUnsupportedReason,
+import type { BwCli, BwFailure } from "./bw";
+import type {
+  VaultContext,
+  VaultUnsupported,
+  VaultUnsupportedReason,
 } from "./context";
-import { installPinnedBw, pinnedBinary, pinnedInstalled } from "./install";
+import { installPinnedBw, pinnedInstalled } from "./install";
+import type { PilotContext } from "./legacy-0197/context";
+import {
+  pilotEnv,
+  pilotRefresh,
+  pilotSecrets,
+  pilotSecretsAdmission,
+  pilotStatus,
+} from "./legacy-0197/pilot";
+import { ensureOwnVault } from "./organization";
 import type { BitwardenPin } from "./pin";
 import {
   DEVICE_TYPE_SDK,
+  type Device,
   fetchApiKey,
   generateMasterPassword,
   passwordLogin,
@@ -29,40 +29,80 @@ import {
   VaultwardenError,
 } from "./register";
 import {
+  cliOf,
+  lockMs,
+  readSecrets,
+  sharedSession,
+  signedInAs,
+  usableSession,
+  withLock,
+} from "./session";
+import {
+  accountOf,
+  failedStatus,
+  type SecretApplication,
+  unsupportedStatus,
+  type VaultEnvResult,
+  type VaultFacts,
+  type VaultFailureStage,
+  type VaultPhase,
+  type VaultSecretsRefusal,
+  type VaultSecretsResult,
+  type VaultStatus,
+} from "./status";
+import {
   completeAccount,
   createAccount,
   ensureVaultDirectories,
-  forgetSignIn,
   forgetUnregisteredAccount,
   isReady,
-  lockVault,
   type ReadyAccount,
-  readAccount,
   readRecord,
   readSession,
+  type VaultAccount,
   type VaultPaths,
   type VaultRecord,
   vaultPaths,
   writeRecord,
-  writeSession,
 } from "./store";
 
-// The Environment vault (decision F43, root decision 0193): one core for the
-// CLI (`lazurio vault`) and the Launchpad (Settings → Tools → bitwarden).
-// Status-driven and idempotent: every operation reads what is there and
-// moves it on, so an interrupted one is completed by the next. Each mutation
-// holds the account's kernel lock. Nothing secret is returned but by `env`,
-// which hands the session to an agent's shell by design; the journal carries
-// the operation, the outcome and a fixed reason, never a value.
+export type {
+  SecretApplication,
+  VaultEnvironment,
+  VaultEnvRefusal,
+  VaultEnvResult,
+  VaultFacts,
+  VaultFailureStage,
+  VaultPhase,
+  VaultSecret,
+  VaultSecretAbsence,
+  VaultSecretsRefusal,
+  VaultSecretsResult,
+  VaultStatus,
+} from "./status";
+
+// The Environment's own vault (root decision 0198, decision F52): one core
+// for the CLI (`lazurio vault`) and the Launchpad (Settings → Tools →
+// bitwarden, and its start). Each Environment's technical account, which the
+// network pre-allowed and the handover names, registers itself, creates the
+// Environment's own organization in the network's Lazurio Vaultwarden with
+// the first collection Agenti, and keeps one unlocked session its agents
+// share. Status-driven and idempotent: every operation reads what is there
+// and moves it on, so an interrupted one is completed by the next. Each
+// mutation holds the account's kernel lock. Nothing secret is returned but
+// by `env`, which hands the session to an agent's shell by design; the
+// journal carries the operation, the outcome and a fixed reason, never a
+// value. An Environment connected the 0197 way, whose handover names no
+// vault yet, is read by the frozen subset in `legacy-0197/` instead.
 
 /** Where the vault runs: trusted composition, never HTTP input. */
 export type VaultHost = Readonly<{
-  /** The Environment's vault, or why it has none here; read at the start
-   * of every operation. */
-  context: () => Promise<VaultContext | VaultUnsupported>;
-  /** The account's state directory: its vault host and the Environment's
-   * address, the account's whole identity. */
-  directory: (identity: Pick<VaultContext, "host" | "address">) => string;
+  /** The Environment's vault, a 0197 pilot's, or why it has none here; read
+   * at the start of every operation. */
+  context: () => Promise<VaultContext | PilotContext | VaultUnsupported>;
+  /** The state directory of one account: the vault's host and the key (the
+   * own account itself; a 0197 pilot's Environment address). */
+  directory: (host: string, key: string) => string;
   /** The product's install base, where the pinned CLI lives. */
   base: string;
   /** `~/.local/bin`, the standard entry of `bw`. */
@@ -78,576 +118,230 @@ export type VaultHost = Readonly<{
   pin?: BitwardenPin | undefined;
   journal?: ((entry: VaultJournalEntry) => void) | undefined;
   now?: (() => Date) | undefined;
-  /** How long a mutation waits for another one (default 10 s; connect,
-   * which may download the CLI, waits longer). */
+  /** How long a mutation waits for another one (default 10 s; setup, which
+   * may download the CLI, waits longer). */
   lockMs?: number | undefined;
 }>;
 
 export type VaultJournalEntry = Readonly<{
-  operation: "connect" | "refresh" | "disconnect" | "unlock" | "secrets";
+  operation: "setup" | "refresh" | "unlock" | "secrets" | "vault";
   outcome: string;
   reason?: string;
+  /** The Launchpad's own setup after its start. */
+  trigger?: "start";
 }>;
 
-/** What the row and the dialog show, in every state. */
-export type VaultFacts = Readonly<{
-  /** `https://vaultwarden.<zone>` */
-  vault: string;
-  /** `vaultwarden@<Environment address>` */
-  account: string;
-  /** The Environment's collection: the one it is connected to, otherwise
-   * the name the operator gives it. */
-  collection: string;
-  /** The Environment's name in the collection. */
-  name: string;
-  /** A Team's Environment: the whole Team sees the collection. */
-  team: boolean;
-}>;
+const setupLockMs = 15 * 60_000;
 
-export type VaultFailureStage =
-  | "install"
-  | "account"
-  | "sign-in"
-  | "sync"
-  | "status";
-
-export type VaultStatus =
-  | Readonly<{
-      kind: "vault-status";
-      state: "unsupported";
-      reason: VaultUnsupportedReason;
-    }>
-  | (VaultFacts &
-      Readonly<{
-        kind: "vault-status";
-        /** `not-installed`: the pinned CLI is not here; `none`: no account
-         * signed in. `registered`: the account exists in the vault
-         * (connecting again only signs it in). */
-        state: "not-installed" | "none";
-        registered: boolean;
-      }>)
-  | (VaultFacts &
-      Readonly<{
-        kind: "vault-status";
-        /** The vault refused the registration: the address is not invited
-         * (yet). Nothing was left behind. */
-        state: "awaiting-invite";
-      }>)
-  | (VaultFacts &
-      Readonly<{
-        kind: "vault-status";
-        /** Signed in; the organization or the collection is not visible
-         * yet: an Admin confirms the member by its fingerprint. */
-        state: "confirming";
-        fingerprint: string;
-        /** A confirmed organization without the collection, when there is
-         * one. */
-        organization: string | null;
-        /** The session is not the unlocked one; refresh unlocks it. */
-        locked?: true;
-      }>)
-  | (VaultFacts &
-      Readonly<{
-        kind: "vault-status";
-        state: "connected";
-        fingerprint: string;
-        organization: string | null;
-        /** How many collections and items the account sees; null when the
-         * session was not unlocked (refresh unlocks it). */
-        collections: number | null;
-        items: number | null;
-        locked?: true;
-      }>)
-  | (VaultFacts &
-      Readonly<{
-        kind: "vault-status";
-        /** It was connected; the organization or the collection is gone. */
-        state: "revoked";
-        fingerprint: string | null;
-      }>)
-  | (VaultFacts &
-      Readonly<{
-        kind: "vault-status";
-        state: "unreachable";
-        fingerprint: string | null;
-        reason: string;
-      }>)
-  | (VaultFacts &
-      Readonly<{
-        kind: "vault-status";
-        state: "failed";
-        stage: VaultFailureStage;
-        reason: string;
-        /** The prepared prompt of an agent who completes it. */
-        fallback: "agent";
-      }>);
-
-export type VaultPhase = "install" | "account" | "sign-in";
-
-/** What `lazurio vault env` hands an agent's shell. */
-export type VaultEnvironment = Readonly<{
-  BITWARDENCLI_APPDATA_DIR: string;
-  BW_SESSION: string;
-  LAZURIO_VAULT_ORGANIZATION_ID: string;
-  LAZURIO_VAULT_COLLECTION_ID: string;
-}>;
-
-export type VaultEnvResult =
-  | Readonly<{ kind: "vault-env"; env: VaultEnvironment }>
-  | Readonly<{
-      kind: "vault-env-refused";
-      reason:
-        | VaultUnsupportedReason
-        | "not-installed"
-        | "not-connected"
-        | "busy"
-        | "unlock-failed";
-    }>;
-
-const lockMs = 10_000;
-const connectLockMs = 15 * 60_000;
-
-const factsOf = (context: VaultContext): VaultFacts => ({
+const ownFacts = (context: VaultContext): VaultFacts => ({
   vault: context.vault,
   account: context.account,
-  collection: context.collection,
   name: context.name,
-  team: context.kind === "team",
+  team: context.environment === "team",
+  origin: "own",
 });
 
-function cliOf(host: VaultHost, paths: VaultPaths): BwCli {
-  return bwCli({
-    binary: pinnedBinary(host.base, host.pin),
-    data: paths.data,
-    home: host.home,
-    path: host.path,
-    run: host.run,
-  });
-}
+const ownPaths = (host: VaultHost, context: VaultContext): VaultPaths =>
+  vaultPaths(host.directory(context.host, context.account));
 
-/** Whether bw's profile is signed in to exactly this account at exactly this
- * vault. Anything else (no sign-in, another account or vault, as after an
- * agent's `bw login` in this data directory) is not the Environment's
- * sign-in: it is never used, reported as connected or handed out. */
-function signedInAs(
-  state: BwStatus,
-  account: Readonly<{ email: string; server: string }>,
-): boolean {
+const notSetUp = (facts: VaultFacts, next: VaultPhase): VaultStatus => ({
+  kind: "vault-status",
+  state: "not-set-up",
+  ...facts,
+  next,
+});
+
+/** Whether the Launchpad's start moves this vault on (the Executor pattern,
+ * decision F44's addendum of 2026-10-11): an own vault not set up yet, one
+ * whose session is not the unlocked one, or one whose name is no longer the
+ * handover's. Never a 0197 pilot, a vault that is not supported here, or
+ * one that ended in a failure or a revocation: those wait for a person or an
+ * agent. */
+export function setUpAtStart(status: VaultStatus): boolean {
+  if (status.state === "unsupported" || status.origin !== "own") return false;
+  if (status.state === "not-set-up") return true;
   return (
-    state.status !== "unauthenticated" &&
-    state.userEmail?.toLowerCase() === account.email &&
-    state.serverUrl?.replace(/\/+$/, "") === account.server
+    status.state === "connected" &&
+    (status.locked === true || status.organization !== status.name)
   );
-}
-
-/** The account's own collection among those it sees (root decision 0193,
- * addendum 2026-10-11: its name is the operator's). Once connected, only the
- * recorded ID counts: a rename changes nothing, and a collection that is gone
- * is gone (revoked), whatever else the account sees. At a first connection,
- * when nothing is recorded (a disconnect forgets the record, so connecting
- * again is a first connection again): the one with the name the dialog
- * suggested, else the only one named for this machine, else the only
- * collection the account sees, whatever its name. */
-export function environmentCollection(
-  collections: readonly BwCollection[],
-  context: VaultContext,
-  record: VaultRecord,
-): BwCollection | undefined {
-  if (record.collectionId !== null)
-    return collections.find((entry) => entry.id === record.collectionId);
-  const exact = collections.find((entry) => entry.name === context.collection);
-  if (exact !== undefined) return exact;
-  const named = collections.filter((entry) =>
-    isEnvironmentCollection(entry.name, context),
-  );
-  if (named.length === 1) return named[0];
-  return collections.length === 1 ? collections[0] : undefined;
 }
 
 type Observation =
   | Readonly<{
       kind: "connected";
-      organization: BwOrganization | undefined;
-      collection: BwCollection;
-      collections: number;
+      organization: string;
       items: number | null;
     }>
-  | Readonly<{ kind: "confirming"; organization: string | null }>
-  | Readonly<{ kind: "revoked" }>
+  | Readonly<{ kind: "gone" }>
   | Readonly<{ kind: "failed"; reason: BwFailure }>;
 
-/** What the account sees in bw's local copy, as of its last sync. A
- * collection counts only in a confirmed organization; an organization
- * reported as revoked, or a recorded collection that is gone, is a revoked
- * access. */
+/** What bw's local copy, as of its last sync, holds of the recorded
+ * organization: confirmed (the account holds its key) or gone. */
 async function observe(
   bw: BwCli,
   session: string,
-  context: VaultContext,
-  record: VaultRecord,
+  organizationId: string,
 ): Promise<Observation> {
   const organizations = await bw.organizations(session);
   if (!organizations.ok)
     return { kind: "failed", reason: organizations.reason };
-  const collections = await bw.collections(session);
-  if (!collections.ok) return { kind: "failed", reason: collections.reason };
-  const confirmed = organizations.value.filter((entry) => entry.status === 2);
-  const visible = collections.value.filter((entry) =>
-    confirmed.some((organization) => organization.id === entry.organizationId),
+  const own = organizations.value.find(
+    (entry) => entry.id === organizationId && entry.status === 2,
   );
-  const own = environmentCollection(visible, context, record);
-  if (own !== undefined) {
-    const items = await bw.itemCount(session);
-    return {
-      kind: "connected",
-      organization: confirmed.find((entry) => entry.id === own.organizationId),
-      collection: own,
-      collections: visible.length,
-      items: items.ok ? items.value : null,
-    };
-  }
-  if (
-    record.collectionId !== null ||
-    organizations.value.some((entry) => entry.status === -1)
-  )
-    return { kind: "revoked" };
-  return { kind: "confirming", organization: confirmed[0]?.name ?? null };
+  if (own === undefined) return { kind: "gone" };
+  const items = await bw.itemCount(session, organizationId);
+  return {
+    kind: "connected",
+    organization: own.name,
+    items: items.ok ? items.value : null,
+  };
 }
 
-async function fingerprintOf(
-  bw: BwCli,
-  session: string,
-  record: VaultRecord,
-): Promise<string | null> {
-  if (record.fingerprint !== null) return record.fingerprint;
-  const read = await bw.fingerprint(session);
-  return read.ok ? read.value : null;
-}
+type Recorded = Readonly<{ organizationId: string; collectionId: string }>;
 
-/** The status of an observation with the facts. */
 function statusOf(
   facts: VaultFacts,
+  record: Recorded,
   observation: Exclude<Observation, { kind: "failed" }>,
-  fingerprint: string | null,
 ): VaultStatus {
-  if (observation.kind === "revoked")
-    return { kind: "vault-status", state: "revoked", ...facts, fingerprint };
-  if (fingerprint === null)
-    return failedStatus(facts, "status", "fingerprint-unreadable");
-  if (observation.kind === "confirming")
-    return {
-      kind: "vault-status",
-      state: "confirming",
-      ...facts,
-      fingerprint,
-      organization: observation.organization,
-    };
+  if (observation.kind === "gone")
+    return { kind: "vault-status", state: "revoked", ...facts };
   return {
     kind: "vault-status",
     state: "connected",
     ...facts,
-    collection: observation.collection.name,
-    fingerprint,
-    organization: observation.organization?.name ?? null,
-    collections: observation.collections,
+    organizationId: record.organizationId,
+    collectionId: record.collectionId,
+    organization: observation.organization,
     items: observation.items,
   };
 }
 
-function failedStatus(
+/** The ids the record holds once the vault exists. */
+const recordedVault = (record: VaultRecord): Recorded | null =>
+  record.organizationId !== null && record.collectionId !== null
+    ? {
+        organizationId: record.organizationId,
+        collectionId: record.collectionId,
+      }
+    : null;
+
+/** The account, the record and the CLI of a set-up own vault, or the status
+ * that says what is missing. Local: nothing runs. */
+async function ownState(
+  host: VaultHost,
+  context: VaultContext,
   facts: VaultFacts,
-  stage: VaultFailureStage,
-  reason: string,
-): VaultStatus {
-  return {
-    kind: "vault-status",
-    state: "failed",
-    ...facts,
-    stage,
-    reason,
-    fallback: "agent",
-  };
-}
-
-/** The status of a session that is not the unlocked one, from the record:
- * nothing is unlocked by a read. */
-function lockedStatus(facts: VaultFacts, record: VaultRecord): VaultStatus {
-  if (record.fingerprint === null)
-    return failedStatus(facts, "status", "locked");
-  if (record.collectionId !== null)
-    return {
-      kind: "vault-status",
-      state: "connected",
-      ...facts,
-      fingerprint: record.fingerprint,
-      organization: null,
-      collections: null,
-      items: null,
-      locked: true,
-    };
-  return {
-    kind: "vault-status",
-    state: "confirming",
-    ...facts,
-    fingerprint: record.fingerprint,
-    organization: null,
-    locked: true,
-  };
-}
-
-type Prepared =
+  paths: VaultPaths,
+): Promise<
+  | Readonly<{ kind: "ready"; account: ReadyAccount; recorded: Recorded }>
   | Readonly<{ kind: "status"; status: VaultStatus }>
-  | Readonly<{
-      kind: "ready";
-      context: VaultContext;
-      facts: VaultFacts;
-      paths: VaultPaths;
-    }>;
-
-async function prepare(host: VaultHost): Promise<Prepared> {
-  const context = await host.context();
-  if (context.kind === "unsupported")
+> {
+  const account = await accountOf(paths, context);
+  if (account === "unreadable")
     return {
       kind: "status",
-      status: {
-        kind: "vault-status",
-        state: "unsupported",
-        reason: context.reason,
-      },
+      status: failedStatus(facts, "account", "account-unreadable"),
     };
-  return {
-    kind: "ready",
-    context,
-    facts: factsOf(context),
-    paths: vaultPaths(host.directory(context)),
-  };
-}
-
-const none = (
-  facts: VaultFacts,
-  state: "not-installed" | "none",
-  registered: boolean,
-): VaultStatus => ({ kind: "vault-status", state, ...facts, registered });
-
-/** The account file, or a failure when it is there and unreadable or not
- * this Environment's account (never replaced: it holds the only copy of the
- * account's password). An account serves only the Environment whose address
- * and vault it carries; its directory is keyed by them, and this holds even
- * when a file is not where it belongs. */
-async function accountOf(
-  paths: VaultPaths,
-  context: VaultContext,
-): Promise<
-  Awaited<ReturnType<typeof readAccount>> | "unreadable" | "mismatch"
-> {
-  let account: Awaited<ReturnType<typeof readAccount>>;
+  if (account === "mismatch")
+    return {
+      kind: "status",
+      status: failedStatus(facts, "account", "account-mismatch"),
+    };
+  if (!(await pinnedInstalled(host.base, host.pin)))
+    return { kind: "status", status: notSetUp(facts, "install") };
+  if (account === null || !isReady(account))
+    return { kind: "status", status: notSetUp(facts, "account") };
+  let record: VaultRecord;
   try {
-    account = await readAccount(paths);
+    record = await readRecord(paths);
   } catch {
-    return "unreadable";
+    return {
+      kind: "status",
+      status: failedStatus(facts, "vault", "record-unreadable"),
+    };
   }
-  return account !== null &&
-    (account.email !== context.account || account.server !== context.vault)
-    ? "mismatch"
-    : account;
+  const recorded = recordedVault(record);
+  if (recorded === null)
+    return { kind: "status", status: notSetUp(facts, "vault") };
+  return { kind: "ready", account, recorded };
 }
 
 /** `status`: local, no network, no mutation. */
 export async function vaultStatus(host: VaultHost): Promise<VaultStatus> {
-  const prepared = await prepare(host);
-  if (prepared.kind === "status") return prepared.status;
-  const { context, facts, paths } = prepared;
-  const account = await accountOf(paths, context);
-  if (account === "unreadable")
-    return failedStatus(facts, "account", "account-unreadable");
-  if (account === "mismatch")
-    return failedStatus(facts, "account", "account-mismatch");
-  const ready = account !== null && isReady(account);
-  if (!(await pinnedInstalled(host.base, host.pin)))
-    return none(facts, "not-installed", ready);
-  if (!ready) return none(facts, "none", false);
+  const context = await host.context();
+  if (context.kind === "unsupported") return unsupportedStatus(context.reason);
+  if (context.kind === "pilot") return pilotStatus(host, context);
+  const facts = ownFacts(context);
+  const paths = ownPaths(host, context);
+  const state = await ownState(host, context, facts, paths);
+  if (state.kind === "status") return state.status;
+  const { account, recorded } = state;
   const bw = cliOf(host, paths);
-  const record = await readRecord(paths);
   const session = await readSession(paths).catch(() => null);
-  const state = await bw.status(session);
-  if (state.ok && !signedInAs(state.value, account))
-    return none(facts, "none", true);
-  if (session === null) return lockedStatus(facts, record);
-  const observation = await observe(bw, session, context, record);
+  const signedIn = await bw.status(session);
+  if (signedIn.ok && !signedInAs(signedIn.value, account))
+    return notSetUp(facts, "sign-in");
+  const locked: VaultStatus = {
+    kind: "vault-status",
+    state: "connected",
+    ...facts,
+    ...recorded,
+    organization: null,
+    items: null,
+    locked: true,
+  };
+  if (session === null) return locked;
+  const observation = await observe(bw, session, recorded.organizationId);
   if (observation.kind === "failed") {
     if (observation.reason === "unauthenticated")
-      return none(facts, "none", true);
-    if (observation.reason === "locked") return lockedStatus(facts, record);
+      return notSetUp(facts, "sign-in");
+    if (observation.reason === "locked") return locked;
     return failedStatus(facts, "status", observation.reason);
   }
-  return statusOf(facts, observation, await fingerprintOf(bw, session, record));
+  return statusOf(facts, recorded, observation);
 }
 
-async function locked<T>(
-  paths: VaultPaths,
-  timeoutMs: number,
-  busy: () => T | Promise<T>,
-  work: () => Promise<T>,
-): Promise<T> {
-  let lock: FileLock;
-  try {
-    lock = await lockVault(paths, timeoutMs);
-  } catch (error) {
-    if (error instanceof FileLockError && error.reason === "busy")
-      return busy();
-    throw error;
-  }
-  try {
-    return await work();
-  } finally {
-    await lock.release();
-  }
-}
+const deviceOf = (account: VaultAccount): Device => ({
+  identifier: account.deviceIdentifier,
+  name: "Lazurio Launchpad",
+  type: DEVICE_TYPE_SDK,
+});
 
-type Session =
-  | Readonly<{ ok: true; session: string; fresh: boolean }>
-  | Readonly<{ ok: false; reason: BwFailure }>;
-
-/** The one session of the Environment: the recorded one while it is the
- * unlocked one, otherwise a new unlock, written before it is handed out.
- * Only under the account's lock. */
-async function usableSession(
-  host: VaultHost,
-  bw: BwCli,
-  paths: VaultPaths,
-  account: ReadyAccount,
-): Promise<Session> {
-  const current = await readSession(paths).catch(() => null);
-  const state = await bw.status(current);
-  if (!state.ok) return { ok: false, reason: state.reason };
-  if (!signedInAs(state.value, account))
-    return { ok: false, reason: "unauthenticated" };
-  if (state.value.status === "unlocked" && current !== null)
-    return { ok: true, session: current, fresh: false };
-  const unlocked = await bw.unlock(account.masterPassword);
-  host.journal?.({
-    operation: "unlock",
-    outcome: unlocked.ok ? "unlocked" : "failed",
-    ...(unlocked.ok ? {} : { reason: unlocked.reason }),
-  });
-  if (!unlocked.ok) return unlocked;
-  await writeSession(paths, unlocked.value);
-  return { ok: true, session: unlocked.value, fresh: true };
-}
-
-/** `refresh`: a sync with the vault, a new unlock when the session is no
- * longer the unlocked one, and the status after it. */
-export async function vaultRefresh(host: VaultHost): Promise<VaultStatus> {
-  const prepared = await prepare(host);
-  if (prepared.kind === "status") return prepared.status;
-  const { context, facts, paths } = prepared;
-  const account = await accountOf(paths, context);
-  if (
-    account === "unreadable" ||
-    account === "mismatch" ||
-    account === null ||
-    !isReady(account) ||
-    !(await pinnedInstalled(host.base, host.pin))
-  )
-    return vaultStatus(host);
-  return locked(
-    paths,
-    host.lockMs ?? lockMs,
-    () => vaultStatus(host),
-    async () => {
-      const bw = cliOf(host, paths);
-      const record = await readRecord(paths);
-      const journal = (status: VaultStatus) => {
-        host.journal?.({
-          operation: "refresh",
-          outcome: status.state,
-          ...("reason" in status ? { reason: status.reason } : {}),
-        });
-        return status;
-      };
-      let session = await usableSession(host, bw, paths, account);
-      if (!session.ok)
-        return journal(
-          session.reason === "unauthenticated"
-            ? none(facts, "none", true)
-            : failedStatus(facts, "sign-in", session.reason),
-        );
-      let synced = await bw.sync(session.session);
-      // Unlocked by another bw run since the check: unlock once more.
-      if (!synced.ok && synced.reason === "locked" && !session.fresh) {
-        session = await usableSession(host, bw, paths, account);
-        if (!session.ok)
-          return journal(failedStatus(facts, "sign-in", session.reason));
-        synced = await bw.sync(session.session);
-      }
-      const fingerprint = await fingerprintOf(bw, session.session, record);
-      if (!synced.ok) {
-        if (synced.reason === "unauthenticated")
-          return journal(none(facts, "none", true));
-        if (synced.reason === "invalid-credentials")
-          return journal({
-            kind: "vault-status",
-            state: "revoked",
-            ...facts,
-            fingerprint,
-          });
-        // The CLI itself did not run: not a question of the vault.
-        if (synced.reason === "spawn-failed")
-          return journal(failedStatus(facts, "sync", synced.reason));
-        return journal({
-          kind: "vault-status",
-          state: "unreachable",
-          ...facts,
-          fingerprint,
-          reason: synced.reason,
-        });
-      }
-      const observation = await observe(bw, session.session, context, record);
-      if (observation.kind === "failed")
-        return journal(failedStatus(facts, "status", observation.reason));
-      await recordObservation(paths, record, observation, fingerprint);
-      return journal(statusOf(facts, observation, fingerprint));
-    },
-  );
-}
-
-/** The record follows what was seen: the fingerprint always, the collection
- * once connected. A revoked access keeps it, so the row says so until the
- * operator connects again. */
-async function recordObservation(
-  paths: VaultPaths,
-  record: VaultRecord,
-  observation: Exclude<Observation, { kind: "failed" }>,
-  fingerprint: string | null,
-): Promise<void> {
-  await writeRecord(paths, {
-    fingerprint: fingerprint ?? record.fingerprint,
-    organizationId:
-      observation.kind === "connected"
-        ? observation.collection.organizationId
-        : record.organizationId,
-    collectionId:
-      observation.kind === "connected"
-        ? observation.collection.id
-        : record.collectionId,
-  }).catch(() => undefined);
-}
-
-type AccountOutcome =
-  | Readonly<{ kind: "ready"; account: ReadyAccount }>
+type Step<T> =
+  | Readonly<{ kind: "ready"; value: T }>
   | Readonly<{ kind: "status"; status: VaultStatus }>;
+
+/** A refusal of the vault in words of the status: unreachable, or failed at
+ * `stage` with the vault's fixed reason. */
+function refusalOf(
+  facts: VaultFacts,
+  stage: VaultFailureStage,
+  error: unknown,
+): Step<never> {
+  const reason =
+    error instanceof VaultwardenError ? error.reason : "unexpected";
+  return {
+    kind: "status",
+    status:
+      reason === "unreachable"
+        ? { kind: "vault-status", state: "unreachable", ...facts, reason }
+        : failedStatus(facts, stage, reason),
+  };
+}
 
 /** The account: created once with a password generated here, written before
  * the registration (the vault refuses a second one, so a lost password
- * would need an Admin), registered, logged in with the Environment's one
- * device identifier, and its API key added. An unfinished one is resumed:
- * logged in when the vault has it, registered when it does not. */
+ * would need the network's operator), registered, logged in with the
+ * Environment's one device identifier, and its API key added. An unfinished
+ * one is resumed: logged in when the vault has it, registered when it does
+ * not. */
 async function ensureAccount(
   host: VaultHost,
   context: VaultContext,
   facts: VaultFacts,
   paths: VaultPaths,
-): Promise<AccountOutcome> {
+): Promise<Step<ReadyAccount>> {
   const existing = await accountOf(paths, context);
   if (existing === "unreadable")
     return {
@@ -660,7 +354,7 @@ async function ensureAccount(
       status: failedStatus(facts, "account", "account-mismatch"),
     };
   if (existing !== null && isReady(existing))
-    return { kind: "ready", account: existing };
+    return { kind: "ready", value: existing };
   const account =
     existing ??
     (await (async () => {
@@ -675,35 +369,13 @@ async function ensureAccount(
       return created;
     })());
   const client = { fetch: host.fetch };
-  const device = {
-    identifier: account.deviceIdentifier,
-    name: "Lazurio Launchpad",
-    type: DEVICE_TYPE_SDK,
-  };
   const login = () =>
     passwordLogin(client, {
       serverUrl: context.vault,
       email: account.email,
       password: account.masterPassword,
-      device,
+      device: deviceOf(account),
     });
-  const failure = (error: unknown): AccountOutcome => {
-    const reason =
-      error instanceof VaultwardenError ? error.reason : "unexpected";
-    return {
-      kind: "status",
-      status:
-        reason === "unreachable"
-          ? {
-              kind: "vault-status",
-              state: "unreachable",
-              ...facts,
-              fingerprint: null,
-              reason,
-            }
-          : failedStatus(facts, "account", reason),
-    };
-  };
   let session: Awaited<ReturnType<typeof login>> | undefined;
   if (existing !== null) {
     // Resumed: the registration may have happened before an interruption.
@@ -714,7 +386,7 @@ async function ensureAccount(
         !(error instanceof VaultwardenError) ||
         error.reason !== "invalid-credentials"
       )
-        return failure(error);
+        return refusalOf(facts, "account", error);
     }
   }
   if (session === undefined) {
@@ -723,63 +395,159 @@ async function ensureAccount(
         serverUrl: context.vault,
         email: account.email,
         password: account.masterPassword,
-        name: `Environment ${context.name} · ${context.machine}`,
+        name: context.name,
       });
     } catch (error) {
       if (error instanceof VaultwardenError && error.reason === "not-invited") {
         // A password generated in this run leaves nothing behind: the vault
         // has no account with it. A resumed account file stays: the vault's
-        // refusal does not tell "not invited" from "exists already", so it
+        // refusal does not tell "not allowed" from "exists already", so it
         // may hold the only copy of a registered account's password.
         if (existing === null) await forgetUnregisteredAccount(paths);
         return {
           kind: "status",
-          status: { kind: "vault-status", state: "awaiting-invite", ...facts },
+          status: { kind: "vault-status", state: "not-allowed", ...facts },
         };
       }
-      return failure(error);
+      return refusalOf(facts, "account", error);
     }
     try {
       session = await login();
     } catch (error) {
-      return failure(error);
+      return refusalOf(facts, "account", error);
     }
   }
   try {
     const key = await fetchApiKey(client, session);
     return {
       kind: "ready",
-      account: await completeAccount(paths, account, key),
+      value: await completeAccount(paths, account, key),
     };
   } catch (error) {
-    return failure(error);
+    return refusalOf(facts, "account", error);
   }
 }
 
-/** `connect`: installs the pinned CLI, creates the account when there is
- * none, signs it in with its API key, unlocks the one session and syncs.
- * The collection it was connected to stays its own, also when connecting
- * again after a revoked access: only a disconnect forgets it (root decision
- * 0193, addendum 2026-10-11). Never runs twice at once. */
-export async function vaultConnect(
+/** The Environment's own organization and its collection Agenti, created,
+ * recognized by the record or renamed (organization.ts). */
+async function ensureVault(
+  host: VaultHost,
+  context: VaultContext,
+  facts: VaultFacts,
+  paths: VaultPaths,
+  account: ReadyAccount,
+): Promise<Step<Recorded>> {
+  let record: VaultRecord;
+  try {
+    record = await readRecord(paths);
+  } catch {
+    return {
+      kind: "status",
+      status: failedStatus(facts, "vault", "record-unreadable"),
+    };
+  }
+  try {
+    const own = await ensureOwnVault({
+      client: { fetch: host.fetch },
+      server: context.vault,
+      account,
+      name: context.name,
+      device: deviceOf(account),
+      record,
+      save: (next) => writeRecord(paths, next),
+    });
+    if (own.kind === "gone")
+      return {
+        kind: "status",
+        status: { kind: "vault-status", state: "revoked", ...facts },
+      };
+    if (own.kind === "collection-unknown")
+      return {
+        kind: "status",
+        status: failedStatus(facts, "vault", "collection-unknown"),
+      };
+    if (own.created) host.journal?.({ operation: "vault", outcome: "created" });
+    if (own.renamed) host.journal?.({ operation: "vault", outcome: "renamed" });
+    return {
+      kind: "ready",
+      value: {
+        organizationId: own.organizationId,
+        collectionId: own.collectionId,
+      },
+    };
+  } catch (error) {
+    // The API key refused: the network's operator removed or disabled the
+    // account (or rotated its key); nothing here can sign it in again.
+    if (
+      error instanceof VaultwardenError &&
+      error.reason === "invalid-credentials"
+    )
+      return {
+        kind: "status",
+        status: { kind: "vault-status", state: "revoked", ...facts },
+      };
+    return refusalOf(facts, "vault", error);
+  }
+}
+
+/** bw signed in to exactly this account at exactly this vault. */
+async function signIn(
+  bw: BwCli,
+  account: ReadyAccount,
+): Promise<
+  Readonly<{ ok: true }> | Readonly<{ ok: false; reason: BwFailure }>
+> {
+  const state = await bw.status(null);
+  if (!state.ok) return state;
+  if (signedInAs(state.value, account)) return { ok: true };
+  // Another sign-in in this account's data directory is signed out first.
+  if (state.value.status !== "unauthenticated") {
+    const out = await bw.logout(null);
+    if (!out.ok) return out;
+  }
+  const configured = await bw.configServer(account.server);
+  if (!configured.ok) return configured;
+  const login = await bw.loginApiKey(account.clientId, account.clientSecret);
+  return login.ok ? { ok: true } : login;
+}
+
+const unreachableOr = (
+  facts: VaultFacts,
+  stage: VaultFailureStage,
+  reason: BwFailure,
+): VaultStatus =>
+  reason === "unreachable" || reason === "timeout"
+    ? { kind: "vault-status", state: "unreachable", ...facts, reason }
+    : failedStatus(facts, stage, reason);
+
+/** `setup`: installs the pinned CLI, registers the account when there is
+ * none, creates the Environment's own vault (or finds it by its ID, renamed
+ * when the handover's name changed), signs bw in with the API key, unlocks
+ * the one session and syncs. Idempotent: a vault that is set up is checked,
+ * renamed when needed, unlocked and synced again. Never runs twice at once.
+ * A 0197 pilot is only read: no Environment is connected the old way any
+ * more. */
+export async function vaultSetup(
   host: VaultHost,
   onPhase: (phase: VaultPhase) => void = () => undefined,
 ): Promise<VaultStatus> {
-  const prepared = await prepare(host);
-  if (prepared.kind === "status") return prepared.status;
-  const { context, facts, paths } = prepared;
+  const context = await host.context();
+  if (context.kind === "unsupported") return unsupportedStatus(context.reason);
+  if (context.kind === "pilot") return pilotStatus(host, context);
+  const facts = ownFacts(context);
+  const paths = ownPaths(host, context);
   const journal = (status: VaultStatus) => {
     host.journal?.({
-      operation: "connect",
+      operation: "setup",
       outcome: status.state,
       ...("reason" in status ? { reason: status.reason } : {}),
     });
     return status;
   };
   await ensureVaultDirectories(paths);
-  return locked(
+  return withLock(
     paths,
-    host.lockMs ?? connectLockMs,
+    host.lockMs ?? setupLockMs,
     () => journal(failedStatus(facts, "install", "busy")),
     async () => {
       onPhase("install");
@@ -804,146 +572,138 @@ export async function vaultConnect(
       onPhase("account");
       const account = await ensureAccount(host, context, facts, paths);
       if (account.kind === "status") return journal(account.status);
+      onPhase("vault");
+      const vault = await ensureVault(
+        host,
+        context,
+        facts,
+        paths,
+        account.value,
+      );
+      if (vault.kind === "status") return journal(vault.status);
       onPhase("sign-in");
       const bw = cliOf(host, paths);
-      const signedIn = await signIn(bw, account.account);
+      const signedIn = await signIn(bw, account.value);
       if (!signedIn.ok)
-        return journal(
-          signedIn.reason === "unreachable" || signedIn.reason === "timeout"
-            ? {
-                kind: "vault-status",
-                state: "unreachable",
-                ...facts,
-                fingerprint: null,
-                reason: signedIn.reason,
-              }
-            : failedStatus(facts, "sign-in", signedIn.reason),
-        );
-      const session = await usableSession(host, bw, paths, account.account);
+        return journal(unreachableOr(facts, "sign-in", signedIn.reason));
+      const session = await usableSession(host, bw, paths, account.value);
       if (!session.ok)
         return journal(failedStatus(facts, "sign-in", session.reason));
       const synced = await bw.sync(session.session);
-      // The fingerprint is read anew; the collection it was connected to is
-      // kept, so a connect never takes another one in its place.
-      const recorded = await readRecord(paths);
-      const kept: VaultRecord = {
-        fingerprint: null,
-        organizationId: recorded.organizationId,
-        collectionId: recorded.collectionId,
-      };
-      const fingerprint = await fingerprintOf(bw, session.session, kept);
       if (!synced.ok)
-        return journal(
-          synced.reason === "unreachable" || synced.reason === "timeout"
-            ? {
-                kind: "vault-status",
-                state: "unreachable",
-                ...facts,
-                fingerprint,
-                reason: synced.reason,
-              }
-            : failedStatus(facts, "sync", synced.reason),
-        );
-      const observation = await observe(bw, session.session, context, kept);
+        return journal(unreachableOr(facts, "sync", synced.reason));
+      const observation = await observe(
+        bw,
+        session.session,
+        vault.value.organizationId,
+      );
       if (observation.kind === "failed")
         return journal(failedStatus(facts, "status", observation.reason));
-      await writeRecord(paths, kept).catch(() => undefined);
-      await recordObservation(paths, kept, observation, fingerprint);
-      return journal(statusOf(facts, observation, fingerprint));
+      return journal(statusOf(facts, vault.value, observation));
     },
   );
 }
 
-/** bw signed in to exactly this account at exactly this vault. */
-async function signIn(
-  bw: BwCli,
-  account: ReadyAccount,
-): Promise<
-  Readonly<{ ok: true }> | Readonly<{ ok: false; reason: BwFailure }>
-> {
-  const state = await bw.status(null);
-  if (!state.ok) return state;
-  if (signedInAs(state.value, account)) return { ok: true };
-  // Another sign-in in this account's data directory is signed out first.
-  if (state.value.status !== "unauthenticated") {
-    const out = await bw.logout(null);
-    if (!out.ok) return out;
-  }
-  const configured = await bw.configServer(account.server);
-  if (!configured.ok) return configured;
-  const login = await bw.loginApiKey(account.clientId, account.clientSecret);
-  return login.ok ? { ok: true } : login;
-}
-
-/** `disconnect`: bw signs out and its store, the session and the record go;
- * the account stays in the vault and in its file, so connecting again signs
- * the same account in. Access ends completely only when an Admin removes the
- * account in the vault. Only for the Environment's own readable account
- * file; otherwise nothing changes. */
-export async function vaultDisconnect(host: VaultHost): Promise<VaultStatus> {
-  const prepared = await prepare(host);
-  if (prepared.kind === "status") return prepared.status;
-  const { context, facts, paths } = prepared;
-  const result = await locked(
+/** `refresh`: a sync with the vault, a new unlock when the session is no
+ * longer the unlocked one, and the status after it. A vault that is not set
+ * up yet answers its local status: only a setup moves it on. */
+export async function vaultRefresh(host: VaultHost): Promise<VaultStatus> {
+  const context = await host.context();
+  if (context.kind === "unsupported") return unsupportedStatus(context.reason);
+  if (context.kind === "pilot") return pilotRefresh(host, context);
+  const facts = ownFacts(context);
+  const paths = ownPaths(host, context);
+  const state = await ownState(host, context, facts, paths);
+  if (state.kind === "status") return state.status;
+  const { account, recorded } = state;
+  return withLock(
     paths,
     host.lockMs ?? lockMs,
-    () => failedStatus(facts, "sign-in", "busy"),
+    () => vaultStatus(host),
     async () => {
-      // Only the Environment's own account, readable, is signed out. Another
-      // account's file, an unreadable one (it may hold the only copy of the
-      // password, and bw's store then the only working sign-in) or none at
-      // all leaves everything as it is.
-      const account = await accountOf(paths, context);
-      if (account === "mismatch")
-        return failedStatus(facts, "account", "account-mismatch");
-      if (account === "unreadable")
-        return failedStatus(facts, "account", "account-unreadable");
-      if (account === null) return vaultStatus(host);
-      if (await pinnedInstalled(host.base, host.pin)) {
-        const session = await readSession(paths).catch(() => null);
-        await cliOf(host, paths).logout(session);
+      const bw = cliOf(host, paths);
+      const journal = (status: VaultStatus) => {
+        host.journal?.({
+          operation: "refresh",
+          outcome: status.state,
+          ...("reason" in status ? { reason: status.reason } : {}),
+        });
+        return status;
+      };
+      let session = await usableSession(host, bw, paths, account);
+      if (!session.ok)
+        return journal(
+          session.reason === "unauthenticated"
+            ? notSetUp(facts, "sign-in")
+            : failedStatus(facts, "sign-in", session.reason),
+        );
+      let synced = await bw.sync(session.session);
+      // Unlocked by another bw run since the check: unlock once more.
+      if (!synced.ok && synced.reason === "locked" && !session.fresh) {
+        session = await usableSession(host, bw, paths, account);
+        if (!session.ok)
+          return journal(failedStatus(facts, "sign-in", session.reason));
+        synced = await bw.sync(session.session);
       }
-      await forgetSignIn(paths);
-      return null;
+      if (!synced.ok) {
+        if (synced.reason === "unauthenticated")
+          return journal(notSetUp(facts, "sign-in"));
+        if (synced.reason === "invalid-credentials")
+          return journal({ kind: "vault-status", state: "revoked", ...facts });
+        // The CLI itself did not run: not a question of the vault.
+        if (synced.reason === "spawn-failed")
+          return journal(failedStatus(facts, "sync", synced.reason));
+        return journal({
+          kind: "vault-status",
+          state: "unreachable",
+          ...facts,
+          reason: synced.reason,
+        });
+      }
+      const observation = await observe(
+        bw,
+        session.session,
+        recorded.organizationId,
+      );
+      if (observation.kind === "failed")
+        return journal(failedStatus(facts, "status", observation.reason));
+      return journal(statusOf(facts, recorded, observation));
     },
   );
-  const status = result ?? (await vaultStatus(host));
-  host.journal?.({
-    operation: "disconnect",
-    outcome: result === null ? "disconnected" : status.state,
-    ...(status.state === "failed" ? { reason: status.reason } : {}),
-  });
-  return status;
 }
 
-type ConnectedSession =
-  | Readonly<{
-      ok: true;
-      bw: BwCli;
-      session: string;
-      data: string;
-      organizationId: string;
-      collectionId: string;
-    }>
-  | Readonly<{
-      ok: false;
-      reason: Extract<VaultEnvResult, { kind: "vault-env-refused" }>["reason"];
-    }>;
+/** `env`: the session for an agent's shell, and the ids of the vault and
+ * of Agenti. A session that is no longer the unlocked one is replaced under
+ * the account's lock; another process that replaced it meanwhile is
+ * trusted, so two agents never unlock twice. */
+export async function vaultEnv(host: VaultHost): Promise<VaultEnvResult> {
+  const context = await host.context();
+  if (context.kind === "unsupported")
+    return { kind: "vault-env-refused", reason: context.reason };
+  if (context.kind === "pilot") return pilotEnv(host, context);
+  const paths = ownPaths(host, context);
+  const ready = await connectedAccount(paths, context);
+  if (ready === null)
+    return { kind: "vault-env-refused", reason: "not-connected" };
+  const shared = await sharedSession(host, paths, ready.account);
+  if (!shared.ok) return { kind: "vault-env-refused", reason: shared.reason };
+  return {
+    kind: "vault-env",
+    env: {
+      BITWARDENCLI_APPDATA_DIR: paths.data,
+      BW_SESSION: shared.session,
+      LAZURIO_VAULT_ORGANIZATION_ID: ready.recorded.organizationId,
+      LAZURIO_VAULT_COLLECTION_ID: ready.recorded.collectionId,
+    },
+  };
+}
 
-/** The one unlocked session of a connected Environment and the ids of its
- * collection. A session that is no longer the unlocked one is replaced under
- * the account's lock; another process that replaced it meanwhile is trusted,
- * so two readers never unlock twice. */
-async function connectedSession(
-  host: VaultHost,
+/** The ready account and the recorded vault, or null: nothing else is the
+ * Environment's connected vault. */
+async function connectedAccount(
+  paths: VaultPaths,
   context: VaultContext,
-): Promise<ConnectedSession> {
-  const refuse = (
-    reason: Extract<ConnectedSession, { ok: false }>["reason"],
-  ): ConnectedSession => ({ ok: false, reason });
-  const paths = vaultPaths(host.directory(context));
-  if (!(await pinnedInstalled(host.base, host.pin)))
-    return refuse("not-installed");
+): Promise<Readonly<{ account: ReadyAccount; recorded: Recorded }> | null> {
   const account = await accountOf(paths, context);
   if (
     account === "unreadable" ||
@@ -951,148 +711,58 @@ async function connectedSession(
     account === null ||
     !isReady(account)
   )
-    return refuse("not-connected");
-  const record = await readRecord(paths);
-  if (record.organizationId === null || record.collectionId === null)
-    return refuse("not-connected");
-  const { organizationId, collectionId } = record;
-  const bw = cliOf(host, paths);
-  const answer = (session: string): ConnectedSession => ({
-    ok: true,
-    bw,
-    session,
-    data: paths.data,
-    organizationId,
-    collectionId,
-  });
-  const current = await readSession(paths).catch(() => null);
-  if (current !== null) {
-    const state = await bw.status(current);
-    if (state.ok && !signedInAs(state.value, account))
-      return refuse("not-connected");
-    if (state.ok && state.value.status === "unlocked") return answer(current);
-  }
-  return locked(
-    paths,
-    host.lockMs ?? 60_000,
-    () => refuse("busy"),
-    async () => {
-      const session = await usableSession(host, bw, paths, account);
-      if (session.ok) return answer(session.session);
-      return refuse(
-        session.reason === "unauthenticated"
-          ? "not-connected"
-          : "unlock-failed",
-      );
-    },
-  );
+    return null;
+  const record = await readRecord(paths).catch(() => null);
+  const recorded = record === null ? null : recordedVault(record);
+  return recorded === null ? null : { account, recorded };
 }
 
-/** `env`: the session for an agent's shell. A session that is no longer the
- * unlocked one is replaced under the account's lock; another process that
- * replaced it meanwhile is trusted, so two agents never unlock twice. */
-export async function vaultEnv(host: VaultHost): Promise<VaultEnvResult> {
-  const context = await host.context();
-  if (context.kind === "unsupported")
-    return { kind: "vault-env-refused", reason: context.reason };
-  const connected = await connectedSession(host, context);
-  if (!connected.ok)
-    return { kind: "vault-env-refused", reason: connected.reason };
-  return {
-    kind: "vault-env",
-    env: {
-      BITWARDENCLI_APPDATA_DIR: connected.data,
-      BW_SESSION: connected.session,
-      LAZURIO_VAULT_ORGANIZATION_ID: connected.organizationId,
-      LAZURIO_VAULT_COLLECTION_ID: connected.collectionId,
-    },
-  };
-}
-
-/** Why no runtime secret of an application can be read from the
- * Environment vault (decision F46): a fixed code, never bw's output. */
-export type VaultSecretsRefusal =
-  /** This computer: no vault identity yet (the second wave of 0193). */
-  | "workstation"
-  /** A Remote Environment whose vault account cannot be derived (no
-   * handover, not its operator, no address or network, an unknown vault). */
-  | "no-vault-identity"
-  /** The application belongs to another Organization than the one that
-   * owns the Environment and its collection. */
-  | "other-organization"
-  /** The vault is not connected here (not installed, no account, no
-   * collection, signed out or the access revoked). */
-  | "not-connected"
-  /** The session could not be unlocked. */
-  | "locked"
-  /** Another process holds the account's lock. */
-  | "busy"
-  /** The vault cannot be reached for the sync. */
-  | "unreachable"
-  /** bw did not answer in the shape this core reads, or did not run. */
-  | "vault-failed";
-
-/** Why one declared name has no value (decision F46). */
-export type VaultSecretAbsence =
-  /** No item of that exact name in the Environment's collection. */
-  | "missing"
-  /** More than one such item: which one is meant is not guessed. */
-  | "ambiguous"
-  /** The one item has no login password, or an empty one. */
-  | "empty";
-
-export type VaultSecret =
-  | Readonly<{ kind: "value"; value: string }>
-  | Readonly<{ kind: "absent"; reason: VaultSecretAbsence }>;
-
-export type VaultSecretsResult =
-  | Readonly<{
-      kind: "vault-secrets";
-      /** Every requested name, with its value or why it has none. */
-      secrets: ReadonlyMap<string, VaultSecret>;
-    }>
-  | Readonly<{ kind: "vault-secrets-refused"; reason: VaultSecretsRefusal }>;
-
-/** Whether an application of `company` may read runtime secrets from this
- * Environment's vault, as far as is known without running bw: the
- * Environment has a vault identity, and the application belongs to the
- * Organization that owns the Environment (its collection is that
- * Organization's; slugs compare as GitHub's, case-insensitively). Null when
- * it may. */
-export async function vaultSecretsAdmission(
-  host: VaultHost,
-  company: string,
-): Promise<VaultSecretsRefusal | null> {
-  const context = await host.context();
-  return admissionOf(context, company);
-}
-
-function admissionOf(
-  context: VaultContext | VaultUnsupported,
-  company: string,
+/** Which applications read the Environment's own vault (root decision 0198
+ * point 4: personal and work Environments alike): on a work Environment an
+ * application of the Organization that owns it (slugs compare as GitHub's,
+ * case-insensitively), on a personal one the Personalspace's applications.
+ * Null when it may. */
+function ownAdmission(
+  context: VaultContext,
+  application: SecretApplication,
 ): VaultSecretsRefusal | null {
-  if (context.kind === "unsupported")
-    return context.reason === "workstation"
-      ? "workstation"
-      : "no-vault-identity";
-  return context.organization !== null &&
-    context.organization.toLowerCase() === company.toLowerCase()
+  if (context.organization === null)
+    return application.personalspace ? null : "personal-environment";
+  if (application.personalspace) return "personalspace";
+  return context.organization.toLowerCase() ===
+    application.company.toLowerCase()
     ? null
     : "other-organization";
 }
 
-/** The values of the runtime secrets `names` of an application of
- * `company` (decision F46, root decision 0177): a sync with the vault first,
- * so a value changed there takes effect at the next start, then the items
- * of the Environment's collection. A name's value is the login password of
- * the one item named exactly so, of the connected organization, in the
- * connected collection. Values are returned to the caller only; the
+const unsupportedRefusal = (
+  reason: VaultUnsupportedReason,
+): VaultSecretsRefusal =>
+  reason === "workstation" ? "workstation" : "no-vault-identity";
+
+/** Whether an application may read runtime secrets from this Environment's
+ * vault, as far as is known without running bw. Null when it may. */
+export async function vaultSecretsAdmission(
+  host: VaultHost,
+  application: SecretApplication,
+): Promise<VaultSecretsRefusal | null> {
+  const context = await host.context();
+  if (context.kind === "unsupported") return unsupportedRefusal(context.reason);
+  if (context.kind === "pilot")
+    return pilotSecretsAdmission(host, context, application);
+  return ownAdmission(context, application);
+}
+
+/** The values of the runtime secrets `names` of an application (decision
+ * F46, root decision 0177): a sync first, then the one item named exactly
+ * so anywhere in the Environment's own vault (any of its collections), its
+ * login password the value. Values are returned to the caller only; the
  * journal gets the outcome and a fixed reason. */
 export async function vaultSecrets(
   host: VaultHost,
-  input: Readonly<{ company: string; names: readonly string[] }>,
+  input: SecretApplication & Readonly<{ names: readonly string[] }>,
 ): Promise<VaultSecretsResult> {
-  const result = await readSecrets(host, input);
+  const result = await readVaultSecrets(host, input);
   host.journal?.({
     operation: "secrets",
     outcome: result.kind === "vault-secrets" ? "read" : "refused",
@@ -1101,73 +771,29 @@ export async function vaultSecrets(
   return result;
 }
 
-async function readSecrets(
+async function readVaultSecrets(
   host: VaultHost,
-  input: Readonly<{ company: string; names: readonly string[] }>,
+  input: SecretApplication & Readonly<{ names: readonly string[] }>,
 ): Promise<VaultSecretsResult> {
   const refuse = (reason: VaultSecretsRefusal): VaultSecretsResult => ({
     kind: "vault-secrets-refused",
     reason,
   });
   const context = await host.context();
-  const admission = admissionOf(context, input.company);
-  if (admission !== null || context.kind === "unsupported")
-    return refuse(admission ?? "no-vault-identity");
-  const sessionRefusal = (
-    reason: Extract<ConnectedSession, { ok: false }>["reason"],
-  ): VaultSecretsRefusal =>
-    reason === "busy"
-      ? "busy"
-      : reason === "unlock-failed"
-        ? "locked"
-        : "not-connected";
-  let connected = await connectedSession(host, context);
-  if (!connected.ok) return refuse(sessionRefusal(connected.reason));
-  let synced = await connected.bw.sync(connected.session);
-  // Replaced by another bw run since the check: once more.
-  if (!synced.ok && synced.reason === "locked") {
-    connected = await connectedSession(host, context);
-    if (!connected.ok) return refuse(sessionRefusal(connected.reason));
-    synced = await connected.bw.sync(connected.session);
-  }
-  if (!synced.ok)
-    return refuse(
-      synced.reason === "unauthenticated" ||
-        synced.reason === "invalid-credentials"
-        ? "not-connected"
-        : synced.reason === "locked"
-          ? "locked"
-          : synced.reason === "unreachable" || synced.reason === "timeout"
-            ? "unreachable"
-            : "vault-failed",
-    );
-  const { organizationId, collectionId } = connected;
-  const items = await connected.bw.secretItems(
-    connected.session,
-    { organizationId, collectionId },
-    new Set(input.names),
+  if (context.kind === "unsupported")
+    return refuse(unsupportedRefusal(context.reason));
+  if (context.kind === "pilot") return pilotSecrets(host, context, input);
+  const admission = ownAdmission(context, input);
+  if (admission !== null) return refuse(admission);
+  const paths = ownPaths(host, context);
+  const ready = await connectedAccount(paths, context);
+  if (ready === null) return refuse("not-connected");
+  const read = await readSecrets(
+    () => sharedSession(host, paths, ready.account),
+    { organizationId: ready.recorded.organizationId },
+    input.names,
   );
-  if (!items.ok)
-    return refuse(items.reason === "locked" ? "locked" : "vault-failed");
-  const secrets = new Map<string, VaultSecret>();
-  for (const name of input.names) {
-    const matches = items.value.filter(
-      (item) =>
-        item.name === name &&
-        item.organizationId === organizationId &&
-        item.collectionIds.includes(collectionId),
-    );
-    const [only] = matches;
-    secrets.set(
-      name,
-      only === undefined
-        ? { kind: "absent", reason: "missing" }
-        : matches.length > 1
-          ? { kind: "absent", reason: "ambiguous" }
-          : only.password === null || only.password === ""
-            ? { kind: "absent", reason: "empty" }
-            : { kind: "value", value: only.password },
-    );
-  }
-  return { kind: "vault-secrets", secrets };
+  return read.ok
+    ? { kind: "vault-secrets", secrets: read.secrets }
+    : refuse(read.reason);
 }

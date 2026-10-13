@@ -4,88 +4,86 @@ import type { CliContext, CommandOutput } from "../update/cli";
 import { exitFailure, exitOk, exitUsage } from "../update/errors";
 import type { VaultUnsupportedReason } from "./context";
 import {
+  type VaultEnvRefusal,
   type VaultEnvResult,
   type VaultHost,
   type VaultPhase,
   type VaultStatus,
-  vaultConnect,
   vaultEnv,
   vaultRefresh,
+  vaultSetup,
   vaultStatus,
 } from "./flow";
 import { processVaultHost } from "./host";
 
-/** `lazurio vault`: the Environment vault for agents (decision F43). The same
- * core as the Launchpad's Settings → Tools → bitwarden. */
+/** `lazurio vault`: the Environment's own vault for agents (decisions F43,
+ * F52). The same core as the Launchpad's Settings → Tools → bitwarden and its
+ * start. */
 export const vaultHelp = `vault env [--json]
-  The Environment vault for this shell: prints shell exports of
-  BITWARDENCLI_APPDATA_DIR, BW_SESSION, LAZURIO_VAULT_ORGANIZATION_ID and
-  LAZURIO_VAULT_COLLECTION_ID. Run it as eval "$(lazurio vault env)", then
-  plain bw. The Launchpad keeps one unlocked session for the whole
-  Environment; when that session is no longer the unlocked one, this command
-  unlocks it again (each unlock ends the earlier session, so run it again
-  when bw says the vault is locked). Never run bw login, unlock, lock, logout
-  or config. Not connected: one line on stderr, nothing on stdout. --json
-  prints {kind: "vault-env", env} with the same four values. The session is
-  printed by design, for the agent's shell only: never paste it into chat,
-  Git, a log or a pull request.
+  This Environment's vault for this shell: prints shell exports of
+  BITWARDENCLI_APPDATA_DIR, BW_SESSION, LAZURIO_VAULT_ORGANIZATION_ID (the
+  Environment's own vault) and LAZURIO_VAULT_COLLECTION_ID (its collection
+  Agenti). Run it as eval "$(lazurio vault env)", then plain bw. The
+  Environment keeps one unlocked session for all its agents; when that
+  session is no longer the unlocked one, this command unlocks it again (each
+  unlock ends the earlier session, so run it again when bw says the vault is
+  locked). Never run bw login, unlock, lock, logout or config. Not set up:
+  one line on stderr, nothing on stdout. --json prints {kind: "vault-env",
+  env} with the same four values. The session is printed by design, for the
+  agent's shell only: never paste it into chat, Git, a log or a pull
+  request.
 vault status [--json]
-  This Environment's vault account as the Launchpad shows it, from bw's local
-  copy (no network): connected (organization, collections, items), waiting
-  for the Admin's confirmation (with the fingerprint phrase), not connected,
-  or why this Environment has no vault account here.
+  This Environment's vault as the Launchpad shows it, from bw's local copy
+  (no network): connected (its organization and how many items it holds),
+  not set up yet (and the next step), or why this Environment has no vault
+  here. The one source of truth: read it before saying anything about the
+  vault.
 vault refresh [--json]
   Syncs with the vault, unlocks the session again when needed, then the
-  status: also revoked (access removed in the vault) or unreachable.
-vault connect [--json]
-  What Settings → Tools → bitwarden does, for an agent: installs the pinned
-  Bitwarden CLI, creates the account vaultwarden@<Environment address> with a
-  password generated here (an Admin or Owner of the vault's organization must
-  have invited the address into the collection Environmenty/<name> ·
-  <machine> first), signs it in with its API key, unlocks the one session and
-  syncs. Then an Admin confirms the member by the fingerprint phrase printed
-  here. Remote Environments on Linux only; this computer is the second wave.
-  Exit status: 0 connected or waiting for confirmation, 2 waiting for a
-  person (not invited, revoked, not available here), 1 failure.`;
+  status: also revoked (the vault is gone or its account refused) or
+  unreachable.
+vault setup [--json]
+  What the Launchpad does at its start: installs the pinned Bitwarden CLI,
+  registers this Environment's account (the address its Machine handover
+  names, which the network pre-allowed) with a password generated here,
+  creates the Environment's own vault, an organization named as the handover
+  says with the first collection Agenti (or finds it by its ID and renames it
+  when the name changed), signs bw in with the account's API key, unlocks the
+  one session and syncs. Safe to run again. Remote Environments on Linux
+  only; this computer is the second wave. Exit status: 0 connected, 2
+  waiting for a person (no vault named, not allowed by the network, revoked,
+  not available here), 1 failure.`;
 
 export type VaultCliContext = CliContext &
   Readonly<{
     /** Test seam: the vault host instead of this process's. */
     host?: VaultHost | undefined;
-    /** Where `connect` reports its phases (default: nothing). */
+    /** Where `setup` reports its phases (default: nothing). */
     progress?: ((line: string) => void) | undefined;
   }>;
 
 const reasons: Readonly<Record<VaultUnsupportedReason, string>> = {
   workstation:
-    "this Environment has no vault account: only a Remote Environment on Linux has one now (this computer is the second wave)",
+    "this Environment has no vault: only a Remote Environment on Linux has one now (this computer is the second wave)",
   "folder-unreadable": "this Environment's Folder cannot be read",
   "handover-missing":
-    "this Environment has no vault account: there is no Machine handover",
+    "this Environment has no vault: there is no Machine handover",
   "handover-unreadable": "the Machine handover cannot be read",
   "not-operator": "this account is not the Environment's declared operator",
-  "no-address":
-    "the Machine handover records no hosted entry, so the Environment's address is not known",
-  "no-network":
-    "the Machine handover names no tailnet, so the Environment's vault is not known",
-  "vault-unknown":
-    "the tailnet's control server is not headscale.<zone>, so the Environment's vault is not known",
+  "no-vault":
+    "this Environment has no vault yet: its Machine handover names none",
 };
 
-const envRefusals: Readonly<
-  Record<
-    Extract<VaultEnvResult, { kind: "vault-env-refused" }>["reason"],
-    string
-  >
-> = {
+const notSetUp =
+  "this Environment's vault is not set up yet (lazurio vault status says why; the Launchpad sets it up at its start, lazurio vault setup does the same)";
+
+const envRefusals: Readonly<Record<VaultEnvRefusal, string>> = {
   ...reasons,
-  "not-installed":
-    "the vault is not connected in this Environment: ask the Operator to connect it in the Launchpad (Settings → Tools → bitwarden)",
-  "not-connected":
-    "the vault is not connected in this Environment: ask the Operator to connect it in the Launchpad (Settings → Tools → bitwarden)",
+  "not-installed": notSetUp,
+  "not-connected": notSetUp,
   busy: "the vault is busy with another operation; run it again in a moment",
   "unlock-failed":
-    "the vault session could not be unlocked; tell the Operator (Settings → Tools → bitwarden shows the state)",
+    "the vault session could not be unlocked; lazurio vault status shows the state",
 };
 
 /** One shell word: single quotes, a quote inside closed and escaped. */
@@ -107,38 +105,49 @@ export function exportsOf(
     .join("\n");
 }
 
+/** Where people open the Environment's vault: the web vault of the network,
+ * filtered to the vault's organization. */
+export const vaultLinkOf = (vault: string, organizationId: string): string =>
+  `${vault.replace(/\/+$/, "")}/#/vault?organizationId=${encodeURIComponent(organizationId)}`;
+
 const plural = (count: number, one: string, many: string) =>
   `${count} ${count === 1 ? one : many}`;
+
+const stepText: Readonly<Record<VaultPhase, string>> = {
+  install: "installing the pinned Bitwarden CLI",
+  account: "registering the account",
+  vault: "creating the Environment's vault",
+  "sign-in": "signing bw in",
+};
 
 /** The status in one or two plain lines; never a secret. */
 export function statusText(status: VaultStatus): string {
   if (status.state === "unsupported")
     return `Not available: ${reasons[status.reason]}.`;
   const where = `${status.account} in ${status.vault}`;
+  const pilot = status.origin === "pilot-0197";
   switch (status.state) {
-    case "not-installed":
-    case "none":
-      return status.registered
-        ? `Not connected: the account ${where} exists; lazurio vault connect signs it in again.`
-        : `Not connected. An Admin or Owner of the vault's organization invites ${status.account} with edit rights into the collection "${status.collection}" in ${status.vault}; then run lazurio vault connect (or Settings → Tools → bitwarden).`;
-    case "awaiting-invite":
-      return `Not invited yet: the vault refused to create ${status.account}. An Admin or Owner of the vault's organization invites it with edit rights into the collection "${status.collection}" in ${status.vault}, then run lazurio vault connect again.`;
-    case "confirming":
-      return `Waiting for the confirmation: an Admin or Owner confirms the member ${status.account} in ${status.vault}; the fingerprint phrase must be ${status.fingerprint}.${
-        status.organization === null
-          ? ""
-          : ` Confirmed in ${status.organization}, but the collection "${status.collection}" is not visible yet.`
-      }`;
-    case "connected":
-      return `Connected: ${where}, collection "${status.collection}"${
-        status.organization === null ? "" : ` of ${status.organization}`
-      }${
-        status.collections === null || status.items === null
+    case "not-set-up":
+      return `Not set up yet: ${where}; the next step is ${stepText[status.next]}. The Launchpad sets it up at its start; lazurio vault setup does the same.`;
+    case "not-allowed":
+      return `Not allowed yet: the vault refused to register ${where}. The network has not pre-allowed this address, or removed an unused pre-allowance; the network's operator allows it again at the next apply of its host, then run lazurio vault setup.`;
+    case "connected": {
+      const seen =
+        status.items === null || status.organization === null
           ? " (locked: lazurio vault refresh unlocks it)"
-          : `; it sees ${plural(status.collections, "collection", "collections")} and ${plural(status.items, "item", "items")}`
-      }. Fingerprint: ${status.fingerprint}.`;
+          : `; it holds ${plural(status.items, "item", "items")}`;
+      return pilot
+        ? `Connected the 0197 way (read only until this Environment's own vault replaces it): ${where}, collection ${status.collectionId}${
+            status.organization === null ? "" : ` of ${status.organization}`
+          }${seen}.`
+        : `Connected: this Environment's own vault${
+            status.organization === null ? "" : ` "${status.organization}"`
+          }, ${where}${seen}. Open it at ${vaultLinkOf(status.vault, status.organizationId)}.`;
+    }
     case "revoked":
-      return `Access removed in the vault: ${status.account} no longer sees its collection. An Admin or Owner invites it again; then lazurio vault connect.`;
+      return pilot
+        ? `Access removed in the vault: ${status.account} no longer sees its collection.`
+        : `Revoked: ${where} no longer has this Environment's vault (its organization is gone or its API key refused). The network's operator decides what happens next.`;
     case "unreachable":
       return `The vault does not answer (${status.reason}): ${status.vault}.`;
     case "failed":
@@ -148,9 +157,12 @@ export function statusText(status: VaultStatus): string {
 
 const phaseText: Readonly<Record<VaultPhase, string>> = {
   install: "Installing the pinned Bitwarden CLI…",
-  account: "Creating the account…",
+  account: "Registering the account…",
+  vault: "Setting up the Environment's vault…",
   "sign-in": "Signing in…",
 };
+
+const commands = ["env", "status", "refresh", "setup"] as const;
 
 export async function runVaultCommand(
   args: readonly string[],
@@ -158,7 +170,7 @@ export async function runVaultCommand(
 ): Promise<CommandOutput> {
   const usage = Object.freeze({
     code: exitUsage,
-    stderr: `Usage: vault env|status|refresh|connect [--json]\n${vaultHelp}`,
+    stderr: `Usage: vault ${commands.join("|")} [--json]\n${vaultHelp}`,
   });
   let json = false;
   let command: string;
@@ -180,7 +192,7 @@ export async function runVaultCommand(
   } catch {
     return usage;
   }
-  if (!["env", "status", "refresh", "connect"].includes(command)) return usage;
+  if (!(commands as readonly string[]).includes(command)) return usage;
   const host =
     context.host ??
     processVaultHost({
@@ -210,15 +222,15 @@ export async function runVaultCommand(
         ? await vaultStatus(host)
         : command === "refresh"
           ? await vaultRefresh(host)
-          : await vaultConnect(host, (phase) => {
+          : await vaultSetup(host, (phase: VaultPhase) => {
               if (!json) context.progress?.(phaseText[phase]);
             });
     const code =
       status.state === "failed" || status.state === "unreachable"
         ? exitFailure
-        : command === "connect" &&
+        : command === "setup" &&
             (status.state === "unsupported" ||
-              status.state === "awaiting-invite" ||
+              status.state === "not-allowed" ||
               status.state === "revoked")
           ? exitUsage
           : exitOk;

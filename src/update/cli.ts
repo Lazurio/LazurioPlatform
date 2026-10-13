@@ -272,6 +272,12 @@ export const executorAtStart =
       hosted: hostedOperator(context),
     })) === "hosted";
 
+/** Whether the Launchpad of this base sets the Environment's own vault up
+ * after it starts (decision F52): exactly where it sets Executor up
+ * (`executorAtStart`), a supervised base for the hosted operator; the vault
+ * itself then decides whether it needs a setup. */
+export const vaultAtStart = executorAtStart;
+
 export async function updateEnvironment(
   context: CliContext,
   base: string,

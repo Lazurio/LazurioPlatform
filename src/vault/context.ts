@@ -1,51 +1,42 @@
 import { isAbsolute, join } from "node:path";
 import type { MachineContext } from "../machine/context";
-import { environmentIdOf } from "../shell/contract";
-import { shellMessages } from "../shell/messages";
 
-// The Environment vault (decision F43, root decision 0193): which vault this
-// Environment's own account lives in, what the account is called and which
-// collection is the Environment's. Pure: the handover, the kind of
-// Environment and its name go in; the facts come out, or why this
-// Environment has no vault account here. Nothing here reads a file.
+// The Environment's own vault (root decision 0198, decision F52): which
+// network vault this Environment's technical account lives in, what the
+// account is called and what its vault is named, all as the root-issued
+// handover's `vault` member says (DEV-6631 contract C2). Nothing is derived
+// or guessed: without the member the Environment has no vault yet. Pure: the
+// handover and the kind of Environment go in, the facts come out, or why
+// this Environment has no vault here. Nothing here reads a file.
 
-/** The kinds of Remote Environment that get a vault account now. A
- * workstation (this computer) is the second wave. */
+/** The kinds of Remote Environment. A workstation (this computer) is the
+ * second wave of root decision 0193. */
 export type VaultEnvironmentKind = "personal" | "work" | "team" | "automated";
 
 export type VaultContext = Readonly<{
-  /** The vault of the Environment's network: `https://vaultwarden.<zone>`
-   * where the handover's tailnet control server is `https://headscale.<zone>`. */
+  kind: "own";
+  /** The network's Lazurio Vaultwarden: `vault.server_url`. */
   vault: string;
-  /** Its host; with the address it names the account's state directory. */
+  /** Its host; with the account it names the account's state directory. */
   host: string;
-  /** The Environment's own address: `<machine>.<org>.lazurio.io` for an
-   * Organization's Environment, `<slug>.lazurio.io` for a personal one. */
-  address: string;
-  /** The account: `vaultwarden@<address>`. */
+  /** The Environment's technical account: `vault.account`. */
   account: string;
-  /** The machine part of the address: the work VM's name or the personal
-   * slug. It identifies the Environment's collection. */
-  machine: string;
-  kind: VaultEnvironmentKind;
-  /** The Environment's name as the shell gives it (decision 0185): its own
-   * label (a Team's, a persona's) or its kind's, in the vault's language. */
+  /** The vault's name, the name of the Environment's own organization in
+   * Vaultwarden: `vault.name`. Its identity is its ID, never this name. */
   name: string;
-  /** The Environment's own collection: `Environmenty/<name> · <machine>`. */
-  collection: string;
-  /** The Organization that owns the Environment, as the handover names it
-   * (`owner.organization`, a lowercase slug); null for a personal
-   * Environment, which a person owns. Its collection belongs to this
-   * Organization's vault, so only its own applications read runtime
-   * secrets from it (decision F46). */
+  environment: VaultEnvironmentKind;
+  /** The Organization that owns a work Environment (`owner.organization`, a
+   * lowercase slug); null for a personal Environment, which a person owns.
+   * It decides which applications read runtime secrets (decision F46 as F52
+   * amends it). */
   organization: string | null;
 }>;
 
-/** Why an Environment has no vault account here; every reason refuses
- * before anything is installed, written or sent. */
+/** Why an Environment has no vault here; every reason refuses before
+ * anything is installed, written or sent. */
 export type VaultUnsupportedReason =
   /** Not a Remote Environment (this computer, or not Linux): the second
-   * wave of decision 0193. */
+   * wave of root decision 0193. */
   | "workstation"
   /** The Environment's Folder (its preset) cannot be read. */
   | "folder-unreadable"
@@ -55,150 +46,58 @@ export type VaultUnsupportedReason =
   | "handover-unreadable"
   /** This process is not the handover's declared operator. */
   | "not-operator"
-  /** The handover records no hosted entry, or its Launchpad origin gives no
-   * Environment address. */
-  | "no-address"
-  /** The handover names no tailnet control server. */
-  | "no-network"
-  /** The control server is not `headscale.<zone>`, so the vault's address
-   * is not known. */
-  | "vault-unknown";
+  /** The handover names no vault for this Environment (yet): Machines
+   * writes the member only where the network pre-allowed its account. */
+  | "no-vault";
 
 export type VaultUnsupported = Readonly<{
   kind: "unsupported";
   reason: VaultUnsupportedReason;
 }>;
 
-const hostedDomain = "lazurio.io";
-const dnsLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-
-/** The collection prefix of decision 0193, in the vault's language. */
-export const collectionPrefix = "Environmenty/";
-
-/** The vault of a network from its tailnet control server: only
- * `https://headscale.<zone>` (an optional trailing slash, nothing else) gives
- * `https://vaultwarden.<zone>`; anything else is unknown (fail closed). */
-export function vaultOriginOf(controlServer: string): string | null {
-  let url: URL;
-  try {
-    url = new URL(controlServer);
-  } catch {
-    return null;
-  }
-  const written = controlServer.toLowerCase();
-  if (
-    url.protocol !== "https:" ||
-    url.username !== "" ||
-    url.password !== "" ||
-    url.port !== "" ||
-    (written !== url.origin && written !== `${url.origin}/`)
-  )
-    return null;
-  const labels = url.hostname.split(".");
-  if (
-    labels.length < 3 ||
-    labels[0] !== "headscale" ||
-    !labels.every((label) => dnsLabel.test(label))
-  )
-    return null;
-  return `https://${["vaultwarden", ...labels.slice(1)].join(".")}`;
-}
-
-/** The Environment's name as the collection carries it: its own label when
- * it is plain one-line text without a slash (a slash nests collections in
- * the vault), otherwise its kind's name. */
-export function environmentNameOf(
-  kind: VaultEnvironmentKind,
-  label: string | null,
-): string {
-  const clean = label?.trim() ?? "";
-  return clean.length > 0 &&
-    clean.length <= 64 &&
-    !/[\p{Cc}/\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/u.test(clean)
-    ? clean
-    : shellMessages("cs").names[kind];
-}
-
-export const collectionNameOf = (name: string, machine: string): string =>
-  `${collectionPrefix}${name} · ${machine}`;
-
-/** Whether a collection the account sees is this Environment's: named
- * `Environmenty/<name> · <machine>` for this machine. The name part may
- * differ from the one shown (a Team's display name can change); the
- * machine part identifies the Environment. */
-export function isEnvironmentCollection(
-  name: string,
-  context: Pick<VaultContext, "machine">,
-): boolean {
-  const suffix = ` · ${context.machine}`;
-  return (
-    name.startsWith(collectionPrefix) &&
-    name.endsWith(suffix) &&
-    name.length > collectionPrefix.length + suffix.length
-  );
-}
-
-/** The vault facts of one Remote Environment: from the live handover (the
- * vault from its tailnet control server, the address from its Launchpad
- * entry, the one derivation of an Environment's id), the kind of
- * Environment its Folder records and the name the shell gives it. */
+/** The vault facts of one Remote Environment from its live handover and the
+ * kind of Environment its Folder records. */
 export function vaultContextOf(
   input: Readonly<{
     handover: MachineContext;
-    kind: VaultEnvironmentKind;
-    /** The Environment's own label, when it has one (a Team's, a
-     * persona's); null names it by its kind. */
-    label: string | null;
+    environment: VaultEnvironmentKind;
   }>,
 ): VaultContext | VaultUnsupported {
-  const unsupported = (reason: VaultUnsupportedReason): VaultUnsupported =>
-    Object.freeze({ kind: "unsupported", reason });
-  const { handover } = input;
-  const origin = handover.entry?.launchpad.external_origin;
-  const id = origin === undefined ? null : environmentIdOf(origin);
-  if (id === null) return unsupported("no-address");
-  const labels = id.split(".");
-  // A personal Environment is one label, an Organization's two.
-  if (labels.length !== (handover.machine.kind === "personal-vm" ? 1 : 2))
-    return unsupported("no-address");
-  const controlServer = handover.network?.headscale_server_url;
-  if (controlServer === undefined) return unsupported("no-network");
-  const vault = vaultOriginOf(controlServer);
-  if (vault === null) return unsupported("vault-unknown");
-  const machine = labels[0] as string;
-  const address = `${id}.${hostedDomain}`;
-  const name = environmentNameOf(input.kind, input.label);
+  const vault = input.handover.vault;
+  if (vault === undefined)
+    return Object.freeze({ kind: "unsupported", reason: "no-vault" });
+  const { owner } = input.handover;
   return Object.freeze({
-    vault,
-    host: new URL(vault).hostname,
-    address,
-    account: `vaultwarden@${address}`,
-    machine,
-    kind: input.kind,
-    name,
-    collection: collectionNameOf(name, machine),
-    organization:
-      handover.owner.kind === "organization"
-        ? handover.owner.organization
-        : null,
+    kind: "own",
+    vault: vault.server_url,
+    host: new URL(vault.server_url).hostname,
+    account: vault.account,
+    name: vault.name,
+    environment: input.environment,
+    organization: owner.kind === "organization" ? owner.organization : null,
   });
 }
 
-/** Where one Environment's account keeps its files: `${XDG_STATE_HOME:-~/
- * .local/state}/lazurio/vault/<vault host>/<Environment address>`, keyed by
- * the account's whole identity, so an Environment whose address changes
- * never reads the files of the account it had before (a relative
- * XDG_STATE_HOME is invalid and ignored, as for the install base). Both
- * parts are DNS names checked label by label above. */
+/** Where one account keeps its files: `${XDG_STATE_HOME:-~/.local/state}/
+ * lazurio/vault/<vault host>/<key>`. The key of an Environment's own account
+ * is the account itself, so an account the handover replaces never reads
+ * the files of the one before, and the address-keyed directory of a 0197
+ * pilot (`legacy-0197/`) stays beside it untouched. A relative
+ * XDG_STATE_HOME is invalid and ignored, as for the install base. Both parts
+ * come from the schema-checked handover (a DNS name, an e-mail address of
+ * DNS labels): neither holds a slash. */
 export function vaultStateDirectory(
-  identity: Pick<VaultContext, "host" | "address">,
+  host: string,
+  key: string,
   home: string,
   env: Readonly<Record<string, string | undefined>>,
 ): string {
+  if ([host, key].some((part) => part === "" || /[/\\]|^\.\.?$/.test(part)))
+    throw new Error("Invalid vault state directory");
   const xdg = env.XDG_STATE_HOME;
   const state =
     xdg !== undefined && xdg !== "" && isAbsolute(xdg)
       ? xdg
       : join(home, ".local", "state");
-  return join(state, "lazurio", "vault", identity.host, identity.address);
+  return join(state, "lazurio", "vault", host, key);
 }

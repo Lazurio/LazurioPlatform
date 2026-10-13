@@ -3,9 +3,9 @@ import { open, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { parseUniqueJson } from "../providers/unique-json";
 import type { ToolProcessResult, ToolRunner } from "../tools/status";
-import { isFingerprint, isSession, isVaultId } from "./store";
+import { isSession, isVaultId } from "./store";
 
-// The Bitwarden CLI of one Environment vault account (decision F43), driven
+// The Bitwarden CLI of one Environment vault account (decisions F43, F52), driven
 // by the core and never by a person: always the pinned binary, always with
 // the account's own BITWARDENCLI_APPDATA_DIR (bw rewrites its data file on
 // every start, so no run may reach another profile), never interactive. A
@@ -191,10 +191,10 @@ export function parseCollections(stdout: string): BwCollection[] | null {
   return collections;
 }
 
-/** One item of the Environment's collection that is a candidate for a
- * declared name: only what the selection of decision F46 reads. Every other
- * field of the item (its notes, fields, username, TOTP, URIs) is dropped
- * here and never leaves this module. */
+/** One item of the Environment's vault that is a candidate for a declared
+ * name: only what the selection of decision F46 reads. Every other field of
+ * the item (its notes, fields, username, TOTP, URIs) is dropped here and
+ * never leaves this module. */
 export type BwSecretItem = Readonly<{
   name: string;
   organizationId: string | null;
@@ -365,11 +365,21 @@ export function bwCli(environment: BwEnvironment) {
         session(value),
       );
     },
-    /** How many items the account sees. bw has no count: the list is read
-     * in memory for its length only and dropped. */
-    itemCount(value: string): Promise<BwResult<number>> {
+    /** How many items the account sees, or of one organization. bw has no
+     * count: the list is read in memory for its length only and dropped. */
+    itemCount(
+      value: string,
+      organizationId?: string,
+    ): Promise<BwResult<number>> {
       return step(
-        ["list", "items", "--nointeraction"],
+        [
+          "list",
+          "items",
+          ...(organizationId === undefined
+            ? []
+            : ["--organizationid", organizationId]),
+          "--nointeraction",
+        ],
         (stdout) => {
           const items = jsonOf(stdout);
           return Array.isArray(items) ? items.length : null;
@@ -379,12 +389,13 @@ export function bwCli(environment: BwEnvironment) {
         itemsMaxBytes,
       );
     },
-    /** The items of one collection of one organization whose name is one of
-     * `names` (decision F46). The ids are not secret and go on argv; bw
-     * filters by them, and the caller selects again by every field. */
+    /** The items of one organization, or of one collection of it (a 0197
+     * pilot), whose name is one of `names` (decision F46). The ids are not
+     * secret and go on argv; bw filters by them, and the caller selects
+     * again by every field. */
     secretItems(
       value: string,
-      scope: Readonly<{ organizationId: string; collectionId: string }>,
+      scope: Readonly<{ organizationId: string; collectionId?: string }>,
       names: ReadonlySet<string>,
     ): Promise<BwResult<BwSecretItem[]>> {
       return step(
@@ -393,21 +404,15 @@ export function bwCli(environment: BwEnvironment) {
           "items",
           "--organizationid",
           scope.organizationId,
-          "--collectionid",
-          scope.collectionId,
+          ...(scope.collectionId === undefined
+            ? []
+            : ["--collectionid", scope.collectionId]),
           "--nointeraction",
         ],
         (stdout) => parseSecretItems(stdout, names),
         session(value),
         timeouts.local,
         itemsMaxBytes,
-      );
-    },
-    fingerprint(value: string): Promise<BwResult<string>> {
-      return step(
-        ["get", "fingerprint", "me", "--nointeraction"],
-        (stdout) => (isFingerprint(stdout.trim()) ? stdout.trim() : null),
-        session(value),
       );
     },
     logout(value: string | null): Promise<BwResult<true>> {

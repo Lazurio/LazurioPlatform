@@ -2,7 +2,7 @@ import { isAbsolute, join } from "node:path";
 import { withFolderReadLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readFolderState } from "../folder/read-state";
-import { presetKinds, teamLabel } from "../launchpad/shell-document";
+import { presetKinds } from "../launchpad/shell-document";
 import {
   bindMachineOperator,
   MachineContextError,
@@ -13,7 +13,6 @@ import {
   type HostedOperatorSources,
   readLinuxOperator,
 } from "../machine/operator";
-import { readFolderCatalog } from "../organizations/catalog";
 import type { ToolRunner } from "../tools/status";
 import { resolveInstallBase } from "../update/base";
 import {
@@ -25,13 +24,15 @@ import {
   vaultStateDirectory,
 } from "./context";
 import type { VaultHost, VaultJournalEntry } from "./flow";
+import { type PilotContext, pilotContextOf } from "./legacy-0197/context";
 
-// The production composition of the Environment vault (decision F43): the
-// facts of this Remote Environment from its root-issued handover, read anew
-// for every operation, and the kind and name of the Environment from its
-// Folder. Only the handover's declared operator, in a hosted Folder on Linux,
-// has a vault account; everything else is a workstation of the second wave
-// or a handover that cannot be trusted, and refuses before anything runs.
+// The production composition of the Environment vault (decisions F43, F52):
+// the facts of this Remote Environment from its root-issued handover, read
+// anew for every operation, and the kind of the Environment from its Folder.
+// Only the handover's declared operator, in a hosted Folder on Linux, has a
+// vault; everything else is a workstation of the second wave or a handover
+// that cannot be trusted, and refuses before anything runs. A handover that
+// names no vault yet may still be a 0197 pilot's (legacy-0197/).
 
 const unsupported = (reason: VaultUnsupportedReason): VaultUnsupported =>
   Object.freeze({ kind: "unsupported", reason });
@@ -46,24 +47,18 @@ export async function readVaultContext(
     home: string | undefined;
     sources?: HostedOperatorSources | undefined;
   }>,
-): Promise<VaultContext | VaultUnsupported> {
+): Promise<VaultContext | PilotContext | VaultUnsupported> {
   if (input.platform !== "linux" || input.folder === undefined)
     return unsupported("workstation");
   const folder = input.folder;
   let preset: keyof typeof presetKinds;
-  let machine: Awaited<
-    ReturnType<typeof readFolderState>
-  >["preferences"]["machine"];
   try {
     await inspectOwnedDirectory(folder);
     const state = join(folder, ".lazurio");
-    ({ preset, machine } = await withFolderReadLock(state, async () => {
+    preset = await withFolderReadLock(state, async () => {
       const { preferences } = await readFolderState(state);
-      return {
-        preset: preferences.preset.name,
-        machine: preferences.machine,
-      };
-    }));
+      return preferences.preset.name;
+    });
   } catch {
     return unsupported("folder-unreadable");
   }
@@ -96,16 +91,12 @@ export async function readVaultContext(
         : "handover-unreadable",
     );
   }
-  // The Environment's own label, as the rail names it: a Team's or a
-  // persona's display name from the Organization's catalog, when the Folder
-  // holds it; otherwise its kind's name.
-  const catalog = await readFolderCatalog(folder).catch(() => null);
-  const label = catalog === null ? null : teamLabel(machine, kind, catalog);
-  return vaultContextOf({
-    handover,
-    kind: kind as VaultEnvironmentKind,
-    label,
-  });
+  const environment = kind as VaultEnvironmentKind;
+  const own = vaultContextOf({ handover, environment });
+  if (own.kind !== "unsupported") return own;
+  // No vault named yet: an Environment connected the 0197 way keeps reading
+  // its collection until its handover names its own vault.
+  return pilotContextOf({ handover, environment }) ?? own;
 }
 
 /** The vault of this process: its home, its install base and `~/.local/bin`,
@@ -150,8 +141,8 @@ export function processVaultHost(
         sources: input.sources,
       });
     },
-    directory: (identity) =>
-      vaultStateDirectory(identity, home ?? "/nonexistent", input.env),
+    directory: (host, key) =>
+      vaultStateDirectory(host, key, home ?? "/nonexistent", input.env),
     base: base ?? "/nonexistent",
     bin: join(home ?? "/nonexistent", ".local", "bin"),
     home: home ?? "/nonexistent",

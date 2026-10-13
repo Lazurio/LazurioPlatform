@@ -402,6 +402,10 @@ export async function startLaunchpad(
      * it, a supervised base for the hosted operator (`executorAtStart`).
      * Absent: it never does. */
     executorAtStart?: (() => Promise<boolean>) | undefined;
+    /** Whether this Launchpad sets the Environment's own vault up after it
+     * starts (decision F52): the same rule as Executor's
+     * (`vaultAtStart`). Absent: it never does. */
+    vaultAtStart?: (() => Promise<boolean>) | undefined;
   }>,
   hostedOptions: HostedOptions = {},
   // Where the tools screen reads its live facts: this process's PATH and
@@ -446,9 +450,9 @@ export async function startLaunchpad(
     openWindow: (session: string) =>
       ensureThreadWindow(session, undefined, cdpSeams(process.env, runProcess)),
   }),
-  // Where the Environment vault runs (decision F43): this process's home and
-  // the handover, for the Folder this Launchpad serves. Trusted composition,
-  // never HTTP input; tests supply a fake vault and a fake bw.
+  // Where the Environment's vault runs (decisions F43, F52): this process's
+  // home and the handover, for the Folder this Launchpad serves. Trusted
+  // composition, never HTTP input; tests supply a fake vault and a fake bw.
   vaultHost?: VaultHost | undefined,
   // Where Executor is set up (decision F44): this process's home, user
   // manager and harnesses, for the handover's declared operator. Trusted
@@ -554,8 +558,8 @@ export async function startLaunchpad(
   };
   // The Files page (decision F35): the Operator's Documents folder.
   const files = createFilesRoutes({ host: documentsHost, headers });
-  // The Environment vault (decision F43): its routes journal the operation,
-  // the outcome and a fixed reason, never a value.
+  // The Environment's vault (decisions F43, F52): its routes journal the
+  // operation, the outcome and a fixed reason, never a value.
   const vaultJournal = (entry: object) =>
     console.log(JSON.stringify({ scope: "tools-vault", ...entry }));
   const defaultVault =
@@ -573,6 +577,8 @@ export async function startLaunchpad(
       vaultHost === undefined
         ? (defaultVault as VaultHost)
         : { ...vaultHost, journal: vaultHost.journal ?? vaultJournal },
+    // A closing Launchpad starts no setup (`start` asks it last).
+    closing: () => closing,
   });
   // Executor (decision F44): its setup journals the outcome and a fixed
   // reason, never a path, an output or a value.
@@ -1506,11 +1512,11 @@ export async function startLaunchpad(
           );
         }
         if (vault.handles(url.pathname)) {
-          // The Environment vault (decision F43): `{}`, or a connect's
-          // `{job}`; a connect answers within a second and goes on
+          // The Environment's vault (decisions F43, F52): `{}`, or a setup's
+          // `{job}`; a setup answers within a second and goes on
           // (vault-routes.ts).
           const withJob =
-            url.pathname === "/api/tools/bitwarden/connect" &&
+            url.pathname === "/api/tools/bitwarden/setup" &&
             ownDataValue(input, "job") !== undefined;
           const value = stateFields(input, withJob ? ["job"] : []);
           if (withJob && !isVaultJob(value.job))
@@ -1881,6 +1887,15 @@ export async function startLaunchpad(
   if (executorAtStart !== undefined)
     void (async () => {
       if ((await executorAtStart()) && !closing) await executor.atStart();
+    })().catch(() => undefined);
+  // The Environment's own vault (decision F52), by the same pattern: where
+  // the vault needs it, the one setup of Settings → Tools runs in the
+  // background once the Launchpad listens; never awaited, never a reason for
+  // the start to fail, one attempt per start.
+  const vaultAtStart = installed?.vaultAtStart;
+  if (vaultAtStart !== undefined)
+    void (async () => {
+      if ((await vaultAtStart()) && !closing) await vault.atStart();
     })().catch(() => undefined);
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]

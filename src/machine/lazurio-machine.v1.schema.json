@@ -49,6 +49,7 @@
         "network": { "$ref": "#/$defs/network" },
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "work" } } }] },
         "entry": { "$ref": "#/$defs/entry" },
+        "vault": { "$ref": "#/$defs/vault" },
         "installed": { "$ref": "#/$defs/installed" },
         "account": { "$ref": "#/$defs/account" }
       }
@@ -95,6 +96,7 @@
         "network": { "$ref": "#/$defs/network" },
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "personal" } } }] },
         "entry": { "$ref": "#/$defs/entry" },
+        "vault": { "$ref": "#/$defs/vault" },
         "installed": { "$ref": "#/$defs/installed" },
         "account": { "$ref": "#/$defs/account" }
       }
@@ -278,6 +280,17 @@
             "socket": { "description": "Absolute path of the relay's unix socket.", "type": "string", "maxLength": 100, "pattern": "^/run/[a-z0-9-]+/[a-z0-9-]+\\.sock$" }
           }
         }
+      }
+    },
+    "vault": {
+      "description": "This Environment's own vault (root decision 0198 point 1, DEV-6631 contract C2): its network's Lazurio Vaultwarden, the technical account the network generated and pre-allowed for this Environment alone, and the name of the Environment's vault there. The Environment registers the account itself and creates its own organization with it. The account address is a one-time enrollment capability until it is registered (root decision 0197 point 3). Omitted until the Machine runs a LazurioPlatform release that reads it; a reader vendoring an earlier schema refuses a document carrying it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["server_url", "account", "name"],
+      "properties": {
+        "server_url": { "description": "Origin of the network's Lazurio Vaultwarden.", "$ref": "#/$defs/https_origin" },
+        "account": { "description": "The Environment's technical account: vaultwarden-<26 lowercase base32 characters>@<Environment address>.", "type": "string", "maxLength": 254, "pattern": "^vaultwarden-[a-z2-7]{26}@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\\.lazurio\\.io$" },
+        "name": { "description": "Name of the Environment's vault, <short Organization> <Environment name> <login>: letters, digits and single spaces, unique within the network.", "type": "string", "maxLength": 50, "pattern": "^[\\p{L}\\p{Nd}]+(?: [\\p{L}\\p{Nd}]+)*$" }
       }
     },
     "account": {

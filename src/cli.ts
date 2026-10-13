@@ -101,6 +101,7 @@ import {
   selfCheckCommand,
   updateEnvironment,
   updateHelp,
+  vaultAtStart,
   versionCommand,
 } from "./update/cli";
 import { selectActivator } from "./update/launchpad-activation";
@@ -117,7 +118,8 @@ function emit(output: CommandOutput): number {
 // The installed Launchpad of this base answers the updater's health question
 // and serves the update pill on the same update core and service the CLI uses.
 // Where install and update only report Executor, it sets Executor up after
-// it starts (decision F44, addendum of 2026-10-11).
+// it starts (decision F44, addendum of 2026-10-11), and the Environment's own
+// vault where it needs it (decision F52).
 async function installedLaunchpad(explicitBase: string, folder: string) {
   const context = processContext();
   const base = installBase(context, explicitBase);
@@ -135,6 +137,7 @@ async function installedLaunchpad(explicitBase: string, folder: string) {
       }),
     }),
     executorAtStart: executorAtStart(context, base),
+    vaultAtStart: vaultAtStart(context, base),
   };
 }
 
@@ -314,9 +317,9 @@ async function runOtherCommand(args: string[]): Promise<number> {
   // its view.
   if (args[0] === "browser")
     return emit(await runBrowserCommand(args.slice(1), processContext()));
-  // The Environment vault (decision F43): `vault env` prints the shell
-  // exports alone on stdout, for `eval "$(lazurio vault env)"`; connect's
-  // steps and every refusal go to stderr.
+  // The Environment's vault (decisions F43, F52): `vault env` prints the
+  // shell exports alone on stdout, for `eval "$(lazurio vault env)"`;
+  // setup's steps and every refusal go to stderr.
   if (args[0] === "vault")
     return emit(
       await runVaultCommand(args.slice(1), {

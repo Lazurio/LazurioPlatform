@@ -39,6 +39,8 @@ export const privateKinds = [
   "team",
   "github-login",
   "github-id",
+  "vault-account",
+  "vault-name",
   "tailnet-node",
   "machine-host",
   "peer",
@@ -78,6 +80,8 @@ const single: Partial<Record<PrivateKind, string>> = {
   home: "~",
   user: "<user>",
   host: "<host>",
+  "vault-account": "<vault-account>",
+  "vault-name": "<vault-name>",
 };
 const numbered: Record<PrivateKind, string> = {
   folder: "folder",
@@ -91,6 +95,8 @@ const numbered: Record<PrivateKind, string> = {
   team: "team",
   "github-login": "login",
   "github-id": "github-id",
+  "vault-account": "vault-account",
+  "vault-name": "vault-name",
   "tailnet-node": "node",
   "machine-host": "machine-host",
   peer: "peer",

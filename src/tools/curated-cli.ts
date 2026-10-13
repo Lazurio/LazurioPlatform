@@ -131,21 +131,21 @@ export function refuseTool(
         : `Unknown tool ${name}; the catalog offers: ${known.join(", ")}`,
     };
   }
-  // The Environment vault has its own flow (decision F43): no sign-in of a
-  // person, an account of the Environment.
+  // The Environment's vault has its own flow (decisions F43, F52): no
+  // sign-in of a person, the Environment's own account and vault.
   if (name === vaultToolName) {
     const result = {
       kind: "blocked",
       reason: "setup-vault",
       tool: name,
-      command: "lazurio vault connect",
+      command: "lazurio vault setup",
     };
     return {
       code: 2,
       result,
       text: json
         ? JSON.stringify(result)
-        : `${name} is the Environment vault: connect it in the Launchpad (Settings → Tools → bitwarden) or with lazurio vault connect.`,
+        : `${name} is the Environment's own vault: the Launchpad sets it up at its start, and lazurio vault setup does the same; lazurio vault status says how it is.`,
     };
   }
   // Executor is set up by Lazurio itself (decision F44).
