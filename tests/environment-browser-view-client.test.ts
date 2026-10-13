@@ -113,6 +113,70 @@ describe("the frame in the page area", () => {
     expect(edge).toEqual({ x: 900, y: 40 });
     expect(mapPoint(edge, drawn, header)).toEqual({ x: 800, y: 0 });
   });
+
+  // F39's addendum of 2026-10-13: Data saver's frames are two thirds of the
+  // page's CSS size. The page maps through the header's CSS sizes and the
+  // place the frame is drawn, so a smaller frame of the same page sends
+  // every click where a full frame sends it.
+  test("a Data saver frame, smaller than the page, maps the pointer as a full frame does", () => {
+    const at = (
+      area: { left: number; top: number; width: number; height: number },
+      frame: FrameHeader,
+      point: { x: number; y: number },
+    ) => {
+      const inner = containRect(area, frame);
+      return mapPoint(
+        point,
+        {
+          left: area.left + inner.left,
+          top: area.top + inner.top,
+          width: inner.width,
+          height: inner.height,
+        },
+        frame,
+      );
+    };
+    // A page area of 1200 × 750 CSS pixels under the bar: two thirds is
+    // exactly 800 × 500.
+    const area = { left: 0, top: 41, width: 1200, height: 750 };
+    const css = { deviceWidth: 1200, deviceHeight: 750 } as const;
+    const full = { ...header, ...css, width: 1200, height: 750 };
+    const saver = { ...header, ...css, width: 800, height: 500 };
+    for (const point of [
+      { x: 0, y: 41 },
+      { x: 600, y: 416 },
+      { x: 37.5, y: 703.25 },
+      { x: 1200, y: 791 },
+    ])
+      expect(at(area, saver, point)).toEqual(at(area, full, point));
+    expect(at(area, saver, { x: 600, y: 416 })).toEqual({ x: 600, y: 375 });
+    // Two thirds rounded to whole pixels (1281 × 721 → 854 × 481): the same
+    // place within a fraction of a CSS pixel, also on the edges and in the
+    // corners.
+    const odd = { left: 0, top: 41, width: 1281, height: 721 };
+    const oddCss = { deviceWidth: 1281, deviceHeight: 721 } as const;
+    for (const point of [
+      { x: 0.5, y: 41.5 },
+      { x: 640.5, y: 401.5 },
+      { x: 1280.5, y: 761.5 },
+      { x: 13, y: 755 },
+    ]) {
+      const exact = at(
+        odd,
+        { ...header, ...oddCss, width: 1281, height: 721 },
+        point,
+      );
+      const small = at(
+        odd,
+        { ...header, ...oddCss, width: 854, height: 481 },
+        point,
+      );
+      expect(exact).not.toBeNull();
+      expect(small).not.toBeNull();
+      expect(Math.abs((small?.x ?? 0) - (exact?.x ?? 0))).toBeLessThan(0.5);
+      expect(Math.abs((small?.y ?? 0) - (exact?.y ?? 0))).toBeLessThan(0.5);
+    }
+  });
 });
 
 const key = (
@@ -570,6 +634,24 @@ describe("the protocol", () => {
   test("every kind of message of the page is accepted", () => {
     const messages: ClientMessage[] = [
       { t: "hello", width: 1280, height: 720, dpr: 2, resize: true },
+      {
+        t: "hello",
+        width: 1280,
+        height: 720,
+        dpr: 2,
+        resize: false,
+        picture: "saver",
+      },
+      {
+        t: "hello",
+        width: 390,
+        height: 640,
+        dpr: 3,
+        resize: true,
+        picture: "standard",
+      },
+      { t: "picture", picture: "saver" },
+      { t: "picture", picture: "standard" },
       { t: "size", width: 390, height: 640, dpr: 3 },
       {
         t: "mouse",
@@ -649,6 +731,13 @@ describe("the protocol", () => {
       modifiers: 0,
     };
     const touch = { t: "touch", type: "touchStart", modifiers: 0 };
+    const hello = {
+      t: "hello",
+      width: 1280,
+      height: 720,
+      dpr: 2,
+      resize: true,
+    };
     for (const raw of [
       "not json",
       "[]",
@@ -657,6 +746,21 @@ describe("the protocol", () => {
       JSON.stringify({ t: "text", text: "x".repeat(1_000_001) }),
       JSON.stringify({ t: "text", text: "" }),
       JSON.stringify({ t: "hello", width: 1280, height: 720, dpr: 2 }),
+      // The picture quality is one of the two choices, or absent in `hello`.
+      ...[
+        "hd",
+        "Saver",
+        "",
+        null,
+        1,
+        true,
+        ["saver"],
+        { picture: "saver" },
+      ].flatMap((picture) => [
+        JSON.stringify({ ...hello, picture }),
+        JSON.stringify({ t: "picture", picture }),
+      ]),
+      JSON.stringify({ t: "picture" }),
       JSON.stringify({ ...mouse, x: null }),
       JSON.stringify(mouse).replace('"x":1', '"x":NaN'),
       JSON.stringify({ ...mouse, x: 1e9 }),
