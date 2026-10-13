@@ -33,8 +33,9 @@
 // before 2026-10-13.
 
 const version = "0.4.3-lazurio.1";
-/** The fork's commit whose `install.sh` runs. */
-const installerCommit = "c97be2d575a51df77974adb71f1020ed629bf0d2";
+/** The fork's commit whose `install.sh` runs: the commit the release is
+ * cut from, the merge of Lazurio/composio#1 into `lazurio/cli-0.4.3`. */
+const installerCommit = "c2cecf946112bf87ea8d7553e3bd2e7e1e1e69e0";
 
 export const composioBuild = Object.freeze({
   /** The fork whose GitHub releases publish the build: the assets
