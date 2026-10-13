@@ -620,7 +620,7 @@ function workingHere(preset: PresetName): readonly Text[] {
     blank,
     ...connectedApplications,
     blank,
-    ...secrets,
+    ...secrets(preset),
     blank,
     t(
       "## Poslední slovo má vždy Operátor",
@@ -1326,23 +1326,57 @@ const connectedApplications: readonly Text[] = [
 ];
 
 // Secrets on every preset; moved here from the troubleshooting chapter so the
-// rule sits with the connections that need it.
-const secrets: readonly Text[] = [
-  t("## Tajné údaje", "## Secrets"),
-  t(
-    "Tokeny, privátní klíče, session URL, device kódy ani obsah `personalspace/` nikdy nepatří do výstupu, issues, commitů ani logů. Identita Environmentu, kterou vypíše `lazurio machine inspect`, je soukromý kontext: drž ji v rámci Ownera.",
-    "Tokens, private keys, session URLs, device codes and the contents of `personalspace/` never go into output, issues, commits or logs. The Environment's identity printed by `lazurio machine inspect` is private context: keep it in the Owner's scope.",
-  ),
-  blank,
-  t(
-    "- Přihlášení a souhlasy dělá člověk ve svém prohlížeči; předtím mu řekni, jaký účet a jaký rozsah připojuje. Hesla od lidí nepřebírej.",
-    "- Sign-ins and consents are done by a person in their own browser; tell them first which account and which scope is being connected. Do not take passwords from people.",
-  ),
-  t(
-    "- Aplikace berou tajné údaje od člověka nebo z úložiště, které určí Operátor, nikdy z `.env` ani z repozitáře. Vlastní úložiště tajemství nevymýšlej a přihlášení nepřenášej mezi Environmenty; každý má vlastní souhlas.",
-    "- Applications take secrets from a person or from the store the Operator names, never from `.env` or a repository. Do not invent your own secret store, and do not carry sign-ins between Environments; each has its own consent.",
-  ),
-];
+// rule sits with the connections that need it. A Remote Environment has its
+// own vault (decisions F52 and F53, root decision 0198 point 9): there a
+// secret reaches the agents by the paths a, b and c, never through chat or a
+// file; this computer has none yet (the second wave of root decision 0193).
+function secrets(preset: PresetName): readonly Text[] {
+  return [
+    t("## Tajné údaje", "## Secrets"),
+    t(
+      "Tokeny, privátní klíče, session URL, device kódy ani obsah `personalspace/` nikdy nepatří do výstupu, issues, commitů ani logů. Identita Environmentu, kterou vypíše `lazurio machine inspect`, je soukromý kontext: drž ji v rámci Ownera.",
+      "Tokens, private keys, session URLs, device codes and the contents of `personalspace/` never go into output, issues, commits or logs. The Environment's identity printed by `lazurio machine inspect` is private context: keep it in the Owner's scope.",
+    ),
+    blank,
+    t(
+      "- **O tajemství nikdy nežádej v chatu** a neber ho ze souboru ani ze zprávy. Přihlášení a souhlasy dělá člověk ve svém prohlížeči; předtím mu řekni, jaký účet a jaký rozsah připojuje.",
+      "- **Never ask for a secret in chat,** and never take one from a file or a message. Sign-ins and consents are done by a person in their own browser; tell them first which account and which scope is being connected.",
+    ),
+    ...(preset === "local"
+      ? [
+          t(
+            "- Aplikace berou tajné údaje z úložiště, které určí Operátor, nikdy z `.env` ani z repozitáře. Vlastní úložiště tajemství nevymýšlej a přihlášení nepřenášej mezi Environmenty; každý má vlastní souhlas.",
+            "- Applications take secrets from the store the Operator names, never from `.env` or a repository. Do not invent your own secret store, and do not carry sign-ins between Environments; each has its own consent.",
+          ),
+        ]
+      : [
+          t(
+            '- **Tajemství patří do trezoru tohoto Environmentu** (nástroj `bitwarden`). Než o něm cokoli řekneš, ověř jeho stav znovu příkazem `lazurio vault status`. Hlásí-li `connected`, čti tajemství jen z něj přes společnou relaci (`eval "$(lazurio vault env)"`) a hodnoty nikdy nevypisuj. Co v něm chybí, získej v tomto pořadí:',
+            '- **Secrets belong in this Environment\'s vault** (the tool `bitwarden`). Before you say anything about it, check its state again with `lazurio vault status`. When it reports `connected`, read secrets only from it, through the shared session (`eval "$(lazurio vault env)"`), and never print a value. Get what it lacks in this order:',
+          ),
+          t(
+            "  - (a) Je-li ve společném okně prohlížeče Environmentu rozšíření Bitwarden, požádej člověka, ať se ke službě přihlásí tam; rozšíření mu nabídne uložení do trezoru Environmentu a po jeho potvrzení přihlášení máš.",
+            "  - (a) If the Environment's shared browser window has the Bitwarden extension, ask the person to sign in to the service there; the extension offers to save it into the Environment's vault, and once they confirm, you have the sign-in.",
+          ),
+          t(
+            "  - (b) Umíš-li tajemství ve službě vytvořit sám v přihlášené relaci (nový API klíč nebo client secret), vytvoř ho a ulož rovnou do trezoru přes `bw`.",
+            "  - (b) If you can create the secret yourself in a signed-in session of the service (a new API key or client secret), create it and store it straight in the vault with `bw`.",
+          ),
+          t(
+            "  - (c) Jinak o něj požádej příkazem `lazurio vault request`, řečeným tak, aby člověk pochopil, co se po něm chce: co potřebuješ, proč a kde to ve službě najde. Dej mu odkaz, který příkaz vypíše, mezitím pokračuj jinou prací a stav zjisti příkazem `lazurio vault request status <id>`.",
+            "  - (c) Otherwise ask for it with `lazurio vault request`, put so that the person understands what is wanted: what you need, why, and where in the service they find it. Give them the link the command prints, go on with other work meanwhile, and read the state with `lazurio vault request status <id>`.",
+          ),
+          t(
+            "  Bez připojeného trezoru se zeptej Operátora, kam tajemství patří. Příkazy uvádí nástroj `bitwarden` v `manual/this-machine.md`.",
+            "  Without a connected vault, ask the Operator where the secret belongs. The tool `bitwarden` in `manual/this-machine.md` gives the commands.",
+          ),
+          t(
+            "- Aplikace berou tajné údaje z trezoru Environmentu, nikdy z `.env` ani z repozitáře. Vlastní úložiště tajemství nevymýšlej a přihlášení nepřenášej mezi Environmenty; každý má vlastní souhlas.",
+            "- Applications take secrets from the Environment's vault, never from `.env` or a repository. Do not invent your own secret store, and do not carry sign-ins between Environments; each has its own consent.",
+          ),
+        ]),
+  ];
+}
 
 function troubleshooting(preset: PresetName): readonly Text[] {
   const hosted = preset !== "local";
