@@ -5810,6 +5810,9 @@ F38 points 1, 5 and 6 as stated below; points 2–4 and 7 stand.
      Chrome reports a target's title only as its address, so the service reads the
      page's title and icon itself, at each load and every 2 s while someone views
      the tab.
+
+     *The addendum of 2026-10-13 below ends the bar with Kvalita obrazu and, inside an
+     app's frame, Otevřít samostatně.*
 2. **Each remote tab is its own window** (0191 point 11), because Chrome paints only
    visible windows. A tab the view opens is a new window of the default context (CDP
    `Target.createTarget` with `newWindow`, the sign-ins of F38 point 2). A tab a page
@@ -6089,6 +6092,135 @@ Tests:
 - `tests/environment-browser-view-identity.test.ts`: the view's identity equals the one of
   the Launchpad's `/.lazurio/shell.json` for the same Folder, and the bounded read;
 - `tests/shell-interface.test.ts`: interface v1.
+
+**Addendum 2026-10-13: the view's bar is the only toolbar above a remote tab, with Kvalita
+obrazu and Otevřít samostatně** (decided by the Organization Admin on 2026-10-13 with the
+header-less right panel of the wireframe, `HumanAndMachine-ai/prototypes-lazurio#44`; plan
+DEV-6646). Every app framed the view under a head row of its own: the Launchpad's panel had
+Reload and "Open in a new tab" in its strip, web T3 Code a title, Reload and "Open in new tab"
+above the view. The Admin approved a right panel without that row in every app. The view's
+own bar, which the Platform serves, becomes the only toolbar above a remote tab, so two
+functions move into it. The apps drop their row in their own changes (the Launchpad in this
+repository, T3 Code in `Lazurio/t3code`), where what the row did for one tab also goes to the
+strip's tab menu. This addendum changes only the view; point 1's bar gains two controls at its
+end.
+
+1. **Kvalita obrazu ("Picture quality").** An icon button, a screen marked "HD" as the
+   wireframe draws it, opens a small menu with two choices:
+   - **Standardní ("Standard")**, the default: the frames as before;
+   - **Úsporná ("Data saver")**, "nižší rozlišení pro pomalé připojení" ("lower resolution for a
+     slow connection"): smaller frames at a lower JPEG quality. The Admin asked for it for a
+     slow connection, as on a train.
+
+   The button is marked while Data saver is on, and its label and tooltip name the choice
+   ("Kvalita obrazu: Úsporná"). The menu is a `menu` of two `menuitemradio`s with a check
+   mark on the chosen one; Data saver's hint is its description. Enter or Space on the
+   button opens it, ArrowDown and ArrowUp open it on the first or the last item, and in the
+   menu the arrows move and wrap, Home and End go to the ends. Escape closes it and returns
+   the focus to the button; Tab, a click elsewhere and leaving the window close it. A choice
+   closes the menu and gives the keys back to the page, as the bar's other buttons do. It
+   applies to the page's own tab and to its pop-ups at once, and every reconnect carries it.
+2. **Remembered on this device, per Environment.** The choice is kept in the browser's
+   `localStorage` of the view's origin, `lazurio.view.picture`, where only Data saver is
+   stored; anything else reads as Standard. Each Environment has a view origin of its own, so
+   the choice holds for that Environment on this device: in its bare tabs and in the frames of
+   its apps, which are on the same site. Views of the same Environment open in other tabs of
+   that browser follow a change. A frame under another site, whose storage the browser keeps
+   apart, remembers a choice of its own; where the browser keeps no storage for the page, the
+   view starts Standard and a choice lasts as long as the page. Nothing goes to the Folder or
+   the service.
+3. **One screencast still serves every viewer of a tab, and follows the most demanding one.**
+   Each viewer says its choice: `hello` carries `picture` (`"standard"` or `"saver"`), and the
+   page sends `{t: "picture", picture}` when the person changes it. A Standard viewer asks for
+   what it always asked: its page area's CSS size × its device pixel ratio at JPEG quality 70.
+   A Data saver viewer asks for two thirds of its page area's CSS size at quality 40. The hub
+   starts the screencast at the largest width, height and quality any viewer asks for
+   (`screencastFor` in `hub.ts`) and restarts it once whenever one of them changes: a viewer
+   joins, leaves, resizes or changes its choice. One Standard viewer therefore keeps Standard
+   frames for every viewer of the tab, and Data saver's frames come once every viewer of the
+   tab has chosen it. The first screenshot of a tab that starts being watched takes the
+   quality of the viewers that have said their choice, Standard's before any has.
+   - **A scale, not the device pixel ratio.** The Environment's Chrome draws on a 1920×1080
+     virtual screen at device scale 1 (`src/browser/units.ts`), and a screencast never sends a
+     frame larger than the page's CSS size: a viewer's ratio above 1 already makes no frame
+     larger. A smaller frame therefore needs a scale below 1 of the CSS size.
+   - **The numbers, measured.** On 2026-10-13 Chrome for Testing 155, with software
+     compositing as on the virtual screen, sent the first screencast frame of five pages at a
+     1280×800 CSS page for each setting (KiB per frame, and how many times fewer bytes than
+     today's full size at 70):
+
+     | Page | Today: full size, 70 | 3/4, 50 | 3/4, 40 | 2/3, 40 (chosen) | 2/3, 35 | 0.6, 40 | 0.5, 40 |
+     | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+     | A text-heavy article (Czech Wikipedia) | 132.7 | 60.8 (2.2×) | 53.5 (2.5×) | 43.7 (3.0×) | 40.7 (3.3×) | 35.1 (3.8×) | 26.8 (4.9×) |
+     | A web app with small text (a GitHub repository) | 100.8 | 48.1 (2.1×) | 42.6 (2.4×) | 34.8 (2.9×) | 32.5 (3.1×) | 28.9 (3.5×) | 21.3 (4.7×) |
+     | Very small text (Hacker News, 10 and 7 pt) | 107.2 | 48.5 (2.2×) | 42.6 (2.5×) | 35.3 (3.0×) | 32.9 (3.3×) | 28.8 (3.7×) | 19.9 (5.4×) |
+     | A grid of photos (a Wikimedia Commons category) | 123.8 | 55.8 (2.2×) | 48.8 (2.5×) | 40.2 (3.1×) | 37.4 (3.3×) | 33.4 (3.7×) | 23.6 (5.2×) |
+     | One large photo (NASA's picture of the day) | 87.9 | 33.3 (2.6×) | 28.3 (3.1×) | 23.4 (3.8×) | 21.5 (4.1×) | 18.4 (4.8×) | 15.1 (5.8×) |
+
+     Two thirds at quality 40 sends 2.9–3.8 times fewer bytes per frame. Drawn at full size,
+     as the view draws every frame, text from 12 px stays readable and only text under 10 px
+     blurs, which the person can zoom in the page. 0.6 would save 3.5–4.8 times but blurs 12
+     and 14 px text visibly, and half the size blurs all text; three quarters saves only 2.4–3.1
+     times. Below quality 40 a frame shrinks little (35 saves another 7 %) and gains rings
+     around letters.
+   - **Clicks land where they did.** The page maps the pointer through the frame header's CSS
+     sizes (`mapPoint`), never through the image's pixels, so a smaller frame of the same page
+     sends every click to the same place.
+   - **What stays.** The flow control (Chrome is acked once every viewer has drained below
+     1 MiB), the frame rate (`everyNthFrame` 1) and the window's size (point 3) are unchanged.
+     On a slow connection fewer bytes per frame bring each change of the page sooner and more
+     frames per second. A page that changes faster than the link carries still lags seconds
+     behind, in either choice, by that 1 MiB and the kernel's and the network's buffers
+     (measured locally at 1 Mbit/s, Lazurio/LazurioPlatform#370).
+4. **Otevřít samostatně ("Open in a new tab").** Inside an app's frame (`window.parent !==
+   window`), the bar ends with a button that opens this view's own address, `<view
+   origin>/t/<id>` of the tab shown, in a new tab of the person's browser (`noopener`). It
+   works once the view has its tab and is disabled when the tab no longer exists. The
+   standalone view (a bare tab, a phone, Codex Desktop's browser) has no such button: it is
+   the tab on its own already. The new tab is one more viewer of the same remote tab, so the
+   window takes the size of whoever acts last (point 3), and it reads the same remembered
+   choice. The apps' frames let such a tab leave their sandbox (`allow-popups-to-escape-sandbox`,
+   in their own changes); in a frame without it the new tab keeps the frame's sandbox flags.
+5. **The protocol.** `parseClientMessage` takes `picture` only as `"standard"` or `"saver"`,
+   and refuses a `hello` or a `picture` message with anything else. The view page and the
+   service ship together, so this is no contract of F50, whose point 1 keeps the view's own
+   WebSocket messages where they are. A page from before this addendum says `hello` without
+   `picture` and gets Standard; a service from before it ignores the member and the message.
+
+**Failure modes.**
+
+| Failure | What happens |
+| --- | --- |
+| The browser keeps no storage for the page | Standard at every load; a choice lasts as long as the page |
+| A Standard and a Data saver viewer on one tab | Standard's frames for both, the most demanding viewer's |
+| The socket is down when the person chooses | The next `hello` carries the choice |
+| A page from before this addendum (open across an update) | No `picture`: Standard, as before; a reload brings the bar's new controls |
+| A service older than the page (a rollback while the page is open) | It ignores the choice: Standard's frames while the button says Data saver, until a reload brings the older page |
+| An app's frame without `allow-popups-to-escape-sandbox` | The new tab keeps the frame's sandbox flags; the view still runs there, as those flags allow scripts and its own origin |
+
+**Not decided here.** How far a page that changes faster than a slow link carries may lag
+behind: point 3's 1 MiB per viewer before Chrome waits, and the buffers after it (#370 proposes
+an acknowledgement from the view page for each frame). A frame rate of its own for Data saver.
+
+Tests:
+- `tests/environment-browser-view-client.test.ts`: `hello` with and without `picture` and the
+  `picture` message, anything else refused; a Data saver frame maps the pointer as a full one;
+  the stored choice, the menu's keys and the address of Otevřít samostatně, only inside a
+  frame; the bar's words in both languages;
+- `tests/environment-browser-view.test.ts`: the bar's markup; the screencast for mixed
+  viewers, Data saver alone, one restart per change, `hello` without `picture` as Standard, and
+  the first screenshot's quality.
+
+Checked in a browser (root decision 0178) on 2026-10-13 against the real view service, a
+headless Chrome for Testing 155 as the Environment's browser and a person's Chrome for Testing
+driven by Playwright: the bar in a bare tab without Otevřít samostatně; the menu by keyboard
+and pointer; Data saver's frames at two thirds of the page (853×506 for a 1280×760 page, a
+Wikipedia frame of 40.7 KiB against 123.6 KiB in Standard); the choice after a reload and in
+another tab of the same browser; clicks on targets of 10×10 px landing in Data saver; a pop-up
+in Data saver; Standard frames while a Standard viewer watches too; and inside an app's frame
+on another origin of the same site, Otevřít samostatně opening the view's own address in a new
+tab without an opener. The apps' frames without their head row, and a real Environment, are
+checked after the release.
 
 ## F40 — Lazurio-account entry, approved devices and internal Environment sharing
 
@@ -8052,6 +8184,13 @@ the tab for everyone who holds or views it. Matěj decided:
 - **Known limit.** The CLI uses the Launchpad's hub client
   (`src/launchpad/new-tab/hub-client.ts`) until the browser contract module of the refactor
   (DEV-6646 task 2026-10-12-701) gives it one home.
+
+**The view's own bar above every panel's tab (2026-10-13).** With the header-less right panel
+the Admin approved on 2026-10-13, the apps' panels drop their head row above a remote tab, and
+the view's own bar is the only toolbar there. [F39's addendum of
+2026-10-13](#f39--the-peoples-view-of-the-environment-browser-one-tab-of-a-person-is-one-remote-tab)
+ends that bar with Kvalita obrazu and, inside an app's frame, Otevřít samostatně. The
+Launchpad's strip and T3 Code's panel change in their own steps.
 
 ## F48 — One shared GitHub App sign-in in a Work Environment (pilot)
 
