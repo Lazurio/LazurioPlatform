@@ -377,7 +377,7 @@ export function secretRequestText(
     case "pending":
       return `Pending: request ${request.id} waits for a person: ${whereToAnswer(request, origin)}`;
     case "saved":
-      return `Saved: the vault holds it as the item "${request.item}" in the collection Agenti. Read it from the vault (eval "$(lazurio vault env)"; bw sync; bw get item "${request.item}") and never print its values.`;
+      return `Saved: the vault holds it as the item "${request.item}" in the collection Agenti. After eval "$(lazurio vault env)" and bw sync, pass its fields from bw get item "${request.item}" straight into the command that needs them; never print them.`;
     case "declined":
       return `Declined: the person declined request ${request.id}; nothing was saved.`;
   }

@@ -547,7 +547,7 @@ test.skipIf(!posix)(
       // The agent learns it is saved, and under which name.
       const status = await w.cli(["request", "status", id]);
       expect(status.stdout).toBe(
-        `Saved: the vault holds it as the item "Fakturace API klient" in the collection Agenti. Read it from the vault (eval "$(lazurio vault env)"; bw sync; bw get item "Fakturace API klient") and never print its values.`,
+        `Saved: the vault holds it as the item "Fakturace API klient" in the collection Agenti. After eval "$(lazurio vault env)" and bw sync, pass its fields from bw get item "Fakturace API klient" straight into the command that needs them; never print them.`,
       );
       expect(await page.get("/api/vault/requests")).toEqual({
         status: 200,
