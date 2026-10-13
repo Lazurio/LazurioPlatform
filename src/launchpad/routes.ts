@@ -8,12 +8,15 @@ import type { MessageKey } from "./messages";
 // same bundled page for exactly these paths and nothing else; the credential
 // never travels in the path (decision F15 addendum 2026-09-28).
 
-/** The sections of Settings, in the order of the settings navigation. */
+/** The sections of Settings, in the order of the settings navigation.
+ * `vault` is Nastavení → Trezor, the way into the Environment's own vault
+ * (root decision 0198 point 5), right after the tools. */
 export const settingsSections = [
   "general",
   "communication",
   "machine",
   "tools",
+  "vault",
   "ssh",
   "recovery",
 ] as const;
@@ -227,6 +230,7 @@ export const sectionLabels: Readonly<Record<SettingsSection, MessageKey>> = {
   communication: "voiceTitle",
   machine: "machineTitle",
   tools: "toolsTitle",
+  vault: "vaultPageTitle",
   ssh: "sshTitle",
   recovery: "recoveryTitle",
 };

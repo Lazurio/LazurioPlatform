@@ -19,7 +19,7 @@
   else if (trimmed === "/settings" || trimmed.indexOf("/settings/") === 0) {
     frame = "settings";
     section = trimmed.slice("/settings/".length);
-    if (["general", "communication", "machine", "tools", "ssh", "recovery"].indexOf(section) < 0) section = "general";
+    if (["general", "communication", "machine", "tools", "vault", "ssh", "recovery"].indexOf(section) < 0) section = "general";
   }
   root.setAttribute("data-frame", frame);
   if (section) root.setAttribute("data-section", section);
@@ -102,11 +102,13 @@ html:not([data-section="communication"]) #view-settings > [data-section="communi
 html:not([data-section="general"]) #view-settings > [data-section="general"],
 html:not([data-section="machine"]) #view-settings > [data-section="machine"],
 html:not([data-section="tools"]) #view-settings > [data-section="tools"],
+html:not([data-section="vault"]) #view-settings > [data-section="vault"],
 html:not([data-section="ssh"]) #view-settings > [data-section="ssh"],
 html:not([data-section="recovery"]) #view-settings > [data-section="recovery"],
 html:not([data-frame="files"]) [data-section-action="files"],
 html:not([data-section="general"]) [data-section-action="general"],
 html:not([data-section="tools"]) [data-section-action="tools"],
+html:not([data-section="vault"]) [data-section-action="vault"],
 html:not([data-section="ssh"]) [data-section-action="ssh"],
 html:not([data-section="recovery"]) [data-section-action="recovery"] { display: none !important; }
 /* The places of the shell elements before their script defines them: the
@@ -433,7 +435,8 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 /* Tools. */
 .tools-list { margin: 0; padding: 0; list-style: none; }
 .tool-state[data-state="attention"], .tool-attention { color: var(--warning-fg); }
-.tool-signin[data-state="signed-in"] { color: var(--success-fg); }
+.tool-signin[data-state="signed-in"], .vault-page-state[data-tone="ok"] { color: var(--success-fg); }
+.vault-page-state[data-tone="warn"] { color: var(--warning-fg); }
 .tool-signin[data-state="signed-out"], .tool-ssh[data-state="not-linked"] { color: var(--warning-fg); }
 .tools-muted { color: var(--muted-fg); font-size: 12.5px; }
 .row-details { margin-top: 0.5rem; }
@@ -930,6 +933,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <li><a class="menu-item" href="/settings/communication" data-section="communication" data-route><svg class="icon" aria-hidden="true"><use href="#i-general"/></svg><span class="menu-name" data-message="voiceTitle">Agent communication</span></a></li>
 <li><a class="menu-item" href="/settings/machine" data-section="machine" data-route><svg class="icon" aria-hidden="true"><use href="#i-machine"/></svg><span class="menu-name" data-message="machineTitle">This Environment</span></a></li>
 <li><a class="menu-item" href="/settings/tools" data-section="tools" data-route><svg class="icon" aria-hidden="true"><use href="#i-tools"/></svg><span class="menu-name" data-message="toolsTitle">Tools</span></a></li>
+<li><a class="menu-item" href="/settings/vault" data-section="vault" data-route><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span class="menu-name" data-message="vaultPageTitle">Vault</span></a></li>
 <li><a class="menu-item" href="/settings/ssh" data-section="ssh" data-route><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg><span class="menu-name" data-message="sshTitle">SSH from your devices</span></a></li>
 <li><a class="menu-item" href="/settings/recovery" data-section="recovery" data-route><svg class="icon" aria-hidden="true"><use href="#i-recovery"/></svg><span class="menu-name" data-message="recoveryTitle">Recovery</span></a></li>
 </ul>
@@ -977,6 +981,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <button type="button" class="ghost" id="files-refresh" data-section-action="files"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="filesRefresh">Refresh</span></button>
 <button type="button" class="ghost" id="reload" data-section-action="general"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="reload">Reload profile</span></button>
 <button type="button" class="ghost" id="tools-refresh" data-section-action="tools"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="toolsRefresh">Refresh status</span></button>
+<button type="button" class="ghost" id="vault-page-refresh" data-section-action="vault"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="toolsRefresh">Refresh status</span></button>
 <button type="button" class="ghost" id="ssh-refresh" data-section-action="ssh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="sshRefresh">Refresh</span></button>
 <button type="button" class="ghost" id="recovery-refresh" data-section-action="recovery"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="recoveryAgain">Check again</span></button>
 </div>
@@ -1096,6 +1101,28 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <section class="group" aria-labelledby="tools-mcp-heading">
 <div class="group-head"><h2 id="tools-mcp-heading" data-message="toolsMcpTitle">A custom MCP server</h2></div>
 <div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-desc" data-message="toolsMcpText">You add custom MCP servers in Apps → Integrations → Custom; an agent adds one on your explicit request.</p></div><div class="row-control"><button type="button" id="tools-mcp" data-message="toolsMcpAction" disabled>Add one with an agent</button></div></div></div></div>
+</section>
+</section>
+
+<!-- Vault, Nastavení → Trezor (root decision 0198 point 5, the wireframe of
+     prototypes-lazurio#33): the rule, the Environment's own vault with its
+     state, and the way into Lazurio Vaultwarden on its own address; drawn
+     by vault-page-panel.ts. The Launchpad never lists items or shows a
+     value. -->
+<section id="section-vault" data-section="vault" aria-labelledby="page-heading">
+<div class="section-head-text">
+<p class="intro" id="vault-page-rule" data-message="vaultPageRule">Whoever has access to the Environment has all of its passwords.</p>
+<p class="intro" id="vault-page-note" hidden></p>
+</div>
+<p id="vault-page-status" class="row-status" role="status" aria-live="polite"></p>
+<!-- Žádosti agentů (root decision 0198 point 9 (c), DEV-6631 task 651):
+     the agents' secret requests wait here, above the vault, each opening its
+     request's page. Filled by the requests' own change; empty and hidden
+     until then. -->
+<section class="group" id="vault-requests" hidden></section>
+<section class="group" id="vault-page-group" hidden>
+<div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" id="vault-page-name"></p><p class="row-status vault-page-state" id="vault-page-state" role="status" aria-live="polite"></p></div><div class="row-control" id="vault-page-actions"></div></div></div></div>
+<p class="group-note" id="vault-page-hint" hidden></p>
 </section>
 </section>
 

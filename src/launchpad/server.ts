@@ -167,6 +167,7 @@ import {
   readStartState,
 } from "./start-check";
 import type { UpdatePill } from "./update-pill";
+import { createVaultPageRoutes } from "./vault-page-routes";
 import { createVaultRoutes, isVaultJob } from "./vault-routes";
 
 // One local owner. Optional application adapters are trusted composition, never
@@ -257,6 +258,11 @@ const settingsWaitMs = 5_000;
  * held longer for it. */
 const bootLockWaitMs = 250;
 const bootWithinMs = 500;
+
+/** How often an installed hosted Launchpad looks whether its work
+ * Environment was assigned to someone else, so its Správci leave the vault
+ * (F52's addendum of 2026-10-14). */
+const vaultAudienceEveryMs = 5 * 60_000;
 
 /** The tailnet control server the Machine handover names (decision F41);
  * none where there is no readable handover, as on a workstation. */
@@ -575,18 +581,27 @@ export async function startLaunchpad(
   // The setup in which the vault becomes ready turns the agents' switch on
   // in this Launchpad's Folder (decision F53): the default host does so
   // already, a given one gets it here.
+  const vaultHostOf = (): VaultHost =>
+    vaultHost === undefined
+      ? (defaultVault as VaultHost)
+      : {
+          ...vaultHost,
+          journal: vaultHost.journal ?? vaultJournal,
+          enableForAgents:
+            vaultHost.enableForAgents ?? (() => enableVaultForAgents(folder)),
+        };
   const vault = createVaultRoutes({
-    host: () =>
-      vaultHost === undefined
-        ? (defaultVault as VaultHost)
-        : {
-            ...vaultHost,
-            journal: vaultHost.journal ?? vaultJournal,
-            enableForAgents:
-              vaultHost.enableForAgents ?? (() => enableVaultForAgents(folder)),
-          },
+    host: vaultHostOf,
     // A closing Launchpad starts no setup (`start` asks it last).
     closing: () => closing,
+  });
+  // Settings → Vault, Nastavení → Trezor (root decision 0198 point 5, F52's
+  // addendum of 2026-10-14): the page, and the membership of the person the
+  // gateway admitted, over the same core and the same journal.
+  const vaultPage = createVaultPageRoutes({
+    host: vaultHostOf,
+    setup: () => vault.running(),
+    headers,
   });
   // Executor (decision F44): its setup journals the outcome and a fixed
   // reason, never a path, an output or a value.
@@ -860,12 +875,17 @@ export async function startLaunchpad(
       const url = new URL(request.url);
       const response = (body: unknown, status = 200) =>
         Response.json(body, { status, headers });
+      // Whom the gateway's own answer to this request's admission named:
+      // used only for the membership of the Environment's vault (decision
+      // F11's amendment of 2026-10-14). Locally nobody is named.
+      let subject: string | null = null;
       if (trust !== null && shell !== null) {
         // Hosted: the gateway's admission, revalidated here; the request's
         // own URL is loopback and is not evidence of anything.
         const admission = await trust.admit(request);
         if (!admission.ok)
           return response({ error: "denied", reason: admission.reason }, 401);
+        subject = admission.subject;
         if (
           (request.method === "GET" || request.method === "HEAD") &&
           (url.pathname === "/files" || url.pathname.startsWith("/files/"))
@@ -1365,6 +1385,17 @@ export async function startLaunchpad(
         if (closing) return response({ error: "closing" }, 503);
         try {
           return await ssh.handle(request, url);
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      if (vaultPage.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        // The membership asks the vault a few times (members, an
+        // invitation, a confirmation).
+        server.timeout(request, 300);
+        try {
+          return await vaultPage.handle(request, url, subject);
         } catch {
           return response({ error: "operation-failed" }, 500);
         }
@@ -1901,9 +1932,31 @@ export async function startLaunchpad(
   // background once the Launchpad listens; never awaited, never a reason for
   // the start to fail, one attempt per start.
   const vaultAtStart = installed?.vaultAtStart;
+  // The Správci of a work Environment leave its vault when it is assigned to
+  // someone else (F52's addendum of 2026-10-14): looked at once the start's
+  // setup has ended, then every five minutes, never waiting for anyone to
+  // open the vault page. A look reads the handover and one local file; only
+  // a changed assignment asks the vault. One look at a time.
+  let audienceTimer: ReturnType<typeof setInterval> | undefined;
+  let looking = false;
+  const lookAtAudience = () => {
+    if (closing || looking) return;
+    looking = true;
+    void vaultPage
+      .audience()
+      .catch(() => undefined)
+      .finally(() => {
+        looking = false;
+      });
+  };
   if (vaultAtStart !== undefined)
     void (async () => {
-      if ((await vaultAtStart()) && !closing) await vault.atStart();
+      if (!(await vaultAtStart()) || closing) return;
+      await vault.atStart();
+      await vault.settled();
+      if (closing) return;
+      lookAtAudience();
+      audienceTimer = setInterval(lookAtAudience, vaultAudienceEveryMs);
     })().catch(() => undefined);
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
@@ -1917,6 +1970,7 @@ export async function startLaunchpad(
     hosted: entry !== null,
     close() {
       closing = true;
+      clearInterval(audienceTimer);
       if (!closePending)
         closePending = (async () => {
           // Close admission immediately, before waiting for HTTP requests to drain.
