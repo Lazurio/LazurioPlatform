@@ -262,6 +262,11 @@ test("an Organization's Environment is made current in the organization of its O
     expect(
       overview.apps.find((app) => app.id === "gmail")?.accounts[0]?.manage,
     ).toBe("https://dashboard.composio.dev/priklad/~/connect/apps/gmail");
+    // "Aplikace v Composiu" opens that organization's Apps (F42, addendum
+    // of 2026-10-14).
+    expect(overview.composio.apps).toBe(
+      "https://dashboard.composio.dev/priklad/~/connect/apps",
+    );
     // Journaled as the operation and its outcome, never a name or an id.
     expect(console.text()).toContain("composio-organization");
     expect(console.text()).toContain("switched");
@@ -298,6 +303,10 @@ test("an account without the organization: Composio works in the person's curren
     { path: "composio", state: "connected" },
   ]);
   expect(card?.connected).toBe(true);
+  // Composio's Apps in the organization it works in meanwhile.
+  expect(overview.composio.apps).toBe(
+    "https://dashboard.composio.dev/jana_workspace/~/connect/apps",
+  );
   const connect = await app.post("/api/integrations/connect", {
     app: "salesforce",
   });
@@ -321,6 +330,10 @@ test("an account without the organization: Composio works in the person's curren
   );
   expect(integrationsText(overview)).toContain(
     "Composio: the person's account has no organization named \"Příklad\" (this Environment's Organization), so Composio works in the person's current organization meanwhile.",
+  );
+  // Agents learn where the person connects an app the catalog does not list.
+  expect(integrationsText(overview)).toContain(
+    "An app the catalog does not list is connected by the person in Composio (https://dashboard.composio.dev/jana_workspace/~/connect/apps); it then shows here.",
   );
 });
 
@@ -366,6 +379,11 @@ test("an organization of the name that cannot be made current: nothing of Compos
     name: "Příklad",
     state: "elsewhere",
   });
+  // No way to Composio's Apps where its organization cannot be told.
+  expect(overview.composio.apps).toBeNull();
+  expect(integrationsText(overview)).not.toContain(
+    "connected by the person in Composio",
+  );
   expect(overview.apps.find((item) => item.id === "gmail")?.accounts).toEqual(
     [],
   );
@@ -450,6 +468,7 @@ test("an Organization's Environment whose Organization's name cannot be read: no
     name: null,
     state: "unverified",
   });
+  expect(overview.composio.apps).toBeNull();
   expect(overview.apps.find((item) => item.id === "gmail")?.accounts).toEqual(
     [],
   );
@@ -473,6 +492,10 @@ test("where the person chooses, the organization is never read or changed", asyn
   const overview = await read();
   expect(overview.composio.organization).toBeNull();
   expect(overview.sources.composio).toBe("ok");
+  // The organization the person chose.
+  expect(overview.composio.apps).toBe(
+    "https://dashboard.composio.dev/jana_workspace/~/connect/apps",
+  );
   expect(
     (await composioCalls(world.home)).some((call) => call[0] === "orgs"),
   ).toBe(false);

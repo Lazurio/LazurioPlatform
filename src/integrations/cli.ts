@@ -115,6 +115,12 @@ export function integrationsText(overview: IntegrationsOverview): string {
       ? "A missing app is connected by the person in the Launchpad under Apps → Integrations; --json lists every app with what it needs."
       : `A missing app is connected by the person on its card (${overview.page}/app/<id>); --json lists every app with its link.`,
   );
+  // Composio's own Apps, for an app the catalog does not list (decision
+  // F42, addendum of 2026-10-14).
+  if (overview.composio.apps !== null)
+    lines.push(
+      `An app the catalog does not list is connected by the person in Composio (${overview.composio.apps}); it then shows here.`,
+    );
   return lines.join("\n");
 }
 

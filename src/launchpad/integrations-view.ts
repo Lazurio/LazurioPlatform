@@ -88,6 +88,10 @@ function isChoice(value: unknown): value is PathChoice {
   return false;
 }
 
+/** A link the page opens in Composio's dashboard, and no other. */
+const dashboardLink = (value: unknown): boolean =>
+  typeof value === "string" && value.startsWith(`${composioDashboard}/`);
+
 function isAccount(value: unknown): value is IntegrationAccount {
   if (typeof value !== "object" || value === null) return false;
   const account = value as Record<string, unknown>;
@@ -97,9 +101,7 @@ function isAccount(value: unknown): value is IntegrationAccount {
     (account.label === null || typeof account.label === "string") &&
     states.has(account.state as string) &&
     typeof account.spare === "boolean" &&
-    (account.manage === null ||
-      (typeof account.manage === "string" &&
-        account.manage.startsWith(`${composioDashboard}/`)))
+    (account.manage === null || dashboardLink(account.manage))
   );
 }
 
@@ -151,6 +153,7 @@ export function parseIntegrations(value: unknown): IntegrationsOverview | null {
     (composio.source !== "organization" && composio.source !== "environment") ||
     typeof composio.ready !== "boolean" ||
     typeof composio.disconnect !== "boolean" ||
+    (composio.apps !== null && !dashboardLink(composio.apps)) ||
     !isTarget(composio.organization) ||
     typeof sources !== "object" ||
     sources === null ||
@@ -313,7 +316,11 @@ export function cardView(
 ): CardView {
   const { copy } = options;
   const choice = forAdmin(app.path, options.admin);
-  const about = entry?.description[options.locale] ?? app.name;
+  // An app the catalog does not know has no sentence of its own: it says
+  // where it comes from (decision F42, addendum of 2026-10-14).
+  const about =
+    entry?.description[options.locale] ??
+    (app.catalog ? app.name : copy.integrationsOutsideCatalog);
   const own = app.accounts.filter((account) => !account.spare);
   const waiting =
     !app.connected &&
@@ -461,6 +468,28 @@ export function disconnectText(
   return composioAccount === null
     ? copy.integrationsDisconnectComposioAny
     : fill(copy.integrationsDisconnectComposio, { account: composioAccount });
+}
+
+/** The way to Composio's Apps and back (decision F42, addendum of
+ * 2026-10-14): "Aplikace v Composiu" opened (`opened`), the page lost the
+ * person to it (`left`: the tab hidden or the window blurred), and their
+ * return (`back`) reads the connections once, so what they connected in
+ * Composio shows without "Zkontrolovat připojení". A link opened in the
+ * background never took the person away: its page reads again only once
+ * they did leave and came back. Focus and visibility both report a return;
+ * the second reads nothing. No polling. */
+export type ComposioTrip = "idle" | "opened" | "away";
+
+export function composioTrip(
+  trip: ComposioTrip,
+  event: "opened" | "left" | "back",
+): Readonly<{ trip: ComposioTrip; refresh: boolean }> {
+  if (event === "opened") return { trip: "opened", refresh: false };
+  if (event === "left")
+    return { trip: trip === "idle" ? "idle" : "away", refresh: false };
+  return trip === "away"
+    ? { trip: "idle", refresh: true }
+    : { trip, refresh: false };
 }
 
 /** One line per source that could not be read, so a missing source is

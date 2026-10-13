@@ -122,7 +122,23 @@ test("the corner holds the page's help link by its frame: the Guide on the Apps 
     childrenOf(corner).map(
       (node) => node.attributes.get("id") ?? classes(node).join(" "),
     ),
-  ).toEqual(["catalog-guide", "integrations-help", "ghost browser-toggle"]);
+  ).toEqual([
+    "catalog-guide",
+    "integrations-composio",
+    "integrations-help",
+    "ghost browser-toggle",
+  ]);
+  // "Aplikace v Composiu" beside Jak to funguje (decision F42, addendum of
+  // 2026-10-14): Integrace only, a new tab of the person's browser, hidden
+  // until the reading carries Composio's Apps (integrations-panel.ts render).
+  const composio = byId("integrations-composio");
+  expect(composio.tag).toBe("a");
+  expect(composio.attributes.get("data-view")).toBe("integrations");
+  expect(composio.attributes.get("target")).toBe("_blank");
+  expect(composio.attributes.get("rel")).toBe("noopener noreferrer");
+  expect(composio.attributes.has("hidden")).toBe(true);
+  expect(composio.attributes.has("href")).toBe(false);
+  expect(says(composio, "integrationsComposioApps")).toBe(true);
   for (const [id, frame, word] of [
     ["catalog-guide", "catalog", "appsGuide"],
     ["integrations-help", "integrations", "integrationsHelp"],

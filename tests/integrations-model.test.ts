@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import type { IntegrationsCatalog } from "../src/integrations/catalog-schema";
 import {
   type ComposioAccount,
+  composioAppsUrl,
   composioManageUrl,
   composioNamesFreshMs,
   composioState,
@@ -17,6 +18,7 @@ import {
   forAdmin,
   type MergeInput,
   mergeIntegrations,
+  toolkitName,
 } from "../src/integrations/model";
 import { executorHere, scopeOf } from "../src/integrations/read";
 import type { ToolOverview, ToolsOverview } from "../src/tools/overview";
@@ -363,6 +365,8 @@ test("Composio not allowed: its accounts do not count, the source says why, and 
     source: "organization",
     ready: true,
     disconnect: false,
+    // Not allowed: no way to Composio's Apps either.
+    apps: null,
     organization: null,
   });
   const salesforce = overview.apps.find((item) => item.id === "salesforce");
@@ -498,7 +502,8 @@ test("Composio's toolkits the catalog does not know are listed, and links follow
   );
   expect(overview.apps.find((item) => item.id === "todoist")).toEqual({
     id: "todoist",
-    name: "todoist",
+    // Named from its toolkit (addendum of 2026-10-14); the id stays the slug.
+    name: "Todoist",
     path: { path: "composio", signIn: false },
     // Its one account's sign-in expired: listed, but not connected.
     connected: false,
@@ -722,6 +727,82 @@ test("a Composio account links to its app's page in the person's Composio organi
     ],
   ]);
   expect(accounts("notion")).toEqual([["direct", null]]);
+});
+
+// "Aplikace v Composiu" (decision F42, addendum of 2026-10-14): the Apps
+// section of the Composio organization this Environment works in, built by
+// the server like an account's `manage`, and only where Composio's accounts
+// count here.
+test("Aplikace v Composiu: the Apps of the person's Composio organization, only where Composio's accounts count", () => {
+  expect(composioAppsUrl("First")).toBe(
+    "https://dashboard.composio.dev/First/~/connect/apps",
+  );
+  expect(composioAppsUrl("R&D / Sales?#1")).toBe(
+    "https://dashboard.composio.dev/R%26D%20%2F%20Sales%3F%231/~/connect/apps",
+  );
+  // Unknown: the person's current organization, as for an account's page.
+  expect(composioAppsUrl(null)).toBe(
+    "https://dashboard.composio.dev/~/org/connect/apps",
+  );
+  for (const organization of ["First", "Žluťoučký kůň", null]) {
+    const url = new URL(composioAppsUrl(organization));
+    expect(url.origin).toBe("https://dashboard.composio.dev");
+    expect(url.search).toBe("");
+    expect(url.hash).toBe("");
+    // An account's page is the app's page below it.
+    expect(composioManageUrl(organization, "gmail")).toBe(
+      `${composioAppsUrl(organization)}/gmail`,
+    );
+  }
+  const apps = (input: Partial<MergeInput>) =>
+    mergeIntegrations({ ...base, ...input }).composio.apps;
+  expect(apps({ composioOrganization: "Žluťoučký kůň" })).toBe(
+    "https://dashboard.composio.dev/%C5%BDlu%C5%A5ou%C4%8Dk%C3%BD%20k%C5%AF%C5%88/~/connect/apps",
+  );
+  expect(apps({ composioOrganization: null })).toBe(
+    "https://dashboard.composio.dev/~/org/connect/apps",
+  );
+  // Composio not usable here: none, whatever the reason.
+  expect(apps({ policy: { allowed: false, source: "organization" } })).toBe(
+    null,
+  );
+  expect(apps({ composioReady: false })).toBeNull();
+  for (const state of [
+    "unavailable",
+    "unreadable",
+    "signed-out",
+    "organization",
+  ] as const)
+    expect(
+      apps({ composioOrganization: "First", composio: { state } }),
+    ).toBeNull();
+});
+
+test("a toolkit the catalog does not know is named from its slug, and agents still find it by the slug", () => {
+  expect(toolkitName("wispr_flow")).toBe("Wispr Flow");
+  expect(toolkitName("todoist")).toBe("Todoist");
+  expect(toolkitName("google-ads_v2")).toBe("Google Ads V2");
+  expect(toolkitName("_")).toBe("_");
+  const overview = mergeIntegrations({
+    ...base,
+    composio: {
+      state: "ok",
+      accounts: [
+        {
+          toolkit: "wispr_flow",
+          state: "connected",
+          alias: null,
+          wordId: "castle",
+        },
+      ],
+    },
+  });
+  expect(overview.apps.find((item) => item.id === "wispr_flow")).toMatchObject({
+    name: "Wispr Flow",
+    catalog: false,
+    connected: true,
+    path: { path: "composio", signIn: false },
+  });
 });
 
 // `link <toolkit> --list` as a fake runner answers it: the accounts of each

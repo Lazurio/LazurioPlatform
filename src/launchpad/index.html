@@ -603,6 +603,13 @@ button.link-button, a.link-button { height: auto; padding: 0; border: 0; backgro
 button.link-button:hover, a.link-button:hover { background: none; text-decoration: underline; }
 button.link-button.danger { color: var(--destructive); }
 .integrations-more { justify-self: center; margin-top: 12px; }
+/* An app the catalog does not list: one quiet question and Composio's Apps
+   (decision F42, addendum of 2026-10-14). */
+.integrations-hint { margin: 12px 0 0; color: var(--muted-fg); font-size: 13px; }
+.empty .integrations-hint { display: block; margin-top: 6px; }
+.integrations-hint a { display: inline-flex; align-items: center; gap: 4px; color: var(--fg); font-weight: var(--lz-weight-akce); text-decoration: none; }
+.integrations-hint a:hover { text-decoration: underline; }
+.integrations-hint .icon { width: 13px; height: 13px; }
 .integrations-custom-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; }
 .integrations-custom-head h2 { font-size: 15px; }
 .composio-organization { display: grid; justify-items: start; gap: 10px; }
@@ -765,7 +772,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
   .browser-panel.is-leaving { animation-name: browser-sheet-out; }
   .browser-divider { display: none; }
 }
-@media (max-width: 767px) { .browser-toggle-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
+@media (max-width: 767px) { .browser-toggle-text, .integrations-composio-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
 
 /* Narrow viewport: the column is an off-canvas sheet beside the rail,
    opened from a button at the top of the page (T3 Code ui/sidebar.tsx below
@@ -965,7 +972,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
      offered and which stays, pressed, while the panel is open. -->
 <div class="page-top">
 <div class="page-corner page-corner-start"><button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button></div>
-<div class="page-corner page-corner-end" id="page-corner"><a class="apps-guide" id="catalog-guide" data-view="catalog" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a><a class="apps-guide" id="integrations-help" data-view="integrations" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="integrationsHelp">How it works</span></a><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></div>
+<div class="page-corner page-corner-end" id="page-corner"><a class="apps-guide" id="catalog-guide" data-view="catalog" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a><a class="apps-guide" id="integrations-composio" data-view="integrations" target="_blank" rel="noopener noreferrer" hidden><svg class="icon" aria-hidden="true"><use href="#i-external"/></svg><span class="integrations-composio-text" data-message="integrationsComposioApps">Apps in Composio</span></a><a class="apps-guide" id="integrations-help" data-view="integrations" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="integrationsHelp">How it works</span></a><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></div>
 </div>
 <!-- Settings and Files: a 52 px header with the breadcrumb and the page
      actions (T3 Code). The Apps home has none: no top bar. -->
