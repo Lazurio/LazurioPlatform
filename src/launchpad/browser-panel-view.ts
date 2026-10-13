@@ -51,12 +51,17 @@ export const browserHandOverPath = "/.lazurio/browser";
 /** The frame's attributes. `allow` lets the view use the clipboard (copying
  * out of the Environment browser, pasting into it) and full screen; the
  * sandbox is the one of T3 Code's panel (Lazurio/t3code#41): the view keeps
- * its own origin, cookie and scripts, and cannot navigate this page. */
+ * its own origin, cookie and scripts, and cannot navigate this page. A tab
+ * the view opens escapes the sandbox (`allow-popups-to-escape-sandbox`, F47
+ * point 9's addendum of 2026-10-13), as a tab opened from Nová karta's frame
+ * does (`newTabFrameSandbox`): the view's own "Otevřít samostatně" then opens
+ * an ordinary tab of the person's browser, where without the flag the tab
+ * would inherit this sandbox. The frame itself stays as confined. */
 export const browserFrame = Object.freeze({
   allow: "clipboard-read; clipboard-write; fullscreen",
   referrerpolicy: "no-referrer",
   sandbox:
-    "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals",
+    "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals",
 });
 
 /** How often the strip reads the overview while the panel is open. */
