@@ -53,8 +53,11 @@ mixed-licence, and it can go upstream with them. Its terms are the module's own
    from outside it; a later import from elsewhere into the module needs the
    exception widened by a decision, or the code moved in.
 2. The files a release's shell artifact lists under `browserContract` in its
-   `artifact.json`. The artifact gains that listing, with the module's licence
-   file and NOTICE beside the files, in a later step of F50.
+   `artifact.json`: below `browser-contract/`, the module's two parts as ES
+   modules with their declarations, its vectors with their README, and its
+   licence file. The archive's root `LICENSE` is the Elastic text for its
+   other files, and its `NOTICE`, which a fork keeps beside the vendored files,
+   names this exception (F50 point 5's addendum of 2026-10-14).
 3. By the grant recorded in decision F50 point 6 (2026-10-12), the functions
    the T3 Code fork's overlay copied from `src/browser/people/holds.ts` at
    49d54c9 into `apps/server/src/lazurio/holders.ts`, as that file's header
@@ -81,7 +84,8 @@ the same licensor) inside files that are otherwise Elastic-2.0:
 - the Launchpad's own pages, which its executable serves: the rules Nová
   karta and the browser panel read.
 
-A fork takes the contract from the module's own files, not from these.
+A fork takes the contract from the module's own files, the shell artifact's
+`browser-contract/`, not from these.
 
 ## Provenance and audit
 
