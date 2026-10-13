@@ -2040,14 +2040,15 @@ on "Refresh status"). A setup that runs is the state both answer, `202 {kind:
 "vault-setting-up", job, phase}`, and the row follows it by its job whoever started it,
 saying its step: "Instaluje se Bitwarden…", "Připravuje se účet trezoru…",
 "Připravuje se trezor…", "Přihlašuje se…". Otherwise it says the state in few words:
-"Připojeno", "Zatím nenastaveno", "Síť zatím účet trezoru nepovolila", "Trezor byl
+"Připojeno", "Zatím nenastaveno", "Trezor se zakládá" (its creation not confirmed yet),
+"Síť zatím účet trezoru nepovolila", "Trezor byl
 odebrán" (a 0197 pilot's: "Přístup odebrán v trezoru"), "Trezor neodpovídá", "Nastavení
 se nedokončilo", "Tento Environment zatím trezor nemá" (the handover names no vault)
 and "Brzy · druhá vlna" on this computer ("Connected", "Not set up yet", …). Its
 controls are "Otevřít trezor" once connected, a link in a new tab to
 `<server_url>/#/vault?organizationId=<id>`, and one action only where a setup moves the
 vault on: "Nastavit" when nothing set it up yet and "Zkusit znovu" after a setup that
-stopped or a vault that did not answer. A vault the network has not allowed or has
+stopped, a vault that did not answer or a creation not confirmed yet. A vault the network has not allowed or has
 revoked, and a 0197 pilot, offer none; there is no dialog, no details section and no
 disconnect. The setup in which the vault becomes ready turns the agents' switch on in the
 Folder itself, once per vault (decision F52), so a person who turns it off keeps it off;

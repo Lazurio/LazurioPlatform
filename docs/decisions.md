@@ -10598,9 +10598,9 @@ session of F43.
    `${XDG_STATE_HOME:-~/.local/state}/lazurio/vault/<vault host>/<account>/`, so an
    account the handover replaces starts afresh and a 0197 pilot's directory, keyed by
    its address, stays beside it untouched. `lazurio-vault.json` now holds the vault's
-   organization id, its collection Agenti's id and, while a creation is under way,
-   its receipt; a record that cannot be read refuses (`record-unreadable`) and nothing
-   is ever created over it. No bw this product starts ever runs without a data
+   organization id, its collection Agenti's id and, while a creation is unresolved,
+   its receipt and the receipt's time; a record that cannot be read refuses
+   (`record-unreadable`) and nothing is ever created over it. No bw this product starts ever runs without a data
    directory of its own, because bw rewrites its store on every start: the vault's
    `bwCli` refuses to start without an absolute one and sets it last on every run,
    and the version probe of Settings → Tools gives a `bw` on PATH a fresh temporary
@@ -10618,9 +10618,19 @@ session of F43.
    account; the name, `vault.name`; and the first collection, "Agenti", its name
    encrypted with the organization key. bw cannot create an organization; these are
    the web vault's requests, proven against 1.37.4-lazurio.1 by the DEV-6631 study of
-   2026-10-12. The new organization's public key is recorded before the request: an
-   organization whose answer was lost is recognized by it
-   (`GET /api/organizations/<id>/public-key`) and never created twice. Agenti is the
+   2026-10-12. **Idempotent by its receipt:** the new organization's public key is
+   recorded with the time before the request is sent, and while that receipt is
+   unresolved no setup sends another creation. Each one looks for the organization
+   that carries the key among the account's memberships of any status
+   (`/api/accounts/profile`, then `GET /api/organizations/<id>/public-key`) and
+   records it once its membership is confirmed. While none carries it (an answer that
+   was lost, a profile that lists the organization late, a request that arrives late)
+   the setup reports `creating` and the next one looks again; only a receipt older
+   than 15 minutes, far above any request's 30 s, that still matches nothing is taken
+   for a creation that never happened: it is discarded, journaled
+   (`receipt-expired`, nothing else) and the vault created anew, once. A creation the
+   vault refuses with its answer (a 4xx but a rate limit) created nothing and
+   discards its receipt at once; no answer or a server error keeps it. Agenti is the
    organization's one collection, by its ID; several without a record of it are
    `collection-unknown`, never chosen by a name. A recorded organization the account
    no longer belongs to is `revoked` and is never replaced (only the network's
@@ -10633,10 +10643,11 @@ session of F43.
    account's lock. `lazurio vault setup` runs it, and so does the installed Launchpad
    in the background after its start, by Executor's pattern (F44's addendum of
    2026-10-11): on a supervised base of the hosted operator (`vaultAtStart`), once,
-   where `setUpAtStart` says the vault needs it (not set up, its session locked, or
-   its name no longer the handover's); never a 0197 pilot, a revoked vault or one
-   whose setup stopped, which wait for the row's action or an agent. The states:
-   `unsupported` (with `no-vault`), `not-set-up` (with the `next` step),
+   where `setUpAtStart` says the vault needs it (not set up, its creation not
+   confirmed yet, its session locked, or its name no longer the handover's); never a
+   0197 pilot, a revoked vault or one whose setup stopped, which wait for the row's
+   action or an agent. The states: `unsupported` (with `no-vault`), `not-set-up`
+   (with the `next` step), `creating` (a receipt not resolved yet),
    `not-allowed`, `connected` (`organizationId`, `collectionId`, `organization`,
    `items`; `locked`), `revoked`, `unreachable` and `failed` (`stage` now also
    `vault`). `lazurio vault status` stays the one source of truth for agents and the
@@ -10646,7 +10657,8 @@ session of F43.
 5. **The Tools row** (Settings → Tools → bitwarden) shows only the state and "Otevřít
    trezor", a link to `<server_url>/#/vault?organizationId=<id>`, plus one action only
    where a setup moves the vault on ("Nastavit", "Zkusit znovu", as the wireframe's
-   unreachable state does); no disconnect for the Environment's own vault. Czech copy
+   unreachable state does; "Trezor se zakládá" with "Zkusit znovu" while its creation
+   is not confirmed); no disconnect for the Environment's own vault. Czech copy
    addresses people formally and says little (root decision 0199). The routes are
    `POST /api/tools/bitwarden/status|refresh|setup`; a running setup answers
    `202 {kind: "vault-setting-up", job, phase}` from all three. The setup in which
@@ -10710,7 +10722,9 @@ Platform gate; it is re-pinned to that pull request's merge before this one merg
 Verified by unit tests against the fake Vaultwarden (`tests/fixtures/fake-vault.ts`,
 extended with the API-key login, the profile and the organization endpoints) and the
 fake bw: the setup from not allowed to connected, idempotent, renamed, its lost answer
-recognized by the receipt, gone and refused (`tests/vault-flow.test.ts`); the account
+recognized by the receipt, a profile that omits the new organization leaving it
+`creating` with one organization until it is found, a receipt that matches nothing
+made once after its bound, gone and refused (`tests/vault-flow.test.ts`); the account
 opening its own organization key from its master password down to Agenti's name and
 the organization's private key (`tests/vault-organization.test.ts`); the pilot with
 and without `vault` (`tests/vault-pilot.test.ts`); the CLI (`tests/vault-cli.test.ts`)

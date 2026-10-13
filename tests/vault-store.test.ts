@@ -135,16 +135,21 @@ test("a refused registration leaves nothing; the session is written whole", asyn
   }
 });
 
-test("the own vault's record is its IDs and a creation's receipt, and a damaged one is never taken for none", async () => {
+test("the own vault's record is its IDs and a creation's receipt with its time, and a damaged one is never taken for none", async () => {
   const t = await temporary();
   try {
     const empty = {
       organizationId: null,
       collectionId: null,
       pendingKey: null,
+      pendingSince: null,
     };
     expect(await readRecord(t.paths)).toEqual(empty);
-    const receipt = { ...empty, pendingKey: "A".repeat(392) };
+    const receipt = {
+      ...empty,
+      pendingKey: "A".repeat(392),
+      pendingSince: "2026-10-13T21:00:00.000Z",
+    };
     await writeRecord(t.paths, receipt);
     expect(await readRecord(t.paths)).toEqual(receipt);
     expect((await lstat(t.paths.record)).mode & 0o777).toBe(0o600);
@@ -152,11 +157,14 @@ test("the own vault's record is its IDs and a creation's receipt, and a damaged 
       organizationId: "0b9e2f3a-5c1d-4e8f-9a7b-1c2d3e4f5a6b",
       collectionId: "6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d",
       pendingKey: null,
+      pendingSince: null,
     };
     await writeRecord(t.paths, vault);
     expect(await readRecord(t.paths)).toEqual(vault);
-    // Damaged, of another shape (a 0197 pilot's), or a collection without
-    // its organization: refused, never read as no record.
+    // Damaged, of another shape (a 0197 pilot's, or this one's before the
+    // receipt had a time), a collection without its organization, or a
+    // receipt without its time or a time in another form: refused, never
+    // read as no record.
     for (const damaged of [
       "{broken",
       JSON.stringify({
@@ -164,8 +172,17 @@ test("the own vault's record is its IDs and a creation's receipt, and a damaged 
         organizationId: vault.organizationId,
         collectionId: vault.collectionId,
       }),
+      JSON.stringify({
+        organizationId: null,
+        collectionId: null,
+        pendingKey: receipt.pendingKey,
+      }),
       JSON.stringify({ ...vault, organizationId: null }),
       JSON.stringify({ ...vault, pendingKey: "not a key" }),
+      JSON.stringify({ ...receipt, pendingSince: null }),
+      JSON.stringify({ ...empty, pendingSince: receipt.pendingSince }),
+      JSON.stringify({ ...receipt, pendingSince: "2026-10-13T21:00:00Z" }),
+      JSON.stringify({ ...receipt, pendingSince: "yesterday" }),
       JSON.stringify({ ...vault, extra: 1 }),
     ]) {
       await writeFile(t.paths.record, damaged);

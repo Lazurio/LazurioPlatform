@@ -250,19 +250,28 @@ export async function writeSession(
  * and its first collection, Agenti, by ID, which is the vault's whole
  * identity (names never are). `pendingKey` is the receipt of a creation
  * under way: the new organization's public key, written before it is
- * created, so an organization whose answer was lost is recognized as this
- * account's own afterwards and never created twice. */
+ * created, so an organization whose answer was lost, or that the vault
+ * lists late, is recognized as this account's own afterwards and never
+ * created twice; `pendingSince` is when it was written (ISO 8601, UTC). */
 export type VaultRecord = Readonly<{
   organizationId: string | null;
   collectionId: string | null;
   pendingKey: string | null;
+  pendingSince: string | null;
 }>;
 
 export const emptyRecord: VaultRecord = Object.freeze({
   organizationId: null,
   collectionId: null,
   pendingKey: null,
+  pendingSince: null,
 });
+
+/** A time in its one form: `Date#toISOString`'s. */
+const isInstant = (value: unknown): value is string =>
+  typeof value === "string" &&
+  !Number.isNaN(Date.parse(value)) &&
+  new Date(value).toISOString() === value;
 
 /** The record, or the empty one when there is none. A record that is there
  * but cannot be read throws: it may be the only memory of the vault's ID, so
@@ -274,10 +283,12 @@ export async function readRecord(paths: VaultPaths): Promise<VaultRecord> {
   if (
     value === null ||
     Object.keys(value).sort().join() !==
-      "collectionId,organizationId,pendingKey" ||
+      "collectionId,organizationId,pendingKey,pendingSince" ||
     !(value.organizationId === null || isVaultId(value.organizationId)) ||
     !(value.collectionId === null || isVaultId(value.collectionId)) ||
     !(value.pendingKey === null || isPublicKey(value.pendingKey)) ||
+    !(value.pendingSince === null || isInstant(value.pendingSince)) ||
+    (value.pendingKey === null) !== (value.pendingSince === null) ||
     (value.collectionId !== null && value.organizationId === null)
   )
     throw new Error("Invalid vault record");
@@ -285,6 +296,7 @@ export async function readRecord(paths: VaultPaths): Promise<VaultRecord> {
     organizationId: value.organizationId as string | null,
     collectionId: value.collectionId as string | null,
     pendingKey: value.pendingKey as string | null,
+    pendingSince: value.pendingSince as string | null,
   });
 }
 
@@ -299,6 +311,7 @@ export async function writeRecord(
       organizationId: record.organizationId,
       collectionId: record.collectionId,
       pendingKey: record.pendingKey,
+      pendingSince: record.pendingSince,
     }),
   );
 }

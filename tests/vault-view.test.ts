@@ -42,6 +42,7 @@ test("every state the server answers is read back exactly; anything else is refu
   for (const value of [
     { state: "not-set-up", next: "install" },
     { state: "not-set-up", next: "vault" },
+    { state: "creating" },
     { state: "not-allowed" },
     connected,
     { ...connected, organization: null, items: null, locked: true },
@@ -141,6 +142,7 @@ test("the row says the state in few words, formally in Czech, and the step of a 
         null,
         copy,
       ),
+      vaultRowLine(status({ state: "creating" }), null, copy),
       vaultRowLine(status({ state: "not-allowed" }), null, copy),
       vaultRowLine(status({ state: "revoked" }), null, copy),
       vaultRowLine(
@@ -179,6 +181,7 @@ test("the row says the state in few words, formally in Czech, and the step of a 
     "unknown: Zjišťuji stav…",
     "signed-in: Připojeno",
     "unknown: Zatím nenastaveno",
+    "unknown: Trezor se zakládá",
     "signed-out: Síť zatím účet trezoru nepovolila",
     "signed-out: Trezor byl odebrán",
     "signed-out: Přístup odebrán v trezoru",
@@ -192,6 +195,7 @@ test("the row says the state in few words, formally in Czech, and the step of a 
     "unknown: Checking…",
     "signed-in: Connected",
     "unknown: Not set up yet",
+    "unknown: The vault is being created",
     "signed-out: The network has not allowed its account yet",
     "signed-out: The vault was removed",
     "signed-out: Access removed in the vault",
@@ -224,6 +228,11 @@ test("the row opens the connected vault and offers one action only where a setup
   expect(
     vaultAction(status({ state: "unreachable", reason: "x" }), null, cs),
   ).toBe("Zkusit znovu");
+  // A creation not confirmed yet: looked for again, never made twice.
+  expect(vaultAction(status({ state: "creating" }), null, cs)).toBe(
+    "Zkusit znovu",
+  );
+  expect(vaultOpenLink(status({ state: "creating" }))).toBeNull();
   expect(
     vaultAction(
       status({

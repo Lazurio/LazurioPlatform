@@ -176,6 +176,7 @@ test.skipIf(!posix)(
         organizationId: organization.id,
         collectionId: agentsId,
         pendingKey: null,
+        pendingSince: null,
       });
       expect(w.journal).toContainEqual({
         operation: "vault",
@@ -339,11 +340,16 @@ test.skipIf(!posix)(
         organizationId: null,
         collectionId: null,
         pendingKey: w.owned()[0]?.publicKey ?? "?",
+        pendingSince: expect.stringMatching(/^\d{4}-\d\d-\d\dT[\d:.]+Z$/),
       });
-      expect(await vaultStatus(host_)).toMatchObject({
-        state: "not-set-up",
-        next: "vault",
+      // Not confirmed yet: the start looks for it again.
+      const pending = await vaultStatus(host_);
+      expect(pending).toEqual({
+        kind: "vault-status",
+        state: "creating",
+        ...facts,
       });
+      expect(setUpAtStart(pending)).toBe(true);
       lose = false;
       const connected = await vaultSetup(host_);
       expect(connected).toMatchObject({
@@ -353,6 +359,122 @@ test.skipIf(!posix)(
       expect(w.owned()).toHaveLength(1);
       expect(w.vault.of("/api/organizations", "POST")).toHaveLength(1);
       expect(await readRecord(w.paths)).toMatchObject({ pendingKey: null });
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "an unresolved creation is never made again: a profile that omits the new organization leaves the vault creating, and the organization found later is the one vault",
+  async () => {
+    const w = await world();
+    try {
+      w.vault.allow(ownAccount);
+      // The vault creates the organization, then the answer is lost.
+      let lose = true;
+      // How many profiles omit every organization (the vault lists the new
+      // one late, or the request is still under way).
+      let omit = 0;
+      const host_: VaultHost = {
+        ...w.host,
+        fetch: async (url, init) => {
+          const answer = await w.vault.fetch(url, init);
+          if (lose && url.endsWith("/api/organizations"))
+            throw new Error("connection reset");
+          if (omit > 0 && url.endsWith("/api/accounts/profile")) {
+            omit -= 1;
+            const profile = (await answer.json()) as Record<string, unknown>;
+            return Response.json({ ...profile, organizations: [] });
+          }
+          return answer;
+        },
+      };
+      expect(await vaultSetup(host_)).toMatchObject({ state: "unreachable" });
+      expect(w.owned()).toHaveLength(1);
+      const receipt = await readRecord(w.paths);
+      lose = false;
+      omit = 1;
+      // The profile omits it: nothing is created, the receipt stays.
+      expect(await vaultSetup(host_)).toEqual({
+        kind: "vault-status",
+        state: "creating",
+        ...facts,
+      });
+      expect(w.owned()).toHaveLength(1);
+      expect(w.vault.of("/api/organizations", "POST")).toHaveLength(1);
+      expect(await readRecord(w.paths)).toEqual(receipt);
+      expect(await vaultStatus(host_)).toMatchObject({ state: "creating" });
+      // Listed again: the organization that carries the receipt is the vault.
+      expect(await vaultSetup(host_)).toMatchObject({
+        state: "connected",
+        organizationId: w.owned()[0]?.id,
+      });
+      expect(w.owned()).toHaveLength(1);
+      expect(w.vault.of("/api/organizations", "POST")).toHaveLength(1);
+      expect(await readRecord(w.paths)).toMatchObject({
+        organizationId: w.owned()[0]?.id,
+        pendingKey: null,
+        pendingSince: null,
+      });
+      expect(w.journal).not.toContainEqual({
+        operation: "vault",
+        outcome: "receipt-expired",
+      });
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "a receipt that matches nothing waits out its bound, then the creation that never happened is made once",
+  async () => {
+    const w = await world();
+    try {
+      w.vault.allow(ownAccount);
+      let clock = Date.parse("2026-10-14T01:00:00.000Z");
+      // The creation never reaches the vault: no answer, no organization.
+      let drop = true;
+      const host_: VaultHost = {
+        ...w.host,
+        now: () => new Date(clock),
+        fetch: async (url, init) => {
+          if (drop && url.endsWith("/api/organizations"))
+            throw new Error("connection reset");
+          return w.vault.fetch(url, init);
+        },
+      };
+      expect(await vaultSetup(host_)).toMatchObject({ state: "unreachable" });
+      drop = false;
+      expect(w.owned()).toHaveLength(0);
+      expect(await readRecord(w.paths)).toMatchObject({
+        organizationId: null,
+        pendingSince: "2026-10-14T01:00:00.000Z",
+      });
+      // Within the bound nothing is created, however often it is asked.
+      for (const minutes of [1, 14]) {
+        clock = Date.parse("2026-10-14T01:00:00.000Z") + minutes * 60_000;
+        expect(await vaultSetup(host_)).toMatchObject({ state: "creating" });
+      }
+      expect(w.vault.of("/api/organizations", "POST")).toHaveLength(0);
+      // Past it, still found nowhere: the receipt is discarded, and the
+      // vault is created once.
+      clock = Date.parse("2026-10-14T01:15:00.000Z");
+      expect(await vaultSetup(host_)).toMatchObject({ state: "connected" });
+      expect(w.owned()).toHaveLength(1);
+      expect(w.vault.of("/api/organizations", "POST")).toHaveLength(1);
+      expect(w.journal).toContainEqual({
+        operation: "vault",
+        outcome: "receipt-expired",
+      });
+      expect(await readRecord(w.paths)).toMatchObject({
+        organizationId: w.owned()[0]?.id,
+        pendingKey: null,
+        pendingSince: null,
+      });
     } finally {
       await w.close();
     }
@@ -886,6 +1008,8 @@ test("the start sets up only an own vault that needs it", () => {
   expect(
     setUpAtStart(status({ state: "not-set-up", origin: "own", next: "vault" })),
   ).toBe(true);
+  // A creation not confirmed yet is looked for again.
+  expect(setUpAtStart(status({ state: "creating", origin: "own" }))).toBe(true);
   for (const state of ["not-allowed", "revoked", "unreachable", "failed"])
     expect([state, setUpAtStart(status({ state, origin: "own" }))]).toEqual([
       state,

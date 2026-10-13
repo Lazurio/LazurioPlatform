@@ -45,6 +45,14 @@ export type VaultStatus =
   | (VaultFacts &
       Readonly<{
         kind: "vault-status";
+        /** The vault's creation was asked for and is not confirmed yet (its
+         * answer was lost, or the vault does not list it yet): the next
+         * setup looks for it again, and nothing is created twice. */
+        state: "creating";
+      }>)
+  | (VaultFacts &
+      Readonly<{
+        kind: "vault-status";
         /** The vault refused to register the account: the network has not
          * pre-allowed its address (yet), or removed the unused
          * pre-allowance. A person of the network acts; nothing was left

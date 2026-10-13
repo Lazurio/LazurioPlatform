@@ -504,7 +504,8 @@ wave (`unsupported`, `workstation`).
   `lazurio-account.json` (0600: email, server, device identifier, master password, API
   key, createdAt), `lazurio-session` (0600) and `lazurio-vault.json` (0600, not
   secret: the vault's organization id, Agenti's collection id, and a creation's
-  receipt while one is under way). A record that is there but cannot be read refuses
+  receipt with its time while it is unresolved). A record that is there but cannot
+  be read refuses
   (`record-unreadable`): nothing is ever created over it. An account file whose
   account or vault is not the handover's is refused by every operation
   (`account-mismatch`). Nothing else anywhere; no secret on argv, in a log, the
@@ -546,9 +547,16 @@ wave (`unsupported`, `workstation`).
   password unlocks), the organization's RSA-2048 key pair with its private key
   wrapped by the organization key, the billing e-mail the account, and the first
   collection "Agenti", its name encrypted with the organization key. The new
-  organization's public key is recorded before the request as its receipt; a creation
-  whose answer was lost is recognized by it (`GET /api/organizations/<id>/public-key`)
-  and never made twice. Agenti is the organization's one collection by its ID (`GET
+  organization's public key is recorded with the time before the request as its
+  receipt, and while it is unresolved no setup sends another creation: each looks for
+  the organization that carries the key among the account's memberships of any status
+  (`GET /api/organizations/<id>/public-key`) and records it once its membership is
+  confirmed; found nowhere, the setup is `creating` and the next one looks again (an
+  answer that was lost, a profile that lists it late, a request that arrives late).
+  Only a receipt older than 15 minutes (`receiptBoundMs`; a request takes at most
+  30 s) that still matches nothing is discarded (journal `receipt-expired`) and the
+  vault created anew, once. A creation refused by the vault's answer (4xx but 429)
+  discards its receipt at once. Agenti is the organization's one collection by its ID (`GET
   /api/organizations/<id>/collections`); several, without a record of it, are
   `collection-unknown`, never chosen by a name. A vault that does not let the account
   create organizations (`ORG_CREATION_USERS`) is `organization-refused`; a refused API
@@ -569,7 +577,8 @@ wave (`unsupported`, `workstation`).
   `spawn-failed`, `unreadable`, `failed`).
 - **States** (`src/vault/flow.ts`, `kind: "vault-status"` with `vault`, `account`,
   `name`, `team` and `origin`, `own` or `pilot-0197`): `unsupported` with a reason,
-  `not-set-up` (`next`: `install`, `account`, `vault` or `sign-in`), `not-allowed`
+  `not-set-up` (`next`: `install`, `account`, `vault` or `sign-in`), `creating` (a
+  creation's receipt not resolved yet; the start sets it up again), `not-allowed`
   (the network has not pre-allowed the address, or removed an unused pre-allowance),
   `connected` (`organizationId`, `collectionId`, `organization`, `items`; `locked`
   when the session must be unlocked again), `revoked`, `unreachable` (`reason`) and
