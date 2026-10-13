@@ -1538,6 +1538,143 @@ test("disconnecting needs an explicit confirmation; Executor's account goes, Com
   expect((await readComposioState(world.home)).accounts).toEqual([]);
 });
 
+// Lazurio's build of Composio's CLI (decision F42, addendum (3)): its list
+// names every account (the alias, else the provider's identity) and gives
+// its id, so the reading runs no `link <toolkit> --list` at all, and
+// "Odpojit" removes an account by that id without a prompt.
+test("Lazurio's build: names from the list without a lookup, and Odpojit removes by the account's id", async () => {
+  const { parent, world, app } = await setup(
+    {
+      composio: {
+        lazurioBuild: true,
+        removeYes: true,
+        accounts: [
+          {
+            id: "ca_1",
+            toolkit: "gmail",
+            status: "ACTIVE",
+            alias: "work",
+            word_id: "castle",
+            display_name: "ada@example.com",
+          },
+          // A toolkit's only account without an alias: its identity names it.
+          {
+            id: "ca_2",
+            toolkit: "notion",
+            status: "ACTIVE",
+            alias: null,
+            word_id: "cloud",
+            display_name: "grace@example.com",
+          },
+          {
+            id: "ca_3",
+            toolkit: "slack",
+            status: "ACTIVE",
+            alias: "Team",
+            word_id: "river",
+          },
+          // Neither an alias nor an identity: "účet".
+          {
+            id: "ca_4",
+            toolkit: "slack",
+            status: "ACTIVE",
+            alias: null,
+            word_id: "stone",
+          },
+          {
+            id: "ca_5",
+            toolkit: "salesforce",
+            status: "EXPIRED",
+            alias: null,
+            word_id: "field",
+            display_name: "sales@example.com",
+          },
+        ],
+      },
+    },
+    { tools: ["composio"] },
+  );
+  const lookups = async () =>
+    (await composioCalls(world.home)).filter((call) => call.includes("--list"));
+  const accounts = (value: IntegrationsOverview, id: string) =>
+    value.apps
+      .find((item) => item.id === id)
+      ?.accounts.map((account) => [
+        account.label,
+        account.selector,
+        account.state,
+      ]);
+  const { value } = await overview(app);
+  expect(accounts(value, "gmail")).toEqual([["work", "ca_1", "connected"]]);
+  expect(accounts(value, "notion")).toEqual([
+    ["grace@example.com", "ca_2", "connected"],
+  ]);
+  expect(accounts(value, "slack")).toEqual([
+    ["Team", "ca_3", "connected"],
+    [null, "ca_4", "connected"],
+  ]);
+  expect(accounts(value, "salesforce")).toEqual([
+    ["sales@example.com", "ca_5", "expired"],
+  ]);
+  expect(value.composio.disconnect).toBe(true);
+  expect(await lookups()).toEqual([]);
+  // `lazurio integrations list --json` carries the same names and ids, and
+  // reads no name either.
+  const cli = await runIntegrationsCommand(
+    ["list", "--json", "--folder", join(parent, "Lazurio")],
+    {
+      identity: embeddedIdentity(),
+      platform: process.platform,
+      env: { PATH: world.path, HOME: world.home },
+      executable: process.execPath,
+      executorEndpoint: world.executorHost(),
+      executorPresent: true,
+    },
+  );
+  expect(cli.code).toBe(0);
+  const listed = JSON.parse(cli.stdout ?? "") as IntegrationsOverview;
+  for (const id of ["gmail", "notion", "slack", "salesforce"])
+    expect(accounts(listed, id)).toEqual(accounts(value, id));
+  expect(await lookups()).toEqual([]);
+  // "Odpojit" names the account by its id and removes it without a prompt.
+  const removed = await app.post("/api/integrations/disconnect", {
+    app: "gmail",
+    path: "composio",
+    account: "ca_1",
+    confirm: true,
+  });
+  expect(await removed.json()).toEqual({ kind: "disconnected" });
+  expect(
+    (await composioCalls(world.home)).filter(
+      (call) =>
+        call[0] === "connections" &&
+        call[1] === "remove" &&
+        !call.includes("--help"),
+    ),
+  ).toEqual([["connections", "remove", "ca_1", "--yes"]]);
+  expect(
+    (await readComposioState(world.home)).accounts.map((account) => account.id),
+  ).toEqual(["ca_2", "ca_3", "ca_4", "ca_5"]);
+  // Where the list gives ids, a word id names no account here.
+  const byWord = await app.post("/api/integrations/disconnect", {
+    app: "notion",
+    path: "composio",
+    account: "cloud",
+    confirm: true,
+  });
+  expect(byWord.status).toBe(409);
+  expect(await byWord.json()).toEqual({
+    kind: "blocked",
+    reason: "account-unknown",
+  });
+  expect((await readComposioState(world.home)).accounts).toHaveLength(4);
+  // After the change the reading again names everything from the list.
+  expect(accounts((await overview(app)).value, "notion")).toEqual([
+    ["grace@example.com", "ca_2", "connected"],
+  ]);
+  expect(await lookups()).toEqual([]);
+});
+
 async function noKey(
   parent: string,
   world: IntegrationsWorld,
