@@ -1,7 +1,9 @@
 import { isAbsolute, join } from "node:path";
-import { withFolderReadLock } from "../folder/lock";
+import { readFolderTools } from "../folder/inspect-tools-change";
+import { FolderOperationBusyError, withFolderReadLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readFolderState } from "../folder/read-state";
+import { updateTools } from "../folder/update-profile";
 import { presetKinds } from "../launchpad/shell-document";
 import {
   bindMachineOperator,
@@ -13,6 +15,7 @@ import {
   type HostedOperatorSources,
   readLinuxOperator,
 } from "../machine/operator";
+import { vaultToolName } from "../tools/catalog";
 import type { ToolRunner } from "../tools/status";
 import { resolveInstallBase } from "../update/base";
 import {
@@ -99,8 +102,40 @@ export async function readVaultContext(
   return pilotContextOf({ handover, environment }) ?? own;
 }
 
+/** "Používají agenti" on for the vault in one Folder, at its current
+ * revision (decision F52): the change the switch itself makes, refused as
+ * the switch is where this Environment does not offer the vault or its
+ * Organization does not allow it. A Folder that another change holds or
+ * changed meanwhile is read again, as the Organization's settings are
+ * applied (src/organization-settings/apply.ts); anything else throws. */
+export async function enableVaultForAgents(folder: string): Promise<void> {
+  const attempts = 4;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const recorded = await readFolderTools(folder);
+      if (recorded.enabled.includes(vaultToolName)) return;
+      const result = await updateTools(
+        folder,
+        recorded.revision,
+        [...recorded.enabled, vaultToolName].sort(),
+      );
+      if (
+        result.kind !== "blocked" ||
+        result.reason !== "stale-revision" ||
+        attempt >= attempts
+      )
+        return;
+    } catch (error) {
+      if (!(error instanceof FolderOperationBusyError) || attempt >= attempts)
+        throw error;
+    }
+    await Bun.sleep(250 * attempt);
+  }
+}
+
 /** The vault of this process: its home, its install base and `~/.local/bin`,
- * its PATH for bw, and the Folder the context is read from. */
+ * its PATH for bw, and the Folder the context is read from, which is also
+ * the one whose agents' switch the vault turns on once it is ready. */
 export function processVaultHost(
   input: Readonly<{
     folder: () => Promise<string | undefined>;
@@ -151,5 +186,9 @@ export function processVaultHost(
     arch: input.arch ?? process.arch,
     run: input.run,
     journal: input.journal,
+    async enableForAgents() {
+      const folder = await input.folder();
+      if (folder !== undefined) await enableVaultForAgents(folder);
+    },
   });
 }

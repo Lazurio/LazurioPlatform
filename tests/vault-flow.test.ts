@@ -59,13 +59,20 @@ async function world() {
   const pin = fakePin(zip);
   const release = fakeRelease(pin, zip);
   const journal: VaultJournalEntry[] = [];
-  const host_ = fakeHost({
-    home,
-    vault,
-    pin,
-    download: release.fetch,
-    journal,
-  });
+  // How often the agents' switch was turned on for the vault.
+  let enabled = 0;
+  const host_: VaultHost = {
+    ...fakeHost({
+      home,
+      vault,
+      pin,
+      download: release.fetch,
+      journal,
+    }),
+    enableForAgents: async () => {
+      enabled += 1;
+    },
+  };
   const paths = vaultPaths(stateDirectory(home, host, ownAccount));
   return {
     home,
@@ -75,6 +82,7 @@ async function world() {
     journal,
     host: host_,
     paths,
+    enabled: () => enabled,
     /** The own organizations of the account. */
     owned: () => vault.organizationsOf(ownAccount),
     async close() {
@@ -393,6 +401,71 @@ test.skipIf(!posix)(
       });
     } finally {
       await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "the setup in which the own vault becomes ready turns the agents' switch on once: never a refused setup, a later one, one after a lost session or a rename; a switch that fails is journaled, never the setup's",
+  async () => {
+    const w = await world();
+    try {
+      // Not allowed yet: no vault, no switch.
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "not-allowed" });
+      expect(w.enabled()).toBe(0);
+      w.vault.allow(ownAccount);
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "connected" });
+      expect(w.enabled()).toBe(1);
+      expect(w.journal).toContainEqual({
+        operation: "vault",
+        outcome: "ready",
+      });
+      // The same vault set up again, after its session was lost (the start's
+      // case after a person turned the switch off) and under a new name.
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "connected" });
+      await rm(join(w.paths.data, "fake", "session"));
+      expect(await vaultStatus(w.host)).toMatchObject({ locked: true });
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "connected" });
+      const renamed: VaultHost = {
+        ...w.host,
+        context: async () =>
+          ownContext(
+            personalHandoverAt(
+              "example.lazurio.io",
+              vaultMember(ownAccount, "Example Osobní renamed"),
+            ),
+          ),
+      };
+      expect(await vaultSetup(renamed)).toMatchObject({
+        state: "connected",
+        organization: "Example Osobní renamed",
+      });
+      expect(w.enabled()).toBe(1);
+      expect(
+        w.journal.filter((entry) => entry.outcome === "ready"),
+      ).toHaveLength(1);
+    } finally {
+      await w.close();
+    }
+    // A switch that cannot be turned: the setup still connects, and the
+    // journal says so with a fixed code.
+    const failing = await world();
+    try {
+      failing.vault.allow(ownAccount);
+      const host: VaultHost = {
+        ...failing.host,
+        enableForAgents: async () => {
+          throw new Error("The Folder is busy");
+        },
+      };
+      expect(await vaultSetup(host)).toMatchObject({ state: "connected" });
+      expect(failing.journal).toContainEqual({
+        operation: "vault",
+        outcome: "agents-not-enabled",
+      });
+    } finally {
+      await failing.close();
     }
   },
   60_000,

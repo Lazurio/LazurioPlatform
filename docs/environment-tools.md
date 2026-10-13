@@ -597,8 +597,15 @@ wave (`unsupported`, `workstation`).
   installed Launchpad of a supervised base of the hosted operator (`vaultAtStart`, the
   rule of Executor's) runs the setup in the background after its start where
   `setUpAtStart` says the vault needs it: not set up, its session locked, or its name
-  no longer the handover's; never a 0197 pilot, a revoked or failed vault. The journal
-  of the unit gets `{"scope":"tools-vault","operation":"setup|refresh|unlock|vault|secrets","outcome":…,"reason":…}`
+  no longer the handover's; never a 0197 pilot, a revoked or failed vault. The setup
+  in which the vault becomes ready (its collection Agenti recorded, `outcome:
+  "ready"`) turns "Používají agenti" on for `bitwarden` in the Folder
+  (`enableVaultForAgents`, `src/vault/host.ts`, also for `lazurio vault setup`): the
+  switch's own change at the current revision, refused as the switch is where the
+  tool is not offered or the Organization does not allow it. Once per vault, so a
+  person who turns it off keeps it off; a failure is journaled (`agents-not-enabled`),
+  never the setup's. The journal of the unit gets
+  `{"scope":"tools-vault","operation":"setup|refresh|unlock|vault|secrets","outcome":…,"reason":…}`
   (with `"trigger":"start"` for the start's setup) only.
 - **Runtime secrets** (decision F46 as F52 amends it, `vaultSecrets` in
   `src/vault/flow.ts`): on a work Environment the applications of the Organization

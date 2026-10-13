@@ -2,8 +2,13 @@ import { expect, spyOn, test } from "bun:test";
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { initializeFolder } from "../src/folder/initialize-folder";
+import {
+  initializeFolder,
+  initializeHandoverFolder,
+} from "../src/folder/initialize-folder";
+import { readFolderTools } from "../src/folder/inspect-tools-change";
 import { executionOs } from "../src/folder/platform";
+import { presetProfile } from "../src/folder/presets";
 import { startLaunchpad } from "../src/launchpad/server";
 import { runTool } from "../src/tools/status";
 import type { VaultHost, VaultJournalEntry } from "../src/vault/flow";
@@ -21,6 +26,7 @@ import {
   vaultOrigin,
   zipOf,
 } from "./fixtures/fake-vault";
+import { bindings } from "./fixtures/machine-bindings";
 
 // Settings → Tools → bitwarden over HTTP (decisions F43, F52): the three
 // routes behind the admission of every route, `{}` only, a setup answered
@@ -55,6 +61,9 @@ async function session(
     launchpadJournal?: boolean;
     /** The network pre-allowed the account before the Launchpad starts. */
     allowed?: boolean;
+    /** The Folder of a personal Remote Environment (bitwarden is offered
+     * there on Linux) instead of this computer's. */
+    hosted?: boolean;
   }> = {},
 ) {
   const parent = await realpath(
@@ -67,14 +76,24 @@ async function session(
   const pin = fakePin(zip);
   const journal: VaultJournalEntry[] = [];
   const folder = join(parent, "Lazurio");
-  await initializeFolder(folder, {
-    os: executionOs(process.platform),
-    access: "local",
-    purpose: "human",
-    locale: "cs",
-    detail: "concise",
-    coordination: "direct",
-  });
+  if (options.hosted === true) {
+    await mkdir(folder, { mode: 0o700 });
+    await mkdir(join(folder, "organizations"), { mode: 0o700 });
+    await mkdir(join(folder, "personalspace"), { mode: 0o700 });
+    await initializeHandoverFolder(folder, {
+      preset: "hosted-personal",
+      machine: bindings.personal,
+      profile: presetProfile("hosted-personal", executionOs(process.platform)),
+    });
+  } else
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "cs",
+      detail: "concise",
+      coordination: "direct",
+    });
   // The health socket of the base: a short path, within a socket's limit.
   const base = join(parent, "b");
   await mkdir(join(base, "update"), { recursive: true });
@@ -144,6 +163,7 @@ async function session(
   };
   return {
     home,
+    folder,
     vault,
     journal,
     call,
@@ -319,8 +339,68 @@ test.skipIf(!posix)(
         outcome: "created",
         trigger: "start",
       });
+      // The vault became ready, but this computer's Folder does not offer
+      // it: the switch refuses as it always does, and nothing failed.
+      expect(vaultLines).toContainEqual({
+        scope: "tools-vault",
+        operation: "vault",
+        outcome: "ready",
+        trigger: "start",
+      });
+      expect(
+        vaultLines.filter((line) => line.outcome === "agents-not-enabled"),
+      ).toEqual([]);
+      expect((await readFolderTools(s.folder)).enabled).not.toContain(
+        "bitwarden",
+      );
     } finally {
       log.mockRestore();
+      await s.close();
+    }
+  },
+  60_000,
+);
+
+// Root decision 0198 point 1: the agents use the Environment's vault
+// themselves. The Folder offers it on a Remote Environment on Linux only, so
+// this runs there (CI); `tests/vault-flow.test.ts` holds the once-per-vault
+// rule everywhere.
+test.skipIf(process.platform !== "linux")(
+  'the setup in which the vault becomes ready turns "Používají agenti" on in the Launchpad\'s Folder; a person who turns it off keeps it off through later setups',
+  async () => {
+    const s = await session({
+      hosted: true,
+      allowed: true,
+      vaultAtStart: async () => true,
+    });
+    try {
+      // The start's setup ends with the vault connected and switched on.
+      await until(async () => {
+        const answer = await s.json("/api/tools/bitwarden/status");
+        return answer.status === 200 && answer.body.state === "connected"
+          ? answer
+          : null;
+      });
+      const on = await readFolderTools(s.folder);
+      expect(on.enabled).toContain("bitwarden");
+      // The person turns it off.
+      expect(
+        await s.json("/api/tools/update", {
+          expectedRevision: on.revision,
+          tools: on.enabled.filter((tool) => tool !== "bitwarden"),
+        }),
+      ).toMatchObject({ status: 200, body: { kind: "updated" } });
+      // A later setup of the same vault, its session lost as after a
+      // restart: connected again, and the switch stays off.
+      await rm(join(s.paths.data, "fake", "session"));
+      expect(await s.setup()).toMatchObject({
+        status: 200,
+        body: { state: "connected" },
+      });
+      expect((await readFolderTools(s.folder)).enabled).not.toContain(
+        "bitwarden",
+      );
+    } finally {
       await s.close();
     }
   },

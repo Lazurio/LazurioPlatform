@@ -10649,7 +10649,15 @@ session of F43.
    unreachable state does); no disconnect for the Environment's own vault. Czech copy
    addresses people formally and says little (root decision 0199). The routes are
    `POST /api/tools/bitwarden/status|refresh|setup`; a running setup answers
-   `202 {kind: "vault-setting-up", job, phase}` from all three.
+   `202 {kind: "vault-setting-up", job, phase}` from all three. The setup in which
+   the vault becomes ready (its collection Agenti recorded) turns "Používají agenti"
+   on for `bitwarden` in the Environment's Folder (0198 point 1: the agents use the
+   Environment's vault themselves): the change the switch makes, refused as the
+   switch is where the tool is not offered or the Organization does not allow it.
+   Once per vault: a person may turn it off and it stays off, because no later setup
+   (a new session, a rename, a repair) turns it on again; a failure is journaled
+   (`agents-not-enabled`) and is never the setup's. `lazurio vault setup` does the
+   same; the page itself no longer turns it on.
 6. **Pilot safety** (`src/vault/legacy-0197/`, frozen). A few Environments were
    connected the 0197 way: an account `vaultwarden@<address>` in a person's
    organization with a recorded collection. While such an Environment's handover
@@ -10706,9 +10714,10 @@ recognized by the receipt, gone and refused (`tests/vault-flow.test.ts`); the ac
 opening its own organization key from its master password down to Agenti's name and
 the organization's private key (`tests/vault-organization.test.ts`); the pilot with
 and without `vault` (`tests/vault-pilot.test.ts`); the CLI (`tests/vault-cli.test.ts`)
-and the Launchpad over HTTP with its start (`tests/launchpad-vault.test.ts`); bw
-refused without its own data directory, and the Tools probe's temporary one
-(`tests/vault-store.test.ts`); the
+and the Launchpad over HTTP with its start (`tests/launchpad-vault.test.ts`); the
+agents' switch turned on once per vault, by the core everywhere and in the
+Launchpad's Folder on Linux (the same two files); bw refused without its own data
+directory, and the Tools probe's temporary one (`tests/vault-store.test.ts`); the
 member, an earlier Platform refusing it and its redaction
 (`tests/vault-handover.test.ts`); F46 on the own vault (`tests/vault-secrets.test.ts`,
 `tests/runtime-secrets.test.ts`, `tests/module-runtime-secrets.test.ts`); no value or
