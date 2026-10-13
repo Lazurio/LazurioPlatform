@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { open, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { parseUniqueJson } from "../providers/unique-json";
 import type { ToolProcessResult, ToolRunner } from "../tools/status";
 import { isSession, isVaultId } from "./store";
@@ -245,10 +245,16 @@ export function parseSecretItems(
 export type BwCli = ReturnType<typeof bwCli>;
 
 export function bwCli(environment: BwEnvironment) {
+  // Never a bw without a data directory of its own: bw rewrites its store on
+  // every start, so a run without one would reach a default profile (a
+  // person's own bw). Refused before anything runs, and set last on every
+  // run, so nothing a step adds can replace it.
+  if (!isAbsolute(environment.data) || !isAbsolute(environment.binary))
+    throw new Error("bw runs only by its path, with its own data directory");
+  const data = environment.data;
   const base: Record<string, string> = {
     PATH: environment.path ?? "/usr/bin:/bin",
     HOME: environment.home,
-    BITWARDENCLI_APPDATA_DIR: environment.data,
     BW_NOINTERACTION: "true",
   };
   async function run(
@@ -261,7 +267,7 @@ export function bwCli(environment: BwEnvironment) {
       return await environment.run(
         [environment.binary, ...args],
         timeoutMs,
-        { ...base, ...extra },
+        { ...base, ...extra, BITWARDENCLI_APPDATA_DIR: data },
         maxBytes === undefined ? undefined : { maxBytes },
       );
     } catch {

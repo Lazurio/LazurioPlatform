@@ -554,7 +554,12 @@ wave (`unsupported`, `workstation`).
   create organizations (`ORG_CREATION_USERS`) is `organization-refused`; a refused API
   key is `revoked`.
 - **bw** (`src/vault/bw.ts`): always the pinned binary with the account's
-  `BITWARDENCLI_APPDATA_DIR`, `BW_NOINTERACTION` and `--nointeraction`; `bw config
+  `BITWARDENCLI_APPDATA_DIR`, `BW_NOINTERACTION` and `--nointeraction`. bw rewrites
+  its store on every start, so `bwCli` refuses to start without an absolute data
+  directory and a binary by its path, and sets the directory last on every run; the
+  version probe of Settings → Tools runs a `bw` on PATH with a fresh temporary one
+  (the catalog's `isolatedData`). No bw of this product reaches a default profile,
+  a person's own included. `bw config
   server`, `bw login --apikey` (the key in `BW_CLIENTID`/`BW_CLIENTSECRET`; the session
   it prints is still locked and is never read), `bw unlock --passwordfile <private
   file> --raw` (the file removed at once), `bw sync` and `bw list
