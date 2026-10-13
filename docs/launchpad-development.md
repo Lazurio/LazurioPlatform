@@ -1597,12 +1597,18 @@ change (without them; the last known sign-ins stay on the cards) and on "Refresh
 status" (with them again), and shows:
 
 - no introduction (root decision 0188, Matěj 2026-10-04: no paragraph that only
-  restates the page); each tier's note is one short line: "Bez nich tu nic nefunguje.",
-  "Hodí se skoro každému.", "Zapni jen to, co používáš.";
+  restates the page), no note under a tier and no line on when the tools were read
+  (Anna 2026-10-11: each only restated what the page shows); the tier names are quieter
+  than the tool names they group (muted, 13 px, weight 500; the levels of text are in
+  decision F36's addendum of 2026-10-11);
 - on a shared Environment (the Team preset) the warning that signed-in accounts are
   shared by all operators; it is repeated in the confirmation of an enable;
 - three groups, **Required**, **Recommended** and **Optional**, in catalog order, each
-  a settings group of rows. A row carries on the left the tool's real name (gh,
+  a settings group of rows. A row carries on the left the tool's logo (Anna 2026-10-11: known at first sight;
+  `src/tools/icons.ts`, bundled simple-icons, CC0, drawn by the same `appMark` as
+  Integrace; Composio and Codex carry the vendor's own bundled SVG, the OpenAI Blossom
+  for Codex; executor, without one, shows its first
+  letter), its real name (gh,
   composio, bitwarden, wacli, gogcli, neon: what an agent says and what is searched for), one
   plain sentence on what it is for (root decision 0188; `toolDescription` in
   `tools-view.ts`, a page-only text: the catalog's `activation.purpose` is rendered into
@@ -1993,7 +1999,7 @@ the Launchpad builds no viewer of its own.
   Integrace and the Marketplace hides it, the rail staying, and shows it again; while
   the page steps aside for the panel, the toggle stands in the panel's strip. Its right
   edge is a divider like the panel's, 208–480 px and never leaving the page less than
-  400 px, double-click for 264 px. Below 768 px it stays the sheet opened by the button
+  400 px, double-click for 256 px. Below 768 px it stays the sheet opened by the button
   at the top of the page.
 - **Remembered in this browser**: the panel's width or all of the room, the column's
   width and whether it is hidden, as one `localStorage` entry, `lazurio.layout`, read

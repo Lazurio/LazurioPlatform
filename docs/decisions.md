@@ -4880,6 +4880,19 @@ prototypes-lazurio `1acd615` (`app/v1/src/Rail.tsx`, `Switcher.tsx`, `EnvPicker.
    before). Every interface icon, the shell's and the Launchpad page's, is drawn at the
    wireframe's stroke of 1.6 (was 1.5). As the glyph takes the picker's ink, a kind's icon
    is light on a dark host without roles (it stayed near-black, issue #169).
+   *Addendum 2026-10-11 (Anna):* the Launchpad's column narrows from 264 to 256 px (four
+   grid modules) with 13.5 px entries and a 16 px title, and the picker's name drops to
+   14 px (`--lz-size-meta`), so a name like "MacBook-Air-2" still fits beside the gear.
+   Text has three levels, after ClickUp (measured there: #202020, #646464 and
+   #838383-#8d8d8d): ink for what you act on (a tool's name, a button, the active entry);
+   muted `gray-500` for what explains it (a settings row's description at 14 px, a
+   group's label such as Oblíbené or a Tools tier, an inactive entry of the column); and
+   quiet, halfway between `gray-500` and `gray-400` (3.7:1, as ClickUp's timestamps),
+   only for text that need not be read (a hint, a neutral state, "Podrobnosti").
+   Weights between the design system's 400 and 600, since Inter Tight is variable and
+   read thin beside ChatGPT's 14 px system text: a description at 450, a group's label
+   and an inactive entry at 500; names, buttons and the active entry stay at 600.
+   Proposed to the design system as roles for every app.
 6. **The keys, with or without the field.** ↓ and ↑ (wrapping), Home, End, Enter and
    Escape work in the list. Without the search field the focus lands on the current
    Environment, else the first (on "Všechny Organizace" where the space has none), and

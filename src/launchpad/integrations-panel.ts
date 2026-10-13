@@ -6,6 +6,7 @@ import type {
   IntegrationApp,
   IntegrationsOverview,
 } from "../integrations/model";
+import { appMark } from "./app-mark";
 import {
   addRow,
   type CustomForm,
@@ -37,7 +38,6 @@ import {
   cardView,
   disconnectText,
   integrationsHelp,
-  monogram,
   parseIntegrations,
   serverLine,
   sourceLines,
@@ -196,22 +196,7 @@ export function createIntegrationsPanel(
 
   /** The app's mark: its bundled icon, else its first letter. */
   function mark(app: IntegrationApp): HTMLElement {
-    const entry = catalogOf(app.id);
-    const holder = element("span", "integration-mark");
-    holder.setAttribute("aria-hidden", "true");
-    if (entry?.icon === undefined) {
-      holder.classList.add("integration-mark-letter");
-      holder.textContent = monogram(app.name);
-      return holder;
-    }
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("viewBox", "0 0 24 24");
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", entry.icon.path);
-    path.setAttribute("fill", `#${entry.icon.hex}`);
-    svg.append(path);
-    holder.append(svg);
-    return holder;
+    return appMark(app.name, catalogOf(app.id)?.icon);
   }
 
   const active = () => route !== null;
