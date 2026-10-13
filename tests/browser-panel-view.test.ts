@@ -13,10 +13,13 @@ import {
   heldByLaunchpad,
   holdFailure,
   holdSucceeded,
+  letGoUndo,
   panelChoice,
   reduceStrip,
+  releaseFailure,
   releaseSucceeded,
   releaseText,
+  restoreFailure,
   type StripEvent,
   type StripState,
   type StripTab,
@@ -434,13 +437,13 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
       [id(1), "new-1", "new-2"],
       "new-1",
     ]);
-    const first = run([{ kind: "close-new-tab", key: "new-1" }], state);
+    const first = run([{ kind: "close", keys: ["new-1"] }], state);
     expect([keys(first), shown(first), first.overrides]).toEqual([
       [id(1), "new-2"],
       "new-2",
       [],
     ]);
-    const second = run([{ kind: "close-new-tab", key: "new-2" }], first);
+    const second = run([{ kind: "close", keys: ["new-2"] }], first);
     expect([keys(second), shown(second), closesPanel(second)]).toEqual([
       [id(1)],
       id(1),
@@ -452,7 +455,7 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
         run(
           [
             { kind: "select", entry: id(1) },
-            { kind: "close-new-tab", key: "new-2" },
+            { kind: "close", keys: ["new-2"] },
           ],
           first,
         ),
@@ -462,10 +465,7 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
 
   test("the person's × on the strip's last entry leaves it empty, which closes the panel; opening it again shows a new Nová karta", () => {
     // The last Nová karta.
-    const alone = run([
-      { kind: "opened" },
-      { kind: "close-new-tab", key: "new-1" },
-    ]);
+    const alone = run([{ kind: "opened" }, { kind: "close", keys: ["new-1"] }]);
     expect([keys(alone), shown(alone), closesPanel(alone)]).toEqual([
       [],
       null,
@@ -482,7 +482,7 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
     );
     const released = run(
       [
-        { kind: "releasing", tab: id(1) },
+        { kind: "close", keys: [id(1)] },
         { kind: "requested" },
         { kind: "released", tab: id(1) },
       ],
@@ -526,7 +526,7 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
     // Pablo's reproduction (#324), on the release that × now is: the tab
     // goes, then an overview begun before the release was done still lists
     // the Launchpad's hold.
-    const releasing = run([{ kind: "releasing", tab: id(1) }], state);
+    const releasing = run([{ kind: "close", keys: [id(1)] }], state);
     expect(keys(releasing)).toEqual([id(2), "new-1"]);
     const read = relist(releasing, [listedTab(1), listedTab(2)]);
     expect(keys(read)).toEqual([id(2), "new-1"]);
@@ -550,7 +550,7 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
     // A release that fails brings the tab back at once.
     const failed = run(
       [
-        { kind: "releasing", tab: id(2) },
+        { kind: "close", keys: [id(2)] },
         { kind: "release-failed", tab: id(2) },
       ],
       state,
@@ -566,17 +566,17 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
       [{ kind: "chosen", tab: id(3), from: "new-1" }],
       openWith([listedTab(1), listedTab(2), listedTab(3)]),
     );
-    const third = run([{ kind: "releasing", tab: id(3) }], state);
+    const third = run([{ kind: "close", keys: [id(3)] }], state);
     expect([keys(third), shown(third)]).toEqual([[id(1), id(2)], id(2)]);
     const first = run(
       [
         { kind: "select", entry: id(1) },
-        { kind: "releasing", tab: id(1) },
+        { kind: "close", keys: [id(1)] },
       ],
       third,
     );
     expect([keys(first), shown(first)]).toEqual([[id(2)], id(2)]);
-    const none = run([{ kind: "releasing", tab: id(2) }], first);
+    const none = run([{ kind: "close", keys: [id(2)] }], first);
     expect([keys(none), shown(none), closesPanel(none)]).toEqual([
       [],
       null,
@@ -587,7 +587,7 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
       [{ kind: "new-tab" }, { kind: "select", entry: id(2) }],
       first,
     );
-    const toNew = run([{ kind: "releasing", tab: id(2) }], kept);
+    const toNew = run([{ kind: "close", keys: [id(2)] }], kept);
     expect([keys(toNew), shown(toNew), closesPanel(toNew)]).toEqual([
       ["new-2"],
       "new-2",
@@ -635,7 +635,7 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
     const released = run(
       [
         { kind: "chosen", tab: id(2), from: "new-1" },
-        { kind: "releasing", tab: id(2) },
+        { kind: "close", keys: [id(2)] },
         { kind: "released", tab: id(2) },
       ],
       openWith([listedTab(1), listedTab(2), listedTab(3)]),
@@ -649,6 +649,80 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
       settled,
     );
     expect([keys(quiet), shown(quiet)]).toEqual([[id(1), id(2), id(3)], id(3)]);
+  });
+
+  test("one command closes several entries at once (F47 point 9's addendum of 2026-10-13): its Nová karta entries go, its tabs are let go of, and one Vrátit holds them all again, each in its place, the shown one shown", () => {
+    // [1, 2, 3, 4, Nová karta, Nová karta], showing tab 3.
+    const six = run(
+      [{ kind: "new-tab" }, { kind: "select", entry: id(3) }],
+      openWith([listedTab(1), listedTab(2), listedTab(3), listedTab(4)]),
+    );
+    expect([keys(six), shown(six)]).toEqual([
+      [id(1), id(2), id(3), id(4), "new-1", "new-2"],
+      id(3),
+    ]);
+    // Everything but tab 2, at once: what was shown falls to tab 2, the only
+    // entry left, and nothing closes the panel.
+    const going = [id(1), id(3), id(4), "new-1", "new-2"];
+    const closing = run([{ kind: "close", keys: going }], six);
+    expect([
+      keys(closing),
+      shown(closing),
+      closesPanel(closing),
+      closing.newTabs,
+    ]).toEqual([[id(2)], id(2), false, []]);
+    // Each tab stays gone while its release is on its way, and after it
+    // until an overview requested after it, which no longer holds it.
+    expect(closing.overrides).toEqual(
+      [1, 3, 4].map((n) => ({ id: id(n), state: "hidden", after: null })),
+    );
+    const read = relist(closing, [
+      listedTab(1),
+      listedTab(2),
+      listedTab(3),
+      listedTab(4),
+    ]);
+    expect(keys(read)).toEqual([id(2)]);
+    const released = run(
+      [1, 3, 4].map((n): StripEvent => ({ kind: "released", tab: id(n) })),
+      read,
+    );
+    const settled = relist(released, [
+      otherTab(1),
+      listedTab(2),
+      otherTab(3),
+      otherTab(4),
+    ]);
+    expect([keys(settled), settled.overrides]).toEqual([[id(2)], []]);
+    // One Vrátit: every tab held again, back where it was in the strip, the
+    // one shown when they went shown again; the Nová karta entries do not
+    // come back, as they were nothing yet.
+    const back = run(
+      [1, 3, 4].map(
+        (n): StripEvent => ({
+          kind: "held-again",
+          tab: id(n),
+          show: id(n) === id(3),
+        }),
+      ),
+      settled,
+    );
+    expect([keys(back), shown(back)]).toEqual([
+      [id(1), id(2), id(3), id(4)],
+      id(3),
+    ]);
+    // A release that fails brings back its own tab only.
+    const partly = run(
+      [
+        { kind: "released", tab: id(1) },
+        { kind: "release-failed", tab: id(3) },
+        { kind: "released", tab: id(4) },
+      ],
+      closing,
+    );
+    expect(keys(partly)).toEqual([id(2), id(3)]);
+    // An entry the strip does not have is no part of a command.
+    expect(run([{ kind: "close", keys: ["new-9", id(9)] }], six)).toEqual(six);
   });
 
   test("the view's tab ended: it goes, and the panel falls back, on its last tab to a new Nová karta; × on Nová karta among tabs shows the tab before it", () => {
@@ -665,7 +739,7 @@ describe("the strip (decision F47 point 9 and its addendum of 2026-10-12)", () =
       false,
     ]);
     const closedNew = run(
-      [{ kind: "close-new-tab", key: "new-1" }],
+      [{ kind: "close", keys: ["new-1"] }],
       openWith([listedTab(1), listedTab(2)]),
     );
     expect([keys(closedNew), shown(closedNew)]).toEqual([
@@ -801,6 +875,94 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
         en,
       ),
     ).toBe("The tab left the Launchpad. It stays in the thread “Invoices”.");
+  });
+
+  test("one command's Vrátit (F47 point 9's addendum of 2026-10-13): every tab it let go of, one line for them all, the one shown, and whether one of them ends", () => {
+    const entry = (n: number, tab: StripTab | null = listedTab(n)) => ({
+      id: id(n),
+      tab,
+    });
+    const agent = listedTab(2, { agents: ["codex-a1"] });
+    const thread = listedTab(3, {
+      holders: [launchpad, { strip: "t3-x", label: "Faktury za září" }],
+    });
+    // One tab: point 9's own words, as the × always said them.
+    expect(letGoUndo([entry(1)], id(1), cs)).toEqual({
+      tabs: [id(1)],
+      text: "Záložka se zavře v Environmentu.",
+      shown: id(1),
+      ends: true,
+    });
+    expect(letGoUndo([entry(2, agent)], id(1), cs)).toEqual({
+      tabs: [id(2)],
+      text: "Záložka zmizela z Launchpadu. Pracuje v ní agent, takže zůstává otevřená.",
+      shown: null,
+      ends: false,
+    });
+    // Several: all close, all stay, or some of each.
+    expect(letGoUndo([entry(1), entry(4)], null, cs)).toEqual({
+      tabs: [id(1), id(4)],
+      text: "Záložky se zavřou v Environmentu.",
+      shown: null,
+      ends: true,
+    });
+    expect(letGoUndo([entry(2, agent), entry(3, thread)], id(3), cs)).toEqual({
+      tabs: [id(2), id(3)],
+      text: "Záložky zmizely z Launchpadu. Zůstávají otevřené jinde nebo u agenta.",
+      shown: id(3),
+      ends: false,
+    });
+    expect(
+      letGoUndo([entry(1), entry(2, agent), entry(3, thread)], id(9), en),
+    ).toEqual({
+      tabs: [id(1), id(2), id(3)],
+      text: "The tabs left the Launchpad. Some stay open elsewhere or with an agent; the others close in the Environment.",
+      shown: null,
+      ends: true,
+    });
+    // A tab only this panel knows yet ends as nothing else holds it.
+    expect(letGoUndo([entry(9, null)], null, cs)?.ends).toBe(true);
+    // A command that let go of no tab (a Nová karta alone) offers none.
+    expect(letGoUndo([], "new-1", cs)).toBeNull();
+  });
+
+  test("what a command says when tabs could not be let go of, or held again by its Vrátit: for one tab or several, or the cause the answer names", () => {
+    expect(
+      releaseFailure(answer(500, { error: "release-failed" }), cs, 1),
+    ).toBe("Záložku se nepodařilo z Launchpadu odebrat.");
+    expect(
+      releaseFailure(answer(500, { error: "release-failed" }), cs, 3),
+    ).toBe("Záložky se nepodařilo z Launchpadu odebrat.");
+    expect(releaseFailure(answer(0), cs, 3)).toBe(
+      "Launchpad teď neodpovídá, zkuste to za chvíli znovu.",
+    );
+    const gone = answer(404, { error: "not-found" });
+    expect(restoreFailure(gone, cs, 1)).toEqual({
+      text: "Záložku už nejde vrátit.",
+      retry: false,
+    });
+    expect(restoreFailure(gone, cs, 2)).toEqual({
+      text: "Záložky už nejde vrátit.",
+      retry: false,
+    });
+    expect(
+      restoreFailure(answer(500, { error: "hold-failed" }), cs, 2),
+    ).toEqual({
+      text: "Záložky se nepodařilo v Launchpadu ponechat.",
+      retry: true,
+    });
+    expect(
+      restoreFailure(answer(500, { error: "hold-failed" }), en, 1),
+    ).toEqual({
+      text: "The tab could not be kept in the Launchpad.",
+      retry: true,
+    });
+    expect(
+      restoreFailure(answer(503, { error: "hub-unreachable" }), cs, 2),
+    ).toEqual({
+      text: "Prohlížeč Environmentu teď neodpovídá, zkuste to za chvíli znovu.",
+      retry: true,
+    });
   });
 });
 

@@ -126,6 +126,14 @@ const en = {
   placeElsewhere: "elsewhere",
   placesAnd: " and ",
   releaseFailed: "The tab could not be taken out of the Launchpad.",
+  closingTabs: "The tabs close in the Environment.",
+  releasedTabsStay:
+    "The tabs left the Launchpad. They stay open elsewhere or with an agent.",
+  releasedTabsSome:
+    "The tabs left the Launchpad. Some stay open elsewhere or with an agent; the others close in the Environment.",
+  releaseTabsFailed: "The tabs could not be taken out of the Launchpad.",
+  holdTabsFailed: "The tabs could not be kept in the Launchpad.",
+  restoreTabsFailed: "The tabs can no longer be brought back.",
   stripLabel: "Tabs of the Environment browser",
   newTabTitle: "New tab: address, overview and suggestions",
   closeNewTab: "Close the new tab",
@@ -225,6 +233,14 @@ const cs: Words = {
   placeElsewhere: "jinde",
   placesAnd: " a ",
   releaseFailed: "Záložku se nepodařilo z Launchpadu odebrat.",
+  closingTabs: "Záložky se zavřou v Environmentu.",
+  releasedTabsStay:
+    "Záložky zmizely z Launchpadu. Zůstávají otevřené jinde nebo u agenta.",
+  releasedTabsSome:
+    "Záložky zmizely z Launchpadu. Některé zůstávají otevřené jinde nebo u agenta, ostatní se zavřou v Environmentu.",
+  releaseTabsFailed: "Záložky se nepodařilo z Launchpadu odebrat.",
+  holdTabsFailed: "Záložky se nepodařilo v Launchpadu ponechat.",
+  restoreTabsFailed: "Záložky už nejde vrátit.",
   stripLabel: "Záložky prohlížeče Environmentu",
   newTabTitle: "Nová karta: adresa, Přehled a Navrhované",
   closeNewTab: "Zavřít Novou kartu",
@@ -979,16 +995,32 @@ export function closeWarning(
   };
 }
 
-/** What Vrátit undoes while it is offered: a close for everyone here, a
- * release in the Launchpad's strip; the tab, what happens to it (the
- * toast's line), and whether it was shown where it was taken away. */
+/** What Vrátit undoes while it is offered: a close for everyone here, or one
+ * command of the Launchpad's strip, its × or a close of a tab's menu, with
+ * every tab that command let go of (F47 point 9's addendum of 2026-10-13).
+ * `text` is the toast's line, what happens to them; `shown` the one of them
+ * shown where they were taken away, shown there again, or null; `ends`
+ * whether one of them ends, closes in the Environment (`replacesUndo`). */
 export type PendingUndo = Readonly<{
-  tab: string;
+  tabs: readonly string[];
   text: string;
-  shown: boolean;
+  shown: string | null;
+  ends: boolean;
 }>;
 
-/** The toast (the wireframe's PendingClose): what happens to the tab and
+/** Whether the Vrátit of `next` takes the place of the one `offered` now.
+ * One Vrátit is offered at a time, the last command's, unless that command
+ * ends no tab while the Vrátit offered brings back one that ends: that one
+ * stays, so its tab is not lost, and the command says its line above it as
+ * a message (the review of #27, the wireframe's `keptText`). */
+export function replacesUndo(
+  offered: PendingUndo | null,
+  next: PendingUndo,
+): boolean {
+  return offered === null || next.ends || !offered.ends;
+}
+
+/** The toast (the wireframe's PendingClose): what happens to the tabs and
  * Vrátit while its grace lasts, with a later message above it, which never
  * takes Vrátit away (Pablo's review of #27); a message alone otherwise. */
 export function toastModel(
