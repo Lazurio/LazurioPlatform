@@ -26,9 +26,10 @@ import {
   type VaultJournalEntry,
   vaultSecrets,
   vaultSetup,
+  vaultStatus,
 } from "../src/vault/flow";
 import { requestsDirectory } from "../src/vault/requests";
-import { readRecord, vaultPaths } from "../src/vault/store";
+import { readRecord, vaultPaths, writeRecord } from "../src/vault/store";
 import {
   fakeBw,
   fakeHost,
@@ -445,6 +446,52 @@ test.skipIf(!posix)(
     }
   },
   120_000,
+);
+
+test.skipIf(!posix)(
+  "while the vault's creation is unresolved (`creating`) no request is made or saved, as in any state that is not ready",
+  async () => {
+    const w = await world();
+    await w.setUp();
+    const page = await launchpad(w);
+    try {
+      const id = await created(w);
+      const record = await readRecord(w.paths);
+      // A creation whose answer is not known yet: its receipt, no ids.
+      await writeRecord(w.paths, {
+        organizationId: null,
+        collectionId: null,
+        pendingKey: "A".repeat(392),
+        pendingSince: "2026-10-14T00:00:00.000Z",
+      });
+      expect(await vaultStatus(w.host)).toMatchObject({ state: "creating" });
+      const refused = await w.cli(invoicing);
+      expect(refused.code).toBe(2);
+      expect(refused.stderr).toContain("(not-connected)");
+      expect(
+        await page.post(`/api/vault/requests/${id}/save`, {
+          values: { "Client ID": clientId, "Client secret": clientSecret },
+        }),
+      ).toEqual({
+        status: 409,
+        body: { kind: "blocked", reason: "not-connected" },
+      });
+      expect(await w.vault.created()).toEqual([]);
+      // Ready again: the request waits as it did and is saved.
+      await writeRecord(w.paths, record);
+      expect(
+        (
+          await page.post(`/api/vault/requests/${id}/save`, {
+            values: { "Client ID": clientId, "Client secret": clientSecret },
+          })
+        ).body,
+      ).toMatchObject({ state: "saved" });
+    } finally {
+      await page.close();
+      await w.close();
+    }
+  },
+  60_000,
 );
 
 test.skipIf(!posix)(
