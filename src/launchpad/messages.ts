@@ -1155,6 +1155,10 @@ const en = {
   integrationsComposioOrganizationUnverified:
     "The name of this Environment's Organization cannot be read, so its Composio organization cannot be checked and nothing connects through Composio now. Click Check connections; if that does not help, ask the agent in Chat to check this Environment's Folder.",
   integrationsComposioOpen: "Open Composio",
+  integrationsComposioApps: "Apps in Composio",
+  integrationsComposioMissing: "Can't find an app here?",
+  integrationsComposioConnectThere: "Connect it in Composio",
+  integrationsOutsideCatalog: "From Composio, outside Lazurio's catalog.",
   integrationsComposioOrganizationChanged:
     "Composio does not work in this Environment's organization now. Click Check connections.",
   composioModelTitle: "How this Environment uses Composio",
@@ -2558,6 +2562,10 @@ const cs: Record<MessageKey, string> = {
   integrationsComposioOrganizationUnverified:
     "Jméno Organizace tohoto Environmentu se nepodařilo přečíst, a tak nejde ověřit jeho organizaci v Composiu a přes Composio se teď nic nepřipojí. Klikněte na Zkontrolovat připojení; když to nepomůže, požádejte agenta v Chatu, ať zkontroluje Folder tohoto Environmentu.",
   integrationsComposioOpen: "Otevřít Composio",
+  integrationsComposioApps: "Aplikace v Composiu",
+  integrationsComposioMissing: "Aplikaci tu nenajdete?",
+  integrationsComposioConnectThere: "Připojte ji v Composiu",
+  integrationsOutsideCatalog: "Z Composia, mimo katalog Lazuria.",
   integrationsComposioOrganizationChanged:
     "Composio teď nepracuje v organizaci tohoto Environmentu. Klikněte na Zkontrolovat připojení.",
   composioModelTitle: "Jak tento Environment používá Composio",

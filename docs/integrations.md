@@ -1,6 +1,6 @@
 # Integrace: the apps connected to an Environment
 
-Status: implemented (decision F42 with its addenda of 2026-10-11 to 2026-10-13, root
+Status: implemented (decision F42 with its addenda of 2026-10-11 to 2026-10-14, root
 decision 0162 with its addendum of 2026-10-09, plan DEV-6626 tasks 675, 683 and the
 Folder part of 681). Lazurio installs its own build of Composio's CLI (F42, addendum
 (3) of 2026-10-13: [Lazurio's build](#lazurios-build-of-the-cli)). Whether
@@ -512,12 +512,51 @@ shown as a name.
   identity (`state.val.displayName`) is printed only by Lazurio's build; Composio's
   own CLI strips it from every output.
 
+### Composio's own Apps ("Aplikace v Composiu")
+
+Decision F42, addendum of 2026-10-14. Lazurio's catalog does not list every app
+Composio offers (Wispr Flow's MCP, for example), and Composio's dashboard connects
+them well. So the page leads there:
+
+- The reading's `composio.apps` is the Apps section of the Composio organization
+  this Environment works in, built by the server like an account's `manage`
+  (`composioAppsUrl`): `https://dashboard.composio.dev/<organization name>/~/connect/apps`,
+  the name an encoded path segment, or `https://dashboard.composio.dev/~/org/connect/apps`
+  where the organization is not known. It is there only where Composio's accounts
+  count here: allowed, installed, signed in, on for agents, and its source read
+  (`ok`). It is `null` otherwise: not allowed, signed out, unreadable, or working
+  in no organization that can be told (`organization`). The page takes only a link
+  to Composio's dashboard.
+- The page shows it twice, only where it is not `null`. "Aplikace v Composiu ↗"
+  ("Apps in Composio") stands in the page's top right corner beside "Jak to
+  funguje", on every tab, and shows only its icon below 768 px. "Aplikaci tu
+  nenajdete? Připojte ji v Composiu ↗" is at the foot of Vše, and inside the empty
+  line of a search there that found nothing. Both open a new tab of the person's
+  own browser. Where it is `null`, nothing is shown; the cards and the notices
+  already say why.
+- Coming back reads again once (`composioTrip`, `integrations-view.ts`). After one
+  of these links was used and the page lost the person (the tab hidden or the
+  window blurred), their return (focus, or the tab visible again) reads the
+  Integrace as "Zkontrolovat připojení" does (`?refresh=1`). The return reads only
+  once and only while the page is shown, and there is no polling. A link opened in
+  the background never took the person away, so the page reads only once they do
+  leave and come back.
+- An account of a toolkit the catalog does not know is listed as an app of its own
+  (`catalog: false`, its id the toolkit). It is named from the slug alone
+  (`toolkitName`: words split at `_` and `-`, each capitalised, so `wispr_flow` is
+  "Wispr Flow"); nothing is asked for its name. Its card says "Z Composia, mimo
+  katalog Lazuria." and stands under Připojené once an account is active.
+  `lazurio integrations list` names it as `Wispr Flow (wispr_flow)` and, where
+  `composio.apps` is set, adds where the person connects an app the catalog does
+  not list.
+
 ## The reading: `GET /api/integrations` and `lazurio integrations list`
 
 Both answer the same document (`IntegrationsOverview`, `src/integrations/model.ts`):
 the Folder's language and scope, the Integrace page address where a browser
 reaches the Launchpad (`page`, null on a workstation), Composio's policy,
-readiness and whether its CLI removes an account here (`disconnect`), each
+readiness, whether its CLI removes an account here (`disconnect`) and its
+Apps in Composio's dashboard (`apps`: [Composio's own Apps](#composios-own-apps-aplikace-v-composiu)), each
 source's state (`ok`, `unavailable`, `absent` for an Environment
 without Executor, `unreadable`, `signed-out`, `not-allowed`), the tools for one app that are connected, every catalog app with
 its path, `connected`, its accounts (path, the selector that disconnects it: Executor's
@@ -525,7 +564,8 @@ connection id, Composio's id where its list gives one, else its word id; its
 `label`, state, spare, and `manage`, a Composio account's page in Composio's
 dashboard: [Account names](#account-names-and-composios-dashboard)) and its card link (`<origin>/integrations/app/<id>`, which
 lists and focuses that card even where nothing connects the app here), the
-accounts of Composio toolkits the catalog does not know, and the custom MCP
+accounts of Composio toolkits the catalog does not know (named from the toolkit),
+and the custom MCP
 servers (address without userinfo or query, which may carry a key; a command
 server's line is not shown). A source that cannot be read is said so and never
 taken for "nothing connected"; only a Folder that cannot be read fails the route

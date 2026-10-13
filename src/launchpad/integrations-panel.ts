@@ -36,8 +36,10 @@ import {
   appsPreview,
   attentionCount,
   type CardAction,
+  type ComposioTrip,
   cardView,
   composioOrganizationLine,
+  composioTrip,
   disconnectText,
   integrationsHelp,
   monogram,
@@ -68,6 +70,12 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // addendum of 2026-10-13). A link URL lives only in that window and in page
 // memory; a key typed for a custom server goes to the server once and is
 // never kept. Every value from the server is drawn with textContent.
+// Where Composio's accounts count here, "Aplikace v Composiu" (the page's
+// corner) and "Aplikaci tu nenajdete? Připojte ji v Composiu" (the foot of
+// Vše, also of a search that found nothing) open the Apps of the person's
+// Composio organization in their own browser, the link the server built;
+// coming back reads the Integrace once (decision F42, addendum of
+// 2026-10-14).
 
 type Session = Readonly<{
   id: string;
@@ -116,6 +124,7 @@ export function createIntegrationsPanel(
   const navLink = find<HTMLAnchorElement>("#integrations-open");
   const attention = find<HTMLSpanElement>("#integrations-attention");
   const help = find<HTMLAnchorElement>("#integrations-help");
+  const composioApps = find<HTMLAnchorElement>("#integrations-composio");
   const search = find<HTMLInputElement>("#integrations-search");
   const refreshButton = find<HTMLButtonElement>("#integrations-refresh");
   const tabs = [
@@ -161,6 +170,8 @@ export function createIntegrationsPanel(
   const sessions = new Map<string, Session>();
   let busy = new Set<string>();
   let confirmAction: (() => Promise<string | null>) | null = null;
+  /** The way to Composio's Apps and back (`composioTrip`). */
+  let trip: ComposioTrip = "idle";
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -803,6 +814,28 @@ export function createIntegrationsPanel(
     return article;
   }
 
+  /** Composio's Apps opened from this page: their return reads again. */
+  const toComposio = () => {
+    trip = composioTrip(trip, "opened").trip;
+  };
+
+  /** "Aplikaci tu nenajdete? Připojte ji v Composiu ↗", where Composio's
+   * accounts count here; a span inside the empty line, else a line. */
+  function composioHint(tag: "p" | "span"): HTMLElement | null {
+    const apps = overview?.composio.apps ?? null;
+    if (apps === null) return null;
+    const copy = options.copy();
+    const hint = element(tag, "integrations-hint");
+    const link = element("a", "", copy.integrationsComposioConnectThere);
+    link.href = apps;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.append(icon("i-external"));
+    link.addEventListener("click", toComposio);
+    hint.append(`${copy.integrationsComposioMissing} `, link);
+    return hint;
+  }
+
   function appsSection(tab: "all" | "connected"): HTMLElement[] {
     const copy = options.copy();
     if (overview === null) return [];
@@ -843,6 +876,8 @@ export function createIntegrationsPanel(
         pick.dataset.route = "";
         empty.append(" ", pick);
       }
+      const hint = tab === "all" ? composioHint("span") : null;
+      if (hint !== null) empty.append(hint);
       nodes.push(empty);
       return nodes;
     }
@@ -860,6 +895,8 @@ export function createIntegrationsPanel(
           },
         ),
       );
+    const hint = tab === "all" ? composioHint("p") : null;
+    if (hint !== null) nodes.push(hint);
     return nodes;
   }
 
@@ -1513,6 +1550,11 @@ export function createIntegrationsPanel(
     }
     refreshButton.disabled = loading;
     refreshButton.classList.toggle("is-spinning", loading);
+    // Only a link the server built, to Composio's dashboard (parsed).
+    const apps = overview?.composio.apps ?? null;
+    composioApps.hidden = apps === null;
+    if (apps === null) composioApps.removeAttribute("href");
+    else composioApps.href = apps;
     alert.hidden = note === "";
     alert.textContent = note;
     if (overview === null) {
@@ -1572,6 +1614,7 @@ export function createIntegrationsPanel(
   function relabel() {
     const copy = options.copy();
     help.href = integrationsHelp(options.locale());
+    composioApps.title = copy.integrationsComposioApps;
     search.placeholder = copy.integrationsSearch;
     refreshButton.title = copy.integrationsRefresh;
     if (custom !== null) drawCustom();
@@ -1579,6 +1622,21 @@ export function createIntegrationsPanel(
   }
 
   search.addEventListener("input", () => render());
+  composioApps.addEventListener("click", toComposio);
+  // Back from Composio's Apps: the Integrace read again, once, while shown.
+  const step = (event: "left" | "back") => {
+    const next = composioTrip(trip, event);
+    trip = next.trip;
+    if (next.refresh && active()) {
+      note = "";
+      void load(true);
+    }
+  };
+  document.addEventListener("visibilitychange", () =>
+    step(document.visibilityState === "hidden" ? "left" : "back"),
+  );
+  window.addEventListener("blur", () => step("left"));
+  window.addEventListener("focus", () => step("back"));
   refreshButton.addEventListener("click", () => {
     note = "";
     void load(true);

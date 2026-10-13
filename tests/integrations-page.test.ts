@@ -8,6 +8,7 @@ import {
   accountView,
   attentionCount,
   cardView,
+  composioTrip,
   disconnectText,
   monogram,
   normalize,
@@ -119,6 +120,7 @@ const overview = (
     source: "environment",
     ready: true,
     disconnect: true,
+    apps: "https://dashboard.composio.dev/First/~/connect/apps",
     organization: null,
   },
   sources: { tools: "ok", executor: "ok", composio: "ok" },
@@ -595,6 +597,127 @@ test("a Composio account's menu: manage it in Composio and disconnect it; signin
       ],
     }),
   ).toBeNull();
+});
+
+// "Aplikace v Composiu" (decision F42, addendum of 2026-10-14): the page
+// takes the link the server built only to Composio's dashboard, reads the
+// Integrace once when the person comes back from it, and an app connected
+// there that the catalog does not know is under Připojené by its name.
+test("Aplikace v Composiu: only a link to Composio's dashboard, none where Composio does not count", () => {
+  const value = overview([app("notion")]);
+  const withApps = (apps: unknown) => ({
+    ...value,
+    composio: { ...value.composio, apps },
+  });
+  expect(parseIntegrations(withApps(null))?.composio.apps).toBeNull();
+  expect(
+    parseIntegrations(
+      withApps("https://dashboard.composio.dev/~/org/connect/apps"),
+    )?.composio.apps,
+  ).toBe("https://dashboard.composio.dev/~/org/connect/apps");
+  for (const apps of [
+    "javascript:alert(1)",
+    "https://dashboard.composio.dev.example.test/First/~/connect/apps",
+    "http://dashboard.composio.dev/First/~/connect/apps",
+    "https://dashboard.composio.dev",
+    "https://example.test/",
+    undefined,
+    3,
+  ])
+    expect(parseIntegrations(withApps(apps))).toBeNull();
+  expect(en.integrationsComposioApps).toBe("Apps in Composio");
+  expect(cs.integrationsComposioApps).toBe("Aplikace v Composiu");
+  expect(
+    `${cs.integrationsComposioMissing} ${cs.integrationsComposioConnectThere}`,
+  ).toBe("Aplikaci tu nenajdete? Připojte ji v Composiu");
+  expect(
+    `${en.integrationsComposioMissing} ${en.integrationsComposioConnectThere}`,
+  ).toBe("Can't find an app here? Connect it in Composio");
+});
+
+test("coming back from Composio's Apps reads the Integrace once, only after the page lost the person", () => {
+  // Opened, left for Composio's tab, back: one reading.
+  let state = composioTrip("idle", "opened");
+  expect(state).toEqual({ trip: "opened", refresh: false });
+  state = composioTrip(state.trip, "left");
+  expect(state).toEqual({ trip: "away", refresh: false });
+  // Blur and a hidden tab both say "left".
+  expect(composioTrip(state.trip, "left")).toEqual({
+    trip: "away",
+    refresh: false,
+  });
+  state = composioTrip(state.trip, "back");
+  expect(state).toEqual({ trip: "idle", refresh: true });
+  // Focus and a visible tab both say "back": the second reads nothing.
+  expect(composioTrip(state.trip, "back")).toEqual({
+    trip: "idle",
+    refresh: false,
+  });
+  // Opened in the background: the page never lost the person, nothing yet;
+  // once they leave and come back, it reads.
+  expect(composioTrip("opened", "back")).toEqual({
+    trip: "opened",
+    refresh: false,
+  });
+  expect(
+    composioTrip(composioTrip("opened", "left").trip, "back").refresh,
+  ).toBe(true);
+  // Leaving and coming back without the link reads nothing.
+  expect(composioTrip("idle", "left")).toEqual({
+    trip: "idle",
+    refresh: false,
+  });
+  expect(composioTrip("idle", "back")).toEqual({
+    trip: "idle",
+    refresh: false,
+  });
+});
+
+test("an app connected in Composio that the catalog does not know is under Připojené by its name", () => {
+  const wispr = app("wispr_flow", {
+    name: "Wispr Flow",
+    catalog: false,
+    connected: true,
+    path: { path: "composio", signIn: false },
+    accounts: [
+      {
+        path: "composio",
+        selector: "castle",
+        label: null,
+        state: "connected",
+        spare: false,
+        manage:
+          "https://dashboard.composio.dev/First/~/connect/apps/wispr_flow",
+      },
+    ],
+  });
+  const value = overview([app("linear"), wispr]);
+  // The server's answer, as the page takes it.
+  expect(parseIntegrations(JSON.parse(JSON.stringify(value)))).toEqual(value);
+  const ids = (tab: "all" | "connected", search: string) =>
+    visibleApps(value, integrationsCatalog.apps, tab, search).map(
+      (item) => item.id,
+    );
+  expect(ids("connected", "")).toEqual(["wispr_flow"]);
+  expect(ids("all", "")).toEqual(["wispr_flow", "linear"]);
+  // Found by its name and by its toolkit.
+  expect(ids("connected", "wispr fl")).toEqual(["wispr_flow"]);
+  expect(ids("all", "wispr_flow")).toEqual(["wispr_flow"]);
+  for (const copy of [cs, en])
+    expect(cardView(wispr, undefined, options(copy))).toEqual({
+      line: copy.integrationsOutsideCatalog,
+      connected: true,
+      pathLabel: copy.integrationsPathComposio,
+      action: {
+        kind: "connect",
+        label: copy.integrationsAddAccount,
+        path: "composio",
+      },
+      composio: true,
+    });
+  expect(cs.integrationsOutsideCatalog).toBe(
+    "Z Composia, mimo katalog Lazuria.",
+  );
 });
 
 test("a source that cannot be read says so on the page; custom servers count their tools", () => {

@@ -5,6 +5,7 @@ import {
 } from "./catalog-schema";
 import {
   type ComposioAccount,
+  composioAppsUrl,
   composioManageUrl,
   composioSelector,
 } from "./composio-source";
@@ -122,7 +123,8 @@ export type IntegrationApp = Readonly<{
    * account whose sign-in expired or failed does not connect it. */
   connected: boolean;
   accounts: readonly IntegrationAccount[];
-  /** Whether the app is in the catalog (otherwise only connected here). */
+  /** Whether the app is in the catalog (otherwise only connected here,
+   * named from its toolkit by `toolkitName`). */
   catalog: boolean;
   /** The app's card in the Launchpad (`<origin>/integrations/app/<id>`), the
    * link an agent sends; null where no browser reaches the Launchpad. */
@@ -155,6 +157,12 @@ export type IntegrationsOverview = Readonly<{
     /** Whether "Odpojit" removes a Composio account here: the CLI removes
      * one without a prompt (`connections remove --yes`). */
     disconnect: boolean;
+    /** "Aplikace v Composiu" (decision F42, addendum of 2026-10-14): the
+     * Apps section of the Composio organization this Environment works in,
+     * where the person connects an app the catalog does not list; its
+     * accounts then show here. Only where Composio's accounts count here
+     * (allowed, ready, and its source read); null elsewhere. */
+    apps: string | null;
     /** The Composio organization of this Environment's Organization's name
      * and how the person's account stands to it (decision F42, addendum (2)
      * of 2026-10-13): current; missing or there more than once, where
@@ -239,6 +247,19 @@ export function composioToolkitOf(
   appId: string,
 ): string {
   return catalog.apps.find((app) => app.id === appId)?.composio ?? appId;
+}
+
+/** The name of a Composio toolkit the catalog does not know, from its slug
+ * alone (decision F42, addendum of 2026-10-14): its words, split at `_` and
+ * `-`, each capitalised (`wispr_flow` is "Wispr Flow"). Nothing is asked
+ * for it; the slug stays the app's id for agents. */
+export function toolkitName(toolkit: string): string {
+  const words = toolkit.split(/[_-]+/).filter((word) => word !== "");
+  return words.length === 0
+    ? toolkit
+    : words
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
 }
 
 /** Which catalog app an Executor integration is: only a remote MCP server
@@ -453,7 +474,12 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
   for (const [toolkit, accounts] of viaComposio)
     if (!known.has(toolkit))
       apps.push(
-        entry({ id: toolkit, composio: true }, toolkit, accounts, false),
+        entry(
+          { id: toolkit, composio: true },
+          toolkitName(toolkit),
+          accounts,
+          false,
+        ),
       );
   return Object.freeze({
     kind: "integrations",
@@ -465,6 +491,7 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
       source: policy.source,
       ready: input.composioReady,
       disconnect: composioUsable && input.composioDisconnect === true,
+      apps: composioUsable ? composioAppsUrl(input.composioOrganization) : null,
       organization: input.composioTarget ?? null,
     }),
     sources: Object.freeze({

@@ -97,13 +97,20 @@ test("one reading: the catalog with one path per app, tool and Executor and Comp
               alias: null,
               word_id: "river",
             },
-            // A toolkit the catalog does not know is listed all the same.
             {
               id: "ca_3",
               toolkit: "todoist",
               status: "ACTIVE",
               alias: null,
               word_id: "stone",
+            },
+            // A toolkit the catalog does not know is listed all the same.
+            {
+              id: "ca_4",
+              toolkit: "wispr_flow",
+              status: "ACTIVE",
+              alias: null,
+              word_id: "meadow",
             },
           ],
         },
@@ -144,6 +151,8 @@ test("one reading: the catalog with one path per app, tool and Executor and Comp
       ready: true,
       // This composio removes an account only after a prompt.
       disconnect: false,
+      // "Aplikace v Composiu": the Apps of the person's Composio organization.
+      apps: "https://dashboard.composio.dev/First/~/connect/apps",
       // A computer's Folder: the person chooses the organization.
       organization: null,
     });
@@ -177,7 +186,24 @@ test("one reading: the catalog with one path per app, tool and Executor and Comp
       connected: false,
       accounts: [{ state: "expired" }],
     });
-    // Not in the catalog, connected in Composio: listed by its toolkit.
+    // Not in the catalog, connected in Composio: listed by its toolkit,
+    // named from it (decision F42, addendum of 2026-10-14) and connected.
+    expect(app_("wispr_flow")).toMatchObject({
+      name: "Wispr Flow",
+      catalog: false,
+      connected: true,
+      path: { path: "composio", signIn: false },
+      accounts: [
+        {
+          path: "composio",
+          selector: "meadow",
+          state: "connected",
+          manage:
+            "https://dashboard.composio.dev/First/~/connect/apps/wispr_flow",
+        },
+      ],
+    });
+    // Connected in Composio, the catalog's own app.
     expect(app_("todoist")?.accounts).toEqual([
       {
         path: "composio",
@@ -2301,6 +2327,17 @@ test("Vlastní: what the form refuses, the route refuses before Executor is aske
 test("`lazurio integrations list --json` answers what the route answers", async () => {
   const { parent, world, app } = await setup(
     {
+      composio: {
+        accounts: [
+          {
+            id: "ca_1",
+            toolkit: "wispr_flow",
+            status: "ACTIVE",
+            alias: null,
+            word_id: "meadow",
+          },
+        ],
+      },
       executorSeed: {
         integrations: [notion],
         connections: [
@@ -2350,6 +2387,13 @@ test("`lazurio integrations list --json` answers what the route answers", async 
     "Not working (the person signs in again on the card):\n  Notion (notion) — directly (Executor) · expired",
   );
   expect(text.stdout).toContain("GitHub (github) — through gh");
+  // An app the catalog does not know, by its name and its toolkit, and
+  // where the person connects such apps (decision F42, addendum of
+  // 2026-10-14).
+  expect(text.stdout).toContain("  Wispr Flow (wispr_flow) — through Composio");
+  expect(text.stdout).toContain(
+    "An app the catalog does not list is connected by the person in Composio (https://dashboard.composio.dev/First/~/connect/apps); it then shows here.",
+  );
   // A wrong invocation is a usage error.
   expect(
     (

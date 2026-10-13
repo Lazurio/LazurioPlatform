@@ -472,10 +472,19 @@ export function composioManageUrl(
   organization: string | null,
   toolkit: string,
 ): string {
-  const app = encodeURIComponent(toolkit);
+  return `${composioAppsUrl(organization)}/${encodeURIComponent(toolkit)}`;
+}
+
+/** The Apps section of the person's Composio organization in Composio's
+ * dashboard, `/<organization name>/~/connect/apps` (decision F42, addendum
+ * of 2026-10-14): where the person connects an app Lazurio's catalog does
+ * not list and manages the ones they have, the page "Aplikace v Composiu"
+ * opens. The organization's name is one encoded path segment; where it is
+ * not known, `~/org/` as for `composioManageUrl`. */
+export function composioAppsUrl(organization: string | null): string {
   return organization === null
-    ? `${composioDashboard}/~/org/connect/apps/${app}`
-    : `${composioDashboard}/${encodeURIComponent(organization)}/~/connect/apps/${app}`;
+    ? `${composioDashboard}/~/org/connect/apps`
+    : `${composioDashboard}/${encodeURIComponent(organization)}/~/connect/apps`;
 }
 
 /** Whether a link URL is Composio's own: https on composio.dev. */
