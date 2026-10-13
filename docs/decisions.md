@@ -10914,7 +10914,8 @@ decision is (c), and the agents' guidance for all three.
    page's path where no entry is recorded); `--json` the request with `link`.
    `status <id>` answers `pending`, `saved` (with the item's name: read it from the
    vault) or `declined`; `list` every request, oldest first. Only where the
-   Environment's own vault is connected (`not-connected`; a 0197 pilot is
+   Environment's own vault is connected (`not-connected`, also while its creation is
+   unresolved, F52's `creating`; a 0197 pilot is
    `pilot-0197`, and every reason the vault is not here is its own), and at most 50
    waiting (`too-many`). Exit 0 created, 2 refused, 1 a failure.
 2. **The store.** One JSON per request in the account's custody (F53 point 2),
