@@ -32,7 +32,8 @@ mandate per the Folder manuals. Agents update Operator tools only on the Operato
 explicit instruction. The Platform's part is the generated manual rule and section
 "Where the tools live" (template revision `base-instructions-7`) and
 `lazurio tools status|update`, a thin orchestration of the official installers that
-reports and, on instruction, runs them; it pins nothing.
+reports and, on instruction, runs them; it pins nothing but Lazurio's build of
+composio ([F42](decisions.md#f42--integrace-one-catalog-for-the-environment-one-path-per-app-executors-api-behind-the-launchpad), addendum (3) of 2026-10-13).
 
 ### `lazurio tools status` and `lazurio tools update <tool>`
 
@@ -51,12 +52,20 @@ The Platform's surface for the operator's tools, implemented in `src/tools/`:
 - `tools update <tool> [--json]` runs exactly that tool's official update path as the
   current user and reports the version before and after: the tool's own updater
   (`claude update`, `bun upgrade`) or the vendor's installer script (`codex`, the
-  official standalone installer of `manual/organization-install.md`). Tools without one
-  (`gh`, `git`, `node`, `npm`) are reported with their official source and nothing
-  runs (`tool-not-self-updating`, exit 1). Unknown names exit 2. It never pins,
-  never downgrades on its own, never touches another tool and is not run by
-  `lazurio update`, the Launchpad or a Machines apply. An agent runs it only on the
-  Operator's explicit instruction (F17). When Codex changed its version, the result
+  official standalone installer of `manual/organization-install.md`). composio, which
+  Lazurio uses in its own build (F42, addendum (3)), runs its curated installer again
+  at that pinned build (updater `curated`, the result names the `installer` instead
+  of a `command`), whatever version runs now, in place in `~/.local/bin` and
+  `~/.composio` and keeping the sign-in; it refuses to put a second copy beside a
+  composio elsewhere on PATH (`preflight`, `installation-elsewhere`), and it is
+  `tool-updated` only when `composio --version` then prints that build. Tools without
+  an update path (`gh`, `git`, `node`, `npm`) are reported with their official source
+  and nothing runs (`tool-not-self-updating`, exit 1). Unknown names exit 2. Apart
+  from composio's build it pins nothing; it never downgrades on its own, never touches
+  another tool and is not run by `lazurio update` or a Machines apply. The Launchpad
+  runs it only when the person clicks "Update" ("Aktualizovat") on a composio that is
+  not that build (Settings → Tools, `POST /api/tools/upgrade`). An agent runs it only
+  on the Operator's explicit instruction (F17). When Codex changed its version, the result
   carries `next`: a Codex app-server that is already running keeps the old version
   until it is replaced, `lazurio doctor` reports it as `codex-app-server`
   `app-server-outdated`, and nothing is stopped or restarted (F29 addendum, issue
@@ -246,10 +255,15 @@ arm64. CLI first; the Launchpad serves the same core. The tools set up by an age
   `wacli`: the GitHub release archive for the platform, verified against the SHA-256
   in the release's checksums file before it is read, every archive entry checked
   (absolute names, `..`, escaping links and special entries refuse the archive), only
-  the binary placed, atomically, 0755. `composio`: the official installer
-  `https://composio.dev/install`, downloaded into a private file first, then run with
-  `COMPOSIO_INSTALL_PLUGINS=0 COMPOSIO_INSTALL_SHELL=none COMPOSIO_INSTALL_HELP=0`
-  (bundle in `~/.composio`, link in `~/.local/bin`, no agent plugins, no shell files).
+  the binary placed, atomically, 0755. `composio`: Lazurio's build of the CLI (F42,
+  addendum (3)), installed by Composio's installer from Lazurio's fork, pinned by
+  commit (`https://raw.githubusercontent.com/Lazurio/composio/<installerCommit>/install.sh`,
+  immutable), downloaded into a private file first, then run with
+  `COMPOSIO_INSTALL_PLUGINS=0 COMPOSIO_INSTALL_SHELL=none COMPOSIO_INSTALL_HELP=0
+  COMPOSIO_GITHUB_OWNER=Lazurio COMPOSIO_GITHUB_REPO=composio
+  COMPOSIO_INSTALL_VERSION=@composio/cli@0.4.3-lazurio.1` (bundle in `~/.composio`,
+  link in `~/.local/bin`, no agent plugins, no shell files); only exactly that version
+  afterwards is installed (`verify`, `version-mismatch` otherwise).
   A tool that works anywhere on PATH, or in the standard path, is not touched
   (`already-installed`); a broken copy elsewhere on PATH is not shadowed
   (`install-failed` at `preflight`). Failures name the stage (`resolve`, `download`,

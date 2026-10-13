@@ -1660,6 +1660,11 @@ so agents on VMs keep the layout for further tools, and `tools status` reports
 operator's Codex and Claude Code with their own CLIs, and changes or removes
 nothing else of their configuration.
 
+**Amended by [F42](#f42--integrace-one-catalog-for-the-environment-one-path-per-app-executors-api-behind-the-launchpad), addendum (3) (2026-10-13):**
+composio is the one operator's tool whose version Lazurio pins: its update
+(`lazurio tools update composio`, Settings → Tools → Update) installs Lazurio's build
+of it, whatever runs, and only when the person asks for it.
+
 **Addendum 2026-09-28 (Matěj): the Operator owns the Lazurio version; the pin
 is a minimum.** Recorded from Matěj's decisions of 2026-09-28. (1) There is
 **one updater**, `lazurio update`. The operator of an Environment updates Lazurio
@@ -2065,7 +2070,10 @@ made 0755 and renamed into place, and the directory is removed. `composio`: the
 documented installer `https://composio.dev/install` is downloaded into a private file
 first and then run with `COMPOSIO_INSTALL_PLUGINS=0`, `COMPOSIO_INSTALL_SHELL=none` and
 `COMPOSIO_INSTALL_HELP=0` (no agent plugins, no shell startup files); a failed
-download runs nothing. A binary that does not answer `--version` afterwards is removed
+download runs nothing. *Amended 2026-10-13 ([F42](#f42--integrace-one-catalog-for-the-environment-one-path-per-app-executors-api-behind-the-launchpad), addendum (3)):* composio is
+Lazurio's pinned build of the CLI, installed by Composio's installer from Lazurio's
+fork, pinned by commit, pointed at the fork's release, and `lazurio tools update
+composio` runs it again. A binary that does not answer `--version` afterwards is removed
 and reported. Results: `installed {version, path, onPath}`, `already-installed`,
 `unsupported-platform` and `install-failed {stage, reason, detail?}`, the last two
 with `fallback: "agent"`. `detail` is at most twelve plain lines of the installer's
@@ -6889,7 +6897,8 @@ preferences), which was never merged. The reference is
    switched on for agents, installed and signed in. *Amended 2026-10-13
    (addendum (2) below):* on an Organization's Environment, in the person's
    Composio organization of the Organization's name where it exists, and not
-   at all where that organization cannot be told.
+   at all where that organization cannot be told. *Amended 2026-10-13 (addendum
+   (3) below):* Lazurio installs its own build of the CLI, which has `--yes`.
 4. **Who allows Composio is one seam.** `composioPolicy()` answers `{allowed,
    source: "organization" | "environment"}`; until the Organization's settings
    reach the Environment (root decision 0194, plan DEV-6653) it is the
@@ -6988,6 +6997,9 @@ where an account is seen and changed. The reference is
    provider's identity of an account (a mail address, a login), which Composio
    keeps as `state.val.displayName`, is stripped from every output of the CLI;
    naming an account by it waits for an upstream change (#312, point 3).
+   *Amended 2026-10-13 (addendum (3) below):* Lazurio's build of the CLI prints it
+   as `display_name`, which names an account without an alias, and every alias,
+   so no lookup runs with it.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -7167,7 +7179,8 @@ things in the reading were wrong. The reference is
    read with the accounts), and the "⋯" menu offers "Odpojit" only then; "Spravovat
    v Composiu" stays. The flag is proposed upstream (ComposioHQ/composio#4817, issue
    #4816); once a release has it and the Platform pins that release, "Odpojit"
-   appears by itself.
+   appears by itself. *Amended 2026-10-13 (addendum (3) below):* the Platform pins
+   Lazurio's build of the CLI, which has the flag.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -7346,6 +7359,115 @@ Environment's organization again, switched back first, and in the person's
 current one where it is gone since; `lazurio integrations list` journaling its
 switch on stderr without a name or an id (the same file); the sign-in dialog's
 answer naming no rule on a computer (`tests/launchpad-curated.test.ts`).
+
+**Addendum 2026-10-13 (3), decided by the Operator: Lazurio installs its own build of
+Composio's CLI until Composio's own has what Integrace needs.** Composio's stable CLI
+(0.4.2, 0.4.3) removes an account only after a prompt, so the "⋯" menu of a Composio
+account offered only "Spravovat v Composiu", and an expired account or an unfinished
+sign-in could be removed by the person nowhere; and its `connections list` prints no
+ids and no provider identity, so an account was named only by an alias found through
+per-toolkit `link <toolkit> --list` lookups (addendum of 2026-10-11), otherwise
+"účet". The Operator decided on 2026-10-13 that Lazurio uses its own build from the
+fork Lazurio/composio now and returns to Composio's once a stable release has the
+changes (proposed upstream: `--yes` in ComposioHQ/composio#4817, issue #4816; the
+list's ids and names in #4809). The reference is
+[integrations](integrations.md#lazurios-build-of-the-cli).
+
+1. **The build.** Composio's stable 0.4.3 with exactly two changes, released as
+   `@composio/cli@0.4.3-lazurio.1` in Lazurio/composio with Composio's assets
+   (`composio-<target>.zip`, `checksums.txt`); `composio --version` prints
+   `0.4.3-lazurio.1`. (a) `connections remove <account> --yes` (and `-y`) removes
+   without a prompt. (b) `connections list` prints on every entry its `id` (`ca_…`),
+   its `alias` wherever it has one (a toolkit's only account too; `null` may stand for
+   none) and, where Composio knows the provider's identity (a mail address, a login),
+   `display_name`, trimmed and at most 200 characters. The build's `composio upgrade`,
+   update check, skill installation and companion self-repair default to the fork's
+   releases. One constant pins it (`composioBuild`, `src/tools/composio-build.ts`):
+   the release's tag and the commit of the fork's installer, which come from the same
+   release and change together in one reviewed change; the constant goes when
+   Composio's own stable CLI has both changes.
+2. **Installed by Composio's installer from Lazurio's fork, pinned.** `lazurio tools
+   install composio` and Settings → Tools run Composio's installer, as before without
+   agent plugins or shell files, with `COMPOSIO_GITHUB_OWNER=Lazurio`,
+   `COMPOSIO_GITHUB_REPO=composio` and
+   `COMPOSIO_INSTALL_VERSION=@composio/cli@0.4.3-lazurio.1`. The script is the fork's
+   `install.sh` at a fixed commit
+   (`https://raw.githubusercontent.com/Lazurio/composio/<installerCommit>/install.sh`),
+   not `https://composio.dev/install`: that script accepts an explicit version only as
+   `X.Y.Z` or `X.Y.Z-beta.N` (its `normalize_version`, read 2026-10-13) and resolves
+   "latest" only among plain `@composio/cli@X.Y.Z` tags, so it cannot install this
+   build. The fork's `install.sh` is Composio's with that one check widened to accept
+   `X.Y.Z-lazurio.N`; everything else is Composio's installer. Pinned by commit, its
+   URL is immutable: what runs is exactly the reviewed script, whatever happens later
+   to a branch or a tag of the fork. The installed tool must print exactly the pinned
+   version: another version fails at `verify` with `version-mismatch`, and what runs
+   stays (it is not removed, and never said to be the build).
+3. **Updated to it on request.** `lazurio tools update composio` (the updater kind
+   `curated`) runs the same installer again at the pinned build, whatever runs now:
+   Composio's stable CLI, an older build or a newer release of Composio's. The
+   installer replaces the bundle in `~/.composio` in place, keeps the files beside it
+   (the sign-in, `user_data.json`) and links `~/.local/bin/composio` again. A composio
+   elsewhere on PATH is never shadowed by a second copy (`preflight`,
+   `installation-elsewhere`), and the update ends only with exactly the pinned build.
+   It runs only when the person asks for it, or an agent on their explicit
+   instruction (decision 0161, F17): never `lazurio update`, a Machines apply or the
+   Launchpad's start. Settings → Tools reads the pin (`pinned`): a composio that is
+   not the build says so in its Details and offers "Aktualizovat" / "Update" where the
+   update can work (a `launchpad` tool this Environment offers, not refused by the
+   Organization, installed in the standard path). The click is the consent; it posts
+   `/api/tools/upgrade`, the core of `lazurio tools update`.
+4. **Integrace reads the richer list.** An account's name is its alias, else its
+   `display_name`, else "účet". An id is taken only as a plain selector
+   (`^[A-Za-z0-9_-]{1,128}$`), and any other refuses the list as an invalid alias
+   does; a display name only as trimmed plain text of at most 200 characters without
+   control or bidirectional characters, anything else left out without refusing the
+   list. Where every entry carries an id (the build's list), no `link <toolkit>
+   --list` lookup runs; where none does (Composio's own CLI), the lookups and their
+   names kept for half an hour work exactly as before. "Odpojit" names an account by
+   its id where the list gives one, else by its word id, in the reading and in the
+   removal alike; with the build, the probe of the addendum of 2026-10-12, point 3,
+   finds `--yes` and the menu offers "Odpojit" by itself. `lazurio integrations list
+   --json` carries the same names (`label`) and selectors.
+
+Not in this addendum: renaming an account (it still needs a project API key);
+the check of a second account's name before a link and a sign-in's completion, which
+still ask `link <toolkit> --list` (they name no account); Composio's organizations
+(addendum (2)) and pending sign-ins (addendum of 2026-10-12), which are unchanged; and
+Windows, which has no curated installer.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep Composio's stable CLI and wait for upstream | No fork to keep; but no person can remove an account anywhere, and single accounts stay "účet"; rejected by the Operator on 2026-10-13 |
+| `https://composio.dev/install` with the tag in its environment | Composio's script as served; but it refuses any version other than `X.Y.Z` or `X.Y.Z-beta.N`, so it cannot install the build; not possible |
+| The fork's installer by the release's tag, not by commit | One value fewer to pin; but a tag (or a branch) can be moved, so the script that runs could change without a review here; rejected: the installer's commit is pinned beside the tag |
+| Update by `composio upgrade` | No installer run; but it takes the highest non-prerelease release by semver, so from the build it moves to newer builds of the fork, not the pinned one, and from Composio's CLI it reaches the fork only with `GITHUB_OWNER`, `GITHUB_REPO` and a tag overridden; it also installs the CLI's `composio-cli` skill for Claude Code (`~/.agents/skills`, `~/.claude/skills`), which the curated installation keeps out; rejected: the update is the pinned installation again |
+| Lazurio downloads and unpacks the bundle itself | A mandatory checksum and no script; but a second installer of Composio's bundle to keep in step with theirs; rejected |
+| A tag the stock installer accepts (`0.4.3-beta.N`) | No change to the installer; but the build would read, and print its version, as a beta of Composio's; rejected |
+| Converge without asking (at the Launchpad's start, in a rollout) | Every Environment on the build at once; but an update of the person's tool they did not ask for (decision 0161); rejected: "Aktualizovat" and `lazurio tools update composio` |
+| Keep the `link --list` lookups with the build | One way to name accounts; but up to two `composio` processes (about 200 MB each) per reading for names the list already has; rejected: none where every entry has an id |
+
+Verified by tests: the pinned build's constant (the tag and the installer's commit)
+and the installer's URL by that commit; the installation of the build with the
+installer's environment (the fork, the tag, no plugins, no shell) and its one request
+to that URL, a failed download running nothing, a failing installer's safe tail, a
+tool that does not run removed, and another version kept but refused as
+`version-mismatch`; the update over Composio's CLI and over an older build ending with
+the pinned version and the sign-in file unchanged, a mismatch failing, a composio
+elsewhere on PATH refused without a download, and `lazurio tools update composio` in
+text and JSON with its exit codes (`tests/tools-install.test.ts`); composio's updater
+`curated` and its target state (`tests/tools.test.ts`, `tests/folder-tools.test.ts`);
+the Tools page's note and "Update" only where the update can work, its sentences in
+both languages, its notice and the pin read from the server's answer
+(`tests/tools-view.test.ts`); the route's admission, its refusal of a tool without a
+pin, an update of Composio's CLI through it and the pin in the tools reading
+(`tests/launchpad-curated.test.ts`, `tests/launchpad-tools.test.ts`); the list's ids,
+aliases and identities read strictly, a display name that fails validation left out
+and an invalid id refusing the list, names by alias, identity or none, selectors by id
+or word id, and no lookup where every entry has an id while a list without ids keeps
+them (`tests/integrations-model.test.ts`); the reading of the build's list without a
+lookup, "Odpojit" removing by id with `--yes`, a word id naming no account there, and
+`lazurio integrations list --json` carrying the same names
+(`tests/integrations-routes.test.ts`).
 
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
