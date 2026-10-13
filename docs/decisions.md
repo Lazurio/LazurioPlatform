@@ -7356,6 +7356,86 @@ current one where it is gone since; `lazurio integrations list` journaling its
 switch on stderr without a name or an id (the same file); the sign-in dialog's
 answer naming no rule on a computer (`tests/launchpad-curated.test.ts`).
 
+**Addendum 2026-10-14, asked for by the Organization Admin: "Aplikace v Composiu"
+leads to Composio's own Apps.** Lazurio's catalog (point 6) does not list every app
+Composio offers. Wispr Flow's MCP, for example, could be connected only in Composio's
+dashboard, and nothing on the page led there except the "⋯" menu of an account that
+already existed. The Admin asked for a button to Composio's Apps, put in the wireframe
+first (HumanAndMachine-ai/prototypes-lazurio#46). Until the Launchpad connects every
+app comfortably, people click through to Composio, which does it well, and see the
+result here. The reference is
+[integrations](integrations.md#composios-own-apps-aplikace-v-composiu).
+
+1. **The server builds the link.** The reading's `composio.apps` is the Apps section of
+   the Composio organization this Environment works in (addendum (2) of 2026-10-13):
+   `https://dashboard.composio.dev/<organization name>/~/connect/apps`, the name one
+   encoded path segment, and `~/org/` where the organization is not known. This is the
+   page above every app's page that "Spravovat v Composiu" opens
+   (`composioManageUrl` is `composioAppsUrl` and the toolkit). The page takes only a
+   link to Composio's dashboard.
+2. **Only where Composio's accounts count.** `apps` is set where they are listed here:
+   Composio allowed, installed, signed in, on for agents and its source read. It is
+   null otherwise, including the `organization` state, where the organization cannot
+   be told. An app connected in Composio would not show here then, and the page's
+   cards and notices already say why. So the page shows no link.
+3. **Where a person looks for a missing app.** "Aplikace v Composiu ↗" stands in the
+   page's corner beside "Jak to funguje", on every tab: a place always in view. "Aplikaci
+   tu nenajdete? Připojte ji v Composiu ↗" ends Vše, and the empty line of a search there
+   that found nothing, which is the moment the person learns the app is missing. Both
+   open a new tab of the person's own browser, as "Spravovat v Composiu" does. Below
+   768 px the corner link shows only its icon, as the Browser toggle does.
+4. **One reading on the way back.** Once one of the links was used and the page lost
+   the person (the tab hidden or the window blurred), their return reads the
+   Integrace once, as "Zkontrolovat připojení" does (`composioTrip`). This happens
+   only while the page is shown, with no polling. A link opened in the background
+   reads only once the person did leave and came back.
+5. **An app outside the catalog, named.** An account of a toolkit the catalog does not
+   know was already listed as an app of its own, but named by its slug (`wispr_flow`).
+   It is now named from the slug alone (`toolkitName`: "Wispr Flow"), with nothing
+   asked. Its card says "Z Composia, mimo katalog Lazuria." instead of repeating the
+   name, and it stands under Připojené once an account is active. Its id stays the
+   toolkit, so agents find it as before. `lazurio integrations list` prints
+   `Wispr Flow (wispr_flow)` and, where `apps` is set, where the person connects an
+   app the catalog does not list.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Only "Požádat Composio o novou aplikaci" | Asks Composio to add an app; but Wispr Flow is in Composio already, only not in Lazurio's catalog; not this need |
+| Composio's dashboard Home (`/~/connect`) | One page for everything; but the person came for an app, and Apps is where apps are found and connected; rejected: Apps |
+| Every Composio toolkit in the catalog | No trip to Composio; but about 1,600 toolkits without a curated name, icon, sentence or path, against point 6; not now |
+| Read again on every focus | Simplest; but every reading may start `composio` processes (about 200 MB each) on an Environment with little memory, on every switch of tabs; rejected: only after the link was used |
+| Poll while the person is in Composio | Shows a connection the moment it is made; but reads Composio repeatedly for nothing; rejected: one reading on return |
+| The toolkit's real name from Composio | The exact name; but a network call, or the CLI's undocumented cache file, in every reading; rejected for now: the slug made readable |
+| The link also where Composio is off, signed out or its organization unknown | Lets people manage their apps anyway; but what they connect would not count here, and the link would contradict the page's notices; rejected |
+
+Verified by tests:
+- The link with the organization encoded, `~/org/` without one, without a query or
+  a fragment, and `composioManageUrl` as the app's page below it.
+- `apps` null where Composio is not allowed, not ready, or its source is
+  unavailable, unreadable, signed out or in no organization that can be told.
+- A toolkit outside the catalog named "Wispr Flow", connected, with the slug as its
+  id (`tests/integrations-model.test.ts`).
+- The Apps of the organization of the Organization's name once it is current, of the
+  person's current organization where that organization is missing and where the
+  person chooses, none where it cannot be made current or the name cannot be read,
+  and the agents' line with it or without it
+  (`tests/integrations-composio-organization.test.ts`).
+- The reading listing an account of `wispr_flow` as "Wispr Flow", connected, with
+  its `manage`, the route's `apps`, and `lazurio integrations list` naming
+  `Wispr Flow (wispr_flow)` with the line (`tests/integrations-routes.test.ts`,
+  `tests/organization-settings-surfaces.test.ts`).
+- The page taking only a link to Composio's dashboard; one reading after the person
+  left and came back, none on a second return, a background open or a return
+  without the link; the out-of-catalog app under Připojené and found by its name
+  and its toolkit, with its line, and the copy in both languages
+  (`tests/integrations-page.test.ts`).
+- The corner link beside Jak to funguje: Integrace only, a new tab, hidden and
+  without an address until the reading carries one
+  (`tests/launchpad-page-corners.test.ts`).
+- How it looks, the corner, the foot, the empty search, the new tab and the reading
+  on return: checked in a headless browser on the hosted preview (root decision
+  0178).
+
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
 **Decided by Matěj 2026-10-08 and 2026-10-09 (root decision 0193, plan DEV-6631;
