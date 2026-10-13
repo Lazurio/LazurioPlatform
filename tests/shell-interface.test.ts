@@ -19,7 +19,10 @@ import { columnHead, shellApps } from "../src/shell/view";
 // `parseShellSignedOut`; decision F47 (2026-10-11) added `<lazurio-new-tab>`
 // with its attributes and its event `lazurio-new-tab`, and removed nothing;
 // F39's addendum of 2026-10-12 added `<lazurio-environment>` with its
-// attributes `environment` and `lang`, and removed nothing.
+// attributes `environment` and `lang`, and removed nothing; F36's addendum
+// of 2026-10-13 added what the script declares in the app's document
+// (`declares`: the fonts, the token names a fork may rely on and their
+// mark), and removed nothing.
 
 test("the promised interface v1 is exactly this", () => {
   expect(JSON.parse(JSON.stringify(shellElementInterface))).toEqual({
@@ -37,6 +40,35 @@ test("the promised interface v1 is exactly this", () => {
     document: {
       "data-lazurio-shell": ["host"],
       "data-lazurio-account": ["host"],
+    },
+    declares: {
+      fonts: ["Inter Tight Variable", "Geist Mono"],
+      tokens: [
+        "--lz-surface",
+        "--lz-paper",
+        "--lz-ink",
+        "--lz-ink-muted",
+        "--lz-line",
+        "--lz-accent",
+        "--lz-accent-button",
+        "--lz-accent-button-hover",
+        "--lz-on-accent",
+        "--lz-gray-50",
+        "--lz-gray-100",
+        "--lz-red-500",
+        "--lz-danger",
+        "--lz-danger-bg",
+        "--lz-warning",
+        "--lz-warning-bg",
+        "--lz-green-500",
+        "--lz-success",
+        "--lz-info",
+        "--lz-info-bg",
+        "--lz-font-sans",
+        "--lz-font-mono",
+        "--lz-radius-sm",
+      ],
+      theme: { "data-lazurio-theme": ["light"] },
     },
     exports: [
       "provideShell",
@@ -175,6 +207,22 @@ test("a host's document attributes and the script's exports are kept", async () 
   );
   for (const name of shellElementInterface.exports)
     expect(entry.exports).toContain(name);
+});
+
+test("the script declares in the document what `declares` promises", async () => {
+  // `/.lazurio/shell.js` defines the elements as it loads (index.ts), and
+  // defining them declares the fonts and the tokens in the document (F36's
+  // addendum of 2026-10-13); tests/shell-tokens.test.ts holds what each
+  // declares, and when not.
+  const source = await readFile("src/shell/elements.ts", "utf8");
+  const define = source.slice(
+    source.indexOf("export function defineShellElements"),
+  );
+  expect(define).toContain("installShellFonts(document);");
+  expect(define).toContain("installShellTokens(document);");
+  expect(await readFile("src/shell/index.ts", "utf8")).toContain(
+    "\ndefineShellElements();",
+  );
 });
 
 // The colour roles (F36, addendum of 2026-10-04, evening) are optional: a

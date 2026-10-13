@@ -21,6 +21,7 @@ import { registerGuide } from "./offline-guide";
 import { accountSourceOf, createShellState } from "./state";
 import { columnHeadCss, railCss, railWidth } from "./styles";
 import { applyTabIcon } from "./tab-icon";
+import { installShellTokens } from "./tokens";
 import { vendorText } from "./vendor-text" with { type: "macro" };
 import {
   type ColumnSetupLine,
@@ -90,6 +91,12 @@ import {
 // state answers a framed view of the Environment browser that asks how its
 // Environment is named (identity-protocol.ts), on every page that defines
 // the elements, so the view's bar says what the switcher says.
+//
+// In the page's own document the shell declares only what interface v1
+// promises there (F36's addendum of 2026-10-13): the brand fonts' faces
+// (fonts.ts) and the design system's tokens on the root with the mark
+// `data-lazurio-theme="light"` (tokens.ts), each once, and neither where the
+// document has them already.
 
 const logo = vendorText("symbol-color.svg");
 
@@ -1021,10 +1028,12 @@ function answerFramedViews(): void {
   state.listen(() => responder.changed());
 }
 
-/** Defines the elements (once), declares the brand fonts in the document
- * and answers framed views of the Environment browser. */
+/** Defines the elements (once), declares the brand fonts and the design
+ * system's tokens in the document and answers framed views of the
+ * Environment browser. */
 export function defineShellElements(): void {
   installShellFonts(document);
+  installShellTokens(document);
   if (!customElements.get("lazurio-rail"))
     customElements.define("lazurio-rail", LazurioRail);
   if (!customElements.get("lazurio-column-head"))

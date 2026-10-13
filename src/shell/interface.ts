@@ -15,7 +15,14 @@
 // `lazurio.shell.v1`. Decision F47 (2026-10-11) added, in version 1,
 // `<lazurio-new-tab>` with its attributes and its event `lazurio-new-tab`.
 // F39's addendum of 2026-10-12 added, in version 1, `<lazurio-environment>`
-// with its attributes `environment`, `lang` and `space`.
+// with its attributes `environment`, `lang` and `space`. F36's addendum of
+// 2026-10-13 (root decision 0200) added, in version 1, what the script
+// declares in the app's document (`declares`): the brand fonts' faces, which
+// it declared from the start, and the design system's tokens on the root
+// with the mark `data-lazurio-theme="light"`, onto which the T3 Code fork maps
+// its own tokens. Of the tokens, only the names `declares.tokens` lists are
+// promised; adding one is an addition, removing or renaming one a new
+// version.
 export const shellElementInterface = Object.freeze({
   version: 1,
   /** The script an app loads, on its own origin. */
@@ -57,6 +64,46 @@ export const shellElementInterface = Object.freeze({
   document: Object.freeze({
     "data-lazurio-shell": Object.freeze(["host"]),
     "data-lazurio-account": Object.freeze(["host"]),
+  }),
+  /** What the script declares in the document it is loaded into, once, and
+   * not at all where the document has it already (F36's addendum of
+   * 2026-10-13): the faces of the font families `fonts`, served at
+   * `/.lazurio/fonts/` (the families `--lz-font-sans` and `--lz-font-mono`
+   * name first); on the root, the vendored `tokens.css`, of which only the
+   * custom properties `tokens` are promised, never their values (the design
+   * system may change or drop any other `--lz-*` name); and, where those
+   * hold, the attribute of `theme` on `<html>` with its value. The names
+   * are those T3 Code's mapping needs: surfaces and ink, the accent and the
+   * black buttons, the grey steps it uses, the signal colours with the
+   * surfaces it shows, the type and the controls' radius. */
+  declares: Object.freeze({
+    fonts: Object.freeze(["Inter Tight Variable", "Geist Mono"]),
+    tokens: Object.freeze([
+      "--lz-surface",
+      "--lz-paper",
+      "--lz-ink",
+      "--lz-ink-muted",
+      "--lz-line",
+      "--lz-accent",
+      "--lz-accent-button",
+      "--lz-accent-button-hover",
+      "--lz-on-accent",
+      "--lz-gray-50",
+      "--lz-gray-100",
+      "--lz-red-500",
+      "--lz-danger",
+      "--lz-danger-bg",
+      "--lz-warning",
+      "--lz-warning-bg",
+      "--lz-green-500",
+      "--lz-success",
+      "--lz-info",
+      "--lz-info-bg",
+      "--lz-font-sans",
+      "--lz-font-mono",
+      "--lz-radius-sm",
+    ]),
+    theme: Object.freeze({ "data-lazurio-theme": Object.freeze(["light"]) }),
   }),
   /** What the script exports to a host. */
   exports: Object.freeze([
