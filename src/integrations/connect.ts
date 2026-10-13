@@ -982,13 +982,30 @@ export function createConnectSessions(host: () => ConnectHost) {
       if (session.outcome.kind === "pending" && session.returned !== true) {
         session.returned = true;
         const executor = host().executor;
+        // Still waiting when the request goes out: a sign-in cancelled or
+        // expired while Executor's listener and token are proven is never
+        // handed on (Pablo's review of #368).
+        const waiting = () =>
+          session.outcome.kind === "pending" && now() < session.expires;
         const delivered =
           executor === null
             ? "unavailable"
-            : await executorOAuthReturn(executor, parameters, oauthReturnMs);
+            : await executorOAuthReturn(
+                executor,
+                parameters,
+                oauthReturnMs,
+                waiting,
+              );
         if (delivered !== "delivered" && session.outcome.kind === "pending") {
-          session.outcome = { kind: "ended", reason: "failed" };
-          journal({ event: "connect", app: session.app, outcome: "failed" });
+          session.outcome =
+            delivered === "withheld"
+              ? { kind: "ended", reason: "expired" }
+              : { kind: "ended", reason: "failed" };
+          journal({
+            event: "connect",
+            app: session.app,
+            outcome: delivered === "withheld" ? "expired" : "failed",
+          });
         }
       }
       for (

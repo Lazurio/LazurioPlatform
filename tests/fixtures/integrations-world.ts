@@ -100,6 +100,10 @@ export type IntegrationsWorld = Readonly<{
   executor: FakeExecutor;
   /** The Executor host the Launchpad gets: the fake's port, this account. */
   executorHost: (owned?: boolean) => ExecutorEndpoint;
+  /** Holds every proof of Executor's listener from now until `release`, as
+   * a slow `lsof` on a busy Environment would; `held` counts the proofs
+   * that wait. */
+  holdListener: () => Readonly<{ held: () => number; release: () => void }>;
 }>;
 
 export async function integrationsWorld(
@@ -141,6 +145,7 @@ export async function integrationsWorld(
   await chmod(join(control, "auth.json"), 0o600);
   const executor = await startFakeExecutor(tokenCanary, options.executorSeed);
   const uid = process.getuid?.() ?? 0;
+  let gate: { opened: Promise<void>; waiting: number } | null = null;
   return {
     home,
     path: bin,
@@ -149,8 +154,32 @@ export async function integrationsWorld(
       dataDir: join(home, ".executor"),
       port: executor.port,
       uid,
-      ownsListener: async () => owned,
+      ownsListener: async () => {
+        const held = gate;
+        if (held !== null) {
+          held.waiting += 1;
+          await held.opened;
+        }
+        return owned;
+      },
     }),
+    holdListener: () => {
+      let open = () => {};
+      const held = {
+        opened: new Promise<void>((resolve) => {
+          open = resolve;
+        }),
+        waiting: 0,
+      };
+      gate = held;
+      return {
+        held: () => held.waiting,
+        release: () => {
+          if (gate === held) gate = null;
+          open();
+        },
+      };
+    },
   };
 }
 

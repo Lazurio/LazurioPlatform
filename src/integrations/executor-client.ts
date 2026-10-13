@@ -201,21 +201,11 @@ export const directTransport: ExecutorTransport = (input) =>
     outgoing.end();
   });
 
-/** One exchange with Executor's API, once its listener and token are
- * proven this account's: `path` below `/api`, a JSON body or none. */
-async function exchange(
+/** The token, once the listener of the port and the token file are proven
+ * this account's; why not otherwise. */
+async function proven(
   host: ExecutorEndpoint,
-  method: "GET" | "POST" | "PATCH" | "DELETE",
-  path: string,
-  body: unknown,
-  timeoutMs: number,
-  accept: string,
-): Promise<
-  | Extract<ExecutorResult, { kind: "unavailable" }>
-  | Awaited<ReturnType<ExecutorTransport>>
-> {
-  if (!path.startsWith("/") || path.startsWith("//"))
-    throw new Error("An Executor API path");
+): Promise<string | Extract<ExecutorResult, { kind: "unavailable" }>> {
   if (!(await host.ownsListener(host.port)))
     return { kind: "unavailable", reason: "listener-unproven" };
   const token = await readToken(host);
@@ -223,6 +213,20 @@ async function exchange(
     return { kind: "unavailable", reason: "token-missing" };
   if (token === "unreadable")
     return { kind: "unavailable", reason: "token-unreadable" };
+  return token;
+}
+
+/** One request to Executor's API with a proven token: `path` below `/api`,
+ * a JSON body or none. It goes out in the turn this is called. */
+function send(
+  host: ExecutorEndpoint,
+  token: string,
+  method: "GET" | "POST" | "PATCH" | "DELETE",
+  path: string,
+  body: unknown,
+  timeoutMs: number,
+  accept: string,
+): ReturnType<ExecutorTransport> {
   return (host.transport ?? directTransport)({
     method,
     port: host.port,
@@ -246,15 +250,20 @@ export async function executorCall(
   body?: unknown,
   timeoutMs: number = executorTimeoutMs,
 ): Promise<ExecutorResult> {
-  const answer = await exchange(
+  if (!path.startsWith("/") || path.startsWith("//"))
+    throw new Error("An Executor API path");
+  const token = await proven(host);
+  if (typeof token !== "string") return token;
+  const answer = await send(
     host,
+    token,
     method,
     path,
     body,
     timeoutMs,
     "application/json",
   );
-  if (answer.kind !== "answer") return answer;
+  if (answer.kind === "failed") return answer;
   if (answer.status >= 300 && answer.status < 400)
     return { kind: "failed", reason: "redirect" };
   // Executor refuses a token in plain text; the status says it all.
@@ -287,28 +296,37 @@ export const oauthReturnParameters = [
  * browser on the Environment would (decision F42, addendum of 2026-10-13):
  * Executor exchanges the code and answers its own popup page, which is
  * dropped unread; the outcome comes from `GET /api/oauth/await/<state>`.
- * Delivered on any 2xx: Executor's page answers a failed exchange too. */
+ * Delivered on any 2xx: Executor's page answers a failed exchange too.
+ * `proceed` is asked once the listener and the token are proven, in the
+ * turn the request goes out: a sign-in cancelled or expired meanwhile is
+ * withheld, never sent. */
 export async function executorOAuthReturn(
   host: ExecutorEndpoint,
   parameters: Readonly<
     Partial<Record<(typeof oauthReturnParameters)[number], string>>
   >,
   timeoutMs: number,
-): Promise<"delivered" | "unavailable" | "failed"> {
+  proceed: () => boolean,
+): Promise<"delivered" | "withheld" | "unavailable" | "failed"> {
   const query = new URLSearchParams();
   for (const key of oauthReturnParameters) {
     const value = parameters[key];
     if (value !== undefined) query.set(key, value);
   }
-  const answer = await exchange(
+  const token = await proven(host);
+  if (typeof token !== "string") return "unavailable";
+  // Asked in the turn the request goes out: nothing can end the sign-in
+  // between this answer and the request.
+  if (!proceed()) return "withheld";
+  const answer = await send(
     host,
+    token,
     "GET",
     `/oauth/callback?${query}`,
     undefined,
     timeoutMs,
     "text/html",
   );
-  if (answer.kind === "unavailable") return "unavailable";
   return answer.kind === "answer" && answer.status >= 200 && answer.status < 300
     ? "delivered"
     : "failed";

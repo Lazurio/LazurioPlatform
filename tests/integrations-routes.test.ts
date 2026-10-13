@@ -896,6 +896,42 @@ test("a return no sign-in here waits for is refused without reaching Executor", 
   expect(handedOn(world)).toEqual([]);
 });
 
+test("a sign-in cancelled while its return proves Executor's listener is never handed on", async () => {
+  const { world, app } = await remote();
+  const started = (await (
+    await app.post("/api/integrations/connect", { app: "linear" })
+  ).json()) as { session: string };
+  const hold = world.holdListener();
+  const proofs = async (count: number) => {
+    for (let tries = 0; tries < 500 && hold.held() < count; tries += 1)
+      await Bun.sleep(10);
+    expect(hold.held()).toBeGreaterThanOrEqual(count);
+  };
+  // The long poll waits at the proof, then the return does (Pablo's review
+  // of #368: the cancel came between the proofs and the request).
+  await proofs(1);
+  const back = app.get(
+    "/api/integrations/oauth/callback?state=state1&code=codeCanary0005",
+  );
+  await proofs(2);
+  // The cancel ends the sign-in at once, then waits at the proof itself.
+  const cancelled = app.post("/api/integrations/cancel", {
+    session: started.session,
+  });
+  await proofs(3);
+  hold.release();
+  const page = await back;
+  expect(page.status).toBe(200);
+  expect(await page.text()).toContain("This sign-in is no longer valid.");
+  expect(await (await cancelled).json()).toEqual({ kind: "cancelled" });
+  expect(handedOn(world)).toEqual([]);
+  expect(await settled(app, started.session)).toEqual({
+    kind: "ended",
+    reason: "cancelled",
+  });
+  expect(world.executor.connections).toEqual([]);
+});
+
 test("a return Executor cannot take ends the sign-in, and the page says so", async () => {
   const { world, app } = await remote();
   const started = (await (
