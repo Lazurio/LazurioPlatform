@@ -53,6 +53,7 @@ import { createToolsPanel } from "./tools-panel";
 import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
 import { fill, pillView, pillVisible } from "./update-view";
+import { createVaultPagePanel } from "./vault-page-panel";
 import { type VoiceView, voicePanel } from "./voice-panel";
 
 // The fragment of the first address: locally the session token, and a start
@@ -562,6 +563,17 @@ const ssh = createSshPanel({
   },
   origin: () => location.origin,
 });
+// Settings → Vault, Nastavení → Trezor (root decision 0198 point 5): read on
+// first view; the server adds the person the gateway admitted to the vault.
+const vaultPage = createVaultPagePanel({
+  get: (path) => get(path),
+  post: (path, body) => post(path, body),
+  copy: () => copy,
+  shown: () => {
+    const route = framed ? shell.route() : null;
+    return route?.view === "settings" && route.section === "vault";
+  },
+});
 // The left column as the person left it in this browser (Matěj's tuning of
 // 2026-10-12, layout.ts): hidden or shown, and its width; placed before the
 // page first shows, so it never moves on arrival. The heads of the page
@@ -628,6 +640,12 @@ const shell = createShell({
       void recovery.refresh();
     if (route.view === "settings" && route.section === "ssh" && !ssh.loaded)
       void ssh.refresh();
+    if (
+      route.view === "settings" &&
+      route.section === "vault" &&
+      !vaultPage.loaded
+    )
+      void vaultPage.refresh();
     if (framed && route.view === "settings") {
       // Settings read what only they show the first time they are shown;
       // back in Tento Environment the content is read again.
@@ -754,6 +772,7 @@ function relabel() {
   drawMarketplace(shell.route());
   recovery.render();
   ssh.render();
+  vaultPage.render();
   files.relabel();
   integrations.relabel();
   column.relabel();

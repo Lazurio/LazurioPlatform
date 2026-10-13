@@ -187,7 +187,12 @@ export function createVaultRoutes(
       current = started;
       return true;
     },
-    /** The setup that runs or ran last, for tests. */
+    /** The step of the setup that runs now, or null: what the vault page
+     * (vault-page-routes.ts) says while the vault is created. */
+    running(): VaultPhase | null {
+      return current !== null && !current.ended ? current.phase : null;
+    },
+    /** Once the setup that runs (or ran last) has ended. */
     async settled(): Promise<void> {
       await current?.done;
     },

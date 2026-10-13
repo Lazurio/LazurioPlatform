@@ -58,6 +58,7 @@ test("a path names the view and the settings section; the canonical path is one"
     "/settings/communication",
     "/settings/machine",
     "/settings/tools",
+    "/settings/vault",
     "/settings/ssh",
     "/settings/recovery",
   ]);
@@ -94,6 +95,23 @@ test("the heading and document title follow the route in both languages", () => 
   expect(
     routeTitle({ view: "settings", section: "ssh" }, messages("cs")).heading,
   ).toBe("SSH ze zařízení");
+  // Nastavení → Trezor (root decision 0198 point 5), right after the tools.
+  expect(pageRoute("/settings/vault")).toEqual({
+    view: "settings",
+    section: "vault",
+  });
+  expect(
+    settingsSections.indexOf("vault") - settingsSections.indexOf("tools"),
+  ).toBe(1);
+  expect(
+    routeTitle({ view: "settings", section: "vault" }, messages("cs")),
+  ).toEqual({
+    heading: "Trezor",
+    document: "Trezor · Nastavení — Lazurio Launchpad",
+  });
+  expect(
+    routeTitle({ view: "settings", section: "vault" }, messages("en")).heading,
+  ).toBe("Vault");
 });
 
 test("the catalog routes: an Organization and a module, deep-linkable, one canonical path", () => {
