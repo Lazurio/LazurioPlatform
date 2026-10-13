@@ -12,6 +12,7 @@ import { parseAppRuntime } from "../src/modules/runtime";
 import {
   defaultScaffoldVersions,
   environmentPorts,
+  insertModulePortPoolText,
   insertModuleSlotText,
   ModuleScaffoldError,
   type ModuleScaffoldInput,
@@ -685,6 +686,52 @@ describe("insertModuleSlotText", () => {
     );
     expectCode(
       () => insertModuleSlotText("not json", slot),
+      "manifest_invalid",
+    );
+  });
+});
+
+describe("insertModulePortPoolText", () => {
+  test("declares the pool right before module_slots and keeps every other byte", () => {
+    const next = insertModulePortPoolText(
+      personalspaceTemplateManifest,
+      personalModulePortPool,
+    );
+    const at = personalspaceTemplateManifest.indexOf('  "module_slots"');
+    expect(next).toBe(
+      `${personalspaceTemplateManifest.slice(0, at)}  "module_port_pool": {\n    "start": 23000,\n    "end": 23099\n  },\n${personalspaceTemplateManifest.slice(at)}`,
+    );
+    expect(JSON.parse(next)).toEqual({
+      ...JSON.parse(personalspaceTemplateManifest),
+      module_port_pool: { start: 23_000, end: 23_099 },
+    });
+    // A manifest on one line: the member goes in front of module_slots, its
+    // own value indented from the line's start.
+    expect(
+      insertModulePortPoolText('{"owner": "x", "module_slots": []}', {
+        start: 23_000,
+        end: 23_000,
+      }),
+    ).toBe(
+      '{"owner": "x", "module_port_pool": {\n  "start": 23000,\n  "end": 23000\n},\n"module_slots": []}',
+    );
+  });
+
+  test("refuses a manifest that declares one already, has no module_slots or is no JSON", () => {
+    expectCode(
+      () =>
+        insertModulePortPoolText(
+          '{"module_port_pool": {"start": 23000, "end": 23099}, "module_slots": []}',
+          personalModulePortPool,
+        ),
+      "manifest_invalid",
+    );
+    expectCode(
+      () => insertModulePortPoolText('{"owner": "x"}', personalModulePortPool),
+      "manifest_invalid",
+    );
+    expectCode(
+      () => insertModulePortPoolText("not json", personalModulePortPool),
       "manifest_invalid",
     );
   });

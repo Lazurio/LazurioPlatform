@@ -44,6 +44,20 @@ export type ContentGit = Readonly<{
   /** Whether Git ignores `path` (relative to `directory`, the top of a
    * checkout): a tracked path never is. Null when Git could not answer. */
   ignored(directory: string, path: string): Promise<boolean | null>;
+  /** Makes `directory` a new repository whose `main` holds one commit of
+   * everything in it, by the operator's own Git identity (decision F52).
+   * Git's last error line when it fails. */
+  commitAll(
+    directory: string,
+    message: string,
+  ): Promise<Readonly<{ ok: true }> | Readonly<{ ok: false; detail: string }>>;
+  /** Points the `origin` of the repository `directory` at `url` and pushes
+   * its `main` there, with gh as the credential helper of an HTTPS remote as
+   * the clone has it. */
+  push(
+    directory: string,
+    remote: Readonly<{ url: string; credentialHelper?: string | undefined }>,
+  ): Promise<Readonly<{ ok: true }> | Readonly<{ ok: false; detail: string }>>;
 }>;
 
 /** The process environment git runs with: the operator's PATH, home and XDG
@@ -73,6 +87,7 @@ export function gitEnvironmentOf(
 
 const cloneTimeoutMs = 600_000;
 const inspectTimeoutMs = 10_000;
+const commitTimeoutMs = 60_000;
 
 export function processContentGit(environment: GitEnvironment): ContentGit {
   let located: Promise<string | undefined> | undefined;
@@ -100,20 +115,58 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
       ? result.stdout.replace(/\n$/, "")
       : null;
   };
+  // Only for github.com over HTTPS: reset the list, then gh.
+  const helperOf = (credentialHelper: string | undefined) =>
+    credentialHelper === undefined
+      ? []
+      : [
+          "-c",
+          "credential.https://github.com.helper=",
+          "-c",
+          `credential.https://github.com.helper=${credentialHelper}`,
+        ];
+  // One write of the operator's git; its last error line when it fails.
+  const write = async (
+    directory: string,
+    args: readonly string[],
+    timeoutMs = inspectTimeoutMs,
+  ): Promise<
+    Readonly<{ ok: true }> | Readonly<{ ok: false; detail: string }>
+  > => {
+    // The subcommand, after any `-c <setting>`.
+    const command = args.find(
+      (arg, index) => !arg.startsWith("-") && args[index - 1] !== "-c",
+    );
+    const executable = await git();
+    if (executable === undefined || !environment.home)
+      return { ok: false, detail: "git is not on this account's PATH" };
+    try {
+      const result = await environment.run(
+        [executable, "-C", directory, ...args],
+        timeoutMs,
+        env(),
+      );
+      if (result === "timeout")
+        return { ok: false, detail: `git ${command} timed out` };
+      if (result.exitCode === 0) return { ok: true };
+      const last = `${result.stderr}${result.stdout}`
+        .trim()
+        .split("\n")
+        .filter((line) => line.trim() !== "")
+        .at(-1);
+      return {
+        ok: false,
+        detail: `git ${command} failed${last === undefined ? "" : `: ${last.slice(0, 300)}`}`,
+      };
+    } catch {
+      return { ok: false, detail: `git ${command} could not run` };
+    }
+  };
   return Object.freeze({
     async clone(request) {
       const executable = await git();
       if (executable === undefined || !environment.home) return "failed";
-      const helper =
-        request.credentialHelper === undefined
-          ? []
-          : [
-              // Only for github.com over HTTPS: reset the list, then gh.
-              "-c",
-              "credential.https://github.com.helper=",
-              "-c",
-              `credential.https://github.com.helper=${request.credentialHelper}`,
-            ];
+      const helper = helperOf(request.credentialHelper);
       try {
         const result = await environment.run(
           [
@@ -206,6 +259,38 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
         : result.exitCode === 1
           ? false
           : null;
+    },
+    async commitAll(directory, message) {
+      for (const args of [
+        ["init", "--quiet", "--initial-branch=main"],
+        ["add", "--all"],
+        ["commit", "--quiet", "--message", message],
+      ]) {
+        const result = await write(directory, args, commitTimeoutMs);
+        if (!result.ok) return result;
+      }
+      return { ok: true };
+    },
+    async push(directory, remote) {
+      const added = await write(directory, [
+        "remote",
+        "add",
+        "origin",
+        remote.url,
+      ]);
+      if (!added.ok) return added;
+      return write(
+        directory,
+        [
+          ...helperOf(remote.credentialHelper),
+          "push",
+          "--quiet",
+          "--set-upstream",
+          "origin",
+          "main",
+        ],
+        cloneTimeoutMs,
+      );
     },
   });
 }

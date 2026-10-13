@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdtemp, readdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { processContentGit } from "../src/content/git";
 import type { GitHubRepository, ViewerAnswer } from "../src/content/github";
 import { createPersonalspaceHolder } from "../src/content/holder";
 import { personalspaceHolder } from "../src/content/status";
@@ -17,6 +18,11 @@ import {
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import { ensureStatus, startLaunchpad } from "../src/launchpad/server";
 import { runModuleCommand } from "../src/modules/module-cli";
+import { planModuleCreate } from "../src/modules/module-create";
+import {
+  createPersonalModule,
+  type ModuleCreateRunHost,
+} from "../src/modules/module-create-run";
 import {
   createModuleOperations,
   type ModuleHost,
@@ -31,6 +37,7 @@ import {
   type PersonalspaceHolderRead,
   resolvePersonalspaceApplication,
 } from "../src/organizations/personalspace";
+import { runTool } from "../src/tools/status";
 import type { CliContext } from "../src/update/cli";
 import {
   folderFixture,
@@ -41,6 +48,7 @@ import {
   checkoutWithOrigin,
   contentHost,
   createWorld,
+  presetFolder,
   stubGitHub,
   type World,
 } from "./fixtures/content-world";
@@ -55,6 +63,10 @@ import {
   runnableModule,
 } from "./fixtures/module-host";
 import { mkdirOwnedFixture as mkdir } from "./fixtures/owned-files";
+import {
+  addTaskWorktree,
+  writePersonalspaceCheckout,
+} from "./fixtures/personalspace-template";
 
 // The Personalspace's workspace modules (launchpad-parity B11): one more
 // catalog group `personalspace` on the presets that have a Personalspace,
@@ -851,6 +863,168 @@ posixTest(
     }
   },
   30_000,
+);
+
+posixTest(
+  "a module made by lazurio module create is listed the same by the reader, the CLI and the Launchpad, and the lifecycle resolves it",
+  async () => {
+    const current = world as World;
+    const folder = await presetFolder(current, "local");
+    const home = join(folder, "..", "home");
+    await mkdir(home);
+    const space = join(folder, "personalspace", owner);
+    // As the install leaves it: the template's files and placeholders.
+    await writePersonalspaceCheckout(space, `${login}/${owner}`);
+    const worktree = join(folder, "personalspace", ".worktrees", "journal");
+    await addTaskWorktree(space, worktree, "agent/journal");
+    const gh = github();
+    const env: Record<string, string> = {
+      ...current.gitEnv,
+      GIT_CONFIG_KEY_2: "user.name",
+      GIT_CONFIG_VALUE_2: "Fixture",
+      GIT_CONFIG_KEY_3: "user.email",
+      GIT_CONFIG_VALUE_3: "fixture@example.invalid",
+      GIT_CONFIG_COUNT: "4",
+    };
+    const host: ModuleCreateRunHost = {
+      holder: gh.holder,
+      github: gh.host.github,
+      git: processContentGit({
+        path: Bun.env.PATH,
+        home: current.home,
+        platform: process.platform,
+        run: runTool,
+        env,
+      }),
+      lockDirectory: current.lockDirectory,
+      // The lockfile Bun would write (no network in tests).
+      install: async (app) => {
+        const pkg = JSON.parse(
+          await Bun.file(join(app, "package.json")).text(),
+        );
+        await Bun.write(
+          join(app, "bun.lock"),
+          JSON.stringify({
+            lockfileVersion: 1,
+            workspaces: {
+              "": {
+                name: pkg.name,
+                dependencies: pkg.dependencies,
+                devDependencies: pkg.devDependencies,
+              },
+            },
+            packages: {},
+          }),
+        );
+        return { ok: true };
+      },
+    };
+    const request = {
+      folder,
+      cwd: worktree,
+      selector: "personalspace/journal",
+      stack: "bun-service",
+    };
+    const plan = await planModuleCreate(request, host);
+    const report = await createPersonalModule(
+      { ...request, confirm: plan.plan as string },
+      host,
+    );
+    expect(report.status).toBe("completed");
+
+    const catalog = await readFolderCatalog(folder, gh.holder);
+    const journal = catalog.personalspace?.modules.find(
+      (module) => module.module === "journal",
+    );
+    expect(journal).toMatchObject({
+      organization: "personalspace",
+      path: "workspace/journal",
+      defaultApp: "app/v1/package.json",
+      executable: true,
+    });
+    // No output names the owner: not its directory, not its login.
+    privateNames(JSON.stringify(catalog));
+    expect(JSON.stringify(catalog)).not.toContain(login);
+
+    const run = async (...args: string[]) =>
+      runCatalogCommand(
+        [...args, "--folder", folder],
+        cliContext(home),
+        (folder) => readFolderCatalog(folder, gh.holder),
+      );
+    const organizations = await run("organization", "list", "--json");
+    expect(JSON.parse(organizations.text)).toEqual(
+      JSON.parse(JSON.stringify(catalog)),
+    );
+    expect(
+      JSON.parse((await run("module", "list", "personalspace", "--json")).text),
+    ).toEqual({
+      kind: "module-list",
+      organization: "personalspace",
+      modules: JSON.parse(JSON.stringify(catalog.personalspace?.modules)),
+    });
+    const app = await startLaunchpad(
+      folder,
+      undefined,
+      undefined,
+      undefined,
+      {},
+      undefined,
+      {},
+      undefined,
+      undefined,
+      undefined,
+      gh.host,
+    );
+    try {
+      await (await fetchContent(app)).json();
+      const session = new URL(app.url);
+      const answer = await fetch(new URL("/api/catalog", session), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: session.origin,
+          Authorization: `Bearer ${session.hash.slice(1)}`,
+        },
+        body: "{}",
+      });
+      expect(answer.status).toBe(200);
+      expect(await answer.json()).toEqual(JSON.parse(organizations.text));
+    } finally {
+      await app.close();
+    }
+
+    // The lifecycle finds it by its name and the holder decision: its status
+    // through the user manager. (Starting it needs its dependencies, which a
+    // test without a network cannot install; starting a held personal
+    // module is the tests above.)
+    const manager = createFakeServiceManager({
+      runtimeDirectory: join(folder, "..", "runtime"),
+    });
+    await mkdir(manager.runtimeDirectory);
+    const status = await runModuleCommand(
+      [
+        "module",
+        "status",
+        "personalspace/journal",
+        "--folder",
+        folder,
+        "--json",
+      ],
+      cliContext(home),
+      linuxHost(manager, home, report.lease?.port as number, binary),
+      gh.holder,
+    );
+    expect(status.code).toBe(0);
+    expect(JSON.parse(status.text)).toMatchObject({
+      kind: "module",
+      operation: "status",
+      organization: "personalspace",
+      module: "journal",
+      app: "app/v1/package.json",
+    });
+  },
+  60_000,
 );
 
 /** `GET /api/content` of a local Launchpad, as the page reads it once idle:

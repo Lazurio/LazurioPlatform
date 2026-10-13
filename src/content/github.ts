@@ -78,6 +78,17 @@ export type ContentGitHub = Readonly<{
   /** Whether the repository's `main` branch exists (a generated repository
    * is filled asynchronously). */
   branchReady(owner: string, name: string): Promise<boolean>;
+  /** Creates the empty private repository `name` of the account gh is
+   * signed in with (`POST /user/repos`: no README, no license, no
+   * template); the answer is GitHub's account of the repository it created,
+   * which the caller verifies (decision F52). */
+  createRepository(
+    name: string,
+    description: string,
+  ): Promise<
+    | Readonly<{ kind: "created"; repository: GitHubRepository }>
+    | Readonly<{ kind: "failed" }>
+  >;
   /** The Git remote of a repository for this sign-in: SSH when gh's
    * `git_protocol` is `ssh`, otherwise HTTPS with gh as the credential
    * helper, as `gh repo clone` and `gh auth setup-git` do. */
@@ -91,6 +102,9 @@ export type ContentGitHub = Readonly<{
 }>;
 
 const timeoutMs = 20_000;
+
+// The name of a repository GitHub accepts (as `repositoryPattern`'s).
+const repositoryNamePattern = /^[A-Za-z0-9_.-]{1,100}$/;
 
 type GhAnswer =
   | Readonly<{ kind: "ok"; stdout: string }>
@@ -405,6 +419,28 @@ export function ghContentGitHub(
         await sleep(1_000);
       }
       return false;
+    },
+    async createRepository(name, description) {
+      if (!repositoryNamePattern.test(name)) return { kind: "failed" };
+      const answer = await run([
+        "api",
+        "--method",
+        "POST",
+        "user/repos",
+        "--raw-field",
+        `name=${name}`,
+        "--raw-field",
+        `description=${description}`,
+        "--field",
+        "private=true",
+        "--field",
+        "auto_init=false",
+      ]);
+      if (answer.kind !== "ok") return { kind: "failed" };
+      const repository = parseRepository(answer.stdout);
+      return repository === null
+        ? { kind: "failed" }
+        : { kind: "created", repository };
     },
     async remote(fullName) {
       if (!repositoryPattern.test(fullName))

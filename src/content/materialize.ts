@@ -113,10 +113,33 @@ export type MaterializeResult =
         | string;
     }>;
 
-/** Materializes one absent repository; see the module comment. */
-export async function materializeRepository(
-  request: MaterializeRequest,
-): Promise<MaterializeResult> {
+/** What `fill` makes of a temporary sibling's checkout: ready to publish,
+ * with what it learned on the way, or a failure code. */
+export type FillOutcome<T> =
+  | Readonly<{ kind: "ready"; value: T }>
+  | Readonly<{ kind: "failed"; code: string }>;
+
+export type PublishResult<T> =
+  | Readonly<{ kind: "published"; directory: string; value: T }>
+  | Readonly<{ kind: "occupied" }>
+  | Readonly<{ kind: "failed"; code: string }>;
+
+/**
+ * Publishes one ABSENT directory `name` in `parent` (see the module comment):
+ * `fill` makes it at `checkout`, a path of a temporary sibling that does not
+ * exist yet, and answers whether it may be published; only then is it moved
+ * into place with a rename that never replaces anything. A clone of
+ * `materializeRepository`, and a new module of `lazurio module create`
+ * (decision F52). An exception of `fill` is `publish-failed`; the temporary
+ * sibling is removed in every case.
+ */
+export async function publishNewCheckout<T>(
+  request: Readonly<{
+    parent: string;
+    name: string;
+    fill: (checkout: string) => Promise<FillOutcome<T>>;
+  }>,
+): Promise<PublishResult<T>> {
   if (!isDestinationName(request.name))
     return { kind: "failed", code: "destination-invalid" };
   try {
@@ -144,37 +167,55 @@ export async function materializeRepository(
       await marker.close();
     }
     const checkout = join(temporary, "checkout");
-    const cloned = await request.git.clone({
-      url: request.url,
-      directory: checkout,
-      branch: "main",
-      credentialHelper: request.credentialHelper,
-    });
-    if (cloned !== "cloned") return { kind: "failed", code: "clone-failed" };
-    const observed = await request.git.inspect(checkout);
-    if (
-      observed.kind !== "checkout" ||
-      observed.branch !== "main" ||
-      !sameRepository(observed.repository, request.repository)
-    )
-      return { kind: "failed", code: "checkout-unexpected" };
-    const refused = (await request.verify?.(checkout)) ?? null;
-    if (refused !== null) return { kind: "failed", code: refused };
+    const filled = await request.fill(checkout);
+    if (filled.kind === "failed") return filled;
     const destination = join(request.parent, request.name);
     // The kernel decides: an entry that appeared meanwhile stays untouched.
     if (renameNoReplace(checkout, destination) === "exists")
       return { kind: "occupied" };
-    return {
-      kind: "materialized",
-      directory: destination,
-      commit: observed.commit,
-    };
+    return { kind: "published", directory: destination, value: filled.value };
   } catch {
     return { kind: "failed", code: "publish-failed" };
   } finally {
     // Only this run's own temporary sibling: after a publish just the marker.
     await rm(temporary, { recursive: true, force: true });
   }
+}
+
+/** Materializes one absent repository; see the module comment. */
+export async function materializeRepository(
+  request: MaterializeRequest,
+): Promise<MaterializeResult> {
+  const result = await publishNewCheckout({
+    parent: request.parent,
+    name: request.name,
+    fill: async (checkout): Promise<FillOutcome<string>> => {
+      const cloned = await request.git.clone({
+        url: request.url,
+        directory: checkout,
+        branch: "main",
+        credentialHelper: request.credentialHelper,
+      });
+      if (cloned !== "cloned") return { kind: "failed", code: "clone-failed" };
+      const observed = await request.git.inspect(checkout);
+      if (
+        observed.kind !== "checkout" ||
+        observed.branch !== "main" ||
+        !sameRepository(observed.repository, request.repository)
+      )
+        return { kind: "failed", code: "checkout-unexpected" };
+      const refused = (await request.verify?.(checkout)) ?? null;
+      if (refused !== null) return { kind: "failed", code: refused };
+      return { kind: "ready", value: observed.commit };
+    },
+  });
+  return result.kind === "published"
+    ? {
+        kind: "materialized",
+        directory: result.directory,
+        commit: result.value,
+      }
+    : result;
 }
 
 /** Creates the missing directories of `segments` below `root`, each one a

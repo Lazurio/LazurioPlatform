@@ -276,6 +276,12 @@ export function stubGitHub(
     membership?: MembershipAnswer;
     /** The Organization's repository listing fails. */
     listing?: "unavailable";
+    /** How `createRepository` answers: by default it creates the empty
+     * private repository of the viewer among the remotes; `public` and
+     * `other-owner` create one GitHub should not have; `failed` creates
+     * nothing; `taken` creates nothing because another, unseen, request took
+     * the name first (the repository exists after). */
+    create?: "private" | "public" | "other-owner" | "failed" | "taken";
   } = {},
 ) {
   const calls: StubCalls = [];
@@ -383,6 +389,44 @@ export function stubGitHub(
     async branchReady(owner, name) {
       calls.push({ kind: "branchReady", args: [owner, name] });
       return true;
+    },
+    async createRepository(name, description) {
+      calls.push({ kind: "createRepository", args: [name, description] });
+      const signedIn = viewer.kind === "signed-in" ? viewer.viewer : null;
+      if (options.create === "failed" || signedIn === null)
+        return { kind: "failed" };
+      const owner =
+        options.create === "other-owner"
+          ? { login: "other", databaseId: 7 }
+          : { login: signedIn.login, databaseId: signedIn.databaseId };
+      const fullName = `${owner.login}/${name}`;
+      await mkdir(join(world.remotes, owner.login), { recursive: true });
+      await git(
+        world.remotes,
+        "init",
+        "--quiet",
+        "--bare",
+        join(world.remotes, owner.login, `${name}.git`),
+      );
+      const isPrivate = options.create !== "public";
+      const entry = {
+        private: isPrivate,
+        owner: { ...owner, kind: "User" },
+      };
+      known.set(fullName.toLowerCase(), entry);
+      names.set(fullName.toLowerCase(), fullName);
+      if (options.create === "taken") return { kind: "failed" };
+      return {
+        kind: "created",
+        repository: {
+          fullName,
+          owner: { ...owner, kind: "User" },
+          private: isPrivate,
+          archived: false,
+          readable: true,
+          permission: "admin",
+        },
+      };
     },
     async remote(fullName) {
       return { url: `git@github.com:${fullName}.git` };

@@ -1359,7 +1359,7 @@ the root with its templates (`src/modules/templates/README.md`); the use case is
 `planModuleCreate` in `src/modules/module-create.ts`, the CLI `src/modules/module-create-cli.ts`.
 
 **CLI first.** `lazurio module create personalspace/<module> --stack <stack> [--name
-<name>] [--port N] --dry-run [--folder <F>] [--json]`. The Launchpad has no route for it:
+<name>] [--port N] (--dry-run | --confirm <plan>) [--folder <F>] [--json]`. The Launchpad has no route for it:
 the person's agent runs it (M1's prompt hands it over). `--json` prints one line per step
 (`{"kind": "module-create-step", "key": "plan", "state": …}`), then the report
 `lazurio.module_create.report.v1`: `status` and `reason`, `module` (`name`, `slug`,
@@ -1367,8 +1367,9 @@ the person's agent runs it (M1's prompt hands it over). `--json` prints one line
 `lease`, `files` (path and size), `generated_by_install`, `tree_hash`, `plan` (a digest of
 everything the person confirms), `manifest` (the manifest that receives the slot, its
 `module_port_pool` and whether the slot's pull request adds it), `worktree`,
-`module_root`, `warnings`, `issues` and `next_steps`. Exit status: 0 planned, 2 refused
-or usage. The real run follows on #359.
+`module_root`, `warnings`, `issues` and `next_steps`. Exit status: 0 planned or
+created, 1 created with a step left to the person, 2 refused (nothing written) or
+usage.
 
 **Checks, in order, all reading only.** Codes the root's `module create` has keep its
 spelling; codes the content core has keep the content core's.
@@ -1408,7 +1409,32 @@ A dry run writes nothing and asks GitHub only reads: whose the Personalspace is 
 user`, `GET repos/<login>/<login>_GEN3`) and `GET repos/<login>/<module>`. Its next steps
 name the task worktree (`personalspace/.worktrees/<task>`, beside the owner directory,
 never in it and never a second directory of `personalspace/`), ask the agent to show the
-person the plan and create nothing before they confirm it.
+person the plan and create nothing before they confirm it, and give the exact command of
+the real run with the plan's digest.
+
+**The real run** (`createPersonalModule` in `src/modules/module-create-run.ts`, decision
+F52 point 7) runs only with `--confirm <plan>`, under the Folder's content lock
+(`content-busy`), from a task worktree of the held Personalspace on a branch of its own
+(`personalspace_root_not_task_worktree`, `personalspace_root_on_main`), and only for the
+plan whose digest the person confirmed: every check runs again and a different plan is
+`plan-changed`. Its steps, one JSON line each with `--json`: `write` (the files into a
+marked temporary sibling `workspace/.<module>.lazurio-content-<hex>`, through
+`publishNewCheckout` in `src/content/materialize.ts`, the content install's own
+publication), `prepare` (`bun install --cwd app/v1` with `~/.local/bin/bun`, or `uv lock
+--directory app/v1`; a failure is an issue and the run goes on), `commit` (`git init` on
+`main` and one commit by the operator's Git identity; `commit-failed` stops), `create`
+(`POST /user/repos` with `private=true` through gh; GitHub's answer must say private, the
+holder's login and the planned name, or the run stops with nothing placed:
+`create-failed`, `not-private`, or `repository-exists` when the name was taken
+meanwhile), `place` (the no-replace rename into `workspace/<module>`), `push` (`main`,
+with gh as the credential helper of an HTTPS remote; `push-failed` keeps the module
+placed and names the exact command), `declare` (the slot, and the pool the Personalspace
+lacks, into the task worktree's `modules.manifest.json` with `insertModulePortPoolText`
+and `insertModuleSlotText`; never the Personalspace's own tracked files) and `check` (the
+catalog lists `personalspace/<module>`). A repository is never adopted, and one the run
+created is never deleted: a stop after its creation is `action_required` and says what to
+do with it. Then the person's agent commits the manifest, pushes the branch and opens the
+pull request into `<login>/<login>_GEN3`; its merge is the person's Publication.
 
 **`module prepare` is dispatched.** `src/cli.ts` sent only `start`, `stop`, `status` and
 `logs` to the module command, so `lazurio module prepare` fell to the catalog's usage
@@ -1420,9 +1446,21 @@ the filesystem unchanged and only GitHub reads in the stub's log; leases of an
 Organization's module and of a personal module avoided; a declared pool; and every
 refusal above against Personalspaces as the install leaves them
 (`tests/fixtures/personalspace-template.ts`, the template's own files with their
-placeholders). `tests/module-create-cli.test.ts`: through `runCli`, the usage errors,
-the refusals by name, `module prepare` reaching the lifecycle and the help; and the plan
-end to end in a child process of `src/cli.ts` with a fake gh and the real git.
+placeholders). The real run against a stub GitHub that creates bare repositories and the
+product's git: the repository created once and verified, `main` pushed with every
+planned file and the lockfile, the module placed as a clean checkout of it, the slot and
+the pool in the task worktree byte for byte, the Personalspace's tracked files
+unchanged; a creation that fails, is taken meanwhile, is public or of another account
+(nothing placed, nothing pushed); a failed push and a failed install (the run goes on); no
+Git identity (nothing created); the run's own refusals; and the CLI's lines and exit
+codes. `tests/module-create-cli.test.ts`: through `runCli`, the usage errors, the
+refusals by name, `module prepare` reaching the lifecycle and the help; and the plan end
+to end in a child process of `src/cli.ts` with a fake gh and the real git.
+`tests/content-github.test.ts`: `POST /user/repos` and its answers.
+`tests/personalspace-modules.test.ts`: a created module listed the same by the reader,
+`module list --json` and `POST /api/catalog`, naming no owner, and its status through the
+lifecycle. Starting a freshly created app needs its dependencies from the network, so
+the tests start held personal modules from a runnable fixture instead.
 
 ## Doctor
 
