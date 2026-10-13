@@ -6,7 +6,11 @@ import type { ToolRunner } from "../tools/status";
 // are the CLI's own (ComposioHQ/composio `ts/packages/cli`, read 2026-10-09):
 // - `connections list` prints `{<toolkit>: [{status, alias?, word_id?,
 //   permission_group}]}` on stdout: every status, an alias only where the
-//   toolkit has several accounts, no ids;
+//   toolkit has several accounts, no ids. Lazurio's build of the CLI
+//   (decision F42 addendum (3), `src/tools/composio-build.ts`) prints on
+//   every entry its `id` (`ca_…`), its `alias` wherever it has one (`null`
+//   may stand for none) and, where Composio knows the provider's identity
+//   (a mail address, a login), `display_name`;
 // - `link <toolkit> --list` prints `{toolkit, total, items}` with the active
 //   accounts, their ids, word ids and aliases (0.4.1 read 2026-10-11: the
 //   JSON alone on stdout, an alias of null where the account has none);
@@ -17,7 +21,8 @@ import type { ToolRunner } from "../tools/status";
 //   alias only after it created the link;
 // - `connections remove <selector>` asks for a confirmation and, without a
 //   terminal, removes nothing; Lazurio removes only where the CLI offers
-//   `--yes`, and never answers the prompt for the person.
+//   `--yes` (Lazurio's build does), and never answers the prompt for the
+//   person.
 // Every process gets only PATH, HOME, the XDG base directories and
 // NO_COLOR, in its own process group, bounded; its raw output is never
 // returned or logged.
@@ -36,11 +41,31 @@ export type ComposioAccount = Readonly<{
   alias: string | null;
   /** Composio's selector of the account, where it names one. */
   wordId: string | null;
+  /** Composio's id of the account (`ca_…`), where the list prints one:
+   * Lazurio's build of the CLI does for every account (decision F42,
+   * addendum (3)). */
+  id?: string;
+  /** The provider's identity of the account (a mail address, a login),
+   * where Lazurio's build prints one that is plain text. */
+  displayName?: string;
 }>;
 
 export const composioTimeoutMs = 15_000;
 const toolkitPattern = /^[a-z0-9][a-z0-9_]{0,63}$/;
 const labelPattern = /^[^\p{Cc}\u2028\u2029\u202a-\u202e\u2066-\u2069]{1,64}$/u;
+const idPattern = /^[A-Za-z0-9_-]{1,128}$/;
+/** A provider's identity as Lazurio's build prints it: trimmed, at most 200
+ * characters, without control or bidirectional formatting characters (nor
+ * a byte order mark). */
+const displayNamePattern =
+  /^[^\p{Cc}\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]{1,200}$/u;
+
+/** What names an account to remove it: Composio's id where the list prints
+ * one (Lazurio's build), else its word id; null where it has neither. The
+ * reading and the removal name it alike. */
+export function composioSelector(account: ComposioAccount): string | null {
+  return account.id ?? account.wordId;
+}
 
 /** The four states of an account (PR #269's mapping, kept): ACTIVE is
  * connected; EXPIRED and REVOKED expired; INITIATED and INITIALIZING
@@ -104,7 +129,21 @@ const optionalLabel = (value: unknown): string | null | undefined => {
     : undefined;
 };
 
-/** `connections list` as accounts, or null for any other shape. */
+/** A provider's identity, only where it is plain text as Lazurio's build
+ * prints it; anything else is no name, never a reason to refuse the list. */
+function displayNameOf(value: unknown): string | undefined {
+  return typeof value === "string" &&
+    value.trim() === value &&
+    displayNamePattern.test(value)
+    ? value
+    : undefined;
+}
+
+/** `connections list` as accounts, or null for any other shape. An id is
+ * taken only as a plain selector (letters, digits, `_` and `-`, at most 128,
+ * as Composio's `ca_…`), and an entry with any other id refuses the list, as
+ * an alias or a word id that is not a plain label does; a display name that
+ * is not plain text is left out. */
 export function parseComposioConnections(
   stdout: string,
 ): readonly ComposioAccount[] | null {
@@ -117,24 +156,32 @@ export function parseComposioConnections(
       if (typeof entry !== "object" || entry === null || Array.isArray(entry))
         return null;
       const {
+        id,
         status,
         alias,
         word_id: wordId,
+        display_name: displayName,
       } = entry as Record<string, unknown>;
       const label = optionalLabel(alias);
       const word = optionalLabel(wordId);
       if (
         typeof status !== "string" ||
         label === undefined ||
-        word === undefined
+        word === undefined ||
+        (id !== undefined &&
+          id !== null &&
+          (typeof id !== "string" || !idPattern.test(id)))
       )
         return null;
+      const name = displayNameOf(displayName);
       accounts.push(
         Object.freeze({
           toolkit,
           state: composioState(status),
           alias: label,
           wordId: word,
+          ...(typeof id === "string" ? { id } : {}),
+          ...(name === undefined ? {} : { displayName: name }),
         }),
       );
     }
@@ -192,11 +239,7 @@ export async function activeComposioAccounts(
       word_id: word,
     } = (item ?? {}) as { id?: unknown; alias?: unknown; word_id?: unknown };
     const name = optionalLabel(alias);
-    if (
-      typeof id !== "string" ||
-      !/^[A-Za-z0-9_-]{1,128}$/.test(id) ||
-      name === undefined
-    )
+    if (typeof id !== "string" || !idPattern.test(id) || name === undefined)
       return null;
     accounts.push(
       Object.freeze({ id, alias: name, wordId: optionalLabel(word) ?? null }),
@@ -315,7 +358,10 @@ export function createComposioNames(
 }
 
 /** The accounts, each toolkit's only active account with its name (decision
- * F42, addendum of 2026-10-11, #312). `connections list` prints an alias
+ * F42, addendum of 2026-10-11, #312). Where every account carries an id,
+ * the list is Lazurio's build's (decision F42, addendum (3)), which prints
+ * every alias itself: the accounts are named as they are, and no lookup
+ * runs. Composio's own `connections list` prints an alias
  * only where a toolkit has several accounts, so where its only account is
  * active and has none there, its name is taken from `names` while they keep
  * it, and otherwise `link <toolkit> --list` is asked: once per such toolkit,
@@ -336,6 +382,7 @@ export async function nameComposioAccounts(
   accounts: readonly ComposioAccount[],
   options: Readonly<{ names?: ComposioNames; now?: () => number }> = {},
 ): Promise<readonly ComposioAccount[]> {
+  if (accounts.every((account) => account.id !== undefined)) return accounts;
   const known = options.names;
   const now = options.now ?? (() => performance.now());
   const counts = new Map<string, number>();
@@ -522,14 +569,15 @@ export async function composioRemovesWithoutPrompt(
   );
 }
 
-/** Removes one account by its exact selector; only where the CLI has
- * `--yes`. The caller reads the accounts again as the proof. */
+/** Removes one account by its exact selector (`composioSelector`: its id
+ * where the list prints one); only where the CLI has `--yes`. The caller
+ * reads the accounts again as the proof. */
 export async function removeComposioAccount(
   input: ComposioEnvironment,
   command: string,
   selector: string,
 ): Promise<boolean> {
-  if (!/^[A-Za-z0-9_-]{1,128}$/.test(selector)) return false;
+  if (!idPattern.test(selector)) return false;
   if (!(await composioRemovesWithoutPrompt(input, command))) return false;
   const result = await runComposio(input, command, [
     "connections",

@@ -644,6 +644,179 @@ test("the scope of a preset, and Composio's statuses and answers read exactly", 
     expect(parseComposioConnections(malformed)).toBeNull();
 });
 
+// Lazurio's build of Composio's CLI (decision F42, addendum (3)): its
+// `connections list` prints every account's id, its alias wherever it has
+// one and the provider's identity Composio knows (`display_name`).
+test("Lazurio's build of the CLI: the list's ids, aliases and provider identities, read strictly", () => {
+  expect(
+    parseComposioConnections(
+      JSON.stringify({
+        gmail: [
+          {
+            id: "ca_example123",
+            status: "ACTIVE",
+            alias: "work",
+            word_id: "castle",
+            display_name: "ada@example.com",
+            permission_group: null,
+          },
+          {
+            id: "ca_example456",
+            status: "EXPIRED",
+            alias: null,
+            word_id: "river",
+            display_name: "grace",
+            permission_group: null,
+          },
+        ],
+        notion: [
+          {
+            id: "ca_example789",
+            status: "ACTIVE",
+            alias: null,
+            word_id: "cloud",
+            permission_group: null,
+          },
+        ],
+      }),
+    ),
+  ).toEqual([
+    {
+      toolkit: "gmail",
+      state: "connected",
+      alias: "work",
+      wordId: "castle",
+      id: "ca_example123",
+      displayName: "ada@example.com",
+    },
+    {
+      toolkit: "gmail",
+      state: "expired",
+      alias: null,
+      wordId: "river",
+      id: "ca_example456",
+      displayName: "grace",
+    },
+    {
+      toolkit: "notion",
+      state: "connected",
+      alias: null,
+      wordId: "cloud",
+      id: "ca_example789",
+    },
+  ]);
+  const one = (entry: Record<string, unknown>) =>
+    parseComposioConnections(
+      JSON.stringify({
+        gmail: [{ status: "ACTIVE", word_id: "castle", ...entry }],
+      }),
+    );
+  const plain: ComposioAccount = {
+    toolkit: "gmail",
+    state: "connected",
+    alias: null,
+    wordId: "castle",
+    id: "ca_1",
+  };
+  // A display name that is not plain text as the build prints it (trimmed,
+  // at most 200 characters, no control or bidirectional characters) is left
+  // out; the account stays, unnamed by it.
+  for (const name of [
+    "",
+    " ada@example.com",
+    "ada@example.com ",
+    "ada\u0007@example.com",
+    "ada\n@example.com",
+    "\u202eada@example.com",
+    "ada\u2066@example.com",
+    "ada\u200f@example.com",
+    "\ufeffada@example.com",
+    "x".repeat(201),
+    3,
+    null,
+    {},
+  ])
+    expect(one({ id: "ca_1", alias: null, display_name: name })).toEqual([
+      plain,
+    ]);
+  expect(one({ id: "ca_1", display_name: "x".repeat(200) })).toEqual([
+    { ...plain, displayName: "x".repeat(200) },
+  ]);
+  expect(one({ id: "ca_1", display_name: "Žluťoučký kůň" })).toEqual([
+    { ...plain, displayName: "Žluťoučký kůň" },
+  ]);
+  // An id not in Composio's shape refuses the list, as an alias that is not
+  // a plain label does; null stands for none.
+  for (const id of ["", "ca 1", "ca_1/..", "x".repeat(129), 7, {}])
+    expect(one({ id })).toBeNull();
+  expect(one({ id: null })).toEqual([
+    { toolkit: "gmail", state: "connected", alias: null, wordId: "castle" },
+  ]);
+});
+
+// An account's name (decision F42, addendum (3)): its alias, else the
+// provider's identity, else none ("účet"); it is removed by its id where
+// the list prints one, else by its word id.
+test("an account's name is its alias, else its provider identity, else none; removal names it by its id where the list has one", () => {
+  const overview = mergeIntegrations({
+    ...base,
+    composio: {
+      state: "ok",
+      accounts: [
+        {
+          toolkit: "gmail",
+          state: "connected",
+          alias: "work",
+          wordId: "castle",
+          id: "ca_1",
+          displayName: "ada@example.com",
+        },
+        {
+          toolkit: "gmail",
+          state: "connected",
+          alias: null,
+          wordId: "river",
+          id: "ca_2",
+          displayName: "grace@example.com",
+        },
+        {
+          toolkit: "gmail",
+          state: "expired",
+          alias: null,
+          wordId: "stone",
+          id: "ca_3",
+        },
+        // Composio's own list: no id, no identity.
+        {
+          toolkit: "salesforce",
+          state: "connected",
+          alias: "Sales",
+          wordId: "field",
+        },
+        {
+          toolkit: "salesforce",
+          state: "connected",
+          alias: null,
+          wordId: null,
+        },
+      ],
+    },
+  });
+  const accounts = (id: string) =>
+    overview.apps
+      .find((item) => item.id === id)
+      ?.accounts.map((account) => [account.label, account.selector]);
+  expect(accounts("gmail")).toEqual([
+    ["work", "ca_1"],
+    ["grace@example.com", "ca_2"],
+    [null, "ca_3"],
+  ]);
+  expect(accounts("salesforce")).toEqual([
+    ["Sales", "field"],
+    [null, null],
+  ]);
+});
+
 // A Composio account's place in Composio's dashboard (decision F42, addendum
 // of 2026-10-11, #312): the app's page in the person's Composio
 // organization, which the dashboard has instead of a page of one account.
@@ -856,6 +1029,44 @@ test("a toolkit's only active account is named by `link <toolkit> --list`, and n
   ];
   expect(await nameComposioAccounts(quiet.env, "composio", none)).toBe(none);
   expect(quiet.calls).toEqual([]);
+});
+
+// Lazurio's build prints every alias itself (decision F42, addendum (3)):
+// where every account carries an id, no `link <toolkit> --list` runs at all;
+// a list without ids keeps the lookups of Composio's own CLI.
+test("with Lazurio's list every account is named by it, and no `link <toolkit> --list` runs", async () => {
+  const runner = listRunner({
+    gmail: [item("Other", "gmail-word")],
+    notion: [item("Docs", "notion-word")],
+  });
+  const names = createComposioNames(() => 0);
+  const accounts = [
+    // The only active account of its toolkit, without an alias: Composio's
+    // own list would leave its alias out and have it looked up.
+    account("gmail", { id: "ca_1" }),
+    account("notion", { id: "ca_2", alias: "Docs" }),
+    account("slack", { id: "ca_3", state: "expired" }),
+  ];
+  expect(
+    await nameComposioAccounts(runner.env, "composio", accounts, { names }),
+  ).toBe(accounts);
+  expect(runner.calls).toEqual([]);
+  expect(names.get("gmail", "gmail-word")).toBeUndefined();
+  // One entry without an id is no list of Lazurio's build: the lookups as
+  // before.
+  const mixed = listRunner({
+    gmail: [item("Work", "gmail-word")],
+    zoom: [item("Calls", "zoom-word")],
+  });
+  const named = await nameComposioAccounts(mixed.env, "composio", [
+    account("gmail", { id: "ca_1" }),
+    account("zoom"),
+  ]);
+  expect(named.map((entry) => entry.alias)).toEqual(["Work", "Calls"]);
+  expect(mixed.calls.map((call) => call.slice(1)).sort()).toEqual([
+    ["link", "gmail", "--list"],
+    ["link", "zoom", "--list"],
+  ]);
 });
 
 // Seven single accounts, as on a real account: never more than two lookups

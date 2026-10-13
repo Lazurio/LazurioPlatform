@@ -114,12 +114,28 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
   expect(requiredTools().map((tool) => tool.name)).toEqual(["gh", "executor"]);
   for (const name of ["codex", "claude", "git", "node", "npm", "bun"])
     expect(findTool(name)?.activation).toBeUndefined();
+  // Lazurio's build (decision F42 addendum (3)): updated by its curated
+  // installer at that build.
   expect(findTool("composio")).toMatchObject({
     command: "composio",
     versionArgs: ["--version"],
     source: "https://docs.composio.dev/docs/cli",
-    updater: { kind: "self", argv: ["upgrade"] },
+    updater: { kind: "curated" },
   });
+  // Its target state is that build, from the fork's release; a working
+  // composio of another build is replaced only by the update, with the
+  // Operator's consent.
+  for (const locale of ["cs", "en"] as const) {
+    const target = findTool("composio")?.activation?.installation[locale];
+    for (const part of [
+      "0.4.3-lazurio.1",
+      "`@composio/cli@0.4.3-lazurio.1`",
+      "https://github.com/Lazurio/composio",
+      "`lazurio tools install composio`",
+      "`lazurio tools update composio`",
+    ])
+      expect(target).toContain(part);
+  }
   expect(findTool("wacli")).toMatchObject({
     source: "https://github.com/openclaw/wacli",
     updater: { kind: "none" },

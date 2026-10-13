@@ -49,8 +49,10 @@ import type { ComposioPolicySource } from "./policy";
 // one source down never hides the others. The sign-in probes and Composio
 // reach the network, so the Launchpad keeps the last reading for a while and
 // reads again on an explicit refresh. Composio's accounts are named in the
-// reading (a toolkit's only account by `link <toolkit> --list`, a name the
-// Launchpad keeps for half an hour), and the organization of its link to
+// reading: by the list itself where it is Lazurio's build's, which prints
+// every account's id, alias and provider identity (decision F42, addendum
+// (3)); else a toolkit's only account by `link <toolkit> --list`, a name the
+// Launchpad keeps for half an hour. The organization of its link to
 // Composio's dashboard is the one Composio's sign-in probe already read: no
 // second `composio whoami`.
 

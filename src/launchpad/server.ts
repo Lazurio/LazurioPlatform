@@ -67,6 +67,7 @@ import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
 import {
   activatableTools,
   executorToolName,
+  findTool,
   toolSelection,
   vaultToolName,
 } from "../tools/catalog";
@@ -89,6 +90,7 @@ import {
 import { qrMatrix, qrSvg } from "../tools/qr";
 import { resolveOnPath } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
+import { toolsUpdate } from "../tools/update";
 import { embeddedIdentity } from "../update/identity";
 import { runProcess } from "../update/self-check";
 import type { VaultHost } from "../vault/flow";
@@ -342,6 +344,7 @@ export function ensureStatus(result: ModuleAnswer | ModuleBlocked): number {
 
 const curatedRoutes = new Set([
   "/api/tools/install",
+  "/api/tools/upgrade",
   "/api/tools/login/start",
   "/api/tools/login/poll",
   "/api/tools/login/cancel",
@@ -1524,6 +1527,7 @@ export async function startLaunchpad(
             ownDataValue(input, "sshKey") !== undefined;
           const fields: Record<string, readonly string[]> = {
             "/api/tools/install": ["tool"],
+            "/api/tools/upgrade": ["tool"],
             "/api/tools/login/start": [
               "tool",
               ...(withPhone ? ["phone"] : []),
@@ -1641,6 +1645,40 @@ export async function startLaunchpad(
                     ? { fetch: curatedOptions.fetch }
                     : {}),
                   ...(curatedOptions.arch ? { arch: curatedOptions.arch } : {}),
+                }),
+              );
+            } finally {
+              installing.delete(tool);
+            }
+          }
+          // A tool's own update (`lazurio tools update`), only where it is
+          // its curated installer at the build Lazurio pins (composio,
+          // decision F42 addendum (3)): "Update" in Settings → Tools, the
+          // person's click being the consent. One run of a tool's installer
+          // at a time, an installation's or an update's.
+          if (url.pathname === "/api/tools/upgrade") {
+            if (findTool(tool)?.updater.kind !== "curated")
+              return response(
+                { kind: "blocked", reason: "update-unavailable", tool },
+                409,
+              );
+            if (installing.has(tool))
+              return response({ kind: "blocked", reason: "busy", tool }, 409);
+            installing.add(tool);
+            server.timeout(request, 660);
+            try {
+              return response(
+                await toolsUpdate({
+                  tool,
+                  path: toolsEnvironment.path,
+                  home: toolsEnvironment.home,
+                  platform: toolsEnvironment.platform,
+                  run: toolsEnvironment.run,
+                  install: {
+                    xdg: toolsEnvironment.xdg,
+                    fetch: curatedOptions.fetch,
+                    arch: curatedOptions.arch,
+                  },
                 }),
               );
             } finally {

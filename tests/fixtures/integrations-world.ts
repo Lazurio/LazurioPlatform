@@ -38,11 +38,18 @@ export type FakeAccount = {
   status: string;
   alias: string | null;
   word_id: string;
+  /** The provider's identity Composio keeps for it (a mail address, a
+   * login); only Lazurio's build prints it. */
+  display_name?: string;
 };
 
 export type FakeComposioState = {
   signedIn: boolean;
   removeYes: boolean;
+  /** Lazurio's build (decision F42, addendum (3)): `connections list`
+   * prints every account's id, its alias (null for none) and its
+   * `display_name` where it has one. */
+  lazurioBuild?: boolean;
   next: number;
   accounts: FakeAccount[];
   /** The preview's stand-in: a link's account is active at once. */

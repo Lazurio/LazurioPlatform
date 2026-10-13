@@ -8,6 +8,7 @@ import {
 import {
   activeComposioAccounts,
   type ComposioEnvironment,
+  composioSelector,
   linkComposio,
   readComposioAccounts,
   removeComposioAccount,
@@ -1130,12 +1131,15 @@ export function createConnectSessions(host: () => ConnectHost) {
       // An account is removed in this Environment's organization only.
       if (!(await inOwnOrganization(composio)))
         return { kind: "blocked", reason: "composio-organization" };
+      // The account as the reading names it: by Composio's id where the
+      // list prints one (Lazurio's build), else by its word id.
       const before = await readComposioAccounts(composio.env, composio.command);
       if (
         before.state !== "ok" ||
         !before.accounts.some(
           (account) =>
-            account.toolkit === toolkit && account.wordId === selector,
+            account.toolkit === toolkit &&
+            composioSelector(account) === selector,
         )
       )
         return { kind: "blocked", reason: "account-unknown" };
@@ -1146,7 +1150,9 @@ export function createConnectSessions(host: () => ConnectHost) {
       const after = await readComposioAccounts(composio.env, composio.command);
       const gone =
         after.state === "ok" &&
-        !after.accounts.some((account) => account.wordId === selector);
+        !after.accounts.some(
+          (account) => composioSelector(account) === selector,
+        );
       journal({
         event: "disconnect",
         app: appId,

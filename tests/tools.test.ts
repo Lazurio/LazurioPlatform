@@ -101,6 +101,9 @@ test("the catalog names the operator's tools with their official update path", (
     kind: "self",
     argv: ["upgrade"],
   });
+  // Lazurio's build of composio (decision F42 addendum (3)): its update is
+  // the curated installer at that build, never `composio upgrade`.
+  expect(findTool("composio")?.updater).toEqual({ kind: "curated" });
   // Executor's pin is Lazurio's, set up by `lazurio executor setup` (F44).
   for (const name of ["gh", "executor", "git", "node", "npm"])
     expect(findTool(name)?.updater.kind).toBe("none");

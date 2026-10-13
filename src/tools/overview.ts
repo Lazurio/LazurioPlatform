@@ -22,6 +22,7 @@ import {
   toolOffered,
   toolPrompt,
 } from "./catalog";
+import { pinnedInstaller } from "./install";
 import {
   runTool,
   type ToolRunner,
@@ -86,6 +87,10 @@ export type ToolOverview = Readonly<{
   version?: string;
   versionError?: string;
   standardPath?: boolean;
+  /** The build Lazurio pins for the tool (composio, decision F42 addendum
+   * (3)): its update (`lazurio tools update`, Settings → Tools → Update)
+   * installs exactly that version. */
+  pinned?: string;
   /** Whether the tool is signed in and as whom: present only when the
    * request asked for the sign-in probes. */
   signIn?: ToolSignIn;
@@ -183,6 +188,7 @@ export async function toolsOverview(
         entry.activation.tier === "required" ||
         recorded.enabled.includes(entry.name);
       const governance = toolGovernance(entry.name, recorded.settings);
+      const pinned = pinnedInstaller(entry.name)?.version;
       return {
         name: entry.name,
         command: entry.command,
@@ -206,6 +212,7 @@ export async function toolsOverview(
         ...(live.standardPath === undefined
           ? {}
           : { standardPath: live.standardPath }),
+        ...(pinned === undefined ? {} : { pinned }),
         ...(signIn === undefined ? {} : { signIn }),
         ...(note === undefined ? {} : { note }),
         // On a Team Environment gh's prompt signs nobody in.

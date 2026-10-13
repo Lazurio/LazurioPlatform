@@ -277,6 +277,8 @@ test.skipIf(process.platform === "win32")(
             realPath: join(other, "composio"),
             version: "0.7.1",
             standardPath: false,
+            // Lazurio's build of composio (decision F42 addendum (3)).
+            pinned: "0.4.3-lazurio.1",
             prompt: toolPrompt("composio", "en") as string,
           },
           {
@@ -380,6 +382,7 @@ test.skipIf(process.platform === "win32")(
           "name",
           "offered",
           "path",
+          "pinned",
           "prompt",
           "purpose",
           "realPath",
