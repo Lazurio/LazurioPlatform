@@ -618,6 +618,100 @@ without membership; the CLI's `--role reader` and the bare form's hint.
 | The bare CLI form resolves the role live, as the Launchpad | Changes the decided Admin-installation contract of point 4; the failure detail names the `--role` forms instead |
 | Mark a Reader's clones read-only locally (a disabled push URL) | A local ACL next to GitHub's; GitHub already refuses the push; rejected |
 
+**Addendum 2026-10-05, decided by Matěj (Organization Admin); implemented 2026-10-13
+(Lazurio/LazurioPlatform#186): whose Personalspace an Environment holds.** The catalog,
+the app resolution of a selected Personalspace and the module lifecycle took whatever
+single directory sat in `personalspace/` for this Environment's Personalspace: a
+checkout of another account, put there by hand or by an older tool, was listed in Apps
+and its apps could start. Point 5 already refused such a checkout for the install and
+`GET /api/content` (the review of #183). Matěj decided where the others learn whose
+Personalspace this is (Mission Control task-2026-10-05-611, plan DEV-6644):
+
+1. **gh's account decides.** A workstation learns it from the GitHub account its gh is
+   signed in with (the Launchpad's and the CLI's own sign-in). On a personal Remote
+   Environment that account must also be the handover's Owner (`viewerMayHold`, by
+   GitHub id). Nothing new is stored: no Folder state and no recorded person.
+2. **One decision.** `personalspaceHolder(folder, host)` (`src/content/status.ts`)
+   answers `held {login}`, `absent` or `blocked {reason}`, built from
+   `verifyPersonalspaceCheckout` (the name `<login>_GEN3`, the `origin`
+   `<login>/<login>_GEN3`, and GitHub's answer that the repository is the account's
+   own and private) and `viewerMayHold`. `GET /api/content`, the catalog's
+   Personalspace group, the module lifecycle (the selection and the authorization at
+   every operation boundary, `resolvePersonalspaceApplication`) and Nová karta's
+   running modules all take it; the Personalspace prompt route of #359 is to take it
+   too. The install keeps its own steps over the same two checks.
+3. **Fail closed.** Signed out (`github-signed-out`), GitHub silent
+   (`github-unavailable`), another account than the Owner (`github-identity-mismatch`),
+   another account's or an unconfirmed checkout (`personalspace-foreign`,
+   `personalspace-not-owned`, `personalspace-public`): the group is listed with the
+   reason and no modules, nothing of it is read (decision 0091), listed or started, and
+   the directory is left untouched. An operation on `personalspace/<module>` answers
+   the reason (409 in the Launchpad, exit 2 in the CLI); the gateway's `ensure` finds no
+   module (`module-unknown`). A reader that has no way to ask GitHub (the Doctor, the
+   vault, the shell document, the Organization routes) takes no owner directory for the
+   Operator's (`personalspace-unverified`).
+4. **Remembered a minute** (`createPersonalspaceHolder`, `src/content/holder.ts`), as
+   the setup probe keeps gh's sign-in: memory of the process, nothing stored. The layout
+   (`personalspace/` and its one directory) is read on every call, so a new, removed or
+   second directory is seen at once. The decision (gh's account, the checkout's
+   `origin` and GitHub's answer) is reused for the same checkout only: its directory,
+   its `.git` and its Git configuration, which a new clone or another `origin`
+   rewrites. A gh sign-in or sign-out through the Launchpad, a Tools reading that
+   changes gh's state and a content installation (as it starts and as it ends) drop
+   it. A decision being made when it is dropped is neither kept nor answered: an
+   operation that asked GitHub before a sign-out gets the decision made after it (the
+   review of #382), and one overtaken three times is `personalspace-unverified`.
+5. **The page's first paint never waits for GitHub.** `POST /api/catalog` and the boot
+   document take the last decision: an older one is made again in the background, and
+   before the first one the group is `personalspace-unverified` ("Ověřujeme na GitHubu,
+   že je tento osobní prostor váš…"). The page reads the catalog again after 1, 2, 4, 8
+   and 16 seconds while the group is `personalspace-unverified` or
+   `github-unavailable`. Unlike the shell's `setup` (F36's addendum of 2026-10-08,
+   point 4), the Launchpad makes its first decision in the background as it starts:
+   the decision reads no Folder lock. `GET /api/content`, the lifecycle and the CLI
+   wait for a current decision.
+6. **An Organization's module never waits for it.** `lazurio module …` and the
+   Launchpad's module routes decide the Personalspace only for `personalspace/<module>`;
+   `lazurio module list` only for an output that shows its modules (every module,
+   `personalspace`, `organization list --json`). The gateway's `ensure` counts the
+   Personalspace as the gateway does, whoever holds it: when its one owner directory
+   has `workspace/<id>/lazurio.module.json` (only that path is looked at). An id an
+   Organization has is resolved without GitHub, and one that the Personalspace's
+   directory has too stays `module-ambiguous` (the review of #382). Only an id the
+   Personalspace alone may have asks whose it is, for at most the request's deadline;
+   undecided by then, `ensure` answers 503 `personalspace-unverified`, the gateway's
+   starting page asks again, and the decision goes on.
+
+Unchanged: the install and its codes, the answers of the content routes, the catalog's
+shape (the group with `reason` and no modules, as `personalspace-ambiguous` already
+was), no login or owner directory in any output, Organization presets (never read).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The Folder records its person at initialization | A new Folder state that can disagree with the sign-in that actually acts; rejected by the decision |
+| The catalog asks GitHub (the content status) on every read | Every page and every module operation would wait for GitHub; the decision is remembered a minute instead |
+| Only the handover's Owner, as on a personal Remote Environment | A workstation records no person; gh's account everywhere, and the Owner on top where there is one |
+| A blocked Personalspace still lists its modules, only starts are refused | Reads another person's declarations (decision 0091); rejected |
+| Remember only GitHub's answers and inspect the checkout on every read | The `origin`'s inspection costs about 140 ms on macOS, more than the whole fixture catalog; the decision is kept for the same checkout instead |
+| The page's catalog waits for GitHub until the first answer | The first paint would wait (F36's addendum of 2026-10-08); a group not verified yet and a bounded re-read instead |
+
+Tests: the decision for every outcome on a workstation, a personal Remote Environment
+and an Organization preset (`tests/personalspace-holder.test.ts`); the minute (reuse,
+expiry, a new checkout in place, forget, one question at a time, a decision forgotten
+while it runs, a decision that could not be made), the last decision before and after
+the first answer, when old and when GitHub did not answer; the catalog, `lazurio
+module list`, start, status and stop of a Personalspace that is not held, for each
+reason (`tests/personalspace-modules.test.ts`); `GET /api/content`, `POST /api/catalog`
+and the module route agreeing, and the catalog answering before GitHub does
+(`tests/content-routes.test.ts`); the page's sentences and its re-read schedule
+(`tests/catalog-view.test.ts`). After the review of #382: an operation and the
+lifecycle's authorization overlapping a sign-out, and the gateway's `ensure` for an
+Organization's module, an id both have and the Personalspace alone, with a decision
+that never comes (`tests/personalspace-modules.test.ts`). Risks: an app of a Personalspace that stops being held
+(signed out, GitHub silent past the minute) cannot be stopped from Lazurio until it is
+held again, only through the service manager; a login renamed on GitHub no longer
+verifies `<login>_GEN3`, as before (a separate issue).
+
 ## F10 — Workspace presets and typed owner requests
 
 **Accepted direction (2026-09-19); amended and accepted by Matěj 2026-09-22;

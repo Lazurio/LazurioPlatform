@@ -1,6 +1,8 @@
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { processPersonalspaceHolder } from "../content/holder";
 import { shown } from "../organizations/cli";
+import type { PersonalspaceHolderRead } from "../organizations/personalspace";
 import { type CliContext, operatorFolder } from "../update/cli";
 import {
   createModuleOperations,
@@ -25,7 +27,12 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   directories declare is refused (organization-ambiguous), and a module that
   cannot run is refused with its catalog reason. On a Folder with a
   Personalspace (a workstation, a personal Remote Environment) its modules are named
-  personalspace/<module>. On Linux with a user service
+  personalspace/<module>; they run only from the Personalspace of the GitHub
+  account gh is signed in with here (on a personal Remote Environment, its
+  Owner's): another account's, a public one, or one GitHub cannot confirm
+  (signed out, no answer) is refused with the reason (personalspace-foreign,
+  personalspace-not-owned, personalspace-public, github-signed-out,
+  github-unavailable, github-identity-mismatch). On Linux with a user service
   manager the app is a transient systemd user service: it keeps running when
   the Launchpad restarts, ends with a reboot, and its output goes to the
   journal. Elsewhere apps are children of the Launchpad session and are
@@ -105,6 +112,22 @@ const explanations: Readonly<Record<string, string>> = {
   "module-unknown": "No such module; see lazurio module list <Organization>.",
   "personalspace-unavailable":
     "The Personalspace cannot be read: personalspace/ must hold exactly one directory, a real directory owned by you.",
+  "personalspace-ambiguous":
+    "personalspace/ holds more than one directory; none of them is read until only this Environment's own Personalspace is there.",
+  "personalspace-foreign":
+    "personalspace/ holds a checkout that is not the Personalspace (<login>/<login>_GEN3) of the GitHub account gh is signed in with here; it is not read and was left untouched.",
+  "personalspace-not-owned":
+    "GitHub does not know this Personalspace as a repository of the account gh is signed in with here; see gh auth status.",
+  "personalspace-public":
+    "This Personalspace's repository is public on GitHub; a Personalspace must be private.",
+  "github-signed-out":
+    "gh is not signed in here, so whose Personalspace this is cannot be verified; sign in (gh auth login) and try again.",
+  "github-unavailable":
+    "GitHub did not answer, so whose Personalspace this is cannot be verified now; try again.",
+  "github-identity-mismatch":
+    "gh is signed in here with another account than this Environment's Owner, whose Personalspace this is.",
+  "personalspace-unverified":
+    "Whose Personalspace this is has not been verified with GitHub yet; try again.",
   "app-unknown": "Not a declared app of this module; see lazurio module list.",
   "app-not-runnable": "This app's runtime declaration is missing or invalid.",
   "launchpad-required":
@@ -227,6 +250,12 @@ export async function runModuleCommand(
     context.platform,
     context.executable,
   ),
+  // Test seam: whose Personalspace this is (#186); the product asks this
+  // process's gh.
+  personalspace: PersonalspaceHolderRead = processPersonalspaceHolder(
+    context.env,
+    context.platform,
+  ),
 ): Promise<Readonly<{ code: number; result: ModuleResult; text: string }>> {
   let values: {
     folder?: string | undefined;
@@ -295,7 +324,12 @@ export async function runModuleCommand(
         : "No Folder known: name it with --folder <absolute Folder>.",
     });
   }
-  const operations = createModuleOperations({ folder, owner: "cli", host });
+  const operations = createModuleOperations({
+    folder,
+    owner: "cli",
+    host,
+    personalspace,
+  });
   const options = {
     ...(values.app === undefined ? {} : { app: values.app }),
     ...(values.lines === undefined ? {} : { lines: Number(values.lines) }),

@@ -13,10 +13,12 @@ import {
   resolveBrowserView,
 } from "../browser/view";
 import { cdpSeams, ensureThreadWindow } from "../browser/window";
+import { createPersonalspaceHolder } from "../content/holder";
 import {
   type ContentHost,
   preparationAnswer,
   processContentHost,
+  processGitHubHost,
 } from "../content/host";
 import type { ExecutorHost } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
@@ -323,7 +325,14 @@ export function ensureMayStart(headers: Headers): boolean {
  * else (409 here) shows "could not be prepared". */
 export function ensureStatus(result: ModuleAnswer | ModuleBlocked): number {
   if (result.kind === "module") return result.healthy ? 204 : 503;
-  if (["closing", "coordination-busy"].includes(result.reason)) return 503;
+  // Asked again shortly: a closing Launchpad, a busy coordination, or a
+  // Personalspace whose holder is not decided within the request (#186).
+  if (
+    ["closing", "coordination-busy", "personalspace-unverified"].includes(
+      result.reason,
+    )
+  )
+    return 503;
   if (result.reason === "module-ambiguous") return 409;
   // The id names no single runnable default app of this Folder.
   if (result.operation === "ensure") return 404;
@@ -481,6 +490,22 @@ export async function startLaunchpad(
   const applications = applicationAdapters
     ? createApplicationLifecycle(applicationAdapters)
     : null;
+  // Whose Personalspace this Environment holds (#186, decided by Matěj on
+  // 2026-10-05): the GitHub account of its gh, decided as `GET /api/content`
+  // decides it and remembered a minute (src/content/holder.ts). The content
+  // routes and the module lifecycle act on the decision; the page's catalog
+  // shows the last one and never waits for GitHub.
+  let holderHost: Pick<ContentHost, "github" | "git"> | undefined;
+  const personalspace = createPersonalspaceHolder(() => {
+    holderHost ??=
+      contentHost ??
+      processGitHubHost({
+        env: process.env,
+        platform: toolsEnvironment.platform,
+        tools: toolsEnvironment,
+      });
+    return holderHost;
+  });
   // The module lifecycle of the catalog: the same core as `lazurio module`.
   // This Launchpad holds one lifecycle per Organization, so a session app
   // (macOS) is its child and ends with it; a service app outlives it.
@@ -488,6 +513,7 @@ export async function startLaunchpad(
     folder,
     owner: "launchpad",
     host: moduleHost,
+    personalspace: personalspace.decide,
   });
   // The curated logins of this Launchpad (decision F19): in memory, held by
   // the browser that started each one through its session handle, ended on
@@ -572,6 +598,7 @@ export async function startLaunchpad(
   const content = createContentRoutes({
     folder,
     headers,
+    personalspace: personalspace.decide,
     host: () =>
       contentHost ??
       processContentHost({
@@ -680,7 +707,12 @@ export async function startLaunchpad(
     browser,
     holder,
     host: newTabHost,
-    modules: () => runningModules({ folder, host: moduleHost }),
+    modules: () =>
+      runningModules({
+        folder,
+        host: moduleHost,
+        personalspace: personalspace.peek,
+      }),
     headers,
   });
   // The Organization's settings (root decision 0194, decision F45), on an
@@ -728,6 +760,7 @@ export async function startLaunchpad(
         readShellInputs(folder, {
           ownerKey: hostedOptions.ownerKey,
           lockWaitMs: bootLockWaitMs,
+          personalspace: personalspace.peek,
         }),
         (hostedOptions.offlineTailnet ?? machineTailnet)(),
       ]);
@@ -1253,7 +1286,11 @@ export async function startLaunchpad(
             answer.status === 202
           ) {
             setup.forget();
-            void content.settled().then(() => setup.forget());
+            personalspace.forget();
+            void content.settled().then(() => {
+              setup.forget();
+              personalspace.forget();
+            });
           }
           return answer;
         } catch {
@@ -1369,9 +1406,11 @@ export async function startLaunchpad(
         if (url.pathname === "/api/catalog") {
           // The Launchpad home (launchpad-parity B1): the Organizations and
           // modules of this Folder, the same catalog as `lazurio organization
-          // list --json`, recomputed on every read. Nothing is written.
+          // list --json`, recomputed on every read. Nothing is written. Its
+          // Personalspace group follows the last decision whose it is and
+          // never waits for GitHub (#186).
           stateFields(input, []);
-          return response(await readFolderCatalog(folder));
+          return response(await readFolderCatalog(folder, personalspace.peek));
         }
         if (url.pathname === "/api/profile") {
           stateFields(input, []);
@@ -1422,10 +1461,13 @@ export async function startLaunchpad(
           const overview = await toolsOverview(folder, toolsEnvironment, {
             signIn: value.signIn === true,
           });
-          // The shell document's GitHub follows this reading.
+          // The shell document's GitHub, and whose Personalspace this is,
+          // follow this reading.
           const gh = overview.tools.find((tool) => tool.name === "gh");
-          if (gh !== undefined && github.remember(gh.installed, gh.signIn))
+          if (gh !== undefined && github.remember(gh.installed, gh.signIn)) {
             setup.forget();
+            personalspace.forget();
+          }
           return response(
             settings === null
               ? overview
@@ -1613,10 +1655,12 @@ export async function startLaunchpad(
             tool === "gh"
               ? githubRefusal(await folderPreset(folder), tool, action, logins)
               : undefined;
-          // A sign-in or sign-out of gh changes what the shell says.
+          // A sign-in or sign-out of gh changes what the shell says, and
+          // whose Personalspace this is.
           if (tool === "gh") {
             github.forget();
             setup.forget();
+            personalspace.forget();
           }
           if (url.pathname === "/api/tools/logout") {
             // gh first removes this Machine's SSH key from the account.
@@ -1756,6 +1800,9 @@ export async function startLaunchpad(
     : null;
   pill?.start();
   settings?.start();
+  // Whose Personalspace this is, decided once in the background now, so
+  // that the page's first catalog already knows it. Reads no Folder lock.
+  void personalspace.peek(folder).catch(() => undefined);
   // The Launchpad's holds, reconciled with the hub's list from now on.
   await holder?.start();
   // Executor (decision F44, addendum of 2026-10-11, #298): where install and

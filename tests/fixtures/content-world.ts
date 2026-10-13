@@ -115,6 +115,23 @@ export async function remoteRepository(
   return bare;
 }
 
+/** A checkout at `directory` whose `origin` is `fullName` on github.com, as
+ * a person or an earlier tool leaves one in `personalspace/`: initialized in
+ * place (whatever is already there stays, untracked), one empty commit,
+ * nothing fetched. */
+export async function checkoutWithOrigin(directory: string, fullName: string) {
+  await mkdir(directory, { recursive: true });
+  await git(directory, "init", "--quiet");
+  await git(
+    directory,
+    "remote",
+    "add",
+    "origin",
+    `git@github.com:${fullName}.git`,
+  );
+  await git(directory, "commit", "--quiet", "--allow-empty", "-m", "fixture");
+}
+
 /** The documents of an Organization root (and nothing else) in `directory`. */
 export async function writeOrganizationRoot(
   directory: string,

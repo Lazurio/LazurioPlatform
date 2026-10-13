@@ -263,8 +263,13 @@ Steps: `find`, `create` (only when it creates), `clone`, `check`.
   decision (`verifyPersonalspaceCheckout`): it reports the Personalspace `present` only
   when verified, and otherwise `blocked` with the reason (`personalspace-foreign`,
   `-not-owned`, `-public`, `github-unavailable`, `github-signed-out`,
-  `github-identity-mismatch`). The catalog and the module lifecycle do not yet make
-  this decision; they read any single directory there (Lazurio/LazurioPlatform#186).
+  `github-identity-mismatch`). So do the catalog, the module lifecycle and Nová karta
+  (Lazurio/LazurioPlatform#186, decision F9's addendum of 2026-10-05): one decision
+  whose Personalspace this Environment holds (`personalspaceHolder`), by the GitHub
+  account its gh is signed in with and, on a personal Remote Environment, only for the
+  handover's Owner. Anything else is listed blocked with its reason and no modules, and
+  none of it is read or started. The Launchpad remembers the decision for a minute; the
+  page's catalog shows the last one and never waits for GitHub.
 - **Exists on GitHub:** cloned only. **Missing:** created from
   `Lazurio/PersonalspaceTemplate_GEN3` as a **private** repository of the account
   (`POST /repos/{template}/generate`, `private: true`), refused when GitHub reports it
@@ -293,7 +298,8 @@ read (status, catalog) removes anything.
 - `GET /api/content`: `{ allowed, reason?, items }`; an Organization item is
   `{ kind, login, name?, state, reason? }`, the Personalspace
   `{ kind, login, state, onGitHub?, reason? }`, `state` one of `absent`, `present`,
-  `blocked`. One gh read for the account, one more for an absent Personalspace.
+  `blocked`. One gh read for the account, one more for the Personalspace; the
+  Launchpad reuses the decision about a present one for a minute (#186).
 - `POST /api/content/install` with `{}` (everything the Environment holds: on a
   workstation the Organizations already in the Folder and the Personalspace) or
   `{ "items": [ { "kind": "organization", "login": "…" } | { "kind": "personalspace" } ] }`:

@@ -10,9 +10,12 @@ import {
   parseInstallBody,
 } from "../src/launchpad/content-routes";
 import { startLaunchpad } from "../src/launchpad/server";
+import type { Catalog } from "../src/organizations/catalog";
 import type { CliContext } from "../src/update/cli";
+import { writePersonalspaceModule } from "./fixtures/catalog-folder";
 import {
   alphaRemotes,
+  checkoutWithOrigin,
   contentHost,
   createWorld,
   presetFolder,
@@ -295,6 +298,151 @@ posixTest(
     expect(latest).toEqual(jobs.get(latest?.id ?? ""));
   },
   30_000,
+);
+
+/** A workstation Folder whose personalspace/ holds `name`, a checkout of
+ * `origin` with the module `notes`. */
+async function personalFolder(name: string, origin: string) {
+  const folder = await presetFolder(world as World, "local");
+  await writePersonalspaceModule(folder, name, "example", { id: "notes" });
+  await checkoutWithOrigin(join(folder, "personalspace", name), origin);
+  return folder;
+}
+
+const personalGroup = async (
+  post: (path: string, body: unknown) => Promise<Response>,
+) => ((await (await post("/api/catalog", {})).json()) as Catalog).personalspace;
+
+posixTest(
+  "GET /api/content, the catalog and the module routes make one decision whose Personalspace this is",
+  async () => {
+    world = await createWorld();
+    const owned = {
+      owner: { login: "example", databaseId: 12345, kind: "User" as const },
+    };
+    // The account's own, private Personalspace: present, listed, runnable.
+    const own = stubGitHub(world, {
+      repositories: { "example/example_GEN3": owned },
+    });
+    const mine = await launchpad(
+      await personalFolder("example_GEN3", "example/example_GEN3"),
+      contentHost(world, own.github),
+    );
+    expect(await (await mine.get("/api/content")).json()).toEqual({
+      allowed: true,
+      items: [{ kind: "personalspace", login: "example", state: "present" }],
+    });
+    expect(await personalGroup(mine.post)).toMatchObject({
+      executable: true,
+      modules: [{ module: "notes" }],
+    });
+    await closing?.();
+    closing = undefined;
+
+    // Another account's checkout: blocked with the same reason everywhere,
+    // never listed and never started.
+    const stranger = stubGitHub(world, {
+      repositories: { "example/example_GEN3": owned },
+    });
+    const foreign = await launchpad(
+      await personalFolder("stranger_GEN3", "stranger/stranger_GEN3"),
+      contentHost(world, stranger.github),
+    );
+    expect(await (await foreign.get("/api/content")).json()).toEqual({
+      allowed: true,
+      items: [
+        {
+          kind: "personalspace",
+          login: "example",
+          state: "blocked",
+          reason: "personalspace-foreign",
+        },
+      ],
+    });
+    expect(await personalGroup(foreign.post)).toMatchObject({
+      executable: false,
+      reason: "personalspace-foreign",
+      modules: [],
+    });
+    const started = await foreign.post(
+      "/api/modules/personalspace/notes/start",
+      {},
+    );
+    expect(started.status).toBe(409);
+    expect(await started.json()).toEqual({
+      kind: "blocked",
+      operation: "start",
+      reason: "personalspace-foreign",
+      organization: "personalspace",
+      module: "notes",
+    });
+    // GitHub was asked about the account only: the checkout is not its.
+    expect(stranger.calls.map((call) => call.kind)).toEqual(["viewer"]);
+  },
+  60_000,
+);
+
+posixTest(
+  "the page's catalog never waits for GitHub; GET /api/content does, and once GitHub answers both say the same",
+  async () => {
+    world = await createWorld();
+    const { github, calls } = stubGitHub(world, {
+      repositories: {
+        "example/example_GEN3": {
+          owner: { login: "example", databaseId: 12345, kind: "User" },
+        },
+      },
+    });
+    let open = () => {};
+    const gate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const { get, post } = await launchpad(
+      await personalFolder("example_GEN3", "example/example_GEN3"),
+      contentHost(world, {
+        ...github,
+        viewer: async () => {
+          const answer = github.viewer();
+          await gate;
+          return answer;
+        },
+      }),
+    );
+    // GitHub has not answered yet: the catalog answers at once that it is
+    // being verified, with none of the Personalspace's modules.
+    const early = await Promise.race([
+      personalGroup(post),
+      Bun.sleep(2_000).then(() => "waited" as const),
+    ]);
+    expect(early).toEqual({
+      directory: "personalspace",
+      organization: "personalspace",
+      displayName: "Personalspace",
+      state: null,
+      issues: [],
+      executable: false,
+      reason: "personalspace-unverified",
+      teams: [],
+      modules: [],
+      repositories: [],
+    });
+    const content = get("/api/content");
+    expect(
+      await Promise.race([content, Bun.sleep(300).then(() => "waiting")]),
+    ).toBe("waiting");
+    open();
+    expect(await (await content).json()).toEqual({
+      allowed: true,
+      items: [{ kind: "personalspace", login: "example", state: "present" }],
+    });
+    expect(await personalGroup(post)).toMatchObject({
+      executable: true,
+      modules: [{ module: "notes" }],
+    });
+    // One question to GitHub for all of them.
+    expect(calls.map((call) => call.kind)).toEqual(["viewer", "repository"]);
+  },
+  60_000,
 );
 
 posixTest(

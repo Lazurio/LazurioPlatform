@@ -4,6 +4,7 @@ import { createContentJobs } from "../content/jobs";
 import { type ContentItemRef, githubLoginPattern } from "../content/model";
 import { contentStatus } from "../content/status";
 import { ownDataValue, stateFields } from "../folder/state-fields";
+import type { PersonalspaceHolderRead } from "../organizations/personalspace";
 import { BodyTooLarge, readJsonBody } from "./json-body";
 
 // Content installation in the Launchpad (decision F9, addendum of
@@ -75,6 +76,10 @@ export function createContentRoutes(
      * is asked. */
     host: () => ContentHost;
     headers: Readonly<Record<string, string>>;
+    /** Whose Personalspace this Environment holds (#186): the Launchpad's
+     * remembered decision, which its catalog and module lifecycle share;
+     * by default decided at each read through `host`. */
+    personalspace?: PersonalspaceHolderRead | undefined;
   }>,
 ) {
   let host: ContentHost | undefined;
@@ -99,10 +104,12 @@ export function createContentRoutes(
       if (url.pathname === "/api/content") {
         if (request.method !== "GET")
           return response({ error: "method-not-allowed" }, 405);
-        // One GitHub read for gh's account, one more for an absent
-        // Personalspace.
+        // One GitHub read for gh's account, one more for the Personalspace
+        // (remembered a minute by the Launchpad).
         extend(60);
-        return response(await contentStatus(input.folder, resolved()));
+        return response(
+          await contentStatus(input.folder, resolved(), input.personalspace),
+        );
       }
       if (url.pathname === "/api/content/install") {
         if (request.method !== "POST")
@@ -148,7 +155,7 @@ export function createContentRoutes(
     settled: () => jobs.settled(),
     /** The status as `GET /api/content` answers it: the shape of a content
      * reader's `list()`. */
-    list: () => contentStatus(input.folder, resolved()),
+    list: () => contentStatus(input.folder, resolved(), input.personalspace),
     /** The newest job as `GET /api/content/jobs/<id>` answers it, or null:
      * the shape of a content reader's `lastJob()`. */
     lastJob: async () => jobs.latest() ?? null,

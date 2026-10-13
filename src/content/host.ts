@@ -43,6 +43,30 @@ export const preparationAnswer = (
 /** The content locks of an install base. */
 export const contentLockDirectory = (base: string) => join(base, "content");
 
+/** gh and git of this process, from the operator's PATH and home: what the
+ * reads of the content core need (whose Personalspace this is, #186), with
+ * no install base. */
+export function processGitHubHost(
+  input: Readonly<{
+    env: Readonly<Record<string, string | undefined>>;
+    platform: string;
+    tools?: ToolsEnvironment | undefined;
+  }>,
+): Pick<ContentHost, "github" | "git"> {
+  const tools =
+    input.tools ?? toolsEnvironmentOf(input.env, input.platform, runTool);
+  return Object.freeze({
+    github: ghContentGitHub(tools),
+    git: processContentGit({
+      path: tools.path,
+      home: tools.home,
+      platform: tools.platform,
+      run: tools.run,
+      env: gitEnvironmentOf(input.env),
+    }),
+  });
+}
+
 /** The host of this process: gh and git from the operator's PATH and home,
  * the lock in the per-user install base of that home. */
 export function processContentHost(
@@ -66,14 +90,7 @@ export function processContentHost(
     });
   if (base === undefined) throw new Error("No per-user install base");
   return Object.freeze({
-    github: ghContentGitHub(tools),
-    git: processContentGit({
-      path: tools.path,
-      home: tools.home,
-      platform: tools.platform,
-      run: tools.run,
-      env: gitEnvironmentOf(input.env),
-    }),
+    ...processGitHubHost({ env: input.env, platform: input.platform, tools }),
     lockDirectory: contentLockDirectory(base),
     prepare: input.prepare,
   });

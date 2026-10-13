@@ -71,6 +71,7 @@ import {
 import { embeddedIdentity } from "../src/update/identity";
 import {
   folderFixture,
+  heldBy,
   writePersonalspaceModule,
 } from "./fixtures/catalog-folder";
 import { binding, entries, withBrowser } from "./fixtures/machine-bindings";
@@ -656,6 +657,7 @@ test("running Modules: each running unit of the catalog named by its Organizatio
     const modules = await runningModules({
       folder,
       host: runnerHost(listingManager(units)),
+      personalspace: heldBy("someone"),
     });
     expect(modules).toEqual([
       { org: "alpha", module: "web", app, unit: units[0]?.unit as string },

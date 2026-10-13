@@ -22,11 +22,12 @@ import {
 } from "../providers/checkout-custody";
 import { catalogGroups, selectCatalogOrganization } from "./catalog-selection";
 import {
-  folderHasPersonalspace,
-  locatePersonalspace,
   observePersonalspaceModule,
+  type PersonalspaceBlockedReason,
+  type PersonalspaceHolderRead,
   personalspaceModuleIds,
   personalspaceName,
+  unverifiedPersonalspace,
 } from "./personalspace";
 import {
   type AppDisplay,
@@ -67,14 +68,14 @@ export type OrganizationReason =
   | CheckoutReason;
 
 /** Why the Personalspace group's modules cannot be listed (launchpad-parity
- * B11). */
-export type PersonalspaceReason =
-  /** More than one directory in `personalspace/`: which one is the
-   * Operator's is not guessed, and none of them is read (decision 0091). */
-  | "personalspace-ambiguous"
-  /** `personalspace/` or its owner directory is not a caller-owned,
-   * stable directory (decision F23), or unreadable. */
-  | "personalspace-unavailable";
+ * B11): the holder decision's reasons (#186). More than one directory in
+ * `personalspace/` is `personalspace-ambiguous`: which one is the
+ * Operator's is not guessed, and none of them is read (decision 0091);
+ * `personalspace/` or its owner directory that is not a caller-owned, stable
+ * directory (decision F23), or unreadable, is `personalspace-unavailable`;
+ * an owner directory that is not the Personalspace of this Environment's
+ * GitHub account, or cannot be verified as it, has the reason why. */
+export type PersonalspaceReason = PersonalspaceBlockedReason;
 
 /** Why one module cannot run, when its Organization can. */
 export type ModuleReason =
@@ -213,9 +214,11 @@ export type Catalog = Readonly<{
   organizations: readonly CatalogOrganization[];
   /** The Personalspace group (launchpad-parity B11), in the shape of an
    * Organization named `personalspace`: only on a preset that has a
-   * Personalspace, and only when `personalspace/` holds an owner directory.
-   * Kept apart from `organizations` so that no reader of Organizations (the
-   * Doctor, `organization list`) ever lists its modules by accident. */
+   * Personalspace, and only when `personalspace/` holds an owner directory;
+   * its modules only when this Environment's GitHub account holds it (#186),
+   * otherwise none and the reason. Kept apart from `organizations` so that
+   * no reader of Organizations (the Doctor, `organization list`) ever lists
+   * its modules by accident. */
   personalspace?: CatalogOrganization;
 }>;
 
@@ -679,13 +682,19 @@ function isolateDuplicates(
 // The Personalspace group, in the shape of an Organization named
 // `personalspace` (launchpad-parity B11): no Organization documents, so no
 // state, Teams or issues; executable means the module's own declaration
-// admits a start of its default app. Never throws.
+// admits a start of its default app. Its modules are read only from the
+// Personalspace this Environment's GitHub account holds (#186): any other
+// owner directory is listed with the reason and nothing of it is read.
+// Never throws.
 async function readCatalogPersonalspace(
   folder: string,
+  holder: PersonalspaceHolderRead,
 ): Promise<CatalogOrganization | undefined> {
-  if (!(await folderHasPersonalspace(folder))) return undefined;
-  const located = await locatePersonalspace(folder);
-  if (located.kind === "absent") return undefined;
+  const decided = await holder(folder).catch(() => ({
+    kind: "blocked" as const,
+    reason: "personalspace-unavailable" as const,
+  }));
+  if (decided.kind === "absent") return undefined;
   const group = (
     modules: readonly CatalogModule[],
     reason?: PersonalspaceReason,
@@ -702,24 +711,22 @@ async function readCatalogPersonalspace(
       modules: Object.freeze(modules),
       repositories: Object.freeze([]),
     });
-  if (located.kind === "blocked") return group([], located.reason);
+  if (decided.kind === "blocked") return group([], decided.reason);
+  const space = decided.directory;
   let ids: string[];
   try {
-    ids = await personalspaceModuleIds(located.directory);
+    ids = await personalspaceModuleIds(space);
   } catch {
     return group([], "personalspace-unavailable");
   }
   const modules = await Promise.all(
     ids.map(async (id): Promise<CatalogModule> => {
-      const moduleDirectory = join(located.directory, "workspace", id);
-      const observed = await observePersonalspaceModule(located.directory, id)
+      const moduleDirectory = join(space, "workspace", id);
+      const observed = await observePersonalspaceModule(space, id)
         .then((read) => read.observed)
         .catch((error: unknown) => {
           // A refused directory of the module (decision F23), by its rule.
-          const refused = checkoutRefusal(error, [
-            moduleDirectory,
-            located.directory,
-          ]);
+          const refused = checkoutRefusal(error, [moduleDirectory, space]);
           return refused === null
             ? { kind: "module-unavailable" as const }
             : { kind: refused.reason, file: refused.file };
@@ -735,7 +742,7 @@ async function readCatalogPersonalspace(
         defaultApp,
         apps,
         moduleDirectory,
-        located.directory,
+        space,
         // A Personalspace module: no vault serves it (decision F46).
         (runtime) =>
           declaredSecretsFinding(runtime, true, async () => ({
@@ -767,8 +774,14 @@ async function readCatalogPersonalspace(
 /** The catalog of one Folder. Throws only when the Folder itself is not a
  * caller-owned, non-shared directory; a Folder without `organizations/` has
  * no Organizations, and every candidate below it fails on its own. On a
- * preset that has a Personalspace the catalog also carries its group. */
-export async function readFolderCatalog(folder: string): Promise<Catalog> {
+ * preset that has a Personalspace the catalog also carries its group, read
+ * by `holder`'s decision whose Personalspace this Environment holds (#186):
+ * a reader that cannot ask GitHub takes no owner directory for the
+ * Operator's (`unverifiedPersonalspace`). */
+export async function readFolderCatalog(
+  folder: string,
+  holder: PersonalspaceHolderRead = unverifiedPersonalspace,
+): Promise<Catalog> {
   await inspectOwnedDirectory(folder);
   const root = join(folder, "organizations");
   const present = await lstat(root).then(
@@ -778,7 +791,7 @@ export async function readFolderCatalog(folder: string): Promise<Catalog> {
       throw error;
     },
   );
-  const personalspace = await readCatalogPersonalspace(folder);
+  const personalspace = await readCatalogPersonalspace(folder, holder);
   const withPersonalspace =
     personalspace === undefined ? {} : { personalspace };
   if (!present)

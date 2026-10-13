@@ -1024,7 +1024,33 @@ are skipped): with two or more, which one is the Operator's is not guessed, none
 read, and the group is listed with `personalspace-ambiguous` and no modules (decision
 0091); an owner directory or `workspace/` that is not the Operator's own is
 `personalspace-unavailable`. An Organization whose slug is `personalspace` is
-ambiguous with the group under the selection rule. The resident addressed these apps
+ambiguous with the group under the selection rule.
+
+**Whose Personalspace (#186, decision F9's addendum of 2026-10-05).** The one owner
+directory is read only when this Environment's GitHub account holds it: gh's account
+(the Launchpad's and the CLI's own sign-in) and, on a personal Remote Environment, the
+handover's Owner; the directory `<login>_GEN3`, its `origin` `<login>/<login>_GEN3`
+and GitHub's answer that the repository is the account's own and private.
+`personalspaceHolder` in `src/content/status.ts` makes the decision for
+`GET /api/content`, the catalog (`readFolderCatalog(folder, holder)`), the module
+lifecycle (at the selection and in `resolvePersonalspaceApplication`) and Nová karta's
+running modules. Otherwise the group is listed with the reason and no modules
+(`personalspace-foreign`, `-not-owned`, `-public`, `github-signed-out`,
+`github-unavailable`, `github-identity-mismatch`), every operation on
+`personalspace/<module>` answers it, and `ensure` finds no module. A reader given no
+decision (the Doctor, the vault, the shell document, the Organization routes) lists
+the group as `personalspace-unverified`. The Launchpad keeps one decision per checkout
+for a minute (`createPersonalspaceHolder` in `src/content/holder.ts`; the layout is
+read on every call) and makes the first in the background as it starts. The page's
+catalog (`POST /api/catalog`, the boot document) takes the last decision and never
+waits for GitHub: before the first one the group is `personalspace-unverified`, and
+the page reads the catalog again after 1, 2, 4, 8 and 16 seconds while the group is
+`personalspace-unverified` or `github-unavailable` (`personalspaceRereadMs`). A
+decision being made when a gh sign-in or sign-out drops it is never answered: it is
+made again. An Organization's module never waits for the decision: the lifecycle
+decides it only for `personalspace/<module>` and, for the gateway's `ensure`, only
+for an id the Personalspace alone may have (below); `lazurio module list` only where
+the group is shown. The resident addressed these apps
 as `<owner login>/<module>` (its `company` was the owner,
 `R:lazurio/runtime/personalspace-lib.mjs:1126`, selected by
 `R:lazurio/core/module-lifecycle-client-lib.mjs:297,385`) and its CLI refused them on a
@@ -1420,7 +1446,14 @@ the Personalspace group counting as one (`personalspace` in `candidates`);
 every group that lists it counts, runnable or not, because the gateway serves the
 id at one hostname and routes it to one of their declared ports. Two or more:
 `module-ambiguous` with every candidate's directory (the fix is `{organization}` in
-Machines' origin template, launchpad-parity B4). Then the catalog's own rules, as for
+Machines' origin template, launchpad-parity B4). The Personalspace counts as the
+gateway's catalog sees it, whoever holds it (#186): when its one owner directory has
+`workspace/<id>/lazurio.module.json` (`personalspaceMayOwn`; only that path is looked
+at). So an Organization's module is resolved without GitHub, an id that the
+Personalspace's directory has too stays ambiguous, and only an id the Personalspace
+alone may have asks whose it is (decision F9's addendum of 2026-10-05), for at most
+the request's wait; a Personalspace this Environment's account does not hold lists no
+module (`module-unknown`). Then the catalog's own rules, as for
 `lazurio module`: a module that cannot run is refused with its catalog reason. Only the
 module's default app (`default_app`) is ever started: `ensure` takes no `--app` and never
 falls back to another declared app.
@@ -1445,7 +1478,7 @@ duration of one start, not state.
 | Status | Body | Gateway shows | When |
 |---|---|---|---|
 | 204 | none | the app | the default app reports healthy |
-| 503 | the `lazurio module status` answer with `operation: "ensure"` (`outcome: "start-pending"` while the start still runs) | "starting", reload in 2 s | not yet healthy; a report-only request to an app that does not run; `closing`, `coordination-busy` |
+| 503 | the `lazurio module status` answer with `operation: "ensure"` (`outcome: "start-pending"` while the start still runs) | "starting", reload in 2 s | not yet healthy; a report-only request to an app that does not run; `closing`, `coordination-busy`; `personalspace-unverified` (whose Personalspace this is was not decided within the wait; the decision goes on) |
 | 404 | `{kind: "blocked", operation: "ensure", reason, …}` | "not available here" | `module-unknown` (also for a string that is not a valid id, which is not echoed), the catalog reasons (`no-app`, `default-app-invalid`, `organization-not-executable`, …), `folder-unreadable` |
 | 409 | `{kind: "blocked", operation: "ensure", reason: "module-ambiguous", candidates}`, or the start's or status read's refusal with `operation: "start"` or `"status"` (`toolchain-missing`, `prerequisites-not-ready`, `port-occupied`, …) | "could not be prepared" (502) | the id is ambiguous; the lifecycle refused |
 | 401 | `{error: "denied", reason}` | "could not be prepared" (502) | admission refused |

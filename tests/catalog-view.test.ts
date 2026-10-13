@@ -9,6 +9,7 @@ import {
   organizationName,
   organizationRoute,
   parseCatalog,
+  personalspaceRereadMs,
   routeOrganization,
 } from "../src/launchpad/catalog-view";
 import { messages } from "../src/launchpad/messages";
@@ -18,6 +19,7 @@ import {
   type CatalogOrganization,
   type CatalogRepository,
   findCatalogOrganization,
+  type PersonalspaceReason,
 } from "../src/organizations/catalog";
 
 const module = (
@@ -98,6 +100,16 @@ test("every reason reads as a sentence in both languages; an unknown code is nam
     "preparation-dependency-outside-owner",
     "preparation-dependency-missing",
     "preparation-applications-overlap",
+    // Whose Personalspace this is (#186): its layout, and the decision.
+    "personalspace-ambiguous",
+    "personalspace-unavailable",
+    "personalspace-foreign",
+    "personalspace-not-owned",
+    "personalspace-public",
+    "github-signed-out",
+    "github-unavailable",
+    "github-identity-mismatch",
+    "personalspace-unverified",
   ];
   for (const locale of ["cs", "en"]) {
     const copy = messages(locale);
@@ -166,6 +178,40 @@ const personalspace: CatalogOrganization = {
   repositories: [],
 };
 const workstation: Catalog = { ...catalog, personalspace };
+
+test("a Personalspace group GitHub has not decided yet is read again shortly, a bounded number of times; a decided one is not (#186)", () => {
+  const blocked = (reason: PersonalspaceReason): Catalog => ({
+    ...catalog,
+    personalspace: {
+      ...personalspace,
+      executable: false,
+      reason,
+      modules: [],
+    },
+  });
+  // The catalog never waits for GitHub: until the Launchpad's first answer
+  // the group is unverified, and where GitHub did not answer it is asked
+  // again behind the next read.
+  for (const reason of [
+    "personalspace-unverified",
+    "github-unavailable",
+  ] as const)
+    expect(
+      [0, 1, 2, 3, 4, 5].map((attempt) =>
+        personalspaceRereadMs(blocked(reason), attempt),
+      ),
+    ).toEqual([1_000, 2_000, 4_000, 8_000, 16_000, null]);
+  // Decided: held, or blocked by its layout or by GitHub's answer.
+  for (const value of [
+    workstation,
+    catalog,
+    blocked("personalspace-foreign"),
+    blocked("github-signed-out"),
+    blocked("github-identity-mismatch"),
+    blocked("personalspace-ambiguous"),
+  ])
+    expect(personalspaceRereadMs(value, 0)).toBeNull();
+});
 
 test("each module is listed once, in the catalog's order, whatever Teams declare it; the Personalspace group stays (F32)", () => {
   for (const locale of ["cs", "en"]) {
