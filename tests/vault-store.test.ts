@@ -20,7 +20,6 @@ import {
   completeAccount,
   createAccount,
   ensureVaultDirectories,
-  forgetSignIn,
   forgetUnregisteredAccount,
   parseAccount,
   readAccount,
@@ -31,13 +30,14 @@ import {
   writeRecord,
   writeSession,
 } from "../src/vault/store";
+import { ownAccount } from "./fixtures/fake-vault";
 
-// The custody of one Environment vault account (decision F43) and what is
-// read from bw: exact shapes only, the password written once, nothing of an
-// account file ever echoed.
+// The custody of one Environment vault account (decisions F43, F52) and what
+// is read from bw: exact shapes only, the password written once, the own
+// vault's record never guessed, nothing of an account file ever echoed.
 
 const account: VaultAccount = {
-  email: "vaultwarden@example.lazurio.io",
+  email: ownAccount,
   server: "https://vaultwarden.example.lazurio.io",
   deviceIdentifier: "0b9e2f3a-5c1d-4e8f-9a7b-1c2d3e4f5a6b",
   masterPassword: "A".repeat(43),
@@ -61,13 +61,18 @@ async function temporary() {
   };
 }
 
-test("the account file is taken only in its exact form", () => {
+test("the account file is taken only in its exact form, an own account's or a 0197 pilot's", () => {
   expect(parseAccount({ ...account })).toEqual(account);
   expect(parseAccount({ ...account, ...key })).toEqual({ ...account, ...key });
+  // A 0197 pilot's account file reads the same way; whose it is, each
+  // caller checks against its own context.
+  const pilot = { ...account, email: "vaultwarden@example.lazurio.io" };
+  expect(parseAccount(pilot)).toEqual(pilot);
   for (const refused of [
     { ...account, extra: true },
     { ...account, clientId: key.clientId },
-    { ...account, email: "someone@example.invalid" },
+    { ...account, email: "Someone@Example.invalid" },
+    { ...account, email: "someone" },
     { ...account, server: "http://vaultwarden.example.lazurio.io" },
     { ...account, masterPassword: "short" },
     { ...account, deviceIdentifier: "device" },
@@ -105,7 +110,7 @@ test("the password is written once, before the registration; the API key joins i
   }
 });
 
-test("a refused registration leaves nothing; a disconnect keeps only the account", async () => {
+test("a refused registration leaves nothing; the session is written whole", async () => {
   const t = await temporary();
   try {
     await createAccount(t.paths, account);
@@ -119,23 +124,48 @@ test("a refused registration leaves nothing; a disconnect keeps only the account
     expect(await readSession(t.paths)).toBe(session);
     expect((await lstat(t.paths.session)).mode & 0o777).toBe(0o600);
     await expect(writeSession(t.paths, "not a session")).rejects.toThrow();
-    await writeRecord(t.paths, {
-      fingerprint: "steep-flavor-uncut-scouring-unnoticed",
-      organizationId: "0b9e2f3a-5c1d-4e8f-9a7b-1c2d3e4f5a6b",
-      collectionId: "6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d",
-    });
-    await writeFile(join(t.paths.data, "data.json"), "{}");
-    await forgetSignIn(t.paths);
-    expect(await readdir(t.paths.data)).toEqual(["lazurio-account.json"]);
-    expect(await readRecord(t.paths)).toEqual({
-      fingerprint: null,
+    expect(await readFile(t.paths.account, "utf8")).toContain(key.clientSecret);
+  } finally {
+    await t.close();
+  }
+});
+
+test("the own vault's record is its IDs and a creation's receipt, and a damaged one is never taken for none", async () => {
+  const t = await temporary();
+  try {
+    const empty = {
       organizationId: null,
       collectionId: null,
-    });
-    // An unreadable record is no record; it is not secret.
-    await writeFile(t.paths.record, "{broken");
-    expect((await readRecord(t.paths)).collectionId).toBeNull();
-    expect(await readFile(t.paths.account, "utf8")).toContain(key.clientSecret);
+      pendingKey: null,
+    };
+    expect(await readRecord(t.paths)).toEqual(empty);
+    const receipt = { ...empty, pendingKey: "A".repeat(392) };
+    await writeRecord(t.paths, receipt);
+    expect(await readRecord(t.paths)).toEqual(receipt);
+    expect((await lstat(t.paths.record)).mode & 0o777).toBe(0o600);
+    const vault = {
+      organizationId: "0b9e2f3a-5c1d-4e8f-9a7b-1c2d3e4f5a6b",
+      collectionId: "6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d",
+      pendingKey: null,
+    };
+    await writeRecord(t.paths, vault);
+    expect(await readRecord(t.paths)).toEqual(vault);
+    // Damaged, of another shape (a 0197 pilot's), or a collection without
+    // its organization: refused, never read as no record.
+    for (const damaged of [
+      "{broken",
+      JSON.stringify({
+        fingerprint: null,
+        organizationId: vault.organizationId,
+        collectionId: vault.collectionId,
+      }),
+      JSON.stringify({ ...vault, organizationId: null }),
+      JSON.stringify({ ...vault, pendingKey: "not a key" }),
+      JSON.stringify({ ...vault, extra: 1 }),
+    ]) {
+      await writeFile(t.paths.record, damaged);
+      await expect(readRecord(t.paths)).rejects.toThrow();
+    }
   } finally {
     await t.close();
   }

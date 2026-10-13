@@ -392,3 +392,144 @@ describe("the requests", () => {
     ).toBe("unsupported-kdf");
   });
 });
+
+// The Environment's own vault (decision F52): the account signs in with its
+// API key, unlocks its own keys and asks the vault's API with any method.
+describe("the own vault's requests", () => {
+  const ownEmail = "vaultwarden-ndbrmzvjpwxtt3q7m2e4fihgsa@example.lazurio.io";
+  const userId = "6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d";
+  const device = {
+    identifier: "0b9e2f3a-5c1d-4e8f-9a7b-1c2d3e4f5a6b",
+    name: "Lazurio Launchpad",
+    type: vr.DEVICE_TYPE_SDK,
+  };
+
+  test("the public key of a private key is the one generated with it", async () => {
+    const wrap = vr.symmetricKey(vr.randomBytes(64));
+    const pair = await vr.makeKeyPair(wrap);
+    const privateKey = await vr.decrypt(pair.encryptedPrivateKey, wrap);
+    expect(await vr.publicKeyOf(privateKey)).toBe(pair.publicKey);
+  });
+
+  test("the account's private key unlocks from its master password and what the vault keeps", async () => {
+    const keys = await vr.makeAccountKeys(
+      ownEmail,
+      "throwaway-unit-test",
+      5_000,
+    );
+    const privateKey = await vr.unlockPrivateKey({
+      email: ownEmail,
+      password: "throwaway-unit-test",
+      protectedUserKey: keys.protectedUserKey,
+      encryptedPrivateKey: keys.encryptedPrivateKey,
+      iterations: 5_000,
+    });
+    expect(await vr.publicKeyOf(privateKey)).toBe(keys.publicKey);
+    await expect(
+      vr.unlockPrivateKey({
+        email: ownEmail,
+        password: "another-password",
+        protectedUserKey: keys.protectedUserKey,
+        encryptedPrivateKey: keys.encryptedPrivateKey,
+        iterations: 5_000,
+      }),
+    ).rejects.toThrow("MAC mismatch");
+  });
+
+  test("the API-key login sends client_credentials with the one device and returns what unlocking needs", async () => {
+    const answer = {
+      access_token: jwt({ sub: userId }),
+      token_type: "Bearer",
+      Key: "2.a|b|c",
+      PrivateKey: "2.d|e|f",
+      Kdf: 0,
+      KdfIterations: 600_000,
+    };
+    const vault = scripted({
+      "/identity/connect/token": (body) => {
+        expect(body).toEqual({
+          grant_type: "client_credentials",
+          scope: "api",
+          client_id: `user.${userId}`,
+          client_secret: "a1b2c3d4e5f6a1b2",
+          deviceType: "21",
+          deviceIdentifier: device.identifier,
+          deviceName: device.name,
+        });
+        return Response.json(answer);
+      },
+    });
+    const login = {
+      serverUrl: server,
+      clientId: `user.${userId}`,
+      clientSecret: "a1b2c3d4e5f6a1b2",
+      device,
+    };
+    expect(await vr.apiKeyLogin({ fetch: vault.fetch }, login)).toEqual({
+      serverUrl: server,
+      userId,
+      accessToken: answer.access_token,
+      protectedUserKey: "2.a|b|c",
+      encryptedPrivateKey: "2.d|e|f",
+      iterations: 600_000,
+    });
+    // Refusals and answers this core does not read are fixed reasons.
+    for (const [response, reason] of [
+      [refusal("Incorrect client_secret"), "invalid-credentials"],
+      [Response.json({ ...answer, Kdf: 1 }), "unsupported-kdf"],
+      [Response.json({ ...answer, KdfIterations: 10 }), "unsupported-kdf"],
+      [
+        Response.json({
+          ...answer,
+          access_token: jwt({ sub: device.identifier }),
+        }),
+        "unexpected",
+      ],
+      [Response.json({ ...answer, Key: null }), "unexpected"],
+      [new Response("", { status: 503 }), "unreachable"],
+    ] as const) {
+      const refused = scripted({ "/identity/connect/token": () => response });
+      const error = await vr
+        .apiKeyLogin({ fetch: refused.fetch }, login)
+        .catch((caught: unknown) => caught);
+      expect([reason, (error as vr.VaultwardenError).reason]).toEqual([
+        reason,
+        reason,
+      ]);
+    }
+  });
+
+  test("a request names its method, carries the token, and an organization the vault does not allow is a fixed reason", async () => {
+    const vault = scripted({
+      "/api/organizations/x": (_body, init) =>
+        Response.json({ method: init.method }),
+      "/api/organizations": () =>
+        refusal("User not allowed to create organizations"),
+    });
+    for (const method of ["GET", "PUT", "DELETE"] as const) {
+      expect(
+        await vr.vaultRequest(
+          { fetch: vault.fetch },
+          server,
+          "/api/organizations/x",
+          {
+            method,
+            token: "token",
+            ...(method === "PUT" ? { json: { name: "x" } } : {}),
+          },
+        ),
+      ).toEqual({ method });
+    }
+    const headers = vault.seen.at(-1)?.init.headers as
+      | Record<string, string>
+      | undefined;
+    expect(headers?.Authorization).toBe("Bearer token");
+    const error = await vr
+      .vaultRequest({ fetch: vault.fetch }, server, "/api/organizations", {
+        json: {},
+        token: "token",
+      })
+      .catch((caught: unknown) => caught);
+    expect((error as vr.VaultwardenError).reason).toBe("organization-refused");
+  });
+});

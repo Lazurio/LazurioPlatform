@@ -39,12 +39,12 @@ export const privateKinds = [
   "team",
   "github-login",
   "github-id",
-  "vault-account",
-  "vault-name",
   "tailnet-node",
   "machine-host",
   "peer",
   "hostname",
+  "vault-account",
+  "vault-name",
 ] as const;
 export type PrivateKind = (typeof privateKinds)[number];
 export type PrivateValue = Readonly<{ kind: PrivateKind; value: string }>;

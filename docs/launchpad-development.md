@@ -1263,8 +1263,8 @@ runtime environment the replaced Launchpad gave it (decision F26, the table in
 JSON, `NODE_PATH`, `NODE_ENV=development`, the runtime and Organization identity, the
 loopback origin of each sibling module of its Organization it declares
 (`LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN`, F26 addendum of 2026-10-10), the value of
-each runtime secret it declares, read from the Environment vault at this start
-(`LAZURIO_RUNTIME_SECRET_<NAME>`, F46; a required one without a value refuses the
+each runtime secret it declares, read from the Environment's own vault at this start
+(`LAZURIO_RUNTIME_SECRET_<NAME>`, F46 as F52 amends it; a required one without a value refuses the
 start as `runtime-secret-unavailable`, an optional one is reported as
 `secretsNotProvided`), and on
 a hosted Machine, for the module's default app, the entrypoint's external origin
@@ -1545,7 +1545,7 @@ characters escaped), Czech or English by the Folder's locale.
 | product | `template-revision` | `observeFolder` facts | `warn folder-newer` (a newer product rendered it), `warn revision-unknown`; an older one is `folder-refresh` |
 | Folder | `folder-state` | `collectRecovery` Folder state; preset and Machine kind from `observeFolder` | `fail folder-state-pending`, `-absent`, `-unrecognized`, `-unreadable` |
 | Folder | `machine-binding` | recorded `preferences.machine` vs `machineBinding` of the live handover | `warn machine-identity-changed`, `warn handover-changed` (digest; `machine folder-refresh`), `warn binding-absent`, `warn handover-unreadable`; `skipped not-hosted` |
-| tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `skipped not-offered` for a missing tool Lazurio does not offer in this Environment (`toolOffered`: bitwarden outside a Remote Environment on Linux, decision F43; gogcli in a work Environment, F44); Executor is not a tool row but its own check; `signIn`/`ssh` ids with `--sign-in` |
+| tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `skipped not-offered` for a missing tool Lazurio does not offer in this Environment (`toolOffered`: bitwarden outside a Remote Environment on Linux, decisions F43 and F52; gogcli in a work Environment, F44); Executor is not a tool row but its own check; `signIn`/`ssh` ids with `--sign-in` |
 | tools | `executor` | `executorStatus` ([F44](decisions.md#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio)): the entry and its marker, `systemctl --user show` of `sh.executor.daemon.service` and its drop-in, `GET 127.0.0.1:4789/api/health`, `codex mcp get executor --json` and `~/.claude.json`; never `fail`, never in `recover` | `ok` running with the installed agents connected (context `toolVersion`, `executorService`, `codexMcp`, `claudeMcp`); `warn executor-not-installed`, `executor-outdated`, `executor-conflict`, `executor-not-running`, `executor-incomplete` (the next step is `lazurio executor setup`, or Settings → Tools → executor); `skipped not-offered` (a computer, not the operator), `skipped handover-unreadable` |
 | organizations | `catalog` | `readFolderCatalog` | counts of the Organizations and their modules only: the Personalspace group is never counted or named; `warn catalog-unreadable` |
 | organizations | `organization` | catalog entry | `warn` with the Organization reason; a template `skipped template-not-runtime` |
@@ -2030,47 +2030,28 @@ the tool forgot the sign-in on this Machine only (gh, composio) or unlinked the 
 (wacli). An SSH outcome is taken only in its exact form (known reasons, a `SHA256:`
 fingerprint, no key content).
 
-**The Environment vault** (decision F43, the wireframe of prototypes-lazurio#24). The
-`bitwarden` row (`bw`) reads its own state (`/api/tools/bitwarden/status`, and
-`/refresh` when the sign-ins are probed: on load and on "Refresh status") and says it
-in the wireframe's words: "Nepřipojeno", "Čeká na potvrzení v trezoru", "Připojeno ·
-2 kolekce · 14 položek" (Czech plurals; "Connected · 1 collection · 2 items"),
-"Přístup odebrán v trezoru", "Trezor neodpovídá", and "Brzy · druhá vlna" on this
-computer. Its one next step is "Připojit", "Pokračovat", "Připojit znovu" or "Zkusit
-znovu" (which syncs), with "Odpojit" once an account is signed in, beside the agents'
-switch; its details add the account, the vault (with "Otevřít Vaultwarden" in a new
-tab), the organization, the collection, the fingerprint and "Synchronizovat". The
-dialog "Připojit Bitwarden" walks four numbered steps, the current one open: (1) "Pozvi
-účet v trezoru": "Založ kolekci, pojmenuj ji, jak chceš (třeba takhle), a pozvi do ní
-tuhle adresu s právem úprav." (the collection's name is the operator's; root decision
-0193, addendum 2026-10-11), one quiet card with "Kolekce" (the suggested name) and
-"Adresa účtu", each label above its
-one-line value with a quiet copy button, "Otevřít Vaultwarden" and "Pozváno", the line
-that only an Admin or Owner of the vault's organization invites and confirms, and on a
-Team Environment "Kolekci uvidí celý Team."; a refused registration comes back here
-with "Adresa ještě není v trezoru pozvaná." (2) "Environment se připojí": the connect's
-phases "Instaluji Bitwarden", "Zakládám účet", "Přihlašuji" with a spinner, asked again
-every second with the connect's job, and "Heslo účtu zná jen tento Environment."; a
-failure names its stage and reason with "Dokončit s agentem" and "Zkusit znovu". (3)
-"Potvrď účet v trezoru": the fingerprint phrase in a selectable box, "Otevřít
-Vaultwarden" and "Čekám na potvrzení…" while `/refresh` is asked every five seconds.
-Once the member is confirmed but the account does not recognize its collection (at a
-first connection it sees none, or several and none with the suggested name; the only
-one it sees is its own, whatever its name), the step is titled "Nasdílej účtu kolekci" and says only that:
-"Potvrzeno. Ještě účtu v trezoru nasdílej kolekci tohoto Environmentu s právem úprav.",
-the suggested name to copy, "Vidí-li účet víc kolekcí, pozná tu svou podle tohohle
-názvu.", and "Čekám na kolekci…"; the row
-says "Potvrzeno, čeká na kolekci". (4) "Připojeno": "Vidí N
-kolekcí · M položek." and "Hotovo"; the agents' switch turns on after the reading that
-follows, as after a curated sign-in. An account that exists starts at step 2, a
-revoked one at step 1 with "Pozvi tuhle adresu znovu do kolekce s právem úprav." (a
-connect keeps the collection it was connected to; while the account does not see it,
-"Účet nevidí kolekci, ke které byl připojený. Pozvi ho do ní znovu, nebo Environment
-odpoj a připoj ho k jiné kolekci."), a
-waiting one at step 3. Closing the dialog stops only the page's polling; the connect
-goes on in the Launchpad. "Odpojit" asks first ("Agenti tu přestanou trezor používat.
-Přístup úplně ukončíš odebráním účtu v trezoru."). The state is accepted only in its
-exact form (`src/launchpad/vault-view.ts`, `tests/vault-view.test.ts`); the DOM is
+**The Environment's own vault** (decision F52, the wireframe of
+prototypes-lazurio#33; it replaces F43's dialog). The Environment sets its vault up
+itself: the installed Launchpad runs the one setup of `/api/tools/bitwarden/setup` in
+the background after its start where the vault needs it (`vaultAtStart`, the rule of
+Executor's, and `setUpAtStart`), and the `bitwarden` row (`bw`) only reads its state
+(`/api/tools/bitwarden/status`, and `/refresh` when the sign-ins are probed: on load and
+on "Refresh status"). A setup that runs is the state both answer, `202 {kind:
+"vault-setting-up", job, phase}`, and the row follows it by its job whoever started it,
+saying its step: "Instaluje se Bitwarden…", "Připravuje se účet trezoru…",
+"Připravuje se trezor…", "Přihlašuje se…". Otherwise it says the state in few words:
+"Připojeno", "Zatím nenastaveno", "Síť zatím účet trezoru nepovolila", "Trezor byl
+odebrán" (a 0197 pilot's: "Přístup odebrán v trezoru"), "Trezor neodpovídá", "Nastavení
+se nedokončilo", "Tento Environment zatím trezor nemá" (the handover names no vault)
+and "Brzy · druhá vlna" on this computer ("Connected", "Not set up yet", …). Its
+controls are "Otevřít trezor" once connected, a link in a new tab to
+`<server_url>/#/vault?organizationId=<id>`, and one action only where a setup moves the
+vault on: "Nastavit" when nothing set it up yet and "Zkusit znovu" after a setup that
+stopped or a vault that did not answer. A vault the network has not allowed or has
+revoked, and a 0197 pilot, offer none; there is no dialog, no details section and no
+disconnect. A setup this page followed that ends connected turns the agents' switch on,
+as after a curated sign-in. The state is accepted only in its exact form
+(`src/launchpad/vault-view.ts`, `tests/vault-view.test.ts`); the DOM is
 `src/launchpad/vault-panel.ts`.
 
 **Executor** (decision F44). The `executor` row reads its own state

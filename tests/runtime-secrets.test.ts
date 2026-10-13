@@ -7,16 +7,20 @@ import {
   readRuntimeSecrets,
 } from "../src/modules/runtime-secrets";
 import type {
+  SecretApplication,
   VaultSecret,
   VaultSecretsRefusal,
   VaultSecretsResult,
 } from "../src/vault/flow";
 
 // What an application's declared runtime secrets become at its start
-// (decision F46, root decisions 0177 and 0196): the values of its required
-// and optional names as `LAZURIO_RUNTIME_SECRET_<NAME>`, a refusal naming
-// every required name without a value, and a note for the optional ones it
-// starts without. The source is a fake; every name and value is invented.
+// (decision F46 as F52 amends it, root decisions 0177 and 0196): the values
+// of its required and optional names as `LAZURIO_RUNTIME_SECRET_<NAME>`, a
+// refusal naming every required name without a value, and a note for the
+// optional ones it starts without. Which applications the vault serves is
+// the vault's to say: it is asked with the application's Organization and
+// whether it is a Personalspace module. The source is a fake; every name and
+// value is invented.
 
 const value = "fake-runtime-secret-value-4d2a";
 
@@ -32,18 +36,26 @@ function source(
   refused?: VaultSecretsRefusal,
 ) {
   const reads: (readonly string[])[] = [];
-  const admitted: string[] = [];
+  const admitted: SecretApplication[] = [];
+  const asked: SecretApplication[] = [];
   const fake: RuntimeSecretSource = {
-    admit: async (company) => {
-      admitted.push(company);
+    admit: async (application) => {
+      admitted.push(application);
       return refused === "workstation" ||
         refused === "no-vault-identity" ||
-        refused === "other-organization"
+        refused === "other-organization" ||
+        refused === "personalspace" ||
+        refused === "personal-environment"
         ? refused
         : null;
     },
-    read: async ({ names }): Promise<VaultSecretsResult> => {
+    read: async ({
+      company,
+      personalspace,
+      names,
+    }): Promise<VaultSecretsResult> => {
       reads.push(names);
+      asked.push({ company, personalspace });
       if (refused !== undefined)
         return { kind: "vault-secrets-refused", reason: refused };
       return {
@@ -57,7 +69,7 @@ function source(
       };
     },
   };
-  return { fake, reads, admitted };
+  return { fake, reads, admitted, asked };
 }
 
 async function refusal(work: Promise<unknown>) {
@@ -163,6 +175,8 @@ test("a vault the app cannot use refuses every required name, and with only opti
     "workstation",
     "no-vault-identity",
     "other-organization",
+    "personalspace",
+    "personal-environment",
     "not-connected",
     "locked",
     "busy",
@@ -222,40 +236,53 @@ test("a vault the app cannot use refuses every required name, and with only opti
   ).toEqual([{ name: "EXTERNAL_API_KEY", reason: "vault-failed" }]);
 });
 
-test("a Personalspace module and an Environment without a composed vault read nothing; the admission before the install knows it", async () => {
-  const { fake, reads, admitted } = source({
-    EXTERNAL_API_KEY: { kind: "value", value },
+test("the vault is asked with the application's Organization and kind, and decides; an Environment without a composed vault reads nothing", async () => {
+  // A personal Environment's vault serves a Personalspace module.
+  const served = source({ EXTERNAL_API_KEY: { kind: "value", value } });
+  const personalspace = runtime(["EXTERNAL_API_KEY"], [], "personalspace");
+  await admitRuntimeSecrets({
+    runtime: personalspace,
+    personalspace: true,
+    source: served.fake,
   });
   expect(
-    await refusal(
-      readRuntimeSecrets({
-        runtime: runtime(["EXTERNAL_API_KEY"]),
-        personalspace: true,
-        source: fake,
-      }),
-    ),
-  ).toEqual([{ name: "EXTERNAL_API_KEY", reason: "personalspace" }]);
+    await readRuntimeSecrets({
+      runtime: personalspace,
+      personalspace: true,
+      source: served.fake,
+    }),
+  ).toEqual({
+    variables: { LAZURIO_RUNTIME_SECRET_EXTERNAL_API_KEY: value },
+    notProvided: [],
+  });
+  expect(served.admitted).toEqual([
+    { company: "personalspace", personalspace: true },
+  ]);
+  expect(served.asked).toEqual([
+    { company: "personalspace", personalspace: true },
+  ]);
+  // A work Environment's vault refuses it, before anything is installed.
+  const refused = source({}, "personalspace");
   expect(
     await refusal(
       admitRuntimeSecrets({
-        runtime: runtime(["EXTERNAL_API_KEY"]),
+        runtime: personalspace,
         personalspace: true,
-        source: fake,
+        source: refused.fake,
       }),
     ),
   ).toEqual([{ name: "EXTERNAL_API_KEY", reason: "personalspace" }]);
   expect(
     await readRuntimeSecrets({
-      runtime: runtime([], ["OPTIONAL_KEY"]),
+      runtime: runtime([], ["OPTIONAL_KEY"], "personalspace"),
       personalspace: true,
-      source: fake,
+      source: refused.fake,
     }),
   ).toEqual({
     variables: {},
     notProvided: [{ name: "OPTIONAL_KEY", reason: "personalspace" }],
   });
-  expect(reads).toEqual([]);
-  expect(admitted).toEqual([]);
+  // No vault composed: nothing is asked.
   expect(
     await refusal(
       readRuntimeSecrets({
@@ -264,7 +291,7 @@ test("a Personalspace module and an Environment without a composed vault read no
       }),
     ),
   ).toEqual([{ name: "EXTERNAL_API_KEY", reason: "no-vault-identity" }]);
-  // The admission asks the source about the Organization only.
+  // The admission asks about the application only, never its items.
   const other = source({}, "other-organization");
   expect(
     await refusal(
@@ -275,7 +302,7 @@ test("a Personalspace module and an Environment without a composed vault read no
       }),
     ),
   ).toEqual([{ name: "EXTERNAL_API_KEY", reason: "other-organization" }]);
-  expect(other.admitted).toEqual(["gamma"]);
+  expect(other.admitted).toEqual([{ company: "gamma", personalspace: false }]);
   expect(other.reads).toEqual([]);
   // Optional names never refuse the admission.
   await admitRuntimeSecrets({
@@ -284,7 +311,7 @@ test("a Personalspace module and an Environment without a composed vault read no
   });
 });
 
-test("the catalog's check knows a workstation, a Personalspace module and another Organization's app without the vault", async () => {
+test("the catalog's check knows, without the vault, a workstation and the applications a work or a personal Environment does not serve", async () => {
   type Place = Parameters<typeof declaredSecretsFinding>[2];
   const workstation: Place = async () => ({ kind: "workstation" });
   const owned: Place = async () => ({
@@ -310,19 +337,29 @@ test("the catalog's check knows a workstation, a Personalspace module and anothe
     reason: "runtime-secret-unavailable",
     secrets: [{ name: "EXTERNAL_API_KEY", reason: "other-organization" }],
   });
+  // A personal Environment's vault serves the Personalspace's modules, not
+  // an Organization's app (root decision 0198 point 4).
   expect(await declaredSecretsFinding(required, false, personal)).toEqual({
     reason: "runtime-secret-unavailable",
-    secrets: [{ name: "EXTERNAL_API_KEY", reason: "other-organization" }],
+    secrets: [{ name: "EXTERNAL_API_KEY", reason: "personal-environment" }],
   });
-  expect(await declaredSecretsFinding(required, true, unknown)).toEqual({
+  expect(await declaredSecretsFinding(required, true, personal)).toEqual({});
+  // A work Environment's vault does not serve a Personalspace module.
+  expect(await declaredSecretsFinding(required, true, owned)).toEqual({
     reason: "runtime-secret-unavailable",
     secrets: [{ name: "EXTERNAL_API_KEY", reason: "personalspace" }],
   });
+  expect(await declaredSecretsFinding(required, true, workstation)).toEqual({
+    reason: "runtime-secret-unavailable",
+    secrets: [{ name: "EXTERNAL_API_KEY", reason: "workstation" }],
+  });
+  // Unknown: the start decides.
+  expect(await declaredSecretsFinding(required, true, unknown)).toEqual({});
   // Only optional names: a note, never a refusal.
   expect(
-    await declaredSecretsFinding(runtime([], ["OPTIONAL_KEY"]), true, unknown),
+    await declaredSecretsFinding(runtime([], ["OPTIONAL_KEY"]), true, owned),
   ).toEqual({
     secretsNotProvided: [{ name: "OPTIONAL_KEY", reason: "personalspace" }],
   });
-  expect(await declaredSecretsFinding(runtime([]), true, unknown)).toEqual({});
+  expect(await declaredSecretsFinding(runtime([]), true, owned)).toEqual({});
 });

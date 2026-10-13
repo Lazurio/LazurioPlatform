@@ -4,7 +4,7 @@
 
 Proposed bounded pilot procedure under accepted decision 0144. Apart from the curated
 installation and login of three catalog tools (decision F19, below), the
-Environment vault (decision F43, below), Executor (decision F44, below) and the
+Environment's own vault (decisions F43 and F52, below), Executor (decision F44, below) and the
 pilot of the shared GitHub App sign-in (decision F48, below), this
 document does not claim an implemented tool installer, authenticated harness or
 usable Environment.
@@ -81,7 +81,7 @@ named in the generated instructions with a **tier** and a **setup mode**:
 | `gh` | `gh` | required: always on, never stored, cannot be disabled | launchpad |
 | `executor` | `executor` | required; offered in a Remote Environment on Linux (F44) | launchpad (Lazurio's own setup, below) |
 | `composio` | `composio` | recommended | launchpad |
-| `bitwarden` | `bw` | recommended; offered in a Remote Environment on Linux (F43) | launchpad (its own flow, below) |
+| `bitwarden` | `bw` | recommended; offered in a Remote Environment on Linux (F43, F52) | launchpad (its own flow, below) |
 | `wacli` | `wacli` | optional | launchpad |
 | `gogcli` | `gog` | optional; offered on a computer and in a personal Remote Environment, not in a work one (F44) | agent |
 | `neon` | `neon` | optional | agent |
@@ -474,39 +474,41 @@ earlier temporary exception that let any account sign in on a Team VM has ended.
   nothing here provisions the App, its broker or a brokered `gh`. The product refuses
   the personal sign-in and relies on what the Machine delivers.
 
-### The Environment vault (decision F43)
+### The Environment's own vault (decisions F43 and F52)
 
-Root decision 0193: every Environment has its own account `vaultwarden@<Environment
-address>` in the Vaultwarden of its network, its own collection with edit rights (named
-as the operator likes; at a first connection the only collection the account sees is
-its own, among several `Environmenty/<name> · <machine>`, the suggested name, decides;
-once connected only its ID counts, a gone one reads as revoked, and a disconnect makes
-the next connection a first one again; the 0193 addendum of 2026-10-11), and one
-unlocked Bitwarden CLI
-session that all its agents share. The catalog tool is `bitwarden` (command `bw`); it
-has its own flow instead of F19's install and sign-in, which refuse it as
+Root decision 0198: every Environment owns its vault, its own organization in its
+network's Lazurio Vaultwarden, created by its technical account, which is its only
+Owner, and remembered by ID (decision F52 supersedes F43's collection model; F43's
+pinned CLI, custody and one shared session stay). The account and the vault come from
+the handover's member `vault: {server_url, account, name}` (DEV-6631 contract C2),
+which Machines writes only for a Platform that reads it; without it the Environment
+has no vault yet (`unsupported`, `no-vault`). The catalog tool is `bitwarden` (command
+`bw`); it has its own flow instead of F19's install and sign-in, which refuse it as
 `setup-vault`. Remote Environments on Linux only; on this computer it is the second
 wave (`unsupported`, `workstation`).
 
 - **Facts** (`src/vault/context.ts`, read from the handover for every operation): the
-  vault `https://vaultwarden.<zone>` from `network.headscale_server_url` =
-  `https://headscale.<zone>` (anything else refuses, `vault-unknown`), the address from
-  the Launchpad entry as the shell derives the Environment's id (no entry:
-  `no-address`), the name from the Folder's preset and the catalog (a Team's or a
-  persona's display name, else "Osobní", "Pracovní", "Týmový", "Automatizovaný"). Only
-  the handover's declared operator has the account (`not-operator`).
+  vault `vault.server_url`, the account `vault.account`
+  (`vaultwarden-<26 base32>@<Environment address>`, which the network generated and
+  pre-allowed for this Environment alone), the vault's name `vault.name` and the
+  Organization that owns a work Environment (`owner.organization`; none for a personal
+  one). Nothing is derived from the tailnet or the address any more, and no collection
+  is matched by a name. Only the handover's declared operator has the account
+  (`not-operator`).
 - **Custody** (`src/vault/store.ts`), written by the Platform itself, the one
   exception of [public development](public-development.md):
-  `${XDG_STATE_HOME:-~/.local/state}/lazurio/vault/<vault host>/<Environment address>/`
-  (0700, the account's whole identity) with `lock` and `bw/` (0700,
-  `BITWARDENCLI_APPDATA_DIR`), which holds bw's `data.json`, `lazurio-account.json`
-  (0600: email, server, device identifier, master password, API key, createdAt),
-  `lazurio-session` (0600) and `lazurio-vault.json` (0600, not secret: fingerprint
-  phrase, connected organization and collection ids). An Environment whose address
-  changes starts with no account; an account file whose address or vault is not the
-  Environment's is refused by every operation, disconnect included
-  (`account-mismatch`): nothing of it is used, signed out or removed. Nothing else
-  anywhere; no secret on argv, in a log, the journal or an error.
+  `${XDG_STATE_HOME:-~/.local/state}/lazurio/vault/<vault host>/<account>/`
+  (0700, keyed by the account, so an account the handover replaces starts afresh and
+  a 0197 pilot's directory, keyed by its address, stays beside it) with `lock` and
+  `bw/` (0700, `BITWARDENCLI_APPDATA_DIR`), which holds bw's `data.json`,
+  `lazurio-account.json` (0600: email, server, device identifier, master password, API
+  key, createdAt), `lazurio-session` (0600) and `lazurio-vault.json` (0600, not
+  secret: the vault's organization id, Agenti's collection id, and a creation's
+  receipt while one is under way). A record that is there but cannot be read refuses
+  (`record-unreadable`): nothing is ever created over it. An account file whose
+  account or vault is not the handover's is refused by every operation
+  (`account-mismatch`). Nothing else anywhere; no secret on argv, in a log, the
+  journal or an error.
 - **The pinned CLI** (`src/vault/pin.ts`, `src/vault/install.ts`): bw-oss 2026.7.0
   from `https://github.com/bitwarden/clients/releases/download/cli-v2026.7.0/`,
   the zip of the platform verified against its SHA-256 in the source, its one entry
@@ -516,7 +518,7 @@ wave (`unsupported`, `workstation`).
   and sets `BITWARDENCLI_APPDATA_DIR` to the Environment's `bw/` and
   `BW_NOINTERACTION=true` unless the caller set them, so a bare `bw` never reaches a
   default profile or prompts for a password. An entry there that is not Lazurio's is
-  left alone and the connect fails as `entry-conflict`. Older pinned versions are
+  left alone and the setup fails as `entry-conflict`. Older pinned versions are
   removed afterwards.
 - **The account** (`src/vault/register.ts`): a password of 32 random bytes and a
   device identifier are written to `lazurio-account.json` before anything is sent;
@@ -524,7 +526,7 @@ wave (`unsupported`, `workstation`).
   receiveMarketingEmails: false}` with `Accept: application/json` answers the
   registration token (a JSON string, or `text/plain` from 1.37.4 without that
   header; 204 means SMTP is on: `smtp-enabled`; "Registration not allowed or user
-  already exists": `awaiting-invite`, and the account file goes when its password was
+  already exists": `not-allowed`, and the account file goes when its password was
   generated in the same run, never a resumed one); `POST
   /identity/accounts/register/finish` with the v1 account keys (PBKDF2-SHA256 600 000,
   the salt the trimmed lowercased email, an RSA-2048 key pair, the user key wrapped by
@@ -532,62 +534,96 @@ wave (`unsupported`, `workstation`).
   /identity/connect/token` (password grant with the one device identifier) and `POST
   /api/accounts/api-key`, whose key joins the account file. HTTP 429 is
   `rate-limited`; nothing retries a login.
+- **The vault** (`src/vault/organization.ts`): `POST /identity/connect/token` with
+  `grant_type=client_credentials` (the API key, the one device identifier), `GET
+  /api/accounts/profile` for the organizations the account is a confirmed member of,
+  then by the record: the recorded organization (renamed with `PUT
+  /api/organizations/<id>` `{name, billingEmail}` when its name is not `vault.name`;
+  gone: `revoked`, never replaced), or a new one with `POST /api/organizations`
+  `{name, billingEmail, key, keys: {publicKey, encryptedPrivateKey}, collectionName,
+  planType: 0}`: a new organization key of 64 random bytes RSA-OAEP-SHA1-encrypted to
+  the account's own public key (derived from its own private key, which the master
+  password unlocks), the organization's RSA-2048 key pair with its private key
+  wrapped by the organization key, the billing e-mail the account, and the first
+  collection "Agenti", its name encrypted with the organization key. The new
+  organization's public key is recorded before the request as its receipt; a creation
+  whose answer was lost is recognized by it (`GET /api/organizations/<id>/public-key`)
+  and never made twice. Agenti is the organization's one collection by its ID (`GET
+  /api/organizations/<id>/collections`); several, without a record of it, are
+  `collection-unknown`, never chosen by a name. A vault that does not let the account
+  create organizations (`ORG_CREATION_USERS`) is `organization-refused`; a refused API
+  key is `revoked`.
 - **bw** (`src/vault/bw.ts`): always the pinned binary with the account's
   `BITWARDENCLI_APPDATA_DIR`, `BW_NOINTERACTION` and `--nointeraction`; `bw config
   server`, `bw login --apikey` (the key in `BW_CLIENTID`/`BW_CLIENTSECRET`; the session
   it prints is still locked and is never read), `bw unlock --passwordfile <private
-  file> --raw` (the file removed at once), `bw sync`, `bw list
-  organizations|collections|items` and `bw get fingerprint me`, each with the session
-  in `BW_SESSION`. bw's output never leaves the module; failures are fixed codes
-  (`locked`, `unauthenticated`, `unreachable`, `rate-limited`, `invalid-credentials`,
-  `logout-required`, `timeout`, `spawn-failed`, `unreadable`, `failed`).
+  file> --raw` (the file removed at once), `bw sync` and `bw list
+  organizations|collections|items`, each with the session in `BW_SESSION`. bw's output
+  never leaves the module; failures are fixed codes (`locked`, `unauthenticated`,
+  `unreachable`, `rate-limited`, `invalid-credentials`, `logout-required`, `timeout`,
+  `spawn-failed`, `unreadable`, `failed`).
 - **States** (`src/vault/flow.ts`, `kind: "vault-status"` with `vault`, `account`,
-  `collection`, `name`, `team`): `unsupported` with a reason, `not-installed`, `none`
-  (`registered`: the account exists, connecting again signs it in), `awaiting-invite`,
-  `confirming` (`fingerprint`; `organization` when an organization is confirmed but
-  the collection is not visible; `locked` when the session must be unlocked again),
-  `connected` (`fingerprint`, `organization`, `collections`, `items`), `revoked`,
-  `unreachable` (`reason`) and `failed` (`stage`: `install`, `account`, `sign-in`,
-  `sync` or `status`; `reason`; `fallback: "agent"`). `status` is local (bw's copy, no
-  network); `refresh` syncs first and unlocks again when the session is no longer the
-  unlocked one; `connect` installs, creates or resumes the account, signs bw in,
-  unlocks and syncs; `disconnect` signs bw out and removes its store, the session and
-  the record, keeping the account, and only for the Environment's own readable account
-  file (none, an unreadable or another account's: nothing changes). A bw profile signed
-  in to anything but the account at its vault is never used (status `none`, env refuses);
-  connecting signs it out and the account in. Mutations hold the account's kernel lock.
+  `name`, `team` and `origin`, `own` or `pilot-0197`): `unsupported` with a reason,
+  `not-set-up` (`next`: `install`, `account`, `vault` or `sign-in`), `not-allowed`
+  (the network has not pre-allowed the address, or removed an unused pre-allowance),
+  `connected` (`organizationId`, `collectionId`, `organization`, `items`; `locked`
+  when the session must be unlocked again), `revoked`, `unreachable` (`reason`) and
+  `failed` (`stage`: `install`, `account`, `vault`, `sign-in`, `sync` or `status`;
+  `reason`; `fallback: "agent"`). `status` is local (bw's copy, no network); `refresh`
+  syncs first and unlocks again when the session is no longer the unlocked one;
+  `setup` installs, registers or resumes the account, creates, recognizes or renames
+  the vault, signs bw in, unlocks and syncs, and is safe to run again. A bw profile
+  signed in to anything but the account at its vault is never used (status
+  `not-set-up`, `next: "sign-in"`; env refuses); a setup signs it out and the account
+  in. Mutations hold the account's kernel lock.
 - **CLI** (`lazurio vault`): `env [--json]` prints `export BITWARDENCLI_APPDATA_DIR=…`,
-  `BW_SESSION`, `LAZURIO_VAULT_ORGANIZATION_ID` and `LAZURIO_VAULT_COLLECTION_ID`,
-  single-quoted, for `eval "$(lazurio vault env)"`; not connected, one line on stderr,
-  nothing on stdout, exit 2 (`busy` and `unlock-failed` exit 1). `status`, `refresh`
-  and `connect [--json]` print the state (connect: exit 0 connected or confirming, 2
-  waiting for a person, 1 failed or unreachable; its steps go to stderr).
-- **Launchpad**: `POST /api/tools/bitwarden/status|refresh|disconnect` with `{}`, and
-  `POST /api/tools/bitwarden/connect` with `{}` (starts or joins the one connect) or
-  `{job}` (asks about it): `202 {kind: "vault-connecting", job, phase}` while it runs
-  (`install`, `account`, `sign-in`), then the state. A disconnect while a connect runs
-  is `409 busy`; an unknown job `404 job-unknown`. The journal of the unit gets
-  `{"scope":"tools-vault","operation":"connect|refresh|disconnect|unlock","outcome":…,"reason":…}`
-  only.
-- **Runtime secrets** (decision F46, `vaultSecrets` in `src/vault/flow.ts`): the
-  module operations read the declared secrets of an application of the Organization
-  that owns the Environment (the vault context's `organization`, the handover's
-  `owner.organization`; another Organization's application is `other-organization`)
-  through the same one session as `env`: `bw sync`, then `bw list items
-  --organizationid <id> --collectionid <id>`, of which `secretItems` keeps only the
-  items of the declared names, and of those only name, organization, collections and
-  login password. A value is the password of the one item named exactly so in the
-  connected organization and collection (otherwise `missing`, `ambiguous` or
-  `empty`). Values go to the caller only; a refusal is a fixed code (`workstation`,
-  `no-vault-identity`, `other-organization`, `not-connected`, `locked`, `busy`,
+  `BW_SESSION`, `LAZURIO_VAULT_ORGANIZATION_ID` (the vault) and
+  `LAZURIO_VAULT_COLLECTION_ID` (Agenti), single-quoted, for `eval "$(lazurio vault
+  env)"`; not set up, one line on stderr, nothing on stdout, exit 2 (`busy` and
+  `unlock-failed` exit 1). `status`, `refresh` and `setup [--json]` print the state
+  (setup: exit 0 connected, 2 waiting for a person: no vault named, not allowed,
+  revoked or unsupported; 1 failed or unreachable; its steps go to stderr). `status`
+  is the one source of truth for agents and the Launchpad.
+- **Launchpad**: `POST /api/tools/bitwarden/status|refresh` with `{}`, and `POST
+  /api/tools/bitwarden/setup` with `{}` (starts or joins the one setup) or `{job}`
+  (asks about it): `202 {kind: "vault-setting-up", job, phase}` while it runs
+  (`install`, `account`, `vault`, `sign-in`), then the state; status and refresh
+  answer a running setup the same way. An unknown job is `404 job-unknown`. The
+  installed Launchpad of a supervised base of the hosted operator (`vaultAtStart`, the
+  rule of Executor's) runs the setup in the background after its start where
+  `setUpAtStart` says the vault needs it: not set up, its session locked, or its name
+  no longer the handover's; never a 0197 pilot, a revoked or failed vault. The journal
+  of the unit gets `{"scope":"tools-vault","operation":"setup|refresh|unlock|vault|secrets","outcome":…,"reason":…}`
+  (with `"trigger":"start"` for the start's setup) only.
+- **Runtime secrets** (decision F46 as F52 amends it, `vaultSecrets` in
+  `src/vault/flow.ts`): on a work Environment the applications of the Organization
+  that owns it read them, on a personal one the Personalspace's modules (root decision
+  0198 point 4); another Organization's application is `other-organization`, a
+  Personalspace module on a work Environment `personalspace`, an Organization's
+  application on a personal one `personal-environment`. They are read through the
+  same one session as `env`: `bw sync`, then `bw list items --organizationid <id>`,
+  of which `secretItems` keeps only the items of the declared names, and of those
+  only name, organization, collections and login password. A value is the password
+  of the one item named exactly so anywhere in the Environment's vault (otherwise
+  `missing`, `ambiguous` or `empty`). Values go to the caller only; a refusal is a
+  fixed code (`workstation`, `no-vault-identity`, `personalspace`,
+  `personal-environment`, `other-organization`, `not-connected`, `locked`, `busy`,
   `unreachable`, `vault-failed`).
+- **0197 pilots** (`src/vault/legacy-0197/`, frozen): an Environment connected the
+  F43 way whose handover names no vault yet keeps working read only: its status, the
+  shared session for agents and F46 from the collection it recorded, with F46's rule
+  of 0197. It is never set up, connected, confirmed or disconnected; its directory is
+  left untouched once the handover names the own vault, for DEV-6631 task 649 to move
+  its items. Its README names the condition of its deletion.
 
 The agents' texts are the catalog entry's (`purpose` in `AGENTS.md`, `usage` in
-`manual/this-machine.md`, template revision `base-instructions-34`): start with
-`eval "$(lazurio vault env)"`, never `bw login`, `unlock`, `lock`, `logout` or `bw
-config`, `bw sync` before reading, values straight into commands, new secrets into the
-Environment's collection, nothing in the account's own vault, a missing one asked of
-the Operator, and an externally visible write a Publication.
+`manual/this-machine.md`, template revision `base-instructions-49`): read `lazurio
+vault status` before saying anything about the vault, start with `eval "$(lazurio
+vault env)"`, never `bw login`, `unlock`, `lock`, `logout` or `bw config`, `bw sync`
+before reading, values straight into commands, new secrets into the Environment's
+vault (Agenti), nothing in the account's own vault, never a secret asked for in chat,
+and an externally visible write a Publication. How a secret reaches the vault (root
+decision 0198 point 9) follows with DEV-6631 task 652.
 
 ### Executor (decision F44)
 
@@ -865,9 +901,10 @@ Platform builds no credential broker, account registry, automatic model login or
 package-manager matrix (`lazurio tools` runs one tool's official update path under decision
 0161 and installs only the curated catalog tools of decision F19 and the pinned
 Bitwarden CLI of decision F43; it is not a general updater or installer); the team
-case consumes the existing upstream broker rather than adding one. The Environment
-vault (F43) keeps no secret of its own: the vault is the Organization's, and the
-Environment account's credentials stay in the Bitwarden CLI's own data directory. Unknown installation state receives a diagnosis
+case consumes the existing upstream broker rather than adding one. The Environment's
+own vault (F43, F52) keeps no secret in the Platform: the vault is the network's
+Vaultwarden, and the Environment account's credentials stay beside the Bitwarden
+CLI's own data directory. Unknown installation state receives a diagnosis
 and operator repair procedure, not an improvised privileged cleanup. Missing accounts
 remain an explicit pilot prerequisite, not something Machines or a profile can grant.
 Real Organization materialization and canonical document adoption have their separate

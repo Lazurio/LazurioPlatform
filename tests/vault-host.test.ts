@@ -13,6 +13,12 @@ import type {
 } from "../src/vault/context";
 import { readVaultContext } from "../src/vault/host";
 import {
+  ownAccount,
+  vaultMember,
+  vaultName,
+  workAccount,
+} from "./fixtures/fake-vault";
+import {
   assignments,
   binding,
   handoverEntry,
@@ -20,8 +26,8 @@ import {
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
 
-// The production composition of the Environment vault's facts (decision
-// F43) on real files: a root-issued handover and a hosted Folder under a
+// The production composition of the Environment vault's facts (decisions
+// F43, F52) on real files: a root-issued handover and a hosted Folder under a
 // private root, read as `lazurio vault` and the Launchpad read them. Only the
 // handover's place and the operator's system record are this test's.
 
@@ -31,22 +37,32 @@ const network = {
   headscale_server_url: "https://headscale.example.lazurio.io",
   headscale_hostname: "example",
 };
+const personalDocument = {
+  ...personal,
+  network,
+  entry: handoverEntry("example.lazurio.io"),
+};
+const teamDocument = {
+  ...organization,
+  owner: { ...organization.owner, assignment: assignments.team },
+  network: { ...network, headscale_hostname: "example-workspace" },
+  entry: handoverEntry("workspace.example.lazurio.io"),
+};
 const documents = {
-  personal: {
-    ...personal,
-    network,
-    entry: handoverEntry("example.lazurio.io"),
-  },
+  personal: { ...personalDocument, vault: vaultMember() },
   team: {
-    ...organization,
-    owner: { ...organization.owner, assignment: assignments.team },
-    network: { ...network, headscale_hostname: "example-workspace" },
-    entry: handoverEntry("workspace.example.lazurio.io"),
+    ...teamDocument,
+    vault: vaultMember(workAccount, "Example Týmový workspace"),
   },
+  // Handovers that name no vault yet: a 0197 pilot's derivation.
+  personalPilot: personalDocument,
+  teamPilot: teamDocument,
 } as const;
 const presets: Record<keyof typeof documents, PresetName> = {
   personal: "hosted-personal",
   team: "hosted-organization-team",
+  personalPilot: "hosted-personal",
+  teamPilot: "hosted-organization-team",
 };
 
 async function machine(of: keyof typeof documents, handover = true) {
@@ -61,7 +77,7 @@ async function machine(of: keyof typeof documents, handover = true) {
   const folder = join(root, "home", "operator", "Lazurio");
   await mkdir(join(folder, "organizations"), { recursive: true, mode: 0o700 });
   // The personal preset's layout holds the Personalspace mount too.
-  if (of === "personal")
+  if (presets[of] === "hosted-personal")
     await mkdir(join(folder, "personalspace"), { mode: 0o700 });
   await initializeHandoverFolder(folder, {
     preset: presets[of],
@@ -86,41 +102,55 @@ async function machine(of: keyof typeof documents, handover = true) {
 }
 
 test.skipIf(!posix || uid === 0)(
-  "the declared operator of a hosted Folder on Linux gets the vault facts of its Environment",
+  "the declared operator of a hosted Folder on Linux gets its Environment's own vault, or a 0197 pilot's where the handover names none",
   async () => {
-    const personalVm = await machine("personal");
-    const teamVm = await machine("team");
-    try {
-      expect(
-        await readVaultContext({
-          folder: personalVm.folder,
-          platform: "linux",
-          home: "/home/operator",
-          sources: personalVm.sources(),
-        }),
-      ).toMatchObject({
-        vault: "https://vaultwarden.example.lazurio.io",
-        account: "vaultwarden@example.lazurio.io",
-        kind: "personal",
-        collection: "Environmenty/Osobní · example",
+    const read = (vm: Awaited<ReturnType<typeof machine>>) =>
+      readVaultContext({
+        folder: vm.folder,
+        platform: "linux",
+        home: "/home/operator",
+        sources: vm.sources(),
       });
-      // A Team Environment whose Folder does not hold its Organization yet
-      // is named by its kind, as the rail names it.
-      expect(
-        await readVaultContext({
-          folder: teamVm.folder,
-          platform: "linux",
-          home: "/home/operator",
-          sources: teamVm.sources(),
-        }),
-      ).toMatchObject({
+    const vms = {
+      personal: await machine("personal"),
+      team: await machine("team"),
+      personalPilot: await machine("personalPilot"),
+      teamPilot: await machine("teamPilot"),
+    };
+    try {
+      expect(await read(vms.personal)).toEqual({
+        kind: "own",
+        vault: "https://vaultwarden.example.lazurio.io",
+        host: "vaultwarden.example.lazurio.io",
+        account: ownAccount,
+        name: vaultName,
+        environment: "personal",
+        organization: null,
+      });
+      expect(await read(vms.team)).toMatchObject({
+        kind: "own",
+        account: workAccount,
+        name: "Example Týmový workspace",
+        environment: "team",
+        organization: "example",
+      });
+      expect(await read(vms.personalPilot)).toEqual({
+        kind: "pilot",
+        vault: "https://vaultwarden.example.lazurio.io",
+        host: "vaultwarden.example.lazurio.io",
+        address: "example.lazurio.io",
+        account: "vaultwarden@example.lazurio.io",
+        environment: "personal",
+        organization: null,
+      });
+      expect(await read(vms.teamPilot)).toMatchObject({
+        kind: "pilot",
         account: "vaultwarden@workspace.example.lazurio.io",
-        kind: "team",
-        collection: "Environmenty/Týmový · workspace",
+        environment: "team",
+        organization: "example",
       });
     } finally {
-      await personalVm.close();
-      await teamVm.close();
+      for (const vm of Object.values(vms)) await vm.close();
     }
   },
 );

@@ -10,11 +10,13 @@ Publish names, formats and safe examples of configuration, not their secret valu
 Use obvious placeholders such as `<provided-by-owner>`; avoid realistic example
 tokens. Credential access remains with existing OS/provider/harness custody.
 Platform stores neither a new secret database nor copies of session credentials.
-The one exception is the Environment vault's own account (decision F43): the
-Platform creates that account, so it writes the account's generated master
-password, its API key and its one Bitwarden CLI session itself, owner-only,
-beside the CLI's store on that Environment and nowhere else. Every other
-secret stays in the vault. The shared GitHub App sign-in pilot
+The one exception is the Environment vault's own account (decisions F43 and
+F52): the Platform registers that account, so it writes the account's generated
+master password, its API key and its one Bitwarden CLI session itself,
+owner-only, beside the CLI's store on that Environment and nowhere else; the
+key of the Environment's own vault exists only in memory while the vault is
+created, then only in the vault, encrypted to the account. Every other secret
+stays in the vault. The shared GitHub App sign-in pilot
 (decision F48) is a second exception while switched on: GitHub hands its expiring
 user/refresh pair to the Environment that signed in, so Platform keeps one
 owner-only chain in that Environment user's state directory, as gh keeps its own
