@@ -523,6 +523,91 @@ test("the module access page: only under an Organization page of the Dashboard, 
     expect(moduleAccessUrl(dashboard, "deals")).toBeNull();
 });
 
+// #376 (plan DEV-6662, Q8): the Workspace where "+ Nový modul" ends is there
+// for an identity that GitHub's live answer confirms as the Organization's
+// Owner, even before its first module, so the tile has its place and the
+// Owner is not told to ask the Admin for access (the page draws that
+// sentence only when there is no section at all). Anyone else, and
+// everyone until the answer comes, keeps today's page.
+test("an Owner sees the Organization's Workspace even without a module, so the new module's tile has its place; everyone else keeps today's sections", () => {
+  const view = (sections: ReturnType<typeof appsSections>) =>
+    sections.map((section) => [
+      section.kind,
+      section.title,
+      section.count,
+      section.tiles.map((tile) => tile.name),
+    ]);
+  const bare: Catalog = {
+    kind: "catalog",
+    organizations: [organization("example", [], { forgeLogin: "example-org" })],
+  };
+  const bareGroup = appsScope(bare, { view: "home" }, cs);
+  if (bareGroup === null) throw new Error("The fixture has an Organization");
+  // The Owner: Workspace with no tile of its own and "zatím žádné moduly".
+  expect(view(appsSections(bare, bareGroup, cs, entry, [], true))).toEqual([
+    ["workspace", "Workspace", "zatím žádné moduly", []],
+  ]);
+  expect(view(appsSections(bare, bareGroup, en, null, [], true))).toEqual([
+    ["workspace", "Workspace", "no modules yet", []],
+  ]);
+  // Anyone else, and the Owner until GitHub answered: no section, so the
+  // page keeps its sentence.
+  expect(appsSections(bare, bareGroup, cs, entry)).toEqual([]);
+  expect(appsSections(bare, bareGroup, cs, entry, [], false)).toEqual([]);
+  // Production repositories only: the Owner's Workspace comes first.
+  const firmware: CatalogRepository = {
+    slug: "firmware",
+    path: "productionspace/firmware",
+    checkedOut: true,
+    url: null,
+  };
+  const repositories: Catalog = {
+    kind: "catalog",
+    organizations: [
+      organization("example", [], {
+        forgeLogin: "example-org",
+        repositories: [firmware],
+      }),
+    ],
+  };
+  const repositoriesGroup = appsScope(repositories, { view: "home" }, cs);
+  if (repositoriesGroup === null)
+    throw new Error("The fixture has an Organization");
+  expect(
+    view(appsSections(repositories, repositoriesGroup, cs, entry, [], true)),
+  ).toEqual([
+    ["workspace", "Workspace", "zatím žádné moduly", []],
+    ["productionspace", "Productionspace", "1 repozitář", ["firmware"]],
+  ]);
+  expect(
+    view(appsSections(repositories, repositoriesGroup, cs, entry)),
+  ).toEqual([
+    ["productionspace", "Productionspace", "1 repozitář", ["firmware"]],
+  ]);
+  // A Workspace with modules is the same for the Owner and anyone else.
+  const group = appsScope(catalog, { view: "home" }, cs);
+  if (group === null) throw new Error("The fixture has an Organization");
+  expect(appsSections(catalog, group, cs, entry, [], true)).toEqual(
+    appsSections(catalog, group, cs, entry, [], false),
+  );
+  // The personal space is no Organization: an Owner answer changes nothing
+  // there (its holder's Workspace comes with the personal module form).
+  const personalCatalog: Catalog = {
+    kind: "catalog",
+    organizations: [],
+    personalspace: organization("personalspace", [], {
+      directory: "personalspace",
+    }),
+  };
+  const personal = appsScopes(personalCatalog, cs).find(
+    (scope) => scope.sections === null,
+  );
+  if (personal === undefined) throw new Error("The fixture has one");
+  expect(appsSections(personalCatalog, personal, cs, entry, [], true)).toEqual(
+    [],
+  );
+});
+
 test("the new module's prompt names the Organization and its GitHub login, in the person's language", () => {
   const prompt = newModulePrompt("Example Company", "example-org", cs);
   expect(prompt).toStartWith(
@@ -936,4 +1021,8 @@ test("no starts but the holder's: not for a personal space held by no one here, 
   expect(homeView(appsHomeParts(bare, bareGroup, cs, input))).toEqual([
     ["empty", cs.catalogNoModules],
   ]);
+  // Its Owner (#376) gets the empty Workspace instead of the sentence.
+  expect(
+    homeView(appsHomeParts(bare, bareGroup, cs, { ...input, owner: true })),
+  ).toEqual([["section", "Workspace", []]]);
 });

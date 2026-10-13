@@ -248,7 +248,10 @@ information page is reached only from its tile's menu.
   0147 and 0165), an Automated Environment through its persona's own GitHub account
   (root decision 0169), and the personal Environment has no Organization repositories;
   they get the tile only if their identity really has that capability. #154 builds
-  this as the Owner check of F36's Organization-rail addendum, point 8. Once
+  this as the Owner check of F36's Organization-rail addendum, point 8. Before the
+  Organization's first module, such an identity still sees Workspace ("zatím žádné
+  moduly") with the tile as its only tile, not the sentence that sends a person
+  without modules to the Admin (#376). Once
   founding a Module in the Dashboard is done (plan DEV-6634), "+ Nový modul" leads there
   instead of to Chat (Matěj, 2026-10-04). The
   T3 Code fork accepts the prompt by link, from the Environment's own origin only and

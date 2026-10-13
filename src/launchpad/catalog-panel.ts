@@ -699,7 +699,8 @@ export function createCatalogPanel(
   }
 
   // "+ Nový modul" (2026-10-04): the last tile of Workspace, only where this
-  // Environment's GitHub identity is an Owner of the Organization. It hands
+  // Environment's GitHub identity is an Owner of the Organization; before
+  // the first module, the Owner's Workspace has only it (#376). It hands
   // the wireframe's prompt to Chat: where Chat takes a prompt by link
   // (Lazurio/t3code#35) it opens with the prompt in a new thread's composer,
   // not sent; otherwise the prompt goes to the clipboard and Chat opens,
@@ -938,6 +939,8 @@ export function createCatalogPanel(
       group.organization.reason !== undefined
     )
       parts.push(statusLine(group.status));
+    // An Owner's Workspace shows even before its first module, ending with
+    // "+ Nový modul" (#376), so the Owner answer comes first.
     const owner = ownerOf(value, group);
     // The rest in the order appsHomeParts gives: the plain sentence of an
     // empty space, the sections, and the personal space's starts last.
@@ -946,6 +949,7 @@ export function createCatalogPanel(
       favorites: favoritesOf(group),
       setup: setup !== null,
       tabs: options.tabs(),
+      owner,
     }))
       parts.push(
         part.kind === "empty"
