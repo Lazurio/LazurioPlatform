@@ -284,11 +284,11 @@ test("a start refused for its runtime secrets names each one and why, and a star
     parseModuleResult({ ...refused, secrets: [{ name: "EXTERNAL_API_KEY" }] }),
   ).toBeNull();
   expect(moduleResultMessage(refused, en)).toBe(
-    "The app was not started: it needs secrets that this Environment's vault did not give it. EXTERNAL_API_KEY, SECOND_KEY: no item of this name in the Environment's collection; THIRD_KEY: more than one item of this name in the Environment's collection. Values are never shown; add or fix the item named exactly like the secret in the Environment's collection and start again.",
+    "The app was not started: it needs secrets that this Environment's vault did not give it. EXTERNAL_API_KEY, SECOND_KEY: no item of this name in the Environment's vault; THIRD_KEY: more than one item of this name in the Environment's vault. Values are never shown; add or fix the item named exactly like the secret in the Environment's vault and start again.",
   );
   const czech = moduleResultMessage(refused, cs);
-  expect(czech).toContain("EXTERNAL_API_KEY, SECOND_KEY: v kolekci");
-  expect(czech).toContain("THIRD_KEY: v kolekci Environmentu je víc položek");
+  expect(czech).toContain("EXTERNAL_API_KEY, SECOND_KEY: v trezoru");
+  expect(czech).toContain("THIRD_KEY: v trezoru Environmentu je víc položek");
   expect(moduleStatusView(refused, cs).code).toBe("runtime-secret-unavailable");
   for (const copy of [en, cs])
     for (const reason of [
@@ -319,7 +319,7 @@ test("a start refused for its runtime secrets names each one and why, and a star
   });
   expect(parseModuleResult(started)).toEqual(started);
   expect(moduleResultMessage(started, en)).toBe(
-    `${en.moduleStartedHealthy} Started without these optional secrets, so the capabilities that need them are off: OPTIONAL_KEY: the vault is not connected (Settings → Tools → bitwarden).`,
+    `${en.moduleStartedHealthy} Started without these optional secrets, so the capabilities that need them are off: OPTIONAL_KEY: the vault is not set up yet (Settings → Tools → bitwarden).`,
   );
   expect(moduleResultMessage(started, cs)).toContain(
     "Spuštěno bez těchto volitelných tajných údajů",
