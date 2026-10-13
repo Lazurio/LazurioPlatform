@@ -901,6 +901,8 @@ test("a viewer gets the tab's state, frames at its size, and Chrome is acked", a
   // The frame reaches the person after Chrome is acked.
   await until(() => frames().some((f) => f.header.deviceWidth === 700));
   const last = frames().at(-1);
+  // Numbered in its tab, for the page's acknowledgements (F39's addendum of
+  // 2026-10-13): the first screenshot was the tab's first frame.
   expect(last?.header).toEqual({
     width: 3,
     height: 2,
@@ -908,6 +910,7 @@ test("a viewer gets the tab's state, frames at its size, and Chrome is acked", a
     deviceHeight: 500,
     offsetTop: 0,
     pageScaleFactor: 1,
+    seq: 2,
   });
   // F39 point 3: the window takes the person's page area plus Chrome's bars.
   await until(() => browser.called("Browser.setWindowBounds").length > 0);
@@ -2027,6 +2030,7 @@ test("a slow viewer holds Chrome's next frame instead of the service's memory", 
     size: null,
     resize: true,
     picture: "standard",
+    acks: false,
   };
   await until(() => hub.attach(id(1), viewer));
   await hub.handle(id(1), viewer, {
@@ -2053,6 +2057,274 @@ test("a slow viewer holds Chrome's next frame instead of the service's memory", 
   await until(() => browser.called("Page.screencastFrameAck").length === 1);
   // A pop-up viewer (resize false) never resizes its window.
   expect(browser.called("Browser.setWindowBounds")).toHaveLength(0);
+  hub.stop();
+});
+
+// F39's addendum of 2026-10-13, #370: a page that acknowledges its frames has
+// at most two of them on the way; the newest waits in the hub. Chrome makes
+// the next frame only when it is acked, and the hub acks it only as far as
+// every viewer has room, so a fast-changing page no longer fills the buffers
+// on a slow link. A viewer that holds Chrome without progress for `stallMs`
+// holds the others no longer.
+
+/** A hub on a scripted browser, with the given stall (long by default). */
+async function flowHub(browser: FakeBrowser, stallMs = 60_000) {
+  const hub = new BrowserHub({
+    connect: browser.connect,
+    holds: async () => noHolds,
+    uploadDirectory: tmpdir(),
+    screen: { width: 1920, height: 1080 },
+    log: () => {},
+    reconnectMs: 20,
+    stallMs,
+  });
+  hub.start();
+  await until(() => hub.ready);
+  return hub;
+}
+
+/** A person's view as the hub sees it: the numbers of the frames it got,
+ * acks the test sends for it, and its socket's backlog. */
+async function flowViewer(
+  hub: BrowserHub,
+  target: string,
+  acks: boolean,
+  backlog: () => number = () => 0,
+) {
+  const got: number[] = [];
+  const viewer: Viewer = {
+    send: () => {},
+    sendFrame: (frame) => {
+      const seq = decodeFrame(frame)?.header.seq;
+      if (seq !== undefined) got.push(seq);
+    },
+    buffered: backlog,
+    close: () => {},
+    size: null,
+    resize: false,
+    picture: "standard",
+    acks: false,
+  };
+  await until(() => hub.attach(target, viewer));
+  await hub.handle(target, viewer, {
+    t: "hello",
+    width: 800,
+    height: 600,
+    dpr: 1,
+    resize: false,
+    ...(acks ? { acks } : {}),
+  });
+  const ack = (frame: number) =>
+    hub.handle(target, viewer, { t: "ack", frame });
+  return { viewer, got, ack };
+}
+
+/** Chrome's next screencast frame of a tab. */
+function chromeFrame(browser: FakeBrowser, target: string) {
+  browser.emit(
+    "Page.screencastFrame",
+    {
+      data: jpeg.toString("base64"),
+      sessionId: 1,
+      metadata: { deviceWidth: 800, deviceHeight: 600 },
+    },
+    `S-${target}`,
+  );
+}
+
+const chromeAcks = (browser: FakeBrowser) =>
+  browser.called("Page.screencastFrameAck").length;
+
+test("a viewer that acknowledges at once gets every frame, and Chrome is acked for each", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const hub = await flowHub(browser);
+  const fast = await flowViewer(hub, id(1), true);
+  // The first screenshot is the tab's frame 1.
+  await until(() => fast.got.length === 1);
+  await fast.ack(1);
+  await until(() => browser.called("Page.startScreencast").length > 0);
+  for (let n = 2; n <= 6; n++) {
+    chromeFrame(browser, id(1));
+    await until(() => fast.got.includes(n));
+    await fast.ack(n);
+    await until(() => chromeAcks(browser) === n - 1);
+  }
+  expect(fast.got).toEqual([1, 2, 3, 4, 5, 6]);
+  hub.stop();
+});
+
+test("a slow viewer has at most two frames on the way: the newest waits for its ack, Chrome waits for room", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const hub = await flowHub(browser);
+  const slow = await flowViewer(hub, id(1), true);
+  await until(() => slow.got.length === 1);
+  await until(() => browser.called("Page.startScreencast").length > 0);
+  // Frame 1 (the screenshot) is unacknowledged; frame 2 fills the window.
+  chromeFrame(browser, id(1));
+  await until(() => slow.got.length === 2);
+  await settle();
+  expect(chromeAcks(browser)).toBe(0);
+  // Chrome sends up to three frames without an ack: they wait in the hub,
+  // the newest replacing the older.
+  chromeFrame(browser, id(1));
+  chromeFrame(browser, id(1));
+  await settle();
+  expect(slow.got).toEqual([1, 2]);
+  expect(chromeAcks(browser)).toBe(0);
+  // Room for one: the newest frame at once, frame 3 never.
+  await slow.ack(1);
+  expect(slow.got).toEqual([1, 2, 4]);
+  expect(chromeAcks(browser)).toBe(0);
+  // Done with all: Chrome may make frames for the room there is.
+  await slow.ack(4);
+  await until(() => chromeAcks(browser) === 2);
+  // An ack of a frame it was never sent changes nothing.
+  await slow.ack(99);
+  await settle();
+  expect(chromeAcks(browser)).toBe(2);
+  hub.stop();
+});
+
+test("a viewer that never acknowledges holds the others for stallMs only, gets nothing past its window, and is back once it acks", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const hub = await flowHub(browser, 300);
+  const hung = await flowViewer(hub, id(1), true);
+  const fast = await flowViewer(hub, id(1), true);
+  await until(() => hung.got.length === 1 && fast.got.length === 1);
+  await fast.ack(1);
+  await until(() => browser.called("Page.startScreencast").length > 0);
+  chromeFrame(browser, id(1));
+  await until(() => fast.got.length === 2);
+  await fast.ack(2);
+  // The hung viewer's window is full: Chrome waits, for everyone.
+  await settle(100);
+  expect(chromeAcks(browser)).toBe(0);
+  expect(hung.got).toEqual([1, 2]);
+  // After stallMs it holds the others no longer.
+  await until(() => chromeAcks(browser) === 1, 2_000);
+  for (let n = 3; n <= 5; n++) {
+    chromeFrame(browser, id(1));
+    await until(() => fast.got.includes(n));
+    await fast.ack(n);
+    await until(() => chromeAcks(browser) === n - 1);
+  }
+  // It got nothing past its window meanwhile.
+  expect(hung.got).toEqual([1, 2]);
+  // Its ack brings the newest frame, and it holds Chrome again.
+  await hung.ack(2);
+  expect(hung.got).toEqual([1, 2, 5]);
+  chromeFrame(browser, id(1));
+  await until(() => fast.got.includes(6));
+  await fast.ack(6);
+  await until(() => hung.got.includes(6));
+  await settle(100);
+  expect(chromeAcks(browser)).toBe(4);
+  hub.stop();
+});
+
+test("with every viewer stalled Chrome waits: nobody would see what it draws", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const hub = await flowHub(browser, 100);
+  const hung = await flowViewer(hub, id(1), true);
+  await until(() => hung.got.length === 1);
+  await until(() => browser.called("Page.startScreencast").length > 0);
+  chromeFrame(browser, id(1));
+  await until(() => hung.got.length === 2);
+  await settle(400);
+  expect(chromeAcks(browser)).toBe(0);
+  hub.stop();
+});
+
+test("a page from before acknowledgements gets every frame, held by its socket's 1 MiB as before, and a viewer too far behind gets the newest once it drains", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const hub = await flowHub(browser);
+  let backlog = 0;
+  const old = await flowViewer(hub, id(1), false, () => backlog);
+  await until(() => old.got.length === 1);
+  await until(() => browser.called("Page.startScreencast").length > 0);
+  for (let n = 2; n <= 4; n++) {
+    chromeFrame(browser, id(1));
+    await until(() => chromeAcks(browser) === n - 1);
+  }
+  expect(old.got).toEqual([1, 2, 3, 4]);
+  // 4 MiB waiting: no frame for it, and Chrome waits.
+  backlog = 5 << 20;
+  chromeFrame(browser, id(1));
+  chromeFrame(browser, id(1));
+  await settle();
+  expect(old.got).toEqual([1, 2, 3, 4]);
+  expect(chromeAcks(browser)).toBe(3);
+  // Drained: the newest frame, and Chrome goes on.
+  backlog = 0;
+  hub.drained(id(1));
+  expect(old.got).toEqual([1, 2, 3, 4, 6]);
+  await until(() => chromeAcks(browser) === 5);
+  hub.stop();
+});
+
+test("a viewer that leaves no longer holds Chrome; one that joins gets the newest frame at once, in its window", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const hub = await flowHub(browser);
+  const slow = await flowViewer(hub, id(1), true);
+  const fast = await flowViewer(hub, id(1), true);
+  await until(() => slow.got.length === 1 && fast.got.length === 1);
+  await fast.ack(1);
+  await until(() => browser.called("Page.startScreencast").length > 0);
+  chromeFrame(browser, id(1));
+  await until(() => fast.got.length === 2);
+  await fast.ack(2);
+  await settle();
+  expect(chromeAcks(browser)).toBe(0);
+  hub.detach(id(1), slow.viewer);
+  await until(() => chromeAcks(browser) === 1);
+  // A viewer joining mid-stream: the newest frame, numbered.
+  chromeFrame(browser, id(1));
+  await until(() => fast.got.includes(3));
+  const late = await flowViewer(hub, id(1), true);
+  expect(late.got).toEqual([3]);
+  // It counts in its window like any other: with one frame unacknowledged
+  // it takes one more, then Chrome waits for it.
+  await fast.ack(3);
+  chromeFrame(browser, id(1));
+  await until(() => late.got.includes(4) && fast.got.includes(4));
+  await fast.ack(4);
+  await settle();
+  const before = chromeAcks(browser);
+  chromeFrame(browser, id(1));
+  await until(() => fast.got.includes(5));
+  await fast.ack(5);
+  await settle();
+  expect(late.got).toEqual([3, 4]);
+  expect(chromeAcks(browser)).toBe(before);
+  await late.ack(4);
+  expect(late.got).toEqual([3, 4, 5]);
+  hub.stop();
+});
+
+test("each tab has its own frames: a pop-up's viewer that never acknowledges holds only the pop-up", async () => {
+  const browser = new FakeBrowser([
+    tab(1),
+    tab(2, { openerId: id(1), canAccessOpener: true }),
+  ]);
+  const hub = await flowHub(browser);
+  const page = await flowViewer(hub, id(1), true);
+  const popup = await flowViewer(hub, id(2), true);
+  await until(() => page.got.length === 1 && popup.got.length === 1);
+  await page.ack(1);
+  await until(() => browser.called("Page.startScreencast").length === 2);
+  chromeFrame(browser, id(2));
+  await until(() => popup.got.length === 2);
+  for (let n = 2; n <= 4; n++) {
+    chromeFrame(browser, id(1));
+    await until(() => page.got.includes(n));
+    await page.ack(n);
+  }
+  const acked = (target: string) =>
+    browser
+      .called("Page.screencastFrameAck")
+      .filter((call) => call.sessionId === `S-${target}`).length;
+  await until(() => acked(id(1)) === 3);
+  expect(acked(id(2))).toBe(0);
   hub.stop();
 });
 

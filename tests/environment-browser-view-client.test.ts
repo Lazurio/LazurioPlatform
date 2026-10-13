@@ -6,6 +6,7 @@ import {
   pictureKey,
   pictureOf,
 } from "../src/browser/people/bar";
+import { FramePump } from "../src/browser/people/frames";
 import {
   buttonBit,
   clampInto,
@@ -685,6 +686,17 @@ describe("the protocol", () => {
     expect(received?.jpeg).toEqual(jpeg);
   });
 
+  test("a frame carries its number in its tab, which the page acknowledges", () => {
+    const numbered = { ...header, seq: 7 };
+    expect(decodeFrame(encodeFrame(numbered, jpeg))?.header).toEqual(numbered);
+    // A service from before acknowledgements sends no number.
+    expect(decodeFrame(encodeFrame(header, jpeg))?.header.seq).toBeUndefined();
+    for (const seq of [0, -3, 1.5, "7", null])
+      expect(
+        decodeFrame(encodeFrame({ ...header, seq } as FrameHeader, jpeg)),
+      ).toBeNull();
+  });
+
   test("a truncated or malformed frame is refused", () => {
     const frame = encodeFrame(header, jpeg);
     const headLength = frame.length - jpeg.length - 4;
@@ -726,6 +738,26 @@ describe("the protocol", () => {
       },
       { t: "picture", picture: "saver" },
       { t: "picture", picture: "standard" },
+      // F39's addendum of 2026-10-13: the page acknowledges its frames.
+      {
+        t: "hello",
+        width: 1280,
+        height: 720,
+        dpr: 1,
+        resize: true,
+        acks: true,
+      },
+      {
+        t: "hello",
+        width: 1280,
+        height: 720,
+        dpr: 1,
+        resize: true,
+        acks: false,
+      },
+      { t: "ack", frame: 1 },
+      { t: "ack", frame: 4242 },
+      { t: "ack", frame: Number.MAX_SAFE_INTEGER },
       { t: "size", width: 390, height: 640, dpr: 3 },
       {
         t: "mouse",
@@ -835,6 +867,14 @@ describe("the protocol", () => {
         JSON.stringify({ t: "picture", picture }),
       ]),
       JSON.stringify({ t: "picture" }),
+      // `acks` is a boolean; an ack names a frame by its number, from 1.
+      ...["true", 1, null, {}].map((acks) =>
+        JSON.stringify({ ...hello, acks }),
+      ),
+      ...[0, -1, 1.5, "1", null, true, [1], 2 ** 53, Number.NaN].map((frame) =>
+        JSON.stringify({ t: "ack", frame }),
+      ),
+      JSON.stringify({ t: "ack" }),
       JSON.stringify({ ...mouse, x: null }),
       JSON.stringify(mouse).replace('"x":1', '"x":NaN'),
       JSON.stringify({ ...mouse, x: 1e9 }),
@@ -883,5 +923,117 @@ describe("the protocol", () => {
     expect(addressOf("file:///etc/passwd")).toBe(
       `https://www.google.com/search?q=${encodeURIComponent("file:///etc/passwd")}`,
     );
+  });
+});
+
+// F39's addendum of 2026-10-13 (#370): the page acknowledges each frame it is
+// done with, so the service sends it no more than a few on the way. One
+// acknowledgement covers every frame before it.
+describe("the frames the page draws and acknowledges", () => {
+  /** A pump whose decoding the test resolves frame by frame. */
+  function pump() {
+    const shown: number[] = [];
+    const acked: number[] = [];
+    const log: string[] = [];
+    const decoding: {
+      seq: number | undefined;
+      resolve: (picture: string | null) => void;
+      reject: (error: Error) => void;
+    }[] = [];
+    const frames = new FramePump<number | undefined, string>({
+      decode: (seq) =>
+        new Promise((resolve, reject) =>
+          decoding.push({ seq, resolve, reject }),
+        ),
+      show: (picture, header) => {
+        if (picture === "throws") throw new Error("drawing failed");
+        shown.push(header.seq ?? 0);
+        log.push(`show ${header.seq}`);
+      },
+      ack: (frame) => {
+        acked.push(frame);
+        log.push(`ack ${frame}`);
+      },
+    });
+    const push = (seq: number | undefined) =>
+      frames.push({
+        header: seq === undefined ? header : { ...header, seq },
+        jpeg: seq,
+      });
+    // Lets the pump's awaits run.
+    const turn = () => new Promise((resolve) => setTimeout(resolve, 0));
+    return { push, decoding, shown, acked, log, turn };
+  }
+
+  test("a frame is acknowledged once it is drawn, not before", async () => {
+    const p = pump();
+    p.push(1);
+    await p.turn();
+    expect(p.acked).toEqual([]);
+    p.decoding[0]?.resolve("picture");
+    await p.turn();
+    expect(p.log).toEqual(["show 1", "ack 1"]);
+  });
+
+  test("while one decodes only the newest waits; the frames it replaced are acknowledged with it", async () => {
+    const p = pump();
+    p.push(1);
+    await p.turn();
+    p.push(2);
+    p.push(3);
+    p.push(4);
+    p.decoding[0]?.resolve("picture");
+    await p.turn();
+    // Frame 1 drawn; 2 and 3 never decoded; 4 decodes next.
+    expect(p.decoding.map((d) => d.seq)).toEqual([1, 4]);
+    expect(p.acked).toEqual([1]);
+    p.decoding[1]?.resolve("picture");
+    await p.turn();
+    expect(p.shown).toEqual([1, 4]);
+    expect(p.acked).toEqual([1, 4]);
+  });
+
+  test("a frame that cannot be decoded or drawn is acknowledged all the same, and the next one goes on", async () => {
+    const p = pump();
+    p.push(1);
+    await p.turn();
+    p.push(2);
+    p.decoding[0]?.resolve(null);
+    await p.turn();
+    p.push(3);
+    p.decoding[1]?.reject(new Error("not a JPEG"));
+    await p.turn();
+    p.decoding[2]?.resolve("throws");
+    await p.turn();
+    p.push(4);
+    await p.turn();
+    p.decoding[3]?.resolve("picture");
+    await p.turn();
+    expect(p.shown).toEqual([4]);
+    expect(p.acked).toEqual([1, 2, 3, 4]);
+  });
+
+  test("a frame without a number (a service from before acknowledgements) is drawn and not acknowledged", async () => {
+    const p = pump();
+    p.push(undefined);
+    await p.turn();
+    p.decoding[0]?.resolve("picture");
+    await p.turn();
+    expect(p.shown).toEqual([0]);
+    expect(p.acked).toEqual([]);
+  });
+
+  test("what the page sends for its acknowledgements is what the service accepts", () => {
+    for (const frame of [1, 2, 1_000_000])
+      expect(accepted({ t: "ack", frame })).toBe(true);
+    expect(
+      accepted({
+        t: "hello",
+        ...viewSize(1280, 760, 2),
+        resize: true,
+        picture: "saver",
+        acks: true,
+      }),
+    ).toBe(true);
   });
 });

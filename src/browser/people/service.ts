@@ -426,6 +426,7 @@ export function startViewService(options: ViewServiceOptions): ViewService {
           size: null,
           resize: true,
           picture: "standard",
+          acks: false,
         };
         ws.data.viewer = viewer;
         if (hub.attach(ws.data.targetId, viewer)) return;
