@@ -910,6 +910,20 @@ rights. GitHub stays the only access authority. Self-hosted needs neither Accoun
 Dashboard. The loopback protocol gets an explicit hosted request adapter as required
 work. Contract: [hosted entry](hosted-entry.md).
 
+**Amendment of 2026-10-14 (DEV-6631 task 638b, root decision 0198 point 2): one narrow
+use of the admission's own answer.** The answer of the gateway's configured auth endpoint
+to the admission's revalidation of the exact session cookie also names the admitted
+session's subject: its `X-Auth-Request-User`, which the Environment gateway's
+oauth2-proxy sets (`set_xauthrequest = true`; its user claim is the identity provider's
+`sub`, the Lazurio account's immutable user id). The Launchpad accepts only a lowercase
+UUID there, keeps it with the cached admission of that session and never reads identity
+from a header of the request (`src/launchpad/hosted-trust.ts`). It has exactly one use:
+the membership of the Environment's own vault, whose access root decision 0198 point 2
+defines as access to the Environment, which is the admission fact itself (F52's addendum
+of 2026-10-14). It is not a repository right, not the Operator of a provider operation,
+not a role and not shown as a person; GitHub stays the authority of repository
+operations, and a gateway that names nobody changes nothing else.
+
 ## F12 — Canonical-only Organizations and a deliberately narrow first delivery
 
 **Addendum 2026-09-28 (Matěj, question H1 of the Launchpad parity shaping,
@@ -10704,10 +10718,9 @@ Agents with full access can read the account's secrets on the Environment (F43
 point 9). Organization creation stays open to every account of the network
 (`ORG_CREATION_USERS`), so people can create other organizations outside this model;
 the threat model of the network's vault records it. People's access to an
-Environment's vault (Správci, task 638b) is not in this revision: until then only the
-Environment's account is a member of its vault. The vendored handover schema is Machines
-v0.12.159's (the merge of pull request #500, which writes the member behind its
-Platform gate).
+Environment's vault (Správci, task 638b) follows in this decision's addendum of
+2026-10-14. The vendored handover schema is Machines v0.12.159's (the merge of pull
+request #500, which writes the member behind its Platform gate).
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -10736,3 +10749,109 @@ member, an earlier Platform refusing it and its redaction
 `tests/runtime-secrets.test.ts`, `tests/module-runtime-secrets.test.ts`); no value or
 token on argv, in the journal or in an answer.
 
+
+### F52 addendum of 2026-10-14: Nastavení → Trezor and the Správci
+
+**Decided by the Admin (root decision 0198 points 2, 3 and 5; DEV-6631 tasks 648 and
+638b, contract C4 as shaped on 2026-10-13; the wireframe of
+HumanAndMachine-ai/prototypes-lazurio#33); implemented in this revision for Remote
+Environments on Linux.** People enter the Environment's vault from the Launchpad, and
+whoever has access to the Environment is a Správce, an Admin, of its vault.
+
+1. **The page.** Settings → Vault (`/settings/vault`, Czech "Trezor"), after Tools: the
+   rule "Kdo má přístup do Prostředí, má všechna jeho hesla.", one row with the vault's
+   name and its state (the item count; "Zakládání trezoru…" while a setup runs;
+   "Neodpovídá" when the vault does not answer; the Tools row's words otherwise) and
+   the actions the person's membership decides. With an account in the network's
+   vault: "Přidat položku", which opens
+   `<server_url>/#/vault?organizationId=<vault>&collectionId=<Agenti>`, where the web
+   vault's New preselects both (phase 1; the own web vault build of phase 2 opens New
+   itself), and "Otevřít trezor" (`…/#/vault?organizationId=<vault>`). Without an
+   account, or without a master password yet, only "Vytvořit účet v trezoru"
+   (`<server_url>/#/login`, where the first sign-in with the Lazurio account creates
+   it), and only where the network's vault takes that sign-in: its public
+   `GET /identity/sso/prevalidate` answers with a token (asked at most once a minute;
+   the token is dropped unread); otherwise no account button. When nothing is known
+   of the person, "Otevřít trezor". A 0197 pilot opens its collection; this computer
+   says "Trezor na tomto počítači zatím není."; an Environment whose handover names no
+   vault says so in one line; a Team or Automated Environment says that only its
+   agents use the vault. The page never lists items or shows a value. A hidden slot
+   above the row waits for the agents' secret requests (task 651).
+2. **Routes**, behind the admission of every route: `GET /api/vault` (the state as
+   `lazurio vault status` reads it, the running setup's step, the kind of Environment)
+   and `POST /api/vault/membership` `{}` (where the person stands, after the
+   Environment adds them; `signIn` while they have no account). The page asks the
+   vault itself through the Tools row's refresh, and asks about the person again when
+   its tab is shown again while they had no account.
+3. **The person** is the subject of the gateway's own answer to the request's
+   admission (F11's amendment of 2026-10-14), at
+   `<subject>@vaultwarden-identity.lazurio.ai`, the address Lazurio Auth's vault client
+   issues (DEV-6631 contract C1). Nobody named, no action on anyone.
+4. **Add on presence** (`src/vault/members.ts`, under the account's lock, as the
+   vault's only Owner), on a personal or work Environment: bw lists the members
+   (`bw list org-members`); an absent person is invited as an Admin (`POST
+   /api/organizations/<id>/users/invite` `{emails, groups: [], type: 1, collections:
+   [], permissions: {}}`, with one API-key sign-in only when the API is needed, since
+   the vault's rate limit counts sign-ins); "User does not exist" is `no-account`; an
+   accepted member is confirmed (`bw confirm org-member`; no fingerprint is compared,
+   0198 point 2); a confirmed one is `member`. A member of another role, a person a
+   Správce shared collections with, is never changed. **An invitation is never left
+   pending:** one the vault leaves Invited, to an account without a master password, is
+   withdrawn at once (`awaiting-password`) and made again on the person's next visit
+   once the password is set, when the vault accepts it at once. While such an
+   invitation is pending, Vaultwarden lets anyone who knows the address register it
+   with a master password unless the network requires SSO of people (`SSO_ONLY`), and
+   the Environment would then confirm that account into its vault. This deviates from
+   the shaping, which left the invitation for the server's acceptance at the master
+   password; the person's experience is the same, one more look after the password.
+5. **Remove when the assignment changes.** A work Environment keeps the fingerprint of
+   the assignment its Správci were added under (`lazurio-assignment.json`: a SHA-256 of
+   the Organization and `owner.assignment`'s kind and GitHub id, never a person or a
+   login, so a renamed login is the same assignment). When the handover's differs, or
+   the file is missing or cannot be read, every Admin-type member leaves (`DELETE
+   /api/organizations/<id>/users/<member>`), then the new fingerprint is recorded;
+   whoever still has access is added again at their next visit. The Owner, the
+   Environment's account, and User, Manager and Custom members are never touched. The
+   check runs at every membership look and, in the installed hosted Launchpad
+   (`vaultAtStart`), once its start's setup ends and then every five minutes, which
+   reads the handover and one local file and asks the vault only after a change. A
+   personal Environment never removes: its Owner is its only person.
+6. **No stored access list.** The vault's membership is the only list of who is in it;
+   the fingerprint is not a list. Nothing returns, logs or journals a person's address,
+   a member's id or a token; the journal says `operation: "members"` with `invited`,
+   `no-account`, `withdrawn`, `confirmed`, `not-confirmed`, `removed` or `failed`.
+
+**Known gaps.** A Team or Automated Environment neither adds nor removes anyone until
+a live answer of who may enter it exists (the Auth or Dashboard answer, contract C4's
+target); until then its people use its vault through the Environment: its agents and
+the requests of task 651. Sharing withdrawn without a reassignment (root decision
+0192: an assignee stops sharing a work Environment) does not remove the person from
+the vault until that answer exists either. A Správce who leaves may keep what their
+own clients synced, so people change the passwords they knew. The network's vault
+should run `INVITATIONS_ALLOWED=false` (Machines renders `true` today): with `true`
+an invitation to an address without an account creates an empty account for it
+instead of answering "User does not exist". The invitation is withdrawn at once like
+any pending one, the page says the same ("Vytvořit účet v trezoru"), and the person's
+first sign-in with the Lazurio account takes the empty account over; it stays in the
+vault's list of accounts until then. A person who already holds a shared collection
+as a User is not made a Správce automatically.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Read the person from a forwarded header | Any request could name anyone; rejected for the admission's own answer (F11's amendment) |
+| Extend `lazurio.account.v1` with the subject | The browser reads it and the server would trust the page; rejected |
+| Keep a list of Správci in the Platform | A second editable access list (environment-access.md); rejected, the vault's membership is the list |
+| Leave an invitation pending for the server's acceptance | Without `SSO_ONLY` it opens the address to anyone's registration; rejected for the immediate withdrawal |
+| Remove only the people the Environment added itself | Needs a list of people; rejected for every Admin-type member, which only the Environment, the Owner, can add |
+| Add the people of a Team Environment now | Nobody would leave when they leave the Team; deferred until a live answer exists |
+
+Verified by tests over HTTP against `startLaunchpad` behind a fake gateway, with the
+fake Vaultwarden and the fake bw (`tests/launchpad-vault-page.test.ts`: no identity,
+forged identity headers, no account, awaiting the password, accepted, confirmed and
+member, a reassignment and the start's look removing only Admin-type members, a
+personal Environment that never removes, a Team Environment that does nothing, SSO
+off, the exact ids in the links, and no value, token or address in the logs, the
+journal, bw's argv or an answer), the admission's subject
+(`tests/launchpad-hosted-trust.test.ts`), the page's pure part
+(`tests/vault-page-view.test.ts`) and the assignment's fingerprint
+(`tests/vault-context.test.ts`).

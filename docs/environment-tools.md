@@ -502,10 +502,12 @@ wave (`unsupported`, `workstation`).
   a 0197 pilot's directory, keyed by its address, stays beside it) with `lock` and
   `bw/` (0700, `BITWARDENCLI_APPDATA_DIR`), which holds bw's `data.json`,
   `lazurio-account.json` (0600: email, server, device identifier, master password, API
-  key, createdAt), `lazurio-session` (0600) and `lazurio-vault.json` (0600, not
+  key, createdAt), `lazurio-session` (0600), `lazurio-vault.json` (0600, not
   secret: the vault's organization id, Agenti's collection id, and a creation's
-  receipt with its time while it is unresolved). A record that is there but cannot
-  be read refuses
+  receipt with its time while it is unresolved) and, on a work Environment,
+  `lazurio-assignment.json` (0600, not secret: the fingerprint of the assignment its
+  Správci were added under, F52's addendum of 2026-10-14). A record that is there but
+  cannot be read refuses
   (`record-unreadable`): nothing is ever created over it. An account file whose
   account or vault is not the handover's is refused by every operation
   (`account-mismatch`). Nothing else anywhere; no secret on argv, in a log, the
@@ -570,8 +572,10 @@ wave (`unsupported`, `workstation`).
   a person's own included. `bw config
   server`, `bw login --apikey` (the key in `BW_CLIENTID`/`BW_CLIENTSECRET`; the session
   it prints is still locked and is never read), `bw unlock --passwordfile <private
-  file> --raw` (the file removed at once), `bw sync` and `bw list
-  organizations|collections|items`, each with the session in `BW_SESSION`. bw's output
+  file> --raw` (the file removed at once), `bw sync`, `bw list
+  organizations|collections|items`, and for the Správci `bw list org-members
+  --organizationid <id>` and `bw confirm org-member <id> --organizationid <id>`, each
+  with the session in `BW_SESSION`. bw's output
   never leaves the module; failures are fixed codes (`locked`, `unauthenticated`,
   `unreachable`, `rate-limited`, `invalid-credentials`, `logout-required`, `timeout`,
   `spawn-failed`, `unreadable`, `failed`).
@@ -616,6 +620,21 @@ wave (`unsupported`, `workstation`).
   never the setup's. The journal of the unit gets
   `{"scope":"tools-vault","operation":"setup|refresh|unlock|vault|secrets","outcome":…,"reason":…}`
   (with `"trigger":"start"` for the start's setup) only.
+- **The vault page and its Správci** (F52's addendum of 2026-10-14,
+  `src/vault/members.ts`): Settings → Vault (`/settings/vault`, "Trezor") shows the
+  rule, the vault's name and state, and "Přidat položku" and "Otevřít trezor", or
+  "Vytvořit účet v trezoru" while the person has no account in the network's vault
+  and the vault takes the Lazurio sign-in (`GET /identity/sso/prevalidate`). `GET
+  /api/vault` is the page, `POST /api/vault/membership` `{}` adds the person the
+  gateway admitted (the subject of its own answer, F11's amendment) on a personal or
+  work Environment: `<subject>@vaultwarden-identity.lazurio.ai` invited as an Admin
+  through the vault's API, confirmed with bw, an invitation left Invited withdrawn at
+  once (`awaiting-password`). A work Environment's Admin-type members all leave when
+  its assignment changes; the Owner and other roles are never touched; a personal
+  Environment never removes; a Team or Automated one neither adds nor removes yet.
+  The installed hosted Launchpad also looks at the assignment after its start and
+  every five minutes. The journal says `operation: "members"` with a fixed outcome,
+  never an address, a member id or a token.
 - **Runtime secrets** (decision F46 as F53 amends it, `vaultSecrets` in
   `src/vault/flow.ts`): on a work Environment the applications of the Organization
   that owns it read them, on a personal one the Personalspace's modules (root decision
