@@ -36,6 +36,10 @@ export type SourceState =
   | "unreadable"
   /** Installed but not signed in (Composio). */
   | "signed-out"
+  /** Signed in, but not working in the Composio organization of this
+   * Environment's Organization's name (decision F42, addendum of
+   * 2026-10-13): nothing of it counts, nothing connects through it. */
+  | "organization"
   /** Composio is not allowed here (decision 0194). */
   | "not-allowed";
 
@@ -75,7 +79,9 @@ export type ExecutorReading =
 
 export type ComposioReadingState =
   | Readonly<{ state: "ok"; accounts: readonly ComposioAccount[] }>
-  | Readonly<{ state: "unavailable" | "unreadable" | "signed-out" }>;
+  | Readonly<{
+      state: "unavailable" | "unreadable" | "signed-out" | "organization";
+    }>;
 
 /** What the tools say: which tools for one app are connected here. */
 export type ToolsReading =
@@ -142,6 +148,18 @@ export type IntegrationsOverview = Readonly<{
     /** Whether "Odpojit" removes a Composio account here: the CLI removes
      * one without a prompt (`connections remove --yes`). */
     disconnect: boolean;
+    /** The Composio organization of this Environment's Organization's name
+     * and how the person's account stands to it (decision F42, addendum (2)
+     * of 2026-10-13): current; missing or there more than once, where
+     * Composio works in the person's current organization with a notice;
+     * there but not made current, or `unverified` where the Organization's
+     * name (null) cannot be read, where nothing of Composio counts. Null
+     * where the person chooses the organization (a personal Environment, a
+     * computer) or it was not read. */
+    organization: Readonly<{
+      name: string | null;
+      state: "matches" | "missing" | "ambiguous" | "elsewhere" | "unverified";
+    }> | null;
   }>;
   sources: Readonly<{
     tools: SourceState;
@@ -169,6 +187,9 @@ export type MergeInput = Readonly<{
    * of `composio whoami`, read by the sign-in probe of Settings → Tools);
    * null where it is not known. */
   composioOrganization: string | null;
+  /** The Composio organization of this Environment's Organization's name,
+   * as `IntegrationsOverview.composio.organization`. */
+  composioTarget?: IntegrationsOverview["composio"]["organization"];
   tools: ToolsReading;
   executor: ExecutorReading;
   composio: ComposioReadingState;
@@ -437,6 +458,7 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
       source: policy.source,
       ready: input.composioReady,
       disconnect: composioUsable && input.composioDisconnect === true,
+      organization: input.composioTarget ?? null,
     }),
     sources: Object.freeze({
       tools: input.tools.state,

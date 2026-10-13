@@ -1,6 +1,8 @@
+import { composioDashboard } from "../integrations/composio-source";
 import { executorToolName, vaultToolName } from "../tools/catalog";
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
 import type { ToolSignIn } from "../tools/status";
+import { composioModel } from "./composio-model";
 import { createExecutorPanel } from "./executor-panel";
 import type { MessageKey } from "./messages";
 import {
@@ -27,6 +29,7 @@ import {
   noticeHolds,
   organizationChoices,
   organizationDetails,
+  organizationRule,
   organizationView,
   parseLoginState,
   parseToolsOverview,
@@ -733,6 +736,65 @@ export function createToolsPanel(
       ({ value } = await options.post("/api/tools/composio/organizations", {}));
     } catch {}
     if (flow !== current) return;
+    // An Organization's Environment works in the Composio organization of
+    // its Organization's name, which the Launchpad made current; the person
+    // chooses elsewhere (decision F42, addendum of 2026-10-13).
+    const rule = organizationRule(value);
+    if (rule.kind === "unverified") {
+      const again = element("button", "", copy.toolsComposioOrgCheckAgain);
+      again.type = "button";
+      again.addEventListener("click", () => {
+        box.remove();
+        void organizations();
+      });
+      const actions = element("p", "tool-actions");
+      actions.append(again);
+      box.replaceChildren(
+        element("p", "", copy.toolsComposioOrgUnverified),
+        actions,
+      );
+      return;
+    }
+    if (rule.kind === "named") {
+      const parts: HTMLElement[] = [
+        element(
+          "p",
+          "",
+          fill(
+            copy[
+              rule.state === "matches"
+                ? "toolsComposioOrgMatches"
+                : rule.state === "missing"
+                  ? "toolsComposioOrgMissing"
+                  : rule.state === "ambiguous"
+                    ? "toolsComposioOrgAmbiguous"
+                    : "toolsComposioOrgElsewhere"
+            ],
+            { name: rule.name },
+          ),
+        ),
+      ];
+      if (rule.state !== "matches") {
+        const open = element("a", "button", copy.integrationsComposioOpen);
+        open.href = composioDashboard;
+        open.target = "_blank";
+        open.rel = "noopener noreferrer";
+        const again = element("button", "", copy.toolsComposioOrgCheckAgain);
+        again.type = "button";
+        again.addEventListener("click", () => {
+          box.remove();
+          void organizations();
+        });
+        const actions = element("p", "tool-actions");
+        actions.append(open, again);
+        parts.push(actions);
+      }
+      parts.push(composioModel(copy, rule.name));
+      box.replaceChildren(...parts);
+      // The card names the organization it now works in.
+      if (rule.state === "matches") void refresh({ signIn: true });
+      return;
+    }
     const choices = organizationChoices(value, copy);
     if (choices === null || choices.length === 0) {
       status.textContent = copy.toolsComposioOrgUnavailable;
@@ -773,7 +835,18 @@ export function createToolsPanel(
         : copy.toolsComposioOrgFailed;
       if (selected) void refresh({ signIn: true });
     });
-    box.replaceChildren(label, select, hint, status);
+    box.replaceChildren(
+      label,
+      select,
+      hint,
+      ...(rule.personal
+        ? [
+            element("p", "tools-muted", copy.toolsComposioOrgPersonal),
+            composioModel(copy, null),
+          ]
+        : []),
+      status,
+    );
   }
 
   function loginFailed(message: string, agent: boolean, detail?: string) {

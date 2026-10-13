@@ -25,9 +25,13 @@ export const integrationsHelp = `integrations list [--folder <absolute Folder>] 
   Executor, Composio), so a source that cannot be read is never taken for
   "nothing connected". Use an Integration where it is connected, in the
   order tool → Executor → Composio; never connect one yourself: send the
-  person the card's link. Read-only, but the tools' sign-in checks and
-  Composio may reach the network. Without --folder, the Environment's own
-  Folder. Exit status: 0 read, 2 usage or no Folder, 1 failure.`;
+  person the card's link. It connects and removes nothing. On an
+  Organization's Environment it makes the person's Composio organization of
+  the Organization's name current where another one is, and says so on
+  stderr (the operation and its outcome, never a name or an id); the tools'
+  sign-in checks and Composio may reach the network. Without --folder, the
+  Environment's own Folder. Exit status: 0 read, 2 usage or no Folder, 1
+  failure.`;
 
 export type IntegrationsCliContext = CliContext &
   Readonly<{
@@ -93,6 +97,19 @@ export function integrationsText(overview: IntegrationsOverview): string {
   lines.push(
     `Sources: tools ${overview.sources.tools} · Executor ${overview.sources.executor} · Composio ${overview.sources.composio}.`,
   );
+  // Composio not in the organization of this Environment's Organization's
+  // name (decision F42, addendum (2) of 2026-10-13): the person sees to it.
+  const target = overview.composio.organization;
+  if (target !== null && target.state !== "matches")
+    lines.push(
+      target.state === "unverified" || target.name === null
+        ? "Composio: the name of this Environment's Organization cannot be read, so its Composio organization cannot be checked; nothing of Composio counts and nothing connects through it now. Check this Environment's Folder (lazurio doctor)."
+        : target.state === "missing"
+          ? `Composio: the person's account has no organization named "${target.name}" (this Environment's Organization), so Composio works in the person's current organization meanwhile. Send them to Apps → Integrations to create it.`
+          : target.state === "ambiguous"
+            ? `Composio: the person's account has more than one organization named "${target.name}", so Composio works in the person's current organization meanwhile. Send them to Apps → Integrations to keep one.`
+            : `Composio: it could not be switched to the organization "${target.name}"; nothing of Composio counts now, and "Check connections" in Apps → Integrations tries again.`,
+    );
   lines.push(
     overview.page === null
       ? "A missing app is connected by the person in the Launchpad under Apps → Integrations; --json lists every app with what it needs."
@@ -144,9 +161,13 @@ export async function runIntegrationsCommand(
             stderr: "No Folder known: name it with --folder <absolute Folder>.",
           }),
     };
+  // The Composio organization the reading makes current, journaled as the
+  // Launchpad journals it (decision F42, addendum (2) of 2026-10-13).
+  const journaled: string[] = [];
   try {
     const overview = await readIntegrations({
       folder,
+      journal: (entry) => journaled.push(JSON.stringify(entry)),
       tools: toolsEnvironmentOf(context.env, context.platform, runTool),
       executor:
         context.executorEndpoint !== undefined
@@ -166,6 +187,7 @@ export async function runIntegrationsCommand(
     return {
       code: exitOk,
       stdout: json ? JSON.stringify(overview) : integrationsText(overview),
+      ...(journaled.length === 0 ? {} : { stderr: journaled.join("\n") }),
     };
   } catch {
     return {

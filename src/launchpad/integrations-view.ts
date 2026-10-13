@@ -44,7 +44,28 @@ const sourceStates = new Set([
   "unreadable",
   "signed-out",
   "not-allowed",
+  "organization",
 ]);
+const organizationStates = new Set([
+  "matches",
+  "missing",
+  "ambiguous",
+  "elsewhere",
+]);
+
+/** The Composio organization of the reading: null, or its name and state;
+ * the name null only where the Organization's name cannot be read. */
+function isTarget(value: unknown): boolean {
+  if (value === null) return true;
+  if (typeof value !== "object") return false;
+  const target = value as Record<string, unknown>;
+  if (target.state === "unverified") return target.name === null;
+  return (
+    typeof target.name === "string" &&
+    target.name !== "" &&
+    organizationStates.has(target.state as string)
+  );
+}
 
 function isChoice(value: unknown): value is PathChoice {
   if (typeof value !== "object" || value === null) return false;
@@ -130,6 +151,7 @@ export function parseIntegrations(value: unknown): IntegrationsOverview | null {
     (composio.source !== "organization" && composio.source !== "environment") ||
     typeof composio.ready !== "boolean" ||
     typeof composio.disconnect !== "boolean" ||
+    !isTarget(composio.organization) ||
     typeof sources !== "object" ||
     sources === null ||
     !["tools", "executor", "composio"].every((name) =>
@@ -459,6 +481,29 @@ export function sourceLines(
   if (overview.sources.tools !== "ok")
     lines.push(copy.integrationsToolsUnreadable);
   return lines;
+}
+
+/** What the page says where Composio does not work in the organization of
+ * this Environment's Organization's name (decision F42, addendum (2) of
+ * 2026-10-13): missing or there more than once, while Composio works in the
+ * person's current organization; not made current, or the Organization's
+ * name unreadable, while nothing of it counts. Null where nothing is to
+ * say. */
+export function composioOrganizationLine(
+  overview: IntegrationsOverview,
+  copy: Copy,
+): string | null {
+  const target = overview.composio.organization;
+  if (target === null || target.state === "matches") return null;
+  if (target.state === "unverified" || target.name === null)
+    return copy.integrationsComposioOrganizationUnverified;
+  const key =
+    target.state === "missing"
+      ? "integrationsComposioOrganizationMissing"
+      : target.state === "ambiguous"
+        ? "integrationsComposioOrganizationAmbiguous"
+        : "integrationsComposioOrganizationElsewhere";
+  return fill(copy[key], { name: target.name });
 }
 
 /** "Připojeno · 5 nástrojů", "Nepodařilo se spustit", "Spouštím…". */

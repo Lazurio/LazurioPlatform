@@ -6,6 +6,10 @@ import { ownDataValue, stateFields } from "../folder/state-fields";
 import { integrationsCatalog } from "../integrations/catalog";
 import type { IntegrationsCatalog } from "../integrations/catalog-schema";
 import {
+  type ComposioOrganizationRule,
+  folderComposioOrganizationRule,
+} from "../integrations/composio-organization";
+import {
   accountName,
   type ConnectHost,
   type ConnectProgress,
@@ -80,6 +84,9 @@ export type IntegrationsSeams = Readonly<{
    * instead of F44's context and its row in Settings → Tools. */
   executorPresent?: boolean | undefined;
   policy?: ComposioPolicySource | undefined;
+  /** Test and preview seam: the rule of the Composio organization, instead
+   * of the one the Machine binding gives. */
+  composioOrganization?: ComposioOrganizationRule | undefined;
   catalog?: IntegrationsCatalog | undefined;
   now?: (() => Date) | undefined;
 }>;
@@ -150,11 +157,16 @@ export function createIntegrationsRoutes(
         ? {}
         : { executorPresent: seams.executorPresent }),
       ...(seams.policy === undefined ? {} : { policy: seams.policy }),
+      ...(seams.composioOrganization === undefined
+        ? {}
+        : { composioOrganization: seams.composioOrganization }),
       ...(seams.catalog === undefined ? {} : { catalog: seams.catalog }),
       ...(seams.now === undefined ? {} : { now: seams.now }),
       // A pending Composio account is listed only while a sign-in started
       // here waits for it (decision F42, addendum of 2026-10-12).
       composioSignIns: () => sessions.signIns(),
+      // The Composio organization the reading makes current.
+      ...(input.journal === undefined ? {} : { journal: input.journal }),
     };
   });
   // Connecting, signing in again or disconnecting a Composio account here
@@ -177,6 +189,11 @@ export function createIntegrationsRoutes(
       },
       environmentBrowser: seams.environmentBrowser,
       oauthCallback: seams.oauthCallback ?? null,
+      // Asked live before every Composio link and removal (decision F42,
+      // addendum (2) of 2026-10-13).
+      composioOrganization: async () =>
+        seams.composioOrganization ??
+        (await folderComposioOrganizationRule(input.folder)),
       ...(seams.catalog === undefined ? {} : { catalog: seams.catalog }),
       ...(input.journal === undefined ? {} : { journal: input.journal }),
     };
@@ -261,6 +278,17 @@ export function createIntegrationsRoutes(
         if (path.path === "composio" && path.signIn)
           return response(
             { kind: "blocked", reason: "composio-signed-out" },
+            409,
+          );
+        // Not in the Composio organization of this Environment's
+        // Organization's name: an account would land in another one
+        // (decision F42, addendum of 2026-10-13).
+        if (
+          path.path === "composio" &&
+          overview.sources.composio === "organization"
+        )
+          return response(
+            { kind: "blocked", reason: "composio-organization" },
             409,
           );
         if (path.path !== "direct" && path.path !== "composio")

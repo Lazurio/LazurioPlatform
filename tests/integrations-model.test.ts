@@ -363,6 +363,7 @@ test("Composio not allowed: its accounts do not count, the source says why, and 
     source: "organization",
     ready: true,
     disconnect: false,
+    organization: null,
   });
   const salesforce = overview.apps.find((item) => item.id === "salesforce");
   expect(salesforce).toMatchObject({

@@ -1,11 +1,13 @@
 import { integrationsCatalog } from "../integrations/catalog";
 import type { CatalogApp } from "../integrations/catalog-schema";
+import { composioDashboard } from "../integrations/composio-source";
 import type {
   CustomServer,
   IntegrationAccount,
   IntegrationApp,
   IntegrationsOverview,
 } from "../integrations/model";
+import { composioModel } from "./composio-model";
 import {
   addRow,
   type CustomForm,
@@ -35,6 +37,7 @@ import {
   attentionCount,
   type CardAction,
   cardView,
+  composioOrganizationLine,
   disconnectText,
   integrationsHelp,
   monogram,
@@ -366,6 +369,10 @@ export function createIntegrationsPanel(
     else if (reason === "integration-conflict")
       note = copy.integrationsIntegrationConflict;
     else if (reason === "still-failing") note = copy.integrationsStillFailing;
+    else if (reason === "composio-organization")
+      note =
+        (overview === null ? null : composioOrganizationLine(overview, copy)) ??
+        copy.integrationsComposioOrganizationChanged;
     else note = copy.integrationsConnectFailed;
     render();
   }
@@ -450,6 +457,13 @@ export function createIntegrationsPanel(
         });
         const answer = (value ?? {}) as Record<string, unknown>;
         if (answer.kind === "disconnected") return null;
+        if (answer.reason === "composio-organization")
+          return (
+            (overview === null
+              ? null
+              : composioOrganizationLine(overview, copy)) ??
+            copy.integrationsComposioOrganizationChanged
+          );
         return answer.reason === "disconnect-unsupported"
           ? copy.integrationsDisconnectUnsupported
           : copy.integrationsDisconnectFailed;
@@ -1514,11 +1528,29 @@ export function createIntegrationsPanel(
     }
     status.textContent =
       loading && route.tab === "connected" ? copy.integrationsChecking : "";
-    const problems = sourceLines(overview, copy).map((line) => {
+    const problems: HTMLElement[] = sourceLines(overview, copy).map((line) => {
       const node = element("p", "callout", line);
       node.dataset.kind = "warning";
       return node;
     });
+    // Composio in no organization of this Environment's Organization's
+    // name: what to do in Composio, and the model drawn (decision F42,
+    // addendum of 2026-10-13).
+    const organizationLine = composioOrganizationLine(overview, copy);
+    if (organizationLine !== null && overview.composio.organization !== null) {
+      const box = element("div", "callout composio-organization");
+      box.dataset.kind = "warning";
+      const open = element("a", "button", copy.integrationsComposioOpen);
+      open.href = composioDashboard;
+      open.target = "_blank";
+      open.rel = "noopener noreferrer";
+      box.append(
+        element("p", "", organizationLine),
+        open,
+        composioModel(copy, overview.composio.organization.name),
+      );
+      problems.push(box);
+    }
     formHost.hidden = custom === null;
     body.replaceChildren(
       ...problems,

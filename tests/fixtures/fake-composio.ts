@@ -135,6 +135,46 @@ if (command === "whoami") {
   end(0);
 }
 
+// `orgs list` prints its JSON array on stdout when stdout is not a terminal
+// (the CLI's `ui.output`, after its human lines on stderr); `orgs switch
+// --org-id` makes one current, which `whoami` then names.
+if (command === "orgs" && sub === "list") {
+  requireAuth();
+  log("composio dev orgs list");
+  const current =
+    state.organization === undefined ? "First" : state.organization;
+  console.log(
+    JSON.stringify(
+      (state.organizations ?? []).map((organization) => ({
+        id: organization.id,
+        name: organization.name,
+        is_selected_global_org: organization.name === current,
+      })),
+    ),
+  );
+  end(0);
+}
+
+if (command === "orgs" && sub === "switch") {
+  requireAuth();
+  if (state.switchFails === true) {
+    log("Failed to switch the organization.");
+    end(1);
+  }
+  const id = option("--org-id");
+  const organization = (state.organizations ?? []).find(
+    (entry) => entry.id === id,
+  );
+  if (organization === undefined) {
+    log(`Organization ${id} not found.`);
+    end(1);
+  }
+  state.organization = organization.name;
+  save();
+  log(`Switched to ${organization.name}.`);
+  end(0);
+}
+
 if (command === "connections" && sub === "list") {
   requireAuth();
   const toolkit = option("--toolkit");

@@ -6564,7 +6564,10 @@ preferences), which was never merged. The reference is
    before linking. It disconnects only where the CLI removes without a terminal
    (`--yes`, which 0.4.x does not have): otherwise it says so and the person
    disconnects in Composio. Its accounts count only where Composio is allowed,
-   switched on for agents, installed and signed in.
+   switched on for agents, installed and signed in. *Amended 2026-10-13
+   (addendum (2) below):* on an Organization's Environment, in the person's
+   Composio organization of the Organization's name where it exists, and not
+   at all where that organization cannot be told.
 4. **Who allows Composio is one seam.** `composioPolicy()` answers `{allowed,
    source: "organization" | "environment"}`; until the Organization's settings
    reach the Environment (root decision 0194, plan DEV-6653) it is the
@@ -6924,6 +6927,103 @@ only the document in the Environment browser; a return without a state, with an
 unknown or repeated one, an oversized code or a cancelled sign-in, and a POST, never
 reaching Executor; a return Executor cannot take ending the sign-in, said on the page
 (`tests/integrations-routes.test.ts`).
+
+**Addendum 2026-10-13 (2), asked for by the Organization Admin: one Composio
+organization of the person's own for each Organization.** A person signs in to
+Composio with their own account, which may have several organizations, and the CLI
+works in the one it has selected. Every account connected through it lands there,
+so an Environment of one Organization could connect apps into another
+Organization's organization, or into the person's personal one, unnoticed. The
+Organization Admin decided the model: each person has one Composio account,
+signed in with GitHub; in it one organization of their own for each Lazurio
+Organization, named as the Organization is and with nobody else in it; the
+personal Environment uses the account's default organization. The Launchpad links
+them strictly by name, helps create a missing one, opens "Spravovat v Composiu"
+in the right one, and explains the model in a figure. A shared Composio
+organization with invited members, keys and sharing is not used: the
+Organization tried that model with a password manager, and it does not work. The
+reference is [integrations](integrations.md#the-composio-organization-of-an-environment).
+
+1. **The Organization's name is the rule.** An Environment whose Machine binding
+   names an owning Organization works in the Composio organization of that
+   Organization's display name, matched whatever the case, the spaces and the
+   diacritics ("Human and Machine" is `humanandmachine`); punctuation counts. No
+   setting holds the name: the Organization's own name is it. Where an
+   Organization owns the Environment but its name cannot be read (its root is
+   missing from the Folder, its manifest unreadable), the rule is `unverified`:
+   never taken for the person's choice and never guessed (Pablo's review of
+   #372). Any other Environment, a personal one or a computer, works in the
+   organization the person chose.
+2. **The Launchpad brings it current.** The reading, and the sign-in dialog of
+   Settings → Tools after a sign-in, make the organization of that name current
+   with the CLI's `orgs switch` where another one is, so that agents using
+   Composio work in it too. Every link and every removal through Composio asks
+   it live first, never the page's reading, which may be a minute old while the
+   CLI's choice changed (Pablo's review of #372). The switch is journaled as
+   `composio-organization` with its outcome, nothing else; `lazurio
+   integrations list` writes that line on stderr. Where the person chooses,
+   nothing is read or changed.
+3. **A missing organization is said, and nothing breaks.** The Operator decided
+   on 2026-10-13 that people who already connect through Composio must not
+   connect anything again (root decision 0162, addendum of 2026-10-09). So where
+   the account has no organization of that name, or more than one (none is
+   guessed), Composio works in the person's current organization: its accounts
+   count, and links and removals go there. Apps → Integrace says what to do,
+   with a link to Composio's dashboard and the figure, and `lazurio integrations
+   list` tells agents. Once the person creates it, or keeps only one, the next
+   reading makes it current.
+4. **Nothing of Composio counts where its organization cannot be told.** The
+   rule is `unverified`, or the organization of the name exists but could not
+   be made current (`elsewhere`). Then the Composio source reads
+   `organization`: none of its accounts is listed, since they may be another
+   organization's, and a link or a removal is refused (`composio-organization`)
+   with nothing written. The page and agents say why.
+5. **Created in Composio's dashboard, found by name.** Neither Composio's CLI nor
+   its documented API creates an organization (the API lists them only), so the
+   person creates it in the dashboard and "Zkontrolovat připojení" (or "Zkontrolovat
+   znovu" in the sign-in dialog) finds it by name.
+6. **The figure.** Apps → Integrace and the sign-in dialog draw the model as a
+   grid of text in the page's type and colours: the person's one account, the
+   organization of this Environment's Organization (marked), one for each other
+   Organization, and the default one, each to its Environments; "Každá organizace
+   je jen vaše: nikoho do ní nezvete a žádný klíč nesdílíte."
+7. **The default organization, advised.** Composio's CLI does not say which
+   organization an account had first (its list has no date), so a personal
+   Environment's sign-in dialog advises the default organization, the one
+   Composio made at the sign-up, and the person chooses it. Once the CLI prints
+   when an organization was created, the oldest one can be chosen by the rule.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| One shared Composio organization of the Organization, with its members | One place for the Organization's connections; but invited members, shared keys and one person's sign-ins in common, the model the Organization found not to work; rejected by the Admin |
+| The name as a setting of the Organization | Free to differ from the Organization's name; but one more value to keep and to drift; rejected: the Organization's own name |
+| The name exactly as written | No ambiguity in the match; but people write a name differently; rejected by the Admin |
+| Switch only when the person confirms | Nothing changes behind the person; but agents work in the wrong organization until then; rejected: the Launchpad brings it current, and only to the organization of the Organization's name |
+| Block Composio until the organization exists | The strictest separation; but people who already connect through Composio would lose their connections on work Environments and connect again; rejected by the Operator on 2026-10-13: a notice, nothing breaks |
+| Take an unreadable Organization's name for the person's choice | Composio keeps working on a broken Folder; but then any organization the CLI has selected takes links, unnoticed; rejected (Pablo's review of #372): `unverified`, nothing written |
+| Create the organization from the Launchpad | One click; but Composio offers no way to create one outside its dashboard; not possible |
+| The default organization by a name ending in `_workspace` | Automatic on a personal Environment; but a guess about Composio's naming; rejected until the CLI says which organization is oldest |
+
+Verified by tests: a name one whatever its case, spaces and diacritics, and not its
+punctuation; the verdict `chosen`, `matches`, `elsewhere`, `missing` and
+`ambiguous` over an account's organizations; the rule by the display name of the
+Organization a Machine binding names, `unverified` without that Organization in
+the Folder, chosen on a personal Environment and on a computer
+(`tests/integrations-composio-organization.test.ts`); an Organization's
+Environment switched to the organization of its name by the reading, journaled
+without a name or an id, its accounts listed with "Spravovat v Composiu" in that
+organization, and a second reading switching nothing; without the organization,
+its accounts listed, a link made in the person's current organization with
+nothing switched, and the agents' text saying so; two organizations of the name,
+none chosen, the current one working; an organization of the name that cannot be
+made current, and an Organization's name that becomes unreadable behind the
+reading, with no account listed and a link and a removal refused with nothing
+written; where the person chooses, no organization read or changed; a link and a
+removal after the organization was switched away behind the reading made in this
+Environment's organization again, switched back first, and in the person's
+current one where it is gone since; `lazurio integrations list` journaling its
+switch on stderr without a name or an id (the same file); the sign-in dialog's
+answer naming no rule on a computer (`tests/launchpad-curated.test.ts`).
 
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 

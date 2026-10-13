@@ -1400,6 +1400,41 @@ export type OrganizationChoice = Readonly<{
   current: boolean;
 }>;
 
+/** The Composio organization this Environment's Organization's name gives
+ * it, and how the person's account stands to it (decision F42, addendum of
+ * 2026-10-13); null where the person chooses it. `personal`: a personal
+ * Environment, where the advice is the account's default organization. */
+export type OrganizationRuleView =
+  | Readonly<{
+      kind: "named";
+      name: string;
+      state: "matches" | "missing" | "ambiguous" | "elsewhere";
+    }>
+  /** An Organization owns the Environment, but its name cannot be read. */
+  | Readonly<{ kind: "unverified" }>
+  | Readonly<{ kind: "chosen"; personal: boolean }>;
+
+export function organizationRule(input: unknown): OrganizationRuleView {
+  const value =
+    input && typeof input === "object" && !Array.isArray(input)
+      ? (input as Record<string, unknown>)
+      : {};
+  const organization = value.organization;
+  if (organization && typeof organization === "object") {
+    const { name, state } = organization as Record<string, unknown>;
+    if (state === "unverified" && name === null) return { kind: "unverified" };
+    if (
+      text(name) &&
+      (state === "matches" ||
+        state === "missing" ||
+        state === "ambiguous" ||
+        state === "elsewhere")
+    )
+      return { kind: "named", name: name as string, state };
+  }
+  return { kind: "chosen", personal: value.personal === true };
+}
+
 /** Composio's organizations for the select, the current one marked. */
 export function organizationChoices(
   input: unknown,

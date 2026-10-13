@@ -36,6 +36,10 @@ import { enabledTools, stateFields } from "../folder/state";
 import { ownDataValue } from "../folder/state-fields";
 import { updateProfile, updateTools } from "../folder/update-profile";
 import { resolvedVoice } from "../folder/voice";
+import {
+  composioOrganizationRule,
+  convergeComposioOrganization,
+} from "../integrations/composio-organization";
 import { processExecutorEndpoint } from "../integrations/executor-client";
 import { readMachineContext } from "../machine/context";
 import { hostedOperatorFolder } from "../machine/operator";
@@ -81,6 +85,7 @@ import {
   toolsOverview,
 } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
+import { resolveOnPath } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
 import { embeddedIdentity } from "../update/identity";
 import { runProcess } from "../update/self-check";
@@ -648,6 +653,7 @@ export async function startLaunchpad(
           ).context()),
       executorPresent: integrationSeams?.executorPresent,
       policy: integrationSeams?.policy,
+      composioOrganization: integrationSeams?.composioOrganization,
       catalog: integrationSeams?.catalog,
       now: integrationSeams?.now,
     }),
@@ -1490,7 +1496,61 @@ export async function startLaunchpad(
           const value = stateFields(input, fields[url.pathname] ?? []);
           if (url.pathname === "/api/tools/composio/organizations") {
             server.timeout(request, 60);
-            return response(await logins.composioOrganizations());
+            // An Organization's Environment works in the Composio
+            // organization of its Organization's name, made current here
+            // after the sign-in (decision F42, addendum of 2026-10-13); the
+            // person chooses elsewhere.
+            const { preferences } = await withFolderReadLock(state, () =>
+              readFolderState(state),
+            );
+            const rule = await composioOrganizationRule(
+              folder,
+              preferences.machine,
+            );
+            if (rule.kind === "chosen")
+              return response({
+                ...(await logins.composioOrganizations()),
+                organization: null,
+                // By advice the account's default organization.
+                personal: preferences.preset.name === "hosted-personal",
+              });
+            // An Organization's name that cannot be read is said, never
+            // guessed, and nothing is switched.
+            if (rule.kind === "unverified") {
+              const listed = await logins.composioOrganizations();
+              return response(
+                listed.kind === "composio-organizations"
+                  ? {
+                      ...listed,
+                      organization: { name: null, state: "unverified" },
+                    }
+                  : listed,
+              );
+            }
+            const command = await resolveOnPath(
+              "composio",
+              toolsEnvironment.path,
+              toolsEnvironment.platform,
+            );
+            const converged =
+              command === undefined
+                ? null
+                : await convergeComposioOrganization(
+                    toolsEnvironment,
+                    command,
+                    rule,
+                    (entry) => console.log(JSON.stringify(entry)),
+                  );
+            if (converged === null)
+              return response({
+                kind: "composio-organizations-failed",
+                reason: "unreadable",
+              });
+            return response({
+              kind: "composio-organizations",
+              organizations: converged.organizations,
+              organization: { name: rule.name, state: converged.verdict.kind },
+            });
           }
           if (url.pathname === "/api/tools/composio/organization") {
             if (
