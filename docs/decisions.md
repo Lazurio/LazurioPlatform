@@ -5379,8 +5379,9 @@ builds that section, which the root addendum lets ship before the tile.
    Automate. Such a start is shown dimmed and says why in the switch's own words: "Chat
    na tomto Environmentu neběží", "MausBot na tomto Environmentu neběží". Until the shell
    document is read there is no switch, so there are no starts. Behind the gateway the
-   boot document carries the shell document, so the starts are there in the first
-   paint.
+   boot document carries the shell document, so the switch is known at the first
+   paint. The section then shows as soon as the catalog says the space is held, which
+   on the first load after the Launchpad starts can take until its first re-read.
 
 Not changed: the empty sentence, the Apps home of an Organization, the switch, the
 column, the catalog and every route. Not part of this addendum: showing the personal
