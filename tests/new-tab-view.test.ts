@@ -25,6 +25,7 @@ import {
   overviewFailure,
   pageStrip,
   parseOverview,
+  replacesUndo,
   resolveAddress,
   settleOverrides,
   sortTabs,
@@ -650,7 +651,12 @@ describe("closing for everyone, and Vrátit", () => {
 
   test("the toast keeps Vrátit for the whole grace: a later message shows above it and never takes it away", () => {
     expect(closeGraceMs).toBe(8_000);
-    const pending = { tab: id(1), text: cs.closing, shown: false };
+    const pending = {
+      tabs: [id(1)],
+      text: cs.closing,
+      shown: null,
+      ends: true,
+    };
     expect(toastModel(pending, null, cs)).toEqual({
       note: null,
       text: "Záložka se zavře v Environmentu.",
@@ -672,6 +678,47 @@ describe("closing for everyone, and Vrátit", () => {
       undo: null,
     });
     expect(toastModel(null, null, cs)).toBeNull();
+    // One command's Vrátit, for every tab it let go of, is one line.
+    expect(
+      toastModel(
+        { ...pending, tabs: [id(1), id(2)], text: cs.closingTabs },
+        null,
+        cs,
+      ),
+    ).toEqual({
+      note: null,
+      text: "Záložky se zavřou v Environmentu.",
+      undo: "Vrátit",
+    });
+  });
+
+  test("one Vrátit at a time, the last command's, but a command that ends no tab never takes the Vrátit of one that ends (the review of #27)", () => {
+    const ending = {
+      tabs: [id(1)],
+      text: cs.closing,
+      shown: null,
+      ends: true,
+    };
+    const staying = {
+      tabs: [id(2)],
+      text: cs.releasedAgent,
+      shown: id(2),
+      ends: false,
+    };
+    // Nothing offered: any command's Vrátit.
+    expect(replacesUndo(null, staying)).toBe(true);
+    expect(replacesUndo(null, ending)).toBe(true);
+    // A tab that ends would be lost if a command that ends none took its
+    // Vrátit away; that command says its line above it instead.
+    expect(replacesUndo(ending, staying)).toBe(false);
+    // Otherwise the last command's Vrátit, as before.
+    expect(replacesUndo(ending, { ...ending, tabs: [id(3)] })).toBe(true);
+    expect(replacesUndo(staying, ending)).toBe(true);
+    expect(replacesUndo(staying, { ...staying, tabs: [id(4)] })).toBe(true);
+    // A command of several tabs ends one if any of them ends.
+    expect(
+      replacesUndo(ending, { ...staying, tabs: [id(2), id(5)], ends: true }),
+    ).toBe(true);
   });
 
   test("Zavřít keeps the tab gone while the close is on its way, whatever an overview read before says; once accepted, only an overview requested after gives the hub's word; a failed close brings it back", () => {

@@ -8,10 +8,12 @@ import {
   entryKey,
   holdFailure,
   holdSucceeded,
+  letGoUndo,
   panelChoice,
   reduceStrip,
+  releaseFailure,
   releaseSucceeded,
-  releaseText,
+  restoreFailure,
   type StripEntry,
   type StripEvent,
   type StripState,
@@ -39,7 +41,6 @@ import {
 } from "./layout-view";
 import type { MessageKey } from "./messages";
 import {
-  actionFailure,
   actionNoteMs,
   closeGraceMs,
   fill,
@@ -48,6 +49,7 @@ import {
   noteMs,
   type PendingUndo,
   parseOverview,
+  replacesUndo,
   toastModel,
 } from "./new-tab-view";
 
@@ -135,9 +137,10 @@ export function createBrowserPanel(
     | Readonly<{ kind: "frame"; tab: string; node: HTMLIFrameElement }>
     | Readonly<{ kind: "new"; key: string; node: HTMLElement }>
     | null = null;
-  /** The tab whose × let go of the strip's last entry and so closed the
-   * panel: Vrátit opens the panel on it again while it stays closed. */
-  let closedOn: string | null = null;
+  /** The tabs let go of by the command that took the strip's last entry
+   * and so closed the panel: Vrátit opens the panel on them again while it
+   * stays closed. */
+  let closedOn: readonly string[] = [];
   // Whether the sheet makes the rest of the page inert now: changed only
   // here, so the column's own sheet keeps its inert page.
   let covering = false;
@@ -254,14 +257,13 @@ export function createBrowserPanel(
         if (entry.kind === "new") {
           shut.setAttribute("aria-label", copy.closeNewTab);
           shut.title = copy.closeNewTab;
-          shut.addEventListener("click", () => closeNewTab(entry.key));
         } else {
           // The Launchpad lets go; the tab stays in the Environment and in
           // Přehled while anything still needs it, so no warning.
           shut.setAttribute("aria-label", fill(copy.closeTab, { title }));
           shut.title = copy.closeInLaunchpad;
-          shut.addEventListener("click", () => void releaseTab(entry));
         }
+        shut.addEventListener("click", () => void closeEntries([key]));
         shut.append(svg("x"));
         tab.append(main, shut);
         return tab;
@@ -491,86 +493,127 @@ export function createBrowserPanel(
     );
   }
 
-  /** The Launchpad holds a tab (F47 point 4), and only then `held()`; a hold
-   * that failed says why, with Zkusit znovu where trying again can help.
-   * `gone` says that the tab no longer exists. */
-  async function holdThen(tab: string, held: () => void, gone?: string) {
-    const answer = await options.transport("POST", "/api/new-tab/hold", {
-      tab,
-    });
-    if (holdSucceeded(answer)) {
-      held();
-      void poll();
-      return;
-    }
-    const failure = holdFailure(answer, words(), gone);
+  /** The Launchpad holds `tabs` (F47 point 4), all at once, and only then
+   * `held` runs for each one held. Those that failed say why, once, as
+   * `failure` puts it for how many failed, with Zkusit znovu for them where
+   * trying again can help. */
+  async function holdThen(
+    tabs: readonly string[],
+    held: (tab: string) => void,
+    failure: (
+      answer: NewTabAnswer,
+      failed: number,
+    ) => Readonly<{ text: string; retry: boolean }> = (answer) =>
+      holdFailure(answer, words()),
+  ) {
+    const answers = await Promise.all(
+      tabs.map(async (tab) => ({
+        tab,
+        answer: await options.transport("POST", "/api/new-tab/hold", { tab }),
+      })),
+    );
+    const failed = answers.filter(({ answer }) => !holdSucceeded(answer));
+    for (const { tab, answer } of answers) if (holdSucceeded(answer)) held(tab);
+    if (failed.length < answers.length) void poll();
+    const [first] = failed;
+    if (first === undefined) return;
+    const why = failure(first.answer, failed.length);
     say(
-      failure.text,
-      failure.retry ? () => void holdThen(tab, held, gone) : null,
+      why.text,
+      why.retry
+        ? () =>
+            void holdThen(
+              failed.map(({ tab }) => tab),
+              held,
+              failure,
+            )
+        : null,
     );
   }
 
-  /** × on a Nová karta (Matěj 2026-10-12): that entry goes, with nothing
-   * to let go of and no Vrátit; on the strip's last entry the panel
-   * closes. */
-  function closeNewTab(key: string) {
-    dispatch({ kind: "close-new-tab", key });
-    if (closesPanel(state)) hide(true);
-  }
-
-  /** × on a tab lets go of the Launchpad's hold (F47 point 9's addendum of
-   * 2026-10-12): the tab goes from the strip at once and stays gone until
-   * the release is done and a later overview says so, or comes back when it
-   * fails; on the strip's last entry the panel closes. The toast says what
-   * happens to the tab, as the overview told, and Vrátit holds it again
-   * while the hub's grace (8 s from the request, the earliest the grace can
-   * begin) lasts. */
-  async function releaseTab(entry: Extract<StripEntry, { kind: "tab" }>) {
+  /** The person's × on an entry, or a close of its menu: the entries `keys`
+   * go from the strip at once, and on the strip's last entry the panel
+   * closes (the tuning of 2026-10-12). A Nová karta just goes, with nothing
+   * to let go of. For each tab the Launchpad lets go of its hold (F47 point
+   * 9's addendum of 2026-10-12), all at once: it stays gone until its
+   * release is done and a later overview says so, or comes back when it
+   * fails. One command is one toast (its addendum of 2026-10-13): what
+   * happens to the tabs it let go of, as the overview told, and one Vrátit
+   * that holds them all again while the hub's grace (8 s from the first
+   * request, the earliest any grace can begin) lasts. A command that ends
+   * no tab while the Vrátit of one that ends is offered leaves that Vrátit,
+   * and says its line above it (`replacesUndo`). */
+  async function closeEntries(keys: readonly string[]) {
+    const going = stripEntries(state).filter((entry) =>
+      keys.includes(entryKey(entry)),
+    );
+    if (going.length === 0) return;
     const shown = shownEntry(state);
-    const wasShown = shown?.kind === "tab" && shown.id === entry.id;
-    const text = releaseText(entry.tab, words());
-    dispatch({ kind: "releasing", tab: entry.id });
+    const tabs = going.flatMap((entry) =>
+      entry.kind === "tab" ? [entry] : [],
+    );
+    dispatch({ kind: "close", keys: going.map(entryKey) });
     if (closesPanel(state)) {
       hide(true);
-      closedOn = entry.id;
+      closedOn = tabs.map((entry) => entry.id);
     }
+    if (tabs.length === 0) return;
     const sentAt = Date.now();
-    const answer = await options.transport("POST", "/api/new-tab/release", {
-      tab: entry.id,
-    });
-    if (releaseSucceeded(answer)) {
-      dispatch({ kind: "released", tab: entry.id });
-      // An answer later than the grace says what happened, without Vrátit.
+    const answers = await Promise.all(
+      tabs.map(async (entry) => ({
+        entry,
+        answer: await options.transport("POST", "/api/new-tab/release", {
+          tab: entry.id,
+        }),
+      })),
+    );
+    for (const { entry, answer } of answers)
+      state = reduceStrip(state, {
+        kind: releaseSucceeded(answer) ? "released" : "release-failed",
+        tab: entry.id,
+      });
+    draw();
+    const undo = letGoUndo(
+      answers.flatMap(({ entry, answer }) =>
+        releaseSucceeded(answer) ? [entry] : [],
+      ),
+      shown?.kind === "tab" ? shown.id : null,
+      words(),
+    );
+    // An answer later than the grace says what happened, without Vrátit.
+    if (undo !== null) {
       const until = sentAt + closeGraceMs;
-      if (until > Date.now())
-        setPending({ tab: entry.id, text, shown: wasShown }, until);
-      else say(text);
-    } else {
-      dispatch({ kind: "release-failed", tab: entry.id });
-      say(actionFailure(answer, words().releaseFailed, words()));
+      if (until > Date.now() && replacesUndo(pending, undo))
+        setPending(undo, until);
+      else say(undo.text);
     }
+    const failed = answers.filter(({ answer }) => !releaseSucceeded(answer));
+    const [first] = failed;
+    if (first !== undefined)
+      say(releaseFailure(first.answer, words(), failed.length));
     void poll();
   }
 
-  /** Vrátit: the Launchpad holds the tab again, shown again where it was
-   * shown when released. When its × closed the panel and the panel stayed
-   * closed, Vrátit opens it on the tab: it undoes the × whole. */
+  /** Vrátit: the Launchpad holds every tab of the command again, each back
+   * in its place in the strip and the one shown when they went shown again.
+   * When the command closed the panel and the panel stayed closed, Vrátit
+   * opens it on them: it undoes the command whole. */
   async function restore() {
     const released = pending;
     if (released === null) return;
     setPending(null);
     await holdThen(
-      released.tab,
-      () => {
-        const reopen = !open && closedOn === released.tab;
+      released.tabs,
+      (tab) => {
+        const reopen = !open && closedOn.includes(tab);
         dispatch({
           kind: "held-again",
-          tab: released.tab,
-          show: released.shown && (open || reopen),
+          tab,
+          show: tab === released.shown && (open || reopen),
         });
         if (reopen) show();
       },
-      words().restoreFailed,
+      (answer, failed) => restoreFailure(answer, words(), failed),
     );
   }
 
@@ -586,7 +629,7 @@ export function createBrowserPanel(
     if (choice === null) return;
     const from = surface?.kind === "new" ? surface.key : null;
     const chosen = () => dispatch({ kind: "chosen", tab: choice.tab, from });
-    if (choice.kind === "tab") void holdThen(choice.tab, chosen);
+    if (choice.kind === "tab") void holdThen([choice.tab], chosen);
     else {
       chosen();
       void poll();
@@ -610,7 +653,7 @@ export function createBrowserPanel(
     // A page's new tab viewed here shows once the Launchpad holds it (F47
     // point 4); until then the view that opened it stays.
     if (said.kind === "new-tab")
-      void holdThen(said.tab, () =>
+      void holdThen([said.tab], () =>
         dispatch({ kind: "show", tab: said.tab, url: said.url }),
       );
     else if (said.kind === "closed") {
@@ -717,7 +760,7 @@ export function createBrowserPanel(
     if (open || options.origin() === null) return;
     stopSliding();
     open = true;
-    closedOn = null;
+    closedOn = [];
     relayout();
     dispatch({ kind: "opened" });
     void poll();
@@ -738,7 +781,7 @@ export function createBrowserPanel(
     const opening = !open;
     stopSliding();
     open = true;
-    closedOn = null;
+    closedOn = [];
     relayout();
     dispatch({ kind: "show", tab });
     void poll();

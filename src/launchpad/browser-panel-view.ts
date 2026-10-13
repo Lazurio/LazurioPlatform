@@ -17,6 +17,7 @@ import {
   type NewTabCopy,
   type NewTabOverview,
   type NewTabTab,
+  type PendingUndo,
   settleOverrides,
   type TabOverride,
   withOverride,
@@ -32,13 +33,14 @@ import {
 // `<lazurio-new-tab strip="launchpad" focus-address>`. "+" adds a Nová karta
 // after the others, as Chrome does, and opening the panel on an empty strip
 // shows one. × on a Nová karta takes it away; × on a tab lets go of the
-// Launchpad's hold, with Vrátit while the hub's grace lasts; closing a tab
-// for everyone is Přehled's Zavřít. The person's × on the strip's last entry
-// closes the panel, as T3 Code's does (root decision 0195 point 16). The
-// panel is offered only where the recorded entry routes the view
-// (`browserOrigin`): never on a workstation, which has no entry, and never in
-// Recovery mode. A view is framed only on exactly the recorded origin. Pure:
-// the DOM (browser-panel.ts) only draws this and asks.
+// Launchpad's hold, with Vrátit while the hub's grace lasts, one Vrátit for
+// every tab one command let go of (F47 point 9's addendum of 2026-10-13);
+// closing a tab for everyone is Přehled's Zavřít. The person's × on the
+// strip's last entry closes the panel, as T3 Code's does (root decision 0195
+// point 16). The panel is offered only where the recorded entry routes the
+// view (`browserOrigin`): never on a workstation, which has no entry, and
+// never in Recovery mode. A view is framed only on exactly the recorded
+// origin. Pure: the DOM (browser-panel.ts) only draws this and asks.
 
 /** `GET /.lazurio/browser.json` (the server's `browserViewDocumentPath`):
  * the view's address for a new tab, or that there is none. */
@@ -282,9 +284,13 @@ export type StripEvent =
   | Readonly<{ kind: "new-tab" }>
   /** An entry of the strip chosen, by its key. */
   | Readonly<{ kind: "select"; entry: string }>
-  /** × on a Nová karta: that entry goes. It is no remote tab, so nothing
-   * is let go of and there is no Vrátit. */
-  | Readonly<{ kind: "close-new-tab"; key: string }>
+  /** The person's × on an entry, or a close of one command over several
+   * entries (F47 point 9's addendum of 2026-10-13): the entries `keys` go
+   * at once. A Nová karta among them is no remote tab, so nothing is let go
+   * of and there is no Vrátit for it. The Launchpad lets go of every tab
+   * among them, which goes from the strip at once and stays gone while the
+   * release is on its way (`hideAsked`). */
+  | Readonly<{ kind: "close"; keys: readonly string[] }>
   /** The Nová karta `from` became this tab, which the Launchpad now holds:
    * a page it opened, or a tab chosen in its Přehled and held. That Nová
    * karta goes, and the panel shows the tab. */
@@ -292,12 +298,8 @@ export type StripEvent =
   /** A tab the Launchpad now holds, to show: a page's new tab viewed here,
    * a sign-in an Integrace opened in the Environment browser. */
   | Readonly<{ kind: "show"; tab: string; url?: string | undefined }>
-  /** × in the strip: the Launchpad lets go of the tab, which goes from the
-   * strip at once and stays gone while the release is on its way
-   * (`hideAsked`). */
-  | Readonly<{ kind: "releasing"; tab: string }>
-  /** The release is done: only an overview requested after now lifts the
-   * hide (`hideAnswered`). */
+  /** The release of a tab `close` let go of is done: only an overview
+   * requested after now lifts the hide (`hideAnswered`). */
   | Readonly<{ kind: "released"; tab: string }>
   /** The release failed: the tab is back. */
   | Readonly<{ kind: "release-failed"; tab: string }>
@@ -350,11 +352,20 @@ function apply(state: StripState, event: StripEvent): StripState {
       )
         ? { ...state, active: event.entry }
         : state;
-    case "close-new-tab":
+    case "close": {
+      const keys = new Set(event.keys);
       return {
         ...state,
-        newTabs: state.newTabs.filter((key) => key !== event.key),
+        newTabs: state.newTabs.filter((key) => !keys.has(key)),
+        overrides: stripEntries(state).reduce(
+          (overrides, entry) =>
+            entry.kind === "tab" && keys.has(entry.id)
+              ? hideAsked(overrides, entry.id)
+              : overrides,
+          state.overrides,
+        ),
       };
+    }
     case "chosen":
       return {
         ...state,
@@ -375,8 +386,6 @@ function apply(state: StripState, event: StripEvent): StripState {
               ],
         active: event.tab,
       };
-    case "releasing":
-      return { ...state, overrides: hideAsked(state.overrides, event.tab) };
     case "released":
     case "release-failed":
       return {
@@ -410,9 +419,8 @@ function apply(state: StripState, event: StripEvent): StripState {
   }
 }
 
-/** The person's own × on an entry of the strip. */
-const closedByPerson = (event: StripEvent): boolean =>
-  event.kind === "close-new-tab" || event.kind === "releasing";
+/** The person's own × on an entry of the strip, or a close of its menu. */
+const closedByPerson = (event: StripEvent): boolean => event.kind === "close";
 
 /** The strip after `event`. When what the panel showed is gone from the
  * strip (closed, released, ended, or held no more), it shows the entry that
@@ -527,11 +535,13 @@ export function holdSucceeded(answer: NewTabAnswer): boolean {
 /** Why a hold failed, in Nová karta's words, and whether Zkusit znovu can
  * help: a tab that is gone (`gone` says it), an Environment without a
  * browser, or a Launchpad without its holder file cannot hold it by trying
- * again; a full holder can, once the person closed some tabs. */
+ * again; a full holder can, once the person closed some tabs. Any other
+ * reason the Launchpad gave is `failed`. */
 export function holdFailure(
   answer: NewTabAnswer,
   copy: NewTabCopy,
   gone: string = copy.holdGone,
+  failed: string = copy.holdFailed,
 ): Readonly<{ text: string; retry: boolean }> {
   const error = isRecord(answer.value) ? answer.value.error : undefined;
   if (answer.status === 404 && error === "not-found")
@@ -539,9 +549,22 @@ export function holdFailure(
   if (answer.status === 409 && error === "too-many-tabs")
     return { text: copy.holdFull, retry: true };
   return {
-    text: actionFailure(answer, copy.holdFailed, copy),
+    text: actionFailure(answer, failed, copy),
     retry: !isNoBrowser(answer) && error !== "holder-unavailable",
   };
+}
+
+/** Why Vrátit could not hold `failed` of a command's tabs again: as
+ * `holdFailure` says it, a tab that is gone as one Vrátit no longer brings
+ * back, for one tab or for several. */
+export function restoreFailure(
+  answer: NewTabAnswer,
+  copy: NewTabCopy,
+  failed: number,
+): Readonly<{ text: string; retry: boolean }> {
+  return failed > 1
+    ? holdFailure(answer, copy, copy.restoreTabsFailed, copy.holdTabsFailed)
+    : holdFailure(answer, copy, copy.restoreFailed);
 }
 
 /** The Launchpad let go of the tab: `POST /api/new-tab/release` answered
@@ -585,6 +608,63 @@ export function releaseText(
         ? last
         : `${places.join(", ")}${copy.placesAnd}${last}`,
   });
+}
+
+/** A tab the Launchpad lets go of ends, as the overview tells: no agent
+ * works in it and no other place holds it, so it closes in the Environment
+ * once nothing views it (`releaseText`'s "closes"). Nothing known of it: it
+ * ends. */
+const releaseEnds = (tab: Pick<StripTab, "agents" | "holders"> | null) =>
+  tab === null ||
+  (tab.agents.length === 0 &&
+    tab.holders.every((hold) => hold.strip === launchpadStrip));
+
+/** The Vrátit of one command of the strip, its × or a close of a tab's menu
+ * (F47 point 9's addendum of 2026-10-13): every tab the command let go of,
+ * in the strip's order; what happens to them, one in `releaseText`'s words,
+ * several as all closing, all staying or some of each; the one of them the
+ * panel showed, shown there again; and whether one of them ends, which a
+ * later command that ends none never takes away (`replacesUndo`). Null when
+ * the command let go of no tab, a Nová karta alone. */
+export function letGoUndo(
+  tabs: readonly Readonly<{
+    id: string;
+    tab: Pick<StripTab, "agents" | "holders"> | null;
+  }>[],
+  shown: string | null,
+  copy: NewTabCopy,
+): PendingUndo | null {
+  const [one, ...more] = tabs;
+  if (one === undefined) return null;
+  const ending = tabs.filter((entry) => releaseEnds(entry.tab)).length;
+  return {
+    tabs: tabs.map((entry) => entry.id),
+    text:
+      more.length === 0
+        ? releaseText(one.tab, copy)
+        : ending === tabs.length
+          ? copy.closingTabs
+          : ending === 0
+            ? copy.releasedTabsStay
+            : copy.releasedTabsSome,
+    shown: tabs.some((entry) => entry.id === shown) ? shown : null,
+    ends: ending > 0,
+  };
+}
+
+/** Why letting go of `failed` of a command's tabs failed, in Nová karta's
+ * words: the cause where the answer names it, else that the tab, or the
+ * tabs, could not be taken out of the Launchpad. */
+export function releaseFailure(
+  answer: NewTabAnswer,
+  copy: NewTabCopy,
+  failed: number,
+): string {
+  return actionFailure(
+    answer,
+    failed > 1 ? copy.releaseTabsFailed : copy.releaseFailed,
+    copy,
+  );
 }
 
 /** What Nová karta's choice shows in the Launchpad's panel: a page it opened

@@ -814,7 +814,10 @@ async function closeTab(tab: NewTabTab) {
   if (outcome.kind === "failed")
     say(actionFailure(answer, copy.closeFailed, copy));
   else if (outcome.undoUntil !== null)
-    setPending({ tab: tab.id, text, shown: false }, outcome.undoUntil);
+    setPending(
+      { tabs: [tab.id], text, shown: null, ends: true },
+      outcome.undoUntil,
+    );
   else if (answer.status === 202) say(text);
   drawOverview();
   void poll();
@@ -824,10 +827,13 @@ async function restore() {
   const closed = pending;
   if (closed === null) return;
   setPending(null);
-  const answer = await post("/api/new-tab/restore", { tab: closed.tab });
-  if (answer.status === 200)
-    overrides = withOverride(overrides, closed.tab, "shown", requests);
-  else say(actionFailure(answer, copy.restoreFailed, copy));
+  // One Zavřít closes one tab; Vrátit brings back what it closed.
+  for (const tab of closed.tabs) {
+    const answer = await post("/api/new-tab/restore", { tab });
+    if (answer.status === 200)
+      overrides = withOverride(overrides, tab, "shown", requests);
+    else say(actionFailure(answer, copy.restoreFailed, copy));
+  }
   drawOverview();
   void poll();
 }
