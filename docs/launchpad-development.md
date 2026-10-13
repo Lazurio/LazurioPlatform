@@ -1059,6 +1059,27 @@ no output carries the login. The company a module declares is still part of its
 transient unit's readable name (`applicationUnitName`), as it was in the resident's
 inventory.
 
+**What else the personal space offers ([F36's addendum of
+2026-10-13](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
+root decision 0185's addendum of 2026-10-13, #359).** Where the personal space is held
+(listed without a reason, above), its Apps home ends with a quiet section, "Co dalšího
+tu můžete dělat", with one tile each for Chat, Automate, Integrace and Soubory. It comes
+after the empty sentence or after the whole grid, never between tiles, and not while
+the first run's line shows. An Organization never has it.
+
+- `appsHomeParts` in `apps-view.ts` gives the order of the home: the empty sentence,
+  the sections, then the starts.
+- `personalStarts` gives the starts. Chat and Automate come from `switchTabs` over this
+  Environment's shell document, with their tab's address and name; a plain click sends
+  the tab's `lazurio-app`, so `ui.ts` pairs the browser on the way. Where the app does
+  not run (a workstation, or a personal Remote Environment without MausBot), the start
+  is muted with the tab's words. Integrace and Soubory are the column's routes
+  (`integrationsPath`, `filesUrlPath`) under the column's message keys.
+- `catalog-panel.ts` draws the section. `tests/apps-view.test.ts` checks the order, the
+  targets, the muted words and that `index.html`'s column has the same routes and keys.
+- The tile "+ Nový modul" and the prompt `new-personal-module` are not built yet: they
+  ship with the personal form of `lazurio module create` (plan DEV-6662).
+
 **Routes.** `/` is the first Organization's Apps home; `/o/<org>` one Organization's
 Apps home, its sections Workspace and Productionspace (F36, F32's final addendum);
 `/o/<org>/<module>` one module (Organization, apps with the default marked,

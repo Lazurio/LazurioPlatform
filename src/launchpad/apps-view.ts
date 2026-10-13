@@ -1,3 +1,4 @@
+import { filesUrlPath } from "../files/rules";
 import type {
   Catalog,
   CatalogModule,
@@ -11,6 +12,7 @@ import {
   semanticAppIconKey,
   stoneOf,
 } from "../shell/stones";
+import type { SwitchTab } from "../shell/view";
 import {
   type CatalogGroupEntry,
   type CatalogModuleEntry,
@@ -27,7 +29,7 @@ import {
 } from "./favorites";
 import { moduleOrigin } from "./hosted-entry";
 import type { MessageKey } from "./messages";
-import type { PageRoute } from "./routes";
+import { integrationsPath, type PageRoute } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
@@ -41,8 +43,10 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // one that cannot start and a repository only say so in a short message. Its
 // "⋯" menu stars it, leads to the module's overview (a repository's GitHub
 // page) and, for the Organization's Owners and Stewards, to the module's
-// access in the Dashboard. Favourites come first, in the column's order. The
-// DOM lives in catalog-panel.ts.
+// access in the Dashboard. Favourites come first, in the column's order. In
+// the personal space its holder sees, a quiet section of links into Chat,
+// Automate, Integrace and Soubory follows everything else (root decision
+// 0185's addendum of 2026-10-13). The DOM lives in catalog-panel.ts.
 
 /** The groups the Apps home offers (Organizations, then the Personalspace
  * group), in the catalog's order. */
@@ -365,6 +369,138 @@ export function appsSections(
             tiles: favoritesFirst(tiles.repositories, favorites),
           },
   );
+}
+
+/** One way into what the personal Environment does, in the app that owns it
+ * (root decision 0185's addendum of 2026-10-13, the wireframe's
+ * `personalStarts`, prototypes-lazurio c0fa0e92): a link, never a copy of
+ * that app's interface. */
+export type PersonalStart = Readonly<{
+  /** Which one; the order is fixed. */
+  key: "chat" | "automate" | "integrations" | "files";
+  /** Its name, the words of the place it is reached from otherwise: the
+   * switch's tab, the column's item. */
+  name: string;
+  /** What to do there; where the app does not run here, the switch's own
+   * sentence why. */
+  text: string;
+  /** An app of the switch, whose plain click announces `lazurio-app` as its
+   * tab does (ui.ts pairs the browser on the way); a route of this page, as
+   * the column's item; null where the app does not run here (muted). */
+  target:
+    | Readonly<{ kind: "app"; app: "chat" | "automate"; href: string }>
+    | Readonly<{ kind: "route"; href: string }>
+    | null;
+}>;
+
+/** The starts of the personal space, in their order: Chat and Automate as
+ * the switch of this Environment has them (`switchTabs`, the column head's
+ * own), so a start never leads elsewhere than its tab, and is muted with
+ * the tab's words where the app does not run here; Integrace and Soubory as
+ * the column's items, by their routes and words. None until the switch is
+ * known (the shell document is not read yet). */
+export function personalStarts(
+  tabs: readonly SwitchTab[],
+  copy: Copy,
+): readonly PersonalStart[] {
+  const app = (
+    key: "chat" | "automate",
+    text: string,
+  ): PersonalStart | null => {
+    const tab = tabs.find((entry) => entry.app === key);
+    if (tab === undefined) return null;
+    return tab.href === null
+      ? { key, name: tab.label, text: tab.missing ?? "", target: null }
+      : {
+          key,
+          name: tab.label,
+          text,
+          target: { kind: "app", app: key, href: tab.href },
+        };
+  };
+  const chat = app("chat", copy.appsStartsChat);
+  const automate = app("automate", copy.appsStartsAutomate);
+  if (chat === null || automate === null) return [];
+  return [
+    chat,
+    automate,
+    {
+      key: "integrations",
+      name: copy.integrationsTitle,
+      text: copy.appsStartsIntegrations,
+      target: { kind: "route", href: integrationsPath() },
+    },
+    {
+      key: "files",
+      name: copy.filesTitle,
+      text: copy.appsStartsFiles,
+      target: { kind: "route", href: filesUrlPath([]) },
+    },
+  ];
+}
+
+/** What the Apps home of one group shows under its head, the first run's
+ * line and the group's status, in this order (catalog-panel.ts draws it):
+ * the plain sentence of an empty space, the sections, and in the personal
+ * space its holder sees, the starts after everything else, never between
+ * tiles (root decision 0185's addendum of 2026-10-13). */
+export type AppsHomePart =
+  | Readonly<{ kind: "empty"; text: string }>
+  | Readonly<{ kind: "section"; section: AppsSection }>
+  | Readonly<{
+      kind: "starts";
+      title: string;
+      starts: readonly PersonalStart[];
+    }>;
+
+export function appsHomeParts(
+  catalog: Catalog,
+  group: CatalogGroupEntry,
+  copy: Copy,
+  input: Readonly<{
+    entry: PublicEntry | null;
+    favorites: readonly string[];
+    /** Whether the first run's line shows (root decision 0188): it says
+     * what is next, so neither the sentence nor the starts do. */
+    setup: boolean;
+    /** The switch of this Environment (`switchTabs`); empty until the shell
+     * document is read. */
+    tabs: readonly SwitchTab[];
+  }>,
+): readonly AppsHomePart[] {
+  const sections = appsSections(
+    catalog,
+    group,
+    copy,
+    input.entry,
+    input.favorites,
+  );
+  // A group listed with a reason says it in its status line, and the
+  // catalog lists the personal space without one only where this
+  // Environment's GitHub account holds it (#186).
+  const quiet = group.organization.reason === undefined && !input.setup;
+  const starts =
+    group.sections === null && quiet ? personalStarts(input.tabs, copy) : [];
+  return [
+    // Plain words for an empty space (the wireframe, Matěj and Anička
+    // 2026-10-04): the personal space is simply empty; in an Organization
+    // the person has no module here yet and whom to ask.
+    ...(sections.length === 0 && quiet
+      ? [
+          {
+            kind: "empty" as const,
+            text:
+              group.sections === null
+                ? copy.catalogPersonalspaceEmpty
+                : copy.catalogNoModules,
+          },
+        ]
+      : []),
+    ...sections.map((section) => ({ kind: "section" as const, section })),
+    ...(starts.length === 0
+      ? []
+      : [{ kind: "starts" as const, title: copy.appsStartsTitle, starts }]),
+  ];
 }
 
 /** The favourites of the Apps column, in their order, only those this

@@ -5,7 +5,8 @@ import type {
   CatalogOrganization,
 } from "../organizations/catalog";
 import { catalogOrganizationKey } from "../organizations/catalog-selection";
-import { initialsOf } from "../shell/view";
+import { icon } from "../shell/icons";
+import { initialsOf, type SwitchTab } from "../shell/view";
 import {
   type Account,
   type AccountFavourites,
@@ -14,12 +15,13 @@ import {
 } from "./account";
 import { appLinkTarget, startThenOpen } from "./app-opening";
 import {
+  type AppsHomePart,
   type AppsSection,
   type AppsTile,
   appsHeading,
+  appsHomeParts,
   appsScope,
   appsScopes,
-  appsSections,
   appsSpaceOf,
   favoriteTiles,
   moduleAccessTarget,
@@ -27,6 +29,7 @@ import {
   moduleName,
   moduleStone,
   newModulePrompt,
+  type PersonalStart,
   type TileTarget,
   tileTarget,
 } from "./apps-view";
@@ -101,8 +104,11 @@ export type HomeEnvironment = Readonly<{
 // to the module's access in the Organization's Dashboard (S15). Favourites
 // are the account's (S12) when it can be read, else this browser's. Where this
 // Environment's GitHub identity is an Owner of the Organization, Workspace
-// ends with "+ Nový modul". Teams are shown nowhere (decision F32). Every
-// value from the server is drawn with textContent.
+// ends with "+ Nový modul". In the personal space its holder sees, "Co
+// dalšího tu můžete dělat" follows everything else: links into Chat,
+// Automate, Integrace and Soubory (root decision 0185's addendum of
+// 2026-10-13). Teams are shown nowhere (decision F32). Every value from the
+// server is drawn with textContent.
 export function createCatalogPanel(
   options: Readonly<{
     post: (
@@ -147,6 +153,10 @@ export function createCatalogPanel(
     /** The Dashboard page of an Organization slug, as the shell document
      * names it, or null. */
     dashboard: (slug: string) => string | null;
+    /** The switch Chat · Apps · Automate of this Environment as the column
+     * head draws it (`switchTabs`), for the personal space's starts; empty
+     * until the shell document is read. */
+    tabs: () => readonly SwitchTab[];
     /** The catalog the page already carries (its boot document, F36's
      * addendum of 2026-10-08): drawn at once, without a first read. */
     catalog?: Catalog | null;
@@ -928,33 +938,93 @@ export function createCatalogPanel(
       group.organization.reason !== undefined
     )
       parts.push(statusLine(group.status));
-    const sections = appsSections(
-      value,
-      group,
-      copy,
-      options.entry(),
-      favoritesOf(group),
-    );
     const owner = ownerOf(value, group);
-    if (
-      sections.length === 0 &&
-      group.organization.reason === undefined &&
-      setup === null
-    )
-      // Plain words for an empty space (the wireframe, Matěj and Anička
-      // 2026-10-04): the personal space is simply empty; in an
-      // Organization the person has no module here yet and whom to ask.
+    // The rest in the order appsHomeParts gives: the plain sentence of an
+    // empty space, the sections, and the personal space's starts last.
+    for (const part of appsHomeParts(value, group, copy, {
+      entry: options.entry(),
+      favorites: favoritesOf(group),
+      setup: setup !== null,
+      tabs: options.tabs(),
+    }))
       parts.push(
-        element(
-          "p",
-          "intro",
-          group.sections === null
-            ? copy.catalogPersonalspaceEmpty
-            : copy.catalogNoModules,
-        ),
+        part.kind === "empty"
+          ? element("p", "intro", part.text)
+          : part.kind === "section"
+            ? section(part.section, group, owner)
+            : startsSection(part),
       );
-    parts.push(...sections.map((part) => section(part, group, owner)));
     return parts;
+  }
+
+  // "Co dalšího tu můžete dělat" (root decision 0185's addendum of
+  // 2026-10-13, #359): after the personal space's modules, a quiet title,
+  // never a third section pill, over one tile per start. Each is only a link
+  // into the app that owns it. Chat and Automate are the switch's own
+  // links: a plain click announces `lazurio-app` as their tab does, so the
+  // page pairs the browser on the way (ui.ts); Integrace and Soubory move
+  // within the page as the column's items do. A start whose app does not run
+  // here is no link: muted, it says why in the switch's words.
+  function startsSection(
+    part: Extract<AppsHomePart, { kind: "starts" }>,
+  ): HTMLElement {
+    const box = element("section", "apps-starts");
+    box.dataset.section = "starts";
+    const title = element("h2", "apps-starts-title", part.title);
+    title.id = "apps-starts-title";
+    box.setAttribute("aria-labelledby", title.id);
+    const grid = element("div", "tile-grid");
+    grid.append(...part.starts.map(startTile));
+    box.append(title, grid);
+    return box;
+  }
+  function startTile(start: PersonalStart): HTMLElement {
+    const mark = element("span", "tile-mark tile-mark--app");
+    mark.setAttribute("aria-hidden", "true");
+    if (start.key === "chat" || start.key === "automate") {
+      // The switch's own glyph of the app.
+      const glyph = icon(start.key, 22);
+      glyph.classList.add("icon");
+      mark.append(glyph);
+    } else mark.append(svg(start.key === "files" ? "folder" : start.key));
+    const text = element("span", "tile-body");
+    text.append(
+      element("span", "tile-name", start.name),
+      element("span", "tile-desc", start.text),
+    );
+    const target = start.target;
+    let node: HTMLElement;
+    if (target === null) {
+      node = element("span", "tile tile--off");
+      node.setAttribute("aria-disabled", "true");
+    } else if (target.kind === "route") node = routeLink(target.href, "tile");
+    else {
+      const link = element("a", "tile");
+      link.href = target.href;
+      link.addEventListener("click", (event) => {
+        if (
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        )
+          return;
+        const announced = link.dispatchEvent(
+          new CustomEvent("lazurio-app", {
+            detail: { app: target.app, href: target.href },
+            bubbles: true,
+            composed: true,
+            cancelable: true,
+          }),
+        );
+        if (!announced) event.preventDefault();
+      });
+      node = link;
+    }
+    node.dataset.start = start.key;
+    node.append(mark, text);
+    return node;
   }
 
   // A slug more than one candidate declares: their isolation, never one of

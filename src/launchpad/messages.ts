@@ -484,6 +484,13 @@ const en = {
   appsDescriptionSystem: "Operations tools and technical infrastructure.",
   appsDescriptionDefault:
     "An application for day-to-day work in the {module} module.",
+  // The personal space's links after its modules (root decision 0185's
+  // addendum of 2026-10-13); the names are the switch's and the column's.
+  appsStartsTitle: "What else you can do here",
+  appsStartsChat: "Give the agent its first task",
+  appsStartsAutomate: "Set up what should happen on its own",
+  appsStartsIntegrations: "Connect your mail and calendar",
+  appsStartsFiles: "Upload documents for the agents",
   // The Apps home and column of the Organization rail (decision F36
   // addendum of 2026-10-04): the wireframe's words.
   appsSayNoApp: "The module {name} has no app yet.",
@@ -1881,6 +1888,13 @@ const cs: Record<MessageKey, string> = {
   appsDescriptionApp: "Pracovní podklady a soubory tohoto modulu.",
   appsDescriptionSystem: "Provozní nástroje a technické zázemí.",
   appsDescriptionDefault: "Aplikace pro každodenní práci v modulu {module}.",
+  // The personal space's links after its modules (root decision 0185's
+  // addendum of 2026-10-13); the names are the switch's and the column's.
+  appsStartsTitle: "Co dalšího tu můžete dělat",
+  appsStartsChat: "Zadejte agentovi první úkol",
+  appsStartsAutomate: "Nastavte, co se má dít samo",
+  appsStartsIntegrations: "Připojte poštu a kalendář",
+  appsStartsFiles: "Nahrajte podklady pro agenty",
   // The Apps home and column of the Organization rail (decision F36
   // addendum of 2026-10-04): the wireframe's words.
   appsSayNoApp: "Modul {name} zatím nemá aplikaci.",
