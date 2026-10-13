@@ -38,6 +38,18 @@ a malformed answer all deny. Admission answers "this session may enter this
 workspace"; it names no Operator for provider operations and grants no repository
 right.
 
+**The admitted session's subject** ([F11's amendment of
+2026-10-14](decisions.md#f11--hosted-admission-is-not-identity)). The endpoint's own
+answer to that revalidation names the session's person in `X-Auth-Request-User`: the
+Environment gateway's oauth2-proxy runs with `set_xauthrequest = true` and its user
+claim is the identity provider's `sub`, the Lazurio account's immutable id; Caddy
+strips only `X-Auth-Request-Access-Token` from the bare hostname's `/oauth2/*`. The
+Launchpad accepts only a lowercase UUID there and keeps it with the cached admission;
+a header of the request itself still names nobody. Its one use is the membership of
+the Environment's own vault, whose access is access to the Environment (root decision
+0198 point 2, [F52's addendum of
+2026-10-14](decisions.md#f52-addendum-of-2026-10-14-nastavení--trezor-and-the-správci)).
+
 ## Lazurio Account
 
 Account login (OIDC) is added when the Launchpad needs a **named person** or

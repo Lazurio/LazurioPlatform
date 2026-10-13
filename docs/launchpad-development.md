@@ -827,6 +827,7 @@ look and open from the gear beside the column head's Environment picker (second
 iteration, 2026-10-04; the first target had the gear in the rail).
 
 **Routes.** `/settings/general`, `/settings/machine`, `/settings/tools`,
+`/settings/vault` ([Vault, Nastavení → Trezor](#vault-nastavení--trezor)),
 `/settings/ssh` ([SSH from your devices](#ssh-from-your-devices)) and
 `/settings/recovery` (the read-only [Recovery page](recovery.md#the-recovery-page)); `/settings`
 and an unknown section open General and the address bar is rewritten to the canonical
@@ -2115,6 +2116,28 @@ options prefix refused beside the key field, a key `ssh-keygen` had just created
 two-step Remove, a key added outside Launchpad shown without Remove, a 390 px wide
 screen, and Czech, without page errors. A real Remote Environment, its network grant and
 `ssh <alias> true` from a device are not part of that check.
+
+## Vault (Nastavení → Trezor)
+
+Settings → Vault ([F52's addendum of
+2026-10-14](decisions.md#f52-addendum-of-2026-10-14-nastavení--trezor-and-the-správci),
+root decision 0198 point 5, the wireframe's `EnvVault` of prototypes-lazurio#33) is the
+way into the Environment's own vault, which is Lazurio Vaultwarden's web vault on its own
+address: the rule, one row with the vault's name and state, and the actions the person's
+membership decides ("Přidat položku" and "Otevřít trezor", or "Vytvořit účet v trezoru").
+The Launchpad never lists items or shows a value. The routes are
+`src/launchpad/vault-page-routes.ts` (`GET /api/vault`, `POST /api/vault/membership`),
+over the vault's core (`src/vault/flow.ts`, `src/vault/members.ts`); the page's pure part
+is `src/launchpad/vault-page-view.ts` (`tests/vault-page-view.test.ts`) and its DOM
+`src/launchpad/vault-page-panel.ts`. On first view the page reads its model, then asks
+the vault itself (the Tools row's `POST /api/tools/bitwarden/refresh`) and where the
+person stands, and asks about the person again when its tab is shown again while they
+had no account. A hidden `#vault-requests` group above the row is the slot of the
+agents' secret requests (DEV-6631 task 651). The person is the subject the gateway's own
+answer to the request's admission named (`src/launchpad/hosted-trust.ts`); a workstation
+names nobody and has no vault. HTTP behaviour is tested in
+`tests/launchpad-vault-page.test.ts` behind a fake gateway with the fake Vaultwarden and
+the fake bw of `tests/fixtures/fake-vault.ts`.
 
 ## Files page
 
