@@ -1226,3 +1226,66 @@ test("a chat without network asks for full access instead of reporting the appli
       );
     }
 });
+
+// How a secret reaches the agents (root decision 0198 point 9, DEV-6631 task
+// 652): never through chat or a file. On a Remote Environment the manual
+// gives the order a, b, c and the enabled `bitwarden` tool the commands; this
+// computer has no vault yet, so its manual names none.
+test("secrets reach agents by the paths a, b and c on a Remote Environment, never through chat or a file", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+        tools: journey.preset === "local" ? [] : ["bitwarden"],
+      });
+      const working = outputs["manual/working-here.md"];
+      const machine = outputs["manual/this-machine.md"];
+      expect(working).toContain(
+        locale === "cs"
+          ? "**O tajemství nikdy nežádej v chatu** a neber ho ze souboru ani ze zprávy."
+          : "**Never ask for a secret in chat,** and never take one from a file or a message.",
+      );
+      if (journey.preset === "local") {
+        expect(working).not.toContain("lazurio vault");
+        continue;
+      }
+      // The manual: the vault's state checked again, then a, b and c in
+      // this order.
+      const steps = [
+        "`lazurio vault status`",
+        locale === "cs"
+          ? "rozšíření Bitwarden, požádej člověka, ať se ke službě přihlásí tam"
+          : "has the Bitwarden extension, ask the person to sign in to the service there",
+        locale === "cs"
+          ? "vytvořit sám v přihlášené relaci"
+          : "create the secret yourself in a signed-in session",
+        "`lazurio vault request`",
+        "`lazurio vault request status <id>`",
+      ].map((step) => working.indexOf(step));
+      expect([journey.preset, locale, steps.includes(-1)]).toEqual([
+        journey.preset,
+        locale,
+        false,
+      ]);
+      expect(steps).toEqual([...steps].sort((a, b) => a - b));
+      // The tool: the commands of each path, the item never on argv.
+      for (const command of [
+        "`lazurio vault status`",
+        'eval "$(lazurio vault env)"',
+        "`bw create item`",
+        "`lazurio vault request --item",
+        "--field <",
+        "`lazurio vault request status <id>`",
+      ])
+        expect([locale, command, machine.includes(command)]).toEqual([
+          locale,
+          command,
+          true,
+        ]);
+      expect(machine).toContain(
+        locale === "cs" ? "nikdy jako argument" : "never as an argument",
+      );
+    }
+});
