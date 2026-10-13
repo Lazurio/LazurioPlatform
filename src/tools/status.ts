@@ -117,7 +117,7 @@ export type ToolStatus = Readonly<{
   version?: string;
   versionOutput?: string;
   versionError?: string;
-  updater: "self" | "installer" | "none";
+  updater: "self" | "installer" | "curated" | "none";
   source: string;
   /** Decision 0161 point 6: the tool's PATH entry is `~/.local/bin/<name>`. */
   standardPath?: boolean;

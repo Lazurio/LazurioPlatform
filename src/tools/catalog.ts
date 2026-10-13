@@ -1,17 +1,22 @@
 import { executorPin } from "../executor/pin";
 import type { PresetName } from "../folder/presets";
 import { bitwardenPin } from "../vault/pin";
+import { composioBuild } from "./composio-build";
 import { toolNoteProblem } from "./note";
 
 // The operator's tools that `lazurio tools` reports and, on instruction, updates
 // (decision 0161 / F17, docs/environment-tools.md). A thin orchestration of each
 // tool's OFFICIAL update path: the tool's own updater where it has one, the
 // vendor's installer script where that is the documented path, and only a
-// report with the official source where neither exists. Nothing here pins,
-// downgrades or chooses a package manager.
+// report with the official source where neither exists. Nothing here
+// downgrades on its own or chooses a package manager. The one pin is a
+// tool whose update is its curated installer at the build Lazurio pins
+// (`curated`: composio, decision F42 addendum (3)), which the update installs
+// whatever version runs now.
 export type ToolUpdater =
   | Readonly<{ kind: "self"; argv: readonly string[] }>
   | Readonly<{ kind: "installer"; posix: string; windows: string }>
+  | Readonly<{ kind: "curated" }>
   | Readonly<{ kind: "none" }>;
 
 // What makes a catalog tool part of an Environment's agent instructions
@@ -271,7 +276,12 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     command: "composio",
     versionArgs: ["--version"],
     source: "https://docs.composio.dev/docs/cli",
-    updater: { kind: "self", argv: ["upgrade"] },
+    // Lazurio's build (decision F42 addendum (3), `composioBuild`): the
+    // update runs the curated installer again at that build. Never
+    // `composio upgrade`: it installs the highest release it finds by semver
+    // (Composio's own from Composio's CLI, a newer one of the fork from the
+    // build), not the pinned one, and the CLI's skill for Claude Code.
+    updater: { kind: "curated" },
     activation: {
       tier: "recommended",
       setup: "launchpad",
@@ -287,10 +297,13 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
         },
         signedOut: "not logged in",
       },
-      installation: installation(
-        "Cílový stav: `composio` ve standardní cestě `~/.local/bin/composio`, nainstalované oficiálním instalátorem podle https://docs.composio.dev/docs/cli; instalátor si smí držet vlastní domov a do `~/.local/bin` vede jen link nebo wrapper. Operátor se přihlásí příkazem `composio login` a odkaz, který příkaz vrátí, otevře ve svém prohlížeči; jednotlivé aplikace pak člověk připojuje v Launchpadu v Apps → Integrace. Přihlášení platí pro celý tenhle Environment. Důkaz: `composio --version` odpoví a `composio whoami` skončí kódem 0 a jmenuje zamýšlený účet.",
-        "Target state: `composio` in the standard path `~/.local/bin/composio`, installed by the official installer per https://docs.composio.dev/docs/cli; the installer may keep its own home, with only a link or wrapper in `~/.local/bin`. The Operator signs in with `composio login` and opens the link the command returns in their browser; the person then connects single applications in the Launchpad under Apps → Integrations. The sign-in holds for this whole Environment. Proof: `composio --version` answers and `composio whoami` exits 0 and names the intended account.",
-      ),
+      // Lazurio's build is the target state, so a working `composio` of
+      // another build is replaced, only by that build and with the
+      // Operator's consent: its "Never" says so instead of the general one.
+      installation: {
+        cs: `Cílový stav: \`composio\` ve standardní cestě \`~/.local/bin/composio\` je sestavení, které připíná Lazurio (${composioBuild.version}, vydání \`${composioBuild.tag}\` forku https://github.com/${composioBuild.owner}/${composioBuild.repository}: oficiální Composio CLI se dvěma změnami, které potřebují Apps → Integrace). Nainstaluje ho \`lazurio tools install composio\`: instalátor Composia z forku Lazuria, připnutý na commit, s vydáním forku, bez pluginů agentů a beze změn shellu; svůj domov má v \`~/.composio\` a do \`~/.local/bin\` vede jen link. Fungující \`composio\` jiného sestavení vymění za připnuté jen \`lazurio tools update composio\` (v Launchpadu Nastavení → Nástroje → Aktualizovat), a to se souhlasem Operátora; přihlášení zůstane. Operátor se přihlásí příkazem \`composio login\` a odkaz, který příkaz vrátí, otevře ve svém prohlížeči; jednotlivé aplikace pak člověk připojuje v Launchpadu v Apps → Integrace. Přihlášení platí pro celý tenhle Environment. Důkaz: \`composio --version\` vypíše ${composioBuild.version} a \`composio whoami\` skončí kódem 0 a jmenuje zamýšlený účet. Nikdy: tajemství (token, heslo, klíč, kód) v chatu, Gitu ani logu; druhá instalace téhož nástroje; downgrade nebo přeinstalace fungujícího \`composio\` jinak než na připnuté sestavení a se souhlasem Operátora; jiné sestavení \`composio\` než připnuté.`,
+        en: `Target state: \`composio\` in the standard path \`~/.local/bin/composio\` is the build Lazurio pins (${composioBuild.version}, the release \`${composioBuild.tag}\` of the fork https://github.com/${composioBuild.owner}/${composioBuild.repository}: Composio's official CLI with two changes Apps → Integrations needs). \`lazurio tools install composio\` installs it: Composio's installer from Lazurio's fork, pinned to a commit, with the fork's release, without agent plugins and without shell changes; it keeps its home in \`~/.composio\`, with only a link in \`~/.local/bin\`. A working \`composio\` of another build is replaced by the pinned one only by \`lazurio tools update composio\` (in the Launchpad Settings → Tools → Update), with the Operator's consent; the sign-in stays. The Operator signs in with \`composio login\` and opens the link the command returns in their browser; the person then connects single applications in the Launchpad under Apps → Integrations. The sign-in holds for this whole Environment. Proof: \`composio --version\` prints ${composioBuild.version} and \`composio whoami\` exits 0 and names the intended account. Never: a secret (token, password, key, code) in chat, Git or a log; a second installation of the same tool; a downgrade or reinstall of a working \`composio\` other than to the pinned build and with the Operator's consent; a build of \`composio\` other than the pinned one.`,
+      },
       purpose: {
         cs: "Composio CLI pro externí aplikace (pošta, kalendář, chat a další) napojené pro celý tenhle Environment.",
         en: "Composio CLI for external applications (mail, calendar, chat and others) connected for this whole Environment.",
