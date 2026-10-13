@@ -4263,7 +4263,9 @@ each of its origins.
    the same text applies to `:host`. Matěj allowed publishing these brand assets in this
    public repository. The rail, the switch and the Launchpad page take every colour,
    type and radius from these tokens. The page is light only: the design system has no
-   dark mode yet.
+   dark mode yet. *(Since the addendum of 2026-10-13 below, the shell also declares the
+   file's `--lz-*` custom properties on the root of an app's document that has none,
+   marked `data-lazurio-theme="light"`, for the T3 Code fork's mapping.)*
 7. **The Launchpad on the shell** (`src/launchpad/`): rail | left column | main, no top
    bar. In Apps the column holds the switch, the search, "All modules", "Files" (F35)
    and one Organization's modules under Workspace and its production repositories,
@@ -5104,6 +5106,143 @@ later one, 1.16 MB each time; now nothing until the final page at 0.50 s and 0.1
 the later load 101 KB (the page's HTML and data). Settings → Nástroje, hosted: 2.60 s
 before, 0.62 s now. A workstation's Apps: 2.37 s before, 0.28 s now. These are no
 rendered-page CI gates (root decision 0178).
+
+**Addendum 2026-10-13 (root decision 0200, plan DEV-6646): the shell declares the design
+system's tokens in the app's document.** Root decision 0200 (HumanAndMachines/Lazurio#539)
+makes Chat the distribution "Lazurio T3 Code": on a Lazurio Environment, T3 Code's standard
+light look takes the design system's colours, type and radii. The shell provides the
+design system's tokens on the root of the app's document, as an addition to interface v1;
+the fork maps them onto T3 Code's own tokens in one stylesheet, and without Lazurio's shell
+T3 Code looks as upstream. A design system change then reaches the forks with a Platform
+release, without one of theirs. The Platform release with the tokens reaches the
+Environments before the fork release that uses them. MausBot does not change (0200
+point 5).
+
+1. **What the shell declares.** `defineShellElements`, which `/.lazurio/shell.js` calls
+   when it loads, declares the design system's tokens beside the brand fonts it has always
+   declared (`installShellTokens`, `src/shell/tokens.ts`): one `<style
+   data-lazurio-tokens>`, first in `<head>`, with the vendored `tokens.css` as it is,
+   without its comments. It then marks the root `<html data-lazurio-theme="light">`. The
+   text is the vendored file, so a new copy of the design system needs no second edit.
+   The shell relies on the file's shape here as it already does for the elements
+   (`base-styles.ts` applies the same text to `:host`): exactly one top-level `:root`
+   rule whose declarations are all `--lz-*` custom properties. `tests/shell-tokens.test.ts`
+   holds that shape and fails on any rule for an element, `::selection`, an at-rule, a
+   second selector or a standard property, saying what to do: keep the design system's
+   file to its tokens, or change how the shell injects them. So nothing but the tokens
+   reaches the app's document, and the app's look changes only through its own mapping.
+   The script carries the vendored text once, for the elements and the document alike
+   (`design-tokens.ts`).
+2. **Once, and never over a document's own tokens.** A second load of the script finds
+   its style and adds nothing. A document whose root already resolves any of the file's
+   names gets neither the style nor the mark: the Launchpad page, which bundles the same
+   `defineShellElements` and links `tokens.css` itself, and the Dashboard, which vendors
+   the file, are left exactly as they are. Should a page's own tokens arrive after the
+   script, its stylesheet stands after the shell's, so its values win. The root is marked
+   only where the tokens hold: under a policy that refuses inline styles the style is
+   refused, the root stays unmarked, and a fork's mapping never points at undeclared
+   names.
+3. **The mark.** `data-lazurio-theme` names the design system's theme the root carries,
+   beside the host's `data-lazurio-shell` and `data-lazurio-account`; T3 Code's own
+   theme is `data-theme-id`. The value is `light`: the design system has light tokens
+   only ("Dark UI není součástí kontraktu"). A dark palette, or the Environment's theme of
+   0187 point 5, can come as a new value in v1, where a boolean mark would need a rename
+   or a second attribute.
+4. **The elements do not change.** Each element declares the same tokens on its own
+   `:host` (F36 point 6), so a value on the document's root, the shell's or a page's own,
+   never reaches its shadow tree, and its colours stay the app's roles (the colour
+   addendum of 2026-10-04, root decision 0187) over the design system's values. The rail,
+   the column head, `<lazurio-environment>`, `<lazurio-new-tab>` (whose frame is a page
+   with its own tokens) and the reserved `<lazurio-buddy>` draw as before.
+5. **The fork's side** (`Lazurio/t3code`, its own task): one stylesheet writes T3 Code's
+   raw tokens from the promised names (point 6) and in its sidebar's scope, under a
+   selector that matches the mark's value:
+   `:root[data-lazurio-theme="light"]:not([data-theme-id]):not(.dark)`. A later value of
+   the mark never takes a mapping written for these tokens, and a theme the person picks
+   and the dark mode keep T3 Code's palettes. Without the shell nothing matches, and T3
+   Code looks as upstream.
+6. **What a fork may rely on.** The mark and its value; while the mark is set, the
+   token names `declares.tokens` lists, declared on the root and inherited by the whole
+   document; and the font faces (point 7). The list is what T3 Code's mapping needs:
+   `--lz-surface`, `--lz-paper`, `--lz-ink`, `--lz-ink-muted`, `--lz-line`,
+   `--lz-accent`, the black buttons `--lz-accent-button`, `--lz-accent-button-hover` and
+   `--lz-on-accent`, the grey steps `--lz-gray-50` and `--lz-gray-100`, the signal
+   colours `--lz-red-500`, `--lz-danger`, `--lz-danger-bg`, `--lz-warning`,
+   `--lz-warning-bg`, `--lz-green-500`, `--lz-success`, `--lz-info` and `--lz-info-bg`,
+   the type `--lz-font-sans` and `--lz-font-mono`, and the controls' radius
+   `--lz-radius-sm`. The shell declares every token of the file,
+   but only these names are promised, never their values: the design system may change
+   any value, and add, rename or drop any other name, with a Platform release and no
+   interface decision. A fork uses only listed names, with a fallback where it makes
+   sense (T3 Code's own value: `var(--lz-surface, …)`), and never relies on another
+   style of the shell in the document (there is none), on the tokens or the mark on a
+   page that declares the tokens itself, or on a dark palette. Adding a name to the list
+   is an addition to v1; dropping or renaming a listed one is a new version, announced to
+   the forks first. `tests/shell-interface.test.ts` pins the list, and
+   `tests/shell-tokens.test.ts` fails when the vendored file lacks a listed name.
+7. **The font faces join the promise.** The shell has declared them in the document since
+   the first build (`installShellFonts`), because a face declared in a shadow root does
+   not apply; now a fork may rely on them: Inter Tight Variable (weights 100 to 900) and
+   Geist Mono (400), Latin and Latin Extended, from `/.lazurio/fonts/` on the document's
+   origin, `font-display: swap`, declared once and not at all where the document has
+   `style[data-lazurio-fonts]`. So `--lz-font-sans` and `--lz-font-mono` resolve to the
+   self-hosted faces in a fork's document.
+8. **Version.** Interface v1 only grows (`src/shell/interface.ts`, `declares`): the font
+   families, the promised token names and the mark with its value. Nothing is renamed or
+   removed, so the version stays 1, and so does the shell artifact's `interface`. MausBot
+   loads the same script and gets the same tokens and mark; nothing of MausBot reads
+   them, so it looks as before until its fork opts in with a mapping of its own.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The fork vendors `tokens.css` itself (V1 of the plan) | Every design system change needs a fork release, and the copies drift; not chosen by root decision 0200 |
+| An Environment theme for T3 Code (`t3 theme set`) | Colours only, no type or radii, a flash on every load, and each set resets the person's pick; not this decision |
+| A parser that takes only the `:root` rule's custom properties from any stylesheet | Our own machinery for a file we vendor ourselves, while the elements already rely on its shape; rejected for a test that holds the shape |
+| Every name of the vendored file promised | Each design system cleanup would become an interface decision; rejected for the names T3 Code's mapping needs |
+| Tokens without a mark | A fork could not tell where the shell declared them: its mapping would also match where the names are undeclared; rejected |
+| A boolean mark, or `data-lazurio-tokens` | A dark palette or the Environment's theme would need a rename or a second attribute; rejected for `data-lazurio-theme="light"` |
+| Inline `style` on `<html>`, or a constructed sheet in `document.adoptedStyleSheets` | Both win over the document's own stylesheets, so a page's own tokens would lose; the inline style also writes into the attribute the apps and Nová karta's observer watch; rejected |
+| Declared from `src/shell/index.ts` only | The Launchpad page bundles `defineShellElements` and would follow another rule than every other page; rejected for one place beside the fonts |
+| One `<style data-lazurio-tokens>` first in `<head>` with the vendored file without its comments, its shape held by a test, `data-lazurio-theme="light"` where the tokens hold, nothing on a page that has them, and a short list of promised names (selected) | Inert without the shell; the design system's changes ship with the Platform; a page's own tokens always win; the design system stays free to change what no fork maps |
+
+Verified by unit tests (`tests/shell-tokens.test.ts`, `tests/shell-interface.test.ts`):
+the vendored file, without its comments, is exactly one `:root` rule of `--lz-*` custom
+properties, and the document gets that text; the shape check refuses a rule on `html` or
+`body`, `::selection`, a class, `@font-face`, `@media`, `@layer`, `@import`, a selector
+list, a standard property, a custom property outside `--lz-*` and a nested rule; every
+promised name is declared, and the list is shorter than what the shell declares; on a
+stand-in document, one style first in the head and the mark once, nothing more on later
+loads, nothing where the root resolves all, the first or only the last of the names,
+once without a window, and no mark where the style is refused; the rail, the column
+head and `<lazurio-environment>` declare on their `:host` exactly what the document
+gets, and nothing after it declares a token again; the fonts' families are those the
+tokens name first; interface v1 with `declares`. Eleven guards (the comments stripped,
+the marker, the document's own tokens, any one of its names, the mark under a refused
+style, first in the head, the mark's value, the call in `defineShellElements`, the
+tokens on `:host`, a token declared again after them, a listed name) were each broken
+once on purpose, and each time a test failed. A vendored copy with a rule on `html`,
+with `::selection`, with an at-rule, with a second selector, with a standard property,
+or without a promised name or with one renamed failed the tests; one with a changed
+value, an added name or an unpromised name dropped passed. In Chrome 1100×640, on a
+harness page laid out as a fork (the elements reading `/.lazurio/shell.json`
+themselves) with `/.lazurio/shell.js` built from `main` and from this revision: with
+this revision the root resolves all the file's names and carries the mark, with `main`
+none and no mark; the style is first in `<head>` and holds one `:root` rule of `--lz-*`
+only; the rail and the column head, at rest and with the picker's list open, are
+pixel-identical between `main` and this revision without colour roles, with T3 Code's
+light and dark roles and with MausBot's Midnight, and their shadow trees' computed
+colours, type and shapes are equal; a second load of the script adds nothing; a page
+with its own `tokens.css` gets no style and no mark and stays pixel-identical; under
+`style-src 'self'` the browser refuses the style and the root stays unmarked; and with
+every `--lz-*` set to wrong values on the document's root, the shadow trees resolve
+exactly as without them. On the Launchpad's own preview, from `main` and from this
+revision, the shell adds no style and no mark, the page's own `tokens.css` resolves every
+name, and the root's and the shadow trees' computed styles are equal; its screenshots
+were not byte-identical, because the rail's Organization avatars load over the network
+at different moments and two anti-aliased pixels differed by one colour level, as they
+also do between two runs of `main`. Not exercised: the forks and the
+Dashboard themselves, and browsers other than Chrome. These are no rendered-page CI
+gates (root decision 0178).
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 

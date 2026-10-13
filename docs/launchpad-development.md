@@ -274,7 +274,10 @@ without a Buddy sees no bubble.
 
 **The forks and `/.lazurio/`.** Chat (`Lazurio/t3code`) and Automate
 (`Lazurio/OpenMausBot`) keep their upstream look and branding until upstream's stable
-releases, and we keep calling them T3 Code and MausBot. A fork adds only the rail, the
+releases, and we keep calling them T3 Code and MausBot. *(Root decision 0200 changes
+this for Chat: the distribution "Lazurio T3 Code" keeps T3 Code's mark and takes the
+design system's light look on an Environment from the tokens the shell declares, F36's
+addendum of 2026-10-13. Automate is unchanged.)* A fork adds only the rail, the
 column head at the top of its own sidebar (the only slot it adds to that sidebar) and
 the Buddy bubble, and knows nothing of Lazurio's data:
 
@@ -346,7 +349,9 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   2026-10-12](decisions.md#f39--the-peoples-view-of-the-environment-browser-one-tab-of-a-person-is-one-remote-tab)),
   `base-styles.ts` (the vendored tokens on `:host`, the colour roles with their
   fallbacks), `identity-styles.ts` (an identity's drawing), `styles.ts` (the rail, the
-  picker and the switch, the design system's selection rule),
+  picker and the switch, the design system's selection rule), `design-tokens.ts` (the
+  vendored `tokens.css` as text, once in the script), `tokens.ts` (the design system's
+  tokens on the app document's root, below),
   `stones.ts`, `fonts.ts`, `last.ts` (the report of the last Environment used,
   below), `account.ts` and `merge.ts` (the person's account and its merge into the
   rail, below), `state.ts` (what the elements draw, shared by the page's elements and
@@ -356,7 +361,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `tests/shell-last.test.ts`, `tests/shell-account.test.ts`,
   `tests/shell-host.test.ts`, `tests/shell-signed-out.test.ts`,
   `tests/shell-picker.test.ts`, `tests/shell-interface.test.ts`,
-  `tests/shell-identity.test.ts`, `tests/launchpad-shell-routes.test.ts`,
+  `tests/shell-identity.test.ts`, `tests/shell-tokens.test.ts`,
+  `tests/launchpad-shell-routes.test.ts`,
   `tests/apps-view.test.ts`, `tests/account.test.ts`, `tests/app-opening.test.ts`,
   `tests/organization-owner.test.ts`, `tests/module-maintainer.test.ts`.
 - **Identity of an Environment entry** ([F37's addendum of
@@ -528,8 +534,10 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   name in the Apps head links to its Dashboard (`appsHeading` in `apps-view.ts`).
 - **The interface the forks build on** is `src/shell/interface.ts` (version 1, F36
   addendum of 2026-10-04, grown by the addendum of 2026-10-05 with what a host page
-  needs and by the addendum of 2026-10-06 with `parseShellSignedOut`);
-  `tests/shell-interface.test.ts` keeps every promised name.
+  needs, by the addendum of 2026-10-06 with `parseShellSignedOut` and by the addendum
+  of 2026-10-13 with what the script declares in the app's document, `declares`);
+  `tests/shell-interface.test.ts` keeps every promised name, the token names a fork may
+  rely on among them.
 - **A host page that is no Environment's** ([F36's addendum of
   2026-10-05](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
   the Dashboard). Such a host provides both documents itself and draws the same rail
@@ -674,8 +682,40 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   Environments mixes its lines, hover and selection from the overlay and its ink. The
   Lazurio logo sits on a white disc in every theme, and the rail draws no line on its
   edge toward the app: map `--lazurio-surface` to the colour of the sidebar beside it
-  and draw no border on that side. Each app picks its own theme for now; one theme
-  across the apps (the Environment's) is a later mechanism.
+  and draw no border on that side. Each app picks its own theme for now (since root
+  decision 0200, T3 Code's standard light look on an Environment is the design
+  system's, through the tokens below); one theme across the apps (the Environment's) is
+  a later mechanism.
+- **The design system's tokens in the app's document** ([F36's addendum of
+  2026-10-13](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
+  root decision 0200). When `/.lazurio/shell.js` loads, `defineShellElements` puts the
+  vendored `tokens.css`, without its comments, first in the document's `<head>`
+  (`src/shell/tokens.ts`, one `<style data-lazurio-tokens>`) and marks `<html
+  data-lazurio-theme="light">`. It relies on the file's shape, one `:root` rule of
+  `--lz-*` custom properties, as `base-styles.ts` does for `:host`;
+  `tests/shell-tokens.test.ts` fails on anything else in the file. Once per document, the
+  mark only where the tokens hold, and nothing at all where the root already resolves
+  any of the names: the Launchpad page links `tokens.css` itself and the Dashboard
+  vendors it. The elements keep their own tokens on `:host`, so they draw as before. A
+  fork maps its own tokens onto the promised names under the mark's value, for its
+  standard light look only, with a fallback where it makes sense:
+
+  ```css
+  :root[data-lazurio-theme="light"]:not([data-theme-id]):not(.dark) {
+    --background: var(--lz-surface);
+    --foreground: var(--lz-ink);
+    --control-radius: var(--lz-radius-sm);
+    /* … */
+  }
+  ```
+
+  It may rely on the mark, on the names `declares.tokens` lists in
+  `src/shell/interface.ts` (what T3 Code's mapping needs: the surfaces, ink, line,
+  accent, black buttons, the grey steps it uses, the signal colours with their surfaces,
+  the type and the radii) and on the faces of Inter Tight Variable and Geist Mono from
+  `/.lazurio/fonts/`; never on the values, or on any other `--lz-*` name the shell
+  happens to declare, which the design system may change or drop. MausBot gets the same
+  tokens and mark and reads neither, so it looks as before.
 
 ### Prompt hand-off to Chat
 
