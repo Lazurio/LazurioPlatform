@@ -116,17 +116,18 @@ export const reentryKey = "lazurio.account.reentry";
 /** At most one automatic re-entry per tab and origin within five minutes:
  * longer than a sign-in round trip and the account's bounded read cycle
  * (37 s at most), so a re-entry that did not help is never repeated by the
- * page it led to; short enough that a later, separate expiry recovers. */
+ * page it led to; short enough that a later, separate expiry recovers. It is
+ * a hard cap per tab: nothing clears it early, since the shell's account and
+ * the Launchpad answer independently and one's success proves nothing about
+ * the other. */
 export const reentryGuardMs = 5 * 60_000;
 
 /** Re-entering the Environment after its gateway refused this page's
  * session: `refused` navigates the top-level page once (the gateway then
  * signs the person in again) unless this tab already did within
- * `reentryGuardMs`, and says whether it did; `answered` says the session
- * works again, so the next refusal may re-enter at once. */
+ * `reentryGuardMs`, and says whether it did. */
 export type Reentry = Readonly<{
   refused: () => boolean;
-  answered: () => void;
 }>;
 
 /** A re-entry guarded by a timestamp in `store`. Without a store, or when
@@ -150,11 +151,6 @@ export function createReentry(
       }
       navigate();
       return true;
-    },
-    answered() {
-      try {
-        store?.removeItem(reentryKey);
-      } catch {}
     },
   };
 }
@@ -209,11 +205,7 @@ export async function readAccountJson(
         headers: { Accept: "application/json" },
         signal: controller.signal,
       });
-      if (response.ok) {
-        const value = (await response.json()) as unknown;
-        reentry.answered();
-        return value;
-      }
+      if (response.ok) return (await response.json()) as unknown;
       // No error body is used; release this response before a new attempt.
       void response.body?.cancel().catch(() => {});
       if (response.status === 401 && reentry.refused()) {

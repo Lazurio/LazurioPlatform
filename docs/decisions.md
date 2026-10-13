@@ -5460,8 +5460,10 @@ CORS), and swallowed the failure.
    origin). Five minutes is longer than a sign-in round trip plus the bounded read cycle
    (37 s at most), so the page a re-entry leads to never reloads again if it did not
    help; it is short enough that a later, separate expiry in the same tab recovers.
-   Within the guard a `401` is final, as before. A successful account read clears the
-   guard. Where the guard cannot be kept (no `sessionStorage`, or one that throws) or
+   Within the guard a `401` is final, as before. The guard is a hard cap: nothing
+   clears it early, because the account read and the Launchpad answer independently, so
+   a success of one says nothing about the other (otherwise an account success followed
+   by a Launchpad `401` on every page load would reload in a loop). Where the guard cannot be kept (no `sessionStorage`, or one that throws) or
    the page is framed (the sign-in would land in the frame), there is no re-entry and
    the refusal stays final.
 3. **The rail does not shrink while the page reloads.** A `401` that re-enters keeps
