@@ -46,7 +46,7 @@ import { environmentFacts, type Fact, type MachineView } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
 import { createRecoveryPanel } from "./recovery-panel";
 import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
-import { routeFrame, settingsPath } from "./routes";
+import { type PageRoute, routeFrame, settingsPath } from "./routes";
 import { createShell } from "./shell";
 import { createSshPanel } from "./ssh-panel";
 import { createToolsPanel } from "./tools-panel";
@@ -216,6 +216,7 @@ const catalog = createCatalogPanel({
   navigate: (path) => shell.navigate(path),
   loaded: () => {
     shell.relabel();
+    drawMarketplace(shell.route());
     drawMachine();
     showWhenDrawn();
   },
@@ -597,14 +598,7 @@ const shell = createShell({
     // starts below, once the frame exists).
     if (framed && (route.view === "home" || route.view === "organization"))
       void catalog.refresh();
-    if (route.view === "marketplace" && marketplaceText !== null) {
-      const name = catalog.scopeName(route);
-      marketplaceText.textContent =
-        copy.appsMarketplaceText +
-        (name === null
-          ? ""
-          : copy.appsMarketplaceOrganization.replace("{name}", name));
-    }
+    drawMarketplace(route);
     files.show(route);
     integrations.show(route);
     if (
@@ -738,12 +732,26 @@ function relabel() {
   if (guide !== null)
     guide.href = `https://documentation.lazurio.ai/${locale === "en" ? "en" : "cs"}/guide/?utm_source=launchpad&utm_medium=product&utm_campaign=guide`;
   shell.relabel();
+  drawMarketplace(shell.route());
   recovery.render();
   ssh.render();
   files.relabel();
   integrations.relabel();
   column.relabel();
   browser.relabel();
+}
+// The Marketplace's sentence, in the page's language and naming the
+// Organization the route shows. It is drawn on the route and again once the
+// language or the catalog is known: a workstation's page reads both after
+// its first route (#388).
+function drawMarketplace(route: PageRoute) {
+  if (route.view !== "marketplace" || marketplaceText === null) return;
+  const name = catalog.scopeName(route);
+  marketplaceText.textContent =
+    copy.appsMarketplaceText +
+    (name === null
+      ? ""
+      : copy.appsMarketplaceOrganization.replace("{name}", name));
 }
 async function post(path: string, body: unknown) {
   const response = await fetch(path, {
