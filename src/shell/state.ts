@@ -213,7 +213,9 @@ export function createShellState(options: ShellStateOptions) {
         freshRead = "none";
         pendingReport = null;
         // Without a fresh answer, the remembered one stays only while this
-        // origin still keeps it (a refusal removed it).
+        // origin still keeps it: a final refusal removed it, and a `401`
+        // that re-enters the Environment kept it, so the rail does not
+        // shrink while the page reloads (F37's addendum of 2026-10-12).
         const next =
           local === null
             ? null
