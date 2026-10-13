@@ -2,7 +2,7 @@ import { launchpadStrip } from "../browser/contract/pure";
 import { newTabEventName } from "../shell/new-tab-protocol";
 import {
   browserFrame,
-  browserHandOverPath,
+  closedBy,
   closesPanel,
   emptyStrip,
   entryKey,
@@ -21,6 +21,10 @@ import {
   stripEntries,
   stripEveryMs,
   stripTabs,
+  type TabMenu,
+  type TabMenuCommand,
+  tabMenu,
+  tabMenuLabels,
   tabViewAddress,
   viewMessage,
   viewTabOf,
@@ -108,8 +112,7 @@ export function createBrowserPanel(
   const newButton = find<HTMLButtonElement>("#browser-new");
   const body = find<HTMLDivElement>("#browser-body");
   const message = find<HTMLParagraphElement>("#browser-message");
-  const reload = find<HTMLButtonElement>("#browser-reload");
-  const tabLink = find<HTMLAnchorElement>("#browser-tab");
+  const menu = find<HTMLDivElement>("#browser-menu");
   const close = find<HTMLButtonElement>("#browser-close");
   const toastSlot = find<HTMLDivElement>("#browser-toast-slot");
   const toastRegion = find<HTMLDivElement>("#browser-toast-region");
@@ -151,6 +154,8 @@ export function createBrowserPanel(
   let note: Readonly<{ text: string; retry: (() => void) | null }> | null =
     null;
   let noteTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The entry whose menu is open, by its key, or null. */
+  let menuOn: string | null = null;
 
   function dispatch(event: StripEvent) {
     state = reduceStrip(state, event);
@@ -231,6 +236,8 @@ export function createBrowserPanel(
         const active = key === shownKey;
         const title = entryTitle(entry);
         const tab = element("div", `browser-tab${active ? " is-active" : ""}`);
+        // Its menu's entry (`openMenu`).
+        tab.dataset.key = key;
         const main = element("button", "browser-tab-main");
         main.type = "button";
         main.setAttribute("role", "tab");
@@ -280,6 +287,9 @@ export function createBrowserPanel(
           ".browser-tab.is-active .browser-tab-main",
         )
       )?.focus({ preventScroll: true });
+    // The menu of an entry that went goes with it.
+    if (menuOn !== null && !entries.some((entry) => entryKey(entry) === menuOn))
+      closeMenu();
     // The shown entry stays in view when the strip is full: chosen now, or
     // pushed aside by tabs an overview listed after it. Only the strip
     // scrolls, never the page around it.
@@ -399,14 +409,6 @@ export function createBrowserPanel(
     const sentence = drawSurface(shown);
     message.hidden = sentence === null;
     message.textContent = sentence ?? "";
-    const origin = options.origin();
-    const view =
-      shown?.kind === "tab" && origin !== null
-        ? tabViewAddress(origin, shown.id, location.origin)
-        : null;
-    // The tab's view in a new tab of this browser, where the gateway can
-    // sign in again; with Nová karta, the hand-over.
-    tabLink.href = view ?? browserHandOverPath;
     drawToast();
     const cover = open && sheet.matches;
     if (cover !== covering) {
@@ -617,6 +619,199 @@ export function createBrowserPanel(
     );
   }
 
+  // ---- An entry's menu ---------------------------------------------------------
+
+  // The menu of an entry of the strip (F47 point 9's addendum of 2026-10-13,
+  // the wireframe's TabMenu): a right-click on the entry, or the
+  // context-menu key or Shift+F10 on it, opens it at the pointer or under
+  // the entry, inside the window; what it offers is `tabMenu`. The arrows,
+  // Home and End move between its commands, Enter and Space run one.
+  // Escape closes only the menu, and Tab closes it and moves on from the
+  // entry; a click elsewhere, the focus going elsewhere (into the frame,
+  // say), the strip scrolling or the window resizing close it too. Closing
+  // it gives the focus it had back to its entry, or to the entry shown when
+  // its own went.
+
+  /** The menu closes, and the focus it had goes back to its entry. */
+  function closeMenu() {
+    if (menuOn === null) return;
+    const key = menuOn;
+    menuOn = null;
+    const focused = menu.contains(document.activeElement);
+    menu.hidden = true;
+    menu.replaceChildren();
+    if (focused)
+      (
+        tablist.querySelector<HTMLElement>(
+          `[data-focus-key="${CSS.escape(`tab:${key}`)}"]`,
+        ) ??
+        tablist.querySelector<HTMLElement>(
+          ".browser-tab.is-active .browser-tab-main",
+        )
+      )?.focus({ preventScroll: true });
+  }
+
+  /** The menu of the entry `key` opens at `at`, kept 8 px inside the
+   * window, with the focus on its first command. */
+  function openMenu(key: string, at: Readonly<{ x: number; y: number }>) {
+    const model = tabMenu(state, key, {
+      origin: options.origin(),
+      pageOrigin: location.origin,
+    });
+    if (model === null) return;
+    closeMenu();
+    const copy = options.copy();
+    const entry = stripEntries(state).find((item) => entryKey(item) === key);
+    menu.setAttribute("aria-label", entry ? entryTitle(entry) : "");
+    menu.replaceChildren(
+      ...model.groups.flatMap((group, index) => [
+        ...(index === 0 ? [] : [line()]),
+        ...group.map((item) => {
+          const command = element(
+            "button",
+            "browser-menu-item",
+            copy[tabMenuLabels[item.command]],
+          );
+          command.type = "button";
+          command.setAttribute("role", "menuitem");
+          command.tabIndex = -1;
+          command.disabled = item.disabled;
+          command.addEventListener("click", () => run(model, item.command));
+          return command;
+        }),
+      ]),
+    );
+    menuOn = key;
+    menu.hidden = false;
+    const box = menu.getBoundingClientRect();
+    const left = Math.min(at.x, window.innerWidth - box.width - 8);
+    const top = Math.min(at.y, window.innerHeight - box.height - 8);
+    menu.style.left = `${Math.max(8, left)}px`;
+    menu.style.top = `${Math.max(8, top)}px`;
+    menu
+      .querySelector<HTMLButtonElement>(".browser-menu-item:not(:disabled)")
+      ?.focus({ preventScroll: true });
+  }
+
+  /** The line between two groups of the menu. */
+  function line(): HTMLDivElement {
+    const node = element("div", "browser-menu-line");
+    node.setAttribute("role", "separator");
+    return node;
+  }
+
+  /** A command of the menu `model`, which closes first: "Otevřít
+   * samostatně" opens the tab's view in a new tab of this browser, without
+   * an opener, where the gateway's sign-in can show, which a frame cannot;
+   * "Načíst znovu" frames it anew; a close works as × does on the entries
+   * it names now. */
+  function run(model: TabMenu, command: TabMenuCommand) {
+    closeMenu();
+    if (command === "open-separately") {
+      if (model.view !== null) window.open(model.view, "_blank", "noopener");
+    } else if (command === "reload") reloadEntry(model.key);
+    else void closeEntries(closedBy(state, model.key, command));
+  }
+
+  /** Načíst znovu: a fresh frame of the tab's view. The shown entry mounts
+   * its frame anew, and the strip is read again; an entry not shown has no
+   * frame, and showing it mounts one fresh. */
+  function reloadEntry(key: string) {
+    if (surface?.kind !== "frame" || surface.tab !== key) return;
+    removeSurface();
+    draw();
+    void poll();
+  }
+
+  /** The entry of the strip an event happened in. */
+  const entryAt = (target: EventTarget | null) =>
+    target instanceof Element
+      ? target.closest<HTMLElement>(".browser-tab")
+      : null;
+
+  tablist.addEventListener("contextmenu", (event) => {
+    const key = entryAt(event.target)?.dataset.key;
+    if (key === undefined) return;
+    event.preventDefault();
+    // A menu opened from the keyboard just now, which some systems follow
+    // with this event, stays as it is.
+    if (menuOn !== key) openMenu(key, { x: event.clientX, y: event.clientY });
+  });
+  tablist.addEventListener("keydown", (event) => {
+    if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10"))
+      return;
+    const tab = entryAt(event.target);
+    const key = tab?.dataset.key;
+    if (tab === null || key === undefined) return;
+    event.preventDefault();
+    const box = tab.getBoundingClientRect();
+    openMenu(key, { x: box.left, y: box.bottom + 4 });
+  });
+  // No menu of the browser's own over this one.
+  menu.addEventListener("contextmenu", (event) => event.preventDefault());
+  menu.addEventListener("keydown", (event) => {
+    if (menuOn === null || event.isComposing) return;
+    if (event.key === "Escape") {
+      // Only the menu: the panel's own Escape never sees it.
+      event.preventDefault();
+      event.stopPropagation();
+      closeMenu();
+      return;
+    }
+    // Tab moves on from the entry, the focus back there first.
+    if (event.key === "Tab") {
+      closeMenu();
+      return;
+    }
+    const items = [
+      ...menu.querySelectorAll<HTMLButtonElement>(
+        ".browser-menu-item:not(:disabled)",
+      ),
+    ];
+    const focused = document.activeElement;
+    const at =
+      focused instanceof HTMLButtonElement ? items.indexOf(focused) : -1;
+    const last = items.length - 1;
+    const next =
+      event.key === "ArrowDown"
+        ? at < 0 || at === last
+          ? 0
+          : at + 1
+        : event.key === "ArrowUp"
+          ? at <= 0
+            ? last
+            : at - 1
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? last
+              : null;
+    if (next === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    items[next]?.focus();
+  });
+  // The focus gone elsewhere, into the frame say, closes it once it is out.
+  menu.addEventListener("focusout", () =>
+    setTimeout(() => {
+      if (menuOn !== null && !menu.contains(document.activeElement))
+        closeMenu();
+    }),
+  );
+  // A press elsewhere closes it before the press does what it does.
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (
+        menuOn !== null &&
+        !(event.target instanceof Node && menu.contains(event.target))
+      )
+        closeMenu();
+    },
+    true,
+  );
+  tablist.addEventListener("scroll", () => closeMenu());
+
   // ---- What the frames say -------------------------------------------------
 
   // Nová karta's choice: a page it opened, which the Launchpad already holds
@@ -753,7 +948,10 @@ export function createBrowserPanel(
   });
   // The room changes with the window, and with the column hidden, shown or
   // dragged.
-  window.addEventListener("resize", () => relayout());
+  window.addEventListener("resize", () => {
+    closeMenu();
+    relayout();
+  });
   new ResizeObserver(() => relayout()).observe(sidebar);
 
   function show() {
@@ -794,6 +992,7 @@ export function createBrowserPanel(
 
   function hide(returnFocus: boolean) {
     if (!open) return;
+    closeMenu();
     open = false;
     relayout();
     clearTimeout(pollTimer);
@@ -815,13 +1014,8 @@ export function createBrowserPanel(
   // "+" always adds a Nová karta and shows it, as Chrome does; the one shown
   // before stays in the strip as it was (Matěj 2026-10-12).
   newButton.addEventListener("click", () => dispatch({ kind: "new-tab" }));
-  reload.addEventListener("click", () => {
-    // The shown view or Nová karta loads again, and the strip is read.
-    removeSurface();
-    draw();
-    void poll();
-  });
-  // Escape inside the panel closes it, before Settings would take it.
+  // Escape inside the panel closes it, before Settings would take it; an
+  // entry's open menu takes it first and closes alone.
   panel.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || event.defaultPrevented || event.isComposing)
       return;
@@ -834,13 +1028,13 @@ export function createBrowserPanel(
   });
 
   function relabel() {
+    // An open menu has the words it opened with.
+    closeMenu();
     const copy = options.copy();
     const own = words();
     divider.setAttribute("aria-label", copy.browserWidth);
     divider.title = copy.dividerHint;
-    reload.title = copy.browserReload;
     close.title = copy.browserClose;
-    tabLink.title = copy.browserOpenTab;
     newButton.title = own.newTabTitle;
     newButton.setAttribute("aria-label", own.pageTitle);
     tablist.setAttribute("aria-label", own.stripLabel);

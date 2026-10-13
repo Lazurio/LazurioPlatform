@@ -7,6 +7,7 @@ import {
 } from "../browser/contract/pure";
 import { parseNewTabChoice } from "../shell/new-tab-protocol";
 import type { PublicEntry } from "./chat";
+import type { MessageKey } from "./messages";
 import {
   actionFailure,
   fill,
@@ -35,20 +36,19 @@ import {
 // shows one. × on a Nová karta takes it away; × on a tab lets go of the
 // Launchpad's hold, with Vrátit while the hub's grace lasts, one Vrátit for
 // every tab one command let go of (F47 point 9's addendum of 2026-10-13);
-// closing a tab for everyone is Přehled's Zavřít. The person's × on the
+// closing a tab for everyone is Přehled's Zavřít. An entry's menu (the same
+// addendum) opens a tab's view on its own or frames it anew, and closes the
+// entry, the others or those to its right as × does. The person's × on the
 // strip's last entry closes the panel, as T3 Code's does (root decision 0195
-// point 16). The panel is offered only where the recorded entry routes the
-// view (`browserOrigin`): never on a workstation, which has no entry, and
-// never in Recovery mode. A view is framed only on exactly the recorded
-// origin. Pure: the DOM (browser-panel.ts) only draws this and asks.
+// point 16), and so does the menu's "Zavřít" there. The panel is offered
+// only where the recorded entry routes the view (`browserOrigin`): never on
+// a workstation, which has no entry, and never in Recovery mode. A view is
+// framed only on exactly the recorded origin. Pure: the DOM
+// (browser-panel.ts) only draws this and asks.
 
 /** `GET /.lazurio/browser.json` (the server's `browserViewDocumentPath`):
  * the view's address for a new tab, or that there is none. */
 export const browserViewDocumentPath = "/.lazurio/browser.json";
-/** The hand-over (the server's `browserViewPath`): it redirects a link's
- * browser to the view, through the gateway's sign-in when the session has
- * expired. A frame cannot show that sign-in page; a new tab can. */
-export const browserHandOverPath = "/.lazurio/browser";
 
 /** The frame's attributes. `allow` lets the view use the clipboard (copying
  * out of the Environment browser, pasting into it) and full screen; the
@@ -471,6 +471,99 @@ export function stripTabs(
   overview: NewTabOverview | null,
 ): readonly StripTab[] | null {
   return overview?.tabs ?? null;
+}
+
+// ---- A tab's menu --------------------------------------------------------------
+
+// The menu of an entry of the strip (F47 point 9's addendum of 2026-10-13,
+// the wireframe's TabMenu): with the panel's head row gone, what the strip
+// offered for the shown tab, "Načíst znovu" and "Otevřít v nové kartě", is
+// here for each tab, beside the closes T3 Code's tab menu has.
+
+/** The closes of a menu: Zavřít, Zavřít ostatní, Zavřít vpravo. */
+export type CloseCommand = "close" | "close-others" | "close-right";
+export type TabMenuCommand = "open-separately" | "reload" | CloseCommand;
+export type TabMenuItem = Readonly<{
+  command: TabMenuCommand;
+  disabled: boolean;
+}>;
+export type TabMenu = Readonly<{
+  /** The entry's key. */
+  key: string;
+  /** What "Otevřít samostatně" opens in a new tab of the person's browser,
+   * without an opener: the tab's view (`tabViewAddress`). Null for a Nová
+   * karta, and for a tab the panel may not frame. */
+  view: string | null;
+  /** Its commands in groups, a line between two groups. */
+  groups: readonly (readonly TabMenuItem[])[];
+}>;
+
+/** The Launchpad's words for each command (messages.ts). */
+export const tabMenuLabels: Readonly<Record<TabMenuCommand, MessageKey>> = {
+  "open-separately": "browserOpenTab",
+  reload: "browserReload",
+  close: "browserTabClose",
+  "close-others": "browserTabCloseOthers",
+  "close-right": "browserTabCloseRight",
+};
+
+/** The entries a close of `key`'s menu takes, in the strip's order: Zavřít
+ * the entry itself, Zavřít ostatní every other one, Zavřít vpravo every one
+ * after it. None for an entry the strip does not have. */
+export function closedBy(
+  state: StripState,
+  key: string,
+  command: CloseCommand,
+): readonly string[] {
+  const keys = stripEntries(state).map(entryKey);
+  const at = keys.indexOf(key);
+  if (at < 0) return [];
+  switch (command) {
+    case "close":
+      return [key];
+    case "close-others":
+      return keys.filter((other) => other !== key);
+    case "close-right":
+      return keys.slice(at + 1);
+  }
+}
+
+/** The menu of the entry `key`: for a tab of the Environment browser,
+ * "Otevřít samostatně" and "Načíst znovu", then for every entry "Zavřít",
+ * "Zavřít ostatní" and "Zavřít vpravo", which work as its × does. A close
+ * with nothing to close is disabled, and so are the first two where the
+ * tab has no view the panel may frame (`origin` is the recorded view
+ * origin, null where the panel is not offered). Null for an entry the strip
+ * does not have. */
+export function tabMenu(
+  state: StripState,
+  key: string,
+  place: Readonly<{ origin: string | null; pageOrigin: string }>,
+): TabMenu | null {
+  const entry = stripEntries(state).find((item) => entryKey(item) === key);
+  if (entry === undefined) return null;
+  const closes = (["close", "close-others", "close-right"] as const).map(
+    (command): TabMenuItem => ({
+      command,
+      disabled: closedBy(state, key, command).length === 0,
+    }),
+  );
+  if (entry.kind === "new") return { key, view: null, groups: [closes] };
+  const view =
+    place.origin === null
+      ? null
+      : tabViewAddress(place.origin, entry.id, place.pageOrigin);
+  return {
+    key,
+    view,
+    groups: [
+      [
+        { command: "open-separately", disabled: view === null },
+        { command: "reload", disabled: view === null },
+      ],
+      closes,
+    ],
+  };
 }
 
 // ---- What the frames say ----------------------------------------------------------
