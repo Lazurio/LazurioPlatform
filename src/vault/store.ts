@@ -5,7 +5,6 @@ import {
   lstat,
   mkdir,
   open,
-  readdir,
   readFile,
   rm,
 } from "node:fs/promises";
@@ -14,22 +13,20 @@ import { acquireFileLock, type FileLock } from "../platform/flock";
 import { parseUniqueJson } from "../providers/unique-json";
 import { syncDirectory, writeDurableFile } from "../update/durable-file";
 
-// The custody of one Environment vault account (decision F43): the files the
-// account needs on this Environment and nothing else, written by Lazurio
-// beside bw's own store in the data directory it gives bw, owner-only, in a
-// directory of the account's whole identity (the vault and the Environment's
-// address):
+// The custody of one Environment vault account (decisions F43 and F52): the
+// files the account needs on this Environment and nothing else, written by
+// Lazurio beside bw's own store in the data directory it gives bw, owner-only,
+// in a directory keyed by the vault and the account (context.ts):
 //
-//   <state>/lazurio/vault/<vault host>/<Environment address>/   0700
+//   <state>/lazurio/vault/<vault host>/<account>/   0700
 //     lock                                     0600, empty: the kernel lock
-//                                              of connect, refresh, unlock
-//                                              and disconnect
+//                                              of setup, refresh and unlock
 //     bw/                                      0700, BITWARDENCLI_APPDATA_DIR
 //       data.json                              bw's own store
 //       lazurio-account.json                   0600, the account's secrets
 //       lazurio-session                        0600, the one BW_SESSION
-//       lazurio-vault.json                     0600, not secret: fingerprint
-//                                              and the connected collection
+//       lazurio-vault.json                     0600, not secret: the ids of
+//                                              the Environment's own vault
 //
 // No secret is ever written anywhere else: not to the Folder, a log, the
 // journal, Diagnostics or an error.
@@ -74,27 +71,15 @@ export type ReadyAccount = VaultAccount &
 export const isReady = (account: VaultAccount): account is ReadyAccount =>
   account.clientId !== undefined && account.clientSecret !== undefined;
 
-/** What is not secret and saves a bw call: the account's fingerprint phrase
- * and the collection it was last connected to. A recorded collection that is
- * no longer seen after a sync is a revoked access. */
-export type VaultRecord = Readonly<{
-  fingerprint: string | null;
-  organizationId: string | null;
-  collectionId: string | null;
-}>;
-
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export const isVaultId = (value: unknown): value is string =>
   typeof value === "string" && uuid.test(value);
-/** The fingerprint phrase as `bw get fingerprint me` prints it: five words
- * of the EFF list joined by hyphens (a word may hold a hyphen itself). */
-export const isFingerprint = (value: unknown): value is string =>
-  typeof value === "string" &&
-  value.length <= 160 &&
-  /^[a-z]+(?:-[a-z]+){4,9}$/.test(value);
 /** A BW_SESSION as bw prints it: base64 of a 64-byte key. */
 export const isSession = (value: unknown): value is string =>
   typeof value === "string" && /^[A-Za-z0-9+/]{40,200}={0,2}$/.test(value);
+/** An RSA public key as Vaultwarden keeps it: SPKI, base64. */
+export const isPublicKey = (value: unknown): value is string =>
+  typeof value === "string" && /^[A-Za-z0-9+/]{100,2000}={0,2}$/.test(value);
 
 const accountKeys = [
   "clientId",
@@ -106,7 +91,7 @@ const accountKeys = [
   "server",
 ] as const;
 
-function plainObject(input: unknown): Record<string, unknown> | null {
+export function plainObject(input: unknown): Record<string, unknown> | null {
   if (typeof input !== "object" || input === null || Array.isArray(input))
     return null;
   const prototype = Object.getPrototypeOf(input);
@@ -116,7 +101,9 @@ function plainObject(input: unknown): Record<string, unknown> | null {
 }
 
 /** The account file, only in its exact form; anything else is refused, and
- * nothing of it is ever echoed. */
+ * nothing of it is ever echoed. Whose account it is, every caller checks
+ * against its own context (the handover's `vault.account`, or a 0197
+ * pilot's `vaultwarden@<address>`). */
 export function parseAccount(input: unknown): VaultAccount {
   const value = plainObject(input);
   if (value === null) throw new Error("Invalid vault account");
@@ -130,7 +117,7 @@ export function parseAccount(input: unknown): VaultAccount {
     return field;
   };
   const account: VaultAccount = {
-    email: text("email", /^vaultwarden@[a-z0-9.-]{1,240}$/),
+    email: text("email", /^[a-z0-9](?:[a-z0-9-]{0,62})@[a-z0-9.-]{1,240}$/),
     server: text("server", /^https:\/\/[a-z0-9.-]{1,240}(?::\d{1,5})?$/),
     deviceIdentifier: text(
       "deviceIdentifier",
@@ -150,7 +137,7 @@ export function parseAccount(input: unknown): VaultAccount {
   });
 }
 
-function serialize(value: unknown): Uint8Array {
+export function serialize(value: unknown): Uint8Array {
   return Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
 }
 
@@ -166,7 +153,9 @@ export async function ensureVaultDirectories(paths: VaultPaths): Promise<void> {
   }
 }
 
-async function readOwned(path: string): Promise<string | null> {
+/** A file of the account's custody, or null when there is none. A link or
+ * anything but a regular file throws. */
+export async function readOwned(path: string): Promise<string | null> {
   try {
     const entry = await lstat(path);
     if (!entry.isFile()) throw new Error("Vault file is not a regular file");
@@ -257,73 +246,61 @@ export async function writeSession(
   await writeDurableFile(paths.data, "lazurio-session", Buffer.from(session));
 }
 
-const emptyRecord: VaultRecord = Object.freeze({
-  fingerprint: null,
+/** The Environment's own vault (decision F52), not secret: its organization
+ * and its first collection, Agenti, by ID, which is the vault's whole
+ * identity (names never are). `pendingKey` is the receipt of a creation
+ * under way: the new organization's public key, written before it is
+ * created, so an organization whose answer was lost is recognized as this
+ * account's own afterwards and never created twice. */
+export type VaultRecord = Readonly<{
+  organizationId: string | null;
+  collectionId: string | null;
+  pendingKey: string | null;
+}>;
+
+export const emptyRecord: VaultRecord = Object.freeze({
   organizationId: null,
   collectionId: null,
+  pendingKey: null,
 });
 
+/** The record, or the empty one when there is none. A record that is there
+ * but cannot be read throws: it may be the only memory of the vault's ID, so
+ * nothing is ever created in its place. */
 export async function readRecord(paths: VaultPaths): Promise<VaultRecord> {
-  try {
-    const text = await readOwned(paths.record);
-    if (text === null) return emptyRecord;
-    const value = plainObject(parseUniqueJson(text));
-    if (
-      value === null ||
-      Object.keys(value).sort().join() !==
-        "collectionId,fingerprint,organizationId" ||
-      !(value.fingerprint === null || isFingerprint(value.fingerprint)) ||
-      !(value.organizationId === null || isVaultId(value.organizationId)) ||
-      !(value.collectionId === null || isVaultId(value.collectionId))
-    )
-      return emptyRecord;
-    return Object.freeze({
-      fingerprint: value.fingerprint as string | null,
-      organizationId: value.organizationId as string | null,
-      collectionId: value.collectionId as string | null,
-    });
-  } catch {
-    // Not secret and derivable again: an unreadable record is no record.
-    return emptyRecord;
-  }
+  const text = await readOwned(paths.record);
+  if (text === null) return emptyRecord;
+  const value = plainObject(parseUniqueJson(text));
+  if (
+    value === null ||
+    Object.keys(value).sort().join() !==
+      "collectionId,organizationId,pendingKey" ||
+    !(value.organizationId === null || isVaultId(value.organizationId)) ||
+    !(value.collectionId === null || isVaultId(value.collectionId)) ||
+    !(value.pendingKey === null || isPublicKey(value.pendingKey)) ||
+    (value.collectionId !== null && value.organizationId === null)
+  )
+    throw new Error("Invalid vault record");
+  return Object.freeze({
+    organizationId: value.organizationId as string | null,
+    collectionId: value.collectionId as string | null,
+    pendingKey: value.pendingKey as string | null,
+  });
 }
 
 export async function writeRecord(
   paths: VaultPaths,
   record: VaultRecord,
 ): Promise<void> {
-  const current = await readRecord(paths);
-  if (
-    current.fingerprint === record.fingerprint &&
-    current.organizationId === record.organizationId &&
-    current.collectionId === record.collectionId
-  )
-    return;
   await writeDurableFile(
     paths.data,
     "lazurio-vault.json",
     serialize({
-      fingerprint: record.fingerprint,
       organizationId: record.organizationId,
       collectionId: record.collectionId,
+      pendingKey: record.pendingKey,
     }),
   );
-}
-
-/** Disconnect: bw's own store, the session and the record go; the account
- * file stays, so connecting again signs the same account in. */
-export async function forgetSignIn(paths: VaultPaths): Promise<void> {
-  let entries: string[];
-  try {
-    entries = await readdir(paths.data);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-    throw error;
-  }
-  for (const entry of entries)
-    if (entry !== "lazurio-account.json")
-      await rm(join(paths.data, entry), { recursive: true, force: true });
-  await syncDirectory(paths.data);
 }
 
 /** The kernel lock of one account's mutations (src/platform/flock.ts): a

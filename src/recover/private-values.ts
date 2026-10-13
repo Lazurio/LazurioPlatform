@@ -189,7 +189,7 @@ export function bindingValues(binding: MachineBinding | null): PrivateValue[] {
  * that failed. */
 export function contextValues(context: MachineContext | null): PrivateValue[] {
   if (context === null) return [];
-  const { machine, owner, operator, host, network, installed } = context;
+  const { machine, owner, operator, host, network, installed, vault } = context;
   return [
     ...value("machine", machine.id),
     ...value("machine", machine.name),
@@ -226,6 +226,12 @@ export function contextValues(context: MachineContext | null): PrivateValue[] {
     ...value("tailnet-node", network?.headscale_hostname),
     ...peerValues(context.relationships?.peers),
     ...repositoryValues(installed.machines_release.repository),
+    // The Environment's own vault (decision F52): its technical account (a
+    // one-time enrollment capability before it registers, contract C2), the
+    // vault's name and the network vault's host.
+    ...value("vault-account", vault?.account),
+    ...value("vault-name", vault?.name),
+    ...value("hostname", hostOf(vault?.server_url ?? "")),
   ];
 }
 

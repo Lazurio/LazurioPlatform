@@ -46,16 +46,17 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   with the slot); a required sibling module workspace/<slug> with an HTTP
   default app is passed as LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN, its
   loopback address. Every secret the app declares (lazurio.runtime secrets
-  and optional_secrets, names only) is read from this Environment's vault
-  before every start: the login password of the one item of exactly that
-  name in the Environment's collection, passed to the app's own process
-  only as LAZURIO_RUNTIME_SECRET_<NAME>. Only an app of the Organization
-  that owns the Environment reads them. A required secret without a value
-  refuses the start (runtime-secret-unavailable, with each name and why:
-  missing, ambiguous, empty, not-connected, unreachable, other-organization,
-  personalspace, workstation, …); an optional one whose item is not there,
-  or that an unusable vault does not give, is only reported, and the app
-  starts without it. Values are never printed. An app whose package
+  and optional_secrets, names only) is read from this Environment's own
+  vault before every start: the login password of the one item of exactly
+  that name anywhere in the vault, passed to the app's own process only as
+  LAZURIO_RUNTIME_SECRET_<NAME>. On a work Environment only an app of the
+  Organization that owns it reads them, on a personal Environment only a
+  Personalspace app. A required secret without a value refuses the start
+  (runtime-secret-unavailable, with each name and why: missing, ambiguous,
+  empty, not-connected, unreachable, other-organization, personalspace,
+  personal-environment, workstation, …); an optional one whose item is not
+  there, or that an unusable vault does not give, is only reported, and the
+  app starts without it. Values are never printed. An app whose package
   declares no lazurio.preparation is prepared by default first: bun install --frozen-lockfile from the bun.lock
   beside its package.json, which leaves registry dependencies as they are
   when node_modules already matches it (local file: dependencies are copied
@@ -148,7 +149,7 @@ const explanations: Readonly<Record<string, string>> = {
   "required-slot-missing":
     "The app requires this slot, which is not checked out in this Environment beside it; nothing was started. Synchronize the Organization (lazurio update) or ask for access to that repository, then start again.",
   "runtime-secret-unavailable":
-    "The app needs these secrets and the Environment's vault did not give them, so nothing was started. Each is the login password of the one item named exactly like it in this Environment's collection (lazurio vault status); add or fix the item and start again. Values are never shown.",
+    "The app needs these secrets and the Environment's vault did not give them, so nothing was started. Each is the login password of the one item named exactly like it in this Environment's vault (lazurio vault status); add or fix the item and start again. Values are never shown.",
   "preparation-script-failed":
     "The prepare_script this package declares failed after the dependencies were installed; nothing was started. Fix the module's preparation and start (or lazurio module prepare) again.",
   "application-running":

@@ -1,4 +1,5 @@
 import {
+  type SecretApplication,
   type VaultHost,
   type VaultSecretAbsence,
   type VaultSecretsRefusal,
@@ -10,9 +11,12 @@ import {
 // The secrets an application declares in `lazurio.runtime` (root decision
 // 0177, decision F46): its required `secrets` and its `optional_secrets`
 // (root decision 0196, the Environment ceiling), names only. Before every
-// start their values are read from the Environment vault and passed to the
-// application's own process as `LAZURIO_RUNTIME_SECRET_<NAME>`, and to no
-// other process. A required secret that cannot be read keeps the
+// start their values are read from the Environment's own vault (decision F52)
+// and passed to the application's own process as
+// `LAZURIO_RUNTIME_SECRET_<NAME>`, and to no other process. Which
+// applications may read it is the vault's rule (flow.ts): on a work
+// Environment the owning Organization's, on a personal one the
+// Personalspace's. A required secret that cannot be read keeps the
 // application from starting with a typed finding; an optional one whose
 // item is not in the collection, or that a vault the application cannot use
 // does not provide, is only noted. A value never reaches an error, a
@@ -22,8 +26,10 @@ import {
  * application at all, the same for each of its names, or why its own item
  * gives none. */
 export const runtimeSecretReasons = [
-  /** A Personalspace module: its secrets have no vault yet (DEV-6631). */
+  /** A Personalspace module on a work Environment. */
   "personalspace",
+  /** An Organization's module on a personal Environment. */
+  "personal-environment",
   "workstation",
   "no-vault-identity",
   "other-organization",
@@ -35,11 +41,7 @@ export const runtimeSecretReasons = [
   "missing",
   "ambiguous",
   "empty",
-] as const satisfies readonly (
-  | "personalspace"
-  | VaultSecretsRefusal
-  | VaultSecretAbsence
-)[];
+] as const satisfies readonly (VaultSecretsRefusal | VaultSecretAbsence)[];
 export type RuntimeSecretReason = (typeof runtimeSecretReasons)[number];
 
 /** One declared name without a value, and why. Never a value. */
@@ -63,11 +65,13 @@ export class RuntimeSecretUnavailable extends Error {
 /** Where the values come from: the Environment vault in the product, a fake
  * in tests. */
 export type RuntimeSecretSource = Readonly<{
-  /** Known without the vault's items: may an application of `company` read
-   * from this Environment's vault at all? Null when it may. */
-  admit: (company: string) => Promise<VaultSecretsRefusal | null>;
+  /** Known without the vault's items: may this application read from this
+   * Environment's vault at all? Null when it may. */
+  admit: (
+    application: SecretApplication,
+  ) => Promise<VaultSecretsRefusal | null>;
   read: (
-    input: Readonly<{ company: string; names: readonly string[] }>,
+    input: SecretApplication & Readonly<{ names: readonly string[] }>,
   ) => Promise<VaultSecretsResult>;
 }>;
 
@@ -75,8 +79,9 @@ export const vaultRuntimeSecretSource = (
   host: VaultHost,
 ): RuntimeSecretSource =>
   Object.freeze({
-    admit: (company: string) => vaultSecretsAdmission(host, company),
-    read: (input: Readonly<{ company: string; names: readonly string[] }>) =>
+    admit: (application: SecretApplication) =>
+      vaultSecretsAdmission(host, application),
+    read: (input: SecretApplication & Readonly<{ names: readonly string[] }>) =>
       vaultSecrets(host, input),
   });
 
@@ -88,7 +93,8 @@ type Declaration = Readonly<{
 
 type Input = Readonly<{
   runtime: Declaration;
-  /** A Personalspace module: no vault serves it (decision F46). */
+  /** A Personalspace module: the vault decides whether it reads (decision
+   * F52 point 4: on its person's personal Environment). */
   personalspace: boolean;
   /** None where no vault is composed: as an Environment without one. */
   source?: RuntimeSecretSource | undefined;
@@ -112,17 +118,19 @@ export const runtimeSecretVariable = (name: string) =>
 
 /** Before anything is installed for a start: refuses an application whose
  * required secrets the vault cannot give it for a reason known without its
- * items (a Personalspace module, an Environment without a vault identity, an
- * application of another Organization). Optional secrets never refuse. */
+ * items (an Environment without a vault, an application the vault does not
+ * serve). Optional secrets never refuse. */
 export async function admitRuntimeSecrets(input: Input): Promise<void> {
   const required = input.runtime.secrets;
   if (required.length === 0) return;
-  const reason: RuntimeSecretReason | null = input.personalspace
-    ? "personalspace"
-    : input.source === undefined
+  const reason: RuntimeSecretReason | null =
+    input.source === undefined
       ? "no-vault-identity"
       : await input.source
-          .admit(input.runtime.company)
+          .admit({
+            company: input.runtime.company,
+            personalspace: input.personalspace,
+          })
           .catch((): RuntimeSecretReason => "vault-failed");
   if (reason !== null)
     throw new RuntimeSecretUnavailable(
@@ -140,11 +148,8 @@ export async function readRuntimeSecrets(
   const required = input.runtime.secrets;
   const optional = input.runtime.optional_secrets;
   if (required.length === 0 && optional.length === 0) return none;
-  let unusable: RuntimeSecretReason | null = input.personalspace
-    ? "personalspace"
-    : input.source === undefined
-      ? "no-vault-identity"
-      : null;
+  let unusable: RuntimeSecretReason | null =
+    input.source === undefined ? "no-vault-identity" : null;
   let result: VaultSecretsResult | null = null;
   if (unusable === null && input.source !== undefined) {
     // A throw of the source is a vault that did not answer as expected;
@@ -152,6 +157,7 @@ export async function readRuntimeSecrets(
     result = await input.source
       .read({
         company: input.runtime.company,
+        personalspace: input.personalspace,
         names: [...required, ...optional],
       })
       .catch(
@@ -210,11 +216,13 @@ export type SecretEnvironment =
   | Readonly<{ kind: "unknown" }>;
 
 /** The catalog's answer for an app's declared secrets, known without the
- * vault's items and without running anything: a required secret the vault
+ * vault's items and without running anything, by the vault's rule (decision
+ * F52 point 4): a work Environment serves the apps of the Organization that
+ * owns it, a personal one the Personalspace's. A required secret the vault
  * cannot give this app refuses its start (`runtime-secret-unavailable`, as
  * a preparation finding: the running app is still read and stopped); an
  * optional one is a note. Empty when the vault may serve the app, or when
- * that is only known at the start (connected, reachable, the item there). */
+ * that is only known at the start (set up, reachable, the item there). */
 export async function declaredSecretsFinding(
   runtime: Declaration,
   personalspace: boolean,
@@ -229,19 +237,21 @@ export async function declaredSecretsFinding(
   const required = runtime.secrets;
   const optional = runtime.optional_secrets;
   if (required.length === 0 && optional.length === 0) return {};
-  let reason: RuntimeSecretReason | null = "personalspace";
-  if (!personalspace) {
-    const place = await environment();
-    reason =
-      place.kind === "workstation"
-        ? "workstation"
-        : place.kind === "hosted" &&
-            (place.organization === null ||
-              place.organization.toLowerCase() !==
-                runtime.company.toLowerCase())
-          ? "other-organization"
-          : null;
-  }
+  const place = await environment();
+  const reason: RuntimeSecretReason | null =
+    place.kind === "workstation"
+      ? "workstation"
+      : place.kind === "unknown"
+        ? null
+        : place.organization === null
+          ? personalspace
+            ? null
+            : "personal-environment"
+          : personalspace
+            ? "personalspace"
+            : place.organization.toLowerCase() !== runtime.company.toLowerCase()
+              ? "other-organization"
+              : null;
   if (reason === null) return {};
   const why: RuntimeSecretReason = reason;
   const findings = (

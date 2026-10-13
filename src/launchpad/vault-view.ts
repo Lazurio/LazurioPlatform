@@ -1,21 +1,20 @@
 import type { VaultUnsupportedReason } from "../vault/context";
 import type { VaultPhase, VaultStatus } from "../vault/flow";
 import type { MessageKey } from "./messages";
-import { fill } from "./update-view";
 
-// The Environment vault on the tools screen (decision F43, the wireframe of
-// prototypes-lazurio#24): pure, so it is testable without a DOM. The server's
-// answers are accepted only in their exact form; everything returned is text
-// for `textContent`, never markup.
+// The Environment's own vault on the tools screen (decision F52, the
+// wireframe of prototypes-lazurio#33): the row says the state and opens the
+// vault; the Environment sets the vault up itself. Pure, so it is testable
+// without a DOM. The server's answers are accepted only in their exact form;
+// everything returned is text for `textContent` or an https link, never
+// markup.
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
 const states = [
   "unsupported",
-  "not-installed",
-  "none",
-  "awaiting-invite",
-  "confirming",
+  "not-set-up",
+  "not-allowed",
   "connected",
   "revoked",
   "unreachable",
@@ -28,10 +27,17 @@ const unsupportedReasons: readonly VaultUnsupportedReason[] = [
   "handover-missing",
   "handover-unreadable",
   "not-operator",
-  "no-address",
-  "no-network",
-  "vault-unknown",
+  "no-vault",
 ];
+
+const phases: readonly VaultPhase[] = [
+  "install",
+  "account",
+  "vault",
+  "sign-in",
+];
+
+const stages = [...phases, "sync", "status"] as const;
 
 const plain = (value: unknown, max = 512): value is string =>
   typeof value === "string" &&
@@ -45,27 +51,35 @@ const count = (value: unknown): value is number | null =>
   (typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
 const code = (value: unknown): value is string =>
   typeof value === "string" && /^[a-z0-9-]{1,80}$/.test(value);
-const phrase = (value: unknown): value is string =>
+const id = (value: unknown): value is string =>
   typeof value === "string" &&
-  value.length <= 160 &&
-  /^[a-z]+(?:-[a-z]+){4,9}$/.test(value);
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
 
-/** The vault's own address: only `https://vaultwarden.<zone>`. */
-export function vaultLink(value: unknown): string | null {
+/** A vault's own origin: https, a host, nothing else. */
+function vaultOrigin(value: unknown): string | null {
   if (typeof value !== "string") return null;
   try {
     const url = new URL(value);
     return url.protocol === "https:" &&
-      url.hostname.startsWith("vaultwarden.") &&
       url.port === "" &&
       url.username === "" &&
       url.password === "" &&
-      `${url.origin}` === value.replace(/\/$/, "")
-      ? `${url.origin}/`
+      url.origin === value
+      ? url.origin
       : null;
   } catch {
     return null;
   }
+}
+
+/** "Otevřít trezor": the network's web vault filtered to the Environment's
+ * vault, once it is connected. */
+export function vaultOpenLink(status: VaultStatus | null): string | null {
+  if (status?.state !== "connected") return null;
+  const origin = vaultOrigin(status.vault);
+  return origin === null || !id(status.organizationId)
+    ? null
+    : `${origin}/#/vault?organizationId=${status.organizationId}`;
 }
 
 /** A status answer of the server, only in its exact form. */
@@ -83,93 +97,69 @@ export function parseVaultStatus(input: unknown): VaultStatus | null {
         }
       : null;
   if (
-    vaultLink(value.vault) === null ||
+    vaultOrigin(value.vault) === null ||
     !plain(value.account, 320) ||
-    !plain(value.collection) ||
-    !plain(value.name, 128) ||
-    typeof value.team !== "boolean"
+    !nullable(value.name) ||
+    typeof value.team !== "boolean" ||
+    (value.origin !== "own" && value.origin !== "pilot-0197")
   )
     return null;
   const facts = {
     vault: value.vault as string,
     account: value.account,
-    collection: value.collection,
     name: value.name,
     team: value.team,
+    origin: value.origin as "own" | "pilot-0197",
   };
-  const locked = value.locked === true ? { locked: true as const } : {};
-  if (value.locked !== undefined && value.locked !== true) return null;
   switch (value.state) {
-    case "not-installed":
-    case "none":
-      return typeof value.registered === "boolean"
+    case "not-set-up":
+      return phases.includes(value.next as VaultPhase)
         ? {
             kind: "vault-status",
-            state: value.state,
+            state: "not-set-up",
             ...facts,
-            registered: value.registered,
+            next: value.next as VaultPhase,
           }
         : null;
-    case "awaiting-invite":
-      return { kind: "vault-status", state: "awaiting-invite", ...facts };
-    case "confirming":
-      return phrase(value.fingerprint) && nullable(value.organization)
-        ? {
-            kind: "vault-status",
-            state: "confirming",
-            ...facts,
-            fingerprint: value.fingerprint,
-            organization: value.organization,
-            ...locked,
-          }
-        : null;
+    case "not-allowed":
+      return { kind: "vault-status", state: "not-allowed", ...facts };
     case "connected":
-      return phrase(value.fingerprint) &&
+      if (value.locked !== undefined && value.locked !== true) return null;
+      return id(value.organizationId) &&
+        id(value.collectionId) &&
         nullable(value.organization) &&
-        count(value.collections) &&
         count(value.items)
         ? {
             kind: "vault-status",
             state: "connected",
             ...facts,
-            fingerprint: value.fingerprint,
+            organizationId: value.organizationId,
+            collectionId: value.collectionId,
             organization: value.organization,
-            collections: value.collections,
             items: value.items,
-            ...locked,
+            ...(value.locked === true ? { locked: true as const } : {}),
           }
         : null;
     case "revoked":
-      return value.fingerprint === null || phrase(value.fingerprint)
-        ? {
-            kind: "vault-status",
-            state: "revoked",
-            ...facts,
-            fingerprint: value.fingerprint,
-          }
-        : null;
+      return { kind: "vault-status", state: "revoked", ...facts };
     case "unreachable":
-      return (value.fingerprint === null || phrase(value.fingerprint)) &&
-        code(value.reason)
+      return code(value.reason)
         ? {
             kind: "vault-status",
             state: "unreachable",
             ...facts,
-            fingerprint: value.fingerprint,
             reason: value.reason,
           }
         : null;
     case "failed":
-      return ["install", "account", "sign-in", "sync", "status"].includes(
-        value.stage as string,
-      ) &&
+      return stages.includes(value.stage as never) &&
         code(value.reason) &&
         value.fallback === "agent"
         ? {
             kind: "vault-status",
             state: "failed",
             ...facts,
-            stage: value.stage as "install",
+            stage: value.stage as (typeof stages)[number],
             reason: value.reason,
             fallback: "agent",
           }
@@ -179,44 +169,18 @@ export function parseVaultStatus(input: unknown): VaultStatus | null {
   }
 }
 
-/** A running connect: `202 {kind: "vault-connecting", job, phase}`. */
-export function parseVaultConnecting(
+/** A running setup: `202 {kind: "vault-setting-up", job, phase}`. */
+export function parseVaultSettingUp(
   input: unknown,
 ): Readonly<{ job: string; phase: VaultPhase }> | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const value = input as Record<string, unknown>;
-  return value.kind === "vault-connecting" &&
+  return value.kind === "vault-setting-up" &&
     typeof value.job === "string" &&
     /^[0-9a-f]{32}$/.test(value.job) &&
-    (value.phase === "install" ||
-      value.phase === "account" ||
-      value.phase === "sign-in")
-    ? { job: value.job, phase: value.phase }
+    phases.includes(value.phase as VaultPhase)
+    ? { job: value.job, phase: value.phase as VaultPhase }
     : null;
-}
-
-/** Czech plurals: 1, 2–4, 0 and 5 and more; English: 1 and the rest. */
-function plural(
-  value: number,
-  copy: Copy,
-  keys: readonly [MessageKey, MessageKey, MessageKey],
-): string {
-  const key =
-    value === 1 ? keys[0] : value >= 2 && value <= 4 ? keys[1] : keys[2];
-  return fill(copy[key], { count: String(value) });
-}
-
-/** "2 kolekce · 14 položek": what the account sees. */
-export function vaultSeen(
-  collections: number,
-  items: number,
-  copy: Copy,
-): string {
-  return `${plural(collections, copy, [
-    "vaultCollectionsOne",
-    "vaultCollectionsFew",
-    "vaultCollectionsMany",
-  ])} · ${plural(items, copy, ["vaultItemsOne", "vaultItemsFew", "vaultItemsMany"])}`;
 }
 
 export type VaultRowLine = Readonly<{
@@ -226,17 +190,22 @@ export type VaultRowLine = Readonly<{
   state: "signed-in" | "signed-out" | "unknown";
 }>;
 
-/** Confirmed in an organization, but the Environment's collection is not
- * visible: what is left is sharing the collection (or giving it its name),
- * which the row, the third step's title and its body all say. */
-export const vaultAwaitsCollection = (status: VaultStatus | null): boolean =>
-  status?.state === "confirming" && status.organization !== null;
+const phaseKeys: Readonly<Record<VaultPhase, MessageKey>> = {
+  install: "vaultPhaseInstall",
+  account: "vaultPhaseAccount",
+  vault: "vaultPhaseVault",
+  "sign-in": "vaultPhaseSignIn",
+};
 
-/** The state under the row's name (the wireframe's row states). */
+/** The state under the row's name: the step of a setup that runs, or the
+ * state the server read. */
 export function vaultRowLine(
   status: VaultStatus | null,
+  running: VaultPhase | null,
   copy: Copy,
 ): VaultRowLine {
+  if (running !== null)
+    return { text: copy[phaseKeys[running]], state: "unknown" };
   if (status === null) return { text: copy.vaultRowChecking, state: "unknown" };
   switch (status.state) {
     case "unsupported":
@@ -244,192 +213,51 @@ export function vaultRowLine(
         text:
           status.reason === "workstation"
             ? copy.vaultRowSecondWave
-            : copy.vaultRowUnavailable,
+            : status.reason === "no-vault"
+              ? copy.vaultRowNoVault
+              : copy.vaultRowUnavailable,
         state: "unknown",
       };
-    case "not-installed":
-    case "none":
-    case "awaiting-invite":
-    case "failed":
-      return { text: copy.vaultRowNone, state: "unknown" };
-    case "confirming":
-      return {
-        text: vaultAwaitsCollection(status)
-          ? copy.vaultRowCollection
-          : copy.vaultRowConfirming,
-        state: "signed-out",
-      };
+    case "not-set-up":
+      return { text: copy.vaultRowNotSetUp, state: "unknown" };
+    case "not-allowed":
+      return { text: copy.vaultRowNotAllowed, state: "signed-out" };
     case "connected":
+      return { text: copy.vaultRowConnected, state: "signed-in" };
+    case "revoked":
       return {
         text:
-          status.collections === null || status.items === null
-            ? copy.vaultRowConnected
-            : `${copy.vaultRowConnected} · ${vaultSeen(status.collections, status.items, copy)}`,
-        state: "signed-in",
+          status.origin === "own" ? copy.vaultRowRemoved : copy.vaultRowRevoked,
+        state: "signed-out",
       };
-    case "revoked":
-      return { text: copy.vaultRowRevoked, state: "signed-out" };
     case "unreachable":
       return { text: copy.vaultRowUnreachable, state: "signed-out" };
-  }
-}
-
-export type VaultAction = "connect" | "continue" | "reconnect" | "retry";
-
-export type VaultActions = Readonly<{
-  primary: Readonly<{ action: VaultAction; label: string }> | null;
-  disconnect: boolean;
-}>;
-
-/** The row's controls in each state: one next step, and "Odpojit" once an
- * account is signed in here. */
-export function vaultActions(
-  status: VaultStatus | null,
-  copy: Copy,
-): VaultActions {
-  if (status === null || status.state === "unsupported")
-    return { primary: null, disconnect: false };
-  switch (status.state) {
-    case "not-installed":
-    case "none":
-    case "awaiting-invite":
     case "failed":
-      return {
-        primary: { action: "connect", label: copy.vaultActionConnect },
-        disconnect: false,
-      };
-    case "confirming":
-      return {
-        primary: { action: "continue", label: copy.vaultActionContinue },
-        disconnect: true,
-      };
-    case "connected":
-      return { primary: null, disconnect: true };
-    case "revoked":
-      return {
-        primary: { action: "reconnect", label: copy.vaultActionReconnect },
-        disconnect: true,
-      };
-    case "unreachable":
-      return {
-        primary: { action: "retry", label: copy.vaultActionRetry },
-        disconnect: true,
-      };
+      return { text: copy.vaultRowFailed, state: "signed-out" };
   }
 }
 
-/** The four steps of the dialog. */
-export type VaultStep = "invite" | "connect" | "confirm" | "done";
-export const vaultSteps: readonly VaultStep[] = [
-  "invite",
-  "connect",
-  "confirm",
-  "done",
-];
-
-/** The steps' titles. Once the member is confirmed and only the collection
- * is missing, the third step asks for the collection, not the confirmation. */
-export function vaultStepTitles(
+/** The row's one action besides "Otevřít trezor": set the own vault up
+ * when nothing set it up yet, or try again after a setup that stopped. A
+ * vault the network has not allowed or has revoked waits for a person of the
+ * network, and a 0197 pilot is only read: neither offers one. */
+export function vaultAction(
   status: VaultStatus | null,
+  running: VaultPhase | null,
   copy: Copy,
-): Readonly<Record<VaultStep, string>> {
-  return {
-    invite: copy.vaultStepInvite,
-    connect: copy.vaultStepConnect,
-    confirm: vaultAwaitsCollection(status)
-      ? copy.vaultStepCollection
-      : copy.vaultStepConfirm,
-    done: copy.vaultStepDone,
-  };
-}
-
-/** Where "Připojit", "Pokračovat" or "Připojit znovu" opens the dialog: an
- * account that exists only signs in again, a revoked one is invited again. */
-export function vaultStartStep(
-  status: VaultStatus,
-  action: VaultAction,
-): VaultStep {
-  if (action === "continue") return "confirm";
-  if (action === "reconnect") return "invite";
+): string | null {
   if (
-    (status.state === "none" || status.state === "not-installed") &&
-    status.registered
+    running !== null ||
+    status === null ||
+    status.state === "unsupported" ||
+    status.origin !== "own"
   )
-    return "connect";
-  return "invite";
+    return null;
+  if (status.state === "not-set-up") return copy.vaultActionSetUp;
+  return status.state === "failed" || status.state === "unreachable"
+    ? copy.vaultActionRetry
+    : null;
 }
 
-/** The step a connect's answer leads to, and the line it says. */
-export function vaultAfterConnect(
-  status: VaultStatus,
-  copy: Copy,
-): Readonly<{ step: VaultStep; failure: string | null; agent: boolean }> {
-  switch (status.state) {
-    case "confirming":
-      return { step: "confirm", failure: null, agent: false };
-    case "connected":
-      return { step: "done", failure: null, agent: false };
-    case "awaiting-invite":
-      return { step: "invite", failure: copy.vaultNotInvited, agent: false };
-    case "revoked":
-      // Its collection is kept (0193 addendum): another one needs a
-      // disconnect first.
-      return {
-        step: "invite",
-        failure: copy.vaultRevokedConnect,
-        agent: false,
-      };
-    case "unreachable":
-      return {
-        step: "connect",
-        failure: copy.vaultUnreachableLine,
-        agent: false,
-      };
-    case "failed":
-      return {
-        step: "connect",
-        failure: fill(copy.vaultFailed, {
-          stage: status.stage,
-          reason: status.reason,
-        }),
-        agent: true,
-      };
-    case "unsupported":
-      return {
-        step: "invite",
-        failure: copy.vaultRowUnavailable,
-        agent: false,
-      };
-    default:
-      return { step: "invite", failure: null, agent: false };
-  }
-}
-
-/** The automatic steps of "Environment se připojí", marked by the phase the
- * connect reports. */
-export function vaultPhaseMarks(
-  phase: VaultPhase | "done" | null,
-  copy: Copy,
-): readonly Readonly<{ label: string; mark: "done" | "running" | "next" }>[] {
-  const order: readonly VaultPhase[] = ["install", "account", "sign-in"];
-  const labels: Readonly<Record<VaultPhase, string>> = {
-    install: copy.vaultPhaseInstall,
-    account: copy.vaultPhaseAccount,
-    "sign-in": copy.vaultPhaseSignIn,
-  };
-  const at =
-    phase === "done"
-      ? order.length
-      : phase === null
-        ? -1
-        : order.indexOf(phase);
-  return order.map((step, index) => ({
-    label: labels[step],
-    mark: index < at ? "done" : index === at ? "running" : "next",
-  }));
-}
-
-/** How often the confirmation step asks the vault again. */
-export const vaultPollMs = 5_000;
-/** How soon a running connect is asked again. */
-export const vaultConnectPollMs = 1_000;
+/** How soon a running setup is asked again. */
+export const vaultSetupPollMs = 1_000;

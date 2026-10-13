@@ -689,6 +689,9 @@ function isolateDuplicates(
 async function readCatalogPersonalspace(
   folder: string,
   holder: PersonalspaceHolderRead,
+  /** What the Folder records of the Environment, for the declared secrets
+   * (decision F46 as F52 amends it). */
+  environment: () => Promise<SecretEnvironment>,
 ): Promise<CatalogOrganization | undefined> {
   const decided = await holder(folder).catch(() => ({
     kind: "blocked" as const,
@@ -743,11 +746,9 @@ async function readCatalogPersonalspace(
         apps,
         moduleDirectory,
         space,
-        // A Personalspace module: no vault serves it (decision F46).
-        (runtime) =>
-          declaredSecretsFinding(runtime, true, async () => ({
-            kind: "unknown",
-          })),
+        // A Personalspace module: the personal Environment's vault serves it
+        // (decision F52 point 4), no other.
+        (runtime) => declaredSecretsFinding(runtime, true, environment),
       );
       const { reason, file, preparationRefused } = own;
       return Object.freeze({
@@ -791,7 +792,12 @@ export async function readFolderCatalog(
       throw error;
     },
   );
-  const personalspace = await readCatalogPersonalspace(folder, holder);
+  const environment = folderSecretEnvironment(folder);
+  const personalspace = await readCatalogPersonalspace(
+    folder,
+    holder,
+    environment,
+  );
   const withPersonalspace =
     personalspace === undefined ? {} : { personalspace };
   if (!present)
@@ -815,7 +821,6 @@ export async function readFolderCatalog(
     )
     .map((entry) => entry.name)
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-  const environment = folderSecretEnvironment(folder);
   const organizations = await Promise.all(
     names.map((name) =>
       readCatalogOrganization(join(root, name), name, environment),

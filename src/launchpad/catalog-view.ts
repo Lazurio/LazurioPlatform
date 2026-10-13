@@ -76,6 +76,7 @@ const reasonKeys: Readonly<
 
 const secretReasonKeys: Readonly<Record<RuntimeSecretReason, MessageKey>> = {
   personalspace: "runtimeSecretPersonalspace",
+  "personal-environment": "runtimeSecretPersonalEnvironment",
   workstation: "runtimeSecretWorkstation",
   "no-vault-identity": "runtimeSecretNoVaultIdentity",
   "other-organization": "runtimeSecretOtherOrganization",

@@ -70,6 +70,17 @@ export type MachineEntry = Readonly<{
   browser?: Readonly<{ external_origin: string; listen_port: number }>;
   environment_relay?: Readonly<{ socket: string }>;
 }>;
+// This Environment's own vault (root decision 0198 point 1, DEV-6631 contract
+// C2): the network's Lazurio Vaultwarden, the technical account the network
+// generated and pre-allowed for this Environment alone, and the vault's name.
+// Optional and closed on both branches: Machines writes it only for a
+// Platform release that reads it, because a reader vendoring an earlier
+// schema refuses the whole document (as for `entry` and its members).
+export type MachineVault = Readonly<{
+  server_url: string;
+  account: string;
+  name: string;
+}>;
 type MachineInstalled = Readonly<{
   machines_release: Readonly<{
     repository: string;
@@ -104,6 +115,7 @@ export type OrganizationWorkspaceContext = Readonly<{
   network?: MachineNetwork;
   relationships?: MachineRelationships<"work">;
   entry?: MachineEntry;
+  vault?: MachineVault;
   installed: MachineInstalled;
   account: null;
 }>;
@@ -130,6 +142,7 @@ export type PersonalMachineContext = Readonly<{
   network: MachineNetwork;
   relationships?: MachineRelationships<"personal">;
   entry?: MachineEntry;
+  vault?: MachineVault;
   installed: MachineInstalled;
   account: null;
 }>;

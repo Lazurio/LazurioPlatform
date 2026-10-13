@@ -1,21 +1,20 @@
 import { Buffer } from "node:buffer";
 import { webcrypto } from "node:crypto";
 
-// The account of an Environment in its network's vault (decision F43):
-// created here and signed in by its API key, so the stock Bitwarden CLI can
-// run `bw login --apikey` and `bw unlock --passwordfile`. Verified end to end
-// against Vaultwarden 1.37.1 and 1.37.4 with the real bw (DEV-6631, the e2e
-// report of 2026-10-09); the tests check the crypto against Bitwarden's own
-// vectors and the requests against a fake vault.
+// The technical account of an Environment in its network's vault (decisions
+// F43 and F52): created here and signed in by its API key, so the stock
+// Bitwarden CLI can run `bw login --apikey` and `bw unlock --passwordfile`,
+// and the core can ask the vault's API as the account (`apiKeyLogin`,
+// organization.ts). Verified end to end against Vaultwarden 1.37.1 and 1.37.4
+// with the real bw (DEV-6631, the e2e report of 2026-10-09; the own vault
+// against 1.37.4-lazurio.1 on 2026-10-13); the tests check the crypto against
+// Bitwarden's own vectors and the requests against a fake vault.
 //
 // Server preconditions (Vaultwarden 1.37.x):
-//  - an Admin or Owner of the vault's organization invited exactly this
-//    address;
-//  - SMTP is off: the server then returns the registration token directly
-//    and, on registration, accepts the pending invitation (Invited 0 →
-//    Accepted 1). SIGNUPS_ALLOWED=false is fine: the invitation allows it.
-// The Admin still confirms the member in their own client (the organization's
-// key is handed over end to end; Accepted 1 → Confirmed 2).
+//  - the network pre-allowed exactly this address (`/admin/invite`, DEV-6631
+//    contract C2; a 0197 pilot: an Admin of an organization invited it);
+//  - SMTP is off: the server then returns the registration token directly.
+//    SIGNUPS_ALLOWED=false is fine: the pre-allowance allows it.
 //
 // Crypto: Bitwarden "v1" account keys, WebCrypto only, no dependency.
 //   masterKey          = PBKDF2-SHA256(password, salt = trimmed lowercased
@@ -207,7 +206,8 @@ export async function makeKeyPair(wrapWith: SymmetricKey) {
 }
 
 /** EncString type 4 (Rsa2048_OaepSha1_B64): how an organization's key is
- * shared with a member's public key. Used by the tests as the Admin. */
+ * shared with a member's public key; the own vault's organization key is
+ * handed to the account's own public key this way (organization.ts). */
 export async function rsaEncrypt(
   publicKeyB64: string,
   data: Bytes,
@@ -242,6 +242,53 @@ export async function rsaDecrypt(
       fromB64(encString.slice(2)),
     ),
   );
+}
+
+/** The SPKI public key (base64) of an RSA private key in PKCS#8: the key
+ * the account's own private key belongs to, so the organization key is
+ * encrypted to a key this Environment can open, whatever the server says. */
+export async function publicKeyOf(privateKeyPkcs8: Bytes): Promise<string> {
+  const privateKey = await subtle.importKey(
+    "pkcs8",
+    privateKeyPkcs8,
+    RSA_OAEP_SHA1,
+    true,
+    ["decrypt"],
+  );
+  const { n, e } = await subtle.exportKey("jwk", privateKey);
+  if (n === undefined || e === undefined)
+    throw new Error("expected an RSA private key");
+  const publicKey = await subtle.importKey(
+    "jwk",
+    { kty: "RSA", n, e, alg: "RSA-OAEP", ext: true },
+    RSA_OAEP_SHA1,
+    true,
+    ["encrypt"],
+  );
+  return b64(new Uint8Array(await subtle.exportKey("spki", publicKey)));
+}
+
+/** The account's private key from its master password and what the vault
+ * keeps of it: the master-key-wrapped user key (`Key`) and the user-key-
+ * wrapped private key (`PrivateKey`), as a client unlocks. */
+export async function unlockPrivateKey(
+  input: Readonly<{
+    email: string;
+    password: string;
+    protectedUserKey: string;
+    encryptedPrivateKey: string;
+    iterations: number;
+  }>,
+): Promise<Bytes> {
+  const masterKey = await deriveMasterKey(
+    input.password,
+    input.email,
+    input.iterations,
+  );
+  const userKey = symmetricKey(
+    await decrypt(input.protectedUserKey, await stretchMasterKey(masterKey)),
+  );
+  return decrypt(input.encryptedPrivateKey, userKey);
 }
 
 /** Everything register/finish needs; nothing here is stored outside the
@@ -284,6 +331,9 @@ export type VaultwardenFailure =
   /** HTTP 204 instead of a token: SMTP is on and a verification mail went
    * out, which an Environment account cannot receive. */
   | "smtp-enabled"
+  /** The vault does not let this account create an organization
+   * (`ORG_CREATION_USERS`). */
+  | "organization-refused"
   /** The password login was refused. */
   | "invalid-credentials"
   /** A KDF other than PBKDF2-SHA256. */
@@ -304,6 +354,8 @@ export class VaultwardenError extends Error {
 }
 
 type CallOptions = Readonly<{
+  /** GET without a body and POST with one, unless named. */
+  method?: "GET" | "POST" | "PUT" | "DELETE";
   json?: unknown;
   form?: Readonly<Record<string, string>>;
   token?: string;
@@ -313,7 +365,9 @@ const requestMs = 30_000;
 
 export type VaultClient = Readonly<{ fetch?: VaultFetch | undefined }>;
 
-async function call(
+/** One request to the vault: its answer as JSON (or text), or a
+ * `VaultwardenError` with a fixed reason, never the vault's own words. */
+export async function vaultRequest(
   client: VaultClient,
   serverUrl: string,
   path: string,
@@ -340,7 +394,7 @@ async function call(
     response = await (client.fetch ?? fetch)(
       serverUrl.replace(/\/+$/, "") + path,
       {
-        method: body === undefined ? "GET" : "POST",
+        method: options.method ?? (body === undefined ? "GET" : "POST"),
         headers,
         ...(body === undefined ? {} : { body }),
         redirect: "error",
@@ -370,6 +424,8 @@ async function call(
       throw new VaultwardenError("not-invited", response.status);
     if (/too many/i.test(message))
       throw new VaultwardenError("rate-limited", response.status);
+    if (/not allowed to create organizations/i.test(message))
+      throw new VaultwardenError("organization-refused", response.status);
     if (
       path === "/identity/connect/token" ||
       /username or password is incorrect|invalid_grant/i.test(message)
@@ -410,7 +466,7 @@ export async function registerAccount(
   }>,
 ): Promise<Readonly<{ email: string; publicKey: string }>> {
   const email = normalizeEmail(options.email);
-  const token = await call(
+  const token = await vaultRequest(
     client,
     options.serverUrl,
     "/identity/accounts/register/send-verification-email",
@@ -426,27 +482,32 @@ export async function registerAccount(
   if (typeof token !== "string" || token === "")
     throw new VaultwardenError("smtp-enabled");
   const keys = await makeAccountKeys(email, options.password);
-  await call(client, options.serverUrl, "/identity/accounts/register/finish", {
-    json: {
-      email,
-      emailVerificationToken: token,
-      masterPasswordHint: null,
-      userAsymmetricKeys: {
-        publicKey: keys.publicKey,
-        encryptedPrivateKey: keys.encryptedPrivateKey,
-      },
-      masterPasswordAuthentication: {
-        kdf: keys.kdf,
-        salt: email,
-        masterPasswordAuthenticationHash: keys.masterPasswordHash,
-      },
-      masterPasswordUnlock: {
-        kdf: keys.kdf,
-        salt: email,
-        masterKeyWrappedUserKey: keys.protectedUserKey,
+  await vaultRequest(
+    client,
+    options.serverUrl,
+    "/identity/accounts/register/finish",
+    {
+      json: {
+        email,
+        emailVerificationToken: token,
+        masterPasswordHint: null,
+        userAsymmetricKeys: {
+          publicKey: keys.publicKey,
+          encryptedPrivateKey: keys.encryptedPrivateKey,
+        },
+        masterPasswordAuthentication: {
+          kdf: keys.kdf,
+          salt: email,
+          masterPasswordAuthenticationHash: keys.masterPasswordHash,
+        },
+        masterPasswordUnlock: {
+          kdf: keys.kdf,
+          salt: email,
+          masterKeyWrappedUserKey: keys.protectedUserKey,
+        },
       },
     },
-  });
+  );
   return { email, publicKey: keys.publicKey };
 }
 
@@ -463,7 +524,7 @@ export async function passwordLogin(
 ): Promise<Login> {
   const { serverUrl, password, device } = options;
   const email = normalizeEmail(options.email);
-  const prelogin = (await call(
+  const prelogin = (await vaultRequest(
     client,
     serverUrl,
     "/identity/accounts/prelogin",
@@ -483,20 +544,31 @@ export async function passwordLogin(
     throw new VaultwardenError("unsupported-kdf");
   const masterKey = await deriveMasterKey(password, email, iterations);
   const masterPasswordHash = await makeMasterPasswordHash(masterKey, password);
-  const token = (await call(client, serverUrl, "/identity/connect/token", {
-    form: {
-      grant_type: "password",
-      scope: "api offline_access",
-      client_id: "cli",
-      username: email,
-      password: masterPasswordHash,
-      deviceType: String(device.type),
-      deviceIdentifier: device.identifier,
-      deviceName: device.name,
+  const token = (await vaultRequest(
+    client,
+    serverUrl,
+    "/identity/connect/token",
+    {
+      form: {
+        grant_type: "password",
+        scope: "api offline_access",
+        client_id: "cli",
+        username: email,
+        password: masterPasswordHash,
+        deviceType: String(device.type),
+        deviceIdentifier: device.identifier,
+        deviceName: device.name,
+      },
     },
-  })) as Record<string, unknown> | null;
+  )) as Record<string, unknown> | null;
   const accessToken = token?.access_token;
   if (typeof accessToken !== "string") throw new VaultwardenError("unexpected");
+  const userId = subjectOf(accessToken);
+  return { serverUrl, email, userId, accessToken, masterPasswordHash };
+}
+
+/** The account id an access token was issued for (its `sub`). */
+function subjectOf(accessToken: string): string {
   let userId: unknown;
   try {
     userId = JSON.parse(
@@ -509,7 +581,7 @@ export async function passwordLogin(
   }
   if (typeof userId !== "string" || !/^[0-9a-f-]{36}$/.test(userId))
     throw new VaultwardenError("unexpected");
-  return { serverUrl, email, userId, accessToken, masterPasswordHash };
+  return userId;
 }
 
 /** The personal API key for BW_CLIENTID / BW_CLIENTSECRET: created on the
@@ -518,12 +590,89 @@ export async function fetchApiKey(
   client: VaultClient,
   login: Login,
 ): Promise<Readonly<{ clientId: string; clientSecret: string }>> {
-  const result = (await call(client, login.serverUrl, "/api/accounts/api-key", {
-    token: login.accessToken,
-    json: { masterPasswordHash: login.masterPasswordHash },
-  })) as Record<string, unknown> | null;
+  const result = (await vaultRequest(
+    client,
+    login.serverUrl,
+    "/api/accounts/api-key",
+    {
+      token: login.accessToken,
+      json: { masterPasswordHash: login.masterPasswordHash },
+    },
+  )) as Record<string, unknown> | null;
   const secret = result?.apiKey;
   if (typeof secret !== "string" || !/^[A-Za-z0-9]{8,128}$/.test(secret))
     throw new VaultwardenError("unexpected");
   return { clientId: `user.${login.userId}`, clientSecret: secret };
+}
+
+/** A sign-in with the account's personal API key: what an access token for
+ * the vault's API costs once the account is ready, without its master
+ * password and also where the vault requires SSO of people
+ * (`SSO_ONLY_API_KEY` exempts the Environment's address shape, 0197 point 4).
+ * The answer also carries what unlocking the account's keys needs. */
+export type ApiKeyLogin = Readonly<{
+  serverUrl: string;
+  userId: string;
+  accessToken: string;
+  /** `Key`: the user key wrapped by the master key (EncString type 2). */
+  protectedUserKey: string;
+  /** `PrivateKey`: the private key wrapped by the user key. */
+  encryptedPrivateKey: string;
+  /** PBKDF2-SHA256 iterations of the master key. */
+  iterations: number;
+}>;
+
+export async function apiKeyLogin(
+  client: VaultClient,
+  options: Readonly<{
+    serverUrl: string;
+    clientId: string;
+    clientSecret: string;
+    device: Device;
+  }>,
+): Promise<ApiKeyLogin> {
+  const { serverUrl, device } = options;
+  const token = (await vaultRequest(
+    client,
+    serverUrl,
+    "/identity/connect/token",
+    {
+      form: {
+        grant_type: "client_credentials",
+        scope: "api",
+        client_id: options.clientId,
+        client_secret: options.clientSecret,
+        deviceType: String(device.type),
+        deviceIdentifier: device.identifier,
+        deviceName: device.name,
+      },
+    },
+  )) as Record<string, unknown> | null;
+  const accessToken = token?.access_token;
+  if (typeof accessToken !== "string") throw new VaultwardenError("unexpected");
+  const userId = subjectOf(accessToken);
+  if (options.clientId !== `user.${userId}`)
+    throw new VaultwardenError("unexpected");
+  if (token?.Kdf !== KDF_PBKDF2_SHA256)
+    throw new VaultwardenError("unsupported-kdf");
+  const iterations = token.KdfIterations;
+  if (
+    typeof iterations !== "number" ||
+    !Number.isSafeInteger(iterations) ||
+    iterations < 5_000 ||
+    iterations > 10_000_000
+  )
+    throw new VaultwardenError("unsupported-kdf");
+  const wrapped = (value: unknown): value is string =>
+    typeof value === "string" && /^2\.[A-Za-z0-9+/=|]{1,20000}$/.test(value);
+  if (!wrapped(token.Key) || !wrapped(token.PrivateKey))
+    throw new VaultwardenError("unexpected");
+  return Object.freeze({
+    serverUrl,
+    userId,
+    accessToken,
+    protectedUserKey: token.Key,
+    encryptedPrivateKey: token.PrivateKey,
+    iterations,
+  });
 }

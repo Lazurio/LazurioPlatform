@@ -139,8 +139,8 @@ tools composio-org [list | switch <id>] [--json]
   marked, and switching the current one. Apps connected in Composio belong to
   the account and organization of this Environment.
   Tools set up by an agent (gogcli, neon) have no curated flow: use
-  lazurio tools prompt <tool>. The Environment vault (bitwarden) is
-  connected with lazurio vault connect or in the Launchpad.`;
+  lazurio tools prompt <tool>. The Environment's own vault (bitwarden) is
+  set up by the Launchpad at its start or with lazurio vault setup.`;
 
 export class ToolsUsageError extends Error {}
 

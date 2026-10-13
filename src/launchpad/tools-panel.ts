@@ -101,15 +101,16 @@ export function createToolsPanel(
   const loginStatus = find<HTMLParagraphElement>("#tools-login-status");
   const loginBody = find<HTMLDivElement>("#tools-login-body");
   const loginClose = find<HTMLButtonElement>("#tools-login-close");
-  // The Environment vault's row and dialog (decision F43): its own state,
-  // read beside the tools; a connect that reaches "Připojeno" turns the
-  // agents' switch on, as a completed sign-in does.
+  // The Environment's own vault (decision F52): its own state, read beside
+  // the tools; the Environment sets it up itself, and a setup this page
+  // followed that ends connected turns the agents' switch on, as a completed
+  // sign-in does.
   const vault = createVaultPanel({
     post: options.post,
     copy: options.copy,
     changed: () => render(),
     connected: () => {
-      // Connecting is the next act on the row: the notice before it ends.
+      // The setup is the next act on the row: the notice before it ends.
       endNotice(vaultToolName);
       void refresh().then(() => {
         const tool = overview?.tools.find(
@@ -118,28 +119,6 @@ export function createToolsPanel(
         if (tool !== undefined && tool.tier !== "required" && !tool.enabled)
           void toggle(tool, true);
       });
-    },
-    // Disconnecting is the vault's sign-out: the notice before it ends too.
-    disconnected: () => endNotice(vaultToolName),
-    agent: () => {
-      const tool = overview?.tools.find(
-        (entry) => entry.name === vaultToolName,
-      );
-      if (tool === undefined) return;
-      const copy = options.copy();
-      openPrompt(
-        fill(copy.toolsPromptTitle, { name: tool.name }),
-        copy.toolsPromptHint,
-        tool.prompt,
-        groups.querySelector<HTMLElement>(
-          `[data-tool="${tool.name}"][data-control="agent"]`,
-        ) ?? mcpButton,
-      );
-    },
-    // Not while another dialog took over (the agent's prompt).
-    focus: () => {
-      if (!busy && !dialog.open && !loginDialog.open)
-        focusRow({ name: vaultToolName, control: "vault" });
     },
   });
 
@@ -1096,9 +1075,9 @@ export function createToolsPanel(
       notice !== null && notice.name === tool.name ? notice : null;
     const said =
       recorded === null ? null : toolNoticeView(recorded, tool, copy);
-    // The Environment vault (decision F43) and Executor (F44) say their own
-    // state and offer their own steps: an account of the Environment and a
-    // service Lazurio runs, not a person's sign-in.
+    // The Environment's vault (decision F52) and Executor (F44) say their
+    // own state and offer their own steps: an account of the Environment and
+    // a service Lazurio runs, not a person's sign-in.
     const vaultRow =
       tool.name === vaultToolName
         ? vault.row(copy)
