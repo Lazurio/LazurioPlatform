@@ -1,8 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { type Hold, type Holds, noHolds } from "../contract/node";
-import type { BootTime } from "../contract/pure";
+import { type Holds, noHolds } from "../contract/node";
+import type { GraceKind, TabFacts, TabOpener } from "../contract/platform";
+import {
+  type BootTime,
+  browserTimes,
+  navigableAddress,
+} from "../contract/pure";
 import type { CdpConnection, CdpEvent } from "./cdp";
 import {
   type ClientMessage,
@@ -78,41 +83,10 @@ export type HubSeams = Readonly<{
   stallMs?: number;
 }>;
 
-/** Who opened a tab, as far as the hub knows: the people's view (`/`), Nová
- * karta (through the loopback request), a page (its new tab or pop-up), an
- * agent (a session bound to it), or nobody it knows of (a tab from before
- * the service started). */
-export type TabOpener =
-  | Readonly<{ kind: "view" }>
-  | Readonly<{ kind: "new-tab"; strip: string | null }>
-  | Readonly<{ kind: "page"; openerId: string }>
-  | Readonly<{ kind: "agent"; session: string }>
-  | Readonly<{ kind: "unknown" }>;
-
-/** Why a tab nothing holds or views is counting down (F47 point 5). */
-export type GraceKind = "release" | "viewer" | "unviewed";
-
-/** One remote tab as the loopback list reports it (F47 point 6). */
-export type TabFacts = Readonly<{
-  id: string;
-  url: string;
-  title: string;
-  favicon: string | null;
-  openedAt: string;
-  usedAt: string;
-  opener: TabOpener;
-  /** The sessions whose agent works in it now. */
-  agents: readonly string[];
-  holders: readonly Hold[];
-  viewers: number;
-  /** When a close for everyone ends it, unless restored. */
-  closing: string | null;
-  grace: Readonly<{ kind: GraceKind; endsAt: string }> | null;
-  /** Its JavaScript heap in bytes, the overview's estimate marked "≈" (F47
-   * point 7): only in a list asked for with `heap=1`, null where it could
-   * not be read in time. */
-  heap?: Readonly<{ used: number; total: number }> | null;
-}>;
+// Who opened a tab (`TabOpener`), why a tab nothing holds or views counts
+// down (`GraceKind`) and one tab as the loopback list reports it
+// (`TabFacts`, F47 point 6) are the shapes of the contract's C11
+// (src/browser/contract/platform.ts), which the hub and its client share.
 
 type Info = {
   url: string;
@@ -330,20 +304,6 @@ export function clampSize(size: ViewSize): ViewSize {
   };
 }
 
-/** Only these addresses are navigated to from the address bar; the page
- * itself may go anywhere it likes. */
-export function navigableAddress(value: string): string | null {
-  if (value === "about:blank") return value;
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:"
-      ? url.href
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 export class BrowserHub {
   private cdp: CdpConnection | null = null;
   private stopped = false;
@@ -391,11 +351,12 @@ export class BrowserHub {
   private readonly stallMs: number;
 
   constructor(private readonly seams: HubSeams) {
-    this.graceMs = seams.graceMs ?? 30_000;
-    this.unviewedGraceMs = seams.unviewedGraceMs ?? 600_000;
-    this.releaseGraceMs = seams.releaseGraceMs ?? 8_000;
-    this.holdsEveryMs = seams.holdsEveryMs ?? 30_000;
-    this.reconnectMs = seams.reconnectMs ?? 2_000;
+    this.graceMs = seams.graceMs ?? browserTimes.viewerGraceMs;
+    this.unviewedGraceMs =
+      seams.unviewedGraceMs ?? browserTimes.unviewedGraceMs;
+    this.releaseGraceMs = seams.releaseGraceMs ?? browserTimes.releaseGraceMs;
+    this.holdsEveryMs = seams.holdsEveryMs ?? browserTimes.holdsEveryMs;
+    this.reconnectMs = seams.reconnectMs ?? browserTimes.reconnectMs;
     this.frameWindow = seams.frameWindow ?? frameWindow;
     this.stallMs = seams.stallMs ?? stallMs;
   }
@@ -479,7 +440,7 @@ export class BrowserHub {
         ...size,
       });
       const targetId = String(result.targetId);
-      const deadline = Date.now() + 2_000;
+      const deadline = Date.now() + browserTimes.newTabWaitMs;
       while (!this.tabs.has(targetId) && Date.now() < deadline)
         await new Promise((resolve) => setTimeout(resolve, 20));
       const tab = this.tabs.get(targetId);
@@ -1807,7 +1768,7 @@ export class BrowserHub {
     this.holdsSoon = setTimeout(() => {
       this.holdsSoon = null;
       void this.refreshHolds();
-    }, 100);
+    }, browserTimes.changesJoinMs);
   }
 
   private async refreshHolds(): Promise<void> {
@@ -1835,7 +1796,7 @@ export class BrowserHub {
     this.tabsSoon = setTimeout(() => {
       this.tabsSoon = null;
       void this.snapshotTabs();
-    }, 50);
+    }, browserTimes.snapshotJoinMs);
   }
 
   private async snapshotTabs(): Promise<void> {

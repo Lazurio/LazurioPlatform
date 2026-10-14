@@ -16,6 +16,12 @@ import {
   holdsReader,
   noHolds,
 } from "../src/browser/contract/node";
+import type { TabFacts } from "../src/browser/contract/platform";
+import {
+  appShellOrigin,
+  viewFrameAncestors as frameAncestors,
+  navigableAddress,
+} from "../src/browser/contract/pure";
 import type { CdpConnection, CdpEvent } from "../src/browser/people/cdp";
 import {
   browserExtensionFiles,
@@ -24,10 +30,8 @@ import {
 import {
   BrowserHub,
   jpegSize,
-  navigableAddress,
   pictureFrames,
   screencastFor,
-  type TabFacts,
   type Viewer,
 } from "../src/browser/people/hub";
 import {
@@ -37,9 +41,7 @@ import {
 } from "../src/browser/people/protocol";
 import { parseServeArgs } from "../src/browser/people/serve";
 import {
-  appShellOrigin,
   classifyRequest,
-  frameAncestors,
   pageHeaders,
   startViewService,
   type ViewService,
@@ -1026,11 +1028,16 @@ test("the address bar navigates only to web addresses", async () => {
   expect(navigableAddress("javascript:alert(1)")).toBeNull();
   expect(navigableAddress("file:///etc/passwd")).toBeNull();
   expect(navigableAddress("chrome://settings")).toBeNull();
+  // Never an address on the view host of an Environment browser: no view
+  // inside the Environment browser (F50 point 2).
+  const viewHost = `https://browser.vm-02.example.lazurio.io/t/${id(2)}`;
+  expect(navigableAddress(viewHost)).toBeNull();
   const browser = new FakeBrowser([tab(1)]);
   const { base } = await serve(browser);
   const view = await person(base, id(1));
   await until(() => view.of("info").length > 0);
   view.send({ t: "goto", url: "javascript:alert(1)" });
+  view.send({ t: "goto", url: viewHost });
   view.send({ t: "goto", url: "https://example.org/" });
   view.send({ t: "nav", action: "back" });
   await until(() => browser.called("Page.navigateToHistoryEntry").length > 0);

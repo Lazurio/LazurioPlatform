@@ -1,20 +1,17 @@
 import type { Server, ServerWebSocket } from "bun";
 import type { EnvironmentIdentity } from "../../shell/view";
+import { hubRequestOf } from "../contract/platform";
 import {
   browserViewUrl,
   isStrip,
-  targetIdOf,
+  navigableAddress,
+  viewFrameAncestors,
   viewPath,
   viewPathTab,
 } from "../contract/pure";
 import { viewScript } from "./bundle" with { type: "macro" };
 import { browserSocketUrl, type CdpConnection, connectCdp } from "./cdp";
-import {
-  BrowserHub,
-  type HubSeams,
-  navigableAddress,
-  type Viewer,
-} from "./hub";
+import { BrowserHub, type HubSeams, type Viewer } from "./hub";
 import { viewPage } from "./page";
 import { parseClientMessage } from "./protocol";
 
@@ -81,46 +78,6 @@ export function pageIdentitySource(
   };
 }
 
-/** `frame-ancestors` for the view: the Environment's own origins, the
- * siblings of the view's host (`https://*.<vm>.<org>.lazurio.io`), and the
- * T3 Code or Launchpad of another Environment that asks for the page, named by
- * the request's `Referer` (root decision 0191, addendum of 2026-10-09). No
- * other page frames it: the gateway's sign-in still decides who sees it, and
- * this keeps the views out of other Organizations' apps. A host with fewer
- * than three labels (a test on localhost) is framed by itself only. */
-export function frameAncestors(
-  origin: string,
-  referer?: string | null,
-): string {
-  const host = new URL(origin).hostname;
-  const labels = host.split(".");
-  if (labels.length < 3) return "'self'";
-  const siblings = labels.slice(1).join(".");
-  const shell = appShellOrigin(referer);
-  return shell === null || new URL(shell).hostname.endsWith(`.${siblings}`)
-    ? `'self' https://*.${siblings}`
-    : `'self' https://*.${siblings} ${shell}`;
-}
-
-/** The apps that frame views of the Environment browser in their right panel:
- * T3 Code and the Launchpad of an Environment on lazurio.io. */
-const APP_SHELL =
-  /^https:\/\/(?:t3code|launchpad)\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+lazurio\.io$/;
-
-/** The origin of `referer` when it is such an app, else null. */
-export function appShellOrigin(
-  referer: string | null | undefined,
-): string | null {
-  if (!referer) return null;
-  let url: URL;
-  try {
-    url = new URL(referer);
-  } catch {
-    return null;
-  }
-  return APP_SHELL.test(url.origin) ? url.origin : null;
-}
-
 export function pageHeaders(
   origin: string,
   referer?: string | null,
@@ -138,7 +95,7 @@ export function pageHeaders(
       `connect-src 'self' ${socket}`,
       "base-uri 'none'",
       "form-action 'none'",
-      `frame-ancestors ${frameAncestors(origin, referer)}`,
+      `frame-ancestors ${viewFrameAncestors(origin, referer)}`,
     ].join("; "),
     "x-content-type-options": "nosniff",
     "referrer-policy": "no-referrer",
@@ -161,7 +118,6 @@ const json = (body: unknown, status = 200) =>
  * its query is not read here. */
 const tabOfPath = (path: string, suffix: "/live" | "/files"): string | null =>
   path.endsWith(suffix) ? viewPathTab(path.slice(0, -suffix.length)) : null;
-const tabsPath = /^\/\.lazurio\/tabs(?:\/([^/]+)\/(close|restore))?$/;
 const maxTabsBodyBytes = 8 * 1024;
 
 export type RequestDecision =
@@ -201,12 +157,10 @@ export function classifyRequest(
     return request.host === own.host || loopback
       ? { kind: "health" }
       : { kind: "refused", status: 421, error: "wrong-host" };
-  const tabs = tabsPath.exec(path);
   // A tab is named by its id in either case (decision F50, C1); any other
-  // segment is no path of these requests.
-  const named = tabs?.[1];
-  const targetId = named === undefined ? undefined : targetIdOf(named);
-  if (tabs !== null && targetId !== null) {
+  // segment is no path of these requests (the contract's `hubRequestOf`).
+  const hub = hubRequestOf(path);
+  if (hub !== null) {
     // The Launchpad's requests (F47 point 6): through the gateway, which
     // sends the view's own host, they do not exist. Pages in the
     // Environment's own browser reach the loopback too, and a browser always
@@ -214,16 +168,14 @@ export function classifyRequest(
     if (!loopback) return { kind: "refused", status: 404, error: "not-found" };
     if (request.origin !== null || (request.fetchSite ?? null) !== null)
       return { kind: "refused", status: 403, error: "browser-request" };
-    if (targetId === undefined) {
+    if (hub.kind === "tabs") {
       if (request.method === "GET") return { kind: "tabs" };
       if (request.method === "POST") return { kind: "open" };
       return { kind: "refused", status: 405, error: "method-not-allowed" };
     }
     if (request.method !== "POST")
       return { kind: "refused", status: 405, error: "method-not-allowed" };
-    return tabs[2] === "close"
-      ? { kind: "close", targetId }
-      : { kind: "restore", targetId };
+    return { kind: hub.kind, targetId: hub.targetId };
   }
   if (request.host !== own.host)
     return { kind: "refused", status: 421, error: "wrong-host" };

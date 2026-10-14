@@ -2,6 +2,10 @@ import { randomBytes } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  browserViewDocumentPath,
+  browserViewPath,
+} from "../browser/contract/platform";
+import {
   browserViewUrl,
   isStrip,
   launchpadStrip,
@@ -279,12 +283,10 @@ const maintainRoute =
  * Lazurio/t3code#35), in the gateway's segment grammar. */
 const promptRoute = /^\/\.lazurio\/prompts\/([A-Za-z0-9._-]+)$/;
 
-/** The Environment browser's view (decision F38): the JSON answer the panels
- * of the Launchpad and of T3 Code read, and the hand-over a link opens. Both
- * under `/.lazurio/`, so the gateway forwards them from the forks' origins
- * too. */
-export const browserViewDocumentPath = "/.lazurio/browser.json";
-export const browserViewPath = "/.lazurio/browser";
+// The Environment browser's view (decision F38): the JSON answer the panels
+// of the Launchpad and of T3 Code read (`browserViewDocumentPath`), and the
+// hand-over a link opens (`browserViewPath`), the contract's C12. Both under
+// `/.lazurio/`, so the gateway forwards them from the forks' origins too.
 
 /** The Launchpad's own data under `/.lazurio/`, answered after admission
  * like every read; every other path there is the page's static asset. */
