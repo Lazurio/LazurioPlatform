@@ -13,6 +13,11 @@ import { sameRepository } from "../content/model";
 import { personalspaceRepositoryName } from "../content/status";
 import { readFolderCatalog } from "../organizations/catalog";
 import { personalspaceName } from "../organizations/personalspace";
+import {
+  observeModuleDirectory,
+  readOrganizationApplications,
+} from "../organizations/read-applications";
+import { organizationDocumentFiles } from "../organizations/read-documents";
 import { readCheckoutFileBytes } from "../providers/owned-json";
 import {
   baseReport,
@@ -21,10 +26,20 @@ import {
   ModuleCreateRefusal,
   type ModuleCreateReport,
   type ModuleCreateRequest,
+  type PlannedModule,
   type PlannedPersonalModule,
-  preparePersonalModule,
+  prepareModule,
   refusedReport,
 } from "./module-create";
+import {
+  organizationTaskWorktrees,
+  type PlannedOrganizationModule,
+  readOrganizationDocumentTexts,
+} from "./module-create-organization";
+import {
+  declareOrganizationSlots,
+  type OrganizationDocumentTexts,
+} from "./organization-declaration";
 import {
   insertModulePortPoolText,
   insertModuleSlotText,
@@ -32,23 +47,34 @@ import {
 } from "./scaffold";
 
 // The real run of `lazurio module create personalspace/<slug>` (decision
-// F52), only for the plan the person confirmed (`--confirm <plan>`, the
-// dry run's digest), under the Folder's content lock, from a task worktree
-// of the held Personalspace. In order:
+// F52) and of `lazurio module create <Organization>/<slug>` (its addendum of
+// 2026-10-14), only for the plan the person confirmed (`--confirm <plan>`,
+// the dry run's digest), under the Folder's content lock, from a task
+// worktree of the held Personalspace or of the Organization root. In order:
 //   write    the plan's files into a temporary sibling of `workspace/<slug>`
 //            (`publishNewCheckout`, as a clone of the content install);
 //   prepare  `bun install` or `uv lock` (a failure is reported, the run goes on);
 //   commit   `git init` with `main` and one commit by the operator's identity;
-//   create   the private repository on the person's own account, verified
-//            private and theirs, or the run stops and nothing is placed;
-//   place    the no-replace rename into the Personalspace's `workspace/<slug>`:
-//            a gitignored nested checkout, which the catalog lists at once;
+//   create   the private repository on the person's own account (or of the
+//            Organization), verified private and its owner's, or the run
+//            stops and nothing is placed;
+//   place    the no-replace rename into the Personalspace's (or the
+//            Organization root's) `workspace/<slug>`: a gitignored nested
+//            checkout;
 //   push     `main` to it (a failure leaves the module placed, with the exact
 //            command);
-//   declare  the slot (and, without one, the pool) into the task worktree's
-//            `modules.manifest.json`, byte for byte; the Personalspace's own
-//            tracked files are never touched;
-//   check    the catalog lists `personalspace/<slug>`.
+//   grant    an Organization's module only: each named Team gets Write on
+//            the repository, read back (a failure is reported, the run goes
+//            on);
+//   declare  the slot (and, without one, the personal pool) into the task
+//            worktree's `modules.manifest.json`, byte for byte, and for an
+//            Organization its compatibility projection
+//            (`organization-declaration.ts`); the primary checkout's tracked
+//            files are never touched;
+//   check    the catalog lists `personalspace/<slug>`; for an Organization,
+//            the task worktree's documents declare it and the placed module
+//            reads as the Organization's (the catalog lists it after the
+//            merge).
 // Nothing is ever adopted, overwritten or deleted on GitHub.
 
 export const moduleCreateSteps = [
@@ -59,6 +85,7 @@ export const moduleCreateSteps = [
   "create",
   "place",
   "push",
+  "grant",
   "declare",
   "check",
 ] as const;
@@ -86,7 +113,13 @@ export type ModuleCreateRunHost = ModuleCreateHost &
   Readonly<{
     github: Pick<
       ContentGitHub,
-      "viewer" | "repository" | "createRepository" | "remote"
+      | "viewer"
+      | "repository"
+      | "membership"
+      | "team"
+      | "createRepository"
+      | "grantTeam"
+      | "remote"
     >;
     git: Pick<ContentGit, "worktree" | "ignored" | "commitAll" | "push">;
     /** The directory of the per-Folder content locks. */
@@ -98,6 +131,7 @@ export type ModuleCreateRunHost = ModuleCreateHost &
 
 /** The description of the repository the run creates. */
 export const personalModuleDescription = "Osobní Modul Lazuria.";
+export const organizationModuleDescription = "Modul Lazuria.";
 
 function stepper(onStep: (step: ModuleCreateStep) => void) {
   let current: ModuleCreateStepKey = "plan";
@@ -130,12 +164,12 @@ function stepper(onStep: (step: ModuleCreateStep) => void) {
 }
 
 /**
- * Creates the confirmed plan (see the module comment). Never throws for a
- * refusal or a failed step: `blocked` when nothing was written anywhere,
- * `action_required` when something was and a step is left to the person,
- * `completed` when every step succeeded.
+ * Creates the confirmed plan (see the module comment), of either form. Never
+ * throws for a refusal or a failed step: `blocked` when nothing was written
+ * anywhere, `action_required` when something was and a step is left to the
+ * person, `completed` when every step succeeded.
  */
-export async function createPersonalModule(
+export async function createModule(
   request: ModuleCreateRunRequest,
   host: ModuleCreateRunHost,
   onStep: (step: ModuleCreateStep) => void = () => {},
@@ -159,7 +193,7 @@ export async function createPersonalModule(
   try {
     // Every check again under the lock: the state may have changed since the
     // dry run the person saw.
-    const prepared = await preparePersonalModule(request, host);
+    const prepared = await prepareModule(request, host);
     prepared.report.dry_run = false;
     if (!prepared.ok) {
       steps.failed(
@@ -186,13 +220,16 @@ export async function createPersonalModule(
   }
 }
 
+/** The real run of a personal module (decision F52), as before the
+ * Organization form: `createModule`. */
+export const createPersonalModule = createModule;
+
 // The real run's own refusals, after every check of the plan: the plan the
-// person confirmed, and a task worktree of the Personalspace to declare the
-// slot in.
+// person confirmed, and a task worktree to declare the slot in.
 async function runRefusal(
   request: ModuleCreateRunRequest,
   report: ModuleCreateReport,
-  module: PlannedPersonalModule,
+  module: PlannedModule,
 ): Promise<ModuleCreateRefusal | null> {
   if (report.plan !== request.confirm)
     return new ModuleCreateRefusal(
@@ -200,6 +237,7 @@ async function runRefusal(
       `The plan is not the one confirmed: ${request.confirm} was confirmed, this run would create ${report.plan}.`,
       "Show the person this plan again (the same command with --dry-run) and run it with its own --confirm only after they confirm it.",
     );
+  if (module.scope === "organization") return organizationRunRefusal(module);
   const create = `git -C '${module.space}' worktree add -b <branch> '${join(module.folder, personalspaceName, ".worktrees", "<task>")}' main`;
   if (module.worktree === null || !module.worktree.linked)
     return new ModuleCreateRefusal(
@@ -228,14 +266,84 @@ async function runRefusal(
   return null;
 }
 
+// The Organization's: a linked worktree of its root in exactly
+// `<root>/.worktrees/root/<task>` (the root's worktree discipline; anywhere
+// else, `organizations/<other>` say, it would be a second catalog candidate
+// of the same Organization), on a branch of its own.
+async function organizationRunRefusal(
+  module: PlannedOrganizationModule,
+): Promise<ModuleCreateRefusal | null> {
+  const { root } = module.organization;
+  const create = `git -C '${root}' worktree add -b <branch> '${join(organizationTaskWorktrees(root), "<task>")}' main`;
+  if (module.worktree === null || !module.worktree.linked)
+    return new ModuleCreateRefusal(
+      "organization_root_not_task_worktree",
+      "The command does not run in a task worktree of the Organization root; the slot is declared there, never in the Organization root's own checkout.",
+      `Create one (${create}) and run the command from it.`,
+    );
+  const tasks = await realpath(organizationTaskWorktrees(root)).catch(
+    () => null,
+  );
+  if (tasks === null || dirname(module.worktree.path) !== tasks)
+    return new ModuleCreateRefusal(
+      "organization_worktree_misplaced",
+      `The task worktree ${module.worktree.path} is not in ${organizationTaskWorktrees(root)}; the Organization root's task worktrees live there.`,
+      `Create one there (${create}) and run the command from it.`,
+    );
+  if (module.worktree.branch === null || module.worktree.branch === "main")
+    return new ModuleCreateRefusal(
+      "organization_root_on_main",
+      `The task worktree ${module.worktree.path} is on ${module.worktree.branch ?? "a detached HEAD"}; the slot is declared on a branch of its own, for a pull request.`,
+      `Switch it to a new branch (git -C '${module.worktree.path}' switch -c <branch>), or create another (${create}), and run the command from it.`,
+    );
+  return null;
+}
+
+/** What differs between the two forms in a real run. */
+type Target = Readonly<{
+  /** The GitHub login that owns the repository. */
+  owner: string;
+  /** The checkout whose `workspace/` receives the module. */
+  parent: string;
+  /** The Organization the repository is created in, if any. */
+  organization: string | undefined;
+  description: string;
+  unavailable: ModuleCreateRefusal;
+}>;
+
+function targetOf(module: PlannedModule): Target {
+  if (module.scope === "organization")
+    return {
+      owner: module.organization.github,
+      parent: module.organization.root,
+      organization: module.organization.github,
+      description: organizationModuleDescription,
+      unavailable: new ModuleCreateRefusal(
+        "organization-workspace-unavailable",
+        "The Organization root's workspace/ is not a real directory of your own account.",
+      ),
+    };
+  return {
+    owner: module.login,
+    parent: module.space,
+    organization: undefined,
+    description: personalModuleDescription,
+    unavailable: new ModuleCreateRefusal(
+      "personalspace-unavailable",
+      "The Personalspace's workspace/ is not a real directory of your own account.",
+    ),
+  };
+}
+
 async function run(
   report: ModuleCreateReport,
-  module: PlannedPersonalModule,
+  module: PlannedModule,
   host: ModuleCreateRunHost,
   steps: ReturnType<typeof stepper>,
 ): Promise<ModuleCreateReport> {
   const { plan } = module;
-  const fullName = `${module.login}/${plan.module}`;
+  const target = targetOf(module);
+  const fullName = `${target.owner}/${plan.module}`;
   const issues: ModuleCreateIssue[] = [];
   // The repository this run created, when it did.
   let created: GitHubRepository | null = null;
@@ -244,12 +352,9 @@ async function run(
   let workspace: string;
   steps.running("write");
   try {
-    workspace = await ensureCheckoutDirectories(module.space, ["workspace"]);
+    workspace = await ensureCheckoutDirectories(target.parent, ["workspace"]);
   } catch {
-    const refusal = new ModuleCreateRefusal(
-      "personalspace-unavailable",
-      "The Personalspace's workspace/ is not a real directory of your own account.",
-    );
+    const refusal = target.unavailable;
     steps.failed("write", refusal.code, refusal.message);
     return refusedReport(report, refusal);
   }
@@ -295,13 +400,16 @@ async function run(
       steps.running("commit");
       // By the operator's Git identity, else the person's GitHub one given
       // per commit (an Environment whose gh Lazurio did not sign in may have
-      // none; the curated gh sign-in sets it, F19 addendum 2026-10-14).
+      // none; the curated gh sign-in sets it, F19 addendum 2026-10-14). For
+      // a personal module only the holder's; for an Organization's, the
+      // Owner the plan verified.
       const viewer = await host.github.viewer();
       const committed = await host.git.commitAll(
         checkout,
         `Create ${plan.module} with lazurio module create (${plan.stack})`,
         viewer.kind === "signed-in" &&
-          viewer.viewer.login.toLowerCase() === module.login.toLowerCase()
+          (module.scope === "organization" ||
+            viewer.viewer.login.toLowerCase() === module.login.toLowerCase())
           ? githubCommitIdentity(viewer.viewer)
           : undefined,
       );
@@ -315,10 +423,11 @@ async function run(
       steps.running("create");
       const answer = await host.github.createRepository(
         plan.module,
-        personalModuleDescription,
+        target.description,
+        target.organization,
       );
       if (answer.kind === "failed") {
-        const now = await host.github.repository(module.login, plan.module);
+        const now = await host.github.repository(target.owner, plan.module);
         // GitHub has it now, but this run cannot tell whether its own
         // request created it (and the answer was lost) or another took the
         // name first: never adopted, and the person decides.
@@ -332,7 +441,7 @@ async function run(
       if (
         !sameRepository(answer.repository.fullName, fullName) ||
         answer.repository.owner.login.toLowerCase() !==
-          module.login.toLowerCase()
+          target.owner.toLowerCase()
       ) {
         steps.failed(
           "create",
@@ -362,7 +471,7 @@ async function run(
       published.kind === "occupied" ? "directory_exists" : published.code;
     if (published.kind === "occupied") steps.failed("place", code);
     else if (!reported) steps.failed(steps.current(), code);
-    return stopped(report, code, created, fullName, module);
+    return stopped(report, code, created, fullName, target.owner, module);
   }
   steps.done("place", module.moduleRoot);
   const repository = published.value;
@@ -381,13 +490,47 @@ async function run(
     steps.failed("push", "push-failed", pushed.detail);
   }
 
+  // grant
+  if (module.scope === "organization") {
+    steps.running("grant");
+    const refused: string[] = [];
+    for (const grant of module.grants) {
+      const answer = await host.github.grantTeam(
+        module.organization.github,
+        grant.github,
+        repository.fullName,
+        grant.permission,
+      );
+      if (answer === "granted") continue;
+      refused.push(grant.github);
+      issues.push({
+        code: "grant-failed",
+        message: `GitHub did not grant the Team ${grant.github} ${grant.permission} on ${repository.fullName}; until it does, the Team does not reach the module.`,
+        action: `Grant it as an Owner of ${module.organization.github}: gh api --method PUT orgs/${module.organization.github}/teams/${grant.github}/repos/${repository.fullName} --raw-field permission=${grant.permission}`,
+      });
+    }
+    if (refused.length === 0)
+      steps.done(
+        "grant",
+        module.grants
+          .map((grant) => `${grant.github} ${grant.permission}`)
+          .join(", "),
+      );
+    else steps.failed("grant", "grant-failed", refused.join(", "));
+  }
+
   // declare
   steps.running("declare");
-  const declared = await declare(module);
+  const declared =
+    module.scope === "organization"
+      ? await declareOrganization(module)
+      : await declare(module);
   if (declared === null)
     steps.done(
       "declare",
-      `${plan.slot.path}${module.addsPool ? ` and module_port_pool ${module.pool.start}-${module.pool.end}` : ""} in ${module.manifestPath}`,
+      module.scope === "organization"
+        ? `${plan.slot.path} in ${module.manifestPath}, with the Organization's projection`
+        : `${plan.slot.path}${module.addsPool ? ` and module_port_pool ${module.pool.start}-${module.pool.end}` : ""} in ${module.manifestPath}`,
     );
   else {
     issues.push(declared);
@@ -396,23 +539,13 @@ async function run(
 
   // check
   steps.running("check");
-  const catalog = await readFolderCatalog(module.folder, host.holder).catch(
-    () => null,
-  );
-  const listed = catalog?.personalspace?.modules.find(
-    (entry) => entry.module === plan.module,
-  );
-  if (listed !== undefined)
-    steps.done(
-      "check",
-      `listed as ${personalspaceName}/${plan.module}${listed.executable ? "" : ` (${listed.reason})`}`,
-    );
+  const checked =
+    module.scope === "organization"
+      ? await checkOrganization(module, declared === null)
+      : await checkPersonal(module, host);
+  if (checked.kind === "done") steps.done("check", checked.detail);
   else {
-    issues.push({
-      code: "check-failed",
-      message: `The catalog does not list ${personalspaceName}/${plan.module}.`,
-      action: `See lazurio module list ${personalspaceName} --json.`,
-    });
+    issues.push(checked.issue);
     steps.failed("check", "check-failed");
   }
 
@@ -429,9 +562,85 @@ async function run(
     ...issues.flatMap((issue) =>
       issue.action === undefined ? [] : [issue.action],
     ),
-    ...createdSteps(module, declared === null),
+    ...(module.scope === "organization"
+      ? organizationCreatedSteps(module, declared === null)
+      : createdSteps(module, declared === null)),
   ];
   return report;
+}
+
+type CheckAnswer =
+  | Readonly<{ kind: "done"; detail: string }>
+  | Readonly<{ kind: "failed"; issue: ModuleCreateIssue }>;
+
+async function checkPersonal(
+  module: PlannedPersonalModule,
+  host: ModuleCreateRunHost,
+): Promise<CheckAnswer> {
+  const { plan } = module;
+  const catalog = await readFolderCatalog(module.folder, host.holder).catch(
+    () => null,
+  );
+  const listed = catalog?.personalspace?.modules.find(
+    (entry) => entry.module === plan.module,
+  );
+  if (listed !== undefined)
+    return {
+      kind: "done",
+      detail: `listed as ${personalspaceName}/${plan.module}${listed.executable ? "" : ` (${listed.reason})`}`,
+    };
+  return {
+    kind: "failed",
+    issue: {
+      code: "check-failed",
+      message: `The catalog does not list ${personalspaceName}/${plan.module}.`,
+      action: `See lazurio module list ${personalspaceName} --json.`,
+    },
+  };
+}
+
+// The catalog reads the Organization root's `main`, which declares the slot
+// only after the merge. So: the task worktree's documents resolve and declare
+// it, and the placed checkout reads as a module of the Organization.
+async function checkOrganization(
+  module: PlannedOrganizationModule,
+  declared: boolean,
+): Promise<CheckAnswer> {
+  const { plan, organization } = module;
+  const name = `${organization.slug}/${plan.module}`;
+  const failed = (message: string): CheckAnswer => ({
+    kind: "failed",
+    issue: {
+      code: "check-failed",
+      message,
+      action: `See lazurio module list ${organization.slug} --json after the pull request is merged.`,
+    },
+  });
+  const placed = await observeModuleDirectory(
+    module.moduleRoot,
+    (found) => found.company === organization.slug && found.id === plan.module,
+  ).catch(() => null);
+  if (placed?.kind !== "module-observed")
+    return failed(`${module.moduleRoot} does not read as the module ${name}.`);
+  if (!declared)
+    return failed(
+      `The task worktree does not declare ${name}; the catalog will not list it.`,
+    );
+  const observed = await readOrganizationApplications(
+    module.documents.directory,
+  );
+  if (
+    observed.kind !== "applications-observed" ||
+    observed.admission !== "executable" ||
+    !observed.entries.some((entry) => entry.module === plan.module)
+  )
+    return failed(
+      `The Organization root in ${module.documents.directory} does not resolve with ${name} declared.`,
+    );
+  return {
+    kind: "done",
+    detail: `${name} declared in ${module.documents.directory} and placed in ${module.moduleRoot}; the catalog lists it once the pull request is merged`,
+  };
 }
 
 // A run that stopped before the module was placed: nothing under
@@ -442,7 +651,8 @@ function stopped(
   code: string,
   created: GitHubRepository | null,
   fullName: string,
-  module: PlannedPersonalModule,
+  owner: string,
+  module: PlannedModule,
 ): ModuleCreateReport {
   const messages: Readonly<Record<string, [string, string]>> = {
     "commit-failed": [
@@ -452,7 +662,7 @@ function stopped(
     "create-failed": [
       created === null
         ? `GitHub did not create ${fullName}; nothing was placed.`
-        : `GitHub created ${created.fullName}, not ${fullName} of ${module.login}; nothing was placed.`,
+        : `GitHub created ${created.fullName}, not ${fullName} of ${owner}; nothing was placed.`,
       created === null
         ? "Check gh auth status and run the command again."
         : `Delete ${created.fullName} on GitHub if it is not wanted, check gh auth status and run the command again.`,
@@ -528,6 +738,117 @@ async function declare(
       action,
     };
   }
+}
+
+// The slot into the task worktree's `modules.manifest.json` and the
+// Organization's projection after it (`declareOrganizationSlots`), computed
+// and verified in full before any write, from the documents unchanged since
+// the plan read them. Each file is written with a rename; an issue names the
+// files written when a later one could not be.
+async function declareOrganization(
+  module: PlannedOrganizationModule,
+): Promise<ModuleCreateIssue | null> {
+  const directory = module.documents.directory;
+  const action = `Add the slot of ${module.plan.slot.path} (the report's slot) to ${module.manifestPath} by hand in the pull request into the Organization root, then regenerate its projection with lazurio migrate organization-manifest '${directory}' --write from a Lazurio root checkout.`;
+  let next: OrganizationDocumentTexts;
+  try {
+    const current = await readOrganizationDocumentTexts(directory);
+    const before = module.documents.texts;
+    if (
+      current.canonical !== before.canonical ||
+      current.modules !== before.modules ||
+      current.legacy !== before.legacy
+    )
+      return {
+        code: "manifest_changed",
+        message: `The Organization's documents in ${directory} changed while the module was being created; the slot was not added.`,
+        action,
+      };
+    next = declareOrganizationSlots(current, [module.plan.slot]);
+  } catch (error) {
+    return {
+      code:
+        error instanceof ModuleScaffoldError ||
+        error instanceof ModuleCreateRefusal
+          ? error.code
+          : "declare-failed",
+      message: `The slot could not be declared in ${directory}: ${error instanceof Error ? error.message : String(error)}`,
+      action,
+    };
+  }
+  const writes: [string, string][] = [
+    [organizationDocumentFiles.modules, next.modules],
+    [organizationDocumentFiles.canonical, next.canonical],
+    ...(next.legacy === null
+      ? []
+      : [[organizationDocumentFiles.legacy, next.legacy] as [string, string]]),
+  ];
+  const written: string[] = [];
+  try {
+    for (const [file, text] of writes) {
+      await replaceFile(join(directory, file), text);
+      written.push(file);
+    }
+    return null;
+  } catch (error) {
+    return {
+      code: "declare-failed",
+      message: `The Organization's documents in ${directory} were written only in part (${written.length === 0 ? "none" : written.join(", ")}): ${error instanceof Error ? error.message : String(error)}`,
+      action:
+        written.length === 0
+          ? action
+          : `Restore them (git -C '${directory}' checkout -- ${written.join(" ")}), then: ${action}`,
+    };
+  }
+}
+
+// `text` into `path` with a rename, keeping the file's mode.
+async function replaceFile(path: string, text: string) {
+  const { mode } = await stat(path);
+  const temporary = `${path}.lazurio-module-create-${process.pid}.tmp`;
+  await writeFile(temporary, text, {
+    encoding: "utf8",
+    flag: "wx",
+    mode: mode & 0o777,
+  });
+  await rename(temporary, path);
+}
+
+function organizationCreatedSteps(
+  module: PlannedOrganizationModule,
+  declared: boolean,
+): string[] {
+  const { plan, worktree, organization } = module;
+  const files = [
+    organizationDocumentFiles.modules,
+    organizationDocumentFiles.canonical,
+    ...(module.documents.texts.legacy === null
+      ? []
+      : [organizationDocumentFiles.legacy]),
+  ].join(", ");
+  const rootRepository = (
+    JSON.parse(module.documents.texts.canonical) as {
+      root_repository?: { locator?: unknown };
+    }
+  ).root_repository?.locator;
+  const steps = [
+    `${declared ? "Commit" : "Once the slot is in them, commit"} ${files} in the task worktree ${worktree?.path} (the slot ${plan.slot.path}), push its branch and open a pull request into ${typeof rootRepository === "string" ? rootRepository : "the Organization root's repository"}; merging it is the Publication of an Operator GitHub lets merge there.`,
+    `After the merge, remove the task worktree: git -C '${organization.root}' worktree remove '${worktree?.path}'.`,
+  ];
+  const name = `${organization.slug}/${plan.module}`;
+  if (plan.lease === null)
+    steps.push(
+      `The module has no app; after the merge lazurio module list ${organization.slug} --json lists it.`,
+    );
+  else if (plan.toolchain === "uv")
+    steps.push(
+      `Check the app by hand with uv run --no-sync ${plan.module} in ${join(module.moduleRoot, "app", "v1")}; this Platform does not start a uv app yet.`,
+    );
+  else
+    steps.push(
+      `After the merge, start it: lazurio module start ${name} --json, and open result.runtime.url.`,
+    );
+  return steps;
 }
 
 function createdSteps(

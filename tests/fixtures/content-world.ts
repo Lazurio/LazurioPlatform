@@ -288,9 +288,22 @@ export function stubGitHub(
      * nothing; `taken` creates nothing because another, unseen, request took
      * the name first (the repository exists after). */
     create?: "private" | "public" | "other-owner" | "failed" | "taken";
+    /** The Organizations' Teams GitHub knows, `<org>/<slug>` with their id
+     * (anything not named is 404), or `unavailable`. */
+    teams?: Record<string, number | "unavailable">;
+    /** The Team grants GitHub refuses, `<org>/<slug>`. */
+    refuseGrants?: readonly string[];
   } = {},
 ) {
   const calls: StubCalls = [];
+  /** Every Team grant GitHub accepted: `<org>/<team> <repository> <permission>`. */
+  const grants: string[] = [];
+  const teamIds = new Map(
+    Object.entries(options.teams ?? {}).map(([name, id]) => [
+      name.toLowerCase(),
+      id,
+    ]),
+  );
   const known = new Map<string, Partial<GitHubRepository> | "unavailable">();
   const names = new Map<string, string>();
   for (const [name, entry] of Object.entries(options.repositories ?? {})) {
@@ -396,15 +409,24 @@ export function stubGitHub(
       calls.push({ kind: "branchReady", args: [owner, name] });
       return true;
     },
-    async createRepository(name, description) {
-      calls.push({ kind: "createRepository", args: [name, description] });
+    async createRepository(name, description, organization) {
+      calls.push({
+        kind: "createRepository",
+        args:
+          organization === undefined
+            ? [name, description]
+            : [name, description, organization],
+      });
       const signedIn = viewer.kind === "signed-in" ? viewer.viewer : null;
       if (options.create === "failed" || signedIn === null)
         return { kind: "failed" };
+      const ownerKind = organization === undefined ? "User" : "Organization";
       const owner =
         options.create === "other-owner"
           ? { login: "other", databaseId: 7 }
-          : { login: signedIn.login, databaseId: signedIn.databaseId };
+          : organization !== undefined
+            ? { login: organization, databaseId: 4242 }
+            : { login: signedIn.login, databaseId: signedIn.databaseId };
       const fullName = `${owner.login}/${name}`;
       await mkdir(join(world.remotes, owner.login), { recursive: true });
       await git(
@@ -417,7 +439,7 @@ export function stubGitHub(
       const isPrivate = options.create !== "public";
       const entry = {
         private: isPrivate,
-        owner: { ...owner, kind: "User" },
+        owner: { ...owner, kind: ownerKind },
       };
       known.set(fullName.toLowerCase(), entry);
       names.set(fullName.toLowerCase(), fullName);
@@ -426,7 +448,7 @@ export function stubGitHub(
         kind: "created",
         repository: {
           fullName,
-          owner: { ...owner, kind: "User" },
+          owner: { ...owner, kind: ownerKind },
           private: isPrivate,
           archived: false,
           readable: true,
@@ -434,11 +456,34 @@ export function stubGitHub(
         },
       };
     },
+    async team(organization, slug) {
+      calls.push({ kind: "team", args: [organization, slug] });
+      const id = teamIds.get(`${organization}/${slug}`.toLowerCase());
+      if (id === undefined) return { kind: "missing" };
+      if (id === "unavailable") return { kind: "unavailable" };
+      return { kind: "observed", team: { slug, databaseId: id } };
+    },
+    async grantTeam(organization, team, fullName, permission) {
+      calls.push({
+        kind: "grantTeam",
+        args: [organization, team, fullName, permission],
+      });
+      if (
+        (options.refuseGrants ?? []).some(
+          (refused) =>
+            refused.toLowerCase() === `${organization}/${team}`.toLowerCase(),
+        ) ||
+        !known.has(fullName.toLowerCase())
+      )
+        return "failed";
+      grants.push(`${organization}/${team} ${fullName} ${permission}`);
+      return "granted";
+    },
     async remote(fullName) {
       return { url: `git@github.com:${fullName}.git` };
     },
   };
-  return { github, calls };
+  return { github, calls, grants };
 }
 
 // The fixture of Lazurio/PersonalspaceTemplate_GEN3 a generation writes:

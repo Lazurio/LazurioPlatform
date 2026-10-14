@@ -360,12 +360,12 @@ describe("refusals, before anything is written", () => {
         selector: `personalspace/${label}`,
       });
     await refusal({}, "unknown_stack", { stack: "rails" });
-    const { report, setup } = await refusal(
-      {},
-      "organization-form-unavailable",
-      { selector: "Acme/portal" },
-    );
-    expect(report.issues[0]?.message).toContain("#267");
+    // An Organization's module is the Organization form
+    // (tests/organization-module-create.test.ts); without its Teams it is
+    // refused before anything is read.
+    const { report, setup } = await refusal({}, "teams-required", {
+      selector: "Acme/portal",
+    });
     expect(report.scope).toBe("organization");
     // Refused by name alone: GitHub was never asked.
     expect(setup.calls).toEqual([]);

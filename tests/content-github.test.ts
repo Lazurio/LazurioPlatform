@@ -270,6 +270,64 @@ esac`);
   },
 );
 
+posixTest(
+  "an Organization's module: its repository created in the Organization, its Teams read and granted Write, the grant read back",
+  async () => {
+    const { github, calls } = await fakeGh(`
+case "$*" in
+  "api --method POST orgs/Acme/repos --raw-field name=portal "*) echo '{"full_name":"Acme/portal","private":true,"archived":false,"owner":{"login":"Acme","id":4242,"type":"Organization"},"permissions":{"admin":true,"pull":true}}' ;;
+  "api orgs/Acme/teams/core-builders") echo '{"id":501,"slug":"core-builders","name":"Core builders"}' ;;
+  "api orgs/Acme/teams/garbled") echo '{"slug":"garbled"}' ;;
+  "api orgs/Acme/teams/gone") echo '{"message":"Not Found","status":"404"}'; exit 1 ;;
+  "api --method PUT orgs/Acme/teams/core-builders/repos/Acme/portal --raw-field permission=push") ;;
+  "api --header Accept: application/vnd.github.v3.repository+json orgs/Acme/teams/core-builders/repos/Acme/portal") echo '{"full_name":"Acme/portal","private":true,"archived":false,"owner":{"login":"Acme","id":4242,"type":"Organization"},"permissions":{"admin":false,"maintain":false,"push":true,"triage":true,"pull":true}}' ;;
+  "api --method PUT orgs/Acme/teams/readers/repos/Acme/portal --raw-field permission=push") ;;
+  "api --header Accept: application/vnd.github.v3.repository+json orgs/Acme/teams/readers/repos/Acme/portal") echo '{"full_name":"Acme/portal","private":true,"archived":false,"owner":{"login":"Acme","id":4242,"type":"Organization"},"permissions":{"push":false,"pull":true}}' ;;
+  *) exit 1 ;;
+esac`);
+    expect(
+      await github.createRepository("portal", "Modul Lazuria.", "Acme"),
+    ).toMatchObject({
+      kind: "created",
+      repository: {
+        fullName: "Acme/portal",
+        owner: { login: "Acme", kind: "Organization" },
+        private: true,
+      },
+    });
+    // An Organization GitHub would not take is never sent.
+    expect(
+      await github.createRepository("portal", "Modul Lazuria.", "-bad"),
+    ).toEqual({ kind: "failed" });
+    expect(await github.team("Acme", "core-builders")).toEqual({
+      kind: "observed",
+      team: { slug: "core-builders", databaseId: 501 },
+    });
+    expect(await github.team("Acme", "gone")).toEqual({ kind: "missing" });
+    expect(await github.team("Acme", "garbled")).toEqual({
+      kind: "unavailable",
+    });
+    expect(await github.team("Acme", "Not A Slug")).toEqual({
+      kind: "unavailable",
+    });
+    expect(
+      await github.grantTeam("Acme", "core-builders", "Acme/portal", "push"),
+    ).toBe("granted");
+    // GitHub accepted the PUT, but the read-back shows no Write.
+    expect(
+      await github.grantTeam("Acme", "readers", "Acme/portal", "push"),
+    ).toBe("failed");
+    expect(
+      await github.grantTeam("Acme", "refused", "Acme/portal", "push"),
+    ).toBe("failed");
+    const sent = await calls();
+    expect(sent[0]).toBe(
+      "api --method POST orgs/Acme/repos --raw-field name=portal --raw-field description=Modul Lazuria. --field private=true --field auto_init=false",
+    );
+    expect(sent.some((line) => line.includes("-bad"))).toBe(false);
+  },
+);
+
 posixTest("an HTTPS remote takes gh as git's credential helper", async () => {
   const { github, gh } = await fakeGh("exit 1");
   expect(await github.remote("Example/repo")).toEqual({

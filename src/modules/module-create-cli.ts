@@ -8,7 +8,7 @@ import { resolveOnPath, runTool } from "../tools/status";
 import { type CliContext, installBase, operatorFolder } from "../update/cli";
 import { type ModuleCreateReport, planModuleCreate } from "./module-create";
 import {
-  createPersonalModule,
+  createModule,
   type InstallAnswer,
   type ModuleCreateRunHost,
   type ModuleCreateStep,
@@ -20,6 +20,7 @@ import { moduleScaffoldStacks } from "./scaffold";
  * (decision F52). CLI first (root decision 0167): the Launchpad has no route
  * for it; an agent runs it for the person. */
 export const moduleCreateHelp = `module create personalspace/<module> --stack <stack> [--name <name>] [--port N] (--dry-run | --confirm <plan>) [--folder <absolute Folder>] [--json]
+module create <Organization>/<module> --stack <stack> --teams <team,team> [--name <name>] [--port N] (--dry-run | --confirm <plan>) [--folder <absolute Folder>] [--json]
   Creates a module of your own in your Personalspace (decision F52): a private
   repository <login>/<module> on the GitHub account gh is signed in with here,
   checked out in the Personalspace's workspace/<module>, with no Organization
@@ -55,17 +56,36 @@ export const moduleCreateHelp = `module create personalspace/<module> --stack <s
   main (push-failed keeps it placed), and declares the slot (and the pool) in the
   task worktree's modules.manifest.json, never in the Personalspace's own
   checkout; then commit that and open a pull request into your Personalspace.
-  --teams is refused (a personal module has no Teams), and an Organization's
-  module (<Organization>/<module>) is refused with organization-form-unavailable
-  until Lazurio/LazurioPlatform#267. --json prints one JSON line per step, then
-  the report (lazurio.module_create.report.v1). Exit status: 0 planned or
-  created, 1 created with a step left to you (its next step says which), 2
-  refused (nothing written) or usage.`;
+  --teams is refused for a personal module (it has no Teams).
+  An Organization's module (decision F52's addendum of 2026-10-14) is the
+  same flow for an Organization of this Folder, named by its slug (or its
+  directory, or its GitHub login): a private
+  repository <GitHub login>/<module> of the Organization, Write for each Team
+  of --teams (required; Teams of lazurio.organization.json that exist on
+  GitHub: unknown_team, team-not-on-github, team-binding-mismatch), checked out
+  in the Organization root's workspace/<module>. Only an active Owner of the
+  Organization creates one (organization-owner-required), never a Team
+  Environment (team-environment); the Organization root resolves cleanly
+  (organization_not_found, organization_manifest_not_mutation_safe) and its
+  module_port_pool stays out of 23000-23099 (organization-pool-invalid). The
+  real run runs from a task worktree of the Organization root in
+  <Organization root>/.worktrees/root/<task> on a branch of its own
+  (organization_root_not_task_worktree, organization_worktree_misplaced,
+  organization_root_on_main), grants the Teams after the push (grant-failed
+  keeps the module and names the command) and declares the slot in the task
+  worktree's modules.manifest.json with the Organization's projection
+  (lazurio.organization.json, company.gen3.json); then commit those and open a
+  pull request into the Organization root. --json prints one JSON line per
+  step, then the report (lazurio.module_create.report.v1). Exit status: 0
+  planned or created, 1 created with a step left to you (its next step says
+  which), 2 refused (nothing written) or usage.`;
 
 export class ModuleCreateUsageError extends Error {}
 
-const usage =
-  "Usage: module create personalspace/<module> --stack <stack> [--name <name>] [--port N] (--dry-run | --confirm <plan>) [--folder <Folder>] [--json]";
+const usage = [
+  "Usage: module create personalspace/<module> --stack <stack> [--name <name>] [--port N] (--dry-run | --confirm <plan>) [--folder <Folder>] [--json]",
+  "       module create <Organization>/<module> --stack <stack> --teams <team,team> [--name <name>] [--port N] (--dry-run | --confirm <plan>) [--folder <Folder>] [--json]",
+].join("\n");
 
 function parse(args: string[]) {
   let values: {
@@ -113,7 +133,7 @@ function parse(args: string[]) {
     throw new ModuleCreateUsageError(usage);
   if (rest.length !== 0)
     throw new ModuleCreateUsageError(
-      `module create takes one module, personalspace/<module>; also given: ${rest.map(shown).join(" ")}\n${usage}`,
+      `module create takes one module, personalspace/<module> or <Organization>/<module>; also given: ${rest.map(shown).join(" ")}\n${usage}`,
     );
   if (values.stack === undefined)
     throw new ModuleCreateUsageError(
@@ -132,11 +152,23 @@ function parse(args: string[]) {
     throw new ModuleCreateUsageError(
       `A personal module has no Teams: leave out --teams.\n${usage}`,
     );
+  const teams =
+    values.teams === undefined
+      ? undefined
+      : values.teams.split(",").map((team) => team.trim());
+  if (
+    !personal &&
+    selector.includes("/") &&
+    (teams === undefined || teams.some((team) => team === ""))
+  )
+    throw new ModuleCreateUsageError(
+      `An Organization's module names its Teams: --teams <team,team>, the Teams of lazurio.organization.json that work on it.\n${usage}`,
+    );
   if (dryRun && values.confirm !== undefined)
     throw new ModuleCreateUsageError(
       `Either --dry-run or --confirm <plan>, not both.\n${usage}`,
     );
-  if (personal && !dryRun && values.confirm === undefined)
+  if (!dryRun && values.confirm === undefined)
     throw new ModuleCreateUsageError(
       `Show the person the plan with --dry-run first; only after they confirm it, run the command with --confirm <plan>, the plan's digest.\n${usage}`,
     );
@@ -152,6 +184,7 @@ function parse(args: string[]) {
     stack: values.stack,
     name: values.name,
     port: values.port === undefined ? undefined : Number(values.port),
+    teams,
     folder: values.folder,
     json: values.json === true,
     confirm: dryRun ? undefined : values.confirm,
@@ -175,6 +208,10 @@ export function renderModuleCreate(report: ModuleCreateReport): string {
   if (report.repository !== null)
     lines.push(
       `Repository: ${shown(report.repository.full_name)} on GitHub, private${report.repository.create ? (report.dry_run ? ", to be created by the real run" : ", created") : ""}`,
+    );
+  if (report.teams.length > 0)
+    lines.push(
+      `Teams: ${report.teams.map((team) => `${shown(team.slug)} (${team.permission})`).join(", ")}`,
     );
   if (report.slot !== null && report.manifest !== null)
     lines.push(
@@ -323,6 +360,7 @@ export async function runModuleCreateCommand(
     stack: options.stack,
     ...(options.name === undefined ? {} : { name: options.name }),
     ...(options.port === undefined ? {} : { port: options.port }),
+    ...(options.teams === undefined ? {} : { teams: options.teams }),
   };
   let report: ModuleCreateReport;
   if (options.confirm === undefined) {
@@ -344,7 +382,7 @@ export async function runModuleCreateCommand(
         detail: `private ${report.repository?.full_name}, ${report.files.length} files, ${report.lease === null ? "no lease" : `lease ${report.lease.port}`}`,
       });
   } else
-    report = await createPersonalModule(
+    report = await createModule(
       { ...request, confirm: options.confirm },
       host,
       step,

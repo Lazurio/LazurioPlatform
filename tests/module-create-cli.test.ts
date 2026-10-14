@@ -100,6 +100,18 @@ test("usage errors exit 2 with the command's help, before anything is read", asy
       ["personalspace/notes", "--stack", "none", "--dry-run", "--unknown"],
       "Unknown option",
     ],
+    [
+      ["Acme/portal", "--stack", "none", "--dry-run"],
+      "An Organization's module names its Teams",
+    ],
+    [
+      ["Acme/portal", "--stack", "none", "--teams", "core,", "--dry-run"],
+      "An Organization's module names its Teams",
+    ],
+    [
+      ["Acme/portal", "--stack", "none", "--teams", "core"],
+      "Show the person the plan with --dry-run first",
+    ],
   ];
   for (const [args, message] of cases) {
     const run = await cli(["module", "create", ...args, "--folder", folder]);
@@ -110,7 +122,7 @@ test("usage errors exit 2 with the command's help, before anything is read", asy
   }
 });
 
-test("refusals by name alone: the Organization form, the stack and the slug", async () => {
+test("refusals by name alone: an unknown Organization, the stack and the slug", async () => {
   const folder = "/nonexistent-lazurio-folder";
   const refused = async (args: string[], reason: string) => {
     const run = await cli([
@@ -141,18 +153,12 @@ test("refusals by name alone: the Organization form, the stack and the slug", as
     });
     return report(run.stdout);
   };
+  // The Organization form: no such Organization in a Folder that is none.
   const organization = await refused(
-    ["Acme/portal", "--stack", "none"],
-    "organization-form-unavailable",
-  );
-  expect(organization.issues[0].message).toContain(
-    "Lazurio/LazurioPlatform#267",
-  );
-  // --teams belongs to the Organization form, refused as a whole.
-  await refused(
     ["Acme/portal", "--stack", "none", "--teams", "core"],
-    "organization-form-unavailable",
+    "organization_not_found",
   );
+  expect(organization.scope).toBe("organization");
   await refused(["personalspace/notes", "--stack", "rails"], "unknown_stack");
   await refused(["personalspace/Notes", "--stack", "none"], "invalid_slug");
   await refused(["personalspace/mausbot", "--stack", "none"], "reserved_slug");
