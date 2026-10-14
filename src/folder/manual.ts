@@ -2289,6 +2289,370 @@ function thisMachine(source: InstructionSource): string {
   );
 }
 
+// A new module (decision F14 addendum of 2026-10-14, decision F52, the F36
+// addendum of the same day): what an agent does when the person wants to
+// build a new module, which starts with the phrase "Chci postavit nový
+// modul" ("I want to build a new module"), the first words of the
+// Launchpad's "+ Nový modul" briefs. An interview about the purpose comes
+// first, one question at a time; the technical choices are the agent's; the
+// person confirms a summary in their own words, then the plan; only then is
+// anything created. Where the module can go follows the preset: a
+// Personalspace exists only on a workstation and a personal Remote
+// Environment, Organizations only where the preset holds them. The
+// Organization form of `lazurio module create` is not in this Platform yet
+// (#267), so there the agent offers the Organization's own route.
+function newModule(preset: PresetName): readonly Text[] {
+  const personal = workspacePreset(preset).personalspace === "present";
+  const organizations = preset !== "hosted-personal";
+  return [
+    t(
+      "Tahle stránka platí, když chce člověk postavit nový modul. Modul je samostatný repozitář s vlastním `AGENTS.md`, obvykle s aplikací, kterou člověk otevírá z Launchpadu (Lazurio Module Standard, decision 0171). Postup má kroky v tomhle pořadí; nic nezakládej, dokud člověk nepotvrdí shrnutí (krok 1) i plán (krok 4).",
+      "This page applies when the person wants to build a new module. A module is a repository of its own with its own `AGENTS.md`, usually with an app the person opens from the Launchpad (the Lazurio Module Standard, decision 0171). The steps go in this order; create nothing until the person has confirmed the summary (step 1) and the plan (step 4).",
+    ),
+    blank,
+    t("## Kdy to platí", "## When this applies"),
+    t(
+      "- Člověk napíše „Chci postavit nový modul“ (anglicky „I want to build a new module“). Tak začíná i zadání, které do Chatu vloží dlaždice „+ Nový modul“ v Launchpadu; jeho druhá věta říká, kam modul patří.",
+      "- The person writes “I want to build a new module” (in Czech „Chci postavit nový modul“). The brief that the Launchpad's “+ Nový modul” tile puts into Chat starts the same way; its second sentence says where the module goes.",
+    ),
+    t(
+      "- Člověk jinými slovy chce novou aplikaci, nástroj, web nebo modul („udělej mi aplikaci na…“, „potřebuju přehled…“).",
+      "- The person asks in other words for a new app, tool, website or module (“make me an app for…”, “I need an overview of…”).",
+    ),
+    t(
+      "- Neplatí pro úpravu existujícího modulu: tu dělej v jeho repozitáři podle jeho `AGENTS.md`.",
+      "- It does not apply to changing an existing module: do that in its repository under its `AGENTS.md`.",
+    ),
+    blank,
+    t("## 1. Rozhovor o účelu", "## 1. The interview about the purpose"),
+    t(
+      "Nejdřív pochop, k čemu má modul být. Člověk nemusí rozumět technice; ty potřebuješ rozumět jeho práci. Zjisti:",
+      "First understand what the module is for. The person need not understand technology; you need to understand their work. Find out:",
+    ),
+    t(
+      "- jaký problém má modul vyřešit a co člověka dnes zdržuje nebo trápí;",
+      "- what problem the module is to solve and what slows the person down or bothers them today;",
+    ),
+    t(
+      "- kdo ho bude používat a kde: jen on, nebo i další lidé, u počítače, na telefonu, v terénu;",
+      "- who will use it and where: only them or other people too, at a computer, on a phone, out in the field;",
+    ),
+    t(
+      "- co v něm chce vidět a co v něm chce dělat;",
+      "- what they want to see in it and what they want to do in it;",
+    ),
+    t(
+      "- odkud se berou data: ruční zápis, tabulka, e-mail, jiná aplikace, soubory;",
+      "- where the data comes from: typed in by hand, a spreadsheet, e-mail, another app, files;",
+    ),
+    t(
+      "- co se má dít samo, bez člověka: připomínka, souhrn, import, upozornění;",
+      "- what should happen on its own, without the person: a reminder, a summary, an import, a notification;",
+    ),
+    t(
+      "- jak vypadá dobrá první verze: nejmenší věc, která mu už pomůže.",
+      "- what a good first version is: the smallest thing that already helps them.",
+    ),
+    blank,
+    t(
+      "- **Jedna otázka v jedné zprávě**, obyčejnými slovy a jen na to, co člověk ještě neřekl. Co je v zadání nebo v jeho dřívějších odpovědích, znovu nevyptávej; když toho řekl hodně najednou, zeptej se jen na zbytek. Například: „Kdo bude modul používat: jen vy, nebo i kolegové, a spíš u počítače, nebo na telefonu?“",
+      "- **One question per message**, in plain words, and only about what the person has not said yet. Do not ask again about what the brief or their earlier answers already say; when they said a lot at once, ask only about the rest. For example: “Who will use the module: only you, or colleagues too, and mostly at a computer or on a phone?”",
+    ),
+    t(
+      "- **Na techniku se neptej.** Stack, framework, úložiště ani port nejsou otázky pro člověka (krok 3).",
+      "- **Do not ask about technology.** The stack, framework, storage and port are not questions for the person (step 3).",
+    ),
+    t(
+      "- **Shrnutí a „ano“.** Když víš dost, shrň mu modul jeho slovy: jaký problém řeší, kdo ho používá a kde, co v něm uvidí a udělá, odkud jsou data, co se děje samo, co bude v první verzi a co až později. Zeptej se, jestli to tak chce, a počkej na jeho „ano“. Když něco opraví, shrnutí uprav a zeptej se znovu. Pokračuj teprve s potvrzeným shrnutím, ať nepostavíš něco, o čem pak člověk řekne, že to nechtěl.",
+      "- **The summary and a “yes”.** When you know enough, summarise the module back in the person's words: the problem it solves, who uses it and where, what they will see and do in it, where the data comes from, what happens on its own, what is in the first version and what comes later. Ask whether that is what they want and wait for their “yes”. When they correct something, update the summary and ask again. Continue only with a confirmed summary, so that you do not build something the person then says they did not want.",
+    ),
+    blank,
+    t("## 2. Kam modul patří", "## 2. Where the module goes"),
+    ...newModulePlace(personal, organizations),
+    blank,
+    t("## 3. Technické volby děláš ty", "## 3. You make the technical choices"),
+    t(
+      "Stack, framework, úložiště dat i port vybereš sám podle rozhovoru a každou volbu člověku vysvětlíš jednou větou obyčejnými slovy. Na nic z toho se ho neptej; když se zeptá sám nebo chce něco jinak, vyhov mu.",
+      "You choose the stack, framework, data storage and port yourself from the interview and explain each choice to the person in one sentence of plain words. Ask them about none of it; when they ask themselves or want something else, go along with them.",
+    ),
+    t(
+      "- `vite-react`: aplikace s obrazovkami, formuláři a přehledy, se kterou člověk pracuje v prohlížeči. Nejčastější volba.",
+      "- `vite-react`: an app with screens, forms and overviews that the person works with in the browser. The most common choice.",
+    ),
+    t(
+      "- `astro`: web nebo stránky hlavně ke čtení, třeba prezentace, rozcestník nebo malý web.",
+      "- `astro`: a website or pages mainly for reading, such as a presentation, a signpost page or a small site.",
+    ),
+    t(
+      "- `astro-starlight`: dokumentace nebo znalostní báze s navigací a vyhledáváním.",
+      "- `astro-starlight`: documentation or a knowledge base with navigation and search.",
+    ),
+    t(
+      "- `bun-service`: služba bez vlastních obrazovek, která něco dělá na pozadí nebo odpovídá jiným aplikacím.",
+      "- `bun-service`: a service without screens of its own that does something in the background or answers other apps.",
+    ),
+    t(
+      "- `python-uv`: služba v Pythonu, když ji práce opravdu potřebuje (knihovny, které jsou jen pro Python). Tahle Platforma ji zatím nespouští: ověřuje se ručně podle jejího `README.md`.",
+      "- `python-uv`: a service in Python, when the work really needs it (libraries only Python has). This Platform does not start it yet: it is checked by hand as its `README.md` says.",
+    ),
+    t(
+      "- `none`: bez aplikace, jen repozitář pro dokumenty, data nebo nastavení.",
+      "- `none`: no app, only a repository for documents, data or settings.",
+    ),
+    blank,
+    t(
+      "- **Data**: pro první verzi zvol nejjednodušší úložiště, které stačí, typicky soubory v repozitáři modulu; databázi nebo jinou službu jen tam, kde to rozhovor vyžaduje. Tajné údaje nikdy nepatří do repozitáře ani do souboru `.env` (Module Standard).",
+      "- **Data**: for the first version choose the simplest storage that is enough, typically files in the module's repository; a database or another service only where the interview calls for it. Secrets never go into the repository or an `.env` file (the Module Standard).",
+    ),
+    t(
+      "- **Port** vybere `lazurio module create` sám z poolu portů; `--port` dávej jen z konkrétního důvodu.",
+      "- **The port** is chosen by `lazurio module create` itself from the port pool; pass `--port` only for a specific reason.",
+    ),
+    t(
+      "- **Název a slug** navrhni sám. Název (`--name`) člověk uvidí v Launchpadu. Slug je krátký identifikátor malými písmeny s pomlčkami (`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`, nejvýš 50 znaků); stane se jménem repozitáře a na Remote Environmentu i adresou modulu. Vyhrazené slugy (třeba `launchpad`, `browser`, `api`) příkaz odmítne (`reserved_slug`).",
+      "- **Propose the name and the slug** yourself. The person sees the name (`--name`) in the Launchpad. The slug is a short lowercase identifier with hyphens (`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`, at most 50 characters); it becomes the repository's name and, in a Remote Environment, the module's address. The command refuses reserved slugs (such as `launchpad`, `browser`, `api`) with `reserved_slug`.",
+    ),
+    blank,
+    t("## 4. Plán a jeho potvrzení", "## 4. The plan and its confirmation"),
+    ...(personal ? personalModulePlan : []),
+    ...(personal && organizations ? [blank] : []),
+    ...(organizations ? organizationModuleRoute : []),
+    blank,
+    ...(personal ? personalModuleRest : organizationModuleRest),
+    blank,
+    t("## Odmítnutí, na která narazíš", "## Refusals you are likely to meet"),
+    t(
+      "Každé odmítnutí `lazurio module create` má kód v `reason` a další krok v `next_steps`; řiď se jím a odmítnutí nikdy neobcházej ručně. Nejčastější:",
+      "Every refusal of `lazurio module create` has its code in `reason` and the next step in `next_steps`; follow it and never work around a refusal by hand. The most common:",
+    ),
+    ...(organizations
+      ? [
+          t(
+            "- `organization-form-unavailable`: modul Organizace; tahle Platforma ho zatím nezakládá (krok 4).",
+            "- `organization-form-unavailable`: an Organization's module, which this Platform does not create yet (step 4).",
+          ),
+        ]
+      : []),
+    ...(personal
+      ? personalModuleRefusals
+      : [
+          t(
+            "- `personalspace-not-here`: tenhle Environment nemá osobní prostor; osobní modul vzniká na vlastním počítači člověka nebo na jeho osobním Remote Environmentu.",
+            "- `personalspace-not-here`: this Environment has no personal space; a personal module is created on the person's own computer or on their personal Remote Environment.",
+          ),
+        ]),
+  ];
+}
+
+// Step 2 per preset: the places this Environment has.
+function newModulePlace(
+  personal: boolean,
+  organizations: boolean,
+): readonly Text[] {
+  const personalPlace = t(
+    "- **Workspace osobního prostoru**: modul je jen člověka, soukromý repozitář `<login>/<slug>` na jeho vlastním GitHub účtu, ve složce `workspace/` jeho Personalspace, bez Organizace a bez Teamů (decision F52).",
+    "- **The personal Workspace**: the module is the person's alone, a private repository `<login>/<slug>` on their own GitHub account, in the `workspace/` folder of their Personalspace, with no Organization and no Teams (decision F52).",
+  );
+  const organizationPlace = t(
+    "- **Workspace Organizace**: modul patří Organizaci a jejím Teamům; kdo k němu dosáhne, určují jejich GitHub granty. Když je od začátku jasné, že jde o Workspace Organizace, řekni člověku už před rozhovorem, co o modulu Organizace říká krok 4; rozhovor se i tak vyplatí.",
+    "- **An Organization's Workspace**: the module belongs to the Organization and its Teams; their GitHub grants decide who reaches it. When it is clear from the start that it goes into an Organization's Workspace, tell the person what step 4 says about an Organization's module before the interview; the interview is still worth it.",
+  );
+  if (personal && organizations)
+    return [
+      t(
+        "Modul může patřit na jedno ze dvou míst:",
+        "A module can go to one of two places:",
+      ),
+      personalPlace,
+      organizationPlace,
+      t(
+        "Když to člověk řekl (zadání z „+ Nový modul“ to říká vždy), neptej se. Zeptej se, jen když to z rozhovoru jasné není, třeba: „Má modul patřit jen vám, nebo Organizaci, ve které pracujete?“",
+        "When the person has said it (the brief of “+ Nový modul” always does), do not ask. Ask only when the conversation leaves it unclear, for example: “Should the module be yours alone, or belong to an Organization you work in?”",
+      ),
+    ];
+  if (personal)
+    return [
+      t(
+        "Tenhle Environment drží jen osobní prostor, takže modul patří sem:",
+        "This Environment holds only the personal space, so the module goes here:",
+      ),
+      personalPlace,
+      t(
+        "Modul Organizace sem nepatří: vzniká na pracovním Environmentu Organizace. Když ho člověk chce, řekni mu to.",
+        "An Organization's module does not belong here: it is created on a work Environment of the Organization. When the person wants one, tell them so.",
+      ),
+    ];
+  return [
+    t(
+      "Tenhle Environment patří Organizaci a osobní prostor tu není, takže modul patří sem:",
+      "This Environment belongs to an Organization and has no personal space, so the module goes here:",
+    ),
+    organizationPlace,
+    t(
+      "Osobní modul vzniká na vlastním počítači člověka nebo na jeho osobním Remote Environmentu. Když ho člověk chce, řekni mu to.",
+      "A personal module is created on the person's own computer or on their personal Remote Environment. When the person wants one, tell them so.",
+    ),
+  ];
+}
+
+// Step 4 for the personal Workspace: the task worktree, the dry run, the plan
+// shown and confirmed (decision F52 points 6 and 7).
+const personalModulePlan: readonly Text[] = [
+  t(
+    "**Osobní modul.** Příkazy spouštěj z kořene Lazurio Folderu, kde vlákno začíná. `<login>` je GitHub login člověka (`gh api user --jq .login`) a `personalspace/<login>_GEN3` jeho Personalspace, jediná složka v `personalspace/`.",
+    "**A personal module.** Run the commands from the root of the Lazurio Folder, where the thread starts. `<login>` is the person's GitHub login (`gh api user --jq .login`) and `personalspace/<login>_GEN3` their Personalspace, the one directory in `personalspace/`.",
+  ),
+  t(
+    '1. Založ task worktree Personalspace vedle něj, nikdy uvnitř: `git -C personalspace/<login>_GEN3 worktree add -b <branch> "$PWD/personalspace/.worktrees/<task>" main`. Do něj příkaz zapíše slot modulu pro pull request.',
+    '1. Create a task worktree of the Personalspace beside it, never inside it: `git -C personalspace/<login>_GEN3 worktree add -b <branch> "$PWD/personalspace/.worktrees/<task>" main`. That is where the command declares the module\'s slot, for the pull request.',
+  ),
+  t(
+    "2. V task worktree spusť plán, který nic nezapíše: `lazurio module create personalspace/<slug> --stack <stack> --name '<název>' --dry-run --json`. Stav `actionable` je plán; `blocked` je odmítnutí s kódem v `reason` a dalším krokem v `next_steps` (níže).",
+    "2. In the task worktree run the plan, which writes nothing: `lazurio module create personalspace/<slug> --stack <stack> --name '<name>' --dry-run --json`. The status `actionable` is the plan; `blocked` is a refusal with its code in `reason` and the next step in `next_steps` (below).",
+  ),
+  t(
+    "3. Plán člověku ukaž obyčejnými slovy: soukromý repozitář `<login>/<slug>` na jeho vlastním účtu, název, co stack znamená, port a že slot půjde pull requestem do jeho Personalspace. Řekni mu i varování z `warnings`. Počkej, až plán potvrdí; když něco změní, spusť dry run znovu a ukaž mu nový plán.",
+    "3. Show the person the plan in plain words: the private repository `<login>/<slug>` on their own account, the name, what the stack means, the port, and that the slot goes into their Personalspace by a pull request. Tell them the `warnings` too. Wait until they confirm the plan; when they change something, run the dry run again and show them the new plan.",
+  ),
+  t(
+    "- Varování, že Personalspace ještě nese zástupného vlastníka šablony (Lazurio/LazurioPlatform#377), člověku jen řekni; bootstrap šablony kvůli němu nespouštěj.",
+    "- A warning that the Personalspace still names the template's placeholder owner (Lazurio/LazurioPlatform#377) is only told to the person; never run the template's bootstrap for it.",
+  ),
+];
+
+// Step 4 for an Organization: the Platform has no Organization form yet
+// (#267), so the agent offers the Organization's own route instead of
+// improvising.
+const organizationModuleRoute: readonly Text[] = [
+  t(
+    "**Modul Organizace.** Tahle Platforma modul Organizace zatím nezakládá (Lazurio/LazurioPlatform#267): `lazurio module create <Organizace>/<slug>` odmítne s `organization-form-unavailable`. Řekni to člověku rovnou a nabídni mu cestu Organizace: jak se u ní moduly zakládají, říká její `AGENTS.md` nebo její skills v `organizations/<org>/`; jinak se zeptej jejího Admina. Neimprovizuj: modul nezakládej ručně, scaffold odjinud nekopíruj a nic dalšího kvůli tomu neinstaluj. Potvrzené shrnutí z kroku 1 a svůj technický návrh z kroku 3 předej té cestě, ať člověk nic neříká dvakrát.",
+    "**An Organization's module.** This Platform does not create an Organization's module yet (Lazurio/LazurioPlatform#267): `lazurio module create <Organization>/<slug>` refuses with `organization-form-unavailable`. Tell the person straight away and offer the Organization's own route: its `AGENTS.md` or its skills in `organizations/<org>/` say how its modules are created; otherwise ask its Admin. Do not improvise: do not create the module by hand, do not copy a scaffold from elsewhere and install nothing else for it. Hand the confirmed summary of step 1 and your technical proposal of step 3 to that route, so the person never says anything twice.",
+  ),
+];
+
+// Steps 5 to 7 for the personal Workspace: the confirmed run, the first
+// version in the module's own task worktree, and Publication of both pull
+// requests. `lazurio module start` runs only the module's own checkout (no
+// worktree source yet), so the first version is shown by the README's
+// manual start before Publication and by `runtime.url` after it.
+const personalModuleRest: readonly Text[] = [
+  t("## 5. Založení", "## 5. Creation"),
+  t(
+    "- Teprve po potvrzení plánu spusť z task worktree tentýž příkaz s `--confirm <plan>` místo `--dry-run`, kde `<plan>` je `plan` z dry runu (přesný příkaz uvádí jeho `next_steps`): `lazurio module create personalspace/<slug> --stack <stack> --name '<název>' --confirm <plan> --json`.",
+    "- Only after the plan is confirmed, run the same command from the task worktree with `--confirm <plan>` instead of `--dry-run`, where `<plan>` is the dry run's `plan` (its `next_steps` give the exact command): `lazurio module create personalspace/<slug> --stack <stack> --name '<name>' --confirm <plan> --json`.",
+  ),
+  t(
+    "- Běh zapíše soubory modulu, připraví lockfile, udělá první commit, založí na účtu člověka prázdný soukromý repozitář, umístí modul do `personalspace/<login>_GEN3/workspace/<slug>`, pushne `main`, zapíše slot do `modules.manifest.json` v task worktree a ověří, že modul vidí katalog. Výsledek je `completed`, `action_required` (modul vznikl a krok zbývá; který, říká `next_steps`) nebo `blocked` (nic se nezapsalo).",
+    "- The run writes the module's files, prepares its lockfile, makes the first commit, creates an empty private repository on the person's account, places the module in `personalspace/<login>_GEN3/workspace/<slug>`, pushes `main`, declares the slot in the task worktree's `modules.manifest.json` and checks that the catalog sees the module. The result is `completed`, `action_required` (the module exists and a step is left; `next_steps` says which) or `blocked` (nothing was written).",
+  ),
+  t(
+    '- Ověř, že repozitář je soukromý a patří člověku: `gh repo view <login>/<slug> --json isPrivate,owner` vrátí `"isPrivate":true` a jeho login. Jinak se zastav a řekni mu to.',
+    '- Check that the repository is private and the person\'s: `gh repo view <login>/<slug> --json isPrivate,owner` answers `"isPrivate":true` and their login. Otherwise stop and tell them.',
+  ),
+  t(
+    "- Pak udělej další kroky, které běh vypsal v `next_steps`.",
+    "- Then take the next steps the run reports in `next_steps`.",
+  ),
+  blank,
+  t("## 6. První verze", "## 6. The first version"),
+  t(
+    "- Postav první verzi podle potvrzeného shrnutí, nic navíc. Co patří až do dalších verzí, nech na později a člověku to řekni.",
+    "- Build the first version from the confirmed summary, nothing more. Leave what belongs to later versions for later and tell the person so.",
+  ),
+  t(
+    "- Řiď se `AGENTS.md` nového modulu (napsal ho scaffold) a jeho `README.md`. Změna jde do task worktree modulu a do pull requestu do `<login>/<slug>`: `git -C personalspace/<login>_GEN3/workspace/<slug> worktree add -b <branch> .worktrees/<task> main` (`.gitignore` modulu složku `.worktrees/` vynechává).",
+    "- Follow the new module's `AGENTS.md` (the scaffold wrote it) and its `README.md`. The change goes into a task worktree of the module and a pull request into `<login>/<slug>`: `git -C personalspace/<login>_GEN3/workspace/<slug> worktree add -b <branch> .worktrees/<task> main` (the module's `.gitignore` leaves `.worktrees/` out).",
+  ),
+  t(
+    "- Spusť kontroly a testy, které uvádí `README.md` (u aplikace na Bunu v `app/v1`: `bun install --frozen-lockfile`, `bun run check` a `bun test`), a opravuj, dokud neprojdou.",
+    "- Run the checks and tests the `README.md` names (for a Bun app in `app/v1`: `bun install --frozen-lockfile`, `bun run check` and `bun test`) and fix until they pass.",
+  ),
+  t(
+    "- Než se zeptáš na Publikaci, ukaž člověku první verzi běžící. `lazurio module start` spouští modul jen z jeho vlastního checkoutu, ne z worktree, takže ji z worktree spusť ručním startem z `README.md` na volném portu (ne na portu modulu) a otevři ji v prohlížeči; na Remote Environmentu v prohlížeči Environmentu, jehož záložku člověk otevře odkazem (`manual/this-machine.md`). Ověř, že stránka ukazuje, co říká shrnutí, a po ukázce ruční start zastav. Modul `python-uv` ověř ručně podle jeho `README.md`; `none` nemá co spustit, ukaž člověku obsah repozitáře.",
+    "- Before you ask about Publication, show the person the first version running. `lazurio module start` runs a module only from its own checkout, not from a worktree, so start the worktree's app by the `README.md`'s manual start on a free port (not the module's port) and open it in the browser; in a Remote Environment in the Environment browser, whose tab the person opens by its link (`manual/this-machine.md`). Check that the page shows what the summary says, and stop the manual start after showing it. Check a `python-uv` module by hand as its `README.md` says; `none` has nothing to start, so show the person the repository's content.",
+  ),
+  blank,
+  t("## 7. Publikace", "## 7. Publication"),
+  t(
+    "- Hotová práce má dva pull requesty: první verzi modulu do `<login>/<slug>` a slot z task worktree Personalspace do `<login>/<login>_GEN3` (commitni `modules.manifest.json`, pushni branch a otevři pull request). Když jsou hotové a ověřené, přepni je na Ready for review.",
+    "- The finished work is two pull requests: the module's first version into `<login>/<slug>` and the slot from the Personalspace's task worktree into `<login>/<login>_GEN3` (commit `modules.manifest.json`, push the branch and open the pull request). When they are finished and verified, mark them Ready for review.",
+  ),
+  t(
+    "- Merge obou je Publikace člověka: zeptej se ho, jestli je máš Publikovat, a merguj až na jeho výslovné „Publikuj“ (`manual/working-here.md`).",
+    "- Merging them is the person's Publication: ask them whether you should publish them, and merge only on their explicit “Publish” (`manual/working-here.md`).",
+  ),
+  t(
+    '- Po merge srovnej oba checkouty (`git -C personalspace/<login>_GEN3 pull --ff-only` a `git -C personalspace/<login>_GEN3/workspace/<slug> pull --ff-only`) a odstraň oba task worktrees (`git -C personalspace/<login>_GEN3 worktree remove "$PWD/personalspace/.worktrees/<task>"` a `git -C personalspace/<login>_GEN3/workspace/<slug> worktree remove .worktrees/<task>`).',
+    '- After the merge, bring both checkouts up to date (`git -C personalspace/<login>_GEN3 pull --ff-only` and `git -C personalspace/<login>_GEN3/workspace/<slug> pull --ff-only`) and remove both task worktrees (`git -C personalspace/<login>_GEN3 worktree remove "$PWD/personalspace/.worktrees/<task>"` and `git -C personalspace/<login>_GEN3/workspace/<slug> worktree remove .worktrees/<task>`).',
+  ),
+  t(
+    "- Pak modul spusť: `lazurio module start personalspace/<slug> --json` (na macOS v Launchpadu), otevři `result.runtime.url` v prohlížeči, ověř, že se stránka vykreslila, a dej člověku odkaz. Odteď modul najde ve Workspace svého osobního prostoru v Launchpadu.",
+    "- Then start the module: `lazurio module start personalspace/<slug> --json` (on macOS in the Launchpad), open `result.runtime.url` in the browser, check that the page rendered, and give the person the link. From now on they find the module in their personal space's Workspace in the Launchpad.",
+  ),
+];
+
+// Steps 5 to 7 where the Environment has no personal space: the
+// Organization's route creates and publishes the module, with the same bar.
+const organizationModuleRest: readonly Text[] = [
+  t(
+    "## 5. Založení, první verze a Publikace",
+    "## 5. Creation, the first version and Publication",
+  ),
+  t(
+    "- Modul Organizace založí cesta Organizace z kroku 4. I tam postav první verzi podle potvrzeného shrnutí, spusť kontroly a testy modulu, ukaž ji člověku běžící (`lazurio module start <Org>/<slug> --json` a `runtime.url`) a Draft předej v pull requestu; Publikace se řídí `manual/working-here.md`.",
+    "- The Organization's route of step 4 creates an Organization's module. There too, build the first version from the confirmed summary, run the module's checks and tests, show the person the running app (`lazurio module start <Org>/<slug> --json` and `runtime.url`) and hand over the Draft as a pull request; Publication follows `manual/working-here.md`.",
+  ),
+];
+
+// The refusals of a personal module an agent is likely to meet, with what to
+// do (`src/modules/module-create.ts`, `module-create-run.ts`, `scaffold.ts`).
+const personalModuleRefusals: readonly Text[] = [
+  t(
+    "- `personalspace-absent`: osobní prostor tu ještě není; se souhlasem člověka ho nainstaluj (`lazurio personalspace install`).",
+    "- `personalspace-absent`: the personal space is not here yet; with the person's consent install it (`lazurio personalspace install`).",
+  ),
+  t(
+    "- `github-signed-out`, `github-identity-mismatch`: `gh` tu není přihlášený účtem člověka; požádej ho o přihlášení k GitHubu (`AGENTS.md`), sám ho nepřihlašuj.",
+    "- `github-signed-out`, `github-identity-mismatch`: `gh` is not signed in here with the person's account; ask them to sign in to GitHub (`AGENTS.md`), never sign them in yourself.",
+  ),
+  t(
+    "- `invalid_slug`, `reserved_slug`, `unknown_stack`: oprav slug nebo stack a spusť dry run znovu.",
+    "- `invalid_slug`, `reserved_slug`, `unknown_stack`: correct the slug or the stack and run the dry run again.",
+  ),
+  t(
+    "- `repository-exists`, `directory_exists`, `slot_exists`: jméno je obsazené a existující repozitář se nikdy nepřebírá; navrhni člověku jiný slug.",
+    "- `repository-exists`, `directory_exists`, `slot_exists`: the name is taken and an existing repository is never taken over; propose another slug to the person.",
+  ),
+  t(
+    "- `modules_manifest_missing`, `manifest_invalid`, `personalspace-pool-invalid`, `personalspace-workspace-tracked`: Personalspace potřebuje opravu; udělej ji pull requestem podle `next_steps` a dry run spusť znovu.",
+    "- `modules_manifest_missing`, `manifest_invalid`, `personalspace-pool-invalid`, `personalspace-workspace-tracked`: the Personalspace needs a fix; make it by a pull request as `next_steps` says and run the dry run again.",
+  ),
+  t(
+    "- `plan-changed`: plán se od potvrzení změnil; ukaž člověku nový (dry run) a spusť ho jen s jeho novým `plan` po novém potvrzení.",
+    "- `plan-changed`: the plan changed since it was confirmed; show the person the new one (the dry run) and run it only with its new `plan` after a new confirmation.",
+  ),
+  t(
+    "- `personalspace_root_not_task_worktree`, `personalspace_worktree_misplaced`, `personalspace_root_on_main`: spusť příkaz z task worktree v `personalspace/.worktrees/<task>` na vlastní branchi (krok 4).",
+    "- `personalspace_root_not_task_worktree`, `personalspace_worktree_misplaced`, `personalspace_root_on_main`: run the command from a task worktree in `personalspace/.worktrees/<task>` on a branch of its own (step 4).",
+  ),
+  t(
+    "- `content-busy`: běží jiná instalace nebo zakládání modulu; počkej a spusť příkaz znovu.",
+    "- `content-busy`: another installation or module creation is running; wait and run the command again.",
+  ),
+  t(
+    "- `commit-failed`: chybí Git identita; požádej člověka, ať přihlásí `gh` svým účtem nebo nastaví své `user.name` a `user.email`, a spusť příkaz znovu.",
+    "- `commit-failed`: there is no Git identity; ask the person to sign `gh` in with their account or to set their `user.name` and `user.email`, then run the command again.",
+  ),
+  t(
+    "- `create-failed`, `not-private`, `create-uncertain`: GitHub repozitář nezaložil, založil ho veřejný, nebo není jisté, kdo ho založil. Zastav se a projdi to s člověkem; repozitář sám nepřebírej ani nemaž.",
+    "- `create-failed`, `not-private`, `create-uncertain`: GitHub did not create the repository, created it public, or it is unclear who created it. Stop and go through it with the person; never take over or delete the repository yourself.",
+  ),
+  t(
+    "- `push-failed`, `manifest_changed`, `declare-failed`, `check-failed` (stav `action_required`): modul vznikl a jeden krok zbývá; udělej ho přesně podle `next_steps`.",
+    "- `push-failed`, `manifest_changed`, `declare-failed`, `check-failed` (status `action_required`): the module exists and one step is left; take it exactly as `next_steps` says.",
+  ),
+];
+
 // Every manual file for this Folder, keyed by its path, in the Folder's
 // locale. The file names are the same in both locales.
 export function renderManual(
@@ -2305,6 +2669,10 @@ export function renderManual(
     "manual/working-here.md": titled(
       t("Jak se tu pracuje", "Working here"),
       workingHere(source.preset),
+    ),
+    "manual/new-module.md": titled(
+      t("Nový modul", "A new module"),
+      newModule(source.preset),
     ),
     "manual/roles.md": titled(t("Role", "Roles"), roles),
     "manual/glossary.md": titled(t("Slovník", "Glossary"), glossary),

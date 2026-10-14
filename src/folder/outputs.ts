@@ -29,6 +29,14 @@ export const manualEntries = Object.freeze([
     },
   },
   {
+    path: "manual/new-module.md",
+    title: { cs: "Nový modul", en: "A new module" },
+    summary: {
+      cs: "když člověk chce postavit nový modul nebo aplikaci: rozhovor o účelu, technické volby, potvrzení, založení, první verze a Publikace",
+      en: "when the person wants to build a new module or app: the interview about its purpose, the technical choices, the confirmation, the creation, the first version and Publication",
+    },
+  },
+  {
     path: "manual/roles.md",
     title: { cs: "Role", en: "Roles" },
     summary: {
@@ -66,6 +74,18 @@ export const outputPaths = Object.freeze([
   ...manualPaths,
 ] as const);
 export type OutputPath = (typeof outputPaths)[number];
+
+// The outputs a manifest of each schema records (decision F14, addendum of
+// 2026-10-14). Schema 2 is the Folder before `manual/new-module.md`: a
+// release that renders an output an older Folder does not record creates it
+// in that Folder's upgrade, where its absence is the proof that nothing of
+// the person's is replaced. Schema 3 records every output of this product.
+export const manifestOutputPaths = Object.freeze({
+  2: Object.freeze(
+    outputPaths.filter((path) => path !== "manual/new-module.md"),
+  ),
+  3: outputPaths,
+} as const);
 
 export function isOutputPath(value: unknown): value is OutputPath {
   return (

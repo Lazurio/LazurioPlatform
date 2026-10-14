@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { inspectOutput } from "./inventory";
 import { withFolderOperationLock } from "./lock";
 import { type OutputPath, outputPaths, stagedName } from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
@@ -79,8 +80,18 @@ export async function readPreparedChange(folder: string) {
     JSON.parse(manifestFile.content),
   );
   // By the recorded digest: after a template upgrade this product cannot
-  // render the previous bytes again.
+  // render the previous bytes again. An output the previous manifest does not
+  // own is created by this transaction: nothing may be at its path yet.
   for (const path of outputPaths) {
+    if (validated.previousIdentities[path] === null) {
+      if (
+        (await inspectOutput(folder, path)).kind !== "absent" ||
+        JSON.stringify(staged[path]?.identity) !==
+          JSON.stringify(validated.stagedIdentities[path])
+      )
+        throw new Error("Prepared transaction no longer matches owned state");
+      continue;
+    }
     const current = await readOwnedOutput(folder, path);
     if (
       createHash("sha256").update(current.content).digest("hex") !==

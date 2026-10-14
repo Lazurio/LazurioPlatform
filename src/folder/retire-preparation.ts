@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import { mkdir, open, readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { planProfileChange } from "./change-profile";
+import { inspectOutput } from "./inventory";
 import { withFolderOperationLock } from "./lock";
 import { outputPaths, stagedName } from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
@@ -13,6 +14,7 @@ import {
   readOwnedStateFile,
   readStateJson,
 } from "./read-state";
+import { recordedFile } from "./reconcile";
 import { instructionTemplateRevision } from "./render";
 import {
   parseFolderPreferences,
@@ -20,7 +22,7 @@ import {
   stateFields,
 } from "./state";
 import {
-  parseOutputIdentities,
+  parsePreviousIdentities,
   transactionSchemaVersion,
 } from "./validate-preparation";
 
@@ -91,7 +93,10 @@ export async function retireIncompletePreparation(
         preferences.profile.os !== executionOs(process.platform)
       )
         throw new Error("Recovery revision or OS mismatch");
-      const recordedIdentities = parseOutputIdentities(before.outputIdentities);
+      const recordedIdentities = parsePreviousIdentities(
+        before.outputIdentities,
+        manifest.outputs,
+      );
       const prefs = await readOwnedStateFile(state, "preferences.json");
       const owned = await readOwnedStateFile(state, "instructions.json");
       const pairs = [
@@ -107,10 +112,17 @@ export async function retireIncompletePreparation(
           throw new Error("Recovery conflicts with active identity");
       }
       // By the recorded digest: an attempt to upgrade an older template
-      // revision leaves bytes this product cannot render again.
+      // revision leaves bytes this product cannot render again. An output
+      // the manifest does not own was never written by the attempt: nothing
+      // is at its path.
       for (const path of outputPaths) {
-        const active = await readOwnedOutput(folder, path);
         const recorded = recordedIdentities[path];
+        if (recorded === null) {
+          if ((await inspectOutput(folder, path)).kind !== "absent")
+            throw new Error("Recovery conflicts with active content");
+          continue;
+        }
+        const active = await readOwnedOutput(folder, path);
         if (
           recorded.dev !== active.identity.dev ||
           recorded.ino !== active.identity.ino
@@ -134,7 +146,7 @@ export async function retireIncompletePreparation(
         manifest,
         expectedRevision,
         { preset: preferences.preset.name, profile: preferences.profile },
-        async (path) => ({ kind: "regular", digest: manifest.outputs[path] }),
+        async (path) => recordedFile(manifest.outputs, path),
       );
       // Coherent means the same bytes are planned again, or, for a Folder of an
       // older template revision, exactly its upgrade: the same choices can

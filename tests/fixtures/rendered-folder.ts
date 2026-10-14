@@ -38,7 +38,7 @@ export async function writeRenderedFolder(
     ...(source.tools?.length ? { tools: source.tools } : {}),
   });
   const manifest = JSON.stringify({
-    schemaVersion: 2,
+    schemaVersion: 3,
     preferenceRevision: 1,
     templateRevision: preview.templateRevision,
     outputs: outputDigests(preview.desired),

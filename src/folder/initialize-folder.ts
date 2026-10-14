@@ -32,7 +32,11 @@ import {
 import { desiredOutputs, outputDigests } from "./preview";
 import { readFolderState, readOwnedStateFile } from "./read-state";
 import { instructionSource, instructionTemplateRevision } from "./render";
-import { parseFolderPreferences, parseInstructionManifest } from "./state";
+import {
+  instructionManifestSchema,
+  parseFolderPreferences,
+  parseInstructionManifest,
+} from "./state";
 
 export type InitializationStep =
   | "folder"
@@ -135,7 +139,7 @@ async function initialize(
   if (preferences.profile.os !== executionOs(process.platform))
     throw new Error("Initialization OS mismatch");
   const manifest = parseInstructionManifest({
-    schemaVersion: 2,
+    schemaVersion: instructionManifestSchema,
     preferenceRevision: 1,
     templateRevision: instructionTemplateRevision,
     outputs: outputDigests(desired),

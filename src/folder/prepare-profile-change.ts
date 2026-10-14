@@ -171,8 +171,15 @@ export async function prepareFolderChangeLocked(
   const expectedRevision = plan.expectedRevision;
   // Every generated output is staged and replaced, changed or not: one
   // transaction with one fixed file list, whose identities are all recorded.
-  const before: Partial<Record<OutputPath, FileIdentity>> = {};
+  // An output the previous manifest does not own (an upgrade from manifest
+  // schema 2) is created: its previous identity is recorded as null, and the
+  // planner has already required that nothing is at its path.
+  const before: Partial<Record<OutputPath, FileIdentity | null>> = {};
   for (const path of outputPaths) {
+    if (plan.previous[path] === undefined) {
+      before[path] = null;
+      continue;
+    }
     const { directory, name } = outputFile(folder, path);
     const stat = await lstat(join(directory, name));
     before[path] = { dev: String(stat.dev), ino: String(stat.ino) };
@@ -223,14 +230,23 @@ export async function prepareFolderChangeLocked(
   await checkpoint("manual");
   for (const path of outputPaths) {
     const observed = await inspectOutput(folder, path);
+    const previous = before[path];
+    if (previous === null || previous === undefined) {
+      await assertHeld();
+      if (observed.kind !== "absent")
+        throw new Error(
+          "Instructions changed during preparation; recovery required",
+        );
+      continue;
+    }
     const { directory: outputDirectory, name } = outputFile(folder, path);
     const current = await lstat(join(outputDirectory, name));
     await assertHeld();
     if (
       observed.kind !== "regular" ||
       observed.digest !== plan.previous[path] ||
-      String(current.dev) !== before[path]?.dev ||
-      String(current.ino) !== before[path]?.ino
+      String(current.dev) !== previous.dev ||
+      String(current.ino) !== previous.ino
     )
       throw new Error(
         "Instructions changed during preparation; recovery required",
