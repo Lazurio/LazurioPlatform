@@ -1496,6 +1496,14 @@ still resolves `transition` (or `current`) when the pull request is merged. Its 
 reads the task worktree's documents and the placed module; the catalog lists the module
 after the merge. Tests: `tests/organization-module-create.test.ts`.
 
+**A module with data** (`--data`, F52's second addendum of 2026-10-14), in either
+form and only for a stack with a Bun app: the app depends on one released
+`@lazurio/repository-db`, the module ignores `db/`, and after the push the step `data`
+creates the private repository `<owner>/<slug>-data` (verified as the module's, granted
+to its Teams), mounts it with the app's own `repository-db init` on `v3` (the host's
+`initData`, `processDataInit` in `module-create-cli.ts`), and the slot
+`workspace/<slug>/db` (`repository_db_mount`) is declared after the module's.
+
 **`module prepare` is dispatched.** `src/cli.ts` sent only `start`, `stop`, `status` and
 `logs` to the module command, so `lazurio module prepare` fell to the catalog's usage
 (issue #114); every verb of `moduleVerbs` reaches it now, and `create` its own command.
