@@ -302,7 +302,8 @@ deleted or moved. Presence is checked by existence and emptiness only, never by
 listing names.
 
 Initialization exclusively creates `.lazurio` and `manual/`, journals the preexisting
-layout identities and writes the generated outputs (`AGENTS.md`, the seven manual files)
+layout identities and writes the generated outputs (`AGENTS.md`, the six manual files,
+the skill files in `.agents/skills/` and `.claude/skills/` with their directories)
 and preferences/manifest exclusively, one receipt per created file. Two
 initializers cannot both claim state. A re-run on an adopted Folder holds only the
 ephemeral operation lock, compares the recorded Machine identity with the live
@@ -321,7 +322,7 @@ identity mode and how work is done (including the two working rules of upstream
 decision 0163: open questions go to GitHub Issues and do not stop the work, and
 review findings are taken with judgment), with a pointer to the Organization's `AGENTS.md`
 and to the agent manual in `manual/` ([decision F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)):
-seven documents in the Folder locale (`cs` or `en`, amendment of 2026-09-24) rendered from the same inputs (the seventh, `new-module.md`, since F14's addendum of 2026-10-14), of which `this-machine.md`
+six documents in the Folder locale (`cs` or `en`, amendment of 2026-09-24) rendered from the same inputs, of which `this-machine.md`
 carries the Machine, its preset and the zones of upstream decision 0155. Its
 `Relationships` section is rendered only when the recorded binding carries the
 handover's `relationships`: one line per peer with kind, zone, Organization, SSH

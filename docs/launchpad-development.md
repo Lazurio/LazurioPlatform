@@ -733,8 +733,8 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   the fragment token locally), answers `application/json`, `Cache-Control: no-store`:
   `{"schema": "lazurio.prompt.v1", "id", "text", "cwd"}`. `text` is the prompt in the
   person's language (the Folder's profile locale), `cwd` the absolute root of the
-  Organization on this Environment (`<Folder>/organizations/<directory>`) for an
-  Organization's prompt and the Lazurio Folder's root for the Folder's. Three ids
+  Lazurio Folder for every prompt, an Organization's too (root decision 0189; F36
+  addendum of 2026-10-14: the Folder's skills are found only from there). Three ids
   exist (`src/launchpad/prompts.ts`). `prepare-content` ("Vyřešit v Chatu", root
   decision 0188) is the Folder's: only where the Environment signs in as its person,
   only while the last installation the content routes report stopped, its text the
@@ -1103,20 +1103,15 @@ the first run's line shows. An Organization never has it.
   personal space listed with a reason, there is no tile. The click hands over
   `{id: "new-personal-module", organization: <login>, text}` through `handOver`, by
   link where Chat takes prompts, otherwise through the clipboard (a workstation always
-  copies). Both briefs (F36 addendum of 2026-10-14) open with the person's words "Chci
-  postavit nový modul." / "I want to build a new module.", say where the module goes
-  (the personal Workspace as a private repository on `<login>`'s account, or the
-  Organization's Workspace) and send the agent to the Folder's `manual/new-module.md`,
-  which owns the interview about the purpose, the agent's technical choices, the
-  confirmed summary and plan, the creation, the first version and Publication (F14
-  addendum of 2026-10-14). The brief keeps only the guard rails that hold where a
-  Folder does not have that page yet: nothing created before the person agrees to the
-  summary and the plan (for the personal brief, `lazurio module create
-  personalspace/<slug> --stack <stack> --dry-run --json` first, `--confirm <plan>`
-  after), a private repository `<login>/<slug>` checked as private, pull requests (the
-  slot into `<login>/<login>_GEN3`) and asking before Publication; an Organization's
-  module never by hand. The personal brief must not reach a release before the real run
-  of that command (#399).
+  copies). Both briefs (F36 addendum of 2026-10-14) are short: "Chci postavit nový
+  modul do Workspace Lazuria." / "I want to build a new module in the Lazurio
+  Workspace.", where the module goes (the personal space as a private repository on
+  `<login>`'s account, or the Organization `{name}` with its GitHub login), and "Použij
+  skill `new-module`. …" / "Use the skill `new-module`. …", which asks for the interview
+  about the purpose, the agent's own technical choices and the plan to confirm. The
+  Folder's skill `new-module` (F14 addendum of 2026-10-14) holds every step, including
+  `lazurio module create personalspace/<slug>`; the brief carries none. The personal
+  brief must not reach a release before the real run of that command (#399).
 
 **Routes.** `/` is the first Organization's Apps home; `/o/<org>` one Organization's
 Apps home, its sections Workspace and Productionspace (F36, F32's final addendum);
