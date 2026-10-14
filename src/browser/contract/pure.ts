@@ -250,13 +250,14 @@ export function viewAddressOf(value: unknown): ViewAddress | null {
 }
 
 /** Whether a host is where the gateway routes the views of Environment
- * browsers: `browser.` and a name in `lazurio.io`, an Environment's or not.
- * No Lazurio surface loads an address on such a host in the Environment
- * browser (F50 point 2): a view address opens as its tab, a new tab or
- * another Environment's, and any other address there is refused. The browser
- * itself stays unrestricted. */
+ * browsers: `browser.` and a name in `lazurio.io`, an Environment's or not,
+ * also written in its absolute form with the DNS root's trailing dot, which
+ * names the same host. No Lazurio surface loads an address on such a host in
+ * the Environment browser (F50 point 2): a view address opens as its tab, a
+ * new tab or another Environment's, and any other address there is refused.
+ * The browser itself stays unrestricted. */
 export function isViewHost(hostname: string): boolean {
-  const host = hostname.toLowerCase();
+  const host = hostname.toLowerCase().replace(/\.+$/, "");
   return host.startsWith(`${viewLabel}.`) && host.endsWith(hostedDomain);
 }
 

@@ -10055,7 +10055,10 @@ it and settles the divergences point 8 lists for phase 1. The decision above sta
 
      The hub's `navigableAddress` refuses view hosts too, so neither the view's `goto`, nor
      `POST /.lazurio/tabs` (which carries Nová karta's opening), nor `lazurio browser link --url`
-     or `window --url` loads one.
+     or `window --url` loads one. A view host written in its absolute form, with the DNS root's
+     trailing dot (`browser.….lazurio.io.`), is the same host and is refused as well; a view
+     address keeps its strict form, so such an address is no tab (Pablo's review of #407).
+     Nová karta's bar has refused view hosts since phase 1a and missed this form until now.
    - **The view's messages (C8).** The view names its tab by the strict view address; it sent
      `location.href`.
    - **Nová karta's tools (C10).** A tool's icon comes from its id by the registry, so
@@ -10091,7 +10094,7 @@ it and settles the divergences point 8 lists for phase 1. The decision above sta
    - Task 706: doctor's two remaining warnings.
    - Task 510: MausBot.
 
-Verified by the vectors: 482 cases in fourteen files, every export with its case, run against
+Verified by the vectors: 486 cases in fourteen files, every export with its case, run against
 the module and against the module as the shell artifact packs it. The suites keep their cases
 where nothing is settled, with imports moved to the module. Where a case pinned a settled
 behaviour, it now pins the new one, and each settled divergence has a case that the code before

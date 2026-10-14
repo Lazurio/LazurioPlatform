@@ -562,6 +562,30 @@
       }
     },
     {
+      "name": "on a view host written with the DNS root's trailing dot, a view address is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io./t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "the bare origin written with the DNS root's trailing dot is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io./",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
       "name": "on a view host, the domain's own view host is refused",
       "call": "addressBarTarget",
       "args": [
@@ -670,6 +694,14 @@
       "call": "navigableAddress",
       "args": [
         "https://browser.vm-02.acme.lazurio.io/settings"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a view host written with the DNS root's trailing dot is none",
+      "call": "navigableAddress",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io./t/0123456789ABCDEF0123456789ABCDEF"
       ],
       "expect": null
     },
