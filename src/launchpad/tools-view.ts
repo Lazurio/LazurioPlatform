@@ -3,6 +3,12 @@ import {
   parseSettingsStatus,
 } from "../organization-settings/status";
 import { executorToolName, vaultToolName } from "../tools/catalog";
+import {
+  type GitIdentity,
+  type GitIdentityFailure,
+  type GitIdentityField,
+  gitIdentityFailures,
+} from "../tools/git-identity";
 import type { LoginChallenge, LoginState } from "../tools/login";
 import {
   normalizeToolNote,
@@ -1020,6 +1026,58 @@ function parseSshLink(input: unknown): SshLink | null {
   };
 }
 
+const gitIdentityFields: readonly GitIdentityField[] = [
+  "user.name",
+  "user.email",
+];
+
+function parseGitIdentityFields(input: unknown): GitIdentityField[] | null {
+  return Array.isArray(input) &&
+    input.every((field) =>
+      gitIdentityFields.includes(field as GitIdentityField),
+    )
+    ? (input as GitIdentityField[])
+    : null;
+}
+
+function parseGitIdentity(input: unknown): GitIdentity | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const value = input as Record<string, unknown>;
+  if (value.state === "present") return { state: "present" };
+  if (value.state === "set") {
+    const fields = parseGitIdentityFields(value.fields);
+    const identity = value.identity as Record<string, unknown> | undefined;
+    if (
+      fields === null ||
+      !identity ||
+      typeof identity !== "object" ||
+      !text(identity.name) ||
+      !text(identity.email)
+    )
+      return null;
+    return {
+      state: "set",
+      fields,
+      identity: { name: identity.name, email: identity.email },
+    };
+  }
+  if (
+    value.state !== "not-set" ||
+    !gitIdentityFailures.includes(value.reason as GitIdentityFailure)
+  )
+    return null;
+  const missing =
+    value.missing === undefined
+      ? undefined
+      : parseGitIdentityFields(value.missing);
+  if (missing === null) return null;
+  return {
+    state: "not-set",
+    reason: value.reason as GitIdentityFailure,
+    ...(missing === undefined ? {} : { missing }),
+  };
+}
+
 function parseChallenge(input: unknown): LoginChallenge | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const value = input as Record<string, unknown>;
@@ -1095,6 +1153,11 @@ export function parseLoginState(input: unknown): LoginView | null {
       if (value.already !== undefined && value.already !== true) return null;
       const ssh = value.ssh === undefined ? undefined : parseSshLink(value.ssh);
       if (ssh === null) return null;
+      const gitIdentity =
+        value.gitIdentity === undefined
+          ? undefined
+          : parseGitIdentity(value.gitIdentity);
+      if (gitIdentity === null) return null;
       return {
         kind: "signed-in",
         tool,
@@ -1103,6 +1166,7 @@ export function parseLoginState(input: unknown): LoginView | null {
           ? {}
           : { organization: value.organization }),
         ...(ssh === undefined ? {} : { ssh }),
+        ...(gitIdentity === undefined ? {} : { gitIdentity }),
         ...(value.already === true ? { already: true as const } : {}),
       };
     }
@@ -1291,6 +1355,29 @@ export function sshOutcome(
       account: ssh.provedAs ?? "?",
     }),
   };
+}
+
+/** What a person reads about their Git identity after a gh sign-in
+ * (decision F19, addendum 2026-10-14): whose name the commits now carry, or
+ * that publishing from this Environment fails until it is set. Null when git
+ * already had it, which needs no word. */
+export function gitIdentityNote(
+  state: LoginView,
+  copy: Copy,
+): Readonly<{ set: boolean; message: string }> | null {
+  if (state.kind !== "signed-in" || state.gitIdentity === undefined)
+    return null;
+  const identity = state.gitIdentity;
+  if (identity.state === "present") return null;
+  if (identity.state === "set")
+    return {
+      set: true,
+      message: fill(copy.toolsGitIdentitySet, {
+        name: identity.identity.name,
+        email: identity.identity.email,
+      }),
+    };
+  return { set: false, message: copy.toolsGitIdentityNotSet };
 }
 
 /** The notice of "Install" on a Team Environment's gh row: what the

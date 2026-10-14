@@ -293,8 +293,9 @@ async function run(
       }
       // commit
       steps.running("commit");
-      // By the operator's Git identity, else the person's GitHub one (a
-      // Remote Environment configures none).
+      // By the operator's Git identity, else the person's GitHub one given
+      // per commit (an Environment whose gh Lazurio did not sign in may have
+      // none; the curated gh sign-in sets it, F19 addendum 2026-10-14).
       const viewer = await host.github.viewer();
       const committed = await host.git.commitAll(
         checkout,

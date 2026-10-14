@@ -360,6 +360,10 @@ const en = {
   toolsLoginRefreshText:
     "Your gh sign-in may not manage the SSH keys of your account yet. To allow it, open the GitHub device page on any device (this computer, another one or your phone) and enter this code:",
   toolsSshLinkedDone: "Connected as {account}.",
+  toolsGitIdentitySet:
+    "Your commits in this Environment carry the name {name} <{email}>.",
+  toolsGitIdentityNotSet:
+    "Git in this Environment does not know your name and email for commits yet, so publishing changes from here fails. Ask an agent to set your Git identity.",
   toolsSshKeyCreated:
     "A new key without a passphrase was created, so agents can use it: {path} ({fingerprint}).",
   toolsSshKeyReused:
@@ -1785,6 +1789,10 @@ const cs: Record<MessageKey, string> = {
   toolsLoginRefreshText:
     "Vaše přihlášení gh zatím nesmí spravovat SSH klíče vašeho účtu. Povolíte to na libovolném zařízení (tomhle počítači, jiném nebo telefonu): otevřete stránku zařízení GitHubu a zadejte tento kód:",
   toolsSshLinkedDone: "Připojeno jako {account}.",
+  toolsGitIdentitySet:
+    "Vaše commity v tomhle Environmentu ponesou jméno {name} <{email}>.",
+  toolsGitIdentityNotSet:
+    "Git v tomhle Environmentu zatím nezná vaše jméno a e-mail pro commity, takže publikování změn odsud selže. Požádejte agenta, ať vaši identitu v Gitu nastaví.",
   toolsSshKeyCreated:
     "Vytvořil se nový klíč bez hesla, aby ho agenti mohli používat: {path} ({fingerprint}).",
   toolsSshKeyReused:

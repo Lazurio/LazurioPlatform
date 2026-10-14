@@ -17,17 +17,21 @@ import type { InstallFetch } from "../src/tools/install";
 import {
   fakeCodes,
   fakeLoginTools,
+  realGit,
   realSshKeygen,
 } from "./fixtures/fake-login-tools";
 
 const posix = process.platform !== "win32";
 const keygen = posix && realSshKeygen !== null;
 
-async function home(tools?: Parameters<typeof fakeLoginTools>[1]) {
+async function home(
+  tools?: Parameters<typeof fakeLoginTools>[1],
+  options?: Parameters<typeof fakeLoginTools>[2],
+) {
   const directory = await realpath(
     await mkdtemp(join(tmpdir(), "lazurio-curated-cli-")),
   );
-  const path = await fakeLoginTools(directory, tools);
+  const path = await fakeLoginTools(directory, tools, options);
   const lines: string[] = [];
   return {
     directory,
@@ -383,6 +387,45 @@ test.skipIf(!posix)(
         `wacli 0.19.0 installed at ${join(opened.directory, ".local", "bin", "wacli")}`,
       );
       expect(result.text).toContain("Next: lazurio tools login wacli");
+    } finally {
+      await opened.close();
+    }
+  },
+);
+
+test.skipIf(!posix || realGit === null)(
+  "tools login gh says which Git identity it set, or that it set none and why",
+  async () => {
+    const opened = await home(["gh"], { git: true });
+    try {
+      const signIn = async () => {
+        opened.lines.length = 0;
+        const running = runToolsCommand(["login", "gh"], opened.context());
+        while (!opened.lines.some((line) => line.includes(fakeCodes.gh)))
+          await Bun.sleep(20);
+        await opened.approve();
+        await running;
+        return opened.lines.join("\n");
+      };
+      // GitHub does not answer: nothing written, the reason and the fix.
+      await writeFile(join(opened.directory, "gh.nouser"), "");
+      const unset = await signIn();
+      expect(unset).toContain(
+        "The Git identity is NOT set: GitHub did not return the signed-in account.",
+      );
+      expect(unset).toContain('fail with "Author identity unknown"');
+      expect(
+        await readFile(join(opened.directory, ".gitconfig"), "utf8").catch(
+          () => null,
+        ),
+      ).toBeNull();
+      // GitHub answers: both fields from the person's GitHub identity.
+      await rm(join(opened.directory, "gh.nouser"));
+      expect(await signIn()).toContain(
+        "Git identity set for your commits: The Octocat <583231+octocat@users.noreply.github.com> (git config --global user.name, user.email).",
+      );
+      // Once set, a later sign-in has nothing to say about it.
+      expect(await signIn()).not.toContain("Git identity");
     } finally {
       await opened.close();
     }
