@@ -4,6 +4,7 @@ import { processPersonalspaceHolder } from "../content/holder";
 import { shown } from "../organizations/cli";
 import type { PersonalspaceHolderRead } from "../organizations/personalspace";
 import { type CliContext, operatorFolder } from "../update/cli";
+import { moduleCreateHelp } from "./module-create-cli";
 import {
   createModuleOperations,
   type ModuleBlocked,
@@ -96,7 +97,8 @@ module logs <Organization>/<module> [--app <package>] [--lines N] [--folder <F>]
 Nothing is recorded in the Folder: the running state is the OS service
 manager's. The Folder is found as for module list.
 Exit status: 0 done, 2 refused (the reason is printed; --json prints the
-answer object), 1 the Folder could not be read.`;
+answer object), 1 the Folder could not be read.
+${moduleCreateHelp}`;
 
 export class ModuleUsageError extends Error {}
 

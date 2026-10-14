@@ -25,9 +25,25 @@ export type CheckoutObservation =
     }>
   | Readonly<{ kind: "not-checkout" }>;
 
+/** The checkout a directory belongs to, as Git names it (absolute paths). In
+ * a linked worktree `gitDir` is its own directory below `commonDir`; in a
+ * primary checkout the two are the same. */
+export type WorktreeObservation = Readonly<{
+  top: string;
+  gitDir: string;
+  commonDir: string;
+  /** The checked-out branch, or null on a detached HEAD. */
+  branch: string | null;
+}>;
+
 export type ContentGit = Readonly<{
   clone(request: CloneRequest): Promise<"cloned" | "failed">;
   inspect(directory: string): Promise<CheckoutObservation>;
+  /** The checkout `directory` belongs to, or null where it is none. */
+  worktree(directory: string): Promise<WorktreeObservation | null>;
+  /** Whether Git ignores `path` (relative to `directory`, the top of a
+   * checkout): a tracked path never is. Null when Git could not answer. */
+  ignored(directory: string, path: string): Promise<boolean | null>;
 }>;
 
 /** The process environment git runs with: the operator's PATH, home and XDG
@@ -145,6 +161,51 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
         branch,
         commit,
       });
+    },
+    async worktree(directory) {
+      const paths = await read(directory, [
+        "rev-parse",
+        "--path-format=absolute",
+        "--show-toplevel",
+        "--git-dir",
+        "--git-common-dir",
+      ]);
+      const [top, gitDir, commonDir] = paths?.split("\n") ?? [];
+      if (
+        top === undefined ||
+        gitDir === undefined ||
+        commonDir === undefined ||
+        ![top, gitDir, commonDir].every((path) => path.startsWith("/"))
+      )
+        return null;
+      const branch = await read(directory, [
+        "symbolic-ref",
+        "--quiet",
+        "--short",
+        "HEAD",
+      ]);
+      return Object.freeze({
+        top,
+        gitDir,
+        commonDir,
+        branch: branch === "" ? null : branch,
+      });
+    },
+    async ignored(directory, path) {
+      const executable = await git();
+      if (executable === undefined) return null;
+      const result = await environment.run(
+        [executable, "-C", directory, "check-ignore", "--quiet", "--", path],
+        inspectTimeoutMs,
+        env(),
+      );
+      if (result === "timeout") return null;
+      // 0: ignored, 1: not ignored (a tracked path never is), else no answer.
+      return result.exitCode === 0
+        ? true
+        : result.exitCode === 1
+          ? false
+          : null;
     },
   });
 }

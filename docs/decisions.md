@@ -10223,8 +10223,9 @@ when the managed Folder configuration is absent.
 ## F52 — One module generator in the Platform; a person's own modules in their Personalspace
 
 **Decided by the Operator 2026-10-13 (root decision 0171, addendum of 2026-10-13;
-plan DEV-6662 M2, Lazurio/LazurioPlatform#359). Built in steps: the generator in this
-revision, the command `lazurio module create personalspace/<slug>` after it.** A person
+plan DEV-6662 M2, Lazurio/LazurioPlatform#359). Built in steps: the generator, then
+the command's plan (`lazurio module create personalspace/<slug> --dry-run`, point 6), then
+its real run.** A person
 who holds their personal space asks an agent for a new module of their own. The module
 is theirs alone: a private repository on their own GitHub account, checked out in their
 Personalspace, with no Organization and no Teams. The Platform, the product since root
@@ -10284,10 +10285,34 @@ form moves here too.
    `mausbot`, `mausbot-webhook`, `browser`, `oauth2`, `api`, `well-known`
    (`M:workloads/workspace-vm/gateway.ts`, `gateway-catalog.py`). This holds for an
    Organization's module too.
-5. **Not in this revision.** The command and its checks; the conformance checks of
-   `lazurio module setup` (#267, which today only the root runs for an Organization);
-   cloning a person's declared modules on their other Environment (later, M2b); vault
-   secrets for personal modules (F46).
+5. **Not in this revision.** The real run of the command (the repository, the first
+   push, the slot); the conformance checks of `lazurio module setup` (#267, which today
+   only the root runs for an Organization); cloning a person's declared modules on their
+   other Environment (later, M2b); vault secrets for personal modules (F46).
+6. **The command's plan.** `lazurio module create personalspace/<slug> --stack <stack>
+   [--name] [--port] --dry-run [--folder] [--json]` (`src/modules/module-create.ts`)
+   makes every check of a real run, reading only, and writes nothing; it asks GitHub
+   only `GET`s. In order: the name and the stack (an Organization's
+   `<Organization>/<slug>` is `organization-form-unavailable` until #267, `--teams` a
+   usage error); a Personalspace on this preset (`personalspace-not-here`) and
+   installed (`personalspace-absent`); the holder decision of #186 and its reasons; the
+   layout: the task worktree (the cwd's checkout of the held Personalspace's Git, not the
+   Personalspace itself), the `modules.manifest.json` that receives the slot
+   (`modules_manifest_missing`, `manifest_invalid`), its pool in the reserved range
+   (`personalspace-pool-invalid`), a `workspace/<slug>` Git ignores
+   (`personalspace-workspace-tracked`) and no directory or slot of that name
+   (`directory_exists`, `slot_exists`, letter case ignored); the plan and its lease,
+   avoiding every lease the Folder's modules declare; and no `<login>/<slug>` on GitHub
+   (`repository-exists`: never taken over). A Personalspace that still holds the
+   template's placeholders (#377) is a warning with its next step, never a refusal:
+   naming the owner is #377's, and the template's bootstrap, which also creates a
+   gbrain repository, is never run here. The template's example slot
+   `workspace/personal-notes` stays a declared slot and conflicts only with its own name.
+   The report is the root's `lazurio.module_create.report.v1` with the person's
+   `repository`, the target `manifest`, the `worktree` and `plan`, a digest of everything
+   the person confirms (repository, module, stack, name, slot, lease, files and the pool
+   the manifest gains). The CLI now also dispatches `lazurio module prepare` (#114).
+   Details: `docs/launchpad-development.md`, "Module creation".
 
 **Alternatives rejected.** Modules as tracked directories of the one Personalspace
 repository: the template ignores `workspace/*`, one module could no longer be shared,
@@ -10300,7 +10325,9 @@ the Personalspace's own tools then could not read it. Templates read from disk a
 time: the installed executable has no source checkout. One JSON document of templates:
 unreviewable.
 
-**Verification.** `tests/module-scaffold.test.ts`: the root's planner tests (plans,
+**Verification.** The command's plan: `tests/personal-module-create.test.ts` and
+`tests/module-create-cli.test.ts` (see "Module creation"). The generator:
+`tests/module-scaffold.test.ts`: the root's planner tests (plans,
 ports, wrap-around, refusals, slot insert) on the port, the root's tree hash of every
 stack at `a5615be0`, the personal form against the template's own placeholders and
 example slot (`tests/fixtures/personalspace-template.ts`), the runtime and preparation
