@@ -117,8 +117,11 @@ api)
     if [ -f "$HOME/gh.meta" ]; then cat "$HOME/gh.meta"; else echo '${JSON.stringify(githubHostKeys)}'; fi
     exit 0;;
   user)
-    # $HOME/gh.nouser: GitHub does not answer; $HOME/gh.user: its answer.
+    # $HOME/gh.nouser: GitHub does not answer; $HOME/gh.user: its answer;
+    # $HOME/gh.user.fill: appended to ~/.gitconfig while GitHub answers (the
+    # person, or another process, sets git's identity meanwhile).
     [ -f "$HOME/gh.nouser" ] && { echo "HTTP 502: Bad Gateway (https://api.github.com/user)" >&2; exit 1; }
+    [ -f "$HOME/gh.user.fill" ] && cat "$HOME/gh.user.fill" >> "$HOME/.gitconfig"
     if [ -f "$HOME/gh.user" ]; then cat "$HOME/gh.user"; else printf '{"login":"%s","id":583231,"name":"The Octocat"}\n' "$(cat "$HOME/gh.state")"; fi
     exit 0;;
   "user/keys?per_page=100")
@@ -273,7 +276,8 @@ export const realGit: string | null = Bun.which("git", { PATH: systemPath });
  * directory, so a runner's own gh or ssh is never found. With `git`, the
  * system's git behind a wrapper that records its calls in `git.calls`, takes
  * its system configuration from `$HOME/system.gitconfig` (never the
- * runner's) and, while `$HOME/git.readonly` exists, refuses every write. */
+ * runner's) and, while `$HOME/git.readonly` exists, refuses every write
+ * (or, when the file names a key, every write of that key). */
 export async function fakeLoginTools(
   home: string,
   tools: readonly ("gh" | "composio" | "wacli")[] = ["gh", "composio", "wacli"],
@@ -298,7 +302,7 @@ export async function fakeLoginTools(
     const wrapper = join(bin, "git");
     await writeFile(
       wrapper,
-      `#!/bin/sh\necho "$@" >> "$HOME/git.calls"\nexport GIT_CONFIG_SYSTEM="$HOME/system.gitconfig"\nif [ -f "$HOME/git.readonly" ]; then case " $* " in *" --get "*) ;; *) echo "error: could not lock config file" >&2; exit 255;; esac; fi\nexec "${realGit}" "$@"\n`,
+      `#!/bin/sh\necho "$@" >> "$HOME/git.calls"\nexport GIT_CONFIG_SYSTEM="$HOME/system.gitconfig"\nrefuse() { echo "error: could not lock config file" >&2; exit 255; }\nif [ -f "$HOME/git.readonly" ]; then only=$(cat "$HOME/git.readonly"); case " $* " in *" --get "*) ;; *) [ -z "$only" ] && refuse; case " $* " in *" $only "*) refuse;; esac;; esac; fi\nexec "${realGit}" "$@"\n`,
     );
     await chmod(wrapper, 0o755);
   }

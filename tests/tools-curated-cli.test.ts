@@ -422,7 +422,7 @@ test.skipIf(!posix || realGit === null)(
       // GitHub answers: both fields from the person's GitHub identity.
       await rm(join(opened.directory, "gh.nouser"));
       expect(await signIn()).toContain(
-        "Git identity set for your commits: The Octocat <583231+octocat@users.noreply.github.com> (git config --global user.name, user.email).",
+        "Git identity for your commits: set user.name The Octocat and user.email 583231+octocat@users.noreply.github.com (git config --global).",
       );
       // Once set, a later sign-in has nothing to say about it.
       expect(await signIn()).not.toContain("Git identity");

@@ -362,6 +362,8 @@ const en = {
   toolsSshLinkedDone: "Connected as {account}.",
   toolsGitIdentitySet:
     "Your commits in this Environment carry the name {name} <{email}>.",
+  toolsGitIdentityCompleted:
+    "Git in this Environment now has your name and email for commits; what was missing came from your GitHub account.",
   toolsGitIdentityNotSet:
     "Git in this Environment does not know your name and email for commits yet, so publishing changes from here fails. Ask an agent to set your Git identity.",
   toolsSshKeyCreated:
@@ -1791,6 +1793,8 @@ const cs: Record<MessageKey, string> = {
   toolsSshLinkedDone: "Připojeno jako {account}.",
   toolsGitIdentitySet:
     "Vaše commity v tomhle Environmentu ponesou jméno {name} <{email}>.",
+  toolsGitIdentityCompleted:
+    "Git v tomhle Environmentu už zná vaše jméno i e-mail pro commity; co chybělo, doplnil z vašeho účtu GitHubu.",
   toolsGitIdentityNotSet:
     "Git v tomhle Environmentu zatím nezná vaše jméno a e-mail pro commity, takže publikování změn odsud selže. Požádejte agenta, ať vaši identitu v Gitu nastaví.",
   toolsSshKeyCreated:
