@@ -393,7 +393,7 @@ describe("the requests", () => {
   });
 });
 
-// The Environment's own vault (decision F52): the account signs in with its
+// The Environment's own vault (decision F53): the account signs in with its
 // API key, unlocks its own keys and asks the vault's API with any method.
 describe("the own vault's requests", () => {
   const ownEmail = "vaultwarden-ndbrmzvjpwxtt3q7m2e4fihgsa@example.lazurio.io";

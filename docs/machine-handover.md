@@ -14,7 +14,7 @@ JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
 from Machines **v0.12.159** (tag commit `8b66889bf4e00b111027f9b280423f4b9cdfcf4e`, the
 merge of pull request **#500**; SHA-256
 `76a058045be25b718caed8a04e533d67fa8666945bfa4fa0153d618bc4d78957`), which adds only
-the optional top-level member `vault` ([below](#the-environments-own-vault-decision-f52),
+the optional top-level member `vault` ([below](#the-environments-own-vault-decision-f53),
 DEV-6631 contract C2) and changes nothing else. Before it, the pin was the merge of
 Machines pull request **#449** into `main` (commit
 `30c2fcf8a77914b5a44c652265e927683b2b413c`, SHA-256
@@ -457,7 +457,7 @@ resident keeps the Launchpad port, and the recorded entry serves the CLI's modul
 links and `lazurio doctor`. Until a Machines release writes it, no Folder records an
 entry and the Launchpad stays local.
 
-## The Environment's own vault (decision F52)
+## The Environment's own vault (decision F53)
 
 Root decision 0198 point 1, DEV-6631 contract C2: the handover may carry, on both
 branches, the optional and closed top-level member

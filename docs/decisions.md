@@ -7832,7 +7832,7 @@ Verified by tests:
 
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
-> **Superseded in part by [F52](#f52--every-environment-owns-its-vault-its-own-organization-in-the-networks-vaultwarden-created-by-its-technical-account)
+> **Superseded in part by [F53](#f53--every-environment-owns-its-vault-its-own-organization-in-the-networks-vaultwarden-created-by-its-technical-account)
 > (root decision 0198, 2026-10-13).** The account and its vault now come from the
 > handover's `vault` member, and the Environment owns its vault, its own organization;
 > the guessed `vaultwarden@<address>` account, the vault derived from Headscale, the
@@ -8494,7 +8494,7 @@ Automated Environments (Machines #382) and immediate delivery.
 
 ## F46 — Runtime secrets: declared names, read from the Environment vault before every start, fail closed
 
-> **Amended by [F52](#f52--every-environment-owns-its-vault-its-own-organization-in-the-networks-vaultwarden-created-by-its-technical-account)
+> **Amended by [F53](#f53--every-environment-owns-its-vault-its-own-organization-in-the-networks-vaultwarden-created-by-its-technical-account)
 > (root decision 0198, 2026-10-13).** A value is now the login password of the one
 > item named exactly like the secret anywhere in the Environment's own vault (point 2
 > below read one collection of an Organization's vault), and point 3's boundary
@@ -10585,7 +10585,7 @@ session of F43.
    optional, closed member `vault: {server_url, account, name}` (contract C2) only for
    a Platform release that reads it, as it gates `entry.environment_relay`, because a
    Platform vendoring an earlier schema refuses the whole handover
-   ([machine handover](machine-handover.md#the-environments-own-vault-decision-f52)).
+   ([machine handover](machine-handover.md#the-environments-own-vault-decision-f53)).
    `account` is `vaultwarden-<26 lowercase base32>@<Environment address>`, generated
    and pre-allowed by the network (`/admin/invite`) for this Environment alone;
    `name` is "<short Organization> <Environment name> <login>", letters, digits and

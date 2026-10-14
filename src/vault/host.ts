@@ -29,7 +29,7 @@ import {
 import type { VaultHost, VaultJournalEntry } from "./flow";
 import { type PilotContext, pilotContextOf } from "./legacy-0197/context";
 
-// The production composition of the Environment vault (decisions F43, F52):
+// The production composition of the Environment vault (decisions F43, F53):
 // the facts of this Remote Environment from its root-issued handover, read
 // anew for every operation, and the kind of the Environment from its Folder.
 // Only the handover's declared operator, in a hosted Folder on Linux, has a
@@ -103,7 +103,7 @@ export async function readVaultContext(
 }
 
 /** "Používají agenti" on for the vault in one Folder, at its current
- * revision (decision F52): the change the switch itself makes, refused as
+ * revision (decision F53): the change the switch itself makes, refused as
  * the switch is where this Environment does not offer the vault or its
  * Organization does not allow it. A Folder that another change holds or
  * changed meanwhile is read again, as the Organization's settings are

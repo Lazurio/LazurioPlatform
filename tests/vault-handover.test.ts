@@ -18,7 +18,7 @@ import personal from "./fixtures/machine-context-personal.json";
 // DEV-6631 contract C2: Machines writes the optional, closed member
 // `vault: {server_url, account, name}` into lazurio.machine.json on both
 // branches, only for a Platform release that reads it, and the Environment
-// takes its own vault from it (decision F52). Invented hosts and names only.
+// takes its own vault from it (decision F53). Invented hosts and names only.
 
 const bytes = (value: unknown) => Buffer.from(JSON.stringify(value));
 const { team: _, ...withoutTeam } = organization.owner;

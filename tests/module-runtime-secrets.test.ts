@@ -40,7 +40,7 @@ import {
 } from "./fixtures/owned-files";
 
 // The declared runtime secrets of an application, through the module
-// operations the CLI and the Launchpad share (decision F46 as F52 amends it,
+// operations the CLI and the Launchpad share (decision F46 as F53 amends it,
 // root decisions 0177, 0196 and 0198): read before every start, passed to the application's own
 // unit only, never as an argument of a process, never to the preparation's
 // check, never in an answer; a required one without a value refuses the

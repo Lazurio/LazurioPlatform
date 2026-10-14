@@ -28,7 +28,7 @@ import {
   zipOf,
 } from "./fixtures/fake-vault";
 
-// The Environment's own organization (decision F52, src/vault/organization.ts)
+// The Environment's own organization (decision F53, src/vault/organization.ts)
 // as the vault keeps it: what the account sent can be opened by the account
 // alone, from its own master password down to the collection's name; and the
 // organization step never guesses which collection is Agenti.

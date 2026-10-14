@@ -318,7 +318,7 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
       ),
     },
   }),
-  // The Environment's own vault (decisions F43 and F52; root decisions 0193,
+  // The Environment's own vault (decisions F43 and F53; root decisions 0193,
   // 0197 and 0198): the Bitwarden CLI signed in to the Environment's
   // technical account, which owns the Environment's vault in its network's
   // Lazurio Vaultwarden; pinned per Platform release and set up by the
@@ -465,7 +465,7 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
   }),
 ]);
 
-/** The Environment's vault's catalog tool (decisions F43, F52): set up by
+/** The Environment's vault's catalog tool (decisions F43, F53): set up by
  * the Launchpad at its start and `lazurio vault setup`, not by the curated
  * install and sign-in of F19. */
 export const vaultToolName = "bitwarden";

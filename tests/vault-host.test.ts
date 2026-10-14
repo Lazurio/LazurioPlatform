@@ -27,7 +27,7 @@ import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
 
 // The production composition of the Environment vault's facts (decisions
-// F43, F52) on real files: a root-issued handover and a hosted Folder under a
+// F43, F53) on real files: a root-issued handover and a hosted Folder under a
 // private root, read as `lazurio vault` and the Launchpad read them. Only the
 // handover's place and the operator's system record are this test's.
 

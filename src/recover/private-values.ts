@@ -226,7 +226,7 @@ export function contextValues(context: MachineContext | null): PrivateValue[] {
     ...value("tailnet-node", network?.headscale_hostname),
     ...peerValues(context.relationships?.peers),
     ...repositoryValues(installed.machines_release.repository),
-    // The Environment's own vault (decision F52): its technical account (a
+    // The Environment's own vault (decision F53): its technical account (a
     // one-time enrollment capability before it registers, contract C2), the
     // vault's name and the network vault's host.
     ...value("vault-account", vault?.account),

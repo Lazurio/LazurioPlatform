@@ -1,7 +1,7 @@
 import type { VaultUnsupportedReason } from "./context";
 import { readAccount, type VaultAccount, type VaultPaths } from "./store";
 
-// What the vault core answers (decisions F43, F46 and F52): the status of an
+// What the vault core answers (decisions F43, F46 and F53): the status of an
 // Environment's vault, what an agent's shell gets and what a start's secrets
 // are, for the own vault (flow.ts) and the frozen 0197 pilot subset
 // (legacy-0197/) alike. Never a secret but the session `env` hands out and
@@ -156,7 +156,7 @@ export async function accountOf(
 }
 
 /** Why no runtime secret of an application can be read from the
- * Environment's vault (decision F46 as F52 amends it): a fixed code, never
+ * Environment's vault (decision F46 as F53 amends it): a fixed code, never
  * bw's output. */
 export type VaultSecretsRefusal =
   /** This computer: no vault yet (the second wave of 0193). */

@@ -20,7 +20,7 @@ import {
   type VaultRecord,
 } from "./store";
 
-// The Environment's own vault (root decision 0198 point 1, decision F52): its
+// The Environment's own vault (root decision 0198 point 1, decision F53): its
 // own organization in the network's Lazurio Vaultwarden, created by its
 // technical account, which is its only Owner, and remembered by ID; names
 // never decide what it is. bw cannot create an organization, so this asks
@@ -31,7 +31,7 @@ import {
 // creation, then only in the vault, encrypted to the account's own key.
 
 /** The first collection of every Environment's vault, where agents keep
- * what they create (decision F52). */
+ * what they create (decision F53). */
 export const agentsCollection = "Agenti";
 
 /** A membership the vault reports as confirmed (status 2): the account holds

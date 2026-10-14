@@ -12,7 +12,7 @@ import { assignments, handoverEntry } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
 
-// The Environment's vault facts (decision F52): everything from the
+// The Environment's vault facts (decision F53): everything from the
 // handover's `vault` member, nothing derived or guessed; and the 0197 pilot's
 // facts, derived as F43 derived them, only where the handover names no
 // vault. Invented hosts only.

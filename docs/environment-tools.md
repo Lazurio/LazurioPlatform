@@ -4,7 +4,7 @@
 
 Proposed bounded pilot procedure under accepted decision 0144. Apart from the curated
 installation and login of three catalog tools (decision F19, below), the
-Environment's own vault (decisions F43 and F52, below), Executor (decision F44, below) and the
+Environment's own vault (decisions F43 and F53, below), Executor (decision F44, below) and the
 pilot of the shared GitHub App sign-in (decision F48, below), this
 document does not claim an implemented tool installer, authenticated harness or
 usable Environment.
@@ -81,7 +81,7 @@ named in the generated instructions with a **tier** and a **setup mode**:
 | `gh` | `gh` | required: always on, never stored, cannot be disabled | launchpad |
 | `executor` | `executor` | required; offered in a Remote Environment on Linux (F44) | launchpad (Lazurio's own setup, below) |
 | `composio` | `composio` | recommended | launchpad |
-| `bitwarden` | `bw` | recommended; offered in a Remote Environment on Linux (F43, F52) | launchpad (its own flow, below) |
+| `bitwarden` | `bw` | recommended; offered in a Remote Environment on Linux (F43, F53) | launchpad (its own flow, below) |
 | `wacli` | `wacli` | optional | launchpad |
 | `gogcli` | `gog` | optional; offered on a computer and in a personal Remote Environment, not in a work one (F44) | agent |
 | `neon` | `neon` | optional | agent |
@@ -474,11 +474,11 @@ earlier temporary exception that let any account sign in on a Team VM has ended.
   nothing here provisions the App, its broker or a brokered `gh`. The product refuses
   the personal sign-in and relies on what the Machine delivers.
 
-### The Environment's own vault (decisions F43 and F52)
+### The Environment's own vault (decisions F43 and F53)
 
 Root decision 0198: every Environment owns its vault, its own organization in its
 network's Lazurio Vaultwarden, created by its technical account, which is its only
-Owner, and remembered by ID (decision F52 supersedes F43's collection model; F43's
+Owner, and remembered by ID (decision F53 supersedes F43's collection model; F43's
 pinned CLI, custody and one shared session stay). The account and the vault come from
 the handover's member `vault: {server_url, account, name}` (DEV-6631 contract C2),
 which Machines writes only for a Platform that reads it; without it the Environment
@@ -616,7 +616,7 @@ wave (`unsupported`, `workstation`).
   never the setup's. The journal of the unit gets
   `{"scope":"tools-vault","operation":"setup|refresh|unlock|vault|secrets","outcome":…,"reason":…}`
   (with `"trigger":"start"` for the start's setup) only.
-- **Runtime secrets** (decision F46 as F52 amends it, `vaultSecrets` in
+- **Runtime secrets** (decision F46 as F53 amends it, `vaultSecrets` in
   `src/vault/flow.ts`): on a work Environment the applications of the Organization
   that owns it read them, on a personal one the Personalspace's modules (root decision
   0198 point 4); another Organization's application is `other-organization`, a
@@ -923,7 +923,7 @@ package-manager matrix (`lazurio tools` runs one tool's official update path und
 0161 and installs only the curated catalog tools of decision F19 and the pinned
 Bitwarden CLI of decision F43; it is not a general updater or installer); the team
 case consumes the existing upstream broker rather than adding one. The Environment's
-own vault (F43, F52) keeps no secret in the Platform: the vault is the network's
+own vault (F43, F53) keeps no secret in the Platform: the vault is the network's
 Vaultwarden, and the Environment account's credentials stay beside the Bitwarden
 CLI's own data directory. Unknown installation state receives a diagnosis
 and operator repair procedure, not an improvised privileged cleanup. Missing accounts

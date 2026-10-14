@@ -9,7 +9,7 @@ import {
   vaultStatus,
 } from "../vault/flow";
 
-// The Environment's own vault in the Launchpad (decisions F43, F52): Settings
+// The Environment's own vault in the Launchpad (decisions F43, F53): Settings
 // → Tools → bitwarden over the same core as `lazurio vault`. Three routes
 // behind the admission of every route:
 //

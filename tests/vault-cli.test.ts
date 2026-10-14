@@ -38,7 +38,7 @@ import {
   zipOf,
 } from "./fixtures/fake-vault";
 
-// `lazurio vault` (decisions F43, F52): what an agent's shell gets, what it
+// `lazurio vault` (decisions F43, F53): what an agent's shell gets, what it
 // reads when there is nothing to get, and the commands over the same core.
 
 const posix = process.platform !== "win32";

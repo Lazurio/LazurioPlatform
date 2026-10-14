@@ -28,7 +28,7 @@ import {
 } from "./fixtures/fake-vault";
 import { bindings } from "./fixtures/machine-bindings";
 
-// Settings → Tools → bitwarden over HTTP (decisions F43, F52): the three
+// Settings → Tools → bitwarden over HTTP (decisions F43, F53): the three
 // routes behind the admission of every route, `{}` only, a setup answered
 // while it runs and joined by the next request, the Launchpad's own setup
 // after its start (the Executor pattern), and the curated routes of F19

@@ -13,7 +13,7 @@ import {
 } from "./store";
 
 // The one unlocked session of an account (decision F43 point 5, kept by
-// F52): every `bw unlock` ends the sessions before it, so the Environment
+// F53): every `bw unlock` ends the sessions before it, so the Environment
 // keeps one and its agents share it. Used by the Environment's own vault and
 // by the frozen 0197 pilot subset alike; nothing here decides which vault an
 // Environment has.

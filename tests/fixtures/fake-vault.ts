@@ -20,7 +20,7 @@ import organization from "./machine-context.json";
 import personal from "./machine-context-personal.json";
 
 // A fake Vaultwarden and a fake Bitwarden CLI for the Environment's vault
-// (decisions F43 and F52). Nothing here reaches a vendor or the network: the
+// (decisions F43 and F53). Nothing here reaches a vendor or the network: the
 // vault is a Bun.serve on loopback behind an injected fetch, the CLI a shell
 // script that keeps its store in BITWARDENCLI_APPDATA_DIR and reads what the
 // vault would sync from `$HOME/bw-world`, which the fake vault and the tests

@@ -2,7 +2,7 @@ import type { VaultUnsupportedReason } from "../vault/context";
 import type { VaultPhase, VaultStatus } from "../vault/flow";
 import type { MessageKey } from "./messages";
 
-// The Environment's own vault on the tools screen (decision F52, the
+// The Environment's own vault on the tools screen (decision F53, the
 // wireframe of prototypes-lazurio#33): the row says the state and opens the
 // vault; the Environment sets the vault up itself. Pure, so it is testable
 // without a DOM. The server's answers are accepted only in their exact form;

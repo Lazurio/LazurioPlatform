@@ -690,7 +690,7 @@ async function readCatalogPersonalspace(
   folder: string,
   holder: PersonalspaceHolderRead,
   /** What the Folder records of the Environment, for the declared secrets
-   * (decision F46 as F52 amends it). */
+   * (decision F46 as F53 amends it). */
   environment: () => Promise<SecretEnvironment>,
 ): Promise<CatalogOrganization | undefined> {
   const decided = await holder(folder).catch(() => ({
@@ -747,7 +747,7 @@ async function readCatalogPersonalspace(
         moduleDirectory,
         space,
         // A Personalspace module: the personal Environment's vault serves it
-        // (decision F52 point 4), no other.
+        // (decision F53 point 4), no other.
         (runtime) => declaredSecretsFinding(runtime, true, environment),
       );
       const { reason, file, preparationRefused } = own;
