@@ -1,7 +1,7 @@
 import {
+  browserTimes,
   browserViewUrl,
   isStrip,
-  isViewHost,
   launchpadStrip,
   type StripApp,
   stripAppOf,
@@ -20,7 +20,7 @@ import type { PublicEntry } from "./chat";
 // approved wireframe `HumanAndMachine-ai/prototypes-lazurio` #27: NewTab.tsx
 // and browser.ts): everything the page `/new-tab` (new-tab-page.ts) and the
 // Launchpad's panel decide without a document. The overview's answer read
-// field by field, the address bar's resolution, the memory and its tone,
+// field by field, the memory and its tone,
 // "when last used", who opened a tab, the order of the tabs, the running
 // Modules with their names from the boot catalog, the suggestions, the
 // warning before closing a tab an agent works in, the toast
@@ -100,6 +100,8 @@ const en = {
   openFailed: "The tab could not be opened.",
   addressRefused:
     "This address is on the view of an Environment browser but links to no tab, so it does not open here.",
+  addressRefusedScheme:
+    "The Environment browser opens only http and https addresses here.",
   warnTitle: "Close a tab an agent is working in?",
   warnText:
     "An agent{where} is working in the tab “{title}”. If you close it, the agent loses the page it is working on and has to open it again.",
@@ -207,6 +209,8 @@ const cs: Words = {
   openFailed: "Záložku se nepodařilo otevřít.",
   addressRefused:
     "Tahle adresa patří pohledu prohlížeče Environmentu, ale neodkazuje na žádnou záložku, takže se tu neotevře.",
+  addressRefusedScheme:
+    "Prohlížeč Environmentu tu otevírá jen adresy http a https.",
   warnTitle: "Zavřít záložku, ve které pracuje agent?",
   warnText:
     "V záložce „{title}“ právě pracuje agent{where}. Po zavření přijde o rozdělanou stránku a bude ji muset otevřít znovu.",
@@ -265,18 +269,15 @@ export function fill(
   );
 }
 
-/** How often Přehled is read while the page is visible (F47 point 3). */
-export const overviewEveryMs = 5_000;
-/** The window of Vrátit after a close for everyone: the hub's grace (F47
- * points 5 and 6, the wireframe's `GRACE_MS`). */
-export const closeGraceMs = 8_000;
+// How often Přehled is read while the page is visible (F47 point 3), the
+// hub's grace that bounds the Vrátit of a close for everyone (F47 points 5
+// and 6, the wireframe's `GRACE_MS`) and when a framed page that has not
+// heard its host is standalone are the contract's (`browserTimes`, F50).
 /** How long a short message stays. */
 export const noteMs = 4_000;
 /** How long a message with an action (Zkusit znovu) stays: long enough to
  * take it. */
 export const actionNoteMs = 10_000;
-/** Without a host message within this time a framed page is standalone. */
-export const standaloneAfterMs = 1_500;
 
 /** The strip a page opened from the Nová karta page is for: its host's
  * while an app hosts it. Standalone, as in Codex Desktop's browser, it is
@@ -518,85 +519,6 @@ export function actionFailure(
   return overviewFailure(answer.status) === "unreachable"
     ? copy.launchpadDown
     : fallback;
-}
-
-// ---- The address bar (F47 point 3, the wireframe's `resolveAddress`) ---------
-
-export type AddressTarget =
-  | Readonly<{ kind: "none" }>
-  /** A link to a tab of this Environment's view: that tab. */
-  | Readonly<{ kind: "tab"; tab: string; view: string }>
-  /** A link to another Environment's view: never opened here (F38's
-   * addendum of 2026-10-11); `where` names that Environment. */
-  | Readonly<{ kind: "foreign"; href: string; where: string }>
-  /** Another address on the view host of an Environment: never opened in
-   * the Environment browser (decision F50 point 2). */
-  | Readonly<{ kind: "refused" }>
-  /** An address to open as a new remote tab, or a search. */
-  | Readonly<{ kind: "page"; url: string }>;
-
-/** The scheme an address typed without one gets. Kept apart from the typed
- * text, which is the person's address and never a composed origin. */
-const typedScheme = "https:";
-
-/** Something host-like: no space, and before any path a host with a dot
- * whose last label is a word of two letters or more, or four numbers (an
- * IPv4 address); an optional port. An e-mail address is not one. */
-function hostLike(input: string): boolean {
-  if (/\s/.test(input)) return false;
-  const host = input.split(/[/?#]/, 1)[0] ?? "";
-  if (host.includes("@")) return false;
-  const name = host.replace(/:\d{1,5}$/, "");
-  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(name)) return true;
-  const labels = name.split(".");
-  return (
-    labels.length >= 2 &&
-    labels.every((label) => label !== "") &&
-    /^\p{L}{2,63}$/u.test(labels[labels.length - 1] ?? "")
-  );
-}
-
-/** The absolute address `input` names: with its own http(s) scheme, or a
- * host-like text under https; null for anything else. */
-function absoluteAddress(input: string): URL | null {
-  try {
-    if (/^https?:\/\//i.test(input)) return new URL(input);
-    if (hostLike(input)) return new URL(`${typedScheme}//${input}`);
-  } catch {}
-  return null;
-}
-
-/** What the address bar opens for `input` (the wireframe's order):
- * 1. an address on the view host of an Environment (`isViewHost`), typed
- *    without a scheme or over http as that view's https: never loaded in
- *    the Environment browser (decision F50 point 2). A view address of this
- *    Environment (`viewAddressOf`) is that tab, its bare origin a new remote
- *    tab; another Environment's view gets the notice; any other address
- *    there is refused;
- * 2. an http(s) address, or a host-like text: a page;
- * 3. anything else: a search. */
-export function resolveAddress(
-  input: string,
-  viewOrigin: string | null,
-): AddressTarget {
-  const typed = input.trim();
-  if (typed === "") return { kind: "none" };
-  const address = absoluteAddress(typed);
-  if (address === null) {
-    const search = new URL("https://www.google.com/search");
-    search.searchParams.set("q", typed);
-    return { kind: "page", url: search.href };
-  }
-  if (!isViewHost(address.hostname)) return { kind: "page", url: address.href };
-  const secure = new URL(address.href);
-  secure.protocol = "https:";
-  const view = viewAddressOf(secure.href);
-  if (view === null) return { kind: "refused" };
-  if (view.origin !== viewOrigin)
-    return { kind: "foreign", href: view.view, where: view.environment };
-  return view.tab === null
-    ? { kind: "page", url: "about:blank" }
-    : { kind: "tab", tab: view.tab, view: view.view };
 }
 
 // ---- Memory (F47 point 7, the wireframe's `formatMemory` and `memoryTone`) ---
@@ -876,7 +798,7 @@ export function undoDeadline(value: unknown, sentAt: number): number | null {
   if (!isRecord(value)) return null;
   const left = value.left;
   return typeof left === "number" && Number.isFinite(left) && left >= 0
-    ? sentAt + Math.min(left, closeGraceMs)
+    ? sentAt + Math.min(left, browserTimes.releaseGraceMs)
     : null;
 }
 

@@ -1,11 +1,12 @@
 import {
+  browserTimes,
   browserViewUrl,
   launchpadStrip,
+  parseNewTabChoice,
   stripAppOf,
   targetIdOf,
   viewAddressOf,
 } from "../browser/contract/pure";
-import { parseNewTabChoice } from "../shell/new-tab-protocol";
 import type { PublicEntry } from "./chat";
 import type { MessageKey } from "./messages";
 import {
@@ -45,29 +46,6 @@ import {
 // a workstation, which has no entry, and never in Recovery mode. A view is
 // framed only on exactly the recorded origin. Pure: the DOM
 // (browser-panel.ts) only draws this and asks.
-
-/** `GET /.lazurio/browser.json` (the server's `browserViewDocumentPath`):
- * the view's address for a new tab, or that there is none. */
-export const browserViewDocumentPath = "/.lazurio/browser.json";
-
-/** The frame's attributes. `allow` lets the view use the clipboard (copying
- * out of the Environment browser, pasting into it) and full screen; the
- * sandbox is the one of T3 Code's panel (Lazurio/t3code#41): the view keeps
- * its own origin, cookie and scripts, and cannot navigate this page. A tab
- * the view opens escapes the sandbox (`allow-popups-to-escape-sandbox`, F47
- * point 9's addendum of 2026-10-13), as a tab opened from Nová karta's frame
- * does (`newTabFrameSandbox`): the view's own "Otevřít samostatně" then opens
- * an ordinary tab of the person's browser, where without the flag the tab
- * would inherit this sandbox. The frame itself stays as confined. */
-export const browserFrame = Object.freeze({
-  allow: "clipboard-read; clipboard-write; fullscreen",
-  referrerpolicy: "no-referrer",
-  sandbox:
-    "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals",
-});
-
-/** How often the strip reads the overview while the panel is open. */
-export const stripEveryMs = 5_000;
 
 /** The view's origin where the panel is offered, null where it is not: no
  * recorded entry (a workstation), an entry whose gateway routes no view, or
@@ -566,54 +544,13 @@ export function tabMenu(
   };
 }
 
-// ---- What the frames say ----------------------------------------------------------
-
-export type ViewMessage =
-  /** The page opened a new tab (F39 point 4): held for the Launchpad, then
-   * shown (F47 point 4). */
-  | Readonly<{ kind: "new-tab"; tab: string; url: string }>
-  /** The view's tab ended: it goes from the strip (F47 point 6). */
-  | Readonly<{ kind: "closed"; tab: string }>
-  /** Where the view's tab is now. */
-  | Readonly<{ kind: "info"; tab: string; title: string; url: string }>;
+// ---- What the Launchpad answers --------------------------------------------------
+// (What a tab's frame says, the panel reads with the contract's
+// `acceptViewMessage`, C8.)
 
 type Data = Readonly<Record<string, unknown>>;
 const isRecord = (value: unknown): value is Data =>
   typeof value === "object" && value !== null && !Array.isArray(value);
-
-/** A message of the view frame (src/browser/people/client.ts), only from
- * that frame's window on the view's own origin, about a tab of that view;
- * null for anything else. */
-export function viewMessage(
-  event: Readonly<{ data: unknown; origin: string; fromFrame: boolean }>,
-  viewOrigin: string | null,
-): ViewMessage | null {
-  if (!event.fromFrame || viewOrigin === null || event.origin !== viewOrigin)
-    return null;
-  const data = event.data;
-  if (!isRecord(data)) return null;
-  const tab = viewTabOf(data.view, viewOrigin);
-  if (tab === null) return null;
-  switch (data.type) {
-    case "lazurio-browser:new-tab":
-      return typeof data.url === "string"
-        ? { kind: "new-tab", tab, url: data.url.slice(0, 2_048) }
-        : null;
-    case "lazurio-browser:closed":
-      return { kind: "closed", tab };
-    case "lazurio-browser:info":
-      return typeof data.title === "string" && typeof data.url === "string"
-        ? {
-            kind: "info",
-            tab,
-            title: data.title.slice(0, 500),
-            url: data.url.slice(0, 2_048),
-          }
-        : null;
-    default:
-      return null;
-  }
-}
 
 /** The Launchpad holds the tab (F47 point 4): `POST /api/new-tab/hold`
  * answered `200 {held: true}`, and nothing else. */
@@ -743,6 +680,14 @@ export function letGoUndo(
     shown: tabs.some((entry) => entry.id === shown) ? shown : null,
     ends: ending > 0,
   };
+}
+
+/** Until when the strip offers the Vrátit of a command whose first release
+ * request went at `sentAt`: 1 s less than the hub's grace, which begins no
+ * earlier than that request (`browserTimes.undoMs`, decision F50 point 2),
+ * so Vrátit never outlives the tab. */
+export function letGoUndoUntil(sentAt: number): number {
+  return sentAt + browserTimes.undoMs;
 }
 
 /** Why letting go of `failed` of a command's tabs failed, in Nová karta's
