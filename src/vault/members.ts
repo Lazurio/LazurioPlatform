@@ -18,7 +18,7 @@ import {
 } from "./store";
 
 // The Správci of the Environment's own vault (root decision 0198 point 2,
-// DEV-6631 task 638b, decision F52's addendum of 2026-10-14): whoever has
+// DEV-6631 task 638b, decision F53's addendum of 2026-10-14): whoever has
 // access to the Environment is an Admin of its vault and has all of its
 // passwords. The Environment adds the person the gateway admitted (the
 // subject of its own answer, never a header of the request), once that

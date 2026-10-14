@@ -506,7 +506,7 @@ wave (`unsupported`, `workstation`).
   secret: the vault's organization id, Agenti's collection id, and a creation's
   receipt with its time while it is unresolved) and, on a work Environment,
   `lazurio-assignment.json` (0600, not secret: the fingerprint of the assignment its
-  Správci were added under, F52's addendum of 2026-10-14). A record that is there but
+  Správci were added under, F53's addendum of 2026-10-14). A record that is there but
   cannot be read refuses
   (`record-unreadable`): nothing is ever created over it. An account file whose
   account or vault is not the handover's is refused by every operation
@@ -620,7 +620,7 @@ wave (`unsupported`, `workstation`).
   never the setup's. The journal of the unit gets
   `{"scope":"tools-vault","operation":"setup|refresh|unlock|vault|secrets","outcome":…,"reason":…}`
   (with `"trigger":"start"` for the start's setup) only.
-- **The vault page and its Správci** (F52's addendum of 2026-10-14,
+- **The vault page and its Správci** (F53's addendum of 2026-10-14,
   `src/vault/members.ts`): Settings → Vault (`/settings/vault`, "Trezor") shows the
   rule, the vault's name and state, and "Přidat položku" and "Otevřít trezor", or
   "Vytvořit účet v trezoru" while the person has no account in the network's vault

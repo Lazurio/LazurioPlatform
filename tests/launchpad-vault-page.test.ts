@@ -56,7 +56,7 @@ import {
 import organization from "./fixtures/machine-context.json";
 
 // Settings → Vault, Nastavení → Trezor, over HTTP (root decision 0198 points
-// 2, 3 and 5; DEV-6631 tasks 648 and 638b; decision F52's addendum and
+// 2, 3 and 5; DEV-6631 tasks 648 and 638b; decision F53's addendum and
 // F11's amendment of 2026-10-14): the installed consumer, `startLaunchpad`
 // behind a fake gateway auth endpoint, with the fake Vaultwarden and the
 // fake bw. The person is the subject of the gateway's own answer and

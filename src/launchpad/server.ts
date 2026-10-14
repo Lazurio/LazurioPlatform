@@ -261,7 +261,7 @@ const bootWithinMs = 500;
 
 /** How often an installed hosted Launchpad looks whether its work
  * Environment was assigned to someone else, so its Správci leave the vault
- * (F52's addendum of 2026-10-14). */
+ * (F53's addendum of 2026-10-14). */
 const vaultAudienceEveryMs = 5 * 60_000;
 
 /** The tailnet control server the Machine handover names (decision F41);
@@ -595,7 +595,7 @@ export async function startLaunchpad(
     // A closing Launchpad starts no setup (`start` asks it last).
     closing: () => closing,
   });
-  // Settings → Vault, Nastavení → Trezor (root decision 0198 point 5, F52's
+  // Settings → Vault, Nastavení → Trezor (root decision 0198 point 5, F53's
   // addendum of 2026-10-14): the page, and the membership of the person the
   // gateway admitted, over the same core and the same journal.
   const vaultPage = createVaultPageRoutes({
@@ -1933,7 +1933,7 @@ export async function startLaunchpad(
   // the start to fail, one attempt per start.
   const vaultAtStart = installed?.vaultAtStart;
   // The Správci of a work Environment leave its vault when it is assigned to
-  // someone else (F52's addendum of 2026-10-14): looked at once the start's
+  // someone else (F53's addendum of 2026-10-14): looked at once the start's
   // setup has ended, then every five minutes, never waiting for anyone to
   // open the vault page. A look reads the handover and one local file; only
   // a changed assignment asks the vault. One look at a time.
