@@ -10941,6 +10941,111 @@ listed by the catalog as `personalspace/<module>` (a Bun app executable, `python
 not yet, as the plan warns, `none` without an app), and the embedded templates equal to
 their directory.
 
+### F52 addendum of 2026-10-14: an Organization's module
+
+**Decided by the Operator 2026-10-14 ("+ Nový modul" is one flow for the personal space
+and for an Organization; root decisions 0171 with its addendum of 2026-10-13 point 3,
+0176, 0185 point 6 and 0186 point 1; Lazurio/LazurioPlatform#267). Implemented.**
+`lazurio module create <Organization>/<slug>` is the same plan, dry run and confirmed
+digest as the personal form, for an Organization of this Folder. The root's generator
+(`R:lazurio/module-create-lib.mjs`) never created a repository, never pushed and left
+the projection to a separate command; the Platform's Organization form does all of it
+under the same rules as the personal one. With it, the generator of the root has no
+form left and retires (root 0171's addendum, point 3); until the root removes it, the
+stack templates here are the only ones that change.
+
+1. **Who.** Only an active Owner of the Organization, by GitHub's own live answer
+   (`GET user/memberships/orgs/<login>`: `active`, `admin`), the rule of the "+ Nový
+   modul" tile (F36's addendum of 2026-10-04): `organization-owner-required`. A Team
+   Environment never (`team-environment`): it acts under its Team's brokered identity.
+   A member whom the Organization lets create repositories is not admitted; widening
+   it changes the tile and the command together.
+2. **The command.** `lazurio module create <Organization>/<slug> --stack <stack> --teams
+   <team,team> [--name] [--port] (--dry-run | --confirm <plan>) [--folder] [--json]`.
+   `<Organization>` selects as the Launchpad does (`selectCatalogOrganization`: the
+   slug ignoring letter case, else the directory name), and where neither matches, by
+   the GitHub login the Organization is bound to, which the "+ Nový modul" prompt names
+   and which may differ from the slug. `--teams` is required: the
+   Teams are the slot's `teams` and the repository's first grants (root 0186 point 1);
+   an empty list would declare the default Team while only Owners reach the
+   repository. The report adds `organization` (`slug`, `github`, `directory`) and
+   `teams` (each Team's slug, GitHub slug and permission); the digest covers both.
+3. **The plan's checks**, reading only and asking GitHub only GETs, in order: the name
+   and the stack; `--teams` (`teams-required`); the Folder's preset, read or refused
+   (`folder-unavailable`: an unreadable one might be a Team Environment's); the Organization
+   in the catalog (`organization_not_found`, `organization_ambiguous`), resolving
+   cleanly (`organization_manifest_not_mutation_safe`) and bound to a GitHub login
+   (`organization-not-bound`); gh's account an active Owner (`github-signed-out`,
+   `github-unavailable`, `organization-owner-required`); the task worktree (the cwd's
+   linked checkout of the Organization root's Git) whose documents must resolve
+   cleanly too; the pool, never overlapping the personal range `23000`–`23099`
+   (`organization-pool-invalid`, HumanAndMachines/Lazurio#545; `pool_missing` for a
+   module with an app); the primary checkout's `workspace/` (Git ignores
+   `workspace/<slug>/`: `organization-workspace-tracked`; `directory_exists`); the
+   generator with the Organization's Team roster (`unknown_team`, `invalid_team`,
+   `slot_exists`, the port codes), avoiding every lease of the Folder; each Team on
+   GitHub by its bound `asserted_slug` and id, else by its slug (`team-not-on-github`,
+   `team-binding-mismatch`); and no `<login>/<slug>` (`repository-exists`).
+4. **The real run** (`createModule`, which the personal form now shares) from a linked
+   worktree of the Organization root in exactly `<root>/.worktrees/root/<task>` (the
+   root's worktree discipline; elsewhere, `organizations/<other>` say, a checkout would
+   be a second catalog candidate of the Organization) on a branch of its own
+   (`organization_root_not_task_worktree`, `organization_worktree_misplaced`,
+   `organization_root_on_main`). Its steps are the personal form's with three
+   differences. *create* is `POST /orgs/<login>/repos` with `private=true`, verified
+   private, of the Organization and named as planned. *place* puts the module into the
+   primary checkout's `workspace/<slug>`, a gitignored nested checkout exactly where
+   `lazurio update` places a declared module. A new step *grant*, after *push*, gives
+   each Team Write (`push`) with `PUT orgs/<login>/teams/<team>/repos/<login>/<slug>`
+   and reads the grant back; a refused grant is `grant-failed` with its exact command,
+   and the run goes on (the module is created and declared; until the grant, only
+   Owners reach it). *declare* writes the slot into the task worktree's
+   `modules.manifest.json` byte for byte **and the Organization's compatibility
+   projection** (`src/modules/organization-declaration.ts`): a new slot changes the
+   projection `company.gen3.json` that a `transition` root carries, and the digest of it
+   in `lazurio.organization.json`; without both the root would resolve `conflict`
+   (`canonical_projection_hash_invalid`) after the merge. The command writes them as
+   `lazurio migrate organization-manifest --write` does, which a Platform-only
+   Environment does not have: the projection serialized with two spaces and a final
+   newline (byte-identical to every Organization root on record), and only the
+   digest's string in the canonical manifest. All three texts are computed and the
+   root's resolution checked (same state, no issue, no declaration issue naming the new
+   slot) before anything is written; documents changed since the plan are
+   `manifest_changed`, and a write that stops in the middle names the files already
+   written. *check* reads the task worktree's documents (they resolve and declare the
+   module) and the placed module (it reads as the Organization's): the catalog reads
+   the root's `main`, which lists the module once the pull request is merged. The next
+   steps are that pull request into the Organization root's repository, whose merge is
+   the Publication of an Operator GitHub lets merge there, the worktree's removal and
+   the module's start after the merge.
+5. **Always private.** No Organization declares a repository visibility policy, and
+   none is invented here.
+6. **Not here.** `lazurio module setup` and the Module Standard's checks
+   (`report.standard` stays null), a repository-db data repository for a new module
+   (`--data`, a separate change), and the Dashboard's "Nový Modul" (DEV-6634).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Place the module in the task worktree, as the root did | Removing the worktree would delete the only checkout, and the module would not be where `lazurio update` and the catalog look for it; rejected for the primary checkout, as the personal form |
+| Leave the projection to `lazurio migrate organization-manifest` | Not in the Platform; the pull request would turn the Organization `conflict` when merged; rejected |
+| Admit a member whom the Organization lets create repositories | Two rules for the tile and the command; deferred until both change together |
+| `--teams` optional | The slot would declare the default Team while no Team reaches the repository; rejected |
+| Maintain or Admin for the Teams | More than a Builder needs to work through pull requests; Write chosen |
+
+**Verification.** `tests/organization-module-create.test.ts` against an Organization
+root checkout in `transition` with a module, a bound and an unbound Team and a task
+worktree: the exact plan with only GitHub reads, nothing written; every refusal above;
+the real run (the repository created in the Organization, the grants, `main` pushed,
+the module placed and ignored by the root, the slot byte for byte, one changed line in
+the canonical manifest, the projection regenerated, the worktree resolving `transition`
+without issues, and after merging its branch the catalog listing the module
+executable); a `current` root; a refused grant; failed, uncertain, public and foreign
+creations; documents changed during the run; the run's own refusals; and the CLI.
+`tests/content-github.test.ts`: `POST /orgs/<login>/repos`, the Team read and the grant
+with its read-back. The Organization form's declaration was also checked against every
+Organization root on one maintainer's workstation (each resolved `transition` with the
+new slot, one changed line in its canonical manifest); that check is not a test.
+
 ## F53 — Every Environment owns its vault: its own organization in the network's Vaultwarden, created by its technical account
 
 **Decided by the Admin on 2026-10-12 and 2026-10-13 (root decision 0198 points 1, 2,

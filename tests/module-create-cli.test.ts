@@ -100,6 +100,18 @@ test("usage errors exit 2 with the command's help, before anything is read", asy
       ["personalspace/notes", "--stack", "none", "--dry-run", "--unknown"],
       "Unknown option",
     ],
+    [
+      ["Acme/portal", "--stack", "none", "--dry-run"],
+      "An Organization's module names its Teams",
+    ],
+    [
+      ["Acme/portal", "--stack", "none", "--teams", "core,", "--dry-run"],
+      "An Organization's module names its Teams",
+    ],
+    [
+      ["Acme/portal", "--stack", "none", "--teams", "core"],
+      "Show the person the plan with --dry-run first",
+    ],
   ];
   for (const [args, message] of cases) {
     const run = await cli(["module", "create", ...args, "--folder", folder]);
@@ -110,7 +122,7 @@ test("usage errors exit 2 with the command's help, before anything is read", asy
   }
 });
 
-test("refusals by name alone: the Organization form, the stack and the slug", async () => {
+test("refusals by name alone: an Organization outside a Folder, the stack and the slug", async () => {
   const folder = "/nonexistent-lazurio-folder";
   const refused = async (args: string[], reason: string) => {
     const run = await cli([
@@ -141,25 +153,20 @@ test("refusals by name alone: the Organization form, the stack and the slug", as
     });
     return report(run.stdout);
   };
+  // The Organization form in a Folder that is none: its preset cannot be
+  // read, so it might be a Team Environment (fail closed).
   const organization = await refused(
-    ["Acme/portal", "--stack", "none"],
-    "organization-form-unavailable",
-  );
-  expect(organization.issues[0].message).toContain(
-    "Lazurio/LazurioPlatform#267",
-  );
-  // --teams belongs to the Organization form, refused as a whole.
-  await refused(
     ["Acme/portal", "--stack", "none", "--teams", "core"],
-    "organization-form-unavailable",
+    "folder-unavailable",
   );
+  expect(organization.scope).toBe("organization");
   await refused(["personalspace/notes", "--stack", "rails"], "unknown_stack");
   await refused(["personalspace/Notes", "--stack", "none"], "invalid_slug");
   await refused(["personalspace/mausbot", "--stack", "none"], "reserved_slug");
 });
 
 posixTest(
-  "a workstation without a Personalspace refuses before GitHub is asked",
+  "a workstation without a Personalspace or the Organization refuses before GitHub is asked",
   async () => {
     const folder = join(parent, "workstation", "Lazurio");
     await mkdir(dirname(folder), { recursive: true });
@@ -183,6 +190,25 @@ posixTest(
       status: "blocked",
       reason: "personalspace-absent",
       next_steps: ["Install it first: lazurio personalspace install."],
+    });
+    // The same Folder has no Organization Acme.
+    const organization = await cli([
+      "module",
+      "create",
+      "Acme/portal",
+      "--stack",
+      "none",
+      "--teams",
+      "core",
+      "--dry-run",
+      "--json",
+      "--folder",
+      folder,
+    ]);
+    expect(organization.code).toBe(2);
+    expect(report(organization.stdout)).toMatchObject({
+      status: "blocked",
+      reason: "organization_not_found",
     });
   },
 );
