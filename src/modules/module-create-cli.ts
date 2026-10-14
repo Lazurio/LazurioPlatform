@@ -1,9 +1,11 @@
 import { access } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { gitEnvironmentOf } from "../content/git";
 import { createPersonalspaceHolder } from "../content/holder";
 import { contentLockDirectory, processGitHubHost } from "../content/host";
 import { shown } from "../organizations/cli";
+import { toolsEnvironmentOf } from "../tools/overview";
 import { resolveOnPath, runTool } from "../tools/status";
 import { type CliContext, installBase, operatorFolder } from "../update/cli";
 import { type ModuleCreateReport, planModuleCreate } from "./module-create";
@@ -321,12 +323,19 @@ const dataInitTimeoutMs = 5 * 60_000;
 
 /** `repository-db init` by the engine the module's app installed
  * (`node_modules/@lazurio/repository-db`, the one released tag its
- * `package.json` names), with the operator's Bun, HOME, PATH (its gh and
- * git) and TMPDIR only. Never this process's executable. */
+ * `package.json` names), with the operator's Bun. Init clones and pushes
+ * with git and asks gh (`gh auth status`, the default branch), so it runs
+ * with what the module's own push runs with: the operator's HOME, PATH and
+ * XDG directories (gh's sign-in) and the part of the environment git takes
+ * for SSH and its configuration (`gitEnvironmentOf`: the agent socket, an
+ * SSH command, `GIT_CONFIG_*`), plus TMPDIR. Nothing else, never a token,
+ * never this process's executable. */
 export function processDataInit(
   context: Pick<CliContext, "env" | "platform">,
+  run: typeof runTool = runTool,
 ): ModuleCreateRunHost["initData"] {
   const host = processModuleHost(context.env, context.platform);
+  const tools = toolsEnvironmentOf(context.env, context.platform, run);
   return async (request): Promise<InstallAnswer> => {
     const home = host.home;
     if (home === undefined)
@@ -355,13 +364,15 @@ export function processDataInit(
       )
         return { ok: false, detail: missing };
     const environment: Record<string, string> = {
+      ...gitEnvironmentOf(context.env),
+      ...(tools.xdg ?? {}),
       HOME: home,
-      PATH: host.path,
+      PATH: tools.path ?? host.path,
       GIT_TERMINAL_PROMPT: "0",
     };
     if (host.tmpdir) environment.TMPDIR = host.tmpdir;
     try {
-      const result = await runTool(
+      const result = await run(
         [
           bun,
           engine,

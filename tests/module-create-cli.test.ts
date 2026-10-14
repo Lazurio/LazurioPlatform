@@ -6,6 +6,7 @@ import { runCli } from "../src/cli";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
+import { processDataInit } from "../src/modules/module-create-cli";
 import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
@@ -331,5 +332,102 @@ posixTest(
       "api repos/example/example_GEN3",
       "api repos/example/notes",
     ]);
+  },
+);
+
+posixTest(
+  "the data init runs the app's own engine with the operator's Bun and the environment git and gh take, nothing else",
+  async () => {
+    const home = join(parent, "data-init-home");
+    const app = join(parent, "data-init-app");
+    await mkdir(join(home, ".local", "bin"), { recursive: true });
+    await mkdir(join(app, "node_modules", "@lazurio", "repository-db", "src"), {
+      recursive: true,
+    });
+    const engine = join(
+      app,
+      "node_modules",
+      "@lazurio",
+      "repository-db",
+      "src",
+      "cli.ts",
+    );
+    await writeFile(engine, "// the engine\n");
+    const record = join(parent, "data-init-record");
+    // A Bun that records its arguments and environment.
+    const bun = join(home, ".local", "bin", "bun");
+    await writeFile(
+      bun,
+      `#!/bin/sh\nprintf '%s\\n' "$@" > '${record}.argv'\nenv > '${record}.env'\n`,
+    );
+    await chmod(bun, 0o755);
+    const init = processDataInit({
+      platform: process.platform,
+      env: {
+        HOME: home,
+        PATH: "/usr/bin:/bin",
+        SSH_AUTH_SOCK: "/tmp/agent.sock",
+        GIT_SSH_COMMAND: "ssh -i key",
+        XDG_CONFIG_HOME: join(home, ".config"),
+        GH_TOKEN: "must-not-pass",
+        UNRELATED: "must-not-pass",
+      },
+    });
+    const answer = await init({
+      app,
+      name: "ledger",
+      remote: "git@github.com:Acme/ledger-data.git",
+      branch: "v3",
+      mount: join(parent, "ledger", "db"),
+      schemaName: "ledger-data",
+      schemaVersion: "0.1.0",
+    });
+    expect(answer).toEqual({ ok: true });
+    expect(
+      (await readFile(`${record}.argv`, "utf8")).trim().split("\n"),
+    ).toEqual([
+      engine,
+      "init",
+      "--app",
+      "ledger",
+      "--remote",
+      "git@github.com:Acme/ledger-data.git",
+      "--branch",
+      "v3",
+      "--mount",
+      join(parent, "ledger", "db"),
+      "--schema-name",
+      "ledger-data",
+      "--schema-version",
+      "0.1.0",
+    ]);
+    const env = await readFile(`${record}.env`, "utf8");
+    for (const line of [
+      "SSH_AUTH_SOCK=/tmp/agent.sock",
+      "GIT_SSH_COMMAND=ssh -i key",
+      `XDG_CONFIG_HOME=${join(home, ".config")}`,
+      `HOME=${home}`,
+      "PATH=/usr/bin:/bin",
+      "GIT_TERMINAL_PROMPT=0",
+    ])
+      expect(env).toContain(line);
+    expect(env).not.toContain("must-not-pass");
+    // Without the engine (the install did not finish), nothing runs.
+    await rm(engine);
+    expect(
+      await init({
+        app,
+        name: "ledger",
+        remote: "git@github.com:Acme/ledger-data.git",
+        branch: "v3",
+        mount: join(parent, "ledger", "db"),
+        schemaName: "ledger-data",
+        schemaVersion: "0.1.0",
+      }),
+    ).toEqual({
+      ok: false,
+      detail:
+        "the app has no repository-db installed (bun install did not finish)",
+    });
   },
 );
