@@ -131,7 +131,7 @@ export function refuseTool(
         : `Unknown tool ${name}; the catalog offers: ${known.join(", ")}`,
     };
   }
-  // The Environment's vault has its own flow (decisions F43, F52): no
+  // The Environment's vault has its own flow (decisions F43, F53): no
   // sign-in of a person, the Environment's own account and vault.
   if (name === vaultToolName) {
     const result = {

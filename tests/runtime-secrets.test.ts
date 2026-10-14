@@ -14,7 +14,7 @@ import type {
 } from "../src/vault/flow";
 
 // What an application's declared runtime secrets become at its start
-// (decision F46 as F52 amends it, root decisions 0177 and 0196): the values
+// (decision F46 as F53 amends it, root decisions 0177 and 0196): the values
 // of its required and optional names as `LAZURIO_RUNTIME_SECRET_<NAME>`, a
 // refusal naming every required name without a value, and a note for the
 // optional ones it starts without. Which applications the vault serves is

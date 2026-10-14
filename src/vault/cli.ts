@@ -17,7 +17,7 @@ import {
 import { processVaultHost } from "./host";
 
 /** `lazurio vault`: the Environment's own vault for agents (decisions F43,
- * F52). The same core as the Launchpad's Settings → Tools → bitwarden and its
+ * F53). The same core as the Launchpad's Settings → Tools → bitwarden and its
  * start. */
 export const vaultHelp = `vault env [--json]
   This Environment's vault for this shell: prints shell exports of

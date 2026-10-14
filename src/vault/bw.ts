@@ -5,7 +5,7 @@ import { parseUniqueJson } from "../providers/unique-json";
 import type { ToolProcessResult, ToolRunner } from "../tools/status";
 import { isSession, isVaultId } from "./store";
 
-// The Bitwarden CLI of one Environment vault account (decisions F43, F52), driven
+// The Bitwarden CLI of one Environment vault account (decisions F43, F53), driven
 // by the core and never by a person: always the pinned binary, always with
 // the account's own BITWARDENCLI_APPDATA_DIR (bw rewrites its data file on
 // every start, so no run may reach another profile), never interactive. A

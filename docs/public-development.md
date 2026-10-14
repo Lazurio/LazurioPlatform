@@ -11,7 +11,7 @@ Use obvious placeholders such as `<provided-by-owner>`; avoid realistic example
 tokens. Credential access remains with existing OS/provider/harness custody.
 Platform stores neither a new secret database nor copies of session credentials.
 The one exception is the Environment vault's own account (decisions F43 and
-F52): the Platform registers that account, so it writes the account's generated
+F53): the Platform registers that account, so it writes the account's generated
 master password, its API key and its one Bitwarden CLI session itself,
 owner-only, beside the CLI's store on that Environment and nowhere else; the
 key of the Environment's own vault exists only in memory while the vault is

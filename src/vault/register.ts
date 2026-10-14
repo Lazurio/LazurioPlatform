@@ -2,7 +2,7 @@ import { Buffer } from "node:buffer";
 import { webcrypto } from "node:crypto";
 
 // The technical account of an Environment in its network's vault (decisions
-// F43 and F52): created here and signed in by its API key, so the stock
+// F43 and F53): created here and signed in by its API key, so the stock
 // Bitwarden CLI can run `bw login --apikey` and `bw unlock --passwordfile`,
 // and the core can ask the vault's API as the account (`apiKeyLogin`,
 // organization.ts). Verified end to end against Vaultwarden 1.37.1 and 1.37.4

@@ -1,7 +1,7 @@
 import { isAbsolute, join } from "node:path";
 import type { MachineContext } from "../machine/context";
 
-// The Environment's own vault (root decision 0198, decision F52): which
+// The Environment's own vault (root decision 0198, decision F53): which
 // network vault this Environment's technical account lives in, what the
 // account is called and what its vault is named, all as the root-issued
 // handover's `vault` member says (DEV-6631 contract C2). Nothing is derived
@@ -27,7 +27,7 @@ export type VaultContext = Readonly<{
   environment: VaultEnvironmentKind;
   /** The Organization that owns a work Environment (`owner.organization`, a
    * lowercase slug); null for a personal Environment, which a person owns.
-   * It decides which applications read runtime secrets (decision F46 as F52
+   * It decides which applications read runtime secrets (decision F46 as F53
    * amends it). */
   organization: string | null;
 }>;

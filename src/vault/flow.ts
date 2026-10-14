@@ -81,7 +81,7 @@ export type {
   VaultStatus,
 } from "./status";
 
-// The Environment's own vault (root decision 0198, decision F52): one core
+// The Environment's own vault (root decision 0198, decision F53): one core
 // for the CLI (`lazurio vault`) and the Launchpad (Settings → Tools →
 // bitwarden, and its start). Each Environment's technical account, which the
 // network pre-allowed and the handover names, registers itself, creates the
@@ -117,7 +117,7 @@ export type VaultHost = Readonly<{
   download?: InstallFetch | undefined;
   pin?: BitwardenPin | undefined;
   journal?: ((entry: VaultJournalEntry) => void) | undefined;
-  /** "Používají agenti" on for the vault (decision F52): called once per
+  /** "Používají agenti" on for the vault (decision F53): called once per
    * vault, after the setup in which it became ready (its collection Agenti
    * recorded), and never by a later setup, so a person who turns the switch
    * off keeps it off. A failure is journaled and is never the setup's. */
@@ -540,7 +540,7 @@ async function signIn(
 }
 
 /** The vault became ready in this setup: "Používají agenti" on for it, by
- * the composition (decision F52), after the account's lock is released. Best
+ * the composition (decision F53), after the account's lock is released. Best
  * effort: a failure is journaled and is never the setup's, and the switch
  * stays where it is for a person to turn. */
 async function turnAgentsOn(host: VaultHost): Promise<void> {

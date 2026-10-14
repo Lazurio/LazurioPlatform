@@ -9,7 +9,7 @@ import {
 } from "../src/launchpad/vault-view";
 import type { VaultStatus } from "../src/vault/flow";
 
-// The Environment's own vault on the tools screen (decision F52, the
+// The Environment's own vault on the tools screen (decision F53, the
 // wireframe of prototypes-lazurio#33): the row's states, "Otevřít trezor",
 // the one action where a setup moves the vault on, and the server's answers
 // taken only in their exact form.

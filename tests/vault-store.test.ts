@@ -37,7 +37,7 @@ import {
 } from "../src/vault/store";
 import { ownAccount } from "./fixtures/fake-vault";
 
-// The custody of one Environment vault account (decisions F43, F52) and what
+// The custody of one Environment vault account (decisions F43, F53) and what
 // is read from bw: exact shapes only, the password written once, the own
 // vault's record never guessed, nothing of an account file ever echoed.
 

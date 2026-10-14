@@ -341,7 +341,7 @@ only, never values:
 ```
 
 Before every start the value of each is read from the Environment's own vault (F43,
-F52): a sync, then the login password of the one item named exactly so anywhere in
+F53): a sync, then the login password of the one item named exactly so anywhere in
 that vault. On a work Environment only an application of the Organization that owns
 it reads it, on a personal Environment only a Personalspace module; another mounted
 Organization's application, a Personalspace module on a work Environment and an

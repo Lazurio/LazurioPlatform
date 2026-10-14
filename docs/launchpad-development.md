@@ -1264,7 +1264,7 @@ JSON, `NODE_PATH`, `NODE_ENV=development`, the runtime and Organization identity
 loopback origin of each sibling module of its Organization it declares
 (`LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN`, F26 addendum of 2026-10-10), the value of
 each runtime secret it declares, read from the Environment's own vault at this start
-(`LAZURIO_RUNTIME_SECRET_<NAME>`, F46 as F52 amends it; a required one without a value refuses the
+(`LAZURIO_RUNTIME_SECRET_<NAME>`, F46 as F53 amends it; a required one without a value refuses the
 start as `runtime-secret-unavailable`, an optional one is reported as
 `secretsNotProvided`), and on
 a hosted Machine, for the module's default app, the entrypoint's external origin
@@ -1545,7 +1545,7 @@ characters escaped), Czech or English by the Folder's locale.
 | product | `template-revision` | `observeFolder` facts | `warn folder-newer` (a newer product rendered it), `warn revision-unknown`; an older one is `folder-refresh` |
 | Folder | `folder-state` | `collectRecovery` Folder state; preset and Machine kind from `observeFolder` | `fail folder-state-pending`, `-absent`, `-unrecognized`, `-unreadable` |
 | Folder | `machine-binding` | recorded `preferences.machine` vs `machineBinding` of the live handover | `warn machine-identity-changed`, `warn handover-changed` (digest; `machine folder-refresh`), `warn binding-absent`, `warn handover-unreadable`; `skipped not-hosted` |
-| tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `skipped not-offered` for a missing tool Lazurio does not offer in this Environment (`toolOffered`: bitwarden outside a Remote Environment on Linux, decisions F43 and F52; gogcli in a work Environment, F44); Executor is not a tool row but its own check; `signIn`/`ssh` ids with `--sign-in` |
+| tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `skipped not-offered` for a missing tool Lazurio does not offer in this Environment (`toolOffered`: bitwarden outside a Remote Environment on Linux, decisions F43 and F53; gogcli in a work Environment, F44); Executor is not a tool row but its own check; `signIn`/`ssh` ids with `--sign-in` |
 | tools | `executor` | `executorStatus` ([F44](decisions.md#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio)): the entry and its marker, `systemctl --user show` of `sh.executor.daemon.service` and its drop-in, `GET 127.0.0.1:4789/api/health`, `codex mcp get executor --json` and `~/.claude.json`; never `fail`, never in `recover` | `ok` running with the installed agents connected (context `toolVersion`, `executorService`, `codexMcp`, `claudeMcp`); `warn executor-not-installed`, `executor-outdated`, `executor-conflict`, `executor-not-running`, `executor-incomplete` (the next step is `lazurio executor setup`, or Settings → Tools → executor); `skipped not-offered` (a computer, not the operator), `skipped handover-unreadable` |
 | organizations | `catalog` | `readFolderCatalog` | counts of the Organizations and their modules only: the Personalspace group is never counted or named; `warn catalog-unreadable` |
 | organizations | `organization` | catalog entry | `warn` with the Organization reason; a template `skipped template-not-runtime` |
@@ -2030,7 +2030,7 @@ the tool forgot the sign-in on this Machine only (gh, composio) or unlinked the 
 (wacli). An SSH outcome is taken only in its exact form (known reasons, a `SHA256:`
 fingerprint, no key content).
 
-**The Environment's own vault** (decision F52, the wireframe of
+**The Environment's own vault** (decision F53, the wireframe of
 prototypes-lazurio#33; it replaces F43's dialog). The Environment sets its vault up
 itself: the installed Launchpad runs the one setup of `/api/tools/bitwarden/setup` in
 the background after its start where the vault needs it (`vaultAtStart`, the rule of
@@ -2051,7 +2051,7 @@ vault on: "Nastavit" when nothing set it up yet and "Zkusit znovu" after a setup
 stopped, a vault that did not answer or a creation not confirmed yet. A vault the network has not allowed or has
 revoked, and a 0197 pilot, offer none; there is no dialog, no details section and no
 disconnect. The setup in which the vault becomes ready turns the agents' switch on in the
-Folder itself, once per vault (decision F52), so a person who turns it off keeps it off;
+Folder itself, once per vault (decision F53), so a person who turns it off keeps it off;
 the page never turns it on, and after a setup it followed that ends connected it reads
 the Folder again to show it. The state is accepted only in its exact form
 (`src/launchpad/vault-view.ts`, `tests/vault-view.test.ts`); the DOM is

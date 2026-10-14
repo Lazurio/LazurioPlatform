@@ -42,7 +42,7 @@ import {
   zipOf,
 } from "./fixtures/fake-vault";
 
-// The Environment's own vault (root decision 0198, decision F52) through its
+// The Environment's own vault (root decision 0198, decision F53) through its
 // one core: the account the handover names registers itself, creates the
 // Environment's own organization with the collection Agenti, keeps it by ID
 // and one shared session for its agents. Against the fake Vaultwarden and the

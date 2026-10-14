@@ -34,7 +34,7 @@ import {
 } from "./fixtures/fake-vault";
 
 // The runtime secrets of an application from the Environment's own vault
-// (decision F46 as F52 amends it, root decision 0177): a sync, then the one
+// (decision F46 as F53 amends it, root decision 0177): a sync, then the one
 // item of each declared name anywhere in the vault, its login password the
 // value. A work Environment serves its owning Organization's applications, a
 // personal one the Personalspace's (0198 point 4). Against the fake

@@ -13,7 +13,7 @@ import { acquireFileLock, type FileLock } from "../platform/flock";
 import { parseUniqueJson } from "../providers/unique-json";
 import { syncDirectory, writeDurableFile } from "../update/durable-file";
 
-// The custody of one Environment vault account (decisions F43 and F52): the
+// The custody of one Environment vault account (decisions F43 and F53): the
 // files the account needs on this Environment and nothing else, written by
 // Lazurio beside bw's own store in the data directory it gives bw, owner-only,
 // in a directory keyed by the vault and the account (context.ts):
@@ -246,7 +246,7 @@ export async function writeSession(
   await writeDurableFile(paths.data, "lazurio-session", Buffer.from(session));
 }
 
-/** The Environment's own vault (decision F52), not secret: its organization
+/** The Environment's own vault (decision F53), not secret: its organization
  * and its first collection, Agenti, by ID, which is the vault's whole
  * identity (names never are). `pendingKey` is the receipt of a creation
  * under way: the new organization's public key, written before it is

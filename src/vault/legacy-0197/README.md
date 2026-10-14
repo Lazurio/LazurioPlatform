@@ -1,6 +1,6 @@
 # Frozen: the 0197 pilot vault, read only
 
-Root decision 0198 gives every Environment its own vault (decision F52 in
+Root decision 0198 gives every Environment its own vault (decision F53 in
 `docs/decisions.md`, the core in `../flow.ts`). A few Environments were connected
 earlier the 0197 way (decision F43): an account `vaultwarden@<Environment address>`
 that a person invited into a collection of their own organization, the collection

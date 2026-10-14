@@ -403,7 +403,7 @@ export async function startLaunchpad(
      * Absent: it never does. */
     executorAtStart?: (() => Promise<boolean>) | undefined;
     /** Whether this Launchpad sets the Environment's own vault up after it
-     * starts (decision F52): the same rule as Executor's
+     * starts (decision F53): the same rule as Executor's
      * (`vaultAtStart`). Absent: it never does. */
     vaultAtStart?: (() => Promise<boolean>) | undefined;
   }>,
@@ -450,7 +450,7 @@ export async function startLaunchpad(
     openWindow: (session: string) =>
       ensureThreadWindow(session, undefined, cdpSeams(process.env, runProcess)),
   }),
-  // Where the Environment's vault runs (decisions F43, F52): this process's
+  // Where the Environment's vault runs (decisions F43, F53): this process's
   // home and the handover, for the Folder this Launchpad serves. Trusted
   // composition, never HTTP input; tests supply a fake vault and a fake bw.
   vaultHost?: VaultHost | undefined,
@@ -558,7 +558,7 @@ export async function startLaunchpad(
   };
   // The Files page (decision F35): the Operator's Documents folder.
   const files = createFilesRoutes({ host: documentsHost, headers });
-  // The Environment's vault (decisions F43, F52): its routes journal the
+  // The Environment's vault (decisions F43, F53): its routes journal the
   // operation, the outcome and a fixed reason, never a value.
   const vaultJournal = (entry: object) =>
     console.log(JSON.stringify({ scope: "tools-vault", ...entry }));
@@ -573,7 +573,7 @@ export async function startLaunchpad(
         })
       : undefined;
   // The setup in which the vault becomes ready turns the agents' switch on
-  // in this Launchpad's Folder (decision F52): the default host does so
+  // in this Launchpad's Folder (decision F53): the default host does so
   // already, a given one gets it here.
   const vault = createVaultRoutes({
     host: () =>
@@ -1520,7 +1520,7 @@ export async function startLaunchpad(
           );
         }
         if (vault.handles(url.pathname)) {
-          // The Environment's vault (decisions F43, F52): `{}`, or a setup's
+          // The Environment's vault (decisions F43, F53): `{}`, or a setup's
           // `{job}`; a setup answers within a second and goes on
           // (vault-routes.ts).
           const withJob =
@@ -1896,7 +1896,7 @@ export async function startLaunchpad(
     void (async () => {
       if ((await executorAtStart()) && !closing) await executor.atStart();
     })().catch(() => undefined);
-  // The Environment's own vault (decision F52), by the same pattern: where
+  // The Environment's own vault (decision F53), by the same pattern: where
   // the vault needs it, the one setup of Settings → Tools runs in the
   // background once the Launchpad listens; never awaited, never a reason for
   // the start to fail, one attempt per start.

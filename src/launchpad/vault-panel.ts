@@ -17,7 +17,7 @@ type Post = (
   body: unknown,
 ) => Promise<{ value: unknown; ok: boolean }>;
 
-// The Environment's own vault on the tools screen (decision F52, the
+// The Environment's own vault on the tools screen (decision F53, the
 // wireframe of prototypes-lazurio#33): the row says the state, opens the
 // vault ("Otevřít trezor") once it is connected, and offers one action only
 // where a setup can move it on. The Environment sets the vault up itself, at
@@ -34,7 +34,7 @@ export function createVaultPanel(
     changed: () => void;
     /** A setup this page followed ended connected: the page reads the
      * Folder again (the setup in which the vault became ready turned the
-     * agents' switch on there, decision F52). */
+     * agents' switch on there, decision F53). */
     connected: () => void;
   }>,
 ) {

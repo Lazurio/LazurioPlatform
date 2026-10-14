@@ -11,7 +11,7 @@ import {
 // The secrets an application declares in `lazurio.runtime` (root decision
 // 0177, decision F46): its required `secrets` and its `optional_secrets`
 // (root decision 0196, the Environment ceiling), names only. Before every
-// start their values are read from the Environment's own vault (decision F52)
+// start their values are read from the Environment's own vault (decision F53)
 // and passed to the application's own process as
 // `LAZURIO_RUNTIME_SECRET_<NAME>`, and to no other process. Which
 // applications may read it is the vault's rule (flow.ts): on a work
@@ -94,7 +94,7 @@ type Declaration = Readonly<{
 type Input = Readonly<{
   runtime: Declaration;
   /** A Personalspace module: the vault decides whether it reads (decision
-   * F52 point 4: on its person's personal Environment). */
+   * F53 point 4: on its person's personal Environment). */
   personalspace: boolean;
   /** None where no vault is composed: as an Environment without one. */
   source?: RuntimeSecretSource | undefined;
@@ -217,7 +217,7 @@ export type SecretEnvironment =
 
 /** The catalog's answer for an app's declared secrets, known without the
  * vault's items and without running anything, by the vault's rule (decision
- * F52 point 4): a work Environment serves the apps of the Organization that
+ * F53 point 4): a work Environment serves the apps of the Organization that
  * owns it, a personal one the Personalspace's. A required secret the vault
  * cannot give this app refuses its start (`runtime-secret-unavailable`, as
  * a preparation finding: the running app is still read and stopped); an

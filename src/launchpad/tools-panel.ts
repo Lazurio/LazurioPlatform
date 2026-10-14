@@ -101,7 +101,7 @@ export function createToolsPanel(
   const loginStatus = find<HTMLParagraphElement>("#tools-login-status");
   const loginBody = find<HTMLDivElement>("#tools-login-body");
   const loginClose = find<HTMLButtonElement>("#tools-login-close");
-  // The Environment's own vault (decision F52): its own state, read beside
+  // The Environment's own vault (decision F53): its own state, read beside
   // the tools; the Environment sets it up itself, and the setup in which the
   // vault becomes ready turns the agents' switch on in the Folder, once per
   // vault (never this page, so a person's "off" stays). A setup this page
@@ -1071,7 +1071,7 @@ export function createToolsPanel(
       notice !== null && notice.name === tool.name ? notice : null;
     const said =
       recorded === null ? null : toolNoticeView(recorded, tool, copy);
-    // The Environment's vault (decision F52) and Executor (F44) say their
+    // The Environment's vault (decision F53) and Executor (F44) say their
     // own state and offer their own steps: an account of the Environment and
     // a service Lazurio runs, not a person's sign-in.
     const vaultRow =
