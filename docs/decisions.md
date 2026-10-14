@@ -10796,16 +10796,34 @@ whoever has access to the Environment is a Správce, an Admin, of its vault.
    the vault's rate limit counts sign-ins); "User does not exist" is `no-account`; an
    accepted member is confirmed (`bw confirm org-member`; no fingerprint is compared,
    0198 point 2); a confirmed one is `member`. A member of another role, a person a
-   Správce shared collections with, is never changed. **An invitation is never left
-   pending:** one the vault leaves Invited, to an account without a master password, is
-   withdrawn at once (`awaiting-password`) and made again on the person's next visit
-   once the password is set, when the vault accepts it at once. While such an
-   invitation is pending, Vaultwarden lets anyone who knows the address register it
-   with a master password unless the network requires SSO of people (`SSO_ONLY`), and
-   the Environment would then confirm that account into its vault. This deviates from
-   the shaping, which left the invitation for the server's acceptance at the master
-   password; the person's experience is the same, one more look after the password.
-5. **Remove when the assignment changes.** A work Environment keeps the fingerprint of
+   Správce shared collections with, is never changed. An invitation to an account
+   without a master password stays Invited (`awaiting-password`) until the person
+   sets it with the Lazurio sign-in, when the vault accepts it by itself; the next
+   look confirms.
+5. **The gate: no password can be set on the person's address** (the review of
+   2026-10-14). The Environment invites and confirms only where the network's vault
+   refuses every password path of the person's address: `SSO_ONLY`, the address not
+   exempt. Vaultwarden 1.37.4 keeps an invitation row with every invitation to an
+   account without a master password (SMTP off; `send_invite`, whatever
+   `INVITATIONS_ALLOWED` says), and while a password can be registered for an address,
+   that row lets anyone who knows the address register it (`register`,
+   `Invitation::take`); the account then accepts, and the Environment would confirm it
+   into its vault. SSO declared with `INVITATIONS_ALLOWED=false` and
+   `SIGNUPS_ALLOWED=false` (Machines #508's contract) does not close that; `SSO_ONLY`
+   does. Both were proven against the real 1.37.4-lazurio.1 image: under #508's
+   settings alone an invited account's address was registrable (HTTP 200), with
+   `SSO_ONLY` it was not (HTTP 400). The vault itself says which: its token endpoint
+   refuses a password grant naming only the address with "SSO sign-in is required"
+   exactly when `SSO_ONLY` covers it, before any account is looked up and before its
+   rate limit or its sign-in events (`signInRequired`). Where it does not, or the vault
+   does not answer, nobody is invited or confirmed (`sign-in-not-required`; the page
+   says that only the agents use the vault); removal needs no gate and is settled
+   either way. So this depends on the network: Machines turns `SSO_ONLY` on per
+   network (DEV-6631's staged rollout), and #508's `INVITATIONS_ALLOWED=false` keeps
+   "User does not exist" for a person without an account. An earlier revision
+   invited and then withdrew such an invitation at once; a withdrawal that failed left
+   a registrable invitation behind, so it was replaced by this gate.
+6. **Remove when the assignment changes.** A work Environment keeps the fingerprint of
    the assignment its Správci were added under (`lazurio-assignment.json`: a SHA-256 of
    the Organization and `owner.assignment`'s kind and GitHub id, never a person or a
    login, so a renamed login is the same assignment). When the handover's differs, or
@@ -10817,10 +10835,10 @@ whoever has access to the Environment is a Správce, an Admin, of its vault.
    (`vaultAtStart`), once its start's setup ends and then every five minutes, which
    reads the handover and one local file and asks the vault only after a change. A
    personal Environment never removes: its Owner is its only person.
-6. **No stored access list.** The vault's membership is the only list of who is in it;
+7. **No stored access list.** The vault's membership is the only list of who is in it;
    the fingerprint is not a list. Nothing returns, logs or journals a person's address,
    a member's id or a token; the journal says `operation: "members"` with `invited`,
-   `no-account`, `withdrawn`, `confirmed`, `not-confirmed`, `removed` or `failed`.
+   `no-account`, `confirmed`, `not-confirmed`, `removed` or `failed`.
 
 **Known gaps.** A Team or Automated Environment neither adds nor removes anyone until
 a live answer of who may enter it exists (the Auth or Dashboard answer, contract C4's
@@ -10828,28 +10846,33 @@ target); until then its people use its vault through the Environment: its agents
 the requests of task 651. Sharing withdrawn without a reassignment (root decision
 0192: an assignee stops sharing a work Environment) does not remove the person from
 the vault until that answer exists either. A Správce who leaves may keep what their
-own clients synced, so people change the passwords they knew. The network's vault
-should run `INVITATIONS_ALLOWED=false` (Machines renders `true` today): with `true`
-an invitation to an address without an account creates an empty account for it
-instead of answering "User does not exist". The invitation is withdrawn at once like
-any pending one, the page says the same ("Vytvořit účet v trezoru"), and the person's
-first sign-in with the Lazurio account takes the empty account over; it stays in the
-vault's list of accounts until then. A person who already holds a shared collection
-as a User is not made a Správce automatically.
+own clients synced, so people change the passwords they knew. Until a network's vault
+runs `SSO_ONLY`, its Environments add nobody, and people use its vaults through the
+agents. With `INVITATIONS_ALLOWED=true` (not #508's contract) an invitation to an
+address without an account creates an empty account for it instead of answering "User
+does not exist"; under `SSO_ONLY` nobody can register it, the page asks the person to
+create their account, and their first sign-in with the Lazurio account takes the
+empty account over. `SSO_ONLY` must never be turned off on a network with pending
+invitations: that would open their addresses to registration again (the gate then
+stops confirming, but the account is lost to its person). A person who already holds
+a shared collection as a User is not made a Správce automatically.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
 | Read the person from a forwarded header | Any request could name anyone; rejected for the admission's own answer (F11's amendment) |
 | Extend `lazurio.account.v1` with the subject | The browser reads it and the server would trust the page; rejected |
 | Keep a list of Správci in the Platform | A second editable access list (environment-access.md); rejected, the vault's membership is the list |
-| Leave an invitation pending for the server's acceptance | Without `SSO_ONLY` it opens the address to anyone's registration; rejected for the immediate withdrawal |
+| Invite, then withdraw an invitation the vault leaves Invited | A withdrawal that fails leaves a registrable invitation (the review of 2026-10-14); rejected for the gate |
+| Gate on SSO declared (`/identity/sso/prevalidate`) with `INVITATIONS_ALLOWED=false` and `SIGNUPS_ALLOWED=false` | An invitation to an account without a master password still gets its invitation row, registrable without `SSO_ONLY` (HTTP 200 on the real image); rejected for the vault's own "SSO sign-in is required" |
 | Remove only the people the Environment added itself | Needs a list of people; rejected for every Admin-type member, which only the Environment, the Owner, can add |
 | Add the people of a Team Environment now | Nobody would leave when they leave the Team; deferred until a live answer exists |
 
 Verified by tests over HTTP against `startLaunchpad` behind a fake gateway, with the
 fake Vaultwarden and the fake bw (`tests/launchpad-vault-page.test.ts`: no identity,
-forged identity headers, no account, awaiting the password, accepted, confirmed and
-member, a reassignment and the start's look removing only Admin-type members, a
+forged identity headers, no account, awaiting the password kept and unregistrable,
+accepted, confirmed and member, nobody invited or confirmed without `SSO_ONLY` (SSO
+declared alone, or none), a failed or interrupted invitation leaving nothing
+registrable, a reassignment and the start's look removing only Admin-type members, a
 personal Environment that never removes, a Team Environment that does nothing, SSO
 off, the exact ids in the links, and no value, token or address in the logs, the
 journal, bw's argv or an answer), the admission's subject
