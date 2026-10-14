@@ -533,11 +533,11 @@ const en = {
   appsNewModuleCopyFailed:
     "The brief could not be copied; open Chat and describe the new module to the agent.",
   appsNewModulePrompt:
-    "I want to build a new module. It should go in the Workspace of the Organization {name} (GitHub {login}).\n\nFollow `manual/new-module.md` in the Lazurio Folder: first ask me about its purpose and what the module should solve for me, make the technical choices yourself, and then build the module.\n\nAlways:\n- Create nothing until I have agreed to the summary and the plan; show me the plan as a dry run first.\n- Create the module only by the Organization's own route, never by hand; if this Environment cannot create it, tell me so.\n- Prepare the result as a pull request and ask me before Publication.",
+    "I want to build a new module in the Lazurio Workspace.\nIt will be in the Organization {name} (GitHub {login}).\n\nUse the skill `new-module`. First ask me what the module is for and what it should solve for me, choose the technical details yourself, and before you start building, show me the plan to confirm.",
   // The personal space's "+ Nový modul" (root decision 0185's addendum of
   // 2026-10-13); in Czech the person's own words, so tykání (0199).
   appsNewPersonalModulePrompt:
-    "I want to build a new module. It should go in the Workspace of my personal space, as a private repository on my GitHub account {login}.\n\nFollow `manual/new-module.md` in the Lazurio Folder: first ask me about its purpose and what the module should solve for me, make the technical choices yourself, and then build the module.\n\nAlways:\n- Create nothing until I have agreed to the summary and the plan: first `lazurio module create personalspace/<slug> --stack <stack> --dry-run --json`, and only after I confirm it the same command with `--confirm <plan>` instead of `--dry-run`.\n- The module is mine alone: a private repository {login}/<slug> on my account, with no Organization and no Teams. Check that it is private.\n- Hand the changes over as pull requests, the module's slot into {login}/{login}_GEN3. Merging is my Publication: ask me before it.\n- If this Environment's `lazurio module create` does not know the form personalspace/<slug>, stop and tell me.",
+    "I want to build a new module in the Lazurio Workspace.\nIt will be in my personal space, as a private repository on my GitHub account {login}.\n\nUse the skill `new-module`. First ask me what the module is for and what it should solve for me, choose the technical details yourself, and before you start building, show me the plan to confirm.",
   appsGuide: "Guide",
   appsMarketplace: "Marketplace",
   appsSoon: "coming soon",
@@ -1963,11 +1963,11 @@ const cs: Record<MessageKey, string> = {
   appsNewModuleCopyFailed:
     "Zadání se nepodařilo zkopírovat; otevřete Chat a popište agentovi nový modul.",
   appsNewModulePrompt:
-    "Chci postavit nový modul. Má být ve Workspace Organizace {name} (GitHub {login}).\n\nPostupuj podle `manual/new-module.md` v Lazurio Folderu: nejdřív se mě vyptej na účel a na to, co mi modul má vyřešit, technické volby udělej sám a pak modul postav.\n\nVždy platí:\n- Nic nezakládej, dokud neodsouhlasím shrnutí a plán; plán mi nejdřív ukaž jako dry run.\n- Modul zakládej jen vlastní cestou Organizace, nikdy ručně; když ho tenhle Environment založit neumí, řekni mi to.\n- Výsledek připrav jako pull request a před Publikací se mě zeptej.",
+    "Chci postavit nový modul do Workspace Lazuria.\nBude v Organizaci {name} (GitHub {login}).\n\nPoužij skill `new-module`. Nejdřív se mě vyptej, k čemu modul bude a co mi má vyřešit, technické věci zvol sám a než začneš stavět, ukaž mi plán k potvrzení.",
   // The personal space's "+ Nový modul" (root decision 0185's addendum of
   // 2026-10-13); in Czech the person's own words, so tykání (0199).
   appsNewPersonalModulePrompt:
-    "Chci postavit nový modul. Má být ve Workspace mého osobního prostoru, jako soukromý repozitář na mém GitHub účtu {login}.\n\nPostupuj podle `manual/new-module.md` v Lazurio Folderu: nejdřív se mě vyptej na účel a na to, co mi modul má vyřešit, technické volby udělej sám a pak modul postav.\n\nVždy platí:\n- Nic nezakládej, dokud neodsouhlasím shrnutí a plán: nejdřív `lazurio module create personalspace/<slug> --stack <stack> --dry-run --json`, teprve po mém potvrzení tentýž příkaz s `--confirm <plan>` místo `--dry-run`.\n- Modul je jen můj: soukromý repozitář {login}/<slug> na mém účtu, bez Organizace a bez Teamů. Ověř, že je soukromý.\n- Změny předej v pull requestech, slot modulu do {login}/{login}_GEN3. Merge je moje Publikace: před ním se mě zeptej.\n- Když `lazurio module create` tohoto Environmentu tvar personalspace/<slug> nezná, zastav se a řekni mi to.",
+    "Chci postavit nový modul do Workspace Lazuria.\nBude v mém osobním prostoru, jako soukromý repozitář na mém GitHub účtu {login}.\n\nPoužij skill `new-module`. Nejdřív se mě vyptej, k čemu modul bude a co mi má vyřešit, technické věci zvol sám a než začneš stavět, ukaž mi plán k potvrzení.",
   appsGuide: "Guide",
   appsMarketplace: "Marketplace",
   appsSoon: "již brzy",

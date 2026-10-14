@@ -165,14 +165,14 @@ test("the Organization a login names: exactly one bound to it, case-insensitivel
     expect([login, promptOrganization(catalog, login)]).toEqual([login, null]);
 });
 
-test("the document: the brief in the person's language and the Organization's root, absolute", () => {
+test("the document: the brief in the person's language, opened in the Lazurio Folder's root (root decision 0189), absolute", () => {
   const example = organization("example_GEN3", "Example-Org");
   const document = promptDocument("new-module", "/home/x/Lazurio", example, cs);
   expect(document).toEqual({
     schema: "lazurio.prompt.v1",
     id: "new-module",
     text: newModulePrompt("Example Company", "Example-Org", cs),
-    cwd: "/home/x/Lazurio/organizations/example_GEN3",
+    cwd: "/home/x/Lazurio",
   });
   expect(
     promptDocument("new-module", "relative/Lazurio", example, cs).cwd,
@@ -400,7 +400,7 @@ posixTest(
         schema: "lazurio.prompt.v1",
         id: "new-module",
         text: newModulePrompt("Example Company", "Example-Org", cs),
-        cwd: join(folder, "organizations", "example_GEN3"),
+        cwd: folder,
       });
       // GitHub's own answer for the login the manifest binds.
       expect(calls).toEqual([["api", "user/memberships/orgs/Example-Org"]]);
@@ -526,7 +526,7 @@ posixTest(
         expect(await answer.json()).toMatchObject({
           schema: "lazurio.prompt.v1",
           id: "new-module",
-          cwd: join(folder, "organizations", "alpha_GEN3"),
+          cwd: folder,
         });
         const handoff = await fetch(
           new URL("/api/chat/prompt-handoff", session),

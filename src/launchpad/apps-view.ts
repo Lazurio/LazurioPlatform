@@ -654,13 +654,12 @@ export function moduleAccessTarget(
   return moduleAccessUrl(dashboard(slug), tile.entry.module.module);
 }
 
-/** The prompt "+ Nový modul" hands to Chat (the wireframe's
- * `newModulePrompt`, F36 addendum of 2026-10-14): the person's own words
- * "Chci postavit nový modul.", the Organization's Workspace, and the
- * Folder's `manual/new-module.md`, which owns the interview about the
- * purpose and the steps; then only the guard rails that hold where the
- * Folder lacks the page: a plan confirmed first, never by hand, a pull
- * request and asking before Publication. */
+/** The prompt "+ Nový modul" hands to Chat (the wireframe's `moduleBrief`,
+ * F36 addendum of 2026-10-14): the person's own words "Chci postavit nový
+ * modul do Workspace Lazuria.", the Organization it goes to, and the Folder's
+ * skill `new-module`, which holds everything else: what a module is, the
+ * interview about its purpose, the technical choices, the plan to confirm
+ * and the steps. The brief carries no procedure of its own. */
 export const newModulePrompt = (
   name: string,
   login: string,
@@ -671,13 +670,11 @@ export const newModulePrompt = (
     .replaceAll("{login}", login);
 
 /** The prompt "+ Nový modul" hands to Chat in the personal space (the
- * wireframe's `newPersonalModulePrompt`, root decision 0185's addendum of
- * 2026-10-13, F36 addendum of 2026-10-14): "Chci postavit nový modul.", the
- * personal Workspace as a private repository on the person's account, and
- * the Folder's `manual/new-module.md`; then the guard rails of `lazurio
- * module create personalspace/<slug>` (decision F52): the dry run and the
- * confirmed run, a private repository, pull requests and asking before
- * Publication. In Czech it is the person's own words to the agent, so in
+ * wireframe's `moduleBrief`, root decision 0185's addendum of 2026-10-13,
+ * F36 addendum of 2026-10-14): the same opening, the personal space as a
+ * private repository on the person's account, and the skill `new-module`,
+ * which holds the steps of `lazurio module create personalspace/<slug>`
+ * (decision F52). In Czech it is the person's own words to the agent, so in
  * tykání (root decision 0199). */
 export const newPersonalModulePrompt = (login: string, copy: Copy): string =>
   copy.appsNewPersonalModulePrompt.replaceAll("{login}", login);
