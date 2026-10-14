@@ -6,7 +6,9 @@ import {
   connectionLine,
   curatedActions,
   currentNotes,
+  gitIdentityNote,
   installOutcome,
+  type LoginView,
   loginEndMessage,
   loginLink,
   loginProgress,
@@ -945,6 +947,59 @@ test("the steps say installing, waiting for you, linking the SSH key, signed in,
     "Linking the SSH key:done",
     "SSH key linked:done",
   ]);
+});
+
+test("the Git identity of a gh sign-in is read only in its exact form and becomes one sentence for people", () => {
+  const signedIn = (gitIdentity: unknown) =>
+    parseLoginState({
+      kind: "signed-in",
+      tool: "gh",
+      account: "octocat",
+      gitIdentity,
+    });
+  const identity = {
+    name: "The Octocat",
+    email: "583231+octocat@users.noreply.github.com",
+  };
+  const set = signedIn({
+    state: "set",
+    fields: ["user.name", "user.email"],
+    identity,
+  });
+  expect(set).toMatchObject({ gitIdentity: { state: "set", identity } });
+  expect(gitIdentityNote(set as LoginView, messages("cs"))).toEqual({
+    set: true,
+    message:
+      "Vaše commity v tomhle Environmentu ponesou jméno The Octocat <583231+octocat@users.noreply.github.com>.",
+  });
+  const unset = signedIn({
+    state: "not-set",
+    reason: "viewer-unavailable",
+    missing: ["user.email"],
+  });
+  expect(gitIdentityNote(unset as LoginView, messages("en"))).toEqual({
+    set: false,
+    message: messages("en").toolsGitIdentityNotSet,
+  });
+  // Present needs no word, and neither does a sign-in without the step.
+  expect(
+    gitIdentityNote(
+      signedIn({ state: "present" }) as LoginView,
+      messages("en"),
+    ),
+  ).toBeNull();
+  expect(
+    gitIdentityNote(signedIn(undefined) as LoginView, messages("en")),
+  ).toBeNull();
+  for (const gitIdentity of [
+    { state: "set", fields: ["user.signingkey"], identity },
+    { state: "set", fields: ["user.name"] },
+    { state: "not-set", reason: "secret" },
+    { state: "not-set", reason: "write-failed", missing: "user.name" },
+    { state: "maybe" },
+    "set",
+  ])
+    expect(signedIn(gitIdentity)).toBeNull();
 });
 
 test("the SSH outcome of a gh sign-in is read only in its exact form and becomes plain sentences", () => {
