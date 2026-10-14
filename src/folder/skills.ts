@@ -62,11 +62,11 @@ function skillDocument(
 // created; then the steps this Environment has. Where the module can go
 // follows the preset: a Personalspace exists only on a workstation and a
 // personal Remote Environment, Organizations only where the preset holds
-// them. The Organization form of `lazurio module create` is not in this
-// Platform yet (#267), so there the agent takes the Organization's own route.
+// them. Both forms of `lazurio module create` found the module, and
+// `--data` its data repository (F52 addenda of 2026-10-14).
 const newModuleDescription = t(
-  "Použij, kdykoli chce člověk postavit nový modul, aplikaci, nástroj, přehled nebo web, i když přijde ze zadání „+ Nový modul“ v Launchpadu („Chci postavit nový modul“). Vysvětlí, co je modul a proč, vede rozhovor o účelu (nikdy o technice), technické volby dělá agent, data začínají v repository-db a databáze přijde až s opravdovým používáním, plán se ukáže k potvrzení a modul vznikne příkazem lazurio module create nebo cestou Organizace, nikdy ručně.",
-  "Use whenever the person wants to build a new module, app, tool, overview or website, also when they come from the Launchpad's “+ Nový modul” brief (“Chci postavit nový modul”). Explains what a module is and why, runs an interview about its purpose (never about technology), leaves the technical choices to the agent, starts the data in repository-db with a database only once the module is used in earnest, shows the plan for confirmation and founds the module with lazurio module create or the Organization's own route, never by hand.",
+  "Použij, kdykoli chce člověk postavit nový modul, aplikaci, nástroj, přehled nebo web, i když přijde ze zadání „+ Nový modul“ v Launchpadu („Chci postavit nový modul“). Vysvětlí, co je modul a proč, vede rozhovor o účelu (nikdy o technice), technické volby dělá agent, data začínají v repository-db a databáze přijde až s opravdovým používáním, plán se ukáže k potvrzení a modul vznikne příkazem lazurio module create, v osobním prostoru i v Organizaci, nikdy ručně.",
+  "Use whenever the person wants to build a new module, app, tool, overview or website, also when they come from the Launchpad's “+ Nový modul” brief (“Chci postavit nový modul”). Explains what a module is and why, runs an interview about its purpose (never about technology), leaves the technical choices to the agent, starts the data in repository-db with a database only once the module is used in earnest, shows the plan for confirmation and founds the module with lazurio module create, in the personal space and in an Organization, never by hand.",
 );
 
 function newModule(preset: PresetName): readonly Text[] {
@@ -226,8 +226,12 @@ function newModule(preset: PresetName): readonly Text[] {
     ...(organizations
       ? [
           t(
-            "- `organization-form-unavailable`: modul Organizace; tahle Platforma ho zatím nezakládá (krok 4).",
-            "- `organization-form-unavailable`: an Organization's module, which this Platform does not create yet (step 4).",
+            "- `organization-owner-required`, `team-environment`: modul Organizace smí založit jen její aktivní Owner, nikdy týmový Environment; řekni to člověku a navrhni, ať ho založí Owner.",
+            "- `organization-owner-required`, `team-environment`: only an active Owner of the Organization creates its module, never a Team Environment; tell the person and suggest an Owner creates it.",
+          ),
+          t(
+            "- `teams-required`, `team-not-on-github`, `unknown_team`: modul Organizace potřebuje aspoň jeden Team z `lazurio.organization.json`, který je i na GitHubu; zeptej se člověka na jiný, nový Team zakládá Admin.",
+            "- `teams-required`, `team-not-on-github`, `unknown_team`: an Organization's module needs at least one Team of `lazurio.organization.json` that is on GitHub too; ask the person for another one; a new Team is the Admin's.",
           ),
         ]
       : []),
@@ -239,6 +243,14 @@ function newModule(preset: PresetName): readonly Text[] {
             "- `personalspace-not-here`: this Environment has no personal space; a personal module is created on the person's own computer or on their personal Remote Environment.",
           ),
         ]),
+    t(
+      "- `data_needs_bun_app`: `--data` potřebuje stack s aplikací na Bunu; zvol jiný stack, nebo modul bez dat.",
+      "- `data_needs_bun_app`: `--data` needs a stack with a Bun app; choose another stack, or a module without data.",
+    ),
+    t(
+      "- `data-repository-exists`: datový repozitář `<slug>-data` už existuje a nikdy se nepřebírá; navrhni člověku jiný slug.",
+      "- `data-repository-exists`: the data repository `<slug>-data` exists already and is never taken over; propose another slug to the person.",
+    ),
   ];
 }
 
@@ -305,8 +317,8 @@ const personalModulePlan: readonly Text[] = [
     '1. Create a task worktree of the Personalspace beside it, never inside it: `git -C personalspace/<login>_GEN3 worktree add -b <branch> "$PWD/personalspace/.worktrees/<task>" main`. That is where the command declares the module\'s slot, for the pull request.',
   ),
   t(
-    "2. V task worktree spusť plán, který nic nezapíše: `lazurio module create personalspace/<slug> --stack <stack> --name '<název>' --dry-run --json`. Stav `actionable` je plán; `blocked` je odmítnutí s kódem v `reason` a dalším krokem v `next_steps` (níže).",
-    "2. In the task worktree run the plan, which writes nothing: `lazurio module create personalspace/<slug> --stack <stack> --name '<name>' --dry-run --json`. The status `actionable` is the plan; `blocked` is a refusal with its code in `reason` and the next step in `next_steps` (below).",
+    "2. V task worktree spusť plán, který nic nezapíše: `lazurio module create personalspace/<slug> --stack <stack> --name '<název>' --dry-run --json`, a má-li modul data, s `--data` (krok 3). Stav `actionable` je plán; `blocked` je odmítnutí s kódem v `reason` a dalším krokem v `next_steps` (níže).",
+    "2. In the task worktree run the plan, which writes nothing: `lazurio module create personalspace/<slug> --stack <stack> --name '<name>' --dry-run --json`, with `--data` when the module has data (step 3). The status `actionable` is the plan; `blocked` is a refusal with its code in `reason` and the next step in `next_steps` (below).",
   ),
   t(
     "3. Plán člověku ukaž obyčejnými slovy: soukromý repozitář `<login>/<slug>` na jeho vlastním účtu, název, co stack znamená, port, datový repozitář `<login>/<slug>-data`, má-li modul data, a že slot půjde pull requestem do jeho Personalspace. Řekni mu i varování z `warnings`. Počkej, až plán potvrdí; když něco změní, spusť dry run znovu a ukaž mu nový plán.",
@@ -318,15 +330,41 @@ const personalModulePlan: readonly Text[] = [
   ),
 ];
 
-// Step 4 for an Organization: the Platform has no Organization form yet
-// (#267), so the agent takes the Organization's own route instead of
-// improvising.
+// Step 4 for an Organization: the Organization form of `lazurio module
+// create` (F52 addendum of 2026-10-14), from a task worktree of the
+// Organization root, with the same dry run and confirmed plan.
 const organizationModuleRoute: readonly Text[] = [
   t(
-    "**Modul Organizace.** Tahle Platforma modul Organizace zatím nezakládá (Lazurio/LazurioPlatform#267): `lazurio module create <Organizace>/<slug>` odmítne s `organization-form-unavailable`. Řekni to člověku rovnou a jdi cestou Organizace: jak se u ní moduly zakládají, říká její `AGENTS.md` nebo její skills v `organizations/<org>/`; jinak se zeptej jejího Admina. Neimprovizuj: modul nezakládej ručně, scaffold odjinud nekopíruj a nic dalšího kvůli tomu neinstaluj. Potvrzené shrnutí z kroku 1 a svůj technický návrh z kroku 3 předej té cestě, ať člověk nic neříká dvakrát.",
-    "**An Organization's module.** This Platform does not create an Organization's module yet (Lazurio/LazurioPlatform#267): `lazurio module create <Organization>/<slug>` refuses with `organization-form-unavailable`. Tell the person straight away and take the Organization's own route: its `AGENTS.md` or its skills in `organizations/<org>/` say how its modules are created; otherwise ask its Admin. Do not improvise: do not create the module by hand, do not copy a scaffold from elsewhere and install nothing else for it. Hand the confirmed summary of step 1 and your technical proposal of step 3 to that route, so the person never says anything twice.",
+    "**Modul Organizace.** Založíš ho stejně jako osobní modul, jen s Organizací a jejími Teamy. Smí to jen aktivní Owner Organizace (podle živé odpovědi GitHubu) a nikdy týmový Environment; jinak běh odmítne s `organization-owner-required` nebo `team-environment` a ty to člověku řekneš.",
+    "**An Organization's module.** You found it as a personal module, only with the Organization and its Teams. Only an active Owner of the Organization may (by GitHub's live answer), never a Team Environment; otherwise the run refuses with `organization-owner-required` or `team-environment`, and you tell the person.",
+  ),
+  t(
+    '1. Vytvoř task worktree rootu Organizace v jeho `.worktrees/root/`: `git -C organizations/<org> worktree add -b <branch> "$PWD/organizations/<org>/.worktrees/root/<task>" main`.',
+    '1. Create a task worktree of the Organization root in its `.worktrees/root/`: `git -C organizations/<org> worktree add -b <branch> "$PWD/organizations/<org>/.worktrees/root/<task>" main`.',
+  ),
+  t(
+    "2. V task worktree spusť plán, který nic nezapíše: `lazurio module create <Organizace>/<slug> --stack <stack> --teams <team,team> --name '<název>' --dry-run --json`, a má-li modul data, s `--data`. Organizaci jmenuj jejím slugem nebo GitHub loginem; Teamy jsou Teamy z `lazurio.organization.json`, které na modulu budou pracovat (dostanou na repozitář Write).",
+    "2. In the task worktree run the plan, which writes nothing: `lazurio module create <Organization>/<slug> --stack <stack> --teams <team,team> --name '<name>' --dry-run --json`, with `--data` when the module has data. Name the Organization by its slug or its GitHub login; the Teams are the Teams of `lazurio.organization.json` that will work on the module (they get Write on its repository).",
+  ),
+  t(
+    "3. Plán člověku ukaž obyčejnými slovy: soukromý repozitář `<login Organizace>/<slug>`, datový repozitář `<login Organizace>/<slug>-data`, má-li modul data, Teamy a jejich přístup, název, co stack znamená a port. Počkej, až ho potvrdí; když něco změní, spusť dry run znovu.",
+    "3. Show the person the plan in plain words: the private repository `<Organization login>/<slug>`, the data repository `<Organization login>/<slug>-data` if the module has data, the Teams and their access, the name, what the stack means and the port. Wait until they confirm it; when they change something, run the dry run again.",
+  ),
+  t(
+    "4. Teprve po potvrzení spusť z task worktree tentýž příkaz s `--confirm <plan>` místo `--dry-run` (přesný příkaz uvádí `next_steps`). Běh založí repozitář v Organizaci, umístí modul do `organizations/<org>/workspace/<slug>`, pushne `main`, dá Teamům Write, s `--data` založí a připojí i datový repozitář, zapíše sloty do `modules.manifest.json` v task worktree spolu s projekcí Organizace (`lazurio.organization.json`, `company.gen3.json`) a ověří výsledek. Nezdařený grant (`grant-failed`) nebo připojení dat (`data-init-failed`) uvádí přesný příkaz v `next_steps`.",
+    "4. Only after the confirmation, run the same command from the task worktree with `--confirm <plan>` instead of `--dry-run` (`next_steps` give the exact command). The run creates the repository in the Organization, places the module in `organizations/<org>/workspace/<slug>`, pushes `main`, grants the Teams Write, with `--data` creates and mounts the data repository too, declares the slots in the task worktree's `modules.manifest.json` together with the Organization's projection (`lazurio.organization.json`, `company.gen3.json`) and checks the result. A failed grant (`grant-failed`) or data mount (`data-init-failed`) gives its exact command in `next_steps`.",
+  ),
+  t(
+    "5. Commitni ty soubory v task worktree, pushni branch a otevři pull request do rootu Organizace. Jeho merge je Publikace; zeptej se před ní. Po merge modul uvidí katalog a spustíš ho `lazurio module start <Organizace>/<slug> --json`.",
+    "5. Commit those files in the task worktree, push the branch and open a pull request into the Organization root. Its merge is Publication; ask before it. After the merge the catalog sees the module, and `lazurio module start <Organization>/<slug> --json` starts it.",
   ),
 ];
+
+// How the app reaches its data, the same in both forms.
+const dataWiring: Text = t(
+  "Aplikaci pak napoj podle `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md`: jeden sync host, čtení i zápisy přes něj a karta konceptu, ve které člověk změny dat Publikuje. Commit a push dat do `v3` je Publikace.",
+  "Then wire the app as `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md` says: one sync host, every read and write through it, and the draft card in which the person publishes data changes. Committing and pushing data to `v3` is Publication.",
+);
 
 // Steps 5 to 7 for the personal Workspace: the confirmed run, the data
 // repository by repository-db's own `init` (a `--data` flag of the
@@ -355,33 +393,10 @@ const personalModuleRest: readonly Text[] = [
   ),
   blank,
   t(
-    "**Datový repozitář.** `lazurio module create` ho zatím nezakládá. Když modul data má, založ ho v task worktree modulu (krok 6) jako součást první verze:",
-    "**The data repository.** `lazurio module create` does not create it yet. When the module has data, create it in the module's task worktree (step 6) as part of the first version:",
+    "**Datový repozitář.** S `--data` běh založí i soukromý repozitář `<login>/<slug>-data`, připojí ho jako `db/` modulu na větvi `v3` (přes `repository-db init` aplikace) a jeho slot `workspace/<slug>/db` zapíše vedle slotu modulu. Selže-li připojení (`data-init-failed`), spusť přesný příkaz z `next_steps`.",
+    "**The data repository.** With `--data` the run also creates the private repository `<login>/<slug>-data`, mounts it as the module's `db/` on branch `v3` (by the app's `repository-db init`) and declares its slot `workspace/<slug>/db` beside the module's. When the mount fails (`data-init-failed`), run the exact command from `next_steps`.",
   ),
-  t(
-    "1. Ověř, že `<login>/<slug>-data` ještě neexistuje (`gh repo view <login>/<slug>-data` skončí chybou). Existující repozitář nikdy nepřebírej; navrhni člověku jiný slug.",
-    "1. Check that `<login>/<slug>-data` does not exist yet (`gh repo view <login>/<slug>-data` fails). Never take over an existing repository; propose another slug to the person.",
-  ),
-  t(
-    '2. Do `app/v1/package.json` přidej závislost `"@lazurio/repository-db": "github:Lazurio/repository-db#<verze>"`, kde `<verze>` je nejnovější vydaná v3 (`gh release list -R Lazurio/repository-db --limit 1`), spusť v `app/v1` `bun install` a do `.gitignore` modulu přidej `/db/`.',
-    '2. Add the dependency `"@lazurio/repository-db": "github:Lazurio/repository-db#<version>"` to `app/v1/package.json`, where `<version>` is the newest released v3 (`gh release list -R Lazurio/repository-db --limit 1`), run `bun install` in `app/v1` and add `/db/` to the module\'s `.gitignore`.',
-  ),
-  t(
-    "3. Z kořene task worktree modulu spusť `app/v1/node_modules/.bin/repository-db init --app <slug> --remote git@github.com:<login>/<slug>-data.git --branch v3 --mount db --schema-name <slug>-data --schema-version 0.1.0 --create-remote`. Založí soukromý repozitář, připraví v něm strukturu dat a připojí ho jako `db/`.",
-    "3. From the root of the module's task worktree run `app/v1/node_modules/.bin/repository-db init --app <slug> --remote git@github.com:<login>/<slug>-data.git --branch v3 --mount db --schema-name <slug>-data --schema-version 0.1.0 --create-remote`. It creates the private repository, prepares the data structure in it and mounts it as `db/`.",
-  ),
-  t(
-    '4. Ověř, že je soukromý: `gh repo view <login>/<slug>-data --json isPrivate` vrátí `"isPrivate":true`.',
-    '4. Check that it is private: `gh repo view <login>/<slug>-data --json isPrivate` answers `"isPrivate":true`.',
-  ),
-  t(
-    "5. Aplikaci napoj podle `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md`: jeden sync host, čtení i zápisy přes něj a karta konceptu, ve které člověk změny dat Publikuje.",
-    "5. Wire the app as `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md` says: one sync host, every read and write through it, and the draft card in which the person publishes data changes.",
-  ),
-  t(
-    "6. Po Publikaci modulu připoj datový repozitář i v jeho primárním checkoutu, tímtéž příkazem bez `--create-remote` (u existujícího repozitáře ho `init` jen ověří a připojí).",
-    "6. After the module's Publication, mount the data repository in its primary checkout too, with the same command without `--create-remote` (for an existing repository `init` only verifies and mounts it).",
-  ),
+  dataWiring,
   blank,
   t(
     "## 6. První verze osobního modulu",
@@ -436,20 +451,21 @@ const organizationModuleHeading: Text = t(
 );
 const organizationModuleBar: readonly Text[] = [
   t(
-    "- Modul Organizace i jeho datový repozitář `<slug>-data` založí cesta Organizace; databázi ani tam nezakládej.",
-    "- The Organization's route founds an Organization's module and its data repository `<slug>-data`; do not create a database there either.",
+    "- Má-li modul data, jsou v `db/` od běhu s `--data`; databázi ani tady nezakládej.",
+    "- When the module has data, they are in `db/` from the run with `--data`; do not create a database here either.",
   ),
+  dataWiring,
   t(
-    "- I tam postav první verzi podle potvrzeného shrnutí, doplň do `AGENTS.md` modulu, k čemu modul je a jak se s ním pracuje, spusť kontroly a testy modulu, ukaž ji člověku běžící (`lazurio module start <Org>/<slug> --json` a `runtime.url`) a Draft předej v pull requestu; Publikace se řídí `manual/working-here.md`.",
-    "- There too, build the first version from the confirmed summary, add to the module's `AGENTS.md` what the module is for and how to work with it, run the module's checks and tests, show the person the running app (`lazurio module start <Org>/<slug> --json` and `runtime.url`) and hand over the Draft as a pull request; Publication follows `manual/working-here.md`.",
+    "- Postav první verzi podle potvrzeného shrnutí, doplň do `AGENTS.md` modulu, k čemu modul je a jak se s ním pracuje, spusť kontroly a testy modulu, ukaž ji člověku běžící (`lazurio module start <Org>/<slug> --json` a `runtime.url`) a Draft předej v pull requestu; Publikace se řídí `manual/working-here.md`.",
+    "- Build the first version from the confirmed summary, add to the module's `AGENTS.md` what the module is for and how to work with it, run the module's checks and tests, show the person the running app (`lazurio module start <Org>/<slug> --json` and `runtime.url`) and hand over the Draft as a pull request; Publication follows `manual/working-here.md`.",
   ),
 ];
 
 // Where both places exist: the Organization's module never continues into
 // the personal steps 5 to 7.
 const organizationRouteEnds: Text = t(
-  "**Pro modul Organizace postup tohoto skillu končí tady.** Kroky 5 až 7 níže platí jen pro osobní modul: u modulu Organizace nespouštěj `lazurio module create personalspace/<slug>` a v osobním prostoru člověka ani na jeho GitHub účtu nic nezakládej. Dál vede cesta Organizace, se stejnou laťkou:",
-  "**For an Organization's module this skill's steps end here.** Steps 5 to 7 below are for a personal module only: for an Organization's module never run `lazurio module create personalspace/<slug>` and create nothing in the person's personal space or on their GitHub account. The Organization's route takes over, with the same bar:",
+  "**Modul Organizace pokračuje tady, ne kroky 5 až 7 níže.** Ty platí jen pro osobní modul: u modulu Organizace nespouštěj `lazurio module create personalspace/<slug>` a v osobním prostoru člověka ani na jeho GitHub účtu nic nezakládej. Po jeho založení:",
+  "**An Organization's module continues here, not with steps 5 to 7 below.** Those are for a personal module only: for an Organization's module never run `lazurio module create personalspace/<slug>` and create nothing in the person's personal space or on their GitHub account. Once it is founded:",
 );
 
 // The refusals of a personal module an agent is likely to meet, with what to

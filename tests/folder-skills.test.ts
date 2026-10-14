@@ -203,12 +203,9 @@ test("every Environment renders the skill new-module in its locale, the same byt
       // The personal route, only where this Environment has a Personalspace.
       for (const command of [
         "lazurio module create personalspace/<slug> --stack <stack> --name '",
-        "--dry-run --json",
         "--confirm <plan> --json",
         'worktree add -b <branch> "$PWD/personalspace/.worktrees/<task>" main',
         "gh repo view <login>/<slug> --json isPrivate,owner",
-        "repository-db init --app <slug> --remote git@github.com:<login>/<slug>-data.git --branch v3 --mount db",
-        "gh repo view <login>/<slug>-data --json isPrivate",
         "lazurio module start personalspace/<slug> --json",
         "`plan-changed`",
         "`personalspace_root_on_main`",
@@ -216,20 +213,37 @@ test("every Environment renders the skill new-module in its locale, the same byt
       ])
         expect([command, text.includes(command)]).toEqual([command, personal]);
       expect(text.includes("`personalspace-not-here`")).toBe(!personal);
-      // An Organization's module: said plainly, never improvised.
-      expect(text.includes("`organization-form-unavailable`")).toBe(
-        organizations,
-      );
-      expect(text.includes("Lazurio/LazurioPlatform#267")).toBe(organizations);
-      // No flag the generator does not have.
-      expect(text).not.toContain("--data");
+      // An Organization's module by the Organization form, only where the
+      // preset holds Organizations (F52 addendum of 2026-10-14).
+      for (const command of [
+        "lazurio module create <",
+        "--teams <team,team>",
+        '.worktrees/root/<task>" main',
+        "`organization-owner-required`",
+        "`teams-required`",
+      ])
+        expect([command, text.includes(command)]).toEqual([
+          command,
+          organizations,
+        ]);
+      expect(text).not.toContain("organization-form-unavailable");
+      // The data repository by --data, in both forms; never by hand.
+      for (const phrase of [
+        "`--data`",
+        "`data-init-failed`",
+        "`data_needs_bun_app`",
+        "`data-repository-exists`",
+        "docs/app-contract.md",
+      ])
+        expect([phrase, text.includes(phrase)]).toEqual([phrase, true]);
+      expect(text).not.toContain("--create-remote");
       // AGENTS.md points to the skill; the manual has no page for it.
       expect(outputs["AGENTS.md"]).toContain(newModuleLine[locale]);
       expect(outputs["AGENTS.md"]).not.toContain("manual/new-module.md");
     }
 });
 
-test("where both places exist, an Organization's module stops at its own route: steps 5 to 7 are the personal module's only", () => {
+test("where both places exist, an Organization's module continues at its own route: steps 5 to 7 are the personal module's only", () => {
   let checked = 0;
   for (const journey of journeys)
     for (const locale of ["cs", "en"] as const) {
@@ -243,8 +257,8 @@ test("where both places exist, an Organization's module stops at its own route: 
       );
       const stop = text.indexOf(
         cs
-          ? "**Pro modul Organizace postup tohoto skillu končí tady.**"
-          : "**For an Organization's module this skill's steps end here.**",
+          ? "**Modul Organizace pokračuje tady, ne kroky 5 až 7 níže.**"
+          : "**An Organization's module continues here, not with steps 5 to 7 below.**",
       );
       expect(stop > route && route > 0).toBe(personal && organizations);
       if (!(personal && organizations)) continue;
@@ -269,17 +283,20 @@ test("where both places exist, an Organization's module stops at its own route: 
           ])
         expect(text.indexOf(heading)).toBeGreaterThan(step5);
       // Between the Organization's route and the personal steps, no command
-      // creates anything in the personal space; the confirmed personal run
-      // and the data repository on the person's account come only after.
+      // creates anything in the personal space; the personal run comes only
+      // after.
       const between = text.slice(route, step5);
       for (const command of [
-        "--confirm <plan>",
-        "repository-db init",
+        "personalspace/.worktrees",
         "gh repo view <login>/<slug>",
-        "worktree add",
       ])
         expect([command, between.includes(command)]).toEqual([command, false]);
-      expect(text.indexOf("--confirm <plan>")).toBeGreaterThan(step5);
+      expect(
+        text.indexOf("personalspace/<slug> --stack <stack> --name '<"),
+      ).toBeLessThan(route);
+      expect(
+        text.lastIndexOf("lazurio module create personalspace/<slug> --stack"),
+      ).toBeGreaterThan(step5);
     }
   expect(checked).toBeGreaterThan(0);
 });
