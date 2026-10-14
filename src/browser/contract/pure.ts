@@ -291,11 +291,8 @@ export function parseBootTime(value: unknown): BootTime | null {
  * is one this module cannot read. */
 export const holderSchema = "lazurio.browser-holder.v1";
 
-// What the hub reads of a holder file at most (F47 point 4); every app keeps
-// its own bound below it (F50 point 2).
-const maxHolderCharacters = 64 * 1024;
-const maxTabsPerHolder = 500;
-const maxLabelLength = 200;
+// What the hub reads of a holder file at most (F47 point 4): `browserBounds`
+// below. Every app keeps its own bound below it (F50 point 2).
 
 /** What one holder file holds. */
 export type HolderReading = Readonly<{
@@ -321,7 +318,8 @@ export function parseHolder(
 ): HolderReading | null {
   if (!fileName.endsWith(".json")) return null;
   const name = fileName.slice(0, -".json".length);
-  if (!isStrip(name) || text.length > maxHolderCharacters) return null;
+  if (!isStrip(name) || text.length > browserBounds.holderCharacters)
+    return null;
   let value: unknown;
   try {
     value = JSON.parse(text);
@@ -335,7 +333,7 @@ export function parseHolder(
   if (record.strip !== name || !Array.isArray(record.tabs)) return null;
   const label =
     typeof record.label === "string"
-      ? record.label.trim().slice(0, maxLabelLength)
+      ? record.label.trim().slice(0, browserBounds.holderLabelLength)
       : "";
   const tabs = [
     ...new Set(
@@ -344,7 +342,7 @@ export function parseHolder(
         return tab === null ? [] : [tab];
       }),
     ),
-  ].slice(0, maxTabsPerHolder);
+  ].slice(0, browserBounds.holderTabs);
   return { strip: name, label, tabs };
 }
 
@@ -469,4 +467,777 @@ export function keptTabs(
           tab.recordedAt.at >= list.takenAt.at),
     )
     .map((tab) => tab.id);
+}
+
+// ---- The view's messages to its app (C8) and the identity (C9) --------------
+
+/** The `type` of every message between a view and the app around it (F39
+ * point 4, F47 point 4, F39's addendum of 2026-10-12), each posted with
+ * `postMessage` to exactly the other side's origin. */
+export const browserMessage = Object.freeze({
+  /** View → app: where its tab is, `{view, url, title}`. */
+  info: "lazurio-browser:info",
+  /** View → app: its page opened a new tab, `{view, url}`. */
+  newTab: "lazurio-browser:new-tab",
+  /** View → app: its tab ended, `{view}`. */
+  closed: "lazurio-browser:closed",
+  /** View → app: how does your shell name my Environment? */
+  identityRequest: "lazurio-browser:identity-request",
+  /** App → view: `{identity}`, and the majors its own parser reads
+   * (`majors`). */
+  identity: "lazurio-browser:identity",
+});
+
+/** The majors of the messages this module writes and reads (F50 point 3).
+ * A message carries its major as `v`; one without is v1, for good. */
+export const messageMajors: readonly number[] = Object.freeze([1]);
+
+type Data = Readonly<Record<string, unknown>>;
+const isRecord = (value: unknown): value is Data =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Whether this module reads a message: its `v` absent, or a major of
+ * `messageMajors`. A message of another major is one it cannot read, which
+ * counts as no message at all (F50 point 3). */
+const readsMajor = (data: Data) =>
+  data.v === undefined || messageMajors.includes(data.v as number);
+
+/** The majors an app's identity answer names (`majors`): whole numbers from
+ * 1, at most 16, none twice; null where it names none, which every app
+ * deployed before this member does, or names them in another form. */
+export function parseMessageMajors(value: unknown): readonly number[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 16)
+    return null;
+  const majors = value.filter(
+    (major): major is number => Number.isSafeInteger(major) && major >= 1,
+  );
+  return majors.length === value.length &&
+    new Set(majors).size === majors.length
+    ? Object.freeze([...majors])
+    : null;
+}
+
+/** The major a view sends its messages in (F50 point 3): the highest that
+ * both it and the app around it read. To an app whose identity answer named
+ * no majors (every app deployed before them) or that has not answered, v1:
+ * a receiver deployed today never gets a message it would read as another v1
+ * action. Null for an app that names majors but none of these: it could read
+ * no message, so none is sent. */
+export function messageMajor(majors: readonly number[] | null): number | null {
+  if (majors === null) return 1;
+  const common = majors.filter((major) => messageMajors.includes(major));
+  return common.length === 0 ? null : Math.max(...common);
+}
+
+/** `lazurio-browser:info` (C8): where the view's tab is, the tab named by
+ * its view address in the contract's form (`browserViewUrl`). */
+export function viewInfoMessage(view: string, url: string, title: string) {
+  return Object.freeze({ type: browserMessage.info, v: 1, view, url, title });
+}
+
+/** `lazurio-browser:new-tab` (C8): the view's page opened the tab of `view`
+ * as a new tab, at `url`. */
+export function viewNewTabMessage(view: string, url: string) {
+  return Object.freeze({ type: browserMessage.newTab, v: 1, view, url });
+}
+
+/** `lazurio-browser:closed` (C8): the tab of `view` ended. */
+export function viewClosedMessage(view: string) {
+  return Object.freeze({ type: browserMessage.closed, v: 1, view });
+}
+
+/** `lazurio-browser:identity-request` (C9): the view asks the app around it
+ * how its shell names the view's Environment. */
+export function identityRequestMessage() {
+  return Object.freeze({ type: browserMessage.identityRequest, v: 1 });
+}
+
+/** `lazurio-browser:identity` (C9): the app's answer. `identity` is the
+ * shell's document of that Environment (or null where the app does not know
+ * it), which the shell reads; `majors` are the majors the app's own message
+ * parser reads, only where the app named them (F50 point 3): the answer never
+ * names majors by itself. */
+export function identityReplyMessage(
+  identity: unknown,
+  majors: readonly number[] | null = null,
+) {
+  return Object.freeze({
+    type: browserMessage.identity,
+    v: 1,
+    identity,
+    ...(majors === null ? {} : { majors: Object.freeze([...majors]) }),
+  });
+}
+
+/** A view's message as an app takes it (C8). */
+export type ViewMessage =
+  /** The view's page opened a new tab. */
+  | Readonly<{ kind: "new-tab"; tab: string; url: string }>
+  /** The view's tab ended. */
+  | Readonly<{ kind: "closed"; tab: string }>
+  /** Where the view's tab is now. */
+  | Readonly<{ kind: "info"; tab: string; title: string; url: string }>;
+
+/** A message of a view as the app around it takes it (F50 point 2): only
+ * from that frame's window (`fromFrame`) on the view's own origin, of a major
+ * this module reads, about a tab it names by a view address of that origin
+ * in the contract's form (`viewAddressOf`), with the members its kind needs.
+ * Texts are cut for display at `browserBounds.titleLength` and
+ * `addressLength` characters. Null for anything else. */
+export function acceptViewMessage(
+  event: Readonly<{ data: unknown; origin: string; fromFrame: boolean }>,
+  viewOrigin: string | null,
+): ViewMessage | null {
+  if (!event.fromFrame || viewOrigin === null || event.origin !== viewOrigin)
+    return null;
+  const data = event.data;
+  if (!isRecord(data) || !readsMajor(data)) return null;
+  const address = viewAddressOf(data.view);
+  const tab =
+    address !== null && address.origin === viewOrigin ? address.tab : null;
+  if (tab === null) return null;
+  const cut = (text: string, length: number) => text.slice(0, length);
+  switch (data.type) {
+    case browserMessage.newTab:
+      return typeof data.url === "string"
+        ? {
+            kind: "new-tab",
+            tab,
+            url: cut(data.url, browserBounds.addressLength),
+          }
+        : null;
+    case browserMessage.closed:
+      return { kind: "closed", tab };
+    case browserMessage.info:
+      return typeof data.title === "string" && typeof data.url === "string"
+        ? {
+            kind: "info",
+            tab,
+            title: cut(data.title, browserBounds.titleLength),
+            url: cut(data.url, browserBounds.addressLength),
+          }
+        : null;
+    default:
+      return null;
+  }
+}
+
+/** The Environment of a view's origin: the base host of
+ * `https://browser.<base>.lazurio.io`, the bare origin of a view address
+ * (`viewAddressOf`); null for any other origin. */
+export function viewEnvironmentId(origin: string): string | null {
+  const address = viewAddressOf(origin);
+  return address !== null && address.tab === null ? address.environment : null;
+}
+
+/** The app's side of the identity (C9): the Environment a request asks
+ * about, or null. A request counts only from a frame of the app's own page
+ * (`fromFrame`) on a view's origin, of a major this module reads, and it
+ * asks about that origin's Environment, never another. */
+export function identityRequestOf(
+  event: Readonly<{ data: unknown; origin: string; fromFrame: boolean }>,
+): string | null {
+  if (
+    !event.fromFrame ||
+    !isRecord(event.data) ||
+    event.data.type !== browserMessage.identityRequest ||
+    !readsMajor(event.data)
+  )
+    return null;
+  return viewEnvironmentId(event.origin);
+}
+
+/** The view's side of the identity (C9): its parent's answer, or null. It
+ * counts only from the parent window (`fromParent`), on the parent's origin
+ * as the browser names it (`location.ancestorOrigins`, `ancestor`) or, where
+ * it names none, on an app origin of an Environment
+ * (`https://<app>.<base>.lazurio.io`, the only pages a view's
+ * `frame-ancestors` admits), and only of a major this module reads. It gives
+ * the identity as the app sent it, which the shell reads, and the majors the
+ * app named (`parseMessageMajors`). */
+export function acceptIdentityReply(
+  event: Readonly<{ data: unknown; origin: string; fromParent: boolean }>,
+  ancestor: string | null,
+): Readonly<{ identity: unknown; majors: readonly number[] | null }> | null {
+  if (!event.fromParent) return null;
+  const named = ancestor !== null && ancestor !== "null";
+  if (
+    named ? event.origin !== ancestor : environmentIdOf(event.origin) === null
+  )
+    return null;
+  const data = event.data;
+  if (
+    !isRecord(data) ||
+    data.type !== browserMessage.identity ||
+    !readsMajor(data) ||
+    !Object.hasOwn(data, "identity")
+  )
+    return null;
+  return Object.freeze({
+    identity: data.identity,
+    majors: parseMessageMajors(data.majors),
+  });
+}
+
+// ---- Nová karta's interface to an app (C10) -----------------------------------
+
+/** The event `<lazurio-new-tab>` dispatches (F47 point 2): `detail` is what
+ * the tab became (`NewTabChoice`). */
+export const newTabEventName = "lazurio-new-tab";
+
+/** One of the app's own surfaces, drawn under the address bar in this
+ * order: a button with its label, the letter that opens it while nobody
+ * types (`key`), and an icon by name (`icon`, interface v1). Its `id` is one
+ * of the registry's where the surface is one of them (`newTabToolIcons`). */
+export type NewTabTool = Readonly<{
+  id: string;
+  label: string;
+  key?: string;
+  icon?: string;
+}>;
+
+/** What Nová karta became (F47 point 2): a remote tab an address opened
+ * (`page`), a tab chosen in Přehled (`tab`), each with its view
+ * (`https://browser.<…>/t/<id>`, F39 point 1), or one of the app's tools. */
+export type NewTabChoice =
+  | Readonly<{ kind: "page"; tab: string; view: string }>
+  | Readonly<{ kind: "tab"; tab: string; view: string }>
+  | Readonly<{ kind: "tool"; id: string }>;
+
+const toolNamePattern = /^[a-z0-9][a-z0-9-]{0,31}$/;
+const toolKeyPattern = /^[A-Za-z0-9]$/;
+/** At most this many tools: T3 Code has six. */
+export const maxNewTabTools = 12;
+const maxToolLabelLength = 48;
+
+const isToolLabel = (value: unknown): value is string =>
+  typeof value === "string" &&
+  value.trim() !== "" &&
+  value.length <= maxToolLabelLength &&
+  ![...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code < 0x20 || code === 0x7f;
+  });
+
+/** An optional member: undefined when absent, the text when it matches
+ * `pattern`, null for anything else. */
+const optionalText = (
+  value: unknown,
+  pattern: RegExp,
+): string | undefined | null =>
+  value === undefined
+    ? undefined
+    : typeof value === "string" && pattern.test(value)
+      ? value
+      : null;
+
+/** The app's tools (the element's `tools`), or null when `value` is not a
+ * list of them: at most `maxNewTabTools`, each with an id and a label, an
+ * optional letter and an optional icon name, no id or letter twice. */
+export function parseNewTabTools(value: unknown): readonly NewTabTool[] | null {
+  if (!Array.isArray(value) || value.length > maxNewTabTools) return null;
+  const tools: NewTabTool[] = [];
+  const ids = new Set<string>();
+  const keys = new Set<string>();
+  for (const item of value) {
+    if (!isRecord(item)) return null;
+    const { id, label } = item;
+    const key = optionalText(item.key, toolKeyPattern);
+    const icon = optionalText(item.icon, toolNamePattern);
+    if (
+      typeof id !== "string" ||
+      !toolNamePattern.test(id) ||
+      ids.has(id) ||
+      !isToolLabel(label) ||
+      key === null ||
+      icon === null
+    )
+      return null;
+    if (key !== undefined) {
+      if (keys.has(key.toLowerCase())) return null;
+      keys.add(key.toLowerCase());
+    }
+    ids.add(id);
+    tools.push(
+      Object.freeze({
+        id,
+        label,
+        ...(key === undefined ? {} : { key }),
+        ...(icon === undefined ? {} : { icon }),
+      }),
+    );
+  }
+  return Object.freeze(tools);
+}
+
+/** The view of the remote tab `tab` (upper case) when `value` is one, a view
+ * address of the contract (`viewAddressOf`, decision F50 point 2):
+ * `https://browser.<base>.lazurio.io/t/<tab>`, as the contract writes it.
+ * Null otherwise. */
+export function newTabViewOf(value: unknown, tab: string): string | null {
+  const address = viewAddressOf(value);
+  return address !== null && address.tab === tab ? address.view : null;
+}
+
+/** A choice of these three kinds and their exact members, or null: a tab's
+ * id in upper case, as the hub writes it, with that tab's view; a tool by an
+ * id of the tools' grammar. */
+export function parseNewTabChoice(value: unknown): NewTabChoice | null {
+  if (!isRecord(value)) return null;
+  switch (value.kind) {
+    case "page":
+    case "tab": {
+      const tab = targetIdOf(value.tab);
+      if (tab === null) return null;
+      const view = newTabViewOf(value.view, tab);
+      return view === null
+        ? null
+        : Object.freeze({ kind: value.kind, tab, view });
+    }
+    case "tool":
+      return typeof value.id === "string" && toolNamePattern.test(value.id)
+        ? Object.freeze({ kind: "tool", id: value.id })
+        : null;
+    default:
+      return null;
+  }
+}
+
+/** The tools' registry (F50 point 2): the ids an app maps its own surfaces
+ * to, each with its icon in Nová karta's set. An app chooses the id by the
+ * surface, never by its label. */
+// Marked pure, so a bundle that takes another rule leaves the registry out.
+export const newTabToolIcons = /* @__PURE__ */ Object.freeze({
+  terminal: "terminal",
+  files: "files",
+  diff: "diff",
+  "pull-request": "pull-request",
+  "linked-pull-requests": "pull-request",
+  agents: "bot",
+  device: "device",
+});
+
+/** The icon Nová karta draws for a tool: its id's in the registry; for an
+ * id outside it the icon its `icon` names, where the registry has that name
+ * (interface v1); otherwise the default, `grid`. */
+export function newTabToolIcon(tool: Pick<NewTabTool, "id" | "icon">): string {
+  const icons: Readonly<Record<string, string>> = newTabToolIcons;
+  return (
+    (Object.hasOwn(icons, tool.id) ? icons[tool.id] : undefined) ??
+    (tool.icon !== undefined && Object.hasOwn(icons, tool.icon)
+      ? icons[tool.icon]
+      : undefined) ??
+    "grid"
+  );
+}
+
+// ---- `lazurio browser … --json` (C13) -----------------------------------------
+
+/** The `schema` of every JSON answer of `lazurio browser` (F50 point 3),
+ * beside its `kind`. An answer without one is v1. */
+export const browserCliSchema = "lazurio.browser-cli.v1";
+
+/** The kinds of the answers, one per command. */
+export type BrowserCliKind = "browser-window" | "browser-link" | "browser-done";
+
+/** What letting go of a window came to (`stopSessionDaemon`). */
+export type BrowserDoneOutcome = "stopped" | "none" | "refused" | "unconfirmed";
+
+/** An answer of `lazurio browser window`, `link` or `done` with `--json`;
+ * each command answers with its own `kind`, also where the Environment has
+ * no browser (`available: false`, exit 10). */
+export type BrowserCliAnswer =
+  | Readonly<{
+      kind: "browser-window";
+      session: string;
+      targetId: string;
+      created: boolean;
+      link: string;
+      command: string;
+    }>
+  | Readonly<{
+      kind: "browser-link";
+      session: string | null;
+      link: string;
+      /** The new tab of `link --url`. */
+      targetId?: string;
+    }>
+  | Readonly<{
+      kind: "browser-done";
+      session: string;
+      outcome: BrowserDoneOutcome;
+    }>
+  | Readonly<{ kind: BrowserCliKind; available: false }>;
+
+/** The text of an answer: JSON with `schema` beside its `kind`. */
+export function browserCliText(answer: BrowserCliAnswer): string {
+  return JSON.stringify({ schema: browserCliSchema, ...answer });
+}
+
+const cliKinds: readonly string[] = [
+  "browser-window",
+  "browser-link",
+  "browser-done",
+];
+const doneOutcomes: readonly string[] = [
+  "stopped",
+  "none",
+  "refused",
+  "unconfirmed",
+];
+
+/** An answer as a caller reads it (T3 Code reads `window` and `link`): of
+ * one of these kinds with its members, `schema` absent or v1; members it
+ * does not know are ignored. Null for anything else, an answer of another
+ * major too. */
+export function parseBrowserCliAnswer(text: string): BrowserCliAnswer | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!isRecord(value) || !cliKinds.includes(value.kind as string)) return null;
+  if (value.schema !== undefined && value.schema !== browserCliSchema)
+    return null;
+  const kind = value.kind as BrowserCliKind;
+  if (value.available === false)
+    return Object.freeze({ kind, available: false });
+  const session = isStrip(value.session) ? value.session : null;
+  switch (kind) {
+    case "browser-window": {
+      const targetId = targetIdOf(value.targetId);
+      return session !== null &&
+        targetId !== null &&
+        typeof value.created === "boolean" &&
+        typeof value.link === "string" &&
+        typeof value.command === "string"
+        ? Object.freeze({
+            kind,
+            session,
+            targetId,
+            created: value.created,
+            link: value.link,
+            command: value.command,
+          })
+        : null;
+    }
+    case "browser-link": {
+      const targetId =
+        value.targetId === undefined ? undefined : targetIdOf(value.targetId);
+      return (session !== null || value.session === null) &&
+        typeof value.link === "string" &&
+        targetId !== null
+        ? Object.freeze({
+            kind,
+            session,
+            link: value.link,
+            ...(targetId === undefined ? {} : { targetId }),
+          })
+        : null;
+    }
+    case "browser-done":
+      return session !== null && doneOutcomes.includes(value.outcome as string)
+        ? Object.freeze({
+            kind,
+            session,
+            outcome: value.outcome as BrowserDoneOutcome,
+          })
+        : null;
+  }
+}
+
+/** The exit statuses of `lazurio browser`: done, a usage error, a failure,
+ * and an Environment without a browser. The first line of stderr is the
+ * reason, in the Operator's language. */
+export const browserCliExit = Object.freeze({
+  done: 0,
+  failure: 1,
+  usage: 2,
+  noBrowser: 10,
+});
+
+// ---- Times and bounds (C14) ---------------------------------------------------
+
+const releaseGrace = 8_000;
+
+/** The times the programs of the Environment browser keep (F50 point 2):
+ * one set, which no app or fork types again. In milliseconds where the name
+ * says so. Within v1 none that another program relies on is ever shortened
+ * (F50 point 3). */
+export const browserTimes = Object.freeze({
+  /** The hub ends a tab this long after its last hold went while nobody
+   * views it, and a close for everyone ends it after as long (F47 points 5
+   * and 6). */
+  releaseGraceMs: releaseGrace,
+  /** A tab nothing holds ends this long after its last viewer left. */
+  viewerGraceMs: 30_000,
+  /** A tab nothing ever held or viewed ends after this long. */
+  unviewedGraceMs: 600_000,
+  /** Vrátit: every app offers it this long after its release request, 1 s
+   * less than the hub's grace, so it never outlives the tab (F50 point 2). */
+  undoMs: releaseGrace - 1_000,
+  /** The hub reads the holds, and every app reconciles its holder file with
+   * the list of live tabs, at least this often (the beat). */
+  holdsEveryMs: 30_000,
+  /** A burst of changes is one reading or one reconciliation, this long
+   * after its first change. */
+  changesJoinMs: 100,
+  /** The hub writes the list of live tabs this long after a change. */
+  snapshotJoinMs: 50,
+  /** The hub reconnects to the browser this long after losing it. */
+  reconnectMs: 2_000,
+  /** The hub waits this long for the browser to report a tab it opened. */
+  newTabWaitMs: 2_000,
+  /** Přehled and the strips read the overview this often while shown. */
+  overviewEveryMs: 5_000,
+  /** A framed Nová karta page that has not heard its host after this long
+   * is standalone. */
+  standaloneAfterMs: 1_500,
+  /** Another Environment's view in an app's frame names its tab within this
+   * long after it loaded, else the app offers the sign-in there... */
+  foreignViewNamedMs: 4_000,
+  /** ...and within this long after the frame began, when it never loads. */
+  foreignViewLoadMs: 15_000,
+  /** When the view asks the app around it for the identity, after its
+   * start, until it answers. */
+  identityAskMs: Object.freeze([0, 1_000, 4_000]),
+  /** agent-browser's idle timeout, which the Platform writes into
+   * agent-browser's user configuration unless the person set one (C7):
+   * agent-browser's own duration syntax. */
+  agentBrowserIdleTimeout: "1h",
+});
+
+/** The bounds and fixed numbers of the Environment browser (F50 point 2). */
+export const browserBounds = Object.freeze({
+  /** The browser's DevTools port, on loopback only. */
+  devtoolsPort: 9222,
+  /** A thread's window: its page area until a person's view resizes it (F39
+   * point 3)... */
+  windowPage: Object.freeze({ width: 1280, height: 800 }),
+  /** ...and the window around it. */
+  window: Object.freeze({ width: 1280, height: 900 }),
+  /** What an app shows of a message's title and address (C8). */
+  titleLength: 500,
+  addressLength: 2_048,
+  /** What the hub reads of a holder file at most (C5); every app keeps its
+   * own bound below it. */
+  holderCharacters: 64 * 1024,
+  holderTabs: 500,
+  holderLabelLength: 200,
+});
+
+// ---- Framing (C15) ------------------------------------------------------------
+
+/** The frame an app shows a view in (F50 point 2): the clipboard and full
+ * screen; a sandbox that keeps the view on its own origin with its cookie and
+ * scripts, never lets it navigate the app, and lets a tab it opens escape as
+ * an ordinary tab of the person's browser; and a referrer that names the
+ * app's origin, by which another Environment's view admits it (root decision
+ * 0191 point 31). Never on the app's own origin: the sandbox confines the
+ * frame only while it is another origin. */
+export const viewFrameAttributes = Object.freeze({
+  allow: "clipboard-read; clipboard-write; fullscreen",
+  referrerpolicy: "origin",
+  sandbox:
+    "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals",
+});
+
+/** The apps that frame views in their right panel: T3 Code and the
+ * Launchpad of an Environment on lazurio.io. */
+const appShellPattern =
+  /^https:\/\/(?:t3code|launchpad)\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+lazurio\.io$/;
+
+/** The origin of `referer` when it is such an app, else null. */
+export function appShellOrigin(
+  referer: string | null | undefined,
+): string | null {
+  if (!referer) return null;
+  let url: URL;
+  try {
+    url = new URL(referer);
+  } catch {
+    return null;
+  }
+  return appShellPattern.test(url.origin) ? url.origin : null;
+}
+
+/** `frame-ancestors` of a view page (F39 point 8 and its addendum of
+ * 2026-10-09): the Environment's own origins, the siblings of the view's host
+ * (`https://*.<base>.lazurio.io`), and the T3 Code or Launchpad of another
+ * Environment that asks for the page, named by the request's `Referer`. No
+ * other page frames it: the gateway's sign-in still decides who sees it, and
+ * this keeps the views out of other Organizations' apps. A host of fewer than
+ * three labels (a test on localhost) is framed by itself only. */
+export function viewFrameAncestors(
+  viewOrigin: string,
+  referer?: string | null,
+): string {
+  const labels = new URL(viewOrigin).hostname.split(".");
+  if (labels.length < 3) return "'self'";
+  const siblings = labels.slice(1).join(".");
+  const shell = appShellOrigin(referer);
+  return shell === null || new URL(shell).hostname.endsWith(`.${siblings}`)
+    ? `'self' https://*.${siblings}`
+    : `'self' https://*.${siblings} ${shell}`;
+}
+
+/** `frame-ancestors` of Nová karta's page (F47 point 1): the page's own
+ * origin and the Environment's own apps that host it (Apps, Chat, Automate),
+ * each origin once. */
+export function newTabFrameAncestors(origins: readonly string[]): string {
+  return ["'self'", ...new Set(origins)].join(" ");
+}
+
+// ---- Address-bar input (C16) --------------------------------------------------
+
+/** What a text typed into an address bar opens (F50 point 2): nothing, a
+ * page (or a search), a tab of this Environment's view, a new remote tab
+ * (this view's bare origin), another Environment's view, which no Lazurio
+ * surface opens in this Environment's browser, or nothing, refused: an
+ * address on a view host that is no view address, or a scheme other than
+ * http and https. */
+export type AddressTarget =
+  | Readonly<{ kind: "none" }>
+  | Readonly<{ kind: "page"; url: string }>
+  | Readonly<{ kind: "tab"; tab: string; view: string }>
+  | Readonly<{ kind: "new-tab" }>
+  | Readonly<{ kind: "foreign"; href: string; where: string }>
+  | Readonly<{ kind: "refused"; reason: "view" | "scheme" }>;
+
+/** A search for `text`. */
+export function searchAddress(text: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(text)}`;
+}
+
+const dnsName = /^[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?$/u;
+const ipv4 = /^\d{1,3}(?:\.\d{1,3}){3}$/;
+
+/** A host as typed: `localhost`, an IP address (IPv6 in brackets), a name of
+ * one label, or a name of more labels whose last is a top-level domain (two
+ * letters or more, or an IDN's `xn--`); null for anything else. */
+function typedHost(name: string): "local" | "ip" | "label" | "domain" | null {
+  const host = name.toLowerCase();
+  if (host === "localhost") return "local";
+  if (ipv4.test(host) || /^\[[0-9a-f:.]+\]$/.test(host)) return "ip";
+  const labels = host.split(".");
+  if (!labels.every((label) => dnsName.test(label))) return null;
+  if (labels.length === 1) return "label";
+  const top = labels[labels.length - 1] ?? "";
+  return /^\p{L}{2,63}$/u.test(top) || /^xn--[a-z0-9-]{1,59}$/.test(top)
+    ? "domain"
+    : null;
+}
+
+/** The address a text typed without a scheme stands for, as Chrome's
+ * address bar reads it: `localhost`, an IP address, or a one-label name
+ * followed by a port or a path, over http; a name with a dot and a
+ * top-level domain over https. Null for a text that is a search: a single
+ * word, text with spaces, an e-mail address. */
+function typedAddress(typed: string): URL | null {
+  if (/\s/.test(typed)) return null;
+  const host = typed.split(/[/?#]/, 1)[0] ?? "";
+  if (host === "" || host.includes("@")) return null;
+  const port = /^(.*?)(?::(\d{1,5}))?$/.exec(host);
+  const name = port?.[1] ?? "";
+  const kind = typedHost(name);
+  const rest = typed.slice(host.length);
+  const http =
+    kind === "local" ||
+    kind === "ip" ||
+    (kind === "label" && (port?.[2] !== undefined || rest.startsWith("/")));
+  if (!http && kind !== "domain") return null;
+  try {
+    return new URL(`${http ? "http" : "https"}://${typed}`);
+  } catch {
+    return null;
+  }
+}
+
+/** What the address bar opens for `input` (F50 point 2: Chrome's address
+ * bar, the view's bar and Nová karta's alike), `viewOrigin` being this
+ * Environment's view:
+ * 1. text with a scheme opens as typed when the scheme is http or https,
+ *    and `about:blank`; any other scheme is refused (a host's port is no
+ *    scheme);
+ * 2. without one, `localhost`, an IP address or a one-label name followed by
+ *    a port or a path opens over http, and a name with a dot and a top-level
+ *    domain over https;
+ * 3. anything else is a search;
+ * 4. an address on a view host (`isViewHost`), typed over http or https, is
+ *    never loaded in the Environment browser: a view address of this
+ *    Environment is that tab, its bare origin a new remote tab, another
+ *    Environment's view that Environment's, and any other address there is
+ *    refused. A written default port and dot segments are the address they
+ *    stand for, as in Chrome. */
+export function addressBarTarget(
+  input: string,
+  viewOrigin: string | null,
+): AddressTarget {
+  const typed = input.trim();
+  if (typed === "") return { kind: "none" };
+  if (typed.toLowerCase() === "about:blank")
+    return { kind: "page", url: "about:blank" };
+  const scheme = /^([A-Za-z][A-Za-z0-9+.-]*):(.*)$/s.exec(typed);
+  let address: URL | null;
+  if (scheme !== null && !/^\d{1,5}(?:[/?#]|$)/.test(scheme[2] ?? "")) {
+    const name = (scheme[1] ?? "").toLowerCase();
+    if (name !== "http" && name !== "https")
+      return { kind: "refused", reason: "scheme" };
+    try {
+      address = new URL(typed);
+    } catch {
+      address = null;
+    }
+  } else address = typedAddress(typed);
+  if (address === null) return { kind: "page", url: searchAddress(typed) };
+  if (!isViewHost(address.hostname)) return { kind: "page", url: address.href };
+  // Over http, the view's own https, as written otherwise.
+  const secure = new URL(address.href.replace(/^http:/, "https:"));
+  const view = viewAddressOf(secure.href);
+  if (view === null) return { kind: "refused", reason: "view" };
+  if (view.origin !== viewOrigin)
+    return { kind: "foreign", href: view.view, where: view.environment };
+  return view.tab === null
+    ? { kind: "new-tab" }
+    : { kind: "tab", tab: view.tab, view: view.view };
+}
+
+/** What the hub opens a tab at or navigates one to on a person's or an
+ * app's behalf (C16): an http or https address that is not on a view host
+ * (`isViewHost`), or `about:blank`; null for anything else. The page itself
+ * may go anywhere it likes, and so may an agent's own browser commands. */
+export function navigableAddress(value: string): string | null {
+  if (value === "about:blank") return value;
+  try {
+    const url = new URL(value);
+    return (url.protocol === "http:" || url.protocol === "https:") &&
+      !isViewHost(url.hostname)
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+// ---- Language (C17) -----------------------------------------------------------
+
+/** The languages the Environment browser's surfaces speak. */
+export const surfaceLanguages: readonly ("cs" | "en")[] = Object.freeze([
+  "cs",
+  "en",
+]);
+
+/** One of these languages, or null. */
+export function surfaceLanguageOf(value: unknown): "cs" | "en" | null {
+  return value === "cs" || value === "en" ? value : null;
+}
+
+/** The browser's language (`navigator.language`) as a surface speaks it:
+ * Czech for a Czech one, English otherwise. Root decision 0191 point 33
+ * gives every surface the shell's language and the browser's only to one
+ * shown on its own; a framed view still takes it until the identity answer
+ * carries the shell's (F50 point 8, phase 3). */
+export function browserLanguage(language: string): "cs" | "en" {
+  return language.toLowerCase().startsWith("cs") ? "cs" : "en";
 }

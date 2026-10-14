@@ -1237,6 +1237,794 @@
           "changed": true
         }
       ]
+    },
+    {
+      "name": "a hold writes the file owner-only, with its schema, the writer's release and the record time",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {
+          "hold": [
+            "00000000000000000000000000000001"
+          ]
+        },
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {},
+      "expect": {
+        "kind": "written",
+        "tabs": [
+          {
+            "id": "00000000000000000000000000000001",
+            "recordedAt": {
+              "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+              "at": 100
+            }
+          }
+        ]
+      },
+      "after": {
+        "holders/": {
+          "mode": "700"
+        },
+        "holders/launchpad.json": {
+          "json": {
+            "schema": "lazurio.browser-holder.v1",
+            "contract": "1.2.3",
+            "strip": "launchpad",
+            "label": "Launchpad",
+            "tabs": [
+              "00000000000000000000000000000001"
+            ],
+            "recordedAt": {
+              "00000000000000000000000000000001": {
+                "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+                "at": 100
+              }
+            }
+          },
+          "mode": "600"
+        }
+      }
+    },
+    {
+      "name": "a hold of a tab held already records its new time, in its place",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {
+          "hold": [
+            "00000000000000000000000000000001"
+          ]
+        },
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {
+        "holders/launchpad.json": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000001\",\"00000000000000000000000000000002\"],\"recordedAt\":{\"00000000000000000000000000000001\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":50},\"00000000000000000000000000000002\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":60}}}\n"
+      },
+      "expect": {
+        "kind": "written",
+        "tabs": [
+          {
+            "id": "00000000000000000000000000000001",
+            "recordedAt": {
+              "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+              "at": 100
+            }
+          },
+          {
+            "id": "00000000000000000000000000000002",
+            "recordedAt": {
+              "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+              "at": 60
+            }
+          }
+        ]
+      },
+      "after": {
+        "holders/": {},
+        "holders/launchpad.json": {
+          "json": {
+            "schema": "lazurio.browser-holder.v1",
+            "contract": "1.2.3",
+            "strip": "launchpad",
+            "label": "Launchpad",
+            "tabs": [
+              "00000000000000000000000000000001",
+              "00000000000000000000000000000002"
+            ],
+            "recordedAt": {
+              "00000000000000000000000000000001": {
+                "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+                "at": 100
+              },
+              "00000000000000000000000000000002": {
+                "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+                "at": 60
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "a hold past the strip's bound is refused, and none is dropped for it",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {
+          "hold": [
+            "00000000000000000000000000000003"
+          ]
+        },
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {
+        "holders/launchpad.json": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000001\",\"00000000000000000000000000000002\"],\"recordedAt\":{\"00000000000000000000000000000001\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":50},\"00000000000000000000000000000002\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":60}}}\n"
+      },
+      "expect": {
+        "kind": "refused",
+        "reason": "full"
+      },
+      "after": {
+        "holders/": {},
+        "holders/launchpad.json": {
+          "text": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000001\",\"00000000000000000000000000000002\"],\"recordedAt\":{\"00000000000000000000000000000001\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":50},\"00000000000000000000000000000002\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":60}}}\n"
+        }
+      }
+    },
+    {
+      "name": "a file that cannot be read is never written over",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {
+          "hold": [
+            "00000000000000000000000000000001"
+          ]
+        },
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {
+        "holders/launchpad.json": {
+          "unreadable": true,
+          "text": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000002\"],\"recordedAt\":{\"00000000000000000000000000000002\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":60}}}\n"
+        }
+      },
+      "expect": {
+        "kind": "refused",
+        "reason": "unreadable"
+      }
+    },
+    {
+      "name": "a file that is no holder file of the strip is never written over",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {
+          "release": [
+            "00000000000000000000000000000001"
+          ]
+        },
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {
+        "holders/launchpad.json": "{}"
+      },
+      "expect": {
+        "kind": "refused",
+        "reason": "unreadable"
+      },
+      "after": {
+        "holders/": {},
+        "holders/launchpad.json": {
+          "text": "{}"
+        }
+      }
+    },
+    {
+      "name": "a file of another strip's name is no holder file of this one",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {
+          "hold": [
+            "00000000000000000000000000000001"
+          ]
+        },
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {
+        "holders/launchpad.json": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"t3-1\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000002\"],\"recordedAt\":{\"00000000000000000000000000000002\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":60}}}\n"
+      },
+      "expect": {
+        "kind": "refused",
+        "reason": "unreadable"
+      }
+    },
+    {
+      "name": "a release lets the tab go",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {
+          "release": [
+            "00000000000000000000000000000001"
+          ]
+        },
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {
+        "holders/launchpad.json": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000001\",\"00000000000000000000000000000002\"],\"recordedAt\":{\"00000000000000000000000000000001\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":50},\"00000000000000000000000000000002\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":60}}}\n"
+      },
+      "expect": {
+        "kind": "written",
+        "tabs": [
+          {
+            "id": "00000000000000000000000000000002",
+            "recordedAt": {
+              "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+              "at": 60
+            }
+          }
+        ]
+      },
+      "after": {
+        "holders/": {},
+        "holders/launchpad.json": {
+          "json": {
+            "schema": "lazurio.browser-holder.v1",
+            "contract": "1.2.3",
+            "strip": "launchpad",
+            "label": "Launchpad",
+            "tabs": [
+              "00000000000000000000000000000002"
+            ],
+            "recordedAt": {
+              "00000000000000000000000000000002": {
+                "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+                "at": 60
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "a file that holds nothing any more is removed",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {
+          "release": [
+            "00000000000000000000000000000001"
+          ]
+        },
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {
+        "holders/launchpad.json": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000001\"],\"recordedAt\":{\"00000000000000000000000000000001\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":50}}}\n"
+      },
+      "expect": {
+        "kind": "written",
+        "tabs": []
+      },
+      "after": {
+        "holders/": {}
+      }
+    },
+    {
+      "name": "a release of a tab the file does not hold writes nothing",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {
+          "release": [
+            "00000000000000000000000000000002"
+          ]
+        },
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {
+        "holders/launchpad.json": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000001\"],\"recordedAt\":{\"00000000000000000000000000000001\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":50}}}\n"
+      },
+      "expect": {
+        "kind": "kept",
+        "tabs": [
+          {
+            "id": "00000000000000000000000000000001",
+            "recordedAt": {
+              "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+              "at": 50
+            }
+          }
+        ]
+      },
+      "after": {
+        "holders/": {},
+        "holders/launchpad.json": {
+          "text": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000001\"],\"recordedAt\":{\"00000000000000000000000000000001\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":50}}}\n"
+        }
+      }
+    },
+    {
+      "name": "nothing held and no file: nothing written",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {},
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {},
+      "expect": {
+        "kind": "kept",
+        "tabs": []
+      },
+      "after": {}
+    },
+    {
+      "name": "the holds are reconciled with the hub's list first: a tab it lacks, taken after the tab's record, goes",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {},
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {
+        "holders/launchpad.json": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000001\",\"00000000000000000000000000000002\"],\"recordedAt\":{\"00000000000000000000000000000001\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":50},\"00000000000000000000000000000002\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":60}}}\n",
+        "tabs.json": "{\"schema\":\"lazurio.browser-tabs.v1\",\"tabs\":[\"00000000000000000000000000000002\"],\"takenAt\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":80}}\n"
+      },
+      "expect": {
+        "kind": "written",
+        "tabs": [
+          {
+            "id": "00000000000000000000000000000002",
+            "recordedAt": {
+              "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+              "at": 60
+            }
+          }
+        ]
+      },
+      "after": {
+        "holders/": {},
+        "holders/launchpad.json": {
+          "json": {
+            "schema": "lazurio.browser-holder.v1",
+            "contract": "1.2.3",
+            "strip": "launchpad",
+            "label": "Launchpad",
+            "tabs": [
+              "00000000000000000000000000000002"
+            ],
+            "recordedAt": {
+              "00000000000000000000000000000002": {
+                "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+                "at": 60
+              }
+            }
+          }
+        },
+        "tabs.json": {
+          "text": "{\"schema\":\"lazurio.browser-tabs.v1\",\"tabs\":[\"00000000000000000000000000000002\"],\"takenAt\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":80}}\n"
+        }
+      }
+    },
+    {
+      "name": "a tab recorded after the list was taken stays",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {},
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {
+        "holders/launchpad.json": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000001\"],\"recordedAt\":{\"00000000000000000000000000000001\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":90}}}\n",
+        "tabs.json": "{\"schema\":\"lazurio.browser-tabs.v1\",\"tabs\":[],\"takenAt\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":80}}\n"
+      },
+      "expect": {
+        "kind": "kept",
+        "tabs": [
+          {
+            "id": "00000000000000000000000000000001",
+            "recordedAt": {
+              "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+              "at": 90
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "a list of another boot lets nothing go",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {},
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {
+        "holders/launchpad.json": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000001\"],\"recordedAt\":{\"00000000000000000000000000000001\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":50}}}\n",
+        "tabs.json": "{\"schema\":\"lazurio.browser-tabs.v1\",\"tabs\":[],\"takenAt\":{\"boot\":\"11111111-2222-4333-8444-555555555555\",\"at\":80}}\n"
+      },
+      "expect": {
+        "kind": "kept",
+        "tabs": [
+          {
+            "id": "00000000000000000000000000000001",
+            "recordedAt": {
+              "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+              "at": 50
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "a list that cannot be read lets nothing go",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {},
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {
+        "holders/launchpad.json": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000001\"],\"recordedAt\":{\"00000000000000000000000000000001\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":50}}}\n",
+        "tabs.json": "{"
+      },
+      "expect": {
+        "kind": "kept",
+        "tabs": [
+          {
+            "id": "00000000000000000000000000000001",
+            "recordedAt": {
+              "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+              "at": 50
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "the freed room counts for a hold: a tab the list let go makes way",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {
+          "hold": [
+            "00000000000000000000000000000003"
+          ]
+        },
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {
+        "holders/launchpad.json": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000001\",\"00000000000000000000000000000002\"],\"recordedAt\":{\"00000000000000000000000000000001\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":50},\"00000000000000000000000000000002\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":60}}}\n",
+        "tabs.json": "{\"schema\":\"lazurio.browser-tabs.v1\",\"tabs\":[\"00000000000000000000000000000002\"],\"takenAt\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":80}}\n"
+      },
+      "expect": {
+        "kind": "written",
+        "tabs": [
+          {
+            "id": "00000000000000000000000000000002",
+            "recordedAt": {
+              "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+              "at": 60
+            }
+          },
+          {
+            "id": "00000000000000000000000000000003",
+            "recordedAt": {
+              "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+              "at": 100
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "without the boot clock nothing goes by a list, and a hold has no time",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {
+          "hold": [
+            "00000000000000000000000000000002"
+          ]
+        },
+        null
+      ],
+      "directory": {
+        "holders/launchpad.json": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Launchpad\",\"tabs\":[\"00000000000000000000000000000001\"],\"recordedAt\":{\"00000000000000000000000000000001\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":50}}}\n",
+        "tabs.json": "{\"schema\":\"lazurio.browser-tabs.v1\",\"tabs\":[],\"takenAt\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":80}}\n"
+      },
+      "expect": {
+        "kind": "written",
+        "tabs": [
+          {
+            "id": "00000000000000000000000000000001",
+            "recordedAt": {
+              "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+              "at": 50
+            }
+          },
+          {
+            "id": "00000000000000000000000000000002",
+            "recordedAt": null
+          }
+        ]
+      },
+      "after": {
+        "holders/": {},
+        "holders/launchpad.json": {
+          "json": {
+            "schema": "lazurio.browser-holder.v1",
+            "contract": "1.2.3",
+            "strip": "launchpad",
+            "label": "Launchpad",
+            "tabs": [
+              "00000000000000000000000000000001",
+              "00000000000000000000000000000002"
+            ],
+            "recordedAt": {
+              "00000000000000000000000000000001": {
+                "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+                "at": 50
+              }
+            }
+          }
+        },
+        "tabs.json": {
+          "text": "{\"schema\":\"lazurio.browser-tabs.v1\",\"tabs\":[],\"takenAt\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":80}}\n"
+        }
+      }
+    },
+    {
+      "name": "an id that is no target id is ignored; one in lower case is held in upper case",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {
+          "hold": [
+            "x",
+            "0000000000000000000000000000000a"
+          ]
+        },
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {},
+      "expect": {
+        "kind": "written",
+        "tabs": [
+          {
+            "id": "0000000000000000000000000000000A",
+            "recordedAt": {
+              "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+              "at": 100
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "a changed label is written",
+      "call": "changeHolderFile",
+      "args": [
+        {
+          "directory": "$dir/holders",
+          "strip": "launchpad",
+          "label": "Launchpad",
+          "contract": "1.2.3",
+          "bound": 2,
+          "list": "$dir/tabs.json"
+        },
+        {},
+        {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 100
+        }
+      ],
+      "directory": {
+        "holders/launchpad.json": "{\"schema\":\"lazurio.browser-holder.v1\",\"contract\":\"1.2.3\",\"strip\":\"launchpad\",\"label\":\"Old\",\"tabs\":[\"00000000000000000000000000000001\"],\"recordedAt\":{\"00000000000000000000000000000001\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":50}}}\n"
+      },
+      "expect": {
+        "kind": "written",
+        "tabs": [
+          {
+            "id": "00000000000000000000000000000001",
+            "recordedAt": {
+              "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+              "at": 50
+            }
+          }
+        ]
+      },
+      "after": {
+        "holders/": {},
+        "holders/launchpad.json": {
+          "json": {
+            "schema": "lazurio.browser-holder.v1",
+            "contract": "1.2.3",
+            "strip": "launchpad",
+            "label": "Launchpad",
+            "tabs": [
+              "00000000000000000000000000000001"
+            ],
+            "recordedAt": {
+              "00000000000000000000000000000001": {
+                "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+                "at": 50
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

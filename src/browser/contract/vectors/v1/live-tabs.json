@@ -606,6 +606,70 @@
       "expect": {
         "$": "undefined"
       }
+    },
+    {
+      "name": "the hub's list",
+      "call": "readLiveTabs",
+      "args": [
+        "$dir/tabs.json"
+      ],
+      "directory": {
+        "tabs.json": "{\"schema\":\"lazurio.browser-tabs.v1\",\"tabs\":[\"00000000000000000000000000000001\"],\"takenAt\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":80}}\n"
+      },
+      "expect": {
+        "tabs": [
+          "00000000000000000000000000000001"
+        ],
+        "takenAt": {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 80
+        }
+      }
+    },
+    {
+      "name": "no path, no list",
+      "call": "readLiveTabs",
+      "args": [
+        {
+          "$": "undefined"
+        }
+      ],
+      "directory": {},
+      "expect": null
+    },
+    {
+      "name": "no file, no list",
+      "call": "readLiveTabs",
+      "args": [
+        "$dir/tabs.json"
+      ],
+      "directory": {},
+      "expect": null
+    },
+    {
+      "name": "a file that cannot be read is no list",
+      "call": "readLiveTabs",
+      "args": [
+        "$dir/tabs.json"
+      ],
+      "directory": {
+        "tabs.json": {
+          "unreadable": true,
+          "text": "{\"schema\":\"lazurio.browser-tabs.v1\",\"tabs\":[\"00000000000000000000000000000001\"],\"takenAt\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":80}}\n"
+        }
+      },
+      "expect": null
+    },
+    {
+      "name": "a list of another major is no list",
+      "call": "readLiveTabs",
+      "args": [
+        "$dir/tabs.json"
+      ],
+      "directory": {
+        "tabs.json": "{\"schema\": \"lazurio.browser-tabs.v2\", \"tabs\": [], \"takenAt\": {\"boot\": \"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\", \"at\": 80}}"
+      },
+      "expect": null
     }
   ]
 }
