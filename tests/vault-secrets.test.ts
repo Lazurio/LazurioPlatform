@@ -263,7 +263,7 @@ test.skipIf(!posix)(
   async () => {
     const w = await connected();
     try {
-      // What an agent's secret request becomes (decision F53): text fields
+      // What an agent's secret request becomes (decision F54): text fields
       // for what is not secret, a hidden one for the secret.
       const note = (name: string, fields: readonly unknown[]) => ({
         object: "item",
@@ -481,7 +481,7 @@ test("the item reader keeps only the declared names and only what the selection 
   ]);
   expect(JSON.stringify(items)).not.toContain("fake-other-value");
   expect(JSON.stringify(items)).not.toContain("fake-field-value");
-  // A Secure note (decision F53): only how many hidden fields it has and the
+  // A Secure note (decision F54): only how many hidden fields it has and the
   // value of the only one; its text fields and notes are dropped.
   const notes = parseSecretItems(
     JSON.stringify([

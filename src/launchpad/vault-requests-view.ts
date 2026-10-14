@@ -4,7 +4,7 @@ import type { MessageKey } from "./messages";
 type Copy = Readonly<Record<MessageKey, string>>;
 
 // An agent's secret request on the page (root decision 0198 point 9 (c),
-// decision F53; the wireframe's screens/SecretRequest.tsx and the section
+// decision F54; the wireframe's screens/SecretRequest.tsx and the section
 // "Žádosti agentů" of EnvVault.tsx): what the person reads, in the agent's
 // words, and what the routes answer, read as plain values. Pure: the panel
 // (vault-requests-panel.ts) draws it as text, never as markup.

@@ -11,7 +11,7 @@ import {
   requestHref,
 } from "../src/launchpad/vault-requests-view";
 
-// An agent's secret request as the page reads and words it (decision F53;
+// An agent's secret request as the page reads and words it (decision F54;
 // the wireframe's screens/SecretRequest.tsx): the routes' answers read as
 // plain values, the agent's words as the person reads them, and what a
 // refusal means for the person. How it looks is checked in a browser (root

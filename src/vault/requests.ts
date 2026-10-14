@@ -17,7 +17,7 @@ import { plainObject, readOwned, serialize, type VaultPaths } from "./store";
 
 export { isSecretRequestId } from "./request-id";
 
-// An agent's secret request (root decision 0198 point 9 (c), decision F53):
+// An agent's secret request (root decision 0198 point 9 (c), decision F54):
 // what an agent cannot get any other way, it asks a person for in words the
 // person understands (what it needs, why, and where in the service the
 // person finds it), with the fields it needs. The request waits in the

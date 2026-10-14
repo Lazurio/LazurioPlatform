@@ -164,7 +164,7 @@ export type ReadRefusal =
 /** The values of `names` in one scope of the vault (decision F46): a sync
  * first, so a value changed in the vault takes effect at the next start,
  * then the one item named exactly so in the scope, its login password the
- * value. With `notes` (the Environment's own vault, decision F53) a Secure
+ * value. With `notes` (the Environment's own vault, decision F54) a Secure
  * note gives the value of its one hidden custom field; a note with more than
  * one is `ambiguous`, never guessed. The frozen 0197 pilot reads login
  * passwords only, as before. `connect` gives the shared session (again,

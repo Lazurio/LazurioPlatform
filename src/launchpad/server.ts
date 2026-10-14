@@ -604,7 +604,7 @@ export async function startLaunchpad(
     setup: () => vault.running(),
     headers,
   });
-  // An agent's secret request (decision F53): the same vault host, so the
+  // An agent's secret request (decision F54): the same vault host, so the
   // page and `lazurio vault request` share one store and one lock.
   const vaultRequests = createVaultRequestRoutes({
     host: vaultHostOf,

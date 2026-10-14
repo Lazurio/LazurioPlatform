@@ -43,7 +43,7 @@ import {
 } from "./fixtures/fake-vault";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
 
-// An agent's secret request (root decision 0198 point 9 (c), decision F53)
+// An agent's secret request (root decision 0198 point 9 (c), decision F54)
 // over its real consumers: `lazurio vault request` creates it and reads its
 // state, the Launchpad's routes show it to an admitted person, who saves the
 // values or declines; the Environment saves them as one Secure note in its

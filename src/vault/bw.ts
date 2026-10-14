@@ -14,7 +14,7 @@ import { isSession, isVaultId } from "./store";
 // `--passwordfile` reads and that is removed at once. bw's own output is
 // parsed here and never leaves this module: `bw login --apikey` even prints
 // a (still locked) session, and `bw create item` the item with its values.
-// A new item (decision F53) goes to bw's standard input, encoded as bw reads
+// A new item (decision F54) goes to bw's standard input, encoded as bw reads
 // it, never to argv.
 
 export type BwEnvironment = Readonly<{
@@ -248,7 +248,7 @@ export type BwSecretItem = Readonly<{
   collectionIds: readonly string[];
   /** `login.password`; null when the item has no login or no password. */
   password: string | null;
-  /** A Secure note's hidden custom fields (decision F46 as F53 amends it):
+  /** A Secure note's hidden custom fields (decision F46 as F54 amends it):
    * how many it has and, only when it has exactly one, that one's value;
    * null for every other kind of item. */
   hidden: Readonly<{ count: number; value: string | null }> | null;
@@ -323,7 +323,7 @@ export function parseSecretItems(
   return items;
 }
 
-/** A Secure note for the Environment's own vault (decision F53): the item an
+/** A Secure note for the Environment's own vault (decision F54): the item an
  * agent's secret request becomes, one custom field per field of the
  * request, hidden for a secret one. */
 export type BwNote = Readonly<{
@@ -605,7 +605,7 @@ export function bwCli(environment: BwEnvironment) {
       );
     },
     /** Creates one Secure note in the Environment's own vault (decision
-     * F53): the item, values included, goes to bw's standard input, encoded
+     * F54): the item, values included, goes to bw's standard input, encoded
      * as `bw encode` would, never to argv; of bw's answer only the new
      * item's id is read. */
     createNote(value: string, note: BwNote): Promise<BwResult<string>> {

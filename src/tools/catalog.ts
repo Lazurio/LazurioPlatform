@@ -328,7 +328,7 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
   // 9, DEV-6631 task 652): never through chat or a file, but (a) the
   // person's sign-in saved by the Bitwarden extension where the shared
   // browser window has it, (b) a secret the agent creates itself, (c) the
-  // agent's secret request (`lazurio vault request`, decision F53).
+  // agent's secret request (`lazurio vault request`, decision F54).
   tool({
     name: "bitwarden",
     command: "bw",

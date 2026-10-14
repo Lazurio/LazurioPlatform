@@ -11,7 +11,7 @@ import {
 import { BodyTooLarge, readJsonBody } from "./json-body";
 
 // An agent's secret request in the Launchpad (root decision 0198 point 9
-// (c), decision F53), behind the admission of every `/api/*` route (locally
+// (c), decision F54), behind the admission of every `/api/*` route (locally
 // the token and same origin, behind the gateway its session and same origin
 // for a write), over the one core of `lazurio vault request`:
 //

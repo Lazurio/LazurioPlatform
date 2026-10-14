@@ -36,7 +36,7 @@ export type PageRoute =
   | Readonly<{ view: "organization"; organization: string }>
   | Readonly<{ view: "module"; organization: string; module: string }>
   /** A section of Settings; in Trezor, `/settings/vault/requests/<id>` is
-   * the page of one agent's secret request (`request`, decision F53). */
+   * the page of one agent's secret request (`request`, decision F54). */
   | Readonly<{ view: "settings"; section: SettingsSection; request?: string }>
   /** A folder of the Documents folder (decision F35): `/files` is the
    * folder itself, `/files/<name>/<name>` one below it. */

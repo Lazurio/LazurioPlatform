@@ -16,7 +16,7 @@ type Copy = Readonly<Record<MessageKey, string>>;
 type Answer = Promise<{ value: unknown; ok: boolean }>;
 
 // The agents' secret requests in Nastavení → Trezor (root decision 0198
-// point 9 (c), decision F53; the wireframe's screens/SecretRequest.tsx and
+// point 9 (c), decision F54; the wireframe's screens/SecretRequest.tsx and
 // the section of EnvVault.tsx):
 //
 // - "Žádosti agentů" (`#vault-requests`): what the agents wait for, each

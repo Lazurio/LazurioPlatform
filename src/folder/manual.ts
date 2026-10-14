@@ -1327,7 +1327,7 @@ const connectedApplications: readonly Text[] = [
 
 // Secrets on every preset; moved here from the troubleshooting chapter so the
 // rule sits with the connections that need it. A Remote Environment has its
-// own vault (decisions F52 and F53, root decision 0198 point 9): there a
+// own vault (decisions F53 and F54, root decision 0198 point 9): there a
 // secret reaches the agents by the paths a, b and c, never through chat or a
 // file; this computer has none yet (the second wave of root decision 0193).
 function secrets(preset: PresetName): readonly Text[] {

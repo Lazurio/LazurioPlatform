@@ -816,7 +816,7 @@ export async function vaultSecretsAdmission(
  * F46, root decision 0177): a sync first, then the one item named exactly
  * so anywhere in the Environment's own vault (any of its collections), its
  * login password the value, or the one hidden field of a Secure note
- * (decision F53: the item an agent's secret request becomes). Values are
+ * (decision F54: the item an agent's secret request becomes). Values are
  * returned to the caller only; the journal gets the outcome and a fixed
  * reason. */
 export async function vaultSecrets(

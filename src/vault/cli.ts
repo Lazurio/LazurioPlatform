@@ -289,7 +289,7 @@ const vaultHostOf = (context: VaultCliContext): VaultHost =>
     run: runTool,
   });
 
-// --- Secret requests (root decision 0198 point 9 (c), decision F53) -------
+// --- Secret requests (root decision 0198 point 9 (c), decision F54) -------
 
 const requestSynopsis = `vault request --item <name> --need <text> --why <text> --where <text> --field <Name>[:secret] [--field ...] [--json]
        vault request status <id> [--json]

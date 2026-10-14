@@ -295,7 +295,7 @@ test.skipIf(!posix)(
           collectionIds: item.collectionIds,
           login: { username: "example", password: value },
         })),
-        // A Secure note is read only from an own vault (decision F53): the
+        // A Secure note is read only from an own vault (decision F54): the
         // frozen pilot reads login passwords, as before.
         {
           object: "item",
