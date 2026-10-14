@@ -1,11 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import type { PublicEntry } from "../src/launchpad/chat";
 import {
   type AddressTarget,
+  browserTimes,
+  addressBarTarget as resolveAddress,
+} from "../src/browser/contract/pure";
+import type { PublicEntry } from "../src/launchpad/chat";
+import {
   actionFailure,
   ago,
   catalogModuleLook,
-  closeGraceMs,
   closeOutcome,
   closeWarning,
   fill,
@@ -21,15 +24,12 @@ import {
   type NewTabTab,
   newTabCopy,
   openerLabel,
-  overviewEveryMs,
   overviewFailure,
   pageStrip,
   parseOverview,
   replacesUndo,
-  resolveAddress,
   settleOverrides,
   sortTabs,
-  standaloneAfterMs,
   suggestions,
   type TabOverride,
   tabRows,
@@ -105,14 +105,14 @@ describe("the address bar (the wireframe's resolveAddress)", () => {
       expect(resolveAddress(typed, view)).toEqual(tab);
     expect(
       resolveAddress("https://browser.vm-01.example.lazurio.io:443/", view),
-    ).toEqual({ kind: "page", url: "about:blank" });
+    ).toEqual({ kind: "new-tab" });
     // Another port is another address, and on a view host it is refused.
     expect(
       resolveAddress(
         `https://browser.vm-01.example.lazurio.io:8443/t/${id(10)}`,
         view,
       ),
-    ).toEqual({ kind: "refused" });
+    ).toEqual({ kind: "refused", reason: "view" });
   });
 
   test("an address of another Environment's view is never opened here: the notice names it and links there", () => {
@@ -157,14 +157,14 @@ describe("the address bar (the wireframe's resolveAddress)", () => {
       `https://browser.vm-01.example.lazurio.io:8443/t/${id(10)}`,
       "https://browser.lazurio.io/",
     ])
-      expect(resolveAddress(typed, view)).toEqual({ kind: "refused" });
+      expect(resolveAddress(typed, view)).toEqual({
+        kind: "refused",
+        reason: "view",
+      });
     // The bare origin opens a new remote tab, as it does in a browser, never
     // the view inside the Environment browser.
     for (const typed of [view, `${view}/`, "browser.vm-01.example.lazurio.io"])
-      expect(resolveAddress(typed, view)).toEqual({
-        kind: "page",
-        url: "about:blank",
-      });
+      expect(resolveAddress(typed, view)).toEqual({ kind: "new-tab" });
     // Another Environment's tab by a lower-case id is that Environment's,
     // written as the contract writes it.
     expect(
@@ -198,8 +198,9 @@ describe("the address bar (the wireframe's resolveAddress)", () => {
     expect(resolveAddress("docs.example.co.uk/guide?x=1", view)).toEqual(
       page("https://docs.example.co.uk/guide?x=1"),
     );
+    // An IP address over http, as Chrome opens it (F50 point 2).
     expect(resolveAddress("192.168.1.10:8080/status", view)).toEqual(
-      page("https://192.168.1.10:8080/status"),
+      page("http://192.168.1.10:8080/status"),
     );
     expect(resolveAddress("příklad.cz", view)).toEqual(
       page(new URL("https://příklad.cz").href),
@@ -211,22 +212,38 @@ describe("the address bar (the wireframe's resolveAddress)", () => {
   });
 
   test("anything else is a search, an e-mail address and a number included", () => {
-    const search = (words: string): AddressTarget => {
-      const url = new URL("https://www.google.com/search");
-      url.searchParams.set("q", words);
-      return { kind: "page", url: url.href };
-    };
+    const search = (words: string): AddressTarget => ({
+      kind: "page",
+      url: `https://www.google.com/search?q=${encodeURIComponent(words)}`,
+    });
     for (const typed of [
       "nová karta lazurio",
       "3.14",
       "a.b",
-      "localhost:3000",
       "someone@example.com",
-      "javascript:alert(1)",
       "example.com/with a space",
     ])
       expect(resolveAddress(typed, view)).toEqual(search(typed));
     expect(resolveAddress("  ", view)).toEqual({ kind: "none" });
+  });
+
+  // Chrome's address bar (F50 point 2): localhost and a one-label name with
+  // a port or a path over http, and another scheme refused. Before, Nová
+  // karta searched for these.
+  test("localhost and a one-label name with a port or a path open over http, and another scheme is refused", () => {
+    expect(resolveAddress("localhost:3000", view)).toEqual({
+      kind: "page",
+      url: "http://localhost:3000/",
+    });
+    expect(resolveAddress("intranet/wiki", view)).toEqual({
+      kind: "page",
+      url: "http://intranet/wiki",
+    });
+    for (const typed of ["javascript:alert(1)", "file:///etc/passwd"])
+      expect(resolveAddress(typed, view)).toEqual({
+        kind: "refused",
+        reason: "scheme",
+      });
   });
 });
 
@@ -650,7 +667,7 @@ describe("closing for everyone, and Vrátit", () => {
   });
 
   test("the toast keeps Vrátit for the whole grace: a later message shows above it and never takes it away", () => {
-    expect(closeGraceMs).toBe(8_000);
+    expect(browserTimes.releaseGraceMs).toBe(8_000);
     const pending = {
       tabs: [id(1)],
       text: cs.closing,
@@ -1051,7 +1068,10 @@ describe("where things are, the tools' letters and what failed", () => {
   });
 
   test("the page's beats and its words: Přehled every 5 s, standalone after 1.5 s, every Czech word with its English one", () => {
-    expect([overviewEveryMs, standaloneAfterMs]).toEqual([5_000, 1_500]);
+    expect([
+      browserTimes.overviewEveryMs,
+      browserTimes.standaloneAfterMs,
+    ]).toEqual([5_000, 1_500]);
     expect(Object.keys(cs).sort()).toEqual(Object.keys(en).sort());
     for (const words of [cs, en])
       for (const value of Object.values(words))

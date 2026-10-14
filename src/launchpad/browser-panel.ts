@@ -1,7 +1,11 @@
-import { launchpadStrip } from "../browser/contract/pure";
-import { newTabEventName } from "../shell/new-tab-protocol";
 import {
-  browserFrame,
+  acceptViewMessage,
+  browserTimes,
+  launchpadStrip,
+  newTabEventName,
+  viewFrameAttributes,
+} from "../browser/contract/pure";
+import {
   closedBy,
   closesPanel,
   emptyStrip,
@@ -9,6 +13,7 @@ import {
   holdFailure,
   holdSucceeded,
   letGoUndo,
+  letGoUndoUntil,
   panelChoice,
   reduceStrip,
   releaseFailure,
@@ -19,14 +24,12 @@ import {
   type StripState,
   shownEntry,
   stripEntries,
-  stripEveryMs,
   stripTabs,
   type TabMenu,
   type TabMenuCommand,
   tabMenu,
   tabMenuLabels,
   tabViewAddress,
-  viewMessage,
   viewTabOf,
 } from "./browser-panel-view";
 import {
@@ -46,7 +49,6 @@ import {
 import type { MessageKey } from "./messages";
 import {
   actionNoteMs,
-  closeGraceMs,
   fill,
   type NewTabAnswer,
   newTabCopy,
@@ -347,7 +349,7 @@ export function createBrowserPanel(
     const frame = document.createElement("iframe");
     frame.className = "browser-frame";
     frame.title = options.copy().browserFrame;
-    for (const [name, value] of Object.entries(browserFrame))
+    for (const [name, value] of Object.entries(viewFrameAttributes))
       frame.setAttribute(name, value);
     frame.src = address;
     body.append(frame);
@@ -451,7 +453,7 @@ export function createBrowserPanel(
       return;
     }
     if (open && document.visibilityState === "visible")
-      pollTimer = setTimeout(() => void poll(), stripEveryMs);
+      pollTimer = setTimeout(() => void poll(), browserTimes.overviewEveryMs);
   }
 
   document.addEventListener("visibilitychange", () => {
@@ -541,8 +543,9 @@ export function createBrowserPanel(
    * release is done and a later overview says so, or comes back when it
    * fails. One command is one toast (its addendum of 2026-10-13): what
    * happens to the tabs it let go of, as the overview told, and one Vrátit
-   * that holds them all again while the hub's grace (8 s from the first
-   * request, the earliest any grace can begin) lasts. A command that ends
+   * that holds them all again for 1 s less than the hub's grace from the
+   * first request, the earliest any grace can begin (`letGoUndoUntil`,
+   * 7 s; F50 point 2), so it never outlives the tab. A command that ends
    * no tab while the Vrátit of one that ends is offered leaves that Vrátit,
    * and says its line above it (`replacesUndo`). */
   async function closeEntries(keys: readonly string[]) {
@@ -582,9 +585,10 @@ export function createBrowserPanel(
       shown?.kind === "tab" ? shown.id : null,
       words(),
     );
-    // An answer later than the grace says what happened, without Vrátit.
+    // Vrátit lasts 1 s less than the hub's grace (F50 point 2): an answer
+    // later than that says what happened, without Vrátit.
     if (undo !== null) {
-      const until = sentAt + closeGraceMs;
+      const until = letGoUndoUntil(sentAt);
       if (until > Date.now() && replacesUndo(pending, undo))
         setPending(undo, until);
       else say(undo.text);
@@ -835,7 +839,7 @@ export function createBrowserPanel(
   window.addEventListener("message", (event) => {
     if (!open || surface?.kind !== "frame") return;
     const frame = surface.node;
-    const said = viewMessage(
+    const said = acceptViewMessage(
       {
         data: event.data,
         origin: event.origin,

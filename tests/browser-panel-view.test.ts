@@ -1,13 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { browserViewUrl } from "../src/browser/contract/pure";
+import { browserViewDocumentPath } from "../src/browser/contract/platform";
+import {
+  acceptViewMessage,
+  browserTimes,
+  browserViewUrl,
+  viewFrameAttributes,
+} from "../src/browser/contract/pure";
 import { browserEntryOf, resolveBrowserView } from "../src/browser/view";
 import {
-  browserFrame,
   browserPanelOrigin,
   browserViewAddress,
-  browserViewDocumentPath,
   type CloseCommand,
   closedBy,
   closesPanel,
@@ -17,6 +21,7 @@ import {
   holdFailure,
   holdSucceeded,
   letGoUndo,
+  letGoUndoUntil,
   panelChoice,
   reduceStrip,
   releaseFailure,
@@ -28,20 +33,17 @@ import {
   type StripTab,
   shownEntry,
   stripEntries,
-  stripEveryMs,
   stripTabs,
   type TabMenu,
   tabMenu,
   tabMenuLabels,
   tabViewAddress,
-  viewMessage,
   viewTabOf,
 } from "../src/launchpad/browser-panel-view";
 import { publicEntry } from "../src/launchpad/chat";
 import { parseEntryAnswer } from "../src/launchpad/chat-view";
 import { messages } from "../src/launchpad/messages";
 import { newTabCopy, parseOverview } from "../src/launchpad/new-tab-view";
-import { browserViewDocumentPath as serverDocumentPath } from "../src/launchpad/server";
 import { newTabFrameSandbox } from "../src/shell/new-tab-element";
 import { bindings } from "./fixtures/machine-bindings";
 
@@ -115,7 +117,7 @@ test("a view address is a tab only in the contract's form: no query, no slash af
   // So the view frame's messages about such an address are nothing, and a
   // message about a lower-case id names the tab in upper case.
   const closed = (view: string) =>
-    viewMessage(
+    acceptViewMessage(
       {
         data: { type: "lazurio-browser:closed", view },
         origin,
@@ -187,17 +189,20 @@ test("the view only as an https URL on exactly the recorded origin, as written: 
 });
 
 test("the panel and the server name the same route, and a tab's frame keeps the view's attributes", () => {
-  // The view's address for a new tab; since the strip lost its link
-  // (2026-10-13) the panel no longer uses the server's hand-over.
-  expect(browserViewDocumentPath).toBe(serverDocumentPath);
+  // The view's address for a new tab, one definition for the route and the
+  // panel (the contract's C12); since the strip lost its link (2026-10-13)
+  // the panel no longer uses the server's hand-over.
+  expect(browserViewDocumentPath).toBe("/.lazurio/browser.json");
   // The sandbox of T3 Code's panel (Lazurio/t3code#41): the view keeps its
   // own origin, cookie and scripts, and cannot navigate this page. Since
   // 2026-10-13 a tab the view opens escapes it, as a tab opened from Nová
   // karta's frame does: the view's own "Otevřít samostatně" is an ordinary
-  // tab of the person's browser, not a sandboxed one.
-  expect(browserFrame).toEqual({
+  // tab of the person's browser, not a sandboxed one. One set of frame
+  // attributes for every app (F50 point 2), whose referrer names the
+  // Launchpad's origin, by which another Environment's view admits it.
+  expect(viewFrameAttributes).toEqual({
     allow: "clipboard-read; clipboard-write; fullscreen",
-    referrerpolicy: "no-referrer",
+    referrerpolicy: "origin",
     sandbox:
       "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals",
   });
@@ -211,8 +216,8 @@ test("the panel and the server name the same route, and a tab's frame keeps the 
     "allow-top-navigation-by-user-activation",
     "allow-top-navigation-to-custom-protocols",
   ])
-    expect(browserFrame.sandbox.split(" ")).not.toContain(token);
-  expect(stripEveryMs).toBe(5_000);
+    expect(viewFrameAttributes.sandbox.split(" ")).not.toContain(token);
+  expect(browserTimes.overviewEveryMs).toBe(5_000);
 });
 
 const id = (n: number) => n.toString(16).toUpperCase().padStart(32, "0");
@@ -1147,6 +1152,16 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
     expect(letGoUndo([], "new-1", cs)).toBeNull();
   });
 
+  // Every app offers Vrátit for 1 s less than the hub's grace after its
+  // release request (decision F50 point 2): 7 s, where the strip offered it
+  // for the whole 8 s of the grace.
+  test("one command's Vrátit lasts 1 s less than the hub's grace from its first request: 7 s", () => {
+    expect(letGoUndoUntil(1_000)).toBe(8_000);
+    expect(letGoUndoUntil(1_000) - 1_000).toBe(
+      browserTimes.releaseGraceMs - 1_000,
+    );
+  });
+
   test("what a command says when tabs could not be let go of, or held again by its Vrátit: for one tab or several, or the cause the answer names", () => {
     expect(
       releaseFailure(answer(500, { error: "release-failed" }), cs, 1),
@@ -1198,7 +1213,7 @@ describe("what the frames say", () => {
 
   test("the view frame: a page's new tab, its tab's end and where it is, only from that frame on the view's origin", () => {
     expect(
-      viewMessage(
+      acceptViewMessage(
         event({
           type: "lazurio-browser:new-tab",
           view: `${origin}/t/${id(9)}`,
@@ -1212,10 +1227,13 @@ describe("what the frames say", () => {
       url: "https://accounts.example.com/",
     });
     expect(
-      viewMessage(event({ type: "lazurio-browser:closed", view: at }), origin),
+      acceptViewMessage(
+        event({ type: "lazurio-browser:closed", view: at }),
+        origin,
+      ),
     ).toEqual({ kind: "closed", tab: target });
     expect(
-      viewMessage(
+      acceptViewMessage(
         event({
           type: "lazurio-browser:info",
           view: at,
@@ -1254,7 +1272,7 @@ describe("what the frames say", () => {
       ["lazurio-browser:closed", {}, origin],
       [[closed], {}, origin],
     ] as const)
-      expect(viewMessage(event(data, extra), viewOrigin)).toBeNull();
+      expect(acceptViewMessage(event(data, extra), viewOrigin)).toBeNull();
   });
 
   test("Nová karta's choice in the Launchpad: a page it opened or a tab it chose, framed on the recorded origin; the Launchpad has no tools, and anything else is nothing", () => {

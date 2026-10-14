@@ -1,17 +1,23 @@
+import { browserViewDocumentPath } from "../browser/contract/platform";
+import {
+  addressBarTarget,
+  browserLanguage,
+  browserTimes,
+  type NewTabChoice,
+  newTabToolIcon,
+  parseNewTabChoice,
+} from "../browser/contract/pure";
 import { parseShell, type Shell } from "../shell/contract";
 import {
   acceptNewTabHostMessage,
-  type NewTabChoice,
   type NewTabHostMessage,
   type NewTabTheme,
   newTabHostOrigins,
   newTabMessage,
   newTabReadyTargets,
   newTabThemeRoles,
-  parseNewTabChoice,
 } from "../shell/new-tab-protocol";
 import { bootElementId, parseBoot } from "./boot";
-import { browserViewDocumentPath } from "./browser-panel-view";
 import {
   actionFailure,
   catalogModuleLook,
@@ -29,14 +35,11 @@ import {
   type NewTabTab,
   newTabCopy,
   noteMs,
-  overviewEveryMs,
   overviewFailure,
   type PendingUndo,
   pageStrip,
   parseOverview,
-  resolveAddress,
   settleOverrides,
-  standaloneAfterMs,
   suggestions,
   type TabOverride,
   type TabRow,
@@ -84,9 +87,7 @@ const toastRegion = find("toast", HTMLDivElement);
 // parts. Without it (a slow boot read) the page reads the shell document and
 // the view's origin itself, and has no names or suggestions from a catalog.
 const boot = parseBoot(document.getElementById(bootElementId)?.textContent);
-let locale: "cs" | "en" =
-  boot?.locale ??
-  (navigator.language.toLowerCase().startsWith("cs") ? "cs" : "en");
+let locale: "cs" | "en" = boot?.locale ?? browserLanguage(navigator.language);
 let copy = newTabCopy(locale);
 let shell: Shell | null = boot?.shell ?? null;
 const entry = boot?.entry ?? null;
@@ -122,7 +123,7 @@ const standaloneTimer = framed
       decide();
       drawAll();
       focusAddress();
-    }, standaloneAfterMs)
+    }, browserTimes.standaloneAfterMs)
   : undefined;
 
 /** The strip a page opened here is for: the host's, else none (0191 point
@@ -177,16 +178,6 @@ function icon(name: string): SVGSVGElement {
   return svg;
 }
 
-/** The page's icons for the tools' names (the wireframe's ToolIcon). */
-const toolIcons: Readonly<Record<string, string>> = {
-  terminal: "terminal",
-  files: "files",
-  diff: "diff",
-  "pull-request": "pull-request",
-  agents: "bot",
-  device: "device",
-};
-
 function relabel() {
   document.documentElement.lang = locale;
   document.title = copy.pageTitle;
@@ -230,7 +221,7 @@ function drawTools() {
         button.title = `${tool.label} (${tool.key})`;
       }
       button.append(
-        icon(toolIcons[tool.icon ?? ""] ?? "grid"),
+        icon(newTabToolIcon(tool)),
         element("span", "nt-tool-label", tool.label),
       );
       if (tool.key !== undefined)
@@ -664,13 +655,20 @@ async function openPage(url: string) {
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
-  const target = resolveAddress(input.value, viewOrigin);
+  const target = addressBarTarget(input.value, viewOrigin);
   foreign = target.kind === "foreign" ? target : null;
   drawForeign();
   if (target.kind === "tab")
     choose({ kind: "tab", tab: target.tab, view: target.view });
   else if (target.kind === "page") void openPage(target.url);
-  else if (target.kind === "refused") say(copy.addressRefused);
+  // This view's bare origin: a new blank remote tab, as in a browser.
+  else if (target.kind === "new-tab") void openPage("about:blank");
+  else if (target.kind === "refused")
+    say(
+      target.reason === "view"
+        ? copy.addressRefused
+        : copy.addressRefusedScheme,
+    );
 });
 
 // Escape clears what was typed, as in a browser.
@@ -917,7 +915,7 @@ async function poll(): Promise<void> {
     return;
   }
   if (document.visibilityState === "visible" && overviewState !== "no-browser")
-    pollTimer = setTimeout(() => void poll(), overviewEveryMs);
+    pollTimer = setTimeout(() => void poll(), browserTimes.overviewEveryMs);
 }
 
 document.addEventListener("visibilitychange", () => {
