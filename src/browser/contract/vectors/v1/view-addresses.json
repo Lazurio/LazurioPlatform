@@ -574,6 +574,14 @@
       "expect": true
     },
     {
+      "name": "a view host written with the DNS root's trailing dot",
+      "call": "isViewHost",
+      "args": [
+        "browser.vm-01.example.lazurio.io."
+      ],
+      "expect": true
+    },
+    {
       "name": "another app of an Environment",
       "call": "isViewHost",
       "args": [
