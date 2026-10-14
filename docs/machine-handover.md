@@ -11,20 +11,16 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
-from the merge of Machines pull request **#449** into `main` (commit
-`30c2fcf8a77914b5a44c652265e927683b2b413c`, SHA-256
-`fbbd159b8e6dfc8580a7b8460ddb4a2b2d3158a1b74ab2a420d8ff68005ae53f`), which adds the
-optional `entry.environment_relay` ([below](#the-hosted-entry-decision-f16), root
-decision 0194, decision F45) and changes nothing else. **Pending re-pin:** the file is
-now vendored byte for byte from the head of the open Machines pull request **#500**
-(commit `14d448682be5d0a666b39b4c2b2f2bf6867fc448`, SHA-256
+from Machines **v0.12.159** (tag commit `8b66889bf4e00b111027f9b280423f4b9cdfcf4e`, the
+merge of pull request **#500**; SHA-256
 `76a058045be25b718caed8a04e533d67fa8666945bfa4fa0153d618bc4d78957`), which adds only
 the optional top-level member `vault` ([below](#the-environments-own-vault-decision-f52),
-DEV-6631 contract C2) to #449's; before this Platform merges, it is re-pinned to that
-pull request's merge (`schema-provenance.json`'s `pending` says so meanwhile). No Machines release carries it
-yet, so the provenance names no version and no tag; the first release that does may
-add them with the same digest, and a digest other than this one is a new re-pin.
-Before it, the pin was the merge of Machines
+DEV-6631 contract C2) and changes nothing else. Before it, the pin was the merge of
+Machines pull request **#449** into `main` (commit
+`30c2fcf8a77914b5a44c652265e927683b2b413c`, SHA-256
+`fbbd159b8e6dfc8580a7b8460ddb4a2b2d3158a1b74ab2a420d8ff68005ae53f`), which added the
+optional `entry.environment_relay` ([below](#the-hosted-entry-decision-f16), root
+decision 0194, decision F45); before that, the merge of Machines
 pull request **#398** into `main` (commit `b831308f153519747ebcb4d2d9690c1b9a865a9b`,
 SHA-256 `475c5197b7c2d812dda960aa30f23a709837dca0560579e5c1c5d4f822d1506e`), which
 added the optional `entry.browser` (decision F38); before that, the merge of
