@@ -744,6 +744,60 @@
       ],
       "directory": {},
       "expect": "none"
+    },
+    {
+      "name": "an empty socket directory gives way to the runtime directory's",
+      "call": "agentBrowserSocketDirectory",
+      "args": [
+        {
+          "AGENT_BROWSER_SOCKET_DIR": "",
+          "XDG_RUNTIME_DIR": "/run/user/1000"
+        }
+      ],
+      "expect": "/run/user/1000/agent-browser"
+    },
+    {
+      "name": "without a runtime directory, the home's",
+      "call": "agentBrowserSocketDirectory",
+      "args": [
+        {
+          "HOME": "/home/jana"
+        }
+      ],
+      "expect": "/home/jana/.agent-browser"
+    },
+    {
+      "name": "a namespace gets a directory of its own, named as agent-browser names it",
+      "call": "agentBrowserSocketDirectory",
+      "args": [
+        {
+          "XDG_RUNTIME_DIR": "/run/user/1000",
+          "AGENT_BROWSER_NAMESPACE": "Next Dev Loop: /Users/me/worktree!"
+        }
+      ],
+      "expect": "/run/user/1000/agent-browser/namespaces/next-dev-loop-users-me-worktree/run"
+    },
+    {
+      "name": "a namespace's separators at either end go",
+      "call": "agentBrowserSocketDirectory",
+      "args": [
+        {
+          "AGENT_BROWSER_SOCKET_DIR": "/srv/agent",
+          "AGENT_BROWSER_NAMESPACE": " --Agent__ "
+        }
+      ],
+      "expect": "/srv/agent/namespaces/agent/run"
+    },
+    {
+      "name": "a namespace of nothing but separators is none",
+      "call": "agentBrowserSocketDirectory",
+      "args": [
+        {
+          "XDG_RUNTIME_DIR": "/run/user/1000",
+          "AGENT_BROWSER_NAMESPACE": " -- "
+        }
+      ],
+      "expect": "/run/user/1000/agent-browser"
     }
   ]
 }

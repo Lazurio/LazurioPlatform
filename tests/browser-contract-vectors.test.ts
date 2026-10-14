@@ -37,12 +37,19 @@ describeVectors(files, { pure, node });
 
 test("every vector file is a v1 vector file of its contract, and each case names its call once", () => {
   expect(files.map((file) => file.file)).toEqual([
+    "address-bar.json",
     "agent-browser.json",
     "boot-clock.json",
+    "cli.json",
+    "framing.json",
     "holder-files.json",
+    "language.json",
     "live-tabs.json",
+    "messages.json",
+    "new-tab.json",
     "remote-tab-ids.json",
     "strips.json",
+    "times.json",
     "view-addresses.json",
   ]);
   for (const file of files) {
@@ -77,10 +84,24 @@ test("every export of the contract has a case, and every case names an export", 
 // add names (with their cases), never rename or remove one.
 test("the contract's exported names are exactly these", () => {
   expect(Object.keys(pure).sort()).toEqual([
+    "acceptIdentityReply",
+    "acceptViewMessage",
+    "addressBarTarget",
+    "appShellOrigin",
+    "browserBounds",
+    "browserCliExit",
+    "browserCliSchema",
+    "browserCliText",
+    "browserLanguage",
+    "browserMessage",
+    "browserTimes",
     "browserViewUrl",
     "environmentIdOf",
     "holderFileText",
     "holderSchema",
+    "identityReplyMessage",
+    "identityRequestMessage",
+    "identityRequestOf",
     "isEnvironmentId",
     "isStrip",
     "isTargetId",
@@ -89,21 +110,44 @@ test("the contract's exported names are exactly these", () => {
     "launchpadStrip",
     "liveTabsSchema",
     "liveTabsText",
+    "maxNewTabTools",
+    "messageMajor",
+    "messageMajors",
+    "navigableAddress",
+    "newTabEventName",
+    "newTabFrameAncestors",
+    "newTabToolIcon",
+    "newTabToolIcons",
+    "newTabViewOf",
     "parseBootTime",
+    "parseBrowserCliAnswer",
     "parseHolder",
     "parseHolderRecords",
     "parseLiveTabs",
+    "parseMessageMajors",
+    "parseNewTabChoice",
+    "parseNewTabTools",
+    "searchAddress",
     "stripAppOf",
     "stripPrefixes",
+    "surfaceLanguageOf",
+    "surfaceLanguages",
     "targetIdOf",
     "threadSession",
     "viewAddressOf",
+    "viewClosedMessage",
+    "viewEnvironmentId",
+    "viewFrameAncestors",
+    "viewFrameAttributes",
+    "viewInfoMessage",
+    "viewNewTabMessage",
     "viewPath",
     "viewPathTab",
   ]);
   expect(Object.keys(node).sort()).toEqual([
     "agentBrowserSocketDirectory",
     "askDaemonSocket",
+    "changeHolderFile",
     "holderDirectory",
     "holdsReader",
     "liveTabsPath",
@@ -112,6 +156,7 @@ test("the contract's exported names are exactly these", () => {
     "processAlive",
     "readBootClock",
     "readHolds",
+    "readLiveTabs",
     "replaceOwnerFile",
     "stopSessionDaemon",
     "unreadableHolderFiles",
@@ -124,11 +169,14 @@ test("the contract's exported names are exactly these", () => {
 // module's directory, so it imports nothing from outside it. Its pure part
 // imports nothing at all and its Node part only `node:` built-ins and the pure
 // part.
+// `platform.ts` holds the shapes of the Platform-internal contracts C11 and
+// C12 (F50 point 2): pure, it imports only the pure part, and the shell
+// artifact does not ship it.
 test("the module imports nothing from outside its directory, and its pure part nothing", () => {
   const sources = readdirSync(moduleDirectory)
     .filter((name) => name.endsWith(".ts"))
     .sort();
-  expect(sources).toEqual(["node.ts", "pure.ts"]);
+  expect(sources).toEqual(["node.ts", "platform.ts", "pure.ts"]);
   const importsOf = (file: string) =>
     new Bun.Transpiler({ loader: "ts" })
       .scan(readFileSync(join(moduleDirectory, file), "utf8"))
@@ -139,6 +187,7 @@ test("the module imports nothing from outside its directory, and its pure part n
       (path) => !path.startsWith("node:") && path !== "./pure",
     ),
   ).toEqual([]);
+  expect(importsOf("platform.ts")).toEqual(["./pure"]);
 });
 
 // The pure part runs in a page, in Node and in Bun: it type-checks with the

@@ -72,10 +72,12 @@ const textOf = (path: string) => new TextDecoder().decode(bytesOf(path));
 
 /** The browser contract's files as the archive must hold them, read from the
  * module's own directory: each part as an ES module and its declarations, the
- * module's licence, and its vectors with their README. */
+ * module's licence, and its vectors with their README. The Platform-internal
+ * shapes (`platform.ts`, C11 and C12) are no part of the forks' promise and
+ * are not shipped (F50 point 2). */
 async function browserContractPaths(): Promise<string[]> {
   const parts = (await readdir(browserContractSource))
-    .filter((name) => name.endsWith(".ts"))
+    .filter((name) => name.endsWith(".ts") && name !== "platform.ts")
     .map((name) => name.slice(0, -".ts".length));
   const vectors = [
     ...new Bun.Glob("**").scanSync({
@@ -223,6 +225,10 @@ test("the browser contract's licence, vectors and README are the module's own fi
   );
   expect(textOf("LICENSE")).toStartWith("Elastic License 2.0\n");
   expect(browserContract.files).not.toContain("LICENSE");
+  // The Platform-internal shapes stay in the Platform.
+  expect(
+    [...packed.keys()].filter((path) => path.includes("platform")),
+  ).toEqual([]);
   expect(textOf("NOTICE")).toContain("under browserContract in its");
 });
 

@@ -14,21 +14,29 @@ import { dirname, isAbsolute, join } from "node:path";
 import {
   type BootTime,
   type HolderReading,
+  holderFileText,
   isStrip,
+  keptTabs,
+  type LiveTabs,
   liveTabsText,
   parseBootTime,
   parseHolder,
+  parseHolderRecords,
+  parseLiveTabs,
+  type RecordedTab,
   targetIdOf,
 } from "./pure";
 
 // The Environment browser's contract, its Node part (decision F50 point 1):
 // what the pure part's rules need of the host, with only `node:` built-ins.
-// Where the files are, the boot clock, the atomic owner-only replace, the one
-// reading of holder files and agent-browser's bindings for every reader (the
-// hub passes the memory of root decision 0191 point 32, a reader for display
-// passes none), and letting go of a session's window through its daemon's
-// socket. Licensed under MIT with the rest of the module (`LICENSE`, F50
-// point 6).
+// Where the files are, agent-browser's socket directory resolved as
+// agent-browser resolves it, the boot clock, the atomic owner-only replace,
+// the one reading of holder files and agent-browser's bindings for every
+// reader (the hub passes the memory of root decision 0191 point 32, a reader
+// for display passes none), the write of one strip's holder file for every
+// app, the reading of the list of live tabs, and letting go of a session's
+// window through its daemon's socket. Licensed under MIT with the rest of
+// the module (`LICENSE`, F50 point 6).
 //
 // Who keeps a remote tab of the Environment browser (decision F47 points 4
 // and 5), read by the view's hub, which alone ends a tab:
@@ -67,17 +75,54 @@ export function liveTabsPath(
     : undefined;
 }
 
-/** Where agent-browser keeps its sockets and a session's tab binding
- * (`AGENT_BROWSER_SOCKET_DIR`, else `$XDG_RUNTIME_DIR/agent-browser`). */
+/** A name as agent-browser makes it a component of a session's name
+ * (`sanitize_session_component` in its `cli/src/validation.rs`): letters and
+ * digits in lower case, one `-` for every run of anything else, a `-` or
+ * `_` kept where it follows a letter or digit, none at either end. */
+function sessionComponent(value: string): string {
+  let out = "";
+  let separated = false;
+  for (const character of value) {
+    if (/^[\p{Alphabetic}\p{N}]$/u.test(character)) {
+      out += character.toLowerCase();
+      separated = false;
+    } else if (out !== "" && !separated) {
+      out += character === "-" || character === "_" ? character : "-";
+      separated = true;
+    }
+  }
+  return out.replace(/[-_]+$/, "");
+}
+
+/** Where agent-browser keeps its sockets and a session's tab binding,
+ * resolved as agent-browser resolves it (`get_socket_dir` in its
+ * `cli/src/connection.rs`): `AGENT_BROWSER_SOCKET_DIR`, else
+ * `$XDG_RUNTIME_DIR/agent-browser`, else `$HOME/.agent-browser`, each only
+ * when set and not empty; with `AGENT_BROWSER_NAMESPACE`, its
+ * `namespaces/<namespace>/run`. Undefined where agent-browser would take a
+ * relative directory, which only its own working directory resolves, and
+ * without `HOME`, where it asks the user database. The Environment's agents
+ * set none of these variables but its `XDG_RUNTIME_DIR` (F50 point 2). */
 export function agentBrowserSocketDirectory(
   env: Readonly<Record<string, string | undefined>>,
 ): string | undefined {
-  const named = env.AGENT_BROWSER_SOCKET_DIR;
-  if (named !== undefined && isAbsolute(named)) return named;
-  const runtime = env.XDG_RUNTIME_DIR;
-  return runtime !== undefined && isAbsolute(runtime)
-    ? join(runtime, "agent-browser")
-    : undefined;
+  const set = (name: string) => {
+    const value = env[name];
+    return value === undefined || value === "" ? null : value;
+  };
+  const named = set("AGENT_BROWSER_SOCKET_DIR");
+  const runtime = set("XDG_RUNTIME_DIR");
+  const home = set("HOME");
+  const base =
+    named ??
+    (runtime !== null
+      ? join(runtime, "agent-browser")
+      : home !== null
+        ? join(home, ".agent-browser")
+        : null);
+  if (base === null || !isAbsolute(base)) return undefined;
+  const namespace = sessionComponent(set("AGENT_BROWSER_NAMESPACE") ?? "");
+  return namespace === "" ? base : join(base, "namespaces", namespace, "run");
 }
 
 // ---- The boot clock and the files' replacement ------------------------------
@@ -126,6 +171,114 @@ export async function writeLiveTabs(
   takenAt: BootTime,
 ): Promise<void> {
   await replaceOwnerFile(path, liveTabsText(tabs, takenAt));
+}
+
+/** A file's text the way the holder files are read: `read`, `readFile` by
+ * default, replaceable in tests. */
+type Read = (path: string) => Promise<string>;
+const readText: Read = (path) => readFile(path, "utf8");
+
+/** The hub's list of live tabs as an app reads it before it lets a hold go
+ * (`parseLiveTabs`): null where there is none, it cannot be read, or it is
+ * no list this module reads, which lets nothing go. */
+export async function readLiveTabs(
+  path: string | undefined,
+  read: Read = readText,
+): Promise<LiveTabs | null> {
+  if (path === undefined) return null;
+  const text = await read(path).catch(() => null);
+  return text === null ? null : parseLiveTabs(text);
+}
+
+/** One strip's holder file as its app writes it (F47 point 4). */
+export type HolderFile = Readonly<{
+  /** `holders/` (`holderDirectory`), where the file `<strip>.json` is. */
+  directory: string;
+  strip: string;
+  label: string;
+  /** The Platform release whose contract module writes the file
+   * (`contract`, F50 point 3). */
+  contract: string;
+  /** The most tabs the app holds in this strip, below what the hub reads of
+   * a file (`browserBounds.holderTabs`): a hold past it is refused, never
+   * one dropped to make room. */
+  bound: number;
+  /** The hub's list of live tabs (`liveTabsPath`), which the file is
+   * reconciled with before every write; undefined where there is none. */
+  list: string | undefined;
+}>;
+
+/** What a change of a holder file came to: written, or nothing to write
+ * (`kept`), with the tabs the file holds and their record times, in the
+ * order they were first recorded; or refused, nothing written: the file
+ * cannot be read or is no holder file of the strip (`unreadable`), or a
+ * hold would pass the strip's bound (`full`). */
+export type HolderFileChange =
+  | Readonly<{ kind: "written" | "kept"; tabs: readonly RecordedTab[] }>
+  | Readonly<{ kind: "refused"; reason: "unreadable" | "full" }>;
+
+/** The write of one strip's holder file (decision F50 point 1), one for
+ * every app. The file is read first: only one that does not exist holds
+ * nothing, and one that cannot be read, or is no holder file of this strip,
+ * is never written over, since that would drop the holds it keeps (F47
+ * point 5's rule for the hub, kept by its writers too). The holds are then
+ * reconciled with the hub's list (`keptTabs`, at the boot time `now`), the
+ * tabs of `release` let go, and those of `hold` recorded at `now`, a tab
+ * held already with its new time. A hold past the strip's bound is refused.
+ * The file is replaced atomically and owner-only only when its text
+ * changes, and removed when it holds nothing. `now` is the boot clock read
+ * by the caller (`readBootClock`); null off Linux, where nothing is let go
+ * by a list. Ids that are no target id are ignored. */
+export async function changeHolderFile(
+  file: HolderFile,
+  change: Readonly<{
+    hold?: readonly string[] | undefined;
+    release?: readonly string[] | undefined;
+  }>,
+  now: BootTime | null,
+  read: Read = readText,
+): Promise<HolderFileChange> {
+  const name = `${file.strip}.json`;
+  const path = join(file.directory, name);
+  let before: string | null;
+  try {
+    before = await read(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | null)?.code !== "ENOENT")
+      return { kind: "refused", reason: "unreadable" };
+    before = null;
+  }
+  const stored = before === null ? [] : parseHolderRecords(name, before)?.tabs;
+  if (stored === undefined) return { kind: "refused", reason: "unreadable" };
+  const list = await readLiveTabs(file.list, read);
+  const kept = new Set(keptTabs(stored, list, now?.boot ?? null));
+  const held = new Map<string, BootTime | null>();
+  for (const tab of stored)
+    if (kept.has(tab.id)) held.set(tab.id, tab.recordedAt);
+  for (const id of change.release ?? []) {
+    const tab = targetIdOf(id);
+    if (tab !== null) held.delete(tab);
+  }
+  for (const id of change.hold ?? []) {
+    const tab = targetIdOf(id);
+    if (tab === null) continue;
+    if (!held.has(tab) && held.size >= file.bound)
+      return { kind: "refused", reason: "full" };
+    held.set(tab, now);
+  }
+  const tabs: RecordedTab[] = [...held].map(([id, recordedAt]) => ({
+    id,
+    recordedAt,
+  }));
+  if (tabs.length === 0) {
+    if (before === null) return { kind: "kept", tabs };
+    await rm(path, { force: true });
+    return { kind: "written", tabs };
+  }
+  const text = holderFileText(file.strip, file.label, tabs, file.contract);
+  if (text === before) return { kind: "kept", tabs };
+  await replaceOwnerFile(path, text);
+  return { kind: "written", tabs };
 }
 
 // ---- The holds ----------------------------------------------------------------
