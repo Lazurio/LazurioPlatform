@@ -1,20 +1,18 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
+  changeHolderFile,
+  type HolderFile,
   holderDirectory,
   liveTabsPath,
-  replaceOwnerFile,
   watchHolds,
 } from "../../browser/contract/node";
 import {
   type BootTime,
-  holderFileText,
+  browserTimes,
   isStrip,
-  keptTabs,
   launchpadStrip,
   parseHolder,
-  parseHolderRecords,
-  parseLiveTabs,
   targetIdOf,
 } from "../../browser/contract/pure";
 import { embeddedIdentity } from "../../update/identity";
@@ -33,10 +31,12 @@ import { embeddedIdentity } from "../../update/identity";
 // changes (watched, and read again every 30 s) and before each write, and
 // drops only what `keptTabs` lets go: an id that a list of the current boot,
 // taken after its record, lacks. A list that is missing or unreadable keeps
-// everything. Times come from the boot clock only, never the wall clock.
+// everything. Times come from the boot clock only, never the wall clock. Each
+// write is the contract's write of one strip's holder file
+// (`changeHolderFile`, decision F50 point 1), which T3 Code's threads write
+// too; this keeps the Launchpad's beat, watch and one operation at a time.
 
 export const launchpadLabel = "Launchpad";
-const fileName = `${launchpadStrip}.json`;
 
 /** At most this many tabs, so the file stays well inside what the hub reads
  * of a holder file (64 KiB, `parseHolder`): a hold past it is refused, never
@@ -88,18 +88,24 @@ export type HolderSeams = Readonly<{
 }>;
 
 export function createLaunchpadHolder(seams: HolderSeams): LaunchpadHolder {
-  const path = join(seams.directory, fileName);
   const read = seams.readFile ?? ((file: string) => readFile(file, "utf8"));
-  // The file names the Platform release whose contract module writes it,
-  // this executable's (decision F50 point 3).
-  const contract = embeddedIdentity().version;
+  const file: HolderFile = {
+    directory: seams.directory,
+    strip: launchpadStrip,
+    label: launchpadLabel,
+    // The file names the Platform release whose contract module writes it,
+    // this executable's (decision F50 point 3).
+    contract: embeddedIdentity().version,
+    bound: maxLaunchpadHolds,
+    list: seams.listPath,
+  };
   const log = seams.log ?? (() => undefined);
-  const everyMs = seams.everyMs ?? 30_000;
-  const debounceMs = seams.debounceMs ?? 100;
-  /** What the file held at the last read: id → when the Launchpad recorded
-   * it, null for a tab without a time. Only `tabs()` answers from it; every
-   * operation that may write reads the file again first. */
-  const records = new Map<string, BootTime | null>();
+  const everyMs = seams.everyMs ?? browserTimes.holdsEveryMs;
+  const debounceMs = seams.debounceMs ?? browserTimes.changesJoinMs;
+  /** The tabs the file held at the last change, in the order they were
+   * first recorded. Only `tabs()` answers from it; every change reads the
+   * file again first (`changeHolderFile`). */
+  let held: readonly string[] = [];
   // One operation at a time, so a write never carries an older state than
   // the one before it.
   let queue: Promise<unknown> = Promise.resolve();
@@ -114,72 +120,42 @@ export function createLaunchpadHolder(seams: HolderSeams): LaunchpadHolder {
     return next;
   };
 
-  /** The file as it is now, read before every operation that may write it:
-   * only a file that does not exist holds nothing. One that cannot be read,
-   * or is not a holder file, throws, so the operation takes no hold and
-   * writes nothing over it, which would drop the holds it keeps, until a
-   * later read succeeds (F47 point 5's rule for the hub, kept by its writer
-   * too). A read from earlier never stands in for the file. */
-  async function current(): Promise<Map<string, BootTime | null>> {
-    let text: string;
-    try {
-      text = await read(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException | null)?.code === "ENOENT")
-        return new Map();
-      throw error;
+  /** One change of the file at the boot clock's time now: written, or
+   * nothing to write. A file that cannot be read takes no change and is
+   * never written over (`unreadable`); a hold past the bound is `full`. */
+  async function change(
+    what: Readonly<{ hold?: readonly string[]; release?: readonly string[] }>,
+  ): Promise<"done" | "unreadable" | "full"> {
+    const done = await changeHolderFile(
+      file,
+      what,
+      await seams.bootClock(),
+      read,
+    );
+    if (done.kind === "refused") return done.reason;
+    held = done.tabs.map((tab) => tab.id);
+    return "done";
+  }
+
+  /** A person's change: a file that cannot be read rejects it, journalled,
+   * and a hold past the bound is `HolderFull`. */
+  async function personal(
+    what: Readonly<{ hold?: readonly string[]; release?: readonly string[] }>,
+  ): Promise<void> {
+    const done = await change(what);
+    if (done === "full") throw new HolderFull();
+    if (done === "unreadable") {
+      log("holder-unreadable");
+      throw new Error("The holder file cannot be read");
     }
-    const file = parseHolderRecords(fileName, text);
-    if (file === null) throw new Error("unreadable holder file");
-    return new Map(file.tabs.map((tab) => [tab.id, tab.recordedAt]));
   }
-
-  /** The ids of `held` the hub's list lets go (`keptTabs`). */
-  async function letGo(
-    held: ReadonlyMap<string, BootTime | null>,
-  ): Promise<string[]> {
-    if (held.size === 0) return [];
-    const text = await read(seams.listPath).catch(() => null);
-    const list = text === null ? null : parseLiveTabs(text);
-    if (list === null) return [];
-    const boot = (await seams.bootClock())?.boot ?? null;
-    const kept = new Set(
-      keptTabs(
-        [...held].map(([id, recordedAt]) => ({ id, recordedAt })),
-        list,
-        boot,
-      ),
-    );
-    return [...held.keys()].filter((id) => !kept.has(id));
-  }
-
-  const write = (held: ReadonlyMap<string, BootTime | null>) =>
-    replaceOwnerFile(
-      path,
-      holderFileText(
-        launchpadStrip,
-        launchpadLabel,
-        [...held].map(([id, recordedAt]) => ({ id, recordedAt })),
-        contract,
-      ),
-    );
-
-  /** What the file holds now, as `tabs()` answers it, after each read. */
-  const remember = (held: ReadonlyMap<string, BootTime | null>) => {
-    records.clear();
-    for (const [id, recordedAt] of held) records.set(id, recordedAt);
-  };
 
   // Never fails: the beat, a change and the start only journal it. A file
   // that cannot be read is left as it is.
   const reconcile = (): Promise<void> =>
     serialized(async () => {
-      if (stopped) return;
-      const held = await current();
-      const gone = await letGo(held);
-      for (const id of gone) held.delete(id);
-      if (gone.length > 0) await write(held);
-      remember(held);
+      if (!stopped && (await change({})) !== "done")
+        throw new Error("The holder file cannot be read");
     }).catch(() => log("holder-reconcile-failed"));
 
   const changed = () => {
@@ -217,20 +193,7 @@ export function createLaunchpadHolder(seams: HolderSeams): LaunchpadHolder {
       if (tab === null) throw new Error("Invalid target id");
       await serialized(async () => {
         if (stopped) throw new Error("The Launchpad is closing");
-        let held: Map<string, BootTime | null>;
-        try {
-          held = await current();
-        } catch {
-          log("holder-unreadable");
-          throw new Error("The holder file cannot be read");
-        }
-        const at = await seams.bootClock();
-        for (const gone of await letGo(held)) held.delete(gone);
-        if (!held.has(tab) && held.size >= maxLaunchpadHolds)
-          throw new HolderFull();
-        held.set(tab, at);
-        await write(held);
-        remember(held);
+        await personal({ hold: [tab] });
       });
     },
     async release(id: string) {
@@ -238,21 +201,11 @@ export function createLaunchpadHolder(seams: HolderSeams): LaunchpadHolder {
       if (tab === null) throw new Error("Invalid target id");
       await serialized(async () => {
         if (stopped) throw new Error("The Launchpad is closing");
-        let held: Map<string, BootTime | null>;
-        try {
-          held = await current();
-        } catch {
-          log("holder-unreadable");
-          throw new Error("The holder file cannot be read");
-        }
-        const gone = await letGo(held);
-        for (const id of gone) held.delete(id);
-        if (held.delete(tab) || gone.length > 0) await write(held);
-        remember(held);
+        await personal({ release: [tab] });
       });
     },
     reconcile,
-    tabs: () => [...records.keys()],
+    tabs: () => held,
   });
 }
 

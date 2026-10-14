@@ -744,9 +744,19 @@ async function holderWorld(
     /** The hub's snapshot of the browser's live tabs. */
     list: (tabs: readonly string[], takenAt: BootTime) =>
       writeLiveTabs(listPath, tabs, takenAt),
-    stored: async () =>
-      parseHolderRecords("launchpad.json", await readFile(file, "utf8"))
-        ?.tabs ?? null,
+    // A file that holds nothing is removed (the contract's holder-file
+    // write, F50 point 1): no file holds nothing.
+    stored: async () => {
+      const text = await readFile(file, "utf8").catch(
+        (error: NodeJS.ErrnoException) => {
+          if (error.code === "ENOENT") return null;
+          throw error;
+        },
+      );
+      return text === null
+        ? []
+        : (parseHolderRecords("launchpad.json", text)?.tabs ?? null);
+    },
     listReads,
   };
 }
@@ -884,9 +894,12 @@ test("release takes hold's path: one operation at a time, the file read again fi
     await chmod(file, 0o600);
   }
   expect(await stored()).toEqual([id(2)]);
-  // Readable again: the release goes through.
+  // Readable again: the release goes through, and the file that holds
+  // nothing any more is removed (the contract's holder-file write, F50
+  // point 1).
   await holder.release(id(2));
-  expect(await stored()).toEqual([]);
+  expect(holder.tabs()).toEqual([]);
+  await expect(readFile(file, "utf8")).rejects.toThrow("ENOENT");
 });
 
 test("the Launchpad's holder file is owner-only, replaced atomically, and read back with its record times by the Launchpad alone", async () => {
@@ -1862,8 +1875,11 @@ test.skipIf(process.platform === "win32")(
     expect(hub.seen.filter((request) => request.method === "POST")).toEqual([]);
     const file = join(runtime, "lazurio-browser", "holders", "launchpad.json");
     const listPath = join(runtime, "lazurio-browser", "tabs.json");
-    const held = async () =>
-      parseHolder("launchpad.json", await readFile(file, "utf8"))?.tabs;
+    // A file that holds nothing is removed (F50 point 1): no file, no hold.
+    const held = async () => {
+      const text = await readFile(file, "utf8").catch(() => null);
+      return text === null ? [] : parseHolder("launchpad.json", text)?.tabs;
+    };
     const opened = await open(sameOrigin);
     expect(opened.status).toBe(201);
     const first = ((await opened.json()) as { tab: string }).tab;
