@@ -342,6 +342,9 @@ export type VaultwardenFailure =
   | "no-account"
   /** "User already in organization": the address is a member already. */
   | "already-member"
+  /** "SSO sign-in is required": the vault refuses every password path of
+   * this address (`SSO_ONLY`, the address not exempt). */
+  | "sso-required"
   /** A KDF other than PBKDF2-SHA256. */
   | "unsupported-kdf"
   /** No answer, a timeout, a 5xx or a non-https address. */
@@ -436,6 +439,8 @@ export async function vaultRequest(
       throw new VaultwardenError("no-account", response.status);
     if (/^user already in organization\b/i.test(message))
       throw new VaultwardenError("already-member", response.status);
+    if (/^sso sign-in is required\b/i.test(message))
+      throw new VaultwardenError("sso-required", response.status);
     if (
       path === "/identity/connect/token" ||
       /username or password is incorrect|invalid_grant/i.test(message)

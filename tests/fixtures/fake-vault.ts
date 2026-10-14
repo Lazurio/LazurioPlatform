@@ -303,7 +303,20 @@ export async function startFakeVault(home: string) {
      * account creates a stub for it (Vaultwarden's default) instead of
      * "User does not exist". */
     invitationsAllowed: false,
+    /** `SSO_ONLY` (with SSO on): every password path of a person's address
+     * is refused, its registration and a password grant naming it ("SSO
+     * sign-in is required", before anything else); the technical accounts
+     * are exempt, as the network's exemption pattern makes them. */
+    ssoOnly: true,
+    /** The next invitation fails: `before` it is made, or `after` it is
+     * made with its answer lost (HTTP 503 either way). */
+    inviteFails: null as "before" | "after" | null,
   };
+  /** Whether SSO_ONLY refuses every password path of this address. */
+  const ssoRequired = (email: string) =>
+    flags.sso &&
+    flags.ssoOnly &&
+    email.endsWith("@vaultwarden-identity.lazurio.ai");
   /** People's accounts, by address. */
   const people = new Map<string, FakePerson>();
   /** The addresses with a pending invitation row (Vaultwarden's
@@ -460,6 +473,8 @@ export async function startFakeVault(home: string) {
         url.pathname === "/identity/accounts/register/send-verification-email"
       ) {
         const email = String(value.email);
+        if (ssoRequired(email))
+          return refusal("Registration not allowed or user already exists");
         if (!invited.has(email) || users.has(email))
           return refusal("Registration not allowed or user already exists");
         if (flags.smtp) return new Response(null, { status: 204 });
@@ -525,6 +540,15 @@ export async function startFakeVault(home: string) {
           kdfParallelism: null,
         });
       if (url.pathname === "/identity/connect/token") {
+        // Vaultwarden's order: SSO_ONLY first, then the password grant's
+        // fields, before any account is looked up.
+        if (
+          value.grant_type === "password" &&
+          ssoRequired(String(value.username))
+        )
+          return refusal("SSO sign-in is required");
+        if (value.grant_type === "password" && value.client_id === undefined)
+          return refusal("client_id cannot be blank");
         for (const field of ["deviceIdentifier", "deviceName", "deviceType"])
           if (typeof value[field] !== "string" || value[field] === "")
             return refusal(`${field} cannot be blank`);
@@ -664,6 +688,10 @@ export async function startFakeVault(home: string) {
               return refusal(
                 "Only Owners can invite Managers, Admins or Owners",
               );
+            if (flags.inviteFails === "before") {
+              flags.inviteFails = null;
+              return new Response("unavailable", { status: 503 });
+            }
             for (const entry of value.emails as unknown[]) {
               const email = String(entry);
               let person =
@@ -686,6 +714,10 @@ export async function startFakeVault(home: string) {
               });
             }
             await writeMembers(id, members);
+            if (flags.inviteFails === "after") {
+              flags.inviteFails = null;
+              return new Response("unavailable", { status: 503 });
+            }
             return new Response(null, { status: 200 });
           }
           if (request.method === "DELETE") {
@@ -905,10 +937,12 @@ export async function startFakeVault(home: string) {
       return id;
     },
     /** Whether Vaultwarden would let anyone register this address with a
-     * master password now (SSO_ONLY off): an invitation row is there and the
-     * account has no master password. */
+     * master password now: SSO_ONLY does not cover it, an invitation row is
+     * there and the account has no master password. */
     registerable: (email: string) =>
-      invitations.has(email) && people.get(email)?.password !== true,
+      !ssoRequired(email) &&
+      invitations.has(email) &&
+      people.get(email)?.password !== true,
     /** `bw confirm org-member` fails from now on. */
     confirmFails: (on: boolean) =>
       on
