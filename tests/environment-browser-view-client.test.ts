@@ -1,8 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { isTargetId } from "../src/browser/contract/pure";
+import {
+  type AddressTarget,
+  addressBarTarget,
+  browserLanguage,
+  isTargetId,
+} from "../src/browser/contract/pure";
 import {
   aloneAddress,
   menuStep,
+  ownTabView,
   pictureKey,
   pictureOf,
 } from "../src/browser/people/bar";
@@ -24,7 +30,6 @@ import {
   wheelDelta,
 } from "../src/browser/people/input-map";
 import {
-  addressOf,
   type ClientMessage,
   decodeFrame,
   encodeFrame,
@@ -33,7 +38,7 @@ import {
   parseClientMessage,
 } from "../src/browser/people/protocol";
 import { viewStatus } from "../src/browser/people/status";
-import { cs, en, viewLanguage, words } from "../src/browser/people/words";
+import { cs, en, words } from "../src/browser/people/words";
 
 // The people's view of the Environment browser (decision F39): what the view
 // page sends for the person's pointer, keys and clipboard (point 6), and the
@@ -221,11 +226,27 @@ describe("the bar (F39's addendum of 2026-10-13)", () => {
     expect(aloneAddress(true, origin, null)).toBeNull();
   });
 
+  // F50 point 2 (C8): the app takes a message only about a tab its view
+  // names in the contract's strict form. The view sent its own address,
+  // with whatever query, slash or lower-case id its page was opened by.
+  test("the view names its own tab to the app by the contract's view address, whatever its page's address says", () => {
+    const origin = "https://browser.vm-01.example.lazurio.io";
+    const tab = "0123456789ABCDEF0123456789ABCDEF";
+    expect(ownTabView(origin, tab, `/t/${tab.toLowerCase()}`)).toBe(
+      `${origin}/t/${tab}`,
+    );
+    expect(ownTabView(origin, null, `/t/${tab.toLowerCase()}`)).toBe(
+      `${origin}/t/${tab}`,
+    );
+    expect(ownTabView(origin, null, "/")).toBeNull();
+    expect(ownTabView(origin, null, "/t/not-a-tab")).toBeNull();
+  });
+
   test("the bar's words are there in both languages", () => {
-    expect(viewLanguage("cs-CZ")).toBe("cs");
-    expect(viewLanguage("CS")).toBe("cs");
-    expect(viewLanguage("en-US")).toBe("en");
-    expect(viewLanguage("de-DE")).toBe("en");
+    expect(browserLanguage("cs-CZ")).toBe("cs");
+    expect(browserLanguage("CS")).toBe("cs");
+    expect(browserLanguage("en-US")).toBe("en");
+    expect(browserLanguage("de-DE")).toBe("en");
     expect(words).toEqual({ cs, en });
     expect(Object.keys(cs).sort()).toEqual(Object.keys(en).sort());
     for (const said of [cs, en])
@@ -909,21 +930,37 @@ describe("the protocol", () => {
       expect(isTargetId(value)).toBe(false);
   });
 
+  // The view's bar reads text as Nová karta's does, as Chrome's address bar
+  // (F50 point 2; the cases are the contract's vectors, address-bar.json).
   test("the address bar's text becomes an address or a search", () => {
-    expect(addressOf("example.com")).toBe("https://example.com/");
-    expect(addressOf(" localhost:3000 ")).toBe("http://localhost:3000/");
-    expect(addressOf("http://x.y/z")).toBe("http://x.y/z");
-    expect(addressOf("about:blank")).toBe("about:blank");
-    expect(addressOf("hello world")).toBe(
-      "https://www.google.com/search?q=hello%20world",
+    const view = "https://browser.vm-01.example.lazurio.io";
+    const page = (url: string): AddressTarget => ({ kind: "page", url });
+    expect(addressBarTarget("example.com", view)).toEqual(
+      page("https://example.com/"),
     );
-    // Never a script or a file of the Environment: a search for the text.
-    expect(addressOf("javascript:alert(1)")).toBe(
-      `https://www.google.com/search?q=${encodeURIComponent("javascript:alert(1)")}`,
+    expect(addressBarTarget(" localhost:3000 ", view)).toEqual(
+      page("http://localhost:3000/"),
     );
-    expect(addressOf("file:///etc/passwd")).toBe(
-      `https://www.google.com/search?q=${encodeURIComponent("file:///etc/passwd")}`,
+    expect(addressBarTarget("http://x.y/z", view)).toEqual(
+      page("http://x.y/z"),
     );
+    expect(addressBarTarget("about:blank", view)).toEqual(page("about:blank"));
+    expect(addressBarTarget("hello world", view)).toEqual(
+      page("https://www.google.com/search?q=hello%20world"),
+    );
+    // Never a script or a file of the Environment: another scheme is
+    // refused.
+    for (const typed of ["javascript:alert(1)", "file:///etc/passwd"])
+      expect(addressBarTarget(typed, view)).toEqual({
+        kind: "refused",
+        reason: "scheme",
+      });
+    // Nothing on a view host loads inside the Environment browser.
+    expect(addressBarTarget(`${view}/settings`, view)).toEqual({
+      kind: "refused",
+      reason: "view",
+    });
+    expect(addressBarTarget(view, view)).toEqual({ kind: "new-tab" });
   });
 });
 
