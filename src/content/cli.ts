@@ -61,12 +61,24 @@ personalspace install [--folder <absolute Folder>] [--json]
   Installs the person's Personalspace into personalspace/<login>_GEN3: when
   <login>/<login>_GEN3 exists on GitHub (private, the person's own), it is
   cloned; otherwise it is created from Lazurio/PersonalspaceTemplate_GEN3 as
-  a private repository of the person's account and then cloned. When a
-  repository of the person was already created from that template under
-  another name, nothing is created (personalspace-elsewhere). Only on a
-  workstation (local) and a personal Remote Environment (hosted-personal,
-  only for its owner's GitHub account). An existing Personalspace is left as
-  it is.
+  a private repository of the person's account, cloned, set up by the
+  template's own bootstrap (bun run bootstrap -- --login <login>
+  --display-name <GitHub profile name, else login> --apply: it names the
+  owner and creates and clones the private <login>/<login>-gbrain; the gbrain
+  CLI is not installed), and what the bootstrap wrote is committed and pushed
+  to main of both new repositories, by the operator's Git identity, else by
+  the person's GitHub identity (profile name or login, GitHub's noreply
+  address) given per commit and never configured. Bun and an identity are
+  checked before anything is created (personalspace-toolchain-missing,
+  git-identity-missing). A failed bootstrap leaves the created repository
+  cloned and unpushed, with the next step in the failure. When a repository
+  of the person was already created from that template under another name,
+  nothing is created (personalspace-elsewhere). Only on a workstation (local)
+  and a personal Remote Environment (hosted-personal, only for its owner's
+  GitHub account). An existing Personalspace is left as it is and never
+  bootstrapped: one that still holds the template's placeholders is reported
+  (warning personalspace-placeholders) with the next step, the bootstrap in a
+  task worktree and a pull request.
 Neither runs on a Team Environment, whose content the hosting
 prepares (prepared-by-hosting). One content operation runs at a time per
 Folder (content-busy). The Folder is found as for organization list.
@@ -246,7 +258,9 @@ export async function runContentCommand(
     print(
       result,
       result.state === "succeeded"
-        ? `${shown(itemLabel(item))}: installed.`
+        ? (result.items[0]?.warnings ?? []).length === 0
+          ? `${shown(itemLabel(item))}: installed.`
+          : `${shown(itemLabel(item))}: installed, with ${(result.items[0]?.warnings ?? []).join(", ")}; see the bootstrap step above for the next step.`
         : `${shown(itemLabel(item))}: failed at ${result.failure?.key ?? "?"} (${result.failure?.code ?? "operation-failed"}).`,
     );
     return result.state === "succeeded" ? 0 : 1;

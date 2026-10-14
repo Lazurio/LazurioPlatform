@@ -937,6 +937,8 @@ const en = {
   contentStepFind: "Looking for your personal space",
   contentStepCreate: "Creating",
   contentStepClone: "Downloading",
+  contentStepBootstrap: "Setting up",
+  contentStepPush: "Saving to GitHub",
   contentStepOther: "Preparing",
   contentFailedAccess: "Access to the Organization could not be verified.",
   contentFailedRoot: "The Organization could not be downloaded.",
@@ -946,6 +948,9 @@ const en = {
   contentFailedFind: "Your personal space could not be found.",
   contentFailedCreate: "Your personal space could not be created.",
   contentFailedClone: "Your personal space could not be downloaded.",
+  contentFailedBootstrap: "Your personal space could not be set up.",
+  contentFailedPush:
+    "The setup of your personal space could not be saved to GitHub.",
   contentFailedOther: "The preparation did not finish.",
   contentResolveOpened:
     "Chat opens in a new tab with the brief in the composer, not sent.",
@@ -2358,6 +2363,8 @@ const cs: Record<MessageKey, string> = {
   contentStepFind: "Hledám tvůj osobní prostor",
   contentStepCreate: "Zakládám",
   contentStepClone: "Stahuji",
+  contentStepBootstrap: "Nastavuji",
+  contentStepPush: "Ukládám na GitHub",
   contentStepOther: "Připravuji",
   contentFailedAccess: "Přístup k Organizaci se nepodařilo ověřit.",
   contentFailedRoot: "Organizaci se nepodařilo stáhnout.",
@@ -2367,6 +2374,9 @@ const cs: Record<MessageKey, string> = {
   contentFailedFind: "Osobní prostor se nepodařilo najít.",
   contentFailedCreate: "Osobní prostor se nepodařilo založit.",
   contentFailedClone: "Osobní prostor se nepodařilo stáhnout.",
+  contentFailedBootstrap: "Osobní prostor se nepodařilo nastavit.",
+  contentFailedPush:
+    "Nastavení osobního prostoru se nepodařilo uložit na GitHub.",
   contentFailedOther: "Příprava se nedokončila.",
   contentResolveOpened:
     "Chat se otevírá v nové záložce se zadáním v poli zprávy, neodeslaným.",

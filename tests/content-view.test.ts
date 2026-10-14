@@ -125,6 +125,8 @@ test("the Personalspace: “Zakládám” only where it is created", () => {
     "Hledám tvůj osobní prostor",
     "Zakládám",
     "Stahuji",
+    "Nastavuji",
+    "Ukládám na GitHub",
     "Kontroluji",
   ]);
   // The job decides: a skipped step is left out, a created one shown.
@@ -158,8 +160,25 @@ test("the Personalspace: “Zakládám” only where it is created", () => {
     "Hledám tvůj osobní prostor",
     "Zakládám",
     "Stahuji",
+    "Nastavuji",
+    "Ukládám na GitHub",
     "Kontroluji",
   ]);
+  // An existing one is never set up here: its skipped bootstrap stays out.
+  expect(
+    labels(
+      job({
+        id: "j",
+        state: "succeeded",
+        steps: [
+          { item: ps, key: "find", state: "done" },
+          { item: ps, key: "clone", state: "done" },
+          { item: ps, key: "bootstrap", state: "skipped" },
+          { item: ps, key: "check", state: "done" },
+        ],
+      }),
+    ),
+  ).toEqual(["Hledám tvůj osobní prostor", "Stahuji", "Kontroluji"]);
   // A key this page does not know follows in plain words.
   expect(
     labels(

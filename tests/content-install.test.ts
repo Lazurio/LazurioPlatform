@@ -26,6 +26,7 @@ import {
   stubGitHub,
   type World,
   writeOrganizationRoot,
+  writeTemplate,
 } from "./fixtures/content-world";
 import { bindings } from "./fixtures/machine-bindings";
 import {
@@ -854,7 +855,13 @@ posixTest(
       (step) => steps.push(step),
       host,
     );
-    expect(summary(steps)).toEqual(["find:done", "clone:done", "check:done"]);
+    // Not the template's files: nothing to set up, and nothing is run.
+    expect(summary(steps)).toEqual([
+      "find:done",
+      "clone:done",
+      "bootstrap:skipped",
+      "check:done",
+    ]);
     expect(calls.some((call) => call.kind === "generate")).toBe(false);
     expect(calls.some((call) => call.kind === "templateDerived")).toBe(false);
     expect(result.kind === "content-install" && result.items[0]).toEqual({
@@ -880,6 +887,7 @@ posixTest(
     expect(summary(again)).toEqual([
       "find:done",
       "clone:skipped",
+      "bootstrap:skipped",
       "check:done",
     ]);
     // Verified as the account's own and private: present.
@@ -1006,12 +1014,39 @@ posixTest(
   60_000,
 );
 
+/** A file of `main` of the bare remote `fullName`, or null. */
+async function remoteFile(fullName: string, path: string) {
+  const shown = await runChild(
+    [
+      "git",
+      "--git-dir",
+      join((world as World).remotes, `${fullName}.git`),
+      "show",
+      `main:${path}`,
+    ],
+    { env: { PATH: Bun.env.PATH ?? "/usr/bin:/bin" } },
+  );
+  return shown.exitCode === 0 ? shown.stdout : null;
+}
+
+const gitIn = async (directory: string, ...args: string[]) =>
+  (
+    await runChild(["git", "-C", directory, ...args], {
+      env: { PATH: Bun.env.PATH ?? "/usr/bin:/bin" },
+    })
+  ).stdout.trim();
+
 posixTest(
-  "a missing Personalspace is created private from the template, then cloned",
+  "a missing Personalspace is created from the template, cloned, named by the template's own bootstrap with its gbrain, and pushed",
   async () => {
     world = await createWorld();
     const folder = await presetFolder(world, "local");
-    const { github, calls } = stubGitHub(world);
+    const { github, calls } = stubGitHub(world, {
+      viewer: {
+        kind: "signed-in",
+        viewer: { login: "example", databaseId: 12345, name: "Ex Ample" },
+      },
+    });
     const steps: ContentStep[] = [];
     const result = await installContent(
       folder,
@@ -1023,27 +1058,281 @@ posixTest(
       "find:done",
       "create:done",
       "clone:done",
+      "bootstrap:done",
+      "push:done",
       "check:done",
     ]);
-    expect(result.kind === "content-install" && result.state).toBe("succeeded");
+    expect(result.kind === "content-install" && result.items[0]).toEqual({
+      item: { kind: "personalspace" },
+      state: "succeeded",
+      repository: "example/example_GEN3",
+      directory: "personalspace/example_GEN3",
+    });
     expect(calls.find((call) => call.kind === "generate")?.args).toEqual([
       "Lazurio/PersonalspaceTemplate_GEN3",
       "example",
       "example_GEN3",
       "Privátní Personalspace GEN3.",
     ]);
+    // The owner, named by the template with the profile's name, is in the
+    // new repository's main; nothing of it is left uncommitted.
+    const space = join(folder, "personalspace", "example_GEN3");
+    const personal = JSON.parse(
+      (await remoteFile("example/example_GEN3", "personal.gen3.json")) ?? "{}",
+    );
+    expect(personal.owner).toEqual({
+      github_username: "example",
+      display_name: "Ex Ample",
+      type: "human",
+    });
     expect(
-      await exists(
-        join(
-          folder,
-          "personalspace",
-          "example_GEN3",
-          "personalspace.template.json",
-        ),
-      ),
+      JSON.parse(
+        (await remoteFile("example/example_GEN3", "modules.manifest.json")) ??
+          "{}",
+      ).owner,
+    ).toBe("example");
+    expect(await gitIn(space, "status", "--porcelain")).toBe("");
+    expect(await gitIn(space, "log", "-1", "--format=%s")).toBe(
+      "Nastav Personalspace GEN3",
+    );
+    // Its gbrain: created private, cloned into gbrain/, its .gitignore pushed.
+    expect(await gitIn(join(space, "gbrain"), "status", "--porcelain")).toBe(
+      "",
+    );
+    expect(await remoteFile("example/example-gbrain", ".gitignore")).toContain(
+      ".gbrain/",
+    );
+    const bootstrap = steps.find(
+      (step) => step.key === "bootstrap" && step.state === "done",
+    );
+    expect(bootstrap?.detail).toContain("example/example-gbrain");
+  },
+  60_000,
+);
+
+posixTest(
+  "a failed bootstrap leaves the created Personalspace as it is, unpushed, with the next step",
+  async () => {
+    world = await createWorld();
+    const folder = await presetFolder(world, "local");
+    const { github } = stubGitHub(world, { template: "failing-bootstrap" });
+    const steps: ContentStep[] = [];
+    const result = await installContent(
+      folder,
+      { items: [{ kind: "personalspace" }] },
+      (step) => steps.push(step),
+      contentHost(world, github),
+    );
+    expect(summary(steps)).toEqual([
+      "find:done",
+      "create:done",
+      "clone:done",
+      "bootstrap:failed:personalspace-bootstrap-failed",
+    ]);
+    expect(result.kind === "content-install" && result.state).toBe("failed");
+    const detail =
+      result.kind === "content-install" ? (result.failure?.detail ?? "") : "";
+    // The template's own reason, the truth about what exists, the next step.
+    expect(detail).toContain("Doctor nepozoroval");
+    expect(detail).toContain("nothing was committed or pushed");
+    expect(detail).toContain(
+      'bun run bootstrap -- --login example --display-name "example" --apply',
+    );
+    // Nothing reached GitHub's main, and nothing was removed.
+    expect(
+      JSON.parse(
+        (await remoteFile("example/example_GEN3", "modules.manifest.json")) ??
+          "{}",
+      ).owner,
+    ).toBe("owner-github-username");
+    expect(await remoteFile("example/example-gbrain", ".gitignore")).toBeNull();
+    expect(
+      await exists(join(folder, "personalspace", "example_GEN3", "gbrain")),
     ).toBe(true);
   },
-  30_000,
+  60_000,
+);
+
+posixTest(
+  "nothing is created without Bun to run the template's bootstrap with",
+  async () => {
+    world = await createWorld();
+    const folder = await presetFolder(world, "local");
+    const { github, calls } = stubGitHub(world);
+    const steps: ContentStep[] = [];
+    await installContent(
+      folder,
+      { items: [{ kind: "personalspace" }] },
+      (step) => steps.push(step),
+      contentHost(world, github, undefined, { bun: null }),
+    );
+    expect(summary(steps)).toEqual([
+      "find:done",
+      "create:failed:personalspace-toolchain-missing",
+    ]);
+    expect(calls.some((call) => call.kind === "generate")).toBe(false);
+    expect(await readdir(join(folder, "personalspace"))).toEqual([]);
+  },
+  60_000,
+);
+
+posixTest(
+  "the commits are the operator's Git identity, else the person's GitHub identity given per commit, never configured",
+  async () => {
+    world = await createWorld();
+    const author = (repository: string) =>
+      runChild(
+        [
+          "git",
+          "--git-dir",
+          join((world as World).remotes, `${repository}.git`),
+          "log",
+          "-1",
+          "--format=%an <%ae>|%cn <%ce>",
+          "main",
+        ],
+        { env: { PATH: Bun.env.PATH ?? "/usr/bin:/bin" } },
+      ).then((child) => child.stdout.trim());
+    // An identity set (the world's Fixture): it is used.
+    const own = await presetFolder(world, "local");
+    await installContent(
+      own,
+      { items: [{ kind: "personalspace" }] },
+      () => {},
+      contentHost(world, stubGitHub(world).github),
+    );
+    expect(await author("example/example_GEN3")).toBe(
+      "Fixture <fixture@example.invalid>|Fixture <fixture@example.invalid>",
+    );
+    await world.close();
+    // None set, as on a fresh Remote Environment: GitHub's identity, author
+    // and committer of both commits, and no Git configuration written.
+    world = await createWorld();
+    const fresh = await presetFolder(world, "local");
+    const steps: ContentStep[] = [];
+    const result = await installContent(
+      fresh,
+      { items: [{ kind: "personalspace" }] },
+      (step) => steps.push(step),
+      contentHost(
+        world,
+        stubGitHub(world, {
+          viewer: {
+            kind: "signed-in",
+            viewer: { login: "example", databaseId: 12345, name: "Ex Ample" },
+          },
+        }).github,
+        undefined,
+        { identity: false },
+      ),
+    );
+    expect(result.kind === "content-install" && result.state).toBe("succeeded");
+    const noreply =
+      "Ex Ample <12345+example@users.noreply.github.com>|Ex Ample <12345+example@users.noreply.github.com>";
+    expect(await author("example/example_GEN3")).toBe(noreply);
+    expect(await author("example/example-gbrain")).toBe(noreply);
+    expect(await readdir(world.home)).not.toContain(".gitconfig");
+    const space = join(fresh, "personalspace", "example_GEN3");
+    for (const checkout of [space, join(space, "gbrain")])
+      expect(
+        (
+          await runChild(
+            ["git", "-C", checkout, "config", "--local", "--get", "user.email"],
+            { env: { PATH: Bun.env.PATH ?? "/usr/bin:/bin" } },
+          )
+        ).stdout,
+      ).toBe("");
+  },
+  60_000,
+);
+
+posixTest(
+  "a created repository without the template's marker is never bootstrapped",
+  async () => {
+    world = await createWorld();
+    const folder = await presetFolder(world, "local");
+    const { github } = stubGitHub(world, { template: "unmarked" });
+    const steps: ContentStep[] = [];
+    await installContent(
+      folder,
+      { items: [{ kind: "personalspace" }] },
+      (step) => steps.push(step),
+      contentHost(world, github),
+    );
+    expect(summary(steps)).toEqual([
+      "find:done",
+      "create:done",
+      "clone:done",
+      "bootstrap:failed:personalspace-template-unexpected",
+    ]);
+    expect(
+      await exists(join(folder, "personalspace", "example_GEN3", "gbrain")),
+    ).toBe(false);
+  },
+  60_000,
+);
+
+posixTest(
+  "an existing Personalspace that still holds the template's placeholders is reported with the next step, never rewritten",
+  async () => {
+    world = await createWorld();
+    await remoteRepository(world, "example/example_GEN3", (directory) =>
+      writeTemplate(directory, "template"),
+    );
+    const folder = await presetFolder(world, "local");
+    const { github } = stubGitHub(world, {
+      repositories: {
+        "example/example_GEN3": {
+          owner: { login: "example", databaseId: 12345, kind: "User" },
+        },
+      },
+    });
+    const host = contentHost(world, github);
+    const space = join(folder, "personalspace", "example_GEN3");
+    for (const clone of ["clone:done", "clone:skipped"]) {
+      const steps: ContentStep[] = [];
+      const result = await installContent(
+        folder,
+        { items: [{ kind: "personalspace" }] },
+        (step) => steps.push(step),
+        host,
+      );
+      expect(summary(steps)).toEqual([
+        "find:done",
+        clone,
+        "bootstrap:skipped",
+        "check:done",
+      ]);
+      expect(result.kind === "content-install" && result.items[0]).toEqual({
+        item: { kind: "personalspace" },
+        state: "succeeded",
+        repository: "example/example_GEN3",
+        directory: "personalspace/example_GEN3",
+        warnings: ["personalspace-placeholders"],
+      });
+      const detail =
+        steps.find((step) => step.key === "bootstrap")?.detail ?? "";
+      expect(detail).toContain("owner-github-username");
+      expect(detail).toContain("task worktree");
+      expect(detail).toContain(
+        'bun run bootstrap -- --login example --display-name "example" --apply',
+      );
+      expect(detail).toContain("pull request into example/example_GEN3");
+    }
+    // The template's bootstrap never ran: no gbrain, nothing changed.
+    expect(await exists(join(space, "gbrain"))).toBe(false);
+    expect(
+      await exists(join(world.remotes, "example", "example-gbrain.git")),
+    ).toBe(false);
+    expect(await gitIn(space, "status", "--porcelain")).toBe("");
+    expect(
+      JSON.parse(
+        (await remoteFile("example/example_GEN3", "modules.manifest.json")) ??
+          "{}",
+      ).owner,
+    ).toBe("owner-github-username");
+  },
+  60_000,
 );
 
 posixTest(

@@ -900,13 +900,72 @@ describe("the real run", () => {
   );
 
   posixTest(
-    "without a Git identity nothing is committed, created or placed",
+    "the first commit is the operator's Git identity, else the person's GitHub one given per commit, never configured",
+    async () => {
+      const current = world as World;
+      const authorOf = async (name: string) => {
+        const bare = join(current.remotes, "example", `${name}.git`);
+        return (
+          await gitOutput(
+            bare,
+            "--git-dir",
+            bare,
+            "log",
+            "--format=%an <%ae>|%cn <%ce>",
+            "main",
+          )
+        ).out;
+      };
+      // An identity set: it is used.
+      const own = await scenario({ worktree: true });
+      const mine = await created(
+        own,
+        { selector: "personalspace/sketch", stack: "none" },
+        runHost(own),
+      );
+      expect(mine.report.status).toBe("completed");
+      expect(await authorOf("sketch")).toBe(
+        "Fixture <fixture@example.invalid>|Fixture <fixture@example.invalid>",
+      );
+      // None set (git refuses to guess): GitHub's identity, author and
+      // committer, and no Git configuration is written.
+      const bare = await scenario({ worktree: true });
+      const theirs = await created(
+        bare,
+        { selector: "personalspace/doodle", stack: "none" },
+        runHost(bare, { git: operatorGit(false) }),
+      );
+      expect(theirs.report.status).toBe("completed");
+      expect(await authorOf("doodle")).toBe(
+        "example <12345+example@users.noreply.github.com>|example <12345+example@users.noreply.github.com>",
+      );
+      expect(await readdir(current.home)).not.toContain(".gitconfig");
+      expect(
+        await gitOutput(
+          join(bare.space, "workspace", "doodle"),
+          "config",
+          "--local",
+          "--get",
+          "user.email",
+        ),
+      ).toMatchObject({ out: "" });
+    },
+  );
+
+  posixTest(
+    "without a Git identity and without GitHub's, nothing is committed, created or placed",
     async () => {
       const setup = await scenario({ worktree: true });
       const { report, steps } = await created(
         setup,
         { selector: "personalspace/sketch", stack: "none" },
-        runHost(setup, { git: operatorGit(false) }),
+        runHost(setup, {
+          git: operatorGit(false),
+          github: {
+            ...setup.github,
+            viewer: async () => ({ kind: "unavailable" }),
+          },
+        }),
       );
       expect(report).toMatchObject({
         status: "blocked",

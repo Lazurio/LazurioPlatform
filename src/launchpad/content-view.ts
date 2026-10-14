@@ -27,8 +27,18 @@ export const contentStepKeys = Object.freeze({
     "preparation",
     "check",
   ]),
-  personalspace: Object.freeze(["find", "create", "clone", "check"]),
+  personalspace: Object.freeze([
+    "find",
+    "create",
+    "clone",
+    "bootstrap",
+    "push",
+    "check",
+  ]),
 });
+
+/** The Personalspace's steps that run only where it is created. */
+const creationSteps: readonly string[] = ["create", "bootstrap", "push"];
 
 const stepLabels: Readonly<
   Record<ContentItem["kind"], Readonly<Record<string, MessageKey>>>
@@ -44,6 +54,8 @@ const stepLabels: Readonly<
     find: "contentStepFind",
     create: "contentStepCreate",
     clone: "contentStepClone",
+    bootstrap: "contentStepBootstrap",
+    push: "contentStepPush",
     check: "contentStepCheck",
   },
 };
@@ -62,6 +74,8 @@ const failureSentences: Readonly<
     find: "contentFailedFind",
     create: "contentFailedCreate",
     clone: "contentFailedClone",
+    bootstrap: "contentFailedBootstrap",
+    push: "contentFailedPush",
     check: "contentFailedCheck",
   },
 };
@@ -114,9 +128,10 @@ export type StepView = Readonly<{ key: string; label: string; mark: StepMark }>;
 /** The steps of one item while it is prepared or after it stopped: the
  * known sequence of its kind with each step's state from the job, steps the
  * job skipped left out, the ones not reached yet "next". The
- * Personalspace's "Zakládám" shows only where it runs: when GitHub has none
- * yet, or when the job does create it. Keys the job names that this page
- * does not know follow in the job's order. */
+ * Personalspace's "Zakládám", "Nastavuji" and "Ukládám na GitHub" show only
+ * where they run: when GitHub has none yet, or when the job does create it.
+ * Keys the job names that this page does not know follow in the job's
+ * order. */
 export function contentSteps(
   item: ContentItem,
   job: ContentJob | null,
@@ -129,7 +144,10 @@ export function contentSteps(
   const known: readonly string[] = contentStepKeys[item.kind];
   const keys = [
     ...known.filter((key) => {
-      if (item.kind !== "personalspace" || key !== "create") return true;
+      if (item.kind !== "personalspace" || !creationSteps.includes(key))
+        return true;
+      const reported = state(key);
+      if (reported !== undefined) return reported !== "skipped";
       const create = state("create");
       return create === undefined
         ? item.onGitHub === "missing"

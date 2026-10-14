@@ -63,6 +63,14 @@ test("the GitHub answers are read strictly", () => {
       databaseId: 12345,
     },
   );
+  // The profile's name, when set, names the owner of a new Personalspace.
+  expect(
+    parseViewer('{"login":"example","id":12345,"name":"  Ex\\u0007 Ample "}'),
+  ).toEqual({ login: "example", databaseId: 12345, name: "Ex Ample" });
+  for (const name of ["null", '""', '"   "', "42"])
+    expect(
+      parseViewer(`{"login":"example","id":12345,"name":${name}}`),
+    ).toEqual({ login: "example", databaseId: 12345 });
   for (const bad of ['{"login":"-x","id":1}', '{"login":"x","id":"1"}', "nope"])
     expect(parseViewer(bad)).toBeNull();
   const repository = {

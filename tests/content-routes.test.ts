@@ -212,6 +212,14 @@ posixTest(
           state: "done",
           detail: "cloned into personalspace/example_GEN3",
         },
+        // An existing repository, not the template's files: never set up.
+        {
+          item: { kind: "personalspace" },
+          key: "bootstrap",
+          state: "skipped",
+          detail:
+            "personalspace/example_GEN3 has no readable personal.gen3.json and modules.manifest.json of the template; nothing was changed",
+        },
         {
           item: { kind: "personalspace" },
           key: "check",

@@ -1,4 +1,4 @@
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { processContentGit } from "../../src/content/git";
@@ -9,6 +9,7 @@ import type {
 } from "../../src/content/github";
 import type { ContentHost, PreparationAnswer } from "../../src/content/host";
 import { contentLockDirectory } from "../../src/content/host";
+import { processPersonalspaceBootstrap } from "../../src/content/personalspace-bootstrap";
 import type { MembershipAnswer } from "../../src/content/role";
 import {
   initializeFolder,
@@ -270,6 +271,11 @@ export function stubGitHub(
     repositories?: Record<string, Partial<GitHubRepository> | "unavailable">;
     derived?: readonly string[] | "unavailable";
     generate?: "private" | "public" | "failed";
+    /** What a generation writes: the fixture template whose bootstrap names
+     * the owner (default), one whose bootstrap fails after it wrote, as the
+     * template's does when its doctor refuses, or a repository without the
+     * template's marker. */
+    template?: "template" | "failing-bootstrap" | "unmarked";
     gate?: Promise<void>;
     /** The viewer's membership in every Organization asked; by default an
      * active Owner's. */
@@ -377,7 +383,7 @@ export function stubGitHub(
       });
       if (options.generate === "failed") return { kind: "failed" };
       await remoteRepository(world, `${owner}/${name}`, (directory) =>
-        writeFile(join(directory, "personalspace.template.json"), "{}"),
+        writeTemplate(directory, options.template ?? "template"),
       );
       const isPrivate = options.generate !== "public";
       known.set(`${owner}/${name}`.toLowerCase(), {
@@ -435,6 +441,98 @@ export function stubGitHub(
   return { github, calls };
 }
 
+// The fixture of Lazurio/PersonalspaceTemplate_GEN3 a generation writes:
+// its marker, its placeholders and a `bun run bootstrap`
+// (personalspace-template-bootstrap.mjs) that does what the template's own
+// does to the files the install commits. The template's own logic is tested
+// in the template; this fixture holds only the contract the install relies
+// on: its command line, its exit status and the files it writes.
+const fixtureBootstrap = readFile(
+  join(import.meta.dir, "personalspace-template-bootstrap.mjs"),
+  "utf8",
+);
+
+/** The files of the fixture template in `directory` (see above). */
+export async function writeTemplate(
+  directory: string,
+  kind: "template" | "failing-bootstrap" | "unmarked",
+) {
+  if (kind !== "unmarked")
+    await writeFile(
+      join(directory, "personalspace.template.json"),
+      JSON.stringify({
+        schema_version: "humanandmachines.personalspace-template.v1",
+        template_repo: "Lazurio/PersonalspaceTemplate_GEN3",
+        personal_schema_version: "humanandmachines.personal.gen3.v1",
+      }),
+    );
+  await writeFile(
+    join(directory, "personal.gen3.json"),
+    JSON.stringify({
+      owner: {
+        github_username: "owner-github-username",
+        display_name: "Owner Display Name",
+        type: "human",
+      },
+      gbrain: {
+        path: "gbrain",
+        repository: {
+          github_repo: "owner-github-username/owner-github-username-gbrain",
+          visibility: "private",
+        },
+      },
+    }),
+  );
+  await writeFile(
+    join(directory, "modules.manifest.json"),
+    JSON.stringify({
+      personal_generation: "gen3",
+      owner: "owner-github-username",
+      module_slots: [],
+    }),
+  );
+  await writeFile(join(directory, ".gitignore"), "gbrain/\nworkspace/*\n");
+  await writeFile(
+    join(directory, "package.json"),
+    JSON.stringify({
+      name: "personalspace-fixture",
+      private: true,
+      scripts: { bootstrap: "bun scripts/bootstrap-personalspace.mjs" },
+    }),
+  );
+  await mkdir(join(directory, "scripts"));
+  await writeFile(
+    join(directory, "scripts", "bootstrap-personalspace.mjs"),
+    (await fixtureBootstrap).replace(
+      "const fails = FIXTURE_FAILS;",
+      `const fails = ${kind === "failing-bootstrap"};`,
+    ),
+  );
+}
+
+/** The world's git configuration plus the operator's Git identity (or, with
+ * `identity: false`, none, and no system configuration to find one in). */
+export function operatorGitEnv(
+  world: World,
+  identity = true,
+): Record<string, string> {
+  const env: Record<string, string> = { ...world.gitEnv };
+  const extra = identity
+    ? [
+        ["user.name", "Fixture"],
+        ["user.email", "fixture@example.invalid"],
+      ]
+    : [];
+  const base = Number(env.GIT_CONFIG_COUNT ?? "0");
+  extra.forEach(([key, value], index) => {
+    env[`GIT_CONFIG_KEY_${base + index}`] = key as string;
+    env[`GIT_CONFIG_VALUE_${base + index}`] = value as string;
+  });
+  env.GIT_CONFIG_COUNT = String(base + extra.length);
+  env.GIT_CONFIG_NOSYSTEM = "1";
+  return env;
+}
+
 /** A host over the stub GitHub, the real git and a recorded preparation. */
 export function contentHost(
   world: World,
@@ -443,9 +541,23 @@ export function contentHost(
     ok: true,
     outcome: "prepared",
   }),
+  options: Readonly<{ identity?: boolean; bun?: string | null }> = {},
 ): ContentHost & { prepared: string[] } {
   const prepared: string[] = [];
   return {
+    personalspace: processPersonalspaceBootstrap(
+      {
+        path: Bun.env.PATH,
+        home: world.home,
+        platform: process.platform,
+        run: runTool,
+      },
+      operatorGitEnv(world, options.identity ?? true),
+      // Bun of this test process, unless a test takes it away.
+      options.bun === null
+        ? { bunExecutable: join(world.root, "no-bun") }
+        : { bunExecutable: options.bun ?? process.execPath },
+    ),
     github,
     git: processContentGit({
       path: Bun.env.PATH,
