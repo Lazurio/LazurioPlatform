@@ -17,13 +17,13 @@ import {
   liveTabsPath,
   writeLiveTabs,
 } from "../src/browser/contract/node";
+import type { TabFacts } from "../src/browser/contract/platform";
 import {
   type BootTime,
   holderFileText,
   parseHolder,
   parseHolderRecords,
 } from "../src/browser/contract/pure";
-import type { TabFacts } from "../src/browser/people/hub";
 import {
   initializeFolder,
   initializeHandoverFolder,

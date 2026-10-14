@@ -1,5 +1,11 @@
-import { isStrip, targetIdOf } from "../../browser/contract/pure";
-import type { GraceKind, TabFacts, TabOpener } from "../../browser/people/hub";
+import {
+  hubTabPath,
+  hubTabsPath,
+  hubTime,
+  parseHubTab,
+  type TabFacts,
+} from "../../browser/contract/platform";
+import { targetIdOf } from "../../browser/contract/pure";
 import type { BrowserEntry } from "../../browser/units";
 
 // The Launchpad's calls to the view's hub (decision F47 point 6): the four
@@ -8,7 +14,9 @@ import type { BrowserEntry } from "../../browser/units";
 // Bun's fetch sends neither, and nothing here adds them. The hub runs as the
 // same Unix user and is the only one that ends a tab; this client only asks.
 // Its answers are bounded in size and time and read field by field: a value
-// that is not of the hub's own shape is never passed on.
+// that is not of the hub's own shape is never passed on. The paths and the
+// list's shape are the contract's C11 (src/browser/contract/platform.ts),
+// one definition for the hub and this client.
 
 export const hubCalls = Object.freeze({
   listTimeoutMs: 3_000,
@@ -36,124 +44,8 @@ export type HubRefusal = Readonly<{
 const refused = (reason: HubRefusal["reason"]): HubRefusal =>
   Object.freeze({ kind: "refused", reason });
 
-const graceKinds: readonly GraceKind[] = ["release", "viewer", "unviewed"];
-const maxUrlLength = 2_048;
-const maxTitleLength = 500;
-const maxLabelLength = 200;
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
-
-/** A time the hub wrote with `toISOString`, or null. */
-const isoTime = (value: unknown): string | null =>
-  typeof value === "string" &&
-  value.length <= 40 &&
-  Number.isFinite(Date.parse(value))
-    ? value
-    : null;
-
-function opener(value: unknown): TabOpener {
-  const unknown = { kind: "unknown" } as const;
-  if (!isRecord(value)) return unknown;
-  switch (value.kind) {
-    case "view":
-      return { kind: "view" };
-    case "new-tab":
-      return {
-        kind: "new-tab",
-        strip: isStrip(value.strip) ? value.strip : null,
-      };
-    case "page": {
-      const id = targetIdOf(value.openerId);
-      return id === null ? unknown : { kind: "page", openerId: id };
-    }
-    case "agent":
-      return isStrip(value.session)
-        ? { kind: "agent", session: value.session }
-        : unknown;
-    default:
-      return unknown;
-  }
-}
-
-function heapOf(
-  value: unknown,
-): Readonly<{ used: number; total: number }> | null {
-  if (!isRecord(value)) return null;
-  const { used, total } = value;
-  return typeof used === "number" &&
-    typeof total === "number" &&
-    Number.isFinite(used) &&
-    Number.isFinite(total) &&
-    used >= 0 &&
-    total >= 0
-    ? { used, total }
-    : null;
-}
-
-/** One tab of the hub's list in the hub's shape, or null: an element without
- * an id, an address, a title, its times or its viewers is left out, and the
- * texts are cut for display. `heap` is read only when it was asked for. */
-function parseHubTab(value: unknown, heap: boolean): TabFacts | null {
-  if (!isRecord(value)) return null;
-  const id = targetIdOf(value.id);
-  const openedAt = isoTime(value.openedAt);
-  const usedAt = isoTime(value.usedAt);
-  const viewers = value.viewers;
-  if (
-    id === null ||
-    typeof value.url !== "string" ||
-    typeof value.title !== "string" ||
-    openedAt === null ||
-    usedAt === null ||
-    typeof viewers !== "number" ||
-    !Number.isSafeInteger(viewers) ||
-    viewers < 0
-  )
-    return null;
-  const grace = isRecord(value.grace) ? value.grace : null;
-  const graceEnds = isoTime(grace?.endsAt);
-  const favicon = value.favicon;
-  const facts: TabFacts = {
-    id,
-    url: value.url.slice(0, maxUrlLength),
-    title: value.title.slice(0, maxTitleLength),
-    favicon:
-      typeof favicon === "string" &&
-      favicon.startsWith("https://") &&
-      favicon.length <= maxUrlLength
-        ? favicon
-        : null,
-    openedAt,
-    usedAt,
-    opener: opener(value.opener),
-    agents: Array.isArray(value.agents) ? value.agents.filter(isStrip) : [],
-    holders: Array.isArray(value.holders)
-      ? value.holders.flatMap((hold: unknown) =>
-          isRecord(hold) && isStrip(hold.strip)
-            ? [
-                {
-                  strip: hold.strip,
-                  label:
-                    typeof hold.label === "string"
-                      ? hold.label.slice(0, maxLabelLength)
-                      : "",
-                },
-              ]
-            : [],
-        )
-      : [],
-    viewers,
-    closing: isoTime(value.closing),
-    grace:
-      grace !== null &&
-      graceKinds.includes(grace.kind as GraceKind) &&
-      graceEnds !== null
-        ? { kind: grace.kind as GraceKind, endsAt: graceEnds }
-        : null,
-  };
-  return heap ? { ...facts, heap: heapOf(value.heap) } : facts;
-}
 
 /** The body, read to at most `limit` bytes as strict UTF-8; null past it. */
 async function boundedText(
@@ -233,7 +125,7 @@ export async function listTabs(
 ): Promise<Readonly<{ kind: "tabs"; tabs: readonly TabFacts[] }> | HubRefusal> {
   const answer = await ask(
     entry,
-    options.heap ? "/.lazurio/tabs?heap=1" : "/.lazurio/tabs",
+    options.heap ? `${hubTabsPath}?heap=1` : hubTabsPath,
     "GET",
     undefined,
     timeoutMs,
@@ -261,7 +153,7 @@ export async function openTab(
 ): Promise<Readonly<{ kind: "opened"; tab: string }> | HubRefusal> {
   const answer = await ask(
     entry,
-    "/.lazurio/tabs",
+    hubTabsPath,
     "POST",
     { url, strip },
     timeoutMs,
@@ -284,14 +176,14 @@ export async function closeTab(
   if (tab === null) return refused("invalid-request");
   const answer = await ask(
     entry,
-    `/.lazurio/tabs/${tab}/close`,
+    hubTabPath(tab, "close"),
     "POST",
     undefined,
     timeoutMs,
     hubCalls.maxAnswerBytes,
   );
   if (answer?.status === 404) return refused("not-found");
-  const closing = isoTime(
+  const closing = hubTime(
     isRecord(answer?.value) ? answer.value.closing : undefined,
   );
   if (answer?.status !== 202 || closing === null)
@@ -309,7 +201,7 @@ export async function restoreTab(
   if (tab === null) return refused("invalid-request");
   const answer = await ask(
     entry,
-    `/.lazurio/tabs/${tab}/restore`,
+    hubTabPath(tab, "restore"),
     "POST",
     undefined,
     timeoutMs,

@@ -1,3 +1,4 @@
+import type { BrowserView } from "./contract/platform";
 import { browserViewUrl } from "./contract/pure";
 import type { BrowserEntry } from "./units";
 
@@ -7,19 +8,10 @@ import type { BrowserEntry } from "./units";
  * contract writes them (`browserViewUrl`, decision F50). The Launchpad answers
  * these addresses for the panels and the links. */
 
-/** The answer of `GET /.lazurio/browser.json`: where the view of one
- * thread's tab (or a new tab) is, or that this Environment has none. */
-export type BrowserView =
-  | Readonly<{ available: true; view: string; session: string | null }>
-  | Readonly<{ available: false; reason: BrowserViewReason }>;
-
-export const browserViewReasons = [
-  /** The recorded entry has no `browser`: no view is routed here. */
-  "not-declared",
-  /** The thread's window could not be found or opened. */
-  "view-unavailable",
-] as const;
-export type BrowserViewReason = (typeof browserViewReasons)[number];
+// The answer of `GET /.lazurio/browser.json` (`BrowserView`: where the view
+// of one thread's tab, or a new tab, is, or that this Environment has none)
+// and the routes' paths are the shapes of the contract's C12
+// (src/browser/contract/platform.ts), shared with the panel that reads them.
 
 export type BrowserViewSeams = Readonly<{
   /** The session's window, opened when it has none, exactly as `lazurio

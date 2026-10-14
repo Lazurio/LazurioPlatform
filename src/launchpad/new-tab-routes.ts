@@ -1,18 +1,16 @@
 import { readFile } from "node:fs/promises";
 import { readBootClock } from "../browser/contract/node";
+import type { TabFacts, TabOpener } from "../browser/contract/platform";
 import {
   type BootTime,
   browserViewUrl,
   isStrip,
   launchpadStrip,
+  navigableAddress,
+  newTabFrameAncestors,
   stripAppOf,
   targetIdOf,
 } from "../browser/contract/pure";
-import {
-  navigableAddress,
-  type TabFacts,
-  type TabOpener,
-} from "../browser/people/hub";
 import type { BrowserEntry } from "../browser/units";
 import type { MachineEntry } from "../folder/machine-binding";
 import { ownDataValue, stateFields } from "../folder/state-fields";
@@ -135,7 +133,7 @@ export function newTabPageHeaders(
     ...(entry.mausbotOrigin === undefined ? [] : [entry.mausbotOrigin]),
   ];
   return Object.freeze({
-    "Content-Security-Policy": `frame-ancestors 'self' ${[...new Set(origins)].join(" ")}`,
+    "Content-Security-Policy": `frame-ancestors ${newTabFrameAncestors(origins)}`,
     "X-Content-Type-Options": "nosniff",
   });
 }

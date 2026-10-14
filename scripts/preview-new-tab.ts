@@ -45,12 +45,12 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { TabFacts } from "../src/browser/contract/platform";
 import {
   holderFileText,
   targetIdOf,
   viewPath,
 } from "../src/browser/contract/pure";
-import type { TabFacts } from "../src/browser/people/hub";
 import type { LaunchpadBoot } from "../src/launchpad/boot";
 import { withBoot } from "../src/launchpad/boot-document";
 import type { PublicEntry } from "../src/launchpad/chat";
