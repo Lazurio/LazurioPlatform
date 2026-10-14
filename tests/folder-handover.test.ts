@@ -136,7 +136,14 @@ test.skipIf(process.platform === "win32")(
       );
       const after = await snapshot(folder);
       expect(Object.keys(after).sort()).toEqual(
-        [...Object.keys(before), ".lazurio", "AGENTS.md", "manual"].sort(),
+        [
+          ...Object.keys(before),
+          ".agents",
+          ".claude",
+          ".lazurio",
+          "AGENTS.md",
+          "manual",
+        ].sort(),
       );
       for (const name of Object.keys(before))
         expect(after[name]).toEqual(before[name]);
@@ -227,6 +234,8 @@ test.skipIf(process.platform === "win32")(
 );
 
 for (const entry of [
+  ".agents",
+  ".claude",
   "AGENTS.md",
   "CLAUDE.md",
   "lazurio",
@@ -238,7 +247,7 @@ for (const entry of [
     async () => {
       const { parent, folder } = await setup();
       try {
-        if (entry === "lazurio" || entry === "manual")
+        if (["lazurio", "manual", ".agents", ".claude"].includes(entry))
           await mkdir(join(folder, entry));
         else await writeFile(join(folder, entry), "resident content");
         const before = await snapshot(folder);
@@ -359,6 +368,7 @@ for (const stop of [
   "manual-directory",
   "instructions",
   "manual",
+  "skills",
   "preferences",
   "manifest",
   "layout",

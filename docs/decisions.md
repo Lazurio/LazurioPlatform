@@ -1514,6 +1514,137 @@ the existing refresh transaction. No runtime, data, access or publication author
 changes. Generated-output tests do not establish cold-session agent compliance;
 the audit records the remaining harness qualification scenarios.
 
+**Addendum 2026-10-14, decided by Matěj: the Folder carries agent skills, the first is
+`new-module`; manifest schema 3.** The Launchpad's "+ Nový modul" handed Chat a brief that
+told the agent to follow "skill lazurio-module-standard". No Remote Environment has that
+skill: its Folder held only `AGENTS.md`, `manual/` and `.lazurio/` (checked on a real
+personal Remote Environment: no `.agents/`, no module skill), and
+[distribution and migration](distribution-and-migration.md#5-before-the-root-repository-is-archived) listed the
+skills package as open. Matěj decided that the Folder carries real agent skills as owned
+outputs, that the brief becomes short and names the skill, and that the procedure has one
+home, the skill, with no manual page beside it.
+
+What changes:
+
+- **Skills are owned outputs.** `src/folder/outputs.ts` holds a list of skill names
+  (`skillNames`, today `new-module`) and the two harness roots. Each skill is one text,
+  rendered in the Folder's locale and written byte-identical to
+  `.agents/skills/<name>/SKILL.md` (Codex) and `.claude/skills/<name>/SKILL.md` (Claude
+  Code), after the manual in the fixed output order. A file starts with the frontmatter
+  both harnesses read (`name`, and `description` as a JSON string, a valid YAML
+  double-quoted scalar), then the title and the generated note with the template
+  revision. The digest, drift, preview, journal, receipt and recovery rules of every
+  other output apply unchanged. A further skill is one more name and its text in
+  `src/folder/skills.ts`.
+- **The skill `new-module`** is the brief's whole procedure, a function of the preset:
+  - when it applies (any new module, app, tool, overview or website, with or without the
+    brief; not changing an existing module);
+  - what a module is and why: a UI for people, a place for data and for agents, its own
+    processes and skills in its `AGENTS.md` and `.agents/skills/`, technically a Git
+    repository of its own with a TypeScript app under the Module Standard, never created
+    by hand;
+  - 1. the interview about the purpose, one non-technical question per message and only
+    about what the brief has not said, then a summary in the person's words and a wait for
+    their "yes"; 2. where the module goes, by preset; 3. the agent's technical choices: the
+    generator's stacks, each in one plain sentence; the data in repository-db first (a data
+    repository `<slug>-data` mounted as `db/`, `github:Lazurio/repository-db#v3.x.y`); a
+    database, Neon recommended and its schema derived from the repository-db collections,
+    only once the module is used in earnest (root decision 0196 point 8), never for a new
+    module; the name, the slug and the port; 4. the plan shown in plain words and confirmed;
+  - for a personal module, the commands that exist today: the task worktree in
+    `personalspace/.worktrees/<task>`, `lazurio module create personalspace/<slug> ...
+    --dry-run --json`, the run with `--confirm <plan>`, the privacy check, the run's
+    `next_steps`; the data repository by repository-db's own `init --create-remote` in the
+    module's task worktree (the generator has no `--data` flag yet), checked as private;
+    the first version in the module's task worktree with what the module is for added to
+    its `AGENTS.md`; the two pull requests merged only on the person's "Publish", then
+    `lazurio module start personalspace/<slug> --json` and the browser;
+  - for an Organization's module, truthfully: `lazurio module create <Org>/<slug>` refuses
+    with `organization-form-unavailable` (Lazurio/LazurioPlatform#267), so the agent says so
+    and takes the Organization's own route from its `AGENTS.md`, never by hand. Where the
+    preset has both places, the skill's steps for an Organization's module end there, with
+    the same bar for the first version and Publication, and steps 5 to 7 are titled as the
+    personal module's only, so an Organization's brief never reaches
+    `lazurio module create personalspace/<slug>`;
+  - the refusals the agent is likely to meet, each with what to do.
+- **`AGENTS.md`** gains one pointer line after the escalation of a missing right: for a
+  new module, app, tool, overview or website use the skill `new-module` in
+  `.agents/skills/` (Codex) or `.claude/skills/` (Claude Code). The manual keeps its six
+  pages; its texts that list the Folder's own files name the skills too.
+- **Lazurio owns the files, not the directories around them.** `.agents/` and `.claude/`
+  may hold the person's own skills or a harness's settings (Claude Code's
+  `settings.local.json`). The transaction creates a missing directory owner-only right
+  before the first write into it (the rename in an upgrade; the exclusive create at
+  initialization and its recovery) and makes it durable in its parent. It accepts an
+  existing one only as a real directory, never a symlink, of this account on the Folder's
+  filesystem; group write bits are no reason to refuse, as for the account's
+  configuration directories (F23). It never lists, moves or removes anything there.
+  `manual/` is still created by initialization alone. The inventory checks every directory
+  on the way, so a symlinked `.claude/` blocks with `unsafe-path` and that skill's path.
+- **The hosted boundary claims `.agents` and `.claude`.** They join `AGENTS.md`, `manual`
+  and `.lazurio` as owned top-level names once the Folder has state; before adoption they
+  are foreign like any other entry. A harness's `.claude/` in a hosted Folder therefore no
+  longer blocks every update as a foreign entry.
+- **Initialization** gets a `skills` step after `manual`, carried by the last skill file.
+- **Manifest schema 3.** The 2026-10-02 addendum rejected new chapters "for now" because
+  the instruction manifest requires a digest for every output, so a new file is a manifest
+  migration on every existing Folder. This addendum takes that migration, through the one
+  change path:
+  - Schema 2 owns `AGENTS.md` and the six manual pages; schema 3 owns every output. This
+    product reads both (`folderStateSchemas.manifest` `[2, 3]`) and writes 3.
+  - The next change of a Folder at an older template revision (the refresh Machines runs
+    after every apply, or a profile, tools or settings change) upgrades it as before. The
+    skills have no recorded digest, so the planner creates them only where nothing is at
+    their paths; anything there is the person's and the upgrade is refused with
+    `unowned-file` and that path, nothing written.
+  - The transaction journal moves to schema 4: `before.json` records `null` as the
+    previous identity of an output the change creates. Preparation, inspection,
+    activation, resume and the retirement of an incomplete preparation require it to be
+    absent until its own rename; a file that appears there meanwhile stops the activation
+    with the journal and the file kept.
+  - Older binaries refuse a schema 3 manifest (fail closed, nothing rewritten) and are
+    repaired forward, as `docs/migration-and-recovery.md` says. A journal an older product
+    left pending is not resumed by this one, as after every template change.
+
+**Discovery, checked on 2026-10-14 on macOS** (Codex CLI 0.162.1, Claude Code 2.1.300), in a
+Folder outside any Git repository: Codex lists the skills of `.agents/skills/` in its working
+directory (`codex debug prompt-input`) and ignores `.claude/skills/`; Claude Code lists those
+of `.claude/skills/` (its `init` event) and ignores `.agents/skills/`. In a Folder this
+product generated, `codex exec` and `claude -p` given the brief both loaded `new-module` and
+asked one question about the purpose. Started in a nested Git repository below the Folder
+(an Organization's root), neither harness sees the Folder's skills, which is why F36's
+addendum of the same day opens the Organization's brief in the Folder's root. Not proven
+yet: sessions that T3 Code starts on a Linux Remote Environment.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A seventh manual page, `manual/new-module.md` | No new directories, but harnesses do not offer a page by its description, the brief must spell out a path, and a skill beside it would be a second home; rejected |
+| One skill directory and a symlink for the other harness | One file, but the inventory refuses symlinks on the way (`unsafe-path`) and native Windows needs privileges for them; rejected |
+| User-level `~/.agents/skills` and `~/.claude/skills` | Found from every directory, but outside the Folder and its transaction, shared by every Folder of the account, and not removed with a Folder; rejected |
+| `.claude/` owned whole, sealed with a marker like `manual/` | Strong proof of ownership, but harnesses and people write there; rejected |
+| Skill files owned one by one, their directories created where absent, manifest schema 3 (selected) | One path, the existing recovery, nothing of the person's ever replaced |
+
+Unchanged: the six manual pages apart from the revision and the lists of owned files; the
+module generator and its commands (F52); who gets "+ Nový modul" (F36). Template revision
+`base-instructions-51`. Verified by `tests/folder-skills.test.ts`: the skill in both
+locales on every preset, byte-identical for both harnesses (frontmatter, what a module is
+before the interview, the interview, the generator's stacks in its order, repository-db
+first and no database for a new module, the personal commands only where a Personalspace
+is, `organization-form-unavailable` and #267 only where Organizations are, no `--data`, the
+same sections in both languages, the `AGENTS.md` line); on presets with both places, the
+Organization's route ending before the personal steps with no personal creation command
+between them; the manifest schemas; a new
+Folder's owner-only skill directories; and on a personal Remote Environment's Folder
+rendered by the release before: the refresh creating both skills in both locales and a
+second refresh unchanged; a harness's `.claude/settings.local.json` and a person's own skill
+kept, also in a group-writable `.claude/`; a person's file at a skill's path refused by
+path with nothing written; a symlinked `.claude/` refused as `unsafe-path`; an interruption
+after preparation or activation completed by `profile-resume`; the activation resumed after
+each rename around the skills and after the directories exist without the file; a file
+that appears after preparation stopping the activation and kept; and a staging
+interruption at every step retired with no skill directory created, then refreshed. The
+pinned digest of `tests/folder-template-revision.test.ts` moves with the revision.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
@@ -5708,6 +5839,45 @@ workstation held, with and without a module, the tile copying the prompt and ope
 tab; and the route answering 200 with the Folder's `cwd` and the same text for the
 login in either case, 404 for another. These are no rendered-page CI gates (root
 decision 0178).
+
+**Addendum 2026-10-14 (Matěj): both "+ Nový modul" briefs are short and name the Folder's
+skill `new-module`; both open in the Lazurio Folder's root.** The briefs of the
+Organization-rail addendum (point 8) and of the second addendum of 2026-10-13 told the agent
+to follow "skill lazurio-module-standard", which no Remote Environment has, and carried
+their own procedure (the questions one by one, the stack list, the Teams, the worktree,
+dry-run and merge commands). The Folder now carries the skill `new-module` (F14's addendum of
+the same day), which holds all of it. The briefs follow the wireframe's `moduleBrief`
+(HumanAndMachine-ai/prototypes-lazurio#47) without a story:
+
+1. **The opening**: "Chci postavit nový modul do Workspace Lazuria." / "I want to build a new
+   module in the Lazurio Workspace."
+2. **Where**: "Bude v mém osobním prostoru, jako soukromý repozitář na mém GitHub účtu
+   {login}." / "It will be in my personal space, as a private repository on my GitHub account
+   {login}."; for an Organization "Bude v Organizaci {name} (GitHub {login})." / "It will be
+   in the Organization {name} (GitHub {login})."
+3. **The skill**, after a blank line: "Použij skill `new-module`. Nejdřív se mě vyptej, k čemu
+   modul bude a co mi má vyřešit, technické věci zvol sám a než začneš stavět, ukaž mi plán
+   k potvrzení." / "Use the skill `new-module`. First ask me what the module is for and what
+   it should solve for me, choose the technical details yourself, and before you start
+   building, show me the plan to confirm."
+4. **Nothing else.** Commands, stacks, worktrees, the dry run, the privacy check, pull
+   requests and Publication live only in the skill.
+5. **The Organization's brief opens in the Folder's root** (`cwd` of `new-module`, was the
+   Organization's root), as root decision 0189 decided for every thread and the personal
+   brief already did: a harness started in the Organization's nested Git repository does not
+   see the Folder's skills (F14's addendum of the same day). The text names the
+   Organization; the skill tells the agent to work by the Organization's own `AGENTS.md`.
+   This settles the `cwd` part of Lazurio/LazurioPlatform#178.
+
+In Czech the briefs stay the person's own words to the agent, so in tykání (root decision
+0199). Where a Folder's refresh is blocked (an edited generated file, reported as "Folder
+refresh needed"), the brief names a skill that Folder does not have yet; its last sentence
+still asks for the plan before anything is built. Not changed: who gets the tile, the prompt
+routes and their audiences, the hand-over by link or clipboard. Verified by unit tests:
+`tests/apps-view.test.ts` pins both briefs in both languages and checks that none carries a
+procedure (`lazurio module create`, `--dry-run`, a worktree, a stack, `--teams`, the old
+skill or a manual page); `tests/launchpad-prompts.test.ts` checks that both prompt routes
+answer with the Folder's root as `cwd`.
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 

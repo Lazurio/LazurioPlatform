@@ -9,6 +9,7 @@ for (const stop of [
   "manual-directory",
   "instructions",
   "manual",
+  "skills",
   "preferences",
   "manifest",
   "layout",

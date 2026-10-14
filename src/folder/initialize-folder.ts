@@ -19,7 +19,18 @@ import {
   createManualDirectory,
   verifyManualDirectory,
 } from "./manual-directory";
-import { type OutputPath, outputFile, outputPaths } from "./outputs";
+import {
+  ensureOutputDirectories,
+  outputDirectoriesInnermostFirst,
+} from "./output-directories";
+import {
+  isOutputPath,
+  manualPaths,
+  type OutputPath,
+  outputFile,
+  outputPaths,
+  skillPaths,
+} from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import {
@@ -32,7 +43,11 @@ import {
 import { desiredOutputs, outputDigests } from "./preview";
 import { readFolderState, readOwnedStateFile } from "./read-state";
 import { instructionSource, instructionTemplateRevision } from "./render";
-import { parseFolderPreferences, parseInstructionManifest } from "./state";
+import {
+  instructionManifestSchema,
+  parseFolderPreferences,
+  parseInstructionManifest,
+} from "./state";
 
 export type InitializationStep =
   | "folder"
@@ -40,6 +55,7 @@ export type InitializationStep =
   | "manual-directory"
   | "instructions"
   | "manual"
+  | "skills"
   | "preferences"
   | "manifest"
   | "layout";
@@ -100,7 +116,9 @@ export async function initializeHandoverFolder(
 }
 
 // The generated outputs in creation order, then the two state files. The
-// manual follows AGENTS.md; the last manual file carries the `manual` step.
+// manual follows AGENTS.md and the skills follow the manual, each skill's
+// directories created right before its file; the last manual file carries the
+// `manual` step and the last skill file the `skills` step.
 type Planned = Readonly<{
   directory: string;
   name: string;
@@ -135,13 +153,12 @@ async function initialize(
   if (preferences.profile.os !== executionOs(process.platform))
     throw new Error("Initialization OS mismatch");
   const manifest = parseInstructionManifest({
-    schemaVersion: 2,
+    schemaVersion: instructionManifestSchema,
     preferenceRevision: 1,
     templateRevision: instructionTemplateRevision,
     outputs: outputDigests(desired),
   });
   const state = join(folder, ".lazurio");
-  const manual = join(folder, "manual");
   const personalspace = workspacePreset(preferences.preset.name).personalspace;
   if (handover) {
     const adopted = await adoptedHandoverFolder(folder, preferences.machine);
@@ -173,7 +190,8 @@ async function initialize(
       manifest,
       ...(layout ? { layout } : {}),
     });
-    const lastManual = outputPaths[outputPaths.length - 1];
+    const lastManual = manualPaths[manualPaths.length - 1];
+    const lastSkill = skillPaths[skillPaths.length - 1];
     const planned: Planned[] = [
       ...outputPaths.map((path: OutputPath) => ({
         ...outputFile(folder, path),
@@ -184,7 +202,9 @@ async function initialize(
             ? ("instructions" as const)
             : path === lastManual
               ? ("manual" as const)
-              : null,
+              : path === lastSkill
+                ? ("skills" as const)
+                : null,
       })),
       {
         directory: state,
@@ -219,6 +239,8 @@ async function initialize(
     await checkpoint("manual-directory");
     for (const file of planned) {
       await assertHeld();
+      if (isOutputPath(file.receipt))
+        await ensureOutputDirectories(folder, file.receipt);
       const identity = await createFile(
         join(file.directory, file.name),
         file.content,
@@ -285,7 +307,9 @@ async function initialize(
       join(history, "initialization"),
       history,
       state,
-      manual,
+      ...outputDirectoriesInnermostFirst(outputPaths).map((relative) =>
+        join(folder, relative),
+      ),
       folder,
       dirname(folder),
     ])

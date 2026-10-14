@@ -1,5 +1,6 @@
 import { planFolderChange } from "./change-profile";
 import { type OutputPath, outputPaths } from "./outputs";
+import { recordedFile } from "./reconcile";
 import {
   enabledTools,
   folderOrganizationSettings,
@@ -11,6 +12,11 @@ import {
 
 export type FileIdentity = Readonly<{ dev: string; ino: string }>;
 export type OutputIdentities = Readonly<Record<OutputPath, FileIdentity>>;
+// The identities before a change: null for an output the previous manifest
+// does not own, which the change creates.
+export type PreviousIdentities = Readonly<
+  Record<OutputPath, FileIdentity | null>
+>;
 
 function identity(input: unknown): FileIdentity {
   const value = stateFields(input, ["dev", "ino"]);
@@ -33,10 +39,31 @@ export function parseOutputIdentities(input: unknown): OutputIdentities {
   ) as OutputIdentities;
 }
 
+// The identities `before.json` records: null exactly for the outputs the
+// previous manifest owns no digest of, an identity for every other.
+export function parsePreviousIdentities(
+  input: unknown,
+  recorded: Readonly<Partial<Record<OutputPath, string>>>,
+): PreviousIdentities {
+  const value = stateFields(input, outputPaths);
+  return Object.freeze(
+    Object.fromEntries(
+      outputPaths.map((path) => {
+        if (recorded[path] !== undefined) return [path, identity(value[path])];
+        if (value[path] !== null)
+          throw new Error("Invalid transaction file identity");
+        return [path, null];
+      }),
+    ),
+  ) as PreviousIdentities;
+}
+
 // The transaction journal schema: `before.json` snapshots the active state and
-// the identities of every file the transaction will replace; `prepared.json`
-// marks a fully staged transaction with the identities of the staged files.
-export const transactionSchemaVersion = 3;
+// the identities of every file the transaction will replace, null for an
+// output it creates; `prepared.json` marks a fully staged transaction with the
+// identities of the staged files. Schema 4 (decision F14, addendum of
+// 2026-10-14) adds the created output; schema 3 had an identity for each.
+export const transactionSchemaVersion = 4;
 
 // Validates decoded journal structure and regenerates the proposed transition.
 // This does not validate disk custody, current state or actual file identities;
@@ -80,7 +107,10 @@ export async function validatePreparation(
     marker.nextRevision !== preferences.revision
   )
     throw new Error("Transaction revision mismatch");
-  const previousIdentities = parseOutputIdentities(before.outputIdentities);
+  const previousIdentities = parsePreviousIdentities(
+    before.outputIdentities,
+    previousManifest.outputs,
+  );
   const stagedIdentities = parseOutputIdentities(marker.outputIdentities);
   const previousPreferencesIdentity = identity(before.preferencesIdentity);
   const previousManifestIdentity = identity(before.manifestIdentity);
@@ -104,10 +134,7 @@ export async function validatePreparation(
       notes: toolNotes(preferences),
       organizationSettings: folderOrganizationSettings(preferences),
     },
-    async (path) => ({
-      kind: "regular",
-      digest: previousManifest.outputs[path],
-    }),
+    async (path) => recordedFile(previousManifest.outputs, path),
   );
   if (
     plan.kind !== "profile-change" ||

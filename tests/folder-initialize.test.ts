@@ -13,6 +13,7 @@ for (const stop of [
   "manual-directory",
   "instructions",
   "manual",
+  "skills",
   "preferences",
   "manifest",
   "layout",
@@ -48,6 +49,8 @@ for (const stop of [
             preset: { name: "local", version: 1, selection: "derived" },
           });
           expect((await readdir(folder)).sort()).toEqual([
+            ".agents",
+            ".claude",
             ".lazurio",
             "AGENTS.md",
             "manual",

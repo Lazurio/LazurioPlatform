@@ -232,9 +232,11 @@ or profile change carries it forward unchanged. The optional key `toolNotes` hol
 operator's notes for agents on required or enabled tools (F18 addendum) under the same
 rules. The whole composition is
 validated on every parse: a preset the recorded handover does not allow never parses.
-The rendered `AGENTS.md` and the six files of `manual/` are a deterministic projection
+The rendered `AGENTS.md`, the six files of `manual/` and the skills are a deterministic projection
 of preset, binding, profile, enabled tools and the operator's notes on them ([machine handover](machine-handover.md#what-the-folder-renders));
-the manifest records one digest per generated file.
+the manifest records one digest per generated file (schema 3; a Folder recorded at
+schema 2, before the skills, gains them in its next upgrade, decision F14's addendum of
+2026-10-14).
 
 Do not extend the instruction axes in `src/folder/profile.ts` into a universal
 infrastructure configuration. Those axes describe generated instructions. A preset

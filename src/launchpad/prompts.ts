@@ -18,7 +18,9 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // so the answer never says more than the page already showed.
 //
 // Two scopes. An Organization's prompt ("+ Nový modul") names one
-// Organization of the Folder by its login and opens in its root. The
+// Organization of the Folder by its login; like every prompt it opens in the
+// Lazurio Folder's root (root decision 0189), where the Folder's skills are
+// found (F36 addendum of 2026-10-14), and its text names the Organization. The
 // Folder's prompt `prepare-content` ("Vyřešit v Chatu", root decision 0188)
 // is about this Environment's content, which may not be here yet, so it
 // opens in the Lazurio Folder's root; its `org`, when the link carries one,
@@ -94,9 +96,9 @@ export type PromptDocument = Readonly<{
   schema: typeof promptSchema;
   id: PromptId;
   text: string;
-  /** Where Chat opens the new thread, absolute: the Organization's root on
-   * this Environment for an Organization's prompt, the Lazurio Folder's
-   * root for the Folder's. */
+  /** Where Chat opens the new thread, absolute: the Lazurio Folder's root,
+   * for an Organization's prompt too (root decision 0189); the text names
+   * the Organization. */
   cwd: string;
 }>;
 
@@ -140,7 +142,7 @@ export function promptDocument(
       organization.forgeLogin,
       copy,
     ),
-    cwd: resolve(folder, "organizations", organization.directory),
+    cwd: resolve(folder),
   });
 }
 

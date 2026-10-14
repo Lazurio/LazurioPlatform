@@ -733,8 +733,8 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   the fragment token locally), answers `application/json`, `Cache-Control: no-store`:
   `{"schema": "lazurio.prompt.v1", "id", "text", "cwd"}`. `text` is the prompt in the
   person's language (the Folder's profile locale), `cwd` the absolute root of the
-  Organization on this Environment (`<Folder>/organizations/<directory>`) for an
-  Organization's prompt and the Lazurio Folder's root for the Folder's. Three ids
+  Lazurio Folder for every prompt, an Organization's too (root decision 0189; F36
+  addendum of 2026-10-14: the Folder's skills are found only from there). Three ids
   exist (`src/launchpad/prompts.ts`). `prepare-content` ("Vyřešit v Chatu", root
   decision 0188) is the Folder's: only where the Environment signs in as its person,
   only while the last installation the content routes report stopped, its text the
@@ -1103,15 +1103,15 @@ the first run's line shows. An Organization never has it.
   personal space listed with a reason, there is no tile. The click hands over
   `{id: "new-personal-module", organization: <login>, text}` through `handOver`, by
   link where Chat takes prompts, otherwise through the clipboard (a workstation always
-  copies). The prompt has the agent ask what the module is for, its name and slug and
-  its app and stack; create a task worktree beside the Personalspace in
-  `personalspace/.worktrees/<task>`; show the plan of `lazurio module create
-  personalspace/<slug> --stack <stack> --dry-run --json` and wait; run it with
-  `--confirm <plan> --json`; check that `<login>/<slug>` is private; open the slot's pull
-  request into `<login>/<login>_GEN3` and ask before Publication; after the merge
-  `git -C <space> pull --ff-only` and remove the worktree; and only mention the
-  placeholder owner of #377. It must not reach a release before the real run of that
-  command (#399).
+  copies). Both briefs (F36 addendum of 2026-10-14) are short: "Chci postavit nový
+  modul do Workspace Lazuria." / "I want to build a new module in the Lazurio
+  Workspace.", where the module goes (the personal space as a private repository on
+  `<login>`'s account, or the Organization `{name}` with its GitHub login), and "Použij
+  skill `new-module`. …" / "Use the skill `new-module`. …", which asks for the interview
+  about the purpose, the agent's own technical choices and the plan to confirm. The
+  Folder's skill `new-module` (F14 addendum of 2026-10-14) holds every step, including
+  `lazurio module create personalspace/<slug>`; the brief carries none. The personal
+  brief must not reach a release before the real run of that command (#399).
 
 **Routes.** `/` is the first Organization's Apps home; `/o/<org>` one Organization's
 Apps home, its sections Workspace and Productionspace (F36, F32's final addendum);
