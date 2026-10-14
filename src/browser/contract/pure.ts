@@ -1136,23 +1136,36 @@ function typedHost(name: string): "local" | "ip" | "label" | "domain" | null {
 const viewHostMention =
   /(?:^|[^\p{L}\p{N}-])browser\.(?:[^\s/?#\\@]+\.)?lazurio\.io(?![\p{L}\p{N}-])/u;
 
-/** Whether a text that is no address mentions a view host anywhere, in any
- * spelling: after `//` or `\\`, with the DNS root's trailing dot, as a name
- * no address takes, with a port out of range, behind `user@`, escaped, with
- * full-width or ideographic dots, in upper case. Such a text is refused,
- * never a search, so no view's address reaches the search engine (F50
- * point 2). A text with a space is a search, as in Chrome, whatever it
- * mentions. */
+/** Whether a text that is no address still names a view host, in any
+ * spelling, so it is refused and never a search: no view's address reaches
+ * the search engine (F50 point 2). It does when the URL parser, typed
+ * without a scheme or as a network path (`//`, `\\`), reads its host as a
+ * view host (`isViewHost`), with the IDNA mapping a browser applies (soft
+ * hyphens and other ignored characters gone, full-width forms, escapes,
+ * upper case). It does too when the text mentions a view host anywhere once
+ * read the same way by hand: one percent-decoding, Unicode's
+ * default-ignorable characters removed, NFKC, ideographic and full-width
+ * dots as dots, lower case. That holds a name no address takes, a port out
+ * of range, an encoded slash. A text with a space is a search, as in Chrome,
+ * whatever it mentions. */
 function namesViewHost(typed: string): boolean {
   if (/\s/.test(typed)) return false;
+  for (const read of [
+    () => new URL(`https://${typed}`),
+    () => new URL(typed, "https://host.invalid/"),
+  ])
+    try {
+      if (isViewHost(read().hostname)) return true;
+    } catch {}
   let text = typed;
   try {
     text = decodeURIComponent(typed);
   } catch {}
   return viewHostMention.test(
     text
+      .replace(/\p{Default_Ignorable_Code_Point}/gu, "")
       .normalize("NFKC")
-      .replace(/[。．｡]/g, ".")
+      .replace(/[\u3002\uff0e\uff61]/g, ".")
       .toLowerCase(),
   );
 }

@@ -670,6 +670,30 @@
       }
     },
     {
+      "name": "a view address with a soft hyphen inside browser., which the URL parser drops, is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "brow\u00adser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "a view address with a soft hyphen inside lazurio.io is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "browser.vm-01.acme.lazu\u00adrio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
       "name": "on a view host, the domain's own view host is refused",
       "call": "addressBarTarget",
       "args": [
