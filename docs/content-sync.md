@@ -282,7 +282,7 @@ with what it found.
   anything is created, `create` asks for what the setup needs: Bun (`~/.local/bin/bun`,
   else on the PATH; `personalspace-toolchain-missing`) and an identity to commit with:
   the operator's own Git identity (`user.name`, `user.email`) where it is set, else
-  the person's GitHub identity (the profile's name, else the login, and `<id>+<login>@users.noreply.github.com`) given per commit with `git -c`, never written into any Git configuration, since a Remote Environment configures none (`git-identity-missing`
+  the person's GitHub identity (the profile's name, else the login, and `<id>+<login>@users.noreply.github.com`) given per commit with `git -c`, never written by this install, for an Environment whose gh was not signed in through Lazurio (the curated gh sign-in sets the same identity globally where it is missing: [F19 addendum of 2026-10-14](decisions.md#f19--curated-installation-and-login-of-catalog-tools)) (`git-identity-missing`
   only when neither is known). After the clone, `bootstrap`
   checks that the checkout is clean and carries the template's marker
   `personalspace.template.json` (`personalspace-template-unexpected`), then runs

@@ -326,6 +326,15 @@ arm64. CLI first; the Launchpad serves the same core. The tools set up by an age
   `gh auth refresh --hostname github.com --scopes admin:public_key --clipboard=false`
   (a device code) when the token lacks the scope; a gh that is not signed in fails as
   `not-signed-in`.
+- **gh sets the person's Git identity where git has none** (F19 addendum 2026-10-14):
+  after the SSH key step, whatever its outcome, each of `user.name` and `user.email`
+  that neither git's global nor system configuration names is written with `git config
+  --global` from `gh api user`: the profile's name, else the login, and
+  `<id>+<login>@users.noreply.github.com`. An existing value is never changed, and a
+  Team Environment never gets here. The result carries `gitIdentity: { state:
+  "present" }`, `{ state: "set", fields, identity }` or `{ state: "not-set", reason,
+  missing? }` with one of `git-missing`, `config-unreadable`, `viewer-unavailable`,
+  `write-failed` (nothing written). It does not change the exit code.
 - `tools logout <tool> [--json]` runs the tool's own sign-out (`gh auth logout
   --hostname github.com`, `composio logout`, `wacli auth logout`) and checks it with
   the probe. gh and composio forget the sign-in on this Machine only: revoke it at the
