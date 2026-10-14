@@ -230,6 +230,33 @@ describe("the address bar (the wireframe's resolveAddress)", () => {
   // Chrome's address bar (F50 point 2): localhost and a one-label name with
   // a port or a path over http, and another scheme refused. Before, Nová
   // karta searched for these.
+  // A search would send the view's address to the search engine (Pablo's
+  // reviews of #407): the same host in another spelling is refused, while a
+  // text with a space stays a search, as in Chrome.
+  test("a text that names a view host is never a search, in any spelling a browser reads as that host", () => {
+    for (const typed of [
+      `browser.vm-01.example.lazurio.io./t/${id(10)}`,
+      "browser.vm-01.example.lazurio.io.",
+      `BROWSER.VM-01.EXAMPLE.LAZURIO.IO./t/${id(10)}`,
+      `browser.vm-01.example.lazurio.io.:443/t/${id(10)}`,
+      `browser.vm_01.example.lazurio.io/t/${id(10)}`,
+      `browser%2Evm-01.example.lazurio.io/t/${id(10)}`,
+      `browser．vm-01．example．lazurio．io/t/${id(10)}`,
+      `https://browser.vm-01.example.lazurio.io:99999/t/${id(10)}`,
+      `user@browser.vm-01.example.lazurio.io/t/${id(10)}`,
+    ])
+      expect(resolveAddress(typed, view)).toEqual({
+        kind: "refused",
+        reason: "view",
+      });
+    expect(
+      resolveAddress("browser.vm-01.example.lazurio.io nefunguje", view),
+    ).toEqual({
+      kind: "page",
+      url: "https://www.google.com/search?q=browser.vm-01.example.lazurio.io%20nefunguje",
+    });
+  });
+
   test("localhost and a one-label name with a port or a path open over http, and another scheme is refused", () => {
     expect(resolveAddress("localhost:3000", view)).toEqual({
       kind: "page",
