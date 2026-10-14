@@ -586,6 +586,54 @@
       }
     },
     {
+      "name": "without a scheme, a view address written with the DNS root's trailing dot is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "browser.vm-01.acme.lazurio.io./t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "without a scheme, the bare origin written with the DNS root's trailing dot is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "browser.vm-01.acme.lazurio.io.",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "a view host's name that no typed address takes is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "browser.vm_01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "an address on a view host that the URL parser refuses is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io:99999/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
       "name": "on a view host, the domain's own view host is refused",
       "call": "addressBarTarget",
       "args": [
