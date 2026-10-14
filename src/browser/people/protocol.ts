@@ -323,27 +323,3 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return null;
   }
 }
-
-/** What the address bar's text means: an address, or a search. A bare
- * host (`example.com`, `localhost:3000`) gets a scheme; anything with a
- * space or without a dot is a search. Never a `javascript:` or `file:`
- * address: only http, https and about:blank are navigated to. */
-export function addressOf(input: string): string {
-  const value = input.trim();
-  if (value === "about:blank") return value;
-  try {
-    const url = new URL(value);
-    if (url.protocol === "http:" || url.protocol === "https:") return url.href;
-  } catch {}
-  if (!/\s/.test(value)) {
-    const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/.*)?$/i.test(
-      value,
-    );
-    if (local || /^[^/?#]+\.[a-z]{2,}(:\d+)?([/?#].*)?$/i.test(value)) {
-      try {
-        return new URL(`${local ? "http" : "https"}://${value}`).href;
-      } catch {}
-    }
-  }
-  return `https://www.google.com/search?q=${encodeURIComponent(value)}`;
-}

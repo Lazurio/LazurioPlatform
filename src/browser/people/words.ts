@@ -1,6 +1,7 @@
 // The words of the people's view of the Environment browser (decision F39)
 // in the person's language: Czech where the browser's language is Czech,
-// English otherwise. The view page's script (`client.ts`) shows them; they
+// English otherwise (the contract's `browserLanguage`, F50 C17). The view
+// page's script (`client.ts`) shows them; they
 // live here, apart from its DOM, so the tests read both languages. Czech
 // addresses the person formally where it speaks to them (root decision
 // 0199); the bar's controls and its menu's items are nouns or infinitives.
@@ -39,6 +40,11 @@ export const en = {
   pictureSaver: "Data saver",
   pictureSaverHint: "lower resolution for a slow connection",
   openAlone: "Open in a new tab",
+  foreignView: "This address is another Environment's browser",
+  addressRefused:
+    "This address is on the view of an Environment browser but links to no tab, so it does not open here.",
+  addressRefusedScheme:
+    "The Environment browser opens only http and https addresses here.",
 };
 export type Words = { readonly [K in keyof typeof en]: string };
 export const cs: Words = {
@@ -75,12 +81,12 @@ export const cs: Words = {
   pictureSaver: "Úsporná",
   pictureSaverHint: "nižší rozlišení pro pomalé připojení",
   openAlone: "Otevřít samostatně",
+  foreignView: "Tahle adresa je prohlížeč jiného Environmentu",
+  addressRefused:
+    "Tahle adresa patří pohledu prohlížeče Environmentu, ale neodkazuje na žádnou záložku, takže se tu neotevře.",
+  addressRefusedScheme:
+    "Prohlížeč Environmentu tu otevírá jen adresy http a https.",
 };
-
-/** The view's language for the browser's (`navigator.language`). */
-export function viewLanguage(language: string): "cs" | "en" {
-  return language.toLowerCase().startsWith("cs") ? "cs" : "en";
-}
 
 export const words: Readonly<Record<"cs" | "en", Words>> = Object.freeze({
   cs,

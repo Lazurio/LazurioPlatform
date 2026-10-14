@@ -2,18 +2,31 @@ import { environmentIdOf } from "../../shell/contract";
 import { environmentElement } from "../../shell/identity-element";
 import {
   acceptIdentityReply,
-  identityMessage,
   parseEmbeddedIdentity,
   viewIdentityElementId,
 } from "../../shell/identity-protocol";
 import { type EnvironmentIdentity, titleWithIdentity } from "../../shell/view";
 import {
+  addressBarTarget,
+  browserLanguage,
+  browserTimes,
   browserViewUrl,
+  identityRequestMessage,
+  messageMajor,
   targetIdOf,
+  viewClosedMessage,
+  viewInfoMessage,
+  viewNewTabMessage,
   viewPath,
   viewPathTab,
 } from "../contract/pure";
-import { aloneAddress, menuStep, pictureKey, pictureOf } from "./bar";
+import {
+  aloneAddress,
+  menuStep,
+  ownTabView,
+  pictureKey,
+  pictureOf,
+} from "./bar";
 import { FramePump } from "./frames";
 import {
   buttonBit,
@@ -34,7 +47,6 @@ import {
   wheelDelta,
 } from "./input-map";
 import {
-  addressOf,
   type ClientMessage,
   decodeFrame,
   type FrameHeader,
@@ -43,7 +55,7 @@ import {
   type ViewSize,
 } from "./protocol";
 import { viewStatus } from "./status";
-import { viewLanguage, type Words, words } from "./words";
+import { type Words, words } from "./words";
 
 // The script of the people's view of the Environment browser (decision
 // F39), served as `/assets/view.js` to the page of `page.ts`: one tab of a
@@ -55,7 +67,9 @@ import { viewLanguage, type Words, words } from "./words";
 // only to its own origin (inside an app's frame it also tells that app where
 // the tab is, and asks it how the Environment is named).
 
-const language = viewLanguage(navigator.language);
+// The browser's language (root decision 0191 point 33: framed, the shell's
+// once the identity answer carries it, F50's phase 3).
+const language = browserLanguage(navigator.language);
 const say: Words = words[language];
 
 // The person's shortcuts use ⌘ on a Mac, an iPhone and an iPad (whose
@@ -63,15 +77,18 @@ const say: Words = words[language];
 const mac = /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
 
 // Inside an app's frame (web T3 Code's Browser panel, the Launchpad's right
-// panel) the view tells the app where the tab is and which new tab to open.
-// Only the app around it hears that; where the browser does not name it, any
-// may, and the service lets only the Environment's own origins frame the view
-// (F39 point 8).
+// panel) the view tells the app where the tab is and which new tab to open,
+// in the contract's messages (C8, C9). Only the app around it hears that;
+// where the browser does not name it, any may, and the service lets only the
+// Environment's own origins frame the view (F39 point 8). Each message goes
+// once, in the highest major both read: v1 until the app's identity answer
+// names its majors, and to an app that names none (F50 point 3).
 const embedded = window.parent !== window;
 const ancestor = location.ancestorOrigins?.item(0) ?? null;
 const parentOrigin = ancestor !== null && ancestor !== "null" ? ancestor : "*";
-function tell(message: Readonly<Record<string, string>>): void {
-  if (!embedded) return;
+let appMajors: readonly number[] | null = null;
+function tell(message: Readonly<{ type: string; v: number }>): void {
+  if (!embedded || messageMajor(appMajors) !== message.v) return;
   try {
     window.parent.postMessage(message, parentOrigin);
   } catch {}
@@ -135,13 +152,14 @@ if (embedded) {
     if (reply === null) return;
     replied = true;
     answered = reply.identity;
+    appMajors = reply.majors;
     renamed();
   });
   // Asked again while the app has not answered: its shell may start to
   // listen after this page asked.
-  for (const after of [0, 1_000, 4_000])
+  for (const after of browserTimes.identityAskMs)
     setTimeout(() => {
-      if (!replied) tell({ type: identityMessage.request });
+      if (!replied) tell(identityRequestMessage());
     }, after);
 }
 renamed();
@@ -1126,6 +1144,9 @@ let loading = false;
 let justFocused = false;
 let edited = false;
 let submitted = false;
+/** What the notice's Otevřít opens in a new tab of the person's browser:
+ * the view of a page's new tab, or another Environment's view; null for a
+ * notice that only says something. */
 let offered: string | null = null;
 
 const shown = (url: string) => (url === "about:blank" ? "" : url);
@@ -1146,12 +1167,10 @@ function showInfo(info: Info): void {
   const icon =
     info.favicon !== null && isHttps(info.favicon) ? info.favicon : defaultIcon;
   if (favicon.href !== icon) favicon.href = icon;
-  tell({
-    type: "lazurio-browser:info",
-    url: info.url,
-    title: info.title,
-    view: location.href,
-  });
+  // The tab by its view address in the contract's form, whatever the
+  // page's own address says.
+  const view = ownTabView(location.origin, main?.id ?? null, location.pathname);
+  if (view !== null) tell(viewInfoMessage(view, info.url, info.title));
 }
 
 function navigate(action: "back" | "forward" | "reload" | "stop"): void {
@@ -1181,13 +1200,37 @@ address.addEventListener("keydown", (event) => {
   if (event.isComposing) return;
   if (event.key === "Enter") {
     event.preventDefault();
-    const value = address.value.trim();
-    if (value === "" || main === null) return;
-    const url = addressOf(value);
-    submitted = true;
-    address.value = url;
-    main.send({ t: "goto", url });
-    main.focus();
+    if (main === null) return;
+    // The address bar is Chrome's, as Nová karta's (F50 point 2), and loads
+    // nothing on a view host in the Environment browser.
+    const target = addressBarTarget(address.value, location.origin);
+    switch (target.kind) {
+      case "none":
+        return;
+      case "page":
+        submitted = true;
+        address.value = target.url;
+        main.send({ t: "goto", url: target.url });
+        main.focus();
+        return;
+      case "tab":
+      case "new-tab":
+        address.value = shown(current);
+        void openOwnTab(target.kind === "tab" ? target.tab : null);
+        return;
+      case "foreign":
+        address.value = shown(current);
+        showNotice(say.foreignView, target.href, target.href);
+        return;
+      case "refused":
+        showNotice(
+          target.reason === "view"
+            ? say.addressRefused
+            : say.addressRefusedScheme,
+          null,
+        );
+        return;
+    }
   } else if (event.key === "Escape") {
     event.preventDefault();
     address.value = shown(current);
@@ -1345,20 +1388,50 @@ alone.addEventListener("click", () => {
   if (view !== null) window.open(view, "_blank", "noopener");
 });
 
+/** The notice above the page: its text, what its Otevřít opens (none
+ * without the button) and its title. */
+function showNotice(text: string, open: string | null, title = text): void {
+  offered = open;
+  noticeText.textContent = text;
+  noticeText.title = title;
+  noticeOpen.hidden = open === null;
+  notice.hidden = false;
+}
+
 /** A page's new tab without access to its opener (F39 point 4): offered with
  * one click, and to the app around the view. */
 function offerNewTab(id: string, url: string): void {
   const tab = targetIdOf(id);
   if (tab === null) return;
-  offered = tab;
-  noticeText.textContent = `${say.newTab}: ${url}`;
-  noticeText.title = url;
-  notice.hidden = false;
-  tell({
-    type: "lazurio-browser:new-tab",
-    view: browserViewUrl(location.origin, tab),
-    url,
-  });
+  showNotice(`${say.newTab}: ${url}`, viewPath(tab), url);
+  tell(viewNewTabMessage(browserViewUrl(location.origin, tab), url));
+}
+
+/** A tab of this Environment's view typed into the bar, or a new one for
+ * its bare origin (`tab` null), which the Environment browser never loads
+ * inside a tab (F50 point 2): inside an app's frame the app opens it as a
+ * tab of its own, as it does a page's new tab; on its own the view goes to
+ * it. Its own tab just takes the focus. */
+async function openOwnTab(tab: string | null): Promise<void> {
+  if (tab !== null && tab === main?.id) {
+    main.focus();
+    return;
+  }
+  if (!embedded) {
+    location.assign(viewPath(tab));
+    return;
+  }
+  const id = tab ?? (await createTab());
+  if (id === null) {
+    showNotice(say.startFailed, null);
+    return;
+  }
+  tell(
+    viewNewTabMessage(
+      browserViewUrl(location.origin, id),
+      tab === null ? "about:blank" : "",
+    ),
+  );
 }
 
 function dismissNotice(): void {
@@ -1368,7 +1441,7 @@ function dismissNotice(): void {
 }
 
 noticeOpen.addEventListener("click", () => {
-  if (offered !== null) window.open(viewPath(offered), "_blank", "noopener");
+  if (offered !== null) window.open(offered, "_blank", "noopener");
   dismissNotice();
 });
 noticeClose.addEventListener("click", dismissNotice);
@@ -1461,8 +1534,10 @@ function tabClosed(): void {
   for (const control of [back, forward, reload, address, alone])
     control.disabled = true;
   showEnd(say.closed, say.openNewTab, () => location.assign("/"));
-  // The app around the view drops the tab from its strip (F47 point 6).
-  tell({ type: "lazurio-browser:closed", view: location.href });
+  // The app around the view drops the tab from its strip (F47 point 6),
+  // named by its view address in the contract's form.
+  const view = ownTabView(location.origin, main?.id ?? null, location.pathname);
+  if (view !== null) tell(viewClosedMessage(view));
 }
 
 /** A new remote tab at the page area's size (F39 point 1); null when the

@@ -1,4 +1,4 @@
-import { browserViewUrl } from "../contract/pure";
+import { browserViewUrl, viewPathTab } from "../contract/pure";
 import type { Picture } from "./protocol";
 
 /** The bar of the people's view (decision F39 point 1 and its addendum of
@@ -51,4 +51,18 @@ export function aloneAddress(
   tab: string | null,
 ): string | null {
   return embedded && tab !== null ? browserViewUrl(origin, tab) : null;
+}
+
+/** How the view names its own tab to the app around it (C8, decision F50
+ * point 2): the tab's view address in the contract's form, by the tab it
+ * shows, else by its page's path, whatever else its address says (a query,
+ * a slash, an id in lower case), which an app would refuse. Null without a
+ * tab. */
+export function ownTabView(
+  origin: string,
+  shown: string | null,
+  path: string,
+): string | null {
+  const tab = shown ?? viewPathTab(path);
+  return tab === null ? null : browserViewUrl(origin, tab);
 }
