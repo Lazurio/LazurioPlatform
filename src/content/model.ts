@@ -62,7 +62,18 @@ export const organizationSteps = [
   "preparation",
   "check",
 ] as const;
-export const personalspaceSteps = ["find", "create", "clone", "check"] as const;
+/** `bootstrap` and `push` run only for a Personalspace the run created (the
+ * template's own bootstrap, then the commit and push of what it wrote,
+ * decision F9's addendum of 2026-10-14); for any other one `bootstrap` is
+ * reported skipped with what it found. */
+export const personalspaceSteps = [
+  "find",
+  "create",
+  "clone",
+  "bootstrap",
+  "push",
+  "check",
+] as const;
 export type StepKey =
   | (typeof organizationSteps)[number]
   | (typeof personalspaceSteps)[number];
@@ -105,12 +116,28 @@ export const contentFailureCodes = [
   "create-failed",
   "personalspace-not-private",
   "create-not-ready",
+  // the template's bootstrap of a Personalspace this run creates (asked
+  // before it creates anything: Bun and a Git identity)
+  "personalspace-toolchain-missing",
+  "git-identity-missing",
+  "personalspace-template-unexpected",
+  "personalspace-bootstrap-failed",
+  "personalspace-commit-failed",
+  "personalspace-push-failed",
+  "gbrain-commit-failed",
+  "gbrain-push-failed",
   "check-failed",
   // the operation itself
   "content-busy",
   "operation-failed",
 ] as const;
 export type ContentFailureCode = (typeof contentFailureCodes)[number];
+
+/** What a succeeded item may still carry: `personalspace-placeholders`, a
+ * Personalspace that holds the template's placeholders and is left as it is
+ * (its `bootstrap` step says the next step). */
+export const contentWarningCodes = ["personalspace-placeholders"] as const;
+export type ContentWarningCode = (typeof contentWarningCodes)[number];
 
 export type ContentStep = Readonly<{
   item: ContentItemRef;

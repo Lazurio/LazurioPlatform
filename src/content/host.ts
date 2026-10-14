@@ -10,6 +10,10 @@ import { runTool } from "../tools/status";
 import { resolveInstallBase } from "../update/base";
 import { type ContentGit, gitEnvironmentOf, processContentGit } from "./git";
 import { type ContentGitHub, ghContentGitHub } from "./github";
+import {
+  type PersonalspaceBootstrap,
+  processPersonalspaceBootstrap,
+} from "./personalspace-bootstrap";
 
 // Where content installation runs: this Environment's GitHub sign-in, the
 // operator's git, the per-Folder lock and the module preparation of the
@@ -28,6 +32,9 @@ export type ContentHost = Readonly<{
   /** The declared preparation of one module, by `<Organization>/<module>`
    * (`lazurio module prepare`, decision F34). */
   prepare: (name: string) => Promise<PreparationAnswer>;
+  /** The template's bootstrap of a Personalspace this install creates, and
+   * the commit and push after it (decision F9, addendum of 2026-10-14). */
+  personalspace: PersonalspaceBootstrap;
   /** Test seam: the catalog core. */
   readCatalog?: (folder: string) => Promise<Catalog>;
 }>;
@@ -93,6 +100,7 @@ export function processContentHost(
     ...processGitHubHost({ env: input.env, platform: input.platform, tools }),
     lockDirectory: contentLockDirectory(base),
     prepare: input.prepare,
+    personalspace: processPersonalspaceBootstrap(tools, input.env),
   });
 }
 

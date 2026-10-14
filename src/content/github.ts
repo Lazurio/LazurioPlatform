@@ -14,6 +14,8 @@ export type GitHubViewer = Readonly<{
   login: string;
   /** The account's numeric id (`id` of `GET /user`). */
   databaseId: number;
+  /** The profile's name (`name` of `GET /user`), when the account set one. */
+  name?: string;
 }>;
 
 export type ViewerAnswer =
@@ -147,7 +149,19 @@ export function parseViewer(stdout: string): GitHubViewer | null {
       id < 1
     )
       return null;
-    return Object.freeze({ login, databaseId: id });
+    const name =
+      typeof value?.name === "string"
+        ? [...value.name]
+            .filter((character) => character >= " " && character !== "\u007f")
+            .join("")
+            .trim()
+            .slice(0, 200)
+        : "";
+    return Object.freeze({
+      login,
+      databaseId: id,
+      ...(name === "" ? {} : { name }),
+    });
   } catch {
     return null;
   }

@@ -238,7 +238,9 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
 
 ### The Personalspace
 
-Steps: `find`, `create` (only when it creates), `clone`, `check`.
+Steps: `find`, `create`, `clone`, `bootstrap` and `push` (the three only when it
+creates), `check`; for any other Personalspace `bootstrap` is reported `skipped`
+with what it found.
 
 - **Recognition.** The Personalspace of GitHub account `<login>` is
   `<login>/<login>_GEN3` in `personalspace/<login>_GEN3`, the naming the resident
@@ -274,7 +276,49 @@ Steps: `find`, `create` (only when it creates), `clone`, `check`.
   `Lazurio/PersonalspaceTemplate_GEN3` as a **private** repository of the account
   (`POST /repos/{template}/generate`, `private: true`), refused when GitHub reports it
   not private (`personalspace-not-private`), awaited until its `main` exists, then
-  cloned. The template's own bootstrap script is not run.
+  cloned and set up by the template's own bootstrap
+  ([F9 addendum of 2026-10-14](decisions.md#addendum-of-2026-10-14-the-install-runs-the-templates-own-bootstrap), #377).
+- **The template's bootstrap** (only for the Personalspace this run created). Before
+  anything is created, `create` asks for what the setup needs: Bun (`~/.local/bin/bun`,
+  else on the PATH; `personalspace-toolchain-missing`) and the operator's Git identity
+  (`user.name` and `user.email`; `git-identity-missing`). After the clone, `bootstrap`
+  checks that the checkout is clean and carries the template's marker
+  `personalspace.template.json` (`personalspace-template-unexpected`), then runs
+  `bun run --cwd <checkout> bootstrap -- --login <login> --display-name <name> --apply`
+  with the operator's gh and git: the template names the owner in `personal.gen3.json`
+  and `modules.manifest.json` and creates and clones the private
+  `<login>/<login>-gbrain` (root decision 0046). The name is the GitHub profile's,
+  else the login. `--install-gbrain` is not passed: installing the gbrain CLI stays the
+  person's choice, and the template's own rule accepts a doctor that is `incomplete`
+  only for that deferred `gbrain.cli`. The Platform writes neither file; it reads what
+  the template wrote and requires it to name the signed-in account with a gbrain
+  repository. A failed bootstrap is `personalspace-bootstrap-failed` with the
+  template's own reason: the repository stays created and cloned, nothing is
+  committed, pushed or removed, and the detail names the next step (fix the cause, run
+  the same command in the checkout, then commit and push as the template's manual,
+  step 7, says).
+- **push** commits exactly the files the template's manual names, with its messages:
+  `personal.gen3.json` and `modules.manifest.json` to `main` of the new Personalspace,
+  and `gbrain/.gitignore` to `main` of the new gbrain repository
+  (`personalspace-commit-failed`, `personalspace-push-failed`, `gbrain-commit-failed`,
+  `gbrain-push-failed`). Both repositories were created by the same run a moment
+  before, so this completes their creation and overwrites nobody's work.
+- **An existing Personalspace is never bootstrapped**, present or cloned now: its
+  `main` is the person's Publication, and the bootstrap would run code of a
+  repository this run did not create. `bootstrap` is `skipped`: when its
+  declarations name an owner, with that owner; when they still hold the template's
+  placeholders (`owner-github-username`), the item succeeds with the warning
+  `personalspace-placeholders` (`warnings` of the item) and the step's detail names
+  the next step: in a task worktree (`personalspace/.worktrees/<task>`) run the
+  template's bootstrap, commit the two files and open a pull request into the
+  Personalspace. The template's bootstrap supports a task worktree: it writes only
+  into the worktree and keeps `gbrain/` in the primary checkout.
+- **Under a Lazurio Folder.** The template recognises the Platform's Folder
+  (`.lazurio/preferences.json`) above `personalspace/`, as it recognises the Lazurio
+  root by `launchpad.gen3.json`; a Folder outside any Git repository has no root
+  repository the mount could leak into, so the root's Git checks do not apply there
+  (Lazurio/PersonalspaceTemplate_GEN3, "Co bootstrap kontroluje nad
+  `personalspace/`").
 
 ### One operation at a time, and its leftovers
 

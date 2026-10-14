@@ -543,7 +543,8 @@ Contract and details: [content synchronization, Installation](content-sync.md#in
 5. **The Personalspace** is `<login>/<login>_GEN3` in `personalspace/<login>_GEN3`
    (the resident's naming). Existing on GitHub (private, the account's own): cloned
    only. Missing: created from `Lazurio/PersonalspaceTemplate_GEN3` as a private
-   repository of the account, then cloned. GitHub's `template_repository` is only a
+   repository of the account, then cloned (and, since the addendum of 2026-10-14
+   below, set up by the template's own bootstrap). GitHub's `template_repository` is only a
    guard against a second one (`personalspace-elsewhere`), never the recognition: a
    Personalspace created before the template has no template link.
 
@@ -711,6 +712,87 @@ that never comes (`tests/personalspace-modules.test.ts`). Risks: an app of a Per
 (signed out, GitHub silent past the minute) cannot be stopped from Lazurio until it is
 held again, only through the service manager; a login renamed on GitHub no longer
 verifies `<login>_GEN3`, as before (a separate issue).
+
+### Addendum of 2026-10-14: the install runs the template's own bootstrap
+
+**Decided by Matěj (Organization Admin) on 2026-10-14, "S gbrainem, podle šablony";
+Lazurio/LazurioPlatform#377.** Point 5 created the Personalspace from the template and
+cloned it, but never ran the template's bootstrap. Its placeholders
+(`owner-github-username`, `Owner Display Name`) stayed in `personal.gen3.json` and
+`modules.manifest.json`: the template's CI then checked the instance as the template,
+and its live doctor took the placeholder for the owner and reported the real owner as a
+forbidden collaborator of the Personalspace and of every personal module (#359 M2).
+Root decision 0046 puts the person's gbrain in the Personalspace; the template's
+bootstrap is what creates it.
+
+1. **One rule for the manual and the automatic install; the template owns its
+   identity logic.** For a Personalspace this run has just created, the install runs
+   the template's own `bun run bootstrap -- --login <login> --display-name <name>
+   --apply` in the fresh checkout, after checking that it is clean and carries the
+   template's marker. The bootstrap names the owner and creates and clones the
+   private `<login>/<login>-gbrain`. The Platform never builds or writes either
+   declaration; it reads what the template wrote and requires it to name the
+   signed-in account with a gbrain repository. The name is the GitHub profile's,
+   else the login.
+2. **No gbrain CLI.** `--install-gbrain` is not passed: installing the CLI stays the
+   person's choice. The template's own doctor-outcome rule decides acceptance: an
+   `incomplete` doctor is accepted only for the deferred `gbrain.cli`.
+3. **Committed and pushed as part of the creation.** The `push` step commits exactly
+   the files the template's manual names, with its messages, to `main` of both new
+   repositories (`personal.gen3.json` and `modules.manifest.json`; `gbrain/.gitignore`).
+   The same run created both repositories a moment before; nobody's work is
+   overwritten.
+4. **Asked before anything is created.** Bun (`~/.local/bin/bun`, else on the PATH) and
+   the operator's Git identity (`user.name`, `user.email`) are checked at `create`
+   before generation (`personalspace-toolchain-missing`, `git-identity-missing`), so a
+   predictable cause never leaves a created repository behind.
+5. **A failure stays truthful and recoverable.** `personalspace-template-unexpected`,
+   `personalspace-bootstrap-failed` (with the template's own reason),
+   `personalspace-commit-failed`, `personalspace-push-failed`, `gbrain-commit-failed`,
+   `gbrain-push-failed`: nothing is removed, and nothing more is committed or pushed.
+   The detail says what exists and the next step, which is the template's manual:
+   run the same bootstrap in the checkout (it reuses a gbrain repository and clone it
+   already made), then commit and push.
+6. **An existing Personalspace is reported, never bootstrapped.** A Personalspace
+   found on GitHub or in the Folder is the person's: its `main` is their Publication,
+   and running its bootstrap would execute code of a repository this run did not
+   create (the resident's `create-personalspace.mjs` refuses that too). `bootstrap` is
+   `skipped`; one that still holds the placeholders succeeds with the warning
+   `personalspace-placeholders`, and the step names the next step: the template's
+   bootstrap in a task worktree and a pull request into the Personalspace. A re-run of
+   `lazurio personalspace install` stays report-only.
+7. **The template recognises the Folder.** Lazurio/PersonalspaceTemplate_GEN3 required
+   the Lazurio root checkout above `personalspace/`. It now recognises the Platform's
+   Folder (`.lazurio/preferences.json`), runs the root's Git checks there only when
+   the Folder lies inside a Git repository, keeps them all under the root, and runs
+   from a task worktree (it writes only into the worktree; `gbrain/` stays in the
+   primary checkout). That template change merges first.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The Platform writes the owner into both files itself | A second copy of the template's builders that drifts from them; rejected by the decision |
+| Name the owner, but leave gbrain for later | Root decision 0046 puts gbrain in the Personalspace, and the template's doctor fails without its mount; rejected ("s gbrainem") |
+| Also install the gbrain CLI (`--install-gbrain`) | Installs software the person did not choose and picks no provider anyway; left to the person |
+| Leave the bootstrap's result uncommitted for the person | The new repository's `main` would keep the placeholders, and every other Environment would clone them; the run that created the repository completes it |
+| A re-run bootstraps an existing Personalspace and opens the pull request itself | Runs code of a repository the run did not create, creates a gbrain repository and a branch without a request; report-only, with the next step for an agent |
+| Remove the created repository when the bootstrap fails | Destroys a repository on GitHub on a failure that is usually fixable in place; it stays, with the next step |
+
+Tests: `tests/content-install.test.ts` (a fresh install names the owner with the profile's
+name, creates and pushes gbrain and leaves both checkouts clean; a failed bootstrap
+leaves the repository created and unpushed with the template's reason and the next
+step; nothing is created without Bun or a Git identity; an unmarked repository is never
+bootstrapped; an existing Personalspace with placeholders, cloned and present, is
+reported with the warning and never touched) over a fixture template whose bootstrap
+does to the two files what the template's does; `tests/personalspace-bootstrap.test.ts`
+(the exact command line and environment, the reason line, `ready`, and the commit and
+push of only the named files, including a refused push); `tests/content-github.test.ts`
+(the profile's name); `tests/content-view.test.ts` (the new steps only where the
+Personalspace is created). The template's own process tests run its real bootstrap
+under a Lazurio Folder. Risks: the template's bootstrap now runs on every new
+Personalspace with the operator's gh and git, so a template regression reaches new
+installs directly (its `main` is checked by its CI, and the marker and the clean check
+guard against an unexpected repository); a Personalspace created before this change
+keeps its placeholders until its owner merges the pull request.
 
 ## F10 — Workspace presets and typed owner requests
 

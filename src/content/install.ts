@@ -20,12 +20,22 @@ import {
   type ContentRefusal,
   type ContentScope,
   type ContentStep,
+  type ContentWarningCode,
   contentScope,
+  repositoryPattern,
   type StepKey,
   sameRepository,
   scopeAdmits,
 } from "./model";
 import { resolveOrganizationRootRepository } from "./organization-root";
+import {
+  gbrainCommitMessage,
+  isTemplateCheckout,
+  personalspaceCommitMessage,
+  personalspaceIdentityFiles,
+  personalspaceOwnerOf,
+  templateOwnerPlaceholder,
+} from "./personalspace-bootstrap";
 import {
   classifySlotAccess,
   type OrganizationRole,
@@ -106,6 +116,8 @@ export type ItemOutcome = Readonly<{
   role?: OrganizationRole;
   repositories?: readonly RepositoryOutcome[];
   preparations?: readonly PreparationOutcome[];
+  /** A succeeded item's warnings; the steps' details name the next step. */
+  warnings?: readonly ContentWarningCode[];
 }>;
 
 export type InstallResult =
@@ -911,6 +923,8 @@ async function installPersonalspace(
       `gh works as ${viewer.login}, not as the owner of this Environment`,
     );
   let repository: string | null = null;
+  // The checkout this run created, or null for an existing Personalspace.
+  let createdCheckout: string | null = null;
   if (located.kind === "owner") {
     // Only the account's own, private Personalspace counts (review of
     // #183); anything else fails closed and is left untouched.
@@ -930,6 +944,10 @@ async function installPersonalspace(
     const [owner, name] = repository.split("/") as [string, string];
     if (found.create) {
       steps.running("create");
+      // What the template's bootstrap needs after the creation is asked
+      // first: a creation that could not be set up is not started.
+      const ready = await host.personalspace.ready(folder);
+      if (!ready.ok) return steps.fail("create", ready.code, ready.detail);
       const created = await host.github.generate(
         personalspaceTemplate,
         owner,
@@ -993,7 +1011,22 @@ async function installPersonalspace(
         failureDetails[result.code] ?? "materialization failed",
       );
     steps.done("clone", `cloned into personalspace/${name}`);
+    if (found.create) {
+      createdCheckout = result.directory;
+      const failed = await setUpCreated(
+        result.directory,
+        repository,
+        viewer,
+        context,
+        steps,
+      );
+      if (failed !== null) return failed;
+    }
   }
+  const warnings =
+    createdCheckout === null
+      ? await reportExisting(folder, repository, viewer, steps)
+      : [];
   steps.running("check");
   const now = await locatePersonalspace(folder);
   const observed =
@@ -1014,5 +1047,121 @@ async function installPersonalspace(
     state: "succeeded",
     repository: observed.repository,
     directory: relative(folder, now.directory),
+    ...(warnings.length === 0 ? {} : { warnings: Object.freeze(warnings) }),
   };
+}
+
+/** The template's bootstrap in the Personalspace this run has just created
+ * and cloned, then the commit and push of what it wrote (decision F9,
+ * addendum of 2026-10-14). The failed outcome, or null when it is set up. */
+async function setUpCreated(
+  checkout: string,
+  repository: string,
+  viewer: GitHubViewer,
+  context: RunContext,
+  steps: Stepper,
+): Promise<ItemOutcome | null> {
+  const { folder, host } = context;
+  const where = relative(folder, checkout);
+  steps.running("bootstrap");
+  if (
+    !(await isTemplateCheckout(checkout, personalspaceTemplate)) ||
+    !(await host.personalspace.clean(checkout))
+  )
+    return steps.fail(
+      "bootstrap",
+      "personalspace-template-unexpected",
+      `${where} is not a clean checkout of ${personalspaceTemplate}, so its bootstrap was not run; ${repository} is created and cloned but does not name its owner`,
+    );
+  const displayName = viewer.name ?? viewer.login;
+  const again = `bun run bootstrap -- --login ${viewer.login} --display-name ${JSON.stringify(displayName)} --apply`;
+  const ran = await host.personalspace.run(checkout, {
+    login: viewer.login,
+    displayName,
+  });
+  if (!ran.ok)
+    return steps.fail(
+      "bootstrap",
+      "personalspace-bootstrap-failed",
+      `the template's bootstrap failed (${ran.detail}). ${repository} is created and cloned into ${where} but does not name its owner on GitHub; nothing was committed or pushed and nothing was removed. Fix the cause, run \`${again}\` in ${where} (it reuses a gbrain repository and clone it already made), then commit and push what it changed as its manual/bootstrap-personalspace.md, step 7, says`,
+    );
+  const owner = await personalspaceOwnerOf(checkout);
+  if (
+    owner.kind !== "named" ||
+    owner.login.toLowerCase() !== viewer.login.toLowerCase() ||
+    owner.gbrain === null ||
+    !repositoryPattern.test(owner.gbrain)
+  )
+    return steps.fail(
+      "bootstrap",
+      "personalspace-bootstrap-failed",
+      `the template's bootstrap finished, but ${where} does not name ${viewer.login} its owner with a gbrain repository; nothing was committed or pushed`,
+    );
+  steps.done(
+    "bootstrap",
+    `named ${viewer.login} (${displayName}) its owner; ${owner.gbrain} is private and cloned into ${where}/gbrain`,
+  );
+  steps.running("push");
+  const own = await host.personalspace.publish(
+    checkout,
+    personalspaceIdentityFiles,
+    personalspaceCommitMessage,
+    (await host.github.remote(repository)).credentialHelper,
+  );
+  if (!own.ok)
+    return steps.fail(
+      "push",
+      `personalspace-${own.stage}-failed`,
+      `${own.detail}. ${where} names its owner but ${repository} does not yet: commit and push ${personalspaceIdentityFiles.join(" and ")} there`,
+    );
+  const gbrain = await host.personalspace.publish(
+    join(checkout, "gbrain"),
+    [".gitignore"],
+    gbrainCommitMessage,
+    (await host.github.remote(owner.gbrain)).credentialHelper,
+  );
+  if (!gbrain.ok)
+    return steps.fail(
+      "push",
+      `gbrain-${gbrain.stage}-failed`,
+      `${gbrain.detail}. ${repository} names its owner; ${where}/gbrain/.gitignore is not in ${owner.gbrain} yet: commit and push it there`,
+    );
+  steps.done(
+    "push",
+    `pushed the owner to ${repository} and gbrain/.gitignore to ${owner.gbrain}`,
+  );
+  return null;
+}
+
+/** An existing Personalspace is never set up here: its `main` is the
+ * person's Publication and the bootstrap would run code of a repository this
+ * run did not create. `bootstrap` is skipped with what was found, and one
+ * that still holds the template's placeholders gets the next step. */
+async function reportExisting(
+  folder: string,
+  repository: string | null,
+  viewer: GitHubViewer,
+  steps: Stepper,
+): Promise<ContentWarningCode[]> {
+  const located = await locatePersonalspace(folder);
+  if (located.kind !== "owner") return [];
+  const where = relative(folder, located.directory);
+  const owner = await personalspaceOwnerOf(located.directory);
+  if (owner.kind === "named") {
+    steps.skipped("bootstrap", `${where} names its owner ${owner.login}`);
+    return [];
+  }
+  if (owner.kind === "unreadable") {
+    steps.skipped(
+      "bootstrap",
+      `${where} has no readable personal.gen3.json and modules.manifest.json of the template; nothing was changed`,
+    );
+    return [];
+  }
+  const displayName = viewer.name ?? viewer.login;
+  steps.skipped(
+    "bootstrap",
+    `${where} still holds the template's placeholders (${templateOwnerPlaceholder}): it was created without the template's bootstrap. Its main is the person's, so nothing was changed. Next step: in a task worktree of it (personalspace/.worktrees/<task>) run \`bun run bootstrap -- --login ${viewer.login} --display-name ${JSON.stringify(displayName)} --apply\`, commit ${personalspaceIdentityFiles.join(" and ")} and open a pull request into ${repository ?? `${viewer.login}/${personalspaceRepositoryName(viewer.login)}`}; it creates the private gbrain repository when it is missing (the template's manual/bootstrap-personalspace.md)`,
+  );
+  return ["personalspace-placeholders"];
 }
