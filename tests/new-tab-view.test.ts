@@ -252,6 +252,10 @@ describe("the address bar (the wireframe's resolveAddress)", () => {
       `https:browser.vm-01.example.lazurio.io:99999/t/${id(10)}`,
       `\uFF42\uFF52\uFF4F\uFF57\uFF53\uFF45\uFF52.vm-01.example.lazurio.io/t/${id(10)}`,
       `browser\u3002vm-01\u3002example\u3002lazurio\u3002io/t/${id(10)}`,
+      `brow\u00ADser.vm-01.example.lazurio.io/t/${id(10)}`,
+      `browser.vm-01.example.lazu\u00ADrio.io/t/${id(10)}`,
+      `//brow\u00ADser.vm-01.example.lazurio.io/t/${id(10)}`,
+      `browser\u200B.vm-01.example.lazurio.io/t/${id(10)}`,
     ])
       expect([typed, resolveAddress(typed, view).kind]).not.toEqual([
         typed,

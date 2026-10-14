@@ -10062,8 +10062,11 @@ it and settles the divergences point 8 lists for phase 1. The decision above sta
      Neither bar turns a text without a space that mentions a view host anywhere into a search,
      which would send the view's address to the search engine, in any spelling: without a
      scheme, as a network path (`//` or `\\`), as a name no address takes, with a port out of
-     range, behind `user@`, escaped, with full-width dots. Such a text is refused. A text with
-     a space stays a search, as in Chrome (Pablo's reviews of #407).
+     range, behind `user@`, escaped, with full-width dots, with a soft hyphen or another
+     character the URL parser's IDNA mapping drops. The bars ask the URL parser how it reads the
+     text's host, and they also look for a view host anywhere in the text once it is read the same
+     way by hand. Such a text is refused. A text with a space stays a search, as in Chrome
+     (Pablo's reviews of #407).
    - **The view's messages (C8).** The view names its tab by the strict view address; it sent
      `location.href`.
    - **Nová karta's tools (C10).** A tool's icon comes from its id by the registry, so
@@ -10099,7 +10102,7 @@ it and settles the divergences point 8 lists for phase 1. The decision above sta
    - Task 706: doctor's two remaining warnings.
    - Task 510: MausBot.
 
-Verified by the vectors: 493 cases in fourteen files, every export with its case, run against
+Verified by the vectors: 495 cases in fourteen files, every export with its case, run against
 the module and against the module as the shell artifact packs it. The suites keep their cases
 where nothing is settled, with imports moved to the module. Where a case pinned a settled
 behaviour, it now pins the new one, and each settled divergence has a case that the code before
