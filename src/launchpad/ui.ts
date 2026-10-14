@@ -7,7 +7,7 @@ import {
 } from "../shell/contract";
 import { defineShellElements, provideShell } from "../shell/elements";
 import { shellMessages } from "../shell/messages";
-import { environmentName } from "../shell/view";
+import { environmentName, switchTabs } from "../shell/view";
 import type { ToolsOverview } from "../tools/overview";
 import { accountWriter, readAccount } from "./account";
 import { pluralKey } from "./apps-view";
@@ -263,6 +263,13 @@ const catalog = createCatalogPanel({
     shellDocument?.organizations.find(
       (organization) => organization.slug.toLowerCase() === slug.toLowerCase(),
     )?.dashboard ?? null,
+  // The switch as the column head draws it, for the personal space's starts
+  // (root decision 0185's addendum of 2026-10-13): this Environment's own
+  // apps, which the person's account never changes (src/shell/merge.ts).
+  tabs: () =>
+    shellDocument === null
+      ? []
+      : switchTabs(shellDocument, shellMessages(locale), "apps"),
 });
 // The first run of an Environment (root decision 0188): the line in Apps
 // until it is usable, "Obsah Environmentu" in Settings → Tento Environment

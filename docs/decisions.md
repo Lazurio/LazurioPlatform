@@ -5346,6 +5346,80 @@ also do between two runs of `main`. Not exercised: the forks and the
 Dashboard themselves, and browsers other than Chrome. These are no rendered-page CI
 gates (root decision 0178).
 
+**Addendum 2026-10-13 (root decision 0185's addendum of 2026-10-13, plan DEV-6662,
+Lazurio/LazurioPlatform#359): what else the personal space offers.** After the first run
+of a personal Environment, Apps said only "Osobní prostor je zatím prázdný." and offered
+no next step. Root decision 0185's addendum of 2026-10-13 (HumanAndMachines/Lazurio#542)
+adds a quiet section of links after the personal space's modules, drawn by the wireframe
+HumanAndMachine-ai/prototypes-lazurio#43 (c0fa0e92, `personalStarts`). This addendum
+builds that section, which the root addendum lets ship before the tile.
+
+1. **Where.** Only in the personal space, and only for its verified holder. The catalog
+   lists the personal space without a reason only where this Environment's GitHub account
+   holds it (the holder decision of F9's addendum of 2026-10-05, #186), so the page asks
+   nothing new. A personal space listed with a reason (not decided yet, signed out,
+   another account's, public) keeps its status line and shows nothing more. The section
+   comes after everything else: after the empty sentence while there are no modules (the
+   sentence stays), after the whole grid once there are, never between tiles. Nothing is
+   shown while the first run's line is shown (root decision 0188), because that line says
+   what comes next. An Organization never shows it.
+2. **What.** A quiet title, "Co dalšího tu můžete dělat" ("What else you can do here"),
+   not a third section pill beside Workspace and Productionspace. Under it are four
+   tiles in this order, each with the app's icon, its name and one sentence:
+   - Chat: "Zadejte agentovi první úkol" ("Give the agent its first task");
+   - Automate: "Nastavte, co se má dít samo" ("Set up what should happen on its own");
+   - Integrace: "Připojte poštu a kalendář" ("Connect your mail and calendar");
+   - Soubory: "Nahrajte podklady pro agenty" ("Upload documents for the agents").
+3. **One source for each target.** A start is only a link into the app that owns it,
+   never a copy of that app's interface.
+   - **Chat and Automate** come from the switch in the column head: `switchTabs` over
+     this Environment's shell document. The person's account never changes this
+     Environment's own apps (F37 point 4). A start has its tab's address and name, and a
+     plain click sends the same `lazurio-app` event as the tab, so the page pairs the
+     browser with T3 Code or MausBot on the way, exactly as for the tab.
+   - **Integrace and Soubory** are the column's items: the routes `/integrations` and
+     `/files` (`integrationsPath`, `filesUrlPath`), opened within the page, named by the
+     same message keys as the items (`integrationsTitle`, `filesTitle`). So a later
+     rename of an item renames its start too. A test checks that the column in
+     `index.html` and the starts have the same routes and keys.
+4. **Muted.** Where Chat or Automate does not run here, its start is not a link. A
+   workstation runs neither, and a personal Remote Environment without MausBot has no
+   Automate. Such a start is shown dimmed and says why in the switch's own words: "Chat
+   na tomto Environmentu neběží", "MausBot na tomto Environmentu neběží". Until the shell
+   document is read there is no switch, so there are no starts. Behind the gateway the
+   boot document carries the shell document, so the switch is known at the first
+   paint. The section then shows as soon as the catalog says the space is held, which
+   on the first load after the Launchpad starts can take until its first re-read.
+
+Not changed: the empty sentence, the Apps home of an Organization, the switch, the
+column, the catalog and every route. Not part of this addendum: showing the personal
+Workspace without modules, "+ Nový modul" as its last tile, and the prompt
+`new-personal-module` (point 1 of the root addendum). They ship in the same Platform
+release as the personal form of `lazurio module create` (plan DEV-6662, Q10).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Targets written out again (the entry's origins, `/integrations`, `/files`) | A second source beside the switch and the column, which can drift; rejected |
+| Copies of Chat's composer or of the Integrace catalog in Apps | Copies of other apps' interfaces, which the root addendum excludes; rejected |
+| The starts as tiles of the personal grid, or a third section pill | Mixes links with modules; the root addendum keeps them after the grid under a quiet title; rejected |
+| The holder's login from `GET /api/content` | A second read, made only once the page is idle, for what the catalog the page draws already decides; rejected |
+| Chat and Automate from the switch's tabs, Integrace and Soubory from the column's routes and words, all after everything else, shown by the catalog's holder decision (selected) | One source for each target; a start agrees with its tab or item by construction |
+
+Verified by unit tests (`tests/apps-view.test.ts`): the four starts in order, their
+targets and words, with MausBot, without it and on a workstation, in both languages;
+every start's address and name equal to its switch tab's, and a muted one saying the
+tab's words; no starts without a switch; Integrace and Soubory equal to the column's
+items in `index.html`; and the Apps home's parts in order, the starts after the empty
+sentence and after the whole grid, also with a favourite. No starts appear for a
+personal space blocked for any reason, while the first run's line shows, or in an
+Organization. In Chrome (1440 and 900 px, Czech and English) against fixture Folders: a
+personal Remote Environment with and without modules, with MausBot (both apps opened
+through their pairing, `/pair#token=…` and `/pair#code=…`) and without it (Automate
+muted, a click goes nowhere); a workstation with Chat and Automate muted; another
+account's Personalspace and the first paint before GitHub answered, both without the
+section; Integrace and Soubory opened their pages. These are no rendered-page CI gates
+(root decision 0178).
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction

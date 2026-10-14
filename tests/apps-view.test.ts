@@ -2,8 +2,11 @@ import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { MachineBinding } from "../src/folder/machine-binding";
 import {
+  type AppsHomePart,
   appsHeading,
+  appsHomeParts,
   appsScope,
   appsScopes,
   appsSections,
@@ -15,6 +18,8 @@ import {
   moduleName,
   moduleStone,
   newModulePrompt,
+  type PersonalStart,
+  personalStarts,
   pluralKey,
   tileTarget,
 } from "../src/launchpad/apps-view";
@@ -28,13 +33,22 @@ import {
   repositoryFavorite,
   toggleFavorite,
 } from "../src/launchpad/favorites";
-import { messages } from "../src/launchpad/messages";
+import { type MessageKey, messages } from "../src/launchpad/messages";
+import { shellDocument } from "../src/launchpad/shell-document";
 import type {
   Catalog,
   CatalogModule,
   CatalogOrganization,
   CatalogRepository,
 } from "../src/organizations/catalog";
+import { shellMessages } from "../src/shell/messages";
+import { type SwitchTab, switchTabs } from "../src/shell/view";
+import {
+  binding,
+  handoverEntry,
+  personalWithEntry,
+} from "./fixtures/machine-bindings";
+import personalContext from "./fixtures/machine-context-personal.json";
 
 // Decision F36 and its addendum of 2026-10-04: the Apps home as pure
 // functions, like the catalog's view tests. One Organization at a time, its
@@ -625,4 +639,301 @@ test("every vendored file has the hash its README records", async () => {
     const bytes = await readFile(join(directory, file ?? ""));
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(hash ?? "");
   }
+});
+
+// Root decision 0185's addendum of 2026-10-13 (DEV-6662, #359): after the
+// personal space's modules its holder sees a quiet section "Co dalšího tu
+// můžete dělat", four links into the apps that own those things. Chat and
+// Automate come from the switch of the Environment as the column head draws
+// it, so a start never leads elsewhere than its tab; where the app does not
+// run, the start is muted with the switch's own words. Integrace and Soubory
+// are the column's own routes and names.
+
+// The switch of a personal Remote Environment with MausBot, of one without
+// it, and of a workstation, which has neither Chat nor Automate: the shell
+// document's producer, as the column head draws it.
+const personalHost = "example.lazurio.io";
+const withMausBot = binding({
+  ...personalContext,
+  entry: {
+    ...handoverEntry(personalHost),
+    mausbot: {
+      external_origin: `https://mausbot.${personalHost}`,
+      listen_port: 4102,
+    },
+  },
+});
+const switchOf = (
+  locale: "cs" | "en",
+  preset: "hosted-personal" | "local",
+  machine: MachineBinding | null,
+): readonly SwitchTab[] =>
+  switchTabs(
+    shellDocument({
+      preset,
+      machine,
+      locale,
+      catalog: { kind: "catalog", organizations: [] },
+    }),
+    shellMessages(locale),
+    "apps",
+  );
+const startsView = (starts: readonly PersonalStart[]) =>
+  starts.map((start) => [start.key, start.name, start.text, start.target]);
+
+test("the personal space's starts: Chat and Automate lead where the switch's tabs do, or say its words where they do not run; Integrace and Soubory lead where the column does", () => {
+  const chat = "https://t3code.example.lazurio.io/";
+  const integrations = { kind: "route", href: "/integrations" } as const;
+  const files = { kind: "route", href: "/files" } as const;
+  // A personal Remote Environment with MausBot: four links, in this order.
+  expect(
+    startsView(
+      personalStarts(switchOf("cs", "hosted-personal", withMausBot), cs),
+    ),
+  ).toEqual([
+    [
+      "chat",
+      "Chat",
+      "Zadejte agentovi první úkol",
+      { kind: "app", app: "chat", href: chat },
+    ],
+    [
+      "automate",
+      "Automate",
+      "Nastavte, co se má dít samo",
+      {
+        kind: "app",
+        app: "automate",
+        href: "https://mausbot.example.lazurio.io/",
+      },
+    ],
+    ["integrations", "Integrace", "Připojte poštu a kalendář", integrations],
+    ["files", "Soubory", "Nahrajte podklady pro agenty", files],
+  ]);
+  // Without MausBot, Automate is muted: no link, the switch's sentence.
+  expect(
+    startsView(
+      personalStarts(
+        switchOf("cs", "hosted-personal", personalWithEntry()),
+        cs,
+      ),
+    ),
+  ).toEqual([
+    [
+      "chat",
+      "Chat",
+      "Zadejte agentovi první úkol",
+      { kind: "app", app: "chat", href: chat },
+    ],
+    ["automate", "Automate", "MausBot na tomto Environmentu neběží", null],
+    ["integrations", "Integrace", "Připojte poštu a kalendář", integrations],
+    ["files", "Soubory", "Nahrajte podklady pro agenty", files],
+  ]);
+  // A workstation runs neither Chat nor Automate (root decision 0185's
+  // addendum, Q1): both muted, in English as the switch says it.
+  expect(startsView(personalStarts(switchOf("en", "local", null), en))).toEqual(
+    [
+      ["chat", "Chat", "Chat does not run on this Environment", null],
+      [
+        "automate",
+        "Automate",
+        "MausBot does not run on this Environment",
+        null,
+      ],
+      [
+        "integrations",
+        "Integrations",
+        "Connect your mail and calendar",
+        integrations,
+      ],
+      ["files", "Files", "Upload documents for the agents", files],
+    ],
+  );
+  // No start ever leads elsewhere than its tab, nor says otherwise why not.
+  for (const tabs of [
+    switchOf("cs", "hosted-personal", withMausBot),
+    switchOf("cs", "hosted-personal", personalWithEntry()),
+    switchOf("en", "local", null),
+  ]) {
+    const starts = personalStarts(tabs, cs);
+    for (const app of ["chat", "automate"] as const) {
+      const tab = tabs.find((entry) => entry.app === app);
+      const start = starts.find((entry) => entry.key === app);
+      if (tab === undefined || start === undefined)
+        throw new Error("The switch and the starts have both apps");
+      expect(start.name).toBe(tab.label);
+      expect(start.target === null ? null : start.target.href).toBe(tab.href);
+      if (tab.href === null) expect(start.text).toBe(tab.missing ?? "");
+    }
+  }
+  // Before the shell document is read there is no switch, and no start.
+  expect(personalStarts([], cs)).toEqual([]);
+});
+
+test("Integrace and Soubory are the column's own items: the same routes, and their names from the same words", async () => {
+  const html = await readFile(
+    join(import.meta.dir, "..", "src", "launchpad", "index.html"),
+    "utf8",
+  );
+  const item = (id: string) => {
+    const found = new RegExp(
+      `<a [^>]*href="([^"]+)" id="${id}"[^>]*>.*?data-message="([A-Za-z]+)"`,
+    ).exec(html);
+    if (found === null) throw new Error(`The column has #${id}`);
+    return { href: found[1] ?? "", key: found[2] as MessageKey };
+  };
+  for (const copy of [cs, en]) {
+    const starts = personalStarts(switchOf("cs", "local", null), copy);
+    for (const [key, id] of [
+      ["integrations", "integrations-open"],
+      ["files", "files-open"],
+    ] as const) {
+      const start = starts.find((entry) => entry.key === key);
+      const column = item(id);
+      expect(start?.target).toEqual({ kind: "route", href: column.href });
+      expect(start?.name).toBe(copy[column.key]);
+    }
+  }
+});
+
+// The personal space as the catalog lists it (#186): to its holder without a
+// reason, with or without modules; to anyone else with the reason and none.
+const personalspace = (
+  modules: CatalogModule[],
+  extra: Partial<CatalogOrganization> = {},
+): Catalog => ({
+  kind: "catalog",
+  organizations: [],
+  personalspace: organization("personalspace", modules, {
+    directory: "personalspace",
+    displayName: "Personalspace",
+    state: null,
+    ...extra,
+  }),
+});
+const personalGroup = (value: Catalog) => {
+  const group = appsScopes(value, cs).find((scope) => scope.sections === null);
+  if (group === undefined) throw new Error("The fixture has a personal space");
+  return group;
+};
+const homeView = (parts: readonly AppsHomePart[]) =>
+  parts.map((part) =>
+    part.kind === "empty"
+      ? [part.kind, part.text]
+      : part.kind === "section"
+        ? [part.kind, part.section.title, part.section.tiles.map((t) => t.name)]
+        : [part.kind, part.title, part.starts.map((start) => start.key)],
+  );
+
+test("the holder's personal space ends with the starts: after its sentence while it is empty, after its whole grid once it has modules", () => {
+  const input = {
+    entry,
+    favorites: [] as string[],
+    setup: false,
+    tabs: switchOf("cs", "hosted-personal", personalWithEntry()),
+  };
+  const starts = [
+    "starts",
+    "Co dalšího tu můžete dělat",
+    ["chat", "automate", "integrations", "files"],
+  ];
+  const empty = personalspace([]);
+  expect(
+    homeView(appsHomeParts(empty, personalGroup(empty), cs, input)),
+  ).toEqual([["empty", "Osobní prostor je zatím prázdný."], starts]);
+  const diary = module("diary", { organization: "personalspace" });
+  const notes = module("notes", { organization: "personalspace" });
+  const full = personalspace([diary, notes]);
+  expect(homeView(appsHomeParts(full, personalGroup(full), cs, input))).toEqual(
+    [["section", "Osobní", ["diary", "notes"]], starts],
+  );
+  // A favourite reorders the grid; the starts stay after all of it.
+  expect(
+    homeView(
+      appsHomeParts(full, personalGroup(full), cs, {
+        ...input,
+        favorites: [moduleFavorite("notes")],
+      }),
+    ),
+  ).toEqual([["section", "Osobní", ["notes", "diary"]], starts]);
+  // In English, with the muted Automate of this Environment.
+  const english = appsHomeParts(full, personalGroup(full), en, {
+    ...input,
+    tabs: switchOf("en", "hosted-personal", personalWithEntry()),
+  }).at(-1);
+  expect(english?.kind === "starts" && english.title).toBe(
+    "What else you can do here",
+  );
+  expect(
+    english?.kind === "starts" &&
+      english.starts.map((start) => [start.key, start.target === null]),
+  ).toEqual([
+    ["chat", false],
+    ["automate", true],
+    ["integrations", false],
+    ["files", false],
+  ]);
+});
+
+test("no starts but the holder's: not for a personal space held by no one here, not while the first run's line shows, not before the switch is known, never in an Organization", () => {
+  const input = {
+    entry,
+    favorites: [] as string[],
+    setup: false,
+    tabs: switchOf("cs", "hosted-personal", withMausBot),
+  };
+  // Listed with a reason (#186): its status line says why; nothing else.
+  for (const reason of [
+    "personalspace-unverified",
+    "personalspace-foreign",
+    "personalspace-not-owned",
+    "personalspace-public",
+    "personalspace-ambiguous",
+    "github-signed-out",
+    "github-unavailable",
+    "github-identity-mismatch",
+  ] as const) {
+    const blocked = personalspace([], { executable: false, reason });
+    expect(appsHomeParts(blocked, personalGroup(blocked), cs, input)).toEqual(
+      [],
+    );
+  }
+  // The first run's line says what is next: no sentence and no starts.
+  const empty = personalspace([]);
+  const full = personalspace([
+    module("diary", { organization: "personalspace" }),
+  ]);
+  const setup = { ...input, setup: true };
+  expect(
+    homeView(appsHomeParts(empty, personalGroup(empty), cs, setup)),
+  ).toEqual([]);
+  expect(homeView(appsHomeParts(full, personalGroup(full), cs, setup))).toEqual(
+    [["section", "Osobní", ["diary"]]],
+  );
+  // The shell document not read yet: the starts come once the switch is.
+  expect(
+    homeView(
+      appsHomeParts(full, personalGroup(full), cs, { ...input, tabs: [] }),
+    ),
+  ).toEqual([["section", "Osobní", ["diary"]]]);
+  // An Organization keeps its sections, or its sentence; never the starts.
+  const group = appsScope(catalog, { view: "home" }, cs);
+  if (group === null) throw new Error("The fixture has an Organization");
+  expect(homeView(appsHomeParts(catalog, group, cs, input))).toEqual([
+    [
+      "section",
+      "Workspace",
+      ["Mission Control", "Knowledgebase", "deals", "website", "notes"],
+    ],
+    ["section", "Productionspace", ["firmware"]],
+  ]);
+  const bare: Catalog = {
+    kind: "catalog",
+    organizations: [organization("example", [])],
+  };
+  const bareGroup = appsScope(bare, { view: "home" }, cs);
+  if (bareGroup === null) throw new Error("The fixture has an Organization");
+  expect(homeView(appsHomeParts(bare, bareGroup, cs, input))).toEqual([
+    ["empty", cs.catalogNoModules],
+  ]);
 });
