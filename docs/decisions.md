@@ -4527,6 +4527,13 @@ and their new-tab arrows, and the Organization picker in the home's head.
    instead, opens Chat where there is one, and says to paste it into a new chat
    ([prompt hand-off](launchpad-development.md#prompt-hand-off-to-chat)). Amended
    2026-10-04 (DEV-6639); before, the click always copied the prompt to the clipboard.
+   Amended 2026-10-13 (plan DEV-6662, #376): an Organization whose Workspace has no
+   module yet still shows that Workspace to such an identity, as "zatím žádné moduly"
+   ("no modules yet") with the tile as its only tile. Before, the tile ended only a
+   Workspace that had modules, so the people who could found the first module were
+   told to ask the Organization's Admin for access instead. Anyone else keeps that
+   sentence, and so does an Owner until GitHub's answer arrives. It is the same live
+   check, with its five minutes and its failing closed, and no new rule.
 
 **Not in this addendum, each an issue:** "Přístup k modulu" in the tile menu (the
 Dashboard's `/orgs/<slug>/application-access` sets a person's access level inside an

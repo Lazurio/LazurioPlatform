@@ -16,6 +16,7 @@ import type { SwitchTab } from "../shell/view";
 import {
   type CatalogGroupEntry,
   type CatalogModuleEntry,
+  type CatalogSection,
   type CatalogSectionKind,
   catalogSelection,
   catalogTree,
@@ -331,17 +332,28 @@ export function appsTiles(
 }
 
 /** The sections of one group, in order, favourites first in each; empty
- * sections are left out. The Personalspace group is one section. */
+ * sections are left out. The Personalspace group is one section. An
+ * Organization's Workspace stays, even without a module, where `owner` is
+ * GitHub's live answer that this Environment's identity is the
+ * Organization's Owner (false until it comes): "+ Nový modul" ends every
+ * Workspace of an Owner, so before the first module it is its only tile
+ * (#376), and the page tells no Owner to ask the Admin for access. */
 export function appsSections(
   catalog: Catalog,
   group: CatalogGroupEntry,
   copy: Copy,
   entry: PublicEntry | null,
   favorites: readonly string[] = [],
+  owner = false,
 ): readonly AppsSection[] {
   const tiles = appsTiles(catalog, group, copy, entry, favorites);
   const count = (length: number, kind: keyof typeof countKeys) =>
-    copy[pluralKey(length, countKeys[kind])].replace("{count}", String(length));
+    length === 0 && kind === "modules"
+      ? copy.appsModulesNone
+      : copy[pluralKey(length, countKeys[kind])].replace(
+          "{count}",
+          String(length),
+        );
   if (group.sections === null)
     return tiles.modules.length === 0
       ? []
@@ -353,7 +365,18 @@ export function appsSections(
             tiles: favoritesFirst(tiles.modules, favorites),
           },
         ];
-  return group.sections.map(
+  const sections: readonly CatalogSection[] =
+    owner && !group.sections.some((section) => section.kind === "workspace")
+      ? [
+          {
+            kind: "workspace",
+            title: copy.catalogSectionWorkspace,
+            modules: [],
+          },
+          ...group.sections,
+        ]
+      : group.sections;
+  return sections.map(
     (section): AppsSection =>
       section.kind === "workspace"
         ? {
@@ -466,6 +489,10 @@ export function appsHomeParts(
     /** The switch of this Environment (`switchTabs`); empty until the shell
      * document is read. */
     tabs: readonly SwitchTab[];
+    /** GitHub's live answer that this Environment's identity is the
+     * Organization's Owner (false until it comes): an Owner's Workspace
+     * shows even before its first module (#376). */
+    owner?: boolean;
   }>,
 ): readonly AppsHomePart[] {
   const sections = appsSections(
@@ -474,6 +501,7 @@ export function appsHomeParts(
     copy,
     input.entry,
     input.favorites,
+    input.owner ?? false,
   );
   // A group listed with a reason says it in its status line, and the
   // catalog lists the personal space without one only where this

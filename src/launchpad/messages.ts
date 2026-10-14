@@ -455,6 +455,8 @@ const en = {
   appsModulesOne: "{count} module",
   appsModulesFew: "{count} modules",
   appsModulesMany: "{count} modules",
+  // An Owner's Workspace before its first module (#376).
+  appsModulesNone: "no modules yet",
   appsRepositoriesOne: "{count} repository",
   appsRepositoriesFew: "{count} repositories",
   appsRepositoriesMany: "{count} repositories",
@@ -1873,6 +1875,8 @@ const cs: Record<MessageKey, string> = {
   appsModulesOne: "{count} modul",
   appsModulesFew: "{count} moduly",
   appsModulesMany: "{count} modulů",
+  // An Owner's Workspace before its first module (#376).
+  appsModulesNone: "zatím žádné moduly",
   appsRepositoriesOne: "{count} repozitář",
   appsRepositoriesFew: "{count} repozitáře",
   appsRepositoriesMany: "{count} repozitářů",
