@@ -814,7 +814,7 @@ test("a sign-in the person refuses at the server returns to the Launchpad and en
   const page = await back.text();
   expect(page).toContain('<html lang="cs">');
   expect(page).toContain(
-    "Přihlášení do Linear se nepodařilo dokončit. Vraťte se do Launchpadu a zkuste to znovu.",
+    "Přihlášení k aplikaci Linear se nepodařilo dokončit. Vraťte se do Launchpadu a zkuste to znovu.",
   );
   expect(handedOn(world).map((call) => call.path)).toEqual([
     "/api/oauth/callback?state=state1&error=access_denied&error_description=The+person+said+no",

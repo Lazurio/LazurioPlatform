@@ -17,8 +17,10 @@ import {
   disconnectText,
   monogram,
   normalize,
+  noticeIcon,
   parseIntegrations,
   type Removals,
+  refusalNote,
   removalKey,
   removalRechecks,
   removalStep,
@@ -365,7 +367,7 @@ test("a card link lists the app it names even where nothing connects it, with wh
       options(cs),
     ),
   ).toMatchObject({
-    line: "Připojí ji nástroj wacli.",
+    line: "Připojuje se nástrojem wacli.",
     action: { kind: "open-tools", label: "Otevřít Nástroje" },
   });
   expect(pageRoute("/integrations/app/whatsapp")).toEqual({
@@ -418,7 +420,7 @@ test("where nothing connects an app: one line and one action, the Admin's or any
       options(cs),
     ),
   ).toMatchObject({
-    line: "Připojí ji nástroj wacli.",
+    line: "Připojuje se nástrojem wacli.",
     action: { kind: "open-tools", label: "Otevřít Nástroje" },
   });
   expect(
@@ -428,7 +430,7 @@ test("where nothing connects an app: one line and one action, the Admin's or any
       options(cs),
     ),
   ).toMatchObject({
-    line: "Tady ji zatím nejde připojit.",
+    line: "Tady se zatím připojit nedá.",
     action: { kind: "none" },
   });
 });
@@ -459,7 +461,7 @@ test("accounts: one line when they need the person or are spare, and what discon
     failed: false,
   });
   expect(accountView(notion, account("expired"), cs, true)).toMatchObject({
-    line: "Přihlášení vypršelo, zkuste to znovu",
+    line: "Přihlášení vypršelo",
     retry: "Přihlásit znovu",
   });
   expect(accountView(notion, account("failed"), en, true)).toMatchObject({
@@ -483,7 +485,7 @@ test("accounts: one line when they need the person or are spare, and what discon
       cs,
     ),
   ).toBe(
-    "Odpojí se z Composio účtu op@example.test, takže ve všech Environmentech, které ho používají.",
+    "Odpojí se z účtu Composia op@example.test, takže ve všech Environmentech, které ho používají.",
   );
   expect(disconnectText(notion, account("pending"), null, en)).toBe(
     "Only this account is withdrawn; the other accounts of Notion stay connected.",
@@ -1270,4 +1272,64 @@ test("the Microsoft 365 card: found by Outlook, OneDrive, SharePoint and Microso
       false,
     ),
   ).toMatchObject({ name: "ada@contoso.example", disconnect: true });
+});
+
+test("every notice has a tone the page draws: a refused connect says why as an error, a name asked for or Composio's sign-in guide, Composio's organization is a state", () => {
+  for (const reason of [
+    "name-taken",
+    "browser-unavailable",
+    "executor-unavailable",
+    "integration-conflict",
+    "still-failing",
+    "something-new",
+    undefined,
+  ])
+    expect(refusalNote(reason, null, cs).tone).toBe("danger");
+  expect(refusalNote("still-failing", null, en)).toEqual({
+    text: en.integrationsStillFailing,
+    tone: "danger",
+  });
+  expect(refusalNote("something-new", null, cs).text).toBe(
+    cs.integrationsConnectFailed,
+  );
+  expect(refusalNote("name-required", null, cs)).toEqual({
+    text: cs.integrationsAccountNameHint,
+    tone: "info",
+  });
+  expect(refusalNote("composio-signed-out", null, cs)).toEqual({
+    text: cs.integrationsComposioSignIn,
+    tone: "info",
+  });
+  // Without a reading, the organization's line is the general one.
+  expect(refusalNote("composio-organization", null, cs)).toEqual({
+    text: cs.integrationsComposioOrganizationChanged,
+    tone: "warning",
+  });
+  expect(noticeIcon("success")).toBe("i-check");
+  expect(noticeIcon("info")).toBe("i-info");
+  expect(noticeIcon("warning")).toBe("i-warning");
+  expect(noticeIcon("danger")).toBe("i-warning");
+});
+
+test("Czech notices about an app hold for any app's name: no adjective that takes the name's gender, no declined name", () => {
+  // "Microsoft 365 je připojená" would be wrong for Slack or Zoom; the
+  // texts say "Připojeno: …" or name the app after "aplikace".
+  for (const key of [
+    "integrationsConnectedNow",
+    "integrationsReturnConnected",
+    "integrationsReturnFailed",
+    "integrationsReturnPending",
+  ] as const) {
+    const text = cs[key];
+    expect(text).toContain("{app}");
+    expect(text).not.toMatch(/\{app\} je /);
+    expect(text).not.toMatch(/\bdo \{app\}/);
+  }
+  expect(cs.integrationsConnectedNow).toBe("Připojeno: {app}.");
+  // A card's line says nothing that takes the app's gender either.
+  expect(cs.integrationsMissingPath).not.toMatch(/\bji\b/);
+  expect(cs.integrationsMissingTool).not.toMatch(/\bji\b/);
+  // An account's row says its state once; its button says what to do.
+  expect(cs.integrationsAccountExpired).toBe("Přihlášení vypršelo");
+  expect(en.integrationsAccountFailed).toBe("The connection failed");
 });

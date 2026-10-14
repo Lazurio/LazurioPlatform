@@ -1222,10 +1222,10 @@ const en = {
   integrationsConnectEnded: "The connection was not finished.",
   integrationsNameTaken: "This name is used by another account of the app.",
   integrationsAccountUnnamed: "account",
-  integrationsAccountExpired: "The sign-in expired — try again",
+  integrationsAccountExpired: "The sign-in expired",
   integrationsAccountPending:
     "Finish the connection in the browser, or disconnect the account",
-  integrationsAccountFailed: "The connection failed — try again",
+  integrationsAccountFailed: "The connection failed",
   integrationsAccountSpareDirect: "Also directly, not used",
   integrationsAccountSpareComposio: "Also through Composio, not used",
   integrationsSignInAgain: "Sign in again",
@@ -1256,7 +1256,7 @@ const en = {
   integrationsMissingTool: "The tool {tool} connects it.",
   integrationsOpenTools: "Open Tools",
   integrationsMissingCompanyApp:
-    "The company app {provider} is not set up yet.",
+    "The {provider} company app is not set up yet.",
   integrationsComposioOffOrganization: "Composio is off in the company.",
   integrationsComposioOffHere: "Composio is off here.",
   integrationsAskAdmin: "Ask the Admin",
@@ -1286,8 +1286,6 @@ const en = {
   integrationsMcpRemoveTitle: "Remove the MCP server “{name}”?",
   integrationsMcpRemoveText: "Agents and bots lose its tools.",
   integrationsMcpNameTaken: "An integration of this name exists already.",
-  integrationsMcpUnavailable:
-    "Executor does not run here now, so MCP servers cannot be added.",
   integrationsMcpPageTitle: "Connect a custom MCP server",
   integrationsMcpEditTitle: "Edit a custom MCP server",
   integrationsMcpBack: "Back",
@@ -2627,14 +2625,14 @@ const cs: Record<MessageKey, string> = {
   integrationsFinishInEnvironment:
     "Dokončete přihlášení v prohlížeči Environmentu vpravo.",
   integrationsWaiting: "Čekám na přihlášení…",
-  integrationsConnectedNow: "{app} je připojená.",
+  integrationsConnectedNow: "Připojeno: {app}.",
   integrationsReturnTitle: "Přihlášení",
   integrationsReturnConnected:
-    "{app} je připojená. Toto okno můžete zavřít a vrátit se do Launchpadu.",
+    "Připojeno: {app}. Toto okno můžete zavřít a vrátit se do Launchpadu.",
   integrationsReturnFailed:
-    "Přihlášení do {app} se nepodařilo dokončit. Vraťte se do Launchpadu a zkuste to znovu.",
+    "Přihlášení k aplikaci {app} se nepodařilo dokončit. Vraťte se do Launchpadu a zkuste to znovu.",
   integrationsReturnPending:
-    "Přihlášení do {app} se dokončuje. Jak dopadlo, uvidíte v Launchpadu; toto okno můžete zavřít.",
+    "Přihlášení k aplikaci {app} se dokončuje. Jak dopadlo, uvidíte v Launchpadu; toto okno můžete zavřít.",
   integrationsReturnUnknown:
     "Toto přihlášení už neplatí. Spusťte připojení znovu v Launchpadu.",
   integrationsConnectFailed: "Připojení se nepodařilo spustit.",
@@ -2645,10 +2643,10 @@ const cs: Record<MessageKey, string> = {
   integrationsConnectEnded: "Připojení se nedokončilo.",
   integrationsNameTaken: "Tenhle název už má jiný účet aplikace.",
   integrationsAccountUnnamed: "účet",
-  integrationsAccountExpired: "Přihlášení vypršelo, zkuste to znovu",
+  integrationsAccountExpired: "Přihlášení vypršelo",
   integrationsAccountPending:
     "Dokončete připojení v prohlížeči, nebo účet odpojte",
-  integrationsAccountFailed: "Připojení se nepovedlo, zkuste to znovu",
+  integrationsAccountFailed: "Připojení se nepovedlo",
   integrationsAccountSpareDirect: "Navíc přímo, nepoužívá se",
   integrationsAccountSpareComposio: "Navíc přes Composio, nepoužívá se",
   integrationsSignInAgain: "Přihlásit znovu",
@@ -2658,9 +2656,9 @@ const cs: Record<MessageKey, string> = {
   integrationsDisconnectTitle: "Odpojit {account} od aplikace {app}?",
   integrationsDisconnectDirect: "Odpojí se jen v tomto Environmentu.",
   integrationsDisconnectComposio:
-    "Odpojí se z Composio účtu {account}, takže ve všech Environmentech, které ho používají.",
+    "Odpojí se z účtu Composia {account}, takže ve všech Environmentech, které ho používají.",
   integrationsDisconnectComposioAny:
-    "Odpojí se z Composio účtu, takže ve všech Environmentech, které ho používají.",
+    "Odpojí se z vašeho účtu Composia, takže ve všech Environmentech, které ho používají.",
   integrationsDisconnectPending:
     "Odvolá se jen tento účet; ostatní účty aplikace {app} zůstanou připojené.",
   integrationsDisconnectUnsupported:
@@ -2675,8 +2673,8 @@ const cs: Record<MessageKey, string> = {
   integrationsComposioUpdated: "Composio je aktualizované.",
   integrationsComposioUpdateFailed: "Aktualizace nedoběhla. Zkuste to znovu.",
   integrationsOpenComposio: "Otevřít Composio",
-  integrationsMissingPath: "Tady ji zatím nejde připojit.",
-  integrationsMissingTool: "Připojí ji nástroj {tool}.",
+  integrationsMissingPath: "Tady se zatím připojit nedá.",
+  integrationsMissingTool: "Připojuje se nástrojem {tool}.",
   integrationsOpenTools: "Otevřít Nástroje",
   integrationsMissingCompanyApp:
     "Firemní aplikace {provider} ještě není nastavená.",
@@ -2709,8 +2707,6 @@ const cs: Record<MessageKey, string> = {
   integrationsMcpRemoveTitle: "Odebrat MCP server „{name}“?",
   integrationsMcpRemoveText: "Agenti a boti přijdou o jeho nástroje.",
   integrationsMcpNameTaken: "Integrace s tímhle názvem už existuje.",
-  integrationsMcpUnavailable:
-    "Executor tu teď neběží, takže MCP servery nejde přidat.",
   integrationsMcpPageTitle: "Připojit vlastní MCP server",
   integrationsMcpEditTitle: "Upravit vlastní MCP server",
   integrationsMcpBack: "Zpět",
