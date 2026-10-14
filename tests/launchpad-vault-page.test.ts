@@ -428,10 +428,11 @@ test.skipIf(!posix)(
         late.vault.flags.sso = false;
         late.admit("owner", subject);
         const answer = await late.membership("owner");
+        // Without SSO a password could be set on the address: nobody is
+        // invited at all.
         expect(answer.body).toEqual({
-          kind: "vault-member",
-          state: "no-account",
-          signIn: false,
+          kind: "vault-member-unknown",
+          reason: "sign-in-not-required",
         });
         expect(
           vaultPageView(
@@ -451,7 +452,7 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "an account without a master password is not left invited: its invitation is withdrawn at once and made again once the password is set",
+  "where the vault requires the Lazurio sign-in, an account without a master password stays invited, unregistrable, and is confirmed once the password is set",
   async () => {
     const s = await hosted({ kind: "work" });
     try {
@@ -467,13 +468,21 @@ test.skipIf(!posix)(
           signIn: true,
         },
       });
-      // Invited and withdrawn: no membership, and no pending invitation
-      // through which anyone could register the address.
+      // Invited, kept Invited, and nobody can register the address: the
+      // vault refuses every password path of it.
       expect(await s.invitations()).toHaveLength(1);
-      expect(memberOf(await s.members(), subject)).toBeUndefined();
+      expect(memberOf(await s.members(), subject)).toMatchObject({
+        type: 1,
+        status: 0,
+      });
       expect(s.vault.registerable(address)).toBe(false);
-      expect(s.journal.map((entry) => entry.outcome)).toContain("withdrawn");
-      // The person sets the master password: the next look adds them.
+      // Asked again before the password: nothing changes, nothing is sent.
+      expect((await s.membership("person")).body).toMatchObject({
+        state: "awaiting-password",
+      });
+      expect(await s.invitations()).toHaveLength(1);
+      // The person sets the master password, the vault accepts the
+      // invitation by itself, and the next look confirms.
       await s.vault.setPassword(address);
       expect(await s.membership("person")).toEqual({
         status: 200,
@@ -482,6 +491,120 @@ test.skipIf(!posix)(
       expect(memberOf(await s.members(), subject)).toMatchObject({
         type: 1,
         status: 2,
+      });
+      expect(s.journal.map((entry) => entry.outcome)).toEqual(
+        expect.arrayContaining(["invited", "confirmed"]),
+      );
+    } finally {
+      await s.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "where a password could still be set on a person's address, nobody is invited or confirmed: SSO declared alone, or no SSO",
+  async () => {
+    for (const sso of [true, false]) {
+      const s = await hosted({ kind: "work" });
+      try {
+        const stub = randomUUID();
+        const accepted = randomUUID();
+        const first = randomUUID();
+        s.vault.person(personAddress(stub), false);
+        s.vault.person(personAddress(accepted), true);
+        s.vault.person(personAddress(first), true);
+        // A first Správce while the vault required the Lazurio sign-in,
+        // which records the assignment.
+        s.admit("first", first);
+        expect((await s.membership("first")).body).toMatchObject({
+          state: "member",
+        });
+        s.vault.flags.sso = sso;
+        s.vault.flags.ssoOnly = false;
+        // An accepted member from before (e.g. SSO_ONLY turned off since):
+        // never confirmed while a password could be set on its address.
+        await s.vault.addMember(await s.organizationId(), {
+          email: personAddress(accepted),
+          type: 1,
+          status: 1,
+        });
+        s.admit("stub", stub);
+        s.admit("accepted", accepted);
+        const before = await s.vault.calls();
+        for (const who of ["stub", "accepted"])
+          expect((await s.membership(who)).body).toEqual({
+            kind: "vault-member-unknown",
+            reason: "sign-in-not-required",
+          });
+        expect(await s.invitations()).toHaveLength(1);
+        expect((await s.vault.calls()).slice(before.length)).not.toContain(
+          "confirm",
+        );
+        expect(memberOf(await s.members(), stub)).toBeUndefined();
+        expect(memberOf(await s.members(), accepted)).toMatchObject({
+          status: 1,
+        });
+        expect(s.vault.registerable(personAddress(stub))).toBe(false);
+        // The page: only the agents use the vault here for now.
+        const view = vaultPageView(
+          parseVaultPage((await s.page("stub")).body),
+          parseVaultMembership((await s.membership("stub")).body),
+          messages("cs"),
+        );
+        expect(view.actions).toEqual([]);
+        expect(view.hint).toBe(
+          "Trezor tohoto Prostředí zatím používají jen jeho agenti.",
+        );
+      } finally {
+        await s.close();
+      }
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "a failed or interrupted invitation leaves nothing registrable, and the next look goes on from what the vault holds",
+  async () => {
+    const s = await hosted({ kind: "work" });
+    try {
+      const lost = randomUUID();
+      const refused = randomUUID();
+      for (const subject of [lost, refused])
+        s.vault.person(personAddress(subject), false);
+      s.admit("lost", lost);
+      s.admit("refused", refused);
+      // The invitation is made, its answer lost.
+      s.vault.flags.inviteFails = "after";
+      expect((await s.membership("lost")).body).toEqual({
+        kind: "vault-member-unknown",
+        reason: "unreachable",
+      });
+      expect(memberOf(await s.members(), lost)).toMatchObject({ status: 0 });
+      expect(s.vault.registerable(personAddress(lost))).toBe(false);
+      // The next look finds it, makes no second one.
+      expect((await s.membership("lost")).body).toMatchObject({
+        state: "awaiting-password",
+      });
+      expect(await s.invitations()).toHaveLength(1);
+      // The invitation is refused before it is made: nothing is there.
+      s.vault.flags.inviteFails = "before";
+      expect((await s.membership("refused")).body).toEqual({
+        kind: "vault-member-unknown",
+        reason: "unreachable",
+      });
+      expect(memberOf(await s.members(), refused)).toBeUndefined();
+      expect(s.vault.registerable(personAddress(refused))).toBe(false);
+      expect(s.journal).toContainEqual({
+        operation: "members",
+        outcome: "failed",
+        reason: "unreachable",
+      });
+      // Then the person's password: accepted by the vault, confirmed here.
+      await s.vault.setPassword(personAddress(lost));
+      expect((await s.membership("lost")).body).toMatchObject({
+        state: "member",
       });
     } finally {
       await s.close();
@@ -782,7 +905,6 @@ test.skipIf(!posix)(
         expect.arrayContaining([
           "invited",
           "confirmed",
-          "withdrawn",
           "no-account",
           "removed",
         ]),

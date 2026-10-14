@@ -302,6 +302,23 @@ test("this computer and an Environment without a vault say so in one line; a 019
       "Trezor tohoto Prostředí zatím používají jen jeho agenti.",
     );
   }
+  // A network whose vault does not require the Lazurio sign-in of people
+  // yet: nobody is added there, so only the agents use the vault.
+  const ungated = vaultPageView(
+    model(connected()),
+    { kind: "unknown", reason: "sign-in-not-required" },
+    cs,
+  );
+  expect(ungated.actions).toEqual([]);
+  expect(ungated.hint).toBe(
+    "Trezor tohoto Prostředí zatím používají jen jeho agenti.",
+  );
+  expect(
+    parseVaultMembership({
+      kind: "vault-member-unknown",
+      reason: "sign-in-not-required",
+    }),
+  ).toEqual({ kind: "unknown", reason: "sign-in-not-required" });
   // The rule, in both languages.
   expect(cs.vaultPageRule).toBe(
     "Kdo má přístup do Prostředí, má všechna jeho hesla.",

@@ -22,9 +22,10 @@ import {
 // access to the Environment is an Admin of its vault and has all of its
 // passwords. The Environment adds the person the gateway admitted (the
 // subject of its own answer, never a header of the request), once that
-// person has an account in the network's vault, and a work Environment's
-// Správci all leave the vault when the Environment is assigned to someone
-// else. The vault's membership is the only list of who is in it; Lazurio
+// person has an account in the network's vault and only where the network's
+// vault refuses every password path of the person's address (`SSO_ONLY`),
+// and a work Environment's Správci all leave the vault when the Environment
+// is assigned to someone else. The vault's membership is the only list of who is in it; Lazurio
 // keeps none, only the fingerprint of the assignment the Správci were added
 // under. Everything happens under the account's lock, as the Environment
 // account, the vault's only Owner: bw lists and confirms, the vault's API
@@ -82,6 +83,10 @@ export type VaultMemberUnknown =
   /** A Team or Automated Environment adds and removes nobody until a live
    * answer of who may enter it exists (DEV-6631 C4). */
   | "not-managed"
+  /** The network's vault does not refuse a password for the person's
+   * address yet (no `SSO_ONLY`): nobody is added or confirmed there
+   * (`signInRequired`). */
+  | "sign-in-not-required"
   /** Another operation holds the account's lock, or the vault's rate
    * limit: later. */
   | "busy"
@@ -270,16 +275,13 @@ const sameAddress = (member: BwMember, address: string) =>
   member.email.trim().toLowerCase() === address;
 
 /**
- * The person at the browser, by their address: invited as an Admin when
- * they are not a member, confirmed when accepted. The Environment never
- * leaves an invitation pending: Vaultwarden lets anyone who knows an
- * address with a pending invitation set that account's master password
- * through its registration unless the network requires SSO of people
- * (`SSO_ONLY`), and an invitation to an account without a master password
- * stays pending. So such an invitation is withdrawn at once
- * (`awaiting-password`) and made again once the person has set their master
- * password, when the vault accepts it at once. Only Admins the Environment
- * added are ever changed.
+ * The person at the browser, by their address, behind the gate
+ * (`signInRequired`): invited as an Admin when they are not a member, and
+ * confirmed once accepted. An invitation to an account without a master
+ * password stays Invited (`awaiting-password`) until the person sets it,
+ * when Vaultwarden accepts it by itself; the gate is what makes that
+ * pending invitation safe. Only Admins the Environment added are ever
+ * changed.
  */
 async function settlePerson(
   turn: Turn,
@@ -326,11 +328,7 @@ async function settlePerson(
   if (member.status === confirmed) return known("member");
   if (member.type !== adminType)
     return known(member.status === accepted ? "accepted" : "awaiting-password");
-  if (member.status === invited) {
-    await remove(turn, member);
-    journal("withdrawn");
-    return known("awaiting-password");
-  }
+  if (member.status === invited) return known("awaiting-password");
   if (member.status === accepted) {
     if (await turn.confirm(member.id)) {
       journal("confirmed");
@@ -343,11 +341,51 @@ async function settlePerson(
 }
 
 /**
+ * The gate of every invitation and confirmation (DEV-6631 task 638b,
+ * review of 2026-10-14): whether the network's vault refuses every password
+ * path of this address, so that nobody can ever set a master password on
+ * it but its person through the Lazurio sign-in. Vaultwarden 1.37.4 keeps
+ * an invitation row with every invitation to an account without a master
+ * password (SMTP off), and while a password can be registered for an
+ * address its row lets anyone who knows the address do so; then the
+ * account accepts and the Environment would confirm it into the vault.
+ * SSO declared, `INVITATIONS_ALLOWED=false` and `SIGNUPS_ALLOWED=false` do
+ * not close that; `SSO_ONLY` does (proven against 1.37.4-lazurio.1). The
+ * vault's own token endpoint says so: a password grant naming only the
+ * address is refused with "SSO sign-in is required" exactly when `SSO_ONLY`
+ * covers the address, before any account is looked up and before its rate
+ * limit or its sign-in events, and otherwise with a missing field.
+ */
+async function signInRequired(
+  host: VaultHost,
+  context: VaultContext,
+  address: string,
+): Promise<"required" | "not-required" | "unreachable"> {
+  try {
+    await vaultRequest(
+      { fetch: host.fetch },
+      context.vault,
+      "/identity/connect/token",
+      { form: { grant_type: "password", username: address } },
+    );
+  } catch (error) {
+    if (error instanceof VaultwardenError) {
+      if (error.reason === "sso-required") return "required";
+      if (error.reason === "unreachable" || error.reason === "rate-limited")
+        return "unreachable";
+    }
+  }
+  return "not-required";
+}
+
+/**
  * The membership of the person the gateway admitted (`subject`, its
  * answer's subject; null when it named nobody), and the audience of a work
- * Environment first. A personal or work Environment adds the person; a Team
- * or Automated Environment touches nobody. Status-driven and idempotent:
- * every look reads the vault's members and moves them on.
+ * Environment first. A personal or work Environment adds the person, only
+ * behind the gate (`signInRequired`); a Team or Automated Environment
+ * touches nobody. Leaving needs no gate: the audience is settled either way.
+ * Status-driven and idempotent: every look reads the vault's members and
+ * moves them on.
  */
 export async function vaultMembership(
   host: VaultHost,
@@ -356,14 +394,27 @@ export async function vaultMembership(
   const context = await host.context();
   if (context.kind !== "own") return unknown("no-vault");
   if (!addsPeople(context)) return unknown("not-managed");
-  if (!isSubject(subject)) {
-    // Nobody named: nobody is added, and the audience needs nobody (it asks
-    // the vault only when the assignment changed).
+  // Nothing is asked of a vault that is not set up here.
+  const paths = vaultPaths(host.directory(context.host, context.account));
+  if ((await connectedAccount(paths, context)) === null)
+    return unknown("not-connected");
+  // Nobody named, or a vault where a password could still be set on the
+  // person's address: nobody is added or confirmed, and the audience, which
+  // needs nobody, is settled (it asks the vault only when the assignment
+  // changed).
+  const gate = isSubject(subject)
+    ? await signInRequired(host, context, personAddress(subject))
+    : null;
+  if (!isSubject(subject) || gate !== "required") {
     const audience = await vaultAudience(host);
+    if (audience !== "unchanged" && audience !== "settled")
+      return unknown(audience);
     return unknown(
-      audience === "unchanged" || audience === "settled"
+      gate === null
         ? "no-identity"
-        : audience,
+        : gate === "unreachable"
+          ? "unreachable"
+          : "sign-in-not-required",
     );
   }
   return underLock(

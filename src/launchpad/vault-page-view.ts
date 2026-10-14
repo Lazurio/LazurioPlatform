@@ -40,6 +40,7 @@ const unknownReasons: readonly VaultMemberUnknown[] = [
   "no-vault",
   "not-connected",
   "not-managed",
+  "sign-in-not-required",
   "busy",
   "unreachable",
   "failed",
@@ -244,8 +245,9 @@ function rowLine(
  *   "Přidat položku" and "Otevřít trezor"; without one (or without a master
  *   password yet) only "Vytvořit účet v trezoru", and only where the vault
  *   takes the Lazurio sign-in; not known, "Otevřít trezor". A 0197 pilot
- *   has "Otevřít trezor" to its collection. A Team or Automated Environment
- *   adds nobody yet: a line says so, and the row has no action.
+ *   has "Otevřít trezor" to its collection. A Team or Automated Environment,
+ *   or a network whose vault does not require the Lazurio sign-in of people
+ *   yet, adds nobody: a line says so, and the row has no action.
  */
 export function vaultPageView(
   model: VaultPageModel | null,
@@ -294,12 +296,19 @@ export function vaultPageView(
   };
   if (status.origin === "pilot-0197") return view({ row, actions: [open] });
   if (person === null) return view({ row });
-  if (person.kind === "unknown")
+  // Nobody is added here yet (a Team or Automated Environment, or a network
+  // whose vault does not require the Lazurio sign-in of people yet): only
+  // the agents use the vault.
+  if (person.kind === "unknown") {
+    const agentsOnly =
+      person.reason === "not-managed" ||
+      person.reason === "sign-in-not-required";
     return view({
       row,
-      actions: person.reason === "not-managed" ? [] : [open],
-      hint: person.reason === "not-managed" ? copy.vaultPageAgentsOnly : null,
+      actions: agentsOnly ? [] : [open],
+      hint: agentsOnly ? copy.vaultPageAgentsOnly : null,
     });
+  }
   if (person.state === "no-account" || person.state === "awaiting-password")
     return view({
       row,
