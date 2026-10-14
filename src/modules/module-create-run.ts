@@ -1,4 +1,4 @@
-import { mkdir, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, realpath, rename, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { ContentGit } from "../content/git";
 import type { ContentGitHub, GitHubRepository } from "../content/github";
@@ -166,7 +166,7 @@ export async function createPersonalModule(
       return prepared.report;
     }
     const { report, module } = prepared;
-    const refusal = runRefusal(request, report, module);
+    const refusal = await runRefusal(request, report, module);
     if (refusal !== null) {
       refusedReport(report, refusal);
       steps.failed("plan", refusal.code, refusal.message);
@@ -185,11 +185,11 @@ export async function createPersonalModule(
 // The real run's own refusals, after every check of the plan: the plan the
 // person confirmed, and a task worktree of the Personalspace to declare the
 // slot in.
-function runRefusal(
+async function runRefusal(
   request: ModuleCreateRunRequest,
   report: ModuleCreateReport,
   module: PlannedPersonalModule,
-): ModuleCreateRefusal | null {
+): Promise<ModuleCreateRefusal | null> {
   if (report.plan !== request.confirm)
     return new ModuleCreateRefusal(
       "plan-changed",
@@ -202,6 +202,18 @@ function runRefusal(
       "personalspace_root_not_task_worktree",
       "The command does not run in a task worktree of the Personalspace; the slot is declared there, never in the Personalspace's own checkout.",
       `Create one beside the Personalspace (${create}) and run the command from it.`,
+    );
+  // Exactly personalspace/.worktrees/<task> of this Folder: a linked
+  // worktree of the same repository anywhere else (inside another checkout,
+  // say) would carry the slot somewhere no one looks for it.
+  const tasks = await realpath(
+    join(module.folder, personalspaceName, ".worktrees"),
+  ).catch(() => null);
+  if (tasks === null || dirname(module.worktree.path) !== tasks)
+    return new ModuleCreateRefusal(
+      "personalspace_worktree_misplaced",
+      `The task worktree ${module.worktree.path} is not in ${join(module.folder, personalspaceName, ".worktrees")}; the Personalspace's task worktrees live there, beside it.`,
+      `Create one there (${create}) and run the command from it.`,
     );
   if (module.worktree.branch === null || module.worktree.branch === "main")
     return new ModuleCreateRefusal(
@@ -295,8 +307,11 @@ async function run(
       );
       if (answer.kind === "failed") {
         const now = await host.github.repository(module.login, plan.module);
+        // GitHub has it now, but this run cannot tell whether its own
+        // request created it (and the answer was lost) or another took the
+        // name first: never adopted, and the person decides.
         const code =
-          now.kind === "observed" ? "repository-exists" : "create-failed";
+          now.kind === "observed" ? "create-uncertain" : "create-failed";
         steps.failed("create", code);
         reported = true;
         return { kind: "failed", code };
@@ -430,9 +445,9 @@ function stopped(
         ? "Check gh auth status and run the command again."
         : `Delete ${created.fullName} on GitHub if it is not wanted, check gh auth status and run the command again.`,
     ],
-    "repository-exists": [
-      `GitHub has ${fullName} now: the name was taken while this run created it, or its answer was lost. It is never taken over; nothing was placed.`,
-      `If this run created it, it is empty: delete ${fullName} on GitHub, or ask the person for another name.`,
+    "create-uncertain": [
+      `GitHub did not confirm creating ${fullName}, but has it now: either this run created it and GitHub's answer was lost, or another request took the name first. It is not taken over and nothing was placed or pushed.`,
+      `Look at ${fullName} on GitHub with the person: if it is empty and was created just now by this run, delete it (or keep it private and empty) and run the command again; otherwise ask the person for another name of the module.`,
     ],
     "not-private": [
       `GitHub created ${created?.fullName ?? fullName} public, not private; nothing was placed or pushed.`,
@@ -450,6 +465,7 @@ function stopped(
     "Run the command again.",
   ];
   refusedReport(report, new ModuleCreateRefusal(code, message, action));
+  if (code === "create-uncertain") report.status = "action_required";
   if (created !== null) {
     report.status = "action_required";
     report.repository = {

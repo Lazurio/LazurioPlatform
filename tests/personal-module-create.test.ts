@@ -782,7 +782,8 @@ describe("the real run", () => {
     async () => {
       for (const [create, slug, status, reason] of [
         ["failed", "diary", "blocked", "create-failed"],
-        ["taken", "journal", "blocked", "repository-exists"],
+        // Lost answer or a name taken meanwhile: the same to this run.
+        ["taken", "journal", "action_required", "create-uncertain"],
         ["public", "ledger", "action_required", "not-private"],
         ["other-owner", "atlas", "action_required", "create-failed"],
       ] as const) {
@@ -991,6 +992,22 @@ describe("the real run", () => {
         detached,
       );
       await refused({ cwd: detached }, "personalspace_root_on_main");
+      // A linked worktree of the same Personalspace outside
+      // personalspace/.worktrees/ is not where the slot is declared.
+      const elsewhere = join(setup.folder, "elsewhere-task");
+      await gitOutput(
+        setup.space,
+        "worktree",
+        "add",
+        "--quiet",
+        "-b",
+        "agent/elsewhere",
+        elsewhere,
+      );
+      await refused({ cwd: elsewhere }, "personalspace_worktree_misplaced");
+      expect(setup.calls.map((call) => call.kind)).not.toContain(
+        "createRepository",
+      );
     },
   );
 

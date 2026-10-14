@@ -1414,8 +1414,10 @@ the real run with the plan's digest.
 
 **The real run** (`createPersonalModule` in `src/modules/module-create-run.ts`, decision
 F52 point 7) runs only with `--confirm <plan>`, under the Folder's content lock
-(`content-busy`), from a task worktree of the held Personalspace on a branch of its own
-(`personalspace_root_not_task_worktree`, `personalspace_root_on_main`), and only for the
+(`content-busy`), from a task worktree of the held Personalspace in exactly
+`personalspace/.worktrees/<task>` on a branch of its own
+(`personalspace_root_not_task_worktree`, `personalspace_worktree_misplaced`,
+`personalspace_root_on_main`), and only for the
 plan whose digest the person confirmed: every check runs again and a different plan is
 `plan-changed`. Its steps, one JSON line each with `--json`: `write` (the files into a
 marked temporary sibling `workspace/.<module>.lazurio-content-<hex>`, through
@@ -1425,8 +1427,9 @@ publication), `prepare` (`bun install --cwd app/v1` with `~/.local/bin/bun`, or 
 `main` and one commit by the operator's Git identity; `commit-failed` stops), `create`
 (`POST /user/repos` with `private=true` through gh; GitHub's answer must say private, the
 holder's login and the planned name, or the run stops with nothing placed:
-`create-failed`, `not-private`, or `repository-exists` when the name was taken
-meanwhile), `place` (the no-replace rename into `workspace/<module>`), `push` (`main`,
+`create-failed`, `not-private`, or `create-uncertain` when GitHub did not confirm the
+creation but has the name now, its answer lost or the name taken meanwhile: never
+adopted, `action_required`, the person looks at it), `place` (the no-replace rename into `workspace/<module>`), `push` (`main`,
 with gh as the credential helper of an HTTPS remote; `push-failed` keeps the module
 placed and names the exact command), `declare` (the slot, and the pool the Personalspace
 lacks, into the task worktree's `modules.manifest.json` with `insertModulePortPoolText`

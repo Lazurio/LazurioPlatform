@@ -10330,7 +10330,9 @@ form moves here too.
    private repository on the person's account (`POST /user/repos` through gh) and
    verify GitHub's answer: private, of the holder's login and named as planned, or the
    run stops with nothing placed (`create-failed`, `not-private`, or
-   `repository-exists` when the name was taken meanwhile; a repository is never
+   `create-uncertain` when GitHub did not confirm the creation but has the name
+   now, which this run cannot tell from a name taken meanwhile, so it is
+   `action_required` and the person looks at it; a repository is never
    adopted, and one this run created is never deleted, only reported); *place* it with
    the no-replace rename into the Personalspace's `workspace/<slug>`, a gitignored
    nested checkout the catalog lists at once; *push* `main` through gh's remote
