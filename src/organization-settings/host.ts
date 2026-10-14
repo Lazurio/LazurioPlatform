@@ -1,8 +1,14 @@
 import { join } from "node:path";
 import { withFolderReadLock } from "../folder/lock";
 import { readFolderState } from "../folder/read-state";
+import type { ExecutorEndpoint } from "../integrations/executor-client";
+import {
+  applyMicrosoft365,
+  type Microsoft365Applied,
+} from "../integrations/microsoft365-executor";
 import type { ToolsEnvironment } from "../tools/overview";
 import { embeddedIdentity } from "../update/identity";
+import { applyOrganizationSettings } from "./apply";
 import { organizationGoverns } from "./governance";
 import { operatorGit, readRepositorySettings } from "./local";
 import {
@@ -44,6 +50,10 @@ export type OrganizationSettingsSeams = Readonly<{
   /** The relay client's backoff and deadline (tests). */
   client?: Readonly<{ retryDelaysMs?: readonly number[]; timeoutMs?: number }>;
   store?: SettingsStateStore;
+  /** The Microsoft 365 company app's apply in Executor (tests). */
+  microsoft365?: (
+    setting: Parameters<typeof applyMicrosoft365>[1],
+  ) => Promise<Microsoft365Applied>;
   poller?: Partial<
     Pick<
       SettingsPollerOptions,
@@ -66,6 +76,9 @@ export async function launchpadSettingsPoller(
     tools: ToolsEnvironment;
     journal: (entry: Readonly<Record<string, unknown>>) => void;
     onApplied: () => void;
+    /** The Environment's Executor, where the company apps are applied
+     * (decision F42 addendum (c) of 2026-10-14); null where it has none. */
+    executor?: () => ExecutorEndpoint | null;
     seams?: OrganizationSettingsSeams | undefined;
   }>,
 ): Promise<SettingsPoller | null> {
@@ -95,9 +108,16 @@ export async function launchpadSettingsPoller(
       read: () => readRepositorySettings(input.folder, organization, git),
     };
   } else return null;
+  // The Microsoft 365 company app is applied to Executor once the Folder
+  // took it (decision F42 addendum (c) of 2026-10-14).
+  const microsoft365 =
+    input.seams?.microsoft365 ??
+    ((setting) => applyMicrosoft365(input.executor?.() ?? null, setting));
   return createSettingsPoller({
     folder: input.folder,
     source,
+    apply: (folder, delivered) =>
+      applyOrganizationSettings(folder, delivered, { microsoft365 }),
     store:
       input.seams?.store ??
       (input.base === undefined

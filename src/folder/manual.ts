@@ -618,7 +618,7 @@ function workingHere(preset: PresetName): readonly Text[] {
     ),
     ...(preset === "hosted-personal" ? [] : [blank, ...building(preset)]),
     blank,
-    ...connectedApplications,
+    ...connectedApplications(preset),
     blank,
     ...secrets(preset),
     blank,
@@ -1276,11 +1276,32 @@ function building(preset: PresetName): readonly Text[] {
   ];
 }
 
+// The Organization's Microsoft 365 company app (decision F42 addendum (c) of
+// 2026-10-14): on an Organization's Environment, how agents use its one
+// Integrace.
+function microsoft365Guidance(preset: PresetName): readonly Text[] {
+  if (preset === "local" || preset === "hosted-personal") return [];
+  return [
+    t(
+      "- **Microsoft 365 přes firemní aplikaci.** Kde ji Organizace nastavila, jsou Outlook, OneDrive a SharePoint jedna Integrace přímo přes Executor, `m365` (Microsoft Graph). Každý připojený účet Microsoftu je v ní jedno připojení a účtů může být víc vedle sebe: když není jasné, kterým účtem pracovat, zeptej se člověka. Dosáhneš jen na to, k čemu má přístup přihlášený člověk. Operace hledej v Executoru (`executor tools search`), ne odhadem cesty.",
+      "- **Microsoft 365 through the company app.** Where the Organization set it up, Outlook, OneDrive and SharePoint are one Integration directly through Executor, `m365` (Microsoft Graph). Each connected Microsoft account is one connection of it, and there may be several side by side: when it is not clear which account to work with, ask the person. You reach only what the signed-in person can reach. Find the operations in Executor (`executor tools search`), never by guessing a path.",
+    ),
+    t(
+      '- **Pošta jen jako koncept.** E-mail připrav jako koncept (`POST /me/messages` s `body.contentType: "Text"`; odpověď přes `createReply` a potom `PATCH` jejího těla), přečti ho zpět ze serveru (`GET /me/messages/{id}`) a pošli člověku jeho `webLink`. `send` ani `sendMail` bez výslovného „Publikuj“ člověka k tomu konceptu nevolej; firemní aplikace právo odesílat ve výchozím stavu ani nemá. Událost v kalendáři s účastníky rozesílá pozvánky, je to tedy Publikace.',
+      '- **Mail only as a draft.** Prepare an e-mail as a draft (`POST /me/messages` with `body.contentType: "Text"`; a reply through `createReply`, then `PATCH` its body), read it back from the server (`GET /me/messages/{id}`) and send the person its `webLink`. Never call `send` or `sendMail` without the person\'s explicit “Publish” for that draft; by default the company app has no right to send at all. A calendar event with attendees sends invitations, so it is a Publication.',
+    ),
+    t(
+      "- **Soubory po id položek.** Integrace nemá adresování cestou (`root:/cesta:`). Web SharePointu najdi jednou (`GET /sites/{site-id}` s id `<host>:/sites/<web>`, jinak `GET /sites?search=<název>`), potom jeho knihovnu (`/sites/{site-id}/drive`), a složky procházej po id položek (`/drives/{drive-id}/items/{item-id}/children`). Než řekneš, že je složka prázdná nebo soubor chybí, načti všechny stránky výsledku (`@odata.nextLink`). Nahrávej vedle originálu pod novým jménem s `@microsoft.graph.conflictBehavior=fail`; nic nepřepisuj a nemaž bez pokynu člověka.",
+      "- **Files by item id.** The Integration has no path addressing (`root:/path:`). Resolve a SharePoint site once (`GET /sites/{site-id}` with the id `<host>:/sites/<site>`, else `GET /sites?search=<name>`), then its library (`/sites/{site-id}/drive`), and walk folders by item id (`/drives/{drive-id}/items/{item-id}/children`). Before you say a folder is empty or a file is missing, read every page of the result (`@odata.nextLink`). Upload next to the original under a new name with `@microsoft.graph.conflictBehavior=fail`; overwrite nothing and delete nothing without the person's instruction.",
+    ),
+  ];
+}
+
 // Integrace on every preset (root decision 0162, addendum of 2026-10-09;
 // decision F42): what is here and how to read it, the order of the paths,
 // that only a person connects an Integrace, custom MCP servers into
 // Executor, no own integrations, a write is a Publication.
-const connectedApplications: readonly Text[] = [
+const connectedApplications = (preset: PresetName): readonly Text[] => [
   t("## Integrace", "## Integrations"),
   t(
     "Integrace je aplikace nebo služba připojená k tomuhle Environmentu. Každá má právě jednu cestu: nástrojem z Nastavení → Nástroje (`gh` pro GitHub, `wacli` pro WhatsApp, `gogcli` pro Google na osobním Environmentu, `neon` pro Neon), přímo přes Executor tohohle Environmentu, nebo přes Composio s vlastním Composio účtem člověka (decision 0162). Lidé je připojují, vidí a odpojují v Launchpadu v Apps → Integrace; ty zjistíš totéž příkazem `lazurio integrations list --json`: u každé aplikace cestu, stav účtů a odkaz na její kartu.",
@@ -1304,9 +1325,10 @@ const connectedApplications: readonly Text[] = [
     "- **When there is no path,** tell the person in one sentence and send them the app's card: an Organization's Admin sets up a company app (Google Workspace, Microsoft 365) in the Dashboard, the Organization allows Composio on a work Environment and the person on a personal one; everyone else asks the Admin.",
   ),
   t(
-    "- **Firemní aplikace může čekat na souhlas správce.** Když přihlášení hlásí, že je potřeba schválení správcem (typicky Microsoft 365), řekni to Operátorovi: aplikaci schválí jejich IT a Operátor potom napojení spustí znovu. Souhlas pro jednu aplikaci (Outlook) nepokrývá jinou (Teams).",
-    "- **A company application may wait for an administrator's consent.** When the sign-in says administrator approval is required (typically Microsoft 365), tell the Operator: their IT approves the application and the Operator then starts the connection again. Consent for one application (Outlook) does not cover another (Teams).",
+    "- **Souhlas IT u firemní aplikace.** Firemní aplikaci (Microsoft 365) registruje Admin Organizace v tenantu firmy a správce firmy schválí její oprávnění jednou za všechny; lidé pak žádný souhlas nedávají. Když přihlášení přesto hlásí, že je potřeba schválení správcem (u Microsoftu `AADSTS65001` nebo `AADSTS90094`), v tenantu chybí souhlas s některým oprávněním: řekni to Operátorovi, ať ho Admin Organizace doplní, a připojení potom spustí znovu. Souhlas v jedné firmě neplatí v jiné.",
+    "- **IT consent of a company app.** An Organization's Admin registers the company app (Microsoft 365) in the company's tenant, and the company's administrator approves its permissions once for everyone; people then give no consent. When a sign-in still says administrator approval is required (at Microsoft `AADSTS65001` or `AADSTS90094`), the tenant lacks consent to one of the permissions: tell the Operator to have the Organization's Admin add it, and they then start the connection again. Consent in one company does not hold in another.",
   ),
+  ...microsoft365Guidance(preset),
   t(
     "- **Vlastní integraci nestav** (vlastní OAuth aplikaci, spouštěč, API klienta ani scraper) bez výslovného rozhodnutí Operátora; scraping a servery postavené na cookies přihlášené relace nikdy.",
     "- **Do not build your own integration** (your own OAuth app, launcher, API client or scraper) without the Operator's explicit decision; never scraping or servers built on a signed-in session's cookies.",

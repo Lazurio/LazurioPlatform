@@ -237,3 +237,122 @@ test.skipIf(process.platform === "win32")(
     ).toMatchObject({ folder: "applied", changed: true });
   },
 );
+
+// The Microsoft 365 company app (decision F42 addendum (c) of 2026-10-14):
+// recorded in the Folder like every setting, then applied to the
+// Environment's Executor, whose outcome is its one item. A fictional tenant.
+const microsoft365 = {
+  tenant_id: "00000000-0000-4000-8000-000000000001",
+  client_id: "00000000-0000-4000-8000-000000000002",
+  apps: ["outlook"],
+  callbacks: [],
+};
+const m365Keys = [
+  "integrations.microsoft365.tenant_id",
+  "integrations.microsoft365.client_id",
+  "integrations.microsoft365.apps",
+  "integrations.microsoft365.callbacks",
+];
+const m365 = (outcome: "applied" | "failed", detail: string | null) =>
+  m365Keys.map((key) => ({ key, outcome, detail }));
+
+test.skipIf(process.platform === "win32")(
+  "the company app is recorded in the Folder, then applied to Executor, which says how it turned out",
+  async () => {
+    const folder = await workFolder();
+    const values = { integrations: { microsoft365 } };
+    const asked: unknown[] = [];
+    const applied = await applyOrganizationSettings(
+      folder,
+      { values, unsupported: [] },
+      {
+        microsoft365: async (setting) => {
+          asked.push(setting);
+          return { outcome: "failed", detail: "executor-unavailable" };
+        },
+      },
+    );
+    expect(applied).toEqual({
+      folder: "applied",
+      reason: null,
+      items: m365("failed", "executor-unavailable"),
+      changed: true,
+    });
+    expect(asked).toEqual([microsoft365]);
+    expect((await preferences(folder)).organizationSettings).toEqual(values);
+    // Executor up again: the same version applies, the Folder unchanged.
+    expect(
+      await applyOrganizationSettings(
+        folder,
+        { values, unsupported: [] },
+        {
+          microsoft365: async () => ({ outcome: "applied", detail: null }),
+        },
+      ),
+    ).toEqual({
+      folder: "applied",
+      reason: null,
+      items: m365("applied", null),
+      changed: false,
+    });
+    // A failure of the apply itself is a failed item, never a thrown apply.
+    expect(
+      (
+        await applyOrganizationSettings(
+          folder,
+          { values, unsupported: [] },
+          {
+            microsoft365: async () => {
+              throw new Error("boom");
+            },
+          },
+        )
+      ).items,
+    ).toEqual(m365("failed", "executor-failed"));
+    // Lifted: the Folder forgets it, and Executor is not asked.
+    expect(
+      await applyOrganizationSettings(
+        folder,
+        { values: {}, unsupported: [] },
+        {
+          microsoft365: async () => {
+            throw new Error("not asked");
+          },
+        },
+      ),
+    ).toEqual({
+      folder: "applied",
+      reason: null,
+      items: m365("applied", null),
+      changed: true,
+    });
+    expect((await preferences(folder)).organizationSettings).toBeUndefined();
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "a Folder that refuses the company app never applies it to Executor",
+  async () => {
+    const folder = await workFolder();
+    await appendFile(join(folder, "AGENTS.md"), "\nedited by hand\n");
+    let asked = false;
+    expect(
+      await applyOrganizationSettings(
+        folder,
+        { values: { integrations: { microsoft365 } }, unsupported: [] },
+        {
+          microsoft365: async () => {
+            asked = true;
+            return { outcome: "applied", detail: null };
+          },
+        },
+      ),
+    ).toEqual({
+      folder: "refused",
+      reason: "folder-drift",
+      items: m365("failed", "folder-drift"),
+      changed: false,
+    });
+    expect(asked).toBe(false);
+  },
+);

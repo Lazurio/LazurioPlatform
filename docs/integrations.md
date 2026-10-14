@@ -6,8 +6,10 @@ Folder part of 681). Lazurio installs its own build of Composio's CLI (F42, adde
 (3) of 2026-10-13: [Lazurio's build](#lazurios-build-of-the-cli)). Whether
 Composio is allowed on an Organization's Environment follows the Organization's
 settings since decision F45 (root decision 0194, plan DEV-6653 task 693). The
-company apps of Google Workspace and Microsoft 365 (task 685) are not part of it;
-the seam they plug into is named below.
+Organization's Microsoft 365 company app (task 685) connects Outlook, OneDrive and
+SharePoint directly since F42's addendum (c) of 2026-10-14
+([below](#the-microsoft-365-company-app)); Google Workspace's company app is not part
+of it yet.
 
 An **Integrace** is an app or service connected to an Environment. Each has
 exactly one **path**: by its own **tool** from Settings → Tools (`gh` for GitHub,
@@ -34,6 +36,7 @@ the sign-in is the person's consent, so they send the link to its card.
 | One reading for the route and the CLI | `src/integrations/read.ts` |
 | Connecting and disconnecting; adding, reading and editing a custom MCP server | `src/integrations/connect.ts` |
 | A custom MCP server's rules and Executor's shapes of it (shared by the page and the server) | `src/integrations/custom-server.ts` |
+| The Microsoft 365 company app: its pinned specs and scopes, its card, building its one document and applying it to Executor | `src/integrations/microsoft365.ts`, `microsoft365-card.ts`, `microsoft365-executor.ts` |
 | The routes | `src/launchpad/integrations-routes.ts` |
 | The page | `src/launchpad/integrations-view.ts` and `custom-server-form.ts` (pure), `integrations-panel.ts` (DOM) |
 | `lazurio integrations list` | `src/integrations/cli.ts` |
@@ -60,9 +63,10 @@ the sign-in is the person's consent, so they send the link to its card.
    page says why it cannot connect now.
 4. Through Composio where it is allowed (`composioPolicyOf`, below), after
    signing the person's Composio account in where it is not signed in yet.
-5. Without either: an Organization's company app first (its Admin sets it up in
-   the Dashboard, anyone else asks the Admin), then Composio not allowed (whoever
-   decides allows it, anyone else asks), then the app's own tool, else nothing.
+5. Without either: an Organization's company app
+   first (its Admin sets it up in the Dashboard, anyone else asks the Admin), then
+   Composio not allowed (whoever decides allows it, anyone else asks), then the
+   app's own tool, else nothing.
 
 A tool counts as connected when agents use it (required, or switched on in
 Settings → Tools), it is installed and its sign-in probe says signed in; `gogcli`
@@ -79,8 +83,10 @@ Dashboard; anyone else: "Požádat Admina"). Where the Organization says `true` 
 `{allowed: true, source: "organization"}`; where it says nothing, and on a personal
 Environment or the person's own computer, `{allowed: true, source: "environment"}`,
 as since F18. The page, the rule and the reading read only this; a test may give
-its own policy (`IntegrationsHost.policy`). The Organization's company apps arrive
-with task 685; the rule takes them as `Rules.companyApps`, empty today.
+its own policy (`IntegrationsHost.policy`). The Organization's company app is
+`Rules.companyApps`: `microsoft` on every Environment of an Organization whose
+Microsoft 365 setting the Folder records (`microsoft365Here`), where its one card
+"Microsoft 365" takes the place of Outlook's, OneDrive's and SharePoint's.
 
 ## Executor API (Executor 1.6.10)
 
@@ -142,8 +148,13 @@ facts below were read from the source of tag `v1.6.10` on 2026-10-09
 | `DELETE /api/mcp/servers/<slug>` | `{removed: true}`, with the clients registered for it |
 | `GET /api/tools?integration=<slug>` | its tools (counted for a custom server) |
 | `POST /api/oauth/probe` | `{url}` → `{authorizationUrl, tokenUrl, registrationEndpoint?, resource?, scopesSupported?, issuer?, clientIdMetadataDocumentSupported?, …}` |
-| `POST /api/oauth/clients` | a public client of the client ID metadata document `https://executor.sh/api/oauth/client-id-metadata/local.json` (loopback redirect URIs on any port), `clientSecret: ""`; replaces a client of the same `(owner, slug)` |
+| `POST /api/oauth/clients` | a public client of the client ID metadata document `https://executor.sh/api/oauth/client-id-metadata/local.json` (loopback redirect URIs on any port), `clientSecret: ""`; the company app's manual client `microsoft365` (`clientId` the setting's `client_id`, `clientSecret: ""`: a public client); replaces a client of the same `(owner, slug)` |
 | `POST /api/oauth/clients/register-dynamic` | RFC 7591 registration, reused when it matches the exact `redirectUri`: the Launchpad's `<entry>/api/integrations/oauth/callback` on a Remote Environment, else (or after the server refused it, 400) `http://localhost:4789/api/oauth/callback`; `clientName` `Lazurio` |
+| `POST /api/openapi/specs` | `{spec: {kind: "blob", value} \| {kind: "url", url}, slug, name, description, authenticationTemplate: [{slug, kind: "oauth2", authorizationUrl, tokenUrl, resource, scopes}]}` → `{slug, toolCount}`; 409 when the slug exists; Executor parses a JSON spec of at most 32 MiB and compiles it (the company app's merged document is about 12.6 MiB) |
+| `GET /api/openapi/integrations/<slug>/config` | `{specUrl?, authenticationTemplate}` of an OpenAPI integration (never the spec), or `null` |
+| `POST /api/openapi/integrations/<slug>/spec` | `{spec: {kind: "blob", value}}` replaces the spec in place; connections stay |
+| `POST /api/openapi/integrations/<slug>/config` | `{authenticationTemplate, mode: "replace"}` replaces its auth template |
+| `GET /api/oauth/clients` | the clients, `[{owner, slug, grant, authorizationUrl, tokenUrl, clientId, origin: {kind}}]`, never a secret |
 | `POST /api/oauth/start` | `{client, clientOwner, owner, name, integration, template, newConnection?, identityLabel?, redirectUri?}` → `{status: "redirect", authorizationUrl, state}`; `redirectUri` the address the client was registered with, Executor's own callback without it |
 | `GET /api/oauth/callback?state=…&code=…` | Executor's own callback (`error`, `error_description`, `domain`, `site` too): exchanges the code, syncs the tools in the background, tells the long poll and answers its popup page, on a failure too |
 | `GET /api/oauth/await/<state>` | a long poll of up to 25 s: `null` (pending) or `{type: "executor:oauth-result", ok, …}`, answered once |
@@ -175,9 +186,11 @@ replaces it: the connect refuses with `integration-conflict` before anything is
 probed, added or connected, and the person removes that server in Vlastní first.
 It refuses even where the app's own server is there too under another slug:
 agents find Executor's integrations by slug, so the squatter goes first. The catalog keeps one app per integration
-slug and per endpoint, so the mapping is never ambiguous. The company apps'
-OpenAPI integrations (task 685) will need an identity of their own; until then no
-API integration counts as an app's.
+slug and per endpoint, so the mapping is never ambiguous. The company app's one
+OpenAPI integration (`m365`, [below](#the-microsoft-365-company-app)) is its card's
+by its slug and only as an OpenAPI integration; another kind under that slug is
+never reused (`integration-conflict`). No other API integration counts as an
+app's.
 
 **Signing an account without sign-in in again** is a real retry: Executor
 re-syncs its tools (`…/refresh`) and checks it (`…/health`), and the Launchpad
@@ -582,6 +595,105 @@ them well. So the page leads there:
   `composio.apps` is set, adds where the person connects an app the catalog does
   not list.
 
+## The Microsoft 365 company app
+
+Decision F42, addendum (c) of 2026-10-14; root decision 0162, addendum of
+2026-10-14; plan DEV-6626 task 685. The Organization registers one single-tenant
+app in its own Microsoft tenant, a public client without a secret, and consents to
+its delegated Graph permissions once for everyone (the Admin's runbook is the root's
+`manual/integrations/microsoft-365.md`). People then connect their Microsoft
+accounts directly through their Environment's Executor; their tokens stay there.
+
+The rules, in one breath: "Připojit" (or "Přidat účet") is one Microsoft sign-in,
+and the account is connected and agents use it; several accounts side by side are
+the person's choice; "Odpojit" disconnects one; nothing disconnects or expires on
+Lazurio's side by itself.
+
+- **The setting** (`settings.integrations.microsoft365`, Lazurio Core's contract):
+
+  ```json
+  "microsoft365": {
+    "tenant_id": "00000000-0000-4000-8000-0000000000aa",
+    "client_id": "00000000-0000-4000-8000-0000000000bb",
+    "apps": ["outlook", "one_drive", "share_point"],
+    "callbacks": [
+      "https://launchpad.vm-01.contoso.lazurio.io/api/integrations/oauth/callback"
+    ]
+  }
+  ```
+
+  Lowercase GUIDs, a non-empty subset of the three apps (Teams joins in phase 2),
+  and the Launchpad callbacks registered at Microsoft, possibly none, at most 255
+  (Entra's 256 with the localhost one), each exactly
+  `https://launchpad.<machine>.<github-org-login>.lazurio.io/api/integrations/oauth/callback`:
+  any other host would receive the authorization response. Closed: no other key,
+  so never a `client_secret`. Each leaf is one report item
+  (`integrations.microsoft365.tenant_id`, …).
+- **One integration, built from pinned specs.** Once the Folder recorded the
+  setting (F45), the Launchpad applies it to Executor: ONE OpenAPI integration
+  `m365` and one manual client `microsoft365` of the Environment. `apps` chooses
+  the parts that go in:
+
+  | App | Parts (Executor's curated Graph specs) | Delegated scopes beyond `openid profile email offline_access User.Read` |
+  | --- | --- | --- |
+  | Outlook (`outlook`) | mail, calendar | `Mail.ReadWrite`, `Calendars.ReadWrite` |
+  | OneDrive (`one_drive`) | files | `Files.ReadWrite.All` |
+  | SharePoint (`share_point`) | files, sites (walking a library's folders needs the files' drive items) | `Files.ReadWrite.All`, `Sites.Read.All` |
+
+  The parts are pinned by the commit of their public source,
+  `UsefulSoftwareCo/integrations`
+  (`public/specs/microsoft-graph/{mail,calendar,files,sites}.json`), with the
+  SHA-256 of each in `src/integrations/microsoft365.ts`. The Launchpad downloads
+  them, refuses any whose bytes differ (`spec-mismatch`), merges their paths and
+  components (a component several parts define identically kept once, any other
+  overlap `spec-conflict`), replaces their own security schemes with one of the
+  union of the scopes, and gives Executor the document as a blob (all four:
+  13.2 million characters, 2,825 paths, under Executor's 32 MiB). The integration's
+  description names the document's id, so applying again downloads nothing while
+  it matches; other apps rebuild it in place. The auth template names the tenant
+  (never `common`) and the union of the scopes. No `Mail.Send`, no
+  `MailboxSettings.ReadWrite`. Applying never touches an account.
+- **One sign-in, every app.** Executor 1.6.10 takes a sign-in's scopes from the
+  integration's auth template and keeps one token pair per connection, which every
+  operation of the integration uses: one Microsoft sign-in connects mail, calendar,
+  files and sites at once. "Připojit" and "Přidat účet" start `POST
+  /api/oauth/start` with the manual client and `newConnection` (another account gets
+  a free name: `default`, `default2`, …), never an `identityLabel` of Lazurio's, so
+  the ID token names the account (its email, else its user name); "Přihlásit znovu"
+  signs an expired account in again under its own name.
+- **Where the person signs in.** Where `callbacks` lists this Launchpad's own
+  callback, the sign-in returns to it in a window of the person's own browser.
+  Otherwise it returns to Executor's callback on localhost
+  (`http://localhost:4789/api/oauth/callback`; the Admin registers
+  `http://localhost/api/oauth/callback` once, Entra ignores a localhost address's
+  port but matches its path) in the Environment browser. That browser is the
+  agents' too, so once such a sign-in ends (connected or not) the Launchpad clears
+  Microsoft's sign-in origins there (`login.microsoftonline.com`,
+  `login.microsoft.com`, `login.live.com`; CDP `Storage.clearDataForOrigin`); the
+  tenant's own web apps opened there keep their cookies. This disconnects nothing.
+- **The card.** Where the setting is recorded, on every Environment of the
+  Organization (work, Team or Automated), one card "Microsoft 365" stands in place of
+  Outlook, OneDrive and SharePoint (a search for any of them, or for Microsoft,
+  finds it), with "Připojit", then "Přidat účet", and "Odpojit" on each account. Its
+  accounts are the connections of `m365`, named by their Microsoft account. Without
+  the setting, the three cards stay as they are, with Composio where it is allowed;
+  accounts left from before the setting went keep the card, so "Odpojit" still
+  reaches them.
+  A personal Environment and the person's own computer have no company app.
+- **Handing an Environment over.** Nothing disconnects by itself. Whoever hands an
+  Environment over, or receives one, disconnects in Apps → Integrace the accounts
+  that should no longer be used there.
+- **What it allows, and the off switch.** `Calendars.ReadWrite` sends invitations
+  and cancellations; `Files.ReadWrite.All` deletes files and creates sharing links;
+  Executor holds such writes for the agent's approval, a rule agents follow, not a
+  barrier. What agents read goes to their AI model provider. The Lazurio setting
+  only offers the company app; Entra is the company's off switch (block the account,
+  revoke its sessions, disable the app or remove its consent).
+- **IT consent.** The tenant's admin consents once, for everyone. A sign-in that
+  says administrator approval is required (`AADSTS65001`, `AADSTS90094`) means the
+  tenant lacks consent to a scope this release asks for; the Organization's Admin
+  adds it, and the person connects again.
+
 ## The reading: `GET /api/integrations` and `lazurio integrations list`
 
 Both answer the same document (`IntegrationsOverview`, `src/integrations/model.ts`):
@@ -679,9 +791,13 @@ paths, `lazurio integrations list --json`, the order tool → Executor → Compo
 never connecting one (the card's link where the Launchpad has an address, the page
 named on a workstation), and a custom MCP server only on the person's explicit
 instruction and always into Executor. `manual/working-here.md` has the chapter
-Integrace (with Executor's approvals and the IT consent of company apps),
+Integrace (with Executor's approvals, the IT consent of company apps and, on an
+Organization's Environment, how agents use the Microsoft 365 Integrace `m365`:
+several accounts possible, ask which when unclear, drafts only, folders by item id
+with paging, readback with `webLink`),
 `manual/this-machine.md` points from its tools to it, and the Launchpad routing of
 hosted Environments names the Integrace page instead of Composio's procedure. The
 texts it retires: `composio link` for agents, "send the link the command returns",
 "no cloud connector other than Composio", MCP servers set up per harness
-(`claude mcp add`, `~/.codex/config.toml`). Template revision `base-instructions-39`.
+(`claude mcp add`, `~/.codex/config.toml`). Template revision `base-instructions-39`;
+the Microsoft 365 texts `base-instructions-53`.

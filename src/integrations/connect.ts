@@ -37,6 +37,16 @@ import {
 } from "./executor-client";
 import { healthState, readExecutor } from "./executor-source";
 import {
+  type Microsoft365Here,
+  microsoft365Card,
+  microsoft365CardId,
+  microsoft365Client,
+  microsoft365Registered,
+  microsoft365Slug,
+  microsoft365Template,
+} from "./microsoft365";
+import { applyMicrosoft365 } from "./microsoft365-executor";
+import {
   type AccountState,
   type ComposioSignIn,
   catalogAppOf,
@@ -115,6 +125,14 @@ export type ConnectHost = Readonly<{
    * addendum (2) of 2026-10-13), asked before every link and removal;
    * absent, the person chooses it. */
   composioOrganization?: () => Promise<ComposioOrganizationRule>;
+  /** The Organization's Microsoft 365 company app on this Environment, as
+   * the Folder records it (decision F42 addendum (c) of 2026-10-14); absent
+   * or null where none is set up. */
+  microsoft365?: () => Promise<Microsoft365Here | null>;
+  /** Clears Microsoft's sign-in session (cookies and storage of its sign-in
+   * origins) from the Environment browser once a company app's sign-in
+   * there ended; true when it did. Absent where there is none. */
+  forgetMicrosoftSignIn?: () => Promise<boolean>;
   catalog?: IntegrationsCatalog;
   now?: () => number;
   /** The journal: the operation, the app and the outcome; never a value. */
@@ -198,6 +216,10 @@ type Session = {
   readonly oauth?: Readonly<{ state: string; launchpad: boolean }>;
   /** The authorization server's return was handed to Executor once. */
   returned?: true;
+  /** A company app's sign-in (Microsoft 365): where it ran in the
+   * Environment browser, Microsoft's session there is cleared once it
+   * ends. */
+  readonly company?: true;
 };
 
 /** An account name: plain text, one line, at most 64 characters. */
@@ -555,6 +577,7 @@ export function createConnectSessions(host: () => ConnectHost) {
             app: session.app,
             outcome: ok ? "connected" : "failed",
           });
+          ended(session);
           return;
         }
         if (result.kind === "unavailable") {
@@ -563,9 +586,109 @@ export function createConnectSessions(host: () => ConnectHost) {
         if (result.kind === "failed" && result.reason !== "timeout")
           await new Promise((resolve) => setTimeout(resolve, 2_000));
       }
-      if (session.outcome.kind === "pending")
+      if (session.outcome.kind === "pending") {
         session.outcome = { kind: "ended", reason: "expired" };
+        ended(session);
+      }
     })();
+  }
+
+  /** A company app's sign-in in the Environment browser ended (connected or
+   * not): Microsoft's sign-in session left there goes, since agents use
+   * that browser too, and Outlook on the web could send mail with it. */
+  function ended(session: Session) {
+    if (session.company !== true || session.oauth?.launchpad !== false) return;
+    const forget = host().forgetMicrosoftSignIn;
+    if (forget === undefined) return;
+    void forget()
+      .catch(() => false)
+      .then((cleared) =>
+        journal({
+          event: "company-app-browser-session",
+          app: session.app,
+          outcome: cleared ? "cleared" : "not-cleared",
+        }),
+      );
+  }
+
+  /** Connects an account of the Organization's Microsoft 365 company app
+   * (decision F42 addendum (c) of 2026-10-14): its one integration and
+   * client applied as the Organization set them up, then one sign-in with
+   * the manual public client, which grants every enabled app's scopes at
+   * once. Another account is another connection beside it; "Přihlásit
+   * znovu" signs an account in again under its name. Microsoft returns the
+   * person's own browser to the Launchpad only where the Organization
+   * registered this Launchpad's callback; elsewhere the sign-in runs in the
+   * Environment browser, returning to Executor's callback on localhost. */
+  async function connectCompany(
+    app: CatalogApp,
+    name: string | null,
+    again: string | undefined,
+  ): Promise<ConnectStart> {
+    const executor = host().executor;
+    if (executor === null)
+      return { kind: "blocked", reason: "executor-unavailable" };
+    const here = (await host().microsoft365?.()) ?? null;
+    if (here === null || here.parts.length === 0)
+      return { kind: "blocked", reason: "path-unavailable" };
+    const applied = await applyMicrosoft365(executor, here.setting);
+    if (applied.outcome === "failed")
+      return {
+        kind: "blocked",
+        reason:
+          applied.detail === "executor-unavailable" ||
+          applied.detail === "integration-conflict"
+            ? applied.detail
+            : "connect-failed",
+      };
+    let againName: string | undefined;
+    if (again !== undefined) {
+      const [owner, integration, connection] = again.split("/");
+      if (
+        owner !== "org" ||
+        integration !== microsoft365Slug ||
+        connection === undefined
+      )
+        return { kind: "blocked", reason: "account-unknown" };
+      againName = connection;
+    }
+    const callback = host().oauthCallback ?? null;
+    const redirectUri = microsoft365Registered(here.setting, callback)
+      ? callback
+      : null;
+    const started = record(
+      answerOf(
+        await executorCall(executor, "POST", "/oauth/start", {
+          client: microsoft365Client,
+          clientOwner: "org",
+          owner: "org",
+          name: againName ?? connectionName(name),
+          integration: microsoft365Slug,
+          template: microsoft365Template,
+          // Another account gets a free name; signing in again keeps its
+          // own. No label of ours: Executor names the account by the ID
+          // token (its email, else its user name).
+          ...(againName === undefined ? { newConnection: true } : {}),
+          ...(redirectUri === null ? {} : { redirectUri }),
+        }),
+        200,
+      ),
+    );
+    const url = started.authorizationUrl;
+    const state = started.state;
+    if (
+      started.status !== "redirect" ||
+      typeof url !== "string" ||
+      typeof state !== "string" ||
+      !/^https:\/\//.test(url)
+    )
+      throw new ConnectBlocked("connect-failed");
+    const session = open(app.id, {
+      oauth: { state, launchpad: redirectUri !== null },
+      company: true,
+    });
+    awaitOAuth(executor, session, state);
+    return authorize(session, url);
   }
 
   /** Where the person signs in: their own browser where the authorization
@@ -592,6 +715,7 @@ export function createConnectSessions(host: () => ConnectHost) {
     name: string | null,
     again: string | undefined,
   ): Promise<ConnectStart> {
+    if (app.id === microsoft365CardId) return connectCompany(app, name, again);
     const executor = host().executor;
     if (executor === null)
       return { kind: "blocked", reason: "executor-unavailable" };
@@ -920,7 +1044,12 @@ export function createConnectSessions(host: () => ConnectHost) {
       /** Signs this account in again (an expired or failed one). */
       again?: string,
     ): Promise<ConnectStart> {
-      const app = catalog().apps.find((item) => item.id === appId);
+      // The company app's card is no catalog entry: it stands for Outlook,
+      // OneDrive and SharePoint where the Organization set it up.
+      const app =
+        appId === microsoft365CardId
+          ? microsoft365Card
+          : catalog().apps.find((item) => item.id === appId);
       if (app === undefined) return { kind: "blocked", reason: "app-unknown" };
       try {
         return path === "direct"
@@ -991,6 +1120,7 @@ export function createConnectSessions(host: () => ConnectHost) {
       if (session === undefined) return false;
       if (session.outcome.kind === "pending") {
         session.outcome = { kind: "ended", reason: "cancelled" };
+        ended(session);
         const executor = host().executor;
         if (session.oauth !== undefined && executor !== null)
           await executorCall(executor, "POST", "/oauth/cancel", {
@@ -1095,10 +1225,15 @@ export function createConnectSessions(host: () => ConnectHost) {
             : integration.kind === "api"
               ? undefined
               : catalogAppOf(catalog(), integration);
-        // An app's account, or a custom server's (its slug is its id).
+        // An app's account, a custom server's (its slug is its id), or the
+        // company app's (its one integration).
+        const company =
+          appId === microsoft365CardId &&
+          integration?.kind === "api" &&
+          integration.slug === microsoft365Slug;
         if (
           connection === undefined ||
-          (owner?.id !== appId && integration?.slug !== appId)
+          (!company && owner?.id !== appId && integration?.slug !== appId)
         )
           return { kind: "blocked", reason: "account-unknown" };
         const [ownerName, slug, name] = selector.split("/") as [

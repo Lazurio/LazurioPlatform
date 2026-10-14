@@ -25,6 +25,16 @@ import { runChild } from "./fixtures/run-child";
 // takes only C2's exact answer; anything other than 200 or 304 keeps the
 // last applied version, and 502, 503 and 504 are tried again with backoff.
 
+// A fictional tenant and app (design 4.2's field names).
+const microsoft365 = {
+  tenant_id: "00000000-0000-4000-8000-000000000001",
+  client_id: "00000000-0000-4000-8000-000000000002",
+  apps: ["outlook", "share_point"],
+  callbacks: [
+    "https://launchpad.vm-01.contoso.lazurio.io/api/integrations/oauth/callback",
+  ],
+};
+
 const relays: FakeRelay[] = [];
 afterEach(async () => {
   for (const relay of relays.splice(0)) await relay.close();
@@ -347,6 +357,33 @@ const malformed: Readonly<Record<string, unknown>> = {
     settings: { integrations: true },
   },
   "an array": [delivered],
+  // The Microsoft 365 company app is a public client (F42 addendum (c) of
+  // 2026-10-14): a secret in its setting refuses the whole answer, never
+  // kept apart as a setting this release does not know.
+  "a secret in the Microsoft 365 setting": {
+    ...delivered,
+    settings: {
+      integrations: {
+        microsoft365: { ...microsoft365, client_secret: "abc8Q~fictional" },
+      },
+    },
+  },
+  "a secret nested in the Microsoft 365 setting": {
+    ...delivered,
+    settings: {
+      integrations: {
+        microsoft365: { ...microsoft365, future: { password: "fictional" } },
+      },
+    },
+  },
+  "a Microsoft 365 client id that is no identifier": {
+    ...delivered,
+    settings: {
+      integrations: {
+        microsoft365: { ...microsoft365, client_id: "abc8Q~fictional" },
+      },
+    },
+  },
 };
 for (const [name, body] of Object.entries(malformed))
   test(`an answer with ${name} is never taken`, async () => {
@@ -366,6 +403,33 @@ test("text that is not JSON is never taken", async () => {
     kind: "failed",
     error: "dashboard_unreachable",
     detail: "answer-invalid",
+  });
+});
+
+test("the Microsoft 365 company app is delivered beside Composio, a new field of it kept apart", async () => {
+  const relay = await relayWith(() =>
+    settingsAnswer(
+      {
+        ...delivered,
+        settings: {
+          integrations: {
+            composio: { allowed: false },
+            microsoft365: { ...microsoft365, region: "eu" },
+          },
+        },
+      },
+      version,
+    ),
+  );
+  expect(await client(relay.socket).client.readSettings(null)).toEqual({
+    kind: "settings",
+    settings: {
+      organization: { githubOrgId: 123, login: "Example" },
+      version,
+      // The Composio switch keeps applying beside the company app.
+      values: { integrations: { composio: { allowed: false }, microsoft365 } },
+      unsupported: ["integrations.microsoft365.region"],
+    },
   });
 });
 

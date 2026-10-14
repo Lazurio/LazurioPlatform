@@ -10,6 +10,12 @@ import {
   composioSelector,
 } from "./composio-source";
 import {
+  type Microsoft365Here,
+  microsoft365Card,
+  microsoft365ReplacedApps,
+  microsoft365Slug,
+} from "./microsoft365";
+import {
   type AppTool,
   choosePath,
   type Path,
@@ -225,6 +231,10 @@ export type MergeInput = Readonly<{
   /** The installed CLI is not the build Lazurio pins and its update can
    * work here (`pinnedUpdateOffered` of its row in Settings → Tools). */
   composioUpdate?: boolean;
+  /** The Organization's Microsoft 365 company app on this Environment
+   * (decision F42 addendum (c) of 2026-10-14): its one card stands for
+   * Outlook, OneDrive and SharePoint. Null or absent where none is set up. */
+  microsoft365?: Microsoft365Here | null;
   readAt: string;
 }>;
 
@@ -334,11 +344,13 @@ export function pendingOfSignIns(
 /** The one list (decision F42). */
 export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
   const { catalog, locale, scope, policy } = input;
+  const microsoft365 = input.microsoft365 ?? null;
   const rules: Rules = {
     scope,
     composio: policy.allowed,
-    // The Organization's company apps arrive with plan DEV-6626 task 685.
-    companyApps: [],
+    // The Organization's company apps (decision F42 addendum (c) of
+    // 2026-10-14): Microsoft 365 where its setting is recorded.
+    companyApps: microsoft365 === null ? [] : ["microsoft"],
     // Where Executor is no part of the Environment, an app's way is the one
     // that connects here (Composio, or its tool), never a dead end.
     direct: input.executor.state !== "absent",
@@ -357,7 +369,11 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
       const own = connections.filter(
         (connection) => connection.integration === integration.slug,
       );
-      const app = catalogAppOf(catalog, integration);
+      // The company app's one integration: its accounts on its card.
+      const app =
+        integration.kind === "api" && integration.slug === microsoft365Slug
+          ? microsoft365Card
+          : catalogAppOf(catalog, integration);
       if (app === undefined) {
         if (integration.kind === "api") continue;
         custom.push(
@@ -466,7 +482,23 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
     });
   };
   const known = new Set<string>();
-  const apps: IntegrationApp[] = catalog.apps.map((app) => {
+  // Where the company app is set up, its one card takes the place of
+  // Outlook's, and OneDrive's and SharePoint's go. Where it no longer is but
+  // accounts of it remain, its card stays at the end, so that "Odpojit"
+  // still reaches them.
+  const listed =
+    microsoft365 === null
+      ? (direct.get(microsoft365Card.id) ?? []).length > 0
+        ? [...catalog.apps, microsoft365Card]
+        : catalog.apps
+      : catalog.apps.flatMap((app) =>
+          app.id === "outlook"
+            ? [microsoft365Card]
+            : microsoft365ReplacedApps.includes(app.id)
+              ? []
+              : [app],
+        );
+  const apps: IntegrationApp[] = listed.map((app) => {
     const toolkit = app.composio;
     if (toolkit !== undefined) known.add(toolkit);
     return entry(

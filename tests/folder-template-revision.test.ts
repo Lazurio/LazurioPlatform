@@ -21,8 +21,8 @@ import { bindings } from "./fixtures/machine-bindings";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-52",
-  digest: "7661b07aade238d91e3a07937b514c6befff2ba97a8adf190ae205c7191ee8c6",
+  revision: "base-instructions-53",
+  digest: "a59c17c836465460052f3552b62ee82f76059b0653d85586cc7a57bb0c8cbf30",
 } as const;
 
 const optionalTools = activatableTools()
@@ -100,6 +100,23 @@ const environments = [
     machine: bindings.teamEntry,
     os: "linux",
     settings: { integrations: { composio: { allowed: false } } },
+  },
+  // With the Microsoft 365 company app recorded (F42 addendum (c) of
+  // 2026-10-14): identifiers only, a fictional tenant.
+  {
+    preset: "hosted-organization-personal",
+    machine: bindings.organizationRelay,
+    os: "linux",
+    settings: {
+      integrations: {
+        microsoft365: {
+          tenant_id: "00000000-0000-4000-8000-0000000000aa",
+          client_id: "00000000-0000-4000-8000-0000000000bb",
+          apps: ["outlook"],
+          callbacks: [],
+        },
+      },
+    },
   },
 ] as const;
 
