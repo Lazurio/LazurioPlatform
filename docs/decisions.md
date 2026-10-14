@@ -4371,6 +4371,34 @@ host, a foreign origin), `lazurio files link` inside and outside `~/Documents` w
 without an entry and from the real command line, and the Folder render on every preset in
 both locales.
 
+**Proposed addendum 2026-10-12 — a grid with image previews, shorter copy (awaiting
+approval; it narrows "previews of file contents" out of scope above).** An Operator of a
+Team Environment asked for the page to read like Google Drive: a gallery with previews,
+and far less explanatory text. Proposed:
+
+1. **List or grid.** A two-way switch beside Download ZIP and Upload; the choice is kept
+   in this browser (`lazurio.files.layout`), the list by default. The grid shows folders
+   as slim tiles under "Folders", then files as cards under "Files".
+2. **Image previews only.** A card shows the file itself when it is PNG, JPEG, GIF or WebP
+   and at most 25 MB: the same download route (`/api/files/download`), behind a gateway as
+   an `<img>` the session cookie admits, locally fetched with the session token as a
+   blob; a link that fails is retried as that fetch. Fetched only once the card scrolls
+   into view, kept per name, size and modified time across redraws, and released when it
+   leaves the listing. The whole image is shown (scaled to fit), on a neutral card with an
+   image icon while it loads, never behind the kind's document icon. SVG and HEIC are not
+   drawn. No other content is rendered: other files show the icon of their kind (by
+   extension: PDF, document, spreadsheet, presentation, image, video, audio, archive,
+   text) in its colour, with the extension. No new route, header or server code.
+3. **Copy.** The intro paragraph is gone; the Team note is a small chip "Shared with the
+   whole Team"; Upload, Download ZIP; the empty folder says "Nothing here yet. Drop files
+   here or upload them."; the unusable Documents folder says to ask an agent.
+
+**Not in this addendum: who made a file.** The Operator also asked to see each file's
+author. The Launchpad cannot know it today: the hosted admission answers only whether a
+request may pass, not who sent it, and on a Team Environment every file belongs to the
+same OS account. Recording an author needs the gateway to pass a verified identity and a
+place to keep it; that is a separate decision.
+
 ## F36 — The Lazurio shell: one library in the Platform, served at `/.lazurio/shell.js` with `/.lazurio/shell.json`; the Launchpad is its first consumer
 
 **Decided by Matěj 2026-10-03 (plan DEV-6639, the Lazurio shell decisions, root
