@@ -519,7 +519,7 @@ const en = {
   appsInfoModule: "Module information",
   appsInfoRepository: "Repository information",
   appsNewModule: "New module",
-  appsNewModuleSub: "You found it with an agent in Chat",
+  appsNewModuleSub: "Create with an agent",
   appsNewModuleOpened:
     "Chat opens in a new tab with the new module's brief in the composer, not sent.",
   appsNewModuleCopied:
@@ -528,6 +528,10 @@ const en = {
     "The brief could not be copied; open Chat and describe the new module to the agent.",
   appsNewModulePrompt:
     "I want to found a new module in the Organization {name} (GitHub {login}).\n\nBefore you create anything, ask me one question at a time:\n1. What the module is for and who will use it.\n2. What it should be called (a name and a short slug).\n3. Whether it should have an app and which (vite-react, astro, astro-starlight, bun-service, python-uv), or none.\n4. Which Teams should have access to it.\n\nThen follow the Lazurio Module Standard (skill lazurio-module-standard):\n- found the module with the scaffold `lazurio module create {login}/<slug> --stack <stack> --teams <teams>` from a task worktree of the Organization's root, never by hand, and first show me the plan with --dry-run;\n- check that the module's repository exists on GitHub in the Organization {login} and that the chosen Teams have access to it;\n- prepare the result as a pull request and ask me before Publication.",
+  // The personal space's "+ Nový modul" (root decision 0185's addendum of
+  // 2026-10-13); in Czech the person's own words, so tykání (0199).
+  appsNewPersonalModulePrompt:
+    "I want to found a new module in my personal space (the Personalspace of my GitHub account {login}).\n\nBefore you create anything, ask me one question at a time:\n1. What the module is for.\n2. What it should be called (a name and a short slug).\n3. Whether it should have an app and which (vite-react, astro, astro-starlight, bun-service, python-uv), or none.\n\nThen follow the Lazurio Module Standard (skill lazurio-module-standard) and the AGENTS.md of my personal space personalspace/{login}_GEN3. Run the `git -C` commands from the Lazurio Folder's root, where this thread starts:\n- The module is mine alone: a private repository {login}/<slug> on my GitHub account, in the workspace/ folder of my personal space, with no Organization and no Teams. Found it with this Environment's `lazurio module create`, never by hand; if the command does not know the form personalspace/<slug>, stop and tell me.\n- First create a task worktree of my personal space beside it in personalspace/.worktrees/, never inside it: `git -C personalspace/{login}_GEN3 worktree add -b <branch> \"$PWD/personalspace/.worktrees/<task>\" main`.\n- In the task worktree run `lazurio module create personalspace/<slug> --stack <stack> --name '<name>' --dry-run --json` and show me the plan: the private repository {login}/<slug>, the files and the port. Wait until I confirm it.\n- Only then run the same command with `--confirm <plan> --json` instead of `--dry-run --json`, where <plan> is the dry run's `plan` (its next_steps give the exact command).\n- Check that the repository {login}/<slug> is on my account and private.\n- In the task worktree commit modules.manifest.json with the module's slot, push the branch and open a pull request into {login}/{login}_GEN3. Merging it is my Publication: ask me before it.\n- After the merge, fast-forward my personal space's main (`git -C personalspace/{login}_GEN3 pull --ff-only`) and remove the task worktree (`git -C personalspace/{login}_GEN3 worktree remove \"$PWD/personalspace/.worktrees/<task>\"`).\n- If the dry run warns that my personal space still names the template's placeholder owner (Lazurio/LazurioPlatform#377), tell me, but do not run the template's bootstrap for it.",
   appsGuide: "Guide",
   appsMarketplace: "Marketplace",
   appsSoon: "coming soon",
@@ -1938,7 +1942,7 @@ const cs: Record<MessageKey, string> = {
   appsInfoModule: "Informace o modulu",
   appsInfoRepository: "Informace o repozitáři",
   appsNewModule: "Nový modul",
-  appsNewModuleSub: "Založíš ho s agentem v Chatu",
+  appsNewModuleSub: "Vytvořit s agentem",
   appsNewModuleOpened:
     "Chat se otevírá v nové záložce se zadáním nového modulu v poli zprávy, neodeslaným.",
   appsNewModuleCopied:
@@ -1947,6 +1951,10 @@ const cs: Record<MessageKey, string> = {
     "Zadání se nepodařilo zkopírovat; otevři Chat a popiš agentovi nový modul.",
   appsNewModulePrompt:
     "Chci založit nový modul v Organizaci {name} (GitHub {login}).\n\nNež cokoli vytvoříš, zeptej se mě postupně, jednu otázku po druhé:\n1. K čemu modul je a kdo ho bude používat.\n2. Jak se má jmenovat (název a krátký slug).\n3. Jestli má mít aplikaci a jakou (vite-react, astro, astro-starlight, bun-service, python-uv), nebo žádnou.\n4. Které Teamy k němu mají mít přístup.\n\nPak postupuj podle Lazurio Module Standard (skill lazurio-module-standard):\n- modul založ scaffoldem `lazurio module create {login}/<slug> --stack <stack> --teams <teamy>` z task worktree rootu Organizace, nikdy ručně, a nejdřív mi ukaž plán přes --dry-run;\n- ověř, že repozitář modulu existuje na GitHubu v Organizaci {login} a že k němu mají přístup vybrané Teamy;\n- výsledek připrav jako pull request a před Publikací se mě zeptej.",
+  // The personal space's "+ Nový modul" (root decision 0185's addendum of
+  // 2026-10-13); in Czech the person's own words, so tykání (0199).
+  appsNewPersonalModulePrompt:
+    'Chci založit nový modul ve svém osobním prostoru (Personalspace mého GitHub účtu {login}).\n\nNež cokoli vytvoříš, zeptej se mě postupně, jednu otázku po druhé:\n1. K čemu modul je.\n2. Jak se má jmenovat (název a krátký slug).\n3. Jestli má mít aplikaci a jakou (vite-react, astro, astro-starlight, bun-service, python-uv), nebo žádnou.\n\nPak postupuj podle Lazurio Module Standard (skill lazurio-module-standard) a AGENTS.md mého osobního prostoru personalspace/{login}_GEN3. Příkazy `git -C` spouštěj z kořene Lazurio Folderu, kde tohle vlákno začíná:\n- Modul je jen můj: soukromý repozitář {login}/<slug> na mém GitHub účtu, ve složce workspace/ mého osobního prostoru, bez Organizace a bez Teamů. Založ ho příkazem `lazurio module create` tohoto Environmentu, nikdy ručně; kdyby příkaz tvar personalspace/<slug> neznal, zastav se a řekni mi to.\n- Nejdřív vytvoř task worktree mého osobního prostoru vedle něj v personalspace/.worktrees/, nikdy v něm: `git -C personalspace/{login}_GEN3 worktree add -b <branch> "$PWD/personalspace/.worktrees/<task>" main`.\n- V task worktree spusť `lazurio module create personalspace/<slug> --stack <stack> --name \'<název>\' --dry-run --json` a ukaž mi plán: soukromý repozitář {login}/<slug>, soubory a port. Počkej, až ho potvrdím.\n- Teprve pak spusť tentýž příkaz s `--confirm <plan> --json` místo `--dry-run --json`, kde <plan> je `plan` z dry runu (přesný příkaz uvádí jeho next_steps).\n- Ověř, že repozitář {login}/<slug> je na mém účtu a je soukromý.\n- V task worktree commitni modules.manifest.json se slotem modulu, pushni větev a otevři pull request do {login}/{login}_GEN3. Merge je moje Publikace: před ním se mě zeptej.\n- Po merge srovnej main mého osobního prostoru (`git -C personalspace/{login}_GEN3 pull --ff-only`) a odstraň task worktree (`git -C personalspace/{login}_GEN3 worktree remove "$PWD/personalspace/.worktrees/<task>"`).\n- Když dry run varuje, že můj osobní prostor ještě nese zástupného vlastníka šablony (Lazurio/LazurioPlatform#377), řekni mi to, ale bootstrap šablony kvůli tomu nespouštěj.',
   appsGuide: "Guide",
   appsMarketplace: "Marketplace",
   appsSoon: "již brzy",

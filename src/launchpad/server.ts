@@ -146,6 +146,7 @@ import {
 import {
   isOrganizationPrompt,
   isPromptId,
+  personalModuleDocument,
   prepareContentDocument,
   promptAudience,
   promptDocument,
@@ -979,6 +980,31 @@ export async function startLaunchpad(
         const keys = [...url.searchParams.keys()];
         if (!isPromptId(id) || keys.some((key) => key !== "org"))
           return notFound();
+        if (promptAudience(id) === "personalspace-holder") {
+          // The personal space's "+ Nový modul" (`new-personal-module`):
+          // only for the account that holds the Personalspace, decided now
+          // as `GET /api/content` decides it (#186), and only by its own
+          // login.
+          if (login === null || keys.length !== 1) return notFound();
+          try {
+            server.timeout(request, 30);
+            const holder = await personalspace.decide(folder);
+            const current = await withFolderReadLock(state, () =>
+              readFolderState(state),
+            );
+            const document = personalModuleDocument(
+              folder,
+              holder,
+              login,
+              messages(
+                current.preferences.profile.locale === "cs" ? "cs" : "en",
+              ),
+            );
+            return document === null ? notFound() : response(document);
+          } catch {
+            return notFound();
+          }
+        }
         if (!isOrganizationPrompt(id)) {
           // The Folder's prompt (`prepare-content`): only on an Environment
           // that signs in as its person, only while the last installation

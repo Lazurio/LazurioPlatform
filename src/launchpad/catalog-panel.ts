@@ -28,7 +28,7 @@ import {
   moduleDescription,
   moduleName,
   moduleStone,
-  newModulePrompt,
+  type NewModuleOffer,
   type PersonalStart,
   type TileTarget,
   tileTarget,
@@ -157,6 +157,12 @@ export function createCatalogPanel(
      * head draws it (`switchTabs`), for the personal space's starts; empty
      * until the shell document is read. */
     tabs: () => readonly SwitchTab[];
+    /** The GitHub login of the personal space's verified holder: the
+     * `present` personalspace item of `GET /api/content` (#186), read once
+     * the page is idle; null until then and where there is none. Only it
+     * gets the personal space's "+ Nový modul" (root decision 0185's
+     * addendum of 2026-10-13). */
+    holder: () => string | null;
     /** The catalog the page already carries (its boot document, F36's
      * addendum of 2026-10-08): drawn at once, without a first read. */
     catalog?: Catalog | null;
@@ -700,12 +706,15 @@ export function createCatalogPanel(
 
   // "+ Nový modul" (2026-10-04): the last tile of Workspace, only where this
   // Environment's GitHub identity is an Owner of the Organization; before
-  // the first module, the Owner's Workspace has only it (#376). It hands
+  // the first module, the Owner's Workspace has only it (#376). In the
+  // personal space, the same tile for its verified holder, with the prompt
+  // `new-personal-module` (root decision 0185's addendum of 2026-10-13);
+  // `newModuleOffer` in apps-view.ts decides who gets which. It hands
   // the wireframe's prompt to Chat: where Chat takes a prompt by link
   // (Lazurio/t3code#35) it opens with the prompt in a new thread's composer,
   // not sent; otherwise the prompt goes to the clipboard and Chat opens,
   // where the person pastes it into a new chat (ui.ts `handOver`).
-  function newModuleTile(group: CatalogGroupEntry): HTMLElement {
+  function newModuleTile(offer: NewModuleOffer): HTMLElement {
     const copy = options.copy();
     const button = element("button", "tile tile--new is-button");
     button.type = "button";
@@ -717,14 +726,9 @@ export function createCatalogPanel(
       element("span", "tile-desc", copy.appsNewModuleSub),
     );
     button.append(mark, text);
-    const login = group.organization.forgeLogin;
+    button.dataset.prompt = offer.id;
     button.addEventListener("click", async () => {
-      if (login === undefined) return;
-      const outcome = await options.newModule({
-        id: "new-module",
-        organization: login,
-        text: newModulePrompt(group.name, login, copy),
-      });
+      const outcome = await options.newModule(offer);
       say(options.copy()[newModuleSay[outcome]]);
     });
     return button;
@@ -782,6 +786,7 @@ export function createCatalogPanel(
     value: AppsSection,
     group: CatalogGroupEntry,
     owner: boolean,
+    offer: NewModuleOffer | null,
   ): HTMLElement {
     const part = element("section", "apps-section");
     part.dataset.section = value.kind;
@@ -790,7 +795,7 @@ export function createCatalogPanel(
     top.append(title, element("span", "section-count", value.count));
     const grid = element("div", "tile-grid");
     grid.append(...value.tiles.map((item) => tile(item, group, owner)));
-    if (value.kind === "workspace" && owner) grid.append(newModuleTile(group));
+    if (offer !== null) grid.append(newModuleTile(offer));
     part.append(top, grid);
     return part;
   }
@@ -947,6 +952,7 @@ export function createCatalogPanel(
     for (const part of appsHomeParts(value, group, copy, {
       entry: options.entry(),
       favorites: favoritesOf(group),
+      holder: options.holder(),
       setup: setup !== null,
       tabs: options.tabs(),
       owner,
@@ -955,7 +961,7 @@ export function createCatalogPanel(
         part.kind === "empty"
           ? element("p", "intro", part.text)
           : part.kind === "section"
-            ? section(part.section, group, owner)
+            ? section(part.section, group, owner, part.offer)
             : startsSection(part),
       );
     return parts;

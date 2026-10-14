@@ -5402,7 +5402,8 @@ Not changed: the empty sentence, the Apps home of an Organization, the switch, t
 column, the catalog and every route. Not part of this addendum: showing the personal
 Workspace without modules, "+ Nový modul" as its last tile, and the prompt
 `new-personal-module` (point 1 of the root addendum). They ship in the same Platform
-release as the personal form of `lazurio module create` (plan DEV-6662, Q10).
+release as the personal form of `lazurio module create` (plan DEV-6662, Q10); the
+second addendum of 2026-10-13 below builds them.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -5426,6 +5427,90 @@ muted, a click goes nowhere); a workstation with Chat and Automate muted; anothe
 account's Personalspace and the first paint before GitHub answered, both without the
 section; Integrace and Soubory opened their pages. These are no rendered-page CI gates
 (root decision 0178).
+
+**Addendum 2026-10-13 (2) (root decision 0185's addendum of 2026-10-13, point 1, plan
+DEV-6662 M1b, Lazurio/LazurioPlatform#359): "+ Nový modul" in the personal space.** The
+root addendum gives the personal space's verified holder its Workspace always, ending
+with "+ Nový modul", which opens Chat with a prepared prompt, not sent, that founds the
+person's own module (root decision 0171's addendum of 2026-10-13, decision F52). This
+addendum builds the tile and the prompt `new-personal-module`, as #376 did for an
+Organization's Owner (the Organization-rail addendum, point 8).
+
+1. **Who.** Only the verified holder: the catalog lists the personal space without a
+   reason (#186), and the content routes name the holder's login (`GET /api/content`,
+   its personalspace item `present`). The page needs the login, because the link names
+   it and the catalog never carries a login; it reads the content routes once it is
+   idle, so the tile comes then, as the Organization's tile comes with GitHub's Owner
+   answer. Not held, another account's, public, signed out, a work or Team Environment:
+   nothing new. `newModuleOffer` in `apps-view.ts` is the one rule: an Organization's
+   Owner gets `new-module`, the personal space's holder `new-personal-module`, everyone
+   else nothing.
+2. **The Workspace.** For the holder the personal space's one section is titled
+   "Workspace", as in the wireframe (it was "Osobní", the page's own head), counts "zatím
+   žádné moduly" ("no modules yet") while empty and ends with the tile "+ Nový modul" /
+   "Vytvořit s agentem" ("Create with an agent", the wireframe's words, now also the
+   Organization's tile's). Before the first module the tile is its only tile, and the
+   sentence "Osobní prostor je zatím prázdný." gives way to it. The starts of the first
+   addendum stay after it; while the first run's line shows, the Workspace stays and the
+   starts do not.
+3. **The prompt.** `new-personal-module` has the audience `personalspace-holder` and the
+   Folder's scope: `GET /.lazurio/prompts/new-personal-module?org=<login>` answers only
+   where the holder decision, made at the request as `GET /api/content` makes it, says
+   this Environment's GitHub account holds the Personalspace, and only for `org` equal
+   to that login, letter case ignored. Anyone else, a missing or extra query and every
+   failure get the same 404. `cwd` is the Lazurio Folder's root (root decision 0189);
+   the text names the login as GitHub spells it, in the person's language and, in
+   Czech, in tykání: it is the person's own words to the agent (root decision 0199).
+   It follows the wireframe's `newPersonalModulePrompt`, matched to the real command:
+   one question at a time (what for; name and slug; app and stack, the Organization
+   prompt's list); the Module Standard skill and the Personalspace's `AGENTS.md`; a task
+   worktree beside the Personalspace (`git -C personalspace/<login>_GEN3 worktree add
+   -b <branch> "$PWD/personalspace/.worktrees/<task>" main`, from the Folder's root);
+   `lazurio module create personalspace/<slug> --stack <stack> --name '<name>'
+   --dry-run --json` and the plan shown (the private repository `<login>/<slug>`, the
+   files, the port) until the person confirms; the same command with `--confirm <plan>
+   --json`; the repository checked private; the slot committed and pushed from the
+   worktree and a pull request into `<login>/<login>_GEN3`, asking before Publication;
+   after the merge `git -C personalspace/<login>_GEN3 pull --ff-only` and the
+   worktree removed; and the placeholder owner of #377 only mentioned, never fixed by
+   the template's bootstrap. An older `lazurio` that does not know `personalspace/<slug>`
+   makes the agent stop and say so.
+4. **The hand-over.** The tile hands `{id: "new-personal-module", organization:
+   <login>, text}` to `handOver`, unchanged: by link where Chat takes prompts, otherwise
+   the clipboard and Chat opens (a workstation only copies). The fork needs no change: it
+   accepts any id of the prompt grammar and any GitHub login.
+
+Not changed: an Organization's tile and prompt (except the tile's second line), the
+starts, the catalog, the content routes and the holder decision. Release coupling: the
+prompt runs `--confirm`, so it must not reach a release before the real run of `lazurio
+module create personalspace/<slug>` (#399).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The holder's login in the catalog's personal group | The catalog deliberately names no owner of personal content (F52 point 2); a new field on every page's boot document for one link; rejected |
+| The shell document's `operator.login` | The handover's login, which may be stale after a rename; not the holder decision; rejected |
+| A separate tile component for the personal space | Two tiles for one action; the offer differs only by the prompt; rejected |
+| The holder login from `GET /api/content`, gated by the catalog's holder decision, and the route deciding again on every request (selected) | One decision (#186) behind both; a tile drawn from a stale answer opens nothing it should not |
+
+Verified by unit tests: `tests/apps-view.test.ts` (the holder's Workspace with and without
+modules, in both languages, the tile last and the starts after it; no tile before the
+holder is known, for a blocked personal space or in an Organization; `newModuleOffer`'s
+truth table; `personalHolderOf`; the prompt's commands in both languages);
+`tests/launchpad-prompts.test.ts` (the registry; `personalModuleDocument`; HTTP on a
+personal Remote Environment: 200 for the holder by its login in either case with the
+Folder's `cwd`, 401 without admission, 404 for another login, a missing or extra query,
+another account signed in, a foreign, public or absent Personalspace and gh signed out;
+a workstation with and without its token; a work Environment never serves it);
+`tests/launchpad-chat.test.ts` (the link). In Chrome (1440 and 900 px, Czech and English)
+against fixture Folders with a stub GitHub: a personal Remote Environment held with no
+module (Workspace "zatím žádné moduly", the tile its only tile, the starts after it) and
+with modules (the tile last), the tile opening Chat in a new tab through the pairing with
+`lazurio-prompt=new-personal-module&lazurio-org=<login>` and nothing copied; another
+account's Personalspace, with and without modules, with its status line and no tile; a
+workstation held, with and without a module, the tile copying the prompt and opening no
+tab; and the route answering 200 with the Folder's `cwd` and the same text for the
+login in either case, 404 for another. These are no rendered-page CI gates (root
+decision 0178).
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 

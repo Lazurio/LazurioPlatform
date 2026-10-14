@@ -10,7 +10,7 @@ import { shellMessages } from "../shell/messages";
 import { environmentName, switchTabs } from "../shell/view";
 import type { ToolsOverview } from "../tools/overview";
 import { accountWriter, readAccount } from "./account";
-import { pluralKey } from "./apps-view";
+import { personalHolderOf, pluralKey } from "./apps-view";
 import { bootElementId, parseBoot } from "./boot";
 import { createBrowserPanel } from "./browser-panel";
 import { browserPanelOrigin } from "./browser-panel-view";
@@ -198,6 +198,10 @@ async function readShell() {
     showWhenDrawn();
   }
 }
+// The login of the personal space's verified holder, as the content routes
+// last said it (#186): the personal "+ Nový modul" is its (root decision
+// 0185's addendum of 2026-10-13). Null until the content is read.
+let personalHolder: string | null = null;
 // The Launchpad home: the catalog of this Folder's Organizations and modules
 // (launchpad-parity B1), drawn for the route the frame shows.
 const catalog = createCatalogPanel({
@@ -270,6 +274,7 @@ const catalog = createCatalogPanel({
     shellDocument === null
       ? []
       : switchTabs(shellDocument, shellMessages(locale), "apps"),
+  holder: () => personalHolder,
 });
 // The first run of an Environment (root decision 0188): the line in Apps
 // until it is usable, "Obsah Environmentu" in Settings → Tento Environment
@@ -349,6 +354,13 @@ const content = createContentPanel({
     )
       void catalog.refresh();
     contentSeen = state;
+    // The personal space's holder as the content routes say it now: the
+    // home is drawn again when it changes, so the tile follows.
+    const holder = personalHolderOf(content.list());
+    if (holder !== personalHolder) {
+      personalHolder = holder;
+      catalog.render();
+    }
     void probePreparePrompt();
     firstRun();
   },

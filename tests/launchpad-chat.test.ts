@@ -402,6 +402,15 @@ test("the link carries the prompt's id and the Organization's login in the fragm
   expect(chatPromptHref(origin, origin, prompt)).toBe(
     `${origin}/#lazurio-prompt=new-module&lazurio-org=Example-Org`,
   );
+  // The personal space's "+ Nový modul": the person's own login.
+  expect(
+    chatPromptHref(`${origin}/pair#token=${token}`, origin, {
+      id: "new-personal-module",
+      organization: "example",
+    }),
+  ).toBe(
+    `${origin}/pair#token=${token}&lazurio-prompt=new-personal-module&lazurio-org=example`,
+  );
   // Never the text, and nothing in the query a server or log would see.
   const href = new URL(
     chatPromptHref(`${origin}/pair#token=${token}`, origin, prompt) ?? "",

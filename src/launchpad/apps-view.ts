@@ -23,6 +23,7 @@ import {
   moduleRoute,
 } from "./catalog-view";
 import type { PublicEntry } from "./chat";
+import type { ContentList } from "./content-client";
 import {
   favoritesFirst,
   moduleFavorite,
@@ -332,7 +333,10 @@ export function appsTiles(
 }
 
 /** The sections of one group, in order, favourites first in each; empty
- * sections are left out. The Personalspace group is one section. An
+ * sections are left out. The Personalspace group is one section,
+ * "Workspace", which stays without a module where `owner` says its verified
+ * holder is this Environment's GitHub account (root decision 0185's
+ * addendum of 2026-10-13). An
  * Organization's Workspace stays, even without a module, where `owner` is
  * GitHub's live answer that this Environment's identity is the
  * Organization's Owner (false until it comes): "+ Nový modul" ends every
@@ -354,13 +358,16 @@ export function appsSections(
           "{count}",
           String(length),
         );
+  // The personal space's one section is its Workspace (the wireframe,
+  // root decision 0185's addendum of 2026-10-13); `owner` here is its
+  // verified holder, for whom it stays without a module.
   if (group.sections === null)
-    return tiles.modules.length === 0
+    return tiles.modules.length === 0 && !owner
       ? []
       : [
           {
             kind: "personal",
-            title: copy.appsPersonal,
+            title: copy.catalogSectionWorkspace,
             count: count(tiles.modules.length, "modules"),
             tiles: favoritesFirst(tiles.modules, favorites),
           },
@@ -469,7 +476,13 @@ export function personalStarts(
  * tiles (root decision 0185's addendum of 2026-10-13). */
 export type AppsHomePart =
   | Readonly<{ kind: "empty"; text: string }>
-  | Readonly<{ kind: "section"; section: AppsSection }>
+  | Readonly<{
+      kind: "section";
+      section: AppsSection;
+      /** "+ Nový modul" as this section's last tile: the group's offer on
+       * its Workspace (an Organization's or the personal one), else null. */
+      offer: NewModuleOffer | null;
+    }>
   | Readonly<{
       kind: "starts";
       title: string;
@@ -483,6 +496,10 @@ export function appsHomeParts(
   input: Readonly<{
     entry: PublicEntry | null;
     favorites: readonly string[];
+    /** The login of the personal space's verified holder: the `present`
+     * personalspace item of `GET /api/content` (#186), null or absent
+     * until the page has it. */
+    holder?: string | null;
     /** Whether the first run's line shows (root decision 0188): it says
      * what is next, so neither the sentence nor the starts do. */
     setup: boolean;
@@ -495,13 +512,20 @@ export function appsHomeParts(
     owner?: boolean;
   }>,
 ): readonly AppsHomePart[] {
+  const offer = newModuleOffer(group, copy, {
+    owner: input.owner ?? false,
+    holder: input.holder ?? null,
+  });
+  // Whoever gets the offer sees the Workspace it ends, even before the
+  // first module: an Organization's Owner (#376) and the personal space's
+  // holder (root decision 0185's addendum of 2026-10-13).
   const sections = appsSections(
     catalog,
     group,
     copy,
     input.entry,
     input.favorites,
-    input.owner ?? false,
+    offer !== null,
   );
   // A group listed with a reason says it in its status line, and the
   // catalog lists the personal space without one only where this
@@ -524,7 +548,14 @@ export function appsHomeParts(
           },
         ]
       : []),
-    ...sections.map((section) => ({ kind: "section" as const, section })),
+    ...sections.map((section) => ({
+      kind: "section" as const,
+      section,
+      offer:
+        section.kind === "workspace" || section.kind === "personal"
+          ? offer
+          : null,
+    })),
     ...(starts.length === 0
       ? []
       : [{ kind: "starts" as const, title: copy.appsStartsTitle, starts }]),
@@ -635,3 +666,71 @@ export const newModulePrompt = (
   copy.appsNewModulePrompt
     .replaceAll("{name}", name)
     .replaceAll("{login}", login);
+
+/** The prompt "+ Nový modul" hands to Chat in the personal space (the
+ * wireframe's `newPersonalModulePrompt`, root decision 0185's addendum of
+ * 2026-10-13): the agent asks what the module is for, its name and its app,
+ * then founds it as the person's own private repository with
+ * `lazurio module create personalspace/<slug>` (decision F52): the plan
+ * first, the confirmed run from a task worktree beside the Personalspace,
+ * and its slot by a pull request into the Personalspace. In Czech it is the
+ * person's own words to the agent, so in tykání (root decision 0199). */
+export const newPersonalModulePrompt = (login: string, copy: Copy): string =>
+  copy.appsNewPersonalModulePrompt.replaceAll("{login}", login);
+
+const githubLogin = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
+
+/** The login of the personal space's verified holder in the content
+ * routes' answer (`GET /api/content`): its personalspace item when it is
+ * `present`, which the content core says only where this Environment's
+ * GitHub account holds it (#186); null otherwise and before the answer. */
+export function personalHolderOf(list: ContentList | null): string | null {
+  const item = list?.items.find((entry) => entry.kind === "personalspace");
+  return item?.kind === "personalspace" &&
+    item.state === "present" &&
+    item.login !== null &&
+    githubLogin.test(item.login)
+    ? item.login
+    : null;
+}
+
+/** What "+ Nový modul" hands to Chat (ui.ts `handOver`): the prompt's id
+ * and the GitHub login its link names, and its text for the clipboard. */
+export type NewModuleOffer = Readonly<{
+  id: "new-module" | "new-personal-module";
+  organization: string;
+  text: string;
+}>;
+
+/** Who gets "+ Nový modul" in a group, and with which prompt: in an
+ * Organization bound to a GitHub login, an identity GitHub's live answer
+ * says is its Owner (`owner`, F36's Organization-rail addendum, point 8),
+ * the prompt `new-module`; in the personal space listed without a reason,
+ * its verified holder (`holder`, the login of the `present` personalspace
+ * item, #186), the prompt `new-personal-module`. Everyone else: null. The
+ * prompt route decides again on every request, so a tile drawn from an
+ * answer that has since changed opens nothing it should not. */
+export function newModuleOffer(
+  group: CatalogGroupEntry,
+  copy: Copy,
+  input: Readonly<{ owner: boolean; holder: string | null }>,
+): NewModuleOffer | null {
+  if (group.sections === null)
+    return group.organization.reason === undefined &&
+      input.holder !== null &&
+      githubLogin.test(input.holder)
+      ? {
+          id: "new-personal-module",
+          organization: input.holder,
+          text: newPersonalModulePrompt(input.holder, copy),
+        }
+      : null;
+  const login = group.organization.forgeLogin;
+  return input.owner && login !== undefined
+    ? {
+        id: "new-module",
+        organization: login,
+        text: newModulePrompt(group.name, login, copy),
+      }
+    : null;
+}

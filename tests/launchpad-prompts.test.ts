@@ -1,11 +1,14 @@
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
-import { newModulePrompt } from "../src/launchpad/apps-view";
+import {
+  newModulePrompt,
+  newPersonalModulePrompt,
+} from "../src/launchpad/apps-view";
 import {
   chatPromptsSince,
   chatTakesPromptsAt,
@@ -16,10 +19,13 @@ import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import { messages } from "../src/launchpad/messages";
 import {
   type BoundOrganization,
+  isOrganizationPrompt,
   isPromptId,
+  personalModuleDocument,
   promptAudience,
   promptDocument,
   promptOrganization,
+  promptScope,
 } from "../src/launchpad/prompts";
 import { startLaunchpad } from "../src/launchpad/server";
 import type {
@@ -27,8 +33,23 @@ import type {
   CatalogOrganization,
 } from "../src/organizations/catalog";
 import type { ToolRunner } from "../src/tools/status";
-import { folderFixture, writeOrganization } from "./fixtures/catalog-folder";
-import { organizationWithEntry } from "./fixtures/machine-bindings";
+import {
+  folderFixture,
+  writeOrganization,
+  writePersonalspaceModule,
+} from "./fixtures/catalog-folder";
+import {
+  checkoutWithOrigin,
+  contentHost,
+  createWorld,
+  presetFolder,
+  stubGitHub,
+  type World,
+} from "./fixtures/content-world";
+import {
+  organizationWithEntry,
+  personalWithEntry,
+} from "./fixtures/machine-bindings";
 
 // "+ Nový modul" opens Chat with a prepared prompt (Lazurio/t3code#35): the
 // Launchpad serves `GET /.lazurio/prompts/<id>?org=<login>` only to whom the
@@ -39,6 +60,19 @@ import { organizationWithEntry } from "./fixtures/machine-bindings";
 
 const posixTest = test.skipIf(process.platform === "win32");
 const cs = messages("cs");
+const en = messages("en");
+
+let world: World | undefined;
+let closing: (() => Promise<unknown>) | undefined;
+async function closeLaunchpad() {
+  await closing?.();
+  closing = undefined;
+}
+afterEach(async () => {
+  await closeLaunchpad();
+  await world?.close();
+  world = undefined;
+});
 
 function organization(directory: string): CatalogOrganization;
 function organization(directory: string, forgeLogin: string): BoundOrganization;
@@ -60,11 +94,48 @@ function organization(
   };
 }
 
-test("the prompts: only new-module, for the Organization's Owner", () => {
+test("the prompts: new-module for the Organization's Owner, new-personal-module for the Personalspace's holder in the Folder's root", () => {
   expect(isPromptId("new-module")).toBe(true);
   for (const id of ["other", "New-Module", "__proto__", "constructor", ""])
     expect([id, isPromptId(id)]).toEqual([id, false]);
   expect(promptAudience("new-module")).toBe("organization-owner");
+  expect(isPromptId("new-personal-module")).toBe(true);
+  expect(promptAudience("new-personal-module")).toBe("personalspace-holder");
+  expect(promptScope("new-personal-module")).toBe("folder");
+  expect(isOrganizationPrompt("new-personal-module")).toBe(false);
+});
+
+test("the personal module's document: only for the holder's own login, letter case ignored, in the Folder's root", () => {
+  const held = {
+    kind: "held",
+    login: "Example",
+    directory: "/home/x/Lazurio/personalspace/Example_GEN3",
+  } as const;
+  for (const login of ["Example", "example", "EXAMPLE"])
+    expect(personalModuleDocument("/home/x/Lazurio", held, login, cs)).toEqual({
+      schema: "lazurio.prompt.v1",
+      id: "new-personal-module",
+      // The login as GitHub spells it, not as the link does.
+      text: newPersonalModulePrompt("Example", cs),
+      cwd: "/home/x/Lazurio",
+    });
+  expect(
+    personalModuleDocument("relative/Lazurio", held, "example", en)?.cwd,
+  ).toStartWith("/");
+  for (const login of ["someone", "examples", "a/b", "-x", ""])
+    expect([
+      login,
+      personalModuleDocument("/home/x/Lazurio", held, login, cs),
+    ]).toEqual([login, null]);
+  for (const holder of [
+    { kind: "absent" },
+    { kind: "blocked", reason: "personalspace-foreign", login: "example" },
+    { kind: "blocked", reason: "github-identity-mismatch", login: "example" },
+    { kind: "blocked", reason: "personalspace-unverified", login: null },
+  ] as const)
+    expect(
+      personalModuleDocument("/home/x/Lazurio", holder, "example", cs),
+    ).toBeNull();
 });
 
 test("the Organization a login names: exactly one bound to it, case-insensitively", () => {
@@ -474,4 +545,234 @@ posixTest(
     });
   },
   30_000,
+);
+
+// A Launchpad of `preset` over a Folder whose personalspace/ holds `checkout`
+// (a directory and the repository its origin names), with the content world's
+// stub GitHub: hosted behind the gateway's admission, or a workstation with
+// its token. Its tools are stubs that fail, so only the stub GitHub answers.
+async function personalLaunchpad(
+  preset: "hosted-personal" | "hosted-organization-personal" | "local",
+  github: ReturnType<typeof stubGitHub>["github"],
+  checkout: readonly [string, string] | null,
+) {
+  const active = world as World;
+  const machine =
+    preset === "hosted-personal"
+      ? personalWithEntry(freePort())
+      : preset === "hosted-organization-personal"
+        ? organizationWithEntry(freePort())
+        : null;
+  const folder = await presetFolder(active, preset, machine);
+  if (checkout !== null) {
+    const [name, origin] = checkout;
+    await writePersonalspaceModule(folder, name, "example", { id: "notes" });
+    await checkoutWithOrigin(join(folder, "personalspace", name), origin);
+  }
+  const bin = join(active.root, `bin-${crypto.randomUUID()}`);
+  await mkdir(bin, { recursive: true, mode: 0o700 });
+  for (const tool of ["gh", "t3"])
+    await writeFile(join(bin, tool), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+  const fetcher: AuthFetcher = async (_url, init) =>
+    new Headers(init.headers).get("cookie") ===
+    "__Secure-lazurio-workspace=valid"
+      ? new Response("ok")
+      : new Response("no", { status: 401 });
+  const app = await startLaunchpad(
+    folder,
+    undefined,
+    undefined,
+    undefined,
+    { fetcher },
+    {
+      path: bin,
+      home: bin,
+      platform: process.platform,
+      run: async () => ({ exitCode: 1, stdout: "", stderr: "" }),
+    },
+    {},
+    undefined,
+    undefined,
+    undefined,
+    contentHost(active, github),
+  );
+  closing = () => app.close();
+  const entry = machine?.entry;
+  if (entry === undefined) {
+    const session = new URL(app.url);
+    const headers = { Authorization: `Bearer ${session.hash.slice(1)}` };
+    return {
+      folder,
+      get: (path: string, authorized = true) =>
+        fetch(new URL(path, session), authorized ? { headers } : {}),
+    };
+  }
+  const host = new URL(entry.externalOrigin).host;
+  return {
+    folder,
+    get: (path: string, authorized = true) =>
+      fetch(`http://127.0.0.1:${entry.listenPort}${path}`, {
+        headers: authorized
+          ? { host, cookie: "__Secure-lazurio-workspace=valid" }
+          : { host },
+      }),
+  };
+}
+
+const ownPersonalspace = {
+  "example/example_GEN3": {
+    owner: { login: "example", databaseId: 12345, kind: "User" as const },
+  },
+};
+const personalPrompt = "/.lazurio/prompts/new-personal-module";
+
+posixTest(
+  "hosted personal: new-personal-module for the Personalspace's holder by its own login, in the Folder's root; the same 404 for anyone and anything else",
+  async () => {
+    world = await createWorld();
+    const own = stubGitHub(world, { repositories: ownPersonalspace });
+    const held = await personalLaunchpad("hosted-personal", own.github, [
+      "example_GEN3",
+      "example/example_GEN3",
+    ]);
+    // Behind the gateway's admission, before anything is asked.
+    expect(
+      (await held.get(`${personalPrompt}?org=example`, false)).status,
+    ).toBe(401);
+    expect(own.calls).toEqual([]);
+    for (const login of ["example", "Example"]) {
+      const answer = await held.get(`${personalPrompt}?org=${login}`);
+      expect(answer.status).toBe(200);
+      expect(answer.headers.get("cache-control")).toBe("no-store");
+      expect(await answer.json()).toEqual({
+        schema: "lazurio.prompt.v1",
+        id: "new-personal-module",
+        text: newPersonalModulePrompt("example", en),
+        cwd: held.folder,
+      });
+    }
+    for (const other of [
+      `${personalPrompt}?org=someone`,
+      `${personalPrompt}?org=a%2Fb`,
+      personalPrompt,
+      `${personalPrompt}?org=example&text=hello`,
+      `${personalPrompt}?org=example&org=example`,
+    ]) {
+      const refused = await held.get(other);
+      expect([other, refused.status, await refused.json()]).toEqual([
+        other,
+        404,
+        { error: "not-found" },
+      ]);
+    }
+    await closeLaunchpad();
+
+    // Not held: another account signed in (not the handover's Owner), the
+    // account's checkout of another's Personalspace, a public one, gh
+    // signed out, no Personalspace here. Each the same 404.
+    const cases: readonly [
+      string,
+      Parameters<typeof stubGitHub>[1],
+      readonly [string, string] | null,
+    ][] = [
+      [
+        "identity mismatch",
+        {
+          viewer: {
+            kind: "signed-in",
+            viewer: { login: "someone", databaseId: 999 },
+          },
+          repositories: {
+            "someone/someone_GEN3": {
+              owner: { login: "someone", databaseId: 999, kind: "User" },
+            },
+          },
+        },
+        ["someone_GEN3", "someone/someone_GEN3"],
+      ],
+      [
+        "foreign",
+        { repositories: ownPersonalspace },
+        ["stranger_GEN3", "stranger/stranger_GEN3"],
+      ],
+      [
+        "public",
+        {
+          repositories: {
+            "example/example_GEN3": {
+              ...ownPersonalspace["example/example_GEN3"],
+              private: false,
+            },
+          },
+        },
+        ["example_GEN3", "example/example_GEN3"],
+      ],
+      [
+        "signed out",
+        { viewer: { kind: "signed-out" } },
+        ["example_GEN3", "example/example_GEN3"],
+      ],
+      ["absent", { repositories: ownPersonalspace }, null],
+    ];
+    for (const [name, options, checkout] of cases) {
+      const stub = stubGitHub(world, options);
+      const app = await personalLaunchpad(
+        "hosted-personal",
+        stub.github,
+        checkout,
+      );
+      for (const login of ["example", "someone"]) {
+        const refused = await app.get(`${personalPrompt}?org=${login}`);
+        expect([name, login, refused.status, await refused.json()]).toEqual([
+          name,
+          login,
+          404,
+          { error: "not-found" },
+        ]);
+      }
+      await closeLaunchpad();
+    }
+  },
+  90_000,
+);
+
+posixTest(
+  "a workstation: new-personal-module for the holder only with the token; an Organization Environment never serves it",
+  async () => {
+    world = await createWorld();
+    const own = stubGitHub(world, { repositories: ownPersonalspace });
+    const local = await personalLaunchpad("local", own.github, [
+      "example_GEN3",
+      "example/example_GEN3",
+    ]);
+    expect(
+      (await local.get(`${personalPrompt}?org=example`, false)).status,
+    ).toBe(403);
+    const answer = await local.get(`${personalPrompt}?org=example`);
+    expect(answer.status).toBe(200);
+    expect(await answer.json()).toEqual({
+      schema: "lazurio.prompt.v1",
+      id: "new-personal-module",
+      text: newPersonalModulePrompt("example", en),
+      cwd: local.folder,
+    });
+    await closeLaunchpad();
+    // A work Environment has no Personalspace: a stray personalspace/ is
+    // never read, and nothing is asked.
+    const asked = stubGitHub(world, { repositories: ownPersonalspace });
+    const work = await personalLaunchpad(
+      "hosted-organization-personal",
+      asked.github,
+      ["example_GEN3", "example/example_GEN3"],
+    );
+    const refused = await work.get(`${personalPrompt}?org=example`);
+    expect([refused.status, await refused.json()]).toEqual([
+      404,
+      { error: "not-found" },
+    ]);
+    expect(asked.calls.filter((call) => call.kind !== "membership")).toEqual(
+      [],
+    );
+  },
+  60_000,
 );
