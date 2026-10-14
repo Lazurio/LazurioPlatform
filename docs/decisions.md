@@ -9981,6 +9981,126 @@ on purpose once each, a build without the `./pure.js` specifier failed the impor
 declaration tests, and a packed rule that differs from the source failed the vectors run
 against the packed module.
 
+**Addendum 2026-10-14 (2) (plan DEV-6646, task 2026-10-12-701): the Platform's part of phase 1
+is complete; every Platform reader and writer is on the module.** Phase 1a (#355) moved C1–C7
+into the module and point 5's addendum above ships it. This step moves the rest of point 1 into
+it and settles the divergences point 8 lists for phase 1. The decision above stands as written.
+
+1. **What the module defines now.** `src/browser/contract/` keeps its two parts, plus one file
+   that no fork takes:
+   - **`pure.ts`** holds C1–C6 as before. It now also holds:
+     - the view's messages and the identity (C8, C9): their types, their writers, their
+       acceptance from a described event, `v` and the majors (`messageMajors`,
+       `parseMessageMajors`, `messageMajor`);
+     - Nová karta's interface (C10): the tools, the choice, the event's name, and the tools'
+       registry with its icons;
+     - the answers of `lazurio browser … --json` (C13): their writer, their parser and the exit
+       statuses;
+     - every time and bound of C14 (`browserTimes`, `browserBounds`);
+     - the framing (C15): the view frame's attributes and the `frame-ancestors` of a view and of
+       Nová karta's page;
+     - the address bars and what the hub navigates to (C16): `addressBarTarget` and
+       `navigableAddress`;
+     - the surfaces' language (C17): `browserLanguage` and `surfaceLanguageOf`.
+   - **`node.ts`** adds:
+     - the write of one strip's holder file (`changeHolderFile`). It reads the file first and
+       never writes over one it cannot read, reconciles with `tabs.json` by `keptTabs`, refuses
+       a hold past the strip's bound, and removes a file that holds nothing;
+     - the reading of `tabs.json` (`readLiveTabs`);
+     - agent-browser's socket directory, resolved as agent-browser's `get_socket_dir` resolves
+       it.
+   - **`platform.ts`** holds the shapes of C11 and C12: the hub's paths, its requests, its list
+     of tabs and its parser, and the Launchpad's view routes and hand-over. It is pure. The shell
+     artifact does not ship it, and the vectors carry no case of it (point 2).
+2. **The consumers.** Each takes the module's definition and keeps none of its own:
+   - the view page (`client.ts`), the hub and its service;
+   - the Launchpad: its panel, Nová karta's page, model and routes, its holder file, its hub
+     client and its server's view routes;
+   - `lazurio browser` with the window it opens, the browser's units, the agent-browser
+     configuration;
+   - the shell's identity protocol and Nová karta's protocol.
+
+   What point 1 keeps where it was stays there: the view's own WebSocket messages
+   (`parseClientMessage`), Nová karta's page↔element messages, the hub's decisions and the
+   shell's elements. `<lazurio-new-tab>` dispatches its event by the name interface v1 pins,
+   which equals `newTabEventName`.
+3. **`v` and `schema` are written.**
+   - Every `lazurio-browser:*` message carries `"v": 1`. A reader on the module takes a message
+     without `v` as v1 and treats one of another major as no message.
+   - The view sends each message in `messageMajor` of the majors the app's identity answer
+     names, which is v1 until an app names any. The shell's responder names no majors by
+     itself, as point 3 requires: the contract's writer (`identityReplyMessage`) takes a list,
+     and the responder passes none, because no app has a second major yet. How an app hands
+     its list to the responder comes with the release that brings v2.
+   - Every JSON answer of `lazurio browser` carries `"schema": "lazurio.browser-cli.v1"`.
+4. **The divergences settled, which change behaviour:**
+   - **Address bars (C3, C16).** The view's bar and Nová karta's now share Chrome's rule:
+     - `localhost` and `[::1]`, with or without a port or a path, open over http; Nová karta
+       searched for them.
+     - A one-label name with a port or a path (`intranet:8080`, `intranet/wiki`) opens over
+       http; both bars searched for it.
+     - An IP address opens over http. Nová karta opened it over https, and the view's bar
+       searched for it.
+     - An e-mail address is a search; the view's bar opened `https://user@…`.
+     - Any other scheme (`javascript:`, `file:`) is refused with a note; both bars searched for
+       it. `about:blank` opens in Nová karta too, which searched for it.
+     - A search writes a space as `%20` in both bars; Nová karta wrote `+`, for the same search.
+   - **View hosts (C3, C16).** No surface loads an address on a view host in the Environment
+     browser:
+     - typed into the view's own bar, this Environment's tab opens as a tab of its own: inside
+       an app's frame the app gets it as a new tab, and on its own the view goes to it;
+     - the bare origin opens a new remote tab;
+     - another Environment's view gets a notice with Otevřít;
+     - anything else there is refused.
+
+     The hub's `navigableAddress` refuses view hosts too, so neither the view's `goto`, nor
+     `POST /.lazurio/tabs` (which carries Nová karta's opening), nor `lazurio browser link --url`
+     or `window --url` loads one.
+   - **The view's messages (C8).** The view names its tab by the strict view address; it sent
+     `location.href`.
+   - **Nová karta's tools (C10).** A tool's icon comes from its id by the registry, so
+     `linked-pull-requests` gets the pull request's icon instead of the default, and a registry
+     id without `icon` draws its own icon instead of the default. An id outside the registry
+     keeps the icon its `icon` names, as interface v1 promises.
+   - **The CLI (C13).** Without a browser each command answers with its own `kind`; `link
+     --json` answered `browser-window`.
+   - **Times (C14).** The Launchpad's Vrátit after × on its strip lasts 7 s, 1 s less than the
+     hub's grace; it lasted 8 s. A close for everyone keeps its Vrátit bounded by the time the
+     hub says is left.
+   - **Framing (C15).** The Launchpad frames a view with `referrerpolicy="origin"` (it framed
+     with `no-referrer`), which another Environment's view needs to admit it.
+   - **Target ids (C1, point 2).** `lazurio browser window` takes the binding's id, the new
+     target's id and the browser's page list through the target-id check; it took any non-empty
+     id.
+   - **The holder-file write (C5, point 1).** A strip that holds nothing removes its file. The
+     Launchpad wrote an empty file; for the hub both hold nothing. The write replaces a file
+     whenever its text changes, so the Launchpad's first reconciliation after an update also
+     names the new release in `contract`, where it wrote only when a hold changed.
+   - **agent-browser's directory (C7, point 1).** Without `XDG_RUNTIME_DIR` the module looks in
+     `$HOME/.agent-browser`, and with `AGENT_BROWSER_NAMESPACE` under its namespace, as
+     agent-browser does. A relative directory is one it cannot know. The Environment's agents
+     run with its `XDG_RUNTIME_DIR` and set no namespace (point 2), so their bindings stay where
+     they were.
+5. **Left to the later phases (point 8).** Nothing of phase 1 is left in the Platform; its
+   table of the contracts is the root manual's (HumanAndMachines/Lazurio#546).
+   - Phase 3, task 704: the identity answer's `lang`, which carries the shell's language to a
+     framed view (0191 point 33). Until then a framed view speaks the browser's language.
+   - Phase 2, task 703: T3 Code takes the module from the artifact and drops its copies and its
+     own times.
+   - Task 707: agent-browser's documented shutdown command.
+   - Task 706: doctor's two remaining warnings.
+   - Task 510: MausBot.
+
+Verified by the vectors: 482 cases in fourteen files, every export with its case, run against
+the module and against the module as the shell artifact packs it. The suites keep their cases
+where nothing is settled, with imports moved to the module. Where a case pinned a settled
+behaviour, it now pins the new one, and each settled divergence has a case that the code before
+this step fails. Run against the copies this step replaces, the vectors of the address bars, the
+hub's `navigableAddress`, the tools' icons, the Launchpad's frame and agent-browser's directory
+answered otherwise only in the settled cases above. The cases of `frame-ancestors`,
+`appShellOrigin` and the view's language answered as before, and so did those of the
+Launchpad's reading of a view's messages, except a message of another major.
+
 ## F51 — Managed Chat starts in the Folder; Platform owns the model recommendation
 
 A new hosted Chat must already have its Lazurio project. The Folder is the
