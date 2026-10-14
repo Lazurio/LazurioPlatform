@@ -628,8 +628,10 @@ wave (`unsupported`, `workstation`).
   /api/vault` is the page, `POST /api/vault/membership` `{}` adds the person the
   gateway admitted (the subject of its own answer, F11's amendment) on a personal or
   work Environment: `<subject>@vaultwarden-identity.lazurio.ai` invited as an Admin
-  through the vault's API, confirmed with bw, an invitation left Invited withdrawn at
-  once (`awaiting-password`). A work Environment's Admin-type members all leave when
+  through the vault's API and confirmed with bw once accepted, only where the
+  network's vault refuses every password path of the address (`SSO_ONLY`, asked of its
+  token endpoint: "SSO sign-in is required"); elsewhere nobody is invited or confirmed
+  (`sign-in-not-required`), and a pending invitation (`awaiting-password`) is safe. A work Environment's Admin-type members all leave when
   its assignment changes; the Owner and other roles are never touched; a personal
   Environment never removes; a Team or Automated one neither adds nor removes yet.
   The installed hosted Launchpad also looks at the assignment after its start and
