@@ -37,12 +37,20 @@ export type GitIdentityFailure =
 export type GitIdentity =
   /** git already names both fields; nothing was written. */
   | Readonly<{ state: "present" }>
-  /** The missing fields were written from the person's GitHub identity. */
+  /** `fields` (never empty) were written from the person's GitHub
+   * identity; a field git had or got meanwhile was left alone. `incomplete`:
+   * a later field was not written, for `reason`, and git still lacks
+   * `missing` (a later sign-in adds it). */
   | Readonly<{
       state: "set";
       fields: readonly GitIdentityField[];
       identity: CommitIdentity;
+      incomplete?: Readonly<{
+        reason: "config-unreadable" | "write-failed";
+        missing: readonly GitIdentityField[];
+      }>;
     }>
+  /** This step wrote nothing. */
   | Readonly<{
       state: "not-set";
       reason: GitIdentityFailure;
@@ -64,8 +72,9 @@ export type GitIdentityContext = Readonly<{
   /** The account gh confirmed; GitHub's answer must name the same one. */
   account: string;
   run: SshRunner;
-  /** Asked right before the first write: false ends the step as `gone`
-   * (the Environment became a Team one meanwhile). */
+  /** Asked right before each write: false ends the step as `gone` (the
+   * Environment became a Team one meanwhile); a field written before stays,
+   * as git's own value. */
   proceed?: () => Promise<boolean>;
 }>;
 
@@ -102,9 +111,13 @@ async function configured(
 }
 
 /** Sets the fields of the person's Git identity that git lacks, from the
- * signed-in GitHub account; `gone` when `proceed` refused the write. A run
- * that fails (its owner ended it meanwhile included) is reported as not
- * set; the caller checks whether its session is still current. */
+ * signed-in GitHub account; `gone` when `proceed` refused a write. Right
+ * before each write the Team rule is asked again and the field is checked
+ * again, because `gh api user` runs between the first check and the write:
+ * a field set meanwhile is left alone, and a check that cannot answer
+ * writes nothing more (fail closed). A run that fails (its owner ended it
+ * meanwhile included) is reported as it is; the caller checks whether its
+ * session is still current. */
 export async function ensureGitIdentity(
   context: GitIdentityContext,
 ): Promise<GitIdentity | "gone"> {
@@ -133,12 +146,31 @@ export async function ensureGitIdentity(
     viewer.login.toLowerCase() !== context.account.toLowerCase()
   )
     return { state: "not-set", reason: "viewer-unavailable", missing };
-  if (context.proceed !== undefined && !(await context.proceed()))
-    return "gone";
   const identity = githubCommitIdentity(viewer);
   const written: GitIdentityField[] = [];
+  // What the step did when it stops before `key`: nothing (`not-set`), or
+  // the fields written so far and why the rest is not.
+  const stopped = (
+    reason: "config-unreadable" | "write-failed",
+    key: GitIdentityField,
+  ): GitIdentity => {
+    const rest = missing.slice(missing.indexOf(key));
+    return written.length === 0
+      ? { state: "not-set", reason, missing: rest }
+      : {
+          state: "set",
+          fields: written,
+          identity,
+          incomplete: { reason, missing: rest },
+        };
+  };
   for (const [key, field] of fields) {
     if (!missing.includes(key)) continue;
+    if (context.proceed !== undefined && !(await context.proceed()))
+      return "gone";
+    const known = await configured(context, git, key);
+    if (known === null) return stopped("config-unreadable", key);
+    if (known) continue;
     let result: Awaited<ReturnType<SshRunner>> | undefined;
     try {
       result = await context.run(
@@ -148,12 +180,10 @@ export async function ensureGitIdentity(
       );
     } catch {}
     if (result === undefined || result === "timeout" || result.exitCode !== 0)
-      return {
-        state: "not-set",
-        reason: "write-failed",
-        missing: missing.filter((entry) => !written.includes(entry)),
-      };
+      return stopped("write-failed", key);
     written.push(key);
   }
-  return { state: "set", fields: written, identity };
+  return written.length === 0
+    ? { state: "present" }
+    : { state: "set", fields: written, identity };
 }

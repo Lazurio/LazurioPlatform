@@ -1055,10 +1055,34 @@ function parseGitIdentity(input: unknown): GitIdentity | null {
       !text(identity.email)
     )
       return null;
+    const incomplete = value.incomplete as Record<string, unknown> | undefined;
+    let rest: GitIdentityField[] | null = null;
+    if (incomplete !== undefined) {
+      rest =
+        incomplete && typeof incomplete === "object"
+          ? parseGitIdentityFields(incomplete.missing)
+          : null;
+      if (
+        rest === null ||
+        rest.length === 0 ||
+        (incomplete.reason !== "config-unreadable" &&
+          incomplete.reason !== "write-failed")
+      )
+        return null;
+    }
+    if (fields.length === 0) return null;
     return {
       state: "set",
       fields,
       identity: { name: identity.name, email: identity.email },
+      ...(incomplete === undefined || rest === null
+        ? {}
+        : {
+            incomplete: {
+              reason: incomplete.reason as "config-unreadable" | "write-failed",
+              missing: rest,
+            },
+          }),
     };
   }
   if (
@@ -1359,8 +1383,8 @@ export function sshOutcome(
 
 /** What a person reads about their Git identity after a gh sign-in
  * (decision F19, addendum 2026-10-14): whose name the commits now carry, or
- * that publishing from this Environment fails until it is set. Null when git
- * already had it, which needs no word. */
+ * that publishing from this Environment fails until it is set (a partial
+ * write included). Null when git already had it, which needs no word. */
 export function gitIdentityNote(
   state: LoginView,
   copy: Copy,
@@ -1369,13 +1393,17 @@ export function gitIdentityNote(
     return null;
   const identity = state.gitIdentity;
   if (identity.state === "present") return null;
-  if (identity.state === "set")
+  // Commits need both fields: a partial write is still "not set" for people.
+  if (identity.state === "set" && identity.incomplete === undefined)
     return {
       set: true,
-      message: fill(copy.toolsGitIdentitySet, {
-        name: identity.identity.name,
-        email: identity.identity.email,
-      }),
+      message:
+        identity.fields.length === 2
+          ? fill(copy.toolsGitIdentitySet, {
+              name: identity.identity.name,
+              email: identity.identity.email,
+            })
+          : copy.toolsGitIdentityCompleted,
     };
   return { set: false, message: copy.toolsGitIdentityNotSet };
 }

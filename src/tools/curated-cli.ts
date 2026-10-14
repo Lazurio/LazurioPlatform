@@ -338,13 +338,28 @@ const gitIdentityFailureText: Record<GitIdentityFailure, string> = {
 // 2026-10-14): nothing to say when git had it.
 function gitIdentityLines(identity: GitIdentity): string[] {
   if (identity.state === "present") return [];
-  if (identity.state === "set")
+  const fix =
+    "Set it with your GitHub profile name (else your login) and <id>+<login>@users.noreply.github.com: git config --global user.name … and user.email …, or sign in again: lazurio tools login gh";
+  if (identity.state === "set") {
+    const written = identity.fields.map((field) =>
+      field === "user.name"
+        ? `user.name ${identity.identity.name}`
+        : `user.email ${identity.identity.email}`,
+    );
+    const incomplete = identity.incomplete;
     return [
-      `Git identity set for your commits: ${identity.identity.name} <${identity.identity.email}> (git config --global ${identity.fields.join(", ")}).`,
+      `Git identity for your commits: set ${written.join(" and ")} (git config --global).`,
+      ...(incomplete === undefined
+        ? []
+        : [
+            `${incomplete.missing.join(" and ")} NOT set: ${gitIdentityFailureText[incomplete.reason] ?? incomplete.reason}. Commits in this Environment fail with "Author identity unknown" until it is.`,
+            fix,
+          ]),
     ];
+  }
   return [
     `The Git identity is NOT set: ${gitIdentityFailureText[identity.reason] ?? identity.reason}. Commits in this Environment fail with "Author identity unknown" until it is.`,
-    "Set it with your GitHub profile name (else your login) and <id>+<login>@users.noreply.github.com: git config --global user.name … and user.email …, or sign in again: lazurio tools login gh",
+    fix,
   ];
 }
 

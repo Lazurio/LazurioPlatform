@@ -308,3 +308,121 @@ test.skipIf(!usable)(
     }
   },
 );
+
+// Review of #416: the Team rule before each write, the presence check again
+// right before each write, and a partial write reported as it is.
+
+test.skipIf(!usable)(
+  "the Team rule is asked before each field: turning true after user.name stops before user.email",
+  async () => {
+    let directory = "";
+    const opened = await home(async () => {
+      const calls = await readFile(join(directory, "git.calls"), "utf8").catch(
+        () => "",
+      );
+      return calls.includes("config --global -- user.name");
+    });
+    directory = opened.directory;
+    try {
+      expect(await signIn(opened)).toEqual({
+        kind: "blocked",
+        tool: "gh",
+        reason: "team-environment",
+        action: "login",
+      });
+      // The name written before the Environment became a Team one stays;
+      // the email is never written.
+      expect(await opened.config("user.name")).toBe("The Octocat");
+      expect(await opened.config("user.email")).toBeNull();
+      expect(
+        await readFile(join(directory, "git.calls"), "utf8"),
+      ).not.toContain("config --global -- user.email");
+    } finally {
+      await opened.close();
+    }
+  },
+);
+
+test.skipIf(!usable)(
+  "a field set while GitHub answers is never replaced, and is reported as git's own",
+  async () => {
+    const opened = await home();
+    try {
+      // Only the name appears meanwhile: it stays, the email is added.
+      await writeFile(
+        join(opened.directory, "gh.user.fill"),
+        "[user]\n\tname = Ada Lovelace\n",
+      );
+      expect(await signIn(opened)).toMatchObject({
+        kind: "signed-in",
+        gitIdentity: { state: "set", fields: ["user.email"] },
+      });
+      expect(await opened.config("user.name")).toBe("Ada Lovelace");
+      expect(await opened.config("user.email")).toBe(noreply);
+
+      // Both appear meanwhile: nothing is written, the identity is present.
+      await rm(join(opened.directory, ".gitconfig"));
+      const filled =
+        "[user]\n\tname = Ada Lovelace\n\temail = ada@example.com\n";
+      await writeFile(join(opened.directory, "gh.user.fill"), filled);
+      const state = await signIn(opened);
+      expect(state).toMatchObject({ gitIdentity: { state: "present" } });
+      expect(await opened.gitconfig()).toBe(filled);
+    } finally {
+      await opened.close();
+    }
+  },
+);
+
+test.skipIf(!usable)(
+  "a presence check that cannot answer right before the write fails closed",
+  async () => {
+    const opened = await home();
+    try {
+      // A malformed configuration appears while GitHub answers.
+      await writeFile(join(opened.directory, "gh.user.fill"), "[user\n");
+      expect(await signIn(opened)).toMatchObject({
+        kind: "signed-in",
+        gitIdentity: {
+          state: "not-set",
+          reason: "config-unreadable",
+          missing: ["user.name", "user.email"],
+        },
+      });
+      expect(
+        await readFile(join(opened.directory, "git.calls"), "utf8"),
+      ).not.toContain("config --global -- user.");
+    } finally {
+      await opened.close();
+    }
+  },
+);
+
+test.skipIf(!usable)(
+  "a second write that fails after the first succeeded reports exactly what was written",
+  async () => {
+    const opened = await home();
+    try {
+      await writeFile(join(opened.directory, "git.readonly"), "user.email");
+      expect(await signIn(opened)).toMatchObject({
+        kind: "signed-in",
+        gitIdentity: {
+          state: "set",
+          fields: ["user.name"],
+          identity: { name: "The Octocat", email: noreply },
+          incomplete: { reason: "write-failed", missing: ["user.email"] },
+        },
+      });
+      expect(await opened.config("user.name")).toBe("The Octocat");
+      expect(await opened.config("user.email")).toBeNull();
+      // A later sign-in completes it and leaves the name alone.
+      await rm(join(opened.directory, "git.readonly"));
+      expect(await signIn(opened)).toMatchObject({
+        gitIdentity: { state: "set", fields: ["user.email"] },
+      });
+      expect(await opened.config("user.email")).toBe(noreply);
+    } finally {
+      await opened.close();
+    }
+  },
+);
