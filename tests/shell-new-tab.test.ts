@@ -1,14 +1,18 @@
 import { describe, expect, test } from "bun:test";
+import {
+  maxNewTabTools,
+  type NewTabChoice,
+  newTabEventName,
+  parseNewTabChoice,
+  parseNewTabTools,
+} from "../src/browser/contract/pure";
 import { parseShell, type Shell } from "../src/shell/contract";
 import { shellElementInterface } from "../src/shell/interface";
 import {
   acceptNewTabHostMessage,
   acceptNewTabPageMessage,
-  maxNewTabTools,
-  type NewTabChoice,
   type NewTabHostMessage,
   type NewTabPageMessage,
-  newTabEventName,
   newTabFrameSource,
   newTabHostMessageOf,
   newTabHostOrigins,
@@ -16,11 +20,9 @@ import {
   newTabPagePath,
   newTabReadyTargets,
   newTabThemeRoles,
-  parseNewTabChoice,
   parseNewTabHostMessage,
   parseNewTabPageMessage,
   parseNewTabTheme,
-  parseNewTabTools,
   themeValue,
 } from "../src/shell/new-tab-protocol";
 

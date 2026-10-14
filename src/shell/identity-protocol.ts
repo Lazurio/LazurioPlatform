@@ -1,5 +1,10 @@
-import { viewAddressOf } from "../browser/contract/pure";
-import { environmentIdOf, isEnvironmentId, isShellUrl } from "./contract";
+import {
+  acceptIdentityReply as acceptReply,
+  browserMessage,
+  identityReplyMessage,
+  identityRequestOf as requestOf,
+} from "../browser/contract/pure";
+import { isEnvironmentId, isShellUrl } from "./contract";
 import type { EnvironmentGlyph, EnvironmentIdentity } from "./view";
 
 // How the Environment browser's view learns how the shell names its
@@ -12,22 +17,24 @@ import type { EnvironmentGlyph, EnvironmentIdentity } from "./view";
 // draws the identity its own server put into the page, from the same
 // producer and the same `environmentIdentity` (src/browser/people).
 //
-//   view → host: {type: "lazurio-browser:identity-request"}
-//   host → view: {type: "lazurio-browser:identity", identity}
+//   view → host: {type: "lazurio-browser:identity-request", v: 1}
+//   host → view: {type: "lazurio-browser:identity", v: 1, identity}
 //
-// `identity` is an `EnvironmentIdentity` or null (the host does not know
-// that Environment): display words, an Organization's avatar address and
-// initials, nothing else. The host answers only a frame of its own page on
-// an origin of a view, about that origin's Environment, posting to exactly
-// that origin; it answers again whenever its answer changes (the account
-// arrives later). The view takes an answer only from its parent window, on
-// its parent's origin, about its own Environment. Each side reads every
-// message here field by field. Pure: no DOM, shared by the shell, the view
-// and their tests.
+// The messages, who may send them and their major are the Environment
+// browser's contract (C9, src/browser/contract): the host answers only a
+// frame of its own page on an origin of a view, about that origin's
+// Environment, posting to exactly that origin; it answers again whenever its
+// answer changes (the account arrives later). The view takes an answer only
+// from its parent window, on its parent's origin. What the answer says is
+// the shell's: `identity` is an `EnvironmentIdentity` or null (the host does
+// not know that Environment), display words, an Organization's avatar
+// address and initials, nothing else, and the view takes it only about its
+// own Environment. Pure: no DOM, shared by the shell, the view and their
+// tests.
 
 export const identityMessage = Object.freeze({
-  request: "lazurio-browser:identity-request",
-  reply: "lazurio-browser:identity",
+  request: browserMessage.identityRequest,
+  reply: browserMessage.identity,
 });
 
 /** The id of the element of the view page that carries its own identity:
@@ -129,15 +136,6 @@ export function parseEmbeddedIdentity(
   }
 }
 
-/** The Environment of a view's origin: the base host of
- * `https://browser.<base>.lazurio.io`, the bare origin of a view address of
- * the Environment browser's contract (`viewAddressOf`, decision F50); null
- * for any other origin. */
-export function viewEnvironmentId(origin: string): string | null {
-  const address = viewAddressOf(origin);
-  return address !== null && address.tab === null ? address.environment : null;
-}
-
 /** Whether `source` is the window of a frame of the page whose window is
  * `self`: its parent is that window. A frame's window answers `parent` on
  * any origin; a port or a worker has none. Wherever the frame stands in the
@@ -154,15 +152,17 @@ function frameOf(source: unknown, self: unknown): boolean {
 
 /** The host's side: the Environment a request asks about, or null. A
  * request counts only from a frame of this page (`self`) on a view's
- * origin, and it asks about that origin's Environment, never another. */
+ * origin, and it asks about that origin's Environment, never another (the
+ * contract's `identityRequestOf`). */
 export function identityRequestOf(
   event: Readonly<{ data: unknown; origin: string; source: unknown }>,
   self: unknown,
 ): string | null {
-  if (!isRecord(event.data) || event.data.type !== identityMessage.request)
-    return null;
-  if (!frameOf(event.source, self)) return null;
-  return viewEnvironmentId(event.origin);
+  return requestOf({
+    data: event.data,
+    origin: event.origin,
+    fromFrame: frameOf(event.source, self),
+  });
 }
 
 /** A frame's window, as the host answers it. */
@@ -201,10 +201,7 @@ export function createIdentityResponder(
     if (sent === entry.sent) return;
     entry.sent = sent;
     try {
-      frame.postMessage(
-        { type: identityMessage.reply, identity },
-        entry.origin,
-      );
+      frame.postMessage(identityReplyMessage(identity), entry.origin);
     } catch {}
   };
   return Object.freeze({
@@ -239,25 +236,25 @@ export function createIdentityResponder(
  * the parent window (`fromParent`), on the parent's origin as the browser
  * names it (`location.ancestorOrigins`, `ancestor`) or, where it names none,
  * on an app origin of an Environment (`https://<app>.<base>.lazurio.io`, the
- * only pages the view's `frame-ancestors` admits); and only about the view's
- * own Environment (`own`, its origin's), or none (the host does not know
- * it). */
+ * only pages the view's `frame-ancestors` admits), as the contract takes it
+ * (`acceptIdentityReply`); and only about the view's own Environment (`own`,
+ * its origin's), or none (the host does not know it). It keeps the majors
+ * the app's own message parser reads, which the view sends its messages in
+ * (`messageMajor`; null where the app names none). */
 export function acceptIdentityReply(
   event: Readonly<{ data: unknown; origin: string; fromParent: boolean }>,
   ancestor: string | null,
   own: string | null,
-): Readonly<{ identity: EnvironmentIdentity | null }> | null {
-  if (!event.fromParent) return null;
-  const named = ancestor !== null && ancestor !== "null";
-  if (
-    named ? event.origin !== ancestor : environmentIdOf(event.origin) === null
-  )
-    return null;
-  if (!isRecord(event.data) || event.data.type !== identityMessage.reply)
-    return null;
-  if (event.data.identity === null) return Object.freeze({ identity: null });
-  const identity = parseEnvironmentIdentity(event.data.identity);
+): Readonly<{
+  identity: EnvironmentIdentity | null;
+  majors: readonly number[] | null;
+}> | null {
+  const reply = acceptReply(event, ancestor);
+  if (reply === null) return null;
+  if (reply.identity === null)
+    return Object.freeze({ identity: null, majors: reply.majors });
+  const identity = parseEnvironmentIdentity(reply.identity);
   return identity === null || own === null || identity.id !== own
     ? null
-    : Object.freeze({ identity });
+    : Object.freeze({ identity, majors: reply.majors });
 }

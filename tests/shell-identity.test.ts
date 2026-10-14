@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { viewEnvironmentId } from "../src/browser/contract/pure";
 import {
   parseShell,
   parseShellAccount,
@@ -14,7 +15,6 @@ import {
   maxIdentityFrames,
   parseEmbeddedIdentity,
   parseEnvironmentIdentity,
-  viewEnvironmentId,
 } from "../src/shell/identity-protocol";
 import { mergeAccount } from "../src/shell/merge";
 import { shellMessages } from "../src/shell/messages";
@@ -468,8 +468,10 @@ const fakeFrame = (parent: unknown) => {
 };
 const view = "https://browser.vm-01.acme.lazurio.io";
 const ask = { type: identityMessage.request };
+// The host's answer as the contract writes it, of v1 (F50 point 3).
 const reply = (identity: EnvironmentIdentity | null) => ({
   type: identityMessage.reply,
+  v: 1,
   identity,
 });
 
@@ -740,8 +742,8 @@ describe("the view takes an answer only from its parent about its own Environmen
     );
 
   test("from the parent on the origin the browser names, about this Environment or none", () => {
-    expect(accept(reply(own))).toEqual({ identity: own });
-    expect(accept(reply(null))).toEqual({ identity: null });
+    expect(accept(reply(own))).toEqual({ identity: own, majors: null });
+    expect(accept(reply(null))).toEqual({ identity: null, majors: null });
     expect(accept(reply(own), { fromParent: false })).toBeNull();
     expect(
       accept(reply(own), { origin: "https://t3code.vm-01.acme.lazurio.io" }),
@@ -751,7 +753,10 @@ describe("the view takes an answer only from its parent about its own Environmen
       accept(reply(environmentIdentity(shell, "vm-02.acme", cs))),
     ).toBeNull();
     expect(accept(reply(own), { own: null })).toBeNull();
-    expect(accept(reply(null), { own: null })).toEqual({ identity: null });
+    expect(accept(reply(null), { own: null })).toEqual({
+      identity: null,
+      majors: null,
+    });
     // Anything else.
     for (const data of [
       null,
@@ -766,13 +771,16 @@ describe("the view takes an answer only from its parent about its own Environmen
 
   test("where the browser names no parent, only from an app origin of an Environment", () => {
     for (const ancestor of [null, "null"]) {
-      expect(accept(reply(own), { ancestor })).toEqual({ identity: own });
+      expect(accept(reply(own), { ancestor })).toEqual({
+        identity: own,
+        majors: null,
+      });
       expect(
         accept(reply(own), {
           ancestor,
           origin: "https://launchpad.vm-01.acme.lazurio.io",
         }),
-      ).toEqual({ identity: own });
+      ).toEqual({ identity: own, majors: null });
       for (const origin of [
         "https://evil.example",
         "http://t3code.jana.lazurio.io",
