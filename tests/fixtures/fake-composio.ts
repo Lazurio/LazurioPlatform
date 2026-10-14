@@ -17,7 +17,9 @@
 // - `connections remove` asks for confirmation, and without a terminal it
 //   removes nothing; `--yes` (and `-y`) exists only when the state says so
 //   (not in Composio's CLI as of 0.4.3, in Lazurio's build; Lazurio removes
-//   only where it is).
+//   only where it is);
+// - `--version` prints the state's `version`, else the build's as Lazurio's
+//   build, else 0.4.1.
 // A test may hold the next `link <toolkit> --list` (`hold-<toolkit>` in the
 // state's directory) until it releases it (`release-<toolkit>`): that call
 // answers what the state said when it started, as a slow CLI would.
@@ -35,6 +37,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { composioBuild } from "../../src/tools/composio-build";
 import type { FakeAccount, FakeComposioState } from "./integrations-world";
 
 const home = process.env.HOME ?? "";
@@ -119,7 +122,9 @@ function holdIfAsked(toolkit: string) {
 const [command, sub] = args;
 
 if (command === "--version") {
-  console.log("0.4.1");
+  console.log(
+    state.version ?? (state.lazurioBuild ? composioBuild.version : "0.4.1"),
+  );
   end(0);
 }
 

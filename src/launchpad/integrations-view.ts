@@ -153,6 +153,7 @@ export function parseIntegrations(value: unknown): IntegrationsOverview | null {
     (composio.source !== "organization" && composio.source !== "environment") ||
     typeof composio.ready !== "boolean" ||
     typeof composio.disconnect !== "boolean" ||
+    typeof composio.update !== "boolean" ||
     (composio.apps !== null && !dashboardLink(composio.apps)) ||
     !isTarget(composio.organization) ||
     typeof sources !== "object" ||
@@ -389,8 +390,14 @@ export type AccountView = Readonly<{
   /** Its name (Executor's name, Composio's alias or the provider's
    * identity its list gives), else "účet". */
   name: string;
-  /** Why it is not active, or that it is on another way; none when ok. */
+  /** Why it is not active, or that it is on another way; "Odpojuji…" while
+   * it is being disconnected, or why that failed; none when ok. */
   line: string | null;
+  /** Being disconnected: the row is dimmed with a spinner, and its
+   * actions wait (`Removal`). */
+  busy: boolean;
+  /** `line` says why disconnecting it failed. */
+  failed: boolean;
   /** "Přihlásit znovu" or "Zkusit znovu"; none when ok, spare or waiting. */
   retry: string | null;
   /** "Odpojit" in the row: an account in Executor that can be named. */
@@ -410,6 +417,26 @@ export function accountView(
   account: IntegrationAccount,
   copy: Copy,
   /** Composio's CLI removes an account here (`overview.composio.disconnect`). */
+  composioDisconnect: boolean,
+  /** Where "Odpojit" of this account stands (`removalKey`), if anywhere. */
+  removal?: Removal,
+): AccountView {
+  const view = accountState(app, account, copy, composioDisconnect);
+  if (removal === undefined) return view;
+  if (removal.state === "failed")
+    return { ...view, line: removal.text, failed: true };
+  return {
+    ...view,
+    line: copy.integrationsDisconnecting,
+    busy: true,
+    retry: null,
+  };
+}
+
+function accountState(
+  app: IntegrationApp,
+  account: IntegrationAccount,
+  copy: Copy,
   composioDisconnect: boolean,
 ): AccountView {
   const name = account.label ?? copy.integrationsAccountUnnamed;
@@ -438,6 +465,8 @@ export function accountView(
       retry: null,
       disconnect,
       menu,
+      busy: false,
+      failed: false,
     };
   const line =
     account.state === "expired"
@@ -453,7 +482,118 @@ export function accountView(
       : account.state === "failed"
         ? copy.integrationsRetry
         : null;
-  return { name, line, retry, disconnect, menu };
+  return { name, line, retry, disconnect, menu, busy: false, failed: false };
+}
+
+/** "Odpojit" of one account, from the person's confirmation until the
+ * reading after it (decision F42, addendum (b) of 2026-10-14): Composio may
+ * take a few seconds to remove an account and the page as long to read again,
+ * so the row says "Odpojuji…" all that time. `removing`: the removal runs;
+ * `removed`: it answered, and the reading after it runs; `failed`: it did
+ * not, and the row says why until the next reading or a new attempt. */
+export type Removal =
+  | Readonly<{ state: "removing" }>
+  | Readonly<{ state: "removed" }>
+  | Readonly<{ state: "failed"; text: string }>;
+
+export type Removals = ReadonlyMap<string, Removal>;
+
+/** Which account a removal is: its app, path and selector. */
+export function removalKey(
+  app: Pick<IntegrationApp, "id">,
+  account: Pick<IntegrationAccount, "path" | "selector">,
+): string {
+  return JSON.stringify([app.id, account.path, account.selector]);
+}
+
+/** The removals after the person confirmed one (`confirmed`) or it
+ * answered (`answered`: null where the account was disconnected, else why
+ * not, `disconnectFailure`). */
+export function removalStep(
+  removals: Removals,
+  key: string,
+  event:
+    | Readonly<{ kind: "confirmed" }>
+    | Readonly<{ kind: "answered"; failure: string | null }>,
+): Removals {
+  const next = new Map(removals);
+  if (event.kind === "confirmed") next.set(key, { state: "removing" });
+  else
+    next.set(
+      key,
+      event.failure === null
+        ? { state: "removed" }
+        : { state: "failed", text: event.failure },
+    );
+  return next;
+}
+
+/** The removals once a reading came in: what it shows is the truth, so only
+ * a removal still running stays. */
+export function removalsRead(removals: Removals): Removals {
+  return new Map(
+    [...removals].filter(([, removal]) => removal.state === "removing"),
+  );
+}
+
+/** Why "Odpojit" did not disconnect the account, from the route's answer;
+ * null where it did. */
+export function disconnectFailure(
+  answer: unknown,
+  overview: IntegrationsOverview | null,
+  copy: Copy,
+): string | null {
+  const value =
+    typeof answer === "object" && answer !== null
+      ? (answer as Record<string, unknown>)
+      : {};
+  if (value.kind === "disconnected") return null;
+  if (value.reason === "composio-organization")
+    return (
+      (overview === null ? null : composioOrganizationLine(overview, copy)) ??
+      copy.integrationsComposioOrganizationChanged
+    );
+  return value.reason === "disconnect-unsupported"
+    ? copy.integrationsDisconnectUnsupported
+    : copy.integrationsDisconnectFailed;
+}
+
+/** Composio's update on this page (decision F42, addendum (b) of
+ * 2026-10-14): `idle`, `updating` from the click until the reading after a
+ * finished update, `failed` until the next click. */
+export type ComposioUpdate = "idle" | "updating" | "failed";
+
+/** The one line that asks the person to update Composio, where the reading
+ * says Composio is on here but not the build Lazurio pins and its update
+ * can work (`composio.update`); null elsewhere. The button runs the update
+ * of Settings → Tools; the person's click is the consent. */
+export function composioUpdateLine(
+  overview: IntegrationsOverview,
+  update: ComposioUpdate,
+  copy: Copy,
+): Readonly<{ text: string; action: string; busy: boolean }> | null {
+  if (!overview.composio.update) return null;
+  return {
+    text:
+      update === "updating"
+        ? copy.integrationsComposioUpdating
+        : update === "failed"
+          ? copy.integrationsComposioUpdateFailed
+          : copy.integrationsComposioUpdate,
+    action: copy.toolsUpdateAction,
+    busy: update === "updating",
+  };
+}
+
+/** Whether `/api/tools/upgrade` installed the pinned build (`lazurio tools
+ * update`'s `tool-updated`); anything else, a refusal or a failure, did
+ * not. */
+export function composioUpdated(answer: unknown): boolean {
+  return (
+    typeof answer === "object" &&
+    answer !== null &&
+    (answer as Record<string, unknown>).kind === "tool-updated"
+  );
 }
 
 /** The one consequence the disconnect dialog names. */

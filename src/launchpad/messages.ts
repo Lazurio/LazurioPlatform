@@ -1237,6 +1237,12 @@ const en = {
   integrationsDisconnectUnsupported:
     "Composio cannot disconnect from here yet: disconnect the account in Composio.",
   integrationsDisconnectFailed: "The account could not be disconnected.",
+  integrationsDisconnecting: "Disconnecting…",
+  integrationsComposioUpdate:
+    "Update Composio to disconnect accounts here and see their names.",
+  integrationsComposioUpdating: "Updating Composio…",
+  integrationsComposioUpdated: "Composio is updated.",
+  integrationsComposioUpdateFailed: "The update did not finish. Try again.",
   integrationsOpenComposio: "Open Composio",
   integrationsMissingPath: "It cannot be connected here yet.",
   integrationsMissingTool: "The tool {tool} connects it.",
@@ -2646,6 +2652,12 @@ const cs: Record<MessageKey, string> = {
   integrationsDisconnectUnsupported:
     "Composio odsud zatím odpojit nejde: účet odpojte v Composiu.",
   integrationsDisconnectFailed: "Účet se nepodařilo odpojit.",
+  integrationsDisconnecting: "Odpojuji…",
+  integrationsComposioUpdate:
+    "Aktualizujte Composio, ať tu můžete účty odpojovat a vidět jejich jména.",
+  integrationsComposioUpdating: "Aktualizuji Composio…",
+  integrationsComposioUpdated: "Composio je aktualizované.",
+  integrationsComposioUpdateFailed: "Aktualizace nedoběhla. Zkuste to znovu.",
   integrationsOpenComposio: "Otevřít Composio",
   integrationsMissingPath: "Tady ji zatím nejde připojit.",
   integrationsMissingTool: "Připojí ji nástroj {tool}.",

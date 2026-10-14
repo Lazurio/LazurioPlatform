@@ -9,10 +9,17 @@ import {
   attentionCount,
   cardView,
   composioTrip,
+  composioUpdated,
+  composioUpdateLine,
+  disconnectFailure,
   disconnectText,
   monogram,
   normalize,
   parseIntegrations,
+  type Removals,
+  removalKey,
+  removalStep,
+  removalsRead,
   serverLine,
   sourceLines,
   tabLabels,
@@ -120,6 +127,7 @@ const overview = (
     source: "environment",
     ready: true,
     disconnect: true,
+    update: false,
     apps: "https://dashboard.composio.dev/First/~/connect/apps",
     organization: null,
   },
@@ -444,6 +452,8 @@ test("accounts: one line when they need the person or are spare, and what discon
     retry: null,
     disconnect: true,
     menu: null,
+    busy: false,
+    failed: false,
   });
   expect(accountView(notion, account("expired"), cs, true)).toMatchObject({
     line: "Přihlášení vypršelo, zkuste to znovu",
@@ -508,6 +518,8 @@ test("a Composio account's menu: manage it in Composio and disconnect it; signin
       manage: manageGmail,
       disconnect: true,
     },
+    busy: false,
+    failed: false,
   });
   expect(accountView(gmail, composio("connected"), en, true).menu?.label).toBe(
     "More options for Práce in Gmail",
@@ -569,6 +581,8 @@ test("a Composio account's menu: manage it in Composio and disconnect it; signin
     retry: null,
     disconnect: true,
     menu: null,
+    busy: false,
+    failed: false,
   });
   // The page takes a link to Composio's dashboard only.
   const value = overview([gmail]);
@@ -765,4 +779,239 @@ test("a source that cannot be read says so on the page; custom servers count the
   expect(serverLine(server(null, "ready"), en)).toBe("Added");
   expect(serverLine(server(2, "failed"), en)).toBe("Could not start");
   expect(monogram("  ďábel")).toBe("Ď");
+});
+
+// "Odpojit" took a few seconds before the page changed, and nothing said it
+// was happening (the Organization Admin, 2026-10-14). From the person's
+// confirmation until the reading after the removal the account's row says
+// "Odpojuji…" (the panel dims it, puts a spinner before the words and waits
+// its buttons); a removal that fails brings the row back with why (decision
+// F42, addendum (b) of 2026-10-14).
+test("Odpojit: the row says Odpojuji… from the confirmation until the reading after it, and why it failed", () => {
+  const gmail = app("gmail", {
+    path: { path: "composio", signIn: false },
+    connected: true,
+  });
+  const work = {
+    path: "composio" as const,
+    selector: "ca_1",
+    label: "Práce",
+    state: "connected" as const,
+    spare: false,
+    manage: manageGmail,
+  };
+  const home = { ...work, selector: "ca_2", label: "Doma" };
+  const notion = app("notion", { connected: true });
+  const direct = {
+    path: "direct" as const,
+    selector: "org/notion-com/default",
+    label: "person@example.test",
+    state: "connected" as const,
+    spare: false,
+    manage: null,
+  };
+  // One key per account: its app, its path and what names it.
+  expect(removalKey(gmail, work)).not.toBe(removalKey(gmail, home));
+  expect(removalKey(gmail, work)).not.toBe(
+    removalKey(notion, { ...work, path: "direct" }),
+  );
+  const row = (account: typeof work | typeof direct, removals: Removals) =>
+    accountView(
+      account.path === "direct" ? notion : gmail,
+      account,
+      cs,
+      true,
+      removals.get(
+        removalKey(account.path === "direct" ? notion : gmail, account),
+      ),
+    );
+  // Confirmed: busy, "Odpojuji…", nothing to retry; the menu and "Odpojit"
+  // stay drawn for the panel to wait them.
+  let removals: Removals = new Map();
+  removals = removalStep(removals, removalKey(gmail, work), {
+    kind: "confirmed",
+  });
+  expect(row(work, removals)).toMatchObject({
+    name: "Práce",
+    line: "Odpojuji…",
+    busy: true,
+    failed: false,
+    retry: null,
+    menu: { disconnect: true },
+  });
+  // The other account of the app is untouched.
+  expect(row(home, removals)).toMatchObject({ line: null, busy: false });
+  // A reading while the removal still runs keeps the row busy.
+  removals = removalsRead(removals);
+  expect(row(work, removals).busy).toBe(true);
+  // The removal answered: still "Odpojuji…" until the reading after it.
+  removals = removalStep(removals, removalKey(gmail, work), {
+    kind: "answered",
+    failure: null,
+  });
+  expect(row(work, removals)).toMatchObject({
+    line: "Odpojuji…",
+    busy: true,
+  });
+  // That reading no longer lists the account; nothing of it is kept.
+  removals = removalsRead(removals);
+  expect(removals.size).toBe(0);
+  // An Executor account's "Odpojit" in the row goes the same way, and a
+  // failure brings the row back with why, its "Odpojit" again.
+  removals = removalStep(removals, removalKey(notion, direct), {
+    kind: "confirmed",
+  });
+  expect(row(direct, removals)).toMatchObject({
+    line: "Odpojuji…",
+    busy: true,
+    disconnect: true,
+  });
+  removals = removalStep(removals, removalKey(notion, direct), {
+    kind: "answered",
+    failure: cs.integrationsDisconnectFailed,
+  });
+  expect(row(direct, removals)).toEqual({
+    name: "person@example.test",
+    line: "Účet se nepodařilo odpojit.",
+    retry: null,
+    disconnect: true,
+    menu: null,
+    busy: false,
+    failed: true,
+  });
+  // An expired account that failed to disconnect still offers its sign-in.
+  const expired = { ...direct, state: "expired" as const };
+  expect(row(expired, removals)).toMatchObject({
+    line: "Účet se nepodařilo odpojit.",
+    retry: "Přihlásit znovu",
+    failed: true,
+  });
+  // The next reading shows the account as it is.
+  expect(row(direct, removalsRead(removals))).toMatchObject({
+    line: null,
+    failed: false,
+    busy: false,
+  });
+  expect(
+    accountView(notion, direct, en, true, { state: "removing" }).line,
+  ).toBe("Disconnecting…");
+  // What the route answered, as the row says it.
+  const value = overview([gmail]);
+  expect(disconnectFailure({ kind: "disconnected" }, value, cs)).toBeNull();
+  expect(
+    disconnectFailure(
+      { kind: "blocked", reason: "disconnect-unsupported" },
+      value,
+      cs,
+    ),
+  ).toBe(cs.integrationsDisconnectUnsupported);
+  expect(
+    disconnectFailure(
+      { kind: "blocked", reason: "composio-organization" },
+      value,
+      cs,
+    ),
+  ).toBe(cs.integrationsComposioOrganizationChanged);
+  expect(
+    disconnectFailure(
+      { kind: "blocked", reason: "composio-organization" },
+      overview([gmail], {
+        composio: {
+          ...value.composio,
+          organization: { name: "Example Company", state: "elsewhere" },
+        },
+      }),
+      cs,
+    ),
+  ).toBe(
+    cs.integrationsComposioOrganizationElsewhere.replace(
+      "{name}",
+      "Example Company",
+    ),
+  );
+  for (const answer of [null, "nope", { error: "operation-failed" }, {}])
+    expect(disconnectFailure(answer, value, en)).toBe(
+      "The account could not be disconnected.",
+    );
+});
+
+// "I'd like the switch to Lazurio's Composio build to show in the Integrace
+// page too, so that ideally everyone switches; short and to the point" (the
+// Organization Admin, 2026-10-14). One line where the reading says Composio
+// is on here but not the build Lazurio pins and its update can work; its
+// button runs the update of Settings → Tools, then the page reads again
+// (decision F42, addendum (b) of 2026-10-14).
+test("the line about Composio's update: only where the reading offers it, busy until the reading after it, a failure said", () => {
+  const offered = overview([], {
+    composio: { ...overview([]).composio, update: true },
+  });
+  // The page takes a reading with its exact shape: `update` a boolean.
+  expect(parseIntegrations(JSON.parse(JSON.stringify(offered)))).toEqual(
+    offered,
+  );
+  for (const update of [undefined, "yes", null]) {
+    const broken = JSON.parse(JSON.stringify(offered));
+    if (update === undefined) delete broken.composio.update;
+    else broken.composio.update = update;
+    expect(parseIntegrations(broken)).toBeNull();
+  }
+  // Not offered (Composio off, not installed, signed out, elsewhere on the
+  // PATH or already the build: the reading says false): no line.
+  expect(composioUpdateLine(overview([]), "idle", cs)).toBeNull();
+  expect(composioUpdateLine(overview([]), "failed", cs)).toBeNull();
+  expect(composioUpdateLine(offered, "idle", cs)).toEqual({
+    text: "Aktualizujte Composio, ať tu můžete účty odpojovat a vidět jejich jména.",
+    action: "Aktualizovat",
+    busy: false,
+  });
+  expect(composioUpdateLine(offered, "idle", en)).toEqual({
+    text: "Update Composio to disconnect accounts here and see their names.",
+    action: "Update",
+    busy: false,
+  });
+  // The click: busy from it until the reading after a finished update.
+  expect(composioUpdateLine(offered, "updating", cs)).toEqual({
+    text: "Aktualizuji Composio…",
+    action: "Aktualizovat",
+    busy: true,
+  });
+  expect(composioUpdateLine(offered, "updating", en)?.text).toBe(
+    "Updating Composio…",
+  );
+  // An update that did not finish says so, and the button tries again.
+  expect(composioUpdateLine(offered, "failed", cs)).toEqual({
+    text: "Aktualizace nedoběhla. Zkuste to znovu.",
+    action: "Aktualizovat",
+    busy: false,
+  });
+  expect(composioUpdateLine(offered, "failed", en)?.text).toBe(
+    "The update did not finish. Try again.",
+  );
+  // What `/api/tools/upgrade` answered: only `tool-updated` is the update.
+  expect(
+    composioUpdated({
+      kind: "tool-updated",
+      tool: "composio",
+      after: { version: "0.4.3-lazurio.1" },
+    }),
+  ).toBe(true);
+  for (const answer of [
+    { kind: "tool-update-failed", tool: "composio", output: "verify" },
+    { kind: "blocked", reason: "busy", tool: "composio" },
+    { kind: "blocked", reason: "update-unavailable", tool: "composio" },
+    { error: "forbidden" },
+    null,
+  ])
+    expect(composioUpdated(answer)).toBe(false);
+  // The texts say nothing a person would have to decode.
+  for (const locale of [cs, en])
+    for (const key of [
+      "integrationsComposioUpdate",
+      "integrationsComposioUpdating",
+      "integrationsComposioUpdated",
+      "integrationsComposioUpdateFailed",
+    ] as const)
+      expect(locale[key]).not.toMatch(/build|sestaven|fork|CLI|pin|verz/i);
+  expect(cs.integrationsComposioUpdated).toBe("Composio je aktualizované.");
+  expect(en.integrationsComposioUpdated).toBe("Composio is updated.");
 });
