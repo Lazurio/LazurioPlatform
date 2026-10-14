@@ -7608,8 +7608,10 @@ reference is [integrations](integrations.md#the-composio-organization-of-an-envi
 6. **The figure.** Apps → Integrace and the sign-in dialog draw the model as a
    grid of text in the page's type and colours: the person's one account, the
    organization of this Environment's Organization (marked), one for each other
-   Organization, and the default one, each to its Environments; "Každá organizace
-   je jen vaše: nikoho do ní nezvete a žádný klíč nesdílíte."
+   Organization, and the default one, each to its Environments; "Do svých
+   organizací nikoho nezvete a žádný klíč nesdílíte." *(Amended 2026-10-14: the
+   Organization Admin asked for natural Czech; the earlier "Každá organizace je jen
+   vaše…" was not.)*
 7. **The default organization, advised.** Composio's CLI does not say which
    organization an account had first (its list has no date), so a personal
    Environment's sign-in dialog advises the default organization, the one

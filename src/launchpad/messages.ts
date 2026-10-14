@@ -1177,7 +1177,7 @@ const en = {
   composioModelOtherEnvironments: "their Environments",
   composioModelPersonal: "your personal Environment",
   composioModelCaption:
-    "Each organization is yours alone: you invite nobody to it and share no key.",
+    "You invite nobody to your organizations and share no key.",
   integrationsToolsUnreadable: "The tools could not be read.",
   integrationsRetry: "Try again",
   integrationsConnect: "Connect",
@@ -2594,7 +2594,7 @@ const cs: Record<MessageKey, string> = {
   composioModelOtherEnvironments: "jejich Environmenty",
   composioModelPersonal: "váš osobní Environment",
   composioModelCaption:
-    "Každá organizace je jen vaše: nikoho do ní nezvete a žádný klíč nesdílíte.",
+    "Do svých organizací nikoho nezvete a žádný klíč nesdílíte.",
   integrationsToolsUnreadable: "Nástroje se nepodařilo načíst.",
   integrationsRetry: "Zkusit znovu",
   integrationsConnect: "Připojit",
