@@ -139,7 +139,9 @@ const slugPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const slugMaxLength = 50;
 const teamPattern = /^(?!productionspace$)[a-z0-9][a-z0-9-]*$/;
 const organizationPattern = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
-const githubLoginPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
+// GitHub's own rule: 1–39 characters, letters, digits and hyphens, never a
+// hyphen first or last (the Personalspace template's `isValidGitHubLogin`).
+const githubLoginPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
 const runtimeIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const versionPattern = /^\d+\.\d+\.\d+$/;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: a display name refuses control characters.
@@ -294,6 +296,18 @@ export function planModuleScaffold(
   const pinned = normalizeVersions(input.versions);
   assertSlotFree(slug, input.existingSlots);
   const pool = normalizePool(input.pool);
+  // A person's module leases only from the reserved personal range, whatever
+  // pool its caller read (decision F52, root 0171's addendum of 2026-10-13).
+  if (
+    owner.kind === "personal" &&
+    pool !== null &&
+    (pool.start < personalModulePortPool.start ||
+      pool.end > personalModulePortPool.end)
+  )
+    throw new ModuleScaffoldError(
+      "pool_invalid",
+      `A personal module's module_port_pool lies within ${personalModulePortPool.start}-${personalModulePortPool.end}, the range no Organization uses.`,
+    );
   const lease: ScaffoldLease | null =
     spec.toolchain === null
       ? assertNoPort(input.port)

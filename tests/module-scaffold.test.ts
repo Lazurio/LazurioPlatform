@@ -555,8 +555,29 @@ describe("planModuleScaffold, the personal form", () => {
       () => personal({ owner: { kind: "personal", login: "-x" } }),
       "invalid_owner",
     );
+    for (const login of ["ab-", "a".repeat(40), ""])
+      expectCode(
+        () => personal({ owner: { kind: "personal", login } }),
+        "invalid_owner",
+      );
+    expect(
+      personal({ owner: { kind: "personal", login: "a-b" } }).slot.git?.url,
+    ).toBe("git@github.com:a-b/notes.git");
     expectCode(() => personal({ port: 24_009 }), "port_outside_pool");
     expect(personal({ port: 23_000 }).lease?.port).toBe(23_000);
+    // Whatever pool the caller read, a personal module never leases from an
+    // Organization's range, its own port neither.
+    for (const pool of [
+      { start: 24_000, end: 24_099 },
+      { start: 22_950, end: 23_050 },
+      { start: 23_050, end: 23_150 },
+    ]) {
+      expectCode(() => personal({ pool }), "pool_invalid");
+      expectCode(() => personal({ pool, port: pool.start }), "pool_invalid");
+    }
+    expect(
+      personal({ pool: { start: 23_010, end: 23_019 } }).lease?.port,
+    ).toBeGreaterThanOrEqual(23_010);
   });
 
   test("the reserved personal pool: 100 ports below every Organization pool, clear of the Environment's own and of every ephemeral range", () => {
