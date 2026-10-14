@@ -41,9 +41,11 @@ import {
   type OrganizationDocumentTexts,
 } from "./organization-declaration";
 import {
+  type DataSlot,
   insertModulePortPoolText,
   insertModuleSlotText,
   ModuleScaffoldError,
+  type ModuleSlot,
 } from "./scaffold";
 
 // The real run of `lazurio module create personalspace/<slug>` (decision
@@ -86,6 +88,7 @@ export const moduleCreateSteps = [
   "place",
   "push",
   "grant",
+  "data",
   "declare",
   "check",
 ] as const;
@@ -103,6 +106,18 @@ export type ModuleCreateRunRequest = ModuleCreateRequest &
     /** The plan's digest the person confirmed (the dry run's `plan`). */
     confirm: string;
   }>;
+
+export type DataInitRequest = Readonly<{
+  /** The module's app, where the engine is installed. */
+  app: string;
+  /** The app's name (`--app`): the module's slug. */
+  name: string;
+  remote: string;
+  branch: string;
+  mount: string;
+  schemaName: string;
+  schemaVersion: string;
+}>;
 
 export type InstallAnswer =
   | Readonly<{ ok: true }>
@@ -127,6 +142,10 @@ export type ModuleCreateRunHost = ModuleCreateHost &
     /** The app's lockfile from its declaration: `bun install` or `uv lock`
      * in `app` by the operator's own toolchain. */
     install: (app: string, toolchain: "bun" | "uv") => Promise<InstallAnswer>;
+    /** `repository-db init` of a module with data (`--data`), by the engine
+     * its app installed: clones the empty data repository into `mount`,
+     * bootstraps `branch`, pushes it and makes it the default branch. */
+    initData: (request: DataInitRequest) => Promise<InstallAnswer>;
   }>;
 
 /** The description of the repository the run creates. */
@@ -493,22 +512,8 @@ async function run(
   // grant
   if (module.scope === "organization") {
     steps.running("grant");
-    const refused: string[] = [];
-    for (const grant of module.grants) {
-      const answer = await host.github.grantTeam(
-        module.organization.github,
-        grant.github,
-        repository.fullName,
-        grant.permission,
-      );
-      if (answer === "granted") continue;
-      refused.push(grant.github);
-      issues.push({
-        code: "grant-failed",
-        message: `GitHub did not grant the Team ${grant.github} ${grant.permission} on ${repository.fullName}; until it does, the Team does not reach the module.`,
-        action: `Grant it as an Owner of ${module.organization.github}: gh api --method PUT orgs/${module.organization.github}/teams/${grant.github}/repos/${repository.fullName} --raw-field permission=${grant.permission}`,
-      });
-    }
+    const refused = await grantTeams(module, repository.fullName, host);
+    issues.push(...refused);
     if (refused.length === 0)
       steps.done(
         "grant",
@@ -516,21 +521,30 @@ async function run(
           .map((grant) => `${grant.github} ${grant.permission}`)
           .join(", "),
       );
-    else steps.failed("grant", "grant-failed", refused.join(", "));
+    else steps.failed("grant", "grant-failed", `${refused.length} Teams`);
   }
 
-  // declare
+  // data
+  const data = await createData(report, module, target, host, steps);
+  issues.push(...data.issues);
+
+  // declare: the module's slot, and its data's once the data repository is
+  // there (one this run created, verified private and its owner's).
+  const slots =
+    data.declare && plan.data !== null
+      ? [plan.slot, plan.data.slot]
+      : [plan.slot];
   steps.running("declare");
   const declared =
     module.scope === "organization"
-      ? await declareOrganization(module)
-      : await declare(module);
+      ? await declareOrganization(module, slots)
+      : await declare(module, slots);
   if (declared === null)
     steps.done(
       "declare",
       module.scope === "organization"
-        ? `${plan.slot.path} in ${module.manifestPath}, with the Organization's projection`
-        : `${plan.slot.path}${module.addsPool ? ` and module_port_pool ${module.pool.start}-${module.pool.end}` : ""} in ${module.manifestPath}`,
+        ? `${slots.map((slot) => slot.path).join(" and ")} in ${module.manifestPath}, with the Organization's projection`
+        : `${slots.map((slot) => slot.path).join(" and ")}${module.addsPool ? ` and module_port_pool ${module.pool.start}-${module.pool.end}` : ""} in ${module.manifestPath}`,
     );
   else {
     issues.push(declared);
@@ -567,6 +581,133 @@ async function run(
       : createdSteps(module, declared === null)),
   ];
   return report;
+}
+
+/** Write for each of the module's Teams on `fullName`, read back; an issue
+ * with the exact command for each grant GitHub did not make. */
+async function grantTeams(
+  module: PlannedOrganizationModule,
+  fullName: string,
+  host: ModuleCreateRunHost,
+): Promise<ModuleCreateIssue[]> {
+  const issues: ModuleCreateIssue[] = [];
+  for (const grant of module.grants) {
+    const answer = await host.github.grantTeam(
+      module.organization.github,
+      grant.github,
+      fullName,
+      grant.permission,
+    );
+    if (answer === "granted") continue;
+    issues.push({
+      code: "grant-failed",
+      message: `GitHub did not grant the Team ${grant.github} ${grant.permission} on ${fullName}; until it does, the Team does not reach it.`,
+      action: `Grant it as an Owner of ${module.organization.github}: gh api --method PUT orgs/${module.organization.github}/teams/${grant.github}/repos/${fullName} --raw-field permission=${grant.permission}`,
+    });
+  }
+  return issues;
+}
+
+/** The description of a module's data repository. */
+export const dataRepositoryDescription = "Data Modulu Lazuria (repository-db).";
+
+/** The module's data (`--data`, step `data`): its empty private repository,
+ * created and verified as the module's, granted to the module's Teams, then
+ * initialized and mounted as the module's `db/` by the engine the app
+ * installed (`repository-db init`, which bootstraps `v3`, pushes it and
+ * makes it the default branch). Never adopted, never deleted. `declare`:
+ * whether the data slot is declared (its repository exists and is the
+ * module's). */
+async function createData(
+  report: ModuleCreateReport,
+  module: PlannedModule,
+  target: Target,
+  host: ModuleCreateRunHost,
+  steps: ReturnType<typeof stepper>,
+): Promise<Readonly<{ issues: ModuleCreateIssue[]; declare: boolean }>> {
+  const data = module.plan.data;
+  if (data === null) return { issues: [], declare: false };
+  steps.running("data");
+  const fullName = `${target.owner}/${data.repository}`;
+  const issues: ModuleCreateIssue[] = [];
+  const answer = await host.github.createRepository(
+    data.repository,
+    dataRepositoryDescription,
+    target.organization,
+  );
+  if (answer.kind === "failed") {
+    const now = await host.github.repository(target.owner, data.repository);
+    const uncertain = now.kind === "observed";
+    const code = uncertain ? "data-create-uncertain" : "data-create-failed";
+    issues.push({
+      code,
+      message: uncertain
+        ? `GitHub did not confirm creating ${fullName}, but has it now; it is not taken over and the module has no data mount.`
+        : `GitHub did not create ${fullName}; the module was created without its data.`,
+      action: uncertain
+        ? `Look at ${fullName} on GitHub with the person: if it is empty and was created just now, mount it with repository-db init (${initCommand(module, data)}) and declare its slot by hand; otherwise leave it.`
+        : `Create the data later: the private repository ${fullName}, then ${initCommand(module, data)}, and declare the report's data slot by hand.`,
+    });
+    steps.failed("data", code);
+    return { issues, declare: false };
+  }
+  const created = answer.repository;
+  if (
+    !sameRepository(created.fullName, fullName) ||
+    created.owner.login.toLowerCase() !== target.owner.toLowerCase() ||
+    !created.private
+  ) {
+    const code = created.private ? "data-create-failed" : "data-not-private";
+    issues.push({
+      code,
+      message: created.private
+        ? `GitHub created ${created.fullName}, not ${fullName}; the module has no data mount.`
+        : `GitHub created ${created.fullName} public, not private; it is not mounted.`,
+      action: `Delete ${created.fullName} on GitHub (or make it private), then create the data by hand: ${initCommand(module, data)}.`,
+    });
+    steps.failed("data", code);
+    return { issues, declare: false };
+  }
+  if (report.data !== null)
+    report.data.repository = {
+      full_name: created.fullName,
+      private: true,
+      create: true,
+    };
+  if (module.scope === "organization")
+    issues.push(...(await grantTeams(module, created.fullName, host)));
+  const initialized = await host.initData({
+    app: join(module.moduleRoot, "app", "v1"),
+    name: module.plan.module,
+    remote: data.slot.repository_db.url,
+    branch: data.branch,
+    mount: join(module.moduleRoot, data.mount),
+    schemaName: data.schemaName,
+    schemaVersion: data.schemaVersion,
+  });
+  if (!initialized.ok)
+    issues.push({
+      code: "data-init-failed",
+      message: `repository-db init did not mount ${fullName} as ${join(module.moduleRoot, data.mount)}: ${initialized.detail}. The repository is created, empty.`,
+      action: `Mount it: ${initCommand(module, data)}`,
+    });
+  if (issues.length === 0)
+    steps.done(
+      "data",
+      `${created.fullName} (private) on ${data.branch} in ${join(module.moduleRoot, data.mount)}`,
+    );
+  else steps.failed("data", issues[0]?.code as string);
+  return { issues, declare: true };
+}
+
+/** The exact `repository-db init` a person or agent runs to mount the
+ * module's data, by the engine the app installed. */
+function initCommand(
+  module: PlannedModule,
+  data: NonNullable<PlannedModule["plan"]["data"]>,
+): string {
+  const app = join(module.moduleRoot, "app", "v1");
+  return `cd '${app}' && bun install && bun ./node_modules/@lazurio/repository-db/src/cli.ts init --app ${module.plan.module} --remote ${data.slot.repository_db.url} --branch ${data.branch} --mount '${join(module.moduleRoot, data.mount)}' --schema-name ${data.schemaName} --schema-version ${data.schemaVersion}`;
 }
 
 type CheckAnswer =
@@ -704,9 +845,10 @@ function stopped(
 // could not be.
 async function declare(
   module: PlannedPersonalModule,
+  slots: readonly (ModuleSlot | DataSlot)[],
 ): Promise<ModuleCreateIssue | null> {
   const path = module.manifestPath;
-  const action = `Add the slot of ${module.plan.slot.path} to ${path} by hand (the report's slot${module.addsPool ? `, and module_port_pool ${module.pool.start}-${module.pool.end}` : ""}), in the pull request into the Personalspace.`;
+  const action = `Add the slot of ${slots.map((slot) => slot.path).join(" and the slot of ")} to ${path} by hand (the report's slot${slots.length > 1 ? " and its data's" : ""}${module.addsPool ? `, and module_port_pool ${module.pool.start}-${module.pool.end}` : ""}), in the pull request into the Personalspace.`;
   try {
     const current = new TextDecoder("utf-8", { fatal: true }).decode(
       await readCheckoutFileBytes(path),
@@ -720,7 +862,10 @@ async function declare(
     const withPool = module.addsPool
       ? insertModulePortPoolText(current, module.pool)
       : current;
-    const next = insertModuleSlotText(withPool, module.plan.slot);
+    const next = slots.reduce(
+      (text, slot) => insertModuleSlotText(text, slot),
+      withPool,
+    );
     const { mode } = await stat(path);
     const temporary = `${path}.lazurio-module-create-${process.pid}.tmp`;
     await writeFile(temporary, next, {
@@ -747,9 +892,10 @@ async function declare(
 // files written when a later one could not be.
 async function declareOrganization(
   module: PlannedOrganizationModule,
+  slots: readonly (ModuleSlot | DataSlot)[],
 ): Promise<ModuleCreateIssue | null> {
   const directory = module.documents.directory;
-  const action = `Add the slot of ${module.plan.slot.path} (the report's slot) to ${module.manifestPath} by hand in the pull request into the Organization root, then regenerate its projection with lazurio migrate organization-manifest '${directory}' --write from a Lazurio root checkout.`;
+  const action = `Add the slot of ${slots.map((slot) => slot.path).join(" and the slot of ")} (the report's${slots.length > 1 ? " slot and its data's" : " slot"}) to ${module.manifestPath} by hand in the pull request into the Organization root, then regenerate its projection with lazurio migrate organization-manifest '${directory}' --write from a Lazurio root checkout.`;
   let next: OrganizationDocumentTexts;
   try {
     const current = await readOrganizationDocumentTexts(directory);
@@ -764,7 +910,7 @@ async function declareOrganization(
         message: `The Organization's documents in ${directory} changed while the module was being created; the slot was not added.`,
         action,
       };
-    next = declareOrganizationSlots(current, [module.plan.slot]);
+    next = declareOrganizationSlots(current, slots);
   } catch (error) {
     return {
       code:

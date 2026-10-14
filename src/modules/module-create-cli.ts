@@ -19,8 +19,8 @@ import { moduleScaffoldStacks } from "./scaffold";
 /** `lazurio module create`: the terminal surface of module creation
  * (decision F52). CLI first (root decision 0167): the Launchpad has no route
  * for it; an agent runs it for the person. */
-export const moduleCreateHelp = `module create personalspace/<module> --stack <stack> [--name <name>] [--port N] (--dry-run | --confirm <plan>) [--folder <absolute Folder>] [--json]
-module create <Organization>/<module> --stack <stack> --teams <team,team> [--name <name>] [--port N] (--dry-run | --confirm <plan>) [--folder <absolute Folder>] [--json]
+export const moduleCreateHelp = `module create personalspace/<module> --stack <stack> [--name <name>] [--port N] [--data] (--dry-run | --confirm <plan>) [--folder <absolute Folder>] [--json]
+module create <Organization>/<module> --stack <stack> --teams <team,team> [--name <name>] [--port N] [--data] (--dry-run | --confirm <plan>) [--folder <absolute Folder>] [--json]
   Creates a module of your own in your Personalspace (decision F52): a private
   repository <login>/<module> on the GitHub account gh is signed in with here,
   checked out in the Personalspace's workspace/<module>, with no Organization
@@ -76,7 +76,14 @@ module create <Organization>/<module> --stack <stack> --teams <team,team> [--nam
   keeps the module and names the command) and declares the slot in the task
   worktree's modules.manifest.json with the Organization's projection
   (lazurio.organization.json, company.gen3.json); then commit those and open a
-  pull request into the Organization root. --json prints one JSON line per
+  pull request into the Organization root. --data (either form, a stack with
+  a Bun app: data_needs_bun_app) starts the module's data in repository-db:
+  its app depends on one released repository-db, and the run creates the
+  private repository <owner>/<module>-data (data-repository-exists in the
+  plan), grants it to the Teams, mounts it as the module's db/ on v3 with
+  repository-db init (data-init-failed names the exact command), and declares
+  its slot workspace/<module>/db (repository_db_mount) with the module's.
+  --json prints one JSON line per
   step, then the report (lazurio.module_create.report.v1). Exit status: 0
   planned or created, 1 created with a step left to you (its next step says
   which), 2 refused (nothing written) or usage.`;
@@ -84,8 +91,8 @@ module create <Organization>/<module> --stack <stack> --teams <team,team> [--nam
 export class ModuleCreateUsageError extends Error {}
 
 const usage = [
-  "Usage: module create personalspace/<module> --stack <stack> [--name <name>] [--port N] (--dry-run | --confirm <plan>) [--folder <Folder>] [--json]",
-  "       module create <Organization>/<module> --stack <stack> --teams <team,team> [--name <name>] [--port N] (--dry-run | --confirm <plan>) [--folder <Folder>] [--json]",
+  "Usage: module create personalspace/<module> --stack <stack> [--name <name>] [--port N] [--data] (--dry-run | --confirm <plan>) [--folder <Folder>] [--json]",
+  "       module create <Organization>/<module> --stack <stack> --teams <team,team> [--name <name>] [--port N] [--data] (--dry-run | --confirm <plan>) [--folder <Folder>] [--json]",
 ].join("\n");
 
 function parse(args: string[]) {
@@ -98,6 +105,7 @@ function parse(args: string[]) {
     teams?: string | undefined;
     confirm?: string | undefined;
     "dry-run"?: boolean | undefined;
+    data?: boolean | undefined;
   };
   let positionals: string[];
   try {
@@ -115,6 +123,7 @@ function parse(args: string[]) {
         teams: { type: "string" },
         confirm: { type: "string" },
         "dry-run": { type: "boolean" },
+        data: { type: "boolean" },
       },
     });
     ({ values, positionals } = parsed);
@@ -186,6 +195,7 @@ function parse(args: string[]) {
     name: values.name,
     port: values.port === undefined ? undefined : Number(values.port),
     teams,
+    data: values.data === true,
     folder: values.folder,
     json: values.json === true,
     confirm: dryRun ? undefined : values.confirm,
@@ -209,6 +219,10 @@ export function renderModuleCreate(report: ModuleCreateReport): string {
   if (report.repository !== null)
     lines.push(
       `Repository: ${shown(report.repository.full_name)} on GitHub, private${report.repository.create ? (report.dry_run ? ", to be created by the real run" : ", created") : ""}`,
+    );
+  if (report.data !== null)
+    lines.push(
+      `Data: ${shown(report.data.repository.full_name)} on GitHub, private, mounted as ${shown(report.data.mount)} (repository-db, ${report.data.branch})`,
     );
   if (report.teams.length > 0)
     lines.push(
@@ -303,6 +317,89 @@ export function processModuleInstall(
   };
 }
 
+const dataInitTimeoutMs = 5 * 60_000;
+
+/** `repository-db init` by the engine the module's app installed
+ * (`node_modules/@lazurio/repository-db`, the one released tag its
+ * `package.json` names), with the operator's Bun, HOME, PATH (its gh and
+ * git) and TMPDIR only. Never this process's executable. */
+export function processDataInit(
+  context: Pick<CliContext, "env" | "platform">,
+): ModuleCreateRunHost["initData"] {
+  const host = processModuleHost(context.env, context.platform);
+  return async (request): Promise<InstallAnswer> => {
+    const home = host.home;
+    if (home === undefined)
+      return { ok: false, detail: "the account's home (HOME) is not known" };
+    const bun = host.bunExecutable ?? join(home, ".local/bin/bun");
+    const engine = join(
+      request.app,
+      "node_modules",
+      "@lazurio",
+      "repository-db",
+      "src",
+      "cli.ts",
+    );
+    for (const [path, missing] of [
+      [bun, "Bun is not at ~/.local/bin/bun (see lazurio tools status)"],
+      [
+        engine,
+        "the app has no repository-db installed (bun install did not finish)",
+      ],
+    ] as const)
+      if (
+        !(await access(path).then(
+          () => true,
+          () => false,
+        ))
+      )
+        return { ok: false, detail: missing };
+    const environment: Record<string, string> = {
+      HOME: home,
+      PATH: host.path,
+      GIT_TERMINAL_PROMPT: "0",
+    };
+    if (host.tmpdir) environment.TMPDIR = host.tmpdir;
+    try {
+      const result = await runTool(
+        [
+          bun,
+          engine,
+          "init",
+          "--app",
+          request.name,
+          "--remote",
+          request.remote,
+          "--branch",
+          request.branch,
+          "--mount",
+          request.mount,
+          "--schema-name",
+          request.schemaName,
+          "--schema-version",
+          request.schemaVersion,
+        ],
+        dataInitTimeoutMs,
+        environment,
+      );
+      if (result === "timeout")
+        return { ok: false, detail: "it did not end within 5 minutes" };
+      if (result.exitCode === 0) return { ok: true };
+      const last = `${result.stderr}${result.stdout}`
+        .trim()
+        .split("\n")
+        .filter((line) => line.trim() !== "")
+        .at(-1);
+      return {
+        ok: false,
+        detail: `it ended with exit code ${result.exitCode}${last === undefined ? "" : `: ${last.slice(0, 300)}`}`,
+      };
+    } catch {
+      return { ok: false, detail: "it could not be run" };
+    }
+  };
+}
+
 /** This process's gh and git, the holder decision over them (#186), the
  * Folder's content lock in this account's install base, and the
  * operator's toolchain. */
@@ -319,6 +416,7 @@ export function processModuleCreateHost(
     git: host.git,
     lockDirectory: contentLockDirectory(installBase(context, undefined)),
     install: processModuleInstall(context),
+    initData: processDataInit(context),
   });
 }
 
@@ -362,6 +460,7 @@ export async function runModuleCreateCommand(
     ...(options.name === undefined ? {} : { name: options.name }),
     ...(options.port === undefined ? {} : { port: options.port }),
     ...(options.teams === undefined ? {} : { teams: options.teams }),
+    ...(options.data ? { data: true } : {}),
   };
   let report: ModuleCreateReport;
   if (options.confirm === undefined) {

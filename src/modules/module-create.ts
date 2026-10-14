@@ -22,6 +22,7 @@ import {
   assertSlug,
   assertStack,
   canonicalJson,
+  type DataSlot,
   defaultScaffoldVersions,
   environmentPorts,
   ModuleScaffoldError,
@@ -67,6 +68,9 @@ export type ModuleCreateRequest = Readonly<{
   /** The Teams of an Organization's module (`--teams`): its slot's
    * `teams` and its initial grants (root decision 0186 point 1). */
   teams?: readonly string[] | undefined;
+  /** A data repository for the module (`--data`): `<owner>/<slug>-data`
+   * in repository-db, mounted as the module's `db/`. */
+  data?: boolean | undefined;
 }>;
 
 /** What the plan reads: whose Personalspace this is (#186), gh for the
@@ -111,6 +115,16 @@ export type ModuleCreateReport = {
   /** An Organization's module: each Team of `--teams`, its GitHub slug and
    * the permission the run grants it on the repository. */
   teams: { slug: string; github_slug: string; permission: string }[];
+  /** With `--data`: the module's data repository the run creates (private,
+   * never adopted), its slot, its mount and the engine the app depends on. */
+  data: {
+    repository: { full_name: string; private: true; create: boolean };
+    slot: DataSlot;
+    mount: string;
+    branch: string;
+    schema: { name: string; version: string };
+    engine: string;
+  } | null;
   slot: ModuleSlot | null;
   lease: ScaffoldLease | null;
   files: { path: string; bytes: number; mode?: string }[];
@@ -214,6 +228,7 @@ export function baseReport(request: ModuleCreateRequest): ModuleCreateReport {
     repository: null,
     organization: null,
     teams: [],
+    data: null,
     slot: null,
     lease: null,
     files: [],
@@ -424,6 +439,7 @@ async function plan(
     takenPorts,
     templates: host.templates ?? moduleTemplates,
     versions: { bun: scaffoldBunVersion, ...defaultScaffoldVersions },
+    data: request.data,
   });
 
   // 5. The person's repository `<login>/<slug>`: never one that exists.
@@ -441,6 +457,7 @@ async function plan(
       `GitHub did not answer whether ${fullName} exists.`,
       holderActions["github-unavailable"],
     );
+  await planData(report, planned, login, moduleRoot, host.github);
 
   report.status = "actionable";
   report.reason = "scaffold_planned";
@@ -498,9 +515,22 @@ export function planDigest(
     }>[];
   }>,
 ): string {
+  const data = input.plan.data;
   const confirmed = {
     scope:
       input.organization === undefined ? personalspaceName : "organization",
+    ...(data === null
+      ? {}
+      : {
+          data: {
+            repository: data.repository,
+            private: true,
+            slot: data.slot,
+            branch: data.branch,
+            schema: [data.schemaName, data.schemaVersion],
+            engine: data.engine,
+          },
+        }),
     ...(input.organization === undefined
       ? {}
       : {
@@ -561,6 +591,7 @@ export function confirmCommand(
     ...((request.teams ?? []).length === 0
       ? []
       : ["--teams", shellWord((request.teams ?? []).join(","))]),
+    ...(request.data === true ? ["--data"] : []),
     ...(request.name === undefined ? [] : ["--name", shellWord(request.name)]),
     ...(request.port === undefined ? [] : ["--port", String(request.port)]),
     "--confirm",
@@ -574,6 +605,44 @@ export const shellWord = (word: string) =>
   /^[A-Za-z0-9_./:=@%+,-]+$/.test(word)
     ? word
     : `'${word.replaceAll("'", "'\\''")}'`;
+
+/**
+ * The module's data repository (`--data`), of either form: `<owner>/<slug>-
+ * data` must not exist on GitHub (never adopted, letter case ignored), and
+ * the report names it with its slot and mount. Nothing without `--data`.
+ */
+export async function planData(
+  report: ModuleCreateReport,
+  planned: ModuleScaffoldPlan,
+  owner: string,
+  moduleRoot: string,
+  github: Pick<ContentGitHub, "repository">,
+): Promise<void> {
+  const data = planned.data;
+  if (data === null) return;
+  const fullName = `${owner}/${data.repository}`;
+  const existing = await github.repository(owner, data.repository);
+  if (existing.kind === "observed")
+    throw new ModuleCreateRefusal(
+      "data-repository-exists",
+      `GitHub already has ${existing.repository.fullName} (names are compared ignoring letter case); a module's data repository is never taken over.`,
+      "Ask the person for another name of the module (its slug), or create the module without --data and mount the existing data by hand.",
+    );
+  if (existing.kind === "unavailable")
+    throw new ModuleCreateRefusal(
+      "github-unavailable",
+      `GitHub did not answer whether ${fullName} exists.`,
+      "GitHub did not answer; run the command again in a moment.",
+    );
+  report.data = {
+    repository: { full_name: fullName, private: true, create: true },
+    slot: data.slot,
+    mount: join(moduleRoot, data.mount),
+    branch: data.branch,
+    schema: { name: data.schemaName, version: data.schemaVersion },
+    engine: data.engine,
+  };
+}
 
 // ---- reads -------------------------------------------------------------------
 

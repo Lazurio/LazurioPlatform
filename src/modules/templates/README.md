@@ -43,6 +43,10 @@ A path segment that starts with `dot-` is written with a dot (`dot-gitignore`
 → `.gitignore`, `dot-github/` → `.github/`) and the trailing `.tmpl` is dropped
 (`AGENTS.md.tmpl` → `AGENTS.md`).
 
+A module with data (`--data`) is no template either: the plan adds the
+repository-db dependency to `app/v1/package.json`, `/db/` to `.gitignore` and a
+section on the data to `AGENTS.md` (`withData` in `scaffold.ts`).
+
 ## Placeholders
 
 `{{name}}` in a path and in content:
