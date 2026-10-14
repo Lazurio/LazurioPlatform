@@ -330,11 +330,16 @@ arm64. CLI first; the Launchpad serves the same core. The tools set up by an age
   after the SSH key step, whatever its outcome, each of `user.name` and `user.email`
   that neither git's global nor system configuration names is written with `git config
   --global` from `gh api user`: the profile's name, else the login, and
-  `<id>+<login>@users.noreply.github.com`. An existing value is never changed, and a
-  Team Environment never gets here. The result carries `gitIdentity: { state:
-  "present" }`, `{ state: "set", fields, identity }` or `{ state: "not-set", reason,
-  missing? }` with one of `git-missing`, `config-unreadable`, `viewer-unavailable`,
-  `write-failed` (nothing written). It does not change the exit code.
+  `<id>+<login>@users.noreply.github.com`. Right before each field's write the Team
+  rule is asked again and the field is checked again: an existing value is never
+  changed (one set meanwhile is skipped), a check that cannot answer writes nothing
+  more, and a Team Environment never gets here. The result carries `gitIdentity`:
+  `{ state: "present" }` (nothing written), `{ state: "set", fields, identity,
+  incomplete? }` (`fields` is exactly what was written; `incomplete: { reason, missing
+  }` with `write-failed` or `config-unreadable` when a later field was not), or `{ state:
+  "not-set", reason, missing? }` (this step wrote nothing; `git-missing`,
+  `config-unreadable`, `viewer-unavailable`, `write-failed`). A later sign-in adds only
+  what is still missing. It does not change the exit code.
 - `tools logout <tool> [--json]` runs the tool's own sign-out (`gh auth logout
   --hostname github.com`, `composio logout`, `wacli auth logout`) and checks it with
   the probe. gh and composio forget the sign-in on this Machine only: revoke it at the

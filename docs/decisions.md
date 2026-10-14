@@ -2673,17 +2673,31 @@ identita."
    exists), on Linux, macOS and Windows alike.
 3. **Never overwrite.** A field git already has, from either scope or an included file,
    is left as it is; with both, GitHub is not even asked. A workstation's identity stays.
+   Because `gh api user` runs between the first check and the writes, each field is
+   checked again right before its own write: one set meanwhile is skipped, and a check
+   that cannot answer writes nothing more (fail closed).
 4. **Never on a Team Environment.** Its gh sign-in is refused (F19's addendum of
-   2026-09-28), so the step never runs; the session also asks the Team rule again right
-   before the write, as before every other step that changes the Machine, and ends
-   `blocked` without writing.
-5. **A failure is reported, not fatal.** The sign-in still ends signed in, with
-   `gitIdentity` saying `present`, `set` (the fields and the identity) or `not-set` with
-   `git-missing`, `config-unreadable`, `viewer-unavailable` (GitHub did not return the
-   account gh confirmed) or `write-failed`; nothing is written in any of these. The CLI
-   prints one line and the fix; the Launchpad says aloud that publishing from the
-   Environment fails until it is set, and names the identity in the folded details when it
-   was set. The exit code of `lazurio tools login gh` still follows the SSH key alone.
+   2026-09-28), so the step never runs. The session also asks the Team rule again right
+   before *each* field's write, as before every other step that changes the Machine,
+   and ends `blocked` without the next write. A field written before the Environment
+   became a Team one stays, as git's own value, like an SSH key linked before.
+5. **A failure is reported as it is, not fatal.** The sign-in still ends signed in, with
+   `gitIdentity` saying:
+   - `present`: git has both fields; nothing was written (also when they appeared while
+     GitHub answered);
+   - `set`: `fields` names exactly what was written (never empty) with the identity; when
+     a later field was not written, `incomplete` gives the reason (`write-failed` or
+     `config-unreadable`) and the fields git still `missing`;
+   - `not-set`: this step wrote nothing, for `git-missing`, `config-unreadable`,
+     `viewer-unavailable` (GitHub did not return the account gh confirmed) or
+     `write-failed`, with the fields still `missing` where known.
+
+   Recovery is the same in every case: sign in again (it adds only what is still
+   missing) or `git config --global user.name|user.email` by hand. The CLI prints what
+   was set and, for the rest, the reason and that fix. The Launchpad says aloud that
+   publishing from the Environment fails until both are set (a partial write included),
+   and names the identity in the folded details when it was set. The exit code of
+   `lazurio tools login gh` still follows the SSH key alone.
 6. **The per-commit fallback stays.** Lazurio's own commits (F9's addendum, F52) keep
    `identitySettings`: an Environment whose gh was signed in by hand, before this change,
    or where the write failed still gets those commits right, and the fallback never
@@ -2702,7 +2716,11 @@ git under a temporary home: missing → set from `gh api user`, the login withou
 name, present → unchanged and GitHub not asked, only the missing field added, system or
 included configuration counts as present, GitHub silent or another account → nothing
 written, a refused write, the Team rule turning true right before the write → `blocked`
-and nothing written, a Team Environment → git never run); `tests/tools-curated-cli.test.ts`
+and nothing written, and between `user.name` and `user.email` → `blocked` before the
+email, a field set while GitHub answers → kept and the rest added (or `present`), a
+malformed configuration appearing meanwhile → `config-unreadable` and nothing written,
+the second write refused after the first → `set` with `incomplete`, completed by the next
+sign-in, a Team Environment → git never run); `tests/tools-curated-cli.test.ts`
 (the CLI's lines); `tests/tools-view.test.ts` (the Launchpad's parsing and sentence).
 Risks: a person who wants another address must change it themselves (as on a
 workstation); the step is not tested on Windows here (the curated gh flow is qualified on
