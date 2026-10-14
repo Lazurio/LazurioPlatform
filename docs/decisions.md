@@ -748,6 +748,12 @@ bootstrap is what creates it.
    never leaves a created repository behind. The commits use the operator's own Git
    identity where it is set, else the person's GitHub identity (the profile's name, else the login, and `<id>+<login>@users.noreply.github.com`) given per commit with `git -c`, never written into any Git configuration (a Remote Environment sets none, so
    `git-identity-missing` remains only when neither is known).
+   *Refined on 2026-10-14 by
+   [F19's addendum of that day](#f19--curated-installation-and-login-of-catalog-tools):
+   the curated gh sign-in now writes the same identity into the operator's global Git
+   configuration where a field is missing, so a Remote Environment signed in through
+   Lazurio has one. These commits keep the per-commit fallback, which writes nothing, for
+   an Environment whose gh was signed in otherwise.*
 5. **A failure stays truthful and recoverable.** `personalspace-template-unexpected`,
    `personalspace-bootstrap-failed` (with the template's own reason),
    `personalspace-commit-failed`, `personalspace-push-failed`, `gbrain-commit-failed`,
@@ -2641,6 +2647,66 @@ mechanism does not:
 - The sign-in dialog on the Team Environment showed the shared notice twice (status and a
   box); it shows it once.
 - Template revision `base-instructions-25`.
+
+**Addendum 2026-10-14 (Matěj): the gh sign-in sets the person's Git identity.**
+A person's assigned Remote Environment had no `user.name` or `user.email`, so publishing
+data from a repository-db app (`git commit` in its data checkout) failed with "Author
+identity unknown" after staging. A workstation works because its owner configured an
+identity long ago. Until now the Platform deliberately wrote no Git configuration: its own
+commits got the person's GitHub identity per commit (`git -c`, F9's addendum of the same
+day, #377), and every other commit in the Environment had nothing. Matěj decided: "Git
+Identity by měl řešit Launchpad při nastavování GH … v rámci onboardingu, kdy lidem
+nastavujeme nástroj GH, aby mohli fungovat ve svém environmentu, by se měla nastavit i ta
+identita."
+
+1. **Where.** In the curated gh session itself (`src/tools/login.ts`), after the SSH key
+   step and whatever its outcome, before the session ends signed in. It is the one path of
+   the Launchpad's Settings → Nástroje, the Environment's first run (which leads there) and
+   `lazurio tools login gh`, both for a sign-in and for "Link SSH key" (`--ssh-key`).
+2. **What.** For each of `user.name` and `user.email` that neither git's global nor its
+   system configuration names (`git config --global|--system --includes --get`), the
+   person's GitHub identity is written with `git config --global` as the operator: the
+   profile's name, else the login, and `<id>+<login>@users.noreply.github.com`, from `gh
+   api user`, exactly `githubCommitIdentity` (`src/content/commit-identity.ts`). The
+   address is GitHub's noreply address, so no private email is published by a commit.
+   `--global` is git's own choice of file (`~/.gitconfig`, or the XDG file where only that
+   exists), on Linux, macOS and Windows alike.
+3. **Never overwrite.** A field git already has, from either scope or an included file,
+   is left as it is; with both, GitHub is not even asked. A workstation's identity stays.
+4. **Never on a Team Environment.** Its gh sign-in is refused (F19's addendum of
+   2026-09-28), so the step never runs; the session also asks the Team rule again right
+   before the write, as before every other step that changes the Machine, and ends
+   `blocked` without writing.
+5. **A failure is reported, not fatal.** The sign-in still ends signed in, with
+   `gitIdentity` saying `present`, `set` (the fields and the identity) or `not-set` with
+   `git-missing`, `config-unreadable`, `viewer-unavailable` (GitHub did not return the
+   account gh confirmed) or `write-failed`; nothing is written in any of these. The CLI
+   prints one line and the fix; the Launchpad says aloud that publishing from the
+   Environment fails until it is set, and names the identity in the folded details when it
+   was set. The exit code of `lazurio tools login gh` still follows the SSH key alone.
+6. **The per-commit fallback stays.** Lazurio's own commits (F9's addendum, F52) keep
+   `identitySettings`: an Environment whose gh was signed in by hand, before this change,
+   or where the write failed still gets those commits right, and the fallback never
+   overrides git. Environments already in use are fixed separately; this changes new
+   sign-ins.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep writing nothing; every app passes `git -c` | Each committing app (data publishes, agents) would need its own copy of the rule; the failure was exactly an app that does not |
+| Set the identity at Environment provisioning (Machines) | The Machine does not know the person's GitHub identity before gh signs in, and a Team Environment would get a person's name |
+| Overwrite with the GitHub identity on every sign-in | Changes an identity the person chose (a workstation's work address); rejected ("only when missing") |
+| A repository-local identity in each checkout | Misses every checkout made later; the global configuration is where git looks |
+
+Tests: `tests/tools-git-identity.test.ts` (through the login sessions with the system's
+git under a temporary home: missing → set from `gh api user`, the login without a profile
+name, present → unchanged and GitHub not asked, only the missing field added, system or
+included configuration counts as present, GitHub silent or another account → nothing
+written, a refused write, the Team rule turning true right before the write → `blocked`
+and nothing written, a Team Environment → git never run); `tests/tools-curated-cli.test.ts`
+(the CLI's lines); `tests/tools-view.test.ts` (the Launchpad's parsing and sentence).
+Risks: a person who wants another address must change it themselves (as on a
+workstation); the step is not tested on Windows here (the curated gh flow is qualified on
+Linux and macOS), though `git config --global` behaves the same there.
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
