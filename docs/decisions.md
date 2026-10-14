@@ -10971,7 +10971,8 @@ stack templates here are the only ones that change.
    repository. The report adds `organization` (`slug`, `github`, `directory`) and
    `teams` (each Team's slug, GitHub slug and permission); the digest covers both.
 3. **The plan's checks**, reading only and asking GitHub only GETs, in order: the name
-   and the stack; `--teams` (`teams-required`); the Folder's preset; the Organization
+   and the stack; `--teams` (`teams-required`); the Folder's preset, read or refused
+   (`folder-unavailable`: an unreadable one might be a Team Environment's); the Organization
    in the catalog (`organization_not_found`, `organization_ambiguous`), resolving
    cleanly (`organization_manifest_not_mutation_safe`) and bound to a GitHub login
    (`organization-not-bound`); gh's account an active Owner (`github-signed-out`,

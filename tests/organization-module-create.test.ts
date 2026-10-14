@@ -411,6 +411,23 @@ describe("refusals, before anything is written", () => {
     );
     expect(team.setup.calls).toEqual([]);
     expect(team.report.scope).toBe("organization");
+    // A Folder whose preset cannot be read might be a Team Environment.
+    const unreadable = await scenario({ worktree: true });
+    await writeFile(
+      join(unreadable.folder, ".lazurio", "preferences.json"),
+      "{not json",
+    );
+    const blind = await dryRun(unreadable);
+    expect(blind.reason).toBe("folder-unavailable");
+    expect(unreadable.calls).toEqual([]);
+    const blindRun = await createModule(
+      { ...request(unreadable), confirm: `sha256:${"0".repeat(64)}` },
+      runHost(unreadable),
+    );
+    expect(blindRun.reason).toBe("folder-unavailable");
+    expect(unreadable.calls.map((call) => call.kind)).not.toContain(
+      "createRepository",
+    );
     const missing = await refusal({}, "organization_not_found", {
       selector: "Globex/portal",
     });

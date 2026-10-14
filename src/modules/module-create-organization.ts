@@ -123,7 +123,14 @@ export async function planOrganizationModule(
 
   // 1. Not a Team Environment: it acts under the Team's brokered identity
   // and never founds modules (root 0185 point 6, F36 addendum).
+  // Fail closed: a Folder whose preset cannot be read might be one.
   const preset = await folderPreset(request.folder);
+  if (preset === null)
+    throw new ModuleCreateRefusal(
+      "folder-unavailable",
+      "This Folder's preferences cannot be read, so it is not known whether this is a Team Environment, which never creates modules.",
+      "Repair the Folder (lazurio doctor shows how), then run the command again.",
+    );
   if (preset === "hosted-organization-team")
     throw new ModuleCreateRefusal(
       "team-environment",

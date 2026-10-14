@@ -65,7 +65,8 @@ module create <Organization>/<module> --stack <stack> --teams <team,team> [--nam
   GitHub: unknown_team, team-not-on-github, team-binding-mismatch), checked out
   in the Organization root's workspace/<module>. Only an active Owner of the
   Organization creates one (organization-owner-required), never a Team
-  Environment (team-environment); the Organization root resolves cleanly
+  Environment (team-environment; a Folder whose preset cannot be read is
+  folder-unavailable); the Organization root resolves cleanly
   (organization_not_found, organization_manifest_not_mutation_safe) and its
   module_port_pool stays out of 23000-23099 (organization-pool-invalid). The
   real run runs from a task worktree of the Organization root in
