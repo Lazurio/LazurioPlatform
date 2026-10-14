@@ -19,6 +19,7 @@ import {
   parseIntegrations,
   type Removals,
   removalKey,
+  removalRechecks,
   removalStep,
   removalsRead,
   serverLine,
@@ -842,10 +843,17 @@ test("Odpojit: the row says Odpojuji… from the confirmation until the reading 
   });
   // The other account of the app is untouched.
   expect(row(home, removals)).toMatchObject({ line: null, busy: false });
-  // A reading while the removal still runs keeps the row busy.
-  removals = removalsRead(removals);
-  expect(row(work, removals).busy).toBe(true);
-  // The removal answered: still "Odpojuji…" until the reading after it.
+  // The readings: with both accounts, and after "Práce" went.
+  const both = overview([{ ...gmail, accounts: [work, home] }]);
+  const without = overview([{ ...gmail, accounts: [home] }]);
+  // A reading while the removal still runs keeps the row busy, whatever it
+  // lists, and asks for nothing.
+  for (const reading of [both, without, null]) {
+    const read = removalsRead(removals, reading);
+    expect(read.again).toBe(false);
+    expect(row(work, read.removals).busy).toBe(true);
+  }
+  // The removal answered: still "Odpojuji…" until a reading without it.
   removals = removalStep(removals, removalKey(gmail, work), {
     kind: "answered",
     failure: null,
@@ -855,8 +863,10 @@ test("Odpojit: the row says Odpojuji… from the confirmation until the reading 
     busy: true,
   });
   // That reading no longer lists the account; nothing of it is kept.
-  removals = removalsRead(removals);
-  expect(removals.size).toBe(0);
+  expect(removalsRead(removals, without)).toEqual({
+    removals: new Map(),
+    again: false,
+  });
   // An Executor account's "Odpojit" in the row goes the same way, and a
   // failure brings the row back with why, its "Odpojit" again.
   removals = removalStep(removals, removalKey(notion, direct), {
@@ -887,12 +897,17 @@ test("Odpojit: the row says Odpojuji… from the confirmation until the reading 
     retry: "Přihlásit znovu",
     failed: true,
   });
-  // The next reading shows the account as it is.
-  expect(row(direct, removalsRead(removals))).toMatchObject({
+  // The next successful reading shows the account as it is; a failed one
+  // keeps why.
+  const withDirect = overview([{ ...notion, accounts: [direct] }]);
+  expect(
+    row(direct, removalsRead(removals, withDirect).removals),
+  ).toMatchObject({
     line: null,
     failed: false,
     busy: false,
   });
+  expect(row(direct, removalsRead(removals, null).removals).failed).toBe(true);
   expect(
     accountView(notion, direct, en, true, { state: "removing" }).line,
   ).toBe("Disconnecting…");
@@ -1015,4 +1030,121 @@ test("the line about Composio's update: only where the reading offers it, busy u
       expect(locale[key]).not.toMatch(/build|sestaven|fork|CLI|pin|verz/i);
   expect(cs.integrationsComposioUpdated).toBe("Composio je aktualizované.");
   expect(en.integrationsComposioUpdated).toBe("Composio is updated.");
+});
+
+// Pablo's review of #417: only a successful reading that no longer lists the
+// account ends "Odpojit". A refresh that fails, a reading that still lists
+// the account (Composio's list may lag) and a reading that overlaps the
+// removal keep the row waiting; the page reads again at most twice, then a
+// stale list draws the row as it is with a plain line.
+test("Odpojit waits for a successful reading without the account: a failed, a stale and an overlapping refresh", () => {
+  const gmail = app("gmail", {
+    path: { path: "composio", signIn: false },
+    connected: true,
+  });
+  const work: IntegrationAccount = {
+    path: "composio",
+    selector: "ca_1",
+    label: "Práce",
+    state: "connected",
+    spare: false,
+    manage: manageGmail,
+  };
+  const key = removalKey(gmail, work);
+  const listing = overview([{ ...gmail, accounts: [work] }]);
+  const gone = overview([{ ...gmail, accounts: [] }]);
+  const row = (removals: Removals) =>
+    accountView(gmail, work, cs, true, removals.get(key));
+  const answered = removalStep(
+    removalStep(new Map(), key, { kind: "confirmed" }),
+    key,
+    { kind: "answered", failure: null },
+  );
+  expect(answered.get(key)).toEqual({ state: "removed", checks: 0 });
+  expect(removalRechecks).toBe(2);
+
+  // A failed refresh: the row keeps waiting, and the page reads again,
+  // twice at most; then it waits for a reading that succeeds (the page says
+  // the Integrace could not be read), which ends it once the account is
+  // gone.
+  let removals: Removals = answered;
+  for (const expected of [true, true, false]) {
+    const read = removalsRead(removals, null);
+    expect(read.again).toBe(expected);
+    removals = read.removals;
+    expect(row(removals)).toMatchObject({ line: "Odpojuji…", busy: true });
+  }
+  expect(removalsRead(removals, gone).removals.size).toBe(0);
+
+  // A stale refresh: a successful reading that still lists the account
+  // keeps "Odpojuji…" and reads again; after two more such readings the row
+  // is drawn as it is, with its actions and one plain line.
+  removals = answered;
+  for (const expected of [true, true]) {
+    const read = removalsRead(removals, listing);
+    expect(read.again).toBe(expected);
+    removals = read.removals;
+    expect(row(removals).busy).toBe(true);
+  }
+  const stale = removalsRead(removals, listing);
+  expect(stale.again).toBe(false);
+  expect(row(stale.removals)).toEqual({
+    name: "Práce",
+    line: "Odpojeno, ale ještě se tu ukazuje. Za chvíli zkontrolujte připojení.",
+    retry: null,
+    disconnect: false,
+    menu: {
+      label: "Další volby pro Práce v aplikaci Gmail",
+      manage: manageGmail,
+      disconnect: true,
+    },
+    busy: false,
+    failed: false,
+  });
+  expect(accountView(gmail, work, en, true, stale.removals.get(key)).line).toBe(
+    "Disconnected, but it still shows here. Check connections in a moment.",
+  );
+  // It stays so while readings list it or fail, and goes with a reading
+  // without it; "Odpojit" again starts over.
+  expect(removalsRead(stale.removals, listing).removals.get(key)).toEqual({
+    state: "listed",
+  });
+  expect(removalsRead(stale.removals, null).removals.get(key)).toEqual({
+    state: "listed",
+  });
+  expect(removalsRead(stale.removals, gone).removals.size).toBe(0);
+  expect(
+    removalStep(stale.removals, key, { kind: "confirmed" }).get(key),
+  ).toEqual({ state: "removing" });
+
+  // A refresh overlapping the removal: a reading that completes while it
+  // runs, with the account or already without it, changes nothing; only the
+  // reading after its answer counts.
+  let overlapping: Removals = removalStep(new Map(), key, {
+    kind: "confirmed",
+  });
+  for (const reading of [listing, gone, null]) {
+    const read = removalsRead(overlapping, reading);
+    expect(read).toEqual({ removals: overlapping, again: false });
+  }
+  overlapping = removalStep(overlapping, key, {
+    kind: "answered",
+    failure: null,
+  });
+  expect(row(overlapping).busy).toBe(true);
+  expect(removalsRead(overlapping, gone)).toEqual({
+    removals: new Map(),
+    again: false,
+  });
+  // A failed removal goes with a successful reading, whatever it lists.
+  const failed = removalStep(
+    removalStep(new Map(), key, { kind: "confirmed" }),
+    key,
+    { kind: "answered", failure: cs.integrationsDisconnectFailed },
+  );
+  expect(removalsRead(failed, listing).removals.size).toBe(0);
+  expect(removalsRead(failed, null).removals.get(key)).toEqual({
+    state: "failed",
+    text: "Účet se nepodařilo odpojit.",
+  });
 });

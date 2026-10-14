@@ -391,7 +391,8 @@ export type AccountView = Readonly<{
    * identity its list gives), else "účet". */
   name: string;
   /** Why it is not active, or that it is on another way; "Odpojuji…" while
-   * it is being disconnected, or why that failed; none when ok. */
+   * it is being disconnected, why that failed, or that it still shows after
+   * it was disconnected; none when ok. */
   line: string | null;
   /** Being disconnected: the row is dimmed with a spinner, and its
    * actions wait (`Removal`). */
@@ -425,6 +426,8 @@ export function accountView(
   if (removal === undefined) return view;
   if (removal.state === "failed")
     return { ...view, line: removal.text, failed: true };
+  if (removal.state === "listed")
+    return { ...view, line: copy.integrationsDisconnectStillListed };
   return {
     ...view,
     line: copy.integrationsDisconnecting,
@@ -485,16 +488,22 @@ function accountState(
   return { name, line, retry, disconnect, menu, busy: false, failed: false };
 }
 
-/** "Odpojit" of one account, from the person's confirmation until the
- * reading after it (decision F42, addendum (b) of 2026-10-14): Composio may
- * take a few seconds to remove an account and the page as long to read again,
- * so the row says "Odpojuji…" all that time. `removing`: the removal runs;
- * `removed`: it answered, and the reading after it runs; `failed`: it did
- * not, and the row says why until the next reading or a new attempt. */
+/** "Odpojit" of one account, from the person's confirmation until a reading
+ * that no longer lists it (decision F42, addendum (b) of 2026-10-14):
+ * Composio may take a few seconds to remove an account and the page as long
+ * to read again, so the row says "Odpojuji…" all that time. `removing`: the
+ * removal runs; `removed`: it answered that the account is disconnected, and
+ * no successful reading without the account has come in yet (`checks`: the
+ * readings since that did not show it gone); `failed`: it did not
+ * disconnect, and the row says why until the next successful reading or a new
+ * attempt; `listed`: it was disconnected, but successful readings still list
+ * the account after the re-reads (`removalRechecks`), so the row is drawn as
+ * it is with one plain line, until a reading without it. */
 export type Removal =
   | Readonly<{ state: "removing" }>
-  | Readonly<{ state: "removed" }>
-  | Readonly<{ state: "failed"; text: string }>;
+  | Readonly<{ state: "removed"; checks: number }>
+  | Readonly<{ state: "failed"; text: string }>
+  | Readonly<{ state: "listed" }>;
 
 export type Removals = ReadonlyMap<string, Removal>;
 
@@ -522,18 +531,56 @@ export function removalStep(
     next.set(
       key,
       event.failure === null
-        ? { state: "removed" }
+        ? { state: "removed", checks: 0 }
         : { state: "failed", text: event.failure },
     );
   return next;
 }
 
-/** The removals once a reading came in: what it shows is the truth, so only
- * a removal still running stays. */
-export function removalsRead(removals: Removals): Removals {
-  return new Map(
-    [...removals].filter(([, removal]) => removal.state === "removing"),
-  );
+/** How many readings after a removal answered may still show the account
+ * (or fail) before the page stops reading again by itself: Composio's list
+ * may lag behind a removal for a moment. */
+export const removalRechecks = 2;
+
+/** How long the page waits before it reads again for a removal. */
+export const removalRecheckMs = 1_500;
+
+/** The removals once a reading completed: `reading` is the overview it
+ * answered, or null where it failed or answered something the page does not
+ * take. Only a successful reading that no longer lists an account ends its
+ * removal; a running removal waits for its answer whatever is read; a failed
+ * or stale reading keeps "Odpojuji…" and asks for another reading (`again`)
+ * at most `removalRechecks` times. After them, a successful reading that
+ * still lists the account draws it as it is (`listed`); a failing one keeps
+ * the row waiting, and the page says the Integrace could not be read. */
+export function removalsRead(
+  removals: Removals,
+  reading: IntegrationsOverview | null,
+): Readonly<{ removals: Removals; again: boolean }> {
+  const shown =
+    reading === null
+      ? null
+      : new Set(
+          reading.apps.flatMap((app) =>
+            app.accounts.map((account) => removalKey(app, account)),
+          ),
+        );
+  const next = new Map<string, Removal>();
+  let again = false;
+  for (const [key, removal] of removals) {
+    const gone = shown !== null && !shown.has(key);
+    if (removal.state === "removing") next.set(key, removal);
+    else if (removal.state === "removed") {
+      if (gone) continue;
+      if (removal.checks < removalRechecks) {
+        next.set(key, { state: "removed", checks: removal.checks + 1 });
+        again = true;
+      } else next.set(key, shown === null ? removal : { state: "listed" });
+    } else if (removal.state === "failed") {
+      if (shown === null) next.set(key, removal);
+    } else if (!gone) next.set(key, removal);
+  }
+  return { removals: next, again };
 }
 
 /** Why "Odpojit" did not disconnect the account, from the route's answer;

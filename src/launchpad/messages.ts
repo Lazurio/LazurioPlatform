@@ -1238,6 +1238,8 @@ const en = {
     "Composio cannot disconnect from here yet: disconnect the account in Composio.",
   integrationsDisconnectFailed: "The account could not be disconnected.",
   integrationsDisconnecting: "Disconnecting…",
+  integrationsDisconnectStillListed:
+    "Disconnected, but it still shows here. Check connections in a moment.",
   integrationsComposioUpdate:
     "Update Composio to disconnect accounts here and see their names.",
   integrationsComposioUpdating: "Updating Composio…",
@@ -2653,6 +2655,8 @@ const cs: Record<MessageKey, string> = {
     "Composio odsud zatím odpojit nejde: účet odpojte v Composiu.",
   integrationsDisconnectFailed: "Účet se nepodařilo odpojit.",
   integrationsDisconnecting: "Odpojuji…",
+  integrationsDisconnectStillListed:
+    "Odpojeno, ale ještě se tu ukazuje. Za chvíli zkontrolujte připojení.",
   integrationsComposioUpdate:
     "Aktualizujte Composio, ať tu můžete účty odpojovat a vidět jejich jména.",
   integrationsComposioUpdating: "Aktualizuji Composio…",

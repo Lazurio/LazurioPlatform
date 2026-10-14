@@ -527,12 +527,16 @@ shown as a name.
   account; an Executor account keeps "Odpojit" in its row and has no menu.
 - "Odpojit" asks once, then the confirmation closes and the account's row says
   "Odpojuji…" ("Disconnecting…") with a spinner, dimmed, its "⋯" and "Odpojit"
-  waiting, until the reading after the removal no longer lists it (decision F42,
-  addendum (b) of 2026-10-14; `Removal`, `integrations-view.ts`). Removing a
-  Composio account and reading the page again take a few seconds. A removal that
-  fails brings the row back with why ("Účet se nepodařilo odpojit.", or what the
-  route's refusal means) in place of its line, until the next reading or another
-  attempt. A custom server's "Odebrat" keeps its confirmation open until it is
+  waiting, until a successful reading no longer lists it (decision F42, addendum
+  (b) of 2026-10-14; `Removal`, `removalsRead`, `integrations-view.ts`). Removing a
+  Composio account and reading the page again take a few seconds. A reading that
+  fails or still lists the account keeps the row waiting and the page reads again
+  after 1.5 s, at most twice; then a reading that still lists it draws the row as it
+  is with "Odpojeno, ale ještě se tu ukazuje. Za chvíli zkontrolujte připojení.",
+  and a failing one leaves it waiting under "Integrace se nepodařilo načíst." until
+  a reading succeeds. A removal that fails brings the row back with why ("Účet se
+  nepodařilo odpojit.", or what the route's refusal means) in place of its line,
+  until the next successful reading or another attempt. A custom server's "Odebrat" keeps its confirmation open until it is
   done, as before.
 - No rename: it needs a project API key, and the CLI has no rename. The provider's
   identity (`state.val.displayName`) is printed only by Lazurio's build; Composio's

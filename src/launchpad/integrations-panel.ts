@@ -50,6 +50,7 @@ import {
   parseIntegrations,
   type Removals,
   removalKey,
+  removalRecheckMs,
   removalStep,
   removalsRead,
   serverLine,
@@ -257,6 +258,8 @@ export function createIntegrationsPanel(
     const read = reads;
     loading = true;
     render();
+    /** What this reading answered, where it succeeded. */
+    let fresh: IntegrationsOverview | null = null;
     try {
       const { value, ok } = await options.get(
         refresh ? "/api/integrations?refresh=1" : "/api/integrations",
@@ -266,6 +269,7 @@ export function createIntegrationsPanel(
       if (parsed === null) failed = true;
       else {
         overview = parsed;
+        fresh = parsed;
         failed = false;
       }
     } catch {
@@ -273,9 +277,12 @@ export function createIntegrationsPanel(
     } finally {
       if (read === reads) {
         loading = false;
-        // What this reading shows is the truth: a finished "Odpojit" is
-        // drawn from it.
-        removals = removalsRead(removals);
+        // Only a successful reading without the account ends its "Odpojit";
+        // a failed or stale one keeps the row waiting and reads again, a
+        // bounded number of times (`removalsRead`).
+        const next = removalsRead(removals, fresh);
+        removals = next.removals;
+        if (next.again) setTimeout(() => void load(true), removalRecheckMs);
         drawAttention();
         if (deepLink !== null) openLinked(deepLink);
         render();
@@ -1652,8 +1659,14 @@ export function createIntegrationsPanel(
       body.replaceChildren();
       return;
     }
+    // A reading that failed says so above the last one it shows: a row
+    // waiting for "Odpojit" waits for a reading that succeeds.
     status.textContent =
-      loading && route.tab === "connected" ? copy.integrationsChecking : "";
+      loading && route.tab === "connected"
+        ? copy.integrationsChecking
+        : failed && !loading
+          ? copy.integrationsLoadFailed
+          : "";
     const problems: HTMLElement[] = sourceLines(overview, copy).map((line) => {
       const node = element("p", "callout", line);
       node.dataset.kind = "warning";

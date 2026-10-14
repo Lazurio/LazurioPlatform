@@ -7855,18 +7855,28 @@ person only if they found "Aktualizovat" in Settings → Tools; the Admin wants 
 to switch, told on Integrace "short and to the point". The reference is
 [integrations](integrations.md#lazurios-build-of-the-cli).
 
-1. **The row says "Odpojuji…" until the page has read again.** OK in the confirmation
-   closes it at once. The account's row is dimmed, a spinner stands before "Odpojuji…"
-   ("Disconnecting…") in place of its line, and its "⋯" and "Odpojit" wait. This holds
-   from the click until the reading after the removal, which no longer lists the
-   account: the removal and the reading after it are one wait for the person. A
-   reading that arrives while the removal still runs keeps the row waiting. A removal
-   that fails brings the row back with why, in its line ("Účet se nepodařilo
-   odpojit.", or what the route's refusal means, as the dialog said before), and its
-   actions again, until the next reading or another attempt. The page's state is
-   `Removal` (`removing`, `removed`, `failed`) by account (`removalKey`,
-   `integrations-view.ts`); the route is unchanged. A custom server's "Odebrat" keeps
-   its dialog open until it is done, as before.
+1. **The row says "Odpojuji…" until a reading without the account.** OK in the
+   confirmation closes it at once. The account's row is dimmed, a spinner stands
+   before "Odpojuji…" ("Disconnecting…") in place of its line, and its "⋯" and
+   "Odpojit" wait. This holds from the click until a successful reading that no
+   longer lists the account (by its app, path and selector): the removal and the
+   reading after it are one wait for the person. A reading that completes while the
+   removal still runs changes nothing. After the removal answered, a reading that
+   fails or still lists the account (Composio's list may lag) keeps the row waiting
+   and the page reads again after 1.5 s, at most twice (`removalRechecks`), never
+   polling beyond that. Then a reading that still lists the account draws the row as
+   it is, its actions back, with one plain line: "Odpojeno, ale ještě se tu ukazuje.
+   Za chvíli zkontrolujte připojení." / "Disconnected, but it still shows here. Check
+   connections in a moment.", until a reading without it. Where readings keep
+   failing, the row keeps waiting and the page says "Integrace se nepodařilo
+   načíst." under the tabs (also for any failed reading while an older one is
+   shown), until "Zkontrolovat připojení" reads successfully. A removal that fails
+   brings the row back with why, in its line ("Účet se nepodařilo odpojit.", or what
+   the route's refusal means, as the dialog said before), and its actions again,
+   until the next successful reading or another attempt. The page's state is
+   `Removal` (`removing`, `removed`, `failed`, `listed`) by account (`removalKey`,
+   `removalsRead`, `integrations-view.ts`); the route is unchanged. A custom
+   server's "Odebrat" keeps its dialog open until it is done, as before.
 2. **One line where Composio should be updated.** The reading's `composio.update` is
    true where Composio is on here (`ready`: allowed, installed, signed in, on for
    agents) and its row in Settings → Tools offers "Update": a `launchpad` tool this
@@ -7899,6 +7909,8 @@ to switch, told on Integrace "short and to the point". The reference is
 | --- | --- |
 | Keep the dialog open with a spinner until the removal answers | The failure stays where it was said before; but the person still waits for the reading after the dialog closes, with nothing shown, which is the two seconds asked about; rejected: one wait, on the row |
 | Remove the row at once, before the reading | Feels instant; but the reading is the truth, and a removal Composio did not finish would show as done; rejected |
+| End the wait with any reading after the removal | Simplest; but a failed or lagging reading still shows the account and would offer "Odpojit" again (Pablo's review of #417); rejected: only a successful reading without the account ends it |
+| Read again until the account is gone | Always ends right; but endless reading where Composio's list keeps it, each reading up to two `composio` processes; rejected: two re-reads, then the row as it is with a plain line |
 | A global spinner (the refresh button) only | No new state; but it does not say which account, and it already spins on every reading; rejected |
 | Link to Settings → Tools instead of a button | No second place that starts the update; but one more page and a second click between the person and the switch the Admin wants everyone to make; rejected: the same route, one click |
 | Update Composio without asking, at the Launchpad's start | Everyone switches at once; but an update of the person's tool they did not ask for (decision 0161); rejected, as in addendum (3) |
@@ -7906,8 +7918,10 @@ to switch, told on Integrace "short and to the point". The reference is
 | Compute "not the build" in the page from the version | No new field; but the page would need the tools reading and repeat the rule of Settings → Tools; rejected: the server answers `update` from the same rule |
 
 Verified by tests:
-- The row while "Odpojit" runs, after it answered, after the reading and after a
-  failure, by account; "Odpojuji…" in both languages; why a removal failed, from the
+- The row while "Odpojit" runs, after it answered, after a reading without the
+  account and after a failure, by account; a failed refresh, a stale one (re-read
+  twice, then the plain line) and one that overlaps the removal; "Odpojuji…" in
+  both languages; why a removal failed, from the
   route's answers; the line about the update only where the reading offers it, while
   the update runs, after a failure, its texts in both languages without technical
   words, and only `tool-updated` as an update; a reading without `update` refused
