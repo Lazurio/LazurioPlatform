@@ -83,6 +83,7 @@ for (const stop of [
   "manual-directory",
   "instructions",
   "manual",
+  "skills",
   "preferences",
   "manifest",
   "layout",
@@ -207,6 +208,8 @@ test.skipIf(process.platform === "win32")(
         revision: 1,
       });
       expect((await readdir(folder)).sort()).toEqual([
+        ".agents",
+        ".claude",
         ".lazurio",
         "AGENTS.md",
         "manual",
@@ -320,7 +323,6 @@ for (const stop of ["journal", "manual-directory"] as const)
             ".lazurio-generated",
             "glossary.md",
             "lazurio.md",
-            "new-module.md",
             "roles.md",
             "this-machine.md",
             "troubleshooting.md",
@@ -354,7 +356,7 @@ test.skipIf(process.platform === "win32")(
         kind: "recovered",
         revision: 1,
       });
-      expect((await readdir(join(folder, "manual"))).sort()).toHaveLength(8);
+      expect((await readdir(join(folder, "manual"))).sort()).toHaveLength(7);
       expect(await resumeInitialization(folder)).toEqual({
         kind: "recovered",
         revision: 1,

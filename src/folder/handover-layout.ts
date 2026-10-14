@@ -17,8 +17,17 @@ export type PersonalspacePolicy = "present" | "never";
 // The Folder owns exactly these top-level entries; everything else is the
 // operator's. The two legacy launchpad files are tolerated by name only. A
 // `manual/` without recorded digests is a foreign entry like any other: it is
-// refused by name, never adopted or overwritten.
-const owned = ["AGENTS.md", "manual", ".lazurio"] as const;
+// refused by name, never adopted or overwritten. `.agents/` and `.claude/`
+// hold the Folder's skills (decision F14, addendum of 2026-10-14) beside
+// whatever a harness or the person keeps there; only the skill files are
+// Lazurio's, and before the Folder has state they are foreign like the rest.
+const owned = [
+  "AGENTS.md",
+  "manual",
+  ".agents",
+  ".claude",
+  ".lazurio",
+] as const;
 const tolerated = [
   "organizations",
   "personalspace",

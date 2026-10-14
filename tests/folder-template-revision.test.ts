@@ -22,7 +22,7 @@ import { bindings } from "./fixtures/machine-bindings";
 // compositions too.
 const pinned = {
   revision: "base-instructions-51",
-  digest: "3d0b356c684017e5650a89eabc57592d6ecba900231434e49f2745bde315f175",
+  digest: "c7320750e9a1d09eb5cd3c050fd88add9f0abdd7d13915430afa0fa59766bd4e",
 } as const;
 
 const optionalTools = activatableTools()

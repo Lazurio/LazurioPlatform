@@ -1,5 +1,9 @@
 import { join } from "node:path";
-import { outputFile, outputPaths } from "../../src/folder/outputs";
+import {
+  outputDirectories,
+  outputFile,
+  outputPaths,
+} from "../../src/folder/outputs";
 import { outputDigests, previewFolder } from "../../src/folder/preview";
 import { mkdirOwnedFixture, writeOwnedFixture } from "./owned-files";
 
@@ -19,7 +23,8 @@ export async function writeRenderedFolder(
   const preview = await previewFolder(source, null, async () => ({
     kind: "absent",
   }));
-  await mkdirOwnedFixture(join(folder, "manual"));
+  for (const directory of new Set(outputPaths.flatMap(outputDirectories)))
+    await mkdirOwnedFixture(join(folder, directory));
   for (const path of outputPaths) {
     const { directory, name } = outputFile(folder, path);
     await writeOwnedFixture(

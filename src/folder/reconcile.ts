@@ -80,7 +80,7 @@ export function planOutputs(
 
 // What a manifest's record says about one output, as the planner reads an
 // observation: its recorded digest, or absent where the manifest owns no such
-// output (schema 2 before `manual/new-module.md`, decision F14 addendum of
+// output (schema 2 before the skills, decision F14 addendum of
 // 2026-10-14).
 export function recordedFile(
   recorded: Readonly<Partial<Record<OutputPath, string>>>,

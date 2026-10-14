@@ -9,6 +9,7 @@ import {
   parseInstructionSource,
   renderInstructions,
 } from "./render";
+import { renderSkills } from "./skills";
 import {
   isDigest,
   type OutputDigests,
@@ -21,13 +22,15 @@ export type DesiredOutputs = Readonly<
   Record<OutputPath, Readonly<{ content: string; digest: string }>>
 >;
 
-// Every generated file of the Folder from one validated composition: AGENTS.md
-// and the manual, both in the profile locale (decision F14).
+// Every generated file of the Folder from one validated composition: AGENTS.md,
+// the manual and the skills, all in the profile locale (decision F14 and its
+// addendum of 2026-10-14).
 export function renderOutputs(input: unknown): RenderedOutputs {
   const source = parseInstructionSource(input);
   return Object.freeze({
     "AGENTS.md": renderInstructions(source),
     ...renderManual(source),
+    ...renderSkills(source),
   });
 }
 

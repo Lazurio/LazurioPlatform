@@ -1,13 +1,14 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import {
+  chmod,
   lstat,
   mkdir,
   mkdtemp,
-  readdir,
   readFile,
   realpath,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -18,11 +19,11 @@ import {
 } from "../src/folder/apply-preparation";
 import { inspectPreparation } from "../src/folder/inspect-preparation";
 import { withFolderOperationLock } from "../src/folder/lock";
-import { renderManual } from "../src/folder/manual";
 import {
   manifestOutputPaths,
   manualPaths,
   outputPaths,
+  skillPaths,
 } from "../src/folder/outputs";
 import {
   type PreparationStep,
@@ -35,6 +36,7 @@ import {
   newModuleLine,
 } from "../src/folder/render";
 import { retireIncompletePreparation } from "../src/folder/retire-preparation";
+import { renderSkills } from "../src/folder/skills";
 import {
   folderStateSchemas,
   instructionManifestSchema,
@@ -53,12 +55,14 @@ import { journeys } from "./fixtures/journeys";
 import { binding } from "./fixtures/machine-bindings";
 import personal from "./fixtures/machine-context-personal.json";
 
-// The Folder's page for a new module (decision F14, addendum of 2026-10-14):
-// what an agent does when the person says "Chci postavit nový modul". The
-// page is the seventh manual file, so a Folder an earlier release rendered
-// (manifest schema 2, six manual files) gains it in its next upgrade.
+// The Folder's agent skills (decision F14, addendum of 2026-10-14): the skill
+// `new-module` as one SKILL.md for Codex (`.agents/skills/`) and the same
+// bytes for Claude Code (`.claude/skills/`). They are new outputs, so a
+// Folder an earlier release rendered (manifest schema 2: AGENTS.md and the
+// manual) gains them, and their directories, in its next upgrade.
 
-const page = "manual/new-module.md" as const;
+const codex = ".agents/skills/new-module/SKILL.md" as const;
+const claude = ".claude/skills/new-module/SKILL.md" as const;
 
 function rendered(journey: (typeof journeys)[number], locale: "cs" | "en") {
   return renderOutputs({
@@ -68,40 +72,82 @@ function rendered(journey: (typeof journeys)[number], locale: "cs" | "en") {
   });
 }
 
-test("the new-module page is a manual file in both locales, after Working here, and a manifest of schema 2 does not own it", () => {
-  expect(manualPaths).toContain(page);
-  expect(outputPaths.indexOf(page)).toBe(
-    outputPaths.indexOf("manual/working-here.md") + 1,
-  );
+// The YAML frontmatter both harnesses read: `name` and a double-quoted
+// `description`.
+function frontmatter(text: string) {
+  const match = /^---\nname: ([a-z-]+)\ndescription: (".*")\n---\n/.exec(text);
+  if (!match) throw new Error("No frontmatter");
+  return {
+    name: match[1],
+    description: JSON.parse(match[2] ?? "") as string,
+  };
+}
+
+test("the skills are outputs after the manual, one file per harness, and a manifest of schema 2 owns none of them", () => {
+  expect(skillPaths).toEqual([codex, claude]);
+  expect(outputPaths).toEqual(["AGENTS.md", ...manualPaths, ...skillPaths]);
+  expect(manualPaths).not.toContain("manual/new-module.md" as never);
   expect(manifestOutputPaths[3]).toEqual(outputPaths);
-  expect(manifestOutputPaths[2]).toEqual(
-    outputPaths.filter((path) => path !== page),
-  );
+  expect(manifestOutputPaths[2]).toEqual(["AGENTS.md", ...manualPaths]);
   expect(instructionManifestSchema).toBe(3);
   expect(folderStateSchemas.manifest).toEqual([2, 3]);
 });
 
-test("every Environment renders the new-module page in its locale: the trigger, the interview first, the agent's technical choices, the confirmations and the route its presets allow", () => {
+test("every Environment renders the skill new-module in its locale, the same bytes for Codex and Claude Code: what a module is, the interview first, the agent's technical choices, the plan and the route its preset allows", () => {
   for (const journey of journeys)
     for (const locale of ["cs", "en"] as const) {
       const outputs = rendered(journey, locale);
-      const text = outputs[page];
+      const text = outputs[codex];
       const cs = locale === "cs";
       const personal =
         workspacePreset(journey.preset).personalspace === "present";
       const organizations = journey.preset !== "hosted-personal";
-      expect(text.startsWith(cs ? "# Nový modul\n" : "# A new module\n")).toBe(
-        true,
-      );
+      expect(outputs[claude]).toBe(text);
+      // The frontmatter: the name and a description that triggers on a new
+      // module, app, tool, overview or website and on the brief.
+      const { name, description } = frontmatter(text);
+      expect(name).toBe("new-module");
+      for (const word of cs
+        ? ["modul", "aplikaci", "nástroj", "přehled", "web", "+ Nový modul"]
+        : ["module", "app", "tool", "overview", "website", "+ Nový modul"])
+        expect([word, description.includes(word)]).toEqual([word, true]);
+      expect(description.length).toBeLessThan(1024);
+      expect(text).toContain(cs ? "\n# Nový modul\n" : "\n# A new module\n");
       expect(text).toContain(`<!-- ${instructionTemplateRevision}; `);
-      // The trigger in both languages, whatever the Folder's locale.
-      expect(text).toContain("Chci postavit nový modul");
-      expect(text).toContain("I want to build a new module");
-      // The interview first, one question at a time, and a confirmed summary.
+      // What a module is and why, before the interview.
+      const what = text.indexOf(
+        cs ? "## Co je modul a proč" : "## What a module is and why",
+      );
       const interview = text.indexOf(
         cs ? "## 1. Rozhovor o účelu" : "## 1. The interview about the purpose",
       );
-      expect(interview).toBeGreaterThan(0);
+      expect(what).toBeGreaterThan(0);
+      expect(interview).toBeGreaterThan(what);
+      for (const phrase of cs
+        ? [
+            "**Rozhraní pro lidi.**",
+            "**Místo pro data a pro agenty.**",
+            "**Vlastní procesy a skilly.**",
+            "`.agents/skills/`",
+            "**samostatný Git repozitář**",
+            "Nikdy ho nezakládej ručně",
+          ]
+        : [
+            "**A UI for people.**",
+            "**A place for data and for agents.**",
+            "**Processes and skills of its own.**",
+            "`.agents/skills/`",
+            "**a Git repository of its own**",
+            "Never create it by hand",
+          ]) {
+        expect([phrase, text.indexOf(phrase) > what]).toEqual([phrase, true]);
+        expect([phrase, text.indexOf(phrase) < interview]).toEqual([
+          phrase,
+          true,
+        ]);
+      }
+      // The interview: one non-technical question at a time, a summary and
+      // a "yes".
       for (const phrase of cs
         ? [
             "jaký problém má modul vyřešit",
@@ -110,6 +156,7 @@ test("every Environment renders the new-module page in its locale: the trigger, 
             "co se má dít samo",
             "dobrá první verze",
             "**Jedna otázka v jedné zprávě**",
+            "jen na to, co člověk ještě neřekl",
             "**Na techniku se neptej.**",
             "počkej na jeho „ano“",
           ]
@@ -120,10 +167,14 @@ test("every Environment renders the new-module page in its locale: the trigger, 
             "what should happen on its own",
             "a good first version",
             "**One question per message**",
+            "only about what the person has not said yet",
             "**Do not ask about technology.**",
             "wait for their “yes”",
           ])
-        expect(text.indexOf(phrase)).toBeGreaterThan(interview);
+        expect([phrase, text.indexOf(phrase) > interview]).toEqual([
+          phrase,
+          true,
+        ]);
       // The stacks the agent chooses from are exactly the generator's, in its
       // order, each explained in one line.
       const stacks = [...text.matchAll(/^- `([a-z-]+)`: /gm)].map(
@@ -132,6 +183,23 @@ test("every Environment renders the new-module page in its locale: the trigger, 
       expect(stacks.slice(0, moduleScaffoldStacks.length)).toEqual([
         ...moduleScaffoldStacks,
       ]);
+      // The data in repository-db first; a database (Neon) only later, never
+      // for a new module (root decision 0196 point 8).
+      for (const phrase of [
+        "github:Lazurio/repository-db#v3.x.y",
+        "`<slug>-data`",
+        "`db/`",
+        "**Neon**",
+        "0196",
+        cs
+          ? "**U nového modulu databázi nikdy nezakládej.**"
+          : "**Never create a database for a new module.**",
+      ])
+        expect([phrase, text.includes(phrase)]).toEqual([phrase, true]);
+      // The plan before anything is created.
+      expect(text).toContain(
+        cs ? "## 4. Plán k potvrzení" : "## 4. The plan to confirm",
+      );
       // The personal route, only where this Environment has a Personalspace.
       for (const command of [
         "lazurio module create personalspace/<slug> --stack <stack> --name '",
@@ -139,38 +207,38 @@ test("every Environment renders the new-module page in its locale: the trigger, 
         "--confirm <plan> --json",
         'worktree add -b <branch> "$PWD/personalspace/.worktrees/<task>" main',
         "gh repo view <login>/<slug> --json isPrivate,owner",
+        "repository-db init --app <slug> --remote git@github.com:<login>/<slug>-data.git --branch v3 --mount db",
+        "gh repo view <login>/<slug>-data --json isPrivate",
         "lazurio module start personalspace/<slug> --json",
         "`plan-changed`",
         "`personalspace_root_on_main`",
         "`create-uncertain`",
       ])
-        expect(text.includes(command)).toBe(personal);
+        expect([command, text.includes(command)]).toEqual([command, personal]);
       expect(text.includes("`personalspace-not-here`")).toBe(!personal);
       // An Organization's module: said plainly, never improvised.
       expect(text.includes("`organization-form-unavailable`")).toBe(
         organizations,
       );
       expect(text.includes("Lazurio/LazurioPlatform#267")).toBe(organizations);
-      // AGENTS.md points to the page, and its manual index lists it.
+      // No flag the generator does not have.
+      expect(text).not.toContain("--data");
+      // AGENTS.md points to the skill; the manual has no page for it.
       expect(outputs["AGENTS.md"]).toContain(newModuleLine[locale]);
-      expect(outputs["AGENTS.md"]).toContain(
-        cs
-          ? "- [Nový modul](manual/new-module.md) — "
-          : "- [A new module](manual/new-module.md) — ",
-      );
+      expect(outputs["AGENTS.md"]).not.toContain("manual/new-module.md");
     }
 });
 
-test("the new-module page has the same sections in both languages on every preset", () => {
+test("the skill has the same sections in both languages on every preset", () => {
   for (const journey of journeys) {
-    const page = (locale: "cs" | "en") =>
-      renderManual({
+    const skill = (locale: "cs" | "en") =>
+      renderSkills({
         preset: journey.preset,
         machine: journey.machine,
         profile: presetProfile(journey.preset, journey.os, { locale }),
-      })["manual/new-module.md"].split("\n");
-    const cs = page("cs");
-    const en = page("en");
+      })[codex].split("\n");
+    const cs = skill("cs");
+    const en = skill("en");
     expect(cs.length).toBe(en.length);
     expect(cs.map((line) => /^#+ /.exec(line)?.[0] ?? "")).toEqual(
       en.map((line) => /^#+ /.exec(line)?.[0] ?? ""),
@@ -178,7 +246,7 @@ test("the new-module page has the same sections in both languages on every prese
   }
 });
 
-test("a manifest of schema 2 owns exactly the outputs before the new-module page; schema 3 owns every output", () => {
+test("a manifest of schema 2 owns exactly AGENTS.md and the manual; schema 3 owns every output", () => {
   const digest = "a".repeat(64);
   const digests = (paths: readonly string[]) =>
     Object.fromEntries(paths.map((path) => [path, digest]));
@@ -191,11 +259,11 @@ test("a manifest of schema 2 owns exactly the outputs before the new-module page
   const older = parseInstructionManifest(manifest(2, manifestOutputPaths[2]));
   expect(older.schemaVersion).toBe(2);
   expect(Object.keys(older.outputs)).toEqual([...manifestOutputPaths[2]]);
-  expect(parseInstructionManifest(manifest(3, outputPaths)).outputs[page]).toBe(
-    digest,
-  );
-  // Each schema has one set: no page in a schema 3 manifest, or one in a
-  // schema 2 manifest, and no other schema.
+  expect(
+    parseInstructionManifest(manifest(3, outputPaths)).outputs[claude],
+  ).toBe(digest);
+  // Each schema has one set: no skills in a schema 3 manifest, or skills in
+  // a schema 2 manifest, and no other schema.
   expect(() => parseInstructionManifest(manifest(2, outputPaths))).toThrow();
   expect(() =>
     parseInstructionManifest(manifest(3, manifestOutputPaths[2])),
@@ -203,7 +271,8 @@ test("a manifest of schema 2 owns exactly the outputs before the new-module page
   expect(() => parseInstructionManifest(manifest(4, outputPaths))).toThrow();
 });
 
-// A personal Remote Environment's Folder, as in the refresh tests.
+// A personal Remote Environment's Folder, as in the refresh tests: hosted, so
+// its top level is checked against the claimed boundary on every change.
 const machine = binding(personal);
 const noChoices = {
   preset: undefined,
@@ -214,7 +283,7 @@ const noChoices = {
 
 async function setup(locale: "cs" | "en" = "en") {
   const parent = await realpath(
-    await mkdtemp(join(tmpdir(), "folder-new-module-")),
+    await mkdtemp(join(tmpdir(), "folder-skills-")),
   );
   const folder = join(parent, "Lazurio");
   await mkdir(folder, { mode: 0o700 });
@@ -224,13 +293,14 @@ async function setup(locale: "cs" | "en" = "en") {
   return { parent, folder };
 }
 
-// The Folder as the release before this page left it: manifest schema 2,
-// six manual files with that release's revision and text this product cannot
-// render, and nothing at `manual/new-module.md`.
-async function renderedBeforeThePage(folder: string) {
+// The Folder as the release before the skills left it: manifest schema 2,
+// AGENTS.md and the six manual files with that release's revision and text
+// this product cannot render, and no `.agents/` or `.claude/` at all.
+async function renderedBeforeTheSkills(folder: string) {
   const path = join(folder, ".lazurio", "instructions.json");
   const manifest = JSON.parse(await readFile(path, "utf8"));
-  await rm(join(folder, page));
+  await rm(join(folder, ".agents"), { recursive: true });
+  await rm(join(folder, ".claude"), { recursive: true });
   const outputs: Record<string, string> = {};
   for (const output of manifestOutputPaths[2]) {
     const content = `${(await readFile(join(folder, output), "utf8"))
@@ -280,24 +350,42 @@ async function expectCurrent(folder: string) {
   expect(Object.keys(manifest.outputs)).toEqual([...outputPaths]);
 }
 
+test.skipIf(process.platform === "win32")(
+  "a new Folder carries the skills from its initialization, in owner-only directories",
+  async () => {
+    const { parent, folder } = await setup("cs");
+    try {
+      await expectCurrent(folder);
+      for (const directory of [
+        ".agents",
+        ".agents/skills",
+        ".agents/skills/new-module",
+        ".claude",
+        ".claude/skills",
+        ".claude/skills/new-module",
+      ])
+        expect((await lstat(join(folder, directory))).mode & 0o777).toBe(0o700);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
 for (const locale of ["cs", "en"] as const)
   test.skipIf(process.platform === "win32")(
-    `a Folder an earlier release rendered gains the new-module page in ${locale} by the next refresh, and a second refresh is unchanged`,
+    `a Folder an earlier release rendered gains the skills in ${locale} by the next refresh, and a second refresh is unchanged`,
     async () => {
       const { parent, folder } = await setup(locale);
       try {
-        await renderedBeforeThePage(folder);
-        expect((await readdir(join(folder, "manual"))).sort()).not.toContain(
-          "new-module.md",
-        );
+        await renderedBeforeTheSkills(folder);
         expect(await refreshMachineFolder(folder, machine)).toEqual({
           code: 0,
           result: { kind: "refreshed", revision: 2 },
         });
         await expectCurrent(folder);
-        expect(await readFile(join(folder, page), "utf8")).toContain(
-          "Chci postavit nový modul",
-        );
+        expect(
+          frontmatter(await readFile(join(folder, claude), "utf8")),
+        ).toEqual(frontmatter(await readFile(join(folder, codex), "utf8")));
         expect(await refreshMachineFolder(folder, machine)).toEqual({
           code: 0,
           result: { kind: "unchanged" },
@@ -309,21 +397,81 @@ for (const locale of ["cs", "en"] as const)
   );
 
 test.skipIf(process.platform === "win32")(
-  "a file of the person's at manual/new-module.md is never replaced: the upgrade is refused by path and nothing is written",
+  "what a harness or the person keeps in .claude/ and .agents/ stays: the upgrade writes beside it, also in a group-writable directory",
   async () => {
     const { parent, folder } = await setup();
     try {
-      await renderedBeforeThePage(folder);
-      await writeFile(join(folder, page), "My own notes\n", { mode: 0o600 });
+      await renderedBeforeTheSkills(folder);
+      await mkdir(join(folder, ".claude"));
+      await chmod(join(folder, ".claude"), 0o775);
+      await writeFile(join(folder, ".claude", "settings.local.json"), "{}\n");
+      await mkdir(join(folder, ".agents", "skills", "my-own"), {
+        recursive: true,
+      });
+      await writeFile(
+        join(folder, ".agents", "skills", "my-own", "SKILL.md"),
+        "My own skill\n",
+      );
+      expect(await refreshMachineFolder(folder, machine)).toEqual({
+        code: 0,
+        result: { kind: "refreshed", revision: 2 },
+      });
+      await expectCurrent(folder);
+      expect(
+        await readFile(join(folder, ".claude", "settings.local.json"), "utf8"),
+      ).toBe("{}\n");
+      expect(
+        await readFile(
+          join(folder, ".agents", "skills", "my-own", "SKILL.md"),
+          "utf8",
+        ),
+      ).toBe("My own skill\n");
+      expect((await lstat(join(folder, ".claude"))).mode & 0o777).toBe(0o775);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "a file of the person's at a skill's path is never replaced: the upgrade is refused by path and nothing is written",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await renderedBeforeTheSkills(folder);
+      await mkdir(join(folder, ".claude", "skills", "new-module"), {
+        recursive: true,
+      });
+      await writeFile(join(folder, claude), "My own notes\n", { mode: 0o600 });
       const before = await snapshot(folder);
       expect(await refreshMachineFolder(folder, machine)).toEqual({
         code: 2,
-        result: { kind: "blocked", reason: "unowned-file", path: page },
+        result: { kind: "blocked", reason: "unowned-file", path: claude },
       });
       expect(await snapshot(folder)).toEqual(before);
-      expect(await readdir(join(folder, ".lazurio"))).not.toContain(
-        "transaction",
-      );
+      await expect(lstat(join(folder, ".agents"))).rejects.toThrow();
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "a symlinked .claude/ is never followed: the upgrade is refused as an unsafe path and nothing is written",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await renderedBeforeTheSkills(folder);
+      const elsewhere = join(parent, "elsewhere");
+      await mkdir(elsewhere, { mode: 0o700 });
+      await symlink(elsewhere, join(folder, ".claude"));
+      const before = await snapshot(folder);
+      expect(await refreshMachineFolder(folder, machine)).toEqual({
+        code: 2,
+        result: { kind: "blocked", reason: "unsafe-path", path: claude },
+      });
+      expect(await snapshot(folder)).toEqual(before);
+      await expect(lstat(join(elsewhere, "skills"))).rejects.toThrow();
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
@@ -332,11 +480,11 @@ test.skipIf(process.platform === "win32")(
 
 for (const stop of ["prepared", "applied"] as const)
   test.skipIf(process.platform === "win32")(
-    `an upgrade that creates the page, interrupted after ${stop}, completes by profile-resume`,
+    `an upgrade that creates the skills, interrupted after ${stop}, completes by profile-resume`,
     async () => {
       const { parent, folder } = await setup();
       try {
-        await renderedBeforeThePage(folder);
+        await renderedBeforeTheSkills(folder);
         await expect(
           refreshFolder(folder, machine, async (step) => {
             if (step === stop) throw new Error("interrupted");
@@ -370,22 +518,22 @@ async function prepareUpgrade(
 
 for (const stop of [
   null,
-  "renamed:manual/working-here.md",
-  "renamed:manual/new-module.md",
-  "manual/new-module.md",
+  "renamed:manual/troubleshooting.md",
+  `renamed:${codex}`,
+  codex,
+  `renamed:${claude}`,
   "renamed:instructions.json",
 ] as const)
   test.skipIf(process.platform === "win32")(
-    `the activation that creates the page resumes after ${stop ?? "no interruption"}`,
+    `the activation that creates the skills resumes after ${stop ?? "no interruption"}`,
     async () => {
       const { parent, folder } = await setup();
       try {
-        await renderedBeforeThePage(folder);
+        await renderedBeforeTheSkills(folder);
         expect((await prepareUpgrade(folder)).kind).toBe("prepared");
         // The prepared upgrade is inspected as consistent before activation.
-        expect(
-          (await inspectPreparation(folder)).previousIdentities[page],
-        ).toBeNull();
+        const previous = (await inspectPreparation(folder)).previousIdentities;
+        expect([previous[codex], previous[claude]]).toEqual([null, null]);
         if (stop)
           await expect(
             applyPreparation(folder, async (step) => {
@@ -405,20 +553,47 @@ for (const stop of [
   );
 
 test.skipIf(process.platform === "win32")(
-  "a file that appears at manual/new-module.md after the upgrade was prepared stops it, and the file is kept",
+  "the activation resumes when it created a skill's directories but not the file",
   async () => {
     const { parent, folder } = await setup();
     try {
-      await renderedBeforeThePage(folder);
+      await renderedBeforeTheSkills(folder);
       expect((await prepareUpgrade(folder)).kind).toBe("prepared");
-      await writeFile(join(folder, page), "Written meanwhile\n", {
+      // An interruption between the directories and the rename.
+      await mkdir(join(folder, ".claude", "skills", "new-module"), {
+        recursive: true,
+        mode: 0o700,
+      });
+      expect(await applyPreparation(folder)).toEqual({
+        kind: "applied-journal-retained",
+        revision: 2,
+      });
+      await finalizePreparation(folder, 2);
+      await expectCurrent(folder);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "a file that appears at a skill's path after the upgrade was prepared stops it, and the file is kept",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await renderedBeforeTheSkills(folder);
+      expect((await prepareUpgrade(folder)).kind).toBe("prepared");
+      await mkdir(join(folder, ".claude", "skills", "new-module"), {
+        recursive: true,
+      });
+      await writeFile(join(folder, claude), "Written meanwhile\n", {
         mode: 0o600,
       });
       await expect(inspectPreparation(folder)).rejects.toThrow(
         "no longer matches",
       );
       await expect(applyPreparation(folder)).rejects.toThrow("conflicts");
-      expect(await readFile(join(folder, page), "utf8")).toBe(
+      expect(await readFile(join(folder, claude), "utf8")).toBe(
         "Written meanwhile\n",
       );
       expect(
@@ -440,11 +615,11 @@ for (const stop of [
   "manual",
 ] as const)
   test.skipIf(process.platform === "win32")(
-    `an upgrade interrupted while staging at ${stop} is retired without writing the page, and the next refresh creates it`,
+    `an upgrade interrupted while staging at ${stop} is retired without writing the skills, and the next refresh creates them`,
     async () => {
       const { parent, folder } = await setup();
       try {
-        await renderedBeforeThePage(folder);
+        await renderedBeforeTheSkills(folder);
         const before = await snapshot(folder);
         await expect(
           prepareUpgrade(folder, async (step) => {
@@ -455,7 +630,8 @@ for (const stop of [
           (await retireIncompletePreparation(folder, 1, "c".repeat(32))).kind,
         ).toBe("incomplete-preparation-retained");
         expect(await snapshot(folder)).toEqual(before);
-        await expect(lstat(join(folder, page))).rejects.toThrow();
+        await expect(lstat(join(folder, ".agents"))).rejects.toThrow();
+        await expect(lstat(join(folder, ".claude"))).rejects.toThrow();
         expect(await refreshMachineFolder(folder, machine)).toEqual({
           code: 0,
           result: { kind: "refreshed", revision: 2 },

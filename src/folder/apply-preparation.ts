@@ -5,6 +5,11 @@ import { join } from "node:path";
 import { requireClaimedFolderBoundary } from "./handover-layout";
 import { withFolderOperationLock } from "./lock";
 import {
+  ensureOutputDirectories,
+  outputDirectoriesInnermostFirst,
+} from "./output-directories";
+import {
+  isOutputPath,
   type OutputPath,
   outputFile,
   outputPaths,
@@ -91,6 +96,10 @@ export async function applyPreparationLocked(
     // (an interrupted update or refresh resumed later), and a foreign
     // top-level entry is refused by name with the journal left in place.
     await requireClaimedFolderBoundary(folder, current.machine);
+    // A skill's directories are created by the rename that first writes into
+    // them (an upgrade from manifest schema 2); existing ones are checked.
+    if (isOutputPath(item.name))
+      await ensureOutputDirectories(folder, item.name);
     await assertHeld();
     await rename(
       join(transaction, item.staged),
@@ -102,8 +111,9 @@ export async function applyPreparationLocked(
     await checkpoint(item.name);
   }
   // Resume may observe a rename whose directory sync previously failed.
+  for (const directory of outputDirectoriesInnermostFirst(outputPaths))
+    await syncDirectory(join(folder, directory));
   await syncDirectory(folder);
-  await syncDirectory(join(folder, "manual"));
   await syncDirectory(state);
   await syncDirectory(transaction);
   const verified = await inspectProgress(folder);

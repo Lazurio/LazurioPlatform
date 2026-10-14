@@ -32,8 +32,8 @@ export const folderStateSchemas = Object.freeze({
 });
 
 // The manifest schema this product writes: every output it renders (decision
-// F14, addendum of 2026-10-14). Schema 2, the Folder before
-// `manual/new-module.md`, stays readable and is upgraded by the next change.
+// F14, addendum of 2026-10-14). Schema 2, the Folder before its skills, stays
+// readable and is upgraded by the next change.
 export const instructionManifestSchema = 3;
 
 // Development schema for the generated-output transaction. Parsing is not proof
@@ -135,11 +135,12 @@ export function withToolSelection<
   };
 }
 
-// The manifest records one digest per generated output it owns, AGENTS.md and
-// the manual files (decision F14), in the fixed output order. A digest is the
-// proof of ownership for a file: bytes that differ from it are never replaced.
-// Schema 3 owns every output of this product; schema 2, the Folder before
-// `manual/new-module.md`, owns all but that one, so its digests are a subset:
+// The manifest records one digest per generated output it owns, AGENTS.md, the
+// manual files and the skill files (decision F14), in the fixed output order.
+// A digest is the proof of ownership for a file: bytes that differ from it are
+// never replaced. Schema 3 owns every output of this product; schema 2, the
+// Folder before its skills, owns AGENTS.md and the manual, so its digests are
+// a subset:
 // an output without a digest has no prior ownership and is created by the
 // next change only where nothing is at its path (decision F14, addendum of
 // 2026-10-14).

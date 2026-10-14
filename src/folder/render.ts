@@ -582,12 +582,12 @@ const rightsLine: Text = {
   en: "- When you lack the rights for something or GitHub refuses a push, never discard the work. Find out live who may grant it, file an issue for them in the Organization's root repository and assign it to them, give the Operator a short ready text for them, and continue with everything else. A repository you only read is not a missing right, though: do not ask for write access to it; propose the change as an issue, as the previous line says (`manual/working-here.md`).",
 };
 
-// A new module starts with an interview about its purpose (decision F14
-// addendum of 2026-10-14): the pointer to `manual/new-module.md`, which holds
-// the steps, with the phrase the Launchpad's "+ Nový modul" briefs open with.
+// A new module is built by the Folder's skill `new-module` (decision F14,
+// addendum of 2026-10-14), which the Launchpad's "+ Nový modul" brief names:
+// one pointer line, so an agent reaches the skill also without the brief.
 export const newModuleLine: Text = {
-  cs: "- Když člověk chce postavit nový modul nebo aplikaci („Chci postavit nový modul“), postupuj podle `manual/new-module.md`: nejdřív se ho vyptej na účel, technické volby udělej sám a před stavbou si nech potvrdit shrnutí i plán.",
-  en: "- When the person wants to build a new module or app (“I want to build a new module”), follow `manual/new-module.md`: first ask them about its purpose, make the technical choices yourself, and have them confirm your summary and the plan before you build.",
+  cs: "- Když člověk chce postavit nový modul, aplikaci, nástroj, přehled nebo web (třeba zadáním z „+ Nový modul“), použij skill `new-module` v `.agents/skills/` (Codex) nebo `.claude/skills/` (Claude Code) tohoto Folderu.",
+  en: "- When the person wants to build a new module, app, tool, overview or website (for instance by the brief of “+ Nový modul”), use the skill `new-module` in this Folder's `.agents/skills/` (Codex) or `.claude/skills/` (Claude Code).",
 };
 
 // A chat whose client runs Codex in a sandbox without network (ChatGPT
