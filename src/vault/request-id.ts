@@ -1,4 +1,4 @@
-// The id of an agent's secret request (decision F53): 24 lowercase base32
+// The id of an agent's secret request (decision F54): 24 lowercase base32
 // characters, its file in the account's custody and its page in the
 // Launchpad (`/settings/vault/requests/<id>`). Without any import, so the
 // page's routes read it as the core does.

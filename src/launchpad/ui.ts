@@ -575,7 +575,7 @@ const vaultPage = createVaultPagePanel({
     return route?.view === "settings" && route.section === "vault";
   },
 });
-// Nastavení → Trezor: the agents' secret requests (decision F53), the
+// Nastavení → Trezor: the agents' secret requests (decision F54), the
 // section of those that wait and one request's page; read when shown.
 const vaultRequests = createVaultRequestsPanel({
   get: (path) => get(path),

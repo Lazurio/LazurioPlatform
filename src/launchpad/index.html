@@ -487,7 +487,7 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .vault-list dt { color: var(--muted-fg); }
 .vault-list dd { margin: 0; overflow-wrap: anywhere; }
 .vault-facts a.button .icon, .row-control a.button .icon { width: 14px; height: 14px; }
-/* An agent's secret request (decision F53, the wireframe's
+/* An agent's secret request (decision F54, the wireframe's
    screens/SecretRequest.tsx): the agent's words, one input per field, a
    secret one hidden until "Zobrazit". */
 #vault-request { display: grid; gap: 18px; }
@@ -1131,7 +1131,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <p class="intro" id="vault-page-note" hidden></p>
 <p id="vault-page-status" class="row-status" role="status" aria-live="polite"></p>
 </div>
-<!-- Žádosti agentů (root decision 0198 point 9 (c), decision F53): the
+<!-- Žádosti agentů (root decision 0198 point 9 (c), decision F54): the
      agents' secret requests wait here, above the vault, each opening its
      request's page; drawn by vault-requests-panel.ts, hidden while none
      waits. -->
@@ -1141,7 +1141,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <p class="group-note" id="vault-page-hint" hidden></p>
 </section>
 <!-- One agent's secret request (/settings/vault/requests/<id>, decision
-     F53): on its route it alone shows of this section (`data-request`),
+     F54): on its route it alone shows of this section (`data-request`),
      drawn by vault-requests-panel.ts. -->
 <div id="vault-request" hidden></div>
 </section>

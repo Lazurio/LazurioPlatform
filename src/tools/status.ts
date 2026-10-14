@@ -26,7 +26,7 @@ export type ToolRunner = (
    * whose answer is a whole list (the vault's items) takes a larger one.
    * `stdin`: what the process reads on its standard input, which is then
    * closed; without it the process reads nothing. A value a command must
-   * never see on its argv (a vault item, decision F53) goes here. */
+   * never see on its argv (a vault item, decision F54) goes here. */
   options?: Readonly<{ maxBytes?: number; stdin?: string }>,
 ) => Promise<ToolProcessResult>;
 

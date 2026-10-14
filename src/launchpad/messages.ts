@@ -1021,7 +1021,7 @@ const en = {
   vaultPageOpen: "Open vault",
   vaultPageCreateAccount: "Create an account in the vault",
   // An agent's secret request in Nastavení → Trezor (root decision 0198
-  // point 9 (c), decision F53; the wireframe's screens/SecretRequest.tsx).
+  // point 9 (c), decision F54; the wireframe's screens/SecretRequest.tsx).
   vaultRequestsTitle: "Agents' requests",
   vaultRequestTitle: "Agent's request",
   vaultRequestAnswer: "Fill in",
