@@ -655,9 +655,12 @@ export function moduleAccessTarget(
 }
 
 /** The prompt "+ Nový modul" hands to Chat (the wireframe's
- * `newModulePrompt`): the agent first asks what the module is for, then
- * founds it by the Lazurio Module Standard with the scaffold, never by
- * hand, and hands it over as a pull request. */
+ * `newModulePrompt`, F36 addendum of 2026-10-14): the person's own words
+ * "Chci postavit nový modul.", the Organization's Workspace, and the
+ * Folder's `manual/new-module.md`, which owns the interview about the
+ * purpose and the steps; then only the guard rails that hold where the
+ * Folder lacks the page: a plan confirmed first, never by hand, a pull
+ * request and asking before Publication. */
 export const newModulePrompt = (
   name: string,
   login: string,
@@ -669,12 +672,13 @@ export const newModulePrompt = (
 
 /** The prompt "+ Nový modul" hands to Chat in the personal space (the
  * wireframe's `newPersonalModulePrompt`, root decision 0185's addendum of
- * 2026-10-13): the agent asks what the module is for, its name and its app,
- * then founds it as the person's own private repository with
- * `lazurio module create personalspace/<slug>` (decision F52): the plan
- * first, the confirmed run from a task worktree beside the Personalspace,
- * and its slot by a pull request into the Personalspace. In Czech it is the
- * person's own words to the agent, so in tykání (root decision 0199). */
+ * 2026-10-13, F36 addendum of 2026-10-14): "Chci postavit nový modul.", the
+ * personal Workspace as a private repository on the person's account, and
+ * the Folder's `manual/new-module.md`; then the guard rails of `lazurio
+ * module create personalspace/<slug>` (decision F52): the dry run and the
+ * confirmed run, a private repository, pull requests and asking before
+ * Publication. In Czech it is the person's own words to the agent, so in
+ * tykání (root decision 0199). */
 export const newPersonalModulePrompt = (login: string, copy: Copy): string =>
   copy.appsNewPersonalModulePrompt.replaceAll("{login}", login);
 

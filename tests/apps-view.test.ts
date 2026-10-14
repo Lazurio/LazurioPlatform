@@ -612,16 +612,64 @@ test("an Owner sees the Organization's Workspace even without a module, so the n
   expect(appsSections(personalCatalog, personal, cs, entry)).toEqual([]);
 });
 
-test("the new module's prompt names the Organization and its GitHub login, in the person's language", () => {
-  const prompt = newModulePrompt("Example Company", "example-org", cs);
-  expect(prompt).toStartWith(
-    "Chci založit nový modul v Organizaci Example Company (GitHub example-org).",
-  );
-  expect(prompt).toContain("lazurio module create example-org/<slug>");
-  expect(prompt).not.toContain("{");
-  expect(newModulePrompt("Example Company", "example-org", en)).toContain(
-    "in the Organization Example Company (GitHub example-org)",
-  );
+// Both "+ Nový modul" briefs (F36 addendum of 2026-10-14) are the person's
+// own words: the trigger of the Folder's manual page first, then where the
+// module goes, then the manual, then only the guard rails that must hold even
+// where the Folder does not have the page yet. The manual owns the questions.
+const newModuleBrief = {
+  cs: "Postupuj podle `manual/new-module.md` v Lazurio Folderu: nejdřív se mě vyptej na účel a na to, co mi modul má vyřešit, technické volby udělej sám a pak modul postav.",
+  en: "Follow `manual/new-module.md` in the Lazurio Folder: first ask me about its purpose and what the module should solve for me, make the technical choices yourself, and then build the module.",
+} as const;
+// What the old briefs asked step by step, which the manual now owns.
+const oldBriefQuestions = [
+  "lazurio-module-standard",
+  "(vite-react, astro, astro-starlight, bun-service, python-uv)",
+  "jednu otázku po druhé",
+  "one question at a time",
+  "--teams",
+];
+
+test("the new module's prompt opens with the trigger, names the Organization and its GitHub login and points to the manual, in the person's language", () => {
+  for (const [copy, locale, where] of [
+    [
+      cs,
+      "cs",
+      "Má být ve Workspace Organizace Example Company (GitHub example-org).",
+    ],
+    [
+      en,
+      "en",
+      "It should go in the Workspace of the Organization Example Company (GitHub example-org).",
+    ],
+  ] as const) {
+    const prompt = newModulePrompt("Example Company", "example-org", copy);
+    const [first, , brief] = prompt.split("\n");
+    expect(first).toBe(
+      `${locale === "cs" ? "Chci postavit nový modul." : "I want to build a new module."} ${where}`,
+    );
+    expect(brief).toBe(newModuleBrief[locale]);
+    // The guard rails: a plan to confirm before anything, never by hand, a
+    // pull request, and asking before Publication.
+    for (const rail of locale === "cs"
+      ? [
+          "Nic nezakládej, dokud neodsouhlasím shrnutí a plán",
+          "dry run",
+          "nikdy ručně",
+          "pull request",
+          "před Publikací se mě zeptej",
+        ]
+      : [
+          "Create nothing until I have agreed to the summary and the plan",
+          "dry run",
+          "never by hand",
+          "pull request",
+          "ask me before Publication",
+        ])
+      expect([rail, prompt.includes(rail)]).toEqual([rail, true]);
+    for (const question of oldBriefQuestions)
+      expect([question, prompt.includes(question)]).toEqual([question, false]);
+    expect(prompt).not.toContain("{");
+  }
 });
 
 test("a tile opens the app on its own origin hosted, starts it locally, and falls back to the overview", () => {
@@ -1244,44 +1292,46 @@ test("the offer: an Organization's Owner gets new-module, the personal space's h
   ).toBeNull();
 });
 
-test("the personal module's prompt: the holder's login and the real commands of lazurio module create personalspace/<slug>, in both languages", () => {
-  for (const [copy, first] of [
+test("the personal module's prompt opens with the trigger, says it is a private repository on the holder's account and keeps the guard rails of lazurio module create personalspace/<slug>, in both languages", () => {
+  for (const [copy, locale, where] of [
     [
       cs,
-      "Chci založit nový modul ve svém osobním prostoru (Personalspace mého GitHub účtu Example).",
+      "cs",
+      "Má být ve Workspace mého osobního prostoru, jako soukromý repozitář na mém GitHub účtu Example.",
     ],
     [
       en,
-      "I want to found a new module in my personal space (the Personalspace of my GitHub account Example).",
+      "en",
+      "It should go in the Workspace of my personal space, as a private repository on my GitHub account Example.",
     ],
   ] as const) {
     const prompt = newPersonalModulePrompt("Example", copy);
-    expect(prompt.split("\n")[0]).toBe(first);
-    for (const command of [
-      // The skill and the stacks of the Organization's prompt.
-      "lazurio-module-standard",
-      "(vite-react, astro, astro-starlight, bun-service, python-uv)",
-      // The task worktree beside the Personalspace, from the Folder's root.
-      '`git -C personalspace/Example_GEN3 worktree add -b <branch> "$PWD/personalspace/.worktrees/<task>" main`',
+    const [first, , brief] = prompt.split("\n");
+    expect(first).toBe(
+      `${locale === "cs" ? "Chci postavit nový modul." : "I want to build a new module."} ${where}`,
+    );
+    expect(brief).toBe(newModuleBrief[locale]);
+    for (const rail of [
       // The plan, then the confirmed run.
-      "`lazurio module create personalspace/<slug> --stack <stack> --name '<",
-      "--dry-run --json`",
-      "`--confirm <plan> --json`",
+      "`lazurio module create personalspace/<slug> --stack <stack> --dry-run --json`",
+      "`--confirm <plan>`",
+      // A private repository of the person's own, checked.
       "Example/<slug>",
-      // The pull request into the Personalspace, and after its merge.
+      // A pull request into the Personalspace, and Publication asked for.
       "Example/Example_GEN3",
-      "`git -C personalspace/Example_GEN3 pull --ff-only`",
-      '`git -C personalspace/Example_GEN3 worktree remove "$PWD/personalspace/.worktrees/<task>"`',
-      "Lazurio/LazurioPlatform#377",
+      locale === "cs" ? "před ním se mě zeptej" : "ask me before it",
+      // An older lazurio without the personal form stops the agent.
+      "personalspace/<slug>",
     ])
-      expect([command, prompt.includes(command)]).toEqual([command, true]);
-    // No Organization's questions or flags, and no placeholder left.
-    expect(prompt).not.toContain("--teams");
+      expect([rail, prompt.includes(rail)]).toEqual([rail, true]);
+    expect(prompt).toContain(locale === "cs" ? "soukrom" : "private");
+    for (const question of oldBriefQuestions)
+      expect([question, prompt.includes(question)]).toEqual([question, false]);
     expect(prompt).not.toContain("{");
   }
   // Czech: the person's own words to the agent stay in tykání (0199).
   expect(newPersonalModulePrompt("Example", cs)).toContain(
-    "Než cokoli vytvoříš, zeptej se mě postupně, jednu otázku po druhé:",
+    "nejdřív se mě vyptej na účel",
   );
 });
 
