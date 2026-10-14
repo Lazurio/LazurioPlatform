@@ -17,8 +17,11 @@ import {
   moduleDescription,
   moduleName,
   moduleStone,
+  newModuleOffer,
   newModulePrompt,
+  newPersonalModulePrompt,
   type PersonalStart,
+  personalHolderOf,
   personalStarts,
   pluralKey,
   tileTarget,
@@ -590,8 +593,8 @@ test("an Owner sees the Organization's Workspace even without a module, so the n
   expect(appsSections(catalog, group, cs, entry, [], true)).toEqual(
     appsSections(catalog, group, cs, entry, [], false),
   );
-  // The personal space is no Organization: an Owner answer changes nothing
-  // there (its holder's Workspace comes with the personal module form).
+  // The personal space: for its verified holder (root decision 0185's
+  // addendum of 2026-10-13) its Workspace stays in the same way.
   const personalCatalog: Catalog = {
     kind: "catalog",
     organizations: [],
@@ -603,9 +606,10 @@ test("an Owner sees the Organization's Workspace even without a module, so the n
     (scope) => scope.sections === null,
   );
   if (personal === undefined) throw new Error("The fixture has one");
-  expect(appsSections(personalCatalog, personal, cs, entry, [], true)).toEqual(
-    [],
-  );
+  expect(
+    view(appsSections(personalCatalog, personal, cs, entry, [], true)),
+  ).toEqual([["personal", "Workspace", "zatím žádné moduly", []]]);
+  expect(appsSections(personalCatalog, personal, cs, entry)).toEqual([]);
 });
 
 test("the new module's prompt names the Organization and its GitHub login, in the person's language", () => {
@@ -930,7 +934,7 @@ test("the holder's personal space ends with the starts: after its sentence while
   const notes = module("notes", { organization: "personalspace" });
   const full = personalspace([diary, notes]);
   expect(homeView(appsHomeParts(full, personalGroup(full), cs, input))).toEqual(
-    [["section", "Osobní", ["diary", "notes"]], starts],
+    [["section", "Workspace", ["diary", "notes"]], starts],
   );
   // A favourite reorders the grid; the starts stay after all of it.
   expect(
@@ -940,7 +944,7 @@ test("the holder's personal space ends with the starts: after its sentence while
         favorites: [moduleFavorite("notes")],
       }),
     ),
-  ).toEqual([["section", "Osobní", ["notes", "diary"]], starts]);
+  ).toEqual([["section", "Workspace", ["notes", "diary"]], starts]);
   // In English, with the muted Automate of this Environment.
   const english = appsHomeParts(full, personalGroup(full), en, {
     ...input,
@@ -993,14 +997,14 @@ test("no starts but the holder's: not for a personal space held by no one here, 
     homeView(appsHomeParts(empty, personalGroup(empty), cs, setup)),
   ).toEqual([]);
   expect(homeView(appsHomeParts(full, personalGroup(full), cs, setup))).toEqual(
-    [["section", "Osobní", ["diary"]]],
+    [["section", "Workspace", ["diary"]]],
   );
   // The shell document not read yet: the starts come once the switch is.
   expect(
     homeView(
       appsHomeParts(full, personalGroup(full), cs, { ...input, tabs: [] }),
     ),
-  ).toEqual([["section", "Osobní", ["diary"]]]);
+  ).toEqual([["section", "Workspace", ["diary"]]]);
   // An Organization keeps its sections, or its sentence; never the starts.
   const group = appsScope(catalog, { view: "home" }, cs);
   if (group === null) throw new Error("The fixture has an Organization");
@@ -1021,8 +1025,286 @@ test("no starts but the holder's: not for a personal space held by no one here, 
   expect(homeView(appsHomeParts(bare, bareGroup, cs, input))).toEqual([
     ["empty", cs.catalogNoModules],
   ]);
-  // Its Owner (#376) gets the empty Workspace instead of the sentence.
+  // Its Owner (#376) gets the empty Workspace instead of the sentence,
+  // where the Organization is bound to a GitHub login the tile can name.
+  const bound: Catalog = {
+    kind: "catalog",
+    organizations: [organization("example", [], { forgeLogin: "example-org" })],
+  };
+  const boundGroup = appsScope(bound, { view: "home" }, cs);
+  if (boundGroup === null) throw new Error("The fixture has an Organization");
   expect(
-    homeView(appsHomeParts(bare, bareGroup, cs, { ...input, owner: true })),
+    homeView(appsHomeParts(bound, boundGroup, cs, { ...input, owner: true })),
   ).toEqual([["section", "Workspace", []]]);
+});
+
+// "+ Nový modul" in the personal space (root decision 0185's addendum of
+// 2026-10-13, plan DEV-6662 M1b): for its verified holder the Workspace is
+// always there and ends with the tile, which hands over the prompt
+// `new-personal-module` with the holder's login; the starts stay after it.
+const offerView = (parts: readonly AppsHomePart[]) =>
+  parts.map((part) =>
+    part.kind === "section"
+      ? [
+          part.kind,
+          part.section.title,
+          part.section.count,
+          part.section.tiles.map((t) => t.name),
+          part.offer === null
+            ? null
+            : [part.offer.id, part.offer.organization, part.offer.text],
+        ]
+      : part.kind === "empty"
+        ? [part.kind, part.text]
+        : [part.kind],
+  );
+
+test("the holder's personal Workspace is always there and ends with + Nový modul, before the starts: alone while it is empty, after the grid once it has modules", () => {
+  const input = {
+    entry,
+    favorites: [] as string[],
+    setup: false,
+    tabs: switchOf("cs", "hosted-personal", personalWithEntry()),
+    holder: "Example",
+  };
+  const offer = [
+    "new-personal-module",
+    "Example",
+    newPersonalModulePrompt("Example", cs),
+  ];
+  const empty = personalspace([]);
+  // No sentence: the Workspace takes its place, its only tile the offer.
+  expect(
+    offerView(appsHomeParts(empty, personalGroup(empty), cs, input)),
+  ).toEqual([
+    ["section", "Workspace", "zatím žádné moduly", [], offer],
+    ["starts"],
+  ]);
+  const full = personalspace([
+    module("diary", { organization: "personalspace" }),
+    module("notes", { organization: "personalspace" }),
+  ]);
+  expect(
+    offerView(appsHomeParts(full, personalGroup(full), cs, input)),
+  ).toEqual([
+    ["section", "Workspace", "2 moduly", ["diary", "notes"], offer],
+    ["starts"],
+  ]);
+  // In English, the prompt in English.
+  expect(
+    offerView(
+      appsHomeParts(empty, personalGroup(empty), en, {
+        ...input,
+        tabs: switchOf("en", "hosted-personal", personalWithEntry()),
+      }),
+    ),
+  ).toEqual([
+    [
+      "section",
+      "Workspace",
+      "no modules yet",
+      [],
+      [
+        "new-personal-module",
+        "Example",
+        newPersonalModulePrompt("Example", en),
+      ],
+    ],
+    ["starts"],
+  ]);
+  // The first run's line hides the starts, never the holder's Workspace.
+  expect(
+    offerView(
+      appsHomeParts(empty, personalGroup(empty), cs, {
+        ...input,
+        setup: true,
+      }),
+    ),
+  ).toEqual([["section", "Workspace", "zatím žádné moduly", [], offer]]);
+});
+
+test("no personal tile but the holder's: not before the holder is known, not for a blocked personal space, never in an Organization", () => {
+  const input = {
+    entry,
+    favorites: [] as string[],
+    setup: false,
+    tabs: switchOf("cs", "hosted-personal", personalWithEntry()),
+  };
+  // The content status not read yet, or not present: today's home, the
+  // sentence or the grid, and the starts.
+  const empty = personalspace([]);
+  const full = personalspace([
+    module("diary", { organization: "personalspace" }),
+  ]);
+  for (const holder of [undefined, null]) {
+    expect(
+      offerView(
+        appsHomeParts(empty, personalGroup(empty), cs, {
+          ...input,
+          ...(holder === undefined ? {} : { holder }),
+        }),
+      ),
+    ).toEqual([["empty", cs.catalogPersonalspaceEmpty], ["starts"]]);
+    expect(
+      offerView(
+        appsHomeParts(full, personalGroup(full), cs, {
+          ...input,
+          ...(holder === undefined ? {} : { holder }),
+        }),
+      ),
+    ).toEqual([
+      ["section", "Workspace", "1 modul", ["diary"], null],
+      ["starts"],
+    ]);
+  }
+  // Listed with a reason (#186): nothing, whatever login the page has.
+  for (const reason of [
+    "personalspace-unverified",
+    "personalspace-foreign",
+    "personalspace-public",
+    "github-identity-mismatch",
+  ] as const) {
+    const blocked = personalspace([], { executable: false, reason });
+    expect(
+      appsHomeParts(blocked, personalGroup(blocked), cs, {
+        ...input,
+        holder: "example",
+      }),
+    ).toEqual([]);
+  }
+  // An Organization: its own offer only for its Owner; a holder's login
+  // changes nothing there.
+  const group = appsScope(catalog, { view: "home" }, cs);
+  if (group === null) throw new Error("The fixture has an Organization");
+  const offers = (owner: boolean) =>
+    appsHomeParts(catalog, group, cs, { ...input, owner, holder: "example" })
+      .flatMap((part) => (part.kind === "section" ? [part.offer] : []))
+      .map((offer) => offer?.id ?? null);
+  expect(offers(false)).toEqual([null, null]);
+});
+
+test("the offer: an Organization's Owner gets new-module, the personal space's holder new-personal-module, everyone else nothing", () => {
+  const bound = organization("example", [], { forgeLogin: "Example-Org" });
+  const unbound = organization("example", []);
+  const scopeOf = (value: Catalog) => {
+    const scope = appsScope(value, { view: "home" }, cs);
+    if (scope === null) throw new Error("The fixture has an Organization");
+    return scope;
+  };
+  const one = (value: CatalogOrganization): Catalog => ({
+    kind: "catalog",
+    organizations: [value],
+  });
+  const organizationGroup = scopeOf(one(bound));
+  expect(
+    newModuleOffer(organizationGroup, cs, { owner: true, holder: null }),
+  ).toEqual({
+    id: "new-module",
+    organization: "Example-Org",
+    text: newModulePrompt("Example Company", "Example-Org", cs),
+  });
+  for (const input of [
+    { owner: false, holder: null },
+    { owner: false, holder: "example" },
+  ])
+    expect(newModuleOffer(organizationGroup, cs, input)).toBeNull();
+  // An Organization the manifest binds to no login: no link to make.
+  expect(
+    newModuleOffer(scopeOf(one(unbound)), cs, { owner: true, holder: null }),
+  ).toBeNull();
+  const held = personalspace([]);
+  expect(
+    newModuleOffer(personalGroup(held), cs, {
+      owner: false,
+      holder: "example",
+    }),
+  ).toEqual({
+    id: "new-personal-module",
+    organization: "example",
+    text: newPersonalModulePrompt("example", cs),
+  });
+  // No holder, an Owner answer, a malformed login, a blocked space: none.
+  for (const input of [
+    { owner: false, holder: null },
+    { owner: true, holder: null },
+    { owner: false, holder: "a/b" },
+    { owner: false, holder: "-x" },
+    { owner: false, holder: "" },
+  ])
+    expect(newModuleOffer(personalGroup(held), cs, input)).toBeNull();
+  const blocked = personalspace([], {
+    executable: false,
+    reason: "personalspace-foreign",
+  });
+  expect(
+    newModuleOffer(personalGroup(blocked), cs, {
+      owner: false,
+      holder: "example",
+    }),
+  ).toBeNull();
+});
+
+test("the personal module's prompt: the holder's login and the real commands of lazurio module create personalspace/<slug>, in both languages", () => {
+  for (const [copy, first] of [
+    [
+      cs,
+      "Chci založit nový modul ve svém osobním prostoru (Personalspace mého GitHub účtu Example).",
+    ],
+    [
+      en,
+      "I want to found a new module in my personal space (the Personalspace of my GitHub account Example).",
+    ],
+  ] as const) {
+    const prompt = newPersonalModulePrompt("Example", copy);
+    expect(prompt.split("\n")[0]).toBe(first);
+    for (const command of [
+      // The skill and the stacks of the Organization's prompt.
+      "lazurio-module-standard",
+      "(vite-react, astro, astro-starlight, bun-service, python-uv)",
+      // The task worktree beside the Personalspace, from the Folder's root.
+      '`git -C personalspace/Example_GEN3 worktree add -b <branch> "$PWD/personalspace/.worktrees/<task>" main`',
+      // The plan, then the confirmed run.
+      "`lazurio module create personalspace/<slug> --stack <stack> --name '<",
+      "--dry-run --json`",
+      "`--confirm <plan> --json`",
+      "Example/<slug>",
+      // The pull request into the Personalspace, and after its merge.
+      "Example/Example_GEN3",
+      "`git -C personalspace/Example_GEN3 pull --ff-only`",
+      '`git -C personalspace/Example_GEN3 worktree remove "$PWD/personalspace/.worktrees/<task>"`',
+      "Lazurio/LazurioPlatform#377",
+    ])
+      expect([command, prompt.includes(command)]).toEqual([command, true]);
+    // No Organization's questions or flags, and no placeholder left.
+    expect(prompt).not.toContain("--teams");
+    expect(prompt).not.toContain("{");
+  }
+  // Czech: the person's own words to the agent stay in tykání (0199).
+  expect(newPersonalModulePrompt("Example", cs)).toContain(
+    "Než cokoli vytvoříš, zeptej se mě postupně, jednu otázku po druhé:",
+  );
+});
+
+test("the holder's login: the content routes' personalspace item only when it is present", () => {
+  const item = (
+    state: "present" | "absent" | "blocked",
+    login: string | null,
+  ) => ({
+    allowed: true,
+    items: [
+      {
+        kind: "organization" as const,
+        login: "example-org",
+        state: "present" as const,
+      },
+      { kind: "personalspace" as const, login, state },
+    ],
+  });
+  expect(personalHolderOf(item("present", "Example"))).toBe("Example");
+  expect(personalHolderOf(item("blocked", "Example"))).toBeNull();
+  expect(personalHolderOf(item("absent", "Example"))).toBeNull();
+  expect(personalHolderOf(item("present", null))).toBeNull();
+  expect(personalHolderOf(item("present", "a/b"))).toBeNull();
+  expect(personalHolderOf({ allowed: false, items: [] })).toBeNull();
+  expect(personalHolderOf(null)).toBeNull();
 });

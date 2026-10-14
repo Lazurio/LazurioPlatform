@@ -247,7 +247,9 @@ information page is reached only from its tile's menu.
   through the brokered Lazurio for GitHub app within its Team's grants (root decisions
   0147 and 0165), an Automated Environment through its persona's own GitHub account
   (root decision 0169), and the personal Environment has no Organization repositories;
-  they get the tile only if their identity really has that capability. #154 builds
+  they get the tile only if their identity really has that capability. The personal
+  space has its own "+ Nový modul" for its verified holder, which founds the person's
+  own module ([below](#personal-new-module)). #154 builds
   this as the Owner check of F36's Organization-rail addendum, point 8. Before the
   Organization's first module, such an identity still sees Workspace ("zatím žádné
   moduly") with the tile as its only tile, not the sentence that sends a person
@@ -731,7 +733,8 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   the fragment token locally), answers `application/json`, `Cache-Control: no-store`:
   `{"schema": "lazurio.prompt.v1", "id", "text", "cwd"}`. `text` is the prompt in the
   person's language (the Folder's profile locale), `cwd` the absolute root of the
-  Organization on this Environment (`<Folder>/organizations/<directory>`). Two ids
+  Organization on this Environment (`<Folder>/organizations/<directory>`) for an
+  Organization's prompt and the Lazurio Folder's root for the Folder's. Three ids
   exist (`src/launchpad/prompts.ts`). `prepare-content` ("Vyřešit v Chatu", root
   decision 0188) is the Folder's: only where the Environment signs in as its person,
   only while the last installation the content routes report stopped, its text the
@@ -746,7 +749,14 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   Organization is the one Organization of the Folder whose manifest binds that GitHub
   login. Each prompt names who may get it: `new-module` only where this Environment's
   GitHub identity is an Owner of the Organization, the tile's live check
-  (`organization-owner.ts`), so never on a Team Environment. Anyone else, an unknown id,
+  (`organization-owner.ts`), so never on a Team Environment. `new-personal-module`
+  (the personal space's "+ Nový modul", audience `personalspace-holder`) is the
+  Folder's too: only where this Environment's GitHub account holds the Folder's
+  Personalspace, decided at the request as `GET /api/content` decides it (#186: its
+  own private `<login>/<login>_GEN3`, on a personal Remote Environment the handover's
+  Owner), and only for `org` equal to that account's login, letter case ignored; its
+  text `newPersonalModulePrompt` with the login as GitHub spells it, its `cwd` the
+  Lazurio Folder's root (root decision 0189). Anyone else, an unknown id,
   an Organization the Folder does not bind to that login, any other query and every
   failure get the same `404 {"error": "not-found"}`: the answer never says more than the
   tile already showed. Any method but GET: 405.
@@ -1080,8 +1090,27 @@ the first run's line shows. An Organization never has it.
   (`integrationsPath`, `filesUrlPath`) under the column's message keys.
 - `catalog-panel.ts` draws the section. `tests/apps-view.test.ts` checks the order, the
   targets, the muted words and that `index.html`'s column has the same routes and keys.
-- The tile "+ Nový modul" and the prompt `new-personal-module` are not built yet: they
-  ship with the personal form of `lazurio module create` (plan DEV-6662).
+- <a id="personal-new-module"></a>**"+ Nový modul" in the personal space** ([F36's
+  second addendum of 2026-10-13](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
+  plan DEV-6662 M1b). For the holder, the personal space's one section is Workspace,
+  even with no module ("zatím žádné moduly"), and it ends with the tile "+ Nový modul"
+  / "Vytvořit s agentem"; the empty sentence gives way to it, and the starts stay after
+  it. `newModuleOffer` in `apps-view.ts` decides who gets which tile: an Organization's
+  Owner the prompt `new-module`, the personal space's holder `new-personal-module`. The
+  holder is the `login` of the `present` personalspace item of `GET /api/content`
+  (`personalHolderOf`), which the page reads once it is idle; until then, and for a
+  personal space listed with a reason, there is no tile. The click hands over
+  `{id: "new-personal-module", organization: <login>, text}` through `handOver`, by
+  link where Chat takes prompts, otherwise through the clipboard (a workstation always
+  copies). The prompt has the agent ask what the module is for, its name and slug and
+  its app and stack; create a task worktree beside the Personalspace in
+  `personalspace/.worktrees/<task>`; show the plan of `lazurio module create
+  personalspace/<slug> --stack <stack> --dry-run --json` and wait; run it with
+  `--confirm <plan> --json`; check that `<login>/<slug>` is private; open the slot's pull
+  request into `<login>/<login>_GEN3` and ask before Publication; after the merge
+  `git -C <space> pull --ff-only` and remove the worktree; and only mention the
+  placeholder owner of #377. It must not reach a release before the real run of that
+  command (#399).
 
 **Routes.** `/` is the first Organization's Apps home; `/o/<org>` one Organization's
 Apps home, its sections Workspace and Productionspace (F36, F32's final addendum);

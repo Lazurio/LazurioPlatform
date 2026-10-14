@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import type { Catalog, CatalogOrganization } from "../organizations/catalog";
-import { newModulePrompt } from "./apps-view";
+import type { PersonalspaceHolder } from "../organizations/personalspace";
+import { newModulePrompt, newPersonalModulePrompt } from "./apps-view";
 import { organizationName } from "./catalog-view";
 import { type PrepareTarget, preparePrompt } from "./content-view";
 import type { MessageKey } from "./messages";
@@ -23,7 +24,10 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // opens in the Lazurio Folder's root; its `org`, when the link carries one,
 // is the login of the content that stopped (the Organization, or the person
 // for the Personalspace), and the text comes from the last installation the
-// content routes report.
+// content routes report. The personal space's prompt `new-personal-module`
+// ("+ Nový modul" there, root decision 0185's addendum of 2026-10-13) opens
+// in the Folder's root too (root decision 0189): its `org` is the login of
+// the person who holds the Personalspace.
 
 export const promptSchema = "lazurio.prompt.v1";
 
@@ -33,8 +37,15 @@ export const promptSchema = "lazurio.prompt.v1";
  * Environment never is. `environment-operator`: the person this Environment
  * signs in to GitHub as, behind its admission: only an Environment whose
  * preset signs in as its person (first-run.ts `signsInAsPerson`), never a
- * Team or an Automated one. */
-export type PromptAudience = "organization-owner" | "environment-operator";
+ * Team or an Automated one. `personalspace-holder`: only where this
+ * Environment's GitHub account holds the Folder's Personalspace (the holder
+ * decision of #186: its own, private `<login>/<login>_GEN3`, and on a
+ * personal Remote Environment the handover's Owner), and the link's `org` is
+ * that account's login, letter case ignored. */
+export type PromptAudience =
+  | "organization-owner"
+  | "environment-operator"
+  | "personalspace-holder";
 
 const prompts = {
   // "+ Nový modul" (decision F36 addendum of 2026-10-04): the wireframe's
@@ -43,6 +54,11 @@ const prompts = {
   // "Vyřešit v Chatu" when preparing the content stopped (root decision
   // 0188): the wireframe's `preparePrompt`.
   "prepare-content": { who: "environment-operator", scope: "folder" },
+  // "+ Nový modul" in the personal space (root decision 0185's addendum of
+  // 2026-10-13): the wireframe's `newPersonalModulePrompt`, founding the
+  // person's own module with `lazurio module create personalspace/<slug>`
+  // (decision F52).
+  "new-personal-module": { who: "personalspace-holder", scope: "folder" },
 } as const satisfies Readonly<
   Record<
     string,
@@ -78,8 +94,9 @@ export type PromptDocument = Readonly<{
   schema: typeof promptSchema;
   id: PromptId;
   text: string;
-  /** The Organization's root on this Environment, absolute: Chat opens the
-   * new thread in the project rooted here. */
+  /** Where Chat opens the new thread, absolute: the Organization's root on
+   * this Environment for an Organization's prompt, the Lazurio Folder's
+   * root for the Folder's. */
   cwd: string;
 }>;
 
@@ -142,6 +159,32 @@ export function prepareContentDocument(
     schema: promptSchema,
     id: "prepare-content",
     text: preparePrompt(context.target, context.failure, copy),
+    cwd: resolve(folder),
+  });
+}
+
+/** The document of `new-personal-module` for the holder decision `holder`
+ * and the link's `login`, or null: only where this Environment's GitHub
+ * account holds the Personalspace and `login` is that account's (letter case
+ * ignored, as GitHub does). The text names the login as GitHub spells it;
+ * the thread opens in the Lazurio Folder's root (root decision 0189), where
+ * the prompt's commands run. */
+export function personalModuleDocument(
+  folder: string,
+  holder: PersonalspaceHolder,
+  login: string,
+  copy: Copy,
+): PromptDocument | null {
+  if (
+    holder.kind !== "held" ||
+    !githubLogin.test(login) ||
+    holder.login.toLowerCase() !== login.toLowerCase()
+  )
+    return null;
+  return Object.freeze({
+    schema: promptSchema,
+    id: "new-personal-module",
+    text: newPersonalModulePrompt(holder.login, copy),
     cwd: resolve(folder),
   });
 }
