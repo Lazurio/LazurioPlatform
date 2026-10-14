@@ -2119,8 +2119,8 @@ screen, and Czech, without page errors. A real Remote Environment, its network g
 
 ## Vault (Nastavení → Trezor)
 
-Settings → Vault ([F52's addendum of
-2026-10-14](decisions.md#f52-addendum-of-2026-10-14-nastavení--trezor-and-the-správci),
+Settings → Vault ([F53's addendum of
+2026-10-14](decisions.md#f53-addendum-of-2026-10-14-nastavení--trezor-and-the-správci),
 root decision 0198 point 5, the wireframe's `EnvVault` of prototypes-lazurio#33) is the
 way into the Environment's own vault, which is Lazurio Vaultwarden's web vault on its own
 address: the rule, one row with the vault's name and state, and the actions the person's

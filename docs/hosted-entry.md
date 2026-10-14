@@ -47,8 +47,8 @@ strips only `X-Auth-Request-Access-Token` from the bare hostname's `/oauth2/*`. 
 Launchpad accepts only a lowercase UUID there and keeps it with the cached admission;
 a header of the request itself still names nobody. Its one use is the membership of
 the Environment's own vault, whose access is access to the Environment (root decision
-0198 point 2, [F52's addendum of
-2026-10-14](decisions.md#f52-addendum-of-2026-10-14-nastavení--trezor-and-the-správci)).
+0198 point 2, [F53's addendum of
+2026-10-14](decisions.md#f53-addendum-of-2026-10-14-nastavení--trezor-and-the-správci)).
 
 ## Lazurio Account
 

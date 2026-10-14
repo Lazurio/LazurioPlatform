@@ -919,7 +919,7 @@ oauth2-proxy sets (`set_xauthrequest = true`; its user claim is the identity pro
 UUID there, keeps it with the cached admission of that session and never reads identity
 from a header of the request (`src/launchpad/hosted-trust.ts`). It has exactly one use:
 the membership of the Environment's own vault, whose access root decision 0198 point 2
-defines as access to the Environment, which is the admission fact itself (F52's addendum
+defines as access to the Environment, which is the admission fact itself (F53's addendum
 of 2026-10-14). It is not a repository right, not the Operator of a provider operation,
 not a role and not shown as a person; GitHub stays the authority of repository
 operations, and a gateway that names nobody changes nothing else.
@@ -10750,7 +10750,7 @@ member, an earlier Platform refusing it and its redaction
 token on argv, in the journal or in an answer.
 
 
-### F52 addendum of 2026-10-14: Nastavení → Trezor and the Správci
+### F53 addendum of 2026-10-14: Nastavení → Trezor and the Správci
 
 **Decided by the Admin (root decision 0198 points 2, 3 and 5; DEV-6631 tasks 648 and
 638b, contract C4 as shaped on 2026-10-13; the wireframe of

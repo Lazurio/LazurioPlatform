@@ -88,7 +88,7 @@ never trusts arbitrary forwarded identity headers and never stores a second
 editable ACL. The Environment's own vault adds the person its gateway admits
 as a Správce, named by the subject of the gateway's own answer to the
 admission and never by a header of the request, and keeps no list of them
-(decision F11's amendment and F52's addendum of 2026-10-14). The supported provider mechanism and revocation behavior must
+(decision F11's amendment and F53's addendum of 2026-10-14). The supported provider mechanism and revocation behavior must
 be qualified before activation. Public account/enrollment endpoints do not
 expose work resources.
 
