@@ -1130,25 +1130,31 @@ function typedHost(name: string): "local" | "ip" | "label" | "domain" | null {
     : null;
 }
 
-/** Whether a text that is no address still names a view host
- * (`isViewHost`) as its host, typed with or without http or https: its own
- * absolute form with the DNS root's trailing dot, a name no URL takes, a
- * port out of range. Such a text is refused, never a search, so no view's
- * address reaches the search engine (F50 point 2). A text with a space is a
- * search, as in Chrome, whatever it mentions. */
+/** A view host's name, `browser.` and a name in `lazurio.io` (`isViewHost`),
+ * anywhere in a text, standing apart from the letters, digits and hyphens
+ * around it. */
+const viewHostMention =
+  /(?:^|[^\p{L}\p{N}-])browser\.(?:[^\s/?#\\@]+\.)?lazurio\.io(?![\p{L}\p{N}-])/u;
+
+/** Whether a text that is no address mentions a view host anywhere, in any
+ * spelling: after `//` or `\\`, with the DNS root's trailing dot, as a name
+ * no address takes, with a port out of range, behind `user@`, escaped, with
+ * full-width or ideographic dots, in upper case. Such a text is refused,
+ * never a search, so no view's address reaches the search engine (F50
+ * point 2). A text with a space is a search, as in Chrome, whatever it
+ * mentions. */
 function namesViewHost(typed: string): boolean {
   if (/\s/.test(typed)) return false;
-  const authority =
-    typed.replace(/^https?:\/\//i, "").split(/[/?#\\]/, 1)[0] ?? "";
-  const host = authority
-    .slice(authority.lastIndexOf("@") + 1)
-    .replace(/:[^:\]]*$/, "");
-  // Also as a browser reads the name: full-width dots, escapes, IDN.
-  let read = host;
+  let text = typed;
   try {
-    read = new URL(`https://${host}`).hostname;
+    text = decodeURIComponent(typed);
   } catch {}
-  return isViewHost(host) || isViewHost(read);
+  return viewHostMention.test(
+    text
+      .normalize("NFKC")
+      .replace(/[。．｡]/g, ".")
+      .toLowerCase(),
+  );
 }
 
 /** The address a text typed without a scheme stands for, as Chrome's
@@ -1185,8 +1191,8 @@ function typedAddress(typed: string): URL | null {
  * 2. without one, `localhost`, an IP address or a one-label name followed by
  *    a port or a path opens over http, and a name with a dot and a top-level
  *    domain over https;
- * 3. anything else is a search, except a text without a space that names a
- *    view host (`namesViewHost`), which is refused;
+ * 3. anything else is a search, except a text without a space that
+ *    mentions a view host anywhere (`namesViewHost`), which is refused;
  * 4. an address on a view host (`isViewHost`), typed over http or https, is
  *    never loaded in the Environment browser: a view address of this
  *    Environment is that tab, its bare origin a new remote tab, another
