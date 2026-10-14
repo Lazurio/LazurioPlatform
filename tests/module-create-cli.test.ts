@@ -122,7 +122,7 @@ test("usage errors exit 2 with the command's help, before anything is read", asy
   }
 });
 
-test("refusals by name alone: an unknown Organization, the stack and the slug", async () => {
+test("refusals by name alone: an Organization outside a Folder, the stack and the slug", async () => {
   const folder = "/nonexistent-lazurio-folder";
   const refused = async (args: string[], reason: string) => {
     const run = await cli([
@@ -153,10 +153,11 @@ test("refusals by name alone: an unknown Organization, the stack and the slug", 
     });
     return report(run.stdout);
   };
-  // The Organization form: no such Organization in a Folder that is none.
+  // The Organization form in a Folder that is none: its preset cannot be
+  // read, so it might be a Team Environment (fail closed).
   const organization = await refused(
     ["Acme/portal", "--stack", "none", "--teams", "core"],
-    "organization_not_found",
+    "folder-unavailable",
   );
   expect(organization.scope).toBe("organization");
   await refused(["personalspace/notes", "--stack", "rails"], "unknown_stack");
@@ -165,7 +166,7 @@ test("refusals by name alone: an unknown Organization, the stack and the slug", 
 });
 
 posixTest(
-  "a workstation without a Personalspace refuses before GitHub is asked",
+  "a workstation without a Personalspace or the Organization refuses before GitHub is asked",
   async () => {
     const folder = join(parent, "workstation", "Lazurio");
     await mkdir(dirname(folder), { recursive: true });
@@ -189,6 +190,25 @@ posixTest(
       status: "blocked",
       reason: "personalspace-absent",
       next_steps: ["Install it first: lazurio personalspace install."],
+    });
+    // The same Folder has no Organization Acme.
+    const organization = await cli([
+      "module",
+      "create",
+      "Acme/portal",
+      "--stack",
+      "none",
+      "--teams",
+      "core",
+      "--dry-run",
+      "--json",
+      "--folder",
+      folder,
+    ]);
+    expect(organization.code).toBe(2);
+    expect(report(organization.stdout)).toMatchObject({
+      status: "blocked",
+      reason: "organization_not_found",
     });
   },
 );
