@@ -572,6 +572,7 @@ function runHost(
     git: operatorGit(),
     lockDirectory: (world as World).lockDirectory,
     install: fakeInstall(installs),
+    initData: async () => ({ ok: false, detail: "no data in this test" }),
     ...overrides,
   };
 }
@@ -1168,6 +1169,64 @@ describe("the real run", () => {
         status: "action_required",
         issues: [{ code: "push-failed" }],
       });
+    },
+  );
+});
+
+describe("a personal module with data (--data)", () => {
+  posixTest(
+    "its private data repository on the person's account, mounted as db/, its slot declared in the Personalspace's task worktree",
+    async () => {
+      const setup = await scenario({ worktree: true });
+      const plan = await dryRun(setup, {
+        selector: "personalspace/budget",
+        data: true,
+      });
+      expect(plan).toMatchObject({
+        status: "actionable",
+        data: {
+          repository: { full_name: "example/budget-data", private: true },
+          mount: join(setup.space, "workspace", "budget", "db"),
+          slot: {
+            path: "workspace/budget/db",
+            slug: "budget-data",
+            default_access: "private",
+            required_roles: ["owner"],
+          },
+        },
+      });
+      const requests: unknown[] = [];
+      const { report, steps } = await created(
+        setup,
+        { selector: "personalspace/budget", data: true },
+        runHost(setup, {
+          initData: async (request) => {
+            requests.push(request);
+            return { ok: true as const };
+          },
+        }),
+      );
+      expect(steps).toContain("data done");
+      expect(report.status).toBe("completed");
+      expect(
+        setup.calls
+          .filter((call) => call.kind === "createRepository")
+          .map((call) => call.args[0]),
+      ).toEqual(["budget", "budget-data"]);
+      expect(requests).toMatchObject([
+        {
+          name: "budget",
+          remote: "git@github.com:example/budget-data.git",
+          branch: "v3",
+        },
+      ]);
+      const slots = JSON.parse(
+        await readFile(join(setup.worktree, "modules.manifest.json"), "utf8"),
+      ).module_slots.map((slot: { path: string }) => slot.path);
+      expect(slots.slice(-2)).toEqual([
+        "workspace/budget",
+        "workspace/budget/db",
+      ]);
     },
   );
 });

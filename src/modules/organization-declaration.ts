@@ -3,6 +3,7 @@ import { expectedLegacyProjection } from "../organizations/legacy-projection";
 import { resolveOrganizationRootDocuments } from "../organizations/root-resolution";
 import {
   canonicalJson,
+  type DataSlot,
   insertModuleSlotText,
   ModuleScaffoldError,
   type ModuleSlot,
@@ -48,7 +49,7 @@ const refused = (message: string) =>
  */
 export function declareOrganizationSlots(
   texts: OrganizationDocumentTexts,
-  slots: readonly ModuleSlot[],
+  slots: readonly (ModuleSlot | DataSlot)[],
 ): OrganizationDocumentTexts {
   let canonical: unknown;
   try {

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { lstat, readdir, readFile, realpath } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { processContentGit } from "../src/content/git";
 import type { MembershipAnswer } from "../src/content/role";
 import type { PresetName } from "../src/folder/presets";
@@ -13,6 +13,7 @@ import {
 import { runModuleCreateCommand } from "../src/modules/module-create-cli";
 import {
   createModule,
+  type DataInitRequest,
   type ModuleCreateRunHost,
   type ModuleCreateStep,
 } from "../src/modules/module-create-run";
@@ -90,7 +91,12 @@ const git = async (cwd: string, ...args: string[]) => {
       cwd,
       stdout: "pipe",
       stderr: "pipe",
-      env: { PATH: Bun.env.PATH ?? "/usr/bin:/bin", HOME: cwd },
+      env: {
+        PATH: Bun.env.PATH ?? "/usr/bin:/bin",
+        HOME: cwd,
+        // git@github.com: reaches the world's bare repositories.
+        ...(world?.gitEnv ?? {}),
+      },
     },
   );
   const [out, error, code] = await Promise.all([
@@ -596,6 +602,7 @@ function runHost(
     git: operatorGit(),
     lockDirectory: (world as World).lockDirectory,
     install: install(),
+    initData: async () => ({ ok: false, detail: "no data in this test" }),
     ...overrides,
   };
 }
@@ -692,7 +699,7 @@ describe("the real run", () => {
       // which the root's Git ignores.
       const module = join(setup.root, "workspace", "portal");
       expect(report.module_root).toBe(module);
-      expect(await git(module, "remote", "get-url", "origin")).toBe(
+      expect(await git(module, "config", "--get", "remote.origin.url")).toBe(
         "git@github.com:Acme/portal.git",
       );
       expect(await git(module, "status", "--porcelain")).toBe("");
@@ -959,6 +966,239 @@ describe("the real run", () => {
       expect(run.code).toBe(0);
       expect(run.lines.at(-1)).toMatchObject({ status: "completed" });
       expect(setup.grants).toEqual(["Acme/sales Acme/handbook push"]);
+    },
+  );
+});
+
+// ---- a module with data (--data) ----------------------------------------------
+
+/** `repository-db init` as the engine does it against an empty repository
+ * (no network, no engine installed in tests): clone it into the mount,
+ * bootstrap `v3` with the config, push it. */
+function fakeInit(requests: DataInitRequest[], fail?: string) {
+  return async (request: DataInitRequest) => {
+    requests.push(request);
+    if (fail !== undefined) return { ok: false as const, detail: fail };
+    await git(
+      dirname(request.mount),
+      "clone",
+      "--quiet",
+      request.remote,
+      request.mount,
+    );
+    await git(request.mount, "checkout", "--quiet", "-B", request.branch);
+    await writeFile(
+      join(request.mount, "repository-db.yaml"),
+      `schema_version: repository-db.config.v1\napp: ${request.name}\ndata_repo:\n  remote: ${request.remote}\n  branch: ${request.branch}\nschema:\n  name: ${request.schemaName}\n  version: ${request.schemaVersion}\n`,
+    );
+    await writeFile(join(request.mount, ".gitignore"), "/.repository-db/\n");
+    await git(request.mount, "add", "--all");
+    await git(request.mount, "commit", "--quiet", "-m", "bootstrap");
+    await git(request.mount, "push", "--quiet", "-u", "origin", request.branch);
+    return { ok: true as const };
+  };
+}
+
+describe("a module with data (--data)", () => {
+  posixTest(
+    "the dry run plans the data repository and asks GitHub whether it exists",
+    async () => {
+      const setup = await scenario({ worktree: true });
+      const report = await dryRun(setup, { data: true });
+      expect(report.status).toBe("actionable");
+      expect(setup.calls.at(-1)).toEqual({
+        kind: "repository",
+        args: ["Acme", "portal-data"],
+      });
+      expect(report.data).toMatchObject({
+        repository: {
+          full_name: "Acme/portal-data",
+          private: true,
+          create: true,
+        },
+        mount: join(setup.root, "workspace", "portal", "db"),
+        branch: "v3",
+        schema: { name: "portal-data", version: "0.1.0" },
+        slot: {
+          path: "workspace/portal/db",
+          slug: "portal-data",
+          teams: ["core", "sales"],
+          materialization: "repository_db_mount",
+        },
+      });
+      expect(report.plan).not.toBe((await dryRun(setup)).plan);
+      expect(report.next_steps.join("\n")).toContain(
+        "--teams core,sales --data --confirm",
+      );
+      // Its repository exists already: never taken over.
+      const taken = await scenario({
+        worktree: true,
+        repositories: { "Acme/portal-data": {} },
+      });
+      expect((await dryRun(taken, { data: true })).reason).toBe(
+        "data-repository-exists",
+      );
+      expect((await dryRun(taken, { data: true, stack: "none" })).reason).toBe(
+        "data_needs_bun_app",
+      );
+    },
+  );
+
+  posixTest(
+    "the run creates the data repository, grants it, mounts it as db/ on v3 and declares both slots",
+    async () => {
+      const setup = await scenario({ worktree: true });
+      const requests: DataInitRequest[] = [];
+      const { report, steps } = await created(
+        setup,
+        { selector: "acme/ledger", data: true },
+        runHost(setup, { initData: fakeInit(requests) }),
+      );
+      expect(steps).toEqual([
+        "plan done",
+        "write done",
+        "prepare done",
+        "commit done",
+        "create done",
+        "place done",
+        "push done",
+        "grant done",
+        "data done",
+        "declare done",
+        "check done",
+      ]);
+      expect(report).toMatchObject({ status: "completed", issues: [] });
+      expect(
+        setup.calls.filter((call) =>
+          ["createRepository", "grantTeam"].includes(call.kind),
+        ),
+      ).toEqual([
+        {
+          kind: "createRepository",
+          args: ["ledger", "Modul Lazuria.", "Acme"],
+        },
+        {
+          kind: "grantTeam",
+          args: ["Acme", "core-builders", "Acme/ledger", "push"],
+        },
+        { kind: "grantTeam", args: ["Acme", "sales", "Acme/ledger", "push"] },
+        {
+          kind: "createRepository",
+          args: ["ledger-data", "Data Modulu Lazuria (repository-db).", "Acme"],
+        },
+        {
+          kind: "grantTeam",
+          args: ["Acme", "core-builders", "Acme/ledger-data", "push"],
+        },
+        {
+          kind: "grantTeam",
+          args: ["Acme", "sales", "Acme/ledger-data", "push"],
+        },
+      ]);
+      const module = join(setup.root, "workspace", "ledger");
+      expect(requests).toEqual([
+        {
+          app: join(module, "app", "v1"),
+          name: "ledger",
+          remote: "git@github.com:Acme/ledger-data.git",
+          branch: "v3",
+          mount: join(module, "db"),
+          schemaName: "ledger-data",
+          schemaVersion: "0.1.0",
+        },
+      ]);
+      // The mount: a checkout of the data repository on v3, which the
+      // module's Git ignores.
+      expect(await git(join(module, "db"), "branch", "--show-current")).toBe(
+        "v3",
+      );
+      expect(await git(module, "status", "--porcelain")).toBe("");
+      const bare = join((world as World).remotes, "Acme", "ledger-data.git");
+      expect(await git(bare, "--git-dir", bare, "branch", "--list")).toContain(
+        "v3",
+      );
+      // The app depends on the engine; both slots are declared, and the
+      // root still resolves cleanly with them.
+      const pkg = JSON.parse(
+        await readFile(join(module, "app", "v1", "package.json"), "utf8"),
+      );
+      expect(pkg.dependencies["@lazurio/repository-db"]).toMatch(
+        /^github:Lazurio\/repository-db#v\d+\.\d+\.\d+$/,
+      );
+      const declared = JSON.parse(
+        await readFile(join(setup.worktree, "modules.manifest.json"), "utf8"),
+      ).module_slots.map((slot: { path: string }) => slot.path);
+      expect(declared.slice(-2)).toEqual([
+        "workspace/ledger",
+        "workspace/ledger/db",
+      ]);
+      expect(await resolveOrganizationRoot(setup.worktree)).toMatchObject({
+        state: "transition",
+        issues: [],
+      });
+      await git(setup.worktree, "commit", "--quiet", "-am", "Declare ledger");
+      await git(setup.root, "merge", "--quiet", "--ff-only", "agent/portal");
+      const merged = (await readFolderCatalog(setup.folder)).organizations[0];
+      expect(merged).toMatchObject({ executable: true });
+      expect(
+        merged?.modules.find((entry) => entry.module === "ledger"),
+      ).toMatchObject({ executable: true });
+    },
+  );
+
+  posixTest(
+    "a mount that fails leaves the data repository created and declared, with the exact init command",
+    async () => {
+      const setup = await scenario({ worktree: true });
+      const { report, steps } = await created(
+        setup,
+        { selector: "acme/archive", data: true },
+        runHost(setup, {
+          initData: fakeInit([], "it ended with exit code 1: clone_failed"),
+        }),
+      );
+      expect(steps).toContain("data failed data-init-failed");
+      expect(steps.slice(-2)).toEqual(["declare done", "check done"]);
+      expect(report).toMatchObject({
+        status: "action_required",
+        issues: [{ code: "data-init-failed" }],
+      });
+      expect(report.next_steps[0]).toContain(
+        "bun ./node_modules/@lazurio/repository-db/src/cli.ts init --app archive --remote git@github.com:Acme/archive-data.git --branch v3 --mount",
+      );
+      const declared = JSON.parse(
+        await readFile(join(setup.worktree, "modules.manifest.json"), "utf8"),
+      ).module_slots.map((slot: { path: string }) => slot.path);
+      expect(declared).toContain("workspace/archive/db");
+    },
+  );
+
+  posixTest(
+    "a data repository GitHub does not create: the module stays, its data slot is not declared",
+    async () => {
+      const setup = await scenario({ worktree: true });
+      const host = runHost(setup, {
+        initData: fakeInit([]),
+        github: {
+          ...setup.github,
+          createRepository: async (name, description, organization) =>
+            name.endsWith("-data")
+              ? { kind: "failed" }
+              : setup.github.createRepository(name, description, organization),
+        },
+      });
+      const { report, steps } = await created(
+        setup,
+        { selector: "acme/notes", data: true },
+        host,
+      );
+      expect(steps).toContain("data failed data-create-failed");
+      expect(report.status).toBe("action_required");
+      const declared = JSON.parse(
+        await readFile(join(setup.worktree, "modules.manifest.json"), "utf8"),
+      ).module_slots.map((slot: { path: string }) => slot.path);
+      expect(declared).toContain("workspace/notes");
+      expect(declared).not.toContain("workspace/notes/db");
     },
   );
 });

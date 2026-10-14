@@ -21,6 +21,7 @@ import {
   type ModuleCreateReport,
   type ModuleCreateRequest,
   occupied,
+  planData,
   planDigest,
   type TaskWorktree,
 } from "./module-create";
@@ -310,6 +311,7 @@ export async function planOrganizationModule(
     ],
     templates: host.templates ?? moduleTemplates,
     versions: { bun: scaffoldBunVersion, ...defaultScaffoldVersions },
+    data: request.data,
   });
 
   // 6. Each Team on GitHub: by its bound slug and id, else by its slug.
@@ -368,6 +370,7 @@ export async function planOrganizationModule(
       `GitHub did not answer whether ${fullName} exists.`,
       "GitHub did not answer; run the command again in a moment.",
     );
+  await planData(report, planned, github, moduleRoot, host.github);
 
   const resolvedPool = pool as PortPool;
   report.status = "actionable";

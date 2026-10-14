@@ -1626,7 +1626,10 @@ yet: sessions that T3 Code starts on a Linux Remote Environment.
 
 Unchanged: the six manual pages apart from the revision and the lists of owned files; the
 module generator and its commands (F52); who gets "+ Nový modul" (F36). Template revision
-`base-instructions-51`. Verified by `tests/folder-skills.test.ts`: the skill in both
+`base-instructions-51`; `base-instructions-52` when the skill takes the Organization form and
+`--data` (F52 addenda of 2026-10-14): an Organization's module follows five steps from a task
+worktree of its root, its first version runs from the module's own worktree, and `lazurio module
+start` comes only after both pull requests are merged. Verified by `tests/folder-skills.test.ts`: the skill in both
 locales on every preset, byte-identical for both harnesses (frontmatter, what a module is
 before the interview, the interview, the generator's stacks in its order, repository-db
 first and no database for a new module, the personal commands only where a Personalspace
@@ -11045,6 +11048,73 @@ creations; documents changed during the run; the run's own refusals; and the CLI
 with its read-back. The Organization form's declaration was also checked against every
 Organization root on one maintainer's workstation (each resolved `transition` with the
 new slot, one changed line in its canonical manifest); that check is not a test.
+
+### F52 addendum of 2026-10-14: a new module's data starts in repository-db (`--data`)
+
+**Decided by the Operator 2026-10-14 (a module with data starts in repository-db, not
+in a database; root decisions 0171 point 2 and 0176 point 2; the Module Standard's
+`MS-10`). Implemented.** `lazurio module create … --data`, in either form, gives the
+new module its data from the first commit: a private repository `<owner>/<slug>-data`
+mounted as the module's `db/` on the generation branch `v3`, declared beside the
+module's slot. When the module is used in earnest it later moves to a database (Neon
+recommended) with the repository-db schema as its reference; that move is not part of
+this command.
+
+1. **The plan.** Only a stack with a Bun app (`vite-react`, `astro`,
+   `astro-starlight`, `bun-service`): the engine is TypeScript
+   (`data_needs_bun_app`). The generator (`planModuleScaffold` with `data`) changes
+   three files and nothing else: the app's `package.json` depends on the one released
+   `github:Lazurio/repository-db#v<version>` (`defaultScaffoldVersions.repositoryDb`,
+   3.2.0 now; the dependencies stay sorted), the module's `.gitignore` ignores `/db/`
+   (a repository of its own), and its `AGENTS.md` says where the data lives and that
+   publishing it is a Publication. Its plan gains `data`: the repository's name, the
+   mount `db`, the branch, the schema `<slug>-data` `0.1.0`, the engine and the slot,
+   shaped as an Organization declares a repository-db child today
+   (`{path: "workspace/<slug>/db", slug: "<slug>-data", teams, category, default_access,
+   required_roles, source_of_truth: "repository-db:v3", status, notes, materialization:
+   "repository_db_mount", repository_db: {repo, url, branch: "v3", config:
+   "repository-db.yaml", data_root: "data", profile: "repository-db-v3",
+   app_writable_path_policy: "repository_db_publish_only"}, git: {url, branch:
+   "v3"}}`), private to its owner and without Teams in a Personalspace. The slot id
+   must be free (`slot_exists`), and GitHub must not have `<owner>/<slug>-data`
+   (`data-repository-exists`; a GET). The report's `data` and the digest cover it.
+2. **The run's step `data`**, after `grant` (or `push`): the empty private repository
+   is created and verified exactly as the module's (`data-create-failed`,
+   `data-not-private`, `data-create-uncertain`; never adopted, never deleted), granted
+   to the module's Teams (`grant-failed`), then **mounted by the engine the app
+   installed**: `repository-db init --app <slug> --remote
+   git@github.com:<owner>/<slug>-data.git --branch v3 --mount <module>/db
+   --schema-name <slug>-data --schema-version 0.1.0`, run by the operator's Bun from
+   `app/v1/node_modules/@lazurio/repository-db`. Init clones the empty repository,
+   bootstraps `v3` (config, `data/`, `scripts/`, its `.gitignore`), pushes it and makes
+   `v3` the default branch. The Platform creates the repository itself instead of
+   `--create-remote`, so that GitHub's answer is verified as for the module, and runs
+   the engine instead of re-implementing init. A mount that fails is `data-init-failed`
+   with the exact command; the data slot is declared whenever the repository exists
+   and is the module's, so the pull request carries the intent and the command
+   completes it. Without the repository the data slot is not declared.
+3. **The declaration** puts both slots in the same pull request, the data slot right
+   after the module's; for an Organization the projection follows both (the
+   repository-db child is projected like any declared repository).
+4. **Not here.** The app's wiring of the engine (`createSyncHost`, the Draft & Publish
+   card), a schema package, Personalspace cloning of the data, and the later move to a
+   database.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| `repository-db init --create-remote` | `gh repo create` with no check of GitHub's answer; rejected for the same verified creation as the module's |
+| Re-implement init in the Platform | A second implementation of the engine's bootstrap; rejected for the engine the app pins |
+| A database first | Rejected by the Operator for a new module; it comes later with repository-db as the schema reference |
+| Data for `python-uv` | The engine is TypeScript; refused |
+
+**Verification.** `tests/module-scaffold.test.ts`: the three changed files and nothing
+else, the data slot of either form and its member order, the refusals.
+`tests/organization-module-create.test.ts`: the dry run's GET and refusal; the real run
+with a fake init that bootstraps `v3` as the engine does (both repositories created and
+granted, the mount on `v3` ignored by the module, both slots declared, the root
+resolving `transition`, and after the merge the catalog listing the module); a failed
+mount; a data repository GitHub does not create. `tests/personal-module-create.test.ts`:
+the personal form.
 
 ## F53 — Every Environment owns its vault: its own organization in the network's Vaultwarden, created by its technical account
 
