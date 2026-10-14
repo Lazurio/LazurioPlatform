@@ -218,10 +218,14 @@ for (const tool of ["gh", "t3"])
 // named only by `link --list`, an expired one, and for Gmail an expired
 // account beside a sign-in nobody finished, which the page leaves out (F42
 // addendum of 2026-10-12); its CLI removes only after a prompt, so the page
-// offers no "Odpojit". And a fake Executor with Executor's token file of a
+// offers no "Odpojit". It stands in the standard path and is not the build
+// Lazurio pins, so Apps → Integrace and Settings → Tools offer its update
+// (decision F42, addendum (b) of 2026-10-14; the update itself would reach
+// the network). And a fake Executor with Executor's token file of a
 // synthetic token.
+await mkdir(join(home, ".local", "bin"), { recursive: true });
 await writeFile(
-  join(home, "bin", "composio"),
+  join(home, ".local", "bin", "composio"),
   `#!/bin/sh\nexec '${process.execPath}' --no-env-file '${join(import.meta.dir, "..", "tests", "fixtures", "fake-composio.ts")}' "$@"\n`,
   { mode: 0o755 },
 );
@@ -491,10 +495,7 @@ const app = await startLaunchpad(
   // no real account or T3 Code is asked.
   toolsEnvironmentOf(
     {
-      PATH:
-        executor === undefined
-          ? join(home, "bin")
-          : `${join(home, "bin")}:${join(home, ".local", "bin")}`,
+      PATH: `${join(home, "bin")}:${join(home, ".local", "bin")}`,
       HOME: home,
     },
     process.platform,
@@ -541,7 +542,8 @@ const app = await startLaunchpad(
                 }),
                 stderr: "",
               }
-            : command[1] === "--version"
+            : // composio answers its own version (the fake's state).
+              command[1] === "--version" && !command[0]?.endsWith("/composio")
               ? { exitCode: 0, stdout: "t3 v0.0.45-lazurio.2\n", stderr: "" }
               : command[1] === "auth" && command[2] === "pairing"
                 ? {
