@@ -397,6 +397,23 @@ changes (proposed upstream in ComposioHQ/composio#4817, issue #4816, and #4809).
   from the build it moves to newer builds of the fork rather than the pinned one, from
   Composio's CLI it reaches the fork only with `GITHUB_*` overrides, and it also
   installs the CLI's skill for Claude Code, which the installation keeps out.
+- **The same update from Integrace** (decision F42, addendum (b) of 2026-10-14). Where
+  Composio is on here (allowed, installed, signed in, on for agents) and its row in
+  Settings → Tools offers "Update" (`pinnedUpdateOffered`, `src/tools/pin.ts`, one
+  rule for both pages), the reading's `composio.update` is true and Apps → Integrace
+  shows one line above the apps on Vše and Připojené: "Aktualizujte Composio, ať tu
+  můžete účty odpojovat a vidět jejich jména." ("Update Composio to disconnect
+  accounts here and see their names.") with "Aktualizovat" ("Update"). The click is
+  the consent and posts `/api/tools/upgrade` (`{tool: "composio"}`), the same route
+  and core as Settings → Tools. From the click until the reading after a finished
+  update the line says "Aktualizuji Composio…" with a spinner and its button waits;
+  then the page reads again (`?refresh=1`), the line goes, and "Composio je
+  aktualizované." stands under the tabs. Any other answer says "Aktualizace nedoběhla.
+  Zkuste to znovu." in the line, and its button tries again. Where Composio is off,
+  not installed, signed out, elsewhere on PATH or already the build, there is no line;
+  the cards and the other notices already say what is missing. `lazurio integrations
+  list` says in one line that the person updates Composio in Settings → Tools, and
+  that an agent does not do it unless the person asks (decision 0161, F17).
 - **Integrace** reads the richer list: names and removal by id
   ([Account names](#account-names-and-composios-dashboard)), and "Odpojit" appears by
   itself, since the build has `--yes`.
@@ -508,6 +525,21 @@ shown as a name.
   rather than in the row, where the CLI removes an account without a prompt
   (`composio.disconnect`). "Přihlásit znovu" stays in the row of an expired
   account; an Executor account keeps "Odpojit" in its row and has no menu.
+- "Odpojit" asks once, then the confirmation closes and the account's row says
+  "Odpojuji…" ("Disconnecting…") with a spinner, dimmed, its "⋯" and "Odpojit"
+  waiting, until a successful reading no longer lists it (decision F42, addendum
+  (b) of 2026-10-14; `Removal`, `removalsRead`, `integrations-view.ts`). Removing a
+  Composio account and reading the page again take a few seconds. A reading that
+  fails or still lists the account keeps the row waiting and the page reads again
+  after 1.5 s, at most twice; a reading whose source of the account's path
+  (`sources.composio` or `sources.executor`) was not read leaves that source's
+  accounts out and counts as one that still lists it. Then a reading that still lists it draws the row as it
+  is with "Odpojeno, ale ještě se tu ukazuje. Za chvíli zkontrolujte připojení.",
+  and a failing one leaves it waiting under "Integrace se nepodařilo načíst." until
+  a reading succeeds. A removal that fails brings the row back with why ("Účet se
+  nepodařilo odpojit.", or what the route's refusal means) in place of its line,
+  until the next successful reading or another attempt. A custom server's "Odebrat" keeps its confirmation open until it is
+  done, as before.
 - No rename: it needs a project API key, and the CLI has no rename. The provider's
   identity (`state.val.displayName`) is printed only by Lazurio's build; Composio's
   own CLI strips it from every output.
@@ -555,7 +587,8 @@ them well. So the page leads there:
 Both answer the same document (`IntegrationsOverview`, `src/integrations/model.ts`):
 the Folder's language and scope, the Integrace page address where a browser
 reaches the Launchpad (`page`, null on a workstation), Composio's policy,
-readiness, whether its CLI removes an account here (`disconnect`) and its
+readiness, whether its CLI removes an account here (`disconnect`), whether the
+page offers its update (`update`: [Lazurio's build](#lazurios-build-of-the-cli)) and its
 Apps in Composio's dashboard (`apps`: [Composio's own Apps](#composios-own-apps-aplikace-v-composiu)), each
 source's state (`ok`, `unavailable`, `absent` for an Environment
 without Executor, `unreadable`, `signed-out`, `not-allowed`), the tools for one app that are connected, every catalog app with

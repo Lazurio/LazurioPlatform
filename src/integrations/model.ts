@@ -157,6 +157,12 @@ export type IntegrationsOverview = Readonly<{
     /** Whether "Odpojit" removes a Composio account here: the CLI removes
      * one without a prompt (`connections remove --yes`). */
     disconnect: boolean;
+    /** Whether the page offers Composio's update (decision F42, addendum
+     * (b) of 2026-10-14): Composio is on here (`ready`) but the installed
+     * CLI is not the build Lazurio pins, and its update can work, as
+     * Settings → Tools reads it (`pinnedUpdateOffered`). The update is
+     * Settings → Tools' own (`/api/tools/upgrade`). */
+    update: boolean;
     /** "Aplikace v Composiu" (decision F42, addendum of 2026-10-14): the
      * Apps section of the Composio organization this Environment works in,
      * where the person connects an app the catalog does not list; its
@@ -216,6 +222,9 @@ export type MergeInput = Readonly<{
   /** The CLI removes an account without a prompt (`connections remove
    * --yes`). */
   composioDisconnect?: boolean;
+  /** The installed CLI is not the build Lazurio pins and its update can
+   * work here (`pinnedUpdateOffered` of its row in Settings → Tools). */
+  composioUpdate?: boolean;
   readAt: string;
 }>;
 
@@ -491,6 +500,8 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
       source: policy.source,
       ready: input.composioReady,
       disconnect: composioUsable && input.composioDisconnect === true,
+      update:
+        policy.allowed && input.composioReady && input.composioUpdate === true,
       apps: composioUsable ? composioAppsUrl(input.composioOrganization) : null,
       organization: input.composioTarget ?? null,
     }),

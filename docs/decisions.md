@@ -1763,7 +1763,10 @@ nothing else of their configuration.
 **Amended by [F42](#f42--integrace-one-catalog-for-the-environment-one-path-per-app-executors-api-behind-the-launchpad), addendum (3) (2026-10-13):**
 composio is the one operator's tool whose version Lazurio pins: its update
 (`lazurio tools update composio`, Settings → Tools → Update) installs Lazurio's build
-of it, whatever runs, and only when the person asks for it.
+of it, whatever runs, and only when the person asks for it. *Amended 2026-10-14
+([F42](#f42--integrace-one-catalog-for-the-environment-one-path-per-app-executors-api-behind-the-launchpad), addendum (b)):*
+Apps → Integrace asks for that update too, by one line and the same route; the
+person's click there is the request.
 
 **Addendum 2026-09-28 (Matěj): the Operator owns the Lazurio version; the pin
 is a minimum.** Recorded from Matěj's decisions of 2026-09-28. (1) There is
@@ -7843,6 +7846,99 @@ Verified by tests:
 - How it looks, the corner, the foot, the empty search, the new tab and the reading
   on return: checked in a headless browser on the hosted preview (root decision
   0178).
+
+**Addendum 2026-10-14 (b), asked for by the Organization Admin: "Odpojit" says it is
+working, and Integrace asks people to update Composio.** "Odpojit" worked, but the
+page changed only about two seconds later, with nothing in between, so people did not
+know whether it had. And Lazurio's build of Composio's CLI (addendum (3)) reached a
+person only if they found "Aktualizovat" in Settings → Tools; the Admin wants everyone
+to switch, told on Integrace "short and to the point". The reference is
+[integrations](integrations.md#lazurios-build-of-the-cli).
+
+1. **The row says "Odpojuji…" until a reading without the account.** OK in the
+   confirmation closes it at once. The account's row is dimmed, a spinner stands
+   before "Odpojuji…" ("Disconnecting…") in place of its line, and its "⋯" and
+   "Odpojit" wait. This holds from the click until a successful reading that no
+   longer lists the account (by its app, path and selector): the removal and the
+   reading after it are one wait for the person. A reading that completes while the
+   removal still runs changes nothing. After the removal answered, a reading that
+   fails or still lists the account (Composio's list may lag) keeps the row waiting
+   and the page reads again after 1.5 s, at most twice (`removalRechecks`), never
+   polling beyond that. A reading whose source of the account's path
+   (`sources.composio` or `sources.executor`) was not read counts as one that still
+   lists it: it leaves that source's accounts out, which is never "nothing connected"
+   (Pablo's second review of #417). Then a reading that still lists the account draws the row as
+   it is, its actions back, with one plain line: "Odpojeno, ale ještě se tu ukazuje.
+   Za chvíli zkontrolujte připojení." / "Disconnected, but it still shows here. Check
+   connections in a moment.", until a reading without it. Where readings keep
+   failing, the row keeps waiting and the page says "Integrace se nepodařilo
+   načíst." under the tabs (also for any failed reading while an older one is
+   shown), until "Zkontrolovat připojení" reads successfully. A removal that fails
+   brings the row back with why, in its line ("Účet se nepodařilo odpojit.", or what
+   the route's refusal means, as the dialog said before), and its actions again,
+   until the next successful reading or another attempt. The page's state is
+   `Removal` (`removing`, `removed`, `failed`, `listed`) by account (`removalKey`,
+   `removalsRead`, `integrations-view.ts`); the route is unchanged. A custom
+   server's "Odebrat" keeps its dialog open until it is done, as before.
+2. **One line where Composio should be updated.** The reading's `composio.update` is
+   true where Composio is on here (`ready`: allowed, installed, signed in, on for
+   agents) and its row in Settings → Tools offers "Update": a `launchpad` tool this
+   Environment offers, not refused by the Organization, in the standard path, and not
+   the build Lazurio pins. That is `pinnedUpdateOffered` (`src/tools/pin.ts`), one rule
+   for both pages over the tools reading's `pinned` and installed version; there is no
+   second source of the pin. The line stands above the apps on Vše and Připojené:
+   "Aktualizujte Composio, ať tu můžete účty odpojovat a vidět jejich jména." / "Update
+   Composio to disconnect accounts here and see their names.", with "Aktualizovat" /
+   "Update". It says what the person gains, in no word they would have to decode
+   ("build", "CLI", a version). Elsewhere it is not shown: Composio off, not
+   installed or signed out has its own card lines and notices, and an installation
+   elsewhere on PATH is for an agent to straighten (decision 0161).
+3. **The click is the consent and runs the same update.** It posts
+   `/api/tools/upgrade` with `{tool: "composio"}`, the route and core of "Update" in
+   Settings → Tools and of `lazurio tools update composio`. From the click until the
+   reading after a finished update the line says "Aktualizuji Composio…" with a
+   spinner in place of its icon, and its button waits. Then the page reads again
+   (`?refresh=1`): the line goes, and "Composio je aktualizované." / "Composio is
+   updated." stands under the tabs. Any answer but `tool-updated` keeps the line,
+   which says "Aktualizace nedoběhla. Zkuste to znovu." / "The update did not finish.
+   Try again.", and its button tries again.
+4. **Agents are told, and do not act.** `lazurio integrations list` prints, where
+   `composio.update` is true, one line that the person updates Composio in Settings →
+   Tools, that until then accounts cannot be disconnected from here and some have no
+   name, and that an agent does not update it unless the person asks (decision 0161,
+   F17). `--json` carries `composio.update`.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the dialog open with a spinner until the removal answers | The failure stays where it was said before; but the person still waits for the reading after the dialog closes, with nothing shown, which is the two seconds asked about; rejected: one wait, on the row |
+| Remove the row at once, before the reading | Feels instant; but the reading is the truth, and a removal Composio did not finish would show as done; rejected |
+| End the wait with any reading after the removal | Simplest; but a failed or lagging reading still shows the account and would offer "Odpojit" again (Pablo's review of #417); rejected: only a successful reading without the account ends it |
+| Read again until the account is gone | Always ends right; but endless reading where Composio's list keeps it, each reading up to two `composio` processes; rejected: two re-reads, then the row as it is with a plain line |
+| A global spinner (the refresh button) only | No new state; but it does not say which account, and it already spins on every reading; rejected |
+| Link to Settings → Tools instead of a button | No second place that starts the update; but one more page and a second click between the person and the switch the Admin wants everyone to make; rejected: the same route, one click |
+| Update Composio without asking, at the Launchpad's start | Everyone switches at once; but an update of the person's tool they did not ask for (decision 0161); rejected, as in addendum (3) |
+| Show the line also where Composio is signed out or off | Prepares the switch early; but the update helps no one there, and the page already asks for the sign-in or says Composio is off; rejected |
+| Compute "not the build" in the page from the version | No new field; but the page would need the tools reading and repeat the rule of Settings → Tools; rejected: the server answers `update` from the same rule |
+
+Verified by tests:
+- The row while "Odpojit" runs, after it answered, after a reading without the
+  account and after a failure, by account; a failed refresh, a stale one (re-read
+  twice, then the plain line) and one that overlaps the removal; "Odpojuji…" in
+  both languages; why a removal failed, from the
+  route's answers; the line about the update only where the reading offers it, while
+  the update runs, after a failure, its texts in both languages without technical
+  words, and only `tool-updated` as an update; a reading without `update` refused
+  (`tests/integrations-page.test.ts`).
+- `composio.update` only where Composio is allowed and ready and the update is
+  offered (`tests/integrations-model.test.ts`); true for Composio's own CLI in the
+  standard path, false for the build and where signed out, and the agents' line with
+  it and without it (`tests/integrations-routes.test.ts`,
+  `tests/organization-settings-surfaces.test.ts`); the shared rule through "Update"
+  in Settings → Tools (`tests/tools-view.test.ts`).
+- How it looks and the click paths: the pending row during a slowed removal, a
+  failed removal, the line before, during and after the update and after a failed
+  one, checked in a headless browser on the hosted preview, whose `/api/tools/upgrade`
+  the browser automation answered instead of the network (root decision 0178).
 
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 

@@ -11,6 +11,7 @@ import {
   toolNoteProblem,
 } from "../tools/note";
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
+import { notPinned, pinnedUpdateOffered } from "../tools/pin";
 import {
   type SshKeyFacts,
   type SshLink,
@@ -450,15 +451,6 @@ export type ToolStatusView = Readonly<{
   fix: boolean;
 }>;
 
-/** An installed tool that is not the build Lazurio pins for it (composio,
- * decision F42 addendum (3)); a version that could not be read is not it
- * either. */
-function notPinned(tool: ToolOverview): boolean {
-  return (
-    tool.installed && tool.pinned !== undefined && tool.version !== tool.pinned
-  );
-}
-
 /** "Update" on the row of a tool that is not the build Lazurio pins for it
  * (composio, decision F42 addendum (3)): its update installs exactly that
  * build in the standard path, keeping the sign-in. Only where it can work:
@@ -469,11 +461,7 @@ export function updateAction(
   tool: ToolOverview,
   copy: Copy,
 ): Readonly<{ label: string; named: string }> | null {
-  return tool.setup === "launchpad" &&
-    tool.offered &&
-    tool.organization?.allowed !== false &&
-    tool.standardPath !== false &&
-    notPinned(tool)
+  return pinnedUpdateOffered(tool)
     ? {
         label: copy.toolsUpdateAction,
         named: fill(copy.toolsUpdateActionNamed, { name: tool.name }),

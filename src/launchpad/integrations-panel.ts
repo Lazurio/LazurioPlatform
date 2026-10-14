@@ -37,13 +37,22 @@ import {
   attentionCount,
   type CardAction,
   type ComposioTrip,
+  type ComposioUpdate,
   cardView,
   composioOrganizationLine,
   composioTrip,
+  composioUpdated,
+  composioUpdateLine,
+  disconnectFailure,
   disconnectText,
   integrationsHelp,
   monogram,
   parseIntegrations,
+  type Removals,
+  removalKey,
+  removalRecheckMs,
+  removalStep,
+  removalsRead,
   serverLine,
   sourceLines,
   tabLabels,
@@ -75,7 +84,10 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // Vše, also of a search that found nothing) open the Apps of the person's
 // Composio organization in their own browser, the link the server built;
 // coming back reads the Integrace once (decision F42, addendum of
-// 2026-10-14).
+// 2026-10-14). "Odpojit" closes its confirmation at once and the account's
+// row says "Odpojuji…" until the reading after it; where Composio is not the
+// build Lazurio pins, one line offers its update (decision F42, addendum (b)
+// of 2026-10-14).
 
 type Session = Readonly<{
   id: string;
@@ -169,7 +181,18 @@ export function createIntegrationsPanel(
   let deepLink: string | null = null;
   const sessions = new Map<string, Session>();
   let busy = new Set<string>();
-  let confirmAction: (() => Promise<string | null>) | null = null;
+  /** What the confirmation's OK does: an action it waits for, saying its
+   * failure in the dialog (`wait`), or one it starts once closed
+   * (`start`), which says how it goes on the page. */
+  let confirmAction:
+    | Readonly<{ kind: "wait"; run: () => Promise<string | null> }>
+    | Readonly<{ kind: "start"; run: () => void }>
+    | null = null;
+  /** "Odpojit" of each account from its confirmation until the reading
+   * after it (`Removal`). */
+  let removals: Removals = new Map();
+  /** Composio's update from this page (`ComposioUpdate`). */
+  let updating: ComposioUpdate = "idle";
   /** The way to Composio's Apps and back (`composioTrip`). */
   let trip: ComposioTrip = "idle";
 
@@ -235,6 +258,8 @@ export function createIntegrationsPanel(
     const read = reads;
     loading = true;
     render();
+    /** What this reading answered, where it succeeded. */
+    let fresh: IntegrationsOverview | null = null;
     try {
       const { value, ok } = await options.get(
         refresh ? "/api/integrations?refresh=1" : "/api/integrations",
@@ -244,6 +269,7 @@ export function createIntegrationsPanel(
       if (parsed === null) failed = true;
       else {
         overview = parsed;
+        fresh = parsed;
         failed = false;
       }
     } catch {
@@ -251,6 +277,12 @@ export function createIntegrationsPanel(
     } finally {
       if (read === reads) {
         loading = false;
+        // Only a successful reading without the account ends its "Odpojit";
+        // a failed or stale one keeps the row waiting and reads again, a
+        // bounded number of times (`removalsRead`).
+        const next = removalsRead(removals, fresh);
+        removals = next.removals;
+        if (next.again) setTimeout(() => void load(true), removalRecheckMs);
         drawAttention();
         if (deepLink !== null) openLinked(deepLink);
         render();
@@ -422,7 +454,7 @@ export function createIntegrationsPanel(
     title: string,
     text: string,
     ok: string,
-    action: () => Promise<string | null>,
+    action: NonNullable<typeof confirmAction>,
   ) {
     const copy = options.copy();
     confirmTitle.textContent = title;
@@ -436,11 +468,18 @@ export function createIntegrationsPanel(
     confirmTitle.focus();
   }
   confirmOk.addEventListener("click", async () => {
-    if (confirmAction === null) return;
+    const action = confirmAction;
+    if (action === null) return;
+    if (action.kind === "start") {
+      confirmAction = null;
+      confirm.close();
+      action.run();
+      return;
+    }
     confirmOk.disabled = true;
-    const failure = await confirmAction().catch(
-      () => options.copy().integrationsDisconnectFailed,
-    );
+    const failure = await action
+      .run()
+      .catch(() => options.copy().integrationsDisconnectFailed);
     if (failure === null) {
       confirm.close();
       confirmAction = null;
@@ -459,27 +498,62 @@ export function createIntegrationsPanel(
       fill(copy.integrationsDisconnectTitle, { account: name, app: app.name }),
       disconnectText(app, account, null, copy),
       copy.integrationsDisconnect,
-      async () => {
-        const { value } = await options.post("/api/integrations/disconnect", {
-          app: app.id,
-          path: account.path,
-          account: account.selector,
-          confirm: true,
-        });
-        const answer = (value ?? {}) as Record<string, unknown>;
-        if (answer.kind === "disconnected") return null;
-        if (answer.reason === "composio-organization")
-          return (
-            (overview === null
-              ? null
-              : composioOrganizationLine(overview, copy)) ??
-            copy.integrationsComposioOrganizationChanged
-          );
-        return answer.reason === "disconnect-unsupported"
-          ? copy.integrationsDisconnectUnsupported
-          : copy.integrationsDisconnectFailed;
-      },
+      { kind: "start", run: () => void remove(app, account) },
     );
+  }
+
+  /** "Odpojit", confirmed: the row says "Odpojuji…" from now until the
+   * reading after the removal, or why it failed (decision F42, addendum (b)
+   * of 2026-10-14). */
+  async function remove(app: IntegrationApp, account: IntegrationAccount) {
+    const copy = options.copy();
+    const key = removalKey(app, account);
+    if (removals.get(key)?.state === "removing") return;
+    removals = removalStep(removals, key, { kind: "confirmed" });
+    render();
+    let failure: string | null;
+    try {
+      const { value } = await options.post("/api/integrations/disconnect", {
+        app: app.id,
+        path: account.path,
+        account: account.selector,
+        confirm: true,
+      });
+      failure = disconnectFailure(value, overview, copy);
+    } catch {
+      failure = copy.integrationsDisconnectFailed;
+    }
+    removals = removalStep(removals, key, { kind: "answered", failure });
+    if (failure !== null) {
+      render();
+      return;
+    }
+    await load(true);
+  }
+
+  /** "Aktualizovat" of the line about Composio: the update of Settings →
+   * Tools (`/api/tools/upgrade`, `lazurio tools update composio`), the
+   * person's click being the consent; then the page reads again. */
+  async function updateComposio() {
+    if (updating === "updating") return;
+    updating = "updating";
+    note = "";
+    render();
+    let value: unknown = null;
+    try {
+      ({ value } = await options.post("/api/tools/upgrade", {
+        tool: "composio",
+      }));
+    } catch {}
+    if (!composioUpdated(value)) {
+      updating = "failed";
+      render();
+      return;
+    }
+    await load(true);
+    updating = "idle";
+    note = options.copy().integrationsComposioUpdated;
+    render();
   }
 
   // --- The "⋯" menu of a Composio account (#312) --------------------------
@@ -512,6 +586,7 @@ export function createIntegrationsPanel(
     app: IntegrationApp,
     account: IntegrationAccount,
     menu: NonNullable<AccountView["menu"]>,
+    disabled: boolean,
   ): HTMLElement {
     const copy = options.copy();
     const box = element("div", "tile-menu integration-menu");
@@ -521,6 +596,7 @@ export function createIntegrationsPanel(
     toggle.setAttribute("aria-expanded", "false");
     toggle.setAttribute("aria-label", menu.label);
     toggle.append(icon("i-more"));
+    toggle.disabled = disabled;
     const list = element("div", "tile-menu-list");
     list.setAttribute("role", "menu");
     list.hidden = true;
@@ -781,13 +857,21 @@ export function createIntegrationsPanel(
           account,
           copy,
           overview?.composio.disconnect === true,
+          removals.get(removalKey(app, account)),
         );
         const row = element("li", "integration-account");
         row.dataset.state = account.spare ? "spare" : account.state;
+        // Being disconnected: dimmed, with a spinner before "Odpojuji…".
+        if (shown.busy) row.setAttribute("aria-busy", "true");
         const words = element("div", "integration-account-text");
         words.append(element("span", "integration-account-name", shown.name));
-        if (shown.line !== null)
-          words.append(element("span", "integration-account-line", shown.line));
+        if (shown.line !== null) {
+          const line = element("span", "integration-account-line");
+          if (shown.busy) line.append(element("span", "spinner"));
+          if (shown.failed) line.dataset.kind = "error";
+          line.append(shown.line);
+          words.append(line);
+        }
         row.append(words);
         const actions = element("div", "integration-account-actions");
         if (shown.retry !== null)
@@ -798,14 +882,17 @@ export function createIntegrationsPanel(
               () => void connect(app, account.label, account),
             ),
           );
-        if (shown.disconnect)
-          actions.append(
-            button(copy.integrationsDisconnect, "link-button danger", () =>
-              disconnect(app, account),
-            ),
+        if (shown.disconnect) {
+          const remove = button(
+            copy.integrationsDisconnect,
+            "link-button danger",
+            () => disconnect(app, account),
           );
+          remove.disabled = shown.busy;
+          actions.append(remove);
+        }
         if (shown.menu !== null)
-          actions.append(accountMenu(app, account, shown.menu));
+          actions.append(accountMenu(app, account, shown.menu, shown.busy));
         row.append(actions);
         list.append(row);
       }
@@ -958,14 +1045,18 @@ export function createIntegrationsPanel(
               fill(copy.integrationsMcpRemoveTitle, { name: server.name }),
               copy.integrationsMcpRemoveText,
               copy.integrationsMcpRemove,
-              async () => {
-                const { value } = await options.post(
-                  "/api/integrations/custom/remove",
-                  { id: server.id, confirm: true },
-                );
-                return (value as { kind?: unknown } | null)?.kind === "removed"
-                  ? null
-                  : copy.integrationsDisconnectFailed;
+              {
+                kind: "wait",
+                run: async () => {
+                  const { value } = await options.post(
+                    "/api/integrations/custom/remove",
+                    { id: server.id, confirm: true },
+                  );
+                  return (value as { kind?: unknown } | null)?.kind ===
+                    "removed"
+                    ? null
+                    : copy.integrationsDisconnectFailed;
+                },
               },
             ),
           ),
@@ -1568,8 +1659,14 @@ export function createIntegrationsPanel(
       body.replaceChildren();
       return;
     }
+    // A reading that failed says so above the last one it shows: a row
+    // waiting for "Odpojit" waits for a reading that succeeds.
     status.textContent =
-      loading && route.tab === "connected" ? copy.integrationsChecking : "";
+      loading && route.tab === "connected"
+        ? copy.integrationsChecking
+        : failed && !loading
+          ? copy.integrationsLoadFailed
+          : "";
     const problems: HTMLElement[] = sourceLines(overview, copy).map((line) => {
       const node = element("p", "callout", line);
       node.dataset.kind = "warning";
@@ -1590,6 +1687,29 @@ export function createIntegrationsPanel(
         element("p", "", organizationLine),
         open,
         composioModel(copy, overview.composio.organization.name),
+      );
+      problems.push(box);
+    }
+    // Composio not the build Lazurio pins: one line and its update, above
+    // the apps (decision F42, addendum (b) of 2026-10-14).
+    const update =
+      custom === null && route.tab !== "custom"
+        ? composioUpdateLine(overview, updating, copy)
+        : null;
+    if (update !== null) {
+      const box = element("div", "setup-line integrations-update");
+      box.setAttribute("role", "status");
+      if (updating === "failed") box.dataset.tone = "failed";
+      const text = element("span", "setup-line-text", update.text);
+      const actions = element("div", "setup-line-actions");
+      const run = button(update.action, "primary", () => void updateComposio());
+      run.disabled = update.busy;
+      actions.append(run);
+      // While it runs, the spinner stands where the icon was.
+      box.append(
+        update.busy ? element("span", "spinner") : icon("i-download"),
+        text,
+        actions,
       );
       problems.push(box);
     }

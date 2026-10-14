@@ -603,6 +603,12 @@ a.files-name:hover { text-decoration: underline; }
 .integration-account-line { color: var(--muted-fg); font-size: 12px; }
 .integration-account[data-state="expired"] .integration-account-line, .integration-account[data-state="failed"] .integration-account-line { color: var(--warning-fg); }
 .integration-account-actions { display: flex; flex: none; align-items: center; gap: 8px; }
+/* "Odpojit" running until the reading after it, and why it failed
+   (decision F42, addendum (b) of 2026-10-14): the row dimmed, the spinner
+   before "Odpojuji…". */
+.integration-account[aria-busy="true"] { opacity: 0.6; }
+.integration-account-line .spinner { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; }
+.integration-account .integration-account-line[data-kind="error"] { color: var(--destructive); }
 /* A Composio account's "⋯" menu (#312): the tile menu's look, in the row. */
 .tile-menu.integration-menu { position: relative; top: auto; right: auto; }
 .integration-menu .tile-menu-button { width: 24px; height: 24px; color: var(--muted-fg); }
