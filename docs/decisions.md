@@ -1626,7 +1626,10 @@ yet: sessions that T3 Code starts on a Linux Remote Environment.
 
 Unchanged: the six manual pages apart from the revision and the lists of owned files; the
 module generator and its commands (F52); who gets "+ Nový modul" (F36). Template revision
-`base-instructions-51`. Verified by `tests/folder-skills.test.ts`: the skill in both
+`base-instructions-51`; `base-instructions-52` when the skill takes the Organization form and
+`--data` (F52 addenda of 2026-10-14): an Organization's module follows five steps from a task
+worktree of its root, its first version runs from the module's own worktree, and `lazurio module
+start` comes only after both pull requests are merged. Verified by `tests/folder-skills.test.ts`: the skill in both
 locales on every preset, byte-identical for both harnesses (frontmatter, what a module is
 before the interview, the interview, the generator's stacks in its order, repository-db
 first and no database for a new module, the personal commands only where a Personalspace

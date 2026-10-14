@@ -355,8 +355,8 @@ const organizationModuleRoute: readonly Text[] = [
     "4. Only after the confirmation, run the same command from the task worktree with `--confirm <plan>` instead of `--dry-run` (`next_steps` give the exact command). The run creates the repository in the Organization, places the module in `organizations/<org>/workspace/<slug>`, pushes `main`, grants the Teams Write, with `--data` creates and mounts the data repository too, declares the slots in the task worktree's `modules.manifest.json` together with the Organization's projection (`lazurio.organization.json`, `company.gen3.json`) and checks the result. A failed grant (`grant-failed`) or data mount (`data-init-failed`) gives its exact command in `next_steps`.",
   ),
   t(
-    "5. Commitni ty soubory v task worktree, pushni branch a otevři pull request do rootu Organizace. Jeho merge je Publikace; zeptej se před ní. Po merge modul uvidí katalog a spustíš ho `lazurio module start <Organizace>/<slug> --json`.",
-    "5. Commit those files in the task worktree, push the branch and open a pull request into the Organization root. Its merge is Publication; ask before it. After the merge the catalog sees the module, and `lazurio module start <Organization>/<slug> --json` starts it.",
+    "5. Commitni ty soubory v task worktree, pushni branch a otevři pull request se slotem do rootu Organizace. Jeho merge je Publikace, ke které dojde až s první verzí (níže).",
+    "5. Commit those files in the task worktree, push the branch and open a pull request with the slot into the Organization root. Its merge is Publication, which comes with the first version (below).",
   ),
 ];
 
@@ -456,8 +456,20 @@ const organizationModuleBar: readonly Text[] = [
   ),
   dataWiring,
   t(
-    "- Postav první verzi podle potvrzeného shrnutí, doplň do `AGENTS.md` modulu, k čemu modul je a jak se s ním pracuje, spusť kontroly a testy modulu, ukaž ji člověku běžící (`lazurio module start <Org>/<slug> --json` a `runtime.url`) a Draft předej v pull requestu; Publikace se řídí `manual/working-here.md`.",
-    "- Build the first version from the confirmed summary, add to the module's `AGENTS.md` what the module is for and how to work with it, run the module's checks and tests, show the person the running app (`lazurio module start <Org>/<slug> --json` and `runtime.url`) and hand over the Draft as a pull request; Publication follows `manual/working-here.md`.",
+    "- Postav první verzi podle potvrzeného shrnutí, nic navíc. Změna jde do task worktree modulu a do pull requestu do `<login Organizace>/<slug>`: `git -C organizations/<org>/workspace/<slug> worktree add -b <branch> .worktrees/<task> main`. Do `AGENTS.md` modulu doplň, k čemu modul je, pro koho a jak se s ním pracuje; opakovaný postup zapiš jako skill modulu do `.agents/skills/<název>/SKILL.md`. Spusť kontroly a testy, které uvádí `README.md`, a opravuj, dokud neprojdou.",
+    "- Build the first version from the confirmed summary, nothing more. The change goes into a task worktree of the module and a pull request into `<Organization login>/<slug>`: `git -C organizations/<org>/workspace/<slug> worktree add -b <branch> .worktrees/<task> main`. Add to the module's `AGENTS.md` what the module is for, for whom and how to work with it; write a recurring procedure as the module's skill in `.agents/skills/<name>/SKILL.md`. Run the checks and tests its `README.md` names and fix until they pass.",
+  ),
+  t(
+    "- Než se zeptáš na Publikaci, ukaž člověku první verzi běžící: z worktree ručním startem z `README.md` na volném portu (ne na portu modulu) a v prohlížeči; `none` nemá co spustit, ukaž obsah repozitáře. `lazurio module start` teď nepoužívej: spouští jen primární checkout modulu a katalog Organizace modul uvidí až po merge slotu.",
+    "- Before you ask about Publication, show the person the first version running: from the worktree by the manual start in `README.md` on a free port (not the module's port) and in the browser; `none` has nothing to run, show the repository's contents. Do not use `lazurio module start` yet: it runs only the module's primary checkout, and the Organization's catalog sees the module only after the slot is merged.",
+  ),
+  t(
+    "- Hotová práce má dva pull requesty: první verzi do `<login Organizace>/<slug>` a slot do rootu Organizace. Merge obou je Publikace: zeptej se před ní a merguj až na výslovné „Publikuj“ (`manual/working-here.md`). Po merge srovnej oba checkouty (`git -C organizations/<org> pull --ff-only` a `git -C organizations/<org>/workspace/<slug> pull --ff-only`) a odstraň oba task worktrees.",
+    "- The finished work has two pull requests: the first version into `<Organization login>/<slug>` and the slot into the Organization root. Merging both is Publication: ask before it and merge only on an explicit “Publikuj” (`manual/working-here.md`). After the merge, bring both checkouts up to date (`git -C organizations/<org> pull --ff-only` and `git -C organizations/<org>/workspace/<slug> pull --ff-only`) and remove both task worktrees.",
+  ),
+  t(
+    "- Teprve pak modul spusť: `lazurio module start <Organizace>/<slug> --json` (na macOS v Launchpadu; `python-uv` a `none` se takhle nespouštějí), otevři `result.runtime.url` v prohlížeči, ověř, že se stránka vykreslila, a dej člověku odkaz.",
+    "- Only then start the module: `lazurio module start <Organization>/<slug> --json` (on macOS in the Launchpad; `python-uv` and `none` are not started this way), open `result.runtime.url` in the browser, check that the page rendered and give the person the link.",
   ),
 ];
 

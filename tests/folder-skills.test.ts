@@ -269,8 +269,19 @@ test("where both places exist, an Organization's module continues at its own rou
           ? "## 5. Založení osobního modulu"
           : "## 5. Founding a personal module",
       );
-      const bar = text.indexOf("lazurio module start <Org>/<slug> --json");
-      expect(stop < bar && bar < step5).toBe(true);
+      // The first version runs from the worktree; the module starts by the
+      // CLI only after both pull requests are merged.
+      const wait = text.indexOf(
+        cs
+          ? "`lazurio module start` teď nepoužívej"
+          : "Do not use `lazurio module start` yet",
+      );
+      const bar = text.indexOf(
+        cs
+          ? "lazurio module start <Organizace>/<slug> --json"
+          : "lazurio module start <Organization>/<slug> --json",
+      );
+      expect(stop < wait && wait < bar && bar < step5).toBe(true);
       // Every heading after the plan says whose steps they are.
       for (const heading of cs
         ? [
