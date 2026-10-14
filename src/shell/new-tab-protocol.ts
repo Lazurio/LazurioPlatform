@@ -1,4 +1,11 @@
-import { isStrip, targetIdOf, viewAddressOf } from "../browser/contract/pure";
+import {
+  isStrip,
+  type NewTabChoice,
+  type NewTabTool,
+  parseNewTabChoice,
+  parseNewTabTools,
+  surfaceLanguageOf,
+} from "../browser/contract/pure";
 import { currentEnvironment, type Shell } from "./contract";
 import { shellElementInterface } from "./interface";
 
@@ -10,8 +17,10 @@ import { shellElementInterface } from "./interface";
 // exactly the frame's window on the page's origin, and the page's parent on
 // an origin of the Environment's own apps. Each side reads every message here,
 // field by field, and ignores one that is not of these shapes; members a
-// later version may add are ignored, as the shell's documents do. Pure: no
-// DOM, shared by the element, the page and their tests.
+// later version may add are ignored, as the shell's documents do. What an
+// app hands the element and hears back (its tools, the event and its choice)
+// is the Environment browser's contract (C10, src/browser/contract). Pure:
+// no DOM, shared by the element, the page and their tests.
 //
 //   page → host: {type: "lazurio-new-tab:ready"}
 //                {type: "lazurio-new-tab:choice", choice}
@@ -21,33 +30,11 @@ import { shellElementInterface } from "./interface";
 /** The Launchpad's page that draws Nová karta, on the origin of `apps`. */
 export const newTabPagePath = "/new-tab";
 
-/** The element's one event: `detail` is what the tab became. */
-export const newTabEventName = "lazurio-new-tab";
-
 export const newTabMessage = Object.freeze({
   ready: "lazurio-new-tab:ready",
   choice: "lazurio-new-tab:choice",
   host: "lazurio-new-tab:host",
 });
-
-/** One of the app's own surfaces, drawn under the address bar in this
- * order: a button with its label, the letter that opens it while nobody
- * types (`key`), and an icon by name from the page's own set (`icon`; an
- * unknown name draws the default one). */
-export type NewTabTool = Readonly<{
-  id: string;
-  label: string;
-  key?: string;
-  icon?: string;
-}>;
-
-/** What Nová karta became (F47 point 2): a remote tab an address opened
- * (`page`), a tab chosen in Přehled (`tab`), each with its view
- * (`https://browser.<…>/t/<id>`, F39 point 1), or one of the app's tools. */
-export type NewTabChoice =
-  | Readonly<{ kind: "page"; tab: string; view: string }>
-  | Readonly<{ kind: "tab"; tab: string; view: string }>
-  | Readonly<{ kind: "tool"; id: string }>;
 
 /** The app's colour roles (`--lazurio-*`) and their values. */
 export type NewTabTheme = Readonly<Record<string, string>>;
@@ -72,104 +59,6 @@ export type NewTabPageMessage =
 type Data = Readonly<Record<string, unknown>>;
 const isRecord = (value: unknown): value is Data =>
   typeof value === "object" && value !== null && !Array.isArray(value);
-
-const namePattern = /^[a-z0-9][a-z0-9-]{0,31}$/;
-const keyPattern = /^[A-Za-z0-9]$/;
-/** At most this many tools: T3 Code has six. */
-export const maxNewTabTools = 12;
-const maxLabelLength = 48;
-
-const isLabel = (value: unknown): value is string =>
-  typeof value === "string" &&
-  value.trim() !== "" &&
-  value.length <= maxLabelLength &&
-  ![...value].some((character) => {
-    const code = character.charCodeAt(0);
-    return code < 0x20 || code === 0x7f;
-  });
-
-/** An optional member: undefined when absent, the text when it matches
- * `pattern`, null for anything else. */
-const optionalText = (
-  value: unknown,
-  pattern: RegExp,
-): string | undefined | null =>
-  value === undefined
-    ? undefined
-    : typeof value === "string" && pattern.test(value)
-      ? value
-      : null;
-
-/** The app's tools, or null when `value` is not a list of them: at most
- * `maxNewTabTools`, each with an id and a label, an optional letter and an
- * optional icon name, no id or letter twice. */
-export function parseNewTabTools(value: unknown): readonly NewTabTool[] | null {
-  if (!Array.isArray(value) || value.length > maxNewTabTools) return null;
-  const tools: NewTabTool[] = [];
-  const ids = new Set<string>();
-  const keys = new Set<string>();
-  for (const item of value) {
-    if (!isRecord(item)) return null;
-    const { id, label } = item;
-    const key = optionalText(item.key, keyPattern);
-    const icon = optionalText(item.icon, namePattern);
-    if (
-      typeof id !== "string" ||
-      !namePattern.test(id) ||
-      ids.has(id) ||
-      !isLabel(label) ||
-      key === null ||
-      icon === null
-    )
-      return null;
-    if (key !== undefined) {
-      if (keys.has(key.toLowerCase())) return null;
-      keys.add(key.toLowerCase());
-    }
-    ids.add(id);
-    tools.push(
-      Object.freeze({
-        id,
-        label,
-        ...(key === undefined ? {} : { key }),
-        ...(icon === undefined ? {} : { icon }),
-      }),
-    );
-  }
-  return Object.freeze(tools);
-}
-
-/** The view of the remote tab `tab` (upper case) when `value` is one, a view
- * address of the contract (`viewAddressOf`, decision F50 point 2):
- * `https://browser.<base>.lazurio.io/t/<tab>`, as the contract writes it.
- * Null otherwise. */
-export function newTabViewOf(value: unknown, tab: string): string | null {
-  const address = viewAddressOf(value);
-  return address !== null && address.tab === tab ? address.view : null;
-}
-
-/** A choice of these three kinds and their exact members, or null: a tab's
- * id in upper case, as the hub writes it, with that tab's view. */
-export function parseNewTabChoice(value: unknown): NewTabChoice | null {
-  if (!isRecord(value)) return null;
-  switch (value.kind) {
-    case "page":
-    case "tab": {
-      const tab = targetIdOf(value.tab);
-      if (tab === null) return null;
-      const view = newTabViewOf(value.view, tab);
-      return view === null
-        ? null
-        : Object.freeze({ kind: value.kind, tab, view });
-    }
-    case "tool":
-      return typeof value.id === "string" && namePattern.test(value.id)
-        ? Object.freeze({ kind: "tool", id: value.id })
-        : null;
-    default:
-      return null;
-  }
-}
 
 /** A message of the page, or null for anything else. */
 export function parseNewTabPageMessage(
@@ -243,11 +132,12 @@ export function parseNewTabHostMessage(
   if (!isRecord(value) || value.type !== newTabMessage.host) return null;
   const tools = parseNewTabTools(value.tools);
   const theme = parseNewTabTheme(value.theme);
+  const lang = surfaceLanguageOf(value.lang);
   if (
     !isStrip(value.strip) ||
     tools === null ||
     typeof value.focusAddress !== "boolean" ||
-    (value.lang !== "cs" && value.lang !== "en") ||
+    lang === null ||
     theme === null
   )
     return null;
@@ -256,7 +146,7 @@ export function parseNewTabHostMessage(
     strip: value.strip,
     tools,
     focusAddress: value.focusAddress,
-    lang: value.lang,
+    lang,
     theme,
   });
 }
@@ -382,8 +272,7 @@ export function newTabHostMessageOf(
     strip: input.strip,
     tools,
     focusAddress: input.focusAddress,
-    lang:
-      input.lang === "cs" || input.lang === "en" ? input.lang : input.locale,
+    lang: surfaceLanguageOf(input.lang) ?? input.locale,
     theme: Object.freeze(theme),
   });
 }
