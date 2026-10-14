@@ -634,6 +634,42 @@
       }
     },
     {
+      "name": "a view address written as a network path is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "//browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "a view host written as a network path is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "//browser.vm-01.acme.lazurio.io",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "a view address written as a network path with backslashes is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "\\\\browser.vm-01.acme.lazurio.io\\t\\0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
       "name": "on a view host, the domain's own view host is refused",
       "call": "addressBarTarget",
       "args": [
