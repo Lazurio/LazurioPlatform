@@ -550,7 +550,9 @@ export const removalRecheckMs = 1_500;
  * take. Only a successful reading that no longer lists an account ends its
  * removal; a running removal waits for its answer whatever is read; a failed
  * or stale reading keeps "Odpojuji…" and asks for another reading (`again`)
- * at most `removalRechecks` times. After them, a successful reading that
+ * at most `removalRechecks` times; a reading whose source of the account's
+ * path was not read (`sources.composio` or `sources.executor` other than
+ * `ok`) counts as stale. After them, a successful reading that
  * still lists the account draws it as it is (`listed`); a failing one keeps
  * the row waiting, and the page says the Integrace could not be read. */
 export function removalsRead(
@@ -565,17 +567,35 @@ export function removalsRead(
             app.accounts.map((account) => removalKey(app, account)),
           ),
         );
+  // An account counts as gone only where its own path's source was read:
+  // a reading may answer with one source unreadable and leave that source's
+  // accounts out, which is never "nothing connected" (Pablo's review of #417).
+  const read = (key: string): boolean => {
+    if (reading === null) return false;
+    const path: unknown = (JSON.parse(key) as unknown[])[1];
+    const source =
+      path === "composio"
+        ? reading.sources.composio
+        : path === "direct"
+          ? reading.sources.executor
+          : null;
+    return source === "ok";
+  };
   const next = new Map<string, Removal>();
   let again = false;
   for (const [key, removal] of removals) {
-    const gone = shown !== null && !shown.has(key);
+    const gone = shown !== null && read(key) && !shown.has(key);
     if (removal.state === "removing") next.set(key, removal);
     else if (removal.state === "removed") {
       if (gone) continue;
       if (removal.checks < removalRechecks) {
         next.set(key, { state: "removed", checks: removal.checks + 1 });
         again = true;
-      } else next.set(key, shown === null ? removal : { state: "listed" });
+      } else
+        next.set(
+          key,
+          shown === null || !read(key) ? removal : { state: "listed" },
+        );
     } else if (removal.state === "failed") {
       if (shown === null) next.set(key, removal);
     } else if (!gone) next.set(key, removal);

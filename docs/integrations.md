@@ -531,7 +531,9 @@ shown as a name.
   (b) of 2026-10-14; `Removal`, `removalsRead`, `integrations-view.ts`). Removing a
   Composio account and reading the page again take a few seconds. A reading that
   fails or still lists the account keeps the row waiting and the page reads again
-  after 1.5 s, at most twice; then a reading that still lists it draws the row as it
+  after 1.5 s, at most twice; a reading whose source of the account's path
+  (`sources.composio` or `sources.executor`) was not read leaves that source's
+  accounts out and counts as one that still lists it. Then a reading that still lists it draws the row as it
   is with "Odpojeno, ale ještě se tu ukazuje. Za chvíli zkontrolujte připojení.",
   and a failing one leaves it waiting under "Integrace se nepodařilo načíst." until
   a reading succeeds. A removal that fails brings the row back with why ("Účet se

@@ -7864,7 +7864,10 @@ to switch, told on Integrace "short and to the point". The reference is
    removal still runs changes nothing. After the removal answered, a reading that
    fails or still lists the account (Composio's list may lag) keeps the row waiting
    and the page reads again after 1.5 s, at most twice (`removalRechecks`), never
-   polling beyond that. Then a reading that still lists the account draws the row as
+   polling beyond that. A reading whose source of the account's path
+   (`sources.composio` or `sources.executor`) was not read counts as one that still
+   lists it: it leaves that source's accounts out, which is never "nothing connected"
+   (Pablo's second review of #417). Then a reading that still lists the account draws the row as
    it is, its actions back, with one plain line: "Odpojeno, ale ještě se tu ukazuje.
    Za chvíli zkontrolujte připojení." / "Disconnected, but it still shows here. Check
    connections in a moment.", until a reading without it. Where readings keep

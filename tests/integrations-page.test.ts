@@ -1037,6 +1037,85 @@ test("the line about Composio's update: only where the reading offers it, busy u
 // the account (Composio's list may lag) and a reading that overlaps the
 // removal keep the row waiting; the page reads again at most twice, then a
 // stale list draws the row as it is with a plain line.
+// A reading may answer with one source unreadable, and it then leaves that
+// source's accounts out: never "nothing connected". So a removal ends only
+// with a reading whose source of the account's path was read (Pablo's
+// review of #417), for Composio's accounts and Executor's alike.
+test("Odpojit ends only where the account's own source was read", () => {
+  const gmail = app("gmail", {
+    path: { path: "composio", signIn: false },
+    connected: true,
+  });
+  const notion = app("notion", { connected: true });
+  const cases: ReadonlyArray<
+    readonly [IntegrationApp, IntegrationAccount, "composio" | "executor"]
+  > = [
+    [
+      gmail,
+      {
+        path: "composio",
+        selector: "ca_1",
+        label: "Práce",
+        state: "connected",
+        spare: false,
+        manage: manageGmail,
+      },
+      "composio",
+    ],
+    [
+      notion,
+      {
+        path: "direct",
+        selector: "org/notion-com/default",
+        label: "person@example.test",
+        state: "connected",
+        spare: false,
+        manage: null,
+      },
+      "executor",
+    ],
+  ];
+  for (const [shownApp, account, source] of cases) {
+    const key = removalKey(shownApp, account);
+    const answered = removalStep(
+      removalStep(new Map(), key, { kind: "confirmed" }),
+      key,
+      { kind: "answered", failure: null },
+    );
+    // The source is unreadable and the account is left out: still waiting,
+    // read again; after the rechecks, still waiting, never "gone".
+    const outage = overview([{ ...shownApp, accounts: [] }], {
+      sources: {
+        tools: "ok",
+        executor: source === "executor" ? "unreadable" : "ok",
+        composio: source === "composio" ? "unreadable" : "ok",
+      },
+    });
+    let removals: Removals = answered;
+    for (const expected of [true, true, false]) {
+      const read = removalsRead(removals, outage);
+      expect(read.again).toBe(expected);
+      removals = read.removals;
+      expect(removals.get(key)?.state).toBe("removed");
+      expect(
+        accountView(shownApp, account, cs, true, removals.get(key)),
+      ).toMatchObject({ line: "Odpojuji…", busy: true });
+    }
+    // The source recovers: a reading without the account ends it; one that
+    // still lists it draws the row as it is.
+    expect(
+      removalsRead(removals, overview([{ ...shownApp, accounts: [] }])).removals
+        .size,
+    ).toBe(0);
+    expect(
+      removalsRead(
+        removals,
+        overview([{ ...shownApp, accounts: [account] }]),
+      ).removals.get(key),
+    ).toEqual({ state: "listed" });
+  }
+});
+
 test("Odpojit waits for a successful reading without the account: a failed, a stale and an overlapping refresh", () => {
   const gmail = app("gmail", {
     path: { path: "composio", signIn: false },
