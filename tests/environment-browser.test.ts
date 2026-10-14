@@ -21,6 +21,7 @@ import {
 } from "../src/browser/cli";
 import { stopSessionDaemon } from "../src/browser/contract/node";
 import {
+  browserCliExit,
   browserViewUrl,
   isStrip,
   threadSession,
@@ -52,6 +53,12 @@ import { presetProfile } from "../src/folder/presets";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import { processNewTabHost } from "../src/launchpad/new-tab-routes";
 import { startLaunchpad } from "../src/launchpad/server";
+import {
+  exitFailure,
+  exitOk,
+  exitUpdateAvailable,
+  exitUsage,
+} from "../src/update/errors";
 import type { ProcessRunner } from "../src/update/self-check";
 import { unitMarker } from "../src/update/service-control";
 import {
@@ -615,6 +622,14 @@ test("the session follows the thread: named, T3 Code's, Codex's, Claude Code's; 
   expect(isStrip("a".repeat(65))).toBe(false);
 });
 
+// Target ids as Chrome writes them: 32 hexadecimal digits in upper case. A
+// binding or a new target of any other form is no tab (decision F50, C1).
+const OPEN = "0E".repeat(16);
+const NEWTARGET = "0F".repeat(16);
+const STARTUP_BLANK = "1A".repeat(16);
+const OTHER_THREAD = "1B".repeat(16);
+const BEFORE_RESTART = "1C".repeat(16);
+
 function windowSeams(
   input: Readonly<{
     socketDir: string;
@@ -641,7 +656,7 @@ function windowSeams(
     targets: async () => new Set(input.targets),
     cdp: async (method, params) => {
       calls.push([method, params]);
-      return input.created ?? { targetId: "NEWTARGET" };
+      return input.created ?? { targetId: NEWTARGET };
     },
   };
   return { seams, calls };
@@ -652,18 +667,18 @@ test("a thread's window: the bound one while it is open, otherwise a new window 
   // Bound and open: reused, nothing created.
   await writeFile(
     join(socketDir, "codex-a.target"),
-    JSON.stringify({ targetId: "OPEN", url: "about:blank", pinned: true }),
+    JSON.stringify({ targetId: OPEN, url: "about:blank", pinned: true }),
   );
-  const reused = windowSeams({ socketDir, targets: ["OPEN"] });
+  const reused = windowSeams({ socketDir, targets: [OPEN] });
   expect(await ensureThreadWindow("codex-a", undefined, reused.seams)).toEqual({
     session: "codex-a",
-    targetId: "OPEN",
+    targetId: OPEN,
     created: false,
   });
   // An address never moves the open window (the Folder manual says so).
   expect(
     await ensureThreadWindow("codex-a", "https://example.org", reused.seams),
-  ).toEqual({ session: "codex-a", targetId: "OPEN", created: false });
+  ).toEqual({ session: "codex-a", targetId: OPEN, created: false });
   expect(reused.calls).toEqual([]);
 
   // Bound but closed, or never bound: a new window in the default context
@@ -673,7 +688,7 @@ test("a thread's window: the bound one while it is open, otherwise a new window 
   const created = windowSeams({ socketDir, targets: [] });
   expect(
     await ensureThreadWindow("codex-a", "https://example.com", created.seams),
-  ).toEqual({ session: "codex-a", targetId: "NEWTARGET", created: true });
+  ).toEqual({ session: "codex-a", targetId: NEWTARGET, created: true });
   expect(created.calls).toEqual([
     [
       "Target.createTarget",
@@ -687,7 +702,7 @@ test("a thread's window: the bound one while it is open, otherwise a new window 
       "codex-a",
       "--no-pin-tab",
       "tab",
-      "NEWTARGET",
+      NEWTARGET,
     ],
     [
       "/home/operator/.local/bin/agent-browser",
@@ -711,6 +726,49 @@ test("a thread's window: the bound one while it is open, otherwise a new window 
   ).rejects.toEqual(new BrowserWindowFailure("window-create-failed"));
 });
 
+// One target-id check for every reader (decision F50 point 2, C1): the window
+// took any text that was not empty as a binding or a new target.
+test("a thread's window takes a target only by its target id: a binding of another form is none, one in lower case names the tab, a new target of another form fails", async () => {
+  const socketDir = await temporary("browser-window-ids-");
+  // The browser lists a page by that name, but it is no target id: a new
+  // window, never that page.
+  await writeFile(
+    join(socketDir, "codex-a.target"),
+    JSON.stringify({ targetId: "OPEN", url: "about:blank", pinned: true }),
+  );
+  const named = windowSeams({ socketDir, targets: ["OPEN"] });
+  expect(await ensureThreadWindow("codex-a", undefined, named.seams)).toEqual({
+    session: "codex-a",
+    targetId: NEWTARGET,
+    created: true,
+  });
+  // A binding in lower case names the open tab, in upper case.
+  await writeFile(
+    join(socketDir, "codex-b.target"),
+    JSON.stringify({
+      targetId: OPEN.toLowerCase(),
+      url: "about:blank",
+      pinned: true,
+    }),
+  );
+  const lower = windowSeams({ socketDir, targets: [OPEN] });
+  expect(await ensureThreadWindow("codex-b", undefined, lower.seams)).toEqual({
+    session: "codex-b",
+    targetId: OPEN,
+    created: false,
+  });
+  expect(lower.calls).toEqual([]);
+  // A new target the browser names in another form is no window.
+  const odd = windowSeams({
+    socketDir,
+    targets: [],
+    created: { targetId: "WINDOW_1" },
+  });
+  await expect(
+    ensureThreadWindow("codex-c", undefined, odd.seams),
+  ).rejects.toEqual(new BrowserWindowFailure("window-create-failed"));
+});
+
 // After the browser restarted (its budget ran out, or an update changed its
 // unit), no target id survives and no old tab comes back. A thread whose
 // agent-browser session is still pinned to its old window gets a clear,
@@ -722,7 +780,7 @@ test("after the browser restarts, a thread gets a new window of its own, never t
   await writeFile(
     join(socketDir, "codex-a.target"),
     JSON.stringify({
-      targetId: "BEFORE_RESTART",
+      targetId: BEFORE_RESTART,
       url: "https://example.com/",
       pinned: true,
     }),
@@ -731,7 +789,7 @@ test("after the browser restarts, a thread gets a new window of its own, never t
   // another thread that already came back.
   const restarted = windowSeams({
     socketDir,
-    targets: ["STARTUP_BLANK", "OTHER_THREAD"],
+    targets: [STARTUP_BLANK, OTHER_THREAD],
   });
   expect(
     await ensureThreadWindow(
@@ -739,7 +797,7 @@ test("after the browser restarts, a thread gets a new window of its own, never t
       "https://example.com/",
       restarted.seams,
     ),
-  ).toEqual({ session: "codex-a", targetId: "NEWTARGET", created: true });
+  ).toEqual({ session: "codex-a", targetId: NEWTARGET, created: true });
   expect(restarted.calls[0]).toEqual([
     "Target.createTarget",
     {
@@ -760,7 +818,7 @@ test("after the browser restarts, a thread gets a new window of its own, never t
       "codex-a",
       "--no-pin-tab",
       "tab",
-      "NEWTARGET",
+      NEWTARGET,
     ],
     [
       "/home/operator/.local/bin/agent-browser",
@@ -808,7 +866,7 @@ test("two simultaneous requests for one thread's window create it once and both 
     targets: async () => new Set(open),
     cdp: async () => {
       await pause();
-      const id = `WINDOW_${created.length + 1}`;
+      const id = String(created.length + 1).padStart(32, "0");
       created.push(id);
       open.add(id);
       return { targetId: id };
@@ -818,12 +876,13 @@ test("two simultaneous requests for one thread's window create it once and both 
     ensureThreadWindow("t3-new", undefined, seams),
     ensureThreadWindow("t3-new", undefined, seams),
   ]);
-  expect(created).toEqual(["WINDOW_1"]);
-  expect([first.targetId, second.targetId]).toEqual(["WINDOW_1", "WINDOW_1"]);
+  const only = "1".padStart(32, "0");
+  expect(created).toEqual([only]);
+  expect([first.targetId, second.targetId]).toEqual([only, only]);
   expect([first.created, second.created].sort()).toEqual([false, true]);
   expect(
     JSON.parse(await readFile(join(socketDir, "t3-new.target"), "utf8")),
-  ).toEqual({ targetId: "WINDOW_1" });
+  ).toEqual({ targetId: only });
 });
 
 // ---- The recorded entry ------------------------------------------------------
@@ -1139,11 +1198,12 @@ test.skipIf(process.platform === "win32")(
     );
     expect(window.code).toBe(0);
     expect(JSON.parse(window.stdout ?? "")).toEqual({
+      schema: "lazurio.browser-cli.v1",
       kind: "browser-window",
       session: "codex-019a",
-      targetId: "NEWTARGET",
+      targetId: NEWTARGET,
       created: true,
-      link: `${origin}/t/NEWTARGET`,
+      link: `${origin}/t/${NEWTARGET}`,
       command: "agent-browser --cdp 9222 --session codex-019a",
     });
     expect(browserLink(launchpad, origin, null)).toBe(`${origin}/`);
@@ -1180,6 +1240,20 @@ test.skipIf(process.platform === "win32")(
     );
     expect(none.code).toBe(10);
     expect(none.stdout).toBeUndefined();
+    // With --json each command says so with its own kind (F50 point 2):
+    // `link --json` used to answer as `browser-window`.
+    for (const action of ["window", "link", "done"] as const) {
+      const answer = await runBrowserCommand(
+        [action, "--folder", plain.folder, "--json"],
+        context({ HOME: plain.home, CODEX_THREAD_ID: "019a" }, seams),
+      );
+      expect(answer.code).toBe(10);
+      expect(JSON.parse(answer.stdout ?? "")).toEqual({
+        schema: "lazurio.browser-cli.v1",
+        kind: `browser-${action}`,
+        available: false,
+      });
+    }
   },
 );
 
@@ -1372,6 +1446,7 @@ test.skipIf(process.platform === "win32")(
     );
     expect(done.code).toBe(0);
     expect(JSON.parse(done.stdout ?? "")).toEqual({
+      schema: "lazurio.browser-cli.v1",
       kind: "browser-done",
       session: "codex-019a",
       outcome: "stopped",
@@ -1450,6 +1525,7 @@ test.skipIf(process.platform === "win32")(
     );
     expect(link.code).toBe(0);
     expect(JSON.parse(link.stdout ?? "")).toEqual({
+      schema: "lazurio.browser-cli.v1",
       kind: "browser-link",
       session: null,
       targetId: tab,
@@ -1483,8 +1559,34 @@ test.skipIf(process.platform === "win32")(
       ).code,
     ).toBe(2);
     expect(opened).toHaveLength(1);
+    // No address on the view host of an Environment browser, for the
+    // person's page or a window's first one (F50 point 2): a usage answer,
+    // nothing opened.
+    for (const args of [
+      ["link", "--url", `${origin}/t/${tab}`],
+      ["window", "--url", `${origin}/t/${tab}`, "--session", "codex-1"],
+      ["link", "--url", "https://browser.vm-02.example.lazurio.io/"],
+    ]) {
+      const viewHost = await runBrowserCommand([...args, "--folder", folder], {
+        ...context({ HOME: home }),
+        openTab,
+      });
+      expect(viewHost.code).toBe(2);
+      expect(viewHost.stderr).toBe("The view does not open that address.");
+    }
+    expect(opened).toHaveLength(1);
   },
 );
+
+// The browser command's exit statuses are the CLI's own.
+test("lazurio browser exits as the rest of the CLI does", () => {
+  expect(browserCliExit).toEqual({
+    done: exitOk,
+    failure: exitFailure,
+    usage: exitUsage,
+    noBrowser: exitUpdateAvailable,
+  });
+});
 
 // ---- The Launchpad's routes --------------------------------------------------
 

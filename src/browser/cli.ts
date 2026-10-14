@@ -10,21 +10,23 @@ import {
   type CommandOutput,
   operatorFolder,
 } from "../update/cli";
-import {
-  exitFailure,
-  exitOk,
-  exitUpdateAvailable,
-  exitUsage,
-} from "../update/errors";
 import { runProcess } from "../update/self-check";
 import {
   agentBrowserSocketDirectory,
   type DaemonSeams,
   stopSessionDaemon,
 } from "./contract/node";
-import { browserViewUrl, threadSession } from "./contract/pure";
-import { navigableAddress } from "./people/hub";
-import { browserCdpPort } from "./units";
+import { browserHandoverUrl } from "./contract/platform";
+import {
+  type BrowserCliAnswer,
+  type BrowserCliKind,
+  browserBounds,
+  browserCliExit,
+  browserCliText,
+  browserViewUrl,
+  navigableAddress,
+  threadSession,
+} from "./contract/pure";
 import { browserEntryOf } from "./view";
 import {
   BrowserWindowFailure,
@@ -44,24 +46,29 @@ export const browserHelp = `browser window [--session <name>] [--url <url>] [--f
   claude-<CLAUDE_CODE_SESSION_ID>. Prints the session, the link to its tab in
   the people's view (https://browser.…/t/<id>), where the Operator works in
   the same tab, and the agent-browser command to work in it. --json prints
-  {kind: "browser-window", session, targetId, created, link, command}.
+  {schema: "lazurio.browser-cli.v1", kind: "browser-window", session,
+  targetId, created, link, command}.
 browser link [--session <name> | --url <url>] [--folder <absolute Folder>] [--json]
   The link for the person: with a session, the Launchpad's hand-over to that
   session's tab; with --url, a new tab at that address that nobody holds,
   which ends 30 s after its last viewer leaves (root decision 0191 point
   29); without either, the people's view of a new tab. --json prints
-  {kind: "browser-link", session, link}, with targetId for --url.
+  {schema: "lazurio.browser-cli.v1", kind: "browser-link", session, link},
+  with targetId for --url. Neither command opens an address on the view
+  host of an Environment browser (browser.….lazurio.io).
 browser done [--session <name>] [--folder <absolute Folder>] [--json]
   Lets go of the calling thread's window when its work there is done (root
   decision 0191 point 28): its agent-browser daemon stops, and the tab ends
   once nothing holds it and nobody views it. A person who has it open keeps
   it. It asks the session's own agent-browser daemon on its socket to shut
-  down; it never signals a process. --json prints {kind: "browser-done",
-  session, outcome}, outcome being stopped, none (no daemon listens),
+  down; it never signals a process. --json prints {schema:
+  "lazurio.browser-cli.v1", kind: "browser-done", session, outcome}, outcome
+  being stopped, none (no daemon listens),
   refused (the daemon did not shut down; nothing changed) or unconfirmed
   (no answer, or the daemon has not exited within 5 s: it may still hold the
   window; run done again).
-  Exit status: 0 done, 10 this Environment has no Environment browser, 2
+  Exit status: 0 done, 10 this Environment has no Environment browser (with
+  --json, {schema, kind, available: false}, the command's own kind), 2
   usage, 1 failure.
 browser serve --port <loopback port> --origin <https://browser.…>
   The people's view service, as lazurio-browser-view.service runs it; it runs
@@ -151,18 +158,28 @@ export function browserLink(
 ): string {
   return session === null
     ? browserViewUrl(browserOrigin, null)
-    : `${launchpadOrigin}/.lazurio/browser?session=${session}`;
+    : browserHandoverUrl(launchpadOrigin, session);
 }
 
 export const browserCommand = (session: string) =>
-  `agent-browser --cdp ${browserCdpPort} --session ${session}`;
+  `agent-browser --cdp ${browserBounds.devtoolsPort} --session ${session}`;
+
+/** The command's answer with `--json` (C13): the contract's text, `schema`
+ * beside its `kind`. */
+const answered = (answer: BrowserCliAnswer) => browserCliText(answer);
+
+const kindOf: Readonly<Record<"window" | "link" | "done", BrowserCliKind>> = {
+  window: "browser-window",
+  link: "browser-link",
+  done: "browser-done",
+};
 
 export async function runBrowserCommand(
   args: readonly string[],
   context: BrowserContext,
 ): Promise<CommandOutput> {
   const usage = Object.freeze({
-    code: exitUsage,
+    code: browserCliExit.usage,
     stderr: `Usage: ${synopsis}`,
   });
   let values: {
@@ -223,16 +240,13 @@ export async function runBrowserCommand(
     const copy = text[locale];
     const entry = state?.entry ?? null;
     const browser = browserEntryOf(entry);
+    // Each command answers with its own kind, also without a browser
+    // (F50 point 2).
     if (entry === null || browser === undefined)
       return Object.freeze({
-        code: exitUpdateAvailable,
+        code: browserCliExit.noBrowser,
         ...(json
-          ? {
-              stdout: JSON.stringify({
-                kind: "browser-window",
-                available: false,
-              }),
-            }
+          ? { stdout: answered({ kind: kindOf[action], available: false }) }
           : {}),
         stderr: copy["not-declared"],
       });
@@ -241,20 +255,26 @@ export async function runBrowserCommand(
         ? null
         : threadSession(values.session, context.env);
     if (named === null && (action !== "link" || values.session !== undefined))
-      return Object.freeze({ code: exitUsage, stderr: copy["no-session"] });
-    if (action === "link" && values.url !== undefined) {
+      return Object.freeze({
+        code: browserCliExit.usage,
+        stderr: copy["no-session"],
+      });
+    // No address on a view host of an Environment browser (F50 point 2),
+    // for a window's first page as for the person's page.
+    const address =
+      values.url === undefined ? undefined : navigableAddress(values.url);
+    if (address === null)
+      return Object.freeze({
+        code: browserCliExit.usage,
+        stderr: copy["invalid-address"],
+      });
+    if (action === "link" && address !== undefined) {
       // A page for the person that nobody holds (0191 point 29): the hub
       // opens it on its loopback request, without a strip.
-      const address = navigableAddress(values.url);
-      if (address === null)
-        return Object.freeze({
-          code: exitUsage,
-          stderr: copy["invalid-address"],
-        });
       const opened = await (context.openTab ?? openTab)(browser, address, null);
       if (opened.kind !== "opened")
         return Object.freeze({
-          code: exitFailure,
+          code: browserCliExit.failure,
           stderr:
             opened.reason === "invalid-request"
               ? copy["invalid-address"]
@@ -262,9 +282,9 @@ export async function runBrowserCommand(
         });
       const link = browserViewUrl(browser.origin, opened.tab);
       return Object.freeze({
-        code: exitOk,
+        code: browserCliExit.done,
         stdout: json
-          ? JSON.stringify({
+          ? answered({
               kind: "browser-link",
               session: null,
               targetId: opened.tab,
@@ -276,9 +296,9 @@ export async function runBrowserCommand(
     if (action === "link") {
       const link = browserLink(entry.externalOrigin, browser.origin, named);
       return Object.freeze({
-        code: exitOk,
+        code: browserCliExit.done,
         stdout: json
-          ? JSON.stringify({ kind: "browser-link", session: named, link })
+          ? answered({ kind: "browser-link", session: named, link })
           : link,
       });
     }
@@ -291,15 +311,11 @@ export async function runBrowserCommand(
           : await stopSessionDaemon(sockets, session, context.daemonSeams);
       return Object.freeze({
         code:
-          outcome === "stopped" || outcome === "none" ? exitOk : exitFailure,
+          outcome === "stopped" || outcome === "none"
+            ? browserCliExit.done
+            : browserCliExit.failure,
         ...(json
-          ? {
-              stdout: JSON.stringify({
-                kind: "browser-done",
-                session,
-                outcome,
-              }),
-            }
+          ? { stdout: answered({ kind: "browser-done", session, outcome }) }
           : outcome === "stopped"
             ? { stdout: copy.stopped }
             : outcome === "none"
@@ -317,15 +333,15 @@ export async function runBrowserCommand(
     const session = named as string;
     const window = await ensureThreadWindow(
       session,
-      values.url,
+      address,
       context.windowSeams ?? cdpSeams(context.env, context.run ?? runProcess),
     );
     const command = browserCommand(session);
     const link = browserViewUrl(browser.origin, window.targetId);
     if (json)
       return Object.freeze({
-        code: exitOk,
-        stdout: JSON.stringify({
+        code: browserCliExit.done,
+        stdout: answered({
           kind: "browser-window",
           session,
           targetId: window.targetId,
@@ -335,7 +351,7 @@ export async function runBrowserCommand(
         }),
       });
     return Object.freeze({
-      code: exitOk,
+      code: browserCliExit.done,
       stdout: [
         window.created ? copy.created : copy.reused,
         `${copy.session}: ${session}`,
@@ -346,9 +362,12 @@ export async function runBrowserCommand(
   } catch (error) {
     const copy = text[locale];
     if (error instanceof BrowserWindowFailure)
-      return Object.freeze({ code: exitFailure, stderr: copy[error.reason] });
+      return Object.freeze({
+        code: browserCliExit.failure,
+        stderr: copy[error.reason],
+      });
     return Object.freeze({
-      code: exitFailure,
+      code: browserCliExit.failure,
       stderr:
         error instanceof LaunchpadStartRefused
           ? `${copy.failed}: the Folder could not be read (${error.reason})`
