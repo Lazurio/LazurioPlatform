@@ -9,6 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
+import { browserTimes } from "./contract/pure";
 
 // agent-browser's idle timeout on the Environment browser (decision F47 point 5,
 // Lazurio/LazurioPlatform#326). An agent works in a tab while its session's
@@ -29,8 +30,9 @@ import { dirname, isAbsolute, join } from "node:path";
 // left as it is, a missing file is created only while it is still missing, and
 // a file that changed since it was read is not replaced.
 
-/** An hour without a command, as F47 point 5 counts on. */
-export const agentBrowserIdleTimeout = "1h";
+/** An hour without a command, as F47 point 5 counts on: the contract's
+ * (`browserTimes.agentBrowserIdleTimeout`, F50 C14). */
+export const agentBrowserIdleTimeout = browserTimes.agentBrowserIdleTimeout;
 
 export type AgentBrowserConfigOutcome =
   /** The setting was written now. */

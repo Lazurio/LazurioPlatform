@@ -3,7 +3,8 @@ import { dirname, isAbsolute, join } from "node:path";
 import { acquireFileLock, type FileLock } from "../platform/flock";
 import type { ProcessRunner } from "../update/self-check";
 import { agentBrowserSocketDirectory } from "./contract/node";
-import { browserCdpPort, browserWindowSize } from "./units";
+import { browserBounds, targetIdOf } from "./contract/pure";
+import { browserCdpPort } from "./units";
 
 /** A thread's own window of the Environment browser (decision F38).
  *
@@ -73,8 +74,9 @@ export function windowLockPath(
 }
 
 /** The target the session is bound to, from agent-browser's binding file
- * (`<socket dir>/<session>.target`, `{"targetId": …}`), when it is still a
- * page of the browser. */
+ * (`<socket dir>/<session>.target`, `{"targetId": …}`), when it is a target
+ * id (the contract's `targetIdOf`, F50 C1) and still a page of the
+ * browser. */
 async function boundTarget(
   session: string,
   seams: WindowSeams,
@@ -85,8 +87,8 @@ async function boundTarget(
     const binding = JSON.parse(
       await readFile(join(directory, `${session}.target`), "utf8"),
     ) as { targetId?: unknown };
-    const id = binding.targetId;
-    if (typeof id !== "string" || id === "") return null;
+    const id = targetIdOf(binding.targetId);
+    if (id === null) return null;
     return (await seams.targets()).has(id) ? id : null;
   } catch {
     return null;
@@ -157,21 +159,21 @@ async function ensureThreadWindowLocked(
   }
   if (existing !== null)
     return Object.freeze({ session, targetId: existing, created: false });
-  let targetId: unknown;
+  let created: unknown;
   try {
-    targetId = (
+    created = (
       (await seams.cdp("Target.createTarget", {
         url: url ?? "about:blank",
         newWindow: true,
-        width: browserWindowSize.width,
-        height: browserWindowSize.height + 100,
+        width: browserBounds.window.width,
+        height: browserBounds.window.height,
       })) as { targetId?: unknown }
     ).targetId;
   } catch {
     throw new BrowserWindowFailure("window-create-failed");
   }
-  if (typeof targetId !== "string" || targetId === "")
-    throw new BrowserWindowFailure("window-create-failed");
+  const targetId = targetIdOf(created);
+  if (targetId === null) throw new BrowserWindowFailure("window-create-failed");
   const ok = (result: Awaited<ReturnType<ProcessRunner>>) =>
     result !== "timeout" && result.exitCode === 0;
   const bound = await agentBrowser(seams, [
@@ -212,7 +214,8 @@ export function cdpSeams(
     if (Array.isArray(list))
       for (const item of list) {
         const { id, type } = (item ?? {}) as Record<string, unknown>;
-        if (type === "page" && typeof id === "string") ids.add(id);
+        const target = targetIdOf(id);
+        if (type === "page" && target !== null) ids.add(target);
       }
     return ids;
   };

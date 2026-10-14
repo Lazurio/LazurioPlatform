@@ -14,6 +14,7 @@ import {
   userUnitDirectory,
 } from "../update/service-control";
 import { unreadableHolderFiles } from "./contract/node";
+import { browserBounds } from "./contract/pure";
 import {
   browserExtensionDigest,
   writeBrowserExtension,
@@ -48,8 +49,9 @@ const displaySocket = "/tmp/.X11-unix/X1";
 
 /** The browser's DevTools port, on loopback only (Chrome binds 127.0.0.1 for
  * `--remote-debugging-port`). Never routed by the gateway: whoever reaches
- * it reaches every sign-in of the Environment. */
-export const browserCdpPort = 9222;
+ * it reaches every sign-in of the Environment. The contract's
+ * (`browserBounds.devtoolsPort`, F50 C14). */
+export const browserCdpPort = browserBounds.devtoolsPort;
 
 /** The persistent profile, outside the Folder (which refuses foreign
  * entries) and outside the install base (product, not the person's state):
@@ -57,10 +59,6 @@ export const browserCdpPort = 9222;
  * step when a Work Environment passes to another person (0191 point 10). */
 export const browserProfileDirectory = (home: string) =>
   join(home, ".local", "share", "lazurio-browser", "profile");
-
-/** The size of a thread's window until a person's view resizes it (F39
- * point 3). */
-export const browserWindowSize = Object.freeze({ width: 1280, height: 800 });
 
 /** The virtual screen; no window grows past it. */
 export const browserScreenSize = Object.freeze({ width: 1920, height: 1080 });
@@ -142,7 +140,9 @@ export const browserFlags = Object.freeze([
   "--disable-renderer-backgrounding",
   "--disable-backgrounding-occluded-windows",
   "--hide-crash-restore-bubble",
-  `--window-size=${browserWindowSize.width},${browserWindowSize.height + 100}`,
+  // A thread's window until a person's view resizes it (F39 point 3): the
+  // contract's page area in its window (`browserBounds`, F50 C14).
+  `--window-size=${browserBounds.window.width},${browserBounds.window.height}`,
   "--deny-permission-prompts",
   "--load-extension=%h/.local/share/lazurio-browser/extension",
   "--disable-features=DisableLoadExtensionCommandLineSwitch",
