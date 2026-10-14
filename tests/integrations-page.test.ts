@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { integrationsCatalog } from "../src/integrations/catalog";
 import type {
+  IntegrationAccount,
   IntegrationApp,
   IntegrationsOverview,
 } from "../src/integrations/model";
@@ -815,7 +816,7 @@ test("Odpojit: the row says Odpojuji… from the confirmation until the reading 
   expect(removalKey(gmail, work)).not.toBe(
     removalKey(notion, { ...work, path: "direct" }),
   );
-  const row = (account: typeof work | typeof direct, removals: Removals) =>
+  const row = (account: IntegrationAccount, removals: Removals) =>
     accountView(
       account.path === "direct" ? notion : gmail,
       account,
