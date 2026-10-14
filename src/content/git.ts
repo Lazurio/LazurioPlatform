@@ -1,6 +1,7 @@
 import { inspectGitCheckout } from "../providers/git-checkout";
 import type { ToolRunner } from "../tools/status";
 import { resolveOnPath } from "../tools/status";
+import { type CommitIdentity, identitySettings } from "./commit-identity";
 
 // Git for content installation: the operator's own `git` from the
 // operator's PATH, with the operator's home and Git configuration, because a
@@ -45,11 +46,13 @@ export type ContentGit = Readonly<{
    * checkout): a tracked path never is. Null when Git could not answer. */
   ignored(directory: string, path: string): Promise<boolean | null>;
   /** Makes `directory` a new repository whose `main` holds one commit of
-   * everything in it, by the operator's own Git identity (decision F52).
-   * Git's last error line when it fails. */
+   * everything in it, by the operator's own Git identity (decision F52), or
+   * where git has none, by `fallback` (the person's GitHub identity, given
+   * per commit, never configured). Git's last error line when it fails. */
   commitAll(
     directory: string,
     message: string,
+    fallback?: CommitIdentity | undefined,
   ): Promise<Readonly<{ ok: true }> | Readonly<{ ok: false; detail: string }>>;
   /** Points the `origin` of the repository `directory` at `url` and pushes
    * its `main` there, with gh as the credential helper of an HTTPS remote as
@@ -260,16 +263,29 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
           ? false
           : null;
     },
-    async commitAll(directory, message) {
+    async commitAll(directory, message, fallback) {
       for (const args of [
         ["init", "--quiet", "--initial-branch=main"],
         ["add", "--all"],
-        ["commit", "--quiet", "--message", message],
       ]) {
         const result = await write(directory, args, commitTimeoutMs);
         if (!result.ok) return result;
       }
-      return { ok: true };
+      const identity = await identitySettings(
+        (key) => read(directory, ["config", "--get", key]),
+        fallback,
+      );
+      if (identity === null)
+        return {
+          ok: false,
+          detail:
+            "git has no user.name or user.email and no GitHub identity was known",
+        };
+      return write(
+        directory,
+        [...identity, "commit", "--quiet", "--message", message],
+        commitTimeoutMs,
+      );
     },
     async push(directory, remote) {
       const added = await write(directory, [

@@ -743,9 +743,11 @@ bootstrap is what creates it.
    The same run created both repositories a moment before; nobody's work is
    overwritten.
 4. **Asked before anything is created.** Bun (`~/.local/bin/bun`, else on the PATH) and
-   the operator's Git identity (`user.name`, `user.email`) are checked at `create`
-   before generation (`personalspace-toolchain-missing`, `git-identity-missing`), so a
-   predictable cause never leaves a created repository behind.
+   an identity to commit with are checked at `create` before generation
+   (`personalspace-toolchain-missing`, `git-identity-missing`), so a predictable cause
+   never leaves a created repository behind. The commits use the operator's own Git
+   identity where it is set, else the person's GitHub identity (the profile's name, else the login, and `<id>+<login>@users.noreply.github.com`) given per commit with `git -c`, never written into any Git configuration (a Remote Environment sets none, so
+   `git-identity-missing` remains only when neither is known).
 5. **A failure stays truthful and recoverable.** `personalspace-template-unexpected`,
    `personalspace-bootstrap-failed` (with the template's own reason),
    `personalspace-commit-failed`, `personalspace-push-failed`, `gbrain-commit-failed`,
@@ -780,7 +782,9 @@ bootstrap is what creates it.
 Tests: `tests/content-install.test.ts` (a fresh install names the owner with the profile's
 name, creates and pushes gbrain and leaves both checkouts clean; a failed bootstrap
 leaves the repository created and unpushed with the template's reason and the next
-step; nothing is created without Bun or a Git identity; an unmarked repository is never
+step; nothing is created without Bun; the commits carry the operator's Git identity, or
+without one GitHub's noreply identity as author and committer with no Git configuration
+written; an unmarked repository is never
 bootstrapped; an existing Personalspace with placeholders, cloned and present, is
 reported with the warning and never touched) over a fixture template whose bootstrap
 does to the two files what the template's does; `tests/personalspace-bootstrap.test.ts`
@@ -10493,7 +10497,8 @@ form moves here too.
    toolchain (`bun install` with `~/.local/bin/bun`, as the lifecycle runs it, or `uv
    lock`; never this process's executable, which compiled is Lazurio itself; a failure
    is reported and the run goes on); *commit* (`git init` with `main` and one commit by
-   the operator's own Git identity, `commit-failed` otherwise); *create* the empty
+   the operator's own Git identity, else by the person's GitHub identity (the profile's name, else the login, and `<id>+<login>@users.noreply.github.com`) given per commit with `git -c`, never written into any Git configuration (#377's addendum to F9);
+   `commit-failed` only when neither is known); *create* the empty
    private repository on the person's account (`POST /user/repos` through gh) and
    verify GitHub's answer: private, of the holder's login and named as planned, or the
    run stops with nothing placed (`create-failed`, `not-private`, or

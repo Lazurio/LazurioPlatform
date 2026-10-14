@@ -6,6 +6,7 @@ import { readOrganizationDocuments } from "../organizations/read-documents";
 import { rootApplicationPaths } from "../organizations/repository-slots";
 import { resolveOrganizationRootDocuments } from "../organizations/root-resolution";
 import { githubRemoteCoordinate } from "../providers/git-checkout";
+import { githubCommitIdentity } from "./commit-identity";
 import type { ContentGitHub, GitHubViewer, ViewerAnswer } from "./github";
 import { type ContentHost, catalogOf, readFolderKind } from "./host";
 import { tryContentLock } from "./lock";
@@ -946,7 +947,10 @@ async function installPersonalspace(
       steps.running("create");
       // What the template's bootstrap needs after the creation is asked
       // first: a creation that could not be set up is not started.
-      const ready = await host.personalspace.ready(folder);
+      const ready = await host.personalspace.ready(
+        folder,
+        githubCommitIdentity(viewer),
+      );
       if (!ready.ok) return steps.fail("create", ready.code, ready.detail);
       const created = await host.github.generate(
         personalspaceTemplate,
@@ -1107,6 +1111,7 @@ async function setUpCreated(
     personalspaceIdentityFiles,
     personalspaceCommitMessage,
     (await host.github.remote(repository)).credentialHelper,
+    githubCommitIdentity(viewer),
   );
   if (!own.ok)
     return steps.fail(
@@ -1119,6 +1124,7 @@ async function setUpCreated(
     [".gitignore"],
     gbrainCommitMessage,
     (await host.github.remote(owner.gbrain)).credentialHelper,
+    githubCommitIdentity(viewer),
   );
   if (!gbrain.ok)
     return steps.fail(

@@ -1,6 +1,11 @@
 import { afterEach, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { chmod } from "node:fs/promises";
 import { join } from "node:path";
+import {
+  type CommitIdentity,
+  githubCommitIdentity,
+} from "../src/content/commit-identity";
 import {
   bootstrapFailureDetail,
   isTemplateCheckout,
@@ -31,6 +36,11 @@ let world: World | undefined;
 afterEach(async () => {
   await world?.close();
   world = undefined;
+});
+
+const github: CommitIdentity = githubCommitIdentity({
+  login: "example",
+  databaseId: 12345,
 });
 
 const tools = (current: World, run: ToolRunner = runTool) => ({
@@ -115,13 +125,15 @@ posixTest(
     world = await createWorld();
     const folder = join(world.root, "folder");
     await mkdir(folder);
-    const ready = (identity: boolean, bun: string) =>
+    const ready = (identity: boolean, bun: string, fallback?: CommitIdentity) =>
       processPersonalspaceBootstrap(
         tools(world as World),
         operatorGitEnv(world as World, identity),
         { bunExecutable: bun },
-      ).ready(folder);
+      ).ready(folder, fallback);
     expect(await ready(true, process.execPath)).toEqual({ ok: true });
+    // No Git identity: GitHub's will do; refused only without either.
+    expect(await ready(false, process.execPath, github)).toEqual({ ok: true });
     expect(await ready(false, process.execPath)).toMatchObject({
       ok: false,
       code: "git-identity-missing",
@@ -165,6 +177,41 @@ posixTest(
     expect(
       await bootstrap.publish(checkout, ["modules.manifest.json"], "again"),
     ).toEqual({ ok: true, committed: false });
+    // No Git identity: the GitHub one, given to this commit only.
+    const bare2 = await remoteRepository(world, "example/other", (directory) =>
+      writeTemplate(directory, "template"),
+    );
+    const other = join(world.root, "other");
+    await git(world.root, "clone", "--quiet", bare2, other);
+    await writeFile(join(other, "modules.manifest.json"), '{"owner":"z"}');
+    const anonymous = processPersonalspaceBootstrap(
+      tools(world),
+      operatorGitEnv(world, false),
+    );
+    expect(
+      await anonymous.publish(
+        other,
+        ["modules.manifest.json"],
+        "Nastav Personalspace GEN3",
+        undefined,
+        github,
+      ),
+    ).toEqual({ ok: true, committed: true });
+    expect(
+      await git(bare2, "log", "-1", "--format=%an <%ae>|%cn <%ce>", "main"),
+    ).toBe(
+      "example <12345+example@users.noreply.github.com>|example <12345+example@users.noreply.github.com>",
+    );
+    // Nothing configured: neither in the checkout nor in the home.
+    expect(
+      (
+        await runChild(
+          ["git", "-C", other, "config", "--local", "--get", "user.email"],
+          { env: { PATH: Bun.env.PATH ?? "/usr/bin:/bin" } },
+        )
+      ).stdout,
+    ).toBe("");
+    expect(existsSync(join(world.home, ".gitconfig"))).toBe(false);
     // GitHub refuses the push: the stage and git's own last line.
     const hook = join(bare, "hooks", "pre-receive");
     await writeFile(hook, "#!/bin/sh\necho 'protected branch' >&2\nexit 1\n");

@@ -1453,7 +1453,9 @@ marked temporary sibling `workspace/.<module>.lazurio-content-<hex>`, through
 `publishNewCheckout` in `src/content/materialize.ts`, the content install's own
 publication), `prepare` (`bun install --cwd app/v1` with `~/.local/bin/bun`, or `uv lock
 --directory app/v1`; a failure is an issue and the run goes on), `commit` (`git init` on
-`main` and one commit by the operator's Git identity; `commit-failed` stops), `create`
+`main` and one commit by the operator's Git identity, else by the person's GitHub identity
+(profile name or login, `<id>+<login>@users.noreply.github.com`) given per commit and never
+configured; `commit-failed` stops only when neither is known), `create`
 (`POST /user/repos` with `private=true` through gh; GitHub's answer must say private, the
 holder's login and the planned name, or the run stops with nothing placed:
 `create-failed`, `not-private`, or `create-uncertain` when GitHub did not confirm the
@@ -1484,7 +1486,8 @@ planned file and the lockfile, the module placed as a clean checkout of it, the 
 the pool in the task worktree byte for byte, the Personalspace's tracked files
 unchanged; a creation that fails, is taken meanwhile, is public or of another account
 (nothing placed, nothing pushed); a failed push and a failed install (the run goes on); no
-Git identity (nothing created); the run's own refusals; and the CLI's lines and exit
+Git identity (GitHub's noreply identity as author and committer, no configuration written) and
+neither identity (nothing created); the run's own refusals; and the CLI's lines and exit
 codes. `tests/module-create-cli.test.ts`: through `runCli`, the usage errors, the
 refusals by name, `module prepare` reaching the lifecycle and the help; and the plan end
 to end in a child process of `src/cli.ts` with a fake gh and the real git.

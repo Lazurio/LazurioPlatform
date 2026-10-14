@@ -3,6 +3,7 @@ import { access, readFile, stat } from "node:fs/promises";
 import { delimiter, dirname, join } from "node:path";
 import type { ToolsEnvironment } from "../tools/overview";
 import { resolveOnPath } from "../tools/status";
+import { type CommitIdentity, identitySettings } from "./commit-identity";
 import { gitEnvironmentOf } from "./git";
 
 // The template's own bootstrap in a Personalspace that `lazurio personalspace
@@ -55,8 +56,12 @@ export type PublishAnswer =
 /** The effects the Personalspace's setup needs, injectable for tests. */
 export type PersonalspaceBootstrap = Readonly<{
   /** Whether a bootstrap can run and its result be committed here, asked
-   * before anything is created: Bun, and a Git identity of the operator. */
-  ready(folder: string): Promise<BootstrapReady>;
+   * before anything is created: Bun, and a Git identity, the operator's own
+   * or, where git has none, `fallback` (the person's GitHub identity). */
+  ready(
+    folder: string,
+    fallback?: CommitIdentity | undefined,
+  ): Promise<BootstrapReady>;
   /** Whether a checkout has no change and no untracked file. */
   clean(directory: string): Promise<boolean>;
   /** `bun run bootstrap -- --login … --display-name … --apply` of the
@@ -66,12 +71,14 @@ export type PersonalspaceBootstrap = Readonly<{
     request: Readonly<{ login: string; displayName: string }>,
   ): Promise<BootstrapRun>;
   /** Commits `paths` of the checkout `directory` (nothing when they are
-   * unchanged) and pushes its branch to `origin`. */
+   * unchanged) by the operator's Git identity, else by `fallback` given per
+   * commit, and pushes its branch to `origin`. */
   publish(
     directory: string,
     paths: readonly string[],
     message: string,
     credentialHelper?: string | undefined,
+    fallback?: CommitIdentity | undefined,
   ): Promise<PublishAnswer>;
 }>;
 
@@ -227,6 +234,12 @@ export function processPersonalspaceBootstrap(
       return null;
     }
   };
+  // git's own value of a setting in `directory`, or null.
+  const configured =
+    (directory: string) => async (key: "user.name" | "user.email") => {
+      const answer = await runGit(directory, ["config", "--get", key]);
+      return answer !== null && answer.exitCode === 0 ? answer.stdout : null;
+    };
   const lastLine = (text: string) =>
     text
       .split("\n")
@@ -235,7 +248,7 @@ export function processPersonalspaceBootstrap(
       .at(-1)
       ?.slice(0, 300);
   return Object.freeze({
-    async ready(folder) {
+    async ready(folder, fallback) {
       if ((await bunOf()) === undefined)
         return {
           ok: false,
@@ -243,19 +256,13 @@ export function processPersonalspaceBootstrap(
           detail:
             "Bun is not at ~/.local/bin/bun or on PATH, and the template's bootstrap runs with it; nothing was created (see lazurio tools status)",
         };
-      for (const key of ["user.name", "user.email"]) {
-        const answer = await runGit(folder, ["config", "--get", key]);
-        if (
-          answer === null ||
-          answer.exitCode !== 0 ||
-          answer.stdout.trim() === ""
-        )
-          return {
-            ok: false,
-            code: "git-identity-missing",
-            detail: `git has no ${key}, and the install commits the new Personalspace's owner with the operator's Git identity; nothing was created. Set it (git config --global ${key} …) and run the install again`,
-          };
-      }
+      if ((await identitySettings(configured(folder), fallback)) === null)
+        return {
+          ok: false,
+          code: "git-identity-missing",
+          detail:
+            "git has no user.name or user.email and no GitHub identity is known to commit the new Personalspace's owner with; nothing was created. Set them (git config --global user.name …, user.email …) or sign in gh, and run the install again",
+        };
       return { ok: true };
     },
     async clean(directory) {
@@ -301,7 +308,7 @@ export function processPersonalspaceBootstrap(
         return { ok: false, detail: "the bootstrap could not be started" };
       }
     },
-    async publish(directory, paths, message, credentialHelper) {
+    async publish(directory, paths, message, credentialHelper, fallback) {
       const failed = (
         stage: "commit" | "push",
         command: string,
@@ -332,7 +339,19 @@ export function processPersonalspaceBootstrap(
         return failed("commit", "diff", staged);
       const committed = staged.exitCode === 1;
       if (committed) {
+        const identity = await identitySettings(
+          configured(directory),
+          fallback,
+        );
+        if (identity === null)
+          return {
+            ok: false,
+            stage: "commit",
+            detail:
+              "git has no user.name or user.email and no GitHub identity was known",
+          };
         const commit = await runGit(directory, [
+          ...identity,
           "commit",
           "--quiet",
           "--message",

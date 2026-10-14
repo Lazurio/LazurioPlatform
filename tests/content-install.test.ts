@@ -1154,26 +1154,94 @@ posixTest(
 );
 
 posixTest(
-  "nothing is created without Bun or a Git identity to set the Personalspace up with",
+  "nothing is created without Bun to run the template's bootstrap with",
   async () => {
     world = await createWorld();
-    for (const [options, code] of [
-      [{ identity: false }, "git-identity-missing"],
-      [{ bun: null }, "personalspace-toolchain-missing"],
-    ] as const) {
-      const folder = await presetFolder(world as World, "local");
-      const { github, calls } = stubGitHub(world as World);
-      const steps: ContentStep[] = [];
-      await installContent(
-        folder,
-        { items: [{ kind: "personalspace" }] },
-        (step) => steps.push(step),
-        contentHost(world as World, github, undefined, options),
-      );
-      expect(summary(steps)).toEqual(["find:done", `create:failed:${code}`]);
-      expect(calls.some((call) => call.kind === "generate")).toBe(false);
-      expect(await readdir(join(folder, "personalspace"))).toEqual([]);
-    }
+    const folder = await presetFolder(world, "local");
+    const { github, calls } = stubGitHub(world);
+    const steps: ContentStep[] = [];
+    await installContent(
+      folder,
+      { items: [{ kind: "personalspace" }] },
+      (step) => steps.push(step),
+      contentHost(world, github, undefined, { bun: null }),
+    );
+    expect(summary(steps)).toEqual([
+      "find:done",
+      "create:failed:personalspace-toolchain-missing",
+    ]);
+    expect(calls.some((call) => call.kind === "generate")).toBe(false);
+    expect(await readdir(join(folder, "personalspace"))).toEqual([]);
+  },
+  60_000,
+);
+
+posixTest(
+  "the commits are the operator's Git identity, else the person's GitHub identity given per commit, never configured",
+  async () => {
+    world = await createWorld();
+    const author = (repository: string) =>
+      runChild(
+        [
+          "git",
+          "--git-dir",
+          join((world as World).remotes, `${repository}.git`),
+          "log",
+          "-1",
+          "--format=%an <%ae>|%cn <%ce>",
+          "main",
+        ],
+        { env: { PATH: Bun.env.PATH ?? "/usr/bin:/bin" } },
+      ).then((child) => child.stdout.trim());
+    // An identity set (the world's Fixture): it is used.
+    const own = await presetFolder(world, "local");
+    await installContent(
+      own,
+      { items: [{ kind: "personalspace" }] },
+      () => {},
+      contentHost(world, stubGitHub(world).github),
+    );
+    expect(await author("example/example_GEN3")).toBe(
+      "Fixture <fixture@example.invalid>|Fixture <fixture@example.invalid>",
+    );
+    await world.close();
+    // None set, as on a fresh Remote Environment: GitHub's identity, author
+    // and committer of both commits, and no Git configuration written.
+    world = await createWorld();
+    const fresh = await presetFolder(world, "local");
+    const steps: ContentStep[] = [];
+    const result = await installContent(
+      fresh,
+      { items: [{ kind: "personalspace" }] },
+      (step) => steps.push(step),
+      contentHost(
+        world,
+        stubGitHub(world, {
+          viewer: {
+            kind: "signed-in",
+            viewer: { login: "example", databaseId: 12345, name: "Ex Ample" },
+          },
+        }).github,
+        undefined,
+        { identity: false },
+      ),
+    );
+    expect(result.kind === "content-install" && result.state).toBe("succeeded");
+    const noreply =
+      "Ex Ample <12345+example@users.noreply.github.com>|Ex Ample <12345+example@users.noreply.github.com>";
+    expect(await author("example/example_GEN3")).toBe(noreply);
+    expect(await author("example/example-gbrain")).toBe(noreply);
+    expect(await readdir(world.home)).not.toContain(".gitconfig");
+    const space = join(fresh, "personalspace", "example_GEN3");
+    for (const checkout of [space, join(space, "gbrain")])
+      expect(
+        (
+          await runChild(
+            ["git", "-C", checkout, "config", "--local", "--get", "user.email"],
+            { env: { PATH: Bun.env.PATH ?? "/usr/bin:/bin" } },
+          )
+        ).stdout,
+      ).toBe("");
   },
   60_000,
 );

@@ -1,5 +1,6 @@
 import { mkdir, realpath, rename, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { githubCommitIdentity } from "../content/commit-identity";
 import type { ContentGit } from "../content/git";
 import type { ContentGitHub, GitHubRepository } from "../content/github";
 import { tryContentLock } from "../content/lock";
@@ -83,7 +84,10 @@ export type InstallAnswer =
 /** What a real run writes with, besides what the plan reads. */
 export type ModuleCreateRunHost = ModuleCreateHost &
   Readonly<{
-    github: Pick<ContentGitHub, "repository" | "createRepository" | "remote">;
+    github: Pick<
+      ContentGitHub,
+      "viewer" | "repository" | "createRepository" | "remote"
+    >;
     git: Pick<ContentGit, "worktree" | "ignored" | "commitAll" | "push">;
     /** The directory of the per-Folder content locks. */
     lockDirectory: string;
@@ -289,9 +293,16 @@ async function run(
       }
       // commit
       steps.running("commit");
+      // By the operator's Git identity, else the person's GitHub one (a
+      // Remote Environment configures none).
+      const viewer = await host.github.viewer();
       const committed = await host.git.commitAll(
         checkout,
         `Create ${plan.module} with lazurio module create (${plan.stack})`,
+        viewer.kind === "signed-in" &&
+          viewer.viewer.login.toLowerCase() === module.login.toLowerCase()
+          ? githubCommitIdentity(viewer.viewer)
+          : undefined,
       );
       if (!committed.ok) {
         steps.failed("commit", "commit-failed", committed.detail);
@@ -435,7 +446,7 @@ function stopped(
   const messages: Readonly<Record<string, [string, string]>> = {
     "commit-failed": [
       "Git could not make the module's first commit; nothing was created.",
-      "Set your Git identity (git config --global user.name and user.email) and run the command again.",
+      "Set your Git identity (git config --global user.name and user.email), or sign in gh so the module is committed with your GitHub identity, and run the command again.",
     ],
     "create-failed": [
       created === null

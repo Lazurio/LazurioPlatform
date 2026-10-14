@@ -280,8 +280,10 @@ with what it found.
   ([F9 addendum of 2026-10-14](decisions.md#addendum-of-2026-10-14-the-install-runs-the-templates-own-bootstrap), #377).
 - **The template's bootstrap** (only for the Personalspace this run created). Before
   anything is created, `create` asks for what the setup needs: Bun (`~/.local/bin/bun`,
-  else on the PATH; `personalspace-toolchain-missing`) and the operator's Git identity
-  (`user.name` and `user.email`; `git-identity-missing`). After the clone, `bootstrap`
+  else on the PATH; `personalspace-toolchain-missing`) and an identity to commit with:
+  the operator's own Git identity (`user.name`, `user.email`) where it is set, else
+  the person's GitHub identity (the profile's name, else the login, and `<id>+<login>@users.noreply.github.com`) given per commit with `git -c`, never written into any Git configuration, since a Remote Environment configures none (`git-identity-missing`
+  only when neither is known). After the clone, `bootstrap`
   checks that the checkout is clean and carries the template's marker
   `personalspace.template.json` (`personalspace-template-unexpected`), then runs
   `bun run --cwd <checkout> bootstrap -- --login <login> --display-name <name> --apply`

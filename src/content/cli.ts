@@ -66,8 +66,10 @@ personalspace install [--folder <absolute Folder>] [--json]
   --display-name <GitHub profile name, else login> --apply: it names the
   owner and creates and clones the private <login>/<login>-gbrain; the gbrain
   CLI is not installed), and what the bootstrap wrote is committed and pushed
-  to main of both new repositories. Bun and a Git identity are checked before
-  anything is created (personalspace-toolchain-missing,
+  to main of both new repositories, by the operator's Git identity, else by
+  the person's GitHub identity (profile name or login, GitHub's noreply
+  address) given per commit and never configured. Bun and an identity are
+  checked before anything is created (personalspace-toolchain-missing,
   git-identity-missing). A failed bootstrap leaves the created repository
   cloned and unpushed, with the next step in the failure. When a repository
   of the person was already created from that template under another name,
