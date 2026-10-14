@@ -10223,9 +10223,9 @@ when the managed Folder configuration is absent.
 ## F52 — One module generator in the Platform; a person's own modules in their Personalspace
 
 **Decided by the Operator 2026-10-13 (root decision 0171, addendum of 2026-10-13;
-plan DEV-6662 M2, Lazurio/LazurioPlatform#359). Built in steps: the generator, then
-the command's plan (`lazurio module create personalspace/<slug> --dry-run`, point 6), then
-its real run.** A person
+plan DEV-6662 M2, Lazurio/LazurioPlatform#359). Implemented: the generator, the
+command's plan (`lazurio module create personalspace/<slug> --dry-run`, point 6) and its
+real run (`--confirm <plan>`, point 7).** A person
 who holds their personal space asks an agent for a new module of their own. The module
 is theirs alone: a private repository on their own GitHub account, checked out in their
 Personalspace, with no Organization and no Teams. The Platform, the product since root
@@ -10285,8 +10285,7 @@ form moves here too.
    `mausbot`, `mausbot-webhook`, `browser`, `oauth2`, `api`, `well-known`
    (`M:workloads/workspace-vm/gateway.ts`, `gateway-catalog.py`). This holds for an
    Organization's module too.
-5. **Not in this revision.** The real run of the command (the repository, the first
-   push, the slot); the conformance checks of `lazurio module setup` (#267, which today
+5. **Not here.** The conformance checks of `lazurio module setup` (#267, which today
    only the root runs for an Organization); cloning a person's declared modules on their
    other Environment (later, M2b); vault secrets for personal modules (F46).
 6. **The command's plan.** `lazurio module create personalspace/<slug> --stack <stack>
@@ -10313,6 +10312,38 @@ form moves here too.
    the person confirms (repository, module, stack, name, slot, lease, files and the pool
    the manifest gains). The CLI now also dispatches `lazurio module prepare` (#114).
    Details: `docs/launchpad-development.md`, "Module creation".
+7. **The real run, only for the confirmed plan.** The agent shows the person the dry
+   run's plan and asks; only after they confirm it, the same command with
+   `--confirm <plan>` (the dry run's digest) creates it (`src/modules/module-create-run.ts`).
+   It takes the Folder's content lock (`content-busy`), makes every check of point 6
+   again and refuses a plan that is not the confirmed one (`plan-changed`) and a cwd
+   that is not a task worktree of the held Personalspace on a branch of its own
+   (`personalspace_root_not_task_worktree`, `personalspace_root_on_main`; its place is
+   `personalspace/.worktrees/<task>`, beside the owner directory). Then, in order:
+   *write* the plan's files into a temporary sibling of `workspace/<slug>` (the content
+   install's own mechanism, `publishNewCheckout`: a marked temporary directory, `wx`
+   writes, removed on every end); *prepare* the app's lockfile by the operator's own
+   toolchain (`bun install` with `~/.local/bin/bun`, as the lifecycle runs it, or `uv
+   lock`; never this process's executable, which compiled is Lazurio itself; a failure
+   is reported and the run goes on); *commit* (`git init` with `main` and one commit by
+   the operator's own Git identity, `commit-failed` otherwise); *create* the empty
+   private repository on the person's account (`POST /user/repos` through gh) and
+   verify GitHub's answer: private, of the holder's login and named as planned, or the
+   run stops with nothing placed (`create-failed`, `not-private`, or
+   `create-uncertain` when GitHub did not confirm the creation but has the name
+   now, which this run cannot tell from a name taken meanwhile, so it is
+   `action_required` and the person looks at it; a repository is never
+   adopted, and one this run created is never deleted, only reported); *place* it with
+   the no-replace rename into the Personalspace's `workspace/<slug>`, a gitignored
+   nested checkout the catalog lists at once; *push* `main` through gh's remote
+   (`push-failed` keeps the module placed and names the exact command); *declare* the
+   slot, and the pool when the Personalspace has none, in the task worktree's
+   `modules.manifest.json`, byte for byte, never in the Personalspace's own checkout;
+   and *check* that the catalog lists `personalspace/<slug>`. The report is `completed`,
+   `action_required` (created, with the step left to the person in its next steps) or
+   `blocked` (nothing written); the next steps are the pull request into
+   `<login>/<login>_GEN3`, whose merge is the person's Publication, the worktree's
+   removal and the module's start. Exit status 0, 1 and 2 respectively.
 
 **Alternatives rejected.** Modules as tracked directories of the one Personalspace
 repository: the template ignores `workspace/*`, one module could no longer be shared,
@@ -10325,8 +10356,9 @@ the Personalspace's own tools then could not read it. Templates read from disk a
 time: the installed executable has no source checkout. One JSON document of templates:
 unreviewable.
 
-**Verification.** The command's plan: `tests/personal-module-create.test.ts` and
-`tests/module-create-cli.test.ts` (see "Module creation"). The generator:
+**Verification.** The command: `tests/personal-module-create.test.ts`,
+`tests/module-create-cli.test.ts`, `tests/content-github.test.ts` and
+`tests/personalspace-modules.test.ts` (see "Module creation"). The generator:
 `tests/module-scaffold.test.ts`: the root's planner tests (plans,
 ports, wrap-around, refusals, slot insert) on the port, the root's tree hash of every
 stack at `a5615be0`, the personal form against the template's own placeholders and

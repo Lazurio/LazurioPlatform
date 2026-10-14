@@ -216,6 +216,52 @@ esac`);
   },
 );
 
+posixTest(
+  "a personal module's repository is created empty and private on the viewer's account; GitHub's answer is read strictly",
+  async () => {
+    const { github, calls } = await fakeGh(`
+case "$*" in
+  "api --method POST user/repos --raw-field name=notes "*) echo '{"full_name":"example/notes","private":true,"archived":false,"owner":{"login":"example","id":12345,"type":"User"},"permissions":{"admin":true,"pull":true}}' ;;
+  "api --method POST user/repos --raw-field name=public "*) echo '{"full_name":"example/public","private":false,"archived":false,"owner":{"login":"example","id":12345,"type":"User"},"permissions":{"admin":true,"pull":true}}' ;;
+  "api --method POST user/repos --raw-field name=taken "*) echo '{"message":"Repository creation failed.","errors":[{"resource":"Repository","code":"custom","field":"name","message":"name already exists on this account"}],"status":"422"}'; exit 1 ;;
+  "api --method POST user/repos --raw-field name=garbled "*) echo 'not json' ;;
+  *) exit 1 ;;
+esac`);
+    expect(
+      await github.createRepository("notes", "Osobní Modul Lazuria."),
+    ).toEqual({
+      kind: "created",
+      repository: {
+        fullName: "example/notes",
+        owner: { login: "example", databaseId: 12345, kind: "User" },
+        private: true,
+        archived: false,
+        readable: true,
+        permission: "admin",
+      },
+    });
+    // GitHub's answer is the caller's to verify: here, public.
+    expect(
+      await github.createRepository("public", "Osobní Modul Lazuria."),
+    ).toMatchObject({ kind: "created", repository: { private: false } });
+    expect(
+      await github.createRepository("taken", "Osobní Modul Lazuria."),
+    ).toEqual({ kind: "failed" });
+    expect(
+      await github.createRepository("garbled", "Osobní Modul Lazuria."),
+    ).toEqual({ kind: "failed" });
+    // A name GitHub would not take is never sent.
+    expect(
+      await github.createRepository("no/slash", "Osobní Modul Lazuria."),
+    ).toEqual({ kind: "failed" });
+    const sent = await calls();
+    expect(sent).toHaveLength(4);
+    expect(sent[0]).toBe(
+      "api --method POST user/repos --raw-field name=notes --raw-field description=Osobní Modul Lazuria. --field private=true --field auto_init=false",
+    );
+  },
+);
+
 posixTest("an HTTPS remote takes gh as git's credential helper", async () => {
   const { github, gh } = await fakeGh("exit 1");
   expect(await github.remote("Example/repo")).toEqual({

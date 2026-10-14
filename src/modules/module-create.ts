@@ -16,6 +16,7 @@ import {
 import {
   assertSlug,
   assertStack,
+  canonicalJson,
   defaultScaffoldVersions,
   environmentPorts,
   ModuleScaffoldError,
@@ -36,7 +37,8 @@ import { moduleTemplates } from "./scaffold-templates";
 // their own GitHub account, checked out in `personalspace/<owner>/workspace/
 // <slug>`, its slot declared by a pull request into their Personalspace.
 // This half is the plan: every check reads only, and `--dry-run` writes
-// nothing and asks GitHub only GETs. The report is the root's
+// nothing and asks GitHub only GETs; the real run is
+// `src/modules/module-create-run.ts`. The report is the root's
 // `lazurio.module_create.report.v1` with the person's repository added.
 
 export const moduleCreateReportVersion = "lazurio.module_create.report.v1";
@@ -177,7 +179,8 @@ const holderActions: Readonly<Record<string, string>> = {
     "Whose Personalspace this is has not been verified with GitHub yet; run the command again.",
 };
 
-function baseReport(request: ModuleCreateRequest): ModuleCreateReport {
+/** A report of `request` with nothing planned yet. */
+export function baseReport(request: ModuleCreateRequest): ModuleCreateReport {
   return {
     schema_version: moduleCreateReportVersion,
     status: "blocked",
@@ -237,7 +240,11 @@ export async function planModuleCreate(
 ): Promise<ModuleCreateReport> {
   const planned = await preparePersonalModule(request, host);
   if (!planned.ok) return planned.report;
-  planned.report.next_steps = dryRunSteps(planned.report, planned.module);
+  planned.report.next_steps = dryRunSteps(
+    planned.report,
+    planned.module,
+    request,
+  );
   return planned.report;
 }
 
@@ -478,35 +485,24 @@ export function planDigest(
   return `sha256:${createHash("sha256").update(canonicalJson(confirmed)).digest("hex")}`;
 }
 
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value !== null && typeof value === "object")
-    return `{${Object.keys(value)
-      .sort()
-      .map(
-        (key) =>
-          `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`,
-      )
-      .join(",")}}`;
-  return JSON.stringify(value);
-}
-
 function dryRunSteps(
   report: ModuleCreateReport,
   module: PlannedPersonalModule,
+  request: ModuleCreateRequest,
 ): string[] {
   const steps: string[] = [];
-  if (module.worktree === null || !module.worktree.linked)
+  const worktree = module.worktree?.linked ? module.worktree.path : null;
+  if (worktree === null)
     steps.push(
-      `The real run needs a task worktree of the Personalspace beside it in personalspace/.worktrees/ (never inside it, never a second directory in personalspace/): git -C '${module.space}' worktree add -b <branch> '${join(module.folder, personalspaceName, ".worktrees", "<task>")}' main, then run the command from it.`,
+      `The real run needs a task worktree of the Personalspace beside it in personalspace/.worktrees/ (never inside it, never a second directory in personalspace/): git -C '${module.space}' worktree add -b <branch> '${join(module.folder, personalspaceName, ".worktrees", "<task>")}' main.`,
     );
   steps.push(
     `Show the person this plan in the thread: the private repository ${report.repository?.full_name} on their own GitHub account, the stack ${module.plan.stack}, the files and the port ${module.plan.lease?.port ?? "(none, no app)"}. Create it only after they confirm it.`,
-    "The real run (creating the repository, the first push and the slot) is not in this version of Lazurio yet; it follows on Lazurio/LazurioPlatform#359.",
+    `Then, from ${worktree === null ? "the task worktree" : worktree}: ${confirmCommand(request, report.plan as string)}`,
   );
   if (module.addsPool)
     steps.push(
-      `The pull request that declares the slot also declares module_port_pool ${module.pool.start}-${module.pool.end} in modules.manifest.json, which this Personalspace does not declare yet.`,
+      `The run also declares module_port_pool ${module.pool.start}-${module.pool.end} in modules.manifest.json, which this Personalspace does not declare yet, for the same pull request as the slot.`,
     );
   if (report.warnings.some((warning) => warning.includes("#377")))
     steps.push(
@@ -514,6 +510,31 @@ function dryRunSteps(
     );
   return steps;
 }
+
+/** The real run of the plan the person confirmed: the same choices, and the
+ * plan's digest. */
+export function confirmCommand(
+  request: ModuleCreateRequest,
+  plan: string,
+): string {
+  return [
+    "lazurio module create",
+    shellWord(request.selector),
+    "--stack",
+    shellWord(request.stack),
+    ...(request.name === undefined ? [] : ["--name", shellWord(request.name)]),
+    ...(request.port === undefined ? [] : ["--port", String(request.port)]),
+    "--confirm",
+    plan,
+    "--json",
+  ].join(" ");
+}
+
+// A word as a POSIX shell reads it: bare when it is plain, quoted otherwise.
+const shellWord = (word: string) =>
+  /^[A-Za-z0-9_./:=@%+-]+$/.test(word)
+    ? word
+    : `'${word.replaceAll("'", "'\\''")}'`;
 
 // ---- reads -------------------------------------------------------------------
 

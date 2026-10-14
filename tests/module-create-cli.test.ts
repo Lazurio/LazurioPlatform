@@ -73,7 +73,25 @@ test("usage errors exit 2 with the command's help, before anything is read", asy
       ],
       "takes one module",
     ],
-    [["personalspace/notes", "--stack", "none"], "--dry-run"],
+    [
+      ["personalspace/notes", "--stack", "none"],
+      "Show the person the plan with --dry-run first",
+    ],
+    [
+      [
+        "personalspace/notes",
+        "--stack",
+        "none",
+        "--dry-run",
+        "--confirm",
+        `sha256:${"0".repeat(64)}`,
+      ],
+      "Either --dry-run or --confirm <plan>, not both",
+    ],
+    [
+      ["personalspace/notes", "--stack", "none", "--confirm", "yes"],
+      "--confirm takes the plan's digest",
+    ],
     [
       ["personalspace/notes", "--stack", "none", "--port", "x", "--dry-run"],
       "--port is a port number",

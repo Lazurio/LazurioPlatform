@@ -561,6 +561,72 @@ export function insertModuleSlotText(
   return next;
 }
 
+/**
+ * Declares `pool` as the `module_port_pool` of a `modules.manifest.json`
+ * that has none, without touching any other byte: the member goes right
+ * before `module_slots`, indented like it. The result is parsed back and must
+ * equal the original document with exactly this member added (the personal
+ * pool a Personalspace declares with its first module, decision F52).
+ */
+export function insertModulePortPoolText(
+  manifestText: string,
+  pool: PortPool,
+): string {
+  let document: unknown;
+  try {
+    document = JSON.parse(manifestText);
+  } catch (error) {
+    throw new ModuleScaffoldError(
+      "manifest_invalid",
+      `modules.manifest.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (
+    document === null ||
+    typeof document !== "object" ||
+    Array.isArray(document) ||
+    Object.hasOwn(document, "module_port_pool")
+  )
+    throw new ModuleScaffoldError(
+      "manifest_invalid",
+      "modules.manifest.json is no object without a module_port_pool.",
+    );
+  const scanner = jsonScanner(manifestText);
+  const root = scanner.object(scanner.skipWhitespace(0));
+  const slots = root.entries.find((item) => item.key === "module_slots");
+  if (slots === undefined)
+    throw new ModuleScaffoldError(
+      "manifest_invalid",
+      "modules.manifest.json has no module_slots array.",
+    );
+  const indent = lineIndent(manifestText, slots.keyStart);
+  const member = { start: pool.start, end: pool.end };
+  const next = `${manifestText.slice(0, slots.keyStart)}"module_port_pool": ${indentJson(member, indent)},\n${indent}${manifestText.slice(slots.keyStart)}`;
+  if (
+    canonicalJson(JSON.parse(next)) !==
+    canonicalJson({ ...(document as object), module_port_pool: member })
+  )
+    throw new ModuleScaffoldError(
+      "manifest_insert_failed",
+      "The module_port_pool could not be declared in modules.manifest.json verifiably; the file was left unchanged.",
+    );
+  return next;
+}
+
+/** JSON with every object's keys sorted: equal documents give equal text. */
+export function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value !== null && typeof value === "object")
+    return `{${Object.keys(value)
+      .sort()
+      .map(
+        (key) =>
+          `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`,
+      )
+      .join(",")}}`;
+  return JSON.stringify(value);
+}
+
 // ---- inputs ----------------------------------------------------------------
 
 /** The stack of a new module, or `unknown_stack`. */
