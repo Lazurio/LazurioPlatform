@@ -743,6 +743,54 @@ export function composioOrganizationLine(
   return fill(copy[key], { name: target.name });
 }
 
+/** The tone of a notice on the page, as the callout draws it: `info`
+ * guides or reports progress, `success` says an action is done, `warning`
+ * names a state that needs the person, `danger` an action that failed. */
+export type NoticeTone = "info" | "success" | "warning" | "danger";
+
+/** The line about the person's last action, above the apps. */
+export type Note = Readonly<{ text: string; tone: NoticeTone }>;
+
+/** The icon a notice of each tone shows before its text. */
+export function noticeIcon(tone: NoticeTone): string {
+  return tone === "success"
+    ? "i-check"
+    : tone === "info"
+      ? "i-info"
+      : "i-warning";
+}
+
+/** Why a connect did not start, from the route's `reason`: the line it
+ * says, in its tone. `composio-signed-out` also opens Composio's sign-in
+ * (the panel's part). */
+export function refusalNote(
+  reason: unknown,
+  overview: IntegrationsOverview | null,
+  copy: Copy,
+): Note {
+  const danger = (text: string): Note => ({ text, tone: "danger" });
+  if (reason === "name-required")
+    return { text: copy.integrationsAccountNameHint, tone: "info" };
+  if (reason === "composio-signed-out")
+    return { text: copy.integrationsComposioSignIn, tone: "info" };
+  if (reason === "composio-organization")
+    return {
+      text:
+        (overview === null ? null : composioOrganizationLine(overview, copy)) ??
+        copy.integrationsComposioOrganizationChanged,
+      tone: "warning",
+    };
+  if (reason === "name-taken") return danger(copy.integrationsNameTaken);
+  if (reason === "browser-unavailable")
+    return danger(copy.integrationsBrowserMissing);
+  if (reason === "executor-unavailable")
+    return danger(copy.integrationsExecutorUnavailable);
+  if (reason === "integration-conflict")
+    return danger(copy.integrationsIntegrationConflict);
+  if (reason === "still-failing") return danger(copy.integrationsStillFailing);
+  return danger(copy.integrationsConnectFailed);
+}
+
 /** "Připojeno · 5 nástrojů", "Nepodařilo se spustit", "Spouštím…". */
 export function serverLine(server: CustomServer, copy: Copy): string {
   if (server.state === "failed" || server.state === "expired")
