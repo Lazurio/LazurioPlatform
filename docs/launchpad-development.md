@@ -1103,15 +1103,20 @@ the first run's line shows. An Organization never has it.
   personal space listed with a reason, there is no tile. The click hands over
   `{id: "new-personal-module", organization: <login>, text}` through `handOver`, by
   link where Chat takes prompts, otherwise through the clipboard (a workstation always
-  copies). The prompt has the agent ask what the module is for, its name and slug and
-  its app and stack; create a task worktree beside the Personalspace in
-  `personalspace/.worktrees/<task>`; show the plan of `lazurio module create
-  personalspace/<slug> --stack <stack> --dry-run --json` and wait; run it with
-  `--confirm <plan> --json`; check that `<login>/<slug>` is private; open the slot's pull
-  request into `<login>/<login>_GEN3` and ask before Publication; after the merge
-  `git -C <space> pull --ff-only` and remove the worktree; and only mention the
-  placeholder owner of #377. It must not reach a release before the real run of that
-  command (#399).
+  copies). Both briefs (F36 addendum of 2026-10-14) open with the person's words "Chci
+  postavit nový modul." / "I want to build a new module.", say where the module goes
+  (the personal Workspace as a private repository on `<login>`'s account, or the
+  Organization's Workspace) and send the agent to the Folder's `manual/new-module.md`,
+  which owns the interview about the purpose, the agent's technical choices, the
+  confirmed summary and plan, the creation, the first version and Publication (F14
+  addendum of 2026-10-14). The brief keeps only the guard rails that hold where a
+  Folder does not have that page yet: nothing created before the person agrees to the
+  summary and the plan (for the personal brief, `lazurio module create
+  personalspace/<slug> --stack <stack> --dry-run --json` first, `--confirm <plan>`
+  after), a private repository `<login>/<slug>` checked as private, pull requests (the
+  slot into `<login>/<login>_GEN3`) and asking before Publication; an Organization's
+  module never by hand. The personal brief must not reach a release before the real run
+  of that command (#399).
 
 **Routes.** `/` is the first Organization's Apps home; `/o/<org>` one Organization's
 Apps home, its sections Workspace and Productionspace (F36, F32's final addendum);

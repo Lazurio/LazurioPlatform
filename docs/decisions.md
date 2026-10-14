@@ -1514,6 +1514,107 @@ the existing refresh transaction. No runtime, data, access or publication author
 changes. Generated-output tests do not establish cold-session agent compliance;
 the audit records the remaining harness qualification scenarios.
 
+**Addendum 2026-10-14, decided by Matěj: the seventh manual page, `manual/new-module.md`,
+and manifest schema 3.** The Launchpad's "+ Nový modul" handed Chat a brief that told the
+agent to follow "skill lazurio-module-standard". No Remote Environment has that skill: its
+Folder holds only `AGENTS.md`, `manual/` and `.lazurio/`, all rendered by this product
+(checked on a real personal Remote Environment: no `.agents/`, no module skill). Matěj also
+wants agents to build a new module with the person in one recognisable way:
+
+- **The trigger** is the phrase "Chci postavit nový modul" ("I want to build a new module"),
+  which both briefs now open with (F36's addendum of the same day), or any request for a new
+  app or module.
+- **An interview about the purpose comes first**: what problem it solves, what bothers the
+  person today, who uses it and where, what they want to see and do, where the data comes
+  from, what should happen on its own, and what a good first version is. One question at a
+  time, in plain words, only about what the person has not said yet.
+- **No technical questions**: the agent chooses the stack, framework, storage and port and
+  explains each in one plain sentence.
+- **A confirmation before building**: the agent summarises the module in the person's words
+  and gets a "yes" before building, "so the agent does not build something the person then
+  says they did not want".
+- **Then the details**: where the module goes, the Lazurio Module Standard, the CLI flow and
+  Publication.
+
+What changes:
+
+- **`manual/new-module.md`** ("Nový modul" / "A new module"), after `working-here.md`, in
+  the Folder's locale like every page, a function of the preset:
+  - when it applies; 1. the interview, the summary and the "yes"; 2. where the module goes:
+    the personal Workspace where the preset has a Personalspace (`local`,
+    `hosted-personal`), an Organization's Workspace where it holds Organizations (`local`
+    and the Organization presets), asked only when unclear; 3. the agent's technical
+    choices, with the generator's six stacks (F52) each in one plain sentence, the data, the
+    port and the name and slug; 4. the plan and its confirmation;
+  - for a personal module: the task worktree beside the Personalspace, the dry run
+    (`lazurio module create personalspace/<slug> --stack <stack> --name '<name>' --dry-run
+    --json`) shown in plain words and confirmed; 5. the real run with `--confirm <plan>`,
+    the repository checked as private and the person's, the run's `next_steps`; 6. the first
+    version from the confirmed summary in a task worktree of the module (its own
+    `AGENTS.md` and `README.md`), its checks and tests, shown running before Publication;
+    7. the module's and the slot's pull requests, merged only on the person's "Publish",
+    both checkouts pulled, both worktrees removed, the module started with `lazurio module
+    start personalspace/<slug> --json` and its `runtime.url` given to the person;
+  - for an Organization's module: this Platform does not create one yet
+    (Lazurio/LazurioPlatform#267, `organization-form-unavailable`), so the agent says so
+    plainly, before the interview when it is clear from the start, and offers the
+    Organization's own route (its `AGENTS.md` or skills, or its Admin) with the confirmed
+    summary, instead of improvising;
+  - the refusals the agent is likely to meet, each with what to do.
+- **The first version is shown from the worktree.** `lazurio module start` runs a module
+  only from its own checkout (`--source worktree:<name>` is the later slice P9), while the
+  module's `AGENTS.md` keeps every change in a task worktree and a pull request. So the page
+  has the agent show the first version by the README's manual start on a free port (never
+  the module's leased port) in the browser, the Environment browser's tab on a Remote
+  Environment, and give `runtime.url` once both pull requests are merged.
+- **`AGENTS.md`** gains one line after the escalation of a missing right: when the person
+  wants a new module or app ("Chci postavit nový modul"), follow `manual/new-module.md`
+  (interview first, the agent's own technical choices, the summary and the plan confirmed).
+  Its manual index lists the page.
+- **Manifest schema 3.** The 2026-10-02 addendum rejected new chapters "for now" because the
+  instruction manifest requires a digest for every output, so a new file is a manifest
+  migration on every existing Folder. This addendum takes that migration, through the one
+  change path:
+  - Schema 2 owns `AGENTS.md` and the six earlier pages; schema 3 owns every output. This
+    product reads both (`folderStateSchemas.manifest` `[2, 3]`) and writes 3.
+  - The next change of a Folder at an older template revision (the refresh Machines runs
+    after every apply, or a profile, tools or settings change) upgrades it as before. The
+    page has no recorded digest, so the planner creates it only where nothing is at its
+    path; anything there is the person's and the upgrade is refused with `unowned-file`
+    and that path, nothing written.
+  - The transaction journal moves to schema 4: `before.json` records `null` as the
+    previous identity of an output the change creates. Preparation, inspection,
+    activation, resume and the retirement of an incomplete preparation require it to be
+    absent until its own rename; a file that appears there meanwhile stops the activation
+    with the journal and the file kept.
+  - Older binaries refuse a schema 3 manifest (fail closed, nothing rewritten) and are
+    repaired forward, as `docs/migration-and-recovery.md` says. A journal an older product
+    left pending is not resumed by this one, as after every template change.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A section in `working-here.md` | No migration, but the procedure a person starts by a phrase hides in the longest chapter and the brief cannot name it; rejected |
+| A skill in the Folder | The Folder has no skill directory; a new owned top-level name is a boundary change, and harnesses discover skills differently; rejected |
+| Manifest schema 2 accepting a subset of outputs | Older binaries refuse it all the same, and one schema with two shapes is harder to verify; rejected |
+| Writing the page outside the transaction | A second writer beside the change path; rejected |
+| Manifest schema 3, the page created by the existing upgrade only where its path is free (selected) | One path, the existing recovery, nothing of the person's ever replaced |
+
+Unchanged: the text of the other six pages, apart from the revision; the module generator
+and its commands (F52); who gets "+ Nový modul" and where its prompt is served (F36).
+Template revision `base-instructions-51`. Verified by `tests/folder-new-module.test.ts`:
+the page in both locales on every preset (the trigger, the interview before anything else,
+the generator's stacks in its order, the personal commands only where a Personalspace is,
+`organization-form-unavailable` and #267 only where Organizations are, the same sections in
+both languages, the `AGENTS.md` line and index entry); the manifest schemas (2 owns exactly
+the earlier outputs, 3 every output, no other); and on a personal Remote Environment's
+Folder rendered by the release before: the refresh creating the page and a second refresh
+unchanged, in both locales; a person's file at that path refused by path with nothing
+written; an interruption after preparation or activation completed by `profile-resume`; the
+activation resumed after each rename around the new page; a file that appears after
+preparation stopping the activation and kept; and a staging interruption at every step
+retired with the page still absent, then refreshed. The pinned digest of
+`tests/folder-template-revision.test.ts` moves with the revision.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
@@ -5708,6 +5809,49 @@ workstation held, with and without a module, the tile copying the prompt and ope
 tab; and the route answering 200 with the Folder's `cwd` and the same text for the
 login in either case, 404 for another. These are no rendered-page CI gates (root
 decision 0178).
+
+**Addendum 2026-10-14 (Matěj): both "+ Nový modul" briefs open with "Chci postavit nový
+modul." and point to the Folder's manual page.** The briefs of the Organization-rail
+addendum (point 8) and of the second addendum of 2026-10-13 told the agent to follow
+"skill lazurio-module-standard", which no Remote Environment has, and asked their own
+step-by-step questions (what for, name and slug, the stack, the Teams). The Folder's new
+page `manual/new-module.md` (F14's addendum of the same day) now owns the interview about
+the purpose and every step; the briefs are the person's words that start it.
+
+1. **The first sentence** is exactly "Chci postavit nový modul." / "I want to build a new
+   module.", the page's trigger.
+2. **The second says where**: "Má být ve Workspace mého osobního prostoru, jako soukromý
+   repozitář na mém GitHub účtu {login}." / "It should go in the Workspace of my personal
+   space, as a private repository on my GitHub account {login}."; for an Organization "Má
+   být ve Workspace Organizace {name} (GitHub {login})." / "It should go in the Workspace of
+   the Organization {name} (GitHub {login})."
+3. **Then the manual**: "Postupuj podle `manual/new-module.md` v Lazurio Folderu: nejdřív se
+   mě vyptej na účel a na to, co mi modul má vyřešit, technické volby udělej sám a pak
+   modul postav." / "Follow `manual/new-module.md` in the Lazurio Folder: first ask me about
+   its purpose and what the module should solve for me, make the technical choices
+   yourself, and then build the module."
+4. **Then only the guard rails** that must hold where a Folder does not have the page yet
+   (its refresh blocked by an edited file, say), under "Vždy platí:" / "Always:": nothing
+   created until the person agrees to the summary and the plan (for the personal brief the
+   dry run of `lazurio module create personalspace/<slug> --stack <stack>` first and
+   `--confirm <plan>` only after the confirmation; for an Organization the plan shown as a
+   dry run first); the personal module a private repository `<login>/<slug>` of the
+   person's own, checked as private, with no Organization and no Teams; an Organization's
+   module only by the Organization's own route, never by hand, and said so when this
+   Environment cannot create it; pull requests (the slot into `<login>/<login>_GEN3`) and
+   asking before Publication; and, for the personal brief, stopping when this Environment's
+   `lazurio module create` does not know `personalspace/<slug>`.
+5. **Dropped**: the questions one by one, the stack list, the Teams question, the skill, and
+   the worktree and merge commands; the page has them, each where it belongs.
+
+In Czech the briefs stay the person's own words to the agent, so in tykání (root decision
+0199). Not changed: who gets the tile, the prompt routes and their audiences, the hand-over
+by link or clipboard, and each prompt's `cwd` (the Folder's root for the personal brief,
+the Organization's root for an Organization's; "v Lazurio Folderu" says where the page is).
+Verified by unit tests (`tests/apps-view.test.ts`): both briefs in both languages open with
+the trigger and the place, carry the manual sentence exactly, keep their guard rails, and
+contain none of the old questions, the skill or a placeholder; the prompt routes' tests
+(`tests/launchpad-prompts.test.ts`) serve the same functions unchanged.
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
