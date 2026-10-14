@@ -229,6 +229,61 @@ test("every Environment renders the skill new-module in its locale, the same byt
     }
 });
 
+test("where both places exist, an Organization's module stops at its own route: steps 5 to 7 are the personal module's only", () => {
+  let checked = 0;
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const personal =
+        workspacePreset(journey.preset).personalspace === "present";
+      const organizations = journey.preset !== "hosted-personal";
+      const text = rendered(journey, locale)[codex];
+      const cs = locale === "cs";
+      const route = text.indexOf(
+        cs ? "**Modul Organizace.**" : "**An Organization's module.**",
+      );
+      const stop = text.indexOf(
+        cs
+          ? "**Pro modul Organizace postup tohoto skillu končí tady.**"
+          : "**For an Organization's module this skill's steps end here.**",
+      );
+      expect(stop > route && route > 0).toBe(personal && organizations);
+      if (!(personal && organizations)) continue;
+      checked += 1;
+      // The Organization's bar follows its stop, before the personal steps.
+      const step5 = text.indexOf(
+        cs
+          ? "## 5. Založení osobního modulu"
+          : "## 5. Founding a personal module",
+      );
+      const bar = text.indexOf("lazurio module start <Org>/<slug> --json");
+      expect(stop < bar && bar < step5).toBe(true);
+      // Every heading after the plan says whose steps they are.
+      for (const heading of cs
+        ? [
+            "## 6. První verze osobního modulu",
+            "## 7. Publikace osobního modulu",
+          ]
+        : [
+            "## 6. A personal module's first version",
+            "## 7. Publishing a personal module",
+          ])
+        expect(text.indexOf(heading)).toBeGreaterThan(step5);
+      // Between the Organization's route and the personal steps, no command
+      // creates anything in the personal space; the confirmed personal run
+      // and the data repository on the person's account come only after.
+      const between = text.slice(route, step5);
+      for (const command of [
+        "--confirm <plan>",
+        "repository-db init",
+        "gh repo view <login>/<slug>",
+        "worktree add",
+      ])
+        expect([command, between.includes(command)]).toEqual([command, false]);
+      expect(text.indexOf("--confirm <plan>")).toBeGreaterThan(step5);
+    }
+  expect(checked).toBeGreaterThan(0);
+});
+
 test("the skill has the same sections in both languages on every preset", () => {
   for (const journey of journeys) {
     const skill = (locale: "cs" | "en") =>

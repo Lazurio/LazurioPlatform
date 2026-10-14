@@ -208,8 +208,15 @@ function newModule(preset: PresetName): readonly Text[] {
     ...(personal ? personalModulePlan : []),
     ...(personal && organizations ? [blank] : []),
     ...(organizations ? organizationModuleRoute : []),
+    // Where both places exist, the Organization's route ends here, with its
+    // bar, and steps 5 to 7 say they are the personal module's only.
+    ...(personal && organizations
+      ? [organizationRouteEnds, ...organizationModuleBar]
+      : []),
     blank,
-    ...(personal ? personalModuleRest : organizationModuleRest),
+    ...(personal
+      ? personalModuleRest
+      : [organizationModuleHeading, ...organizationModuleBar]),
     blank,
     t("## Odmítnutí, na která narazíš", "## Refusals you are likely to meet"),
     t(
@@ -329,7 +336,7 @@ const organizationModuleRoute: readonly Text[] = [
 // version is shown by the README's manual start before Publication and by
 // `runtime.url` after it.
 const personalModuleRest: readonly Text[] = [
-  t("## 5. Založení", "## 5. Founding the module"),
+  t("## 5. Založení osobního modulu", "## 5. Founding a personal module"),
   t(
     "- Teprve po potvrzení plánu spusť z task worktree tentýž příkaz s `--confirm <plan>` místo `--dry-run`, kde `<plan>` je `plan` z dry runu (přesný příkaz uvádí jeho `next_steps`): `lazurio module create personalspace/<slug> --stack <stack> --name '<název>' --confirm <plan> --json`.",
     "- Only after the plan is confirmed, run the same command from the task worktree with `--confirm <plan>` instead of `--dry-run`, where `<plan>` is the dry run's `plan` (its `next_steps` give the exact command): `lazurio module create personalspace/<slug> --stack <stack> --name '<name>' --confirm <plan> --json`.",
@@ -376,7 +383,10 @@ const personalModuleRest: readonly Text[] = [
     "6. After the module's Publication, mount the data repository in its primary checkout too, with the same command without `--create-remote` (for an existing repository `init` only verifies and mounts it).",
   ),
   blank,
-  t("## 6. První verze", "## 6. The first version"),
+  t(
+    "## 6. První verze osobního modulu",
+    "## 6. A personal module's first version",
+  ),
   t(
     "- Postav první verzi podle potvrzeného shrnutí, nic navíc. Co patří až do dalších verzí, nech na později a člověku to řekni.",
     "- Build the first version from the confirmed summary, nothing more. Leave what belongs to later versions for later and tell the person so.",
@@ -398,7 +408,7 @@ const personalModuleRest: readonly Text[] = [
     "- Before you ask about Publication, show the person the first version running. `lazurio module start` runs a module only from its own checkout, not from a worktree, so start the worktree's app by the `README.md`'s manual start on a free port (not the module's port) and open it in the browser; in a Remote Environment in the Environment browser, whose tab the person opens by its link (`manual/this-machine.md`). Check that the page shows what the summary says, and stop the manual start after showing it. Check a `python-uv` module by hand as its `README.md` says; `none` has nothing to start, so show the person the repository's content.",
   ),
   blank,
-  t("## 7. Publikace", "## 7. Publication"),
+  t("## 7. Publikace osobního modulu", "## 7. Publishing a personal module"),
   t(
     "- Hotová práce má dva pull requesty: první verzi modulu do `<login>/<slug>` a slot z task worktree Personalspace do `<login>/<login>_GEN3` (commitni `modules.manifest.json`, pushni branch a otevři pull request). Když jsou hotové a ověřené, přepni je na Ready for review.",
     "- The finished work is two pull requests: the module's first version into `<login>/<slug>` and the slot from the Personalspace's task worktree into `<login>/<login>_GEN3` (commit `modules.manifest.json`, push the branch and open the pull request). When they are finished and verified, mark them Ready for review.",
@@ -417,22 +427,30 @@ const personalModuleRest: readonly Text[] = [
   ),
 ];
 
-// Steps 5 to 7 where the Environment has no personal space: the
-// Organization's route creates and publishes the module, with the same bar.
-const organizationModuleRest: readonly Text[] = [
+// What the Organization's route does after the plan, with the same bar as a
+// personal module: step 5 where the Environment has no personal space, and
+// part of step 4 where it has both places.
+const organizationModuleHeading: Text = t(
+  "## 5. Založení, první verze a Publikace",
+  "## 5. Founding, the first version and Publication",
+);
+const organizationModuleBar: readonly Text[] = [
   t(
-    "## 5. Založení, první verze a Publikace",
-    "## 5. Founding, the first version and Publication",
-  ),
-  t(
-    "- Modul Organizace i jeho datový repozitář `<slug>-data` založí cesta Organizace z kroku 4; databázi ani tam nezakládej.",
-    "- The Organization's route of step 4 founds an Organization's module and its data repository `<slug>-data`; do not create a database there either.",
+    "- Modul Organizace i jeho datový repozitář `<slug>-data` založí cesta Organizace; databázi ani tam nezakládej.",
+    "- The Organization's route founds an Organization's module and its data repository `<slug>-data`; do not create a database there either.",
   ),
   t(
     "- I tam postav první verzi podle potvrzeného shrnutí, doplň do `AGENTS.md` modulu, k čemu modul je a jak se s ním pracuje, spusť kontroly a testy modulu, ukaž ji člověku běžící (`lazurio module start <Org>/<slug> --json` a `runtime.url`) a Draft předej v pull requestu; Publikace se řídí `manual/working-here.md`.",
     "- There too, build the first version from the confirmed summary, add to the module's `AGENTS.md` what the module is for and how to work with it, run the module's checks and tests, show the person the running app (`lazurio module start <Org>/<slug> --json` and `runtime.url`) and hand over the Draft as a pull request; Publication follows `manual/working-here.md`.",
   ),
 ];
+
+// Where both places exist: the Organization's module never continues into
+// the personal steps 5 to 7.
+const organizationRouteEnds: Text = t(
+  "**Pro modul Organizace postup tohoto skillu končí tady.** Kroky 5 až 7 níže platí jen pro osobní modul: u modulu Organizace nespouštěj `lazurio module create personalspace/<slug>` a v osobním prostoru člověka ani na jeho GitHub účtu nic nezakládej. Dál vede cesta Organizace, se stejnou laťkou:",
+  "**For an Organization's module this skill's steps end here.** Steps 5 to 7 below are for a personal module only: for an Organization's module never run `lazurio module create personalspace/<slug>` and create nothing in the person's personal space or on their GitHub account. The Organization's route takes over, with the same bar:",
+);
 
 // The refusals of a personal module an agent is likely to meet, with what to
 // do (`src/modules/module-create.ts`, `module-create-run.ts`, `scaffold.ts`).

@@ -1561,7 +1561,11 @@ What changes:
     `lazurio module start personalspace/<slug> --json` and the browser;
   - for an Organization's module, truthfully: `lazurio module create <Org>/<slug>` refuses
     with `organization-form-unavailable` (Lazurio/LazurioPlatform#267), so the agent says so
-    and takes the Organization's own route from its `AGENTS.md`, never by hand;
+    and takes the Organization's own route from its `AGENTS.md`, never by hand. Where the
+    preset has both places, the skill's steps for an Organization's module end there, with
+    the same bar for the first version and Publication, and steps 5 to 7 are titled as the
+    personal module's only, so an Organization's brief never reaches
+    `lazurio module create personalspace/<slug>`;
   - the refusals the agent is likely to meet, each with what to do.
 - **`AGENTS.md`** gains one pointer line after the escalation of a missing right: for a
   new module, app, tool, overview or website use the skill `new-module` in
@@ -1627,7 +1631,9 @@ locales on every preset, byte-identical for both harnesses (frontmatter, what a 
 before the interview, the interview, the generator's stacks in its order, repository-db
 first and no database for a new module, the personal commands only where a Personalspace
 is, `organization-form-unavailable` and #267 only where Organizations are, no `--data`, the
-same sections in both languages, the `AGENTS.md` line); the manifest schemas; a new
+same sections in both languages, the `AGENTS.md` line); on presets with both places, the
+Organization's route ending before the personal steps with no personal creation command
+between them; the manifest schemas; a new
 Folder's owner-only skill directories; and on a personal Remote Environment's Folder
 rendered by the release before: the refresh creating both skills in both locales and a
 second refresh unchanged; a harness's `.claude/settings.local.json` and a person's own skill
