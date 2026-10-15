@@ -394,8 +394,10 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
     installer's; `restarted`, `not-managed` or `failed`) and `t3` (`t3 lazurio providers
     --base-dir ~/.t3 '{"providers":[…],"enable":true}'` with every AI CLI signed in now,
     where `t3 lazurio capabilities` reports `providerRefresh: true`; `refreshed` with
-    each provider's state, `not-installed`, `not-supported`, `driver-mismatch` with the
-    instance that runs another driver, or `failed` with `not-running`, `refused`,
+    each provider's state when the answer names an enabled instance of every CLI asked
+    about (one still checking its sign-in counts), `not-installed`, `not-supported`,
+    `driver-mismatch` with the instance that runs another driver, or `failed` with
+    `not-enabled` and the CLIs it did not turn on, `not-running`, `refused`,
     `unreadable` or `timeout`). Exit 0 only when signed in and neither the restart nor
     T3 Code failed; 1 otherwise. The sign-in lives 10 minutes.
 

@@ -86,6 +86,28 @@ test("each answer of the login routes, only in its known shape", () => {
     tool: "claude",
     services: { t3: { state: "driver-mismatch", mismatches: [] } },
   });
+  // T3 Code answered without an enabled instance (Pablo's review of #441).
+  expect(
+    aiSignInAnswer("codex", {
+      kind: "signed-in",
+      tool: "codex",
+      services: {
+        appServer: { state: "restarted" },
+        t3: {
+          state: "failed",
+          reason: "not-enabled",
+          providers: ["codex", "x"],
+        },
+      },
+    }),
+  ).toEqual({
+    kind: "signed-in",
+    tool: "codex",
+    services: {
+      appServer: { state: "restarted" },
+      t3: { state: "failed", reason: "not-enabled", providers: ["codex"] },
+    },
+  });
   // Codex could not say whether the Organization provides the AI.
   expect(
     aiSignInAnswer("codex", {

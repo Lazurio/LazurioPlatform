@@ -87,7 +87,7 @@ const refreshed = JSON.stringify({
       auth: "authenticated",
     },
     {
-      provider: "claudeAgent",
+      provider: "claude",
       instanceId: "claudeAgent",
       enabled: true,
       status: "warning",
@@ -106,7 +106,7 @@ test("T3 Code's answers are read field by field", () => {
       auth: "authenticated",
     },
     {
-      provider: "claudeAgent",
+      provider: "claude",
       instanceId: "claudeAgent",
       enabled: true,
       status: "warning",
@@ -237,6 +237,86 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
+test.skipIf(process.platform === "win32")(
+  "an answer without an enabled instance of each CLI asked about did not turn it on (Pablo's review of #441)",
+  async () => {
+    const scratch = await home();
+    try {
+      const answering = (providers: readonly object[]) =>
+        runner((command) =>
+          command[2] === "capabilities"
+            ? ok(capabilities(true))
+            : ok(JSON.stringify({ version: 1, providers })),
+        ).run;
+      const input = {
+        providers: ["codex", "claude"] as const,
+        path: scratch.path,
+        home: scratch.directory,
+        platform: process.platform,
+      };
+      const codex = {
+        provider: "codex",
+        instanceId: "codex",
+        enabled: true,
+        status: "ready",
+        auth: "authenticated",
+      };
+      // No matching instance in T3's registry: an empty list.
+      expect(
+        await refreshT3Providers({ ...input, run: answering([]) }),
+      ).toEqual({
+        state: "failed",
+        reason: "not-enabled",
+        providers: ["codex", "claude"],
+      });
+      // Claude's instance still off after the request to turn it on.
+      expect(
+        await refreshT3Providers({
+          ...input,
+          run: answering([
+            codex,
+            {
+              provider: "claude",
+              instanceId: "claudeAgent",
+              enabled: false,
+              status: "disabled",
+              auth: "unknown",
+            },
+          ]),
+        }),
+      ).toEqual({
+        state: "failed",
+        reason: "not-enabled",
+        providers: ["claude"],
+      });
+      // Claude not in the answer at all.
+      expect(
+        await refreshT3Providers({ ...input, run: answering([codex]) }),
+      ).toEqual({
+        state: "failed",
+        reason: "not-enabled",
+        providers: ["claude"],
+      });
+      // Turned on and still being checked right after it: that is turned on.
+      const checking = {
+        provider: "claude",
+        instanceId: "claudeAgent",
+        enabled: true,
+        status: "warning",
+        auth: "unknown",
+      };
+      expect(
+        await refreshT3Providers({
+          ...input,
+          run: answering([codex, checking]),
+        }),
+      ).toEqual({ state: "refreshed", providers: [codex, checking] });
+    } finally {
+      await scratch.close();
+    }
+  },
+);
+
 test("the Codex app-server is restarted through Lazurio's own unit, and nowhere else", async () => {
   const scratch = await home(false);
   try {
@@ -337,6 +417,7 @@ test("the services read the sign-in, or will by themselves, unless one clearly f
       t3: { state: "refreshed", providers: [] },
     },
     { t3: { state: "driver-mismatch", mismatches: [] } },
+    { t3: { state: "failed", reason: "not-enabled", providers: ["claude"] } },
     { t3: { state: "failed", reason: "not-running" } },
     { t3: { state: "failed", reason: "timeout" } },
   ];

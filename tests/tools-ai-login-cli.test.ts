@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readFile,
@@ -329,4 +330,91 @@ posixTest(
     }
   },
   20_000,
+);
+
+posixTest(
+  "T3 Code's answer must name an enabled instance of the CLI: an empty list exits 1 with why, one still checking exits 0 (Pablo's review of #441)",
+  async () => {
+    const opened = await scratch();
+    try {
+      // A `t3` with the refresh, answering what the test puts in t3.answer.
+      const t3 = join(opened.home, "bin", "t3");
+      await writeFile(
+        t3,
+        [
+          "#!/bin/sh",
+          '[ "$1" = lazurio ] || exit 2',
+          'case "$2" in',
+          '  capabilities) echo \'{"version":1,"managedFolder":true,"modelRecommendation":true,"providerRefresh":true}\' ;;',
+          '  providers) cat "$HOME/t3.answer" ;;',
+          "  *) exit 2 ;;",
+          "esac",
+          "",
+        ].join("\n"),
+      );
+      await chmod(t3, 0o755);
+      const answer = (providers: readonly object[]) =>
+        writeFile(
+          join(opened.home, "t3.answer"),
+          `${JSON.stringify({ version: 1, providers })}\n`,
+        );
+      const signIn = () =>
+        runToolsCommand(["login", "codex"], {
+          env: opened.env,
+          platform: process.platform,
+          write: (line) => {
+            opened.lines.push(line);
+            const match = /open: (\S+)$/.exec(line);
+            if (match)
+              setTimeout(() => void returnFromPage(match[1] as string), 100);
+          },
+          login: { firstChallengeMs: 5_000 },
+        });
+      // No codex instance in T3's registry: an empty list.
+      await answer([]);
+      const empty = await signIn();
+      expect(empty.code).toBe(1);
+      expect(empty.result).toMatchObject({
+        kind: "signed-in",
+        tool: "codex",
+        services: {
+          t3: { state: "failed", reason: "not-enabled", providers: ["codex"] },
+        },
+      });
+      expect(opened.lines.at(-1)).toBe(
+        "Chat (T3 Code) did NOT turn on codex: it answered without an enabled codex provider. Check the providers in Chat's Settings → Providers, then sign in again.",
+      );
+      // Codex's instance still off.
+      opened.lines.length = 0;
+      await answer([
+        {
+          provider: "codex",
+          instanceId: "codex",
+          enabled: false,
+          status: "disabled",
+          auth: "unknown",
+        },
+      ]);
+      expect((await signIn()).code).toBe(1);
+      // Turned on and still checking its sign-in right after: that is on.
+      opened.lines.length = 0;
+      await answer([
+        {
+          provider: "codex",
+          instanceId: "codex",
+          enabled: true,
+          status: "warning",
+          auth: "unknown",
+        },
+      ]);
+      const checking = await signIn();
+      expect(checking.code).toBe(0);
+      expect(opened.lines.at(-1)).toBe(
+        "Chat (T3 Code) turned on and read again: codex turned on, its sign-in still being checked.",
+      );
+    } finally {
+      await opened.close();
+    }
+  },
+  30_000,
 );
