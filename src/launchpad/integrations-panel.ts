@@ -854,6 +854,7 @@ export function createIntegrationsPanel(
       locale: options.locale(),
       scope,
       admin,
+      dashboard: options.dashboard() !== null,
       copy,
     });
     const article = element("article", "integration-card");
@@ -885,8 +886,11 @@ export function createIntegrationsPanel(
         state.append(label);
       }
       foot.append(state);
-    } else foot.append(element("span"));
-    if (view.action.kind !== "none" && forming !== app.id) {
+      // The Admin's sentence stands alone in the foot, from its left edge.
+    } else if (view.action.kind !== "where") foot.append(element("span"));
+    if (view.action.kind === "where")
+      foot.append(element("p", "integration-where", view.action.text));
+    else if (view.action.kind !== "none" && forming !== app.id) {
       const action = view.action;
       const node = button(action.label, "integration-action", () =>
         act(app, action, view.line),

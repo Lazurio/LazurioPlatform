@@ -260,10 +260,11 @@ test("the list: connected first, then what connects here, then the rest; a searc
   expect(normalize("Kalendář")).toBe("kalendar");
 });
 
-const options = (copy: typeof en, admin = false) => ({
+const options = (copy: typeof en, admin = false, dashboard = true) => ({
   locale: copy === cs ? ("cs" as const) : ("en" as const),
   scope: "organization" as const,
   admin,
+  dashboard,
   copy,
 });
 
@@ -399,7 +400,7 @@ test("where nothing connects an app: one line and one action, the Admin's or any
     path: { path: null, missing: "composio", action: "ask-admin" },
   });
   expect(cardView(salesforce, entry("salesforce"), options(cs))).toMatchObject({
-    line: "Composio je ve firmě vypnuté.",
+    line: "Composio je v Organizaci vypnuté.",
     action: { kind: "ask-admin" },
   });
   expect(
@@ -407,6 +408,23 @@ test("where nothing connects an app: one line and one action, the Admin's or any
   ).toMatchObject({
     action: { kind: "allow", label: "Povolit Composio" },
   });
+  // Where the Organization's Dashboard link is not known here, the Admin
+  // gets one sentence saying where to find it, never a dead button; anyone
+  // else still asks the Admin.
+  for (const card of [outlook, salesforce]) {
+    const id = card.id;
+    expect(cardView(card, entry(id), options(cs, true, false)).action).toEqual({
+      kind: "where",
+      text: "Nastavíte to v Dashboardu, v nastavení Organizace.",
+    });
+    expect(cardView(card, entry(id), options(en, true, false)).action).toEqual({
+      kind: "where",
+      text: "You set this up in the Dashboard, in the Organization's settings.",
+    });
+    expect(cardView(card, entry(id), options(cs, false, false)).action).toEqual(
+      { kind: "ask-admin", label: "Požádat Admina" },
+    );
+  }
   expect(
     cardView(salesforce, entry("salesforce"), {
       ...options(cs),
@@ -752,7 +770,7 @@ test("a source that cannot be read says so on the page; custom servers count the
       cs,
     ),
   ).toEqual([
-    "Executor v tomhle Environmentu teď neběží, takže nic nejde připojit přímo.",
+    "Executor v tomto Environmentu teď neběží, takže nic nejde připojit přímo.",
     "Připojení přes Composio se nepodařilo načíst.",
     "Nástroje se nepodařilo načíst.",
   ]);
@@ -1329,6 +1347,39 @@ test("Czech notices about an app hold for any app's name: no adjective that take
   // A card's line says nothing that takes the app's gender either.
   expect(cs.integrationsMissingPath).not.toMatch(/\bji\b/);
   expect(cs.integrationsMissingTool).not.toMatch(/\bji\b/);
+  // The return pages send the person back to Lazurio, not to an internal
+  // part's name; the Organization is the Organization, not "firma"; and the
+  // Czech page says "tento", never "tenhle".
+  const integrace = Object.entries(cs).filter(
+    ([key]) =>
+      key.startsWith("integrations") || key.startsWith("composioModel"),
+  );
+  for (const [key, text] of integrace) {
+    expect([key, text]).not.toEqual([key, expect.stringMatching(/Launchpad/)]);
+    expect([key, text]).not.toEqual([
+      key,
+      expect.stringMatching(/\bfirm[ěa]\b/),
+    ]);
+    expect([key, text]).not.toEqual([
+      key,
+      expect.stringMatching(
+        /\b(t[eě]nhle|t[aáoéuyí]hle|t[oí]mhle|t[eě]chhle|tímhle|téhle|tuhle|tohohle)\b/i,
+      ),
+    ]);
+  }
+  for (const key of [
+    "integrationsReturnConnected",
+    "integrationsReturnFailed",
+    "integrationsReturnPending",
+    "integrationsReturnUnknown",
+  ] as const) {
+    expect(cs[key]).toMatch(/Lazuri/);
+    expect(en[key]).toContain("Lazurio");
+    expect(en[key]).not.toContain("Launchpad");
+  }
+  expect(en.integrationsComposioOffOrganization).toBe(
+    "Composio is off in the Organization.",
+  );
   // An account's row says its state once; its button says what to do.
   expect(cs.integrationsAccountExpired).toBe("Přihlášení vypršelo");
   expect(en.integrationsAccountFailed).toBe("The connection failed");

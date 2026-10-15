@@ -770,7 +770,7 @@ test("on a Remote Environment a direct sign-in opens in the person's own browser
   expect(back.headers.get("cache-control")).toBe("no-store");
   const page = await back.text();
   expect(page).toContain(
-    "Linear is connected. You can close this window and go back to the Launchpad.",
+    "Linear is connected. You can close this window and go back to Lazurio.",
   );
   expect(page).not.toContain("codeCanary0001");
   expect(page).not.toContain("<script");
@@ -814,7 +814,7 @@ test("a sign-in the person refuses at the server returns to the Launchpad and en
   const page = await back.text();
   expect(page).toContain('<html lang="cs">');
   expect(page).toContain(
-    "Přihlášení k aplikaci Linear se nepodařilo dokončit. Vraťte se do Launchpadu a zkuste to znovu.",
+    "Přihlášení k aplikaci Linear se nepodařilo dokončit. Vraťte se do Lazuria a zkuste to znovu.",
   );
   expect(handedOn(world).map((call) => call.path)).toEqual([
     "/api/oauth/callback?state=state1&error=access_denied&error_description=The+person+said+no",
@@ -852,7 +852,7 @@ test("a server that registers only loopback addresses keeps the sign-in in the E
   );
   expect(back.status).toBe(400);
   expect(await back.text()).toContain(
-    "This sign-in is no longer valid. Start connecting again in the Launchpad.",
+    "This sign-in is no longer valid. Start connecting again in Lazurio.",
   );
   expect(handedOn(world)).toEqual([]);
   // Executor's own callback finishes it, as before.

@@ -622,6 +622,8 @@ a.files-name:hover { text-decoration: underline; }
 @container (min-width: 532px) { .integration-line { min-height: calc(2 * 1.45em); } }
 /* Short of room the button goes under the state, still at the right. */
 .integration-foot > .integration-action { margin-left: auto; }
+/* The Admin's step where the Dashboard link is not known: one quiet line. */
+.integration-where { flex: 1 1 0; min-width: 0; color: var(--muted-fg); font-size: 13px; }
 .integration-state { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--success-fg); font-size: 13px; }
 .integration-state .icon { width: 14px; height: 14px; }
 .integration-path { display: inline-flex; align-items: center; gap: 3px; color: var(--muted-fg); }

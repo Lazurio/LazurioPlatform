@@ -291,6 +291,9 @@ export type CardAction =
   | Readonly<{ kind: "set-up"; label: string }>
   | Readonly<{ kind: "allow"; label: string }>
   | Readonly<{ kind: "ask-admin"; label: string }>
+  /** The Admin's step where the Organization's Dashboard link is not
+   * known here: one sentence saying where to find it, never a dead button. */
+  | Readonly<{ kind: "where"; text: string }>
   | Readonly<{ kind: "none" }>;
 
 export type CardView = Readonly<{
@@ -312,6 +315,9 @@ export function cardView(
     locale: "cs" | "en";
     scope: IntegrationsOverview["scope"];
     admin: boolean;
+    /** Whether the Organization's Dashboard link is known here, which the
+     * Admin's "Nastavit v Dashboardu" and "Povolit Composio" open. */
+    dashboard: boolean;
     copy: Copy;
   }>,
 ): CardView {
@@ -380,9 +386,11 @@ export function cardView(
   const action: CardAction =
     choice.action === "ask-admin"
       ? { kind: "ask-admin", label: copy.integrationsAskAdmin }
-      : choice.missing === "company-app"
-        ? { kind: "set-up", label: copy.integrationsSetUpInDashboard }
-        : { kind: "allow", label: copy.integrationsAllowComposio };
+      : !options.dashboard
+        ? { kind: "where", text: copy.integrationsAdminWhere }
+        : choice.missing === "company-app"
+          ? { kind: "set-up", label: copy.integrationsSetUpInDashboard }
+          : { kind: "allow", label: copy.integrationsAllowComposio };
   return { line, connected: false, pathLabel: null, action, composio: false };
 }
 
