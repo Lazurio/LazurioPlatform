@@ -183,12 +183,11 @@ const text = {
       "agent-browser tvého sezení se odmítl ukončit. Nic se nezměnilo; zkus to znovu, nebo spusť lazurio doctor.",
     "daemon-unconfirmed":
       "agent-browser tvého sezení nepotvrdil, že skončil, takže tvoje okno možná pořád drží. Za chvíli spusť lazurio browser done znovu, nebo lazurio doctor.",
-    "open-scheme": "Prohlížeč Environmentu otevírá jen adresy http a https.",
+    "open-scheme": "Prohlížeč Prostředí otevírá jen adresy http a https.",
     "open-not-declared":
-      "Adresa se neotevřela: tento Environment nemá prohlížeč Environmentu. Otevřete ji ve svém prohlížeči.",
-    opened: "Otevřeno v prohlížeči Environmentu",
-    "opened-thread":
-      "Otevřeno v prohlížeči Environmentu, v panelu tohoto vlákna",
+      "Adresa se neotevřela: toto Prostředí nemá prohlížeč. Otevřete ji ve svém prohlížeči.",
+    opened: "Otevřeno v prohlížeči Prostředí",
+    "opened-thread": "Otevřeno v prohlížeči Prostředí, v panelu tohoto vlákna",
     "open-unbound":
       "Panel tohoto vlákna stránku neukáže: agent-browser k záložce nepřipojil sezení vlákna.",
   },
