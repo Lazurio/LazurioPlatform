@@ -54,6 +54,8 @@ test("a path names the view and the settings section; the canonical path is one"
     "/integrations/*",
     "/marketplace",
     "/settings",
+    // Začínáme, first in Settings (root decision 0201).
+    "/settings/start",
     "/settings/general",
     "/settings/communication",
     "/settings/machine",

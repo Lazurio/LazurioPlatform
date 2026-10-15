@@ -65,6 +65,8 @@ test("the page's first frame is the frame its route shows", () => {
     "/marketplacex",
     "/settings",
     "/settings/",
+    "/settings/start",
+    "/settings/start/",
     "/settings/general",
     "/settings/machine",
     "/settings/tools",
