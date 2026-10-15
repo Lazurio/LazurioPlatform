@@ -69,6 +69,7 @@ import type { RecoveryResult } from "../recover/recover";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
 import { type AiProbe, createAiProbe } from "../tools/ai-probe";
+import { reloadAiServices } from "../tools/ai-services";
 import {
   activatableTools,
   executorToolName,
@@ -86,6 +87,7 @@ import {
   createLoginSessions,
   type LoginEnvironment,
   type LoginState,
+  type SignInPage,
 } from "../tools/login";
 import {
   type ToolsEnvironment,
@@ -93,6 +95,7 @@ import {
   toolsOverview,
 } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
+import { isAiSignInTool } from "../tools/sign-in-page";
 import { resolveOnPath } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
 import { toolsUpdate } from "../tools/update";
@@ -271,6 +274,25 @@ export function environmentBrowserOf(
   };
 }
 
+/** Where the sign-in page of codex and claude opens for this Launchpad (root
+ * decision 0201 points 4 and 5, F19's addendum of 2026-10-15): on a
+ * workstation the computer's own browser, which the CLI opens itself; on a
+ * Remote Environment the Environment browser, as an Integrace sign-in opens
+ * there (`environmentBrowserOf`: a tab the Launchpad holds, which its right
+ * panel shows); nowhere where the entry routes no Environment browser, so the
+ * sign-in does not start. `open` is asked for the opener when a page opens. */
+export function launchpadSignInPage(
+  entry: MachineEntry | null,
+  open: () => IntegrationsSeams["environmentBrowser"],
+): SignInPage {
+  if (entry === null) return { kind: "own" };
+  if (browserEntryOf(entry) === undefined) return { kind: "none" };
+  return {
+    kind: "environment",
+    open: async (url) => (await open()?.(url)) ?? null,
+  };
+}
+
 /** The hold the Integrace sign-in takes for the Launchpad before its tab shows
  * (F47 point 9's addendum of 2026-10-12). Without a holder (no usable runtime
  * directory) it refuses, as `/api/new-tab/open` answers 503 then, so the
@@ -396,6 +418,7 @@ const curatedRoutes = new Set([
   "/api/tools/login/start",
   "/api/tools/login/poll",
   "/api/tools/login/cancel",
+  "/api/tools/login/code",
   "/api/tools/logout",
   "/api/tools/composio/organizations",
   "/api/tools/composio/organization",
@@ -582,10 +605,38 @@ export async function startLaunchpad(
   // (Matěj 2026-09-28).
   // The start and the end of each sign-in go to this process's journal (the
   // unit's journal on a Machine): the tool and the outcome, nothing else.
+  // codex and claude sign in through the same sessions (F19's addendum of
+  // 2026-10-15): their page opens in the Environment browser of a Remote
+  // Environment, shown in the right panel; Codex itself says whether the
+  // Organization provides the AI; afterwards the running services read the
+  // sign-in, and the AI is read again.
   const logins = createLoginSessions({
     ...toolsEnvironment,
-    journal: (entry) =>
-      console.log(JSON.stringify({ scope: "tools-login", ...entry })),
+    journal: (journaled) => {
+      console.log(JSON.stringify({ scope: "tools-login", ...journaled }));
+      if (journaled.event === "end" && isAiSignInTool(journaled.tool)) {
+        ai.forget();
+        setup.forget();
+      }
+    },
+    signInPage: launchpadSignInPage(entry, () =>
+      integrationSeams?.environmentBrowser !== undefined
+        ? integrationSeams.environmentBrowser
+        : environmentBrowserOf(entry, launchpadHoldOf(holder)),
+    ),
+    organizationProvides: async (tool) =>
+      tool === "codex" &&
+      (await ai.state()).providers.some(
+        (reading) =>
+          reading.provider === "codex" && reading.state === "provided",
+      ),
+    reload: (tool, signedIn) =>
+      reloadAiServices({
+        ...toolsEnvironment,
+        tool,
+        signedIn,
+        env: process.env,
+      }),
     ...curatedOptions.login,
     refused: async (tool, action) =>
       githubLoginRefused(await folderPreset(folder), tool, action),
@@ -1716,6 +1767,7 @@ export async function startLaunchpad(
             ],
             "/api/tools/login/poll": ["tool", "session"],
             "/api/tools/login/cancel": ["tool", "session"],
+            "/api/tools/login/code": ["tool", "session", "code"],
             "/api/tools/logout": ["tool"],
             "/api/tools/composio/organizations": [],
             "/api/tools/composio/organization": ["id"],
@@ -1791,7 +1843,15 @@ export async function startLaunchpad(
           const tool = value.tool;
           if (typeof tool !== "string")
             return response({ error: "invalid-tool" }, 400);
-          if (!activatableTools().some((entry) => entry.name === tool))
+          // codex and claude only sign in here, from Začínáme's AI step (F19's
+          // addendum of 2026-10-15): no installation, update or sign-out, and
+          // they are no catalog tools of agents.
+          const aiTool = isAiSignInTool(tool);
+          if (
+            aiTool
+              ? !url.pathname.startsWith("/api/tools/login/")
+              : !activatableTools().some((entry) => entry.name === tool)
+          )
             return response(
               { kind: "blocked", reason: "tool-unknown", tool },
               409,
@@ -1808,11 +1868,27 @@ export async function startLaunchpad(
               { kind: "blocked", reason: "setup-executor", tool },
               409,
             );
-          if (curatedTool(tool) === undefined)
+          if (!aiTool && curatedTool(tool) === undefined)
             return response(
               { kind: "blocked", reason: "setup-agent", tool },
               409,
             );
+          // A code only for a sign-in that waits for one (claude's code
+          // page); never logged or answered.
+          if (url.pathname === "/api/tools/login/code") {
+            if (
+              typeof value.session !== "string" ||
+              !/^[0-9a-f]{32}$/.test(value.session)
+            )
+              return response({ error: "invalid-session" }, 400);
+            const taken = logins.code(tool, value.session, value.code);
+            return taken === "accepted"
+              ? response({ kind: "code-accepted", tool })
+              : response(
+                  { error: taken },
+                  taken === "invalid-code" ? 400 : 409,
+                );
+          }
           if (url.pathname === "/api/tools/install") {
             if (installing.has(tool))
               return response({ kind: "blocked", reason: "busy", tool }, 409);
@@ -1875,7 +1951,8 @@ export async function startLaunchpad(
               ? githubRefusal(await folderPreset(folder), tool, action, logins)
               : undefined;
           // A sign-in or sign-out of gh changes what the shell says, and
-          // whose Personalspace this is.
+          // whose Personalspace this is. (A sign-in of codex or claude
+          // changes what the AI is when it ends: the sessions' journal.)
           if (tool === "gh") {
             github.forget();
             setup.forget();
@@ -1906,15 +1983,18 @@ export async function startLaunchpad(
             );
             if (refusal !== undefined) return response(refusal, 409);
             server.timeout(request, 60);
+            const started = await logins.start(tool, {
+              ...(typeof value.phone === "string"
+                ? { phone: value.phone }
+                : {}),
+              ...(value.sshKey === true ? { sshKey: true } : {}),
+            });
+            // A refusal before anything ran (codex and claude without the
+            // Environment browser, or with the Organization's AI) is one as
+            // every other.
             return response(
-              withQr(
-                await logins.start(tool, {
-                  ...(typeof value.phone === "string"
-                    ? { phone: value.phone }
-                    : {}),
-                  ...(value.sshKey === true ? { sshKey: true } : {}),
-                }),
-              ),
+              withQr(started),
+              started.kind === "blocked" ? 409 : 200,
             );
           }
           const handle = value.session;
