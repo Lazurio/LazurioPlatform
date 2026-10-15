@@ -2448,7 +2448,13 @@ Organization's, and it gets none of it.
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
      rows inside the step (the same `content-panel.ts` as Tento Environment draws).
      Once this view saw GitHub connect, the installation starts by itself when the
-     content is read and missing and an agent could help (not after a stop).
+     content is read and missing and an agent could help (not after a stop). Nothing
+     starts it before its turn (`contentBlockedBy`): without AI or GitHub neither the
+     download nor "Zkusit znovu" is offered, only "Nabídne se po připojení AI." or
+     "Spustí se samo po připojení GitHubu."; a start request in the address follows
+     `startDecision`; and `POST /api/content/install` refuses with `403`
+     `"reason": "ai-missing"` while the AI is provably missing. An AI that could not be
+     checked holds nothing back.
 
   Then "Hesla pro agenty" with Trezor Prostředí and its state as Nastavení → Trezor reads
   it (`GET /api/vault`, `vaultPageView`; a Remote Environment with a vault only),
@@ -2473,9 +2479,10 @@ Organization's, and it gets none of it.
   (below); the Launchpad page gives its own column head the `setup` of its own, newer
   facts.
 - **Start requests.** A button of the line is a link to `/settings/start` with the
-  action in the fragment: `#lazurio-start=sign-in-gh` opens gh's sign-in once Nástroje
-  have read gh and AI is there, `#lazurio-start=install-content` starts the installation
-  once the content is read and something is missing. A link of an older shell to
+  action in the fragment, decided by `startDecision`: `#lazurio-start=sign-in-gh` opens
+  gh's sign-in once Nástroje have read gh and AI is there, `#lazurio-start=install-content`
+  starts the installation once the content is read, something is missing and its turn has
+  come; without AI either shows the AI step and starts nothing. A link of an older shell to
   Nástroje or Tento Environment lands on Začínáme too. `readFragment` takes the fragment
   apart: the request, and the rest, which locally is the session token
   (`#<token>&lazurio-start=…`).
@@ -2510,7 +2517,9 @@ Organization's, and it gets none of it.
   the sentence is "Organizace ještě není připravená pro tuto verzi Lazuria.", and to
   someone whom `GET /api/content/root-access?org=<login>` does not confirm (an active
   Owner, or `write` on the conventional root `<login>/<login>_GEN3`; GitHub's live
-  answer, any failure no) "Organizaci připravuje Admin." with no Chat button.
+  answer, any failure no) "Organizaci připravuje Admin." with no Chat button. The route
+  answers only for the Organization of that stop and gives the same no, without asking
+  GitHub, for any other.
 - **Tento Environment** says what a person needs (`environmentFacts` in
   `machine-view.ts`, the wireframe's `ThisEnvironment`): "Druh", "Patří" and "Pracuje v
   něm"; the technical name and kind, the owner and assignment as recorded, the tailnet

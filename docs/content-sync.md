@@ -351,7 +351,16 @@ read (status, catalog) removes anything.
   `{ "items": [ { "kind": "organization", "login": "…" } | { "kind": "personalspace" } ] }`:
   `202 { "job" }`, `409 { "error": "busy", "job"? }` (without `job` when another
   process holds the lock), `403 { "error": "not-allowed", "reason" }`, `400` for a
-  malformed body. Same admission as every write (`/api/tools/update`).
+  malformed body. Same admission as every write (`/api/tools/update`). Where the
+  Environment signs in as its person, also `403` with `"reason": "ai-missing"` while its
+  AI is provably missing (root decision 0201 point 3, [F36's addendum of
+  2026-10-15](decisions.md#f36-addendum-of-2026-10-15-začínáme-the-basics-from-live-facts-ai-first-root-decision-0201)):
+  the content never starts before an agent could help with it.
+- `GET /api/content/root-access?org=<login>`: `{ kind: "root-access", write }`, whether
+  this Environment's GitHub identity can prepare that Organization's root (an active Owner,
+  or `write` on `<login>/<login>_GEN3`). Only for the Organization whose newest installation
+  stopped at `root-not-found` or `organization-unreadable`; for any other the same
+  `write: false` without asking GitHub.
 - `GET /api/content/jobs/<id>`: `{ id, state: running|succeeded|failed, steps, failure? }`;
   `steps` holds the latest state of each step, `item` is the request item
   (`{ kind: "organization", login }` or `{ kind: "personalspace" }`), a failed step has a
