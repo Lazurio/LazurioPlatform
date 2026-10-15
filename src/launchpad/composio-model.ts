@@ -49,7 +49,10 @@ export function composioModel(
     [copy.composioModelOthers, copy.composioModelOtherEnvironments, false],
     [copy.composioModelDefault, copy.composioModelPersonal, false],
   ];
-  account.style.gridRow = `1 / ${rows.length + 1}`;
+  // Where each cell stands on a wide figure; short of room the cells flow
+  // instead (index.html, .composio-model-grid).
+  account.style.setProperty("--model-row", `1 / ${rows.length + 1}`);
+  account.style.setProperty("--model-column", "1");
   rows.forEach(([organizationLabel, environments, here], index) => {
     const row = String(index + 1);
     const cells = [
@@ -59,8 +62,8 @@ export function composioModel(
       element("span", "composio-model-node", environments),
     ];
     cells.forEach((cell, column) => {
-      cell.style.gridRow = row;
-      cell.style.gridColumn = String(column + 2);
+      cell.style.setProperty("--model-row", row);
+      cell.style.setProperty("--model-column", String(column + 2));
       if (cell.classList.contains("composio-model-arrow"))
         cell.setAttribute("aria-hidden", "true");
       else if (here) cell.classList.add("is-here");

@@ -196,13 +196,13 @@ test("lines under the fields: plain words for what is wrong, quiet hints for wha
   form = withKey(form, "headers", 1, "value", "b");
   view = customFormView(form, cs);
   expect(view.headers[1]?.name).toEqual({
-    text: "Tenhle klíč je tu dvakrát.",
+    text: "Tento klíč je tu dvakrát.",
     kind: "error",
   });
   form = withKey(form, "headers", 1, "name", "Authorization");
   form = type(form, "bearer", "token");
   expect(customFormView(form, cs).headers[1]?.name).toEqual({
-    text: "Tuhle hlavičku už posílá Bearer token.",
+    text: "Tuto hlavičku už posílá Bearer token.",
     kind: "error",
   });
   let local = withType(type(newCustomForm(), "name", "Local"), "stdio");
@@ -428,7 +428,7 @@ test("a command server's edit: configuration shown, variables by name only", () 
 
 test("what the page says after a save, and answers it does not take", () => {
   expect(customRefusal("name-taken", cs)).toBe(
-    "Integrace s tímhle názvem už existuje.",
+    "Integrace s tímto názvem už existuje.",
   );
   expect(customRefusal("account-unknown", en)).toBe(
     "This MCP server is no longer in Executor.",

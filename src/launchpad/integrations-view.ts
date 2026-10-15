@@ -291,6 +291,9 @@ export type CardAction =
   | Readonly<{ kind: "set-up"; label: string }>
   | Readonly<{ kind: "allow"; label: string }>
   | Readonly<{ kind: "ask-admin"; label: string }>
+  /** The Admin's step where the Organization's Dashboard link is not
+   * known here: one sentence saying where to find it, never a dead button. */
+  | Readonly<{ kind: "where"; text: string }>
   | Readonly<{ kind: "none" }>;
 
 export type CardView = Readonly<{
@@ -312,6 +315,9 @@ export function cardView(
     locale: "cs" | "en";
     scope: IntegrationsOverview["scope"];
     admin: boolean;
+    /** Whether the Organization's Dashboard link is known here, which the
+     * Admin's "Nastavit v Dashboardu" and "Povolit Composio" open. */
+    dashboard: boolean;
     copy: Copy;
   }>,
 ): CardView {
@@ -380,9 +386,11 @@ export function cardView(
   const action: CardAction =
     choice.action === "ask-admin"
       ? { kind: "ask-admin", label: copy.integrationsAskAdmin }
-      : choice.missing === "company-app"
-        ? { kind: "set-up", label: copy.integrationsSetUpInDashboard }
-        : { kind: "allow", label: copy.integrationsAllowComposio };
+      : !options.dashboard
+        ? { kind: "where", text: copy.integrationsAdminWhere }
+        : choice.missing === "company-app"
+          ? { kind: "set-up", label: copy.integrationsSetUpInDashboard }
+          : { kind: "allow", label: copy.integrationsAllowComposio };
   return { line, connected: false, pathLabel: null, action, composio: false };
 }
 
@@ -741,6 +749,98 @@ export function composioOrganizationLine(
         ? "integrationsComposioOrganizationAmbiguous"
         : "integrationsComposioOrganizationElsewhere";
   return fill(copy[key], { name: target.name });
+}
+
+/** The tone of a notice on the page, as the callout draws it: `info`
+ * guides or reports progress, `success` says an action is done, `warning`
+ * names a state that needs the person, `danger` an action that failed. */
+export type NoticeTone = "info" | "success" | "warning" | "danger";
+
+/** The line about the person's last action, above the apps. */
+export type Note = Readonly<{ text: string; tone: NoticeTone }>;
+
+/** The icon a notice of each tone shows before its text. */
+export function noticeIcon(tone: NoticeTone): string {
+  return tone === "success"
+    ? "i-check"
+    : tone === "info"
+      ? "i-info"
+      : "i-warning";
+}
+
+/** What the page's one live region says (`#integrations-live`, always
+ * mounted and never hidden, so a screen reader hears a change wherever the
+ * notices are drawn): a custom server page's line; else a reading that
+ * failed, first or again; else the line about the last action; else
+ * Composio's update running or failed; else that a reading runs (the first,
+ * or again after Zkusit znovu or Zkontrolovat připojení); else nothing. A failure is said
+ * only once the reading ended, so a retry is heard as a reading again and
+ * its failure as a failure again. */
+export function liveAnnouncement(
+  state: Readonly<{
+    /** A reading was shown before (the page reads again). */
+    read: boolean;
+    loading: boolean;
+    /** The last reading failed (and the page shows the apps, not a custom
+     * server's form). */
+    failed: boolean;
+    note: Note | null;
+    /** Composio's update from this page (`ComposioUpdate`). */
+    update: ComposioUpdate;
+    /** The line of a custom server's page while it is shown: why its
+     * settings could not be read or why Save failed; "" for none. */
+    form: string;
+  }>,
+  copy: Copy,
+): string {
+  if (state.form !== "") return state.form;
+  if (state.failed && !state.loading) return copy.integrationsLoadFailed;
+  if (state.note !== null) return state.note.text;
+  // Its success is the line about the last action ("Composio je
+  // aktualizované"); running and failed are said here.
+  if (state.update === "updating") return copy.integrationsComposioUpdating;
+  if (state.update === "failed") return copy.integrationsComposioUpdateFailed;
+  if (state.loading)
+    return state.read ? copy.integrationsChecking : copy.integrationsLoading;
+  return "";
+}
+
+/** The text to write into the live region, or null to leave it: writing
+ * the same text again would make a screen reader say it again on every
+ * drawing of the page. */
+export function liveText(current: string, said: string): string | null {
+  return current === said ? null : said;
+}
+
+/** Why a connect did not start, from the route's `reason`: the line it
+ * says, in its tone. `composio-signed-out` also opens Composio's sign-in
+ * (the panel's part). */
+export function refusalNote(
+  reason: unknown,
+  overview: IntegrationsOverview | null,
+  copy: Copy,
+): Note {
+  const danger = (text: string): Note => ({ text, tone: "danger" });
+  if (reason === "name-required")
+    return { text: copy.integrationsAccountNameHint, tone: "info" };
+  if (reason === "composio-signed-out")
+    return { text: copy.integrationsComposioSignIn, tone: "info" };
+  if (reason === "composio-organization")
+    return {
+      text:
+        (overview === null ? null : composioOrganizationLine(overview, copy)) ??
+        copy.integrationsComposioOrganizationChanged,
+      tone: "warning",
+    };
+  if (reason === "name-taken") return danger(copy.integrationsNameTaken);
+  if (reason === "browser-unavailable")
+    return danger(copy.integrationsBrowserMissing);
+  if (reason === "executor-unavailable")
+    return danger(copy.integrationsExecutorUnavailable);
+  if (reason === "integration-conflict")
+    return danger(copy.integrationsIntegrationConflict);
+  if (reason === "still-failing") return danger(copy.integrationsStillFailing);
+  return danger(copy.integrationsConnectFailed);
 }
 
 /** "Připojeno · 5 nástrojů", "Nepodařilo se spustit", "Spouštím…". */
