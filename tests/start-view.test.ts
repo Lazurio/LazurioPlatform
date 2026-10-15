@@ -390,6 +390,14 @@ test("Připojit AI that did not finish, and a connected one: Zkusit znovu, the a
       en,
     )?.steps[0]?.warning,
   ).toBe("Chat and Codex start using the sign-in a little later.");
+  // Codex did not say whether the Organization provides the AI.
+  expect(
+    view({
+      aiSignIn: { kind: "failed", tool: "codex", reason: "provider-unknown" },
+    })?.steps[0]?.status,
+  ).toBe(
+    "Codex neřekl, jestli tu AI zajišťuje vaše Organizace, a proto se nic nespustilo. Zkuste to prosím znovu.",
+  );
   // Services that read it, or will by themselves: nothing to say.
   expect(
     view({

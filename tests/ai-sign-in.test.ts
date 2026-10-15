@@ -86,6 +86,14 @@ test("each answer of the login routes, only in its known shape", () => {
     tool: "claude",
     services: { t3: { state: "driver-mismatch", mismatches: [] } },
   });
+  // Codex could not say whether the Organization provides the AI.
+  expect(
+    aiSignInAnswer("codex", {
+      kind: "failed",
+      tool: "codex",
+      reason: "provider-unknown",
+    }),
+  ).toEqual({ kind: "failed", tool: "codex", reason: "provider-unknown" });
   expect(
     aiSignInAnswer("codex", {
       kind: "failed",

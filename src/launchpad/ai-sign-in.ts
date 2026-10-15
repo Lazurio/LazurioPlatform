@@ -28,7 +28,8 @@ export type AiSignInFailure =
   | "expired"
   | "no-answer"
   | "browser-unavailable"
-  | "no-environment-browser";
+  | "no-environment-browser"
+  | "provider-unknown";
 
 export type AiSignIn =
   | Readonly<{ kind: "idle" }>
@@ -156,8 +157,9 @@ export function aiSignInAnswer(
         kind: "failed",
         tool,
         reason:
-          value.reason === "browser-unavailable"
-            ? "browser-unavailable"
+          value.reason === "browser-unavailable" ||
+          value.reason === "provider-unknown"
+            ? value.reason
             : "failed",
       };
     case "expired":

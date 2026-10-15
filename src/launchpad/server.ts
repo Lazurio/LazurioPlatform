@@ -607,9 +607,9 @@ export async function startLaunchpad(
   // unit's journal on a Machine): the tool and the outcome, nothing else.
   // codex and claude sign in through the same sessions (F19's addendum of
   // 2026-10-15): their page opens in the Environment browser of a Remote
-  // Environment, shown in the right panel; Codex itself says whether the
-  // Organization provides the AI; afterwards the running services read the
-  // sign-in, and the AI is read again.
+  // Environment, shown in the right panel; the sessions ask Codex itself,
+  // fresh, whether the Organization provides the AI; afterwards the running
+  // services read the sign-in, and the AI is read again.
   const logins = createLoginSessions({
     ...toolsEnvironment,
     journal: (journaled) => {
@@ -624,12 +624,6 @@ export async function startLaunchpad(
         ? integrationSeams.environmentBrowser
         : environmentBrowserOf(entry, launchpadHoldOf(holder)),
     ),
-    organizationProvides: async (tool) =>
-      tool === "codex" &&
-      (await ai.state()).providers.some(
-        (reading) =>
-          reading.provider === "codex" && reading.state === "provided",
-      ),
     reload: (tool, signedIn) =>
       reloadAiServices({
         ...toolsEnvironment,

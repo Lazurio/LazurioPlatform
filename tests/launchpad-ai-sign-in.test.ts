@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
@@ -44,6 +44,9 @@ async function launchpad(
   options: Readonly<{
     signInPage?: SignInPage;
     reading?: AiReading;
+    /** The Launchpad's own AI reading over the fake CLIs, kept a minute,
+     * instead of a stub. */
+    keptAi?: boolean;
   }> = {},
 ) {
   const parent = await realpath(await mkdtemp(join(tmpdir(), "launchpad-ai-")));
@@ -101,23 +104,28 @@ async function launchpad(
     undefined,
     undefined,
     undefined,
-    ai.probe,
+    options.keptAi === true ? undefined : ai.probe,
   );
   const url = new URL(app.url);
+  const headers = {
+    Origin: url.origin,
+    Authorization: `Bearer ${url.hash.slice(1)}`,
+  };
+  const get = async (route: string) => {
+    const response = await fetch(new URL(route, url), { headers });
+    return { status: response.status, body: (await response.json()) as Json };
+  };
   const post = async (route: string, body: unknown) => {
     const response = await fetch(new URL(route, url), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Origin: url.origin,
-        Authorization: `Bearer ${url.hash.slice(1)}`,
-      },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify(body),
     });
     return { status: response.status, body: (await response.json()) as Json };
   };
   return {
     home,
+    get,
     post,
     forgotten: ai.forgotten,
     async close() {
@@ -361,16 +369,9 @@ posixTest(
     } finally {
       await none.close();
     }
-    const provided = await launchpad({
-      signInPage: environmentBrowser().page,
-      reading: {
-        state: "organization",
-        providers: [
-          { provider: "codex", state: "provided" },
-          { provider: "claude", state: "signed-out" },
-        ],
-      },
-    });
+    // Codex itself says its provider needs no OpenAI sign-in.
+    const provided = await launchpad({ signInPage: environmentBrowser().page });
+    await writeFile(join(provided.home, "codex.provided"), "");
     try {
       expect(
         await provided.post("/api/tools/login/start", { tool: "codex" }),
@@ -384,6 +385,51 @@ posixTest(
       });
     } finally {
       await provided.close();
+    }
+  },
+  30_000,
+);
+
+posixTest(
+  "the AI reading kept for the page never decides: the start asks Codex afresh, after the Organization switched to its provider (Pablo's review of #441)",
+  async () => {
+    const browser = environmentBrowser();
+    const opened = await launchpad({
+      signInPage: browser.page,
+      keptAi: true,
+    });
+    try {
+      // The page read the AI: signed out, kept for a minute.
+      expect((await opened.get("/api/ai")).body).toMatchObject({
+        kind: "ai",
+        state: "missing",
+      });
+      // Within that minute the Organization switches Codex to its provider;
+      // the kept answer still says missing.
+      await writeFile(join(opened.home, "codex.provided"), "");
+      expect((await opened.get("/api/ai")).body).toMatchObject({
+        state: "missing",
+      });
+      // The start asks Codex itself and refuses; `codex login` never runs.
+      expect(
+        await opened.post("/api/tools/login/start", { tool: "codex" }),
+      ).toEqual({
+        status: 409,
+        body: {
+          kind: "blocked",
+          tool: "codex",
+          reason: "organization-provided",
+        },
+      });
+      expect(browser.opened).toEqual([]);
+      const calls = (await readFile(join(opened.home, "codex.calls"), "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => (JSON.parse(line) as { args: string[] }).args[0]);
+      expect(calls.length).toBeGreaterThan(1);
+      expect(calls).not.toContain("login");
+    } finally {
+      await opened.close();
     }
   },
   30_000,

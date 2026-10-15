@@ -129,6 +129,8 @@ function aiFailure(
       return copy.startAiBrowserFailed;
     case "no-environment-browser":
       return copy.startAiNoBrowser;
+    case "provider-unknown":
+      return copy.startAiProviderUnknown;
     case "failed":
       return copy.startAiFailed;
   }

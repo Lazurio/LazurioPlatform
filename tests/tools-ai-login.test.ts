@@ -266,7 +266,10 @@ posixTest(
       expect(new URL(page).hostname).toBe("auth.openai.com");
       expect(returnsToCli(page)).toBe(true);
       // `codex login`, never its device code, with BROWSER the stand-in.
-      const [call] = await calls(opened.home, "codex");
+      // After Codex's own `account/read`, the sign-in.
+      const call = (await calls(opened.home, "codex")).find(
+        (entry) => entry.args[0] === "login",
+      );
       expect(call?.args).toEqual(["login"]);
       expect(call?.browser).toMatch(/lazurio-sign-in-[^/]+\/browser$/);
       // The person signs in; the page returns to the CLI here.
@@ -410,7 +413,10 @@ posixTest(
       const page = codex.challenge.url as string;
       expect(codex.challenge).toEqual({ kind: "page", url: page, code: false });
       expect(new URL(page).hostname).toBe("auth.openai.com");
-      const [call] = await calls(opened.home, "codex");
+      // After Codex's own `account/read`, the sign-in.
+      const call = (await calls(opened.home, "codex")).find(
+        (entry) => entry.args[0] === "login",
+      );
       expect(call).toEqual({ args: ["login"], browser: null });
       expect(await returnFromPage(page)).toBe(200);
       expect((await settle(sessions, "codex", codex.session)).kind).toBe(
@@ -463,19 +469,11 @@ posixTest(
 );
 
 posixTest(
-  "nothing starts on a Remote Environment without its Environment browser, or where the Organization provides the AI",
+  "nothing starts on a Remote Environment without its Environment browser",
   async () => {
     const opened = await scratch();
-    const asked: string[] = [];
     const { sessions, journal } = sessionsFor(opened, {
       signInPage: { kind: "none" },
-    });
-    const provided = sessionsFor(opened, {
-      signInPage: environmentBrowser().page,
-      organizationProvides: async (tool) => {
-        asked.push(tool);
-        return tool === "codex";
-      },
     });
     try {
       for (const tool of ["codex", "claude"])
@@ -484,12 +482,6 @@ posixTest(
           tool,
           reason: "no-environment-browser",
         });
-      expect(await provided.sessions.start("codex")).toEqual({
-        kind: "blocked",
-        tool: "codex",
-        reason: "organization-provided",
-      });
-      expect(asked).toEqual(["codex"]);
       // Neither CLI ran.
       expect(await calls(opened.home, "codex")).toEqual([]);
       expect(await calls(opened.home, "claude")).toEqual([]);
@@ -511,7 +503,66 @@ posixTest(
       ]);
     } finally {
       await sessions.close();
-      await provided.sessions.close();
+      await opened.close();
+    }
+  },
+  20_000,
+);
+
+posixTest(
+  "Codex is asked afresh right before its CLI: the Organization's provider refuses it, and an answer that cannot be read starts nothing",
+  async () => {
+    const opened = await scratch(["codex"]);
+    const { sessions, journal } = sessionsFor(opened, {
+      signInPage: environmentBrowser().page,
+    });
+    const logins = async () =>
+      (await calls(opened.home, "codex")).filter(
+        (call) => call.args[0] === "login",
+      ).length;
+    try {
+      // Signed out: the sign-in starts.
+      const first = await sessions.start("codex");
+      expect(first.kind).toBe("pending");
+      if (first.kind === "pending") sessions.cancel("codex", first.session);
+      expect(await logins()).toBe(1);
+      // The Organization switches Codex to its provider: the next start
+      // asks again and refuses, with no `codex login`.
+      await writeFile(join(opened.home, "codex.provided"), "");
+      expect(await sessions.start("codex")).toEqual({
+        kind: "blocked",
+        tool: "codex",
+        reason: "organization-provided",
+      });
+      // An app-server that does not answer: not known, so nothing starts.
+      await rm(join(opened.home, "codex.provided"));
+      await writeFile(join(opened.home, "codex.no-answer"), "");
+      expect(await sessions.start("codex")).toEqual({
+        kind: "failed",
+        tool: "codex",
+        reason: "provider-unknown",
+      });
+      expect(await logins()).toBe(1);
+      expect(
+        (await calls(opened.home, "codex")).map((call) => call.args[0]),
+      ).toEqual(["app-server", "login", "app-server", "app-server"]);
+      expect(journal.filter((entry) => entry.event === "end")).toEqual([
+        { tool: "codex", event: "end", outcome: "cancelled" },
+        {
+          tool: "codex",
+          event: "end",
+          outcome: "blocked",
+          reason: "organization-provided",
+        },
+        {
+          tool: "codex",
+          event: "end",
+          outcome: "failed",
+          reason: "provider-unknown",
+        },
+      ]);
+    } finally {
+      await sessions.close();
       await opened.close();
     }
   },
