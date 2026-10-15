@@ -26,21 +26,11 @@ export const scaffoldAppPackage = "app/v1/package.json";
  * (tests keep the two equal), as the root pinned its Core's. */
 export const scaffoldBunVersion = "1.4.2";
 
-/** The versions a new module pins besides Bun: the module kit, uv, and the
- * one released repository-db a module with data depends on (`--data`; root
- * `manual/module-standard.md`: one released tag, `MS-10`). */
+/** The versions a new module pins besides Bun. */
 export const defaultScaffoldVersions = Object.freeze({
   moduleKit: "0.2.0",
   uv: "0.11.6",
-  repositoryDb: "3.2.0",
 });
-
-/** The data generation a new module's data repository starts on: its branch
- * (repository-db: a major generation is a Git branch). */
-export const dataBranch = "v3";
-
-/** The schema version a new module's data starts with, `<slug>-data`. */
-export const dataSchemaVersion = "0.1.0";
 
 export type PortPool = Readonly<{ start: number; end: number }>;
 
@@ -167,7 +157,6 @@ export type ModuleScaffoldCode =
   | "invalid_team"
   | "unknown_team"
   | "teams_not_allowed"
-  | "data_needs_bun_app"
   | "invalid_organization"
   | "invalid_owner"
   | "invalid_versions"
@@ -219,8 +208,6 @@ export type ScaffoldVersions = Readonly<{
   bun: string;
   moduleKit: string;
   uv: string;
-  /** Defaults to `defaultScaffoldVersions.repositoryDb`. */
-  repositoryDb?: string;
 }>;
 
 export type ScaffoldLease = Readonly<{
@@ -245,47 +232,6 @@ export type ModuleSlot = Readonly<{
   git: Readonly<{ url: string; branch: "main" }>;
 }>;
 
-/** The slot of a new module's data repository, `workspace/<slug>/db`, as an
- * Organization declares a repository-db mount (`repository_db_mount`), in the
- * order its members are written. */
-export type DataSlot = Readonly<{
-  path: string;
-  slug: string;
-  teams?: readonly string[];
-  category: string;
-  default_access: "expected" | "private";
-  required_roles: readonly string[];
-  source_of_truth: "repository-db:v3";
-  status: "active";
-  notes: string;
-  materialization: "repository_db_mount";
-  repository_db: Readonly<{
-    repo: string;
-    url: string;
-    branch: typeof dataBranch;
-    config: "repository-db.yaml";
-    data_root: "data";
-    profile: "repository-db-v3";
-    app_writable_path_policy: "repository_db_publish_only";
-  }>;
-  git: Readonly<{ url: string; branch: typeof dataBranch }>;
-}>;
-
-/** A new module's data: its repository `<owner>/<slug>-data`, mounted as the
- * module's `db/` on `v3`, and the engine its app depends on. */
-export type ScaffoldData = Readonly<{
-  /** The repository's name, `<slug>-data`, of the module's owner. */
-  repository: string;
-  slot: DataSlot;
-  /** The mount, relative to the module. */
-  mount: "db";
-  branch: typeof dataBranch;
-  schemaName: string;
-  schemaVersion: string;
-  /** The app's dependency on repository-db. */
-  engine: string;
-}>;
-
 export type ModuleScaffoldInput = Readonly<{
   owner: ScaffoldOwner;
   /** Lowercase kebab slug of the module and of its repository. */
@@ -297,9 +243,6 @@ export type ModuleScaffoldInput = Readonly<{
   teams?: readonly unknown[] | undefined;
   /** An explicit port of the pool; default `moduleScaffoldDefaultPort`. */
   port?: number | null | undefined;
-  /** A data repository for the module (`--data`): a stack with a Bun app
-   * only. */
-  data?: boolean | undefined;
   pool: PortPool | null;
   /** The slots already declared, by the manifests the caller reads. */
   existingSlots: readonly unknown[];
@@ -331,8 +274,6 @@ export type ModuleScaffoldPlan = Readonly<{
   toolchain: "bun" | "uv" | null;
   slot: ModuleSlot;
   lease: ScaffoldLease | null;
-  /** The module's data repository, with `data`; null otherwise. */
-  data: ScaffoldData | null;
   treeHash: string;
   warnings: readonly string[];
 }>;
@@ -353,15 +294,7 @@ export function planModuleScaffold(
   const owner = normalizeOwner(input.owner);
   const teams = normalizeTeams(input.teams ?? [], owner);
   const pinned = normalizeVersions(input.versions);
-  const data = input.data === true;
-  if (data && spec.toolchain !== "bun")
-    throw new ModuleScaffoldError(
-      "data_needs_bun_app",
-      `The stack ${stack} has no Bun app; a module's data in repository-db is read by a TypeScript app.`,
-      "Choose vite-react, astro, astro-starlight or bun-service for a module with data, or leave out --data.",
-    );
   assertSlotFree(slug, input.existingSlots);
-  if (data) assertSlotFree(`${slug}-data`, input.existingSlots);
   const pool = normalizePool(input.pool);
   // A person's module leases only from the reserved personal range, whatever
   // pool its caller read (decision F52, root 0171's addendum of 2026-10-13).
@@ -449,8 +382,6 @@ export function planModuleScaffold(
     path: "lazurio.module.json",
     content: `${JSON.stringify(moduleManifest(owner.name, slug, lease), null, 2)}\n`,
   });
-  const engine = `github:Lazurio/repository-db#v${pinned.repositoryDb ?? defaultScaffoldVersions.repositoryDb}`;
-  if (data) withData(files, slug, engine);
   const sorted = [...files.values()].sort((left, right) =>
     left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
   );
@@ -502,77 +433,9 @@ export function planModuleScaffold(
       owner,
     }),
     lease,
-    data: data
-      ? Object.freeze({
-          repository: `${slug}-data`,
-          slot: dataSlot({
-            slug,
-            displayName,
-            category: spec.category,
-            teams,
-            owner,
-          }),
-          mount: "db" as const,
-          branch: dataBranch,
-          schemaName: `${slug}-data`,
-          schemaVersion: dataSchemaVersion,
-          engine,
-        })
-      : null,
     treeHash: moduleScaffoldTreeHash(sorted),
     warnings: Object.freeze(warnings),
   });
-}
-
-/** What `--data` changes in a module's files: its app depends on the one
- * released repository-db, its Git ignores the data mount `db/` (a repository
- * of its own), and its AGENTS.md says where the data lives and how it is
- * published. */
-function withData(
-  files: Map<string, ScaffoldFile>,
-  slug: string,
-  engine: string,
-) {
-  const app = files.get(scaffoldAppPackage);
-  if (app === undefined)
-    throw new ModuleScaffoldError(
-      "template_invalid",
-      `The stack has no ${scaffoldAppPackage} to depend on repository-db.`,
-    );
-  const pkg = JSON.parse(app.content) as {
-    dependencies?: Record<string, string>;
-  };
-  const dependencies = { ...(pkg.dependencies ?? {}) };
-  dependencies["@lazurio/repository-db"] = engine;
-  pkg.dependencies = Object.fromEntries(
-    Object.entries(dependencies).sort(([left], [right]) =>
-      left < right ? -1 : left > right ? 1 : 0,
-    ),
-  );
-  files.set(scaffoldAppPackage, {
-    ...app,
-    content: `${JSON.stringify(pkg, null, 2)}\n`,
-  });
-  const ignore = files.get(".gitignore");
-  files.set(".gitignore", {
-    path: ".gitignore",
-    content: `${ignore?.content ?? ""}/db/\n`,
-  });
-  const agents = files.get("AGENTS.md");
-  if (agents !== undefined)
-    files.set("AGENTS.md", {
-      ...agents,
-      content: `${agents.content}
-## Data
-
-Data Modulu žijí v repository-db: složka \`db/\` je samostatný repozitář
-\`${slug}-data\` (větev \`v3\`, kanonické YAML v \`db/data/\`), který Git tohoto
-Modulu ignoruje. App k nim přistupuje přes \`@lazurio/repository-db\` (jedna
-vydaná verze v \`app/v1/package.json\`), nikdy přímo přes Git. Commit a push
-dat do \`v3\` je Publikace: dělá ji tlačítko „Publikovat změny“ nebo
-\`repository-db publish\` na pokyn Operátora.
-`,
-    });
 }
 
 /**
@@ -644,7 +507,7 @@ export function templateTargetPath(path: string): string {
  */
 export function insertModuleSlotText(
   manifestText: string,
-  slot: ModuleSlot | DataSlot,
+  slot: ModuleSlot,
 ): string {
   let document: unknown;
   try {
@@ -905,8 +768,6 @@ function normalizeVersions(versions: ScaffoldVersions): ScaffoldVersions {
     bun: versions?.bun,
     moduleKit: versions?.moduleKit ?? defaultScaffoldVersions.moduleKit,
     uv: versions?.uv ?? defaultScaffoldVersions.uv,
-    repositoryDb:
-      versions?.repositoryDb ?? defaultScaffoldVersions.repositoryDb,
   };
   for (const [name, value] of Object.entries(pinned))
     if (typeof value !== "string" || !versionPattern.test(value))
@@ -1040,42 +901,6 @@ function moduleManifest(
         port_leases: [],
         apps: [],
       };
-}
-
-function dataSlot(input: {
-  slug: string;
-  displayName: string;
-  category: string;
-  teams: readonly string[];
-  owner: Owner;
-}): DataSlot {
-  const personal = input.owner.kind === "personal";
-  const repository = `${input.owner.githubLogin}/${input.slug}-data`;
-  const url = `git@github.com:${repository}.git`;
-  return Object.freeze({
-    path: `workspace/${input.slug}/db`,
-    slug: `${input.slug}-data`,
-    ...(input.teams.length > 0
-      ? { teams: Object.freeze([...input.teams]) }
-      : {}),
-    category: input.category,
-    default_access: personal ? ("private" as const) : ("expected" as const),
-    required_roles: Object.freeze(personal ? ["owner"] : ["*"]),
-    source_of_truth: "repository-db:v3" as const,
-    status: "active" as const,
-    notes: `${input.displayName}: data Modulu v repository-db (${repository}, větev ${dataBranch}), připojená jako db/ Modulu workspace/${input.slug}. Publikace dat je repository-db publish do ${dataBranch}, oddělená od PR kódu Modulu.`,
-    materialization: "repository_db_mount" as const,
-    repository_db: Object.freeze({
-      repo: repository,
-      url,
-      branch: dataBranch,
-      config: "repository-db.yaml" as const,
-      data_root: "data" as const,
-      profile: "repository-db-v3" as const,
-      app_writable_path_policy: "repository_db_publish_only" as const,
-    }),
-    git: Object.freeze({ url, branch: dataBranch }),
-  });
 }
 
 function moduleSlot(input: {

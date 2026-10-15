@@ -365,8 +365,6 @@ test("Composio not allowed: its accounts do not count, the source says why, and 
     source: "organization",
     ready: true,
     disconnect: false,
-    // Not allowed: no update offered here either.
-    update: false,
     // Not allowed: no way to Composio's Apps either.
     apps: null,
     organization: null,
@@ -1344,34 +1342,4 @@ test("forgetting one toolkit keeps what another toolkit's running lookup reads",
   expect((await reading).map((item) => item.alias)).toEqual(["Old", "Work"]);
   expect(names.get("salesforce", "salesforce-word")).toBeUndefined();
   expect(names.get("gmail", "gmail-word")).toBe("Work");
-});
-
-// Composio's update on Apps → Integrace (decision F42, addendum (b) of
-// 2026-10-14): offered only where Composio is on here and its row in
-// Settings → Tools offers the update to the build Lazurio pins
-// (`pinnedUpdateOffered`, read by the reading as `composioUpdate`).
-test("the update of Composio is offered only where Composio is on here and not the build Lazurio pins", () => {
-  const update = (input: Partial<MergeInput>) =>
-    mergeIntegrations({ ...base, ...input }).composio.update;
-  expect(update({ composioUpdate: true })).toBe(true);
-  // The build already, or an update that cannot work here.
-  expect(update({})).toBe(false);
-  expect(update({ composioUpdate: false })).toBe(false);
-  // Composio off for agents, not installed or signed out: not ready.
-  expect(update({ composioUpdate: true, composioReady: false })).toBe(false);
-  // Not allowed here (root decision 0194).
-  expect(
-    update({
-      composioUpdate: true,
-      policy: { allowed: false, source: "organization" },
-    }),
-  ).toBe(false);
-  // Its organization cannot be told or its list read: Composio is still
-  // on here, and the update still helps.
-  expect(
-    update({ composioUpdate: true, composio: { state: "organization" } }),
-  ).toBe(true);
-  expect(
-    update({ composioUpdate: true, composio: { state: "unreadable" } }),
-  ).toBe(true);
 });

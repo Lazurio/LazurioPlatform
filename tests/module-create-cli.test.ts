@@ -6,7 +6,6 @@ import { runCli } from "../src/cli";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
-import { processDataInit } from "../src/modules/module-create-cli";
 import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
@@ -101,18 +100,6 @@ test("usage errors exit 2 with the command's help, before anything is read", asy
       ["personalspace/notes", "--stack", "none", "--dry-run", "--unknown"],
       "Unknown option",
     ],
-    [
-      ["Acme/portal", "--stack", "none", "--dry-run"],
-      "An Organization's module names its Teams",
-    ],
-    [
-      ["Acme/portal", "--stack", "none", "--teams", "core,", "--dry-run"],
-      "An Organization's module names its Teams",
-    ],
-    [
-      ["Acme/portal", "--stack", "none", "--teams", "core"],
-      "Show the person the plan with --dry-run first",
-    ],
   ];
   for (const [args, message] of cases) {
     const run = await cli(["module", "create", ...args, "--folder", folder]);
@@ -123,7 +110,7 @@ test("usage errors exit 2 with the command's help, before anything is read", asy
   }
 });
 
-test("refusals by name alone: an Organization outside a Folder, the stack and the slug", async () => {
+test("refusals by name alone: the Organization form, the stack and the slug", async () => {
   const folder = "/nonexistent-lazurio-folder";
   const refused = async (args: string[], reason: string) => {
     const run = await cli([
@@ -154,20 +141,25 @@ test("refusals by name alone: an Organization outside a Folder, the stack and th
     });
     return report(run.stdout);
   };
-  // The Organization form in a Folder that is none: its preset cannot be
-  // read, so it might be a Team Environment (fail closed).
   const organization = await refused(
-    ["Acme/portal", "--stack", "none", "--teams", "core"],
-    "folder-unavailable",
+    ["Acme/portal", "--stack", "none"],
+    "organization-form-unavailable",
   );
-  expect(organization.scope).toBe("organization");
+  expect(organization.issues[0].message).toContain(
+    "Lazurio/LazurioPlatform#267",
+  );
+  // --teams belongs to the Organization form, refused as a whole.
+  await refused(
+    ["Acme/portal", "--stack", "none", "--teams", "core"],
+    "organization-form-unavailable",
+  );
   await refused(["personalspace/notes", "--stack", "rails"], "unknown_stack");
   await refused(["personalspace/Notes", "--stack", "none"], "invalid_slug");
   await refused(["personalspace/mausbot", "--stack", "none"], "reserved_slug");
 });
 
 posixTest(
-  "a workstation without a Personalspace or the Organization refuses before GitHub is asked",
+  "a workstation without a Personalspace refuses before GitHub is asked",
   async () => {
     const folder = join(parent, "workstation", "Lazurio");
     await mkdir(dirname(folder), { recursive: true });
@@ -191,25 +183,6 @@ posixTest(
       status: "blocked",
       reason: "personalspace-absent",
       next_steps: ["Install it first: lazurio personalspace install."],
-    });
-    // The same Folder has no Organization Acme.
-    const organization = await cli([
-      "module",
-      "create",
-      "Acme/portal",
-      "--stack",
-      "none",
-      "--teams",
-      "core",
-      "--dry-run",
-      "--json",
-      "--folder",
-      folder,
-    ]);
-    expect(organization.code).toBe(2);
-    expect(report(organization.stdout)).toMatchObject({
-      status: "blocked",
-      reason: "organization_not_found",
     });
   },
 );
@@ -332,102 +305,5 @@ posixTest(
       "api repos/example/example_GEN3",
       "api repos/example/notes",
     ]);
-  },
-);
-
-posixTest(
-  "the data init runs the app's own engine with the operator's Bun and the environment git and gh take, nothing else",
-  async () => {
-    const home = join(parent, "data-init-home");
-    const app = join(parent, "data-init-app");
-    await mkdir(join(home, ".local", "bin"), { recursive: true });
-    await mkdir(join(app, "node_modules", "@lazurio", "repository-db", "src"), {
-      recursive: true,
-    });
-    const engine = join(
-      app,
-      "node_modules",
-      "@lazurio",
-      "repository-db",
-      "src",
-      "cli.ts",
-    );
-    await writeFile(engine, "// the engine\n");
-    const record = join(parent, "data-init-record");
-    // A Bun that records its arguments and environment.
-    const bun = join(home, ".local", "bin", "bun");
-    await writeFile(
-      bun,
-      `#!/bin/sh\nprintf '%s\\n' "$@" > '${record}.argv'\nenv > '${record}.env'\n`,
-    );
-    await chmod(bun, 0o755);
-    const init = processDataInit({
-      platform: process.platform,
-      env: {
-        HOME: home,
-        PATH: "/usr/bin:/bin",
-        SSH_AUTH_SOCK: "/tmp/agent.sock",
-        GIT_SSH_COMMAND: "ssh -i key",
-        XDG_CONFIG_HOME: join(home, ".config"),
-        GH_TOKEN: "must-not-pass",
-        UNRELATED: "must-not-pass",
-      },
-    });
-    const answer = await init({
-      app,
-      name: "ledger",
-      remote: "git@github.com:Acme/ledger-data.git",
-      branch: "v3",
-      mount: join(parent, "ledger", "db"),
-      schemaName: "ledger-data",
-      schemaVersion: "0.1.0",
-    });
-    expect(answer).toEqual({ ok: true });
-    expect(
-      (await readFile(`${record}.argv`, "utf8")).trim().split("\n"),
-    ).toEqual([
-      engine,
-      "init",
-      "--app",
-      "ledger",
-      "--remote",
-      "git@github.com:Acme/ledger-data.git",
-      "--branch",
-      "v3",
-      "--mount",
-      join(parent, "ledger", "db"),
-      "--schema-name",
-      "ledger-data",
-      "--schema-version",
-      "0.1.0",
-    ]);
-    const env = await readFile(`${record}.env`, "utf8");
-    for (const line of [
-      "SSH_AUTH_SOCK=/tmp/agent.sock",
-      "GIT_SSH_COMMAND=ssh -i key",
-      `XDG_CONFIG_HOME=${join(home, ".config")}`,
-      `HOME=${home}`,
-      "PATH=/usr/bin:/bin",
-      "GIT_TERMINAL_PROMPT=0",
-    ])
-      expect(env).toContain(line);
-    expect(env).not.toContain("must-not-pass");
-    // Without the engine (the install did not finish), nothing runs.
-    await rm(engine);
-    expect(
-      await init({
-        app,
-        name: "ledger",
-        remote: "git@github.com:Acme/ledger-data.git",
-        branch: "v3",
-        mount: join(parent, "ledger", "db"),
-        schemaName: "ledger-data",
-        schemaVersion: "0.1.0",
-      }),
-    ).toEqual({
-      ok: false,
-      detail:
-        "the app has no repository-db installed (bun install did not finish)",
-    });
   },
 );

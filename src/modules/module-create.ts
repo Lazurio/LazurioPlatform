@@ -14,15 +14,9 @@ import {
   readCheckoutJson,
 } from "../providers/owned-json";
 import {
-  organizationDryRunSteps,
-  type PlannedOrganizationModule,
-  planOrganizationModule,
-} from "./module-create-organization";
-import {
   assertSlug,
   assertStack,
   canonicalJson,
-  type DataSlot,
   defaultScaffoldVersions,
   environmentPorts,
   ModuleScaffoldError,
@@ -42,12 +36,10 @@ import { moduleTemplates } from "./scaffold-templates";
 // Environment's Personalspace, in a private repository `<login>/<slug>` of
 // their own GitHub account, checked out in `personalspace/<owner>/workspace/
 // <slug>`, its slot declared by a pull request into their Personalspace.
-// `lazurio module create <Organization>/<slug>` (F52's addendum of
-// 2026-10-14, #267) is an Organization's: `module-create-organization.ts`.
 // This half is the plan: every check reads only, and `--dry-run` writes
 // nothing and asks GitHub only GETs; the real run is
 // `src/modules/module-create-run.ts`. The report is the root's
-// `lazurio.module_create.report.v1` with the repository added.
+// `lazurio.module_create.report.v1` with the person's repository added.
 
 export const moduleCreateReportVersion = "lazurio.module_create.report.v1";
 
@@ -65,19 +57,13 @@ export type ModuleCreateRequest = Readonly<{
   stack: string;
   name?: string | undefined;
   port?: number | undefined;
-  /** The Teams of an Organization's module (`--teams`): its slot's
-   * `teams` and its initial grants (root decision 0186 point 1). */
-  teams?: readonly string[] | undefined;
-  /** A data repository for the module (`--data`): `<owner>/<slug>-data`
-   * in repository-db, mounted as the module's `db/`. */
-  data?: boolean | undefined;
 }>;
 
 /** What the plan reads: whose Personalspace this is (#186), gh for the
  * repository's name, git for the layout, and the templates. */
 export type ModuleCreateHost = Readonly<{
   holder: PersonalspaceHolderRead;
-  github: Pick<ContentGitHub, "repository" | "viewer" | "membership" | "team">;
+  github: Pick<ContentGitHub, "repository">;
   git: Pick<ContentGit, "worktree" | "ignored">;
   /** Test seam: the embedded templates by default. */
   templates?: ScaffoldTemplates | undefined;
@@ -107,24 +93,8 @@ export type ModuleCreateReport = {
     stack: string | null;
     display_name: string | null;
   };
-  /** The repository the run creates; private, never adopted. */
+  /** The person's repository the run creates; private, never adopted. */
   repository: { full_name: string; private: true; create: boolean } | null;
-  /** An Organization's module: the Organization, by its slug, its GitHub
-   * login and its directory under `organizations/`. */
-  organization: { slug: string; github: string; directory: string } | null;
-  /** An Organization's module: each Team of `--teams`, its GitHub slug and
-   * the permission the run grants it on the repository. */
-  teams: { slug: string; github_slug: string; permission: string }[];
-  /** With `--data`: the module's data repository the run creates (private,
-   * never adopted), its slot, its mount and the engine the app depends on. */
-  data: {
-    repository: { full_name: string; private: true; create: boolean };
-    slot: DataSlot;
-    mount: string;
-    branch: string;
-    schema: { name: string; version: string };
-    engine: string;
-  } | null;
   slot: ModuleSlot | null;
   lease: ScaffoldLease | null;
   files: { path: string; bytes: number; mode?: string }[];
@@ -138,16 +108,15 @@ export type ModuleCreateReport = {
     module_port_pool: PortPool;
     adds_pool: boolean;
   } | null;
-  /** The task worktree (of the Personalspace, or of the Organization root)
-   * the command runs in, if any. */
+  /** The task worktree of the Personalspace the command runs in, if any. */
   worktree: { path: string; branch: string | null } | null;
-  /** Where the module is placed: the held Personalspace's, or the
-   * Organization root's, `workspace/<slug>`. */
+  /** Where the module is placed: the held Personalspace's
+   * `workspace/<slug>`. */
   module_root: string | null;
   warnings: string[];
   issues: ModuleCreateIssue[];
   next_steps: string[];
-  /** The Lazurio Module Standard checks, once the Platform has them (#423). */
+  /** The Lazurio Module Standard checks, once the Platform has them (#267). */
   standard: null;
 };
 
@@ -174,7 +143,6 @@ export type TaskWorktree = Readonly<{
 /** What a real run needs besides the report: the planned module and the
  * places it goes. */
 export type PlannedPersonalModule = Readonly<{
-  scope: "personalspace";
   folder: string;
   login: string;
   /** The held Personalspace's primary checkout. */
@@ -226,9 +194,6 @@ export function baseReport(request: ModuleCreateRequest): ModuleCreateReport {
       display_name: null,
     },
     repository: null,
-    organization: null,
-    teams: [],
-    data: null,
     slot: null,
     lease: null,
     files: [],
@@ -273,31 +238,29 @@ export async function planModuleCreate(
   request: ModuleCreateRequest,
   host: ModuleCreateHost,
 ): Promise<ModuleCreateReport> {
-  const planned = await prepareModule(request, host);
+  const planned = await preparePersonalModule(request, host);
   if (!planned.ok) return planned.report;
-  planned.report.next_steps =
-    planned.module.scope === "organization"
-      ? organizationDryRunSteps(planned.report, planned.module, request)
-      : dryRunSteps(planned.report, planned.module, request);
+  planned.report.next_steps = dryRunSteps(
+    planned.report,
+    planned.module,
+    request,
+  );
   return planned.report;
 }
-
-/** A planned module of either form. */
-export type PlannedModule = PlannedPersonalModule | PlannedOrganizationModule;
 
 /**
  * Every read-only check and the plan, for the dry run and the real run
  * alike: the report (actionable) and the planned module, or the report of
  * the refusal.
  */
-export async function prepareModule(
+export async function preparePersonalModule(
   request: ModuleCreateRequest,
   host: ModuleCreateHost,
 ): Promise<
   | Readonly<{
       ok: true;
       report: ModuleCreateReport;
-      module: PlannedModule;
+      module: PlannedPersonalModule;
     }>
   | Readonly<{ ok: false; report: ModuleCreateReport }>
 > {
@@ -319,7 +282,7 @@ async function plan(
   request: ModuleCreateRequest,
   host: ModuleCreateHost,
   report: ModuleCreateReport,
-): Promise<PlannedModule> {
+): Promise<PlannedPersonalModule> {
   // The name and the stack first: they need nothing read.
   const match = selectorPattern.exec(String(request.selector ?? ""));
   if (match === null)
@@ -329,14 +292,15 @@ async function plan(
       "Name the module as personalspace/<slug>.",
     );
   const [, scope, name] = match as unknown as [string, string, string];
-  if (scope.toLowerCase() !== personalspaceName)
-    return planOrganizationModule(request, host, report, scope, name);
-  if ((request.teams ?? []).length > 0)
-    throw new ModuleScaffoldError(
-      "teams_not_allowed",
-      "A personal module has no Teams: it is the person's own.",
-      "Leave out the Teams.",
+  if (scope.toLowerCase() !== personalspaceName) {
+    report.scope = "organization";
+    report.module.name = `${scope}/${name}`;
+    throw new ModuleCreateRefusal(
+      "organization-form-unavailable",
+      `This Lazurio creates only personal modules (personalspace/<slug>); an Organization's module (${scope}/${name}) comes with Lazurio/LazurioPlatform#267.`,
+      "Until then, create an Organization's module with the Lazurio root's lazurio module create <Organization>/<slug>, from a task worktree of the Organization root.",
     );
+  }
   report.scope = "personalspace";
   report.module.name = `${personalspaceName}/${name}`;
   report.module.slug = name;
@@ -439,7 +403,6 @@ async function plan(
     takenPorts,
     templates: host.templates ?? moduleTemplates,
     versions: { bun: scaffoldBunVersion, ...defaultScaffoldVersions },
-    data: request.data,
   });
 
   // 5. The person's repository `<login>/<slug>`: never one that exists.
@@ -457,7 +420,6 @@ async function plan(
       `GitHub did not answer whether ${fullName} exists.`,
       holderActions["github-unavailable"],
     );
-  await planData(report, planned, login, moduleRoot, host.github);
 
   report.status = "actionable";
   report.reason = "scaffold_planned";
@@ -480,7 +442,6 @@ async function plan(
     addsPool: pool.adds,
   });
   return Object.freeze({
-    scope: "personalspace" as const,
     folder: request.folder,
     login,
     space,
@@ -506,37 +467,10 @@ export function planDigest(
     plan: ModuleScaffoldPlan;
     pool: PortPool;
     addsPool: boolean;
-    /** An Organization's module: the Organization and the Team grants. */
-    organization?: Readonly<{ slug: string; github: string }>;
-    grants?: readonly Readonly<{
-      team: string;
-      github: string;
-      permission: string;
-    }>[];
   }>,
 ): string {
-  const data = input.plan.data;
   const confirmed = {
-    scope:
-      input.organization === undefined ? personalspaceName : "organization",
-    ...(data === null
-      ? {}
-      : {
-          data: {
-            repository: data.repository,
-            private: true,
-            slot: data.slot,
-            branch: data.branch,
-            schema: [data.schemaName, data.schemaVersion],
-            engine: data.engine,
-          },
-        }),
-    ...(input.organization === undefined
-      ? {}
-      : {
-          organization: input.organization,
-          grants: input.grants ?? [],
-        }),
+    scope: personalspaceName,
     repository: input.repository,
     private: true,
     module: input.plan.module,
@@ -588,10 +522,6 @@ export function confirmCommand(
     shellWord(request.selector),
     "--stack",
     shellWord(request.stack),
-    ...((request.teams ?? []).length === 0
-      ? []
-      : ["--teams", shellWord((request.teams ?? []).join(","))]),
-    ...(request.data === true ? ["--data"] : []),
     ...(request.name === undefined ? [] : ["--name", shellWord(request.name)]),
     ...(request.port === undefined ? [] : ["--port", String(request.port)]),
     "--confirm",
@@ -601,52 +531,14 @@ export function confirmCommand(
 }
 
 // A word as a POSIX shell reads it: bare when it is plain, quoted otherwise.
-export const shellWord = (word: string) =>
-  /^[A-Za-z0-9_./:=@%+,-]+$/.test(word)
+const shellWord = (word: string) =>
+  /^[A-Za-z0-9_./:=@%+-]+$/.test(word)
     ? word
     : `'${word.replaceAll("'", "'\\''")}'`;
 
-/**
- * The module's data repository (`--data`), of either form: `<owner>/<slug>-
- * data` must not exist on GitHub (never adopted, letter case ignored), and
- * the report names it with its slot and mount. Nothing without `--data`.
- */
-export async function planData(
-  report: ModuleCreateReport,
-  planned: ModuleScaffoldPlan,
-  owner: string,
-  moduleRoot: string,
-  github: Pick<ContentGitHub, "repository">,
-): Promise<void> {
-  const data = planned.data;
-  if (data === null) return;
-  const fullName = `${owner}/${data.repository}`;
-  const existing = await github.repository(owner, data.repository);
-  if (existing.kind === "observed")
-    throw new ModuleCreateRefusal(
-      "data-repository-exists",
-      `GitHub already has ${existing.repository.fullName} (names are compared ignoring letter case); a module's data repository is never taken over.`,
-      "Ask the person for another name of the module (its slug), or create the module without --data and mount the existing data by hand.",
-    );
-  if (existing.kind === "unavailable")
-    throw new ModuleCreateRefusal(
-      "github-unavailable",
-      `GitHub did not answer whether ${fullName} exists.`,
-      "GitHub did not answer; run the command again in a moment.",
-    );
-  report.data = {
-    repository: { full_name: fullName, private: true, create: true },
-    slot: data.slot,
-    mount: join(moduleRoot, data.mount),
-    branch: data.branch,
-    schema: { name: data.schemaName, version: data.schemaVersion },
-    engine: data.engine,
-  };
-}
-
 // ---- reads -------------------------------------------------------------------
 
-export const absent = (path: string) =>
+const absent = (path: string) =>
   lstat(path).then(
     () => false,
     (error: NodeJS.ErrnoException) => {
@@ -657,10 +549,7 @@ export const absent = (path: string) =>
 
 /** Whether `name`, or an entry differing from it only by letter case (one
  * entry on a case-insensitive filesystem), is in `directory`. */
-export async function occupied(
-  directory: string,
-  name: string,
-): Promise<boolean> {
+async function occupied(directory: string, name: string): Promise<boolean> {
   if (!(await absent(join(directory, name)))) return true;
   const lower = name.toLowerCase();
   const entries = await readdir(directory).catch(() => [] as string[]);
@@ -752,10 +641,9 @@ function poolOf(
   return { pool: { start, end }, adds: false };
 }
 
-/** The task worktree `cwd` is in, when it is a checkout of the repository of
- * `space` (the held Personalspace, or an Organization root) other than
- * `space` itself. */
-export async function locateTaskWorktree(
+/** The task worktree `cwd` is in, when it is a checkout of the held
+ * Personalspace's repository other than the Personalspace itself. */
+async function locateTaskWorktree(
   cwd: string,
   space: string,
   git: Pick<ContentGit, "worktree">,
@@ -799,7 +687,7 @@ const realpathOrNull = (path: string) => realpath(path).catch(() => null);
  */
 export async function folderLeasePorts(
   folder: string,
-  space: string | null,
+  space: string,
 ): Promise<number[]> {
   const manifests: string[] = [];
   const visible = async (directory: string) =>
@@ -814,9 +702,8 @@ export async function folderLeasePorts(
       join(root, "design-system", "lazurio.module.json"),
     );
   }
-  if (space !== null)
-    for (const module of await visible(join(space, "workspace")))
-      manifests.push(join(module, "lazurio.module.json"));
+  for (const module of await visible(join(space, "workspace")))
+    manifests.push(join(module, "lazurio.module.json"));
   const ports = new Set<number>();
   for (const path of manifests) {
     const document = await readCheckoutJson(path).catch(() => null);

@@ -49,7 +49,7 @@ workstation migration.
 | Personal and shared boundaries | Existing preset, identity, Personalspace and Publication rules are preserved. Personal-host instructions route Organization work to a work Environment instead of cloning company repositories locally. |
 | Plans, Drafts, PRs and durable knowledge | Already present in `working-here.md`; reusable terminology goes to the owning Organization through review. Generated files are not an editable company knowledge store. |
 | Keeping instructions current | Existing revision/digest reconciliation is retained. This change increments the template revision; release installation and Folder refresh are distinct from a source PR. |
-| Legacy command parity | Not supplied by prose. Missing installed commands remain separate work, e.g. [module setup #423](https://github.com/Lazurio/LazurioPlatform/issues/423) and [content synchronization #281](https://github.com/Lazurio/LazurioPlatform/issues/281). Existing Organization search is used only where available; explicit `rg` paths are the fallback. |
+| Legacy command parity | Not supplied by prose. Missing installed commands remain separate work, e.g. [module create/setup #267](https://github.com/Lazurio/LazurioPlatform/issues/267) and [content synchronization #281](https://github.com/Lazurio/LazurioPlatform/issues/281). Existing Organization search is used only where available; explicit `rg` paths are the fallback. |
 
 ## Choices and failure cases
 

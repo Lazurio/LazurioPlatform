@@ -24,9 +24,9 @@ Platform). Every file is the root's byte for byte, except:
   (`tests/module-scaffold.test.ts` holds the root's hashes at `a5615be0`).
 - **`_personal/AGENTS.md.tmpl`** is new: the rules of a personal module.
 
-Since the Organization form moved here too (decision F52's addendum of
-2026-10-14), these are the only templates that change; the root's generator
-retires (root decision 0171's addendum of 2026-10-13, point 3).
+While the Organization form still lives in the root (until
+Lazurio/LazurioPlatform#267), a change to a stack's files belongs in both
+repositories, or the two generators drift.
 
 ## Layers
 
@@ -42,10 +42,6 @@ and the stack.
 A path segment that starts with `dot-` is written with a dot (`dot-gitignore`
 → `.gitignore`, `dot-github/` → `.github/`) and the trailing `.tmpl` is dropped
 (`AGENTS.md.tmpl` → `AGENTS.md`).
-
-A module with data (`--data`) is no template either: the plan adds the
-repository-db dependency to `app/v1/package.json`, `/db/` to `.gitignore` and a
-section on the data to `AGENTS.md` (`withData` in `scaffold.ts`).
 
 ## Placeholders
 
@@ -75,6 +71,6 @@ or control characters).
 Every app template must pass the Lazurio Module Standard once generated (root
 `manual/module-standard.md`); the port is never written into a template
 (`MS-01`, chapter 4.2), the app reads it from its listener variables. Until
-`lazurio module setup` reaches the Platform (#423), `tests/module-scaffold.test.ts`
+`lazurio module setup` reaches the Platform (#267), `tests/module-scaffold.test.ts`
 checks what the Platform reads: the module manifest, each app's runtime and
 preparation declarations, and that the catalog lists the module.

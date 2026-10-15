@@ -302,8 +302,7 @@ deleted or moved. Presence is checked by existence and emptiness only, never by
 listing names.
 
 Initialization exclusively creates `.lazurio` and `manual/`, journals the preexisting
-layout identities and writes the generated outputs (`AGENTS.md`, the six manual files,
-the skill files in `.agents/skills/` and `.claude/skills/` with their directories)
+layout identities and writes the generated outputs (`AGENTS.md`, the six manual files)
 and preferences/manifest exclusively, one receipt per created file. Two
 initializers cannot both claim state. A re-run on an adopted Folder holds only the
 ephemeral operation lock, compares the recorded Machine identity with the live

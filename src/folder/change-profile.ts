@@ -37,7 +37,6 @@ import {
 import {
   enabledTools,
   folderOrganizationSettings,
-  instructionManifestSchema,
   parseFolderPreferences,
   parseInstructionManifest,
   parseOrganizationSettingsValues,
@@ -392,12 +391,8 @@ export async function planFolderChange(
       settings,
     ),
   );
-  // Every change writes the manifest of this product's outputs: an older
-  // template revision recorded at schema 2 is upgraded with the outputs it
-  // did not own, created where nothing was at their path (the preview
-  // refuses anything there as `unowned-file`).
   const nextManifest = parseInstructionManifest({
-    schemaVersion: instructionManifestSchema,
+    schemaVersion: 2,
     preferenceRevision: preferences.revision,
     templateRevision: preview.templateRevision,
     outputs: outputDigests(preview.desired),

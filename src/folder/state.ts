@@ -12,7 +12,7 @@ import {
   type ToolNotes,
 } from "../tools/catalog";
 import { type MachineBinding, parseMachineBinding } from "./machine-binding";
-import { manifestOutputPaths, type OutputPath } from "./outputs";
+import { type OutputPath, outputPaths } from "./outputs";
 import {
   type PresetReference,
   parsePresetReference,
@@ -28,13 +28,8 @@ export { stateFields } from "./state-fields";
 // artifact identity so staging can check backward read compatibility.
 export const folderStateSchemas = Object.freeze({
   preferences: Object.freeze([2, 3]),
-  manifest: Object.freeze([2, 3]),
+  manifest: Object.freeze([2]),
 });
-
-// The manifest schema this product writes: every output it renders (decision
-// F14, addendum of 2026-10-14). Schema 2, the Folder before its skills, stays
-// readable and is upgraded by the next change.
-export const instructionManifestSchema = 3;
 
 // Development schema for the generated-output transaction. Parsing is not proof
 // of custody: a filesystem adapter must establish the state owner's trusted
@@ -135,22 +130,15 @@ export function withToolSelection<
   };
 }
 
-// The manifest records one digest per generated output it owns, AGENTS.md, the
-// manual files and the skill files (decision F14), in the fixed output order.
-// A digest is the proof of ownership for a file: bytes that differ from it are
-// never replaced. Schema 3 owns every output of this product; schema 2, the
-// Folder before its skills, owns AGENTS.md and the manual, so its digests are
-// a subset:
-// an output without a digest has no prior ownership and is created by the
-// next change only where nothing is at its path (decision F14, addendum of
-// 2026-10-14).
+// Manifest schema 2 records one digest per generated output, AGENTS.md and
+// every manual file (decision F14), in the fixed output order. A digest is the
+// proof of ownership for a file: bytes that differ from it are never replaced.
 export type OutputDigests = Readonly<Record<OutputPath, string>>;
-export type RecordedDigests = Readonly<Partial<Record<OutputPath, string>>>;
 export type InstructionManifest = Readonly<{
-  schemaVersion: 2 | 3;
+  schemaVersion: 2;
   preferenceRevision: number;
   templateRevision: string;
-  outputs: RecordedDigests;
+  outputs: OutputDigests;
 }>;
 
 function revision(input: unknown): number {
@@ -163,19 +151,15 @@ export function isDigest(value: unknown): value is string {
   return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 }
 
-// Exactly the outputs of the manifest's schema, each with a digest.
-export function parseOutputDigests(
-  input: unknown,
-  paths: readonly OutputPath[] = manifestOutputPaths[instructionManifestSchema],
-): RecordedDigests {
-  const value = stateFields(input, paths);
+export function parseOutputDigests(input: unknown): OutputDigests {
+  const value = stateFields(input, outputPaths);
   const digests: Partial<Record<OutputPath, string>> = {};
-  for (const path of paths) {
+  for (const path of outputPaths) {
     const digest = value[path];
     if (!isDigest(digest)) throw new Error("Invalid output digest");
     digests[path] = digest;
   }
-  return Object.freeze(digests);
+  return Object.freeze(digests) as OutputDigests;
 }
 
 export function parseFolderPreferences(input: unknown): FolderPreferences {
@@ -249,18 +233,15 @@ export function parseInstructionManifest(input: unknown): InstructionManifest {
     "outputs",
   ]);
   if (
-    (value.schemaVersion !== 2 && value.schemaVersion !== 3) ||
+    value.schemaVersion !== 2 ||
     typeof value.templateRevision !== "string" ||
     value.templateRevision.length === 0
   )
     throw new Error("Unsupported instruction manifest");
   return Object.freeze({
-    schemaVersion: value.schemaVersion,
+    schemaVersion: 2,
     preferenceRevision: revision(value.preferenceRevision),
     templateRevision: value.templateRevision,
-    outputs: parseOutputDigests(
-      value.outputs,
-      manifestOutputPaths[value.schemaVersion],
-    ),
+    outputs: parseOutputDigests(value.outputs),
   });
 }

@@ -654,12 +654,10 @@ export function moduleAccessTarget(
   return moduleAccessUrl(dashboard(slug), tile.entry.module.module);
 }
 
-/** The prompt "+ Nový modul" hands to Chat (the wireframe's `moduleBrief`,
- * F36 addendum of 2026-10-14): the person's own words "Chci postavit nový
- * modul do Workspace Lazuria.", the Organization it goes to, and the Folder's
- * skill `new-module`, which holds everything else: what a module is, the
- * interview about its purpose, the technical choices, the plan to confirm
- * and the steps. The brief carries no procedure of its own. */
+/** The prompt "+ Nový modul" hands to Chat (the wireframe's
+ * `newModulePrompt`): the agent first asks what the module is for, then
+ * founds it by the Lazurio Module Standard with the scaffold, never by
+ * hand, and hands it over as a pull request. */
 export const newModulePrompt = (
   name: string,
   login: string,
@@ -670,12 +668,13 @@ export const newModulePrompt = (
     .replaceAll("{login}", login);
 
 /** The prompt "+ Nový modul" hands to Chat in the personal space (the
- * wireframe's `moduleBrief`, root decision 0185's addendum of 2026-10-13,
- * F36 addendum of 2026-10-14): the same opening, the personal space as a
- * private repository on the person's account, and the skill `new-module`,
- * which holds the steps of `lazurio module create personalspace/<slug>`
- * (decision F52). In Czech it is the person's own words to the agent, so in
- * tykání (root decision 0199). */
+ * wireframe's `newPersonalModulePrompt`, root decision 0185's addendum of
+ * 2026-10-13): the agent asks what the module is for, its name and its app,
+ * then founds it as the person's own private repository with
+ * `lazurio module create personalspace/<slug>` (decision F52): the plan
+ * first, the confirmed run from a task worktree beside the Personalspace,
+ * and its slot by a pull request into the Personalspace. In Czech it is the
+ * person's own words to the agent, so in tykání (root decision 0199). */
 export const newPersonalModulePrompt = (login: string, copy: Copy): string =>
   copy.appsNewPersonalModulePrompt.replaceAll("{login}", login);
 

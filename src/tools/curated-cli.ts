@@ -1,7 +1,6 @@
 import { sharedEnvironment } from "../folder/render";
 import { pilotRefusesCuratedGh } from "../github/pilot";
 import { activatableTools, executorToolName, vaultToolName } from "./catalog";
-import type { GitIdentity, GitIdentityFailure } from "./git-identity";
 import {
   githubLoginRefused,
   githubRefusal,
@@ -327,42 +326,6 @@ function sshLines(account: string | undefined, ssh: SshLink): string[] {
   ];
 }
 
-const gitIdentityFailureText: Record<GitIdentityFailure, string> = {
-  "git-missing": "git is not installed in this Environment",
-  "config-unreadable": "git could not read its configuration",
-  "viewer-unavailable": "GitHub did not return the signed-in account",
-  "write-failed": "git config --global refused the write",
-};
-
-// The person's Git identity after a gh sign-in (decision F19, addendum
-// 2026-10-14): nothing to say when git had it.
-function gitIdentityLines(identity: GitIdentity): string[] {
-  if (identity.state === "present") return [];
-  const fix =
-    "Set it with your GitHub profile name (else your login) and <id>+<login>@users.noreply.github.com: git config --global user.name … and user.email …, or sign in again: lazurio tools login gh";
-  if (identity.state === "set") {
-    const written = identity.fields.map((field) =>
-      field === "user.name"
-        ? `user.name ${identity.identity.name}`
-        : `user.email ${identity.identity.email}`,
-    );
-    const incomplete = identity.incomplete;
-    return [
-      `Git identity for your commits: set ${written.join(" and ")} (git config --global).`,
-      ...(incomplete === undefined
-        ? []
-        : [
-            `${incomplete.missing.join(" and ")} NOT set: ${gitIdentityFailureText[incomplete.reason] ?? incomplete.reason}. Commits in this Environment fail with "Author identity unknown" until it is.`,
-            fix,
-          ]),
-    ];
-  }
-  return [
-    `The Git identity is NOT set: ${gitIdentityFailureText[identity.reason] ?? identity.reason}. Commits in this Environment fail with "Author identity unknown" until it is.`,
-    fix,
-  ];
-}
-
 /** Whether a login reached its full target: for gh, the SSH key linked. */
 export function loginComplete(state: LoginState): boolean {
   return (
@@ -423,9 +386,6 @@ function loginLines(state: LoginState): string[] {
         }${state.already === true ? "; nothing was paired or changed" : ""}.`,
         ...(state.tool === "gh" && state.ssh !== undefined
           ? sshLines(state.account, state.ssh)
-          : []),
-        ...(state.tool === "gh" && state.gitIdentity !== undefined
-          ? gitIdentityLines(state.gitIdentity)
           : []),
         ...(state.tool === "composio"
           ? [

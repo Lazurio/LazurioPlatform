@@ -897,7 +897,6 @@ posixTest(
         env,
       }),
       lockDirectory: current.lockDirectory,
-      initData: async () => ({ ok: false, detail: "no data in this test" }),
       // The lockfile Bun would write (no network in tests).
       install: async (app) => {
         const pkg = JSON.parse(

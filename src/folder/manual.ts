@@ -67,8 +67,8 @@ const lazurio: readonly Text[] = [
   ),
   blank,
   t(
-    "Nainstalovaný release Lazuria obsahuje CLI `lazurio`, Launchpad a Folder Factory, která generuje soubory Lazurio Folderu vlastněné Lazuriem: `AGENTS.md`, `manual/`, skilly agentů v `.agents/skills/` a `.claude/skills/` a `.lazurio/`. Folder spolu s nainstalovaným produktem, nástroji a přihlášeními, které jsou tu dostupné, tvoří **Lazurio Environment** (decision 0144). Environmenty sdílejí verzovaný kontrakt, ne živou sdílenou složku.",
-    "An installed Lazurio release contains the `lazurio` CLI, the Launchpad and the Folder Factory that generates the Lazurio-owned files of the Lazurio Folder: `AGENTS.md`, `manual/`, the agent skills in `.agents/skills/` and `.claude/skills/`, and `.lazurio/`. The Folder together with the installed product, the tools and the sign-ins available here forms the **Lazurio Environment** (decision 0144). Environments share a versioned contract, not a live shared directory.",
+    "Nainstalovaný release Lazuria obsahuje CLI `lazurio`, Launchpad a Folder Factory, která generuje soubory Lazurio Folderu vlastněné Lazuriem: `AGENTS.md`, `manual/` a `.lazurio/`. Folder spolu s nainstalovaným produktem, nástroji a přihlášeními, které jsou tu dostupné, tvoří **Lazurio Environment** (decision 0144). Environmenty sdílejí verzovaný kontrakt, ne živou sdílenou složku.",
+    "An installed Lazurio release contains the `lazurio` CLI, the Launchpad and the Folder Factory that generates the Lazurio-owned files of the Lazurio Folder: `AGENTS.md`, `manual/` and `.lazurio/`. The Folder together with the installed product, the tools and the sign-ins available here forms the **Lazurio Environment** (decision 0144). Environments share a versioned contract, not a live shared directory.",
   ),
   blank,
   t("## Model v jedné větě", "## The model in one sentence"),
@@ -718,8 +718,8 @@ const glossary: readonly Text[] = [
     "| Lazurio | The shared framework and product: CLI, Launchpad, Folder Factory, the hosted services around them. |",
   ),
   t(
-    "| Lazurio Folder (Folder) | Složka na Environmentu, ve které Lazurio vlastní soubory `AGENTS.md`, `manual/`, své skilly v `.agents/skills/` a `.claude/skills/` a `.lazurio/`, vedle Operátorových `organizations/` a `personalspace/`. |",
-    "| Lazurio Folder (Folder) | The directory in an Environment that Lazurio owns files in: `AGENTS.md`, `manual/`, its skills in `.agents/skills/` and `.claude/skills/`, `.lazurio/`, next to the Operator's `organizations/` and `personalspace/`. |",
+    "| Lazurio Folder (Folder) | Složka na Environmentu, ve které Lazurio vlastní soubory `AGENTS.md`, `manual/` a `.lazurio/`, vedle Operátorových `organizations/` a `personalspace/`. |",
+    "| Lazurio Folder (Folder) | The directory in an Environment that Lazurio owns files in: `AGENTS.md`, `manual/`, `.lazurio/`, next to the Operator's `organizations/` and `personalspace/`. |",
   ),
   t(
     "| Lazurio Environment (Environment) | Prostředí, ve kterém se s Lazuriem pracuje: zvolený preset a profil, Folder a všechny nástroje a přihlášení, které jsou na něm dostupné (decision 0144). Česky ten Environment, na tomto Environmentu. |",
@@ -1075,8 +1075,8 @@ function productUpdate(preset: PresetName): readonly Text[] {
       ),
       doctor,
       t(
-        "- Po aktualizaci můžou být generované soubory Folderu (`AGENTS.md`, `manual/`, skilly) starší než produkt. `lazurio update` i `lazurio update status` pak hlásí „Folder refresh needed“. Obnoví je `lazurio machine folder-refresh`, spusť ho jako součást téže aktualizace. Upravený generovaný soubor obnovu zablokuje s `drift` a cestou souboru; nic se nepřepíše.",
-        "- After an update the Folder's generated files (`AGENTS.md`, `manual/`, the skills) can be older than the product. `lazurio update` and `lazurio update status` then say \"Folder refresh needed\". `lazurio machine folder-refresh` refreshes them; run it as part of the same update. An edited generated file blocks the refresh with `drift` and the file's path; nothing is overwritten.",
+        "- Po aktualizaci můžou být generované soubory Folderu (`AGENTS.md`, `manual/`) starší než produkt. `lazurio update` i `lazurio update status` pak hlásí „Folder refresh needed“. Obnoví je `lazurio machine folder-refresh`, spusť ho jako součást téže aktualizace. Upravený generovaný soubor obnovu zablokuje s `drift` a cestou souboru; nic se nepřepíše.",
+        "- After an update the Folder's generated files (`AGENTS.md`, `manual/`) can be older than the product. `lazurio update` and `lazurio update status` then say \"Folder refresh needed\". `lazurio machine folder-refresh` refreshes them; run it as part of the same update. An edited generated file blocks the refresh with `drift` and the file's path; nothing is overwritten.",
       ),
       t(
         "- Cesta zpět neexistuje: Lazurio se nikdy nevrací na dřívější verzi. Nová verze se před přepnutím sama ověří; když neprojde, odstraní se a nic se nezmění. Oprava jde jen dopředu, novějším releasem; nikdy nekopíruj starší binárku a verzi nesnižuj.",
@@ -1384,12 +1384,12 @@ function troubleshooting(preset: PresetName): readonly Text[] {
     t("## Lazurio na tomhle Environmentu", "## Lazurio in this Environment"),
     hosted
       ? t(
-          "Lazurio je tu nainstalované a spravované: produkt v `~/.local/share/lazurio/` s příkazem `~/.local/bin/lazurio` a tenhle Folder s generovanými soubory `AGENTS.md`, `manual/`, skilly a `.lazurio/`. Když tě Operátor požádá „nainstaluj Lazurio“, ověř stav (`lazurio doctor`) a doplň jen to, co chybí, postupy níže.",
-          "Lazurio is installed and managed here: the product in `~/.local/share/lazurio/` with the command `~/.local/bin/lazurio`, and this Folder with its generated files `AGENTS.md`, `manual/`, the skills and `.lazurio/`. When the Operator asks you to “install Lazurio”, check the state (`lazurio doctor`) and complete only what is missing, with the procedures below.",
+          "Lazurio je tu nainstalované a spravované: produkt v `~/.local/share/lazurio/` s příkazem `~/.local/bin/lazurio` a tenhle Folder s generovanými soubory `AGENTS.md`, `manual/` a `.lazurio/`. Když tě Operátor požádá „nainstaluj Lazurio“, ověř stav (`lazurio doctor`) a doplň jen to, co chybí, postupy níže.",
+          "Lazurio is installed and managed here: the product in `~/.local/share/lazurio/` with the command `~/.local/bin/lazurio`, and this Folder with its generated files `AGENTS.md`, `manual/` and `.lazurio/`. When the Operator asks you to “install Lazurio”, check the state (`lazurio doctor`) and complete only what is missing, with the procedures below.",
         )
       : t(
-          "Lazurio je tu nainstalované: produkt v `~/.local/share/lazurio/` s příkazem `lazurio` a tenhle Folder s generovanými soubory `AGENTS.md`, `manual/`, skilly a `.lazurio/`. Instaluje se jen svým instalátorem a aktualizuje příkazem `lazurio update`.",
-          "Lazurio is installed here: the product in `~/.local/share/lazurio/` with the command `lazurio`, and this Folder with its generated files `AGENTS.md`, `manual/`, the skills and `.lazurio/`. It is installed only by its installer and updated with `lazurio update`.",
+          "Lazurio je tu nainstalované: produkt v `~/.local/share/lazurio/` s příkazem `lazurio` a tenhle Folder s generovanými soubory `AGENTS.md`, `manual/` a `.lazurio/`. Instaluje se jen svým instalátorem a aktualizuje příkazem `lazurio update`.",
+          "Lazurio is installed here: the product in `~/.local/share/lazurio/` with the command `lazurio`, and this Folder with its generated files `AGENTS.md`, `manual/` and `.lazurio/`. It is installed only by its installer and updated with `lazurio update`.",
         ),
     blank,
     t(

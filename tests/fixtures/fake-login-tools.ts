@@ -8,9 +8,8 @@ import { join } from "node:path";
 // `$HOME/approve` as the operator's action in the browser or on the phone.
 // gh also keeps the account's SSH keys (`ssh-key add|delete`, `api
 // user/keys`), its token scopes (`--scopes`, `auth refresh`) and answers `api
-// meta` and `api user` (the account's id and profile name); a fake `ssh`
-// greets the account whose key is registered, as GitHub's `ssh -T` does.
-// Nothing here reaches a vendor or the network.
+// meta`; a fake `ssh` greets the account whose key is registered, as GitHub's
+// `ssh -T` does. Nothing here reaches a vendor or the network.
 
 export const fakeCodes = Object.freeze({
   gh: "WXYZ-9876",
@@ -115,14 +114,6 @@ api)
   meta)
     hang api-meta
     if [ -f "$HOME/gh.meta" ]; then cat "$HOME/gh.meta"; else echo '${JSON.stringify(githubHostKeys)}'; fi
-    exit 0;;
-  user)
-    # $HOME/gh.nouser: GitHub does not answer; $HOME/gh.user: its answer;
-    # $HOME/gh.user.fill: appended to ~/.gitconfig while GitHub answers (the
-    # person, or another process, sets git's identity meanwhile).
-    [ -f "$HOME/gh.nouser" ] && { echo "HTTP 502: Bad Gateway (https://api.github.com/user)" >&2; exit 1; }
-    [ -f "$HOME/gh.user.fill" ] && cat "$HOME/gh.user.fill" >> "$HOME/.gitconfig"
-    if [ -f "$HOME/gh.user" ]; then cat "$HOME/gh.user"; else printf '{"login":"%s","id":583231,"name":"The Octocat"}\n' "$(cat "$HOME/gh.state")"; fi
     exit 0;;
   "user/keys?per_page=100")
     scope admin:public_key || scope read:public_key || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
@@ -264,24 +255,14 @@ export const realSshKeygen: string | null = Bun.which("ssh-keygen", {
   PATH: systemPath,
 });
 
-/** The system's own git, when this runner has one: behind the wrapper of
- * `fakeLoginTools(…, { git: true })` it reads and writes only the
- * configuration under the temporary home. */
-export const realGit: string | null = Bun.which("git", { PATH: systemPath });
-
 /** A private home with a bin directory holding the named fake tools, a fake
  * `ssh` and, when the system has one, `ssh-keygen` (the real one behind a
  * wrapper that records its calls and can hang). The PATH is that bin
  * directory and a private directory of linked utilities: no system
- * directory, so a runner's own gh or ssh is never found. With `git`, the
- * system's git behind a wrapper that records its calls in `git.calls`, takes
- * its system configuration from `$HOME/system.gitconfig` (never the
- * runner's) and, while `$HOME/git.readonly` exists, refuses every write
- * (or, when the file names a key, every write of that key). */
+ * directory, so a runner's own gh or ssh is never found. */
 export async function fakeLoginTools(
   home: string,
   tools: readonly ("gh" | "composio" | "wacli")[] = ["gh", "composio", "wacli"],
-  options: Readonly<{ git?: boolean }> = {},
 ): Promise<string> {
   const bin = join(home, ".local", "bin");
   await mkdir(bin, { recursive: true });
@@ -295,14 +276,6 @@ export async function fakeLoginTools(
     await writeFile(
       wrapper,
       `#!/bin/sh\necho "$@" >> "$HOME/ssh-keygen.calls"\n${hang}hang ssh-keygen\nexec "${realSshKeygen}" "$@"\n`,
-    );
-    await chmod(wrapper, 0o755);
-  }
-  if (options.git === true && realGit !== null) {
-    const wrapper = join(bin, "git");
-    await writeFile(
-      wrapper,
-      `#!/bin/sh\necho "$@" >> "$HOME/git.calls"\nexport GIT_CONFIG_SYSTEM="$HOME/system.gitconfig"\nrefuse() { echo "error: could not lock config file" >&2; exit 255; }\nif [ -f "$HOME/git.readonly" ]; then only=$(cat "$HOME/git.readonly"); case " $* " in *" --get "*) ;; *) [ -z "$only" ] && refuse; case " $* " in *" $only "*) refuse;; esac;; esac; fi\nexec "${realGit}" "$@"\n`,
     );
     await chmod(wrapper, 0o755);
   }

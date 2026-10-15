@@ -757,8 +757,6 @@ test.skipIf(!keygen)(
           registration: "added",
           knownHosts: "added",
         },
-        // This PATH has no git (tests/tools-git-identity.test.ts has one).
-        gitIdentity: { state: "not-set", reason: "git-missing" },
       });
       // The fingerprint is the one ssh-keygen prints.
       const listed = await runChild([

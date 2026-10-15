@@ -151,9 +151,6 @@ test("one reading: the catalog with one path per app, tool and Executor and Comp
       ready: true,
       // This composio removes an account only after a prompt.
       disconnect: false,
-      // It is Composio's own CLI, not the build Lazurio pins, in the
-      // standard path: the page offers its update.
-      update: true,
       // "Aplikace v Composiu": the Apps of the person's Composio organization.
       apps: "https://dashboard.composio.dev/First/~/connect/apps",
       // A computer's Folder: the person chooses the organization.
@@ -1461,8 +1458,6 @@ test("Composio not signed in: the card's path asks for its sign-in first", async
   );
   const { value } = await overview(app);
   expect(value.sources.composio).toBe("signed-out");
-  // Signed out: the page asks for the sign-in, not for the update.
-  expect(value.composio.update).toBe(false);
   expect(value.apps.find((item) => item.id === "salesforce")?.path).toEqual({
     path: "composio",
     signIn: true,
@@ -1648,9 +1643,6 @@ test("Lazurio's build: names from the list without a lookup, and Odpojit removes
     ["sales@example.com", "ca_5", "expired"],
   ]);
   expect(value.composio.disconnect).toBe(true);
-  // It is the build Lazurio pins: no update offered (decision F42, addendum
-  // (b) of 2026-10-14).
-  expect(value.composio.update).toBe(false);
   expect(await lookups()).toEqual([]);
   // `lazurio integrations list --json` carries the same names and ids, and
   // reads no name either.
@@ -1667,19 +1659,6 @@ test("Lazurio's build: names from the list without a lookup, and Odpojit removes
   );
   expect(cli.code).toBe(0);
   const listed = JSON.parse(cli.stdout ?? "") as IntegrationsOverview;
-  expect(listed.composio.update).toBe(false);
-  const text = await runIntegrationsCommand(
-    ["list", "--folder", join(parent, "Lazurio")],
-    {
-      identity: embeddedIdentity(),
-      platform: process.platform,
-      env: { PATH: world.path, HOME: world.home },
-      executable: process.execPath,
-      executorEndpoint: world.executorHost(),
-      executorPresent: true,
-    },
-  );
-  expect(text.stdout).not.toContain("Composio should be updated");
   for (const id of ["gmail", "notion", "slack", "salesforce"])
     expect(accounts(listed, id)).toEqual(accounts(value, id));
   expect(await lookups()).toEqual([]);
@@ -2414,13 +2393,6 @@ test("`lazurio integrations list --json` answers what the route answers", async 
   expect(text.stdout).toContain("  Wispr Flow (wispr_flow) — through Composio");
   expect(text.stdout).toContain(
     "An app the catalog does not list is connected by the person in Composio (https://dashboard.composio.dev/First/~/connect/apps); it then shows here.",
-  );
-  // Composio's own CLI, not the build Lazurio pins: the person updates it;
-  // an agent only on their instruction (decision F42, addendum (b) of
-  // 2026-10-14).
-  expect(value.composio.update).toBe(true);
-  expect(text.stdout).toContain(
-    "Composio should be updated: the person does it in the Launchpad under Settings → Tools (Update); until then accounts cannot be disconnected from here and some have no name. Do not update it yourself unless the person asks you to.",
   );
   // A wrong invocation is a usage error.
   expect(

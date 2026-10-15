@@ -5,14 +5,9 @@ import type { GitHubViewer } from "./github";
 // a personal module's first commit). The operator's own Git identity when
 // git has one; otherwise the person's GitHub identity, which gh already
 // knows: the profile's name (else the login) and GitHub's noreply address.
-//
-// The same identity is what the curated gh sign-in writes into the
-// operator's global Git configuration where a field is missing (decision
-// F19, addendum 2026-10-14, `src/tools/git-identity.ts`), so commits that
-// Lazurio does not make (a repository-db data publish, an agent's commit)
-// work too. This per-commit fallback (`git -c`, written nowhere) stays for
-// an Environment whose gh was signed in another way or before that change,
-// or where the write could not be made; it never overrides what git has.
+// A Remote Environment sets no `user.name` or `user.email`, so without the
+// second the first run would stop. It is passed per commit (`git -c`) and
+// never written into any Git configuration.
 
 export type CommitIdentity = Readonly<{ name: string; email: string }>;
 

@@ -3,12 +3,6 @@ import {
   parseSettingsStatus,
 } from "../organization-settings/status";
 import { executorToolName, vaultToolName } from "../tools/catalog";
-import {
-  type GitIdentity,
-  type GitIdentityFailure,
-  type GitIdentityField,
-  gitIdentityFailures,
-} from "../tools/git-identity";
 import type { LoginChallenge, LoginState } from "../tools/login";
 import {
   normalizeToolNote,
@@ -17,7 +11,6 @@ import {
   toolNoteProblem,
 } from "../tools/note";
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
-import { notPinned, pinnedUpdateOffered } from "../tools/pin";
 import {
   type SshKeyFacts,
   type SshLink,
@@ -457,6 +450,15 @@ export type ToolStatusView = Readonly<{
   fix: boolean;
 }>;
 
+/** An installed tool that is not the build Lazurio pins for it (composio,
+ * decision F42 addendum (3)); a version that could not be read is not it
+ * either. */
+function notPinned(tool: ToolOverview): boolean {
+  return (
+    tool.installed && tool.pinned !== undefined && tool.version !== tool.pinned
+  );
+}
+
 /** "Update" on the row of a tool that is not the build Lazurio pins for it
  * (composio, decision F42 addendum (3)): its update installs exactly that
  * build in the standard path, keeping the sign-in. Only where it can work:
@@ -467,7 +469,11 @@ export function updateAction(
   tool: ToolOverview,
   copy: Copy,
 ): Readonly<{ label: string; named: string }> | null {
-  return pinnedUpdateOffered(tool)
+  return tool.setup === "launchpad" &&
+    tool.offered &&
+    tool.organization?.allowed !== false &&
+    tool.standardPath !== false &&
+    notPinned(tool)
     ? {
         label: copy.toolsUpdateAction,
         named: fill(copy.toolsUpdateActionNamed, { name: tool.name }),
@@ -1026,82 +1032,6 @@ function parseSshLink(input: unknown): SshLink | null {
   };
 }
 
-const gitIdentityFields: readonly GitIdentityField[] = [
-  "user.name",
-  "user.email",
-];
-
-function parseGitIdentityFields(input: unknown): GitIdentityField[] | null {
-  return Array.isArray(input) &&
-    input.every((field) =>
-      gitIdentityFields.includes(field as GitIdentityField),
-    )
-    ? (input as GitIdentityField[])
-    : null;
-}
-
-function parseGitIdentity(input: unknown): GitIdentity | null {
-  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
-  const value = input as Record<string, unknown>;
-  if (value.state === "present") return { state: "present" };
-  if (value.state === "set") {
-    const fields = parseGitIdentityFields(value.fields);
-    const identity = value.identity as Record<string, unknown> | undefined;
-    if (
-      fields === null ||
-      !identity ||
-      typeof identity !== "object" ||
-      !text(identity.name) ||
-      !text(identity.email)
-    )
-      return null;
-    const incomplete = value.incomplete as Record<string, unknown> | undefined;
-    let rest: GitIdentityField[] | null = null;
-    if (incomplete !== undefined) {
-      rest =
-        incomplete && typeof incomplete === "object"
-          ? parseGitIdentityFields(incomplete.missing)
-          : null;
-      if (
-        rest === null ||
-        rest.length === 0 ||
-        (incomplete.reason !== "config-unreadable" &&
-          incomplete.reason !== "write-failed")
-      )
-        return null;
-    }
-    if (fields.length === 0) return null;
-    return {
-      state: "set",
-      fields,
-      identity: { name: identity.name, email: identity.email },
-      ...(incomplete === undefined || rest === null
-        ? {}
-        : {
-            incomplete: {
-              reason: incomplete.reason as "config-unreadable" | "write-failed",
-              missing: rest,
-            },
-          }),
-    };
-  }
-  if (
-    value.state !== "not-set" ||
-    !gitIdentityFailures.includes(value.reason as GitIdentityFailure)
-  )
-    return null;
-  const missing =
-    value.missing === undefined
-      ? undefined
-      : parseGitIdentityFields(value.missing);
-  if (missing === null) return null;
-  return {
-    state: "not-set",
-    reason: value.reason as GitIdentityFailure,
-    ...(missing === undefined ? {} : { missing }),
-  };
-}
-
 function parseChallenge(input: unknown): LoginChallenge | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const value = input as Record<string, unknown>;
@@ -1177,11 +1107,6 @@ export function parseLoginState(input: unknown): LoginView | null {
       if (value.already !== undefined && value.already !== true) return null;
       const ssh = value.ssh === undefined ? undefined : parseSshLink(value.ssh);
       if (ssh === null) return null;
-      const gitIdentity =
-        value.gitIdentity === undefined
-          ? undefined
-          : parseGitIdentity(value.gitIdentity);
-      if (gitIdentity === null) return null;
       return {
         kind: "signed-in",
         tool,
@@ -1190,7 +1115,6 @@ export function parseLoginState(input: unknown): LoginView | null {
           ? {}
           : { organization: value.organization }),
         ...(ssh === undefined ? {} : { ssh }),
-        ...(gitIdentity === undefined ? {} : { gitIdentity }),
         ...(value.already === true ? { already: true as const } : {}),
       };
     }
@@ -1379,33 +1303,6 @@ export function sshOutcome(
       account: ssh.provedAs ?? "?",
     }),
   };
-}
-
-/** What a person reads about their Git identity after a gh sign-in
- * (decision F19, addendum 2026-10-14): whose name the commits now carry, or
- * that publishing from this Environment fails until it is set (a partial
- * write included). Null when git already had it, which needs no word. */
-export function gitIdentityNote(
-  state: LoginView,
-  copy: Copy,
-): Readonly<{ set: boolean; message: string }> | null {
-  if (state.kind !== "signed-in" || state.gitIdentity === undefined)
-    return null;
-  const identity = state.gitIdentity;
-  if (identity.state === "present") return null;
-  // Commits need both fields: a partial write is still "not set" for people.
-  if (identity.state === "set" && identity.incomplete === undefined)
-    return {
-      set: true,
-      message:
-        identity.fields.length === 2
-          ? fill(copy.toolsGitIdentitySet, {
-              name: identity.identity.name,
-              email: identity.identity.email,
-            })
-          : copy.toolsGitIdentityCompleted,
-    };
-  return { set: false, message: copy.toolsGitIdentityNotSet };
 }
 
 /** The notice of "Install" on a Team Environment's gh row: what the

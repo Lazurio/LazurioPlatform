@@ -20,11 +20,7 @@ import {
   createManualDirectory,
   verifyManualDirectory,
 } from "./manual-directory";
-import {
-  ensureOutputDirectories,
-  outputDirectoriesInnermostFirst,
-} from "./output-directories";
-import { isOutputPath, outputFile, outputPaths } from "./outputs";
+import { outputFile, outputPaths } from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { workspacePreset } from "./presets";
@@ -240,8 +236,6 @@ export async function resumeInitialization(
       await assertHeld();
       if (handedLayout) await verifyHandoverLayout(folder, handedLayout);
       if (!(await exists(join(file.directory, file.name)))) {
-        if (isOutputPath(file.receipt))
-          await ensureOutputDirectories(folder, file.receipt);
         const handle = await open(join(file.directory, file.name), "wx", 0o600);
         try {
           await handle.writeFile(file.content, "utf8");
@@ -282,9 +276,7 @@ export async function resumeInitialization(
       archive,
       history,
       state,
-      ...outputDirectoriesInnermostFirst(outputPaths).map((relative) =>
-        join(folder, relative),
-      ),
+      manual,
       ...layout.map((name) => join(folder, name)),
       folder,
       dirname(folder),

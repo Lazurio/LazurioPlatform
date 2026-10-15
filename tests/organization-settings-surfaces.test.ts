@@ -113,7 +113,6 @@ test.skipIf(process.platform === "win32")(
         source: "organization",
         ready: false,
         disconnect: false,
-        update: false,
         apps: null,
         organization: null,
       });
@@ -161,8 +160,6 @@ for (const [name, settings, source] of [
           source,
           ready: true,
           disconnect: false,
-          // Composio's own CLI in the standard path: its update is offered.
-          update: true,
           // Composio's Apps in the organization of the Organization's name.
           apps: "https://dashboard.composio.dev/Example%20Company/~/connect/apps",
           organization: { name: "Example Company", state: "matches" },

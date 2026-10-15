@@ -45,7 +45,7 @@ import {
 // the same plans, ports, refusals and slot insert, the Organization form
 // byte for byte equal to the root's, and the personal form. Where the root
 // measured a generated module with `lazurio module setup`, which the Platform
-// does not have yet (#423), these tests check what the Platform itself reads:
+// does not have yet (#267), these tests check what the Platform itself reads:
 // the module manifest, each app's runtime and preparation, and the catalog.
 // Synthetic names only.
 
@@ -887,111 +887,4 @@ describe("the Platform reads a generated personal module", () => {
       }
     },
   );
-});
-
-describe("planModuleScaffold with data (--data)", () => {
-  test("the app depends on one released repository-db, Git ignores db/, and the data slot is a repository-db mount", () => {
-    const without = plan({ teams: ["web"] });
-    const result = plan({ teams: ["web"], data: true });
-    expect(without.data).toBeNull();
-    expect(result.treeHash).not.toBe(without.treeHash);
-    const pkg = JSON.parse(file(result, "app/v1/package.json"));
-    expect(pkg.dependencies["@lazurio/repository-db"]).toBe(
-      `github:Lazurio/repository-db#v${defaultScaffoldVersions.repositoryDb}`,
-    );
-    // Sorted with the template's own dependencies; nothing else changes.
-    expect(Object.keys(pkg.dependencies)).toEqual(
-      Object.keys(pkg.dependencies).sort(),
-    );
-    const before = JSON.parse(file(without, "app/v1/package.json"));
-    delete pkg.dependencies["@lazurio/repository-db"];
-    expect(pkg).toEqual(before);
-    expect(file(result, ".gitignore")).toBe(
-      `${file(without, ".gitignore")}/db/\n`,
-    );
-    expect(file(result, "AGENTS.md")).toStartWith(file(without, "AGENTS.md"));
-    expect(file(result, "AGENTS.md")).toContain("`portal-data`");
-    // Only those three files differ.
-    const changed = result.files
-      .filter(
-        (entry) =>
-          without.files.find((other) => other.path === entry.path)?.content !==
-          entry.content,
-      )
-      .map((entry) => entry.path)
-      .sort();
-    expect(changed).toEqual([".gitignore", "AGENTS.md", "app/v1/package.json"]);
-    expect(result.data).toEqual({
-      repository: "portal-data",
-      mount: "db",
-      branch: "v3",
-      schemaName: "portal-data",
-      schemaVersion: "0.1.0",
-      engine: `github:Lazurio/repository-db#v${defaultScaffoldVersions.repositoryDb}`,
-      slot: {
-        path: "workspace/portal/db",
-        slug: "portal-data",
-        teams: ["web"],
-        category: "application",
-        default_access: "expected",
-        required_roles: ["*"],
-        source_of_truth: "repository-db:v3",
-        status: "active",
-        notes: expect.stringContaining("AcmeHQ/portal-data"),
-        materialization: "repository_db_mount",
-        repository_db: {
-          repo: "AcmeHQ/portal-data",
-          url: "git@github.com:AcmeHQ/portal-data.git",
-          branch: "v3",
-          config: "repository-db.yaml",
-          data_root: "data",
-          profile: "repository-db-v3",
-          app_writable_path_policy: "repository_db_publish_only",
-        },
-        git: { url: "git@github.com:AcmeHQ/portal-data.git", branch: "v3" },
-      },
-    });
-    // The slot's members in the order the Organization's manifests write them.
-    expect(Object.keys(result.data?.slot ?? {})).toEqual([
-      "path",
-      "slug",
-      "teams",
-      "category",
-      "default_access",
-      "required_roles",
-      "source_of_truth",
-      "status",
-      "notes",
-      "materialization",
-      "repository_db",
-      "git",
-    ]);
-  });
-
-  test("a personal module's data is private to its owner, without Teams", () => {
-    const result = personal({ data: true });
-    expect(result.data?.slot).toMatchObject({
-      path: "workspace/notes/db",
-      slug: "notes-data",
-      default_access: "private",
-      required_roles: ["owner"],
-      repository_db: { repo: "example/notes-data" },
-    });
-    expect(result.data?.slot.teams).toBeUndefined();
-  });
-
-  test("refused for a stack without a Bun app, and for a taken data slot", () => {
-    for (const stack of ["none", "python-uv"])
-      expectCode(() => plan({ stack, data: true }), "data_needs_bun_app");
-    expectCode(
-      () =>
-        plan({
-          data: true,
-          existingSlots: [
-            { path: "workspace/portal-data", slug: "portal-data" },
-          ],
-        }),
-      "slot_exists",
-    );
-  });
 });

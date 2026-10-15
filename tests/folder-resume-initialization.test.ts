@@ -83,7 +83,6 @@ for (const stop of [
   "manual-directory",
   "instructions",
   "manual",
-  "skills",
   "preferences",
   "manifest",
   "layout",
@@ -208,8 +207,6 @@ test.skipIf(process.platform === "win32")(
         revision: 1,
       });
       expect((await readdir(folder)).sort()).toEqual([
-        ".agents",
-        ".claude",
         ".lazurio",
         "AGENTS.md",
         "manual",

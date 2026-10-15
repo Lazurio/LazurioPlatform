@@ -50,9 +50,6 @@ export type FakeComposioState = {
    * prints every account's id, its alias (null for none) and its
    * `display_name` where it has one. */
   lazurioBuild?: boolean;
-  /** What `--version` prints: by default the build's where `lazurioBuild`,
-   * else 0.4.1 (Composio's own CLI). */
-  version?: string;
   next: number;
   accounts: FakeAccount[];
   /** The preview's stand-in: a link's account is active at once. */

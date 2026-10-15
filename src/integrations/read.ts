@@ -16,7 +16,6 @@ import {
   type ToolsOverview,
   toolsOverview,
 } from "../tools/overview";
-import { pinnedUpdateOffered } from "../tools/pin";
 import { integrationsCatalog } from "./catalog";
 import type { IntegrationsCatalog } from "./catalog-schema";
 import {
@@ -285,11 +284,6 @@ export async function readIntegrations(
     composio: source.composio,
     composioSignIns: host.composioSignIns?.() ?? new Map(),
     composioDisconnect: source.disconnect,
-    // Not the build Lazurio pins, and its update can work: the row of
-    // Settings → Tools says so too (decision F42, addendum (b) of
-    // 2026-10-14).
-    composioUpdate:
-      composioTool !== undefined && pinnedUpdateOffered(composioTool),
     readAt: (host.now ?? (() => new Date()))().toISOString(),
   });
 }

@@ -110,12 +110,6 @@ export function integrationsText(overview: IntegrationsOverview): string {
             ? `Composio: the person's account has more than one organization named "${target.name}", so Composio works in the person's current organization meanwhile. Send them to Apps → Integrations to keep one.`
             : `Composio: it could not be switched to the organization "${target.name}"; nothing of Composio counts now, and "Check connections" in Apps → Integrations tries again.`,
     );
-  // Composio not the build Lazurio pins (decision F42, addendum (b) of
-  // 2026-10-14): the person updates it; an agent only on their instruction.
-  if (overview.composio.update)
-    lines.push(
-      "Composio should be updated: the person does it in the Launchpad under Settings → Tools (Update); until then accounts cannot be disconnected from here and some have no name. Do not update it yourself unless the person asks you to.",
-    );
   lines.push(
     overview.page === null
       ? "A missing app is connected by the person in the Launchpad under Apps → Integrations; --json lists every app with what it needs."

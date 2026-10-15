@@ -42,18 +42,6 @@ export type RepositoryAnswer =
   | Readonly<{ kind: "missing" }>
   | Readonly<{ kind: "unavailable" }>;
 
-/** A Team as GitHub names it: its slug and its numeric id. */
-export type GitHubTeam = Readonly<{ slug: string; databaseId: number }>;
-
-export type TeamAnswer =
-  | Readonly<{ kind: "observed"; team: GitHubTeam }>
-  /** 404: no such Team, or one this identity cannot see. */
-  | Readonly<{ kind: "missing" }>
-  | Readonly<{ kind: "unavailable" }>;
-
-/** The repository permissions a Team grant names (REST's `permission`). */
-export type TeamPermission = "pull" | "triage" | "push" | "maintain" | "admin";
-
 export type DeclarationAnswer =
   | Readonly<{ kind: "file"; value: unknown }>
   /** 404: no such file, or the repository is absent or not readable. */
@@ -93,31 +81,16 @@ export type ContentGitHub = Readonly<{
    * is filled asynchronously). */
   branchReady(owner: string, name: string): Promise<boolean>;
   /** Creates the empty private repository `name` of the account gh is
-   * signed in with (`POST /user/repos`), or, given an `organization`, of
-   * that Organization (`POST /orgs/<organization>/repos`): no README, no
-   * license, no template. The answer is GitHub's account of the repository
-   * it created, which the caller verifies (decision F52). */
+   * signed in with (`POST /user/repos`: no README, no license, no
+   * template); the answer is GitHub's account of the repository it created,
+   * which the caller verifies (decision F52). */
   createRepository(
     name: string,
     description: string,
-    organization?: string,
   ): Promise<
     | Readonly<{ kind: "created"; repository: GitHubRepository }>
     | Readonly<{ kind: "failed" }>
   >;
-  /** An Organization's Team by its slug (`GET orgs/<org>/teams/<slug>`), as
-   * this identity can see it. */
-  team(organization: string, slug: string): Promise<TeamAnswer>;
-  /** Grants a Team `permission` on a repository of its Organization (`PUT
-   * orgs/<org>/teams/<team>/repos/<owner>/<name>`) and reads the grant back;
-   * `granted` only when GitHub then answers that the Team reaches it with
-   * that permission. */
-  grantTeam(
-    organization: string,
-    team: string,
-    fullName: string,
-    permission: TeamPermission,
-  ): Promise<"granted" | "failed">;
   /** The Git remote of a repository for this sign-in: SSH when gh's
    * `git_protocol` is `ssh`, otherwise HTTPS with gh as the credential
    * helper, as `gh repo clone` and `gh auth setup-git` do. */
@@ -264,54 +237,6 @@ export function parseRepository(stdout: string): GitHubRepository | null {
   } catch {
     return null;
   }
-}
-
-// A Team's slug as GitHub forms it: lowercase letters, digits and hyphens.
-const teamSlugPattern = /^[a-z0-9](?:[a-z0-9-]{0,98}[a-z0-9])?$/;
-
-/** `GET orgs/<org>/teams/<slug>`: the Team's slug and id. */
-export function parseTeam(stdout: string): GitHubTeam | null {
-  try {
-    const value = record(JSON.parse(stdout));
-    const slug = value?.slug;
-    const id = value?.id;
-    if (
-      typeof slug !== "string" ||
-      !teamSlugPattern.test(slug) ||
-      typeof id !== "number" ||
-      !Number.isSafeInteger(id) ||
-      id < 1
-    )
-      return null;
-    return Object.freeze({ slug, databaseId: id });
-  } catch {
-    return null;
-  }
-}
-
-// Whether a read permission covers the one a grant named.
-const grantOrder: readonly RepositoryPermission[] = [
-  "read",
-  "triage",
-  "write",
-  "maintain",
-  "admin",
-];
-const grantNames: Readonly<Record<TeamPermission, RepositoryPermission>> = {
-  pull: "read",
-  triage: "triage",
-  push: "write",
-  maintain: "maintain",
-  admin: "admin",
-};
-function reaches(
-  permission: RepositoryPermission | null,
-  granted: TeamPermission,
-): boolean {
-  return (
-    permission !== null &&
-    grantOrder.indexOf(permission) >= grantOrder.indexOf(grantNames[granted])
-  );
 }
 
 /** gh on this Environment, as the Launchpad's other GitHub reads run it. */
@@ -509,19 +434,13 @@ export function ghContentGitHub(
       }
       return false;
     },
-    async createRepository(name, description, organization) {
-      if (
-        !repositoryNamePattern.test(name) ||
-        (organization !== undefined && !githubLoginPattern.test(organization))
-      )
-        return { kind: "failed" };
+    async createRepository(name, description) {
+      if (!repositoryNamePattern.test(name)) return { kind: "failed" };
       const answer = await run([
         "api",
         "--method",
         "POST",
-        organization === undefined
-          ? "user/repos"
-          : `orgs/${organization}/repos`,
+        "user/repos",
         "--raw-field",
         `name=${name}`,
         "--raw-field",
@@ -536,53 +455,6 @@ export function ghContentGitHub(
       return repository === null
         ? { kind: "failed" }
         : { kind: "created", repository };
-    },
-    async team(organization, slug) {
-      if (!githubLoginPattern.test(organization) || !teamSlugPattern.test(slug))
-        return { kind: "unavailable" };
-      const answer = await run(["api", `orgs/${organization}/teams/${slug}`]);
-      if (answer.kind === "ok") {
-        const team = parseTeam(answer.stdout);
-        return team === null
-          ? { kind: "unavailable" }
-          : { kind: "observed", team };
-      }
-      if (answer.kind === "error" && answer.status === "404")
-        return { kind: "missing" };
-      return { kind: "unavailable" };
-    },
-    async grantTeam(organization, team, fullName, permission) {
-      if (
-        !githubLoginPattern.test(organization) ||
-        !teamSlugPattern.test(team) ||
-        !repositoryPattern.test(fullName)
-      )
-        return "failed";
-      const path = `orgs/${organization}/teams/${team}/repos/${fullName}`;
-      const put = await run([
-        "api",
-        "--method",
-        "PUT",
-        path,
-        "--raw-field",
-        `permission=${permission}`,
-      ]);
-      if (put.kind !== "ok") return "failed";
-      // Read back: the repository as the Team reaches it, with the Team's
-      // permissions on it.
-      const read = await run([
-        "api",
-        "--header",
-        "Accept: application/vnd.github.v3.repository+json",
-        path,
-      ]);
-      if (read.kind !== "ok") return "failed";
-      const repository = parseRepository(read.stdout);
-      return repository !== null &&
-        repository.fullName.toLowerCase() === fullName.toLowerCase() &&
-        reaches(repository.permission, permission)
-        ? "granted"
-        : "failed";
     },
     async remote(fullName) {
       if (!repositoryPattern.test(fullName))

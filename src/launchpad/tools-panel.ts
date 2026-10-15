@@ -12,7 +12,6 @@ import {
   connectionLine,
   curatedActions,
   currentNotes,
-  gitIdentityNote,
   installOutcome,
   type LoginPhase,
   type LoginView,
@@ -672,38 +671,16 @@ export function createToolsPanel(
     // gh: signed in is complete only with the SSH key linked (decision F19,
     // addendum 2026-09-28); otherwise the linking step did not finish.
     const ssh = sshOutcome(state, copy);
-    // The Git identity the sign-in set, or that it could not (F19, addendum
-    // 2026-10-14): a missing one is said aloud, a set one is for support.
-    const identity = gitIdentityNote(state, copy);
     if (ssh !== null && !ssh.linked) {
       current.failedAt = "linking";
-      loginFailed(
-        [
-          ssh.message,
-          ssh.detail,
-          identity?.set === false ? identity.message : "",
-        ]
-          .filter((part) => part !== "")
-          .join(" "),
-        true,
-      );
+      loginFailed(`${ssh.message} ${ssh.detail}`, true);
       void refresh({ signIn: true });
       return;
     }
     if (ssh !== null) {
       phase("signed-in", ssh.message);
       // Which key it uses is for support: folded.
-      loginBody.replaceChildren(
-        ...(identity?.set === false
-          ? [element("p", "tools-muted", identity.message)]
-          : []),
-        folded(
-          identity?.set === true
-            ? `${ssh.detail} ${identity.message}`
-            : ssh.detail,
-        ),
-        doneRow(),
-      );
+      loginBody.replaceChildren(folded(ssh.detail), doneRow());
       afterSignIn(current.tool.name, state);
       return;
     }

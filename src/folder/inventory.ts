@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, open } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
-import { type OutputPath, outputDirectories, outputFile } from "./outputs";
+import { type OutputPath, outputFile } from "./outputs";
 import type { ObservedFile } from "./reconcile";
 
 // Caller supplies an already validated, owned, stable Folder. This read-only
@@ -21,11 +21,10 @@ export async function inspectOutput(
   if (!root.isDirectory() || root.isSymbolicLink()) return { kind: "unsafe" };
   const { directory, name } = outputFile(folder, output);
   try {
-    // Every directory on the way, outermost first (`manual/`, or a skill's
-    // `.agents/skills/<name>/`): an absent one means the file is absent;
-    // anything but a real directory is unsafe, so no symlink is followed.
-    for (const relative of outputDirectories(output)) {
-      const parent = await lstat(join(folder, relative));
+    if (directory !== folder) {
+      // The owned `manual/` directory: absent means every file in it is absent;
+      // anything but a real directory is unsafe.
+      const parent = await lstat(directory);
       if (!parent.isDirectory() || parent.isSymbolicLink())
         return { kind: "unsafe" };
     }

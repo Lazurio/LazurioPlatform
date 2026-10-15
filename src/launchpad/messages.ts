@@ -360,12 +360,6 @@ const en = {
   toolsLoginRefreshText:
     "Your gh sign-in may not manage the SSH keys of your account yet. To allow it, open the GitHub device page on any device (this computer, another one or your phone) and enter this code:",
   toolsSshLinkedDone: "Connected as {account}.",
-  toolsGitIdentitySet:
-    "Your commits in this Environment carry the name {name} <{email}>.",
-  toolsGitIdentityCompleted:
-    "Git in this Environment now has your name and email for commits; what was missing came from your GitHub account.",
-  toolsGitIdentityNotSet:
-    "Git in this Environment does not know your name and email for commits yet, so publishing changes from here fails. Ask an agent to set your Git identity.",
   toolsSshKeyCreated:
     "A new key without a passphrase was created, so agents can use it: {path} ({fingerprint}).",
   toolsSshKeyReused:
@@ -533,11 +527,11 @@ const en = {
   appsNewModuleCopyFailed:
     "The brief could not be copied; open Chat and describe the new module to the agent.",
   appsNewModulePrompt:
-    "I want to build a new module in the Lazurio Workspace.\nIt will be in the Organization {name} (GitHub {login}).\n\nUse the skill `new-module`. First ask me what the module is for and what it should solve for me, choose the technical details yourself, and before you start building, show me the plan to confirm.",
+    "I want to found a new module in the Organization {name} (GitHub {login}).\n\nBefore you create anything, ask me one question at a time:\n1. What the module is for and who will use it.\n2. What it should be called (a name and a short slug).\n3. Whether it should have an app and which (vite-react, astro, astro-starlight, bun-service, python-uv), or none.\n4. Which Teams should have access to it.\n\nThen follow the Lazurio Module Standard (skill lazurio-module-standard):\n- found the module with the scaffold `lazurio module create {login}/<slug> --stack <stack> --teams <teams>` from a task worktree of the Organization's root, never by hand, and first show me the plan with --dry-run;\n- check that the module's repository exists on GitHub in the Organization {login} and that the chosen Teams have access to it;\n- prepare the result as a pull request and ask me before Publication.",
   // The personal space's "+ Nový modul" (root decision 0185's addendum of
   // 2026-10-13); in Czech the person's own words, so tykání (0199).
   appsNewPersonalModulePrompt:
-    "I want to build a new module in the Lazurio Workspace.\nIt will be in my personal space, as a private repository on my GitHub account {login}.\n\nUse the skill `new-module`. First ask me what the module is for and what it should solve for me, choose the technical details yourself, and before you start building, show me the plan to confirm.",
+    "I want to found a new module in my personal space (the Personalspace of my GitHub account {login}).\n\nBefore you create anything, ask me one question at a time:\n1. What the module is for.\n2. What it should be called (a name and a short slug).\n3. Whether it should have an app and which (vite-react, astro, astro-starlight, bun-service, python-uv), or none.\n\nThen follow the Lazurio Module Standard (skill lazurio-module-standard) and the AGENTS.md of my personal space personalspace/{login}_GEN3. Run the `git -C` commands from the Lazurio Folder's root, where this thread starts:\n- The module is mine alone: a private repository {login}/<slug> on my GitHub account, in the workspace/ folder of my personal space, with no Organization and no Teams. Found it with this Environment's `lazurio module create`, never by hand; if the command does not know the form personalspace/<slug>, stop and tell me.\n- First create a task worktree of my personal space beside it in personalspace/.worktrees/, never inside it: `git -C personalspace/{login}_GEN3 worktree add -b <branch> \"$PWD/personalspace/.worktrees/<task>\" main`.\n- In the task worktree run `lazurio module create personalspace/<slug> --stack <stack> --name '<name>' --dry-run --json` and show me the plan: the private repository {login}/<slug>, the files and the port. Wait until I confirm it.\n- Only then run the same command with `--confirm <plan> --json` instead of `--dry-run --json`, where <plan> is the dry run's `plan` (its next_steps give the exact command).\n- Check that the repository {login}/<slug> is on my account and private.\n- In the task worktree commit modules.manifest.json with the module's slot, push the branch and open a pull request into {login}/{login}_GEN3. Merging it is my Publication: ask me before it.\n- After the merge, fast-forward my personal space's main (`git -C personalspace/{login}_GEN3 pull --ff-only`) and remove the task worktree (`git -C personalspace/{login}_GEN3 worktree remove \"$PWD/personalspace/.worktrees/<task>\"`).\n- If the dry run warns that my personal space still names the template's placeholder owner (Lazurio/LazurioPlatform#377), tell me, but do not run the template's bootstrap for it.",
   appsGuide: "Guide",
   appsMarketplace: "Marketplace",
   appsSoon: "coming soon",
@@ -1183,7 +1177,7 @@ const en = {
   composioModelOtherEnvironments: "their Environments",
   composioModelPersonal: "your personal Environment",
   composioModelCaption:
-    "You invite nobody to your organizations and share no key.",
+    "Each organization is yours alone: you invite nobody to it and share no key.",
   integrationsToolsUnreadable: "The tools could not be read.",
   integrationsRetry: "Try again",
   integrationsConnect: "Connect",
@@ -1243,14 +1237,6 @@ const en = {
   integrationsDisconnectUnsupported:
     "Composio cannot disconnect from here yet: disconnect the account in Composio.",
   integrationsDisconnectFailed: "The account could not be disconnected.",
-  integrationsDisconnecting: "Disconnecting…",
-  integrationsDisconnectStillListed:
-    "Disconnected, but it still shows here. Check connections in a moment.",
-  integrationsComposioUpdate:
-    "Update Composio to disconnect accounts here and see their names.",
-  integrationsComposioUpdating: "Updating Composio…",
-  integrationsComposioUpdated: "Composio is updated.",
-  integrationsComposioUpdateFailed: "The update did not finish. Try again.",
   integrationsOpenComposio: "Open Composio",
   integrationsMissingPath: "It cannot be connected here yet.",
   integrationsMissingTool: "The tool {tool} connects it.",
@@ -1791,12 +1777,6 @@ const cs: Record<MessageKey, string> = {
   toolsLoginRefreshText:
     "Vaše přihlášení gh zatím nesmí spravovat SSH klíče vašeho účtu. Povolíte to na libovolném zařízení (tomhle počítači, jiném nebo telefonu): otevřete stránku zařízení GitHubu a zadejte tento kód:",
   toolsSshLinkedDone: "Připojeno jako {account}.",
-  toolsGitIdentitySet:
-    "Vaše commity v tomhle Environmentu ponesou jméno {name} <{email}>.",
-  toolsGitIdentityCompleted:
-    "Git v tomhle Environmentu už zná vaše jméno i e-mail pro commity; co chybělo, doplnil z vašeho účtu GitHubu.",
-  toolsGitIdentityNotSet:
-    "Git v tomhle Environmentu zatím nezná vaše jméno a e-mail pro commity, takže publikování změn odsud selže. Požádejte agenta, ať vaši identitu v Gitu nastaví.",
   toolsSshKeyCreated:
     "Vytvořil se nový klíč bez hesla, aby ho agenti mohli používat: {path} ({fingerprint}).",
   toolsSshKeyReused:
@@ -1963,11 +1943,11 @@ const cs: Record<MessageKey, string> = {
   appsNewModuleCopyFailed:
     "Zadání se nepodařilo zkopírovat; otevřete Chat a popište agentovi nový modul.",
   appsNewModulePrompt:
-    "Chci postavit nový modul do Workspace Lazuria.\nBude v Organizaci {name} (GitHub {login}).\n\nPoužij skill `new-module`. Nejdřív se mě vyptej, k čemu modul bude a co mi má vyřešit, technické věci zvol sám a než začneš stavět, ukaž mi plán k potvrzení.",
+    "Chci založit nový modul v Organizaci {name} (GitHub {login}).\n\nNež cokoli vytvoříš, zeptej se mě postupně, jednu otázku po druhé:\n1. K čemu modul je a kdo ho bude používat.\n2. Jak se má jmenovat (název a krátký slug).\n3. Jestli má mít aplikaci a jakou (vite-react, astro, astro-starlight, bun-service, python-uv), nebo žádnou.\n4. Které Teamy k němu mají mít přístup.\n\nPak postupuj podle Lazurio Module Standard (skill lazurio-module-standard):\n- modul založ scaffoldem `lazurio module create {login}/<slug> --stack <stack> --teams <teamy>` z task worktree rootu Organizace, nikdy ručně, a nejdřív mi ukaž plán přes --dry-run;\n- ověř, že repozitář modulu existuje na GitHubu v Organizaci {login} a že k němu mají přístup vybrané Teamy;\n- výsledek připrav jako pull request a před Publikací se mě zeptej.",
   // The personal space's "+ Nový modul" (root decision 0185's addendum of
   // 2026-10-13); in Czech the person's own words, so tykání (0199).
   appsNewPersonalModulePrompt:
-    "Chci postavit nový modul do Workspace Lazuria.\nBude v mém osobním prostoru, jako soukromý repozitář na mém GitHub účtu {login}.\n\nPoužij skill `new-module`. Nejdřív se mě vyptej, k čemu modul bude a co mi má vyřešit, technické věci zvol sám a než začneš stavět, ukaž mi plán k potvrzení.",
+    'Chci založit nový modul ve svém osobním prostoru (Personalspace mého GitHub účtu {login}).\n\nNež cokoli vytvoříš, zeptej se mě postupně, jednu otázku po druhé:\n1. K čemu modul je.\n2. Jak se má jmenovat (název a krátký slug).\n3. Jestli má mít aplikaci a jakou (vite-react, astro, astro-starlight, bun-service, python-uv), nebo žádnou.\n\nPak postupuj podle Lazurio Module Standard (skill lazurio-module-standard) a AGENTS.md mého osobního prostoru personalspace/{login}_GEN3. Příkazy `git -C` spouštěj z kořene Lazurio Folderu, kde tohle vlákno začíná:\n- Modul je jen můj: soukromý repozitář {login}/<slug> na mém GitHub účtu, ve složce workspace/ mého osobního prostoru, bez Organizace a bez Teamů. Založ ho příkazem `lazurio module create` tohoto Environmentu, nikdy ručně; kdyby příkaz tvar personalspace/<slug> neznal, zastav se a řekni mi to.\n- Nejdřív vytvoř task worktree mého osobního prostoru vedle něj v personalspace/.worktrees/, nikdy v něm: `git -C personalspace/{login}_GEN3 worktree add -b <branch> "$PWD/personalspace/.worktrees/<task>" main`.\n- V task worktree spusť `lazurio module create personalspace/<slug> --stack <stack> --name \'<název>\' --dry-run --json` a ukaž mi plán: soukromý repozitář {login}/<slug>, soubory a port. Počkej, až ho potvrdím.\n- Teprve pak spusť tentýž příkaz s `--confirm <plan> --json` místo `--dry-run --json`, kde <plan> je `plan` z dry runu (přesný příkaz uvádí jeho next_steps).\n- Ověř, že repozitář {login}/<slug> je na mém účtu a je soukromý.\n- V task worktree commitni modules.manifest.json se slotem modulu, pushni větev a otevři pull request do {login}/{login}_GEN3. Merge je moje Publikace: před ním se mě zeptej.\n- Po merge srovnej main mého osobního prostoru (`git -C personalspace/{login}_GEN3 pull --ff-only`) a odstraň task worktree (`git -C personalspace/{login}_GEN3 worktree remove "$PWD/personalspace/.worktrees/<task>"`).\n- Když dry run varuje, že můj osobní prostor ještě nese zástupného vlastníka šablony (Lazurio/LazurioPlatform#377), řekni mi to, ale bootstrap šablony kvůli tomu nespouštěj.',
   appsGuide: "Guide",
   appsMarketplace: "Marketplace",
   appsSoon: "již brzy",
@@ -2606,7 +2586,7 @@ const cs: Record<MessageKey, string> = {
   composioModelOtherEnvironments: "jejich Environmenty",
   composioModelPersonal: "váš osobní Environment",
   composioModelCaption:
-    "Do svých organizací nikoho nezvete a žádný klíč nesdílíte.",
+    "Každá organizace je jen vaše: nikoho do ní nezvete a žádný klíč nesdílíte.",
   integrationsToolsUnreadable: "Nástroje se nepodařilo načíst.",
   integrationsRetry: "Zkusit znovu",
   integrationsConnect: "Připojit",
@@ -2666,14 +2646,6 @@ const cs: Record<MessageKey, string> = {
   integrationsDisconnectUnsupported:
     "Composio odsud zatím odpojit nejde: účet odpojte v Composiu.",
   integrationsDisconnectFailed: "Účet se nepodařilo odpojit.",
-  integrationsDisconnecting: "Odpojuji…",
-  integrationsDisconnectStillListed:
-    "Odpojeno, ale ještě se tu ukazuje. Za chvíli zkontrolujte připojení.",
-  integrationsComposioUpdate:
-    "Aktualizujte Composio, ať tu můžete účty odpojovat a vidět jejich jména.",
-  integrationsComposioUpdating: "Aktualizuji Composio…",
-  integrationsComposioUpdated: "Composio je aktualizované.",
-  integrationsComposioUpdateFailed: "Aktualizace nedoběhla. Zkuste to znovu.",
   integrationsOpenComposio: "Otevřít Composio",
   integrationsMissingPath: "Tady ji zatím nejde připojit.",
   integrationsMissingTool: "Připojí ji nástroj {tool}.",

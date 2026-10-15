@@ -733,8 +733,8 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   the fragment token locally), answers `application/json`, `Cache-Control: no-store`:
   `{"schema": "lazurio.prompt.v1", "id", "text", "cwd"}`. `text` is the prompt in the
   person's language (the Folder's profile locale), `cwd` the absolute root of the
-  Lazurio Folder for every prompt, an Organization's too (root decision 0189; F36
-  addendum of 2026-10-14: the Folder's skills are found only from there). Three ids
+  Organization on this Environment (`<Folder>/organizations/<directory>`) for an
+  Organization's prompt and the Lazurio Folder's root for the Folder's. Three ids
   exist (`src/launchpad/prompts.ts`). `prepare-content` ("Vyřešit v Chatu", root
   decision 0188) is the Folder's: only where the Environment signs in as its person,
   only while the last installation the content routes report stopped, its text the
@@ -1103,15 +1103,15 @@ the first run's line shows. An Organization never has it.
   personal space listed with a reason, there is no tile. The click hands over
   `{id: "new-personal-module", organization: <login>, text}` through `handOver`, by
   link where Chat takes prompts, otherwise through the clipboard (a workstation always
-  copies). Both briefs (F36 addendum of 2026-10-14) are short: "Chci postavit nový
-  modul do Workspace Lazuria." / "I want to build a new module in the Lazurio
-  Workspace.", where the module goes (the personal space as a private repository on
-  `<login>`'s account, or the Organization `{name}` with its GitHub login), and "Použij
-  skill `new-module`. …" / "Use the skill `new-module`. …", which asks for the interview
-  about the purpose, the agent's own technical choices and the plan to confirm. The
-  Folder's skill `new-module` (F14 addendum of 2026-10-14) holds every step, including
-  `lazurio module create personalspace/<slug>`; the brief carries none. The personal
-  brief must not reach a release before the real run of that command (#399).
+  copies). The prompt has the agent ask what the module is for, its name and slug and
+  its app and stack; create a task worktree beside the Personalspace in
+  `personalspace/.worktrees/<task>`; show the plan of `lazurio module create
+  personalspace/<slug> --stack <stack> --dry-run --json` and wait; run it with
+  `--confirm <plan> --json`; check that `<login>/<slug>` is private; open the slot's pull
+  request into `<login>/<login>_GEN3` and ask before Publication; after the merge
+  `git -C <space> pull --ff-only` and remove the worktree; and only mention the
+  placeholder owner of #377. It must not reach a release before the real run of that
+  command (#399).
 
 **Routes.** `/` is the first Organization's Apps home; `/o/<org>` one Organization's
 Apps home, its sections Workspace and Productionspace (F36, F32's final addendum);
@@ -1405,9 +1405,9 @@ usage.
 spelling; codes the content core has keep the content core's.
 
 1. The name and the stack, with nothing read: `invalid_selector`, `unknown_stack`,
-   `invalid_slug`, `reserved_slug` (the root's list and the gateway's labels).
-   `<Organization>/<module>` is the Organization form (below). `--teams` with
-   `personalspace` is a usage error.
+   `invalid_slug`, `reserved_slug` (the root's list and the gateway's labels), and
+   `organization-form-unavailable` for `<Organization>/<module>` until #267. `--teams`
+   with `personalspace` is a usage error.
 2. A Personalspace on this preset (`personalspace-not-here`) and installed
    (`personalspace-absent`, next step `lazurio personalspace install`).
 3. Held by gh's account (#186): the holder decision's reasons (`github-signed-out`,
@@ -1470,39 +1470,6 @@ catalog lists `personalspace/<module>`). A repository is never adopted, and one 
 created is never deleted: a stop after its creation is `action_required` and says what to
 do with it. Then the person's agent commits the manifest, pushes the branch and opens the
 pull request into `<login>/<login>_GEN3`; its merge is the person's Publication.
-
-**An Organization's module** (F52's addendum of 2026-10-14, #267): `lazurio module
-create <Organization>/<module> --stack <stack> --teams <team,team> …`, the same plan,
-dry run and digest, planned by `planOrganizationModule` in
-`src/modules/module-create-organization.ts` and run by the same `createModule`. The
-Organization is named by its slug, its directory or its GitHub login. Only an
-active Owner of the Organization (`organization-owner-required`), never on a Team
-Environment (`team-environment`); `--teams` required (`teams-required`), each a Team of
-`lazurio.organization.json` that exists on GitHub (`unknown_team`,
-`team-not-on-github`, `team-binding-mismatch`); the Organization found in the catalog
-and resolving cleanly, also in the task branch (`organization_not_found`,
-`organization_ambiguous`, `organization_manifest_not_mutation_safe`,
-`organization-not-bound`); its pool out of `23000`–`23099`
-(`organization-pool-invalid`). The run needs a linked worktree of the Organization root
-in `<root>/.worktrees/root/<task>` on a branch of its own
-(`organization_root_not_task_worktree`, `organization_worktree_misplaced`,
-`organization_root_on_main`). It creates `<login>/<module>` with `POST
-/orgs/<login>/repos`, places the module in the primary checkout's `workspace/<module>`,
-grants each Team Write after the push (step `grant`, read back; `grant-failed` names the
-exact `gh api` command), and declares the slot in the task worktree with the
-Organization's regenerated projection (`company.gen3.json` and the digest in
-`lazurio.organization.json`, `src/modules/organization-declaration.ts`), so the root
-still resolves `transition` (or `current`) when the pull request is merged. Its check
-reads the task worktree's documents and the placed module; the catalog lists the module
-after the merge. Tests: `tests/organization-module-create.test.ts`.
-
-**A module with data** (`--data`, F52's second addendum of 2026-10-14), in either
-form and only for a stack with a Bun app: the app depends on one released
-`@lazurio/repository-db`, the module ignores `db/`, and after the push the step `data`
-creates the private repository `<owner>/<slug>-data` (verified as the module's, granted
-to its Teams), mounts it with the app's own `repository-db init` on `v3` (the host's
-`initData`, `processDataInit` in `module-create-cli.ts`), and the slot
-`workspace/<slug>/db` (`repository_db_mount`) is declared after the module's.
 
 **`module prepare` is dispatched.** `src/cli.ts` sent only `start`, `stop`, `status` and
 `logs` to the module command, so `lazurio module prepare` fell to the catalog's usage

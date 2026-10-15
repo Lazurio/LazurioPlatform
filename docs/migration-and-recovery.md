@@ -448,16 +448,6 @@ object (unknown field, fail closed, nothing rewritten). An installation that a
 release before 2026-09-28 rolled back below that release is repaired forward by
 returning to it.
 
-The generated-instructions manifest has schema 3 since the Folder carries agent skills
-([F14's addendum of 2026-10-14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)):
-it owns the skill files in `.agents/skills/` and `.claude/skills/` too. The release declares `manifest: [2, 3]`, reads a schema 2
-manifest, and upgrades it in the next change of the generated Folder (the refresh
-after a hosting apply, or a profile or tools change), creating each new file only where
-nothing is at its path, and its directories only where they are absent. Older binaries refuse a schema 3 manifest (fail closed,
-nothing rewritten) and are repaired forward like the preferences above. The
-transaction journal moves to schema 4 with it: an output the change creates has no
-identity before it.
-
 A profile update renders deterministic output without host secrets. It changes only
 paths named in its ownership manifest, each matched to the expected old digest.
 Untracked/unknown paths and edited generated files are preserved and block conflicting

@@ -1,9 +1,5 @@
 import { join } from "node:path";
-import {
-  outputDirectories,
-  outputFile,
-  outputPaths,
-} from "../../src/folder/outputs";
+import { outputFile, outputPaths } from "../../src/folder/outputs";
 import { outputDigests, previewFolder } from "../../src/folder/preview";
 import { mkdirOwnedFixture, writeOwnedFixture } from "./owned-files";
 
@@ -23,8 +19,7 @@ export async function writeRenderedFolder(
   const preview = await previewFolder(source, null, async () => ({
     kind: "absent",
   }));
-  for (const directory of new Set(outputPaths.flatMap(outputDirectories)))
-    await mkdirOwnedFixture(join(folder, directory));
+  await mkdirOwnedFixture(join(folder, "manual"));
   for (const path of outputPaths) {
     const { directory, name } = outputFile(folder, path);
     await writeOwnedFixture(
@@ -43,7 +38,7 @@ export async function writeRenderedFolder(
     ...(source.tools?.length ? { tools: source.tools } : {}),
   });
   const manifest = JSON.stringify({
-    schemaVersion: 3,
+    schemaVersion: 2,
     preferenceRevision: 1,
     templateRevision: preview.templateRevision,
     outputs: outputDigests(preview.desired),

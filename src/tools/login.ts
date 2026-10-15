@@ -2,7 +2,6 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { type ActivatableTool, activatableTools } from "./catalog";
 import { ghStatus } from "./gh-status";
-import { ensureGitIdentity, type GitIdentity } from "./git-identity";
 import { plainText } from "./redact";
 import {
   ghAccount,
@@ -67,10 +66,6 @@ export type LoginState =
       /** gh only: whether `git clone git@github.com:…` works as `account`
        * (decision F19, addendum 2026-09-28). A gh sign-in always says it. */
       ssh?: SshLink;
-      /** gh only: the person's Git identity (`user.name`, `user.email`),
-       * found, set from the signed-in GitHub account where it was missing,
-       * or not set with its reason (decision F19, addendum 2026-10-14). */
-      gitIdentity?: GitIdentity;
       /** The tool was signed in before this session: it connected without
        * showing a challenge, and its probe confirmed it (#98). */
       already?: true;
@@ -677,19 +672,6 @@ export function createLoginSessions(environment: LoginEnvironment) {
           ? { state: "not-linked", reason: "scope-missing", fallback: "agent" }
           : await linkSshKey(await sshContext(session, gh), signedIn.account);
     if (ssh === "gone" || !current(session)) return;
-    // The person's Git identity where git has none (decision F19, addendum
-    // 2026-10-14), whatever became of the key: commits need it either way.
-    // It asks the Team rule again right before it writes.
-    const gitIdentity = await ensureGitIdentity({
-      git: await resolveOnPath("git", environment.path, environment.platform),
-      gh,
-      account: signedIn.account,
-      run: sessionRunner(session),
-      proceed: () => mayProceed(session),
-    }).catch(
-      (): GitIdentity => ({ state: "not-set", reason: "config-unreadable" }),
-    );
-    if (gitIdentity === "gone" || !current(session)) return;
     // Before the final "signed in".
     if (!(await mayProceed(session))) return;
     finish(session, {
@@ -697,7 +679,6 @@ export function createLoginSessions(environment: LoginEnvironment) {
       tool: session.tool,
       account: signedIn.account,
       ssh,
-      gitIdentity,
     });
   }
 
