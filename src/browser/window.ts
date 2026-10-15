@@ -95,7 +95,10 @@ async function boundTarget(
   }
 }
 
-function agentBrowser(seams: WindowSeams, args: readonly string[]) {
+function agentBrowser(
+  seams: Pick<WindowSeams, "env" | "run">,
+  args: readonly string[],
+) {
   const home = seams.env.HOME ?? "";
   const environment: Record<string, string> = {
     HOME: home,
@@ -122,6 +125,27 @@ function agentBrowser(seams: WindowSeams, args: readonly string[]) {
   );
 }
 
+/** `operation` under the account's window lock (`windowLockPath`); a lock
+ * that cannot be taken is `window-create-failed`. */
+async function underWindowLock<T>(
+  env: WindowSeams["env"],
+  operation: () => Promise<T>,
+): Promise<T> {
+  const path = windowLockPath(env);
+  let lock: FileLock | null = null;
+  if (path !== null)
+    try {
+      lock = await acquireFileLock(path, { timeoutMs: windowLockTimeoutMs });
+    } catch {
+      throw new BrowserWindowFailure("window-create-failed");
+    }
+  try {
+    return await operation();
+  } finally {
+    await lock?.release();
+  }
+}
+
 /** The session's window: the bound one while it is open, otherwise a new
  * window in the default context bound to the session, pinned, at the
  * thread window's size (which is also the view's viewport). Checked and
@@ -131,18 +155,60 @@ export async function ensureThreadWindow(
   url: string | undefined,
   seams: WindowSeams,
 ): Promise<ThreadWindow> {
-  const path = windowLockPath(seams.env);
-  let lock: FileLock | null = null;
-  if (path !== null)
-    try {
-      lock = await acquireFileLock(path, { timeoutMs: windowLockTimeoutMs });
-    } catch {
-      throw new BrowserWindowFailure("window-create-failed");
-    }
+  return underWindowLock(seams.env, () =>
+    ensureThreadWindowLocked(session, url, seams),
+  );
+}
+
+/** Binds the session to the tab with agent-browser's own commands and pins
+ * it with a command that changes nothing: its agent works there next, and an
+ * app that follows the session's binding shows it (T3 Code records a tab its
+ * thread's session newly binds, F47 point 4). False when either command
+ * failed. */
+async function bindSession(
+  session: string,
+  targetId: string,
+  seams: Pick<WindowSeams, "env" | "run">,
+): Promise<boolean> {
+  const ok = (result: Awaited<ReturnType<ProcessRunner>>) =>
+    result !== "timeout" && result.exitCode === 0;
+  const bound = await agentBrowser(seams, [
+    "--session",
+    session,
+    "--no-pin-tab",
+    "tab",
+    targetId,
+  ]).catch(() => "timeout" as const);
+  // Pinned with a command that changes nothing. The page keeps the window's
+  // size, which the people's view sets to the person's page area (F39 point
+  // 3); a fixed viewport served only the dashboard's pointer mapping.
+  if (!ok(bound)) return false;
+  const pinned = await agentBrowser(seams, [
+    "--session",
+    session,
+    "--pin-tab",
+    "get",
+    "url",
+  ]).catch(() => "timeout" as const);
+  return ok(pinned);
+}
+
+/** The default browser's page becomes the thread's window (root decision
+ * 0201 point 5): the session is bound to the tab the hub opened, under the
+ * account's window lock, so a `lazurio browser window` of the same thread at
+ * the same moment converges on it. The thread's earlier window stays as long
+ * as something holds it. False when it could not be bound. */
+export async function bindThreadWindow(
+  session: string,
+  targetId: string,
+  seams: Pick<WindowSeams, "env" | "run">,
+): Promise<boolean> {
   try {
-    return await ensureThreadWindowLocked(session, url, seams);
-  } finally {
-    await lock?.release();
+    return await underWindowLock(seams.env, () =>
+      bindSession(session, targetId, seams),
+    );
+  } catch {
+    return false;
   }
 }
 
@@ -174,28 +240,8 @@ async function ensureThreadWindowLocked(
   }
   const targetId = targetIdOf(created);
   if (targetId === null) throw new BrowserWindowFailure("window-create-failed");
-  const ok = (result: Awaited<ReturnType<ProcessRunner>>) =>
-    result !== "timeout" && result.exitCode === 0;
-  const bound = await agentBrowser(seams, [
-    "--session",
-    session,
-    "--no-pin-tab",
-    "tab",
-    targetId,
-  ]).catch(() => "timeout" as const);
-  // Pinned with a command that changes nothing. The page keeps the window's
-  // size, which the people's view sets to the person's page area (F39 point
-  // 3); a fixed viewport served only the dashboard's pointer mapping.
-  const pinned = ok(bound)
-    ? await agentBrowser(seams, [
-        "--session",
-        session,
-        "--pin-tab",
-        "get",
-        "url",
-      ]).catch(() => "timeout" as const)
-    : "timeout";
-  if (!ok(bound) || !ok(pinned)) throw new BrowserWindowFailure("bind-failed");
+  if (!(await bindSession(session, targetId, seams)))
+    throw new BrowserWindowFailure("bind-failed");
   return Object.freeze({ session, targetId, created: true });
 }
 
