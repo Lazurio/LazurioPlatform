@@ -414,7 +414,13 @@ export function aiServicesLines(tool: string, services: AiServices): string[] {
         `Chat (T3 Code) turned on and read again: ${t3.providers
           .map(
             (provider) =>
-              `${provider.provider} ${provider.enabled ? provider.status : "turned off"}`,
+              `${provider.provider} ${
+                !provider.enabled
+                  ? "turned off"
+                  : provider.auth === "authenticated"
+                    ? "ready"
+                    : "turned on, its sign-in still being checked"
+              }`,
           )
           .join(", ")}.`,
       );
@@ -438,9 +444,11 @@ export function aiServicesLines(tool: string, services: AiServices): string[] {
       break;
     case "failed":
       lines.push(
-        t3.reason === "not-running"
-          ? "Chat (T3 Code) is not running, so it was not asked; it reads the sign-in when it starts."
-          : `Chat (T3 Code) did NOT read the sign-in again (${t3.reason}); it reads it at its next check, within about five minutes.`,
+        t3.reason === "not-enabled"
+          ? `Chat (T3 Code) did NOT turn on ${t3.providers.join(" and ")}: it answered without an enabled ${t3.providers.join(" or ")} provider. Check the providers in Chat's Settings → Providers, then sign in again.`
+          : t3.reason === "not-running"
+            ? "Chat (T3 Code) is not running, so it was not asked; it reads the sign-in when it starts."
+            : `Chat (T3 Code) did NOT read the sign-in again (${t3.reason}); it reads it at its next check, within about five minutes.`,
       );
       break;
     case "not-installed":

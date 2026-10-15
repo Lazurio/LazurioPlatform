@@ -126,10 +126,10 @@ export async function refreshT3Providers(
     objectIn(capabilities.stdout)?.providerRefresh !== true
   )
     return Object.freeze({ state: "not-supported" });
-  const request = JSON.stringify({
-    providers: aiProviders.filter((tool) => input.providers.includes(tool)),
-    enable: true,
-  });
+  const requested = aiProviders.filter((tool) =>
+    input.providers.includes(tool),
+  );
+  const request = JSON.stringify({ providers: requested, enable: true });
   const answer = await input
     .run(
       [
@@ -149,8 +149,21 @@ export async function refreshT3Providers(
     return Object.freeze({ state: "failed", reason: "timeout" });
   if (answer.exitCode === 0) {
     const providers = t3ProvidersAnswer(answer.stdout);
-    return providers === undefined
-      ? Object.freeze({ state: "failed", reason: "unreadable" })
+    if (providers === undefined)
+      return Object.freeze({ state: "failed", reason: "unreadable" });
+    // Turned on is what T3 Code answers: an enabled instance of each CLI it
+    // was asked about (Pablo's review of #441). Its sign-in may still be
+    // being checked; that is reported, not required.
+    const off = requested.filter(
+      (cli) =>
+        !providers.some((entry) => entry.provider === cli && entry.enabled),
+    );
+    return off.length > 0
+      ? Object.freeze({
+          state: "failed",
+          reason: "not-enabled",
+          providers: Object.freeze(off),
+        })
       : Object.freeze({ state: "refreshed", providers });
   }
   const output = `${answer.stderr}\n${answer.stdout}`;

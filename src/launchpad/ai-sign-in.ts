@@ -97,6 +97,14 @@ function servicesOf(value: unknown): AiServices | undefined {
     reload = { state: t3.state };
   else if (t3.state === "driver-mismatch")
     reload = { state: "driver-mismatch", mismatches: [] };
+  else if (t3.state === "failed" && t3.reason === "not-enabled")
+    reload = {
+      state: "failed",
+      reason: "not-enabled",
+      providers: Array.isArray(t3.providers)
+        ? t3.providers.filter((cli): cli is AiProvider => isAiProvider(cli))
+        : [],
+    };
   else if (
     t3.state === "failed" &&
     ["not-running", "refused", "unreadable", "timeout"].includes(
