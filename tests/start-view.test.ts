@@ -76,6 +76,8 @@ test("a new work Environment: AI now, GitHub after it, the content after GitHub"
     ],
     // "Připojit" is there, disabled until an agent can help.
     github: { enabled: false },
+    // ChatGPT or Claude; on a computer of one's own no sentence before them.
+    ai: { kind: "choose", before: null, cancel: false },
   });
 });
 
@@ -135,6 +137,270 @@ test("the AI step from the CLIs: the Organization's, the person's accounts, or n
   expect(
     startView(facts({ ai: "unknown", aiReading: null }), cs)?.github,
   ).toEqual({ enabled: true });
+});
+
+test("Připojit AI: ChatGPT or Claude, the sentence before them in the Environment browser, and nothing without it (F19's addendum of 2026-10-15)", () => {
+  const step = (overrides: Partial<StartFacts>, copy = cs) => {
+    const view = startView(facts(overrides), copy);
+    return { step: view?.steps[0], ai: view?.ai };
+  };
+  // A Remote Environment with its Environment browser: the passwords of the
+  // person's own computer do not reach it, said once before the choice.
+  expect(step({ aiPlace: "panel" })).toEqual({
+    step: {
+      basic: "ai",
+      mark: "now",
+      title: "Připojit AI",
+      status: "Agent vám pak pomůže s dalšími kroky.",
+    },
+    ai: {
+      kind: "choose",
+      before:
+        "Připravte si heslo k ChatGPT nebo Claude (případně ke Googlu) a telefon, protože správce hesel ani passkey z počítače tu nefungují.",
+      cancel: false,
+    },
+  });
+  expect(step({ aiPlace: "panel" }, en).ai).toEqual({
+    kind: "choose",
+    before:
+      "Have your ChatGPT or Claude password (or your Google one) and your phone ready: your computer's password manager and passkeys do not work here.",
+    cancel: false,
+  });
+  // An AI that could not be checked is offered too.
+  expect(step({ ai: "unknown", aiReading: null, aiPlace: "own" }).ai).toEqual({
+    kind: "choose",
+    before: null,
+    cancel: false,
+  });
+  // Without the Environment browser the step says why and starts nothing.
+  expect(step({ aiPlace: "none" })).toEqual({
+    step: {
+      basic: "ai",
+      mark: "now",
+      title: "Připojit AI",
+      status:
+        "Přihlášení se otevírá v prohlížeči Prostředí, který tu zatím není. Doplní ho aktualizace Prostředí.",
+    },
+    ai: { kind: "none" },
+  });
+  // Provided by the Organization: done, nothing runs.
+  expect(
+    step({
+      ai: "organization",
+      aiPlace: "panel",
+      aiReading: {
+        state: "organization",
+        providers: [{ provider: "codex", state: "provided" }],
+      },
+    }),
+  ).toEqual({
+    step: {
+      basic: "ai",
+      mark: "done",
+      title: "Připojit AI",
+      status: "Zajišťuje vaše Organizace.",
+    },
+    ai: { kind: "none" },
+  });
+  // Still checking: nothing offered yet.
+  expect(step({ ai: "loading", aiReading: null }).ai).toEqual({ kind: "none" });
+});
+
+test("Připojit AI while signing in: where to finish it, the panel again, Zrušit, and the code of Claude's code page", () => {
+  const step = (overrides: Partial<StartFacts>, copy = cs) => {
+    const view = startView(facts(overrides), copy);
+    return {
+      status: view?.steps[0]?.status,
+      mark: view?.steps[0]?.mark,
+      ai: view?.ai,
+    };
+  };
+  const session = "0123456789abcdef0123456789abcdef";
+  expect(
+    step({ aiPlace: "panel", aiSignIn: { kind: "starting", tool: "codex" } }),
+  ).toEqual({
+    status: "Spouštím přihlášení…",
+    mark: "now",
+    ai: { kind: "signing-in", reopen: null, code: null },
+  });
+  expect(
+    step({
+      aiPlace: "panel",
+      aiSignIn: {
+        kind: "waiting",
+        tool: "codex",
+        session,
+        view: "https://browser.example.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        code: false,
+      },
+    }),
+  ).toEqual({
+    status: "Dokončete přihlášení k ChatGPT v prohlížeči vpravo.",
+    mark: "now",
+    ai: { kind: "signing-in", reopen: { panel: true }, code: null },
+  });
+  const page = "https://claude.com/cai/oauth/authorize?code=true";
+  expect(
+    step(
+      {
+        aiSignIn: {
+          kind: "waiting",
+          tool: "claude",
+          session,
+          url: page,
+          code: true,
+        },
+      },
+      en,
+    ),
+  ).toEqual({
+    status: "Finish signing in to Claude in your browser window.",
+    mark: "now",
+    ai: { kind: "signing-in", reopen: { url: page }, code: { note: null } },
+  });
+  expect(
+    step({
+      aiSignIn: {
+        kind: "waiting",
+        tool: "claude",
+        session,
+        url: page,
+        code: true,
+        codeNote: "invalid",
+      },
+    }).ai,
+  ).toEqual({
+    kind: "signing-in",
+    reopen: { url: page },
+    code: {
+      note: {
+        text: "Tohle není celý kód. Zkopírujte ho prosím znovu celý.",
+        tone: "warn",
+      },
+    },
+  });
+  expect(
+    step({ aiSignIn: { kind: "finishing", tool: "claude", session } }),
+  ).toEqual({
+    status: "Přihlášeno k Claude. Chat a Codex teď přihlášení načítají…",
+    mark: "now",
+    ai: { kind: "none" },
+  });
+});
+
+test("Připojit AI that did not finish, and a connected one: Zkusit znovu, the accounts, another account, and services that did not read it", () => {
+  const view = (overrides: Partial<StartFacts>, copy = cs) =>
+    startView(facts(overrides), copy);
+  for (const [reason, status] of [
+    ["failed", "Přihlášení se nepovedlo. Zkuste to prosím znovu."],
+    ["expired", "Přihlášení vypršelo. Zkuste to prosím znovu."],
+    [
+      "browser-unavailable",
+      "Prohlížeč Prostředí přihlašovací stránku neotevřel. Zkuste to prosím znovu.",
+    ],
+    [
+      "no-answer",
+      "Lazurio na přihlášení neodpovědělo. Zkuste to prosím znovu.",
+    ],
+  ] as const) {
+    const failed = view({
+      aiPlace: "panel",
+      aiSignIn: { kind: "failed", tool: "codex", reason },
+    });
+    expect([
+      failed?.steps[0]?.mark,
+      failed?.steps[0]?.status,
+      failed?.ai,
+    ]).toEqual(["failed", status, { kind: "retry", tool: "codex" }]);
+  }
+  const connected = {
+    ai: "connected" as const,
+    aiReading: {
+      state: "connected" as const,
+      providers: [
+        {
+          provider: "codex" as const,
+          state: "signed-in" as const,
+          method: "chatgpt" as const,
+          account: "a@example.com",
+        },
+        { provider: "claude" as const, state: "signed-out" as const },
+      ],
+    },
+    aiPlace: "panel" as const,
+  };
+  expect(view(connected)?.steps[0]).toEqual({
+    basic: "ai",
+    mark: "done",
+    title: "Připojit AI",
+    status: "Připojeno: ChatGPT, a@example.com",
+  });
+  expect(view(connected)?.ai).toEqual({ kind: "connected" });
+  // "Přihlásit jiný účet": the choice again, with Zrušit.
+  expect(view({ ...connected, aiChoosing: true })?.ai).toEqual({
+    kind: "choose",
+    before:
+      "Připravte si heslo k ChatGPT nebo Claude (případně ke Googlu) a telefon, protože správce hesel ani passkey z počítače tu nefungují.",
+    cancel: true,
+  });
+  // Signing the second one in keeps the step done.
+  expect(
+    view({ ...connected, aiSignIn: { kind: "starting", tool: "claude" } })
+      ?.steps[0]?.mark,
+  ).toBe("done");
+  // A second sign-in that did not finish: the accounts stay, with why.
+  const retried = view({
+    ...connected,
+    aiSignIn: { kind: "failed", tool: "claude", reason: "expired" },
+  });
+  expect(retried?.steps[0]).toEqual({
+    basic: "ai",
+    mark: "done",
+    title: "Připojit AI",
+    status: "Připojeno: ChatGPT, a@example.com",
+    warning: "Přihlášení vypršelo. Zkuste to prosím znovu.",
+  });
+  expect(retried?.ai).toEqual({ kind: "retry", tool: "claude" });
+  // Chat could not turn the provider on: a clear sentence beside the account.
+  expect(
+    view({
+      ...connected,
+      aiSignIn: {
+        kind: "signed-in",
+        tool: "codex",
+        services: {
+          appServer: { state: "restarted" },
+          t3: { state: "driver-mismatch", mismatches: [] },
+        },
+      },
+    })?.steps[0]?.warning,
+  ).toBe(
+    "Chat nezapnul Codex, protože se tak u něj jmenuje jiný poskytovatel. Zkontrolujte poskytovatele v Nastavení Chatu.",
+  );
+  expect(
+    view(
+      {
+        ...connected,
+        aiSignIn: {
+          kind: "signed-in",
+          tool: "codex",
+          services: { t3: { state: "failed", reason: "not-running" } },
+        },
+      },
+      en,
+    )?.steps[0]?.warning,
+  ).toBe("Chat and Codex start using the sign-in a little later.");
+  // Services that read it, or will by themselves: nothing to say.
+  expect(
+    view({
+      ...connected,
+      aiSignIn: {
+        kind: "signed-in",
+        tool: "codex",
+        services: { t3: { state: "not-supported" } },
+      },
+    })?.steps[0],
+  ).not.toHaveProperty("warning");
 });
 
 test("GitHub once AI is there, then the content, then all done", () => {
