@@ -329,7 +329,7 @@ test("this computer and an Environment without a vault say so in one line; a 019
   );
 });
 
-test("a connected own vault says how it is used: tell the agent in Chat, the value is asked for here; a pilot, a vault not ready and a page not read yet do not", () => {
+test("a ready own vault says how it is used: tell the agent in Chat, the value is asked for here; a pilot, a vault not ready and a page not read yet do not", () => {
   // Every reader of a connected own vault sees the way to use it, also before
   // they are added (DEV-6631 task 947: the page did not say what to do).
   for (const person of [
@@ -362,6 +362,24 @@ test("a connected own vault says how it is used: tell the agent in Chat, the val
       state: "unreachable",
       ...facts,
     } as VaultStatus).guide,
+  ).toBe(false);
+  // Connected but not ready yet: the setup still signing in (the row says
+  // the vault is being created), or the session locked until a refresh.
+  for (const phase of ["install", "account", "vault", "sign-in"] as const) {
+    const creating = vaultPageView(
+      model(connected(), { setup: phase }),
+      member,
+      cs,
+    );
+    expect(creating.row?.line).toBe(cs.vaultPageCreating);
+    expect(creating.guide).toBe(false);
+  }
+  expect(
+    vaultPageView(
+      model({ ...connected(null), organization: null, locked: true }),
+      member,
+      cs,
+    ).guide,
   ).toBe(false);
   expect(vaultPageView(null, null, cs).guide).toBe(false);
   expect(

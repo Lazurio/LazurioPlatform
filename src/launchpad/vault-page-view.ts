@@ -182,8 +182,8 @@ export type VaultPageView = Readonly<{
   hint: string | null;
   /** How the vault is used from here (DEV-6631 task 947): tell the agent
    * in Chat what it needs, and it asks for the value on this page. Shown
-   * with a connected own vault, never for a 0197 pilot, which takes no
-   * requests. */
+   * only with a ready own vault (connected, unlocked, no setup running),
+   * never for a 0197 pilot, which takes no requests. */
   guide: boolean;
 }>;
 
@@ -288,9 +288,14 @@ export function vaultPageView(
     (status.state === "connected" ? status.organization : null) ??
     copy.vaultPageTitle;
   const row = { title: named, ...rowLine(status, setup, copy) };
-  // How the vault is used, shown with a connected own vault: a 0197 pilot
-  // takes no requests, and a vault that is not ready cannot save one.
-  const guide = status.state === "connected" && status.origin !== "pilot-0197";
+  // How the vault is used, shown only with a ready own vault: connected,
+  // its session unlocked and no setup running. A 0197 pilot takes no
+  // requests, and a vault still being set up or locked cannot save one yet.
+  const guide =
+    status.state === "connected" &&
+    status.origin !== "pilot-0197" &&
+    status.locked !== true &&
+    setup === null;
   if (model.environment === "team" || model.environment === "automated")
     return view({ guide, row, hint: copy.vaultPageAgentsOnly });
   const links = vaultPageLinks(
