@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   browserCommand,
+  browserCommandWithoutNotice,
   browserLink,
   runBrowserCommand,
 } from "../src/browser/cli";
@@ -1577,6 +1578,265 @@ test.skipIf(process.platform === "win32")(
     expect(opened).toHaveLength(1);
   },
 );
+
+// Root decision 0201 point 5 (Lazurio/LazurioPlatform#427): `lazurio
+// browser open <address>` is the Remote Environment's default browser, the
+// command BROWSER and xdg-open hand a page to. It opens only http and https,
+// through the view's hub like `link --url`; in a T3 Code thread it binds the
+// thread's session to the new tab, so T3 Code's right panel shows it.
+test.skipIf(process.platform === "win32")(
+  "lazurio browser open: an http(s) address opens in the Environment browser, a T3 Code thread's panel shows it, nothing else opens",
+  async () => {
+    const { home, folder } = await folderWith(bindings.organizationBrowser);
+    const tab = "CD".repeat(16);
+    const link = `${origin}/t/${tab}`;
+    const opened: unknown[] = [];
+    const openTab = async (
+      _entry: { listenPort: number },
+      url: string,
+      strip: string | null,
+    ) => {
+      opened.push([url, strip]);
+      return { kind: "opened", tab } as const;
+    };
+    const socketDir = await temporary("browser-open-");
+
+    // A person's terminal or the Launchpad: no thread. One tab that nobody
+    // holds, as `link --url` opens it, and its link.
+    const signIn =
+      "https://auth.openai.com/oauth/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback";
+    const plain = await runBrowserCommand(["open", signIn, "--folder", folder], {
+      ...context({ HOME: home }),
+      openTab,
+    });
+    expect(plain).toEqual({
+      code: 0,
+      stdout: `Opened in the Environment browser: ${link}`,
+    });
+    const json = await runBrowserCommand(
+      ["open", "http://localhost:3000/", "--folder", folder, "--json"],
+      { ...context({ HOME: home }), openTab },
+    );
+    expect(json.code).toBe(0);
+    expect(JSON.parse(json.stdout ?? "")).toEqual({
+      schema: "lazurio.browser-cli.v1",
+      kind: "browser-open",
+      session: null,
+      targetId: tab,
+      link,
+    });
+    expect(opened).toEqual([
+      [signIn, null],
+      ["http://localhost:3000/", null],
+    ]);
+
+    // Only http and https: no file, script, scheme of an app or a bare path
+    // reaches the browser. A usage answer that says why, nothing opened.
+    for (const address of [
+      "file:///etc/passwd",
+      "javascript:alert(1)",
+      "about:blank",
+      "data:text/html,<p>x</p>",
+      "mailto:someone@example.com",
+      "chrome://settings",
+      "ftp://example.com/",
+      "/home/operator/report.html",
+      "example.com",
+    ]) {
+      const refused = await runBrowserCommand(
+        ["open", address, "--folder", folder],
+        { ...context({ HOME: home }), openTab },
+      );
+      expect(refused.code).toBe(2);
+      expect(refused.stderr).toBe(
+        "The Environment browser opens only http and https addresses.",
+      );
+    }
+    // The view host of an Environment browser is never opened inside it
+    // (F50 point 2).
+    const viewHost = await runBrowserCommand(
+      ["open", `${origin}/t/${tab}`, "--folder", folder],
+      { ...context({ HOME: home }), openTab },
+    );
+    expect(viewHost.code).toBe(2);
+    expect(viewHost.stderr).toBe("The view does not open that address.");
+    // One address, given as the argument xdg-open and BROWSER pass.
+    for (const args of [
+      ["open"],
+      ["open", "https://example.com/", "https://example.org/"],
+      ["open", "--url", "https://example.com/"],
+      ["open", "https://example.com/", "--session", "codex-1"],
+    ])
+      expect(
+        (
+          await runBrowserCommand([...args, "--folder", folder], {
+            ...context({ HOME: home }),
+            openTab,
+          })
+        ).code,
+      ).toBe(2);
+    expect(opened).toHaveLength(2);
+
+    // The hub refused the address: usage; did not answer: a failure that
+    // says what to do.
+    const invalid = await runBrowserCommand(
+      ["open", "https://example.com/", "--folder", folder],
+      {
+        ...context({ HOME: home }),
+        openTab: async () =>
+          ({ kind: "refused", reason: "invalid-request" }) as const,
+      },
+    );
+    expect(invalid.code).toBe(2);
+    const unreachable = await runBrowserCommand(
+      ["open", "https://example.com/", "--folder", folder, "--json"],
+      {
+        ...context({ HOME: home }),
+        openTab: async () =>
+          ({ kind: "refused", reason: "hub-unreachable" }) as const,
+      },
+    );
+    expect(unreachable.code).toBe(1);
+    expect(unreachable.stderr).toBe(
+      "The people's view of the Environment browser did not open the tab. Run lazurio doctor.",
+    );
+
+    // An Environment without the browser (a workstation, an entry without
+    // its view): exit 10 and why, nothing opened, so the calling program
+    // shows its address instead.
+    const plainFolder = await folderWith(organizationWithEntry());
+    const none = await runBrowserCommand(
+      ["open", signIn, "--folder", plainFolder.folder],
+      { ...context({ HOME: plainFolder.home }), openTab },
+    );
+    expect(none.code).toBe(10);
+    expect(none.stdout).toBeUndefined();
+    expect(none.stderr).toBe(
+      "The address did not open: this Environment has no Environment browser. Open it in your own browser.",
+    );
+    const noneJson = await runBrowserCommand(
+      ["open", signIn, "--folder", plainFolder.folder, "--json"],
+      { ...context({ HOME: plainFolder.home }), openTab },
+    );
+    expect(noneJson.code).toBe(10);
+    expect(JSON.parse(noneJson.stdout ?? "")).toEqual({
+      schema: "lazurio.browser-cli.v1",
+      kind: "browser-open",
+      available: false,
+    });
+    expect(opened).toHaveLength(2);
+
+    // A T3 Code thread (AGENT_BROWSER_SESSION, which T3 Code sets for every
+    // process of a thread): the tab is opened for the thread's strip and the
+    // thread's session is bound to it and pinned, agent-browser's own
+    // commands. T3 Code records a tab its thread's session newly binds and
+    // shows it in the thread's panel (F47 point 4).
+    const thread = windowSeams({ socketDir, targets: [] });
+    const inThread = await runBrowserCommand(
+      ["open", signIn, "--folder", folder, "--json"],
+      {
+        ...context(
+          { HOME: home, AGENT_BROWSER_SESSION: "t3-thread-1" },
+          thread.seams,
+        ),
+        openTab,
+      },
+    );
+    expect(inThread.code).toBe(0);
+    expect(JSON.parse(inThread.stdout ?? "")).toEqual({
+      schema: "lazurio.browser-cli.v1",
+      kind: "browser-open",
+      session: "t3-thread-1",
+      targetId: tab,
+      link,
+    });
+    expect(opened.at(-1)).toEqual([signIn, "t3-thread-1"]);
+    expect(thread.calls).toEqual([
+      [
+        "/home/operator/.local/bin/agent-browser",
+        "--cdp",
+        "9222",
+        "--session",
+        "t3-thread-1",
+        "--no-pin-tab",
+        "tab",
+        tab,
+      ],
+      [
+        "/home/operator/.local/bin/agent-browser",
+        "--cdp",
+        "9222",
+        "--session",
+        "t3-thread-1",
+        "--pin-tab",
+        "get",
+        "url",
+      ],
+    ]);
+    const inThreadText = await runBrowserCommand(
+      ["open", signIn, "--folder", folder],
+      {
+        ...context(
+          { HOME: home, AGENT_BROWSER_SESSION: "t3-thread-1" },
+          windowSeams({ socketDir, targets: [] }).seams,
+        ),
+        openTab,
+      },
+    );
+    expect(inThreadText).toEqual({
+      code: 0,
+      stdout: `Opened in the Environment browser, in this thread's panel: ${link}`,
+    });
+
+    // A binding that fails leaves the page open: done, without the thread,
+    // and stderr says the panel does not show it.
+    const unbound = await runBrowserCommand(
+      ["open", signIn, "--folder", folder],
+      {
+        ...context(
+          { HOME: home, AGENT_BROWSER_SESSION: "t3-thread-1" },
+          windowSeams({ socketDir, targets: [], failing: ["--no-pin-tab"] })
+            .seams,
+        ),
+        openTab,
+      },
+    );
+    expect(unbound.code).toBe(0);
+    expect(unbound.stdout).toBe(`Opened in the Environment browser: ${link}`);
+    expect(unbound.stderr).toBe(
+      "This thread's panel does not show it: agent-browser did not bind the thread's session to the tab.",
+    );
+
+    // A Codex or Claude Code thread has no panel that follows its session,
+    // and its agent's own window would end once nothing holds it: its
+    // session is never moved. The page opens for nobody's strip.
+    const codex = windowSeams({ socketDir, targets: [] });
+    const inCodex = await runBrowserCommand(
+      ["open", signIn, "--folder", folder, "--json"],
+      {
+        ...context({ HOME: home, CODEX_THREAD_ID: "019a" }, codex.seams),
+        openTab,
+      },
+    );
+    expect(JSON.parse(inCodex.stdout ?? "")).toMatchObject({
+      session: null,
+      targetId: tab,
+    });
+    expect(opened.at(-1)).toEqual([signIn, null]);
+    expect(codex.calls).toEqual([]);
+  },
+);
+
+// The default browser runs inside other programs (gh, codex, an agent's
+// xdg-open), so it ends without the update notice, as the view service does.
+test("lazurio browser open and serve end without the update notice", () => {
+  expect(browserCommandWithoutNotice(["open", "https://example.com/"])).toBe(
+    true,
+  );
+  expect(browserCommandWithoutNotice(["serve", "--port", "1"])).toBe(true);
+  for (const action of ["window", "link", "done"])
+    expect(browserCommandWithoutNotice([action])).toBe(false);
+});
 
 // The browser command's exit statuses are the CLI's own.
 test("lazurio browser exits as the rest of the CLI does", () => {
