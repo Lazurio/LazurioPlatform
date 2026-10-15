@@ -32,11 +32,14 @@ import { prepareContext, preparePrompt } from "./content-view";
 import { createFilesPanel } from "./files-panel";
 import {
   type AiFact,
+  type AutoStart,
   appsSetupLine,
+  autoStartStep,
   composioFact,
   contentBlockedBy,
   githubAccount,
   githubFact,
+  idleAutoStart,
   nextBasic,
   readFragment,
   resolveOf,
@@ -315,9 +318,9 @@ let aiReading: AiReading | null = null;
 let aiRead = false;
 const aiFact = (): AiFact =>
   aiReading === null ? (aiRead ? "unknown" : "loading") : aiReading.state;
-// GitHub was connected in this view: the content starts by itself (0201
-// point 3) once it is read and missing, unless an agent could not help.
-let startAfterGithub = false;
+// The start of the content by itself (0201 point 3, `autoStartStep`): what
+// this view last knew of the AI and GitHub, and whether it saw one arrive.
+let autoStart: AutoStart = idleAutoStart;
 function firstRunFacts(): TourFacts | null {
   if (profileState === null) return null;
   return {
@@ -395,19 +398,16 @@ function contentBlocked() {
   const facts = firstRunFacts();
   return facts === null ? "unknown" : contentBlockedBy(facts);
 }
-/** GitHub was connected in this view: the content starts by itself once it
- * is read and missing and its turn has come (0201 point 3), never after a
- * stop and never while no agent could help with it. It waits while a fact
- * that decides it is not read yet. */
-function startAfterSignIn() {
-  if (!startAfterGithub) return;
-  const state = content.fact().state;
-  const blocked = contentBlocked();
-  if (state === "loading" || state === "unknown" || blocked === "unknown")
-    return;
-  startAfterGithub = false;
-  if (state === "missing" && blocked === null && !content.running())
-    void content.start();
+/** Every new reading of the AI, GitHub or the content: once this view saw
+ * GitHub or the AI arrive, the content starts by itself as soon as both are
+ * there, whichever came last (0201 point 3, `autoStartStep`), never after a
+ * stop and never before its turn. */
+function startByItself() {
+  const facts = firstRunFacts();
+  if (facts === null) return;
+  const step = autoStartStep(autoStart, facts, content.running());
+  autoStart = step.state;
+  if (step.start) void content.start();
 }
 async function readAi(fresh = false) {
   let read: AiReading | null = null;
@@ -418,7 +418,7 @@ async function readAi(fresh = false) {
   aiRead = true;
   if (read !== null || aiReading === null) aiReading = read;
   content.render();
-  startAfterSignIn();
+  startByItself();
   firstRun();
 }
 // The Environment's id, the key of the tour:
@@ -480,7 +480,7 @@ const content = createContentPanel({
       catalog.render();
     }
     void probePreparePrompt();
-    startAfterSignIn();
+    startByItself();
     firstRun();
   },
   blockedBy: () => contentBlocked(),
@@ -1162,17 +1162,17 @@ const tools = createToolsPanel({
     toolSignIns = signIns;
     toolsOverview = overview;
     // Once GitHub is connected the content routes may answer otherwise; a
-    // sign-in this view saw starts the content (0201 point 3).
+    // sign-in this view saw starts the content once its turn has come (0201
+    // point 3).
     const github =
       profileState === null
         ? "unknown"
         : githubFact(overview, profileState.revision);
-    if (githubSeen === "missing" && github === "connected")
-      startAfterGithub = true;
     if (githubSeen !== "connected" && github === "connected")
       void content.refresh({ restore: false });
     githubSeen = github;
     content.render();
+    startByItself();
     firstRun();
   },
   post,
