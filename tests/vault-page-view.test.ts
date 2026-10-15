@@ -259,6 +259,7 @@ test("this computer and an Environment without a vault say so in one line; a 019
     row: null,
     actions: [],
     hint: null,
+    guide: false,
   });
   expect(
     vaultPageView(
@@ -326,4 +327,52 @@ test("this computer and an Environment without a vault say so in one line; a 019
   expect(en.vaultPageRule).toBe(
     "Whoever has access to the Environment has all of its passwords.",
   );
+});
+
+test("a connected own vault says how it is used: tell the agent in Chat, the value is asked for here; a pilot, a vault not ready and a page not read yet do not", () => {
+  // Every reader of a connected own vault sees the way to use it, also before
+  // they are added (DEV-6631 task 947: the page did not say what to do).
+  for (const person of [
+    member,
+    { kind: "unknown", reason: "sign-in-not-required" } as const,
+    null,
+  ]) {
+    const view = vaultPageView(model(connected(0)), person, cs);
+    expect(view.guide).toBe(true);
+  }
+  expect(
+    vaultPageView(model(connected(), { environment: "team" }), null, cs).guide,
+  ).toBe(true);
+  expect(cs.vaultPageGuide).toContain("Chatu");
+  expect(en.vaultPageGuideChat).toBe("Open Chat");
+  // A 0197 pilot takes no requests; a vault being created or not answering
+  // cannot save one yet; nothing is shown before the page is read.
+  const pilot = { ...connected(), origin: "pilot-0197", name: null } as const;
+  expect(vaultPageView(model(pilot), member, cs).guide).toBe(false);
+  expect(
+    vaultPageView(
+      model({ kind: "vault-status", state: "creating", ...facts }),
+      null,
+      cs,
+    ).guide,
+  ).toBe(false);
+  expect(
+    vaultPageView(model(connected()), member, cs, {
+      kind: "vault-status",
+      state: "unreachable",
+      ...facts,
+    } as VaultStatus).guide,
+  ).toBe(false);
+  expect(vaultPageView(null, null, cs).guide).toBe(false);
+  expect(
+    vaultPageView(
+      model({
+        kind: "vault-status",
+        state: "unsupported",
+        reason: "workstation",
+      }),
+      null,
+      cs,
+    ).guide,
+  ).toBe(false);
 });

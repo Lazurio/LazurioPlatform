@@ -1018,6 +1018,9 @@ const en = {
   vaultPageWorkstation: "There is no vault on this computer yet.",
   vaultPageNoVault: "This Environment has no vault yet.",
   vaultPageAgentsOnly: "Only this Environment's agents use its vault for now.",
+  vaultPageGuide:
+    "Does an agent need a password or a key? Tell it in Chat. It asks for the value here, you fill it in, and it goes straight into the vault.",
+  vaultPageGuideChat: "Open Chat",
   vaultPageCreating: "Creating the vault…",
   vaultPageUnreachable: "Not responding",
   vaultPageItemsOne: "{count} item",
@@ -2443,6 +2446,9 @@ const cs: Record<MessageKey, string> = {
   vaultPageNoVault: "Toto Prostředí zatím trezor nemá.",
   vaultPageAgentsOnly:
     "Trezor tohoto Prostředí zatím používají jen jeho agenti.",
+  vaultPageGuide:
+    "Potřebuje agent heslo nebo klíč? Řekněte mu to v Chatu. O hodnotu si řekne tady, vy ji vyplníte a uloží se rovnou do trezoru.",
+  vaultPageGuideChat: "Otevřít Chat",
   vaultPageCreating: "Zakládání trezoru…",
   vaultPageUnreachable: "Neodpovídá",
   vaultPageItemsOne: "{count} položka",
