@@ -66,4 +66,4 @@ the end; none failed.
 Every Machine ran the candidate for the whole stage with `lazurio recover --json` healthy at
 the start and the end, no Recovery mode, no automatic Launchpad restart and no failed module
 app. The record passes `scripts/qualify/check-canary.ts`. The pilot Organization's release
-reviewer adds it in [1](https://github.com/Lazurio/LazurioPlatform/pull/1).
+reviewer adds it in [431](https://github.com/Lazurio/LazurioPlatform/pull/431).
