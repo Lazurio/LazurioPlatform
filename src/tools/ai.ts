@@ -61,6 +61,14 @@ export type T3Reload =
   | Readonly<{
       state: "failed";
       reason: "not-running" | "refused" | "unreadable" | "timeout";
+    }>
+  /** T3 Code answered, but not with an enabled instance of each CLI it was
+   * asked to turn on (`providers`): it did not turn them on. A provider still
+   * being checked right after it was turned on is enabled. */
+  | Readonly<{
+      state: "failed";
+      reason: "not-enabled";
+      providers: readonly AiProvider[];
     }>;
 
 export type AiServices = Readonly<{

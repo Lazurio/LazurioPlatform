@@ -143,11 +143,17 @@ function aiServicesWarning(signIn: AiSignIn, copy: Copy): string | undefined {
     return undefined;
   if (aiServicesReady(signIn.services)) return undefined;
   // Chat names its providers after the CLIs.
-  return signIn.services.t3.state === "driver-mismatch"
-    ? fill(copy.startAiChatMismatch, {
-        provider: signIn.tool === "codex" ? "Codex" : "Claude",
-      })
-    : copy.startAiServicesLater;
+  const t3 = signIn.services.t3;
+  const named = (cli: AiProvider) => (cli === "codex" ? "Codex" : "Claude");
+  if (t3.state === "driver-mismatch")
+    return fill(copy.startAiChatMismatch, { provider: named(signIn.tool) });
+  if (t3.state === "failed" && t3.reason === "not-enabled")
+    return fill(copy.startAiChatOff, {
+      provider: (t3.providers.length > 0 ? t3.providers : [signIn.tool])
+        .map(named)
+        .join(", "),
+    });
+  return copy.startAiServicesLater;
 }
 
 function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {

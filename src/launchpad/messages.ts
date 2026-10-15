@@ -989,6 +989,8 @@ const en = {
     "Chat and Codex start using the sign-in a little later.",
   startAiChatMismatch:
     "Chat did not turn {provider} on, because another provider has that name there. Check the providers in Chat's Settings.",
+  startAiChatOff:
+    "Chat did not turn {provider} on. Check the providers in Chat's Settings.",
   startGithubTitle: "GitHub",
   startGithubConnected: "Connected as @{login}",
   startGithubConnectedPlain: "Connected",
@@ -2526,6 +2528,8 @@ const cs: Record<MessageKey, string> = {
     "Chat a Codex začnou přihlášení používat o něco později.",
   startAiChatMismatch:
     "Chat nezapnul {provider}, protože se tak u něj jmenuje jiný poskytovatel. Zkontrolujte poskytovatele v Nastavení Chatu.",
+  startAiChatOff:
+    "Chat nezapnul {provider}. Zkontrolujte poskytovatele v Nastavení Chatu.",
   startGithubTitle: "GitHub",
   startGithubConnected: "Připojeno jako @{login}",
   startGithubConnectedPlain: "Připojeno",

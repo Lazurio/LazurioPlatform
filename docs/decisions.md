@@ -2952,7 +2952,11 @@ SSH, the terminal and every agent read it.
      at its own next check, within about five minutes. Its `409` `driver-mismatch` (an
      instance under the provider's ID runs another driver) is a clear failure: signed in,
      but Chat did not turn the provider on, said in the terminal and beside the account
-     in Začínáme.
+     in Začínáme. So is an answer that does not name an enabled instance of each CLI it
+     was asked about, an empty list included (`failed`, `not-enabled`, with those CLIs;
+     Pablo's review of #441): T3 answers only the instances its registry has. An enabled
+     instance whose sign-in is still being checked right after it was turned on counts as
+     turned on; its sign-in is T3's own report, not this check.
 
    `signed-in` carries `services: { appServer?, t3 }`. The command exits 0 only when
    signed in and neither the restart nor T3 Code failed. The Launchpad drops the AI

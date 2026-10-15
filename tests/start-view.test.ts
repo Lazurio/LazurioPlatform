@@ -390,6 +390,20 @@ test("Připojit AI that did not finish, and a connected one: Zkusit znovu, the a
       en,
     )?.steps[0]?.warning,
   ).toBe("Chat and Codex start using the sign-in a little later.");
+  // T3 Code answered without an enabled instance of it (Pablo's review of
+  // #441): said as a failure, not as "later".
+  expect(
+    view({
+      ...connected,
+      aiSignIn: {
+        kind: "signed-in",
+        tool: "claude",
+        services: {
+          t3: { state: "failed", reason: "not-enabled", providers: ["claude"] },
+        },
+      },
+    })?.steps[0]?.warning,
+  ).toBe("Chat nezapnul Claude. Zkontrolujte poskytovatele v Nastavení Chatu.");
   // Codex did not say whether the Organization provides the AI.
   expect(
     view({
