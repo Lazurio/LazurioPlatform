@@ -187,10 +187,18 @@ test.skipIf(!posix)(
         body: { kind: "blocked", reason: "setup-agent", tool: "neon" },
       });
       expect(
-        await opened.json("/api/tools/login/start", { tool: "codex" }),
+        await opened.json("/api/tools/login/start", { tool: "git" }),
       ).toMatchObject({
         status: 409,
         body: { kind: "blocked", reason: "tool-unknown" },
+      });
+      // codex and claude sign in here too (F19's addendum of 2026-10-15);
+      // this test's PATH has no codex.
+      expect(
+        await opened.json("/api/tools/login/start", { tool: "codex" }),
+      ).toMatchObject({
+        status: 200,
+        body: { kind: "failed", tool: "codex", reason: "not-installed" },
       });
       expect(
         (
