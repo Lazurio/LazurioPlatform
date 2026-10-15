@@ -56,13 +56,16 @@ import {
 import organization from "./fixtures/machine-context.json";
 
 // Settings → Vault, Nastavení → Trezor, over HTTP (root decision 0198 points
-// 2, 3 and 5; DEV-6631 tasks 648 and 638b; decision F53's addendum and
-// F11's amendment of 2026-10-14): the installed consumer, `startLaunchpad`
-// behind a fake gateway auth endpoint, with the fake Vaultwarden and the
-// fake bw. The person is the subject of the gateway's own answer and
-// nothing else; a personal or work Environment adds them, a work
-// Environment's Správci leave when it is reassigned, a Team Environment
-// does neither; the page carries the vault's exact ids and nothing secret.
+// 2, 3 and 5; DEV-6631 tasks 648, 638b and 774; decision F53's addendum and
+// F11's amendment of 2026-10-14, both amended on 2026-10-16 by root decision
+// 0203): the installed consumer, `startLaunchpad` behind a fake gateway auth
+// endpoint, with the fake Vaultwarden and the fake bw. The person is whom
+// the gateway's own answer names, by the subject and the Lazurio username,
+// and nothing else; their address is `<username>@account.lazurio.ai`. A
+// personal or work Environment adds them, a work Environment's Správci leave
+// when it is reassigned, a Team Environment does neither, a person named
+// without a username is added nowhere; the page carries the vault's exact
+// ids and nothing secret.
 
 const posix = process.platform !== "win32";
 type Json = Record<string, unknown>;
@@ -101,10 +104,21 @@ const reassigned = Object.freeze({
   github_id: 67890,
 });
 
+/** Whom the fake gateway's answer names for a session: the subject in
+ * `X-Auth-Request-User`, the Lazurio username in
+ * `X-Auth-Request-Preferred-Username`, each left out when null. */
+type Named = Readonly<{ subject: string | null; username: string | null }>;
+/** A person with a Lazurio account and its username, both invented. */
+type Person = Readonly<{ subject: string; username: string }>;
+const somebody = (): Person => {
+  const subject = randomUUID();
+  return { subject, username: `person-${subject.slice(0, 8)}` };
+};
+
 /** A hosted Environment of `kind` with its own vault set up, behind a fake
  * gateway that admits the cookies `__Secure-lazurio-workspace=<who>` it
- * knows: `people[who]` is the subject its answer names, `null` a session it
- * admits without naming anyone. */
+ * knows: `people[who]` is whom its answer names, `null` a session it admits
+ * without naming anyone. */
 async function hosted(
   options: Readonly<{
     kind: Exclude<VaultEnvironmentKind, "automated">;
@@ -181,21 +195,20 @@ async function hosted(
     machine,
     profile: presetProfile(preset, executionOs(process.platform)),
   });
-  const people = new Map<string, string | null>();
+  const people = new Map<string, Named | null>();
   const fetcher: AuthFetcher = async (_url, init) => {
     const cookie = new Headers(init.headers).get("cookie") ?? "";
     const who = cookie.startsWith(`${cookieName}=`)
       ? cookie.slice(cookieName.length + 1)
       : "";
     if (!people.has(who)) return new Response("no", { status: 401 });
-    const subject = people.get(who);
-    return new Response(null, {
-      status: 202,
-      headers:
-        subject === null || subject === undefined
-          ? {}
-          : { "x-auth-request-user": subject },
-    });
+    const named = people.get(who);
+    const headers: Record<string, string> = {};
+    if (typeof named?.subject === "string")
+      headers["x-auth-request-user"] = named.subject;
+    if (typeof named?.username === "string")
+      headers["x-auth-request-preferred-username"] = named.username;
+    return new Response(null, { status: 202, headers });
   };
   const base = join(parent, `b-${port}`);
   await mkdir(join(base, "update"), { recursive: true });
@@ -263,9 +276,10 @@ async function hosted(
     paths: vaultPaths(
       stateDirectory(home, "vaultwarden.example.lazurio.io", account),
     ),
-    /** A person the gateway admits, named by their subject (or by nobody). */
-    admit(who: string, subject: string | null) {
-      people.set(who, subject);
+    /** A session the gateway admits, and whom its answer names (or
+     * nobody). */
+    admit(who: string, named: Named | null) {
+      people.set(who, named);
     },
     page: (who: string, headers?: Record<string, string>) =>
       send("GET", "/api/vault", who, headers),
@@ -287,16 +301,15 @@ async function hosted(
 
 const memberOf = (
   members: readonly { email: string; type: number; status: number }[],
-  subject: string,
-) => members.find((member) => member.email === personAddress(subject));
+  person: Person,
+) => members.find((member) => member.email === personAddress(person.username));
 
 test.skipIf(!posix)(
   "the vault page says the vault and its state, and its links carry the exact organization and collection ids",
   async () => {
     const s = await hosted({ kind: "personal" });
     try {
-      const subject = randomUUID();
-      s.admit("owner", subject);
+      s.admit("owner", somebody());
       const page = await s.page("owner");
       expect(page.status).toBe(200);
       const model = parseVaultPage(page.body);
@@ -337,15 +350,16 @@ test.skipIf(!posix)(
   async () => {
     const s = await hosted({ kind: "work" });
     try {
-      const named = randomUUID();
-      const other = randomUUID();
-      s.vault.person(personAddress(named), true);
-      s.vault.person(personAddress(other), true);
+      const named = somebody();
+      const other = somebody();
+      s.vault.person(personAddress(named.username), true);
+      s.vault.person(personAddress(other.username), true);
       const forged = {
-        "x-auth-request-user": other,
-        "x-auth-request-email": personAddress(other),
-        "x-forwarded-user": other,
-        "x-forwarded-email": personAddress(other),
+        "x-auth-request-user": other.subject,
+        "x-auth-request-preferred-username": other.username,
+        "x-auth-request-email": personAddress(other.username),
+        "x-forwarded-user": other.subject,
+        "x-forwarded-email": personAddress(other.username),
       };
       // A session the gateway admits without naming anyone: nothing is
       // asked of the vault, whatever the request claims.
@@ -360,8 +374,9 @@ test.skipIf(!posix)(
       const calls = (await s.vault.calls()).slice(before.length);
       expect(calls).not.toContain("confirm");
       expect(memberOf(await s.members(), other)).toBeUndefined();
-      // A named session: the gateway's subject is the one added, never the
-      // one the request's headers name.
+      // A named session: the gateway's person is the one added, at the
+      // address of the gateway's username, never the one the request's
+      // headers name.
       s.admit("named", named);
       expect(await s.membership("named", forged)).toEqual({
         status: 200,
@@ -396,27 +411,103 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
+  "a person the gateway names without a Lazurio username is invited nowhere and asked to sign in again; once a sign-in carries it, the invitation names <username>@account.lazurio.ai",
+  async () => {
+    const s = await hosted({ kind: "work" });
+    try {
+      const petr: Person = { subject: randomUUID(), username: "petr" };
+      // Accounts wait at the username's address and at the one an older
+      // session's id would make: a lax reading would find either.
+      s.vault.person(personAddress(petr.username), true);
+      s.vault.person(personAddress(petr.subject), true);
+      // Named without a username, or with the account's id, which a
+      // session from before the username change carries; a username the
+      // request claims changes nothing.
+      s.admit("unnamed", { subject: petr.subject, username: null });
+      s.admit("older", { subject: petr.subject, username: petr.subject });
+      const before = await s.vault.calls();
+      for (const who of ["unnamed", "older"])
+        expect(
+          await s.membership(who, {
+            "x-auth-request-preferred-username": petr.username,
+          }),
+        ).toEqual({
+          status: 200,
+          body: { kind: "vault-member-unknown", reason: "no-username" },
+        });
+      // Nobody is invited or confirmed, and no person's address reaches
+      // the vault at all, not even in the gate's question.
+      expect(await s.invitations()).toHaveLength(0);
+      expect((await s.vault.calls()).slice(before.length)).not.toContain(
+        "confirm",
+      );
+      expect(JSON.stringify(s.vault.requests)).not.toContain(
+        "@account.lazurio.ai",
+      );
+      expect(memberOf(await s.members(), petr)).toBeUndefined();
+      // The page: the vault opens, and one line says why the person is not
+      // added and asks them to sign in again.
+      const view = vaultPageView(
+        parseVaultPage((await s.page("older")).body),
+        parseVaultMembership((await s.membership("older")).body),
+        messages("cs"),
+      );
+      expect(view.actions.map((action) => action.label)).toEqual([
+        "Otevřít trezor",
+      ]);
+      expect(view.hint).toBe(
+        "Vaše přihlášení zatím neobsahuje uživatelské jméno v Lazuriu, proto vás toto Prostředí nemůže přidat do svého trezoru. Přihlaste se prosím znovu.",
+      );
+      // A sign-in that carries the username: the person is added at its
+      // address, and only there.
+      s.admit("again", petr);
+      expect(await s.membership("again")).toEqual({
+        status: 200,
+        body: { kind: "vault-member", state: "member" },
+      });
+      expect(
+        (await s.invitations()).map(
+          (invitation) => (invitation.body as { emails?: unknown }).emails,
+        ),
+      ).toEqual([["petr@account.lazurio.ai"]]);
+      expect(memberOf(await s.members(), petr)).toMatchObject({
+        type: 1,
+        status: 2,
+      });
+      expect(
+        (await s.members()).some(
+          (member) => member.email === personAddress(petr.subject),
+        ),
+      ).toBe(false);
+    } finally {
+      await s.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
   "a person without an account is asked to create one; the vault is left without an invitation",
   async () => {
     const s = await hosted({ kind: "personal" });
     try {
-      const subject = randomUUID();
-      s.admit("owner", subject);
+      const person = somebody();
+      s.admit("owner", person);
       expect(await s.membership("owner")).toEqual({
         status: 200,
         body: { kind: "vault-member", state: "no-account", signIn: true },
       });
-      expect(memberOf(await s.members(), subject)).toBeUndefined();
-      expect(s.vault.registerable(personAddress(subject))).toBe(false);
+      expect(memberOf(await s.members(), person)).toBeUndefined();
+      expect(s.vault.registerable(personAddress(person.username))).toBe(false);
       expect(s.journal).toContainEqual({
         operation: "members",
         outcome: "no-account",
       });
       // The page's one action: "Vytvořit účet v trezoru", the vault's sign-in.
       const model = parseVaultPage((await s.page("owner")).body);
-      const person = parseVaultMembership((await s.membership("owner")).body);
+      const standing = parseVaultMembership((await s.membership("owner")).body);
       expect(
-        vaultPageView(model, person, messages("cs")).actions.map((action) => [
+        vaultPageView(model, standing, messages("cs")).actions.map((action) => [
           action.label,
           action.href,
         ]),
@@ -426,7 +517,7 @@ test.skipIf(!posix)(
       const late = await hosted({ kind: "personal" });
       try {
         late.vault.flags.sso = false;
-        late.admit("owner", subject);
+        late.admit("owner", person);
         const answer = await late.membership("owner");
         // Without SSO a password could be set on the address: nobody is
         // invited at all.
@@ -456,10 +547,10 @@ test.skipIf(!posix)(
   async () => {
     const s = await hosted({ kind: "work" });
     try {
-      const subject = randomUUID();
-      const address = personAddress(subject);
+      const person = somebody();
+      const address = personAddress(person.username);
       s.vault.person(address, false);
-      s.admit("person", subject);
+      s.admit("person", person);
       expect(await s.membership("person")).toEqual({
         status: 200,
         body: {
@@ -471,7 +562,7 @@ test.skipIf(!posix)(
       // Invited, kept Invited, and nobody can register the address: the
       // vault refuses every password path of it.
       expect(await s.invitations()).toHaveLength(1);
-      expect(memberOf(await s.members(), subject)).toMatchObject({
+      expect(memberOf(await s.members(), person)).toMatchObject({
         type: 1,
         status: 0,
       });
@@ -488,7 +579,7 @@ test.skipIf(!posix)(
         status: 200,
         body: { kind: "vault-member", state: "member" },
       });
-      expect(memberOf(await s.members(), subject)).toMatchObject({
+      expect(memberOf(await s.members(), person)).toMatchObject({
         type: 1,
         status: 2,
       });
@@ -508,12 +599,12 @@ test.skipIf(!posix)(
     for (const sso of [true, false]) {
       const s = await hosted({ kind: "work" });
       try {
-        const stub = randomUUID();
-        const accepted = randomUUID();
-        const first = randomUUID();
-        s.vault.person(personAddress(stub), false);
-        s.vault.person(personAddress(accepted), true);
-        s.vault.person(personAddress(first), true);
+        const stub = somebody();
+        const accepted = somebody();
+        const first = somebody();
+        s.vault.person(personAddress(stub.username), false);
+        s.vault.person(personAddress(accepted.username), true);
+        s.vault.person(personAddress(first.username), true);
         // A first Správce while the vault required the Lazurio sign-in,
         // which records the assignment.
         s.admit("first", first);
@@ -525,7 +616,7 @@ test.skipIf(!posix)(
         // An accepted member from before (e.g. SSO_ONLY turned off since):
         // never confirmed while a password could be set on its address.
         await s.vault.addMember(await s.organizationId(), {
-          email: personAddress(accepted),
+          email: personAddress(accepted.username),
           type: 1,
           status: 1,
         });
@@ -545,7 +636,7 @@ test.skipIf(!posix)(
         expect(memberOf(await s.members(), accepted)).toMatchObject({
           status: 1,
         });
-        expect(s.vault.registerable(personAddress(stub))).toBe(false);
+        expect(s.vault.registerable(personAddress(stub.username))).toBe(false);
         // The page: only the agents use the vault here for now.
         const view = vaultPageView(
           parseVaultPage((await s.page("stub")).body),
@@ -569,10 +660,10 @@ test.skipIf(!posix)(
   async () => {
     const s = await hosted({ kind: "work" });
     try {
-      const lost = randomUUID();
-      const refused = randomUUID();
-      for (const subject of [lost, refused])
-        s.vault.person(personAddress(subject), false);
+      const lost = somebody();
+      const refused = somebody();
+      for (const person of [lost, refused])
+        s.vault.person(personAddress(person.username), false);
       s.admit("lost", lost);
       s.admit("refused", refused);
       // The invitation is made, its answer lost.
@@ -582,7 +673,7 @@ test.skipIf(!posix)(
         reason: "unreachable",
       });
       expect(memberOf(await s.members(), lost)).toMatchObject({ status: 0 });
-      expect(s.vault.registerable(personAddress(lost))).toBe(false);
+      expect(s.vault.registerable(personAddress(lost.username))).toBe(false);
       // The next look finds it, makes no second one.
       expect((await s.membership("lost")).body).toMatchObject({
         state: "awaiting-password",
@@ -595,14 +686,14 @@ test.skipIf(!posix)(
         reason: "unreachable",
       });
       expect(memberOf(await s.members(), refused)).toBeUndefined();
-      expect(s.vault.registerable(personAddress(refused))).toBe(false);
+      expect(s.vault.registerable(personAddress(refused.username))).toBe(false);
       expect(s.journal).toContainEqual({
         operation: "members",
         outcome: "failed",
         reason: "unreachable",
       });
       // Then the person's password: accepted by the vault, confirmed here.
-      await s.vault.setPassword(personAddress(lost));
+      await s.vault.setPassword(personAddress(lost.username));
       expect((await s.membership("lost")).body).toMatchObject({
         state: "member",
       });
@@ -618,15 +709,15 @@ test.skipIf(!posix)(
   async () => {
     const s = await hosted({ kind: "personal" });
     try {
-      const subject = randomUUID();
-      s.vault.person(personAddress(subject), true);
-      s.admit("owner", subject);
+      const owner = somebody();
+      s.vault.person(personAddress(owner.username), true);
+      s.admit("owner", owner);
       await s.vault.confirmFails(true);
       expect(await s.membership("owner")).toEqual({
         status: 200,
         body: { kind: "vault-member", state: "accepted" },
       });
-      expect(memberOf(await s.members(), subject)).toMatchObject({
+      expect(memberOf(await s.members(), owner)).toMatchObject({
         type: 1,
         status: 1,
       });
@@ -635,7 +726,7 @@ test.skipIf(!posix)(
         status: 200,
         body: { kind: "vault-member", state: "member" },
       });
-      expect(memberOf(await s.members(), subject)).toMatchObject({
+      expect(memberOf(await s.members(), owner)).toMatchObject({
         type: 1,
         status: 2,
       });
@@ -661,9 +752,9 @@ test.skipIf(!posix)(
         "Otevřít trezor",
       ]);
       // A person a Správce shared a collection with stays a User.
-      const shared = randomUUID();
+      const shared = somebody();
       await s.vault.addMember(await s.organizationId(), {
-        email: personAddress(shared),
+        email: personAddress(shared.username),
         type: 2,
         status: 2,
       });
@@ -685,10 +776,10 @@ test.skipIf(!posix)(
   async () => {
     const s = await hosted({ kind: "work" });
     try {
-      const first = randomUUID();
-      const next = randomUUID();
-      for (const subject of [first, next])
-        s.vault.person(personAddress(subject), true);
+      const first = somebody();
+      const next = somebody();
+      for (const person of [first, next])
+        s.vault.person(personAddress(person.username), true);
       s.admit("first", first);
       s.admit("next", next);
       expect((await s.membership("first")).body).toEqual({
@@ -696,9 +787,9 @@ test.skipIf(!posix)(
         state: "member",
       });
       const organizationId = await s.organizationId();
-      const sharedWith = personAddress(randomUUID());
-      const custom = personAddress(randomUUID());
-      const otherAdmin = personAddress(randomUUID());
+      const sharedWith = personAddress(somebody().username);
+      const custom = personAddress(somebody().username);
+      const otherAdmin = personAddress(somebody().username);
       await s.vault.addMember(organizationId, {
         email: sharedWith,
         type: 2,
@@ -739,7 +830,7 @@ test.skipIf(!posix)(
           [workAccount, 0],
           [sharedWith, 2],
           [custom, 4],
-          [personAddress(next), 1],
+          [personAddress(next.username), 1],
         ].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
       );
       expect(
@@ -762,15 +853,15 @@ test.skipIf(!posix)(
   async () => {
     const s = await hosted({ kind: "personal" });
     try {
-      const subject = randomUUID();
-      s.vault.person(personAddress(subject), true);
-      const admin = personAddress(randomUUID());
+      const owner = somebody();
+      s.vault.person(personAddress(owner.username), true);
+      const admin = personAddress(somebody().username);
       await s.vault.addMember(await s.organizationId(), {
         email: admin,
         type: 1,
         status: 2,
       });
-      s.admit("owner", subject);
+      s.admit("owner", owner);
       expect((await s.membership("owner")).body).toMatchObject({
         state: "member",
       });
@@ -795,15 +886,15 @@ test.skipIf(!posix)(
   async () => {
     const s = await hosted({ kind: "team" });
     try {
-      const subject = randomUUID();
-      s.vault.person(personAddress(subject), true);
-      const admin = personAddress(randomUUID());
+      const member = somebody();
+      s.vault.person(personAddress(member.username), true);
+      const admin = personAddress(somebody().username);
       await s.vault.addMember(await s.organizationId(), {
         email: admin,
         type: 1,
         status: 2,
       });
-      s.admit("member", subject);
+      s.admit("member", member);
       const before = await s.vault.calls();
       const requests = s.vault.requests.length;
       const answer = await s.membership("member");
@@ -836,20 +927,20 @@ test.skipIf(!posix)(
 test.skipIf(!posix)(
   "the installed Launchpad looks at the audience after its start: a reassigned work Environment's Správci leave without anyone opening the page",
   async () => {
-    const subject = randomUUID();
+    const person = somebody();
     const s = await hosted({
       kind: "work",
       vaultAtStart: true,
       // Under the first assignment a Správce was added; then the
       // Environment was assigned to someone else before this start.
       async prepare({ host, vault, state, organizationId }) {
-        vault.person(personAddress(subject), true);
-        expect(await vaultMembership(host, subject)).toEqual({
+        vault.person(personAddress(person.username), true);
+        expect(await vaultMembership(host, person)).toEqual({
           kind: "vault-member",
           state: "member",
         });
         await vault.addMember(organizationId, {
-          email: personAddress(randomUUID()),
+          email: personAddress(somebody().username),
           type: 1,
           status: 2,
         });
@@ -887,12 +978,12 @@ test.skipIf(!posix)(
     );
     const s = await hosted({ kind: "work" });
     try {
-      const subjects = [randomUUID(), randomUUID(), randomUUID()];
-      s.vault.person(personAddress(subjects[0] as string), true);
-      s.vault.person(personAddress(subjects[1] as string), false);
+      const people = [somebody(), somebody(), somebody()];
+      s.vault.person(personAddress((people[0] as Person).username), true);
+      s.vault.person(personAddress((people[1] as Person).username), false);
       const answers: unknown[] = [];
-      for (const [index, subject] of subjects.entries()) {
-        s.admit(`p${index}`, subject);
+      for (const [index, person] of people.entries()) {
+        s.admit(`p${index}`, person);
         answers.push((await s.membership(`p${index}`)).body);
         answers.push((await s.page(`p${index}`)).body);
       }
@@ -914,8 +1005,9 @@ test.skipIf(!posix)(
       const token = `eyJhbGciOiJub25lIn0.${Buffer.from(JSON.stringify({ sub: user?.id })).toString("base64url")}.signature`;
       const session = (await readSession(s.paths)) ?? "?";
       const secrets = [
-        ...subjects,
-        ...subjects.map(personAddress),
+        ...people.map((person) => person.subject),
+        ...people.map((person) => person.username),
+        ...people.map((person) => personAddress(person.username)),
         recorded?.masterPassword ?? "?",
         recorded?.clientSecret ?? "?",
         session,

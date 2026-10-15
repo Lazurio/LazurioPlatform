@@ -37,6 +37,7 @@ const memberStates: readonly VaultMemberState[] = [
 ];
 const unknownReasons: readonly VaultMemberUnknown[] = [
   "no-identity",
+  "no-username",
   "no-vault",
   "not-connected",
   "not-managed",
@@ -178,7 +179,8 @@ export type VaultPageView = Readonly<{
   /** The vault's row: its name and its state. */
   row: (RowState & Readonly<{ title: string }>) | null;
   actions: readonly VaultPageAction[];
-  /** One line under the row (a Team or Automated Environment). */
+  /** One line under the row (a Team or Automated Environment, a sign-in
+   * without the person's Lazurio username). */
   hint: string | null;
   /** How the vault is used from here (DEV-6631 task 947): tell the agent
    * in Chat what it needs, and it asks for the value on this page. Shown
@@ -249,10 +251,12 @@ function rowLine(
  * - the actions follow the person: with an account in the network's vault
  *   "Přidat položku" and "Otevřít trezor"; without one (or without a master
  *   password yet) only "Vytvořit účet v trezoru", and only where the vault
- *   takes the Lazurio sign-in; not known, "Otevřít trezor". A 0197 pilot
- *   has "Otevřít trezor" to its collection. A Team or Automated Environment,
- *   or a network whose vault does not require the Lazurio sign-in of people
- *   yet, adds nobody: a line says so, and the row has no action.
+ *   takes the Lazurio sign-in; not known, "Otevřít trezor", and when the
+ *   sign-in did not carry the person's Lazurio username, a line that says
+ *   so and asks them to sign in again. A 0197 pilot has "Otevřít trezor" to
+ *   its collection. A Team or Automated Environment, or a network whose
+ *   vault does not require the Lazurio sign-in of people yet, adds nobody: a
+ *   line says so, and the row has no action.
  */
 export function vaultPageView(
   model: VaultPageModel | null,
@@ -313,7 +317,9 @@ export function vaultPageView(
   if (person === null) return view({ guide, row });
   // Nobody is added here yet (a Team or Automated Environment, or a network
   // whose vault does not require the Lazurio sign-in of people yet): only
-  // the agents use the vault.
+  // the agents use the vault. A person whose sign-in carried no Lazurio
+  // username has no address in it yet: the vault opens, and a line says
+  // why they are not added.
   if (person.kind === "unknown") {
     const agentsOnly =
       person.reason === "not-managed" ||
@@ -322,7 +328,11 @@ export function vaultPageView(
       guide,
       row,
       actions: agentsOnly ? [] : [open],
-      hint: agentsOnly ? copy.vaultPageAgentsOnly : null,
+      hint: agentsOnly
+        ? copy.vaultPageAgentsOnly
+        : person.reason === "no-username"
+          ? copy.vaultPageNoUsername
+          : null,
     });
   }
   if (person.state === "no-account" || person.state === "awaiting-password")

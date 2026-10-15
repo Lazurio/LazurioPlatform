@@ -13,6 +13,7 @@ import {
   vaultMembership,
   vaultSignIn,
 } from "../vault/members";
+import type { AdmittedPerson } from "./hosted-trust";
 import { BodyTooLarge, readJsonBody } from "./json-body";
 
 // Settings → Vault, Nastavení → Trezor (root decision 0198 points 2, 3 and
@@ -30,9 +31,10 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //                               an earlier assignment left; with `signIn`
 //                               while they have no account yet
 //
-// The person is the subject of the gateway's own answer to this request's
-// admission (hosted-trust.ts), passed in by the server, never anything the
-// request carries. The page never lists items or shows a value.
+// The person is whom the gateway's own answer to this request's admission
+// named, by the subject and the Lazurio username (hosted-trust.ts), passed in
+// by the server, never anything the request carries. The page never lists
+// items or shows a value.
 
 export const vaultPageRoutePaths = Object.freeze({
   page: "/api/vault",
@@ -96,10 +98,10 @@ export function createVaultPageRoutes(
   }
 
   async function membership(
-    subject: string | null,
+    person: AdmittedPerson,
   ): Promise<VaultPageMembership> {
     const host = input.host();
-    const answer = await vaultMembership(host, subject);
+    const answer = await vaultMembership(host, person);
     if (
       answer.kind === "vault-member" &&
       (answer.state === "no-account" || answer.state === "awaiting-password")
@@ -112,12 +114,12 @@ export function createVaultPageRoutes(
     handles: (path: string) =>
       path === vaultPageRoutePaths.page ||
       path === vaultPageRoutePaths.membership,
-    /** `subject`: the person the gateway's answer named for this request,
-     * or null (a workstation, or a gateway that named nobody). */
+    /** `person`: whom the gateway's answer named for this request, or
+     * nobody (a workstation, or a gateway that named nobody). */
     async handle(
       request: Request,
       url: URL,
-      subject: string | null,
+      person: AdmittedPerson,
     ): Promise<Response> {
       if (url.pathname === vaultPageRoutePaths.page) {
         if (request.method !== "GET")
@@ -137,7 +139,7 @@ export function createVaultPageRoutes(
           return response({ error: "body-too-large" }, 413);
         return response({ error: "invalid-request" }, 400);
       }
-      return response(await membership(subject));
+      return response(await membership(person));
     },
     /** The audience alone (members.ts `vaultAudience`): the Launchpad's
      * start and its periodic look ask it. */

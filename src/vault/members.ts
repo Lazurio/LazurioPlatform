@@ -1,3 +1,8 @@
+import {
+  type AdmittedPerson,
+  isAccountSubject,
+  isLazurioUsername,
+} from "../launchpad/hosted-trust";
 import type { BwFailure, BwMember } from "./bw";
 import type { VaultContext } from "./context";
 import { connectedAccount, deviceOf, type VaultHost } from "./flow";
@@ -18,34 +23,32 @@ import {
 } from "./store";
 
 // The Správci of the Environment's own vault (root decision 0198 point 2,
-// DEV-6631 task 638b, decision F53's addendum of 2026-10-14): whoever has
+// DEV-6631 tasks 638b and 774, decision F53's addendum of 2026-10-14 and its
+// amendment of 2026-10-16 after root decision 0203): whoever has
 // access to the Environment is an Admin of its vault and has all of its
-// passwords. The Environment adds the person the gateway admitted (the
-// subject of its own answer, never a header of the request), once that
-// person has an account in the network's vault and only where the network's
-// vault refuses every password path of the person's address (`SSO_ONLY`),
-// and a work Environment's Správci all leave the vault when the Environment
-// is assigned to someone else. The vault's membership is the only list of who is in it; Lazurio
-// keeps none, only the fingerprint of the assignment the Správci were added
-// under. Everything happens under the account's lock, as the Environment
-// account, the vault's only Owner: bw lists and confirms, the vault's API
-// invites and removes (bw does neither). Nothing here returns, logs or
-// journals a person's address, a member's id or a token.
+// passwords. The Environment adds the person the gateway admitted (named by
+// its own answer, never by a header of the request) at the address of their
+// Lazurio username, once that person has an account in the network's vault
+// and only where the network's vault refuses every password path of the
+// person's address (`SSO_ONLY`), and a work Environment's Správci all leave
+// the vault when the Environment is assigned to someone else. The vault's
+// membership is the only list of who is in it; Lazurio keeps none, only the
+// fingerprint of the assignment the Správci were added under. Everything
+// happens under the account's lock, as the Environment account, the vault's
+// only Owner: bw lists and confirms, the vault's API invites and removes (bw
+// does neither). Nothing here returns, logs or journals a person's address,
+// a member's id or a token.
 
-/** Where Lazurio Auth's vault client puts every person (root decision 0197
- * point 2, DEV-6631 contract C1): `<subject>@vaultwarden-identity.lazurio.ai`,
- * never a mailbox. */
-export const vaultIdentityDomain = "vaultwarden-identity.lazurio.ai";
+/** Where every person's account in a Lazurio Vaultwarden lives (root
+ * decision 0203 point 5): `<Lazurio username>@account.lazurio.ai`, an
+ * identifier and never a mailbox. */
+export const accountAddressDomain = "account.lazurio.ai";
 
-/** The admitted person's address in every network vault. */
-export const personAddress = (subject: string): string =>
-  `${subject}@${vaultIdentityDomain}`;
-
-/** A Lazurio account's subject, the only one that names a person here: a
- * lowercase UUID (the gateway's `sub`, decision F11's amendment). */
-const isSubject = (value: string | null): value is string =>
-  value !== null &&
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
+/** The admitted person's address in the vault, built from their Lazurio
+ * username alone: never from GitHub, a header of the request or the
+ * account's subject. */
+export const personAddress = (username: string): string =>
+  `${username}@${accountAddressDomain}`;
 
 // The vault's organization roles (`type`) and membership statuses.
 const ownerType = 0;
@@ -75,6 +78,11 @@ export type VaultMemberState =
 export type VaultMemberUnknown =
   /** The gateway named nobody (and a workstation names nobody). */
   | "no-identity"
+  /** The gateway named a person, but its answer carried no Lazurio username
+   * (Lazurio Auth issues none yet, or the session is older than the
+   * account's username): the person has no address, so nobody is invited
+   * or confirmed until a sign-in carries it. */
+  | "no-username"
   /** No vault of the Environment's own here (none yet, a workstation, a
    * 0197 pilot). */
   | "no-vault"
@@ -286,9 +294,9 @@ const sameAddress = (member: BwMember, address: string) =>
 async function settlePerson(
   turn: Turn,
   members: readonly BwMember[],
-  subject: string,
+  username: string,
 ): Promise<VaultMembership> {
-  const address = personAddress(subject);
+  const address = personAddress(username);
   const journal = (outcome: string) =>
     turn.host.journal?.({ operation: "members", outcome });
   let member = members.find((entry) => sameAddress(entry, address));
@@ -379,17 +387,19 @@ async function signInRequired(
 }
 
 /**
- * The membership of the person the gateway admitted (`subject`, its
- * answer's subject; null when it named nobody), and the audience of a work
- * Environment first. A personal or work Environment adds the person, only
- * behind the gate (`signInRequired`); a Team or Automated Environment
- * touches nobody. Leaving needs no gate: the audience is settled either way.
- * Status-driven and idempotent: every look reads the vault's members and
- * moves them on.
+ * The membership of the person the gateway admitted (`person`, whom its
+ * answer named: the account's subject and its Lazurio username, each null
+ * when the answer did not carry it), and the audience of a work Environment
+ * first. A personal or work Environment adds the person, at the address of
+ * their username and only behind the gate (`signInRequired`); a Team or
+ * Automated Environment touches nobody. A person named without a username
+ * has no address: nobody is invited or confirmed (`no-username`). Leaving
+ * needs no gate: the audience is settled either way. Status-driven and
+ * idempotent: every look reads the vault's members and moves them on.
  */
 export async function vaultMembership(
   host: VaultHost,
-  subject: string | null,
+  person: AdmittedPerson,
 ): Promise<VaultMembership> {
   const context = await host.context();
   if (context.kind !== "own") return unknown("no-vault");
@@ -398,20 +408,28 @@ export async function vaultMembership(
   const paths = vaultPaths(host.directory(context.host, context.account));
   if ((await connectedAccount(paths, context)) === null)
     return unknown("not-connected");
-  // Nobody named, or a vault where a password could still be set on the
-  // person's address: nobody is added or confirmed, and the audience, which
-  // needs nobody, is settled (it asks the vault only when the assignment
-  // changed).
-  const gate = isSubject(subject)
-    ? await signInRequired(host, context, personAddress(subject))
-    : null;
-  if (!isSubject(subject) || gate !== "required") {
+  // The person's address, only from the username the gateway's answer
+  // carried for a person it named (root decision 0203 point 5).
+  const named = isAccountSubject(person.subject);
+  const username =
+    named && isLazurioUsername(person.username) ? person.username : null;
+  // Nobody named, a person without a username, or a vault where a password
+  // could still be set on the person's address: nobody is added or
+  // confirmed, and the audience, which needs nobody, is settled (it asks the
+  // vault only when the assignment changed).
+  const gate =
+    username === null
+      ? null
+      : await signInRequired(host, context, personAddress(username));
+  if (username === null || gate !== "required") {
     const audience = await vaultAudience(host);
     if (audience !== "unchanged" && audience !== "settled")
       return unknown(audience);
     return unknown(
-      gate === null
-        ? "no-identity"
+      username === null
+        ? named
+          ? "no-username"
+          : "no-identity"
         : gate === "unreachable"
           ? "unreachable"
           : "sign-in-not-required",
@@ -424,7 +442,7 @@ export async function vaultMembership(
       settlePerson(
         turn,
         await settleAudience(turn, await turn.members()),
-        subject,
+        username,
       ),
     unknown,
   );

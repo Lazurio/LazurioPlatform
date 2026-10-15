@@ -78,6 +78,12 @@ test("the page's answers are read only in their exact form", () => {
   expect(
     parseVaultMembership({ kind: "vault-member-unknown", reason: "busy" }),
   ).toEqual({ kind: "unknown", reason: "busy" });
+  expect(
+    parseVaultMembership({
+      kind: "vault-member-unknown",
+      reason: "no-username",
+    }),
+  ).toEqual({ kind: "unknown", reason: "no-username" });
   for (const refused of [
     { kind: "vault-member", state: "owner" },
     { kind: "vault-member", state: "member", signIn: "yes" },
@@ -169,14 +175,41 @@ test("a member adds and opens; without an account only the sign-in, and only whe
     ).toEqual([]);
   }
   // Not known (nobody named, the vault busy or away): the vault opens.
-  for (const reason of ["no-identity", "busy", "unreachable"] as const)
-    expect(
-      labels(
-        vaultPageView(model(connected()), { kind: "unknown", reason }, cs),
-      ).map(([control]) => control),
-    ).toEqual(["open"]);
+  for (const reason of ["no-identity", "busy", "unreachable"] as const) {
+    const unknown = vaultPageView(
+      model(connected()),
+      { kind: "unknown", reason },
+      cs,
+    );
+    expect(labels(unknown).map(([control]) => control)).toEqual(["open"]);
+    expect(unknown.hint).toBeNull();
+  }
   // Asked, not answered yet: no action.
   expect(vaultPageView(model(connected()), null, cs).actions).toEqual([]);
+});
+
+test("a person whose sign-in carried no Lazurio username: the vault opens, and one line says why they are not added and asks them to sign in again", () => {
+  const unnamed = { kind: "unknown", reason: "no-username" } as const;
+  const view = vaultPageView(model(connected()), unnamed, cs);
+  expect(labels(view)).toEqual([
+    [
+      "open",
+      "Otevřít trezor",
+      `${vault}/#/vault?organizationId=${organizationId}`,
+    ],
+  ]);
+  expect(view.hint).toBe(
+    "Vaše přihlášení zatím neobsahuje uživatelské jméno v Lazuriu, proto vás toto Prostředí nemůže přidat do svého trezoru. Přihlaste se prosím znovu.",
+  );
+  expect(vaultPageView(model(connected()), unnamed, en).hint).toBe(
+    "Your sign-in does not include your Lazurio username yet, so this Environment cannot add you to its vault. Please sign in again.",
+  );
+  // A Team or Automated Environment says only that its agents use the
+  // vault, whoever the person is.
+  expect(
+    vaultPageView(model(connected(), { environment: "team" }), unnamed, cs)
+      .hint,
+  ).toBe("Trezor tohoto Prostředí zatím používají jen jeho agenti.");
 });
 
 test("the vault's state: the items in Czech plural, the creation, no answer, and the links kept while it does not answer", () => {
