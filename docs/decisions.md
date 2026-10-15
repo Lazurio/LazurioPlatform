@@ -4251,6 +4251,54 @@ parity row 19 stays carried as read-only rows, now without `infra`.
 | Keep `infra` as a read-only row (in Productionspace or alone) | It is neither a module nor a production repository; rejected |
 | Two sections, Workspace (every module, catalog order) and Productionspace (read-only), `infra` not listed (selected) | One workspace, one order; production repositories visible and inert |
 
+**Addendum 2026-10-15, requested by Matěj after an Organization Admin's report: the
+Workspace lists only the modules that are on this Environment.** It replaces point 5
+("the composition does not change") for the Launchpad's lists and brings the
+implementation in line with root decision 0179 point 5 and its addendum of 2026-10-03,
+which already say that Workspace holds only the modules this Environment's GitHub
+identity can access. Observed on a work Environment: the Organization manifest declared
+16 modules, the Environment's identity could read 3, and Apps drew the other 13 as
+tiles "Bez aplikace" that opened nothing. The Admin's verdict: they should not be there
+at all.
+
+1. **The truth is materialization, not a second ACL.** Content synchronization and the
+   Organization install clone a declared slot with the Environment's own GitHub
+   identity and leave nothing behind when it cannot read the repository. A declared
+   module whose slot directory does not exist on this Environment was therefore never
+   materialized here: no access, not synchronized yet, or a planned slot without a
+   remote. The catalog marks such a module `absent: true`, from the filesystem alone;
+   nothing is fetched and no grant is copied.
+2. **The catalog and the CLI keep it.** `readFolderCatalog`, `lazurio module list`,
+   `lazurio organization list --json` and `POST /api/catalog` still answer every
+   declared module, an absent one with the flag (and its reason, as before), so an
+   agent still learns that a module is declared but not here and can say so, as the
+   partial-workspace rules of an Organization ask.
+3. **The Launchpad lists only modules that are here.** The sidebar, the overview, Apps'
+   Workspace, its count, the column's favourites and the content row's module count
+   leave out absent modules. An Organization none of whose modules is here shows its
+   plain sentence: no module here yet, ask the Organization's Admin. A module page
+   reached by a direct link still answers with the reason.
+4. **What stays visible.** A module that is materialized but declares no app keeps its
+   tile with "Bez aplikace"; hiding such an auxiliary module on purpose is a separate
+   request (#428). A slot directory that exists but cannot be read (a link, a file,
+   another account's directory, no module manifest) is not absent: it stays listed with
+   the reason that says why, so a broken checkout is never concealed. Productionspace
+   rows keep saying "not checked out" in words, as the final addendum above decided.
+   The Personalspace group lists what is on disk and has no absent module.
+5. **Known limits.** A module whose grant was revoked stays listed while its clone
+   stays on the Environment: removal is a person's decision (F33 decided point 4). A
+   module granted since the last synchronization appears after the next one. The
+   Dashboard's live composition (F33) remains the target; it will decide what is
+   materialized, and this rule then follows it unchanged.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep listing every declared module (point 5) | Shows modules nobody here can open; contradicts root 0179 point 5; rejected by Matěj |
+| Ask GitHub per module on every catalog read | Network on every page read, a second access check beside the materialization that already used the Environment's identity; rejected |
+| Drop absent modules from the catalog itself | The CLI and agents would lose that a module is declared but not here; rejected |
+| Hide every module without an app, or every module with `module-unavailable` | Hides accessible auxiliary modules and broken checkouts alike; rejected (#428 owns intentional hiding) |
+| Mark absent in the catalog, leave it out of the Launchpad's lists (selected) | One filesystem fact, stated once; the CLI keeps the whole declaration; nobody sees a module they cannot open |
+
 ## F33 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal, partly decided)
 
 **Proposal of 2026-10-02 (plan DEV-6638); partly decided by Matěj the same evening, not

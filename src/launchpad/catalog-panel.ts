@@ -1447,14 +1447,18 @@ export function createCatalogPanel(
       );
       return found === undefined ? null : organizationName(found);
     },
-    /** How many modules an Organization of the Folder has, by the GitHub
-     * login its manifest binds it to; null when the Folder has none such. */
+    /** How many modules of an Organization of the Folder are on this
+     * Environment, as its Workspace lists them (F32 addendum of
+     * 2026-10-15), by the GitHub login its manifest binds it to; null when
+     * the Folder has none such. */
     modulesOf(login: string): number | null {
       const key = login.toLowerCase();
       const found = catalog?.organizations.find(
         (organization) => organization.forgeLogin?.toLowerCase() === key,
       );
-      return found === undefined ? null : found.modules.length;
+      return found === undefined
+        ? null
+        : found.modules.filter((module) => module.absent !== true).length;
     },
     /** The key of the Folder's one Organization (a work Environment's),
      * for its Owner question; null with none or several. */
