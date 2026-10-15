@@ -25,11 +25,13 @@ import {
   browserCliText,
   browserViewUrl,
   navigableAddress,
+  stripAppOf,
   threadSession,
 } from "./contract/pure";
 import { browserEntryOf } from "./view";
 import {
   BrowserWindowFailure,
+  bindThreadWindow,
   cdpSeams,
   ensureThreadWindow,
   type WindowSeams,
@@ -70,12 +72,40 @@ browser done [--session <name>] [--folder <absolute Folder>] [--json]
   Exit status: 0 done, 10 this Environment has no Environment browser (with
   --json, {schema, kind, available: false}, the command's own kind), 2
   usage, 1 failure.
+browser open <http(s) address> [--folder <absolute Folder>] [--json]
+  The Remote Environment's default browser (root decision 0201 point 5): what
+  BROWSER and xdg-open run there, so a CLI's sign-in page and an agent's page
+  open in the Environment browser and a return to localhost completes inside
+  the Environment. A new tab at the address, through the view's hub, and its
+  link. In a T3 Code thread (AGENT_BROWSER_SESSION t3-…) the thread's session
+  is bound to that tab, so the thread's panel shows it and its agent works
+  there next; elsewhere nobody holds the tab, as with link --url. Only http
+  and https, never the view host. --json prints {schema:
+  "lazurio.browser-cli.v1", kind: "browser-open", session, targetId, link},
+  session null where none is bound. Exit status: 0 opened, 10 this
+  Environment has no Environment browser (nothing opened; open the address
+  in your own browser), 2 usage or an address it does not open, 1 the view
+  did not open the tab.
 browser serve --port <loopback port> --origin <https://browser.…>
   The people's view service, as lazurio-browser-view.service runs it; it runs
   until it is stopped. Not for agents.`;
 
 const synopsis =
-  "browser window|link|done [--session <name>] [--url <url>] [--folder <absolute Folder>] [--json]";
+  "browser window|link|done [--session <name>] [--url <url>] [--folder <absolute Folder>] [--json] | browser open <http(s) address> [--folder <absolute Folder>] [--json]";
+
+/** The commands that run inside other programs, the view service the unit
+ * runs and the default browser a CLI's BROWSER or xdg-open runs: they end
+ * without the update notice, which would land in that program's output. */
+export const browserCommandWithoutNotice = (args: readonly string[]) =>
+  args[0] === "serve" || args[0] === "open";
+
+/** The sessions whose app shows a tab the session is bound to: a T3 Code
+ * thread's, whose strip records a tab its session newly binds and opens its
+ * panel on it (F47 point 4), and whose earlier window its holder file keeps.
+ * A Codex or Claude Code thread's session is never moved: nothing would show
+ * the page, and its agent's window, which only its binding holds, would end. */
+const showsBoundTab = (session: string | null): session is string =>
+  session !== null && stripAppOf(session) === "t3code";
 
 export type BrowserContext = CliContext &
   Readonly<{
@@ -116,6 +146,15 @@ const text = {
       "Your session's agent-browser refused to shut down. Nothing changed; try again, or run lazurio doctor.",
     "daemon-unconfirmed":
       "Your session's agent-browser has not confirmed that it ended, so it may still hold your window. Run lazurio browser done again in a moment, or lazurio doctor.",
+    "open-scheme":
+      "The Environment browser opens only http and https addresses.",
+    "open-not-declared":
+      "The address did not open: this Environment has no Environment browser. Open it in your own browser.",
+    opened: "Opened in the Environment browser",
+    "opened-thread":
+      "Opened in the Environment browser, in this thread's panel",
+    "open-unbound":
+      "This thread's panel does not show it: agent-browser did not bind the thread's session to the tab.",
   },
   cs: {
     "not-declared":
@@ -144,6 +183,14 @@ const text = {
       "agent-browser tvého sezení se odmítl ukončit. Nic se nezměnilo; zkus to znovu, nebo spusť lazurio doctor.",
     "daemon-unconfirmed":
       "agent-browser tvého sezení nepotvrdil, že skončil, takže tvoje okno možná pořád drží. Za chvíli spusť lazurio browser done znovu, nebo lazurio doctor.",
+    "open-scheme": "Prohlížeč Environmentu otevírá jen adresy http a https.",
+    "open-not-declared":
+      "Adresa se neotevřela: tento Environment nemá prohlížeč Environmentu. Otevřete ji ve svém prohlížeči.",
+    opened: "Otevřeno v prohlížeči Environmentu",
+    "opened-thread":
+      "Otevřeno v prohlížeči Environmentu, v panelu tohoto vlákna",
+    "open-unbound":
+      "Panel tohoto vlákna stránku neukáže: agent-browser k záložce nepřipojil sezení vlákna.",
   },
 } as const;
 
@@ -168,11 +215,82 @@ export const browserCommand = (session: string) =>
  * beside its `kind`. */
 const answered = (answer: BrowserCliAnswer) => browserCliText(answer);
 
-const kindOf: Readonly<Record<"window" | "link" | "done", BrowserCliKind>> = {
+type Action = "window" | "link" | "done" | "open";
+
+const kindOf: Readonly<Record<Action, BrowserCliKind>> = {
   window: "browser-window",
   link: "browser-link",
   done: "browser-done",
+  open: "browser-open",
 };
+
+/** The default browser's address (root decision 0201 point 5): http or
+ * https only, as given. A file, a script, another app's scheme or a bare
+ * path never reaches the Environment browser; `about:blank`, which `link
+ * --url` takes, is no page to open for anyone. */
+const webAddress = (value: string): boolean => {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+/** `browser open` (root decision 0201 point 5): a new tab at the address
+ * through the view's hub, for the T3 Code thread's strip where the caller is
+ * one, and that thread's session bound to it so its panel shows it. The page
+ * is open once the hub opened it: a binding that fails says so on stderr and
+ * answers without the thread. */
+async function openDefault(
+  given: string,
+  browser: NonNullable<ReturnType<typeof browserEntryOf>>,
+  json: boolean,
+  copy: (typeof text)[keyof typeof text],
+  context: BrowserContext,
+): Promise<CommandOutput> {
+  // Never the view host of an Environment browser (F50 point 2).
+  const address = navigableAddress(given);
+  if (address === null)
+    return Object.freeze({
+      code: browserCliExit.usage,
+      stderr: copy["invalid-address"],
+    });
+  const caller = threadSession(undefined, context.env);
+  const thread = showsBoundTab(caller) ? caller : null;
+  const opened = await (context.openTab ?? openTab)(browser, address, thread);
+  if (opened.kind !== "opened")
+    return Object.freeze({
+      code:
+        opened.reason === "invalid-request"
+          ? browserCliExit.usage
+          : browserCliExit.failure,
+      stderr:
+        opened.reason === "invalid-request"
+          ? copy["invalid-address"]
+          : copy["hub-unreachable"],
+    });
+  const bound =
+    thread !== null &&
+    (await bindThreadWindow(
+      thread,
+      opened.tab,
+      context.windowSeams ?? cdpSeams(context.env, context.run ?? runProcess),
+    ));
+  const link = browserViewUrl(browser.origin, opened.tab);
+  return Object.freeze({
+    code: browserCliExit.done,
+    stdout: json
+      ? answered({
+          kind: "browser-open",
+          session: bound ? thread : null,
+          targetId: opened.tab,
+          link,
+        })
+      : `${copy[bound ? "opened-thread" : "opened"]}: ${link}`,
+    ...(thread !== null && !bound ? { stderr: copy["open-unbound"] } : {}),
+  });
+}
 
 export async function runBrowserCommand(
   args: readonly string[],
@@ -188,7 +306,9 @@ export async function runBrowserCommand(
     url?: string | undefined;
     folder?: string | undefined;
   };
-  let action: "window" | "link" | "done";
+  let action: Action;
+  // `open`'s address: the one argument BROWSER and xdg-open pass.
+  let given: string | undefined;
   try {
     const parsed = parseArgs({
       args: [...args],
@@ -207,7 +327,19 @@ export async function runBrowserCommand(
       token.kind === "option" ? [token.name] : [],
     );
     const [positional] = parsed.positionals;
-    if (
+    if (positional === "open") {
+      if (
+        parsed.positionals.length !== 2 ||
+        new Set(names).size !== names.length ||
+        values.url !== undefined ||
+        values.session !== undefined ||
+        (values.folder !== undefined &&
+          (!isAbsolute(values.folder) ||
+            resolve(values.folder) !== values.folder))
+      )
+        return usage;
+      given = parsed.positionals[1];
+    } else if (
       parsed.positionals.length !== 1 ||
       (positional !== "window" &&
         positional !== "link" &&
@@ -238,6 +370,12 @@ export async function runBrowserCommand(
         : await readStartState(folder, { locked: false });
     locale = state?.preferences.profile.locale === "cs" ? "cs" : "en";
     const copy = text[locale];
+    // The default browser opens a web page, nothing else, wherever it runs.
+    if (action === "open" && !webAddress(given as string))
+      return Object.freeze({
+        code: browserCliExit.usage,
+        stderr: copy["open-scheme"],
+      });
     const entry = state?.entry ?? null;
     const browser = browserEntryOf(entry);
     // Each command answers with its own kind, also without a browser
@@ -248,8 +386,10 @@ export async function runBrowserCommand(
         ...(json
           ? { stdout: answered({ kind: kindOf[action], available: false }) }
           : {}),
-        stderr: copy["not-declared"],
+        stderr: copy[action === "open" ? "open-not-declared" : "not-declared"],
       });
+    if (action === "open")
+      return await openDefault(given as string, browser, json, copy, context);
     const named =
       values.session === undefined && action === "link"
         ? null

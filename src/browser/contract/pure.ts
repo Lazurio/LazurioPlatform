@@ -839,12 +839,17 @@ export function newTabToolIcon(tool: Pick<NewTabTool, "id" | "icon">): string {
 export const browserCliSchema = "lazurio.browser-cli.v1";
 
 /** The kinds of the answers, one per command. */
-export type BrowserCliKind = "browser-window" | "browser-link" | "browser-done";
+export type BrowserCliKind =
+  | "browser-window"
+  | "browser-link"
+  | "browser-done"
+  | "browser-open";
 
 /** What letting go of a window came to (`stopSessionDaemon`). */
 export type BrowserDoneOutcome = "stopped" | "none" | "refused" | "unconfirmed";
 
-/** An answer of `lazurio browser window`, `link` or `done` with `--json`;
+/** An answer of `lazurio browser window`, `link`, `done` or `open` with
+ * `--json`;
  * each command answers with its own `kind`, also where the Environment has
  * no browser (`available: false`, exit 10). */
 export type BrowserCliAnswer =
@@ -868,6 +873,15 @@ export type BrowserCliAnswer =
       session: string;
       outcome: BrowserDoneOutcome;
     }>
+  /** The default browser's page (root decision 0201 point 5): its tab and
+   * link, and the thread whose session it is bound to, so its app shows it;
+   * null where none is. */
+  | Readonly<{
+      kind: "browser-open";
+      session: string | null;
+      targetId: string;
+      link: string;
+    }>
   | Readonly<{ kind: BrowserCliKind; available: false }>;
 
 /** The text of an answer: JSON with `schema` beside its `kind`. */
@@ -879,6 +893,7 @@ const cliKinds: readonly string[] = [
   "browser-window",
   "browser-link",
   "browser-done",
+  "browser-open",
 ];
 const doneOutcomes: readonly string[] = [
   "stopped",
@@ -945,6 +960,14 @@ export function parseBrowserCliAnswer(text: string): BrowserCliAnswer | null {
             outcome: value.outcome as BrowserDoneOutcome,
           })
         : null;
+    case "browser-open": {
+      const targetId = targetIdOf(value.targetId);
+      return (session !== null || value.session === null) &&
+        targetId !== null &&
+        typeof value.link === "string"
+        ? Object.freeze({ kind, session, targetId, link: value.link })
+        : null;
+    }
   }
 }
 

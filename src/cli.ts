@@ -1,5 +1,9 @@
 import { parseArgs } from "node:util";
-import { browserHelp, runBrowserCommand } from "./browser/cli";
+import {
+  browserCommandWithoutNotice,
+  browserHelp,
+  runBrowserCommand,
+} from "./browser/cli";
 import { runViewService } from "./browser/people/serve";
 import {
   ContentUsageError,
@@ -295,9 +299,11 @@ export async function runCli(args: string[]): Promise<number> {
   const code = await runOtherCommand(args);
   // Every other command ends with the one-line notice (docs/update.md
   // "Surfaces"): from `last-check.json` only, on stderr, never the network.
+  // Not the browser commands that run inside other programs: the view
+  // service and the default browser (root decision 0201 point 5).
   if (
     args[0] !== "launchpad" &&
-    !(args[0] === "browser" && args[1] === "serve")
+    !(args[0] === "browser" && browserCommandWithoutNotice(args.slice(1)))
   ) {
     const notice = await noticeAfterCommand();
     if (notice) console.error(notice);

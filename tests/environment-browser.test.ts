@@ -1605,10 +1605,13 @@ test.skipIf(process.platform === "win32")(
     // holds, as `link --url` opens it, and its link.
     const signIn =
       "https://auth.openai.com/oauth/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback";
-    const plain = await runBrowserCommand(["open", signIn, "--folder", folder], {
-      ...context({ HOME: home }),
-      openTab,
-    });
+    const plain = await runBrowserCommand(
+      ["open", signIn, "--folder", folder],
+      {
+        ...context({ HOME: home }),
+        openTab,
+      },
+    );
     expect(plain).toEqual({
       code: 0,
       stdout: `Opened in the Environment browser: ${link}`,
