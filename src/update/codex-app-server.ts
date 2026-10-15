@@ -18,8 +18,10 @@ import {
  * version, updater, configuration, sign-in — is the operator's (root decision
  * 0161, F17): this unit only runs the operator's own `codex app-server daemon
  * start` at boot, so a Codex client connecting over SSH finds the daemon.
- * Nothing here installs, updates or configures Codex, and nothing here ever
- * stops or restarts the daemon: that would end live Codex sessions.
+ * Nothing here installs, updates or configures Codex, and install and update
+ * never stop or restart the daemon: that would end live Codex sessions. The
+ * one restart is the person's own sign-in of Codex (`restartCodexAppServer`,
+ * root decision 0201 point 4), after which the daemon must read it.
  */
 export const codexAppServerUnit = "lazurio-codex-app-server.service";
 
@@ -167,6 +169,57 @@ export async function convergeEntryUnits(
     hosted: await input.hosted().catch(() => false),
     run: input.run,
     env: input.env,
+  });
+}
+
+// ---- After a sign-in of Codex ------------------------------------------------
+
+/** What became of the daemon after `lazurio tools login codex` (root decision
+ * 0201 point 4, F19's addendum of 2026-10-15): restarted through its unit, so
+ * it reads the new sign-in (a running app-server never rereads `auth.json`);
+ * no unit of Lazurio's here (a workstation, an unsupervised installation, a
+ * unit someone else wrote), so nothing was touched; or the restart failed. */
+export type CodexAppServerRestart = Readonly<{
+  state: "restarted" | "not-managed" | "failed";
+}>;
+
+/** The one deliberate restart of the daemon: the person has just signed Codex
+ * in, so its sessions had no working sign-in to lose, or the person is
+ * replacing the one they had. `systemctl --user restart` runs the unit's
+ * `ExecStop` (`codex app-server daemon stop`) and `ExecStart` (`… daemon
+ * start`), also for a daemon a client started outside the unit. Only the
+ * installer's own unit (its marker on the first line) is restarted. Updates
+ * and installs still never stop or restart it. */
+export async function restartCodexAppServer(
+  input: Readonly<{
+    platform: string;
+    env: Readonly<Record<string, string | undefined>>;
+    run: ToolRunner;
+  }>,
+): Promise<CodexAppServerRestart> {
+  const directory = userUnitDirectory(input.env);
+  if (
+    input.platform !== "linux" ||
+    !input.env.XDG_RUNTIME_DIR ||
+    directory === undefined
+  )
+    return Object.freeze({ state: "not-managed" });
+  const text = await readFile(
+    join(directory, codexAppServerUnit),
+    "utf8",
+  ).catch(() => undefined);
+  if (text === undefined || !text.startsWith(unitMarker))
+    return Object.freeze({ state: "not-managed" });
+  const result = await input
+    .run(
+      ["systemctl", "--user", "restart", "--", codexAppServerUnit],
+      serviceCommandTimeoutMs,
+      serviceEnvironment(input.env),
+    )
+    .catch(() => "timeout" as const);
+  return Object.freeze({
+    state:
+      result !== "timeout" && result.exitCode === 0 ? "restarted" : "failed",
   });
 }
 

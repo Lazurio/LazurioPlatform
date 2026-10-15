@@ -1,5 +1,7 @@
+import { createInterface } from "node:readline";
 import { sharedEnvironment } from "../folder/render";
 import { pilotRefusesCuratedGh } from "../github/pilot";
+import { type AiServices, aiServicesReady } from "./ai-services";
 import { activatableTools, executorToolName, vaultToolName } from "./catalog";
 import type { GitIdentity, GitIdentityFailure } from "./git-identity";
 import {
@@ -20,8 +22,10 @@ import {
   type LoginEnvironment,
   type LoginState,
   type LogoutResult,
+  type SignInPage,
 } from "./login";
 import { qrMatrix, qrTerminal } from "./qr";
+import { aiSignInName, isAiSignInTool } from "./sign-in-page";
 import type { SshKeyRemoval, SshLink, SshLinkFailure } from "./ssh-key";
 import { teamGithubText } from "./team-github";
 
@@ -48,6 +52,15 @@ export type CuratedContext = Readonly<{
    * before every step that changes the account or the Machine, and stops as
    * `environment-unreadable` when it can no longer be read. */
   environmentNow?: (() => Promise<HostedEnvironment>) | undefined;
+  /** codex and claude: where their sign-in page opens here, read at the
+   * start (F19's addendum of 2026-10-15): the computer's own browser, the
+   * Environment browser of a Remote Environment, none there, or unreadable,
+   * where the sign-in stops before anything runs. Absent: the computer's
+   * own browser. */
+  signInPage?: (() => Promise<SignInPage | "unreadable">) | undefined;
+  /** The terminal a person types in: a code of Claude Code's code page is
+   * pasted here. Absent where nobody types (an agent, a pipe). */
+  input?: NodeJS.ReadableStream | undefined;
 }>;
 
 /** gh's sign-in, key linking or sign-out on an Environment whose kind could
@@ -272,6 +285,8 @@ const failureText: Record<string, string> = {
     "the kind of this Environment could not be read, so the sign-in stopped before changing anything further",
   "no-challenge":
     "the tool showed no link, code or QR code within a minute, so it was stopped; check that this Environment reaches the internet and try again",
+  "browser-unavailable":
+    "the Environment browser did not open the sign-in page, so the CLI was stopped",
 };
 
 const sshFailureText: Record<SshLinkFailure, string> = {
@@ -363,24 +378,100 @@ function gitIdentityLines(identity: GitIdentity): string[] {
   ];
 }
 
-/** Whether a login reached its full target: for gh, the SSH key linked. */
+/** Whether a login reached its full target: for gh, the SSH key linked; for
+ * codex and claude, the running services read the sign-in or will by
+ * themselves. */
 export function loginComplete(state: LoginState): boolean {
   return (
     state.kind === "signed-in" &&
-    (state.tool !== "gh" || state.ssh?.state === "linked")
+    (state.tool !== "gh" || state.ssh?.state === "linked") &&
+    (state.services === undefined || aiServicesReady(state.services))
   );
 }
 
+// What became of the services that read an AI sign-in (root decision 0201
+// point 4): nothing to say where there are none.
+export function aiServicesLines(tool: string, services: AiServices): string[] {
+  const lines: string[] = [];
+  if (services.appServer?.state === "restarted")
+    lines.push(
+      "The Codex app-server was restarted, so Codex clients of this Environment use the new sign-in.",
+    );
+  if (services.appServer?.state === "failed")
+    lines.push(
+      "The Codex app-server could NOT be restarted: Codex clients of this Environment keep the old sign-in until it is (systemctl --user restart lazurio-codex-app-server.service).",
+    );
+  const t3 = services.t3;
+  switch (t3.state) {
+    case "refreshed":
+      lines.push(
+        `Chat (T3 Code) turned on and read again: ${t3.providers
+          .map(
+            (provider) =>
+              `${provider.provider} ${provider.enabled ? provider.status : "turned off"}`,
+          )
+          .join(", ")}.`,
+      );
+      break;
+    case "not-supported":
+      lines.push(
+        "Chat (T3 Code) reads the new sign-in at its next check, within about five minutes.",
+      );
+      break;
+    case "driver-mismatch":
+      lines.push(
+        `Chat (T3 Code) did NOT turn on ${tool}: ${t3.mismatches
+          .map(
+            (mismatch) =>
+              `its provider "${mismatch.instanceId}" runs the driver ${mismatch.driver}, not ${mismatch.provider}`,
+          )
+          .join(
+            "; ",
+          )}. Change or remove that provider in Chat's Settings → Providers, then sign in again.`,
+      );
+      break;
+    case "failed":
+      lines.push(
+        t3.reason === "not-running"
+          ? "Chat (T3 Code) is not running, so it was not asked; it reads the sign-in when it starts."
+          : `Chat (T3 Code) did NOT read the sign-in again (${t3.reason}); it reads it at its next check, within about five minutes.`,
+      );
+      break;
+    case "not-installed":
+      break;
+  }
+  return lines;
+}
+
 // What a person reads for one state; `null` when nothing new is to be said.
-function loginLines(state: LoginState): string[] {
+// `typing`: a person types in this terminal, where a code can be pasted.
+function loginLines(state: LoginState, typing = false): string[] {
   switch (state.kind) {
     case "pending": {
       if (state.step === "ssh-key")
         return [
           "Signed in to GitHub. Linking the SSH key of this Environment: key pair, registration on your account, GitHub's host keys, proof over SSH…",
         ];
+      if (state.step === "services")
+        return [
+          "Signed in. Asking the running services (the Codex app-server, Chat) to use the new sign-in…",
+        ];
       const challenge = state.challenge;
       if (challenge === undefined) return ["Starting the sign-in…"];
+      if (challenge.kind === "page") {
+        const name = isAiSignInTool(state.tool)
+          ? aiSignInName[state.tool]
+          : state.tool;
+        return [
+          challenge.view !== undefined
+            ? `Sign in to ${name} in the Environment browser: ${challenge.view}`
+            : `Sign in to ${name} in the browser window that opened. If none opened, open: ${challenge.url ?? ""}`,
+          ...(challenge.code && typing
+            ? ["If the page ends on a code, paste it here and press Enter."]
+            : []),
+          "Waiting for you to finish the sign-in. Ctrl-C cancels.",
+        ];
+      }
       if (challenge.kind === "device-code")
         return [
           "Sign in to GitHub on any device (phone or computer):",
@@ -433,13 +524,27 @@ function loginLines(state: LoginState): string[] {
               "See or change the organization: lazurio tools composio-org list",
             ]
           : []),
+        ...(state.services === undefined
+          ? []
+          : aiServicesLines(state.tool, state.services)),
       ];
     case "failed":
       return [
         `Sign-in of ${state.tool} failed: ${failureText[state.reason] ?? state.reason}.`,
-        `Finish it with an agent: lazurio tools prompt ${state.tool}`,
+        // An AI CLI has no agent prompt: without AI there is no agent.
+        isAiSignInTool(state.tool)
+          ? `Try again: lazurio tools login ${state.tool}`
+          : `Finish it with an agent: lazurio tools prompt ${state.tool}`,
       ];
     case "blocked":
+      if (state.reason === "no-environment-browser")
+        return [
+          `This Remote Environment has no Environment browser, so the sign-in page could not return to ${state.tool} here. Nothing was started; an update of the Environment adds the browser.`,
+        ];
+      if (state.reason === "organization-provided")
+        return [
+          "Your Organization provides AI in this Environment: Codex uses its provider and needs no ChatGPT sign-in. Nothing was started.",
+        ];
       return [teamGithubText.en];
     case "expired":
       return [
@@ -459,7 +564,10 @@ export async function runLogin(
   context: CuratedContext,
   sshKey = false,
 ): Promise<CuratedOutput> {
-  const refused = refuseTool(name, json);
+  // codex and claude sign in here too (F19's addendum of 2026-10-15),
+  // though agents are not told about them as catalog tools.
+  const ai = isAiSignInTool(name);
+  const refused = ai ? undefined : refuseTool(name, json);
   if (refused) return refused;
   if (sshKey && name !== "gh") {
     const result = { kind: "blocked", reason: "ssh-key-gh-only", tool: name };
@@ -492,9 +600,22 @@ export async function runLogin(
   const environment = context.environment ?? { kind: "none" };
   if (environment.kind === "unreadable" && name === "gh")
     return environmentUnreadable(name, json, "login");
+  // Where an AI CLI's page opens: the kind of Environment decides it, and
+  // one that cannot be read stops the sign-in before anything runs.
+  let signInPage: SignInPage | undefined;
+  if (ai) {
+    const page =
+      environment.kind === "unreadable"
+        ? "unreadable"
+        : await (context.signInPage?.() ?? { kind: "own" as const });
+    if (page === "unreadable")
+      return environmentUnreadable(name, json, "login");
+    signInPage = page;
+  }
   const environmentNow = context.environmentNow;
   const sessions = createLoginSessions({
     ...context.login,
+    ...(signInPage === undefined ? {} : { signInPage }),
     ...(environmentNow === undefined
       ? {}
       : {
@@ -535,7 +656,9 @@ export async function runLogin(
     context.write(sharedSignInsText);
   const emit = (state: LoginState) => {
     if (json) context.write(JSON.stringify(state));
-    else for (const line of loginLines(state)) context.write(line);
+    else
+      for (const line of loginLines(state, context.input !== undefined))
+        context.write(line);
   };
   const aborted = new Promise<"aborted">((resolve) => {
     if (context.signal?.aborted) resolve("aborted");
@@ -543,6 +666,25 @@ export async function runLogin(
       once: true,
     });
   });
+  // A code of Claude Code's code page, pasted in the terminal, goes to the
+  // waiting CLI; it is never echoed or kept.
+  let typing: ReturnType<typeof createInterface> | undefined;
+  const takeCodes = (handle: string) => {
+    if (typing !== undefined || context.input === undefined) return;
+    typing = createInterface({ input: context.input, terminal: false });
+    typing.on("line", (line) => {
+      if (line.trim() === "") return;
+      const taken = sessions.code(name, handle, line);
+      // With --json only the session's states are written.
+      if (json) return;
+      if (taken === "invalid-code")
+        context.write(
+          "That is not the whole code. Copy all of it from the page and paste it again.",
+        );
+      else if (taken === "accepted")
+        context.write("Code handed over; waiting for the CLI…");
+    });
+  };
   try {
     let state = await sessions.start(name, {
       ...(phone === undefined ? {} : { phone }),
@@ -552,6 +694,8 @@ export async function runLogin(
     let shown = JSON.stringify(state);
     while (state.kind === "pending") {
       const handle = state.session;
+      if (state.challenge?.kind === "page" && state.challenge.code)
+        takeCodes(handle);
       const outcome = await Promise.race([
         sessions.changed(name, handle, 1_000),
         aborted,
@@ -582,6 +726,7 @@ export async function runLogin(
       text: "",
     };
   } finally {
+    typing?.close();
     await sessions.close();
   }
 }

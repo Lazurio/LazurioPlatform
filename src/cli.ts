@@ -94,6 +94,7 @@ import { inspectOrganizationConversion } from "./organizations/inspect-conversio
 import { readOrganizationApplications } from "./organizations/read-applications";
 import { recoverHelp, recoverySource, runRecoverCommand } from "./recover/cli";
 import { runToolsCommand, ToolsUsageError, toolsHelp } from "./tools/cli";
+import { openedView } from "./tools/sign-in-page";
 import {
   type CommandOutput,
   executorAtStart,
@@ -412,6 +413,15 @@ async function runOtherCommand(args: string[]): Promise<number> {
         signal: interrupt.signal,
         // gh on a Team Environment: the hosted operator Folder's preset.
         hostedFolder: hostedOperatorFolder,
+        // The sign-in page of codex and claude on a Remote Environment opens
+        // as `lazurio browser open` opens a page (F19's addendum of
+        // 2026-10-15), in a T3 Code thread in its panel.
+        openPage: async (url) =>
+          openedView(
+            await runBrowserCommand(["open", "--json", url], processContext()),
+          ),
+        // A code of Claude's code page is typed only where a person types.
+        input: process.stdin.isTTY ? process.stdin : undefined,
       });
       if (text) console.log(text);
       return code;

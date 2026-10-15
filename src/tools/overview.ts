@@ -164,7 +164,7 @@ export async function toolsOverview(
             const live = status.tools[index];
             if (live === undefined || live.name !== entry.name)
               throw new Error("Tool status does not match the catalog");
-            return { probe: entry.activation.signInProbe, status: live };
+            return { probe: entry.signInProbe, status: live };
           }),
           environment,
         )

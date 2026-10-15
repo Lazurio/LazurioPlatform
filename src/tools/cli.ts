@@ -1,11 +1,18 @@
+import { join } from "node:path";
 import { parseArgs } from "node:util";
+import { browserEntryOf } from "../browser/view";
 import { FolderAdoptionError } from "../folder/handover-layout";
 import {
   readFolderTools,
   sharedSignInsWarning,
 } from "../folder/inspect-tools-change";
+import { withFolderReadLock } from "../folder/lock";
+import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { readFolderState } from "../folder/read-state";
 import { sharedEnvironment } from "../folder/render";
 import { updateTools } from "../folder/update-profile";
+import { converse, readCodex } from "./ai-probe";
+import { reloadAiServices } from "./ai-services";
 import { activatableTools, toolCatalog, toolPrompt } from "./catalog";
 import {
   type CuratedContext,
@@ -17,7 +24,7 @@ import {
 } from "./curated-cli";
 import { hostedEnvironmentReader } from "./github-gate";
 import type { InstallEnvironment } from "./install";
-import type { LoginEnvironment } from "./login";
+import type { LoginEnvironment, SignInPage } from "./login";
 import {
   normalizeToolNote,
   quoteToolNote,
@@ -114,6 +121,19 @@ tools login <tool> [--phone <+number>] [--ssh-key] [--json]
   until signed in, failed or expired; Ctrl-C cancels. With --json one JSON
   object per state change (including the code, since this command holds the
   session). The code or link is never written to a file or log.
+  codex and claude (ChatGPT, Claude) sign in through their own CLI's browser
+  sign-in, codex login (never its device code) and claude auth login. On a
+  Remote Environment the page opens in the Environment browser (in a T3 Code
+  thread, in its panel; elsewhere in Přehled of Nová karta, by the link this
+  prints) and returns to the CLI inside the Environment; without the
+  Environment browser nothing starts (blocked, no-environment-browser, exit
+  2). On a computer of your own the CLI opens its browser. Where the
+  Organization provides AI (Codex's provider needs no sign-in) codex is not
+  signed in (blocked, organization-provided). A code of Claude's code page
+  is pasted here. Signed in is what codex login status and claude auth status
+  confirm; then the Codex app-server unit Lazurio manages is restarted (codex)
+  and T3 Code turns the signed-in providers on and reads them again. Exit 0
+  only when those services read the sign-in or will by themselves.
   gh then links this Environment's SSH key to the account: the existing default
   key (~/.ssh/id_ed25519, id_ecdsa, id_rsa) or a new ed25519 key without a
   passphrase, registered on the account, GitHub's published host keys in
@@ -182,6 +202,14 @@ export async function runToolsCommand(
      * none. `login` and `logout` read its preset: gh on a Team Environment
      * (Matěj 2026-09-28). */
     hostedFolder?: (() => Promise<string | undefined>) | undefined;
+    /** Opens a page in the Environment browser as `lazurio browser open`
+     * does (F38's addendum of 2026-10-15), answering its link: where the
+     * sign-in page of codex and claude opens on a Remote Environment. */
+    openPage?:
+      | ((url: string) => Promise<Readonly<{ view: string }> | null>)
+      | undefined;
+    /** The terminal a person types in (a code of Claude's code page). */
+    input?: NodeJS.ReadableStream | undefined;
   }> = { env: process.env, platform: process.platform },
 ): Promise<ToolsCommandOutput> {
   let values: ToolsOptions & { locale?: string | undefined };
@@ -303,17 +331,32 @@ export async function runToolsCommand(
     // One reader for the command: a running login's later reads cannot turn
     // a hosted Environment found at the start into none.
     const environmentNow = hostedEnvironmentReader(context.hostedFolder);
+    const tools = { ...base, run: context.login?.run ?? runTool };
     const curatedContext: CuratedContext = {
       env: context.env,
       platform: context.platform,
       install: { ...base, ...context.install },
-      login: { ...base, ...context.login },
+      login: {
+        ...base,
+        // codex and claude (F19's addendum of 2026-10-15): Codex's own
+        // answer whether the Organization provides the AI, and the running
+        // services that read a new sign-in.
+        organizationProvides: async (tool) =>
+          tool === "codex" &&
+          (await readCodex(tools, converse, 10_000)).state === "provided",
+        reload: (tool, signedIn) =>
+          reloadAiServices({ ...tools, tool, signedIn, env: context.env }),
+        ...context.login,
+      },
       write: context.write ?? ((line) => console.log(line)),
       signal: context.signal,
       ...(command === "install" || command === "login" || command === "logout"
         ? { environment: await environmentNow() }
         : {}),
       environmentNow,
+      signInPage: () =>
+        hostedSignInPage(context.hostedFolder, context.openPage),
+      input: context.input,
     };
     if (command === "composio-org") {
       const output = await runComposioOrganization(
@@ -379,6 +422,38 @@ export async function runToolsCommand(
     return { code, result, text };
   }
   throw new ToolsUsageError(usage);
+}
+
+/** Where the sign-in page of codex and claude opens for a command without a
+ * Folder: the computer's own browser where there is no hosted operator
+ * Folder; on a Remote Environment the Environment browser its recorded entry
+ * routes, or none; unreadable where the hosted context or its Folder cannot
+ * be read (fail closed, as #83). */
+export async function hostedSignInPage(
+  hostedFolder: (() => Promise<string | undefined>) | undefined,
+  openPage:
+    | ((url: string) => Promise<Readonly<{ view: string }> | null>)
+    | undefined,
+): Promise<SignInPage | "unreadable"> {
+  let folder: string | undefined;
+  try {
+    folder = await hostedFolder?.();
+  } catch {
+    return "unreadable";
+  }
+  if (folder === undefined) return { kind: "own" };
+  let entry: Parameters<typeof browserEntryOf>[0];
+  try {
+    await inspectOwnedDirectory(folder);
+    const state = join(folder, ".lazurio");
+    entry = (await withFolderReadLock(state, () => readFolderState(state)))
+      .preferences.machine?.entry;
+  } catch {
+    return "unreadable";
+  }
+  return browserEntryOf(entry) === undefined || openPage === undefined
+    ? { kind: "none" }
+    : { kind: "environment", open: openPage };
 }
 
 const usage =
@@ -473,7 +548,7 @@ async function runFolderToolsCommand(
     const signIns = values["sign-in"]
       ? await toolsSignIn(
           catalog.map((entry, index) => ({
-            probe: entry.activation.signInProbe,
+            probe: entry.signInProbe,
             status: status.tools[index] as ToolStatus,
           })),
           {
