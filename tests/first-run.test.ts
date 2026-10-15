@@ -3,6 +3,7 @@ import type { ContentItem } from "../src/launchpad/content-client";
 import { type ContentFact, contentFact } from "../src/launchpad/content-view";
 import {
   appsSetupLine,
+  autoStartStep,
   basicsDone,
   composioFact,
   contentBlockedBy,
@@ -10,6 +11,7 @@ import {
   firstProgress,
   freshTourProgress,
   githubFact,
+  idleAutoStart,
   nextBasic,
   parseTourProgress,
   readFragment,
@@ -672,4 +674,187 @@ test("a start request of the address keeps the order: an older #lazurio-start=in
   expect(
     startDecision("install-content", fresh("hosted-organization-team")),
   ).toBe("drop");
+});
+
+// The start of the content by itself (root decision 0201 point 3; Pablo's
+// re-review of #436 at 61765074): a view reads the facts again and again;
+// each reading is one step. `run` feeds the readings in order and says at
+// which of them the content started.
+const run = (
+  readings: readonly (
+    | TourFacts
+    | Readonly<{ facts: TourFacts; running: boolean }>
+  )[],
+): number[] => {
+  let state = idleAutoStart;
+  const starts: number[] = [];
+  readings.forEach((reading, index) => {
+    const { facts, running } =
+      "facts" in reading ? reading : { facts: reading, running: false };
+    const step = autoStartStep(state, facts, running);
+    state = step.state;
+    if (step.start) starts.push(index);
+  });
+  return starts;
+};
+
+test("the content starts by itself once GitHub and AI are both there, whichever came last: GitHub, then AI", () => {
+  const work = (overrides: Partial<TourFacts>) =>
+    fresh("hosted-organization-personal", overrides);
+  expect(
+    run([
+      // The page loads: nothing read yet, then AI and GitHub missing.
+      work({ ai: "loading", github: "unknown", content: { state: "loading" } }),
+      work({ ai: "missing", github: "missing" }),
+      // GitHub connects first (in Nástroje): no start, AI is missing.
+      work({ ai: "missing", github: "connected" }),
+      // The content is read again; still no AI.
+      work({ ai: "missing", github: "connected" }),
+      // AI arrives: the content starts, once.
+      work({ ai: "connected", github: "connected" }),
+      // The run, and its end.
+      {
+        facts: work({ ai: "connected", github: "connected" }),
+        running: true,
+      },
+      work({ ai: "connected", github: "connected", content: ready }),
+    ]),
+  ).toEqual([4]);
+});
+
+test("the content starts by itself once GitHub and AI are both there, whichever came last: AI, then GitHub", () => {
+  const work = (overrides: Partial<TourFacts>) =>
+    fresh("hosted-personal", overrides);
+  expect(
+    run([
+      work({ ai: "missing", github: "missing" }),
+      // AI arrives first: no start, GitHub is missing.
+      work({ ai: "connected", github: "missing" }),
+      work({ ai: "connected", github: "missing" }),
+      // GitHub arrives: the content starts, once.
+      work({ ai: "connected", github: "connected" }),
+      work({ ai: "connected", github: "connected" }),
+    ]),
+  ).toEqual([3]);
+  // The Organization's AI pool arriving counts as AI.
+  expect(
+    run([
+      work({ ai: "missing", github: "connected" }),
+      work({ ai: "organization", github: "connected" }),
+    ]),
+  ).toEqual([1]);
+});
+
+test("the start by itself: a reading that cannot tell changes nothing, what was there at load starts nothing", () => {
+  const work = (overrides: Partial<TourFacts>) =>
+    fresh("hosted-organization-personal", overrides);
+  // GitHub's reading passes through unknown (the profile's revision moved
+  // during the sign-in): it still arrived.
+  expect(
+    run([
+      work({ ai: "connected", github: "missing" }),
+      work({ ai: "connected", github: "unknown" }),
+      work({ ai: "connected", github: "connected" }),
+    ]),
+  ).toEqual([2]);
+  // So does an AI read between a timeout and its answer: an unknown AI is
+  // no arrival, its answer is.
+  expect(
+    run([
+      work({ ai: "missing", github: "connected" }),
+      work({ ai: "unknown", github: "connected" }),
+      work({ ai: "connected", github: "connected" }),
+    ]),
+  ).toEqual([2]);
+  // Both there when the page loaded: nothing starts by itself; the button
+  // does it.
+  expect(
+    run([
+      work({ ai: "loading", github: "unknown" }),
+      work({ ai: "connected", github: "connected" }),
+      work({ ai: "connected", github: "connected" }),
+    ]),
+  ).toEqual([]);
+  // GitHub arrives while AI could not be checked: it does not hold the
+  // content back (the same rule as every start).
+  expect(
+    run([
+      work({ ai: "unknown", github: "missing" }),
+      work({ ai: "unknown", github: "connected" }),
+    ]),
+  ).toEqual([1]);
+});
+
+test("the start by itself never comes after a stop, never during a run, never before the content is read, and only with a first run", () => {
+  const work = (overrides: Partial<TourFacts>) =>
+    fresh("hosted-organization-personal", overrides);
+  const stopped = failed(organization);
+  // A stop ends it without a start, and a later arrival does not retry.
+  expect(
+    run([
+      work({ ai: "missing", github: "missing", content: stopped }),
+      work({ ai: "missing", github: "connected", content: stopped }),
+      work({ ai: "connected", github: "connected", content: stopped }),
+    ]),
+  ).toEqual([]);
+  // A run under way (started elsewhere): it waits for its end.
+  expect(
+    run([
+      work({ ai: "missing", github: "connected" }),
+      { facts: work({ ai: "connected", github: "connected" }), running: true },
+      work({ ai: "connected", github: "connected", content: ready }),
+    ]),
+  ).toEqual([]);
+  // The content not read yet: it waits, then starts.
+  expect(
+    run([
+      work({
+        ai: "missing",
+        github: "connected",
+        content: { state: "unknown" },
+      }),
+      work({
+        ai: "connected",
+        github: "connected",
+        content: { state: "unknown" },
+      }),
+      work({ ai: "connected", github: "connected" }),
+    ]),
+  ).toEqual([2]);
+  // AI leaves again before GitHub arrives: it waits for AI again.
+  expect(
+    run([
+      work({ ai: "missing", github: "missing" }),
+      work({ ai: "connected", github: "missing" }),
+      work({ ai: "missing", github: "missing" }),
+      work({ ai: "missing", github: "connected" }),
+      work({ ai: "connected", github: "connected" }),
+    ]),
+  ).toEqual([4]);
+  // Without a first run (a Team or an Automated Environment): never.
+  for (const preset of [
+    "hosted-organization-team",
+    "hosted-organization-steward",
+  ])
+    expect(
+      run([
+        fresh(preset, { ai: "missing", github: "missing" }),
+        fresh(preset, { ai: "connected", github: "connected" }),
+      ]),
+    ).toEqual([]);
+  // One rule: it starts only where every other start may.
+  for (const ai of ["missing", "loading", "unknown", "connected"] as const)
+    for (const github of ["missing", "unknown", "connected"] as const) {
+      const facts = work({ ai, github });
+      const step = autoStartStep(
+        { ai: false, github: false, armed: true },
+        facts,
+        false,
+      );
+      expect([ai, github, step.start]).toEqual([
+        ai,
+        github,
+        contentBlockedBy(facts) === null,
+      ]);
+    }
 });

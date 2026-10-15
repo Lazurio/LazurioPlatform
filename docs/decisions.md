@@ -6013,13 +6013,15 @@ the member, who could not fix the Organization's root, was still sent to Chat.
    by changing this reading.
 3. **Nastavení → Začínáme** (`/settings/start`, first in Settings with a "1/3" count while a
    basic is missing): the basics as steps in the order AI → GitHub → content (0201 point
-   3), GitHub offered only once AI is there, the content's own rows in the third step and
-   started by itself once this view saw GitHub connect (never after a stop, never while no
-   agent could help). **No start of the content comes before its turn** (Pablo's review of
+   3), GitHub offered only once AI is there, the content's own rows in the third step.
+   **The content starts by itself** once this view saw GitHub or the AI arrive, as soon as
+   both are there, whichever came last (`autoStartStep`, Pablo's re-review of #436: GitHub
+   connected in Nástroje before AI must not lose it); in memory only, never after a stop,
+   never during a run. **No start of the content comes before its turn** (Pablo's review of
    #436): one rule, `contentBlockedBy`, decides the download button and "Zkusit znovu" (not
    offered, only a sentence why), the line in Apps, a start request in the address (an
-   older `#lazurio-start=install-content` shows the AI step instead), the start after
-   GitHub, and the install route itself, which answers `403` with `"reason":
+   older `#lazurio-start=install-content` shows the AI step instead), the start by itself,
+   and the install route itself, which answers `403` with `"reason":
    "ai-missing"`. Only a provably missing AI blocks (every CLI answered); an AI that could
    not be checked does not, as it holds nothing else back: a timeout of Codex must not lock
    an Environment out of its content, and a stop then leads to Chat. Then the
