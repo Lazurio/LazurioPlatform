@@ -195,7 +195,7 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
 .page-corner { position: absolute; top: 11px; display: flex; align-items: center; gap: 14px; min-height: 30px; border-radius: var(--radius-control); background: var(--bg); }
 .page-corner-start { left: 16px; }
 .page-corner-end { right: 16px; }
-#catalog-head, .market-head, .integrations-head { padding-right: var(--page-corner, 0px); }
+#catalog-head, .market-head { padding-right: var(--page-corner, 0px); }
 .topbar { padding-right: calc(24px + var(--page-corner, 0px)); }
 /* The Guide is the Apps home's: a module's information page, whose head
    catalog-panel.ts hides, has none (the wireframe's corner on the home). */
@@ -358,6 +358,23 @@ dl.card ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.25re
 .callout { padding: 10px 14px; border: 1px solid var(--lz-info-border); border-radius: var(--radius-control); background: var(--lz-info-bg); color: var(--fg); font-size: 14px; }
 .callout[data-kind="warning"], .tools-warning { border: 1px solid var(--warning-border); border-radius: var(--radius-control); background: var(--warning-bg); color: var(--fg); padding: 10px 14px; font-size: 14px; }
 .callout[data-kind="warning"] strong { color: var(--warning-fg); }
+/* The callout's other tones and its row: one notice for every message of a
+   page (info by default, success, warning, danger), the full width of the
+   page, its tone's icon, the text and its actions on one line that wraps.
+   A row without a button is as tall as one with it, so notices stacked
+   together line up (Integrace, decision F42). */
+.callout[data-kind="success"] { border-color: var(--success-border); background: var(--success-bg); }
+.callout[data-kind="danger"] { border-color: var(--destructive-border); background: var(--destructive-bg); }
+.callout-row { display: flex; align-items: flex-start; gap: 12px; }
+.callout-row > .callout-icon, .callout-row > .spinner { flex: none; margin-top: 7px; }
+.callout-row > .spinner { width: 16px; height: 16px; }
+.callout-icon { width: 16px; height: 16px; color: var(--lz-info); }
+.callout-body { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+.callout[data-kind="success"] .callout-icon { color: var(--success-fg); }
+.callout[data-kind="warning"] .callout-icon { color: var(--warning-fg); }
+.callout[data-kind="danger"] .callout-icon { color: var(--destructive); }
+.callout-text { flex: 1 1 16rem; min-width: 0; min-height: 30px; display: flex; align-items: center; overflow-wrap: anywhere; }
+.callout-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; color: var(--muted-fg); font-size: 12px; }
 details.technical > summary, details.row-details > summary { display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer; color: var(--muted-fg); font-size: 13px; list-style: none; border-radius: 4px; }
 details.technical > summary::-webkit-details-marker, details.row-details > summary::-webkit-details-marker { display: none; }
@@ -564,6 +581,10 @@ a.files-name:hover { text-decoration: underline; }
    controls in the title row); short of room they go above the tabs, at the
    right, so the tabs keep their place on the hairline. */
 .integrations-head { align-items: flex-start; }
+/* Only the title shares its line with the page's corner: the sentence
+   under it has the page's width (below 768 px the head starts under the
+   corner). */
+.integrations-head .apps-title { padding-right: var(--page-corner, 0px); }
 .integrations-titles { display: grid; gap: 4px; min-width: 0; }
 .integrations-bar { display: flex; flex-wrap: wrap-reverse; align-items: flex-start; gap: 8px 16px; margin-top: -12px; border-bottom: 1px solid var(--lz-line-faint); }
 .integrations-tools { display: flex; align-items: center; gap: 8px; margin: 0 0 4px auto; }
@@ -577,19 +598,34 @@ a.files-name:hover { text-decoration: underline; }
 .integrations-tab { padding: 8px 12px; border-bottom: 2px solid transparent; color: var(--muted-fg); font-size: 14px; text-decoration: none; }
 .integrations-tab:hover { color: var(--fg); }
 .integrations-tab[aria-current="page"] { border-bottom-color: var(--lz-accent); color: var(--fg); font-weight: var(--lz-weight-akce); }
-.integrations-alert:empty, #integrations-status:empty { display: none; }
-.integrations-section-head { margin: 8px 0 10px; color: var(--muted-fg); font-size: 13px; }
-.integration-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+#integrations-status:empty { display: none; }
+/* The page's notices stand together, one under another, before the apps:
+   the line about the last action, then what the reading says. */
+.integrations-notices { display: grid; gap: 8px; min-width: 0; }
+#integrations-problems { display: contents; }
+.integrations-section { display: grid; gap: 12px; min-width: 0; container-type: inline-size; }
+.integrations-section-head { color: var(--muted-fg); font-size: 13px; }
+.integration-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 12px; }
 .integration-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--card); }
 .integration-card.is-focused { border-color: var(--lz-accent); box-shadow: 0 0 0 1px var(--lz-accent); }
 .integration-top { display: flex; gap: 12px; min-width: 0; }
 .integration-mark { display: grid; flex: none; width: 40px; height: 40px; place-items: center; border: 1px solid var(--lz-line-faint); border-radius: var(--lz-radius-sm); background: var(--lz-white); }
 .integration-mark svg { width: 24px; height: 24px; }
 .integration-mark-letter { color: var(--muted-fg); font-weight: var(--lz-weight-akce); font-size: 17px; background: var(--lz-gray-25); }
-.integration-text { display: grid; gap: 2px; min-width: 0; }
-.integration-name { font-size: 15px; font-weight: var(--lz-weight-akce); }
-.integration-line { color: var(--muted-fg); font-size: 13px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.integration-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; }
+/* The name on one line and the sentence on two, both whole on hover
+   (title): every card's foot, and so its button, stands at the same height
+   in a row, whatever its accounts below it. */
+.integration-text { display: grid; align-content: start; gap: 2px; min-width: 0; }
+.integration-name { overflow: hidden; font-size: 15px; font-weight: var(--lz-weight-akce); text-overflow: ellipsis; white-space: nowrap; }
+.integration-line { color: var(--muted-fg); font-size: 13px; line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+.integration-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
+/* Two cards or more in a row (2 × 260 px and the gap): the sentence keeps
+   its two lines' room, so the feet line up. */
+@container (min-width: 532px) { .integration-line { min-height: calc(2 * 1.45em); } }
+/* Short of room the button goes under the state, still at the right. */
+.integration-foot > .integration-action { margin-left: auto; }
+/* The Admin's step where the Dashboard link is not known: one quiet line. */
+.integration-where { flex: 1 1 0; min-width: 0; color: var(--muted-fg); font-size: 13px; }
 .integration-state { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--success-fg); font-size: 13px; }
 .integration-state .icon { width: 14px; height: 14px; }
 .integration-path { display: inline-flex; align-items: center; gap: 3px; color: var(--muted-fg); }
@@ -598,13 +634,16 @@ a.files-name:hover { text-decoration: underline; }
 .integration-form-note { flex-basis: 100%; color: var(--muted-fg); font-size: 13px; }
 .integration-form-field { flex: 1 1 140px; }
 .integration-form-field input { width: 100%; }
-.integration-accounts { display: grid; gap: 6px; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--lz-line-faint); list-style: none; }
-.integration-account { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; font-size: 13px; }
-.integration-account-text { display: grid; gap: 2px; min-width: 0; }
-.integration-account-name { overflow-wrap: anywhere; }
+.integration-accounts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--lz-line-faint); list-style: none; }
+.integration-account { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; min-height: 20px; font-size: 13px; }
+.integration-account-text { display: grid; flex: 1; gap: 2px; min-width: 0; }
+/* A long name or address on one line, whole on hover (title) and while
+   the row's buttons have the focus. */
+.integration-account-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.integration-account:focus-within .integration-account-name { white-space: normal; overflow-wrap: anywhere; }
 .integration-account-line { color: var(--muted-fg); font-size: 12px; }
 .integration-account[data-state="expired"] .integration-account-line, .integration-account[data-state="failed"] .integration-account-line { color: var(--warning-fg); }
-.integration-account-actions { display: flex; flex: none; align-items: center; gap: 8px; }
+.integration-account-actions { display: flex; flex: none; align-items: center; gap: 8px; min-height: 19px; }
 /* "Odpojit" running until the reading after it, and why it failed
    (decision F42, addendum (b) of 2026-10-14): the row dimmed, the spinner
    before "Odpojuji…". */
@@ -621,21 +660,29 @@ a.files-name:hover { text-decoration: underline; }
 button.link-button, a.link-button { height: auto; padding: 0; border: 0; background: none; color: var(--link); font-size: 13px; font-weight: var(--lz-weight-akce); text-decoration: none; cursor: pointer; }
 button.link-button:hover, a.link-button:hover { background: none; text-decoration: underline; }
 button.link-button.danger { color: var(--destructive); }
-.integrations-more { justify-self: center; margin-top: 12px; }
+.integrations-more { justify-self: center; margin-top: 4px; }
 /* An app the catalog does not list: one quiet question and Composio's Apps
    (decision F42, addendum of 2026-10-14). */
-.integrations-hint { margin: 12px 0 0; color: var(--muted-fg); font-size: 13px; }
+.integrations-hint { color: var(--muted-fg); font-size: 13px; }
 .empty .integrations-hint { display: block; margin-top: 6px; }
 .integrations-hint a { display: inline-flex; align-items: center; gap: 4px; color: var(--fg); font-weight: var(--lz-weight-akce); text-decoration: none; }
 .integrations-hint a:hover { text-decoration: underline; }
 .integrations-hint .icon { width: 13px; height: 13px; }
-.integrations-custom-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; }
+.integrations-custom-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .integrations-custom-head h2 { font-size: 15px; }
-.composio-organization { display: grid; justify-items: start; gap: 10px; }
+.composio-organization { display: grid; justify-items: start; gap: 10px; min-width: 0; }
 .composio-organization p { margin: 0; }
-.composio-model { display: grid; gap: 8px; width: 100%; margin: 4px 0 0; }
+.composio-model { display: grid; gap: 8px; width: 100%; min-width: 0; margin: 4px 0 0; container-type: inline-size; }
 .composio-model figcaption { font-size: 13px; font-weight: var(--lz-weight-akce); }
 .composio-model-grid { display: grid; grid-template-columns: minmax(110px, 1fr) auto minmax(130px, 1.3fr) auto minmax(130px, 1.3fr); align-items: center; gap: 8px 10px; }
+.composio-model-grid > * { grid-row: var(--model-row); grid-column: var(--model-column); }
+/* Short of room the account stands above its organizations, each row
+   organization → its Environments under it. */
+@container (max-width: 560px) {
+  .composio-model-grid { grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); }
+  .composio-model-grid > * { grid-row: auto; grid-column: auto; }
+  .composio-model-grid > .composio-model-account { grid-column: 1 / -1; }
+}
 .composio-model-account { display: grid; align-content: center; align-self: stretch; gap: 2px; padding: 10px 12px; border: 1px solid var(--lz-line-faint); border-radius: var(--radius-control); background: var(--card); font-size: 13px; }
 .composio-model-account span, .composio-model-caption { color: var(--muted-fg); font-size: 13px; }
 /* Above the warning callout's own colour for its emphasis. */
@@ -791,7 +838,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
   .browser-panel.is-leaving { animation-name: browser-sheet-out; }
   .browser-divider { display: none; }
 }
-@media (max-width: 767px) { .browser-toggle-text, .integrations-composio-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
+@media (max-width: 767px) { .browser-toggle-text, .integrations-composio-text, .integrations-help-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
 
 /* Narrow viewport: the column is an off-canvas sheet beside the rail,
    opened from a button at the top of the page (T3 Code ui/sidebar.tsx below
@@ -808,7 +855,8 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
   .topbar-actions > button > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   /* The page's 14 px here are less than the corner's 16 px from the edge:
      the heads leave it a few pixels more. */
-  #catalog-head, .market-head, .integrations-head { padding-right: calc(var(--page-corner, 0px) + 8px); }
+  #catalog-head, .market-head { padding-right: calc(var(--page-corner, 0px) + 8px); }
+  .integrations-head .apps-title { padding-right: 0; }
   .container, .container.wide { padding: 20px 14px 48px; }
   /* Settings and Files start under the header; every page without it
      starts its head below #nav-toggle, as the Apps home does (#366). */
@@ -1018,7 +1066,7 @@ button.tour-later:hover { background: transparent; color: var(--fg); }
      offered and which stays, pressed, while the panel is open. -->
 <div class="page-top">
 <div class="page-corner page-corner-start"><button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button></div>
-<div class="page-corner page-corner-end" id="page-corner"><a class="apps-guide" id="catalog-guide" data-view="catalog" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a><a class="apps-guide" id="integrations-composio" data-view="integrations" target="_blank" rel="noopener noreferrer" hidden><svg class="icon" aria-hidden="true"><use href="#i-external"/></svg><span class="integrations-composio-text" data-message="integrationsComposioApps">Apps in Composio</span></a><a class="apps-guide" id="integrations-help" data-view="integrations" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="integrationsHelp">How it works</span></a><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></div>
+<div class="page-corner page-corner-end" id="page-corner"><a class="apps-guide" id="catalog-guide" data-view="catalog" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a><a class="apps-guide" id="integrations-composio" data-view="integrations" target="_blank" rel="noopener noreferrer" hidden><svg class="icon" aria-hidden="true"><use href="#i-external"/></svg><span class="integrations-composio-text" data-message="integrationsComposioApps">Apps in Composio</span></a><a class="apps-guide" id="integrations-help" data-view="integrations" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span class="integrations-help-text" data-message="integrationsHelp">How it works</span></a><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></div>
 </div>
 <!-- Settings and Files: a 52 px header with the breadcrumb and the page
      actions (T3 Code). The Apps home has none: no top bar. -->
@@ -1067,8 +1115,9 @@ button.tour-later:hover { background: transparent; color: var(--fg); }
 <nav class="integrations-tabs" id="integrations-tabs" aria-labelledby="integrations-tabs-label"><span class="sr-only" id="integrations-tabs-label" data-message="integrationsTabsLabel">Show</span><a class="integrations-tab" href="/integrations" data-tab="all" data-route>All</a><a class="integrations-tab" href="/integrations/connected" data-tab="connected" data-route>Connected</a><a class="integrations-tab" href="/integrations/custom" data-tab="custom" data-route>Custom</a></nav>
 <div class="integrations-tools"><label class="integrations-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only" data-message="integrationsSearch">Search apps</span><input type="search" id="integrations-search" autocomplete="off" spellcheck="false"></label><button type="button" class="ghost integrations-refresh" id="integrations-refresh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span class="sr-only" data-message="integrationsRefresh">Check connections</span></button></div>
 </div>
-<p id="integrations-alert" class="callout integrations-alert" role="status" aria-live="polite" hidden></p>
-<p id="integrations-status" class="row-status" role="status" aria-live="polite"></p>
+<p id="integrations-live" class="sr-only" role="status" aria-live="polite"></p>
+<div id="integrations-notices" class="integrations-notices" hidden><div id="integrations-alert" class="callout callout-row" hidden></div><div id="integrations-problems"></div></div>
+<p id="integrations-status" class="row-status"></p>
 <div id="integrations-body" class="stack"></div>
 <div id="integrations-form" class="mcp-page" hidden></div>
 </main>

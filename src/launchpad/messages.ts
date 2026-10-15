@@ -1272,13 +1272,13 @@ const en = {
   integrationsConnectedNow: "{app} is connected.",
   integrationsReturnTitle: "Sign-in",
   integrationsReturnConnected:
-    "{app} is connected. You can close this window and go back to the Launchpad.",
+    "{app} is connected. You can close this window and go back to Lazurio.",
   integrationsReturnFailed:
-    "The sign-in to {app} could not be finished. Go back to the Launchpad and try again.",
+    "The sign-in to {app} could not be finished. Go back to Lazurio and try again.",
   integrationsReturnPending:
-    "The sign-in to {app} is finishing. The Launchpad shows how it went; you can close this window.",
+    "The sign-in to {app} is finishing. Lazurio shows how it went; you can close this window.",
   integrationsReturnUnknown:
-    "This sign-in is no longer valid. Start connecting again in the Launchpad.",
+    "This sign-in is no longer valid. Start connecting again in Lazurio.",
   integrationsConnectFailed: "The connection could not be started.",
   integrationsIntegrationConflict:
     "Executor holds another server under this app's name. You find it in Custom: remove it there and connect the app again.",
@@ -1287,10 +1287,10 @@ const en = {
   integrationsConnectEnded: "The connection was not finished.",
   integrationsNameTaken: "This name is used by another account of the app.",
   integrationsAccountUnnamed: "account",
-  integrationsAccountExpired: "The sign-in expired — try again",
+  integrationsAccountExpired: "The sign-in expired",
   integrationsAccountPending:
     "Finish the connection in the browser, or disconnect the account",
-  integrationsAccountFailed: "The connection failed — try again",
+  integrationsAccountFailed: "The connection failed",
   integrationsAccountSpareDirect: "Also directly, not used",
   integrationsAccountSpareComposio: "Also through Composio, not used",
   integrationsSignInAgain: "Sign in again",
@@ -1321,8 +1321,8 @@ const en = {
   integrationsMissingTool: "The tool {tool} connects it.",
   integrationsOpenTools: "Open Tools",
   integrationsMissingCompanyApp:
-    "The company app {provider} is not set up yet.",
-  integrationsComposioOffOrganization: "Composio is off in the company.",
+    "The {provider} company app is not set up yet.",
+  integrationsComposioOffOrganization: "Composio is off in the Organization.",
   integrationsComposioOffHere: "Composio is off here.",
   integrationsAskAdmin: "Ask the Admin",
   integrationsAskAdminCopied: "A message for the Admin is in your clipboard.",
@@ -1330,6 +1330,8 @@ const en = {
     "Please make {app} available in the Integrations of our Environments: {line}",
   integrationsSetUpInDashboard: "Set up in the Dashboard",
   integrationsAllowComposio: "Allow Composio",
+  integrationsAdminWhere:
+    "You set this up in the Dashboard, in the Organization's settings.",
   integrationsComposioSignIn:
     "Sign in to Composio first: it opens in Settings → Tools.",
   integrationsBrowserMissing:
@@ -1351,8 +1353,6 @@ const en = {
   integrationsMcpRemoveTitle: "Remove the MCP server “{name}”?",
   integrationsMcpRemoveText: "Agents and bots lose its tools.",
   integrationsMcpNameTaken: "An integration of this name exists already.",
-  integrationsMcpUnavailable:
-    "Executor does not run here now, so MCP servers cannot be added.",
   integrationsMcpPageTitle: "Connect a custom MCP server",
   integrationsMcpEditTitle: "Edit a custom MCP server",
   integrationsMcpBack: "Back",
@@ -2703,9 +2703,9 @@ const cs: Record<MessageKey, string> = {
   integrationsPopupBlocked:
     "Prohlížeč zablokoval okno s připojením. Povolte vyskakovací okna a zkuste to znovu.",
   integrationsExecutorUnavailable:
-    "Executor v tomhle Environmentu teď neběží, takže nic nejde připojit přímo.",
+    "Executor v tomto Environmentu teď neběží, takže nic nejde připojit přímo.",
   integrationsExecutorAbsent:
-    "Tenhle Environment nemá Executor, aplikace se tu proto připojují přes Composio nebo svým nástrojem.",
+    "Tento Environment nemá Executor, aplikace se tu proto připojují přes Composio nebo svým nástrojem.",
   integrationsExecutorUnreadable:
     "Executor odpověděl nečekaně, přímá připojení se nepodařilo načíst.",
   integrationsComposioUnreadable:
@@ -2756,28 +2756,28 @@ const cs: Record<MessageKey, string> = {
   integrationsFinishInEnvironment:
     "Dokončete přihlášení v prohlížeči Environmentu vpravo.",
   integrationsWaiting: "Čekám na přihlášení…",
-  integrationsConnectedNow: "{app} je připojená.",
+  integrationsConnectedNow: "Připojeno: {app}.",
   integrationsReturnTitle: "Přihlášení",
   integrationsReturnConnected:
-    "{app} je připojená. Toto okno můžete zavřít a vrátit se do Launchpadu.",
+    "Připojeno: {app}. Toto okno můžete zavřít a vrátit se do Lazuria.",
   integrationsReturnFailed:
-    "Přihlášení do {app} se nepodařilo dokončit. Vraťte se do Launchpadu a zkuste to znovu.",
+    "Přihlášení k aplikaci {app} se nepodařilo dokončit. Vraťte se do Lazuria a zkuste to znovu.",
   integrationsReturnPending:
-    "Přihlášení do {app} se dokončuje. Jak dopadlo, uvidíte v Launchpadu; toto okno můžete zavřít.",
+    "Přihlášení k aplikaci {app} se dokončuje. Jak dopadlo, uvidíte v Lazuriu; toto okno můžete zavřít.",
   integrationsReturnUnknown:
-    "Toto přihlášení už neplatí. Spusťte připojení znovu v Launchpadu.",
+    "Toto přihlášení už neplatí. Spusťte připojení znovu v Lazuriu.",
   integrationsConnectFailed: "Připojení se nepodařilo spustit.",
   integrationsIntegrationConflict:
-    "V Executoru je pod jménem téhle aplikace jiný server. Najdete ho ve Vlastní: odeberte ho tam a aplikaci připojte znovu.",
+    "V Executoru je pod jménem této aplikace jiný server. Najdete ho ve Vlastní: odeberte ho tam a aplikaci připojte znovu.",
   integrationsStillFailing:
-    "Pořád to nefunguje: Executor tenhle účet použít neumí. Zkuste to později, nebo účet odpojte.",
+    "Pořád to nefunguje: Executor tento účet použít neumí. Zkuste to později, nebo účet odpojte.",
   integrationsConnectEnded: "Připojení se nedokončilo.",
-  integrationsNameTaken: "Tenhle název už má jiný účet aplikace.",
+  integrationsNameTaken: "Tento název už má jiný účet aplikace.",
   integrationsAccountUnnamed: "účet",
-  integrationsAccountExpired: "Přihlášení vypršelo, zkuste to znovu",
+  integrationsAccountExpired: "Přihlášení vypršelo",
   integrationsAccountPending:
     "Dokončete připojení v prohlížeči, nebo účet odpojte",
-  integrationsAccountFailed: "Připojení se nepovedlo, zkuste to znovu",
+  integrationsAccountFailed: "Připojení se nepovedlo",
   integrationsAccountSpareDirect: "Navíc přímo, nepoužívá se",
   integrationsAccountSpareComposio: "Navíc přes Composio, nepoužívá se",
   integrationsSignInAgain: "Přihlásit znovu",
@@ -2787,9 +2787,9 @@ const cs: Record<MessageKey, string> = {
   integrationsDisconnectTitle: "Odpojit {account} od aplikace {app}?",
   integrationsDisconnectDirect: "Odpojí se jen v tomto Environmentu.",
   integrationsDisconnectComposio:
-    "Odpojí se z Composio účtu {account}, takže ve všech Environmentech, které ho používají.",
+    "Odpojí se z účtu Composia {account}, takže ve všech Environmentech, které ho používají.",
   integrationsDisconnectComposioAny:
-    "Odpojí se z Composio účtu, takže ve všech Environmentech, které ho používají.",
+    "Odpojí se z vašeho účtu Composia, takže ve všech Environmentech, které ho používají.",
   integrationsDisconnectPending:
     "Odvolá se jen tento účet; ostatní účty aplikace {app} zůstanou připojené.",
   integrationsDisconnectUnsupported:
@@ -2804,12 +2804,12 @@ const cs: Record<MessageKey, string> = {
   integrationsComposioUpdated: "Composio je aktualizované.",
   integrationsComposioUpdateFailed: "Aktualizace nedoběhla. Zkuste to znovu.",
   integrationsOpenComposio: "Otevřít Composio",
-  integrationsMissingPath: "Tady ji zatím nejde připojit.",
-  integrationsMissingTool: "Připojí ji nástroj {tool}.",
+  integrationsMissingPath: "Tady se zatím připojit nedá.",
+  integrationsMissingTool: "Připojuje se nástrojem {tool}.",
   integrationsOpenTools: "Otevřít Nástroje",
   integrationsMissingCompanyApp:
     "Firemní aplikace {provider} ještě není nastavená.",
-  integrationsComposioOffOrganization: "Composio je ve firmě vypnuté.",
+  integrationsComposioOffOrganization: "Composio je v Organizaci vypnuté.",
   integrationsComposioOffHere: "Composio je tu vypnuté.",
   integrationsAskAdmin: "Požádat Admina",
   integrationsAskAdminCopied: "Zprávu pro Admina máte ve schránce.",
@@ -2817,6 +2817,7 @@ const cs: Record<MessageKey, string> = {
     "Prosím o zpřístupnění aplikace {app} v Integracích našich Environmentů: {line}",
   integrationsSetUpInDashboard: "Nastavit v Dashboardu",
   integrationsAllowComposio: "Povolit Composio",
+  integrationsAdminWhere: "Nastavíte to v Dashboardu, v nastavení Organizace.",
   integrationsComposioSignIn:
     "Nejdřív se přihlaste do Composia: otevře se v Nastavení → Nástroje.",
   integrationsBrowserMissing:
@@ -2837,9 +2838,7 @@ const cs: Record<MessageKey, string> = {
   integrationsMcpRemove: "Odebrat",
   integrationsMcpRemoveTitle: "Odebrat MCP server „{name}“?",
   integrationsMcpRemoveText: "Agenti a boti přijdou o jeho nástroje.",
-  integrationsMcpNameTaken: "Integrace s tímhle názvem už existuje.",
-  integrationsMcpUnavailable:
-    "Executor tu teď neběží, takže MCP servery nejde přidat.",
+  integrationsMcpNameTaken: "Integrace s tímto názvem už existuje.",
   integrationsMcpPageTitle: "Připojit vlastní MCP server",
   integrationsMcpEditTitle: "Upravit vlastní MCP server",
   integrationsMcpBack: "Zpět",
@@ -2874,11 +2873,11 @@ const cs: Record<MessageKey, string> = {
   integrationsMcpAdded: "MCP server „{name}“ je přidaný.",
   integrationsMcpSaved: "Změny serveru „{name}“ jsou uložené.",
   integrationsMcpSaveFailed: "MCP server se nepodařilo uložit.",
-  integrationsMcpGone: "Tenhle MCP server už v Executoru není.",
+  integrationsMcpGone: "Tento MCP server už v Executoru není.",
   integrationsMcpInvalid: "Některé údaje nesedí, zkontrolujte je.",
   integrationsMcpNameInvalid: "Název má nejvýš 64 znaků na jednom řádku.",
   integrationsMcpTextInvalid:
-    "Tenhle text nejde použít: má řídicí znak, nebo je moc dlouhý.",
+    "Tento text nejde použít: má řídicí znak, nebo je moc dlouhý.",
   integrationsMcpUrlInvalid:
     "Zadejte celou adresu, třeba https://mcp.example.com/mcp.",
   integrationsMcpUrlInsecure:
@@ -2891,8 +2890,8 @@ const cs: Record<MessageKey, string> = {
   integrationsMcpValueRequired: "Doplňte hodnotu.",
   integrationsMcpValueInvalid:
     "Hodnota má nejvýš 4 096 znaků, u hlavičky na jednom řádku.",
-  integrationsMcpDuplicate: "Tenhle klíč je tu dvakrát.",
-  integrationsMcpBearerTaken: "Tuhle hlavičku už posílá Bearer token.",
+  integrationsMcpDuplicate: "Tento klíč je tu dvakrát.",
+  integrationsMcpBearerTaken: "Tuto hlavičku už posílá Bearer token.",
   integrationsToolsOne: "{count} nástroj",
   integrationsToolsFew: "{count} nástroje",
   integrationsToolsMany: "{count} nástrojů",

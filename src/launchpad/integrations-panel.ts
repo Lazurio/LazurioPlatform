@@ -47,9 +47,15 @@ import {
   disconnectFailure,
   disconnectText,
   integrationsHelp,
+  liveAnnouncement,
+  liveText,
   monogram,
+  type Note,
+  type NoticeTone,
+  noticeIcon,
   parseIntegrations,
   type Removals,
+  refusalNote,
   removalKey,
   removalRecheckMs,
   removalStep,
@@ -145,8 +151,11 @@ export function createIntegrationsPanel(
       "#integrations-tabs a[data-tab]",
     ),
   ];
-  const alert = find<HTMLParagraphElement>("#integrations-alert");
+  const notices = find<HTMLDivElement>("#integrations-notices");
+  const alert = find<HTMLDivElement>("#integrations-alert");
+  const problemsHost = find<HTMLDivElement>("#integrations-problems");
   const status = find<HTMLParagraphElement>("#integrations-status");
+  const live = find<HTMLParagraphElement>("#integrations-live");
   const body = find<HTMLDivElement>("#integrations-body");
   const formHost = find<HTMLDivElement>("#integrations-form");
   const confirm = find<HTMLDialogElement>("#integrations-confirm");
@@ -174,8 +183,9 @@ export function createIntegrationsPanel(
    * nodes its refresh fills (lines, inputs, Save) by key. */
   let custom: CustomPage | null = null;
   const fields = new Map<string, HTMLElement>();
-  /** A line under the tabs: a refusal, a pop-up blocked, an ended flow. */
-  let note = "";
+  /** The notice under the tabs about the last action: a refusal, a pop-up
+   * blocked, an ended flow, a connection done; null for none. */
+  let note: Note | null = null;
   /** The app a deep link opened, brought into view once drawn, and opened
    * with its form once the reading is in. */
   let focus: string | null = null;
@@ -229,6 +239,41 @@ export function createIntegrationsPanel(
     link.dataset.route = "";
     return link;
   };
+  /** A notice's icon, then its text and actions, which wrap beside the
+   * icon, as the callout's row draws them. */
+  const noticeParts = (
+    tone: NoticeTone,
+    text: string,
+    actions: readonly HTMLElement[] = [],
+    mark: Element = icon(noticeIcon(tone)),
+  ): Node[] => {
+    if (mark instanceof SVGElement) mark.classList.add("callout-icon");
+    const words = element("div", "callout-body");
+    words.append(element("span", "callout-text", text));
+    if (actions.length > 0) {
+      const holder = element("div", "callout-actions");
+      holder.append(...actions);
+      words.append(holder);
+    }
+    return [mark, words];
+  };
+  /** One notice of the page: a callout of its tone, its icon, the text and
+   * its actions; `bare` draws only the row, inside a callout that holds
+   * more. */
+  function notice(
+    tone: NoticeTone,
+    text: string,
+    actions: readonly HTMLElement[] = [],
+    draw: Readonly<{ icon?: Element; bare?: boolean }> = {},
+  ): HTMLElement {
+    const box = element(
+      "div",
+      draw.bare ? "callout-row" : "callout callout-row",
+    );
+    if (!draw.bare) box.dataset.kind = tone;
+    box.append(...noticeParts(tone, text, actions, draw.icon));
+    return box;
+  }
   // The Microsoft 365 company app's card stands beside the catalog's
   // (decision F42 addendum (c) of 2026-10-14).
   const catalogOf = (id: string): CatalogApp | undefined =>
@@ -327,8 +372,8 @@ export function createIntegrationsPanel(
     attention.textContent = count === 0 ? "" : String(count);
   }
 
-  function say(text: string) {
-    note = text;
+  function say(text: string, tone: NoticeTone) {
+    note = { text, tone };
     render();
   }
 
@@ -356,8 +401,11 @@ export function createIntegrationsPanel(
         const name =
           overview?.apps.find((app) => app.id === session.app)?.name ??
           session.app;
-        note = fill(copy.integrationsConnectedNow, { app: name });
-      } else note = copy.integrationsConnectEnded;
+        note = {
+          text: fill(copy.integrationsConnectedNow, { app: name }),
+          tone: "success",
+        };
+      } else note = { text: copy.integrationsConnectEnded, tone: "warning" };
       await load(true);
       return;
     }
@@ -377,13 +425,14 @@ export function createIntegrationsPanel(
       if (typeof value.view === "string") {
         reserved?.close();
         options.showBrowser(value.view);
-        note = copy.integrationsFinishInEnvironment;
+        note = { text: copy.integrationsFinishInEnvironment, tone: "info" };
       } else if (typeof value.url === "string") {
-        if (reserved === null) note = copy.integrationsPopupBlocked;
+        if (reserved === null)
+          note = { text: copy.integrationsPopupBlocked, tone: "danger" };
         else {
           reserved.opener = null;
           reserved.location.href = value.url;
-          note = copy.integrationsWaiting;
+          note = { text: copy.integrationsWaiting, tone: "info" };
         }
       }
       forming = null;
@@ -396,32 +445,22 @@ export function createIntegrationsPanel(
     if (value.kind === "connected") {
       forming = null;
       const name = overview?.apps.find((item) => item.id === app)?.name ?? app;
-      note = fill(copy.integrationsConnectedNow, { app: name });
+      note = {
+        text: fill(copy.integrationsConnectedNow, { app: name }),
+        tone: "success",
+      };
       await load(true);
       return;
     }
     const reason = value.reason;
+    note = refusalNote(reason, overview, copy);
     if (reason === "name-required") {
       formNeedsName = true;
       forming = app;
-      note = copy.integrationsAccountNameHint;
-    } else if (reason === "name-taken") note = copy.integrationsNameTaken;
-    else if (reason === "composio-signed-out") {
-      note = copy.integrationsComposioSignIn;
+    } else if (reason === "composio-signed-out") {
       if (!(await options.signInComposio()))
         options.navigate(settingsPath("tools"));
-    } else if (reason === "browser-unavailable")
-      note = copy.integrationsBrowserMissing;
-    else if (reason === "executor-unavailable")
-      note = copy.integrationsExecutorUnavailable;
-    else if (reason === "integration-conflict")
-      note = copy.integrationsIntegrationConflict;
-    else if (reason === "still-failing") note = copy.integrationsStillFailing;
-    else if (reason === "composio-organization")
-      note =
-        (overview === null ? null : composioOrganizationLine(overview, copy)) ??
-        copy.integrationsComposioOrganizationChanged;
-    else note = copy.integrationsConnectFailed;
+    }
     render();
   }
 
@@ -437,7 +476,7 @@ export function createIntegrationsPanel(
     // the server answers no address for it.
     const reserved = window.open("about:blank", "_blank");
     busy = new Set([...busy, app.id]);
-    note = "";
+    note = null;
     render();
     try {
       const answer = await options.post("/api/integrations/connect", {
@@ -451,7 +490,7 @@ export function createIntegrationsPanel(
     } catch {
       reserved?.close();
       busy = new Set([...busy].filter((id) => id !== app.id));
-      say(options.copy().integrationsConnectFailed);
+      say(options.copy().integrationsConnectFailed, "danger");
     }
   }
 
@@ -542,7 +581,7 @@ export function createIntegrationsPanel(
   async function updateComposio() {
     if (updating === "updating") return;
     updating = "updating";
-    note = "";
+    note = null;
     render();
     let value: unknown = null;
     try {
@@ -557,7 +596,10 @@ export function createIntegrationsPanel(
     }
     await load(true);
     updating = "idle";
-    note = options.copy().integrationsComposioUpdated;
+    note = {
+      text: options.copy().integrationsComposioUpdated,
+      tone: "success",
+    };
     render();
   }
 
@@ -722,9 +764,9 @@ export function createIntegrationsPanel(
       await navigator.clipboard.writeText(
         fill(copy.integrationsAskAdminText, { app: app.name, line }),
       );
-      say(copy.integrationsAskAdminCopied);
+      say(copy.integrationsAskAdminCopied, "success");
     } catch {
-      say(fill(copy.integrationsAskAdminText, { app: app.name, line }));
+      say(fill(copy.integrationsAskAdminText, { app: app.name, line }), "info");
     }
   }
 
@@ -734,7 +776,7 @@ export function createIntegrationsPanel(
         void options.signInComposio().then((opened) => {
           if (!opened) options.navigate(settingsPath("tools"));
         });
-        say(options.copy().integrationsComposioSignIn);
+        say(options.copy().integrationsComposioSignIn, "info");
         return;
       }
       forming = forming === app.id ? null : app.id;
@@ -815,6 +857,7 @@ export function createIntegrationsPanel(
       locale: options.locale(),
       scope,
       admin,
+      dashboard: options.dashboard() !== null,
       copy,
     });
     const article = element("article", "integration-card");
@@ -822,10 +865,12 @@ export function createIntegrationsPanel(
     if (focus === app.id) article.classList.add("is-focused");
     const top = element("div", "integration-top");
     const text = element("div", "integration-text");
-    text.append(
-      element("h3", "integration-name", app.name),
-      element("p", "integration-line", view.line),
-    );
+    // Cut to one line and two, each whole on hover.
+    const name = element("h3", "integration-name", app.name);
+    name.title = app.name;
+    const line = element("p", "integration-line", view.line);
+    line.title = view.line;
+    text.append(name, line);
     top.append(mark(app), text);
     article.append(top);
     if (forming === app.id && view.action.kind === "connect")
@@ -844,8 +889,11 @@ export function createIntegrationsPanel(
         state.append(label);
       }
       foot.append(state);
-    } else foot.append(element("span"));
-    if (view.action.kind !== "none" && forming !== app.id) {
+      // The Admin's sentence stands alone in the foot, from its left edge.
+    } else if (view.action.kind !== "where") foot.append(element("span"));
+    if (view.action.kind === "where")
+      foot.append(element("p", "integration-where", view.action.text));
+    else if (view.action.kind !== "none" && forming !== app.id) {
       const action = view.action;
       const node = button(action.label, "integration-action", () =>
         act(app, action, view.line),
@@ -869,7 +917,11 @@ export function createIntegrationsPanel(
         // Being disconnected: dimmed, with a spinner before "Odpojuji…".
         if (shown.busy) row.setAttribute("aria-busy", "true");
         const words = element("div", "integration-account-text");
-        words.append(element("span", "integration-account-name", shown.name));
+        // Cut to one line, whole on hover and while its buttons have the
+        // focus; a screen reader reads it whole.
+        const name = element("span", "integration-account-name", shown.name);
+        name.title = shown.name;
+        words.append(name);
         if (shown.line !== null) {
           const line = element("span", "integration-account-line");
           if (shown.busy) line.append(element("span", "spinner"));
@@ -955,6 +1007,8 @@ export function createIntegrationsPanel(
           ? copy.integrationsResults
           : fill(copy.integrationsAvailable, { count: String(apps.length) }),
     );
+    const section = element("section", "integrations-section");
+    section.setAttribute("aria-label", head.textContent ?? "");
     const nodes: HTMLElement[] = [head];
     if (shown.length === 0) {
       const empty = element(
@@ -973,7 +1027,8 @@ export function createIntegrationsPanel(
       const hint = tab === "all" ? composioHint("span") : null;
       if (hint !== null) empty.append(hint);
       nodes.push(empty);
-      return nodes;
+      section.append(...nodes);
+      return [section];
     }
     const grid = element("div", "integration-grid");
     grid.append(...shown.map(card));
@@ -991,14 +1046,17 @@ export function createIntegrationsPanel(
       );
     const hint = tab === "all" ? composioHint("p") : null;
     if (hint !== null) nodes.push(hint);
-    return nodes;
+    section.append(...nodes);
+    return [section];
   }
 
   function customSection(): HTMLElement[] {
     const copy = options.copy();
     const servers: readonly CustomServer[] = overview?.custom ?? [];
     const head = element("div", "integrations-custom-head");
-    head.append(element("h2", "", copy.integrationsMcpTitle));
+    const title = element("h2", "", copy.integrationsMcpTitle);
+    title.id = "integrations-mcp-title";
+    head.append(title);
     const unavailable = overview?.sources.executor !== "ok";
     if (unavailable) {
       const add = button(copy.integrationsMcpAdd, "primary", () => {});
@@ -1010,10 +1068,10 @@ export function createIntegrationsPanel(
       add.append(icon("i-plus"), copy.integrationsMcpAdd);
       head.append(add);
     }
+    // Where Executor is not running, the notice above says so once; the
+    // list says only what it holds.
     const nodes: HTMLElement[] = [head];
-    if (unavailable)
-      nodes.push(element("p", "empty", copy.integrationsMcpUnavailable));
-    if (servers.length === 0 && !unavailable)
+    if (servers.length === 0)
       nodes.push(element("p", "empty", copy.integrationsMcpNone));
     if (servers.length > 0) {
       const list = element("ul", "card integration-servers");
@@ -1074,7 +1132,10 @@ export function createIntegrationsPanel(
       }
       nodes.push(list);
     }
-    return nodes;
+    const section = element("section", "integrations-section");
+    section.setAttribute("aria-labelledby", "integrations-mcp-title");
+    section.append(...nodes);
+    return [section];
   }
 
   // --- The page of a custom MCP server (F42's addendum of 2026-10-11) -----
@@ -1088,6 +1149,7 @@ export function createIntegrationsPanel(
 
   /** Draws the page anew; `focus` names the field to focus after it. */
   function drawCustom(focus?: string) {
+    speak();
     const copy = options.copy();
     const page = custom;
     fields.clear();
@@ -1164,9 +1226,8 @@ export function createIntegrationsPanel(
       );
     const foot = element("div", "mcp-foot");
     const note = element("div", "mcp-foot-text");
+    // Its line is said through the page's one live region (`speak`).
     const status = element("p", "mcp-status");
-    status.setAttribute("role", "status");
-    status.setAttribute("aria-live", "polite");
     note.append(status);
     const save = element(
       "button",
@@ -1528,6 +1589,7 @@ export function createIntegrationsPanel(
         ? copy.integrationsMcpSaving
         : copy.integrationsMcpSave;
     }
+    speak();
   }
 
   /** Opens the page of a route: a new server's form, or reads a server's
@@ -1537,7 +1599,7 @@ export function createIntegrationsPanel(
       drawCustom();
       return;
     }
-    note = "";
+    note = null;
     const page: CustomPage = {
       server,
       form: server === null ? newCustomForm() : null,
@@ -1599,7 +1661,7 @@ export function createIntegrationsPanel(
       if (value.kind === "connected" || value.kind === "saved") {
         reserved?.close();
         custom = null;
-        note = customSaved(form, copy);
+        note = { text: customSaved(form, copy), tone: "success" };
         options.navigate(integrationsPath("custom"));
         await load(true);
         return;
@@ -1632,6 +1694,30 @@ export function createIntegrationsPanel(
     refreshCustom();
   }
 
+  /** The page's one live region (`#integrations-live`), mounted before
+   * anything changes: its text is written only when the page has something
+   * new to say, so drawing the page again says nothing again. */
+  function speak() {
+    const said = liveAnnouncement(
+      {
+        read: overview !== null,
+        loading,
+        failed: failed && custom === null,
+        note,
+        update: updating,
+        form:
+          custom === null
+            ? ""
+            : custom.failed
+              ? options.copy().integrationsMcpLoadFailed
+              : custom.status,
+      },
+      options.copy(),
+    );
+    const next = liveText(live.textContent ?? "", said);
+    if (next !== null) live.textContent = next;
+  }
+
   function render() {
     const copy = options.copy();
     // The page is drawn anew: an open account menu goes with it.
@@ -1653,46 +1739,58 @@ export function createIntegrationsPanel(
     composioApps.hidden = apps === null;
     if (apps === null) composioApps.removeAttribute("href");
     else composioApps.href = apps;
-    alert.hidden = note === "";
-    alert.textContent = note;
+    speak();
+    // Every notice of the page is one callout of its tone, the page's
+    // width, one under another (Matěj 2026-10-14): the line about the last
+    // action first, then what the reading says. None of them is a live
+    // region: `speak` says what changed.
+    alert.hidden = note === null;
+    alert.dataset.kind = note?.tone ?? "info";
+    alert.replaceChildren(
+      ...(note === null ? [] : noticeParts(note.tone, note.text)),
+    );
+    const problems: HTMLElement[] = [];
+    // A reading that failed says so, with its retry, above the last one it
+    // shows: a row waiting for "Odpojit" waits for a reading that succeeds.
+    if (failed && !loading && custom === null)
+      problems.push(
+        notice("danger", copy.integrationsLoadFailed, [
+          button(copy.integrationsRetry, "", () => {
+            note = null;
+            void load(true);
+          }),
+        ]),
+      );
+    status.textContent =
+      overview === null
+        ? custom === null && !failed
+          ? copy.integrationsLoading
+          : ""
+        : loading && route.tab === "connected"
+          ? copy.integrationsChecking
+          : "";
     if (overview === null) {
-      status.textContent =
-        custom !== null
-          ? ""
-          : failed
-            ? copy.integrationsLoadFailed
-            : copy.integrationsLoading;
+      problemsHost.replaceChildren(...problems);
+      notices.hidden = alert.hidden && problems.length === 0;
       formHost.hidden = custom === null;
       body.replaceChildren();
       return;
     }
-    // A reading that failed says so above the last one it shows: a row
-    // waiting for "Odpojit" waits for a reading that succeeds.
-    status.textContent =
-      loading && route.tab === "connected"
-        ? copy.integrationsChecking
-        : failed && !loading
-          ? copy.integrationsLoadFailed
-          : "";
-    const problems: HTMLElement[] = sourceLines(overview, copy).map((line) => {
-      const node = element("p", "callout", line);
-      node.dataset.kind = "warning";
-      return node;
-    });
+    for (const line of sourceLines(overview, copy))
+      problems.push(notice("warning", line));
     // Composio in no organization of this Environment's Organization's
     // name: what to do in Composio, and the model drawn (decision F42,
     // addendum of 2026-10-13).
     const organizationLine = composioOrganizationLine(overview, copy);
     if (organizationLine !== null && overview.composio.organization !== null) {
-      const box = element("div", "callout composio-organization");
-      box.dataset.kind = "warning";
       const open = element("a", "button", copy.integrationsComposioOpen);
       open.href = composioDashboard;
       open.target = "_blank";
       open.rel = "noopener noreferrer";
+      const box = element("div", "callout composio-organization");
+      box.dataset.kind = "warning";
       box.append(
-        element("p", "", organizationLine),
-        open,
+        notice("warning", organizationLine, [open], { bare: true }),
         composioModel(copy, overview.composio.organization.name),
       );
       problems.push(box);
@@ -1704,25 +1802,24 @@ export function createIntegrationsPanel(
         ? composioUpdateLine(overview, updating, copy)
         : null;
     if (update !== null) {
-      const box = element("div", "setup-line integrations-update");
-      box.setAttribute("role", "status");
-      if (updating === "failed") box.dataset.tone = "failed";
-      const text = element("span", "setup-line-text", update.text);
-      const actions = element("div", "setup-line-actions");
       const run = button(update.action, "primary", () => void updateComposio());
       run.disabled = update.busy;
-      actions.append(run);
       // While it runs, the spinner stands where the icon was.
-      box.append(
-        update.busy ? element("span", "spinner") : icon("i-download"),
-        text,
-        actions,
+      const box = notice(
+        updating === "failed" ? "danger" : "info",
+        update.text,
+        [run],
+        {
+          icon: update.busy ? element("span", "spinner") : icon("i-download"),
+        },
       );
+      box.classList.add("integrations-update");
       problems.push(box);
     }
+    problemsHost.replaceChildren(...problems);
+    notices.hidden = alert.hidden && problems.length === 0;
     formHost.hidden = custom === null;
     body.replaceChildren(
-      ...problems,
       ...(custom !== null
         ? []
         : route.tab === "custom"
@@ -1741,6 +1838,8 @@ export function createIntegrationsPanel(
   function relabel() {
     const copy = options.copy();
     help.href = integrationsHelp(options.locale());
+    // Below 768 px the corner's links show only their icons.
+    help.title = copy.integrationsHelp;
     composioApps.title = copy.integrationsComposioApps;
     search.placeholder = copy.integrationsSearch;
     refreshButton.title = copy.integrationsRefresh;
@@ -1755,7 +1854,7 @@ export function createIntegrationsPanel(
     const next = composioTrip(trip, event);
     trip = next.trip;
     if (next.refresh && active()) {
-      note = "";
+      note = null;
       void load(true);
     }
   };
@@ -1765,7 +1864,7 @@ export function createIntegrationsPanel(
   window.addEventListener("blur", () => step("left"));
   window.addEventListener("focus", () => step("back"));
   refreshButton.addEventListener("click", () => {
-    note = "";
+    note = null;
     void load(true);
   });
 
