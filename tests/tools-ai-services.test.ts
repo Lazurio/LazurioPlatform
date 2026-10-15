@@ -2,9 +2,8 @@ import { expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { type AiServices, aiServicesReady } from "../src/tools/ai";
 import {
-  type AiServices,
-  aiServicesReady,
   refreshT3Providers,
   reloadAiServices,
   t3Mismatches,

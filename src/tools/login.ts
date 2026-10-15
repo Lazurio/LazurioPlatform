@@ -2,17 +2,19 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { userInfo } from "node:os";
 import type { Writable } from "node:stream";
-import type { AiServices } from "./ai-services";
+import {
+  type AiProvider,
+  type AiServices,
+  aiProviders,
+  isAiProvider,
+} from "./ai";
 import { activatableTools, findTool, type ToolEntry } from "./catalog";
 import { challengeUrl } from "./challenge-url";
 import { ghStatus } from "./gh-status";
 import { ensureGitIdentity, type GitIdentity } from "./git-identity";
 import { plainText } from "./redact";
 import {
-  type AiSignInTool,
-  aiSignInTools,
   createPageCapture,
-  isAiSignInTool,
   loopbackAddress,
   type PageCapture,
   returnsToCli,
@@ -230,19 +232,17 @@ export type LoginEnvironment = Readonly<{
    * Organization provides this AI here, so the CLI is not signed in (root
    * decision 0201 points 4 and 6; Codex's `account/read` says it). Absent:
    * not asked. */
-  organizationProvides?: (tool: AiSignInTool) => Promise<boolean>;
+  organizationProvides?: (tool: AiProvider) => Promise<boolean>;
   /** codex and claude, after the CLI's status confirmed the sign-in: what
    * makes the running services read it again (root decision 0201 point 4),
    * given every AI CLI signed in now. Absent: nothing is asked. */
   reload?: (
-    tool: AiSignInTool,
-    signedIn: readonly AiSignInTool[],
+    tool: AiProvider,
+    signedIn: readonly AiProvider[],
   ) => Promise<AiServices>;
   /** Test seams. */
   now?: () => number;
-  lifetimes?: Partial<
-    Record<"gh" | "composio" | "wacli" | AiSignInTool, number>
-  >;
+  lifetimes?: Partial<Record<"gh" | "composio" | "wacli" | AiProvider, number>>;
   /** codex and claude on a Remote Environment: how long the sign-in waits
    * for the CLI to hand over the page it opens, once it printed one that
    * does not return to it, before it opens the printed one (default 3 s). */
@@ -306,7 +306,7 @@ const ghDevicePage = "https://github.com/login/device";
 /** The tools with a curated sign-in: the `launchpad` ones, and the AI CLIs
  * (F19's addendum of 2026-10-15), which are no agent tools of the Folder. */
 export function loginTool(name: string): ToolEntry | undefined {
-  if (isAiSignInTool(name)) return findTool(name);
+  if (isAiProvider(name)) return findTool(name);
   const entry = activatableTools().find((tool) => tool.name === name);
   return entry?.activation.setup === "launchpad" &&
     ["gh", "composio", "wacli"].includes(name)
@@ -481,7 +481,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
     if (environment.home) env.HOME = environment.home;
     for (const [name, value] of Object.entries(environment.xdg ?? {}))
       if (/^XDG_[A-Z_]+$/.test(name) && value) env[name] = value;
-    if (tool !== undefined && isAiSignInTool(tool))
+    if (tool !== undefined && isAiProvider(tool))
       try {
         const { username } = userInfo();
         env.USER = username;
@@ -1041,9 +1041,9 @@ export function createLoginSessions(environment: LoginEnvironment) {
   // The AI CLIs signed in now: `tool`, which its status just confirmed, and
   // every other one whose own status says so. What T3 Code is asked to turn
   // on (root decision 0201 point 3).
-  async function aiSignedIn(tool: AiSignInTool): Promise<AiSignInTool[]> {
+  async function aiSignedIn(tool: AiProvider): Promise<AiProvider[]> {
     const others = await Promise.all(
-      aiSignInTools
+      aiProviders
         .filter((other) => other !== tool)
         .map(async (other) => {
           const entry = loginTool(other);
@@ -1055,7 +1055,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
             : undefined;
         }),
     );
-    return aiSignInTools.filter(
+    return aiProviders.filter(
       (candidate) => candidate === tool || others.includes(candidate),
     );
   }
@@ -1076,7 +1076,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
     session: Session,
     entry: ToolEntry,
     path: string,
-    tool: AiSignInTool,
+    tool: AiProvider,
   ) {
     const page = environment.signInPage ?? ({ kind: "own" } as const);
     const capture =
@@ -1259,7 +1259,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
         return refused("invalid-phone");
       // codex and claude: refused before anything runs where the page could
       // not return to the CLI, or the Organization provides the AI.
-      if (isAiSignInTool(name)) {
+      if (isAiProvider(name)) {
         const blocked = (
           reason: "no-environment-browser" | "organization-provided",
         ): LoginState => {
@@ -1313,7 +1313,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
               session.connected === true ? "not-confirmed" : "no-challenge",
             );
         });
-      const flow = isAiSignInTool(name)
+      const flow = isAiProvider(name)
         ? startAi(session, entry, path, name)
         : name === "gh"
           ? options.sshKey === true
@@ -1417,7 +1417,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
     /** Runs the tool's own logout command and checks the result with its probe. */
     async logout(name: string): Promise<LogoutResult> {
       const entry = loginTool(name);
-      if (entry === undefined || isAiSignInTool(name))
+      if (entry === undefined || isAiProvider(name))
         throw new Error("Not a curated catalog tool");
       cancelRunning(name);
       const path = await locate(entry);
