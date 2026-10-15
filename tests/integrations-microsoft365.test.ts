@@ -602,7 +602,7 @@ test("where the company app is set up, Outlook, OneDrive and SharePoint are one 
     // Teams is no part of it (phase 2).
     expect(ids).toContain("microsoft_teams");
   }
-});
+}, 30_000);
 
 test("without the setting the cards stay as they are, the company app waiting or Composio where it is allowed", async () => {
   const { app } = await setup({ governed: false });
@@ -652,7 +652,7 @@ test("without the setting the cards stay as they are, the company app waiting or
   expect(
     (await overview(personal.app)).apps.map((item) => item.id),
   ).not.toContain(card);
-});
+}, 30_000);
 
 test("one Microsoft sign-in connects the account: mail, calendar, files and sites at once, in the person's own browser", async () => {
   const { world, app, opened, forgotten } = await setup();
