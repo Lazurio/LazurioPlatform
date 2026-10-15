@@ -338,6 +338,8 @@ const en = {
     "The tool showed no link, code or QR code within a minute, so its sign-in was stopped. Check that this Environment reaches the internet and try again; if it happens again, finish it with an agent.",
   toolsLoginFailureBrowser:
     "The Environment browser did not open the sign-in page, so the sign-in was stopped. Try again in a moment.",
+  toolsLoginFailureProviderUnknown:
+    "Codex did not answer whether your Organization provides the AI here, so nothing was started. Try again in a moment.",
   toolsLoginNoAnswer:
     "The Launchpad did not answer in time. Try again; if it does not answer again, reload the page.",
   toolsLoginExpired:
@@ -968,6 +970,8 @@ const en = {
   startAiExpired: "The sign-in expired. Please try again.",
   startAiNoAnswer:
     "Lazurio did not answer about the sign-in. Please try again.",
+  startAiProviderUnknown:
+    "Codex did not say whether your Organization provides the AI here, so nothing was started. Please try again.",
   startAiBrowserFailed:
     "The Environment browser did not open the sign-in page. Please try again.",
   startAiNoBrowser:
@@ -1872,6 +1876,8 @@ const cs: Record<MessageKey, string> = {
     "Nástroj do minuty neukázal odkaz, kód ani QR kód, a proto se jeho přihlášení zastavilo. Ověřte, že se tenhle Environment dostane na internet, a zkuste to znovu; když se to zopakuje, dokončete to s agentem.",
   toolsLoginFailureBrowser:
     "Prohlížeč Prostředí přihlašovací stránku neotevřel, a proto se přihlášení zastavilo. Zkuste to prosím za chvíli znovu.",
+  toolsLoginFailureProviderUnknown:
+    "Codex neodpověděl, jestli tu AI zajišťuje vaše Organizace, a proto se nic nespustilo. Zkuste to prosím za chvíli znovu.",
   toolsLoginNoAnswer:
     "Launchpad včas neodpověděl. Zkuste to znovu; když zase neodpoví, obnovte stránku.",
   toolsLoginExpired:
@@ -2496,6 +2502,8 @@ const cs: Record<MessageKey, string> = {
   startAiExpired: "Přihlášení vypršelo. Zkuste to prosím znovu.",
   startAiNoAnswer:
     "Lazurio na přihlášení neodpovědělo. Zkuste to prosím znovu.",
+  startAiProviderUnknown:
+    "Codex neřekl, jestli tu AI zajišťuje vaše Organizace, a proto se nic nespustilo. Zkuste to prosím znovu.",
   startAiBrowserFailed:
     "Prohlížeč Prostředí přihlašovací stránku neotevřel. Zkuste to prosím znovu.",
   startAiNoBrowser:

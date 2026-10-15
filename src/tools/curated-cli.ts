@@ -291,6 +291,8 @@ const failureText: Record<string, string> = {
     "the tool showed no link, code or QR code within a minute, so it was stopped; check that this Environment reaches the internet and try again",
   "browser-unavailable":
     "the Environment browser did not open the sign-in page, so the CLI was stopped",
+  "provider-unknown":
+    "Codex did not answer whether your Organization provides the AI in this Environment, so nothing was started; try again",
 };
 
 const sshFailureText: Record<SshLinkFailure, string> = {

@@ -972,6 +972,7 @@ const loginFailures = [
   "environment-unreadable",
   "no-challenge",
   "browser-unavailable",
+  "provider-unknown",
 ] as const;
 
 function parseKeyFacts(input: unknown): SshKeyFacts | null {
@@ -1501,6 +1502,7 @@ export function loginEndMessage(
       "environment-unreadable": "toolsLoginFailureEnvironment",
       "no-challenge": "toolsLoginFailureNoChallenge",
       "browser-unavailable": "toolsLoginFailureBrowser",
+      "provider-unknown": "toolsLoginFailureProviderUnknown",
     };
     return {
       message: copy[reasons[state.reason]],

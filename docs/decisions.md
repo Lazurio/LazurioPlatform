@@ -2911,7 +2911,13 @@ SSH, the terminal and every agent read it.
    Začínáme says why. Codex where its own `account/read` answers `requiresOpenaiAuth:
    false` (0201 points 4 and 6): the Organization provides the AI, and a ChatGPT sign-in
    would bypass its provider (`blocked`, `organization-provided`). Claude has no such
-   source yet (#422's open question). Exit 2, `409` from the Launchpad.
+   source yet (#422's open question). Exit 2, `409` from the Launchpad. The core asks
+   `account/read` itself, afresh, right before it starts `codex login`, for the command
+   and the Launchpad alike; the AI reading the Launchpad keeps a minute for its page never
+   decides it (Pablo's review of #441: an Organization that switched to its provider
+   within that minute would otherwise get a ChatGPT sign-in). An answer that cannot be
+   read starts nothing either (`failed`, `provider-unknown`, exit 1, fail closed): whether
+   the sign-in would bypass the Organization's provider is then not known.
 5. **Done is what the CLI says; then the running services read it** (0201 point 4).
    Signed in means the CLI exited 0 and its own status confirms it: `codex login status`
    and `claude auth status --json`, the catalog's `signInProbe`, which moves from a
