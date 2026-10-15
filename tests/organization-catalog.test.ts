@@ -3,11 +3,17 @@ import { cp, mkdtemp, realpath, rename, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  appsHomeParts,
+  appsScopes,
+  appsSections,
+} from "../src/launchpad/apps-view";
+import {
   catalogSelection,
   organizationRoute,
   parseCatalog,
   routeOrganization,
 } from "../src/launchpad/catalog-view";
+import { messages } from "../src/launchpad/messages";
 import { startLaunchpad } from "../src/launchpad/server";
 import {
   type CatalogOrganization,
@@ -831,6 +837,132 @@ posixTest(
       } finally {
         expect((await app.close()).kind).toBe("closed");
       }
+    });
+  },
+  30_000,
+);
+
+posixTest(
+  "a declared module that is not on this Environment stays in the catalog as absent, and the Apps Workspace lists only the modules that are here",
+  async () => {
+    await folderFixture(async (folder) => {
+      // A work Environment's Organization: two modules materialized (one
+      // with an app, one without), one whose directory is there but holds no
+      // module manifest, and two declared slots that were never
+      // materialized here: one the Environment's identity cannot read, and
+      // one planned slot without a remote.
+      const root = await writeOrganization(folder, "omega", {
+        slug: "omega",
+        state: "current",
+        modules: [{ id: "tracker" }, { id: "library", apps: false }],
+        slots: [
+          {
+            path: "workspace/restricted",
+            slug: "restricted",
+            git: {
+              url: "git@github.com:omega/restricted.git",
+              branch: "main",
+            },
+          },
+          { path: "workspace/bare", slug: "bare" },
+          { path: "workspace/planned", slug: "planned" },
+        ],
+      });
+      await mkdir(join(root, "workspace/bare"));
+      // An Organization none of whose modules is here.
+      await writeOrganization(folder, "sigma", {
+        slug: "sigma",
+        state: "current",
+        modules: [],
+        slots: [{ path: "workspace/locked", slug: "locked" }],
+      });
+
+      // The catalog and the CLI keep every declared module, an absent one
+      // marked, so an agent still learns it is declared.
+      const catalog = await readFolderCatalog(folder);
+      const omega = findCatalogOrganization(catalog, "omega");
+      expect(
+        omega?.modules.map((module) => [
+          module.module,
+          module.reason ?? null,
+          module.absent ?? false,
+        ]),
+      ).toEqual([
+        ["tracker", null, false],
+        ["library", "no-app", false],
+        ["restricted", "module-unavailable", true],
+        ["bare", "module-unavailable", false],
+        ["planned", "module-unavailable", true],
+      ]);
+      const home = join(folder, "..", "home");
+      await mkdir(home);
+      const listed = JSON.parse(
+        (
+          await runCatalogCommand(
+            ["module", "list", "omega", "--folder", folder, "--json"],
+            cliContext(home),
+          )
+        ).text,
+      ) as { modules: { module: string; absent?: true }[] };
+      expect(
+        listed.modules.map((module) => [module.module, module.absent ?? false]),
+      ).toEqual([
+        ["tracker", false],
+        ["library", false],
+        ["restricted", true],
+        ["bare", false],
+        ["planned", true],
+      ]);
+
+      // The page reads the same answer and its Workspace shows only the
+      // modules that are on this Environment: one without an app still
+      // says so, one without a manifest still shows why it cannot start.
+      const page = parseCatalog(JSON.parse(JSON.stringify(catalog)));
+      expect(page).not.toBeNull();
+      if (page === null) return;
+      const cs = messages("cs");
+      const group = appsScopes(page, cs).find(
+        (entry) => entry.organization.organization === "omega",
+      );
+      expect(group?.modules.map((entry) => entry.module.module)).toEqual([
+        "tracker",
+        "library",
+        "bare",
+      ]);
+      if (group === undefined) return;
+      const [workspace] = appsSections(page, group, cs, null);
+      expect(workspace?.count).toBe("3 moduly");
+      expect(
+        workspace?.tiles.map((tile) => [tile.name, tile.description]),
+      ).toEqual([
+        ["tracker", cs.appsDescriptionApp],
+        ["library", cs.appsNoApp],
+        ["bare", cs.appsNoApp],
+      ]);
+      // Its module page still answers a direct link with the reason.
+      expect(
+        catalogSelection(page, {
+          view: "module",
+          organization: "omega",
+          module: "restricted",
+        }),
+      ).toMatchObject({ kind: "module", module: { absent: true } });
+
+      // With none of its modules here, the Organization says there is
+      // nothing yet and whom to ask, and offers no Workspace section.
+      const sigma = appsScopes(page, cs).find(
+        (entry) => entry.organization.organization === "sigma",
+      );
+      expect(sigma?.modules).toEqual([]);
+      if (sigma === undefined) return;
+      expect(
+        appsHomeParts(page, sigma, cs, {
+          entry: null,
+          favorites: [],
+          setup: false,
+          tabs: [],
+        }),
+      ).toEqual([{ kind: "empty", text: cs.catalogNoModules }]);
     });
   },
   30_000,
