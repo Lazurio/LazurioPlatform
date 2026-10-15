@@ -95,20 +95,26 @@ for (const journey of journeys.filter((entry) => entry.os !== "windows"))
 // Decision F28 and its addendum of 2026-10-05: towards people the place an
 // agent works in is the Environment, and Czech-speaking agents may also say
 // „prostředí“. Every preset, both locales.
-test("towards people the place is the Environment, in Czech also „prostředí“", () => {
+test("towards people the place is Prostředí in Czech and the Environment in English, with the companion rules (0170 addendum 2026-10-15)", () => {
+  const rules = {
+    cs: [
+      "- Lidem česky říkej tomu, kde pracuješ, Prostředí: velké P, střední rod (toto Prostředí, v tomto Prostředí), druh přívlastkem (Osobní, Pracovní, Týmové, Místní, Automatizované Prostředí). Hostované vlastní jméno nemá; jen kde ho musíš odlišit od místního, řekni Prostředí na serveru, nikdy Remote Environment ani Vzdálené Prostředí. Anglicky je to Environment a hostované Remote Environment. Slova Mašina, VM ani server jim pro něj neříkej; Machine zůstává technický pojem pro hranici, na které Environment běží (příkazy jako `lazurio machine …`, identifikátory, architektura).",
+      "- V textech pro lidi je produkt Lazurio (Launchpad a Dashboard jsou interní názvy; místo pojmenuj Apps, Přehled Organizace nebo Nastavení, příkazy nech přesné), Organizaci říkej Organizace, ne firma, a česky piš tento, tato, toto, ne tenhle, tahle, tohle (root rozhodnutí 0170, dodatek 2026-10-15).",
+    ],
+    en: [
+      "- Towards people, call the place you work in the Environment, and a hosted one a Remote Environment; in Czech it is Prostředí, with a capital P and neuter (toto Prostředí; the kind as an adjective: Osobní, Pracovní, Týmové, Místní, Automatizované Prostředí), a hosted one has no name of its own (only where it must be told apart from a local one, Prostředí na serveru), never Remote Environment or Vzdálené Prostředí. Do not say Machine, VM or server to them; Machine stays the technical term for the boundary an Environment runs on (commands such as `lazurio machine …`, identifiers, the architecture).",
+      "- In text for people the product is Lazurio (Launchpad and Dashboard are internal names; name the place: Apps, the Organization overview or Settings, and keep commands exact), the Organization is the Organization (in Czech Organizace, not firma), and Czech demonstratives are tento, tato, toto, not tenhle, tahle, tohle (root decision 0170, addendum 2026-10-15).",
+    ],
+  };
   for (const journey of journeys)
-    for (const locale of ["cs", "en"] as const)
-      expect(
-        renderInstructions({
-          preset: journey.preset,
-          machine: journey.machine,
-          profile: presetProfile(journey.preset, journey.os, { locale }),
-        }).split("\n"),
-      ).toContain(
-        locale === "cs"
-          ? "- Lidem říkej tomu, kde pracuješ, Environment (česky i prostředí; ten Environment, na tomto Environmentu) a hostovanému Remote Environment; slova Mašina, VM ani server jim neříkej. Machine zůstává technický pojem pro hranici, na které Environment běží (příkazy jako `lazurio machine …`, identifikátory, architektura)."
-          : "- Towards people, call the place you work in the Environment (in Czech also „prostředí“), and a hosted one a Remote Environment; do not say Machine, VM or server to them. Machine stays the technical term for the boundary an Environment runs on (commands such as `lazurio machine …`, identifiers, the architecture).",
-      );
+    for (const locale of ["cs", "en"] as const) {
+      const lines = renderInstructions({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      }).split("\n");
+      for (const rule of rules[locale]) expect(lines).toContain(rule);
+    }
 });
 
 test("relationships render only when the recorded binding carries them, one line per peer", () => {
@@ -379,7 +385,7 @@ test("only the Team's shared Environment asks for a team account before connecti
       for (const sentence of locale === "cs"
         ? [
             "i do samotného Composia týmový účet; osobní účet sem nepatří.",
-            "„Tohle napojení bude sdílené celým Teamem, připojte proto v Integracích týmový účet. Svůj osobní Outlook si napojte ve svém Environmentu.“",
+            "„Toto napojení bude sdílené celým Teamem, připojte proto v Integracích týmový účet. Svůj osobní Outlook si napojte ve svém Osobním Prostředí.“",
           ]
         : [
             "including a team account for Composio itself; a personal account does not belong here.",

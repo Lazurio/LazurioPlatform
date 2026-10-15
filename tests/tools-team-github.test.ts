@@ -928,7 +928,7 @@ test.skipIf(!posix)(
 
 const teamSentence = {
   en: "On a Team Environment (hosted-organization-team) do not sign in gh or link a key: the Environment works in GitHub through Lazurio for GitHub, set up by the Organization.",
-  cs: "V týmovém Environmentu (hosted-organization-team) gh nepřihlašuj a klíč nepropojuj: Environment pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace.",
+  cs: "V Týmovém Prostředí (hosted-organization-team) gh nepřihlašuj a klíč nepropojuj: Prostředí pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace.",
 };
 
 test("gh's prompt: the Team sentence where the kind is unknown, the Team target state instead of the sign-in on a Team Environment", () => {
@@ -943,7 +943,7 @@ test("gh's prompt: the Team sentence where the kind is unknown, the Team target 
     expect(team).toContain(
       locale === "en"
         ? "Do not sign in gh or link a key: the Environment works in GitHub through Lazurio for GitHub, set up by the Organization."
-        : "gh nepřihlašuj a klíč nepropojuj: Environment pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace.",
+        : "gh nepřihlašuj a klíč nepropojuj: Prostředí pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace.",
     );
     expect(team).toContain("hosted-organization-team");
     // Tools without a Team target state keep their prompt.

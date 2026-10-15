@@ -90,7 +90,8 @@ export function parseEnvironmentGlyph(value: unknown): EnvironmentGlyph | null {
 }
 
 /** An identity: an Environment id, its name and who line as the shell
- * document's text, and its glyph; null for anything else. Members a later
+ * document's text (the who line empty where the name already says the kind,
+ * `environmentWho`), and its glyph; null for anything else. Members a later
  * version may add are ignored. */
 export function parseEnvironmentIdentity(
   value: unknown,
@@ -100,7 +101,7 @@ export function parseEnvironmentIdentity(
   if (
     !isEnvironmentId(value.id) ||
     !display(value.name, 128) ||
-    !display(value.who, 128) ||
+    !(value.who === "" || display(value.who, 128)) ||
     glyph === null
   )
     return null;

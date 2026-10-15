@@ -72,9 +72,9 @@ const explanations: Readonly<Record<"cs" | "en", Record<LinkRefusal, string>>> =
       "path-invalid":
         "Jméno v cestě nejde zpřístupnit (řídicí znak, oddělovač nebo příliš dlouhé jméno). Uložte soubor pod obyčejným jménem do ~/Documents/<úkol>/.",
       "not-found":
-        "Na téhle cestě nic není. Nejdřív soubor uložte do ~/Documents/<úkol>/.",
+        "Na této cestě nic není. Nejdřív soubor uložte do ~/Documents/<úkol>/.",
       "not-regular":
-        "Tohle není soubor ani složka. Zpřístupňují se jen soubory a složky v ~/Documents.",
+        "Toto není soubor ani složka. Zpřístupňují se jen soubory a složky v ~/Documents.",
       "not-directory": "Není to složka.",
       "not-file": "Není to soubor.",
       "documents-unavailable":
@@ -85,15 +85,15 @@ const explanations: Readonly<Record<"cs" | "en", Record<LinkRefusal, string>>> =
 const notes = {
   hosted: {
     en: "Hand this link to the Operator instead of the path: it opens in their browser behind this Environment's sign-in and downloads the file (a folder opens on the Files page).",
-    cs: "Předej Operátorovi tenhle odkaz místo cesty: otevře se mu v prohlížeči za přihlášením tohohle Environmentu a soubor stáhne (složka se otevře na stránce Soubory).",
+    cs: "Předej Operátorovi tento odkaz místo cesty: otevře se mu v prohlížeči za přihlášením tohoto Prostředí a soubor stáhne (složka se otevře na stránce Soubory).",
   },
   local: {
     en: "This Environment has no hosted entry: the file is already on this computer, at this path.",
-    cs: "Tenhle Environment nemá hostovaný vstup: soubor už je na tomhle počítači, na téhle cestě.",
+    cs: "Toto Prostředí nemá hostovaný vstup: soubor už je na tomto počítači, na této cestě.",
   },
   remote: {
     en: "This Remote Environment records no hosted entry yet, so there is no browser link: the file lies at this path here.",
-    cs: "Tenhle Remote Environment zatím nemá zaznamenaný hostovaný vstup, takže odkaz do prohlížeče neexistuje: soubor leží tady na téhle cestě.",
+    cs: "Toto Prostředí zatím nemá zaznamenaný hostovaný vstup, takže odkaz do prohlížeče neexistuje: soubor leží tady na této cestě.",
   },
 } as const;
 

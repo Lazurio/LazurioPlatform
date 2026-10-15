@@ -67,16 +67,50 @@ export const environmentName = (
 ): string =>
   environment.name ?? environment.label ?? copy.names[environment.kind];
 
-/** Who an Environment is for: the account's line where it gives one, else a
- * work Environment's person, otherwise its kind's word. */
+/** The quieter line beside an Environment's name, the same rule as the
+ * Dashboard's (root decision 0170 addendum 2026-10-15; the brand voice,
+ * "Druh Prostředí stačí"): the account's line exactly as the Dashboard words
+ * it where it gives one (empty: nothing to add); otherwise its kind, left out
+ * where the name already says it, "assigned to @login" for a work
+ * Environment of someone other than `viewer`, and "offline" when it is known
+ * not to run. Never "only yours" or "shared by the Team"; empty when there is
+ * nothing to add, so a default name such as "Pracovní" stands alone. */
 export const environmentWho = (
   environment: ShellEnvironment,
   copy: ShellCopy,
-): string =>
-  environment.who ??
-  (environment.kind === "work" && environment.assignee !== null
-    ? `@${environment.assignee}`
-    : copy.who[environment.kind]);
+  viewer: string | null = null,
+): string => {
+  if (environment.who !== undefined) return environment.who;
+  const kind = copy.kinds[environment.kind];
+  const assignee = environment.assignee;
+  return [
+    saysKind(environmentName(environment, copy), kind) ? null : kind,
+    environment.kind === "work" &&
+    assignee !== null &&
+    assignee.toLowerCase() !== viewer?.toLowerCase()
+      ? fillShell(copy.assignedTo, { login: `@${assignee}` })
+      : null,
+    environment.offline === true ? copy.offline : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(" · ");
+};
+
+/** Whether a name already says a kind: the kind's words as whole words of
+ * the name, in any case ("Pracovní 2" says Pracovní, "Team Sales" says
+ * Team). */
+function saysKind(name: string, kind: string): boolean {
+  const words = (text: string) =>
+    text
+      .toLocaleLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(Boolean);
+  const named = words(name);
+  const said = words(kind);
+  return named.some((_, at) =>
+    said.every((word, offset) => named[at + offset] === word),
+  );
+}
 
 const sameSlug = (left: string, right: string) =>
   left.toLowerCase() === right.toLowerCase();
@@ -427,7 +461,7 @@ function identityOf(
   return Object.freeze({
     id: environment.id,
     name: environmentName(environment, copy),
-    who: environmentWho(environment, copy),
+    who: environmentWho(environment, copy, shell.operator.login),
     glyph: environmentGlyph(shell, environment, space),
   });
 }
@@ -638,7 +672,7 @@ export function switcherList(
     return Object.freeze({
       id: environment.id,
       name: environmentName(environment, copy),
-      who: environmentWho(environment, copy),
+      who: environmentWho(environment, copy, shell.operator.login),
       href: environmentHref(environment, space, options.app),
       current: environment.id === shell.current && options.here === space,
       glyph,

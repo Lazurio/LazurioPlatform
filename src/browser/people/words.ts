@@ -50,8 +50,8 @@ export type Words = { readonly [K in keyof typeof en]: string };
 export const cs: Words = {
   connecting: "Připojuji…",
   loading: "Stránka se načítá…",
-  reconnecting: "Prohlížeč Environmentu se znovu připojuje…",
-  closed: "Tahle záložka už neexistuje.",
+  reconnecting: "Prohlížeč Prostředí se znovu připojuje…",
+  closed: "Tato záložka už neexistuje.",
   openNewTab: "Otevřít novou záložku",
   startFailed: "Novou záložku se nepodařilo otevřít.",
   retry: "Zkusit znovu",
@@ -63,7 +63,7 @@ export const cs: Words = {
   reload: "Obnovit",
   stop: "Zastavit",
   address: "Hledat nebo zadat adresu",
-  page: "Stránka v prohlížeči Environmentu",
+  page: "Stránka v prohlížeči Prostředí",
   closeWindow: "Zavřít okno",
   ok: "OK",
   cancel: "Zrušit",
@@ -81,11 +81,11 @@ export const cs: Words = {
   pictureSaver: "Úsporná",
   pictureSaverHint: "nižší rozlišení pro pomalé připojení",
   openAlone: "Otevřít samostatně",
-  foreignView: "Tahle adresa je prohlížeč jiného Environmentu",
+  foreignView: "Tato adresa je prohlížeč jiného Prostředí",
   addressRefused:
-    "Tahle adresa patří pohledu prohlížeče Environmentu, ale neodkazuje na žádnou záložku, takže se tu neotevře.",
+    "Tato adresa patří pohledu prohlížeče Prostředí, ale neodkazuje na žádnou záložku, takže se tu neotevře.",
   addressRefusedScheme:
-    "Prohlížeč Environmentu tu otevírá jen adresy http a https.",
+    "Prohlížeč Prostředí tu otevírá jen adresy http a https.",
 };
 
 export const words: Readonly<Record<"cs" | "en", Words>> = Object.freeze({

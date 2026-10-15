@@ -771,7 +771,7 @@ test("the prepared agent prompt: task, target state and the rule to enable the t
       } else {
         expect(prompt).toContain(
           locale === "cs"
-            ? `Úkol: nainstaluj na tomhle Environmentu nástroj \`${entry.name}\` (příkaz \`${entry.command}\`)`
+            ? `Úkol: nainstaluj v tomto Prostředí nástroj \`${entry.name}\` (příkaz \`${entry.command}\`)`
             : `Task: install the tool \`${entry.name}\` (command \`${entry.command}\`) in this Environment`,
         );
         expect(prompt).toContain(entry.activation.purpose[locale]);

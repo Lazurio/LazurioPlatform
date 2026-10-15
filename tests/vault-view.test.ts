@@ -187,7 +187,7 @@ test("the row says the state in few words, formally in Czech, and the step of a 
     "signed-out: Přístup odebrán v trezoru",
     "signed-out: Trezor neodpovídá",
     "signed-out: Nastavení se nedokončilo",
-    "unknown: Tento Environment zatím trezor nemá",
+    "unknown: Toto Prostředí zatím trezor nemá",
     "unknown: Brzy · druhá vlna",
     "unknown: Připravuje se trezor…",
   ]);

@@ -372,7 +372,7 @@ test("the column head names the Organization on its Dashboard: its avatar, name,
         initials: "EW",
       },
       name: "Example Works",
-      who: "Dashboard Organizace",
+      who: "Přehled Organizace",
     },
     gear: {
       href: "https://dashboard.lazurio.ai/orgs/example/settings",

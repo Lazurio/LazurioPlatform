@@ -158,13 +158,13 @@ const text = {
   },
   cs: {
     "not-declared":
-      "Tenhle Environment nemá prohlížeč Environmentu: předání sem nesměruje žádný pohled prohlížeče. Na Remote Environmentu přichází s cestou browser. v bráně.",
+      "Toto Prostředí nemá prohlížeč Prostředí: předání sem nesměruje žádný pohled prohlížeče. V Prostředí na serveru přichází s cestou browser. v bráně.",
     "no-session":
       "Chybí sezení: zadejte --session <jméno> (písmena, číslice, - a _, nejvýš 64), nebo spusťte příkaz z vlákna T3 Code, Codexu nebo Claude Code.",
     "browser-unreachable":
-      "Prohlížeč Environmentu na loopbacku neodpovídá. Spusťte lazurio doctor.",
+      "Prohlížeč Prostředí na loopbacku neodpovídá. Spusťte lazurio doctor.",
     "window-create-failed":
-      "Prohlížeč Environmentu neotevřel okno. Spusťte lazurio doctor.",
+      "Prohlížeč Prostředí neotevřel okno. Spusťte lazurio doctor.",
     "bind-failed":
       "Okno je otevřené, ale agent-browser k němu sezení nepřipojil.",
     failed: "lazurio browser selhal",
@@ -174,8 +174,8 @@ const text = {
     reused: "Tvoje okno už je otevřené.",
     created: "Tvoje okno je otevřené.",
     "hub-unreachable":
-      "Pohled prohlížeče Environmentu záložku neotevřel. Spusťte lazurio doctor.",
-    "invalid-address": "Tuhle adresu pohled neotevře.",
+      "Pohled prohlížeče Prostředí záložku neotevřel. Spusťte lazurio doctor.",
+    "invalid-address": "Tuto adresu pohled neotevře.",
     stopped:
       "Okno je puštěné: skončí, až ho nic nedrží a nikdo se na něj nedívá. Kdo ho má otevřené, tomu zůstane.",
     "no-daemon": "Tvoje sezení nemá spuštěný agent-browser: není co pustit.",
@@ -183,12 +183,11 @@ const text = {
       "agent-browser tvého sezení se odmítl ukončit. Nic se nezměnilo; zkus to znovu, nebo spusť lazurio doctor.",
     "daemon-unconfirmed":
       "agent-browser tvého sezení nepotvrdil, že skončil, takže tvoje okno možná pořád drží. Za chvíli spusť lazurio browser done znovu, nebo lazurio doctor.",
-    "open-scheme": "Prohlížeč Environmentu otevírá jen adresy http a https.",
+    "open-scheme": "Prohlížeč Prostředí otevírá jen adresy http a https.",
     "open-not-declared":
-      "Adresa se neotevřela: tento Environment nemá prohlížeč Environmentu. Otevřete ji ve svém prohlížeči.",
-    opened: "Otevřeno v prohlížeči Environmentu",
-    "opened-thread":
-      "Otevřeno v prohlížeči Environmentu, v panelu tohoto vlákna",
+      "Adresa se neotevřela: toto Prostředí nemá prohlížeč. Otevřete ji ve svém prohlížeči.",
+    opened: "Otevřeno v prohlížeči Prostředí",
+    "opened-thread": "Otevřeno v prohlížeči Prostředí, v panelu tohoto vlákna",
     "open-unbound":
       "Panel tohoto vlákna stránku neukáže: agent-browser k záložce nepřipojil sezení vlákna.",
   },

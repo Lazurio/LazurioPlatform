@@ -285,9 +285,11 @@ function environment(value: unknown): ShellEnvironment | null {
     own === null ||
     !identityMatches(id, own) ||
     // The optional members of F37's addendum: absent, or their exact shape
-    // (`who` may also be null: the Dashboard's facts do not say).
+    // (`who` may also be null: the Dashboard's facts do not say; or empty:
+    // the Dashboard has nothing to add beside the name, root decision 0170
+    // addendum 2026-10-15).
     !(name === undefined || text(name, 128)) ||
-    !(who === undefined || who === null || text(who, 128)) ||
+    !(who === undefined || who === null || who === "" || text(who, 128)) ||
     !(offline === undefined || typeof offline === "boolean")
   )
     return null;

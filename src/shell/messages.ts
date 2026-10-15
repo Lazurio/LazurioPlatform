@@ -24,8 +24,14 @@ export type ShellCopy = Readonly<{
   spaceEmpty: string;
   /** The name of an Environment without its own name, by kind. */
   names: Readonly<Record<ShellEnvironmentKind, string>>;
-  /** Who an Environment is for, by kind. */
-  who: Readonly<Record<ShellEnvironmentKind, string>>;
+  /** The kind on an Environment's second line, left out where the name
+   * already says it (root decision 0170 addendum 2026-10-15; the brand
+   * voice, "Druh Prostředí stačí"). */
+  kinds: Readonly<Record<ShellEnvironmentKind, string>>;
+  /** A work Environment assigned to someone other than the viewer. */
+  assignedTo: string;
+  /** An Environment known not to run. */
+  offline: string;
   pick: string;
   settings: string;
   /** The gear on an Organization's Dashboard (F36's addendum of
@@ -88,13 +94,15 @@ const en: ShellCopy = {
     automated: "Automated",
     workstation: "This computer",
   },
-  who: {
-    personal: "only yours",
-    work: "work",
-    team: "shared by the Team",
-    automated: "automation",
-    workstation: "this computer",
+  kinds: {
+    personal: "Personal",
+    work: "Work",
+    team: "Team",
+    automated: "Automated",
+    workstation: "Local",
   },
+  assignedTo: "assigned to {login}",
+  offline: "offline",
   pick: "{name}, switch Environment",
   settings: "Environment Settings",
   organizationSettings: "Organization Settings",
@@ -131,54 +139,56 @@ const en: ShellCopy = {
 
 const cs: ShellCopy = {
   rail: "Organizace",
-  dashboard: "Dashboard",
-  dashboardSub: "váš přehled napříč Organizacemi",
-  jump: "Přejít na Environment",
+  dashboard: "Přehled",
+  dashboardSub: "napříč vašimi Organizacemi",
+  jump: "Přejít na Prostředí",
   jumpShortcut: "⌘⇧E",
   personal: "Osobní",
   addOrganization: "Přidat organizaci",
   account: "Lazurio účet",
-  accountSub: "Nastavení účtu v Dashboardu",
-  environmentsOne: "{count} Environment",
-  environmentsFew: "{count} Environmenty",
-  environmentsMany: "{count} Environmentů",
+  accountSub: "Nastavení účtu v Lazuriu",
+  environmentsOne: "{count} Prostředí",
+  environmentsFew: "{count} Prostředí",
+  environmentsMany: "{count} Prostředí",
   last: "naposledy {name}",
-  spaceEmpty: "Zatím žádný Environment · otevře Dashboard",
+  spaceEmpty: "Zatím žádné Prostředí · otevře Přehled Organizace",
   names: {
     personal: "Osobní",
     work: "Pracovní",
-    team: "Týmový",
-    automated: "Automatizovaný",
+    team: "Týmové",
+    automated: "Automatizované",
     workstation: "Tento počítač",
   },
-  who: {
-    personal: "jen váš",
-    work: "pracovní",
-    team: "sdílený Teamem",
-    automated: "automatizace",
-    workstation: "tento počítač",
+  kinds: {
+    personal: "Osobní",
+    work: "Pracovní",
+    team: "Týmové",
+    automated: "Automatizované",
+    workstation: "Místní",
   },
-  pick: "{name}, přepnout Environment",
-  settings: "Nastavení Environmentu",
+  assignedTo: "přiřazeno {login}",
+  offline: "offline",
+  pick: "{name}, přepnout Prostředí",
+  settings: "Nastavení Prostředí",
   organizationSettings: "Nastavení Organizace",
-  switcher: "Přejít na Environment",
+  switcher: "Přejít na Prostředí",
   searchIn: "Hledat v {name}…",
-  searchAll: "Environment nebo Organizace…",
-  organizationDashboard: "Dashboard Organizace",
+  searchAll: "Prostředí nebo Organizace…",
+  organizationDashboard: "Přehled Organizace",
   here: "tady jste",
-  noEnvironment: "Tady nemáte žádný Environment.",
+  noEnvironment: "Tady nemáte žádné Prostředí.",
   nothing: "Nic takového tu není.",
   widen: "Všechny Organizace",
   choose: "vybrat",
   go: "přejít",
   close: "zavřít",
-  switchLabel: "Aplikace Environmentu",
+  switchLabel: "Aplikace Prostředí",
   chat: "Chat",
   apps: "Apps",
   automate: "Automate",
-  chatMissing: "Chat na tomto Environmentu neběží",
-  automateMissing: "MausBot na tomto Environmentu neběží",
-  setupLabel: "Co Environmentu ještě chybí",
+  chatMissing: "Chat v tomto Prostředí neběží",
+  automateMissing: "MausBot v tomto Prostředí neběží",
+  setupLabel: "Co Prostředí ještě chybí",
   setupGithub: "Bez GitHubu agenti nepracují.",
   setupGithubAction: "Připojit GitHub",
   setupOrganizationMissing: "{name} tu ještě není.",

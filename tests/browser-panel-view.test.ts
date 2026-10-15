@@ -1023,38 +1023,38 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
     const cases: readonly [ReturnType<typeof answer>, string, boolean][] = [
       [
         answer(409, { error: "too-many-tabs" }),
-        "Launchpad už má tolik záložek, kolik unese. Zavřete některé a zkuste to znovu.",
+        "Apps už mají tolik záložek, kolik unesou. Zavřete některé a zkuste to znovu.",
         true,
       ],
       [
         answer(404, { error: "not-found" }),
-        "Záložka už v Environmentu není.",
+        "Záložka už v Prostředí není.",
         false,
       ],
       [
         answer(503, { error: "holder-unavailable" }),
-        "Záložku se nepodařilo v Launchpadu ponechat.",
+        "Záložku se nepodařilo v Apps ponechat.",
         false,
       ],
       [
         answer(503, { error: "closing" }),
-        "Launchpad teď neodpovídá, zkuste to za chvíli znovu.",
+        "Lazurio teď neodpovídá, zkuste to za chvíli znovu.",
         true,
       ],
       [
         answer(503, { error: "hub-unreachable" }),
-        "Prohlížeč Environmentu teď neodpovídá, zkuste to za chvíli znovu.",
+        "Prohlížeč Prostředí teď neodpovídá, zkuste to za chvíli znovu.",
         true,
       ],
       [
         answer(500, { error: "hold-failed" }),
-        "Záložku se nepodařilo v Launchpadu ponechat.",
+        "Záložku se nepodařilo v Apps ponechat.",
         true,
       ],
-      [answer(0), "Launchpad teď neodpovídá, zkuste to za chvíli znovu.", true],
+      [answer(0), "Lazurio teď neodpovídá, zkuste to za chvíli znovu.", true],
       [
         answer(404, { error: "no-browser" }),
-        "Tento Environment nemá prohlížeč.",
+        "Toto Prostředí nemá prohlížeč.",
         false,
       ],
     ];
@@ -1073,12 +1073,10 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
       answer(500, { error: "release-failed" }),
     ])
       expect(releaseSucceeded(failed)).toBe(false);
-    expect(releaseText(listedTab(1), cs)).toBe(
-      "Záložka se zavře v Environmentu.",
-    );
-    expect(releaseText(null, cs)).toBe("Záložka se zavře v Environmentu.");
+    expect(releaseText(listedTab(1), cs)).toBe("Záložka se zavře v Prostředí.");
+    expect(releaseText(null, cs)).toBe("Záložka se zavře v Prostředí.");
     expect(releaseText(listedTab(1, { agents: ["codex-a1"] }), cs)).toBe(
-      "Záložka zmizela z Launchpadu. Pracuje v ní agent, takže zůstává otevřená.",
+      "Záložka zmizela z Apps. Pracuje v ní agent, takže zůstává otevřená.",
     );
     expect(
       releaseText(
@@ -1093,7 +1091,7 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
         cs,
       ),
     ).toBe(
-      "Záložka zmizela z Launchpadu. Dál je ve vlákně „Faktury za září“, v jiném vlákně a jinde.",
+      "Záložka zmizela z Apps. Dál je ve vlákně „Faktury za září“, v jiném vlákně a jinde.",
     );
     expect(
       releaseText(
@@ -1115,26 +1113,26 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
     // One tab: point 9's own words, as the × always said them.
     expect(letGoUndo([entry(1)], id(1), cs)).toEqual({
       tabs: [id(1)],
-      text: "Záložka se zavře v Environmentu.",
+      text: "Záložka se zavře v Prostředí.",
       shown: id(1),
       ends: true,
     });
     expect(letGoUndo([entry(2, agent)], id(1), cs)).toEqual({
       tabs: [id(2)],
-      text: "Záložka zmizela z Launchpadu. Pracuje v ní agent, takže zůstává otevřená.",
+      text: "Záložka zmizela z Apps. Pracuje v ní agent, takže zůstává otevřená.",
       shown: null,
       ends: false,
     });
     // Several: all close, all stay, or some of each.
     expect(letGoUndo([entry(1), entry(4)], null, cs)).toEqual({
       tabs: [id(1), id(4)],
-      text: "Záložky se zavřou v Environmentu.",
+      text: "Záložky se zavřou v Prostředí.",
       shown: null,
       ends: true,
     });
     expect(letGoUndo([entry(2, agent), entry(3, thread)], id(3), cs)).toEqual({
       tabs: [id(2), id(3)],
-      text: "Záložky zmizely z Launchpadu. Zůstávají otevřené jinde nebo u agenta.",
+      text: "Záložky zmizely z Apps. Zůstávají otevřené jinde nebo u agenta.",
       shown: id(3),
       ends: false,
     });
@@ -1165,12 +1163,12 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
   test("what a command says when tabs could not be let go of, or held again by its Vrátit: for one tab or several, or the cause the answer names", () => {
     expect(
       releaseFailure(answer(500, { error: "release-failed" }), cs, 1),
-    ).toBe("Záložku se nepodařilo z Launchpadu odebrat.");
+    ).toBe("Záložku se nepodařilo z Apps odebrat.");
     expect(
       releaseFailure(answer(500, { error: "release-failed" }), cs, 3),
-    ).toBe("Záložky se nepodařilo z Launchpadu odebrat.");
+    ).toBe("Záložky se nepodařilo z Apps odebrat.");
     expect(releaseFailure(answer(0), cs, 3)).toBe(
-      "Launchpad teď neodpovídá, zkuste to za chvíli znovu.",
+      "Lazurio teď neodpovídá, zkuste to za chvíli znovu.",
     );
     const gone = answer(404, { error: "not-found" });
     expect(restoreFailure(gone, cs, 1)).toEqual({
@@ -1184,7 +1182,7 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
     expect(
       restoreFailure(answer(500, { error: "hold-failed" }), cs, 2),
     ).toEqual({
-      text: "Záložky se nepodařilo v Launchpadu ponechat.",
+      text: "Záložky se nepodařilo v Apps ponechat.",
       retry: true,
     });
     expect(
@@ -1196,7 +1194,7 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
     expect(
       restoreFailure(answer(503, { error: "hub-unreachable" }), cs, 2),
     ).toEqual({
-      text: "Prohlížeč Environmentu teď neodpovídá, zkuste to za chvíli znovu.",
+      text: "Prohlížeč Prostředí teď neodpovídá, zkuste to za chvíli znovu.",
       retry: true,
     });
   });

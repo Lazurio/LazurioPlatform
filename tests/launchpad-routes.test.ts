@@ -87,7 +87,7 @@ test("an agent's secret request has its page in Trezor; any other path below it 
     ]);
   expect(routeTitle(route, messages("cs"))).toEqual({
     heading: "Trezor",
-    document: "Žádost agenta · Trezor · Nastavení — Lazurio Launchpad",
+    document: "Žádost agenta · Trezor · Nastavení — Lazurio",
   });
   expect(
     routeTitle({ view: "settings", section: "vault" }, messages("en")),
@@ -111,8 +111,8 @@ test("the heading and document title follow the route in both languages", () => 
   expect(
     routeTitle({ view: "settings", section: "machine" }, messages("cs")),
   ).toEqual({
-    heading: "Tento Environment",
-    document: "Tento Environment · Nastavení — Lazurio Launchpad",
+    heading: "Toto Prostředí",
+    document: "Toto Prostředí · Nastavení — Lazurio",
   });
   // SSH from your devices (decision F49).
   expect(pageRoute("/settings/ssh")).toEqual({
@@ -140,7 +140,7 @@ test("the heading and document title follow the route in both languages", () => 
     routeTitle({ view: "settings", section: "vault" }, messages("cs")),
   ).toEqual({
     heading: "Trezor",
-    document: "Trezor · Nastavení — Lazurio Launchpad",
+    document: "Trezor · Nastavení — Lazurio",
   });
   expect(
     routeTitle({ view: "settings", section: "vault" }, messages("en")).heading,
@@ -213,7 +213,7 @@ test("a catalog title names the Organization by its display name once known", ()
     ),
   ).toEqual({
     heading: "web",
-    document: "web · Alpha Company — Lazurio Launchpad",
+    document: "web · Alpha Company — Lazurio",
   });
 });
 
@@ -242,7 +242,7 @@ test("the Files routes: the Documents folder and the folders below it, one canon
   expect(routeTitle({ view: "files", path: ["Úkol"] }, messages("cs"))).toEqual(
     {
       heading: "Soubory",
-      document: "Úkol · Soubory — Lazurio Launchpad",
+      document: "Úkol · Soubory — Lazurio",
     },
   );
 });

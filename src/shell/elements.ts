@@ -464,10 +464,8 @@ class Switcher {
       if (row.glyph.kind === "initials") glyph.textContent = row.glyph.text;
       else glyph.append(icon(row.glyph.icon, 16));
       const text = element("span", "switcher-copy");
-      text.append(
-        element("span", "switcher-name", row.name),
-        element("span", "switcher-who", row.who),
-      );
+      text.append(element("span", "switcher-name", row.name));
+      if (row.who !== "") text.append(element("span", "switcher-who", row.who));
       link.append(glyph, text);
       if (row.current) link.append(checkMark(copy.here));
       group.append(link);

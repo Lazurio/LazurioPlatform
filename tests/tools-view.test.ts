@@ -970,7 +970,7 @@ test("the Git identity of a gh sign-in is read only in its exact form and become
   expect(gitIdentityNote(set as LoginView, messages("cs"))).toEqual({
     set: true,
     message:
-      "Vaše commity v tomhle Environmentu ponesou jméno The Octocat <583231+octocat@users.noreply.github.com>.",
+      "Vaše commity v tomto Prostředí ponesou jméno The Octocat <583231+octocat@users.noreply.github.com>.",
   });
   const unset = signedIn({
     state: "not-set",

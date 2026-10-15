@@ -16,7 +16,7 @@ test.each([
     { kind: "operator", githubLogin: "example", githubId: 12345 },
     "example (GitHub id 12345)",
   ],
-  ["en", { kind: "team" }, "shared by the Team"],
+  ["en", { kind: "team" }, "Team"],
   [
     "en",
     { kind: "automation", githubLogin: "example", githubId: 12345 },
@@ -27,11 +27,11 @@ test.each([
     { kind: "operator", githubLogin: "example", githubId: 12345 },
     "example (GitHub id 12345)",
   ],
-  ["cs", { kind: "team" }, "sdílený Teamem"],
+  ["cs", { kind: "team" }, "Týmové"],
   [
     "cs",
     { kind: "automation", githubLogin: "example", githubId: 12345 },
-    "automatizovaný Environment persony Organizace; odpovědný operátor example (GitHub id 12345)",
+    "Automatizované Prostředí persony Organizace; odpovědný operátor example (GitHub id 12345)",
   ],
 ] as const)(
   "the %s assignment line of %o reads %p",
@@ -64,7 +64,7 @@ const work = (
 });
 const named = (login: string) => (login === "example-org" ? "Example" : null);
 
-test("a personal Remote Environment: yours, only you work in it", () => {
+test("a personal Remote Environment: yours; the kind says no one else works in it", () => {
   const { facts, support } = environmentFacts(
     {
       preset: "hosted-personal",
@@ -75,9 +75,8 @@ test("a personal Remote Environment: yours, only you work in it", () => {
     cs,
   );
   expect(facts).toEqual([
-    ["Druh", "Osobní Remote Environment"],
+    ["Druh", "Osobní Prostředí"],
     ["Patří", "vám (@octocat)"],
-    ["Pracuje v něm", "jen vy"],
   ]);
   expect(support).toEqual([
     ["Technický název", "example"],
@@ -99,7 +98,6 @@ test("a personal Remote Environment: yours, only you work in it", () => {
   ).toEqual([
     ["Kind", "Personal Remote Environment"],
     ["Belongs to", "you (@octocat)"],
-    ["Who works in it", "only you"],
   ]);
 });
 
@@ -121,7 +119,7 @@ test("an Organization's Environments: its name, then the assignee, the Team or t
       }),
     ),
   ).toEqual([
-    ["Druh", "Pracovní Remote Environment"],
+    ["Druh", "Pracovní Prostředí"],
     ["Patří", "Example"],
     ["Pracuje v něm", "@octocat"],
   ]);
@@ -136,7 +134,7 @@ test("an Organization's Environments: its name, then the assignee, the Team or t
       "Team Sales",
     ),
   ).toEqual([
-    ["Druh", "Týmový Remote Environment"],
+    ["Druh", "Týmové Prostředí"],
     ["Patří", "Example"],
     ["Pracuje v něm", "Team Sales"],
   ]);
@@ -147,7 +145,7 @@ test("an Organization's Environments: its name, then the assignee, the Team or t
       work({ kind: "organization", organization: "other", team: "sales" }),
     ),
   ).toEqual([
-    ["Druh", "Týmový Remote Environment"],
+    ["Druh", "Týmové Prostředí"],
     ["Patří", "other"],
     ["Pracuje v něm", "Team sales"],
   ]);
@@ -162,7 +160,7 @@ test("an Organization's Environments: its name, then the assignee, the Team or t
       }),
     ),
   ).toEqual([
-    ["Druh", "Automatizovaný Environment"],
+    ["Druh", "Automatizované Prostředí"],
     ["Patří", "Example"],
     ["Pracuje v něm", "automatizace, odpovídá @octocat"],
   ]);
@@ -173,7 +171,7 @@ test("an Organization's Environments: its name, then the assignee, the Team or t
       work({ kind: "organization", organization: "example-org", team: null }),
     ),
   ).toEqual([
-    ["Druh", "Pracovní Remote Environment"],
+    ["Druh", "Pracovní Prostředí"],
     ["Patří", "Example"],
   ]);
 });
@@ -212,7 +210,7 @@ test("the technical facts are only under Pro podporu, a workstation says it is y
     "Přiřazení",
     "Uzel tailnetu",
     "Host",
-    "Vztahy (vynucuje Headscale, ne tahle stránka)",
+    "Vztahy (vynucuje Headscale, ne tato stránka)",
   ]);
   expect(
     environmentFacts(

@@ -583,7 +583,8 @@ export function favoriteTiles(
  * link to its Dashboard page as the shell document names it (`dashboard`,
  * looked up by the Organization slug), since the Environment picker no longer
  * leads there. The personal space ("Osobní"), the home without a group
- * ("Launchpad") and an Organization without such a page stay plain text. */
+ * ("Launchpad", in Czech "Apps") and an Organization without such a page
+ * stay plain text. */
 export function appsHeading(
   group: CatalogGroupEntry | null,
   copy: Copy,

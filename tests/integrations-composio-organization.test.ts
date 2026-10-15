@@ -600,7 +600,7 @@ test("the page's words for each state of the organization", () => {
     }) as unknown as IntegrationsOverview;
   expect(composioOrganizationLine(overview("matches", "ok"), copy)).toBeNull();
   expect(composioOrganizationLine(overview("missing", "ok"), copy)).toBe(
-    "Ve vašem účtu Composia chybí organizace „Human and Machine“. Tento Environment patří Organizaci Human and Machine a má se přes Composio připojovat ve vaší vlastní organizaci stejného jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
+    "Ve vašem účtu Composia chybí organizace „Human and Machine“. Toto Prostředí patří Organizaci Human and Machine a má se přes Composio připojovat ve vaší vlastní organizaci stejného jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
   );
   expect(composioOrganizationLine(overview("ambiguous", "ok"), copy)).toContain(
     "víc organizací se jménem „Human and Machine“. Dokud nezůstane jen jedna",

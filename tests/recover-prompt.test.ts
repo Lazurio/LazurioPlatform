@@ -135,7 +135,7 @@ test("the prompt in Czech, supervised, with the same facts", () => {
   );
   expect(
     prompt.startsWith(
-      "**Úkol:** Lazurio na tomhle Environmentu potřebuje opravu (kontrola `update-state-invalid`, kód `state-invalid`",
+      "**Úkol:** Lazurio v tomto Prostředí potřebuje opravu (kontrola `update-state-invalid`, kód `state-invalid`",
     ),
   ).toBe(true);
   expect(prompt).toContain(
@@ -149,7 +149,7 @@ test("the prompt in Czech, supervised, with the same facts", () => {
   );
   expect(prompt).toContain("**Nikdy:** `lazurio update rollback`");
   expect(prompt).toContain(
-    "Tělo nese jen strukturovaná pole. `evidence.journal` (sanitizovaný konec journalu Launchpadu) a jakýkoli jiný volný text zůstávají na tomhle Environmentu: k issue je smíš přidat jen jako komentář, až si je sám přečteš a usoudíš, že jsou veřejně bezpečné; nikdy ne do těla, se kterým issue zakládáš.",
+    "Tělo nese jen strukturovaná pole. `evidence.journal` (sanitizovaný konec journalu Lazuria) a jakýkoli jiný volný text zůstávají v tomto Prostředí: k issue je smíš přidat jen jako komentář, až si je sám přečteš a usoudíš, že jsou veřejně bezpečné; nikdy ne do těla, se kterým issue zakládáš.",
   );
   // No Folder was read: the rerun detects it the same way.
   expect(prompt).toContain("sám: `lazurio recover --json`.");

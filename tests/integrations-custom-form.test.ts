@@ -74,7 +74,7 @@ test("the routes: a new server under custom/new, an existing one under custom/se
     ),
   ).toEqual({
     heading: "Integrace",
-    document: "Připojit vlastní MCP server · Integrace — Lazurio Launchpad",
+    document: "Připojit vlastní MCP server · Integrace — Lazurio",
   });
 });
 
@@ -177,7 +177,7 @@ test("lines under the fields: plain words for what is wrong, quiet hints for wha
   form = type(form, "url", "http://mcp.example.com/mcp");
   let view = customFormView(form, cs);
   expect(view.url).toEqual({
-    text: "Adresa musí začínat https://. http:// jde jen na tomto Environmentu (localhost).",
+    text: "Adresa musí začínat https://. http:// jde jen v tomto Prostředí (localhost).",
     kind: "error",
   });
   expect(view.canSave).toBe(false);
