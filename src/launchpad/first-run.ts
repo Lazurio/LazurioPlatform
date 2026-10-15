@@ -376,6 +376,64 @@ export function tourStop(
   }
 }
 
+/** What must come before the content may be installed (root decision 0201
+ * point 3), the one rule of every start: the button and "Zkusit znovu" of
+ * the content, the line in Apps, a start request in the address, the start
+ * after GitHub and the install route itself. Where the Environment signs in
+ * as its person: `ai` while its AI is provably missing (every CLI answered
+ * so), `github` while GitHub is not connected, `unknown` while either is not
+ * read yet. An AI that could not be checked (`unknown`: a CLI did not
+ * answer) does not hold the content back, as it holds nothing else back: a
+ * timeout must not lock an Environment out of its content, and a stop then
+ * leads to Chat. Elsewhere (a Team or an Automated Environment, whose basics
+ * are the Organization's) only a known missing GitHub does. Null: it may
+ * start. */
+export type ContentBlock = "ai" | "github" | "unknown";
+
+export function contentBlockedBy(
+  facts: Pick<TourFacts, "preset" | "ai" | "github">,
+): ContentBlock | null {
+  if (!signsInAsPerson(facts.preset))
+    return facts.github === "missing" ? "github" : null;
+  if (facts.ai === "missing") return "ai";
+  if (facts.ai === "loading") return "unknown";
+  if (facts.github === "missing") return "github";
+  if (facts.github === "unknown") return "unknown";
+  return null;
+}
+
+/** What a start request of the address (`#lazurio-start=…`, from the line
+ * in Apps or an older shell's link) does once the page is on Začínáme:
+ * `wait` until what decides it is read; `drop` it; `open-ai` drops it and
+ * shows the AI step; `sign-in-gh` opens gh's sign-in; `install` starts the
+ * installation. GitHub's sign-in waits for AI as Začínáme offers it, and the
+ * installation for its turn (`contentBlockedBy`). */
+export type StartDecision =
+  | "wait"
+  | "drop"
+  | "open-ai"
+  | "sign-in-gh"
+  | "install";
+
+export function startDecision(
+  request: StartRequest,
+  facts: TourFacts,
+): StartDecision {
+  if (!signsInAsPerson(facts.preset)) return "drop";
+  if (request === "sign-in-gh") {
+    if (facts.github === "unknown" || facts.ai === "loading") return "wait";
+    if (facts.ai === "missing") return "open-ai";
+    return facts.github === "connected" ? "drop" : "sign-in-gh";
+  }
+  const content = facts.content.state;
+  if (content === "loading" || content === "unknown") return "wait";
+  const blocked = contentBlockedBy(facts);
+  if (blocked === "unknown") return "wait";
+  if (blocked === "ai") return "open-ai";
+  if (blocked === "github") return "drop";
+  return content === "missing" || content === "failed" ? "install" : "drop";
+}
+
 /** Where a stopped preparation leads (0201 points 3 and 8): Chat with the
  * prepared prompt when an agent can work; the AI step when no AI is
  * connected; and for an Organization that is not prepared for this version
@@ -464,16 +522,15 @@ export function appsSetupLine(
             : copy.setupFailed,
         actions: [retry],
       };
+    // Without AI there is nothing to try again before it (0201 point 3).
     return {
       tone: "failed",
       icon: "warning",
       text: copy.setupFailed,
-      actions: [
+      actions:
         resolve === "ai"
-          ? { action: "open-start", label: copy.setupAiAction }
-          : { action: "resolve-in-chat", label: copy.setupResolve },
-        retry,
-      ],
+          ? [{ action: "open-start", label: copy.setupAiAction }]
+          : [{ action: "resolve-in-chat", label: copy.setupResolve }, retry],
     };
   }
   if (content.state !== "missing") return null;

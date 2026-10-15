@@ -6,6 +6,7 @@ import {
   basics,
   basicsDone,
   type ComposioFact,
+  contentBlockedBy,
   signsInAsPerson,
   type TourFacts,
 } from "./first-run";
@@ -145,7 +146,8 @@ function contentStep(facts: StartFacts, copy: Copy): StartStep {
   if (content === "failed") return { ...base, mark: "failed", status: null };
   if (content === "loading" || content === "unknown")
     return { ...base, mark: "later", status: copy.startChecking };
-  return facts.github === "connected"
+  // Its turn comes after AI and GitHub (0201 point 3).
+  return contentBlockedBy(facts) === null
     ? { ...base, mark: "now", status: null }
     : { ...base, mark: "later", status: null };
 }

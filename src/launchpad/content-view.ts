@@ -6,6 +6,7 @@ import type {
   ContentStepState,
 } from "./content-client";
 import { refersTo } from "./content-client";
+import type { ContentBlock } from "./first-run";
 import type { MessageKey } from "./messages";
 import { fill } from "./update-view";
 
@@ -270,15 +271,19 @@ export type ContentView = Readonly<{
 }>;
 
 /** "Obsah Environmentu": a row per item and the one action. `github` says
- * whether GitHub is connected here (`unknown` does not block); `modules`
- * counts an Organization's modules once it is here; `resolve` says where a
- * stop leads (Chat when not given). */
+ * whether GitHub is connected here (`unknown` does not block); `blockedBy`,
+ * where given, what must come first (`contentBlockedBy` in first-run.ts, root
+ * decision 0201 point 3), and replaces `github`: the action, a download or
+ * "Zkusit znovu", is not offered before its turn, only a sentence why;
+ * `modules` counts an Organization's modules once it is here; `resolve`
+ * says where a stop leads (Chat when not given). */
 export function contentView(
   list: ContentList,
   job: ContentJob | null,
   copy: Copy,
   options: Readonly<{
     github: "missing" | "connected" | "unknown";
+    blockedBy?: ContentBlock | null;
     modules?: (login: string) => number | null;
     pluralModules?: (count: number) => string;
     resolve?: Resolve;
@@ -349,12 +354,27 @@ export function contentView(
     };
   });
   const missing = list.items.filter((item) => item.state !== "present");
-  const blockedBy =
-    options.github === "missing"
-      ? copy.contentNeedsGithub
-      : !list.allowed
-        ? copy.contentNotAllowed
+  const block =
+    options.blockedBy !== undefined
+      ? options.blockedBy
+      : options.github === "missing"
+        ? "github"
         : null;
+  const notYet =
+    block === "ai"
+      ? copy.contentNeedsAi
+      : block === "github"
+        ? copy.contentNeedsGithub
+        : null;
+  const blockedBy = !list.allowed ? copy.contentNotAllowed : null;
+  // Not its turn: no action, only why (nothing while it is not read yet).
+  if (!running && missing.length > 0 && block !== null)
+    return {
+      rows,
+      action: null,
+      note: notYet,
+      resolve: fact.state === "failed",
+    };
   const action =
     running || missing.length === 0
       ? null

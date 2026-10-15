@@ -302,3 +302,21 @@ test("Volitelné: Composio where Tools offer it, SSH and Codex Desktop on a Remo
     )[0]?.status,
   ).toBeNull();
 });
+
+test("the content step waits for AI even with GitHub connected (Pablo's review of #436)", () => {
+  expect(
+    startView(facts({ ai: "missing", github: "connected" }), cs)?.steps[2]
+      ?.mark,
+  ).toBe("later");
+  expect(
+    startView(facts({ ai: "connected", github: "connected" }), cs)?.steps[2]
+      ?.mark,
+  ).toBe("now");
+  // An AI that could not be checked does not hold it back.
+  expect(
+    startView(
+      facts({ ai: "unknown", aiReading: null, github: "connected" }),
+      cs,
+    )?.steps[2]?.mark,
+  ).toBe("now");
+});

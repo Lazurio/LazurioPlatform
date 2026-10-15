@@ -227,10 +227,10 @@ test("the view: one action, the steps while it runs, the stop in one sentence", 
   expect(
     contentView(personal, null, cs, { github: "connected" }).action,
   ).toEqual({ label: "Připravit", disabled: false });
-  // Without GitHub the action waits: it starts by itself once GitHub is
-  // there (root decision 0201 point 3).
+  // Without GitHub the action is not offered: it starts by itself once
+  // GitHub is there (root decision 0201 point 3).
   const noGithub = contentView(work, null, cs, { github: "missing" });
-  expect(noGithub.action?.disabled).toBe(true);
+  expect(noGithub.action).toBeNull();
   expect(noGithub.note).toBe("Spustí se samo po připojení GitHubu.");
   // Running: no action, the steps, the status.
   const busy = contentView(work, running, cs, { github: "connected" });
@@ -391,4 +391,45 @@ test("a stop says where it leads: Chat, the AI step, or the Admin of an unprepar
   ).toBe(
     "Organizace ještě není připravená pro tuto verzi Lazuria. Agent v Chatu to opraví.",
   );
+});
+
+test("no download and no Zkusit znovu before their turn (Pablo's review of #436)", () => {
+  // AI provably missing, GitHub connected: neither the download nor, after
+  // a stop, "Zkusit znovu" is offered; the sentence says why.
+  for (const job of [null, stopped]) {
+    const view = contentView(work, job, cs, {
+      github: "connected",
+      blockedBy: "ai",
+      resolve: "ai",
+    });
+    expect(view.action).toBeNull();
+    expect(view.note).toBe("Nabídne se po připojení AI.");
+  }
+  expect(
+    contentView(work, null, en, { github: "connected", blockedBy: "ai" }).note,
+  ).toBe("Offered once AI is connected.");
+  // `blockedBy` replaces `github`: GitHub first, or nothing while not read.
+  expect(
+    contentView(work, null, cs, { github: "connected", blockedBy: "github" }),
+  ).toMatchObject({
+    action: null,
+    note: "Spustí se samo po připojení GitHubu.",
+  });
+  expect(
+    contentView(work, null, cs, { github: "connected", blockedBy: "unknown" }),
+  ).toMatchObject({ action: null, note: null });
+  // Its turn: offered.
+  expect(
+    contentView(work, null, cs, { github: "connected", blockedBy: null })
+      .action,
+  ).toEqual({ label: "Stáhnout", disabled: false });
+  expect(
+    contentView(work, stopped, cs, { github: "connected", blockedBy: null })
+      .action?.label,
+  ).toBe("Zkusit znovu");
+  // A run in progress is followed whatever came first.
+  expect(
+    contentView(work, running, cs, { github: "connected", blockedBy: "ai" })
+      .rows[0]?.status,
+  ).toBe("Stahuji…");
 });

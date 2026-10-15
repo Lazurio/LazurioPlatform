@@ -683,6 +683,15 @@ export async function startLaunchpad(
     folder,
     headers,
     personalspace: personalspace.decide,
+    // The content never before AI (root decision 0201 point 3, the same
+    // rule as the page's `contentBlockedBy`): where the Environment signs in
+    // as its person, an AI that every CLI answered is missing refuses the
+    // start. One that could not be checked does not.
+    refuseInstall: async () => {
+      const preset = await folderPreset(folder).catch(() => undefined);
+      if (preset === undefined || !signsInAsPerson(preset)) return null;
+      return (await ai.state()).state === "missing" ? "ai-missing" : null;
+    },
     host: () =>
       contentHost ??
       processContentHost({

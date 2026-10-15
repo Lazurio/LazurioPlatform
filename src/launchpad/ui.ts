@@ -34,6 +34,7 @@ import {
   type AiFact,
   appsSetupLine,
   composioFact,
+  contentBlockedBy,
   githubAccount,
   githubFact,
   nextBasic,
@@ -43,6 +44,7 @@ import {
   type StartRequest,
   shellSetup,
   signsInAsPerson,
+  startDecision,
   startSection,
   type TourFacts,
 } from "./first-run";
@@ -387,6 +389,26 @@ function setupLineNow() {
 }
 /** Reads the AI again; `fresh` asks the CLIs now instead of the minute the
  * server keeps their answer (Začínáme's "Zkontrolovat znovu"). */
+/** What must come before the content (`contentBlockedBy`); `unknown` before
+ * the profile is read. */
+function contentBlocked() {
+  const facts = firstRunFacts();
+  return facts === null ? "unknown" : contentBlockedBy(facts);
+}
+/** GitHub was connected in this view: the content starts by itself once it
+ * is read and missing and its turn has come (0201 point 3), never after a
+ * stop and never while no agent could help with it. It waits while a fact
+ * that decides it is not read yet. */
+function startAfterSignIn() {
+  if (!startAfterGithub) return;
+  const state = content.fact().state;
+  const blocked = contentBlocked();
+  if (state === "loading" || state === "unknown" || blocked === "unknown")
+    return;
+  startAfterGithub = false;
+  if (state === "missing" && blocked === null && !content.running())
+    void content.start();
+}
 async function readAi(fresh = false) {
   let read: AiReading | null = null;
   try {
@@ -396,6 +418,7 @@ async function readAi(fresh = false) {
   aiRead = true;
   if (read !== null || aiReading === null) aiReading = read;
   content.render();
+  startAfterSignIn();
   firstRun();
 }
 // The Environment's id, the key of the tour:
@@ -457,16 +480,10 @@ const content = createContentPanel({
       catalog.render();
     }
     void probePreparePrompt();
-    // GitHub was connected here: the content starts by itself once it is
-    // read and missing (0201 point 3), never after a stop and never while
-    // no agent could help with it.
-    if (startAfterGithub && state !== "loading" && state !== "unknown") {
-      startAfterGithub = false;
-      if (state === "missing" && aiFact() !== "missing" && !content.running())
-        void content.start();
-    }
+    startAfterSignIn();
     firstRun();
   },
+  blockedBy: () => contentBlocked(),
   resolveKind: () => resolveKind(),
   resolve: () => resolveInChat(),
   connectAi: () => openAiStep(),
@@ -609,26 +626,19 @@ function takeStart() {
   const route = shell.route();
   if (route.view !== "settings" || route.section !== startSection[start])
     return;
-  if (!signsInAsPerson(profileState.preset)) {
-    pendingStart = null;
+  const facts = firstRunFacts();
+  if (facts === null) return;
+  // GitHub waits for AI, the content for its turn (0201 point 3,
+  // `startDecision`): an older link starts nothing out of order.
+  const decision = startDecision(start, facts);
+  if (decision === "wait") return;
+  if (decision === "sign-in-gh") {
+    if (tools.openSignIn("gh")) pendingStart = null;
     return;
   }
-  if (start === "sign-in-gh") {
-    const github = githubFact(toolsOverview, profileState.revision);
-    if (github === "unknown" || aiFact() === "loading") return;
-    // GitHub is offered once AI is there (0201 point 3).
-    if (aiFact() === "missing") {
-      pendingStart = null;
-      startPanel.focusAi();
-      return;
-    }
-    if (github === "connected" || tools.openSignIn("gh")) pendingStart = null;
-    return;
-  }
-  const fact = content.fact();
-  if (fact.state === "loading" || fact.state === "unknown") return;
   pendingStart = null;
-  if (fact.state === "missing" || fact.state === "failed") void content.start();
+  if (decision === "open-ai") startPanel.focusAi();
+  if (decision === "install") void content.start();
 }
 function setupAction(action: SetupAction) {
   if (action === "resolve-in-chat") {

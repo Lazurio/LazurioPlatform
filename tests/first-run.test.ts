@@ -5,6 +5,7 @@ import {
   appsSetupLine,
   basicsDone,
   composioFact,
+  contentBlockedBy,
   finishedTourProgress,
   firstProgress,
   freshTourProgress,
@@ -14,6 +15,7 @@ import {
   readFragment,
   resolveOf,
   signsInAsPerson,
+  startDecision,
   startSection,
   type TourFacts,
   type TourProgress,
@@ -465,9 +467,10 @@ test("the line in Apps: AI first, then GitHub, then the content, a run, a stop",
       { action: "install-content", label: "Zkusit znovu" },
     ],
   });
+  // Without AI there is no "Zkusit znovu" before it (Pablo's review of
+  // #436).
   expect(line({ ...stopped, resolve: "ai" })?.actions).toEqual([
     { action: "open-start", label: "Připojit AI" },
-    { action: "install-content", label: "Zkusit znovu" },
   ]);
   expect(line({ ...stopped, resolve: "admin" })).toEqual({
     tone: "failed",
@@ -584,4 +587,89 @@ test("the first address: the token and a start request apart, both leading to Za
     "sign-in-gh": "start",
     "install-content": "start",
   });
+});
+
+test("the content's turn: after AI and GitHub, waiting while they are not read, never blocked by an AI that could not be checked", () => {
+  const person = (ai: TourFacts["ai"], github: TourFacts["github"]) =>
+    contentBlockedBy({ preset: "hosted-organization-personal", ai, github });
+  // Pablo's review of #436: GitHub connected and AI provably missing.
+  expect(person("missing", "connected")).toBe("ai");
+  expect(person("missing", "missing")).toBe("ai");
+  expect(person("connected", "missing")).toBe("github");
+  expect(person("organization", "missing")).toBe("github");
+  expect(person("loading", "connected")).toBe("unknown");
+  expect(person("connected", "unknown")).toBe("unknown");
+  for (const ai of ["connected", "organization", "unknown"] as const)
+    expect(person(ai, "connected")).toBeNull();
+  // A Team or an Automated Environment: only a known missing GitHub.
+  for (const preset of [
+    "hosted-organization-team",
+    "hosted-organization-steward",
+  ]) {
+    expect(contentBlockedBy({ preset, ai: "missing", github: "unknown" })).toBe(
+      null,
+    );
+    expect(contentBlockedBy({ preset, ai: "missing", github: "missing" })).toBe(
+      "github",
+    );
+  }
+});
+
+test("a start request of the address keeps the order: an older #lazurio-start=install-content starts nothing before AI", () => {
+  const work = (overrides: Partial<TourFacts>) =>
+    fresh("hosted-organization-personal", overrides);
+  const stopped = failed(organization);
+  // AI provably missing, GitHub connected: no install, the AI step instead,
+  // for a missing and for a stopped content alike.
+  for (const content of [missing(organization), stopped])
+    expect(
+      startDecision(
+        "install-content",
+        work({ ai: "missing", github: "connected", content }),
+      ),
+    ).toBe("open-ai");
+  // Its turn: it starts.
+  for (const ai of ["connected", "organization", "unknown"] as const)
+    expect(
+      startDecision("install-content", work({ ai, github: "connected" })),
+    ).toBe("install");
+  expect(
+    startDecision(
+      "install-content",
+      work({ ai: "connected", github: "connected", content: stopped }),
+    ),
+  ).toBe("install");
+  // Not its turn yet or nothing to do: dropped; not read yet: it waits.
+  expect(startDecision("install-content", work({ ai: "connected" }))).toBe(
+    "drop",
+  );
+  expect(
+    startDecision(
+      "install-content",
+      work({ ai: "connected", github: "connected", content: ready }),
+    ),
+  ).toBe("drop");
+  for (const facts of [
+    work({ ai: "loading", github: "connected" }),
+    work({ ai: "connected", github: "unknown" }),
+    work({
+      ai: "connected",
+      github: "connected",
+      content: { state: "loading" },
+    }),
+  ])
+    expect(startDecision("install-content", facts)).toBe("wait");
+  // GitHub's sign-in waits for AI as Začínáme offers it.
+  expect(startDecision("sign-in-gh", work({ ai: "missing" }))).toBe("open-ai");
+  expect(startDecision("sign-in-gh", work({ ai: "connected" }))).toBe(
+    "sign-in-gh",
+  );
+  expect(
+    startDecision("sign-in-gh", work({ ai: "connected", github: "connected" })),
+  ).toBe("drop");
+  expect(startDecision("sign-in-gh", work({ ai: "loading" }))).toBe("wait");
+  // No first run here: dropped.
+  expect(
+    startDecision("install-content", fresh("hosted-organization-team")),
+  ).toBe("drop");
 });
