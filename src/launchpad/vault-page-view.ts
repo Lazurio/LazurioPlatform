@@ -180,6 +180,11 @@ export type VaultPageView = Readonly<{
   actions: readonly VaultPageAction[];
   /** One line under the row (a Team or Automated Environment). */
   hint: string | null;
+  /** How the vault is used from here (DEV-6631 task 947): tell the agent
+   * in Chat what it needs, and it asks for the value on this page. Shown
+   * with a connected own vault, never for a 0197 pilot, which takes no
+   * requests. */
+  guide: boolean;
 }>;
 
 /** The vault's state in a few words: the items, the creation, no answer. */
@@ -261,6 +266,7 @@ export function vaultPageView(
     row: null,
     actions: [],
     hint: null,
+    guide: false,
     ...fields,
   });
   if (model === null) return view({});
@@ -282,20 +288,24 @@ export function vaultPageView(
     (status.state === "connected" ? status.organization : null) ??
     copy.vaultPageTitle;
   const row = { title: named, ...rowLine(status, setup, copy) };
+  // How the vault is used, shown with a connected own vault: a 0197 pilot
+  // takes no requests, and a vault that is not ready cannot save one.
+  const guide = status.state === "connected" && status.origin !== "pilot-0197";
   if (model.environment === "team" || model.environment === "automated")
-    return view({ row, hint: copy.vaultPageAgentsOnly });
+    return view({ guide, row, hint: copy.vaultPageAgentsOnly });
   const links = vaultPageLinks(
     status.state === "unreachable" ? model.status : status,
   );
-  if (setup !== null || links.open === null) return view({ row });
+  if (setup !== null || links.open === null) return view({ guide, row });
   const open: VaultPageAction = {
     control: "open",
     label: copy.vaultPageOpen,
     href: links.open,
     primary: true,
   };
-  if (status.origin === "pilot-0197") return view({ row, actions: [open] });
-  if (person === null) return view({ row });
+  if (status.origin === "pilot-0197")
+    return view({ guide, row, actions: [open] });
+  if (person === null) return view({ guide, row });
   // Nobody is added here yet (a Team or Automated Environment, or a network
   // whose vault does not require the Lazurio sign-in of people yet): only
   // the agents use the vault.
@@ -304,6 +314,7 @@ export function vaultPageView(
       person.reason === "not-managed" ||
       person.reason === "sign-in-not-required";
     return view({
+      guide,
       row,
       actions: agentsOnly ? [] : [open],
       hint: agentsOnly ? copy.vaultPageAgentsOnly : null,
@@ -311,6 +322,7 @@ export function vaultPageView(
   }
   if (person.state === "no-account" || person.state === "awaiting-password")
     return view({
+      guide,
       row,
       actions:
         person.signIn && links.account !== null
@@ -324,8 +336,9 @@ export function vaultPageView(
             ]
           : [],
     });
-  if (person.state === "revoked") return view({ row, actions: [open] });
+  if (person.state === "revoked") return view({ guide, row, actions: [open] });
   return view({
+    guide,
     row,
     actions:
       links.add === null

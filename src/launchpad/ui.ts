@@ -570,6 +570,7 @@ const vaultPage = createVaultPagePanel({
   get: (path) => get(path),
   post: (path, body) => post(path, body),
   copy: () => copy,
+  chat: () => chatHref(entry),
   shown: () => {
     const route = framed ? shell.route() : null;
     return route?.view === "settings" && route.section === "vault";
