@@ -11,7 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AiServices } from "../src/tools/ai-services";
+import type { AiServices } from "../src/tools/ai";
 import {
   createLoginSessions,
   type LoginEnvironment,

@@ -18,6 +18,68 @@
 export const aiProviders = ["codex", "claude"] as const;
 export type AiProvider = (typeof aiProviders)[number];
 
+export const isAiProvider = (name: string): name is AiProvider =>
+  (aiProviders as readonly string[]).includes(name);
+
+/** What people sign in to: the subscription, not the program. */
+export const aiProviderName: Readonly<Record<AiProvider, string>> = {
+  codex: "ChatGPT",
+  claude: "Claude",
+};
+
+// After `lazurio tools login codex|claude` (F19's addendum of 2026-10-15) the
+// running services read the new sign-in (root decision 0201 point 4): the
+// Codex app-server unit Lazurio manages, and T3 Code. What became of them is
+// part of the sign-in's answer; ai-services.ts asks them.
+
+/** One provider as T3 Code answered after the refresh. */
+export type T3Provider = Readonly<{
+  provider: string;
+  instanceId: string;
+  enabled: boolean;
+  status: string;
+  auth: string;
+}>;
+
+/** An instance under a default provider's ID that runs another driver: T3
+ * then turned nothing on and refreshed nothing. */
+export type T3Mismatch = Readonly<{
+  provider: string;
+  instanceId: string;
+  driver: string;
+}>;
+
+export type T3Reload =
+  /** T3 Code turned the providers on and read them again. */
+  | Readonly<{ state: "refreshed"; providers: readonly T3Provider[] }>
+  /** No `t3` here (a workstation): nothing to tell. */
+  | Readonly<{ state: "not-installed" }>
+  /** A T3 Code without the refresh: it reads the sign-in at its own next
+   * check, within about five minutes. */
+  | Readonly<{ state: "not-supported" }>
+  | Readonly<{ state: "driver-mismatch"; mismatches: readonly T3Mismatch[] }>
+  | Readonly<{
+      state: "failed";
+      reason: "not-running" | "refused" | "unreadable" | "timeout";
+    }>;
+
+export type AiServices = Readonly<{
+  /** codex only: the Codex app-server unit, restarted, not Lazurio's here,
+   * or failed. */
+  appServer?: Readonly<{ state: "restarted" | "not-managed" | "failed" }>;
+  t3: T3Reload;
+}>;
+
+/** Whether the services read the sign-in, or will by themselves: false for a
+ * failed restart, a refused or failed refresh and a driver mismatch, which
+ * the person or the Operator must see. */
+export function aiServicesReady(services: AiServices): boolean {
+  return (
+    services.appServer?.state !== "failed" &&
+    ["refreshed", "not-installed", "not-supported"].includes(services.t3.state)
+  );
+}
+
 /** One CLI's answer: signed in (`account` its e-mail when it names one),
  * signed out, provided by the configuration (no sign-in needed), not on the
  * operator's PATH, or no answer. */

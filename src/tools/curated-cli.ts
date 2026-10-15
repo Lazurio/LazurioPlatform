@@ -1,7 +1,12 @@
 import { createInterface } from "node:readline";
 import { sharedEnvironment } from "../folder/render";
 import { pilotRefusesCuratedGh } from "../github/pilot";
-import { type AiServices, aiServicesReady } from "./ai-services";
+import {
+  type AiServices,
+  aiProviderName,
+  aiServicesReady,
+  isAiProvider,
+} from "./ai";
 import { activatableTools, executorToolName, vaultToolName } from "./catalog";
 import type { GitIdentity, GitIdentityFailure } from "./git-identity";
 import {
@@ -25,7 +30,6 @@ import {
   type SignInPage,
 } from "./login";
 import { qrMatrix, qrTerminal } from "./qr";
-import { aiSignInName, isAiSignInTool } from "./sign-in-page";
 import type { SshKeyRemoval, SshLink, SshLinkFailure } from "./ssh-key";
 import { teamGithubText } from "./team-github";
 
@@ -459,8 +463,8 @@ function loginLines(state: LoginState, typing = false): string[] {
       const challenge = state.challenge;
       if (challenge === undefined) return ["Starting the sign-in…"];
       if (challenge.kind === "page") {
-        const name = isAiSignInTool(state.tool)
-          ? aiSignInName[state.tool]
+        const name = isAiProvider(state.tool)
+          ? aiProviderName[state.tool]
           : state.tool;
         return [
           challenge.view !== undefined
@@ -532,7 +536,7 @@ function loginLines(state: LoginState, typing = false): string[] {
       return [
         `Sign-in of ${state.tool} failed: ${failureText[state.reason] ?? state.reason}.`,
         // An AI CLI has no agent prompt: without AI there is no agent.
-        isAiSignInTool(state.tool)
+        isAiProvider(state.tool)
           ? `Try again: lazurio tools login ${state.tool}`
           : `Finish it with an agent: lazurio tools prompt ${state.tool}`,
       ];
@@ -566,7 +570,7 @@ export async function runLogin(
 ): Promise<CuratedOutput> {
   // codex and claude sign in here too (F19's addendum of 2026-10-15),
   // though agents are not told about them as catalog tools.
-  const ai = isAiSignInTool(name);
+  const ai = isAiProvider(name);
   const refused = ai ? undefined : refuseTool(name, json);
   if (refused) return refused;
   if (sshKey && name !== "gh") {
