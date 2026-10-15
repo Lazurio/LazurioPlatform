@@ -117,7 +117,8 @@ test("the account document as the Dashboard emits it: the shell's entries, its o
     "vm-01.example",
     "vm-03.example",
   ]);
-  // `name` and `who` are kept; `offline: false` is the same as absent.
+  // `name` is kept; `who: null` (nothing to add beside the name) and
+  // `offline: false` are the same as absent.
   expect(read.environments[1]).toEqual({
     id: "vm-01.example",
     label: "Sales",
@@ -130,7 +131,6 @@ test("the account document as the Dashboard emits it: the shell's entries, its o
       automate: null,
     },
     name: "Team Sales",
-    who: "shared by the Team",
   });
   expect(read.organizations.map((entry) => entry.slug)).toEqual([
     "example",
@@ -301,13 +301,32 @@ test("an Environment's id is its identity by `isEnvironmentId`: the base host of
 test("one parser for both documents: the shell's entries take the same optional words", () => {
   const environments = localDocument().environments.map((entry) => ({
     ...entry,
-    name: "Team Sales 2",
-    who: "shared by the Team",
+    name: "Sales",
+    who: "Týmové · offline",
     offline: false,
   }));
   const shell = parseShell(localDocument({ environments }));
-  expect(shell?.environments[0]?.name).toBe("Team Sales 2");
-  expect(shell?.environments[0]?.who).toBe("shared by the Team");
+  expect(shell?.environments[0]?.name).toBe("Sales");
+  expect(shell?.environments[0]?.who).toBe("Týmové · offline");
+  // An empty line is the Dashboard's "nothing to add beside the name" (root
+  // decision 0170 addendum 2026-10-15): kept, and the shell draws no second
+  // line; null is the same as absent.
+  const empty = parseShell(
+    localDocument({
+      environments: environments.map((entry) => ({ ...entry, who: "" })),
+    }),
+  );
+  expect(empty?.environments[0]?.who).toBe("");
+  const first = empty?.environments[0];
+  if (first === undefined) throw new Error("One Environment");
+  expect(environmentWho(first, shellMessages("cs"))).toBe("");
+  expect(
+    parseShell(
+      localDocument({
+        environments: environments.map((entry) => ({ ...entry, who: null })),
+      }),
+    )?.environments[0]?.who,
+  ).toBeUndefined();
   expect(
     parseShell(
       localDocument({
@@ -324,14 +343,21 @@ test("the account's words name an Environment first; without them its label or k
   const read = account();
   const [personal, team, work] = read.environments;
   if (!personal || !team || !work) throw new Error("Three Environments");
+  // The kind beside the name, never twice and never "only yours" (root
+  // decision 0170 addendum 2026-10-15): "Ada personal" and "Team Sales"
+  // say their kind; Ada's own work Environment needs no line, a colleague's
+  // names the assignee.
   expect(environmentName(personal, en)).toBe("Ada personal");
-  expect(environmentWho(personal, en)).toBe("only yours");
+  expect(environmentWho(personal, en, "ada")).toBe("");
   expect(environmentName(team, en)).toBe("Team Sales");
-  expect(environmentWho(work, en)).toBe("only yours");
+  expect(environmentWho(team, en, "ada")).toBe("");
+  expect(environmentWho(team, shellMessages("cs"), "ada")).toBe("Týmové");
+  expect(environmentWho(work, en, "ada")).toBe("");
+  expect(environmentWho(work, en, "dana")).toBe("assigned to @ada");
   const plain = local.environments[0];
   if (!plain) throw new Error("One Environment");
   expect(environmentName(plain, en)).toBe("Sales");
-  expect(environmentWho(plain, en)).toBe(en.who.team);
+  expect(environmentWho(plain, en)).toBe("Team");
 });
 
 // The merge.
@@ -360,7 +386,7 @@ test("the local document wins for `current` and its apps; the account adds the p
   expect(here?.label).toBe("Sales");
   expect(here?.organizations).toEqual(["Example"]);
   expect(here?.name).toBe("Team Sales");
-  expect(here?.who).toBe("shared by the Team");
+  expect(here?.who).toBeUndefined();
   // The account's Environments of the example Organization name the local
   // slug, so they sit in its space.
   expect(merged.environments[2]?.organizations).toEqual(["Example"]);
@@ -533,13 +559,8 @@ test("spaces without an Environment: the rail shows the Organization's avatar, s
   expect(
     picker?.rows.map((row) => [row.name, row.who, row.current, row.href]),
   ).toEqual([
-    [
-      "Team Sales",
-      "shared by the Team",
-      true,
-      "https://t3code.vm-01.example.lazurio.io/",
-    ],
-    ["Work", "only yours", false, "https://t3code.vm-03.example.lazurio.io/"],
+    ["Team Sales", "", true, "https://t3code.vm-01.example.lazurio.io/"],
+    ["Work", "", false, "https://t3code.vm-03.example.lazurio.io/"],
   ]);
 });
 
@@ -827,12 +848,12 @@ test("the account in another language: every Environment is named as without the
   const names = merged.environments.map((entry) => [
     entry.id,
     environmentName(entry, cs),
-    environmentWho(entry, cs),
+    environmentWho(entry, cs, merged.operator.login),
   ]);
   expect(names).toEqual([
-    ["ada", "Osobní", "jen vaše"],
-    ["vm-01.example", "Sales", "sdílené Teamem"],
-    ["vm-03.example", "Pracovní", "@ada"],
+    ["ada", "Osobní", ""],
+    ["vm-01.example", "Sales", "Týmové"],
+    ["vm-03.example", "Pracovní", ""],
   ]);
   // Ids, apps, spaces and the last Environments are the account's as in the
   // same language.
@@ -870,10 +891,10 @@ test("the account in the local language: its words name the Environments", () =>
     locale: "cs",
     environments: document.environments.map((entry, at) =>
       at === 1
-        ? { ...entry, name: "Obchod", who: "sdílené Teamem" }
+        ? { ...entry, name: "Obchod", who: "Týmové" }
         : at === 2
-          ? { ...entry, name: "Pracovní 2", who: "jen vaše" }
-          : { ...entry, name: "Osobní Ada", who: "jen vaše" },
+          ? { ...entry, name: "Pracovní 2", who: "přiřazeno @petr · offline" }
+          : { ...entry, name: "Osobní Ada", who: "" },
     ),
   });
   const merged = mergeAccount(czech, read);
@@ -883,9 +904,9 @@ test("the account in the local language: its words name the Environments", () =>
       environmentWho(entry, cs),
     ]),
   ).toEqual([
-    ["Osobní Ada", "jen vaše"],
-    ["Obchod", "sdílené Teamem"],
-    ["Pracovní 2", "jen vaše"],
+    ["Osobní Ada", ""],
+    ["Obchod", "Týmové"],
+    ["Pracovní 2", "přiřazeno @petr · offline"],
   ]);
 });
 

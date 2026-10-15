@@ -68,7 +68,8 @@ export function drawIdentity(
   else if (mark.kind === "initials") glyph.append(span("initials", mark.text));
   else glyph.append(icon(mark.icon, 18));
   const text = span("identity-text");
-  text.append(span("identity-name", look.name), span("identity-who", look.who));
+  text.append(span("identity-name", look.name));
+  if (look.who !== "") text.append(span("identity-who", look.who));
   return [glyph, text];
 }
 

@@ -3,7 +3,10 @@
 // the document, HumanAndMachine-ai/Dashboard#198), with example names only:
 // the person `ada`, her personal Remote Environment, a Team and a work
 // Environment of the example Organization, and another Organization she is
-// a member of without any Environment. Members in the Dashboard's order.
+// a member of without any Environment. Members in the Dashboard's order. The
+// second line says the kind and nothing for what the name already says or
+// for the person's own Environment (root decision 0170 addendum 2026-10-15,
+// the Dashboard's matching change).
 
 export const accountDocument = (
   extra: Readonly<Record<string, unknown>> = {},
@@ -21,7 +24,7 @@ export const accountDocument = (
       kind: "personal",
       label: null,
       name: "Ada personal",
-      who: "only yours",
+      who: null,
       offline: false,
       organizations: [],
       assignee: null,
@@ -36,7 +39,7 @@ export const accountDocument = (
       kind: "team",
       label: "Sales",
       name: "Team Sales",
-      who: "shared by the Team",
+      who: null,
       offline: false,
       organizations: ["example"],
       assignee: null,
@@ -51,7 +54,7 @@ export const accountDocument = (
       kind: "work",
       label: null,
       name: "Work",
-      who: "only yours",
+      who: null,
       offline: false,
       organizations: ["example"],
       assignee: "ada",

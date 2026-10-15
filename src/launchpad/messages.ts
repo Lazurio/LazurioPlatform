@@ -799,7 +799,7 @@ const en = {
   machineOwner: "Owner",
   machineTeam: "Team",
   machineAssignment: "Assignment",
-  machineAssignmentTeam: "shared by the Team",
+  machineAssignmentTeam: "Team",
   machineAssignmentAutomation:
     "an automated Environment of an Organization persona; responsible operator {operator}",
   machineTailnet: "Tailnet node",
@@ -1103,7 +1103,6 @@ const en = {
   machineBelongs: "Belongs to",
   machineBelongsYou: "you (@{login})",
   machineWorks: "Who works in it",
-  machineWorksOnlyYou: "only you",
   machineWorksTeam: "Team {team}",
   machineWorksAutomation: "automation, @{login} is responsible",
   machineKindPersonal: "Personal Remote Environment",
@@ -2228,7 +2227,7 @@ const cs: Record<MessageKey, string> = {
   machineOwner: "Owner",
   machineTeam: "Team",
   machineAssignment: "Přiřazení",
-  machineAssignmentTeam: "sdílené Teamem",
+  machineAssignmentTeam: "Týmové",
   machineAssignmentAutomation:
     "Automatizované Prostředí persony Organizace; odpovědný operátor {operator}",
   machineTailnet: "Uzel tailnetu",
@@ -2526,7 +2525,6 @@ const cs: Record<MessageKey, string> = {
   machineBelongs: "Patří",
   machineBelongsYou: "vám (@{login})",
   machineWorks: "Pracuje v něm",
-  machineWorksOnlyYou: "jen vy",
   machineWorksTeam: "Team {team}",
   machineWorksAutomation: "automatizace, odpovídá @{login}",
   machineKindPersonal: "Osobní Prostředí",

@@ -117,7 +117,9 @@ test("a workstation's document: this computer, every Organization of the Folder 
   const current = shell.environments[0];
   if (current === undefined) throw new Error("The document has one");
   expect(environmentName(current, cs)).toBe("Tento počítač");
-  expect(environmentWho(current, cs)).toBe("tento počítač");
+  // The kind beside the name, as the Dashboard words it (0170 addendum
+  // 2026-10-15, "Druh Prostředí stačí").
+  expect(environmentWho(current, cs)).toBe("Místní");
   // Named by its computer when the host name is known, never by a hosted
   // machine's name.
   const named = shellDocument({
@@ -230,7 +232,7 @@ test("a hosted work Environment is named by its kind and its person, never by it
   }).sections;
   expect(section?.head).toBeNull();
   expect(section?.rows.map((row) => [row.name, row.who, row.current])).toEqual([
-    ["Pracovní", "pracovní", true],
+    ["Pracovní", "", true],
   ]);
   const jump = switcherList(shell, cs, {
     kind: "jump",
@@ -414,7 +416,13 @@ test("an assigned work Environment says whose it is; an Automated one is its per
   expect(work.environments[0]?.assignee).toBe("example");
   const [assigned] = work.environments;
   if (assigned === undefined) throw new Error("The document has one");
-  expect(environmentWho(assigned, cs)).toBe("@example");
+  // Someone else's: "přiřazeno @example"; the person's own: nothing, the
+  // name already says Pracovní.
+  expect(environmentWho(assigned, cs)).toBe("přiřazeno @example");
+  expect(environmentWho(assigned, cs, "Example")).toBe("");
+  expect(environmentWho({ ...assigned, offline: true }, cs, "example")).toBe(
+    "offline",
+  );
   // The Team the binding names, by its display name in the catalog of the
   // Organization that owns the Environment.
   const teams = catalog(
@@ -434,7 +442,7 @@ test("an assigned work Environment says whose it is; an Automated one is its per
   expect(team.environments[0]?.assignee).toBeNull();
   const [shared] = team.environments;
   if (shared === undefined) throw new Error("The document has one");
-  expect(environmentWho(shared, cs)).toBe("sdílené Teamem");
+  expect(environmentWho(shared, cs)).toBe("Týmové");
   const automated = shellDocument({
     preset: "hosted-organization-steward",
     machine: bindings.automated as MachineBinding,
@@ -628,11 +636,11 @@ test("several Organizations: a space's Environments, its last one remembered, th
   expect(
     one[0]?.rows.map((row) => [row.id, row.name, row.who, row.current]),
   ).toEqual([
-    ["vm-0.north", "Team North", "shared by the Team", false],
-    ["vm-1.north", "Work", "@person-1", false],
-    ["vm-2.north", "Work", "@person-2", false],
-    ["vm-3.north", "Work", "@person-3", true],
-    ["laptop", "This computer", "this computer", false],
+    ["vm-0.north", "Team North", "", false],
+    ["vm-1.north", "Work", "assigned to @person-1", false],
+    ["vm-2.north", "Work", "assigned to @person-2", false],
+    ["vm-3.north", "Work", "assigned to @person-3", true],
+    ["laptop", "This computer", "Local", false],
   ]);
   // ⌘⇧E: every space, each Organization with its head; "All
   // Organizations" under the picker: every space by its title, no head. A

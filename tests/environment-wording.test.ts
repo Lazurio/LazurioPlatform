@@ -182,6 +182,12 @@ const letter = "\\p{L}";
 const czechForbidden: readonly [string, RegExp][] = [
   ["Environment (any form)", /Environment/],
   ["Vzdálené Prostředí", /[Vv]zdálen\p{L}* [Pp]rostřed/u],
+  // The kind is enough (the brand voice, "Druh Prostředí stačí"; Matěj
+  // 2026-10-14): never a suffix "jen vaše" or "sdílené Teamem". A sentence
+  // may still say in full words that a Team Prostředí is shared ("sdílené
+  // celým Teamem").
+  ["jen vaše", new RegExp(`(?<!${letter})jen va(š|s)${letter}*`, "iu")],
+  ["sdílené Teamem", /sdílen\p{L}* Teamem/u],
   ["Launchpad as a name", /Launchpad/],
   ["Dashboard as a name", /Dashboard/],
   [
@@ -291,6 +297,18 @@ test("Czech that people read says Prostředí, Lazurio, Organizace and tento (01
   expect(found).toEqual([]);
 });
 
+test('the kind is enough in English too: no "only yours" or "shared by the Team" as a label', () => {
+  const labels = [
+    ...Object.values(messages("en")),
+    ...Object.values(shellMessages("en")).flatMap((value) =>
+      typeof value === "string" ? [value] : Object.values(value),
+    ),
+  ];
+  expect(
+    labels.filter((text) => /only yours|shared by the Team/i.test(text)),
+  ).toEqual([]);
+});
+
 test("the generated rule tells agents to say Prostředí in Czech and Environment in English", () => {
   for (const locale of ["cs", "en"] as const) {
     const rule = environmentWording[locale];
@@ -328,12 +346,14 @@ test("the guard catches the old wording and the allowlist hides only its entries
     "Nastavit v Dashboardu",
     "Přehled firmy",
     "Tahle záložka",
+    "Osobní · jen vaše",
+    "Team Lazurio · sdílené Teamem",
   ])
     expect(czechFindings("t", old)).not.toEqual([]);
   expect(
     czechFindings(
       "t",
-      "Toto Prostředí na serveru spustí `lazurio launchpad serve`; firemní účet; proměnné prostředí.",
+      "Toto Prostředí na serveru spustí `lazurio launchpad serve`; firemní účet; proměnné prostředí; bude sdílené celým Teamem.",
     ),
   ).toEqual([]);
 });

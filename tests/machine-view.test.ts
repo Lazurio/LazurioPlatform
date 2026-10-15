@@ -16,7 +16,7 @@ test.each([
     { kind: "operator", githubLogin: "example", githubId: 12345 },
     "example (GitHub id 12345)",
   ],
-  ["en", { kind: "team" }, "shared by the Team"],
+  ["en", { kind: "team" }, "Team"],
   [
     "en",
     { kind: "automation", githubLogin: "example", githubId: 12345 },
@@ -27,7 +27,7 @@ test.each([
     { kind: "operator", githubLogin: "example", githubId: 12345 },
     "example (GitHub id 12345)",
   ],
-  ["cs", { kind: "team" }, "sdílené Teamem"],
+  ["cs", { kind: "team" }, "Týmové"],
   [
     "cs",
     { kind: "automation", githubLogin: "example", githubId: 12345 },
@@ -64,7 +64,7 @@ const work = (
 });
 const named = (login: string) => (login === "example-org" ? "Example" : null);
 
-test("a personal Remote Environment: yours, only you work in it", () => {
+test("a personal Remote Environment: yours; the kind says no one else works in it", () => {
   const { facts, support } = environmentFacts(
     {
       preset: "hosted-personal",
@@ -77,7 +77,6 @@ test("a personal Remote Environment: yours, only you work in it", () => {
   expect(facts).toEqual([
     ["Druh", "Osobní Prostředí"],
     ["Patří", "vám (@octocat)"],
-    ["Pracuje v něm", "jen vy"],
   ]);
   expect(support).toEqual([
     ["Technický název", "example"],
@@ -99,7 +98,6 @@ test("a personal Remote Environment: yours, only you work in it", () => {
   ).toEqual([
     ["Kind", "Personal Remote Environment"],
     ["Belongs to", "you (@octocat)"],
-    ["Who works in it", "only you"],
   ]);
 });
 

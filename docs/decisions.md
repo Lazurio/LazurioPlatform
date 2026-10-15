@@ -3866,7 +3866,15 @@ the Folder keep the technical term Environment and ty; the generated rule
 English and carries the companion rules, and the sentences the Folder has an agent say to a
 person follow them. The guard of point 4 also fails Czech person-facing text on Environment
 in any form, Remote Environment, Vzdálené Prostředí, Launchpad or Dashboard as a name, firma
-for the Organization and the tenhle family. Template revision `base-instructions-54`. The
+for the Organization and the tenhle family. The line beside an Environment's name (the
+shell's switcher, column head, rail and `<lazurio-environment>`, the same rule as the
+Dashboard's) says only the kind (*Osobní, Pracovní, Týmové, Automatizované, Místní*), left
+out where the name already says it, then "přiřazeno @login" for someone else's work
+Environment and "offline"; never *jen vaše* or *sdílené Teamem* ("Druh Prostředí stačí";
+Matěj 2026-10-14), and nothing when there is nothing to add. The shell document and the
+identity message accept an empty `who` from the Dashboard as "no second line"; Settings →
+Toto Prostředí no longer says "Pracuje v něm: jen vy" for a personal one. Template revision
+`base-instructions-54`. The
 wording itself is held by the brand voice page of design-system-lazurio
 (`content/brand/hlas/hlas.md`, sections „Produktové texty“ and „Prostředí a Připojené
 aplikace“).

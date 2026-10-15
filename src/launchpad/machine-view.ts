@@ -128,9 +128,11 @@ export function environmentFacts(
     (owner.kind === "organization" && owner.team !== null
       ? fill(copy.machineWorksTeam, { team: owner.team })
       : null);
+  // A personal Environment says so by its kind; "only you" would repeat it
+  // (root decision 0170 addendum 2026-10-15, "Druh Prostředí stačí").
   const works =
     owner.kind === "principal"
-      ? copy.machineWorksOnlyYou
+      ? null
       : assignment?.kind === "operator"
         ? `@${assignment.githubLogin}`
         : assignment?.kind === "automation"

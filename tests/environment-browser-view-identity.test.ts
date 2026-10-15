@@ -140,7 +140,7 @@ posixTest(
       expect(switcher).toMatchObject({
         id: "workspace.example",
         name: "Pracovní",
-        who: "@example",
+        who: "",
         glyph: {
           kind: "avatar",
           organization: "Example",

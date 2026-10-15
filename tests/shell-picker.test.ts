@@ -131,11 +131,11 @@ test("the picker lists the space's Environments one line each, without the Organ
   expect(
     section?.rows.map((row) => [row.name, row.who, row.glyph, row.current]),
   ).toEqual([
-    ["Team Orbit", "sdílené Teamem", { kind: "icon", icon: "users" }, false],
-    ["Pracovní 2", "pracovní", { kind: "icon", icon: "user" }, false],
-    ["Pracovní 3", "pracovní", { kind: "icon", icon: "user" }, true],
-    ["Pracovní 4", "pracovní", { kind: "icon", icon: "user" }, false],
-    ["Pracovní 5", "pracovní", { kind: "icon", icon: "user" }, false],
+    ["Team Orbit", "Týmové", { kind: "icon", icon: "users" }, false],
+    ["Pracovní 2", "", { kind: "icon", icon: "user" }, false],
+    ["Pracovní 3", "", { kind: "icon", icon: "user" }, true],
+    ["Pracovní 4", "", { kind: "icon", icon: "user" }, false],
+    ["Pracovní 5", "", { kind: "icon", icon: "user" }, false],
   ]);
   // No Environment and no line leads to the Organization's Dashboard.
   expect(

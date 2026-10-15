@@ -24,8 +24,14 @@ export type ShellCopy = Readonly<{
   spaceEmpty: string;
   /** The name of an Environment without its own name, by kind. */
   names: Readonly<Record<ShellEnvironmentKind, string>>;
-  /** Who an Environment is for, by kind. */
-  who: Readonly<Record<ShellEnvironmentKind, string>>;
+  /** The kind on an Environment's second line, left out where the name
+   * already says it (root decision 0170 addendum 2026-10-15; the brand
+   * voice, "Druh Prostředí stačí"). */
+  kinds: Readonly<Record<ShellEnvironmentKind, string>>;
+  /** A work Environment assigned to someone other than the viewer. */
+  assignedTo: string;
+  /** An Environment known not to run. */
+  offline: string;
   pick: string;
   settings: string;
   /** The gear on an Organization's Dashboard (F36's addendum of
@@ -88,13 +94,15 @@ const en: ShellCopy = {
     automated: "Automated",
     workstation: "This computer",
   },
-  who: {
-    personal: "only yours",
-    work: "work",
-    team: "shared by the Team",
-    automated: "automation",
-    workstation: "this computer",
+  kinds: {
+    personal: "Personal",
+    work: "Work",
+    team: "Team",
+    automated: "Automated",
+    workstation: "Local",
   },
+  assignedTo: "assigned to {login}",
+  offline: "offline",
   pick: "{name}, switch Environment",
   settings: "Environment Settings",
   organizationSettings: "Organization Settings",
@@ -151,13 +159,15 @@ const cs: ShellCopy = {
     automated: "Automatizované",
     workstation: "Tento počítač",
   },
-  who: {
-    personal: "jen vaše",
-    work: "pracovní",
-    team: "sdílené Teamem",
-    automated: "automatizace",
-    workstation: "tento počítač",
+  kinds: {
+    personal: "Osobní",
+    work: "Pracovní",
+    team: "Týmové",
+    automated: "Automatizované",
+    workstation: "Místní",
   },
+  assignedTo: "přiřazeno {login}",
+  offline: "offline",
   pick: "{name}, přepnout Prostředí",
   settings: "Nastavení Prostředí",
   organizationSettings: "Nastavení Organizace",
