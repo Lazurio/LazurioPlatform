@@ -25,9 +25,9 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // Launchpad home; the DOM lives in catalog-panel.ts. Every value from the
 // server is shown as text, never as markup. Teams are not shown at all
 // (decision F32): the catalog still carries them for the CLI. An
-// Organization has two sections: Workspace, every module of it, and
-// Productionspace, its production repositories read-only (F32 addendum of
-// 2026-10-03, final).
+// Organization has two sections: Workspace, every module of it that is on
+// this Environment (F32 addendum of 2026-10-15), and Productionspace, its
+// production repositories read-only (F32 addendum of 2026-10-03, final).
 
 const reasonKeys: Readonly<
   Record<OrganizationReason | PersonalspaceReason | ModuleReason, MessageKey>
@@ -274,8 +274,9 @@ export type CatalogRepositoryEntry = Readonly<{
 }>;
 
 /** One of the two sections of an Organization, in this order (F32 addendum
- * of 2026-10-03, final): Workspace, every module of it in the catalog's
- * order; Productionspace, its production repositories read-only in
+ * of 2026-10-03, final): Workspace, every module of it that is on this
+ * Environment in the catalog's order (F32 addendum of 2026-10-15);
+ * Productionspace, its production repositories read-only in
  * declaration order. Nothing else: where a module's repository sits in the
  * Organization is not something the Operator acts on. */
 export type CatalogSection =
@@ -298,10 +299,14 @@ export type CatalogGroupEntry = Readonly<{
   name: string;
   href: string | null;
   status: CatalogStatus;
-  /** Every module of the group exactly once, in the catalog's order (the
-   * declaration order of `module_slots`), whatever Teams declare it: an
-   * Environment is one workspace, and Teams are no presentation axis of the
-   * Launchpad (decision F32). */
+  /** Every module of the group that is on this Environment exactly once, in
+   * the catalog's order (the declaration order of `module_slots`), whatever
+   * Teams declare it: an Environment is one workspace, and Teams are no
+   * presentation axis of the Launchpad (decision F32). A declared module
+   * that was never materialized here (`absent`: this Environment's GitHub
+   * identity cannot read it, or it is not synchronized yet) is not listed:
+   * nobody sees a module they cannot open (F32 addendum of 2026-10-15, root
+   * decision 0179 point 5). */
   modules: readonly CatalogModuleEntry[];
   /** An Organization's sections that have something in them, in the order
    * Workspace, Productionspace: every module in Workspace, every production
@@ -316,11 +321,17 @@ export function catalogGroupEntry(
   organization: CatalogOrganization,
   copy: Copy,
 ): CatalogGroupEntry {
-  const modules = organization.modules.map((module) => ({
-    module,
-    href: moduleRoute(catalog, organization, module),
-    status: catalogStatus(module, copy),
-  }));
+  const modules = organization.modules.flatMap((module) =>
+    module.absent === true
+      ? []
+      : [
+          {
+            module,
+            href: moduleRoute(catalog, organization, module),
+            status: catalogStatus(module, copy),
+          },
+        ],
+  );
   const repositories = organization.repositories.map((repository) => ({
     repository,
     checkout: repository.checkedOut
@@ -449,7 +460,8 @@ function isModule(value: unknown): value is CatalogModule {
       entry.preparationRefused === true) &&
     (entry.display === undefined || isDisplay(entry.display)) &&
     (entry.url === undefined ||
-      (text(entry.url) && entry.url.startsWith("https://github.com/")))
+      (text(entry.url) && entry.url.startsWith("https://github.com/"))) &&
+    (entry.absent === undefined || entry.absent === true)
   );
 }
 // The default app's display text (decision F36): bounded strings only.

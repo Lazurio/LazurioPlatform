@@ -158,6 +158,15 @@ export type CatalogModule = Readonly<{
    * legacy `repo` or `repository`) when that names a github.com repository;
    * absent otherwise. Nothing is fetched. */
   url?: string;
+  /** Set when the declared slot's directory is not on this Environment: it
+   * was never materialized here, because this Environment's GitHub identity
+   * cannot read the repository, it has not been synchronized yet, or the
+   * slot is planned. The catalog and the CLI keep the module, so an agent
+   * learns that it is declared; the Launchpad lists only the modules that
+   * are here (F32 addendum of 2026-10-15, root decision 0179 point 5). A
+   * directory that is there but cannot be read is not absent: its reason
+   * says why. Never on a Personalspace module, which is found on disk. */
+  absent?: true;
 }>;
 
 export type CatalogTeam = Readonly<{ slug: string; displayName: string }>;
@@ -507,6 +516,23 @@ async function isCheckedOut(root: string, path: string): Promise<boolean> {
   }
 }
 
+// Whether a declared slot's directory is not there at all: some directory
+// down to it does not exist. Anything that exists, a link or a file in the
+// way included, is there, and the reader's reason names what it refuses.
+// Never throws.
+async function isAbsent(root: string, path: string): Promise<boolean> {
+  let directory = root;
+  for (const segment of path.split("/")) {
+    directory = join(directory, segment);
+    try {
+      if (!(await lstat(directory)).isDirectory()) return false;
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === "ENOENT";
+    }
+  }
+  return false;
+}
+
 /** One candidate directory, resolved read-only. Never throws. */
 export async function readCatalogOrganization(
   directory: string,
@@ -588,6 +614,11 @@ export async function readCatalogOrganization(
         const file = executable ? own.file : undefined;
         const preparation = executable && own.preparationRefused === true;
         const url = repositoryPage(slotRemote(bySlotPath.get(entry.path)));
+        // A module that was read is there; anything else may never have been
+        // materialized here.
+        const absent =
+          entry.kind !== "module-observed" &&
+          (await isAbsent(directory, entry.path));
         return [
           Object.freeze({
             organization: result.company,
@@ -606,6 +637,7 @@ export async function readCatalogOrganization(
             ...secretFields(executable ? own : {}),
             ...(invalid ? { issues: Object.freeze(["teams-invalid"]) } : {}),
             ...(url === null ? {} : { url }),
+            ...(absent ? { absent: true as const } : {}),
           } satisfies CatalogModule),
         ];
       }),
