@@ -1029,6 +1029,10 @@ const en = {
   vaultPageAddItem: "Add item",
   vaultPageOpen: "Open vault",
   vaultPageCreateAccount: "Create an account in the vault",
+  // The gateway named the person, but their sign-in carried no Lazurio
+  // username (root decision 0203 point 4): no address, so nobody is added.
+  vaultPageNoUsername:
+    "Your sign-in does not include your Lazurio username yet, so this Environment cannot add you to its vault. Please sign in again.",
   // An agent's secret request in Nastavení → Trezor (root decision 0198
   // point 9 (c), decision F54; the wireframe's screens/SecretRequest.tsx).
   vaultRequestsTitle: "Agents' requests",
@@ -2457,6 +2461,8 @@ const cs: Record<MessageKey, string> = {
   vaultPageAddItem: "Přidat položku",
   vaultPageOpen: "Otevřít trezor",
   vaultPageCreateAccount: "Vytvořit účet v trezoru",
+  vaultPageNoUsername:
+    "Vaše přihlášení zatím neobsahuje uživatelské jméno v Lazuriu, proto vás toto Prostředí nemůže přidat do svého trezoru. Přihlaste se prosím znovu.",
   vaultRequestsTitle: "Žádosti agentů",
   vaultRequestTitle: "Žádost agenta",
   vaultRequestAnswer: "Zadat",

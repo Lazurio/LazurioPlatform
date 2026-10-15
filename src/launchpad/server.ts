@@ -108,7 +108,12 @@ import { createExecutorRoutes, isExecutorJob } from "./executor-routes";
 import { createFilesRoutes, maxRequestBytes } from "./files-routes";
 import { signsInAsPerson } from "./first-run";
 import { serveHealthSocket } from "./health-socket";
-import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
+import {
+  type AdmittedPerson,
+  type AuthFetcher,
+  createHostedTrust,
+  nobody,
+} from "./hosted-trust";
 import {
   createIntegrationsRoutes,
   type IntegrationsSeams,
@@ -928,17 +933,18 @@ export async function startLaunchpad(
       const url = new URL(request.url);
       const response = (body: unknown, status = 200) =>
         Response.json(body, { status, headers });
-      // Whom the gateway's own answer to this request's admission named:
-      // used only for the membership of the Environment's vault (decision
-      // F11's amendment of 2026-10-14). Locally nobody is named.
-      let subject: string | null = null;
+      // Whom the gateway's own answer to this request's admission named, by
+      // the subject and the Lazurio username: used only for the membership
+      // of the Environment's vault (decision F11's amendments of 2026-10-14
+      // and 2026-10-16). Locally nobody is named.
+      let person: AdmittedPerson = nobody;
       if (trust !== null && shell !== null) {
         // Hosted: the gateway's admission, revalidated here; the request's
         // own URL is loopback and is not evidence of anything.
         const admission = await trust.admit(request);
         if (!admission.ok)
           return response({ error: "denied", reason: admission.reason }, 401);
-        subject = admission.subject;
+        person = { subject: admission.subject, username: admission.username };
         if (
           (request.method === "GET" || request.method === "HEAD") &&
           (url.pathname === "/files" || url.pathname.startsWith("/files/"))
@@ -1448,7 +1454,7 @@ export async function startLaunchpad(
         // invitation, a confirmation).
         server.timeout(request, 300);
         try {
-          return await vaultPage.handle(request, url, subject);
+          return await vaultPage.handle(request, url, person);
         } catch {
           return response({ error: "operation-failed" }, 500);
         }

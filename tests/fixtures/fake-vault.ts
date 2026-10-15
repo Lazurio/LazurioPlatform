@@ -336,11 +336,11 @@ export async function startFakeVault(home: string) {
      * made with its answer lost (HTTP 503 either way). */
     inviteFails: null as "before" | "after" | null,
   };
-  /** Whether SSO_ONLY refuses every password path of this address. */
+  /** Whether SSO_ONLY refuses every password path of this address: a
+   * person's (`<Lazurio username>@account.lazurio.ai`, root decision 0203
+   * point 5), never a technical account's. */
   const ssoRequired = (email: string) =>
-    flags.sso &&
-    flags.ssoOnly &&
-    email.endsWith("@vaultwarden-identity.lazurio.ai");
+    flags.sso && flags.ssoOnly && email.endsWith("@account.lazurio.ai");
   /** People's accounts, by address. */
   const people = new Map<string, FakePerson>();
   /** The addresses with a pending invitation row (Vaultwarden's
@@ -928,7 +928,7 @@ export async function startFakeVault(home: string) {
     },
     /** The items a sync brings. */
     items: (list: readonly unknown[]) => write("items.json", list),
-    /** A person's account at their address (`<subject>@…`): signed in once
+    /** A person's account at their address (`<username>@…`): signed in once
      * through SSO without a master password yet, or with one. */
     person(email: string, password: boolean) {
       people.set(email, { password });

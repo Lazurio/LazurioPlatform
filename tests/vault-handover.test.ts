@@ -117,7 +117,7 @@ test("the member is closed and every part keeps its shape", () => {
     },
     "a person's address": {
       ...member,
-      account: "1f2e3d4c@vaultwarden-identity.lazurio.ai",
+      account: "petr@account.lazurio.ai",
     },
     "plain http": {
       ...member,

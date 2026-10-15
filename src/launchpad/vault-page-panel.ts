@@ -202,13 +202,16 @@ export function createVaultPagePanel(
   again.addEventListener("click", () => void refresh());
   // Back from the vault's sign-in in another tab: a person who had no
   // account (or no master password) yet is asked about again, and is added
-  // once they have one.
+  // once they have one. So is a person whose sign-in carried no Lazurio
+  // username, back from signing in again.
   document.addEventListener("visibilitychange", () => {
     if (
       document.visibilityState === "visible" &&
       options.shown() &&
-      person?.kind === "known" &&
-      (person.state === "no-account" || person.state === "awaiting-password")
+      ((person?.kind === "known" &&
+        (person.state === "no-account" ||
+          person.state === "awaiting-password")) ||
+        (person?.kind === "unknown" && person.reason === "no-username"))
     )
       void membership();
   });
