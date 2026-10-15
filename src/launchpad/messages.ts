@@ -2511,13 +2511,13 @@ const cs: Record<MessageKey, string> = {
   startAiBrowserFailed:
     "Prohlížeč Prostředí přihlašovací stránku neotevřel. Zkuste to prosím znovu.",
   startAiNoBrowser:
-    "Přihlášení se otevírá v prohlížeči Prostředí, který tu zatím není. Doplní ho aktualizace Prostředí.",
+    "Přihlášení se otevírá v prohlížeči Prostředí. Ten tu zatím není, doplní ho aktualizace Prostředí.",
   startAiRetry: "Zkusit znovu",
   startAiOtherAccount: "Přihlásit jiný účet",
   startAiCodeLabel: "Kód z přihlašovací stránky",
   startAiCodeHint: "Ukázala vám stránka kód? Vložte ho sem.",
   startAiCodeSend: "Odeslat kód",
-  startAiCodeInvalid: "Tohle není celý kód. Zkopírujte ho prosím znovu celý.",
+  startAiCodeInvalid: "Toto není celý kód. Zkopírujte ho prosím znovu celý.",
   startAiCodeSent:
     "Kód je odeslaný. Chvíli počkejte, než se přihlášení dokončí.",
   startAiServicesLater:

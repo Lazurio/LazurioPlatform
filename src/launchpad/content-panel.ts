@@ -12,7 +12,7 @@ import type { MessageKey } from "./messages";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
-// "Obsah Environmentu" in Settings → Tento Environment (root decision 0188;
+// "Obsah Prostředí" in Settings → Toto Prostředí (root decision 0188;
 // the wireframe's Prepare.tsx, prototypes-lazurio 45c92830), drawn also as
 // the third step of Začínáme (root decision 0201): what lives in this
 // Environment, its Organization or the person's Personalspace, and its
@@ -57,7 +57,7 @@ export function createContentPanel(
     return element;
   };
   const group = find<HTMLElement>("#content-group");
-  // Where it is drawn: Tento Environment's group, and Začínáme's third step
+  // Where it is drawn: Toto Prostředí's group, and Začínáme's third step
   // (`bare`: a single item's name is the step's title already).
   const places = [
     { box: find<HTMLDivElement>("#content-list"), bare: false },

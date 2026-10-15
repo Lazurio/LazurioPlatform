@@ -2451,12 +2451,12 @@ Organization's, and it gets none of it.
      not finish ("Přihlášení se nepovedlo…", expired, the Environment browser did not
      open it) with "Zkusit znovu"; a T3 Code that did not turn the provider on, said
      beside the account; and without the Environment browser "Přihlášení se otevírá v
-     prohlížeči Prostředí, který tu zatím není. Doplní ho aktualizace Prostředí.",
+     prohlížeči Prostředí. Ten tu zatím není, doplní ho aktualizace Prostředí.",
      nothing started. Signed in, the page reads `GET /api/ai?fresh=1` at once;
   2. **GitHub**: "Připojeno jako @login", or "Připojit" (gh's own sign-in dialog of
      Nástroje), offered only once AI is there ("Nabídne se po připojení AI.");
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
-     rows inside the step (the same `content-panel.ts` as Tento Environment draws).
+     rows inside the step (the same `content-panel.ts` as Toto Prostředí draws).
      Once this view saw GitHub or the AI arrive (from missing to there; what was there
      when the page loaded starts nothing), the installation starts by itself as soon as
      both are there, whichever came last, and the content is read and missing
@@ -2495,7 +2495,7 @@ Organization's, and it gets none of it.
   gh's sign-in once Nástroje have read gh and AI is there, `#lazurio-start=install-content`
   starts the installation once the content is read, something is missing and its turn has
   come; without AI either shows the AI step and starts nothing. A link of an older shell to
-  Nástroje or Tento Environment lands on Začínáme too. `readFragment` takes the fragment
+  Nástroje or Toto Prostředí lands on Začínáme too. `readFragment` takes the fragment
   apart: the request, and the rest, which locally is the session token
   (`#<token>&lazurio-start=…`).
 - **The tour** (`tour.ts` over the rules of `first-run.ts`): a ring around a real
@@ -2532,17 +2532,18 @@ Organization's, and it gets none of it.
   answer, any failure no) "Organizaci připravuje Admin." with no Chat button. The route
   answers only for the Organization of that stop and gives the same no, without asking
   GitHub, for any other.
-- **Tento Environment** says what a person needs (`environmentFacts` in
+- **Toto Prostředí** says what a person needs (`environmentFacts` in
   `machine-view.ts`, the wireframe's `ThisEnvironment`): "Druh", "Patří" and "Pracuje v
   něm"; the technical name and kind, the owner and assignment as recorded, the tailnet
   node, the host and the relationships are folded under "Pro podporu". A workstation
-  says only "Tvůj počítač". No introduction.
-- **Obsah Environmentu** (`content-panel.ts`) in Settings → Tento Environment, above
+  says only "Váš počítač". No introduction.
+- **Obsah Prostředí** (`content-panel.ts`) in Settings → Toto Prostředí, above
   those facts, and in Začínáme's third step: a row per item of `GET /api/content` (the
   personal Environment holds the Personalspace, a work one its Organization, a
   workstation both; the content routes decide), the one action ("Stáhnout",
-  "Připravit", "Stáhnout vše", "Zkusit znovu"; disabled with "Spustí se samo po
-  připojení GitHubu." without GitHub) posting `POST /api/content/install` with `{}`, and
+  "Připravit", "Stáhnout vše", "Zkusit znovu"; not offered before its turn, only "Nabídne
+  se po připojení AI." or "Spustí se samo po připojení GitHubu.") posting
+  `POST /api/content/install` with `{}`, and
   while it runs the job's steps in plain words ("Ověřuji přístup", "Stahuji
   Organizaci", "Stahuji moduly", "Instaluji", "Kontroluji" / "Hledám váš osobní
   prostor", "Zakládám", "Stahuji", "Kontroluji"), read from `GET
