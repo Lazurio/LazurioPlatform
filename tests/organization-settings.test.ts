@@ -52,6 +52,10 @@ function manifest(settings?: unknown): Record<string, unknown> {
 
 const ungoverned: OrganizationSettingsEntry[] = [
   { key: "integrations.composio.allowed", governed: false, value: null },
+  { key: "integrations.microsoft365.tenant_id", governed: false, value: null },
+  { key: "integrations.microsoft365.client_id", governed: false, value: null },
+  { key: "integrations.microsoft365.apps", governed: false, value: null },
+  { key: "integrations.microsoft365.callbacks", governed: false, value: null },
 ];
 const issue = (
   code: OrganizationSettingsIssue["code"],
@@ -59,11 +63,18 @@ const issue = (
 ): OrganizationSettingsIssue => ({ code, path });
 
 test("the settings vocabulary is the upstream one", () => {
-  expect(organizationSettingsKeys).toEqual(["integrations.composio.allowed"]);
+  expect(organizationSettingsKeys).toEqual([
+    "integrations.composio.allowed",
+    "integrations.microsoft365.tenant_id",
+    "integrations.microsoft365.client_id",
+    "integrations.microsoft365.apps",
+    "integrations.microsoft365.callbacks",
+  ]);
   expect(organizationSettingsIssueCodes).toEqual([
     "settings_field_missing",
     "settings_field_unknown",
     "settings_type_invalid",
+    "settings_value_invalid",
   ]);
 });
 
@@ -96,6 +107,7 @@ test("an absent section governs nothing and every level is optional", () => {
           governed: true,
           value: allowed,
         },
+        ...ungoverned.slice(1),
       ],
       issues: [],
     });
@@ -263,3 +275,149 @@ function observed(input: { canonical: unknown; legacy: unknown }): Documents {
     modules: present(modules),
   });
 }
+
+// The Microsoft 365 company app (DEV-6626 task 685, F42 addendum (c) of
+// 2026-10-14): identifiers only, the same closed tree as Lazurio Core's
+// (HumanAndMachines/Lazurio#549). Fictional tenant and address.
+const tenantId = "0000000a-0000-4000-8000-00000000000b";
+const clientId = "00000000-0000-4000-8000-000000000002";
+const callback =
+  "https://launchpad.vm-01.contoso.lazurio.io/api/integrations/oauth/callback";
+const microsoft365 = {
+  tenant_id: tenantId,
+  client_id: clientId,
+  apps: ["outlook", "one_drive", "share_point"],
+  callbacks: [callback],
+};
+
+test("the Microsoft 365 company app is identifiers beside Composio, and never rejects the section", () => {
+  // An Organization adding the company app keeps its Composio switch applying.
+  const settings = {
+    integrations: { composio: { allowed: false }, microsoft365 },
+  };
+  expect(
+    organizationSettings(parseCanonicalOrganization(manifest(settings))),
+  ).toEqual({
+    status: "valid",
+    values: settings,
+    effective: [
+      { key: "integrations.composio.allowed", governed: true, value: false },
+      {
+        key: "integrations.microsoft365.tenant_id",
+        governed: true,
+        value: tenantId,
+      },
+      {
+        key: "integrations.microsoft365.client_id",
+        governed: true,
+        value: clientId,
+      },
+      {
+        key: "integrations.microsoft365.apps",
+        governed: true,
+        value: microsoft365.apps,
+      },
+      {
+        key: "integrations.microsoft365.callbacks",
+        governed: true,
+        value: [callback],
+      },
+    ],
+    issues: [],
+  });
+  // No callback registered yet: every Environment signs in through its
+  // Environment browser.
+  const without = {
+    integrations: { microsoft365: { ...microsoft365, callbacks: [] } },
+  };
+  expect(
+    organizationSettings(parseCanonicalOrganization(manifest(without))).status,
+  ).toBe("valid");
+});
+
+test("a secret, or anything that could carry one, never passes as the Microsoft 365 setting", () => {
+  const at = "/settings/integrations/microsoft365";
+  const cases: [Record<string, unknown>, OrganizationSettingsIssue[]][] = [
+    // A public client has no secret: the field does not exist.
+    [
+      { ...microsoft365, client_secret: "abc8Q~not-a-real-secret" },
+      [issue("settings_field_unknown", `${at}/client_secret`)],
+    ],
+    // Identifiers are lowercase GUIDs; a secret pasted in their place is not.
+    [
+      { ...microsoft365, client_id: "abc8Q~not-a-real-secret" },
+      [issue("settings_value_invalid", `${at}/client_id`)],
+    ],
+    [
+      { ...microsoft365, tenant_id: tenantId.toUpperCase() },
+      [issue("settings_value_invalid", `${at}/tenant_id`)],
+    ],
+    [
+      { ...microsoft365, tenant_id: 42 },
+      [issue("settings_type_invalid", `${at}/tenant_id`)],
+    ],
+    // A callback is the Launchpad's, https, without port, query or fragment.
+    [
+      {
+        ...microsoft365,
+        callbacks: [
+          `${callback}?code=abc`,
+          "http://launchpad.example.com/api/integrations/oauth/callback",
+          "https://launchpad.example.com:8443/api/integrations/oauth/callback",
+          "https://Launchpad.example.com/api/integrations/oauth/callback",
+          "https://launchpad.example.com/elsewhere",
+          callback,
+          callback,
+          // Any host but a Launchpad's would receive the authorization
+          // response (Pablo's review of HumanAndMachines/Lazurio#549).
+          "https://attacker.example/api/integrations/oauth/callback",
+          "https://launchpad.m.org.lazurio.io.attacker.example/api/integrations/oauth/callback",
+          "https://launchpad.example.com/api/integrations/oauth/callback",
+          "https://evil.vm-01.contoso.lazurio.io/api/integrations/oauth/callback",
+        ],
+      },
+      // Issues sort by their pointer, as text.
+      [0, 1, 10, 2, 3, 4, 6, 7, 8, 9].map((index) =>
+        issue("settings_value_invalid", `${at}/callbacks/${index}`),
+      ),
+    ],
+    // Apps of the catalog only, Teams not yet, at least one, each once.
+    [
+      { ...microsoft365, apps: ["outlook", "microsoft_teams", "outlook", 3] },
+      [
+        issue("settings_value_invalid", `${at}/apps/1`),
+        issue("settings_value_invalid", `${at}/apps/2`),
+        issue("settings_type_invalid", `${at}/apps/3`),
+      ],
+    ],
+    [
+      { ...microsoft365, apps: [] },
+      [issue("settings_value_invalid", `${at}/apps`)],
+    ],
+    // At most 255 callbacks: Entra registers 256, the localhost one included.
+    [
+      {
+        ...microsoft365,
+        callbacks: Array.from(
+          { length: 256 },
+          (_, index) =>
+            `https://launchpad.vm-${index}.contoso.lazurio.io/api/integrations/oauth/callback`,
+        ),
+      },
+      [issue("settings_value_invalid", `${at}/callbacks`)],
+    ],
+    [
+      { tenant_id: tenantId, client_id: clientId, apps: ["outlook"] },
+      [issue("settings_field_missing", `${at}/callbacks`)],
+    ],
+  ];
+  for (const [value, issues] of cases)
+    expect(
+      organizationSettings(
+        parseCanonicalOrganization(
+          manifest({ integrations: { microsoft365: value } }),
+        ),
+      ),
+      JSON.stringify(value),
+    ).toEqual({ status: "invalid", values: null, effective: null, issues });
+});

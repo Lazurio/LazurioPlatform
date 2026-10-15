@@ -1,6 +1,7 @@
 import { integrationsCatalog } from "../integrations/catalog";
 import type { CatalogApp } from "../integrations/catalog-schema";
 import { composioDashboard } from "../integrations/composio-source";
+import { microsoft365Card } from "../integrations/microsoft365-card";
 import type {
   CustomServer,
   IntegrationAccount,
@@ -228,8 +229,12 @@ export function createIntegrationsPanel(
     link.dataset.route = "";
     return link;
   };
+  // The Microsoft 365 company app's card stands beside the catalog's
+  // (decision F42 addendum (c) of 2026-10-14).
   const catalogOf = (id: string): CatalogApp | undefined =>
-    integrationsCatalog.apps.find((app) => app.id === id);
+    id === microsoft365Card.id
+      ? microsoft365Card
+      : integrationsCatalog.apps.find((app) => app.id === id);
 
   /** The app's mark: its bundled icon, else its first letter. */
   function mark(app: IntegrationApp): HTMLElement {
@@ -930,7 +935,9 @@ export function createIntegrationsPanel(
     // The app a card link names stays listed while the link is open.
     const apps = visibleApps(
       overview,
-      integrationsCatalog.apps,
+      // Its words find the Microsoft 365 card: Outlook, OneDrive,
+      // SharePoint, Microsoft.
+      [...integrationsCatalog.apps, microsoft365Card],
       tab,
       query,
       route?.app ?? null,

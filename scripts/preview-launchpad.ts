@@ -39,8 +39,15 @@
 // preview's example Organization does not allow Composio (root decision
 // 0194, decision F45): its root becomes a Git checkout whose `main` says so,
 // which the Launchpad reads as on an Organization's Environment without the
-// relay, so Settings → Tools shows Composio's switch locked. Synthetic names
-// only; stop it with Ctrl-C.
+// relay, so Settings → Tools shows Composio's switch locked. With
+// `microsoft365` anywhere after the mode, a hosted preview's example
+// Organization sets up a fictional Microsoft 365 company app (F42 addendum (c)
+// of 2026-10-14) whose callbacks list this preview's Launchpad: one card
+// "Microsoft 365" offers "Připojit", and its sign-in goes to Microsoft's
+// address, which a browser automation answers with a stand-in authorization
+// page that returns to the Launchpad; the fake Executor holds the company
+// app's integration already and finishes a sign-in only when it returns. Synthetic names only; stop it with
+// Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -59,6 +66,13 @@ import {
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import { updateTools } from "../src/folder/update-profile";
+import {
+  microsoft365AuthTemplate,
+  microsoft365PartsOf,
+  microsoft365Scopes,
+  microsoft365SpecId,
+} from "../src/integrations/microsoft365";
+import { microsoft365Description } from "../src/integrations/microsoft365-executor";
 import { startLaunchpad } from "../src/launchpad/server";
 import { toolsEnvironmentOf } from "../src/tools/overview";
 import { runTool } from "../src/tools/status";
@@ -79,6 +93,7 @@ const mode =
     : "local";
 const fresh = process.argv[6] === "fresh";
 const composioOff = process.argv.slice(3).includes("composio-off");
+const microsoft365 = process.argv.slice(3).includes("microsoft365");
 const composioOrgMissing = process.argv
   .slice(3)
   .includes("composio-org-missing");
@@ -410,8 +425,32 @@ const executorApi = await startFakeExecutor(
       },
     ],
   },
-  4_000,
+  // With the company app, a sign-in finishes only when it returns.
+  microsoft365 ? undefined : 4_000,
 );
+// With the company app, Executor already holds its one integration as this
+// release builds it, so the preview downloads no spec from the network.
+if (microsoft365) {
+  const parts = microsoft365PartsOf(["outlook", "one_drive", "share_point"]);
+  executorApi.integrations.push({
+    slug: "m365",
+    name: "Microsoft 365",
+    kind: "openapi",
+    transport: "remote",
+    auth: "oauth2",
+    tools: 2825,
+    description: microsoft365Description(microsoft365SpecId(parts)),
+    authenticationTemplate: [
+      {
+        ...microsoft365AuthTemplate(
+          parts,
+          "00000000-0000-4000-8000-0000000000aa",
+        ),
+        scopes: [...microsoft365Scopes(parts)],
+      },
+    ],
+  });
+}
 for (const endpoint of [
   "https://mcp.linear.app/mcp",
   "https://mcp.clickup.com/mcp",
@@ -442,7 +481,7 @@ await writeFile(
 // on the tools' PATH, so the row's installation reads what its setup placed.
 const executor = mode === "local" ? undefined : await executorWorld({ home });
 if (mode === "local") await updateTools(folder, 1, ["composio"]);
-if (composioOff && mode === "hosted" && !fresh) {
+if ((composioOff || microsoft365) && mode === "hosted" && !fresh) {
   // The Launchpad reads the root with the operator's git, from its PATH.
   const git = Bun.which("git");
   if (git === null) throw new Error("composio-off needs git");
@@ -455,7 +494,23 @@ if (composioOff && mode === "hosted" && !fresh) {
     manifest,
     JSON.stringify({
       ...document,
-      settings: { integrations: { composio: { allowed: false } } },
+      settings: {
+        integrations: {
+          ...(composioOff ? { composio: { allowed: false } } : {}),
+          ...(microsoft365
+            ? {
+                microsoft365: {
+                  tenant_id: "00000000-0000-4000-8000-0000000000aa",
+                  client_id: "00000000-0000-4000-8000-0000000000bb",
+                  apps: ["outlook", "one_drive", "share_point"],
+                  callbacks: [
+                    `https://launchpad.${host}/api/integrations/oauth/callback`,
+                  ],
+                },
+              }
+            : {}),
+        },
+      },
     }),
   );
   for (const args of [
@@ -572,7 +627,9 @@ const app = await startLaunchpad(
   // Integrace (decision F42): the fake Executor, and on a Remote
   // Environment a synthetic tab of the Environment browser.
   {
-    ...(mode === "local" ? { executorPresent: true } : {}),
+    // With the company app, Executor counts as set up here, as it is on a
+    // Remote Environment once F44's setup ran.
+    ...(mode === "local" || microsoft365 ? { executorPresent: true } : {}),
     executor: {
       dataDir: join(home, ".executor"),
       port: executorApi.port,

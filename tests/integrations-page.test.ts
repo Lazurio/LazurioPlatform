@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { integrationsCatalog } from "../src/integrations/catalog";
+import { microsoft365Card } from "../src/integrations/microsoft365-card";
 import type {
   IntegrationAccount,
   IntegrationApp,
@@ -1226,4 +1227,47 @@ test("Odpojit waits for a successful reading without the account: a failed, a st
     state: "failed",
     text: "Účet se nepodařilo odpojit.",
   });
+});
+
+test("the Microsoft 365 card: found by Outlook, OneDrive, SharePoint and Microsoft, Připojit and then Přidat účet", () => {
+  const card = app(microsoft365Card.id, { name: "Microsoft 365" });
+  const value = overview([card, app("notion")]);
+  const catalog = [...integrationsCatalog.apps, microsoft365Card];
+  for (const search of ["outlook", "OneDrive", "sharepoint", "Microsoft"])
+    expect(
+      visibleApps(value, catalog, "all", search).map((item) => item.id),
+      search,
+    ).toContain(microsoft365Card.id);
+  expect(cardView(card, microsoft365Card, options(cs))).toMatchObject({
+    line: "Outlook (pošta a kalendář), OneDrive a SharePoint přes firemní aplikaci.",
+    action: { kind: "connect", label: "Připojit", path: "direct" },
+    composio: false,
+  });
+  // A second account beside the first: "Přidat účet", each with Odpojit.
+  const connected = app(microsoft365Card.id, {
+    connected: true,
+    accounts: [
+      {
+        path: "direct",
+        selector: "org/m365/default",
+        label: "ada@contoso.example",
+        state: "connected",
+        spare: false,
+        manage: null,
+      },
+    ],
+  });
+  expect(cardView(connected, microsoft365Card, options(cs))).toMatchObject({
+    connected: true,
+    pathLabel: "přímo",
+    action: { kind: "connect", label: "Přidat účet", path: "direct" },
+  });
+  expect(
+    accountView(
+      connected,
+      connected.accounts[0] as IntegrationAccount,
+      cs,
+      false,
+    ),
+  ).toMatchObject({ name: "ada@contoso.example", disconnect: true });
 });

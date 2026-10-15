@@ -2,6 +2,7 @@ import { join } from "node:path";
 import type { ExecutorContext } from "../executor/flow";
 import { withFolderReadLock } from "../folder/lock";
 import { readFolderState } from "../folder/read-state";
+import { folderOrganizationSettings } from "../folder/state";
 import { ownDataValue, stateFields } from "../folder/state-fields";
 import { integrationsCatalog } from "../integrations/catalog";
 import type { IntegrationsCatalog } from "../integrations/catalog-schema";
@@ -25,6 +26,10 @@ import {
   type ExecutorEndpoint,
   oauthReturnParameters,
 } from "../integrations/executor-client";
+import {
+  microsoft365Card,
+  microsoft365Here,
+} from "../integrations/microsoft365";
 import { composioToolkitOf } from "../integrations/model";
 import type { ComposioPolicySource } from "../integrations/policy";
 import { createIntegrationsReader } from "../integrations/read";
@@ -89,6 +94,10 @@ export type IntegrationsSeams = Readonly<{
   composioOrganization?: ComposioOrganizationRule | undefined;
   catalog?: IntegrationsCatalog | undefined;
   now?: (() => Date) | undefined;
+  /** Clears Microsoft's sign-in session from the Environment browser after a
+   * company app's sign-in there (decision F42 addendum (c) of 2026-10-14);
+   * null or absent where there is none. */
+  forgetMicrosoftSignIn?: (() => Promise<boolean>) | null | undefined;
 }>;
 
 const sessionPattern = /^[0-9a-f]{32}$/;
@@ -194,6 +203,21 @@ export function createIntegrationsRoutes(
       composioOrganization: async () =>
         seams.composioOrganization ??
         (await folderComposioOrganizationRule(input.folder)),
+      // The company app as the Folder records it now (decision F42
+      // addendum (c) of 2026-10-14).
+      microsoft365: async () => {
+        const state = join(input.folder, ".lazurio");
+        const { preferences } = await withFolderReadLock(state, () =>
+          readFolderState(state),
+        );
+        return microsoft365Here(
+          preferences.preset.name,
+          folderOrganizationSettings(preferences),
+        );
+      },
+      ...(seams.forgetMicrosoftSignIn == null
+        ? {}
+        : { forgetMicrosoftSignIn: seams.forgetMicrosoftSignIn }),
       ...(seams.catalog === undefined ? {} : { catalog: seams.catalog }),
       ...(input.journal === undefined ? {} : { journal: input.journal }),
     };
@@ -330,9 +354,11 @@ export function createIntegrationsRoutes(
               : {
                   ...outcome,
                   app:
-                    (input.seams().catalog ?? integrationsCatalog).apps.find(
-                      (item) => item.id === outcome.app,
-                    )?.name[locale] ?? outcome.app,
+                    [
+                      ...(input.seams().catalog ?? integrationsCatalog).apps,
+                      microsoft365Card,
+                    ].find((item) => item.id === outcome.app)?.name[locale] ??
+                    outcome.app,
                 };
           return new Response(returnPage(locale, named), {
             status,

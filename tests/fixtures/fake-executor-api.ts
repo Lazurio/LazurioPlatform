@@ -19,6 +19,13 @@ export type FakeIntegration = {
    * or an edit made it; a seeded integration without one answers the
    * shape derived from the fields above. */
   config?: Record<string, unknown>;
+  /** An OpenAPI integration's stored source and auth template
+   * (`GET /api/openapi/integrations/<slug>/config`). */
+  specUrl?: string;
+  /** The spec given as a blob (`{kind: "blob", value}`), as it came. */
+  specBlob?: string;
+  description?: string;
+  authenticationTemplate?: Record<string, unknown>[];
   /** The server does not answer as it should: Executor's tool sync and its
    * liveness check fail. As in Executor 1.6.10, its connections then read
    * `degraded`, stamped `tool_sync_failed` by a sync and `probe_failed` by a
@@ -42,10 +49,23 @@ export type FakeConnection = {
   values?: Record<string, string>;
 };
 
+/** A manual OAuth client (`POST /api/oauth/clients`), as Executor keeps it;
+ * the secret only as whether one was given. */
+export type FakeClient = {
+  owner: "org" | "user";
+  slug: string;
+  authorizationUrl: string;
+  tokenUrl: string;
+  grant: string;
+  clientId: string;
+  secret: boolean;
+};
+
 export type FakeExecutor = Readonly<{
   port: number;
   integrations: FakeIntegration[];
   connections: FakeConnection[];
+  clients: FakeClient[];
   /** Endpoints the probe knows: whether each needs OAuth, and whether it
    * refuses a probe without this exact Authorization header. */
   probes: Map<string, { requiresOAuth: boolean; authorization?: string }>;
@@ -72,8 +92,10 @@ export type FakeExecutor = Readonly<{
     metadataDocument: boolean;
     loopbackOnly: boolean;
   };
-  /** The person signs in (or not) at the authorization URL of `state`. */
-  finish: (state: string, ok: boolean) => void;
+  /** The person signs in (or not) at the authorization URL of `state`;
+   * `identity` is the account the ID token names (by default
+   * person@example.test). */
+  finish: (state: string, ok: boolean, identity?: string) => void;
   stop: () => Promise<void>;
 }>;
 
@@ -144,6 +166,7 @@ export async function startFakeExecutor(
 ): Promise<FakeExecutor> {
   const integrations: FakeIntegration[] = seed.integrations ?? [];
   const connections: FakeConnection[] = seed.connections ?? [];
+  const clients: FakeClient[] = [];
   const probes: FakeExecutor["probes"] = new Map();
   const calls: FakeExecutor["calls"] = [];
   const flows: FakeExecutor["flows"] = new Map();
@@ -183,7 +206,7 @@ export async function startFakeExecutor(
           integrations.map((item) => ({
             slug: item.slug,
             name: item.name,
-            description: item.name,
+            description: item.description ?? item.name,
             kind: item.kind,
             canRemove: true,
             canRefresh: true,
@@ -200,6 +223,8 @@ export async function startFakeExecutor(
         );
         if (item === undefined) return tagged("IntegrationNotFoundError", 404);
         if (typeof input.name === "string") item.name = input.name;
+        if (typeof input.description === "string")
+          item.description = input.description;
         return json({ slug: item.slug, name: item.name, kind: item.kind });
       }
       if (request.method === "GET" && integration !== null) {
@@ -512,6 +537,83 @@ export async function startFakeExecutor(
           })),
         );
       }
+      // Executor's OpenAPI plugin: a spec added once under its slug (409
+      // after), its stored source and auth template, both replaced in place.
+      if (request.method === "POST" && path === "/openapi/specs") {
+        const slug = String(input.slug);
+        if (integrations.some((item) => item.slug === slug))
+          return tagged("IntegrationAlreadyExistsError", 409);
+        const spec = input.spec as {
+          kind?: string;
+          url?: string;
+          value?: string;
+        };
+        integrations.push({
+          slug,
+          name: String(input.name ?? slug),
+          kind: "openapi",
+          transport: "remote",
+          auth: "oauth2",
+          tools: 5,
+          ...(spec.kind === "url" ? { specUrl: String(spec.url) } : {}),
+          ...(spec.kind === "blob" ? { specBlob: String(spec.value) } : {}),
+          ...(typeof input.description === "string"
+            ? { description: input.description }
+            : {}),
+          authenticationTemplate: (input.authenticationTemplate ??
+            []) as Record<string, unknown>[],
+        });
+        return json({ slug, toolCount: 5 });
+      }
+      const openapi = /^\/openapi\/integrations\/([^/]+)\/(config|spec)$/.exec(
+        path,
+      );
+      if (openapi !== null) {
+        const item = integrations.find(
+          (entry) => entry.slug === openapi[1] && entry.kind === "openapi",
+        );
+        if (item === undefined)
+          return request.method === "GET"
+            ? json(null)
+            : tagged("IntegrationNotFoundError", 404);
+        if (request.method === "GET" && openapi[2] === "config")
+          return json({
+            ...(item.specUrl === undefined ? {} : { specUrl: item.specUrl }),
+            authenticationTemplate: item.authenticationTemplate ?? [],
+          });
+        if (request.method === "POST" && openapi[2] === "config") {
+          item.authenticationTemplate = (input.authenticationTemplate ??
+            []) as Record<string, unknown>[];
+          return json({ authenticationTemplate: item.authenticationTemplate });
+        }
+        if (request.method === "POST" && openapi[2] === "spec") {
+          const spec = input.spec as
+            | { kind?: string; url?: string; value?: string }
+            | undefined;
+          if (spec?.kind === "url" && spec.url !== undefined)
+            item.specUrl = spec.url;
+          if (spec?.kind === "blob" && spec.value !== undefined)
+            item.specBlob = spec.value;
+          return json({
+            slug: item.slug,
+            toolCount: 5,
+            addedTools: [],
+            removedTools: [],
+          });
+        }
+      }
+      if (request.method === "GET" && path === "/oauth/clients")
+        return json(
+          clients.map((client) => ({
+            owner: client.owner,
+            slug: client.slug,
+            grant: client.grant,
+            authorizationUrl: client.authorizationUrl,
+            tokenUrl: client.tokenUrl,
+            clientId: client.clientId,
+            origin: { kind: "manual" },
+          })),
+        );
       if (request.method === "POST" && path === "/oauth/probe")
         return json({
           issuer: "https://auth.example.test",
@@ -547,13 +649,42 @@ export async function startFakeExecutor(
           );
         return json({ client: input.slug });
       }
-      if (request.method === "POST" && path === "/oauth/clients")
-        return json({ client: { slug: input.slug } });
+      if (request.method === "POST" && path === "/oauth/clients") {
+        // A client of the same owner and slug is replaced.
+        const owner = input.owner === "user" ? "user" : "org";
+        const at = clients.findIndex(
+          (client) => client.owner === owner && client.slug === input.slug,
+        );
+        if (at >= 0) clients.splice(at, 1);
+        clients.push({
+          owner,
+          slug: String(input.slug),
+          authorizationUrl: String(input.authorizationUrl),
+          tokenUrl: String(input.tokenUrl),
+          grant: String(input.grant),
+          clientId: String(input.clientId),
+          secret:
+            typeof input.clientSecret === "string" && input.clientSecret !== "",
+        });
+        return json({ client: input.slug });
+      }
       if (request.method === "POST" && path === "/oauth/start") {
         const state = `state${nextState++}`;
+        // A new connection gets a free name, as Executor suffixes one.
+        let name = String(input.name);
+        if (input.newConnection === true)
+          for (
+            let suffix = 2;
+            connections.some(
+              (item) =>
+                item.integration === input.integration && item.name === name,
+            );
+            suffix += 1
+          )
+            name = `${String(input.name)}${suffix}`;
         flows.set(state, {
           integration: String(input.integration),
-          name: String(input.name),
+          name,
           label:
             typeof input.identityLabel === "string"
               ? input.identityLabel
@@ -565,6 +696,36 @@ export async function startFakeExecutor(
           setTimeout(() => {
             if (flows.has(state)) finish(state, true);
           }, autoFinishMs);
+        // A manual client signs in at its own authorization URL, with its
+        // client id, the integration's scopes and the flow's return.
+        const client = clients.find(
+          (entry) =>
+            entry.slug === input.client && entry.owner === input.clientOwner,
+        );
+        if (client !== undefined) {
+          const integration = integrations.find(
+            (entry) => entry.slug === input.integration,
+          );
+          const template = integration?.authenticationTemplate?.find(
+            (entry) => entry.slug === input.template,
+          );
+          const query = new URLSearchParams({
+            client_id: client.clientId,
+            response_type: "code",
+            redirect_uri:
+              typeof input.redirectUri === "string"
+                ? input.redirectUri
+                : "http://localhost:4789/api/oauth/callback",
+            scope: ((template?.scopes ?? []) as string[]).join(" "),
+            state,
+            code_challenge_method: "S256",
+          });
+          return json({
+            status: "redirect",
+            authorizationUrl: `${client.authorizationUrl}?${query}`,
+            state,
+          });
+        }
         return json({
           status: "redirect",
           authorizationUrl: `https://auth.example.test/authorize?state=${state}`,
@@ -580,11 +741,14 @@ export async function startFakeExecutor(
       // popup page answered whatever happened.
       if (request.method === "GET" && path === "/oauth/callback") {
         const state = url.searchParams.get("state") ?? "";
+        // A code `as:<account>` signs that account in (the preview's
+        // stand-in for an authorization server names who signed in).
+        const code = url.searchParams.get("code");
         if (flows.has(state))
           finish(
             state,
-            url.searchParams.get("code") !== null &&
-              url.searchParams.get("error") === null,
+            code !== null && url.searchParams.get("error") === null,
+            code?.startsWith("as:") === true ? code.slice(3) : undefined,
           );
         else
           results.set(state, {
@@ -610,19 +774,27 @@ export async function startFakeExecutor(
       return tagged("NotFound", 404);
     },
   });
-  function finish(state: string, ok: boolean) {
+  function finish(state: string, ok: boolean, identity?: string) {
     const flow = flows.get(state);
     if (flow === undefined) throw new Error(`No flow ${state}`);
     flows.delete(state);
-    if (ok)
+    if (ok) {
+      // Signing an existing connection in again re-mints it, as Executor
+      // does for a name given without `newConnection`.
+      const at = connections.findIndex(
+        (item) =>
+          item.integration === flow.integration && item.name === flow.name,
+      );
+      if (at >= 0) connections.splice(at, 1);
       connections.push({
         owner: "org",
         name: flow.name,
         integration: flow.integration,
         template: "oauth2",
-        identityLabel: flow.label ?? "person@example.test",
+        identityLabel: flow.label ?? identity ?? "person@example.test",
         health: "healthy",
       });
+    }
     results.set(
       state,
       ok
@@ -639,6 +811,7 @@ export async function startFakeExecutor(
     port: server.port as number,
     integrations,
     connections,
+    clients,
     probes,
     calls,
     flows,

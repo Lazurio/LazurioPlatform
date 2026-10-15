@@ -8,8 +8,9 @@ import { readFolderState } from "../folder/read-state";
 import { folderOrganizationSettings } from "../folder/state";
 import { recordOrganizationSettings } from "../folder/update-profile";
 import {
+  governedSettingKeys,
+  microsoft365SettingKeys,
   type OrganizationSettingsValues,
-  organizationSettings,
   organizationSettingsKeys,
 } from "../organizations/organization-settings";
 import { isSettingKey, type SettingsItem } from "./contract";
@@ -56,15 +57,22 @@ export type ApplyOptions = Readonly<{
   /** Attempts while another operation holds the Folder (default 4). */
   busyAttempts?: number;
   sleep?: (ms: number) => Promise<void>;
+  /** Applies the Microsoft 365 company app to the Environment's Executor
+   * once the Folder took the settings (decision F42 addendum (c) of
+   * 2026-10-14): its outcome is the item `integrations.microsoft365`. Without
+   * it, the Folder's answer alone says how that item turned out. */
+  microsoft365?: (
+    setting: NonNullable<
+      NonNullable<OrganizationSettingsValues["integrations"]>["microsoft365"]
+    >,
+  ) => Promise<
+    Readonly<{ outcome: "applied" | "failed"; detail: string | null }>
+  >;
 }>;
 
 /** The keys a section governs. */
-function governedKeys(values: OrganizationSettingsValues): string[] {
-  const verdict = organizationSettings({ settings: values });
-  return verdict.status === "invalid"
-    ? []
-    : verdict.effective.filter((entry) => entry.governed).map((e) => e.key);
-}
+const governedKeys = (values: OrganizationSettingsValues): readonly string[] =>
+  governedSettingKeys(values);
 
 async function recordedSettings(
   folder: string,
@@ -121,14 +129,30 @@ export async function applyOrganizationSettings(
     ...governedKeys(desired),
     ...governedKeys(previous),
   ]);
+  // The company app lives in Executor too: once the Folder took the
+  // settings, it is applied there, and that says how its item turned out.
+  const microsoft365 = desired.integrations?.microsoft365;
+  const executor =
+    detail === null && microsoft365 !== undefined && options.microsoft365
+      ? await options.microsoft365(microsoft365).catch(() => ({
+          outcome: "failed" as const,
+          detail: "executor-failed",
+        }))
+      : null;
   const items: SettingsItem[] = organizationSettingsKeys
     .filter((key) => governed.has(key))
     .map((key) =>
-      Object.freeze({
-        key,
-        outcome: detail === null ? ("applied" as const) : ("failed" as const),
-        detail,
-      }),
+      Object.freeze(
+        executor !== null &&
+          (microsoft365SettingKeys as readonly string[]).includes(key)
+          ? { key, outcome: executor.outcome, detail: executor.detail }
+          : {
+              key,
+              outcome:
+                detail === null ? ("applied" as const) : ("failed" as const),
+              detail,
+            },
+      ),
     );
   for (const key of delivered.unsupported)
     if (isSettingKey(key))

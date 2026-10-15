@@ -7478,7 +7478,8 @@ Not in this revision: the Organization's settings themselves (DEV-6653), the
 company apps of Google Workspace and Microsoft 365 (task 685; their cards show
 that the company app is not set up, with a link to the Organization's Dashboard
 for its Admin and a message to copy for anyone else), the Dashboard's place for
-"Požádat Admina", and Executor 2.
+"Požádat Admina", and Executor 2. *Amended 2026-10-14:* Microsoft 365's company app,
+addendum (c) below.
 
 **Addendum 2026-10-11 (issue #312), asked for by the Organization Admin: a Composio
 account says its name and opens in Composio's dashboard.** In Apps → Integrace every
@@ -8199,6 +8200,194 @@ Verified by tests:
   one, checked in a headless browser on the hosted preview, whose `/api/tools/upgrade`
   the browser automation answered instead of the network (root decision 0178).
 
+**Addendum 2026-10-14 (c), decided by the Organization Admin: the Microsoft 365
+company app.** The catalog routed Outlook, OneDrive, SharePoint and Teams to
+Executor's curated Microsoft Graph specs behind `company-app:microsoft`, but nothing
+filled the seam: every Microsoft card said "Nastavit v Dashboardu", and companies
+connected their mail and files through ChatGPT's connectors outside the Environment.
+The Organization Admin approved the design of DEV-6626 task 685 on 2026-10-14 (a
+public client without a secret, Graph through Executor, no `Mail.Send` by default,
+Teams in phase 2, scopes fixed in the Platform, new Environments in the Environment
+browser until their callback is registered) and on the same day simplified it to
+rules that fit in one breath: "Přidat účet" is one Microsoft sign-in, and the
+account is connected and agents use it; several accounts side by side are the
+person's choice; "Odpojit" disconnects one; nothing disconnects or expires on
+Lazurio's side by itself. The setting's shape is root decision 0162's addendum of
+2026-10-14 and Lazurio Core's contract (HumanAndMachines/Lazurio#549). The reference
+is [integrations](integrations.md#the-microsoft-365-company-app).
+
+1. **The setting is identifiers only.** `settings.integrations.microsoft365` is
+   `{tenant_id, client_id, apps, callbacks}`: the tenant and the client id of the
+   single-tenant app the Organization registered in its own tenant (lowercase
+   GUIDs), the catalog apps it turns on (a non-empty subset of `outlook`,
+   `one_drive`, `share_point`; Teams joins in phase 2) and the Launchpad callbacks
+   registered at Microsoft, possibly none, at most 255 (Entra registers 256, the
+   localhost one included), each exactly a work Environment's Launchpad,
+   `https://launchpad.<machine>.<github-org-login>.lazurio.io/api/integrations/oauth/callback`:
+   any other host would receive the authorization response. All four are required
+   and the object is closed: the Platform's copy of the tree
+   (`src/organizations/organization-settings.ts`) is Core's, with Core's
+   `settings_value_invalid`, so a `client_secret`, a password or a callback with a
+   query never passes, and an Organization adding the company app keeps its Composio
+   switch applying. A delivered answer whose `microsoft365` names a secret-like key
+   is refused whole rather than kept as `unsupported`. Each of the four leaves is a
+   report item (`integrations.microsoft365.tenant_id`, …), as Core's keys are.
+2. **One integration, applied (F45).** The Folder records the setting like every
+   other (F45 point 4). Once it took it, the Launchpad applies it to the
+   Environment's Executor: ONE OpenAPI integration `m365` and one manual OAuth client
+   `microsoft365` of the Environment with the client id and an empty secret, which
+   makes it a public client with PKCE. `apps` chooses what goes into the integration:
+   Outlook its mail and calendar, OneDrive the files, SharePoint its sites and the
+   files (walking a library's folders needs the files' drive items). Applying is
+   idempotent and never signs anybody in or touches a connection. Its four items are
+   `applied`, or `failed` with `spec-unavailable`, `spec-mismatch`, `spec-conflict`,
+   `spec-too-large`, `executor-unavailable`, `executor-refused`, `executor-failed`
+   or `integration-conflict` (another kind of integration holds `m365`), and a failed
+   item is applied again at the next question (F45 point 6).
+3. **One document from specs pinned per release.** The parts are Executor's curated
+   specs (integrations.sh), pinned by the commit of their public source
+   (`UsefulSoftwareCo/integrations`, `public/specs/microsoft-graph/*.json`) and by the
+   SHA-256 of each. The Launchpad downloads them, refuses any whose bytes differ,
+   merges their paths and components (a component several parts define identically
+   kept once, any other overlap a conflict that fails), replaces each part's own
+   security scheme (`common`, its own scopes) by one of the union of the enabled
+   parts' scopes, and gives Executor the document as a blob. All four make 13.2
+   million characters and 2,825 paths, within the 32 MiB Executor parses; a larger
+   document fails before Executor is asked. The integration's description names the
+   document's id (the merge's version and the parts' hashes), so applying again
+   downloads nothing while it matches, and other apps rebuild it in place
+   (`POST …/m365/spec`, connections kept). The auth template names the tenant and
+   the scopes: the sign-in's (`openid profile email offline_access User.Read`) and
+   each part's least privilege: `Mail.ReadWrite`, `Calendars.ReadWrite`,
+   `Files.ReadWrite.All`, `Sites.Read.All`. Never `Mail.Send` or
+   `MailboxSettings.ReadWrite`, which the curated mail spec declares; the setting
+   has no way to add them yet.
+4. **One sign-in connects every app.** Executor 1.6.10 takes a sign-in's scopes from
+   the integration's selected auth template (`resolveOAuthScopePolicy`, declared
+   scopes) and mints one connection `(owner, integration, name)` whose token pair
+   every operation of the integration uses. So "Připojit" is one Microsoft sign-in
+   that connects mail, calendar, files and sites at once. "Přidat účet" starts
+   another with `newConnection`, which gets a free name (`default`, `default2`, …):
+   several accounts stand side by side, each with its own "Odpojit", which removes
+   only that connection. Lazurio passes no `identityLabel`, so the ID token names
+   each account (its email, else its user name). "Přihlásit znovu" signs an expired
+   account in again under its own name.
+5. **Where the person signs in.** Where the setting's `callbacks` lists this
+   Launchpad's callback, the sign-in returns to it in a window of the person's own
+   browser (the addendum of 2026-10-13). Elsewhere Microsoft would show an error page
+   and never return, so the sign-in returns to Executor's callback on localhost
+   (`http://localhost:4789/api/oauth/callback`, which Entra matches against a
+   registered `http://localhost/api/oauth/callback`, ignoring the port) in the
+   Environment browser. That browser is the agents' too, and a Microsoft session left
+   there would reach Outlook on the web, which can send mail whatever the app's
+   scopes. So once such a sign-in ends (connected, failed, expired or cancelled), the
+   Launchpad clears the cookies and storage of Microsoft's sign-in origins there
+   (`login.microsoftonline.com`, `login.microsoft.com`, `login.live.com`; CDP
+   `Storage.clearDataForOrigin` over the browser's own endpoint on loopback, the
+   person's other sign-ins kept) and journals whether it could. This disconnects
+   nothing. Limits: a page of the tenant's own web apps the person opened there
+   meanwhile (`*.sharepoint.com`, Outlook on the web) keeps its own cookies until
+   they expire, and a clearing that failed is only journaled; registering the
+   Environment's callback avoids the Environment browser entirely. Never dynamic
+   client registration or a metadata document for a company app.
+6. **One card on every Environment of the Organization.** Where the setting is
+   recorded, one card "Microsoft 365" stands in place of Outlook, OneDrive and
+   SharePoint (a search for any of them, or for Microsoft, finds it) on every
+   Environment of the Organization, work, Team or Automated, like Composio: whoever
+   uses the Environment decides which accounts to connect there. Without the setting
+   the three cards stay as they were, with Composio where it is allowed; accounts
+   left from before the setting went keep the card, so "Odpojit" still reaches
+   them. A personal
+   Environment and the person's own computer have no company app (root decision 0194
+   point 5). Existing Composio accounts of those apps stay listed under their
+   toolkits.
+7. **Nothing disconnects by itself.** Lazurio removes a Microsoft account only on
+   "Odpojit". Handing an Environment over means that whoever hands it over, or
+   receives it, disconnects there the accounts that should no longer be used; turning
+   the setting off or removing an app stops offering the card but disconnects
+   nothing. The company's off switch is Entra's: blocking the account, revoking its
+   sessions (its refresh then fails, and Executor shows the account expired),
+   disabling the app or removing its consent.
+8. **What the company app allows.** Delegated scopes reach only what the signed-in
+   person reaches, but within it: `Mail.ReadWrite` reads, drafts, moves and deletes
+   mail (no sending); `Calendars.ReadWrite` creates, changes and cancels events, which
+   sends invitations and cancellations to attendees; `Files.ReadWrite.All` reads,
+   writes and deletes files and creates sharing links; `Sites.Read.All` reads sites
+   and lists. Executor holds writes and deletions for the agent's approval
+   (`waiting_for_interaction`), which the Folder lets agents give only for a Draft
+   or an approved Publication; that is a rule agents follow, not a technical
+   barrier. Content an agent reads goes, like everything an agent reads, to the AI
+   model provider of its harness.
+9. **The Folder (`base-instructions-53`).** The chapter Integrace says how the IT
+   consent of a company app works (the Admin's consent once for everyone; an
+   `AADSTS65001` or `AADSTS90094` means a missing consent, which the Admin adds), and
+   on an Organization's Environment how agents use the one Integrace `m365`: several
+   accounts may stand side by side, so they ask the person which one where it is not
+   clear; mail only as a plain-text draft read back with its `webLink`, never `send`
+   or `sendMail` without the person's Publication instruction; a calendar event with
+   attendees a Publication; folders walked by item id with every page of
+   `@odata.nextLink` read; uploads beside the original with
+   `conflictBehavior=fail`.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A confidential client with a secret in a vault (0162's first wording) | Microsoft's documented server pattern; but a secret per Environment or Organization to store, distribute and rotate (at most 24 months), and 0198 point 8 is not decided; rejected by the Admin: a public client, the fallback if test V1 on a real tenant fails |
+| One integration per spec, sign-ins chained per card (the first revision of this PR) | Each spec as integrations.sh ships it; but two or more sign-ins per account, identities to keep consistent across them, a files connection shared between cards; rejected by the Admin as too complex: one integration, one sign-in |
+| The spec by its commit-pinned address, fetched by Executor | No download in the Launchpad; but one address per integration, which one merged document cannot have, and nothing checks the bytes; replaced: the Launchpad downloads, checks the SHA-256 and gives the merged blob |
+| Live from integrations.sh | Always current; but a change there widens the tools silently; rejected |
+| Disconnect on reassignment, fail closed until it did (the second revision of this PR) | Protects against a previous person's mailbox; but a mechanism the person cannot see or explain, which blocks sign-ins when it cannot read the handover; rejected by the Admin: "Odpojit" is the only disconnect, Entra the off switch |
+| Offer the company app only on one person's work Environment | One person's mailbox never on a shared Environment; but a rule beside Composio's that people would have to learn; rejected by the Admin: offered like Composio, whoever uses the Environment decides |
+| Scopes narrowable in the setting | The Organization picks `Mail.Send`; rejected for now (Q5): fixed per release, a later setting field may add sending |
+| Keep the three cards beside the company app | No change of the page; but three "Připojit" for one sign-in; rejected: one card |
+| Dynamic registration or a wildcard callback | No list of callbacks; but Entra offers no registration and discourages wildcards; rejected (design 4.5) |
+| An isolated browser context for the Environment-browser sign-in | Nothing left behind at all; but the Environment browser offers no such context to the Launchpad; the sign-in origins are cleared instead |
+
+Verified by tests:
+- The closed tree as Core's: the setting beside Composio valid and its four keys
+  governed, no callback valid, and a `client_secret`, a non-GUID or uppercase id, a
+  callback with a query, http, a port, an uppercase host, another path or a host
+  that is not a Launchpad's under `lazurio.io` (`attacker.example`,
+  `launchpad.m.org.lazurio.io.attacker.example`), 256 callbacks, Teams, an app twice,
+  no app and a missing field refused with Core's codes and pointers
+  (`tests/organization-settings.test.ts`); the delivered setting beside Composio with
+  an unknown field kept apart, and a secret-like key, nested too, and a non-GUID id
+  refusing the answer (`tests/organization-settings-relay.test.ts`).
+- Applying: recorded in the Folder, then Executor's outcome as its four items, a
+  failure and a thrown apply `failed`, lifting it without asking Executor, and a
+  Folder that refuses never reaching Executor
+  (`tests/organization-settings-apply.test.ts`).
+- The document and Executor: the apps choosing the parts and the union of the
+  scopes, never sending; the parts merged with a shared component once and one
+  scheme of the union, never `common`; a conflicting path or component, an invalid
+  part and a document over the limit failing; a part whose bytes differ from its
+  SHA-256, or that cannot be downloaded, refused; one integration from the blob with
+  the tenant's template and one public client, nothing downloaded or written the
+  second time; other apps rebuilt in place, another tenant replacing the template and
+  the client, an account kept; a squatter refused, a mismatching part never reaching
+  Executor, and Executor down said; the four pinned files, where a maintainer has
+  them (`LAZURIO_M365_SPECS`), matching their hashes and merging to 13.2 million
+  characters (`tests/integrations-microsoft365.test.ts`).
+- The card and the sign-in: one card in place of three on a work, a Team and an
+  Automated Environment, Teams unchanged; the three cards without the setting,
+  Composio where allowed, none on a personal Environment; one sign-in at the tenant
+  with the client id, the callback and every scope, the manual client, no label,
+  `newConnection`, one return and the account connected and named by the ID token;
+  two accounts side by side and "Odpojit" removing only one; the Environment browser
+  without a registered callback, its Microsoft session cleared after a connected and
+  after a failed sign-in, origin by origin and only where there is a browser; an
+  expired account signed in again under its name; Executor down
+  (`tests/integrations-microsoft365.test.ts`); the card found by Outlook, OneDrive,
+  SharePoint and Microsoft, "Připojit" then "Přidat účet" with "Odpojit" on the
+  account (`tests/integrations-page.test.ts`).
+- How it looks: one card, one sign-in at a stand-in for Microsoft, two accounts and
+  "Odpojit", checked in a headless browser on the hosted preview (root decision
+  0178).
+
+Not in this addendum: verification on a real tenant (design V1 to V6; V1 decides
+public against confidential client), the Dashboard's editor and drift view of the
+setting, Teams, Google Workspace's company app, sending mail, and company apps on the
+person's own computer.
+
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
 > **Superseded in part by [F53](#f53--every-environment-owns-its-vault-its-own-organization-in-the-networks-vaultwarden-created-by-its-technical-account)
@@ -8859,7 +9048,10 @@ bytes under the new revision.
 
 Not in this revision: the Dashboard's editor of the settings, the company apps of
 Google Workspace and Microsoft 365 (DEV-6626 task 685), the relay on Team and
-Automated Environments (Machines #382) and immediate delivery.
+Automated Environments (Machines #382) and immediate delivery. *Amended 2026-10-14:*
+Microsoft 365's company app is a setting since F42's addendum (c) of 2026-10-14,
+recorded in the Folder and then applied to Executor as one integration, with Core's
+four leaf keys as its report items.
 
 ## F46 — Runtime secrets: declared names, read from the Environment vault before every start, fail closed
 

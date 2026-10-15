@@ -1,3 +1,4 @@
+import { governedSettingKeys } from "../organizations/organization-settings";
 import {
   type ApplyOutcome,
   applyOrganizationSettings,
@@ -478,16 +479,7 @@ export function createSettingsPoller(
   });
 }
 
-function governed(values: AppliedState["settings"]): string[] {
-  const keys: string[] = [];
-  const walk = (value: unknown, path: string) => {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
-      keys.push(path);
-      return;
-    }
-    for (const [key, member] of Object.entries(value))
-      walk(member, path === "" ? key : `${path}.${key}`);
-  };
-  walk(values, "");
-  return keys.filter((key) => key !== "");
-}
+/** The report keys a section governs: a leaf, or a group applied as one
+ * (`integrations.microsoft365`), never the leaves of such a group. */
+const governed = (values: AppliedState["settings"]): readonly string[] =>
+  governedSettingKeys(values);

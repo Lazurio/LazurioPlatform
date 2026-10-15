@@ -33,6 +33,7 @@ import {
 } from "./composio-source";
 import type { ExecutorEndpoint } from "./executor-client";
 import { readExecutor } from "./executor-source";
+import { microsoft365Here } from "./microsoft365";
 import {
   type ComposioReadingState,
   type ComposioSignIn,
@@ -228,10 +229,8 @@ export async function readIntegrations(
   // Whether Composio is allowed here: what the Organization's settings the
   // Folder records say (root decision 0194, decision F45), or the
   // Environment where they say nothing.
-  const recorded = composioPolicyOf(
-    preferences.preset.name,
-    folderOrganizationSettings(preferences),
-  );
+  const settings = folderOrganizationSettings(preferences);
+  const recorded = composioPolicyOf(preferences.preset.name, settings);
   const [overview, reading, policy, context] = await Promise.all([
     toolsOverview(host.folder, host.tools, { signIn: true }).catch(() => null),
     readExecutor(host.executor, catalog),
@@ -290,6 +289,9 @@ export async function readIntegrations(
     // 2026-10-14).
     composioUpdate:
       composioTool !== undefined && pinnedUpdateOffered(composioTool),
+    // The Organization's Microsoft 365 company app, as the Folder records
+    // it (decision F42 addendum (c) of 2026-10-14).
+    microsoft365: microsoft365Here(preferences.preset.name, settings),
     readAt: (host.now ?? (() => new Date()))().toISOString(),
   });
 }

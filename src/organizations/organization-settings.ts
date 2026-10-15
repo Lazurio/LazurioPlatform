@@ -14,6 +14,16 @@
 type Data = Readonly<Record<string, unknown>>;
 type ContractNode =
   | Readonly<{ kind: "boolean" }>
+  | Readonly<{ kind: "string"; pattern: RegExp }>
+  | Readonly<{ kind: "enum"; values: readonly string[] }>
+  /** One setting: its items are validated, never reported as keys; they are
+   * unique strings. */
+  | Readonly<{
+      kind: "array";
+      items: ContractNode;
+      minItems: number;
+      maxItems: number;
+    }>
   | Readonly<{
       kind: "object";
       fields: ReadonlyMap<string, ContractNode>;
@@ -31,24 +41,115 @@ function objectNode(
   });
 }
 const booleanLeaf: ContractNode = Object.freeze({ kind: "boolean" as const });
+const stringLeaf = (pattern: RegExp): ContractNode =>
+  Object.freeze({ kind: "string" as const, pattern });
+const enumItem = (values: readonly string[]): ContractNode =>
+  Object.freeze({ kind: "enum" as const, values });
+const arrayLeaf = (
+  items: ContractNode,
+  { minItems = 0, maxItems = Number.POSITIVE_INFINITY } = {},
+): ContractNode =>
+  Object.freeze({ kind: "array" as const, items, minItems, maxItems });
 
-// Adding a setting adds one leaf here, upstream first (decision 0194 point 6).
+/** The catalog apps an Organization may turn on through its Microsoft 365
+ * company app (root decision 0162, addendum of 2026-10-14). Teams joins in
+ * phase 2. */
+export const microsoft365AppIds = Object.freeze([
+  "outlook",
+  "one_drive",
+  "share_point",
+] as const);
+
+/** A Microsoft identifier (tenant, application): a lowercase GUID, the form
+ * the Azure CLI prints, never a secret. */
+export const guidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** A work Environment's hosted Launchpad callback exactly as registered at
+ * Microsoft: https on `launchpad.<machine>.<github-org-login>.lazurio.io` (the
+ * Organization URL contract), no port, query or fragment. Any other host
+ * would receive the authorization response, so it is refused. */
+export const launchpadCallbackPattern =
+  /^https:\/\/launchpad\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?\.lazurio\.io\/api\/integrations\/oauth\/callback$/;
+/** Entra registers at most 256 redirect addresses for one app; Executor's
+ * localhost callback always takes one of them. */
+export const microsoft365CallbacksMax = 255;
+
+// Adding a setting adds one leaf here, upstream first (decision 0194 point 6):
+// the same closed tree as Lazurio Core's `organization-settings-lib.mjs`.
+// `microsoft365` (root decision 0162, addendum of 2026-10-14; F42 addendum
+// (c) of 2026-10-14) carries only identifiers that are not secrets: the
+// Organization's single-tenant Entra app is a public client, so the closed
+// tree refuses any other key (a `client_secret` among them).
 const contract = objectNode({
   integrations: objectNode({
     composio: objectNode({ allowed: booleanLeaf }, ["allowed"]),
+    microsoft365: objectNode(
+      {
+        tenant_id: stringLeaf(guidPattern),
+        client_id: stringLeaf(guidPattern),
+        apps: arrayLeaf(enumItem(microsoft365AppIds), { minItems: 1 }),
+        callbacks: arrayLeaf(stringLeaf(launchpadCallbackPattern), {
+          maxItems: microsoft365CallbacksMax,
+        }),
+      },
+      ["tenant_id", "client_id", "apps", "callbacks"],
+    ),
   }),
 });
 
-/** Dot-separated keys of every known setting, as reported per item. */
+/** Dot-separated keys of every known setting, as reported per item: every
+ * leaf, an array being one. */
 export const organizationSettingsKeys = Object.freeze([
   "integrations.composio.allowed",
+  "integrations.microsoft365.tenant_id",
+  "integrations.microsoft365.client_id",
+  "integrations.microsoft365.apps",
+  "integrations.microsoft365.callbacks",
 ] as const);
 export type OrganizationSettingsKey = (typeof organizationSettingsKeys)[number];
+
+/** The keys of the Microsoft 365 company app, applied together. */
+export const microsoft365SettingKeys = organizationSettingsKeys.filter((key) =>
+  key.startsWith("integrations.microsoft365."),
+);
+
+/** The Organization's Microsoft 365 company app (`settings.integrations.
+ * microsoft365`): its tenant, the app registered there, the catalog apps it
+ * turns on and the Launchpad callbacks registered at Microsoft. */
+export type Microsoft365Setting = Readonly<{
+  tenant_id: string;
+  client_id: string;
+  apps: readonly string[];
+  callbacks: readonly string[];
+}>;
+
+/** A key name that looks like it carries a secret. The Microsoft 365 company
+ * app is a public client: its setting never holds a secret (root decision
+ * 0194 point 1: secrets live only in a vault), so a delivered answer whose
+ * `integrations.microsoft365` names one (a `client_secret`) is refused
+ * whole, never kept as `unsupported`. Elsewhere a key such as `secret_ref`
+ * names a vault item and stays an unsupported key like any other. */
+export const secretLikeKey =
+  /secret|password|passwd|token|credential|certificate|private|api_?key/i;
+const secretFree = "integrations.microsoft365";
+
+/** Whether an unknown member under the company app names a secret. */
+function namesSecret(key: string, value: unknown, depth: number): boolean {
+  if (secretLikeKey.test(key)) return true;
+  return (
+    isRecord(value) &&
+    depth <= depthMax &&
+    Object.keys(value).some((inner) =>
+      namesSecret(inner, value[inner], depth + 1),
+    )
+  );
+}
 
 export const organizationSettingsIssueCodes = Object.freeze([
   "settings_field_missing",
   "settings_field_unknown",
   "settings_type_invalid",
+  "settings_value_invalid",
 ] as const);
 export type OrganizationSettingsIssue = Readonly<{
   code: (typeof organizationSettingsIssueCodes)[number];
@@ -57,13 +158,17 @@ export type OrganizationSettingsIssue = Readonly<{
 }>;
 
 export type OrganizationSettingsValues = Readonly<{
-  integrations?: Readonly<{ composio?: Readonly<{ allowed: boolean }> }>;
+  integrations?: Readonly<{
+    composio?: Readonly<{ allowed: boolean }>;
+    microsoft365?: Microsoft365Setting;
+  }>;
 }>;
+export type OrganizationSettingValue = boolean | string | readonly string[];
 export type OrganizationSettingsEntry = Readonly<{
   key: OrganizationSettingsKey;
   /** `false`: the Organization does not govern it and the Environment decides. */
   governed: boolean;
-  value: boolean | null;
+  value: OrganizationSettingValue | null;
 }>;
 
 export type OrganizationSettings =
@@ -111,6 +216,18 @@ export function organizationSettings(manifest: Data): OrganizationSettings {
   });
 }
 
+/** The keys of the settings a section governs, as reported per item: its
+ * leaves, a group applied as one by its own key. None for a section this
+ * release cannot read. */
+export function governedSettingKeys(
+  values: OrganizationSettingsValues,
+): readonly OrganizationSettingsKey[] {
+  const verdict = organizationSettings({ settings: values });
+  return verdict.status === "invalid"
+    ? []
+    : verdict.effective.filter((entry) => entry.governed).map((e) => e.key);
+}
+
 /** At most this many keys of settings this release does not know are kept. */
 export const unsupportedSettingsMax = 64;
 const depthMax = 16;
@@ -156,6 +273,14 @@ function knownPart(
     const child = node.fields.get(key);
     const at = path === "" ? key : `${path}.${key}`;
     const member = value[key];
+    // A secret has no place in the company app's setting: the answer is
+    // refused whole.
+    if (
+      child === undefined &&
+      path === secretFree &&
+      namesSecret(key, member, depth + 1)
+    )
+      return null;
     if (child === undefined) leafPaths(member, at, unsupported, depth + 1);
     else if (child.kind === "object" && isRecord(member)) {
       const inner = knownPart(member, child, at, unsupported, depth + 1);
@@ -191,7 +316,7 @@ function effective(values: unknown): OrganizationSettingsEntry[] {
         return { key, governed: false, value: null };
       node = node[segment];
     }
-    return { key, governed: true, value: node as boolean };
+    return { key, governed: true, value: node as OrganizationSettingValue };
   });
 }
 
@@ -204,6 +329,38 @@ function validate(
   if (node.kind === "boolean") {
     if (typeof value !== "boolean")
       issues.push({ code: "settings_type_invalid", path });
+    return;
+  }
+  if (node.kind === "string") {
+    if (typeof value !== "string")
+      issues.push({ code: "settings_type_invalid", path });
+    else if (!node.pattern.test(value))
+      issues.push({ code: "settings_value_invalid", path });
+    return;
+  }
+  if (node.kind === "enum") {
+    if (typeof value !== "string")
+      issues.push({ code: "settings_type_invalid", path });
+    else if (!node.values.includes(value))
+      issues.push({ code: "settings_value_invalid", path });
+    return;
+  }
+  if (node.kind === "array") {
+    if (!Array.isArray(value)) {
+      issues.push({ code: "settings_type_invalid", path });
+      return;
+    }
+    if (value.length < node.minItems || value.length > node.maxItems)
+      issues.push({ code: "settings_value_invalid", path });
+    const seen = new Set<unknown>();
+    value.forEach((item, index) => {
+      const at = pointer(path, String(index));
+      const before = issues.length;
+      validate(item, node.items, at, issues);
+      if (issues.length === before && seen.has(item))
+        issues.push({ code: "settings_value_invalid", path: at });
+      seen.add(item);
+    });
     return;
   }
   if (!isRecord(value)) {

@@ -16,7 +16,7 @@ import {
   browserEntryOf,
   resolveBrowserView,
 } from "../browser/view";
-import { cdpSeams, ensureThreadWindow } from "../browser/window";
+import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
 import { createPersonalspaceHolder } from "../content/holder";
 import {
   type ContentHost,
@@ -195,6 +195,39 @@ export type HostedOptions = Readonly<{
    * composition, never HTTP input; tests supply the key. */
   ownerKey?: () => Promise<string | null>;
 }>;
+
+/** The origins of Microsoft's sign-in, whose cookies and storage hold the
+ * person's Microsoft session after a company app's sign-in in the
+ * Environment browser (decision F42 addendum (c) of 2026-10-14). */
+export const microsoftSignInOrigins = Object.freeze([
+  "https://login.microsoftonline.com",
+  "https://login.microsoft.com",
+  "https://login.live.com",
+]);
+
+/** Clears Microsoft's sign-in session from the Environment browser, origin
+ * by origin (`Storage.clearDataForOrigin` over the browser's own debugging
+ * endpoint on loopback, which the people's view already uses): the
+ * person's other sign-ins there stay. True when every origin was cleared;
+ * null where the Environment has no browser. */
+export function forgetMicrosoftSignInOf(
+  entry: MachineEntry | null,
+  cdp: () => CdpCall,
+): (() => Promise<boolean>) | null {
+  if (entry === null || browserEntryOf(entry) === undefined) return null;
+  return async () => {
+    const call = cdp();
+    let all = true;
+    for (const origin of microsoftSignInOrigins)
+      await call("Storage.clearDataForOrigin", {
+        origin,
+        storageTypes: "all",
+      }).catch(() => {
+        all = false;
+      });
+    return all;
+  };
+}
 
 /** Where a direct sign-in of an Integrace opens when its authorization
  * server returns only to Executor's callback on localhost (decision F42 and
@@ -689,15 +722,18 @@ export async function startLaunchpad(
         });
   // Integrace (decision F42): one reading and the connect sessions of this
   // Launchpad, journaled as the operation, the app and the outcome only.
+  // The account's Executor: Integrace drives it, and the Organization's
+  // company apps are applied to it (decision F42 addendum (c) of 2026-10-14).
+  const integrationExecutor = () =>
+    integrationSeams?.executor !== undefined
+      ? integrationSeams.executor
+      : processExecutorEndpoint(process.env);
   const integrations = createIntegrationsRoutes({
     folder,
     tools: toolsEnvironment,
     headers,
     seams: () => ({
-      executor:
-        integrationSeams?.executor !== undefined
-          ? integrationSeams.executor
-          : processExecutorEndpoint(process.env),
+      executor: integrationExecutor(),
       environmentBrowser:
         integrationSeams?.environmentBrowser !== undefined
           ? integrationSeams.environmentBrowser
@@ -725,6 +761,15 @@ export async function startLaunchpad(
       composioOrganization: integrationSeams?.composioOrganization,
       catalog: integrationSeams?.catalog,
       now: integrationSeams?.now,
+      // After a company app's sign-in in the Environment browser, its
+      // Microsoft session there goes (agents use that browser too).
+      forgetMicrosoftSignIn:
+        integrationSeams?.forgetMicrosoftSignIn !== undefined
+          ? integrationSeams.forgetMicrosoftSignIn
+          : forgetMicrosoftSignInOf(
+              entry,
+              () => cdpSeams(process.env, runProcess).cdp,
+            ),
     }),
     journal: (line) => console.log(JSON.stringify(line)),
   });
@@ -768,6 +813,7 @@ export async function startLaunchpad(
     tools: toolsEnvironment,
     journal: (line) => console.log(JSON.stringify(line)),
     onApplied: () => integrations.forget(),
+    executor: integrationExecutor,
     seams: organizationSettingsSeams,
   }).catch(() => {
     // The Launchpad serves without them; the Folder keeps what it records.
