@@ -402,6 +402,60 @@ export function contentBlockedBy(
   return null;
 }
 
+/** What this view remembers for the start of the content by itself (root
+ * decision 0201 point 3): the last known state of the AI and of GitHub (a
+ * reading that cannot tell, such as GitHub's while the profile's revision
+ * moves, changes nothing), and whether it saw either arrive. In memory only,
+ * for this view: never stored. */
+export type AutoStart = Readonly<{
+  ai: boolean | null;
+  github: boolean | null;
+  armed: boolean;
+}>;
+
+export const idleAutoStart: AutoStart = Object.freeze({
+  ai: null,
+  github: null,
+  armed: false,
+});
+
+/** One step of the start by itself, on every new reading of the facts. Once
+ * this view saw GitHub or the AI arrive (from missing to there: what was
+ * there already when the page loaded starts nothing), the content starts as
+ * soon as both are there, whichever came last: the same rule as every other
+ * start (`contentBlockedBy` null) with the content missing. It stays armed
+ * while that turn has not come, a fact is not read yet or a run is under
+ * way, and ends without a start only where there is nothing to start: the
+ * content here, nothing to prepare, or a stop (never after a stop). Only
+ * where the Environment has its first run. */
+export function autoStartStep(
+  state: AutoStart,
+  facts: TourFacts,
+  running: boolean,
+): Readonly<{ state: AutoStart; start: boolean }> {
+  const known = (basic: "ai" | "github", before: boolean | null) => {
+    const now = basicState(facts, basic);
+    return now === "unknown" ? before : now === "done";
+  };
+  const ai = known("ai", state.ai);
+  const github = known("github", state.github);
+  const arrived =
+    (state.ai === false && ai === true) ||
+    (state.github === false && github === true);
+  const next = (armed: boolean): AutoStart =>
+    Object.freeze({ ai, github, armed });
+  if (!signsInAsPerson(facts.preset))
+    return { state: next(false), start: false };
+  const armed = state.armed || arrived;
+  if (!armed) return { state: next(false), start: false };
+  const content = facts.content.state;
+  if (content === "ready" || content === "none" || content === "failed")
+    return { state: next(false), start: false };
+  if (content !== "missing" || running || contentBlockedBy(facts) !== null)
+    return { state: next(true), start: false };
+  return { state: next(false), start: true };
+}
+
 /** What a start request of the address (`#lazurio-start=…`, from the line
  * in Apps or an older shell's link) does once the page is on Začínáme:
  * `wait` until what decides it is read; `drop` it; `open-ai` drops it and

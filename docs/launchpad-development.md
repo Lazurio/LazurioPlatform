@@ -2444,8 +2444,10 @@ Organization's, and it gets none of it.
      Nástroje), offered only once AI is there ("Nabídne se po připojení AI.");
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
      rows inside the step (the same `content-panel.ts` as Tento Environment draws).
-     Once this view saw GitHub connect, the installation starts by itself when the
-     content is read and missing and an agent could help (not after a stop). Nothing
+     Once this view saw GitHub or the AI arrive (from missing to there; what was there
+     when the page loaded starts nothing), the installation starts by itself as soon as
+     both are there, whichever came last, and the content is read and missing
+     (`autoStartStep`: in memory only, never after a stop, never during a run). Nothing
      starts it before its turn (`contentBlockedBy`): without AI or GitHub neither the
      download nor "Zkusit znovu" is offered, only "Nabídne se po připojení AI." or
      "Spustí se samo po připojení GitHubu."; a start request in the address follows
