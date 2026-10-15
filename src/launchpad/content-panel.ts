@@ -7,7 +7,7 @@ import {
   type Resolve,
   type StepView,
 } from "./content-view";
-import type { GithubFact } from "./first-run";
+import type { ContentBlock, GithubFact } from "./first-run";
 import type { MessageKey } from "./messages";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -33,6 +33,9 @@ export function createContentPanel(
     copy: () => Copy;
     /** GitHub's sign-in here, as Settings → Nástroje reads it. */
     github: () => GithubFact;
+    /** What must come before the installation (`contentBlockedBy`, root
+     * decision 0201 point 3): until then nothing offers or starts it. */
+    blockedBy: () => ContentBlock | null;
     /** An Organization's module count once it is here, by its login. */
     modules: (login: string) => number | null;
     /** "5 modulů": the count in the page's language. */
@@ -188,6 +191,7 @@ export function createContentPanel(
     }
     const view = contentView(read, job, copy, {
       github: options.github(),
+      blockedBy: options.blockedBy(),
       modules: options.modules,
       pluralModules: options.pluralModules,
       resolve: options.resolveKind(),
@@ -255,6 +259,11 @@ export function createContentPanel(
    * already running. */
   async function start() {
     if (starting || following !== null) return;
+    // Every start waits for its turn, whichever way it was asked for.
+    if (options.blockedBy() !== null) {
+      render();
+      return;
+    }
     const copy = options.copy();
     starting = true;
     message = null;
@@ -268,8 +277,13 @@ export function createContentPanel(
       void follow(answer.job);
       return;
     }
+    // The route refuses an installation before AI as well (0201 point 3).
     message =
-      answer.kind === "refused" ? copy.contentRefused : copy.contentStartFailed;
+      answer.kind === "refused"
+        ? answer.reason === "ai-missing"
+          ? copy.contentRefusedAi
+          : copy.contentRefused
+        : copy.contentStartFailed;
     focusAction = true;
     render();
     options.changed();

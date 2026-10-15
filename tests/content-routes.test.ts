@@ -11,6 +11,8 @@ import {
 } from "../src/launchpad/content-routes";
 import { startLaunchpad } from "../src/launchpad/server";
 import type { Catalog } from "../src/organizations/catalog";
+import type { AiState } from "../src/tools/ai";
+import type { AiProbe } from "../src/tools/ai-probe";
 import type { CliContext } from "../src/update/cli";
 import { writePersonalspaceModule } from "./fixtures/catalog-folder";
 import {
@@ -42,7 +44,19 @@ afterEach(async () => {
   world = undefined;
 });
 
-async function launchpad(folder: string, host: ContentHost) {
+// The Environment's AI as the install route asks it (root decision 0201
+// point 3): fixed here, so the machine's own Codex and Claude Code never
+// decide a test.
+const aiAnswer = (state: AiState): AiProbe => ({
+  state: async () => ({ state, providers: [] }),
+  forget: () => {},
+});
+
+async function launchpad(
+  folder: string,
+  host: ContentHost,
+  ai: AiProbe = aiAnswer("connected"),
+) {
   const app = await startLaunchpad(
     folder,
     undefined,
@@ -55,6 +69,15 @@ async function launchpad(folder: string, host: ContentHost) {
     undefined,
     undefined,
     host,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    ai,
   );
   closing = () => app.close();
   const url = new URL(app.url);
@@ -938,8 +961,82 @@ posixTest(
   60_000,
 );
 
+// A stopped installation of the Organization Alpha, whose root does not
+// declare itself (`root-not-found`), on a local Folder.
+async function unprepared(
+  folder: string,
+  stub: ReturnType<typeof stubGitHub>,
+): Promise<Awaited<ReturnType<typeof launchpad>>> {
+  const app = await launchpad(folder, contentHost(world as World, stub.github));
+  const started = await app.post("/api/content/install", {
+    items: [{ kind: "organization", login: "Alpha" }],
+  });
+  expect(started.status).toBe(202);
+  const { job } = (await started.json()) as { job: string };
+  const ended = (await untilEnded(app.get, job)) as {
+    state: string;
+    failure?: { code: string };
+  };
+  expect([ended.state, ended.failure?.code]).toEqual([
+    "failed",
+    "root-not-found",
+  ]);
+  return app;
+}
+
 posixTest(
-  "root access (root decision 0201 point 8): an Owner or a writer of the conventional root prepares an unprepared Organization; anyone else, and every failure, does not",
+  "root access (root decision 0201 point 8): only for the Organization whose installation stopped unprepared; the same no, without asking GitHub, for any other (Pablo's review of #436)",
+  async () => {
+    world = await createWorld();
+    const folder = await presetFolder(world, "local");
+    // An active Owner (the stub's default membership).
+    const stub = stubGitHub(world);
+    const app = await launchpad(folder, contentHost(world, stub.github));
+    const access = async (org: string) => {
+      const before = stub.calls.length;
+      const answer = await app.get(`/api/content/root-access?org=${org}`);
+      expect(answer.status).toBe(200);
+      return {
+        body: await answer.json(),
+        asked: stub.calls
+          .slice(before)
+          .map((call) => `${call.kind} ${call.args.join("/")}`)
+          .sort(),
+      };
+    };
+    const no = { kind: "root-access", write: false };
+    // Before any installation: no, and GitHub is not asked.
+    expect(await access("Alpha")).toEqual({ body: no, asked: [] });
+    await closing?.();
+    closing = undefined;
+    const stopped = await unprepared(folder, stub);
+    const ask = async (org: string) => {
+      const before = stub.calls.length;
+      const answer = await stopped.get(`/api/content/root-access?org=${org}`);
+      expect(answer.status).toBe(200);
+      return {
+        body: await answer.json(),
+        asked: stub.calls
+          .slice(before)
+          .map((call) => `${call.kind} ${call.args.join("/")}`)
+          .sort(),
+      };
+    };
+    // The stopped Organization, in any spelling of its login: asked.
+    for (const org of ["Alpha", "alpha"])
+      expect(await ask(org)).toEqual({
+        body: { kind: "root-access", write: true },
+        asked: [`membership ${org}`, `repository ${org}/${org}_GEN3`],
+      });
+    // Any other Organization: the same no, nothing asked.
+    for (const org of ["Beta", "Lazurio"])
+      expect(await ask(org)).toEqual({ body: no, asked: [] });
+  },
+  60_000,
+);
+
+posixTest(
+  "root access: who prepares the stopped Organization's root, as GitHub answers now; a stop for another reason asks nothing",
   async () => {
     world = await createWorld();
     const folder = await presetFolder(world, "local");
@@ -953,7 +1050,6 @@ posixTest(
       Parameters<typeof stubGitHub>[1],
       boolean,
     ][] = [
-      ["an active Owner, root not visible", {}, true],
       [
         "a member with write on the root",
         {
@@ -971,47 +1067,87 @@ posixTest(
         false,
       ],
       ["a member, root not visible", { membership: member }, false],
-      [
-        "GitHub does not answer",
-        {
-          membership: { kind: "unavailable" },
-          repositories: { "Alpha/Alpha_GEN3": "unavailable" },
-        },
-        false,
-      ],
     ];
     for (const [name, options, write] of cases) {
       const stub = stubGitHub(world, options);
-      const { get } = await launchpad(folder, contentHost(world, stub.github));
-      const answer = await get("/api/content/root-access?org=Alpha");
+      const app = await unprepared(folder, stub);
+      const answer = await app.get("/api/content/root-access?org=Alpha");
       expect([name, answer.status, await answer.json()]).toEqual([
         name,
         200,
         { kind: "root-access", write },
       ]);
-      // Read-only: the membership and the conventional root, nothing else.
-      expect(
-        stub.calls.map((call) => `${call.kind} ${call.args.join("/")}`).sort(),
-      ).toEqual(["membership Alpha", "repository Alpha/Alpha_GEN3"]);
       await closing?.();
       closing = undefined;
     }
-    const stub = stubGitHub(world);
-    const { get, post } = await launchpad(
-      folder,
-      contentHost(world, stub.github),
-    );
+    // A stop that is not about the root (gh signed out): no, nothing asked.
+    const signedOut = stubGitHub(world, { viewer: { kind: "signed-out" } });
+    const app = await launchpad(folder, contentHost(world, signedOut.github));
+    const started = await app.post("/api/content/install", {
+      items: [{ kind: "organization", login: "Alpha" }],
+    });
+    const { job } = (await started.json()) as { job: string };
+    const ended = (await untilEnded(app.get, job)) as {
+      failure?: { code: string };
+    };
+    expect(ended.failure?.code).toBe("github-signed-out");
+    const before = signedOut.calls.length;
+    const answer = await app.get("/api/content/root-access?org=Alpha");
+    expect(await answer.json()).toEqual({ kind: "root-access", write: false });
+    expect(signedOut.calls.length).toBe(before);
+    // Malformed: refused before anything.
     for (const path of [
       "/api/content/root-access",
       "/api/content/root-access?org=-x",
       "/api/content/root-access?org=Alpha&org=Beta",
       "/api/content/root-access?org=Alpha&write=1",
     ])
-      expect([path, (await get(path)).status]).toEqual([path, 400]);
-    expect((await post("/api/content/root-access?org=Alpha", {})).status).toBe(
-      405,
+      expect([path, (await app.get(path)).status]).toEqual([path, 400]);
+    expect(
+      (await app.post("/api/content/root-access?org=Alpha", {})).status,
+    ).toBe(405);
+  },
+  60_000,
+);
+
+posixTest(
+  "the install route waits for AI where the Environment signs in as its person (root decision 0201 point 3; Pablo's review of #436)",
+  async () => {
+    world = await createWorld();
+    const folder = await presetFolder(world, "local");
+    const stub = stubGitHub(world);
+    // AI provably missing: refused before anything starts or is asked.
+    const without = await launchpad(
+      folder,
+      contentHost(world, stub.github),
+      aiAnswer("missing"),
     );
+    for (const body of [
+      {},
+      { items: [{ kind: "organization", login: "Alpha" }] },
+    ]) {
+      const refused = await without.post("/api/content/install", body);
+      expect([refused.status, await refused.json()]).toEqual([
+        403,
+        { error: "not-allowed", reason: "ai-missing" },
+      ]);
+    }
+    expect((await without.get("/api/content/jobs/latest")).status).toBe(404);
     expect(stub.calls).toEqual([]);
+    await closing?.();
+    closing = undefined;
+    // An AI that could not be checked does not hold the content back.
+    const unknown = await launchpad(
+      folder,
+      contentHost(world, stub.github),
+      aiAnswer("unknown"),
+    );
+    const started = await unknown.post("/api/content/install", {
+      items: [{ kind: "organization", login: "Alpha" }],
+    });
+    expect(started.status).toBe(202);
+    const { job } = (await started.json()) as { job: string };
+    await untilEnded(unknown.get, job);
   },
   60_000,
 );

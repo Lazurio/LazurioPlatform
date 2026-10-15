@@ -6,6 +6,7 @@ import { canPrepareRoot } from "../content/role";
 import { contentStatus } from "../content/status";
 import { ownDataValue, stateFields } from "../folder/state-fields";
 import type { PersonalspaceHolderRead } from "../organizations/personalspace";
+import { unpreparedCodes } from "./content-view";
 import { BodyTooLarge, readJsonBody } from "./json-body";
 
 // Content installation in the Launchpad (decision F9, addendum of
@@ -21,7 +22,9 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //   job runs (`{ "error": "busy", "job": "<id>" }`; without `job` when the
 //   Folder's content lock is held outside this Launchpad), `403` when this
 //   Environment does not install that content (`{ "error": "not-allowed",
-//   "reason": … }`);
+//   "reason": … }`), or not yet: `"reason": "ai-missing"` while the
+//   Environment's AI is provably missing (root decision 0201 point 3,
+//   `refuseInstall`);
 // - `GET /api/content/jobs/<id>`: `{ id, state, steps, failure? }`;
 // - `GET /api/content/jobs/latest`: the newest job of this Launchpad in the
 //   same shape, `404` before the first one, so every browser of the
@@ -29,7 +32,11 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 // - `GET /api/content/root-access?org=<login>`: `{ kind: "root-access",
 //   write }`, whether this Environment's GitHub identity can prepare that
 //   Organization's root (root decision 0201 point 8, `canPrepareRoot`):
-//   where a stop that only the root's writers fix leads.
+//   where a stop that only the root's writers fix leads. Only for the
+//   Organization whose installation, the newest of this Launchpad, stopped
+//   because its root is not prepared (`unpreparedCodes`); for any other the
+//   same `write: false`, without asking GitHub, so it tells nothing about
+//   the identity's rights elsewhere.
 // An Organization's scope follows the person's role, which the request does
 // not carry: the core resolves it live from GitHub through gh (an Owner's
 // membership, `maintain` or `write` on the root repository, or `read` on it
@@ -85,6 +92,10 @@ export function createContentRoutes(
      * remembered decision, which its catalog and module lifecycle share;
      * by default decided at each read through `host`. */
     personalspace?: PersonalspaceHolderRead | undefined;
+    /** Why an installation may not start now, or null (root decision 0201
+     * point 3: `ai-missing`); asked before every start. Trusted
+     * composition, never HTTP input. */
+    refuseInstall?: (() => Promise<string | null>) | undefined;
   }>,
 ) {
   let host: ContentHost | undefined;
@@ -129,6 +140,17 @@ export function createContentRoutes(
           !githubLoginPattern.test(login)
         )
           return response({ error: "invalid-request" }, 400);
+        // Only the Organization of the stop it is asked for; anything else
+        // gets the same "no" without a question to GitHub.
+        const last = jobs.latest();
+        const failure = last?.state === "failed" ? last.failure : undefined;
+        if (
+          failure === undefined ||
+          failure.item.kind !== "organization" ||
+          failure.item.login.toLowerCase() !== login.toLowerCase() ||
+          !unpreparedCodes.includes(failure.code)
+        )
+          return response({ kind: "root-access", write: false });
         // Two GitHub reads: the membership and the conventional root.
         extend(30);
         const github = resolved().github;
@@ -163,6 +185,9 @@ export function createContentRoutes(
         }
         const parsed = parseInstallBody(body);
         if (parsed === null) return response({ error: "invalid-items" }, 400);
+        const refused = (await input.refuseInstall?.()) ?? null;
+        if (refused !== null)
+          return response({ error: "not-allowed", reason: refused }, 403);
         const started = await jobs.start(parsed);
         if (started.kind === "started")
           return response({ job: started.job }, 202);
