@@ -26,7 +26,7 @@ export const unpreparedCodes: readonly string[] = Object.freeze([
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
-// What Settings → Tento Environment says about the content of this
+// What Settings → Toto Prostředí says about the content of this
 // Environment (the wireframe's Prepare.tsx, prototypes-lazurio 45c92830):
 // what lives here, the steps of its preparation in plain words while it
 // runs, and when a step stops one plain sentence, the technical detail
@@ -240,7 +240,7 @@ export function contentFact(
     : { state: "missing", item: first };
 }
 
-/** One row of "Obsah Environmentu". */
+/** One row of "Obsah Prostředí". */
 export type ContentRow = Readonly<{
   item: ContentItem;
   name: string;
@@ -270,7 +270,7 @@ export type ContentView = Readonly<{
   resolve: boolean;
 }>;
 
-/** "Obsah Environmentu": a row per item and the one action. `github` says
+/** "Obsah Prostředí": a row per item and the one action. `github` says
  * whether GitHub is connected here (`unknown` does not block); `blockedBy`,
  * where given, what must come first (`contentBlockedBy` in first-run.ts, root
  * decision 0201 point 3), and replaces `github`: the action, a download or

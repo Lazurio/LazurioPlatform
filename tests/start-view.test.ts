@@ -179,7 +179,7 @@ test("Připojit AI: ChatGPT or Claude, the sentence before them in the Environme
       mark: "now",
       title: "Připojit AI",
       status:
-        "Přihlášení se otevírá v prohlížeči Prostředí, který tu zatím není. Doplní ho aktualizace Prostředí.",
+        "Přihlášení se otevírá v prohlížeči Prostředí. Ten tu zatím není, doplní ho aktualizace Prostředí.",
     },
     ai: { kind: "none" },
   });
@@ -274,7 +274,7 @@ test("Připojit AI while signing in: where to finish it, the panel again, Zruši
     reopen: { url: page },
     code: {
       note: {
-        text: "Tohle není celý kód. Zkopírujte ho prosím znovu celý.",
+        text: "Toto není celý kód. Zkopírujte ho prosím znovu celý.",
         tone: "warn",
       },
     },

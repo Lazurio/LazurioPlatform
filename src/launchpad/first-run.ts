@@ -673,7 +673,7 @@ export const startParameter = "lazurio-start";
 
 /** Where a start request leads: Začínáme, where the sign-in and the
  * installation are steps (0201). A link of an older shell to Nástroje or
- * Tento Environment lands there too. */
+ * Toto Prostředí lands there too. */
 export const startSection: Readonly<Record<StartRequest, SettingsSection>> = {
   "sign-in-gh": "start",
   "install-content": "start",
