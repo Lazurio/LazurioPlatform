@@ -1,6 +1,8 @@
+import type { AiProvider } from "../tools/ai";
 import type { ComposioFact } from "./first-run";
 import type { MessageKey } from "./messages";
 import {
+  type AiAction,
   type OptionalRow,
   optionalRows,
   type StartFacts,
@@ -15,9 +17,11 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // start-view.ts: the three basics as numbered steps checked from live facts,
 // the content's own rows (content-panel.ts) inside the third, then "Hesla pro
 // agenty" with the Environment's vault, "Volitelné" and "Prohlídka
-// aplikace". Every value is drawn with textContent. The AI step shows its
-// state only: its sign-in (ChatGPT, Claude) is task 742 of DEV-6665 and
-// takes its place in the step's actions.
+// aplikace". Every value is drawn with textContent. The AI step signs
+// ChatGPT and Claude in through their CLIs (F19's addendum of 2026-10-15):
+// its buttons, the sentence before them, "Otevřít přihlášení", "Zrušit",
+// "Zkusit znovu", "Přihlásit jiný účet" and the field for the code of
+// Claude's code page; the sign-in itself is ai-sign-in.ts.
 
 export type StartVaultRow = Readonly<{
   line: string;
@@ -38,6 +42,11 @@ export function createStartPanel(
     toured: () => boolean | null;
     signInGithub: () => void;
     signInComposio: () => void;
+    /** The AI step's sign-in (ai-sign-in.ts). */
+    signInAi: (tool: AiProvider) => void;
+    cancelAi: () => void;
+    reopenAi: () => void;
+    sendAiCode: (code: string) => void;
     restartTour: () => void;
     navigate: (path: string) => void;
   }>,
@@ -84,6 +93,8 @@ export function createStartPanel(
   // A focus asked for on the AI step ("Připojit AI" from a stopped
   // preparation, a line or a hand-over without AI), taken once it is drawn.
   let focusAi = false;
+  // "Přihlásit jiný účet" opened the choice on a connected step.
+  let choosing = false;
   // What was drawn last: the page asks again on every change of a fact (each
   // second while an installation runs), and the steps are drawn again only
   // when they say something else, so a focused button keeps its focus.
@@ -94,6 +105,7 @@ export function createStartPanel(
     index: number,
     copy: Copy,
     actions: HTMLElement[],
+    busy = false,
   ): HTMLLIElement {
     const node = element("li", "start-step");
     node.dataset.mark = step.mark;
@@ -111,8 +123,19 @@ export function createStartPanel(
     if (step.mark === "done")
       title.append(element("span", "sr-only", ` ${copy.startDoneMark}`));
     text.append(title);
-    if (step.status !== null)
-      text.append(element("p", "start-status", step.status));
+    if (step.status !== null) {
+      const status = element("p", "start-status");
+      // A sign-in under way: its line with the waiting mark.
+      if (busy) {
+        const spinner = element("span", "spinner");
+        spinner.setAttribute("aria-hidden", "true");
+        status.append(spinner);
+      }
+      status.append(step.status);
+      text.append(status);
+    }
+    if (step.warning !== undefined)
+      text.append(element("p", "start-warning", step.warning));
     head.append(text);
     if (actions.length > 0) {
       const box = element("div", "start-actions");
@@ -122,6 +145,129 @@ export function createStartPanel(
     main.append(head);
     node.append(mark, main);
     return node;
+  }
+
+  const button = (
+    label: string,
+    action: () => void,
+    primary = false,
+  ): HTMLButtonElement => {
+    const node = element("button", primary ? "primary" : "", label);
+    node.type = "button";
+    node.addEventListener("click", action);
+    return node;
+  };
+
+  /** The AI step's buttons, and what its body holds: the choice of ChatGPT
+   * or Claude with the sentence before it, or the code's field. */
+  function aiParts(
+    action: AiAction,
+    copy: Copy,
+  ): Readonly<{ actions: HTMLElement[]; body: HTMLElement[] }> {
+    switch (action.kind) {
+      case "none":
+        return { actions: [], body: [] };
+      case "connected":
+        return {
+          actions: [
+            button(copy.startAiOtherAccount, () => {
+              choosing = true;
+              render();
+            }),
+          ],
+          body: [],
+        };
+      case "retry":
+        return {
+          actions: [
+            button(
+              copy.startAiRetry,
+              () => options.signInAi(action.tool),
+              true,
+            ),
+          ],
+          body: [],
+        };
+      case "choose": {
+        const choices = element("div", "start-choices");
+        choices.append(
+          button(
+            copy.startAiSignInChatgpt,
+            () => {
+              choosing = false;
+              options.signInAi("codex");
+            },
+            true,
+          ),
+          button(copy.startAiSignInClaude, () => {
+            choosing = false;
+            options.signInAi("claude");
+          }),
+        );
+        if (action.cancel)
+          choices.append(
+            button(copy.startAiCancel, () => {
+              choosing = false;
+              render();
+            }),
+          );
+        return {
+          actions: [],
+          body: [
+            ...(action.before === null
+              ? []
+              : [element("p", "start-note", action.before)]),
+            choices,
+          ],
+        };
+      }
+      case "signing-in": {
+        const actions: HTMLElement[] = [];
+        if (action.reopen !== null && "panel" in action.reopen)
+          actions.push(button(copy.startAiOpen, () => options.reopenAi()));
+        else if (action.reopen !== null) {
+          // The page itself, in the computer's own browser.
+          const link = element("a", "button", copy.startAiOpen);
+          link.href = action.reopen.url;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          actions.push(link);
+        }
+        actions.push(button(copy.startAiCancel, () => options.cancelAi()));
+        if (action.code === null) return { actions, body: [] };
+        // Claude's code page: one field, never a terminal.
+        const form = element("form", "start-code");
+        const label = element(
+          "label",
+          "start-code-label",
+          copy.startAiCodeHint,
+        );
+        const input = element("input");
+        input.type = "text";
+        input.name = "code";
+        input.autocomplete = "off";
+        input.spellcheck = false;
+        input.setAttribute("aria-label", copy.startAiCodeLabel);
+        input.placeholder = copy.startAiCodeLabel;
+        label.htmlFor = input.id = "start-ai-code";
+        const send = element("button", "", copy.startAiCodeSend);
+        send.type = "submit";
+        const row = element("div", "start-code-row");
+        row.append(input, send);
+        form.append(label, row);
+        if (action.code.note !== null) {
+          const note = element("p", "start-code-note", action.code.note.text);
+          note.dataset.tone = action.code.note.tone;
+          note.setAttribute("role", "status");
+          form.append(note);
+        }
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          if (input.value.trim() !== "") options.sendAiCode(input.value);
+        });
+        return { actions, body: [form] };
+      }
+    }
   }
 
   function optionalNode(row: OptionalRow): HTMLElement {
@@ -159,7 +305,10 @@ export function createStartPanel(
   function render() {
     const copy = options.copy();
     const facts = options.facts();
-    const view = facts === null ? null : startView(facts, copy);
+    const view =
+      facts === null
+        ? null
+        : startView({ ...facts, aiChoosing: choosing }, copy);
     // A Team or an Automated Environment: its Organization prepares it.
     notHere.hidden = facts === null || view !== null;
     for (const group of groups) group.hidden = view === null;
@@ -183,8 +332,18 @@ export function createStartPanel(
     drawn = now;
     intro.textContent = view.intro;
 
+    // A focus inside the AI step stays there when it is drawn again.
+    const aiFocused =
+      document.activeElement instanceof HTMLElement &&
+      document.activeElement.closest('[data-step="ai"]') !== null;
     const nodes = view.steps.map((step, index) => {
       const actions: HTMLElement[] = [];
+      let body: HTMLElement[] = [];
+      if (step.basic === "ai") {
+        const parts = aiParts(view.ai, copy);
+        actions.push(...parts.actions);
+        body = parts.body;
+      }
       if (step.basic === "github" && view.github !== null) {
         const connect = element(
           "button",
@@ -197,13 +356,29 @@ export function createStartPanel(
         connect.addEventListener("click", () => options.signInGithub());
         actions.push(connect);
       }
-      const node = stepNode(step, index, copy, actions);
+      const node = stepNode(
+        step,
+        index,
+        copy,
+        actions,
+        step.basic === "ai" &&
+          view.ai.kind === "signing-in" &&
+          step.mark !== "failed",
+      );
+      if (body.length > 0) node.querySelector(".start-main")?.append(...body);
       // The content's own rows: the step's body.
       if (step.basic === "content")
         node.querySelector(".start-main")?.append(content);
       return node;
     });
     steps.replaceChildren(...nodes);
+    if (aiFocused && !focusAi) {
+      const ai = steps.querySelector<HTMLElement>('[data-step="ai"]');
+      const target =
+        ai?.querySelector<HTMLElement>("input, button, a.button") ?? ai;
+      if (target === ai) ai?.setAttribute("tabindex", "-1");
+      target?.focus({ preventScroll: true });
+    }
 
     vaultGroup.hidden = vault === null;
     vaultState.textContent = vault?.line ?? "";
