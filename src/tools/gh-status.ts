@@ -1,4 +1,4 @@
-import { activatableTools } from "./catalog";
+import { findTool } from "./catalog";
 import { ghTokenScopes } from "./ssh-key";
 import {
   readSignIn,
@@ -100,8 +100,7 @@ export async function ghStatus(
   timeoutMs: number,
 ): Promise<GhStatus> {
   const unknown: GhStatus = { signIn: { state: "unknown" }, scopes: undefined };
-  const probe = activatableTools().find((entry) => entry.name === "gh")
-    ?.activation.signInProbe;
+  const probe = findTool("gh")?.signInProbe;
   if (probe === undefined) return unknown;
   try {
     const json = await run([gh, ...ghJsonStatusArgs], timeoutMs);
