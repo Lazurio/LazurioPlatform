@@ -20,7 +20,12 @@ import { join } from "node:path";
 // with 1; `codex.unconfirmed` ends 0 without storing a sign-in;
 // `codex.page`/`claude.page` replace the page's origin; `claude.no-browser`
 // never runs `$BROWSER` (a CLI that ignores it); `codex.provided` makes
-// `codex app-server` answer that the configured provider needs no sign-in.
+// `codex app-server` answer that the configured provider needs no sign-in,
+// which otherwise answers the stored ChatGPT account (`account/read`). For a
+// walkthrough in a browser: `codex.auto` and `claude.auto` return from the
+// page by themselves after a few seconds (no person signs in to a fake), and
+// `claude.show-code` writes the code its code page would show to
+// `$HOME/claude.code`.
 // Every call appends its arguments and `BROWSER` to `$HOME/<cli>.calls`, its
 // pid to `$HOME/<cli>.pid`. Nothing here reaches a vendor or the network.
 
@@ -72,7 +77,10 @@ if (args[0] === "app-server") {
   lines.on("line", (line) => {
     const message = JSON.parse(line);
     if (message.method === "account/read")
-      console.log(JSON.stringify({ id: message.id, result: { account: null, requiresOpenaiAuth: !flag("codex.provided") } }));
+      console.log(JSON.stringify({ id: message.id, result: {
+        account: existsSync(authFile) ? { type: "chatgpt", email: ${JSON.stringify(fakeAi.email)}, planType: "plus" } : null,
+        requiresOpenaiAuth: !flag("codex.provided"),
+      } }));
   });
   lines.on("close", () => process.exit(0));
 } else if (args.join(" ") === "login") {
@@ -94,6 +102,8 @@ if (args[0] === "app-server") {
     const [command, ...rest] = process.env.BROWSER.split(/\\s+/);
     spawn(command, [...rest, page], { stdio: "ignore", detached: true }).unref();
   }
+  if (flag("codex.auto"))
+    setTimeout(() => fetch("http://127.0.0.1:" + port + "/auth/callback?code=auto&state=" + state), 4000);
   console.error("Starting local login server on http://localhost:" + port + ".\\nIf your browser did not open, navigate to this URL to authenticate:\\n\\n" + page + "\\n\\nOn a remote or headless machine? Use \`codex login --device-auth\` instead.");
 } else {
   console.error("unexpected arguments: " + args.join(" "));
@@ -136,6 +146,10 @@ if (args.join(" ") === "auth login") {
     process.stderr.write("Login failed: Request failed with status code 400\\n");
     process.exit(1);
   });
+  if (flag("claude.auto"))
+    setTimeout(() => fetch("http://127.0.0.1:" + port + "/callback?code=auto&state=" + state), 4000);
+  if (flag("claude.show-code"))
+    writeFileSync(home + "/claude.code", ${JSON.stringify(fakeAi.claudeCode)} + "#" + state);
   process.stdout.write("Opening browser to sign in\\u2026\\n");
   process.stdout.write("If the browser didn't open, visit: " + manual + "\\n");
   process.stdout.write("Paste code here if prompted > ");
