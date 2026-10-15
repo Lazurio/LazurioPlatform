@@ -1009,7 +1009,7 @@ posixTest(
     expect(await access("Alpha")).toEqual({ body: no, asked: [] });
     await closing?.();
     closing = undefined;
-    const stopped = await unprepared(folder, stub);
+    const stopped = await unprepared(await presetFolder(world, "local"), stub);
     const ask = async (org: string) => {
       const before = stub.calls.length;
       const answer = await stopped.get(`/api/content/root-access?org=${org}`);
@@ -1039,7 +1039,6 @@ posixTest(
   "root access: who prepares the stopped Organization's root, as GitHub answers now; a stop for another reason asks nothing",
   async () => {
     world = await createWorld();
-    const folder = await presetFolder(world, "local");
     const member = {
       kind: "member",
       state: "active",
@@ -1068,9 +1067,11 @@ posixTest(
       ],
       ["a member, root not visible", { membership: member }, false],
     ];
+    // A Folder of its own for each: a Launchpad that just installed may still
+    // read its Folder in the background as it closes.
     for (const [name, options, write] of cases) {
       const stub = stubGitHub(world, options);
-      const app = await unprepared(folder, stub);
+      const app = await unprepared(await presetFolder(world, "local"), stub);
       const answer = await app.get("/api/content/root-access?org=Alpha");
       expect([name, answer.status, await answer.json()]).toEqual([
         name,
@@ -1082,7 +1083,10 @@ posixTest(
     }
     // A stop that is not about the root (gh signed out): no, nothing asked.
     const signedOut = stubGitHub(world, { viewer: { kind: "signed-out" } });
-    const app = await launchpad(folder, contentHost(world, signedOut.github));
+    const app = await launchpad(
+      await presetFolder(world, "local"),
+      contentHost(world, signedOut.github),
+    );
     const started = await app.post("/api/content/install", {
       items: [{ kind: "organization", login: "Alpha" }],
     });
@@ -1138,7 +1142,7 @@ posixTest(
     closing = undefined;
     // An AI that could not be checked does not hold the content back.
     const unknown = await launchpad(
-      folder,
+      await presetFolder(world, "local"),
       contentHost(world, stub.github),
       aiAnswer("unknown"),
     );
