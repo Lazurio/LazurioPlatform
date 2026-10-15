@@ -13,7 +13,7 @@ import { shellMessages } from "../src/shell/messages";
 import { accountSourceOf } from "../src/shell/state";
 import {
   columnHead,
-  columnSetupLine,
+  columnSetupPrompt,
   environmentGlyph,
   environmentIdentity,
   environmentName,
@@ -570,9 +570,9 @@ test("nothing is reported or remembered from a page that is no Environment's", a
     space: "example",
     environment: "vm-01.example",
   });
-  // The switch and the setup line have nothing to show there.
+  // The switch and the setup prompt have nothing to show there.
   expect(switchTabs(shell, cs, "apps")).toEqual([]);
-  expect(columnSetupLine(shell, cs, "chat")).toBeNull();
+  expect(columnSetupPrompt(shell, cs, "chat")).toBeNull();
 });
 
 // Who provides the account.
@@ -742,7 +742,7 @@ test("without the account relay (404) or with a refusal (401) nothing is written
 
 // Environment pages are unchanged.
 
-test("on an Environment's page the column head is the picker, the gear, the switch and the setup line as before", () => {
+test("on an Environment's page the column head is the picker, the gear, the switch and the setup prompt as before", () => {
   const work = shellDocument({
     preset: "hosted-organization-personal",
     machine: organizationWithEntry(20000, "vm-01.example.lazurio.io"),
@@ -814,15 +814,15 @@ test("on an Environment's page the column head is the picker, the gear, the swit
               current: active === "settings",
             },
             tabs: switchTabs(shell, copy, app),
-            setup: columnSetupLine(shell, copy, app),
+            setup: columnSetupPrompt(shell, copy, app),
           });
         }
   }
-  // The setup line still shows in Chat.
+  // The setup prompt shows in Chat (and in Apps and Automate).
   expect(
     columnHead(work, cs, { space: null, active: "chat", settings: null })?.setup
       ?.text,
-  ).toBe(cs.setupGithub);
+  ).toBe("Dokončit nastavení (0 ze 3)");
   // And the switch keeps its three tabs.
   expect(
     columnHead(workstation, en, {

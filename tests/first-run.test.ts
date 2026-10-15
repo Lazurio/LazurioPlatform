@@ -3,13 +3,18 @@ import type { ContentItem } from "../src/launchpad/content-client";
 import { type ContentFact, contentFact } from "../src/launchpad/content-view";
 import {
   appsSetupLine,
+  basicsDone,
   composioFact,
+  finishedTourProgress,
   firstProgress,
   freshTourProgress,
   githubFact,
+  nextBasic,
   parseTourProgress,
   readFragment,
+  resolveOf,
   signsInAsPerson,
+  startSection,
   type TourFacts,
   type TourProgress,
   tourAdvance,
@@ -20,10 +25,11 @@ import {
 } from "../src/launchpad/first-run";
 import { messages } from "../src/launchpad/messages";
 
-// The first run of an Environment (root decision 0188), ported from the
-// wireframe's rules (prototypes-lazurio 45c92830, `setup.test.ts`) onto the
-// Launchpad's facts: the preset, gh's sign-in as Settings → Nástroje reads
-// it, Composio, and the content as the content routes answer.
+// The first run of an Environment: root decision 0188 as reshaped by 0201
+// (points 1-3 and 8), ported from the wireframe's rules (prototypes-lazurio
+// 1eefc3d, `setup.test.ts`) onto the Launchpad's facts: the preset, the AI
+// as `GET /api/ai` reads it, gh's sign-in as Settings → Nástroje reads it,
+// and the content as the content routes answer.
 
 const cs = messages("cs");
 const en = messages("en");
@@ -44,10 +50,23 @@ const missing = (item: ContentItem): ContentFact => ({
   state: "missing",
   item,
 });
-const failed = (item: ContentItem): ContentFact => ({
+const failed = (item: ContentItem, code = "clone-failed"): ContentFact => ({
   state: "failed",
   item,
-  job: { id: "job-1", state: "failed", steps: [] },
+  job: {
+    id: "job-1",
+    state: "failed",
+    steps: [],
+    failure: {
+      item:
+        item.kind === "organization"
+          ? { kind: "organization", login: item.login }
+          : { kind: "personalspace", login: item.login },
+      key: "access",
+      code,
+      detail: "",
+    },
+  },
 });
 const ready: ContentFact = { state: "ready" };
 
@@ -56,19 +75,19 @@ const fresh = (
   overrides: Partial<TourFacts> = {},
 ): TourFacts => ({
   preset,
+  ai: "missing",
   github: "missing",
-  composio: "missing",
   content: missing(preset === "hosted-personal" ? personalspace : organization),
   ...overrides,
 });
 const P = freshTourProgress;
 
-test("only Environments that sign in to GitHub as their person get the tour", () => {
+test("only Environments that sign in to GitHub as their person get the first run", () => {
   expect(signsInAsPerson("hosted-personal")).toBe(true);
   expect(signsInAsPerson("hosted-organization-personal")).toBe(true);
   expect(signsInAsPerson("local")).toBe(true);
   // A Team's Environment acts through the Organization's app, a Steward's
-  // (Automated) one as its persona.
+  // (Automated) one as its persona: their basics are the Organization's.
   for (const preset of [
     "hosted-organization-team",
     "hosted-organization-steward",
@@ -76,196 +95,204 @@ test("only Environments that sign in to GitHub as their person get the tour", ()
     null,
   ]) {
     expect(signsInAsPerson(preset)).toBe(false);
+    expect(nextBasic(fresh(preset as string))).toBeNull();
     expect(tourStep(fresh(preset as string), P, null)).toBeNull();
     expect(appsSetupLine(fresh(preset as string), cs)).toBeNull();
   }
 });
 
-test("without GitHub the tour leads through Settings: gear, Tools, gh", () => {
+test("the basics in the order AI → GitHub → content (0201 point 3)", () => {
+  const facts = fresh("hosted-organization-personal");
+  expect(nextBasic(facts)).toBe("ai");
+  expect(basicsDone(facts)).toBe(0);
+  // GitHub comes only after AI, even when the content is already missing.
+  expect(nextBasic({ ...facts, ai: "connected" })).toBe("github");
+  expect(basicsDone({ ...facts, ai: "connected" })).toBe(1);
+  // The Organization's AI pool counts as done without the person.
+  expect(nextBasic({ ...facts, ai: "organization" })).toBe("github");
+  expect(nextBasic({ ...facts, ai: "organization", github: "connected" })).toBe(
+    "content",
+  );
+  expect(
+    nextBasic({
+      ...facts,
+      ai: "connected",
+      github: "connected",
+      content: failed(organization),
+    }),
+  ).toBe("content");
+  const usable = { ...facts, ai: "connected", github: "connected" } as const;
+  expect(nextBasic({ ...usable, content: ready })).toBeNull();
+  expect(basicsDone({ ...usable, content: ready })).toBe(3);
+  // Nothing to prepare here is done too.
+  expect(nextBasic({ ...usable, content: { state: "none" } })).toBeNull();
+});
+
+test("a basic not known yet waits; an AI that could not be read holds nothing", () => {
+  expect(nextBasic(fresh("local", { ai: "loading" }))).toBeUndefined();
+  expect(
+    nextBasic(fresh("local", { ai: "connected", github: "unknown" })),
+  ).toBeUndefined();
+  expect(
+    nextBasic(
+      fresh("local", {
+        ai: "connected",
+        github: "connected",
+        content: { state: "loading" },
+      }),
+    ),
+  ).toBeUndefined();
+  // Unknown is never claimed missing: the next known basic leads.
+  expect(nextBasic(fresh("local", { ai: "unknown" }))).toBe("github");
+  expect(basicsDone(fresh("local", { ai: "unknown" }))).toBe(0);
+});
+
+test("the tour leads gear → Začínáme → the next missing basic there", () => {
   const facts = fresh("hosted-personal");
   expect(tourStep(facts, P, null)).toBe("gear");
-  expect(tourStep(facts, P, "general")).toBe("settings-tools");
-  expect(tourStep(facts, P, "machine")).toBe("settings-tools");
-  expect(tourStep(facts, P, "tools")).toBe("github");
+  expect(tourStep(facts, P, "general")).toBe("settings-start");
+  expect(tourStep(facts, P, "tools")).toBe("settings-start");
+  expect(tourStep(facts, P, "start")).toBe("ai");
+  const withAi = { ...facts, ai: "connected" } as const;
+  expect(tourStep(withAi, P, null)).toBe("gear");
+  expect(tourStep(withAi, P, "start")).toBe("github");
+  const withGithub = { ...withAi, github: "connected" } as const;
+  expect(tourStep(withGithub, P, "machine")).toBe("settings-start");
+  expect(tourStep(withGithub, P, "start")).toBe("prepare");
+  // A stop points there too: Začínáme says what next.
+  const stopped = { ...withGithub, content: failed(personalspace) };
+  expect(tourStep(stopped, P, null)).toBe("gear");
+  expect(tourStep(stopped, P, "start")).toBe("prepare");
+  // The browser's progress does not matter while a basic is missing: a
+  // finished introduction, or none stored yet.
+  expect(tourStep(facts, finishedTourProgress, null)).toBe("gear");
+  expect(tourStep(facts, null, null)).toBe("gear");
 });
 
-test("with GitHub the content comes next, in Settings → Tento Environment", () => {
-  const facts = fresh("hosted-organization-personal", { github: "connected" });
-  // Composio is offered in Tools and never blocks the content.
-  expect(tourStep(facts, P, "tools")).toBe("composio");
-  expect(tourStep(facts, P, null)).toBe("gear-prepare");
-  expect(tourStep(facts, P, "general")).toBe("settings-environment");
-  expect(tourStep(facts, P, "machine")).toBe("prepare");
-  // Put off ("Teď ne"), Composio is not offered again.
-  const skipped = tourAdvance(P, "composio", "not-now");
-  expect(skipped.composio).toBe("skipped");
-  expect(tourStep(facts, skipped, "tools")).toBe("settings-environment");
-  // Connected or not offered here, neither.
-  expect(tourStep({ ...facts, composio: "connected" }, P, "tools")).toBe(
-    "settings-environment",
-  );
-  expect(tourStep({ ...facts, composio: "none" }, P, "tools")).toBe(
-    "settings-environment",
-  );
-  // A failed preparation still points there; outside Settings the line and
-  // Chat have it.
-  const stopped = { ...facts, content: failed(organization) };
-  expect(tourStep(stopped, P, "machine")).toBe("prepare");
-  expect(tourStep(stopped, P, null)).toBeNull();
-});
-
-test("once prepared, the introduction runs: Apps, Chat, Automate, the gear", () => {
+test("once the basics are there, the introduction runs: Apps, Chat, Automate, the gear", () => {
   const facts = fresh("hosted-organization-personal", {
+    ai: "organization",
     github: "connected",
-    composio: "connected",
     content: ready,
   });
   expect(tourStep(facts, P, null)).toBe("apps");
   expect(
-    tourIntro.map((_, intro) => tourStep(facts, { ...P, intro }, "tools")),
+    tourIntro.map((_, intro) => tourStep(facts, { intro }, "tools")),
   ).toEqual(["apps", "chat", "automate", "settings"]);
-  // "Další" moves on; "Hotovo" on the last stop ends the tour.
+  // "Další" moves on; "Hotovo" on the last stop ends it.
   let progress: TourProgress = P;
-  for (const step of tourIntro) progress = tourAdvance(progress, step, "next");
-  expect(progress).toEqual({ composio: null, intro: 4, done: true });
+  for (const step of tourIntro) progress = tourAdvance(progress, step);
+  expect(progress).toEqual(finishedTourProgress);
   expect(tourStep(facts, progress, null)).toBeNull();
-  // Nothing to prepare here (no content routes) is like prepared.
-  expect(tourStep({ ...facts, content: { state: "none" } }, P, null)).toBe(
-    "apps",
-  );
+  // A stop of the basics never moves the introduction.
+  expect(tourAdvance(P, "gear")).toEqual(P);
+  // Not known yet: nothing.
+  expect(tourStep(facts, null, null)).toBeNull();
 });
 
-test("put away early: no tour, though GitHub is still missing; the line stays", () => {
-  const facts = fresh("hosted-personal");
-  const quit = tourAdvance(P, "gear", "quit");
-  expect(quit.done).toBe(true);
-  expect(tourStep(facts, quit, null)).toBeNull();
-  expect(appsSetupLine(facts, cs)?.text).toBe(
-    "GitHub není připojený. Bez něj tu nic nefunguje.",
-  );
-});
-
-test("the tour waits while a fact it needs is not known", () => {
-  expect(
-    tourStep(fresh("hosted-personal", { github: "unknown" }), P, null),
-  ).toBeNull();
-  expect(
-    tourStep(
-      fresh("hosted-personal", {
-        github: "connected",
-        content: { state: "loading" },
-      }),
-      P,
-      "machine",
-    ),
-  ).toBeNull();
-  expect(tourStep(fresh("hosted-personal"), null, null)).toBeNull();
-});
-
-test("an Environment usable at first sight starts with the tour done", () => {
-  expect(
-    firstProgress(fresh("local", { github: "connected", content: ready })),
-  ).toEqual({ ...P, done: true });
-  expect(
-    firstProgress(
-      fresh("local", { github: "connected", content: { state: "none" } }),
-    ),
-  ).toEqual({ ...P, done: true });
-  expect(firstProgress(fresh("local"))).toEqual(P);
-  expect(firstProgress(fresh("local", { github: "connected" }))).toEqual(P);
-  // Not known yet: nothing is decided, nothing stored.
-  expect(firstProgress(fresh("local", { github: "unknown" }))).toBeNull();
-  expect(
-    firstProgress(
-      fresh("local", { github: "connected", content: { state: "loading" } }),
-    ),
-  ).toBeNull();
-  expect(firstProgress(fresh("hosted-organization-team"))).toBeNull();
-});
-
-test("a content read that fails first never finishes the tour; after it recovers the tour starts", () => {
-  // The Steward's review of #180: GitHub connected, GET /api/content failed
-  // once on the first visit.
-  const unreadable = contentFact(null, null);
-  expect(unreadable).toEqual({ state: "unknown" });
-  const failedRead = fresh("hosted-personal", {
-    github: "connected",
-    content: unreadable,
-  });
-  // Nothing is decided or stored, and the tour waits.
-  expect(firstProgress(failedRead)).toBeNull();
-  expect(tourStep(failedRead, P, null)).toBeNull();
-  expect(tourStep(failedRead, P, "machine")).toBeNull();
-  // The route recovers and reports the Personalspace absent: a fresh tour
-  // leads to it.
-  const recovered = fresh("hosted-personal", {
-    github: "connected",
-    content: contentFact(
-      {
-        allowed: true,
-        items: [{ ...personalspace, state: "absent" }],
-      },
-      null,
-    ),
-  });
-  expect(recovered.content.state).toBe("missing");
-  expect(firstProgress(recovered)).toEqual(P);
-  expect(tourStep(recovered, firstProgress(recovered), null)).toBe(
-    "gear-prepare",
-  );
-  // Without GitHub the tour starts whatever the content read says.
-  const signedOut = fresh("hosted-personal", { content: unreadable });
-  expect(firstProgress(signedOut)).toEqual(P);
-  expect(tourStep(signedOut, P, null)).toBe("gear");
-  // The line says nothing it does not know.
-  expect(appsSetupLine(failedRead, cs)).toBeNull();
-});
-
-test("stored progress keeps well-formed entries only, per Environment", () => {
+test("the browser keeps only where the introduction points (0201 point 2)", () => {
   expect(tourStorageKey("vm-01.example")).toBe("lazurio.tour:vm-01.example");
+  expect(parseTourProgress(JSON.stringify({ intro: 2 }))).toEqual({
+    intro: 2,
+  });
+  // The first run of 0188 stored more: its place stays, done or put away
+  // ("Ukončit") counts as seen, and nothing about the basics survives.
   expect(
     parseTourProgress(
       JSON.stringify({ composio: "skipped", intro: 2, done: false }),
     ),
-  ).toEqual({ composio: "skipped", intro: 2, done: false });
+  ).toEqual({ intro: 2 });
+  expect(
+    parseTourProgress(JSON.stringify({ composio: null, intro: 0, done: true })),
+  ).toEqual(finishedTourProgress);
   for (const raw of [
     null,
     "",
     "nonsense",
     "[]",
-    JSON.stringify({ composio: "maybe", intro: 0, done: false }),
-    JSON.stringify({ composio: null, intro: 9, done: false }),
-    JSON.stringify({ composio: null, intro: 1.5, done: false }),
-    JSON.stringify({ composio: null, intro: 0 }),
+    JSON.stringify({ intro: 9 }),
+    JSON.stringify({ intro: 1.5 }),
+    JSON.stringify({ intro: -1 }),
+    JSON.stringify({ done: true }),
+    JSON.stringify({ intro: 0, done: "yes" }),
   ])
     expect([raw, parseTourProgress(raw)]).toEqual([raw, null]);
+  // An old "Ukončit" before GitHub no longer hides the onboarding.
+  const quit = parseTourProgress(
+    JSON.stringify({ composio: null, intro: 0, done: true }),
+  );
+  expect(tourStep(fresh("hosted-personal"), quit, null)).toBe("gear");
 });
 
-test("each stop rings its element and says at most a dozen words", () => {
+test("an Environment with its basics at first sight needs no introduction", () => {
+  const usable = { ai: "connected", github: "connected" } as const;
+  expect(firstProgress(fresh("local", { ...usable, content: ready }))).toEqual(
+    finishedTourProgress,
+  );
+  expect(
+    firstProgress(fresh("local", { ...usable, content: { state: "none" } })),
+  ).toEqual(finishedTourProgress);
+  expect(firstProgress(fresh("local"))).toEqual(P);
+  expect(firstProgress(fresh("local", usable))).toEqual(P);
+  // Not known yet: nothing is decided, nothing stored.
+  expect(firstProgress(fresh("local", { ai: "loading" }))).toBeNull();
+  expect(
+    firstProgress(fresh("local", { ai: "connected", github: "unknown" })),
+  ).toBeNull();
+  expect(
+    firstProgress(fresh("local", { ...usable, content: { state: "loading" } })),
+  ).toBeNull();
+  expect(firstProgress(fresh("hosted-organization-team"))).toBeNull();
+});
+
+test("a content read that fails first never finishes the introduction; after it recovers the tour leads to it", () => {
+  // The Steward's review of #180, kept: GET /api/content failed once.
+  const unreadable = contentFact(null, null);
+  expect(unreadable).toEqual({ state: "unknown" });
+  const failedRead = fresh("hosted-personal", {
+    ai: "connected",
+    github: "connected",
+    content: unreadable,
+  });
+  expect(firstProgress(failedRead)).toBeNull();
+  expect(tourStep(failedRead, P, null)).toBeNull();
+  expect(tourStep(failedRead, P, "start")).toBeNull();
+  expect(appsSetupLine(failedRead, cs)).toBeNull();
+  const recovered = {
+    ...failedRead,
+    content: contentFact(
+      { allowed: true, items: [{ ...personalspace, state: "absent" }] },
+      null,
+    ),
+  };
+  expect(recovered.content.state).toBe("missing");
+  expect(firstProgress(recovered)).toEqual(P);
+  expect(tourStep(recovered, P, null)).toBe("gear");
+});
+
+test("each stop rings its element and says at most a dozen words, with Dokončím později", () => {
   const apps = { chat: true, automate: false };
   const steps = [
     "gear",
-    "settings-tools",
+    "settings-start",
+    "ai",
     "github",
-    "composio",
-    "gear-prepare",
-    "settings-environment",
     "prepare",
     "apps",
     "chat",
     "automate",
     "settings",
   ] as const;
-  const targets = steps.map(
-    (step) => tourStop(step, missing(organization), apps, cs).target,
-  );
-  expect(targets).toEqual([
+  expect(
+    steps.map(
+      (step) =>
+        tourStop(step, fresh("hosted-organization-personal"), apps, cs).target,
+    ),
+  ).toEqual([
     "gear",
-    "settings-tools",
-    "tool-gh",
-    "tool-composio",
-    "gear",
-    "settings-machine",
+    "settings-start",
+    "start-ai",
+    "start-github",
     "prepare",
     "tab-apps",
     "tab-chat",
@@ -273,93 +300,163 @@ test("each stop rings its element and says at most a dozen words", () => {
     "gear",
   ]);
   for (const copy of [cs, en])
-    for (const content of [
-      missing(organization),
-      missing(personalspace),
-      failed(personalspace),
+    for (const facts of [
+      fresh("hosted-organization-personal"),
+      fresh("hosted-organization-personal", { ai: "connected" }),
+      fresh("hosted-personal", { ai: "connected", github: "connected" }),
+      fresh("local", {
+        ai: "connected",
+        github: "connected",
+        content: failed(organization),
+      }),
     ])
       for (const step of steps) {
-        const stop = tourStop(step, content, apps, copy);
+        const stop = tourStop(step, facts, apps, copy);
         const words = `${stop.title} ${stop.text ?? ""}`.trim().split(/\s+/);
         expect([step, words.length <= 12]).toEqual([step, true]);
         // No "click here": the ring shows where.
-        expect(`${stop.title} ${stop.text}`).not.toMatch(/klikni|click/i);
+        expect(`${stop.title} ${stop.text}`).not.toMatch(/klikn|click/i);
+        // Every stop can be put away for this view, but the last one, which
+        // ends the introduction.
+        expect([step, stop.later]).toEqual([step, step !== "settings"]);
       }
 });
 
 test("the stops speak the wireframe's words", () => {
   const apps = { chat: true, automate: true };
-  const stop = (step: Parameters<typeof tourStop>[0], content: ContentFact) =>
-    tourStop(step, content, apps, cs);
-  expect(stop("gear", missing(organization))).toMatchObject({
-    title: "Nejdřív připojte GitHub",
-    text: "Bez něj tu nic nefunguje.",
+  const stop = (step: Parameters<typeof tourStop>[0], facts: TourFacts) =>
+    tourStop(step, facts, apps, cs);
+  const org = fresh("hosted-organization-personal");
+  expect(stop("gear", org)).toMatchObject({
+    title: "Nejdřív připojte AI",
+    text: "Agent vám pak pomůže s dalšími kroky.",
+    next: null,
+    later: true,
   });
-  expect(stop("github", missing(organization))).toMatchObject({
+  expect(stop("gear", { ...org, ai: "organization" })).toMatchObject({
     title: "Připojte GitHub",
-    text: "Uvidíte své moduly a agenti budou pracovat za vás.",
+    text: "Zpřístupní vaše repozitáře.",
   });
-  expect(stop("composio", missing(organization))).toMatchObject({
-    title: "Připojte své aplikace",
-    text: "Pošta, kalendář, Slack. Klidně až později.",
-    notNow: true,
-  });
-  expect(stop("gear-prepare", missing(organization)).title).toBe(
-    "Ještě stáhněte Example Company",
-  );
-  expect(stop("gear-prepare", missing(personalspace))).toMatchObject({
-    title: "Ještě připravte osobní prostor",
+  const prepared = { ...org, ai: "connected", github: "connected" } as const;
+  expect(stop("gear", prepared).title).toBe("Ještě stáhněte Example Company");
+  expect(
+    stop("gear", {
+      ...prepared,
+      preset: "hosted-personal",
+      content: missing(personalspace),
+    }),
+  ).toMatchObject({
+    title: "Připravte osobní prostor",
     text: "Místo pro vaše vlastní věci.",
   });
-  expect(stop("prepare", missing(organization))).toMatchObject({
+  expect(
+    stop("gear", { ...prepared, content: failed(organization) }),
+  ).toMatchObject({
+    title: "Příprava se nepovedla",
+    text: "Podívejte se, co dál.",
+  });
+  expect(stop("settings-start", org)).toMatchObject({
+    title: "Začínáme",
+    text: "Všechny kroky na jednom místě.",
+  });
+  expect(stop("ai", org)).toMatchObject({
+    title: "Připojte AI",
+    text: "Přihlaste se svým účtem ChatGPT nebo Claude.",
+  });
+  expect(stop("github", org)).toMatchObject({
+    title: "Připojte GitHub",
+    text: "Pro přístup k vašim modulům.",
+  });
+  expect(stop("prepare", prepared)).toMatchObject({
     title: "Stáhněte Example Company",
     text: "Pak tu uvidíte její moduly.",
   });
-  expect(stop("prepare", failed(organization))).toMatchObject({
-    title: "Něco se nepovedlo",
-    text: "Zkuste to znovu, nebo to vyřeší agent v Chatu.",
-  });
-  expect(stop("settings", ready)).toMatchObject({
-    title: "Nastavení je vždycky tady",
-    text: null,
-    next: "done",
-  });
-  expect(stop("apps", ready).next).toBe("next");
   expect(
-    tourStop("automate", ready, { chat: true, automate: false }, cs).text,
-  ).toBe("Co se má dít samo. Tady zatím neběží.");
-  expect(stop("automate", ready).text).toBe(
-    "Tady nastavíte, co se má dít samo.",
-  );
+    stop("prepare", { ...prepared, content: failed(organization) }),
+  ).toMatchObject({ title: "Příprava se nepovedla", text: "Tady je, co dál." });
+  expect(stop("apps", prepared)).toMatchObject({
+    text: "Aplikace vašich modulů.",
+    next: "next",
+  });
+  expect(stop("settings", prepared)).toMatchObject({
+    title: "Nastavení",
+    text: "Začínáme tu najdete kdykoli.",
+    next: "done",
+    later: false,
+  });
+  expect(
+    tourStop("automate", prepared, { chat: true, automate: false }, cs).text,
+  ).toBe("Automatizace tu zatím neběží.");
+  expect(cs.tourLater).toBe("Dokončím později");
+  expect(en.tourLater).toBe("Finish later");
 });
 
-test("the line in Apps: GitHub first, then the content, then a stop", () => {
-  const line = (facts: TourFacts, copy = cs) => appsSetupLine(facts, copy);
+test("where a stopped preparation leads: Chat with AI, the AI step without, the Admin for an unprepared Organization", () => {
+  for (const ai of ["connected", "organization", "unknown", "loading"] as const)
+    expect(resolveOf({ ai, code: "clone-failed", rootAccess: null })).toBe(
+      "chat",
+    );
+  expect(
+    resolveOf({ ai: "missing", code: "clone-failed", rootAccess: null }),
+  ).toBe("ai");
+  // A member without write access to the root: the Admin prepares it, with
+  // or without AI, and while the answer is not known yet.
+  for (const code of ["root-not-found", "organization-unreadable"])
+    for (const rootAccess of [false, null])
+      for (const ai of ["connected", "missing"] as const)
+        expect(resolveOf({ ai, code, rootAccess })).toBe("admin");
+  // Whoever can write the root fixes it like any other stop.
+  expect(
+    resolveOf({ ai: "connected", code: "root-not-found", rootAccess: true }),
+  ).toBe("chat");
+  expect(
+    resolveOf({ ai: "missing", code: "root-not-found", rootAccess: true }),
+  ).toBe("ai");
+});
+
+test("the line in Apps: AI first, then GitHub, then the content, a run, a stop", () => {
+  const line = (facts: Parameters<typeof appsSetupLine>[0], copy = cs) =>
+    appsSetupLine(facts, copy);
   expect(line(fresh("hosted-organization-personal"))).toEqual({
     tone: "info",
-    icon: "key",
-    text: "GitHub není připojený. Bez něj tu nic nefunguje.",
-    actions: [{ action: "sign-in-gh", label: "Připojit GitHub" }],
+    icon: "sparks",
+    text: "AI není připojené.",
+    actions: [{ action: "open-start", label: "Připojit AI" }],
   });
   expect(
-    line(fresh("hosted-organization-personal", { github: "connected" })),
+    line(fresh("hosted-organization-personal", { ai: "organization" })),
   ).toEqual({
+    tone: "info",
+    icon: "key",
+    text: "GitHub není připojený.",
+    actions: [{ action: "sign-in-gh", label: "Připojit GitHub" }],
+  });
+  const prepared = { ai: "connected", github: "connected" } as const;
+  expect(line(fresh("hosted-organization-personal", prepared))).toEqual({
     tone: "info",
     icon: "download",
     text: "Example Company tu ještě není.",
     actions: [{ action: "install-content", label: "Stáhnout" }],
   });
-  expect(line(fresh("hosted-personal", { github: "connected" }))).toEqual({
+  expect(
+    line({ ...fresh("hosted-organization-personal", prepared), running: true }),
+  ).toEqual({
+    tone: "info",
+    icon: "download",
+    text: "Stahuje se Example Company.",
+    actions: [{ action: "open-start", label: "Zobrazit" }],
+  });
+  expect(line(fresh("hosted-personal", prepared))).toEqual({
     tone: "info",
     icon: "download",
     text: "Osobní prostor tu ještě není.",
     actions: [{ action: "install-content", label: "Připravit" }],
   });
-  expect(
-    line(
-      fresh("local", { github: "connected", content: failed(organization) }),
-    ),
-  ).toEqual({
+  const stopped = fresh("local", {
+    ...prepared,
+    content: failed(organization),
+  });
+  expect(line(stopped)).toEqual({
     tone: "failed",
     icon: "warning",
     text: "Příprava se zastavila.",
@@ -368,11 +465,21 @@ test("the line in Apps: GitHub first, then the content, then a stop", () => {
       { action: "install-content", label: "Zkusit znovu" },
     ],
   });
+  expect(line({ ...stopped, resolve: "ai" })?.actions).toEqual([
+    { action: "open-start", label: "Připojit AI" },
+    { action: "install-content", label: "Zkusit znovu" },
+  ]);
+  expect(line({ ...stopped, resolve: "admin" })).toEqual({
+    tone: "failed",
+    icon: "warning",
+    text: "Example Company ještě není připravená. Připravuje ji Admin.",
+    actions: [{ action: "install-content", label: "Zkusit znovu" }],
+  });
   // An Organization without a display name is named by its login.
   expect(
     line(
       fresh("local", {
-        github: "connected",
+        ...prepared,
         content: missing({
           kind: "organization",
           login: "acme",
@@ -382,14 +489,15 @@ test("the line in Apps: GitHub first, then the content, then a stop", () => {
     )?.text,
   ).toBe("acme tu ještě není.");
   expect(line(fresh("hosted-organization-personal"), en)?.text).toBe(
-    "GitHub is not connected. Nothing works here without it.",
+    "AI is not connected.",
   );
   // Nothing to say: usable, nothing known, or nothing to prepare here.
   for (const facts of [
-    fresh("local", { github: "connected", content: ready }),
-    fresh("local", { github: "connected", content: { state: "none" } }),
-    fresh("local", { github: "connected", content: { state: "loading" } }),
-    fresh("local", { github: "unknown" }),
+    fresh("local", { ...prepared, content: ready }),
+    fresh("local", { ...prepared, content: { state: "none" } }),
+    fresh("local", { ...prepared, content: { state: "loading" } }),
+    fresh("local", { ai: "connected", github: "unknown" }),
+    fresh("local", { ai: "loading" }),
   ])
     expect(line(facts)).toBeNull();
 });
@@ -451,7 +559,7 @@ test("GitHub from the Tools reading of the profile shown", () => {
   expect(composioFact(null)).toBe("none");
 });
 
-test("the first address: the token and a start request apart", () => {
+test("the first address: the token and a start request apart, both leading to Začínáme", () => {
   expect(readFragment("#abc123")).toEqual({ token: "abc123", start: null });
   expect(readFragment("#lazurio-start=sign-in-gh")).toEqual({
     token: "",
@@ -470,4 +578,10 @@ test("the first address: the token and a start request apart", () => {
     start: null,
   });
   expect(readFragment("")).toEqual({ token: "", start: null });
+  // An older shell's link to Nástroje or Tento Environment lands on
+  // Začínáme, where the sign-in and the installation are steps now.
+  expect(startSection).toEqual({
+    "sign-in-gh": "start",
+    "install-content": "start",
+  });
 });

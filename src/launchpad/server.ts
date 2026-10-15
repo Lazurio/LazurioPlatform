@@ -68,6 +68,7 @@ import { readOrganizationApplications } from "../organizations/read-applications
 import type { RecoveryResult } from "../recover/recover";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
+import { type AiProbe, createAiProbe } from "../tools/ai-probe";
 import {
   activatableTools,
   executorToolName,
@@ -106,7 +107,7 @@ import { createContentRoutes } from "./content-routes";
 import { prepareContext } from "./content-view";
 import { createExecutorRoutes, isExecutorJob } from "./executor-routes";
 import { createFilesRoutes, maxRequestBytes } from "./files-routes";
-import { signsInAsPerson } from "./first-run";
+import { shellSetup, signsInAsPerson } from "./first-run";
 import { serveHealthSocket } from "./health-socket";
 import {
   type AdmittedPerson,
@@ -162,7 +163,6 @@ import {
   createGithubProbe,
   createSetupCache,
   readContent,
-  shellSetup,
 } from "./setup-state";
 import { readShellInputs, shellDocument } from "./shell-document";
 import { createSshRoutes } from "./ssh-routes";
@@ -521,6 +521,10 @@ export async function startLaunchpad(
   // Tailscale. Trusted composition, never HTTP input; tests supply a
   // temporary home, a host key and a tailnet answer.
   sshHost: SshAccessHost = processSshAccessHost(toolsEnvironment),
+  // Where the Environment's AI is asked (root decision 0201 point 6): its
+  // operator's Codex and Claude Code. Trusted composition, never HTTP
+  // input; tests supply answers.
+  ai: AiProbe = createAiProbe(toolsEnvironment),
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -836,11 +840,12 @@ export async function startLaunchpad(
     );
     const preset = current.preferences.preset.name;
     if (!signsInAsPerson(preset)) return undefined;
-    const [signIn, read] = await Promise.all([
+    const [reading, signIn, read] = await Promise.all([
+      ai.state(),
       github.state(),
       readContent(contentState),
     ]);
-    return shellSetup({ preset, github: signIn, ...read });
+    return shellSetup({ preset, ai: reading.state, github: signIn, ...read });
   });
   // The boot document of the page (F36's addendum of 2026-10-08, boot.ts):
   // what this Launchpad knows from the Folder alone, under one short read of
@@ -1193,6 +1198,30 @@ export async function startLaunchpad(
           status: 302,
           headers: { ...headers, Location: view.view },
         });
+      }
+      if (url.pathname === "/api/ai") {
+        // Read-only and behind the same admission as every read: whether an
+        // agent can work here, as Codex and Claude Code answer (root
+        // decision 0201 point 6, tools/ai.ts), kept a minute.
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        const keys = [...url.searchParams.keys()];
+        const fresh = url.searchParams.get("fresh");
+        if (
+          keys.some((key) => key !== "fresh") ||
+          keys.length > 1 ||
+          !(fresh === null || fresh === "1")
+        )
+          return response({ error: "invalid-request" }, 400);
+        // Začínáme's "Zkontrolovat znovu" asks the CLIs now, and the shell
+        // document follows.
+        if (fresh === "1") {
+          ai.forget();
+          setup.forget();
+        }
+        server.timeout(request, 30);
+        return response({ kind: "ai", ...(await ai.state()) });
       }
       const ownerRequest = ownerRoute.exec(url.pathname);
       if (ownerRequest !== null) {

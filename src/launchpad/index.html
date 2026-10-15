@@ -20,7 +20,7 @@
     frame = "settings";
     section = trimmed.slice("/settings/".length);
     if (section === "vault/requests" || section.indexOf("vault/requests/") === 0) section = "vault";
-    if (["general", "communication", "machine", "tools", "vault", "ssh", "recovery"].indexOf(section) < 0) section = "general";
+    if (["start", "general", "communication", "machine", "tools", "vault", "ssh", "recovery"].indexOf(section) < 0) section = "general";
   }
   root.setAttribute("data-frame", frame);
   if (section) root.setAttribute("data-section", section);
@@ -99,6 +99,7 @@ html[data-frame="integrations"] [data-view]:not([data-view~="integrations"]),
 html[data-frame="marketplace"] [data-view]:not([data-view~="marketplace"]),
 html[data-frame="settings"] [data-view]:not([data-view~="settings"]),
 html:not([data-frame]) [data-view]:not([data-view~="catalog"]),
+html:not([data-section="start"]) #view-settings > [data-section="start"],
 html:not([data-section="communication"]) #view-settings > [data-section="communication"],
 html:not([data-section="general"]) #view-settings > [data-section="general"],
 html:not([data-section="machine"]) #view-settings > [data-section="machine"],
@@ -107,6 +108,7 @@ html:not([data-section="vault"]) #view-settings > [data-section="vault"],
 html:not([data-section="ssh"]) #view-settings > [data-section="ssh"],
 html:not([data-section="recovery"]) #view-settings > [data-section="recovery"],
 html:not([data-frame="files"]) [data-section-action="files"],
+html:not([data-section="start"]) [data-section-action="start"],
 html:not([data-section="general"]) [data-section-action="general"],
 html:not([data-section="tools"]) [data-section-action="tools"],
 html:not([data-section="vault"]) [data-section-action="vault"],
@@ -908,8 +910,32 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
 .tour-title { font-size: 16px; font-weight: 650; }
 .tour-text { font-size: 14px; line-height: 1.45; }
 .tour-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
-button.tour-quit { height: auto; margin-left: auto; padding: 0; border: 0; background: transparent; color: var(--muted-fg); font-size: 12px; font-weight: 400; }
-button.tour-quit:hover { background: transparent; color: var(--fg); }
+button.tour-later { height: auto; margin-left: auto; padding: 0; border: 0; background: transparent; color: var(--muted-fg); font-size: 12px; font-weight: 400; }
+button.tour-later:hover { background: transparent; color: var(--fg); }
+/* Nastavení → Začínáme (root decision 0201; the wireframe's setup.css,
+   prototypes-lazurio 1eefc3d): the basics as numbered steps in one card, a
+   step's mark green once done and red on a stop, the content's rows inside
+   the third step. */
+.start-steps { counter-reset: none; }
+.start-step { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; }
+.start-step[data-step="ai"]:focus { outline: none; }
+.start-mark { display: grid; width: 24px; height: 24px; flex: none; place-items: center; margin-top: 1px; border: 1px solid var(--lz-line); border-radius: 50%; color: var(--muted-fg); font-size: 12.5px; font-weight: var(--lz-weight-akce); }
+.start-mark .icon { width: 14px; height: 14px; }
+.start-step[data-mark="now"] .start-mark { border-color: var(--lz-ink); color: var(--lz-ink); }
+.start-step[data-mark="done"] .start-mark { border-color: transparent; background: var(--success-bg); color: var(--success-fg); }
+.start-step[data-mark="failed"] .start-mark { border-color: transparent; background: var(--destructive-bg); color: var(--destructive); }
+.start-step[data-mark="later"] .start-title { color: var(--muted-fg); }
+.start-main { display: grid; flex: 1; gap: 10px; min-width: 0; }
+.start-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 16px; }
+.start-text { display: grid; gap: 3px; min-width: 0; }
+.start-title { font-size: 15px; font-weight: var(--lz-weight-akce); }
+.start-status { color: var(--muted-fg); font-size: 13.5px; }
+.start-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+#start-content { display: grid; gap: 12px; }
+#start-content:empty, #start-content > .content-note[hidden]:only-child { display: none; }
+#start-content .content-row { padding: 0; }
+.start-vault-state[data-tone="ok"] { color: var(--success-fg); }
+.start-vault-state[data-tone="warn"] { color: var(--warning-fg); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } .spinner, .browser-panel, .browser-panel.is-leaving { animation: none; } }
 </style>
 <noscript><style>body { visibility: visible !important; animation: none !important; }</style></noscript>
@@ -953,6 +979,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <symbol id="i-laptop" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M3.2 14.2222V4C3.2 2.89543 4.09543 2 5.2 2H18.8C19.9046 2 20.8 2.89543 20.8 4V14.2222M3.2 14.2222H20.8M3.2 14.2222L1.71969 19.4556C1.35863 20.7321 2.31762 22 3.64418 22H20.3558C21.6824 22 22.6414 20.7321 22.2803 19.4556L20.8 14.2222" stroke="currentColor"/><path d="M11 19L13 19" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M7 14C5.34315 14 4 15.3431 4 17C4 18.6569 5.34315 20 7 20C7.35064 20 7.68722 19.9398 8 19.8293" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.26392 15.6046C2.9243 14.9582 2.00004 13.587 2.00004 12C2.00004 10.7883 2.53877 9.70251 3.38978 8.96898" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.42053 8.8882C3.1549 8.49109 3 8.01363 3 7.5C3 6.11929 4.11929 5 5.5 5C6.06291 5 6.58237 5.18604 7.00024 5.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.23769 5.56533C7.08524 5.24215 7 4.88103 7 4.5C7 3.11929 8.11929 2 9.5 2C10.8807 2 12 3.11929 12 4.5V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 20C8 21.1046 8.89543 22 10 22C11.1046 22 12 21.1046 12 20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7C12 8.65685 13.3431 10 15 10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 14C18.6569 14 20 15.3431 20 17C20 18.6569 18.6569 20 17 20C16.6494 20 16.3128 19.9398 16 19.8293" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.7361 15.6046C21.0757 14.9582 22 13.587 22 12C22 10.7883 21.4612 9.70251 20.6102 8.96898" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M20.5795 8.8882C20.8451 8.49109 21 8.01363 21 7.5C21 6.11929 19.8807 5 18.5 5C17.9371 5 17.4176 5.18604 16.9998 5.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 4.5C12 3.11929 13.1193 2 14.5 2C15.8807 2 17 3.11929 17 4.5C17 4.88103 16.9148 5.24215 16.7623 5.56533" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 20C16 21.1046 15.1046 22 14 22C12.8954 22 12 21.1046 12 20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M10 12C10 14.2091 8.20914 16 6 16C3.79086 16 2 14.2091 2 12C2 9.79086 3.79086 8 6 8C8.20914 8 10 9.79086 10 12ZM10 12H22V15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 12V15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-sparks" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M8 15C12.8747 15 15 12.949 15 8C15 12.949 17.1104 15 22 15C17.1104 15 15 17.1104 15 22C15 17.1104 12.8747 15 8 15Z" stroke="currentColor" stroke-linejoin="round"/><path d="M2 6.5C5.13376 6.5 6.5 5.18153 6.5 2C6.5 5.18153 7.85669 6.5 11 6.5C7.85669 6.5 6.5 7.85669 6.5 11C6.5 7.85669 5.13376 6.5 2 6.5Z" stroke="currentColor" stroke-linejoin="round"/></symbol>
 <symbol id="i-warning" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M20.0429 21H3.95705C2.41902 21 1.45658 19.3364 2.22324 18.0031L10.2662 4.01533C11.0352 2.67792 12.9648 2.67791 13.7338 4.01532L21.7768 18.0031C22.5434 19.3364 21.581 21 20.0429 21Z" stroke="currentColor" stroke-linecap="round"/><path d="M12 9V13" stroke="currentColor" stroke-linecap="round"/><path d="M12 17.01L12.01 16.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M5 13L9 17L19 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M8 8.6V4.6C8 4.26863 8.26863 4 8.6 4H19.4C19.7314 4 20 4.26863 20 4.6V15.4C20 15.7314 19.7314 16 19.4 16H15.4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 19.4V8.6C4 8.26863 4.26863 8 4.6 8H15.4C15.7314 8 16 8.26863 16 8.6V19.4C16 19.7314 15.7314 20 15.4 20H4.6C4.26863 20 4 19.7314 4 19.4Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -999,6 +1026,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <nav class="column-scroll" id="settings-nav" aria-labelledby="settings-nav-label">
 <span class="sr-only" id="settings-nav-label" data-message="settingsTitle">Settings</span>
 <ul class="menu">
+<li id="start-nav"><a class="menu-item" href="/settings/start" data-section="start" data-route><svg class="icon" aria-hidden="true"><use href="#i-sparks"/></svg><span class="menu-name" data-message="startTitle">Getting started</span><span class="menu-count" id="start-count" hidden></span></a></li>
 <li><a class="menu-item" href="/settings/general" data-section="general" data-route><svg class="icon" aria-hidden="true"><use href="#i-general"/></svg><span class="menu-name" data-message="settingsGeneral">General</span></a></li>
 <li><a class="menu-item" href="/settings/communication" data-section="communication" data-route><svg class="icon" aria-hidden="true"><use href="#i-general"/></svg><span class="menu-name" data-message="voiceTitle">Agent communication</span></a></li>
 <li><a class="menu-item" href="/settings/machine" data-section="machine" data-route><svg class="icon" aria-hidden="true"><use href="#i-machine"/></svg><span class="menu-name" data-message="machineTitle">This Environment</span></a></li>
@@ -1049,6 +1077,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 </nav>
 <div class="topbar-actions">
 <button type="button" class="ghost" id="files-refresh" data-section-action="files"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="filesRefresh">Refresh</span></button>
+<button type="button" class="ghost" id="start-refresh" data-section-action="start"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="startRefresh">Check again</span></button>
 <button type="button" class="ghost" id="reload" data-section-action="general"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="reload">Reload profile</span></button>
 <button type="button" class="ghost" id="tools-refresh" data-section-action="tools"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="toolsRefresh">Refresh status</span></button>
 <button type="button" class="ghost" id="vault-page-refresh" data-section-action="vault"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="toolsRefresh">Refresh status</span></button>
@@ -1116,6 +1145,34 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 </main>
 
 <main id="view-settings" class="container" data-view="settings">
+<!-- Začínáme (root decision 0201, the wireframe's Start.tsx of
+     prototypes-lazurio 1eefc3d): the Environment's basics checked from live
+     facts, the vault, the optional steps and the tour; drawn by
+     start-panel.ts. Only where the Environment signs in as its person. -->
+<section id="section-start" data-section="start" aria-labelledby="page-heading">
+<div class="section-head-text">
+<p class="intro" id="start-intro" role="status" aria-live="polite"></p>
+<p class="intro" id="start-not-here" hidden data-message="startNotHere">Its Organization prepares this Environment; there is nothing to set up here.</p>
+</div>
+<section class="group" data-start aria-labelledby="start-required-heading" hidden>
+<div class="group-head"><h2 id="start-required-heading" data-message="startRequired">Required steps</h2></div>
+<ol class="card start-steps" id="start-steps"></ol>
+<div id="start-content"></div>
+</section>
+<section class="group" id="start-vault-group" aria-labelledby="start-vault-heading" hidden>
+<div class="group-head"><h2 id="start-vault-heading" data-message="startVaultGroup">Passwords for agents</h2></div>
+<div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" data-message="startVaultTitle">Environment vault</p><p class="row-desc" data-message="startVaultText">Whoever has access to the Environment has all of its passwords. Agents use it themselves.</p><p class="row-status start-vault-state" id="start-vault-state"></p></div><div class="row-control"><a class="button" href="/settings/vault" data-route data-message="startOpen">Open</a></div></div></div></div>
+</section>
+<section class="group" id="start-optional-group" data-start aria-labelledby="start-optional-heading" hidden>
+<div class="group-head"><h2 id="start-optional-heading" data-message="startOptional">Optional</h2></div>
+<div class="card" id="start-optional"></div>
+</section>
+<section class="group" data-start aria-labelledby="start-tour-heading" hidden>
+<div class="group-head"><h2 id="start-tour-heading" data-message="startTourGroup">App tour</h2></div>
+<div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" data-message="startTourTitle">Apps, Chat and Automate</p><p class="row-desc" data-message="startTourText">Shows briefly what is where.</p><p class="row-status" id="start-tour-state"></p></div><div class="row-control"><button type="button" id="start-tour"></button></div></div></div></div>
+</section>
+</section>
+
 <section id="section-general" data-section="general" aria-labelledby="page-heading">
 <form id="profile">
 <fieldset disabled id="choices" class="group">

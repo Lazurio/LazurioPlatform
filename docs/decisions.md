@@ -5982,6 +5982,84 @@ procedure (`lazurio module create`, `--dry-run`, a worktree, a stack, `--teams`,
 skill or a manual page); `tests/launchpad-prompts.test.ts` checks that both prompt routes
 answer with the Folder's root as `cwd`.
 
+### F36 addendum of 2026-10-15: Začínáme, the basics from live facts, AI first (root decision 0201)
+
+**Decided by Matěj (Organization Admin) on 2026-10-14 (root decision 0201 points 1-3 and 8,
+plan DEV-6665 task 741, Lazurio/LazurioPlatform#421); the wireframe of
+HumanAndMachine-ai/prototypes-lazurio#48 and #49 (`setup.tsx`, `screens/Start.tsx`,
+`screens/Tour.tsx`). It changes root decision 0188 point 1 as this repository implemented
+it (the first run in `docs/launchpad-development.md`, the shell's `setup` above).** A new
+member's first run of a work Environment on 2026-10-13 broke three ways: "Ukončit" on the
+first bubble ended the tour for good (its `done` lived only in the browser and nothing
+reopened it); the Organization's download ran before any AI was connected, stopped at
+`root-not-found`, and "Vyřešit v Chatu" opened a Chat whose agent was not signed in; and
+the member, who could not fix the Organization's root, was still sent to Chat.
+
+1. **The basics, read live.** An Environment that signs in as its person is usable when it
+   has an AI an agent can work with, GitHub signed in as the person, and its content. They
+   are checked from the Environment's own state, never stored, so every browser reads the
+   same. A basic provided ahead is done without the person: an Organization's AI pool, which
+   configures Codex with a provider that needs no OpenAI sign-in. A Team Environment's
+   brokered GitHub is the Organization's, and that Environment has no Začínáme at all (0188
+   point 3, kept by the wireframe).
+2. **Whether AI works, the CLIs say** (0201 point 6). `GET /api/ai` answers
+   `{ kind: "ai", state, providers }` from Codex's own app-server (`codex app-server` over
+   stdio, `initialize` then `account/read` without refreshing a token: an account works,
+   `requiresOpenaiAuth: false` is the Organization's) and `claude auth status --json`
+   (`loggedIn`), run as the operator with PATH, home and the account's name, kept a minute,
+   `?fresh=1` asks now. `organization`, `connected`, `missing` only when every CLI answered,
+   `unknown` otherwise; unknown is never claimed missing. No flag or Organization setting
+   is added. The sign-in itself (`lazurio tools login codex|claude`) is task 742 and plugs in
+   by changing this reading.
+3. **Nastavení → Začínáme** (`/settings/start`, first in Settings with a "1/3" count while a
+   basic is missing): the basics as steps in the order AI → GitHub → content (0201 point
+   3), GitHub offered only once AI is there, the content's own rows in the third step and
+   started by itself once this view saw GitHub connect (never after a stop, never while no
+   agent could help); then the Environment's vault as Nastavení → Trezor reads it, the
+   optional steps (Composio, SSH from the person's own computer, Codex Desktop) and the
+   tour of Apps, Chat and Automate, which it starts again.
+4. **The onboarding shows until the basics exist** (0201 point 2). The tour points at the
+   next missing basic: the gear, Začínáme, then the step itself. "Ukončit" becomes
+   "Dokončím později" and puts the tour away for the current view only; the next page load
+   shows it again until the basics exist. The browser keeps only where the introduction
+   after the basics points (`lazurio.tour:<Environment id>` = `{ "intro": n }`); an entry
+   of 0188's tour keeps its place and never hides the basics again.
+5. **A quiet prompt in the shell's column.** `setup` of `lazurio.shell.v1` gains the
+   optional `ai: "ready" | "missing"` (additive: an older parser ignores it). The column
+   head replaces its line in Chat and Automate with "Dokončit nastavení (1 ze 3)" in Apps,
+   Chat and Automate alike while a basic is known to be missing, a link to Začínáme of the
+   Environment's Launchpad. The Launchpad page gives its own column head the `setup` of
+   its own, newer facts.
+6. **A stop leads where it can be solved** (0201 points 3 and 8). "Vyřešit v Chatu" only
+   while an agent can work; without AI the button is "Připojit AI" and every hand-over to
+   Chat ("+ Nový modul" included) opens Začínáme at the AI step. For `root-not-found` and
+   `organization-unreadable` the sentence is that the Organization is not prepared for
+   this version of Lazurio yet, and to someone who cannot write its root that its Admin
+   prepares it, with no Chat. Who can is GitHub's live answer through
+   `GET /api/content/root-access?org=<login>` (an active Owner, or `write` on the
+   conventional root `<login>/<login>_GEN3`; any failure is no). It decides only where the
+   page points, never access.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the tour's `done` in the Folder's preferences | Survives a browser, but every change rewrites the agents' instructions and the revision; and a person's "later" is not the Environment's state. Rejected: the basics need no memory, they are read |
+| `codex login status` for the AI | No app-server, but it cannot see an Organization's provider that needs no sign-in (it says "Not logged in" under the AI pool). Rejected for `account/read`, which 0201 point 6 names |
+| A flag in the Organization's settings for "AI provided" | One more setting to keep true. Rejected by 0201 point 6: the CLI says it |
+| Membership alone for who prepares the root | Simpler, but a Steward or Builder with `write` on the root can fix it too. Owner or `write` on the conventional root kept |
+| Keep the column line in Chat and Automate | It said one missing thing with its own buttons in two apps; the wireframe replaced it by one prompt to Začínáme in all three |
+
+**Honest limits.** The AI step has no sign-in until task 742: without the Organization's AI
+pool, a person reaches a connected AI only outside Začínáme, so this change ships together
+with 742 or after it. A Codex that answers `account/read` slowly (above ten seconds) reads
+as unknown and holds nothing back. Who may fix the root is read on the conventional name
+only; a root under another name that the person can write still shows the Admin sentence.
+
+Verified by unit and route tests: `tests/first-run.test.ts`, `tests/start-view.test.ts`,
+`tests/ai-status.test.ts` (fake processes, fake CLIs over real processes, the route behind
+the admission), `tests/content-view.test.ts`, `tests/content-routes.test.ts`
+(`root-access`), `tests/first-run-shell.test.ts` and `tests/shell-host.test.ts`; and in a
+browser (root decision 0178) on a local Launchpad in both languages.
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction

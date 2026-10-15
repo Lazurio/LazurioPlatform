@@ -10,9 +10,12 @@ import type { MessageKey } from "./messages";
 // never travels in the path (decision F15 addendum 2026-09-28).
 
 /** The sections of Settings, in the order of the settings navigation.
+ * `start` is Nastavení → Začínáme, the Environment's onboarding from live
+ * facts (root decision 0201 point 1), first where the Environment has it.
  * `vault` is Nastavení → Trezor, the way into the Environment's own vault
  * (root decision 0198 point 5), right after the tools. */
 export const settingsSections = [
+  "start",
   "general",
   "communication",
   "machine",
@@ -242,6 +245,7 @@ export function routePath(route: PageRoute): string {
 /** The label of each section: the same words in the navigation, the
  * breadcrumb and the document title. */
 export const sectionLabels: Readonly<Record<SettingsSection, MessageKey>> = {
+  start: "startTitle",
   general: "settingsGeneral",
   communication: "voiceTitle",
   machine: "machineTitle",
