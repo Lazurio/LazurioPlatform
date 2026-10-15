@@ -247,8 +247,10 @@ The Tools section itself is described in
 ### Curated installation and login (decision F19)
 
 For the `launchpad` tools (`gh`, `composio`, `wacli`) on Linux and macOS, x64 and
-arm64. CLI first; the Launchpad serves the same core. The tools set up by an agent
-(`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt <tool>`.
+arm64, and the sign-in of the AI CLIs `codex` and `claude` (F19's addendum of
+2026-10-15, below). CLI first; the Launchpad serves the same core. The tools set up by
+an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
+<tool>`.
 
 - `tools install <tool> [--json]` installs for the current user, without root, into
   `~/.local/bin/<command>` from the official source at the latest release. `gh` and
@@ -354,12 +356,56 @@ arm64. CLI first; the Launchpad serves the same core. The tools set up by an age
   of the signed-in account with the current one marked (`composio orgs list`) and
   switches it (`composio orgs switch --org-id`). The apps connected in Composio belong
   to the account and organization of this Environment.
+- **`tools login codex` and `tools login claude`** (root decision 0201 points 3-6, F19's
+  addendum of 2026-10-15) run the CLI's own browser sign-in, `codex login` (never
+  `--device-auth`) and `claude auth login`, as the current user with the minimal
+  environment and the account's name (`USER`, `LOGNAME`). They are no catalog tools of
+  agents: `tools list` does not show them and `install` and `logout` refuse them as
+  before. Where the sign-in page opens:
+  - On a Remote Environment whose entry routes the Environment browser, the CLI's
+    `BROWSER` is a private stand-in (`$TMPDIR/lazurio-sign-in-*/browser`, 0700) that
+    hands the address the CLI opens to the sign-in; both CLIs run `$BROWSER <page>`
+    also without a display. Only an https page on the CLI's official hosts
+    (`auth.openai.com`; `claude.com`, `claude.ai`, `platform.claude.com`,
+    `console.anthropic.com`) is opened; any other address stops the CLI
+    (`unexpected-url`). The command opens it as `lazurio browser open` does (in a T3
+    Code thread in the thread's panel, elsewhere in Přehled and by the link it prints),
+    the Launchpad as a tab it holds, shown in its right panel. The page returns to the
+    CLI on 127.0.0.1 inside the Environment. Claude's printed address is its code page
+    (`redirect_uri=https://platform.claude.com/oauth/code/callback`); it opens only
+    when the CLI hands over no page within 3 s, and the code it shows (`<code>#<state>`)
+    then goes to the CLI's input, pasted in the terminal or in the Launchpad's field.
+    A browser that does not open the page stops the CLI (`browser-unavailable`).
+  - On a computer of one's own nothing is set: the CLI opens the computer's browser,
+    and the printed page is offered beside it (`challenge: { kind: "page", url, code
+    }`; on a Remote Environment `{ kind: "page", view, code }`, never the page).
+  - Nothing starts on a Remote Environment without the Environment browser (`blocked`,
+    `no-environment-browser`, exit 2), nor codex where Codex's own `account/read` says
+    its provider needs no OpenAI sign-in, the Organization's AI pool (`blocked`,
+    `organization-provided`, exit 2). A hosted context that cannot be read fails as
+    `environment-unreadable`.
+  - Signed in is what `codex login status` and `claude auth status --json` (the
+    catalog's `signInProbe`) say after the CLI exited 0; otherwise `tool-exit` or
+    `not-confirmed`. Then, pending with `step: "services"`, the running services read
+    the sign-in, and `signed-in` carries `services`: `appServer` (codex only:
+    `systemctl --user restart lazurio-codex-app-server.service` where that unit is the
+    installer's; `restarted`, `not-managed` or `failed`) and `t3` (`t3 lazurio providers
+    --base-dir ~/.t3 '{"providers":[…],"enable":true}'` with every AI CLI signed in now,
+    where `t3 lazurio capabilities` reports `providerRefresh: true`; `refreshed` with
+    each provider's state, `not-installed`, `not-supported`, `driver-mismatch` with the
+    instance that runs another driver, or `failed` with `not-running`, `refused`,
+    `unreadable` or `timeout`). Exit 0 only when signed in and neither the restart nor
+    T3 Code failed; 1 otherwise. The sign-in lives 10 minutes.
 
 The Launchpad offers the same over `POST /api/tools/install {tool}`,
 `/api/tools/login/start {tool, phone?}`, `/api/tools/login/poll {tool, session}`,
-`/api/tools/login/cancel {tool, session}`, `/api/tools/logout {tool}`,
-`/api/tools/composio/organizations {}` and `/api/tools/composio/organization {id}`,
-with the admission, exact-field JSON and `Cache-Control: no-store` of every route.
+`/api/tools/login/cancel {tool, session}`, `/api/tools/login/code {tool, session,
+code}`, `/api/tools/logout {tool}`, `/api/tools/composio/organizations {}` and
+`/api/tools/composio/organization {id}`, with the admission, exact-field JSON and
+`Cache-Control: no-store` of every route. codex and claude take only the login routes;
+`code` hands a code of Claude's code page to the waiting CLI (`{kind:
+"code-accepted"}`, `400` for anything but a whole `<code>#<state>`, `409` where no
+sign-in waits for one), and a refused start (`blocked`) answers `409`.
 `start` answers with the session handle and the first challenge; `poll` and `cancel`
 take that handle, so a challenge goes only to the browser that started the login. A
 pending WhatsApp login carries `qrSvg`, the QR code drawn by the server. A tool the
