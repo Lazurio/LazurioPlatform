@@ -38,17 +38,31 @@ a malformed answer all deny. Admission answers "this session may enter this
 workspace"; it names no Operator for provider operations and grants no repository
 right.
 
-**The admitted session's subject** ([F11's amendment of
-2026-10-14](decisions.md#f11--hosted-admission-is-not-identity)). The endpoint's own
-answer to that revalidation names the session's person in `X-Auth-Request-User`: the
-Environment gateway's oauth2-proxy runs with `set_xauthrequest = true` and its user
-claim is the identity provider's `sub`, the Lazurio account's immutable id; Caddy
-strips only `X-Auth-Request-Access-Token` from the bare hostname's `/oauth2/*`. The
-Launchpad accepts only a lowercase UUID there and keeps it with the cached admission;
-a header of the request itself still names nobody. Its one use is the membership of
-the Environment's own vault, whose access is access to the Environment (root decision
-0198 point 2, [F53's addendum of
-2026-10-14](decisions.md#f53-addendum-of-2026-10-14-nastavení--trezor-and-the-správci)).
+**The admitted session's person** ([F11's amendments of 2026-10-14 and
+2026-10-16](decisions.md#f11--hosted-admission-is-not-identity)). The endpoint's own
+answer to that revalidation names the session's person in two headers. The Environment
+gateway's oauth2-proxy runs with `set_xauthrequest = true`: `X-Auth-Request-User`
+carries its user claim, the identity provider's `sub`, the Lazurio account's immutable
+id; `X-Auth-Request-Preferred-Username` carries the ID token's `preferred_username`,
+which for the gateway's client is the Keycloak username, the person's Lazurio username
+(root decision 0203 point 4). Caddy strips only `X-Auth-Request-Access-Token` from the
+bare hostname's `/oauth2/*`. The Launchpad accepts only a lowercase UUID as the
+subject, and as the username only one value of 3 to 39 lowercase letters and digits
+with single dashes between them, never shaped like a UUID and never a service
+account's (`service-account-…`); anything else is no username. It keeps both with the
+cached admission. A header of the request itself still names nobody: the Machines
+gateway removes every `X-Auth-Request-*` header from the browser's requests, and the
+Launchpad never reads one anyway. Their one use is the membership of the Environment's own
+vault, whose access is access to the Environment (root decision 0198 point 2, [F53's
+addendum of
+2026-10-14](decisions.md#f53-addendum-of-2026-10-14-nastavení--trezor-and-the-správci)
+and [its amendment of
+2026-10-16](decisions.md#f53-amendment-of-2026-10-16-the-address-of-the-lazurio-username)):
+the username is the person's address there, `<username>@account.lazurio.ai` (root
+decision 0203 point 5), and it is never derived from GitHub or from the subject. A
+session signed in before the person's Keycloak username became their Lazurio username
+still carries the old value, the account's id, which is no username, until it is
+signed in again.
 
 ## Lazurio Account
 
