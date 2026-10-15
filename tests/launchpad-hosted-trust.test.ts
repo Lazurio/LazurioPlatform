@@ -125,7 +125,7 @@ test("admission forwards exactly the named cookie to the configured auth endpoin
     await trust.admit(
       request("GET", { cookie: "other=1; __Secure-lazurio-workspace=valid" }),
     ),
-  ).toEqual({ ok: true, subject: null });
+  ).toEqual({ ok: true, subject: null, username: null });
   expect(calls).toEqual(["__Secure-lazurio-workspace=valid"]);
   // Forged identity headers change nothing; a wrong cookie is denied.
   expect(
@@ -172,7 +172,7 @@ test("admission forwards exactly the named cookie to the configured auth endpoin
         "sec-fetch-site": "same-origin",
       }),
     ),
-  ).toEqual({ ok: true, subject: null });
+  ).toEqual({ ok: true, subject: null, username: null });
   // The internal namespace (the gateway's `ensure`) is state-changing even on
   // GET: the same-origin rule applies; any other GET keeps the read rule.
   const internal = (headers: Record<string, string>) =>
@@ -201,19 +201,21 @@ test("admission forwards exactly the named cookie to the configured auth endpoin
         "sec-fetch-site": "same-origin",
       }),
     ),
-  ).toEqual({ ok: true, subject: null });
+  ).toEqual({ ok: true, subject: null, username: null });
   // A positive answer is cached for two minutes, keyed by the cookie value.
   expect(calls.length).toBe(2);
   clock += 119_000;
   expect(await trust.admit(request("GET", good))).toEqual({
     ok: true,
     subject: null,
+    username: null,
   });
   expect(calls.length).toBe(2);
   clock += 2_000;
   expect(await trust.admit(request("GET", good))).toEqual({
     ok: true,
     subject: null,
+    username: null,
   });
   expect(calls.length).toBe(3);
 });
@@ -338,12 +340,12 @@ test("a chunked session is admitted with its chunks forwarded unchanged; the Hos
         cookie: `other=1; ${chunked("va", "lid").reverse().join("; ")}`,
       }),
     ),
-  ).toEqual({ ok: true, subject: null });
+  ).toEqual({ ok: true, subject: null, username: null });
   expect(calls).toEqual([chunked("va", "lid").join("; ")]);
   // Four chunks near the header bound.
   expect(
     await trust.admit(request("GET", { cookie: chunked(...four).join("; ") })),
-  ).toEqual({ ok: true, subject: null });
+  ).toEqual({ ok: true, subject: null, username: null });
   expect(calls[1]).toBe(chunked(...four).join("; "));
   // The auth endpoint still decides: other chunks are denied.
   expect(
@@ -379,7 +381,7 @@ test("a chunked session is admitted with its chunks forwarded unchanged; the Hos
         "sec-fetch-site": "same-origin",
       }),
     ),
-  ).toEqual({ ok: true, subject: null });
+  ).toEqual({ ok: true, subject: null, username: null });
 });
 
 // The person of an admitted session (decision F11's amendment of
@@ -404,7 +406,10 @@ test("an admitted session names the subject of the gateway's own answer, and not
     return user === undefined
       ? new Response("no", {
           status: 401,
-          headers: { "x-auth-request-user": subject },
+          headers: {
+            "x-auth-request-user": subject,
+            "x-auth-request-preferred-username": "petr",
+          },
         })
       : new Response("ok", {
           status: 202,
@@ -415,12 +420,14 @@ test("an admitted session names the subject of the gateway's own answer, and not
   expect(await trust.admit(request("GET", good))).toEqual({
     ok: true,
     subject,
+    username: null,
   });
   // Forged identity headers of the request name nobody: the session the
   // gateway answers for without a user is admitted as nobody's.
   const forged = {
     "x-auth-request-user": subject,
-    "x-auth-request-email": `${subject}@vaultwarden-identity.lazurio.ai`,
+    "x-auth-request-preferred-username": "petr",
+    "x-auth-request-email": "petr@account.lazurio.ai",
     "x-forwarded-user": subject,
     "x-forwarded-email": "someone@example.invalid",
     "x-lazurio-subject": subject,
@@ -432,7 +439,7 @@ test("an admitted session names the subject of the gateway's own answer, and not
         ...forged,
       }),
     ),
-  ).toEqual({ ok: true, subject: null });
+  ).toEqual({ ok: true, subject: null, username: null });
   // ...and change nothing of a named one, nor of a denied one, whose
   // answer's header is never read.
   expect(
@@ -443,7 +450,7 @@ test("an admitted session names the subject of the gateway's own answer, and not
         "x-auth-request-user": "1f4c8a2e-6b1d-4e9a-8c3f-7d2b5a9e1c41",
       }),
     ),
-  ).toEqual({ ok: true, subject });
+  ).toEqual({ ok: true, subject, username: null });
   expect(
     await trust.admit(
       request("GET", { cookie: "__Secure-lazurio-workspace=x", ...forged }),
@@ -455,13 +462,142 @@ test("an admitted session names the subject of the gateway's own answer, and not
       await trust.admit(
         request("GET", { cookie: `__Secure-lazurio-workspace=${value}` }),
       ),
-    ).toEqual({ ok: true, subject: null });
+    ).toEqual({ ok: true, subject: null, username: null });
   // The subject is kept with the admission of its session, keyed by it.
   const asked = calls.length;
   clock += 60_000;
   expect(await trust.admit(request("GET", good))).toEqual({
     ok: true,
     subject,
+    username: null,
   });
   expect(calls.length).toBe(asked);
+});
+
+// The person's Lazurio username (root decision 0203 point 4, F11's
+// amendment of 2026-10-16): only the gateway's own answer carries it, in its
+// `X-Auth-Request-Preferred-Username` (oauth2-proxy with `set_xauthrequest`,
+// the ID token's `preferred_username`, the Keycloak username), and only by
+// the Lazurio username rule; nothing the request carries ever names one.
+const usernameHeader = "x-auth-request-preferred-username";
+
+test("an admitted session carries the Lazurio username of the gateway's own answer, by the username rule only, and nothing else names one", async () => {
+  let clock = 1_000_000;
+  const user = (value: string): [string, string] => [
+    "x-auth-request-user",
+    value,
+  ];
+  const named = (value: string): [string, string] => [usernameHeader, value];
+  // What the gateway answers for each session (the cookie's value): the
+  // headers of its admission, as oauth2-proxy writes them.
+  const answers = new Map<string, [string, string][]>([
+    ["valid", [user(subject), named("petr")]],
+    ["dashed", [user(subject), named("petr-novak-2")]],
+    ["shortest", [user(subject), named("abc")]],
+    ["longest", [user(subject), named("a".repeat(39))]],
+    // A username without a subject is still the answer's username; whether
+    // it adds anyone is the vault's rule (tests/vault-members.test.ts).
+    ["nameless", [named("petr")]],
+  ]);
+  const refused: Record<string, [string, string][]> = {
+    absent: [user(subject)],
+    empty: [user(subject), named("")],
+    // Two headers read as one list, which is no username.
+    twice: [user(subject), named("petr"), named("petr")],
+    // A Keycloak username from before the change: the account's id.
+    uuid: [user(subject), named(subject)],
+    "uuid-upper": [user(subject), named(subject.toUpperCase())],
+    upper: [user(subject), named("Petr")],
+    "service-account": [user(subject), named("service-account-x")],
+    "too-short": [user(subject), named("pe")],
+    "too-long": [user(subject), named("a".repeat(40))],
+    "leading-dash": [user(subject), named("-petr")],
+    "trailing-dash": [user(subject), named("petr-")],
+    "double-dash": [user(subject), named("pe--tr")],
+    underscore: [user(subject), named("pe_tr")],
+    dot: [user(subject), named("pe.tr")],
+    address: [user(subject), named("petr@account.lazurio.ai")],
+  };
+  for (const [name, headers] of Object.entries(refused))
+    answers.set(name, headers);
+  const { calls, fetcher } = fakeAuth((cookie) => {
+    const headers = answers.get(
+      (cookie ?? "").slice("__Secure-lazurio-workspace=".length),
+    );
+    return headers === undefined
+      ? new Response("no", {
+          status: 401,
+          headers: [user(subject), named("petr")],
+        })
+      : new Response("ok", { status: 202, headers });
+  });
+  const trust = createHostedTrust(entry, { fetcher, now: () => clock });
+  const admit = (session: string, headers: Record<string, string> = {}) =>
+    trust.admit(
+      request("GET", {
+        cookie: `__Secure-lazurio-workspace=${session}`,
+        ...headers,
+      }),
+    );
+  expect(await admit("valid")).toEqual({
+    ok: true,
+    subject,
+    username: "petr",
+  });
+  for (const [session, username] of [
+    ["dashed", "petr-novak-2"],
+    ["shortest", "abc"],
+    ["longest", "a".repeat(39)],
+  ] as const)
+    expect([session, await admit(session)]).toEqual([
+      session,
+      { ok: true, subject, username },
+    ]);
+  expect(await admit("nameless")).toEqual({
+    ok: true,
+    subject: null,
+    username: "petr",
+  });
+  // Anything else the answer carries is no username; the session is still
+  // admitted, with its subject.
+  for (const session of Object.keys(refused))
+    expect([session, await admit(session)]).toEqual([
+      session,
+      { ok: true, subject, username: null },
+    ]);
+  // A header of the request never names one: not for a session whose
+  // answer carries none, not instead of the answer's, not for a denied one.
+  const forged = { [usernameHeader]: "jana", "x-auth-request-user": subject };
+  expect(await admit("absent", forged)).toEqual({
+    ok: true,
+    subject,
+    username: null,
+  });
+  expect(await admit("valid", forged)).toEqual({
+    ok: true,
+    subject,
+    username: "petr",
+  });
+  expect(await admit("denied", forged)).toEqual({
+    ok: false,
+    reason: "auth-denied",
+  });
+  // The username is kept with the admission of its session, keyed by it,
+  // and follows the gateway's answer once the session is asked again.
+  const asked = calls.length;
+  answers.set("valid", [user(subject), named("petr-novak")]);
+  clock += 60_000;
+  expect(await admit("valid")).toEqual({
+    ok: true,
+    subject,
+    username: "petr",
+  });
+  expect(calls.length).toBe(asked);
+  clock += 61_000;
+  expect(await admit("valid")).toEqual({
+    ok: true,
+    subject,
+    username: "petr-novak",
+  });
+  expect(calls.length).toBe(asked + 1);
 });
