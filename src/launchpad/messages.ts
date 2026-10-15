@@ -952,6 +952,39 @@ const en = {
   startAiMissing: "An agent then helps you with the next steps.",
   startAiUnknown: "Could not check whether AI works here.",
   startAiApiKey: "OpenAI API key",
+  startAiBefore:
+    "Have your ChatGPT or Claude password (or your Google one) and your phone ready: your computer's password manager and passkeys do not work here.",
+  startAiSignInChatgpt: "Sign in to ChatGPT",
+  startAiSignInClaude: "Sign in to Claude",
+  startAiStarting: "Starting the sign-in…",
+  startAiFinishPanel:
+    "Finish signing in to {name} in the browser on the right.",
+  startAiFinishOwn: "Finish signing in to {name} in your browser window.",
+  startAiFinishing:
+    "Signed in to {name}. Chat and Codex are loading the sign-in…",
+  startAiOpen: "Open the sign-in",
+  startAiCancel: "Cancel",
+  startAiFailed: "The sign-in did not work. Please try again.",
+  startAiExpired: "The sign-in expired. Please try again.",
+  startAiNoAnswer:
+    "Lazurio did not answer about the sign-in. Please try again.",
+  startAiBrowserFailed:
+    "The Environment browser did not open the sign-in page. Please try again.",
+  startAiNoBrowser:
+    "The sign-in opens in the Environment browser, which this Environment does not have yet. An update of the Environment adds it.",
+  startAiRetry: "Try again",
+  startAiOtherAccount: "Sign in another account",
+  startAiCodeLabel: "Code from the sign-in page",
+  startAiCodeHint: "Did the page show you a code? Paste it here.",
+  startAiCodeSend: "Send the code",
+  startAiCodeInvalid:
+    "This is not the whole code. Please copy all of it again.",
+  startAiCodeSent:
+    "The code was sent. Wait a moment for the sign-in to finish.",
+  startAiServicesLater:
+    "Chat and Codex start using the sign-in a little later.",
+  startAiChatMismatch:
+    "Chat did not turn {provider} on, because another provider has that name there. Check the providers in Chat's Settings.",
   startGithubTitle: "GitHub",
   startGithubConnected: "Connected as @{login}",
   startGithubConnectedPlain: "Connected",
@@ -2454,6 +2487,37 @@ const cs: Record<MessageKey, string> = {
   startAiMissing: "Agent vám pak pomůže s dalšími kroky.",
   startAiUnknown: "Nepodařilo se ověřit, jestli tu AI funguje.",
   startAiApiKey: "API klíč OpenAI",
+  startAiBefore:
+    "Připravte si heslo k ChatGPT nebo Claude (případně ke Googlu) a telefon, protože správce hesel ani passkey z počítače tu nefungují.",
+  startAiSignInChatgpt: "Přihlásit ChatGPT",
+  startAiSignInClaude: "Přihlásit Claude",
+  startAiStarting: "Spouštím přihlášení…",
+  startAiFinishPanel: "Dokončete přihlášení k {name} v prohlížeči vpravo.",
+  startAiFinishOwn: "Dokončete přihlášení k {name} v okně prohlížeče.",
+  startAiFinishing:
+    "Přihlášeno k {name}. Chat a Codex teď přihlášení načítají…",
+  startAiOpen: "Otevřít přihlášení",
+  startAiCancel: "Zrušit",
+  startAiFailed: "Přihlášení se nepovedlo. Zkuste to prosím znovu.",
+  startAiExpired: "Přihlášení vypršelo. Zkuste to prosím znovu.",
+  startAiNoAnswer:
+    "Lazurio na přihlášení neodpovědělo. Zkuste to prosím znovu.",
+  startAiBrowserFailed:
+    "Prohlížeč Prostředí přihlašovací stránku neotevřel. Zkuste to prosím znovu.",
+  startAiNoBrowser:
+    "Přihlášení se otevírá v prohlížeči Prostředí, který tu zatím není. Doplní ho aktualizace Prostředí.",
+  startAiRetry: "Zkusit znovu",
+  startAiOtherAccount: "Přihlásit jiný účet",
+  startAiCodeLabel: "Kód z přihlašovací stránky",
+  startAiCodeHint: "Ukázala vám stránka kód? Vložte ho sem.",
+  startAiCodeSend: "Odeslat kód",
+  startAiCodeInvalid: "Tohle není celý kód. Zkopírujte ho prosím znovu celý.",
+  startAiCodeSent:
+    "Kód je odeslaný. Chvíli počkejte, než se přihlášení dokončí.",
+  startAiServicesLater:
+    "Chat a Codex začnou přihlášení používat o něco později.",
+  startAiChatMismatch:
+    "Chat nezapnul {provider}, protože se tak u něj jmenuje jiný poskytovatel. Zkontrolujte poskytovatele v Nastavení Chatu.",
   startGithubTitle: "GitHub",
   startGithubConnected: "Připojeno jako @{login}",
   startGithubConnectedPlain: "Připojeno",
