@@ -1,4 +1,6 @@
+import { bitwardenRegionOf } from "./endpoints";
 import {
+  accountKdf,
   apiKeyLogin,
   type Device,
   encrypt,
@@ -29,6 +31,12 @@ import {
 // Vaultwarden 1.37.4-lazurio.1 (its `scripts/org.ts`). Nothing secret is
 // returned or kept: the organization key exists in memory during its
 // creation, then only in the vault, encrypted to the account's own key.
+//
+// A personal Environment's vault is the same, in the person's own Bitwarden
+// (root decision 0203 point 7): a Free organization its agents' account
+// creates and owns, on the Bitwarden cloud's API, which also wants
+// `useSecretsManager` named. The cloud refuses a second Free organization of
+// an account that owns or administers one (`free-organization-limit`).
 
 /** The first collection of every Environment's vault, where agents keep
  * what they create (decision F53). */
@@ -237,7 +245,7 @@ export async function ensureOwnVault(
       password: account.masterPassword,
       protectedUserKey: login.protectedUserKey,
       encryptedPrivateKey: login.encryptedPrivateKey,
-      iterations: login.iterations,
+      kdf: await accountKdf(client, login, account.email),
     });
     const organizationKey = randomBytes(64);
     const keys = await makeKeyPair(symmetricKey(organizationKey));
@@ -268,8 +276,13 @@ export async function ensureOwnVault(
               symmetricKey(organizationKey),
             ),
             // Ignored by Vaultwarden, which has one plan; the web vault
-            // sends it.
+            // sends it, and the Bitwarden cloud takes it: Free.
             planType: 0,
+            // The Bitwarden cloud wants it named; the Vaultwarden request
+            // stays the one proven against its image.
+            ...(bitwardenRegionOf(server) === null
+              ? {}
+              : { useSecretsManager: false }),
           },
         }),
       );

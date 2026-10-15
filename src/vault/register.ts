@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
-import { webcrypto } from "node:crypto";
+import { argon2, createHash, webcrypto } from "node:crypto";
+import { vaultEndpoint } from "./endpoints";
 
 // The technical account of an Environment in its network's vault (decisions
 // F43 and F53): created here and signed in by its API key, so the stock
@@ -10,15 +11,27 @@ import { webcrypto } from "node:crypto";
 // against 1.37.4-lazurio.1 on 2026-10-13); the tests check the crypto against
 // Bitwarden's own vectors and the requests against a fake vault.
 //
+// A personal Environment's agents' account in the person's own Bitwarden
+// (root decision 0203 point 7) is not created here: the person enters it, and
+// the same sign-in, unlock and organization requests reach the Bitwarden
+// cloud's identity and API hosts (endpoints.ts). Such an account may derive
+// its master key with Argon2id instead of PBKDF2.
+//
 // Server preconditions (Vaultwarden 1.37.x):
 //  - the network pre-allowed exactly this address (`/admin/invite`, DEV-6631
 //    contract C2; a 0197 pilot: an Admin of an organization invited it);
 //  - SMTP is off: the server then returns the registration token directly.
 //    SIGNUPS_ALLOWED=false is fine: the pre-allowance allows it.
 //
-// Crypto: Bitwarden "v1" account keys, WebCrypto only, no dependency.
+// Crypto: Bitwarden "v1" account keys, WebCrypto and node:crypto only, no
+// dependency.
 //   masterKey          = PBKDF2-SHA256(password, salt = trimmed lowercased
-//                        email, 600 000)
+//                        email, 600 000), the KDF of every account created
+//                        here; an entered account's KDF is the vault's
+//                        answer: PBKDF2-SHA256 with its iterations, or
+//                        Argon2id(password, salt = SHA-256 of the trimmed
+//                        lowercased email, its passes, its memory in MiB,
+//                        its parallelism, 32 bytes)
 //   masterPasswordHash = base64(PBKDF2-SHA256(masterKey, salt = password, 1)),
 //                        the only thing derived from the password that the
 //                        vault receives
@@ -28,9 +41,65 @@ import { webcrypto } from "node:crypto";
 //   Key                = EncString type 2 of userKey under the stretched key
 //   key pair           = RSA-2048 OAEP-SHA1: public SPKI base64, private
 //                        PKCS#8 as an EncString type 2 under userKey
+// Any other key format (a v2 account cryptographic state) is refused, never
+// guessed (`unsupported-keys`).
 
 export const KDF_PBKDF2_SHA256 = 0;
+export const KDF_ARGON2ID = 1;
 export const PBKDF2_ITERATIONS = 600_000;
+
+/** An account's key derivation, as its vault reports it. Argon2id's memory is
+ * in MiB, as Bitwarden keeps it. */
+export type Kdf =
+  | Readonly<{ type: typeof KDF_PBKDF2_SHA256; iterations: number }>
+  | Readonly<{
+      type: typeof KDF_ARGON2ID;
+      iterations: number;
+      memory: number;
+      parallelism: number;
+    }>;
+
+export const pbkdf2Kdf = (iterations = PBKDF2_ITERATIONS): Kdf =>
+  Object.freeze({ type: KDF_PBKDF2_SHA256, iterations });
+
+const whole = (value: unknown, min: number, max: number): value is number =>
+  typeof value === "number" &&
+  Number.isSafeInteger(value) &&
+  value >= min &&
+  value <= max;
+
+/** A KDF as a vault reports it (its type and parameters), within Bitwarden's
+ * own bounds; null for any other: an unknown type, a parameter out of its
+ * bounds or missing. PBKDF2-SHA256 of 5 000 to 10 000 000 iterations;
+ * Argon2id of 2 to 10 passes, 15 to 1024 MiB and a parallelism of 1 to 16,
+ * the ranges Bitwarden's clients and server accept. */
+export function kdfOf(
+  input: Readonly<{
+    type: unknown;
+    iterations: unknown;
+    memory: unknown;
+    parallelism: unknown;
+  }>,
+): Kdf | null {
+  if (input.type === KDF_PBKDF2_SHA256)
+    return whole(input.iterations, 5_000, 10_000_000)
+      ? pbkdf2Kdf(input.iterations)
+      : null;
+  if (
+    input.type === KDF_ARGON2ID &&
+    whole(input.iterations, 2, 10) &&
+    whole(input.memory, 15, 1024) &&
+    whole(input.parallelism, 1, 16)
+  )
+    return Object.freeze({
+      type: KDF_ARGON2ID,
+      iterations: input.iterations,
+      memory: input.memory,
+      parallelism: input.parallelism,
+    });
+  return null;
+}
+
 /** Bitwarden DeviceType 21 = "SDK"; shown in the account's device list. */
 export const DEVICE_TYPE_SDK = 21;
 
@@ -103,12 +172,43 @@ async function hmacSha256(key: Bytes, data: Bytes): Promise<Bytes> {
   return new Uint8Array(await subtle.sign("HMAC", hmac, data));
 }
 
+/** Argon2id as Bitwarden derives a master key: the salt is the SHA-256 of
+ * the normalized e-mail, the memory in KiB of its MiB, 32 bytes. The
+ * asynchronous form, so the Launchpad keeps answering while it runs. */
+function argon2id(
+  password: string,
+  email: string,
+  kdf: Extract<Kdf, { type: typeof KDF_ARGON2ID }>,
+): Promise<Bytes> {
+  return new Promise((resolve, reject) =>
+    argon2(
+      "argon2id",
+      {
+        message: utf8(password),
+        nonce: createHash("sha256")
+          .update(utf8(normalizeEmail(email)))
+          .digest(),
+        parallelism: kdf.parallelism,
+        tagLength: 32,
+        memory: kdf.memory * 1024,
+        passes: kdf.iterations,
+      },
+      (error, key) =>
+        error === null ? resolve(new Uint8Array(key)) : reject(error),
+    ),
+  );
+}
+
+/** The master key of an account: PBKDF2-SHA256 of the password, salted by the
+ * normalized e-mail (the KDF of every account created here), or Argon2id. */
 export function deriveMasterKey(
   password: string,
   email: string,
-  iterations = PBKDF2_ITERATIONS,
-) {
-  return pbkdf2(utf8(password), utf8(normalizeEmail(email)), iterations);
+  kdf: Kdf = pbkdf2Kdf(),
+): Promise<Bytes> {
+  return kdf.type === KDF_ARGON2ID
+    ? argon2id(password, email, kdf)
+    : pbkdf2(utf8(password), utf8(normalizeEmail(email)), kdf.iterations);
 }
 
 export async function makeMasterPasswordHash(
@@ -268,27 +368,59 @@ export async function publicKeyOf(privateKeyPkcs8: Bytes): Promise<string> {
   return b64(new Uint8Array(await subtle.exportKey("spki", publicKey)));
 }
 
+/** A key the vault keeps in Bitwarden's v1 account form: an EncString of
+ * type 2 (AES-256-CBC with HMAC-SHA256). */
+export const isAccountKey = (value: unknown): value is string =>
+  typeof value === "string" && /^2\.[A-Za-z0-9+/=|]{1,20000}$/.test(value);
+
 /** The account's private key from its master password and what the vault
  * keeps of it: the master-key-wrapped user key (`Key`) and the user-key-
- * wrapped private key (`PrivateKey`), as a client unlocks. */
+ * wrapped private key (`PrivateKey`), as a client unlocks, with the
+ * account's KDF. A user key that does not open is `wrong-password` (the
+ * master password, salted by this e-mail, is not the account's); a key of
+ * any form but Bitwarden's v1 account keys, or one that opens to something
+ * else, is `unsupported-keys`. Never more is said, and nothing is kept. */
 export async function unlockPrivateKey(
   input: Readonly<{
     email: string;
     password: string;
     protectedUserKey: string;
     encryptedPrivateKey: string;
-    iterations: number;
+    kdf: Kdf;
   }>,
 ): Promise<Bytes> {
+  if (
+    !isAccountKey(input.protectedUserKey) ||
+    !isAccountKey(input.encryptedPrivateKey)
+  )
+    throw new VaultwardenError("unsupported-keys");
   const masterKey = await deriveMasterKey(
     input.password,
     input.email,
-    input.iterations,
+    input.kdf,
   );
-  const userKey = symmetricKey(
-    await decrypt(input.protectedUserKey, await stretchMasterKey(masterKey)),
-  );
-  return decrypt(input.encryptedPrivateKey, userKey);
+  let userKey: Bytes;
+  try {
+    userKey = await decrypt(
+      input.protectedUserKey,
+      await stretchMasterKey(masterKey),
+    );
+  } catch {
+    throw new VaultwardenError("wrong-password");
+  }
+  // A v2 account wraps a key of another form: refused, never guessed.
+  if (userKey.length !== 64) throw new VaultwardenError("unsupported-keys");
+  let privateKey: Bytes;
+  try {
+    privateKey = await decrypt(
+      input.encryptedPrivateKey,
+      symmetricKey(userKey),
+    );
+    await publicKeyOf(privateKey);
+  } catch {
+    throw new VaultwardenError("unsupported-keys");
+  }
+  return privateKey;
 }
 
 /** Everything register/finish needs; nothing here is stored outside the
@@ -298,7 +430,11 @@ export async function makeAccountKeys(
   password: string,
   iterations = PBKDF2_ITERATIONS,
 ) {
-  const masterKey = await deriveMasterKey(password, email, iterations);
+  const masterKey = await deriveMasterKey(
+    password,
+    email,
+    pbkdf2Kdf(iterations),
+  );
   const userKeyBytes = randomBytes(64);
   const keyPair = await makeKeyPair(symmetricKey(userKeyBytes));
   return {
@@ -345,8 +481,17 @@ export type VaultwardenFailure =
   /** "SSO sign-in is required": the vault refuses every password path of
    * this address (`SSO_ONLY`, the address not exempt). */
   | "sso-required"
-  /** A KDF other than PBKDF2-SHA256. */
+  /** "You can only be an admin of one free organization.": the Bitwarden
+   * cloud refuses a second Free organization of an account that owns or
+   * administers one (root decision 0203 point 7). */
+  | "free-organization-limit"
+  /** A KDF other than PBKDF2-SHA256 and Argon2id, or out of their bounds. */
   | "unsupported-kdf"
+  /** The account's keys are not Bitwarden's v1 account keys (for example a
+   * v2 account cryptographic state): refused, never guessed. */
+  | "unsupported-keys"
+  /** The master password does not open the account's user key. */
+  | "wrong-password"
   /** No answer, a timeout, a 5xx or a non-https address. */
   | "unreachable"
   /** Any other answer. */
@@ -375,7 +520,11 @@ const requestMs = 30_000;
 export type VaultClient = Readonly<{ fetch?: VaultFetch | undefined }>;
 
 /** One request to the vault: its answer as JSON (or text), or a
- * `VaultwardenError` with a fixed reason, never the vault's own words. */
+ * `VaultwardenError` with a fixed reason, never the vault's own words.
+ * `serverUrl` is the vault's web address and `path` its identity's
+ * (`/identity/…`) or API's (`/api/…`): a Vaultwarden serves both under its
+ * own origin, a Bitwarden cloud region on its identity and API hosts
+ * (endpoints.ts). */
 export async function vaultRequest(
   client: VaultClient,
   serverUrl: string,
@@ -384,6 +533,8 @@ export async function vaultRequest(
 ): Promise<unknown> {
   if (!serverUrl.startsWith("https://"))
     throw new VaultwardenError("unreachable");
+  const url = vaultEndpoint(serverUrl, path);
+  if (url === null) throw new VaultwardenError("unexpected");
   const headers: Record<string, string> = { Accept: "application/json" };
   let body: string | undefined;
   if (options.json !== undefined) {
@@ -399,17 +550,13 @@ export async function vaultRequest(
   let response: Response;
   let text: string;
   try {
-    // String concatenation keeps a path prefix of the server (…/vault).
-    response = await (client.fetch ?? fetch)(
-      serverUrl.replace(/\/+$/, "") + path,
-      {
-        method: options.method ?? (body === undefined ? "GET" : "POST"),
-        headers,
-        ...(body === undefined ? {} : { body }),
-        redirect: "error",
-        signal: controller.signal,
-      },
-    );
+    response = await (client.fetch ?? fetch)(url, {
+      method: options.method ?? (body === undefined ? "GET" : "POST"),
+      headers,
+      ...(body === undefined ? {} : { body }),
+      redirect: "error",
+      signal: controller.signal,
+    });
     text = await response.text();
   } catch {
     throw new VaultwardenError("unreachable");
@@ -441,6 +588,8 @@ export async function vaultRequest(
       throw new VaultwardenError("already-member", response.status);
     if (/^sso sign-in is required\b/i.test(message))
       throw new VaultwardenError("sso-required", response.status);
+    if (/only be an admin of one free organization/i.test(message))
+      throw new VaultwardenError("free-organization-limit", response.status);
     if (
       path === "/identity/connect/token" ||
       /username or password is incorrect|invalid_grant/i.test(message)
@@ -539,25 +688,8 @@ export async function passwordLogin(
 ): Promise<Login> {
   const { serverUrl, password, device } = options;
   const email = normalizeEmail(options.email);
-  const prelogin = (await vaultRequest(
-    client,
-    serverUrl,
-    "/identity/accounts/prelogin",
-    {
-      json: { email },
-    },
-  )) as Record<string, unknown> | null;
-  if (prelogin?.kdf !== KDF_PBKDF2_SHA256)
-    throw new VaultwardenError("unsupported-kdf");
-  const iterations = prelogin.kdfIterations;
-  if (
-    typeof iterations !== "number" ||
-    !Number.isSafeInteger(iterations) ||
-    iterations < 5_000 ||
-    iterations > 10_000_000
-  )
-    throw new VaultwardenError("unsupported-kdf");
-  const masterKey = await deriveMasterKey(password, email, iterations);
+  const kdf = await prelogin(client, serverUrl, email);
+  const masterKey = await deriveMasterKey(password, email, kdf);
   const masterPasswordHash = await makeMasterPasswordHash(masterKey, password);
   const token = (await vaultRequest(
     client,
@@ -633,9 +765,52 @@ export type ApiKeyLogin = Readonly<{
   protectedUserKey: string;
   /** `PrivateKey`: the private key wrapped by the user key. */
   encryptedPrivateKey: string;
-  /** PBKDF2-SHA256 iterations of the master key. */
-  iterations: number;
+  /** The KDF of the master key as the answer carries it (`Kdf`,
+   * `KdfIterations`, `KdfMemory`, `KdfParallelism`); null when it carries
+   * none, and then the vault's prelogin says it (`accountKdf`). */
+  kdf: Kdf | null;
 }>;
+
+/** An account's KDF as the vault's prelogin reports it for its e-mail, the
+ * way every Bitwarden client learns it before deriving the master key. */
+export async function prelogin(
+  client: VaultClient,
+  serverUrl: string,
+  email: string,
+): Promise<Kdf> {
+  const answer = await vaultRequest(
+    client,
+    serverUrl,
+    "/identity/accounts/prelogin",
+    { json: { email: normalizeEmail(email) } },
+  );
+  const value =
+    typeof answer === "object" && answer !== null && !Array.isArray(answer)
+      ? (answer as Record<string, unknown>)
+      : null;
+  const kdf =
+    value === null
+      ? null
+      : kdfOf({
+          type: value.kdf,
+          iterations: value.kdfIterations,
+          memory: value.kdfMemory,
+          parallelism: value.kdfParallelism,
+        });
+  if (kdf === null) throw new VaultwardenError("unsupported-kdf");
+  return kdf;
+}
+
+/** The KDF of a signed-in account: the API-key answer's, or the prelogin's
+ * for the account's e-mail where the answer carried none. */
+export const accountKdf = (
+  client: VaultClient,
+  login: ApiKeyLogin,
+  email: string,
+): Promise<Kdf> =>
+  login.kdf === null
+    ? prelogin(client, login.serverUrl, email)
+    : Promise.resolve(login.kdf);
 
 export async function apiKeyLogin(
   client: VaultClient,
@@ -668,26 +843,51 @@ export async function apiKeyLogin(
   const userId = subjectOf(accessToken);
   if (options.clientId !== `user.${userId}`)
     throw new VaultwardenError("unexpected");
-  if (token?.Kdf !== KDF_PBKDF2_SHA256)
-    throw new VaultwardenError("unsupported-kdf");
-  const iterations = token.KdfIterations;
-  if (
-    typeof iterations !== "number" ||
-    !Number.isSafeInteger(iterations) ||
-    iterations < 5_000 ||
-    iterations > 10_000_000
-  )
-    throw new VaultwardenError("unsupported-kdf");
-  const wrapped = (value: unknown): value is string =>
-    typeof value === "string" && /^2\.[A-Za-z0-9+/=|]{1,20000}$/.test(value);
-  if (!wrapped(token.Key) || !wrapped(token.PrivateKey))
+  // The KDF the answer carries, when it carries one: a KDF of another type
+  // or out of its bounds is refused, never guessed.
+  let kdf: Kdf | null = null;
+  if (token?.Kdf !== undefined) {
+    kdf = kdfOf({
+      type: token?.Kdf,
+      iterations: token?.KdfIterations,
+      memory: token?.KdfMemory,
+      parallelism: token?.KdfParallelism,
+    });
+    if (kdf === null) throw new VaultwardenError("unsupported-kdf");
+  }
+  const key = token?.Key;
+  const privateKey = token?.PrivateKey;
+  if (typeof key !== "string" || typeof privateKey !== "string")
     throw new VaultwardenError("unexpected");
+  // Keys of another form than Bitwarden's v1 account keys (a v2 account
+  // cryptographic state) are refused, never guessed.
+  if (!isAccountKey(key) || !isAccountKey(privateKey))
+    throw new VaultwardenError("unsupported-keys");
   return Object.freeze({
     serverUrl,
     userId,
     accessToken,
-    protectedUserKey: token.Key,
-    encryptedPrivateKey: token.PrivateKey,
-    iterations,
+    protectedUserKey: key,
+    encryptedPrivateKey: privateKey,
+    kdf,
   });
+}
+
+/** The vault's API as one account, signed in with its API key only when the
+ * first request needs it and then reused: the vault's rate limit counts
+ * sign-ins, not requests. */
+export function accountApi(
+  client: VaultClient,
+  input: Readonly<{
+    serverUrl: string;
+    clientId: string;
+    clientSecret: string;
+    device: Device;
+  }>,
+): (path: string, options?: CallOptions) => Promise<unknown> {
+  let token: string | null = null;
+  return async (path, options = {}) => {
+    token ??= (await apiKeyLogin(client, input)).accessToken;
+    return vaultRequest(client, input.serverUrl, path, { ...options, token });
+  };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Buffer } from "node:buffer";
+import { bitwardenRegionOf, bitwardenRegions } from "../src/vault/endpoints";
 import * as vr from "../src/vault/register";
 
 // The registration of an Environment vault account (decision F43): the
@@ -15,7 +16,13 @@ describe("Bitwarden vectors", () => {
   // bitwarden/clients libs/legacy-crypto/src/services/web-crypto-function.service.spec.ts
   test("PBKDF2-SHA256(password, user@example.com, 5000)", async () => {
     expect(
-      b64(await vr.deriveMasterKey("password", "user@example.com", 5000)),
+      b64(
+        await vr.deriveMasterKey(
+          "password",
+          "user@example.com",
+          vr.pbkdf2Kdf(5000),
+        ),
+      ),
     ).toBe("pj9prw/OHPleXI6bRdmlaD+saJS4awrMiQsQiDjeu2I=");
   });
 
@@ -26,11 +33,32 @@ describe("Bitwarden vectors", () => {
       "TEST@bitwarden.com",
       " test@bitwarden.com",
     ]) {
-      const masterKey = await vr.deriveMasterKey("asdfasdf", salt, 100_000);
+      const masterKey = await vr.deriveMasterKey(
+        "asdfasdf",
+        salt,
+        vr.pbkdf2Kdf(100_000),
+      );
       expect(await vr.makeMasterPasswordHash(masterKey, "asdfasdf")).toBe(
         "wmyadRMyBZOH7P/a/ucTCbSghKgdzDpPqUnu/DAVtSw=",
       );
     }
+  });
+
+  // bitwarden/sdk-internal crates/bitwarden-crypto/src/keys/master_key.rs,
+  // the Argon2id master key: the salt is the SHA-256 of the e-mail (here
+  // "test_key"), the memory in MiB, 32 bytes.
+  test("Argon2id(password, SHA-256(test_key), 4 passes, 32 MiB, parallelism 2)", async () => {
+    expect([
+      ...(await vr.deriveMasterKey("67t9b5g67$%Dh89n", "test_key", {
+        type: vr.KDF_ARGON2ID,
+        iterations: 4,
+        memory: 32,
+        parallelism: 2,
+      })),
+    ]).toEqual([
+      207, 240, 225, 177, 162, 19, 163, 76, 98, 106, 179, 175, 224, 9, 17, 240,
+      20, 147, 237, 47, 246, 150, 141, 184, 62, 225, 131, 242, 51, 53, 225, 242,
+    ]);
   });
 
   // bitwarden/sdk-internal crates/bitwarden-crypto/src/keys/utils.rs test_stretch_kdf_key
@@ -105,6 +133,129 @@ describe("round trips", () => {
     const first = vr.generateMasterPassword();
     expect(first).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(vr.generateMasterPassword()).not.toBe(first);
+  });
+
+  // A personal Environment's agents' account (root decision 0203 point 7):
+  // its keys as Bitwarden keeps them, made here from a fixed password,
+  // e-mail, KDF and user key, open with the KDF its vault reports.
+  test("an entered account unlocks with PBKDF2 or Argon2id, and refuses a wrong password or keys of another form", async () => {
+    const password = "Correct horse battery staple 7";
+    const email = "  Agents.Example+Lazurio@Example.COM ";
+    const userKey = new Uint8Array(64).map((_, index) => (index * 7 + 1) % 256);
+    for (const kdf of [
+      vr.pbkdf2Kdf(5_000),
+      {
+        type: vr.KDF_ARGON2ID,
+        iterations: 2,
+        memory: 16,
+        parallelism: 1,
+      } as const,
+    ]) {
+      const masterKey = await vr.deriveMasterKey(password, email, kdf);
+      // Deterministic: the same password, e-mail and KDF give the same key,
+      // whatever the case and white space of the e-mail.
+      expect([
+        ...(await vr.deriveMasterKey(
+          password,
+          "agents.example+lazurio@example.com",
+          kdf,
+        )),
+      ]).toEqual([...masterKey]);
+      const protectedUserKey = await vr.encrypt(
+        userKey,
+        await vr.stretchMasterKey(masterKey),
+      );
+      const pair = await vr.makeKeyPair(vr.symmetricKey(userKey));
+      const keys = {
+        email,
+        protectedUserKey,
+        encryptedPrivateKey: pair.encryptedPrivateKey,
+        kdf,
+      };
+      const privateKey = await vr.unlockPrivateKey({ ...keys, password });
+      expect(await vr.publicKeyOf(privateKey)).toBe(pair.publicKey);
+      const reason = (input: Parameters<typeof vr.unlockPrivateKey>[0]) =>
+        vr.unlockPrivateKey(input).then(
+          () => "opened",
+          (error: unknown) => (error as vr.VaultwardenError).reason,
+        );
+      expect(await reason({ ...keys, password: `${password}!` })).toBe(
+        "wrong-password",
+      );
+      // The other KDF derives another key: never the account's.
+      expect(
+        await reason({
+          ...keys,
+          password,
+          kdf:
+            kdf.type === vr.KDF_ARGON2ID
+              ? vr.pbkdf2Kdf(5_000)
+              : {
+                  type: vr.KDF_ARGON2ID,
+                  iterations: 2,
+                  memory: 16,
+                  parallelism: 1,
+                },
+        }),
+      ).toBe("wrong-password");
+      // Keys of another form (a v2 account's), a user key that opens to
+      // something else and a private key that is none are not guessed.
+      for (const other of [
+        { protectedUserKey: `7.${protectedUserKey.slice(2)}` },
+        { encryptedPrivateKey: "0.aGVsbG8=|d29ybGQ=" },
+        {
+          protectedUserKey: await vr.encrypt(
+            userKey.slice(0, 32),
+            await vr.stretchMasterKey(masterKey),
+          ),
+        },
+        {
+          encryptedPrivateKey: await vr.encrypt(
+            "not a private key",
+            vr.symmetricKey(userKey),
+          ),
+        },
+      ])
+        expect(await reason({ ...keys, password, ...other })).toBe(
+          "unsupported-keys",
+        );
+    }
+  });
+
+  test("a KDF is taken only within Bitwarden's own bounds", () => {
+    const kdf = (
+      type: unknown,
+      iterations: unknown,
+      memory: unknown = null,
+      parallelism: unknown = null,
+    ) => vr.kdfOf({ type, iterations, memory, parallelism });
+    expect(kdf(0, 600_000)).toEqual({ type: 0, iterations: 600_000 });
+    expect(kdf(0, 5_000)).not.toBeNull();
+    expect(kdf(0, 10_000_000)).not.toBeNull();
+    expect(kdf(1, 3, 64, 4)).toEqual({
+      type: 1,
+      iterations: 3,
+      memory: 64,
+      parallelism: 4,
+    });
+    expect(kdf(1, 2, 15, 1)).not.toBeNull();
+    expect(kdf(1, 10, 1024, 16)).not.toBeNull();
+    for (const refused of [
+      kdf(0, 4_999),
+      kdf(0, 10_000_001),
+      kdf(0, "600000"),
+      kdf(0, 600_000.5),
+      kdf(1, 3),
+      kdf(1, 1, 64, 4),
+      kdf(1, 11, 64, 4),
+      kdf(1, 3, 14, 4),
+      kdf(1, 3, 1025, 4),
+      kdf(1, 3, 64, 0),
+      kdf(1, 3, 64, 17),
+      kdf(2, 3, 64, 4),
+      kdf(undefined, 600_000),
+    ])
+      expect(refused).toBeNull();
   });
 });
 
@@ -293,7 +444,7 @@ describe("the requests", () => {
     const masterKey = await vr.deriveMasterKey(
       "throwaway-unit-test",
       email,
-      600_000,
+      vr.pbkdf2Kdf(600_000),
     );
     const hash = await vr.makeMasterPasswordHash(
       masterKey,
@@ -422,7 +573,7 @@ describe("the own vault's requests", () => {
       password: "throwaway-unit-test",
       protectedUserKey: keys.protectedUserKey,
       encryptedPrivateKey: keys.encryptedPrivateKey,
-      iterations: 5_000,
+      kdf: vr.pbkdf2Kdf(5_000),
     });
     expect(await vr.publicKeyOf(privateKey)).toBe(keys.publicKey);
     await expect(
@@ -431,9 +582,9 @@ describe("the own vault's requests", () => {
         password: "another-password",
         protectedUserKey: keys.protectedUserKey,
         encryptedPrivateKey: keys.encryptedPrivateKey,
-        iterations: 5_000,
+        kdf: vr.pbkdf2Kdf(5_000),
       }),
-    ).rejects.toThrow("MAC mismatch");
+    ).rejects.toMatchObject({ reason: "wrong-password" });
   });
 
   test("the API-key login sends client_credentials with the one device and returns what unlocking needs", async () => {
@@ -471,7 +622,7 @@ describe("the own vault's requests", () => {
       accessToken: answer.access_token,
       protectedUserKey: "2.a|b|c",
       encryptedPrivateKey: "2.d|e|f",
-      iterations: 600_000,
+      kdf: { type: 0, iterations: 600_000 },
     });
     // Refusals and answers this core does not read are fixed reasons.
     for (const [response, reason] of [
@@ -486,6 +637,9 @@ describe("the own vault's requests", () => {
         "unexpected",
       ],
       [Response.json({ ...answer, Key: null }), "unexpected"],
+      // A v2 account cryptographic state: keys of another form.
+      [Response.json({ ...answer, Key: "7.a|b|c" }), "unsupported-keys"],
+      [Response.json({ ...answer, PrivateKey: "7.d" }), "unsupported-keys"],
       [new Response("", { status: 503 }), "unreachable"],
     ] as const) {
       const refused = scripted({ "/identity/connect/token": () => response });
@@ -497,6 +651,53 @@ describe("the own vault's requests", () => {
         reason,
       ]);
     }
+    // Argon2id as the answer carries it, and an answer without a KDF, whose
+    // KDF the prelogin of the account's e-mail then says.
+    const argon2 = {
+      ...answer,
+      Kdf: 1,
+      KdfIterations: 3,
+      KdfMemory: 64,
+      KdfParallelism: 4,
+    };
+    const { Kdf: _, KdfIterations: __, ...without } = answer;
+    const vault2 = scripted({
+      "/identity/connect/token": () => Response.json(argon2),
+    });
+    expect((await vr.apiKeyLogin({ fetch: vault2.fetch }, login)).kdf).toEqual({
+      type: 1,
+      iterations: 3,
+      memory: 64,
+      parallelism: 4,
+    });
+    const silent = scripted({
+      "/identity/connect/token": () => Response.json(without),
+      "/identity/accounts/prelogin": (body) => {
+        expect(body).toEqual({ email: ownEmail });
+        return Response.json({
+          kdf: 1,
+          kdfIterations: 3,
+          kdfMemory: 64,
+          kdfParallelism: 4,
+        });
+      },
+    });
+    const signedIn = await vr.apiKeyLogin({ fetch: silent.fetch }, login);
+    expect(signedIn.kdf).toBeNull();
+    expect(
+      await vr.accountKdf({ fetch: silent.fetch }, signedIn, ownEmail),
+    ).toEqual({ type: 1, iterations: 3, memory: 64, parallelism: 4 });
+    // A prelogin of a KDF this core does not know is refused.
+    const unknown = scripted({
+      "/identity/accounts/prelogin": () =>
+        Response.json({ kdf: 2, kdfIterations: 3 }),
+    });
+    expect(
+      await vr.prelogin({ fetch: unknown.fetch }, server, ownEmail).then(
+        () => "resolved",
+        (error) => (error as vr.VaultwardenError).reason,
+      ),
+    ).toBe("unsupported-kdf");
   });
 
   test("a request names its method, carries the token, and an organization the vault does not allow is a fixed reason", async () => {
@@ -531,5 +732,89 @@ describe("the own vault's requests", () => {
       })
       .catch((caught: unknown) => caught);
     expect((error as vr.VaultwardenError).reason).toBe("organization-refused");
+  });
+});
+
+// A personal Environment's own Bitwarden (root decision 0203 point 7): the
+// cloud's two regions, an allow-list, whose identity and API answer on hosts
+// of their own.
+describe("the Bitwarden cloud", () => {
+  test("a region is exactly its web vault, and its identity and API requests reach their own hosts", async () => {
+    expect(bitwardenRegionOf("https://vault.bitwarden.eu")).toBe("eu");
+    expect(bitwardenRegionOf("https://vault.bitwarden.eu/")).toBe("eu");
+    expect(bitwardenRegionOf("https://vault.bitwarden.com")).toBe("us");
+    for (const other of [
+      "http://vault.bitwarden.eu",
+      "https://vault.bitwarden.eu.example.com",
+      "https://bitwarden.eu",
+      "https://api.bitwarden.eu",
+      "https://VAULT.bitwarden.com",
+      "https://vault.bitwarden.com:8443",
+      server,
+    ])
+      expect([other, bitwardenRegionOf(other)]).toEqual([other, null]);
+    expect(bitwardenRegions.eu).toEqual({
+      web: "https://vault.bitwarden.eu",
+      api: "https://api.bitwarden.eu",
+      identity: "https://identity.bitwarden.eu",
+    });
+    expect(bitwardenRegions.us).toEqual({
+      web: "https://vault.bitwarden.com",
+      api: "https://api.bitwarden.com",
+      identity: "https://identity.bitwarden.com",
+    });
+    const asked: string[] = [];
+    const fetch: vr.VaultFetch = async (url) => {
+      asked.push(url);
+      return Response.json({});
+    };
+    for (const [web, path] of [
+      ["https://vault.bitwarden.eu", "/identity/connect/token"],
+      ["https://vault.bitwarden.eu", "/api/accounts/profile"],
+      ["https://vault.bitwarden.com", "/identity/accounts/prelogin"],
+      ["https://vault.bitwarden.com", "/api/organizations/x/users/invite"],
+      [server, "/identity/connect/token"],
+      [server, "/api/accounts/profile"],
+    ] as const)
+      await vr.vaultRequest({ fetch }, web, path, { json: {} });
+    expect(asked).toEqual([
+      "https://identity.bitwarden.eu/connect/token",
+      "https://api.bitwarden.eu/accounts/profile",
+      "https://identity.bitwarden.com/accounts/prelogin",
+      "https://api.bitwarden.com/organizations/x/users/invite",
+      `${server}/identity/connect/token`,
+      `${server}/api/accounts/profile`,
+    ]);
+    // Nothing else of the cloud is asked for.
+    expect(
+      await vr
+        .vaultRequest({ fetch }, "https://vault.bitwarden.eu", "/admin")
+        .then(
+          () => "resolved",
+          (error) => (error as vr.VaultwardenError).reason,
+        ),
+    ).toBe("unexpected");
+    expect(asked).toHaveLength(6);
+  });
+
+  test("a second Free organization of an account that owns one is a fixed reason", async () => {
+    const cloud = scripted({
+      "/organizations": () =>
+        refusal("You can only be an admin of one free organization."),
+    });
+    expect(
+      await vr
+        .vaultRequest(
+          { fetch: cloud.fetch },
+          "https://vault.bitwarden.eu",
+          "/api/organizations",
+          { json: {}, token: "token" },
+        )
+        .then(
+          () => "resolved",
+          (error) => (error as vr.VaultwardenError).reason,
+        ),
+    ).toBe("free-organization-limit");
+    expect(cloud.seen[0]?.url).toBe("https://api.bitwarden.eu/organizations");
   });
 });
