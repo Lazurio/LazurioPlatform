@@ -1129,7 +1129,7 @@ const en = {
   columnWidth: "Navigation width",
   integrationsTitle: "Integrations",
   integrationsSubtitle:
-    "Every agent and bot of this Environment uses what you connect here.",
+    "Connected apps every agent and bot of this Environment uses.",
   integrationsHelp: "How it works",
   integrationsSearch: "Search apps",
   integrationsRefresh: "Check connections",
@@ -2551,7 +2551,7 @@ const cs: Record<MessageKey, string> = {
   columnWidth: "Šířka navigace",
   integrationsTitle: "Integrace",
   integrationsSubtitle:
-    "Co tu připojíte, používají všichni agenti a boti tohoto Prostředí.",
+    "Připojené aplikace, které používají všichni agenti a boti tohoto Prostředí.",
   integrationsHelp: "Jak to funguje",
   integrationsSearch: "Hledat aplikace",
   integrationsRefresh: "Zkontrolovat připojení",
