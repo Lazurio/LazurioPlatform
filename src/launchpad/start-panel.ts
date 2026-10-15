@@ -84,6 +84,10 @@ export function createStartPanel(
   // A focus asked for on the AI step ("Připojit AI" from a stopped
   // preparation, a line or a hand-over without AI), taken once it is drawn.
   let focusAi = false;
+  // What was drawn last: the page asks again on every change of a fact (each
+  // second while an installation runs), and the steps are drawn again only
+  // when they say something else, so a focused button keeps its focus.
+  let drawn: string | null = null;
 
   function stepNode(
     step: StartStep,
@@ -160,7 +164,23 @@ export function createStartPanel(
     notHere.hidden = facts === null || view !== null;
     for (const group of groups) group.hidden = view === null;
     intro.hidden = view === null;
-    if (facts === null || view === null) return;
+    if (facts === null || view === null) {
+      drawn = null;
+      return;
+    }
+    const vault = options.vault();
+    const rows = optionalRows(
+      {
+        preset: facts.preset,
+        composio: options.composio(),
+        sshDevices: options.sshDevices(),
+      },
+      copy,
+    );
+    const toured = options.toured();
+    const now = JSON.stringify([view, vault, rows, toured]);
+    if (now === drawn && !focusAi) return;
+    drawn = now;
     intro.textContent = view.intro;
 
     const nodes = view.steps.map((step, index) => {
@@ -185,23 +205,13 @@ export function createStartPanel(
     });
     steps.replaceChildren(...nodes);
 
-    const vault = options.vault();
     vaultGroup.hidden = vault === null;
     vaultState.textContent = vault?.line ?? "";
     vaultState.dataset.tone = vault?.tone ?? "";
 
-    const rows = optionalRows(
-      {
-        preset: facts.preset,
-        composio: options.composio(),
-        sshDevices: options.sshDevices(),
-      },
-      copy,
-    );
     optional.replaceChildren(...rows.map(optionalNode));
     optionalGroup.hidden = rows.length === 0;
 
-    const toured = options.toured();
     tourState.textContent =
       toured === true ? copy.startToured : copy.startNotToured;
     tourButton.textContent =
