@@ -2860,6 +2860,123 @@ Risks: a person who wants another address must change it themselves (as on a
 workstation); the step is not tested on Windows here (the curated gh flow is qualified on
 Linux and macOS), though `git config --global` behaves the same there.
 
+**Addendum 2026-10-15 (root decision 0201 points 3-6, plan DEV-6665 task 742,
+Lazurio/LazurioPlatform#422): ChatGPT and Claude sign in through their CLIs, with the
+page in the Environment browser.** On 2026-10-14 the Organization Admin ran both CLIs by
+hand on a work Remote Environment and opened their addresses in the Environment browser's
+panel: `codex login` returned to `http://localhost:1455/auth/callback` and printed
+"Successfully logged in"; `claude auth login` had printed only its code page (its return is
+`https://platform.claude.com/oauth/code/callback`), whose code must be pasted into the CLI,
+while on a computer Claude Code opens an automatic page that returns to localhost. A
+person never types into a terminal, and the sign-in must land where T3, Codex Desktop over
+SSH, the terminal and every agent read it.
+
+1. **One command over the CLIs' own sign-in.** `lazurio tools login codex` runs `codex
+   login` (never `--device-auth`), `lazurio tools login claude` runs `claude auth login`,
+   both through the curated sessions of this decision, as the Environment user with the
+   minimal environment and the account's name (`USER`, `LOGNAME`; Claude Code finds its
+   macOS keychain entry by it). Začínáme, agents and a person's terminal use the same
+   core. The sign-in lands in each CLI's own store (`~/.codex/auth.json`, Claude's). They
+   are no catalog tools of agents: no activation, nothing rendered into the Folder, and
+   `install`, `update` and `logout` stay as F17 made them.
+2. **The page opens where the person sees it, and returns to the CLI inside the
+   Environment.** Read from codex-cli 0.162.1 and Claude Code 2.1.301 in a throwaway
+   Ubuntu 24.04 container: both run `$BROWSER <page>` with the one address, also without a
+   display (Codex through the `webbrowser` crate, which splits it at whitespace and does
+   not wait; Claude Code as one command, waiting for it). Without `BROWSER`, Codex tries
+   `xdg-settings` and `x-www-browser`, and Claude Code runs `xdg-open` only where a display
+   exists. Codex prints the same page on stderr and listens on 127.0.0.1:1455; Claude Code
+   prints its code page on stdout and listens on a random 127.0.0.1 port. So on a Remote
+   Environment whose entry routes the Environment browser, the CLI's `BROWSER` is a private
+   stand-in (a 0700 directory per sign-in, removed with it) that hands the page to the
+   sign-in. A stand-in for `xdg-open` is not needed. Only an https page on the CLI's official
+   hosts is opened (`auth.openai.com`; `claude.com`, `claude.ai`, `platform.claude.com`,
+   `console.anthropic.com`); any other address stops the CLI (`unexpected-url`). The
+   command opens it as `lazurio browser open` does (F38's addendum of 2026-10-15): in a T3
+   Code thread in the thread's panel, elsewhere in Přehled, and prints its link. The
+   Launchpad opens it as an Integrace sign-in (`environmentBrowserOf`, F42's addendum of
+   2026-10-13): a tab in its strip that it holds, and the page opens its right panel on
+   it. This decides what F38's addendum left open: a CLI never calls the Launchpad; the
+   Launchpad's own child hands it the page through the stand-in. A browser that does not
+   open the page stops the CLI (`browser-unavailable`). On a workstation nothing is set:
+   the CLI opens the computer's own browser (root decision 0191's addendum of 2026-10-12,
+   point 30), and the printed page is offered beside it.
+3. **Claude's code page, without a terminal.** It opens only when the CLI hands over no
+   page within 3 s of printing it. The code it shows (`<code>#<state>`) then goes to the
+   CLI's input as one line: pasted in the terminal running the command, or into the one
+   field of Začínáme (`POST /api/tools/login/code`). Only a whole code is taken, and only
+   while the sign-in waits for one; a code is never logged, stored or answered.
+4. **What starts nothing.** A Remote Environment without the Environment browser
+   (`blocked`, `no-environment-browser`): the page could not return to the CLI there, and
+   Začínáme says why. Codex where its own `account/read` answers `requiresOpenaiAuth:
+   false` (0201 points 4 and 6): the Organization provides the AI, and a ChatGPT sign-in
+   would bypass its provider (`blocked`, `organization-provided`). Claude has no such
+   source yet (#422's open question). Exit 2, `409` from the Launchpad.
+5. **Done is what the CLI says; then the running services read it** (0201 point 4).
+   Signed in means the CLI exited 0 and its own status confirms it: `codex login status`
+   and `claude auth status --json`, the catalog's `signInProbe`, which moves from a
+   tool's activation to the tool, where codex and claude get theirs. Then, pending with
+   `step: "services"`:
+   - the Codex app-server unit is restarted where it is the installer's (`systemctl
+     --user restart lazurio-codex-app-server.service`), since a running app-server never
+     rereads `auth.json`. It is that unit's one restart, the person's own act; install
+     and update still never restart it (F29);
+   - T3 Code turns on and reads again every AI CLI signed in now (`t3 lazurio providers
+     --base-dir ~/.t3 '{"providers":[…],"enable":true}'`, Lazurio/t3code#72), only where
+     `t3 lazurio capabilities` reports `providerRefresh: true`; an older T3 Code reads it
+     at its own next check, within about five minutes. Its `409` `driver-mismatch` (an
+     instance under the provider's ID runs another driver) is a clear failure: signed in,
+     but Chat did not turn the provider on, said in the terminal and beside the account
+     in Začínáme.
+
+   `signed-in` carries `services: { appServer?, t3 }`. The command exits 0 only when
+   signed in and neither the restart nor T3 Code failed. The Launchpad drops the AI
+   reading it keeps when a sign-in ends, so Začínáme reads it again at once.
+6. **Začínáme's AI step** (the wireframe's states, prototypes-lazurio #48 and #49):
+   "Zajišťuje vaše Organizace." (done, nothing runs); "Přihlásit ChatGPT" and "Přihlásit
+   Claude", both allowed, with the sentence before them where the page opens in the
+   Environment browser ("Připravte si heslo k ChatGPT nebo Claude (případně ke Googlu) a
+   telefon, protože správce hesel ani passkey z počítače tu nefungují.", 0201 point 7);
+   signing in with where to finish it, "Otevřít přihlášení" and "Zrušit"; Claude's code
+   field; connected with the accounts and "Přihlásit jiný účet"; a sign-in that did not
+   finish with "Zkusit znovu"; without the Environment browser the sentence why.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Device code (`codex login --device-auth`) | Needs no browser in the Environment, but is beta and must be enabled in each person's ChatGPT security settings; rejected by 0201 point 4 |
+| T3 Code's own "Continue with ChatGPT" | Ends on a dead 127.0.0.1 page of a Remote Environment and keeps a token only T3 sees; rejected by 0201 point 4 (t3code#72 hides it) |
+| The child's `BROWSER` set to `lazurio browser open` itself | One mechanism with the Machines registration, but the Launchpad would not learn the tab its panel must show, and nothing would check the page's host; rejected for the stand-in, which hands the page to the sign-in that opens it |
+| A stand-in for `xdg-open` on the child's PATH | Neither CLI uses it without a display (read in the container); not added |
+| Only the address the CLI prints | Claude Code prints its code page, so every Claude sign-in would need the code; kept only as the fallback |
+| Read Claude's code from the code page's address through the hub | No field at all, but reads a tab's address with its code; deferred, the field is the decided fallback |
+| `codex app-server daemon restart` | Also restarts a daemon a client started, but so does the unit's `ExecStop`/`ExecStart`, which keeps the unit's state; the unit |
+| A `signInProbe` in an activation of codex and claude | Would make them agent tools rendered into the Folder; rejected: the probe moves to the tool |
+
+**Honest limits.** No real sign-in ran on a Remote Environment: that needs #436, this
+change, Lazurio/t3code#72 and HumanAndMachine-ai/Machines#522 released together. The
+canary is the proof (0201's acceptance in #422): ChatGPT and Claude sign in without a
+terminal, `codex login status` says signed in, and Chat shows both ready within a minute.
+No Environment browser ran locally, so the right panel on a real tab was not seen. The
+CLIs' behaviour was read from the two versions above; a later CLI that stops running
+`BROWSER` falls back to the printed page (Claude's with the code field). The Launchpad
+does not release the sign-in's tab afterwards, as Integrace does not. The wireframe's
+"Odpojit" (sign-out through Lazurio, and T3's state after it) is not built.
+
+Verified by tests: `tests/tools-ai-login.test.ts` (fake codex and claude as real
+processes: the page through `BROWSER` opened in a stand-in Environment browser and its
+return to the CLI, Claude's automatic page over its code page, the code page after the
+grace with its code, a wrong code, a workstation with nothing set, the T3 refresh naming
+every signed-in CLI, nothing started without the browser or with the Organization's AI, a
+foreign page and a refusing browser stopping the CLI, `tool-exit` and `not-confirmed`,
+cancel removing the stand-in, no page state or code left in a file); `tests/tools-ai-services.test.ts`
+(the unit restart only for the installer's unit, the T3 refresh only with
+`providerRefresh`, a driver mismatch and the failures); `tests/tools-ai-login-cli.test.ts`
+(where the page opens, the terminal's lines and exit codes, a code pasted in the
+terminal); `tests/launchpad-ai-sign-in.test.ts` (the routes, the code route, the refusals);
+`tests/ai-sign-in.test.ts` and `tests/start-view.test.ts` (the page's controller and the
+step's states); `tests/tools.test.ts` (the probes on the CLIs' real answers). And in a
+browser (root decision 0178) with the fake CLIs, in Czech and English.
+
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
 **Matěj's decision 2026-09-28, implemented in this revision for Linux and macOS.**
@@ -5990,8 +6107,8 @@ the member, who could not fix the Organization's root, was still sent to Chat.
    (`loggedIn`), run as the operator with PATH, home and the account's name, kept a minute,
    `?fresh=1` asks now. `organization`, `connected`, `missing` only when every CLI answered,
    `unknown` otherwise; unknown is never claimed missing. No flag or Organization setting
-   is added. The sign-in itself (`lazurio tools login codex|claude`) is task 742 and plugs in
-   by changing this reading.
+   is added. The sign-in itself (`lazurio tools login codex|claude`, task 742, F19's
+   addendum of 2026-10-15) plugs in by changing this reading.
 3. **Nastavení → Začínáme** (`/settings/start`, first in Settings with a "1/3" count while a
    basic is missing): the basics as steps in the order AI → GitHub → content (0201 point
    3), GitHub offered only once AI is there, the content's own rows in the third step.
@@ -6044,9 +6161,9 @@ the member, who could not fix the Organization's root, was still sent to Chat.
 | Hold the content back also while the AI could not be checked | Stricter, but a slow or failing Codex probe would lock a person out of their content with no way forward. Rejected: only a provably missing AI blocks |
 | Gate only the page, not the install route | Fewer moving parts, but a stale page, an older link or a script could start the content before AI. Rejected: the route refuses too |
 
-**Honest limits.** The AI step has no sign-in until task 742: without the Organization's AI
-pool, a person reaches a connected AI only outside Začínáme, so this change ships together
-with 742 or after it. A Codex that answers `account/read` slowly (above ten seconds) reads
+**Honest limits.** The AI step's sign-in is task 742 (F19's addendum of 2026-10-15): without
+the Organization's AI pool, a person reaches a connected AI only through it, so this change
+ships together with it. A Codex that answers `account/read` slowly (above ten seconds) reads
 as unknown and holds nothing back. Who may fix the root is read on the conventional name
 only; a root under another name that the person can write still shows the Admin sentence.
 
@@ -6860,7 +6977,9 @@ Decided:
 Not decided here:
 - How the Launchpad's Začínáme step (#422) shows the sign-in it starts in the Launchpad's
   own panel, which shows only tabs the Launchpad holds. A CLI never calls the Launchpad
-  (as in F54 point 2).
+  (as in F54 point 2). *Decided in F19's addendum of 2026-10-15: the Launchpad's child
+  hands the page to the sign-in through a `BROWSER` stand-in, and the Launchpad opens it
+  as an Integrace sign-in, a tab it holds.*
 - A person's terminal inside a T3 Code thread does not carry the thread's session today,
   so a page it opens waits in Přehled rather than in the thread's panel.
 - The Folder manual says nothing new until Machines registers the command on the

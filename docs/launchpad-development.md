@@ -2427,9 +2427,9 @@ Organization's, and it gets none of it.
     `claude auth status --json`. `organization` or `connected` is done; `missing` only
     when every CLI answered (signed out or not installed); `unknown` (no answer) is
     never claimed missing and holds nothing back. The server keeps an answer a minute;
-    `?fresh=1` (Začínáme's "Zkontrolovat znovu") asks now. The sign-in itself is task
-    742 (`lazurio tools login codex|claude`, Lazurio/LazurioPlatform#422) and only makes
-    this reading change;
+    `?fresh=1` (Začínáme's "Zkontrolovat znovu") asks now. The sign-in itself
+    (`lazurio tools login codex|claude`, F19's addendum of 2026-10-15) only makes this
+    reading change: when one ends, the server drops the answer it keeps;
   - GitHub from Settings → Nástroje's own reading of the profile shown (`githubFact`: an
     unknown, unprobed, stale or Team reading says nothing; gh not installed is missing);
   - the content from the content routes (`content-client.ts`, `content-view.ts`).
@@ -2437,9 +2437,22 @@ Organization's, and it gets none of it.
   count "1/3" while a basic is missing; `start-view.ts`, `start-panel.ts`): "Hotovo
   {n} ze 3 kroků. Stav se ověřuje přímo v Prostředí." (all there: "Prostředí je
   připravené. Sem se můžete kdykoli vrátit."), then "Povinné kroky":
-  1. **Připojit AI**: "Zajišťuje vaše Organizace.", "Připojeno: ChatGPT, <e-mail>",
-     "Agent vám pak pomůže s dalšími kroky." (its ChatGPT and Claude sign-in come with
-     task 742), or that it could not be checked;
+  1. **Připojit AI** (`ai-sign-in.ts` holds the sign-in in the page): "Zajišťuje vaše
+     Organizace." (done, nothing runs); "Agent vám pak pomůže s dalšími kroky." (or that
+     it could not be checked) with "Přihlásit ChatGPT" and "Přihlásit Claude", and on a
+     Remote Environment before them "Připravte si heslo k ChatGPT nebo Claude (případně
+     ke Googlu) a telefon, protože správce hesel ani passkey z počítače tu nefungují.";
+     signing in, "Dokončete přihlášení k {ChatGPT|Claude} v prohlížeči vpravo." (the
+     right panel opens on the Environment browser's tab, as for Integrace) or "… v okně
+     prohlížeče." (a workstation, whose CLI opens the computer's browser), with
+     "Otevřít přihlášení" and "Zrušit", and for Claude's code page one field for its
+     code (`POST /api/tools/login/code`); "Připojeno: ChatGPT, <e-mail>; Claude,
+     <e-mail>" with "Přihlásit jiný účet", which offers both again; a sign-in that did
+     not finish ("Přihlášení se nepovedlo…", expired, the Environment browser did not
+     open it) with "Zkusit znovu"; a T3 Code that did not turn the provider on, said
+     beside the account; and without the Environment browser "Přihlášení se otevírá v
+     prohlížeči Prostředí, který tu zatím není. Doplní ho aktualizace Prostředí.",
+     nothing started. Signed in, the page reads `GET /api/ai?fresh=1` at once;
   2. **GitHub**: "Připojeno jako @login", or "Připojit" (gh's own sign-in dialog of
      Nástroje), offered only once AI is there ("Nabídne se po připojení AI.");
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
