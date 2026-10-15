@@ -1,4 +1,11 @@
-import type { AiProviderReading, AiReading } from "../tools/ai";
+import {
+  type AiProvider,
+  type AiProviderReading,
+  type AiReading,
+  aiProviderName,
+  aiServicesReady,
+} from "../tools/ai";
+import { type AiSignIn, type AiSignInPlace, idleAiSignIn } from "./ai-sign-in";
 import type { ContentList } from "./content-client";
 import {
   type Basic,
@@ -22,7 +29,9 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // the same in any browser and opens again any time: 1. Připojit AI, 2.
 // GitHub, 3. the Organization's download or the personal space, which starts
 // by itself once GitHub is there. Then the vault, the optional steps and the
-// tour of the app. Pure: the DOM is start-panel.ts.
+// tour of the app. The AI step signs ChatGPT and Claude in through their CLIs
+// (F19's addendum of 2026-10-15, ai-sign-in.ts). Pure: the DOM is
+// start-panel.ts.
 
 /** How a step stands: done, the one to do now, one that waits for an
  * earlier one, or a stop. */
@@ -34,11 +43,39 @@ export type StartStep = Readonly<{
   title: string;
   /** One line under the title; null where the step's body says it. */
   status: string | null;
+  /** A second line that needs attention (a sign-in that did not finish, a
+   * service that did not read it); absent where there is none. */
+  warning?: string;
 }>;
 
 /** The GitHub step's one action: "Připojit", enabled only once AI is there
  * (0201 point 3). Null when GitHub is connected or not known yet. */
 export type GithubAction = Readonly<{ enabled: boolean }> | null;
+
+/** What the AI step offers besides its line (root decision 0201 points 3-6,
+ * the wireframe's states). */
+export type AiAction =
+  /** Nothing to do: the Organization's AI, a reading under way, no
+   * Environment browser, or the services reading a new sign-in. */
+  | Readonly<{ kind: "none" }>
+  /** "Přihlásit ChatGPT" and "Přihlásit Claude" (both may be signed in),
+   * with the sentence before them where the page opens in the Environment
+   * browser; `cancel` where they were opened from a connected step. */
+  | Readonly<{ kind: "choose"; before: string | null; cancel: boolean }>
+  /** Connected: "Přihlásit jiný účet" opens the choice again. */
+  | Readonly<{ kind: "connected" }>
+  /** Signing in: "Otevřít přihlášení" (the right panel again, or the page
+   * itself in the computer's own browser; none before the page is open),
+   * "Zrušit", and the field for the code of Claude's code page. */
+  | Readonly<{
+      kind: "signing-in";
+      reopen: Readonly<{ panel: true }> | Readonly<{ url: string }> | null;
+      code: Readonly<{
+        note: Readonly<{ text: string; tone: "warn" | "quiet" }> | null;
+      }> | null;
+    }>
+  /** "Zkusit znovu" for the sign-in that did not finish. */
+  | Readonly<{ kind: "retry"; tool: AiProvider }>;
 
 export type StartView = Readonly<{
   intro: string;
@@ -46,12 +83,20 @@ export type StartView = Readonly<{
   total: number;
   steps: readonly StartStep[];
   github: GithubAction;
+  ai: AiAction;
 }>;
 
 export type StartFacts = TourFacts &
   Readonly<{
     /** The AI as `GET /api/ai` read it; null before it answered. */
     aiReading: AiReading | null;
+    /** This page's sign-in of ChatGPT or Claude (ai-sign-in.ts); idle when
+     * absent. */
+    aiSignIn?: AiSignIn;
+    /** Where its page opens; the computer's own browser when absent. */
+    aiPlace?: AiSignInPlace;
+    /** "Přihlásit jiný účet" opened the choice on a connected step. */
+    aiChoosing?: boolean;
     /** The GitHub login gh is signed in with, when it names one. */
     githubLogin: string | null;
     /** What the content routes listed, for the step's title. */
@@ -70,30 +115,155 @@ function accountLabel(reading: AiProviderReading, copy: Copy): string | null {
   return reading.account === undefined ? name : `${name}, ${reading.account}`;
 }
 
-function aiStep(facts: StartFacts, copy: Copy): StartStep {
+/** Why the last sign-in did not finish, in one sentence. */
+function aiFailure(
+  signIn: Extract<AiSignIn, { kind: "failed" }>,
+  copy: Copy,
+): string {
+  switch (signIn.reason) {
+    case "expired":
+      return copy.startAiExpired;
+    case "no-answer":
+      return copy.startAiNoAnswer;
+    case "browser-unavailable":
+      return copy.startAiBrowserFailed;
+    case "no-environment-browser":
+      return copy.startAiNoBrowser;
+    case "failed":
+      return copy.startAiFailed;
+  }
+}
+
+/** What a sign-in that finished says about the services that did not read
+ * it: Chat and the Codex app-server use it only later, or Chat refused. */
+function aiServicesWarning(signIn: AiSignIn, copy: Copy): string | undefined {
+  if (signIn.kind !== "signed-in" || signIn.services === undefined)
+    return undefined;
+  if (aiServicesReady(signIn.services)) return undefined;
+  // Chat names its providers after the CLIs.
+  return signIn.services.t3.state === "driver-mismatch"
+    ? fill(copy.startAiChatMismatch, {
+        provider: signIn.tool === "codex" ? "Codex" : "Claude",
+      })
+    : copy.startAiServicesLater;
+}
+
+function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
   const base = { basic: "ai" as const, title: copy.startAiTitle };
-  switch (facts.ai) {
-    case "organization":
-      return { ...base, mark: "done", status: copy.startAiOrganization };
-    case "connected": {
-      const accounts = (facts.aiReading?.providers ?? [])
-        .map((reading) => accountLabel(reading, copy))
-        .filter((label): label is string => label !== null);
-      return {
+  const signIn = facts.aiSignIn ?? idleAiSignIn;
+  const place = facts.aiPlace ?? "own";
+  const ready = facts.ai === "organization" || facts.ai === "connected";
+  const mark: StartMark = ready ? "done" : "now";
+  const choose: AiAction = {
+    kind: "choose",
+    before: place === "panel" ? copy.startAiBefore : null,
+    cancel: ready,
+  };
+  // A sign-in under way says where to finish it.
+  if (signIn.kind === "starting")
+    return [
+      { ...base, mark, status: copy.startAiStarting },
+      { kind: "signing-in", reopen: null, code: null },
+    ];
+  if (signIn.kind === "waiting") {
+    const name = aiProviderName[signIn.tool];
+    return [
+      {
+        ...base,
+        mark,
+        status: fill(
+          signIn.view !== undefined
+            ? copy.startAiFinishPanel
+            : copy.startAiFinishOwn,
+          { name },
+        ),
+      },
+      {
+        kind: "signing-in",
+        reopen:
+          signIn.view !== undefined
+            ? { panel: true }
+            : signIn.url !== undefined
+              ? { url: signIn.url }
+              : null,
+        code: signIn.code
+          ? {
+              note:
+                signIn.codeNote === "invalid"
+                  ? { text: copy.startAiCodeInvalid, tone: "warn" }
+                  : signIn.codeNote === "sent"
+                    ? { text: copy.startAiCodeSent, tone: "quiet" }
+                    : null,
+            }
+          : null,
+      },
+    ];
+  }
+  if (signIn.kind === "finishing")
+    return [
+      {
+        ...base,
+        mark,
+        status: fill(copy.startAiFinishing, {
+          name: aiProviderName[signIn.tool],
+        }),
+      },
+      { kind: "none" },
+    ];
+  if (facts.ai === "organization")
+    return [
+      { ...base, mark: "done", status: copy.startAiOrganization },
+      { kind: "none" },
+    ];
+  // Signed in to one of them: the accounts, and another one on request.
+  if (facts.ai === "connected") {
+    const accounts = (facts.aiReading?.providers ?? [])
+      .map((reading) => accountLabel(reading, copy))
+      .filter((label): label is string => label !== null);
+    const warning =
+      signIn.kind === "failed"
+        ? aiFailure(signIn, copy)
+        : aiServicesWarning(signIn, copy);
+    return [
+      {
         ...base,
         mark: "done",
         status:
           accounts.length === 0
             ? copy.startConnected
             : fill(copy.startAiConnected, { accounts: accounts.join("; ") }),
-      };
-    }
+        ...(warning === undefined ? {} : { warning }),
+      },
+      facts.aiChoosing === true
+        ? choose
+        : signIn.kind === "failed" && signIn.reason !== "no-environment-browser"
+          ? { kind: "retry", tool: signIn.tool }
+          : { kind: "connected" },
+    ];
+  }
+  if (signIn.kind === "failed")
+    return [
+      { ...base, mark: "failed", status: aiFailure(signIn, copy) },
+      signIn.reason === "no-environment-browser"
+        ? { kind: "none" }
+        : { kind: "retry", tool: signIn.tool },
+    ];
+  // Without the Environment browser the page could not return to the CLI.
+  if (place === "none" && facts.ai !== "loading")
+    return [
+      { ...base, mark: "now", status: copy.startAiNoBrowser },
+      { kind: "none" },
+    ];
+  switch (facts.ai) {
     case "missing":
-      return { ...base, mark: "now", status: copy.startAiMissing };
+      return [{ ...base, mark: "now", status: copy.startAiMissing }, choose];
     case "unknown":
-      return { ...base, mark: "now", status: copy.startAiUnknown };
+      return [{ ...base, mark: "now", status: copy.startAiUnknown }, choose];
     case "loading":
-      return { ...base, mark: "now", status: copy.startChecking };
+      return [
+        { ...base, mark: "now", status: copy.startChecking },
+        { kind: "none" },
+      ];
   }
 }
 
@@ -157,7 +327,8 @@ function contentStep(facts: StartFacts, copy: Copy): StartStep {
 export function startView(facts: StartFacts, copy: Copy): StartView | null {
   if (!signsInAsPerson(facts.preset)) return null;
   const [github, action] = githubStep(facts, copy);
-  const steps = [aiStep(facts, copy), github, contentStep(facts, copy)];
+  const [ai, aiAction] = aiStep(facts, copy);
+  const steps = [ai, github, contentStep(facts, copy)];
   const done = basicsDone(facts);
   const total = basics.length;
   return {
@@ -169,6 +340,7 @@ export function startView(facts: StartFacts, copy: Copy): StartView | null {
     total,
     steps,
     github: action,
+    ai: aiAction,
   };
 }
 

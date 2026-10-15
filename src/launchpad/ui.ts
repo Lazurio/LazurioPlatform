@@ -11,6 +11,7 @@ import { environmentName, switchTabs } from "../shell/view";
 import { type AiReading, parseAiAnswer } from "../tools/ai";
 import type { ToolsOverview } from "../tools/overview";
 import { accountWriter, readAccount } from "./account";
+import { aiSignInPlace, createAiSignIn } from "./ai-sign-in";
 import { personalHolderOf, pluralKey } from "./apps-view";
 import { bootElementId, parseBoot } from "./boot";
 import { createBrowserPanel } from "./browser-panel";
@@ -507,6 +508,20 @@ const tour = createTour({
 // the tour. Its vault and SSH rows are read each time it is shown.
 let vaultRow: StartVaultRow | null = null;
 let sshDevices: number | null = null;
+// "Přihlásit ChatGPT" and "Přihlásit Claude" (root decision 0201 points 3-6,
+// F19's addendum of 2026-10-15): the CLI's sign-in through the Launchpad; on
+// a Remote Environment its page opens in the Environment browser, and the
+// right panel shows its tab, as Integrace does. Signed in, the AI is read
+// again at once.
+const aiSignIn = createAiSignIn({
+  post: (path, body) => post(path, body),
+  showView: (view) => {
+    if (!browser.showView(view))
+      window.open(view, "_blank", "noopener,noreferrer");
+  },
+  changed: () => startPanel.render(),
+  readAi: () => void readAi(true),
+});
 const startPanel = createStartPanel({
   copy: () => copy,
   facts: () => {
@@ -516,6 +531,8 @@ const startPanel = createStartPanel({
       : {
           ...facts,
           aiReading,
+          aiSignIn: aiSignIn.state(),
+          aiPlace: aiSignInPlace(entry),
           githubLogin: githubAccount(toolsOverview),
           list: content.list(),
         };
@@ -530,6 +547,10 @@ const startPanel = createStartPanel({
   signInComposio: () => {
     if (!tools.openSignIn("composio")) shell.navigate(settingsPath("tools"));
   },
+  signInAi: (tool) => void aiSignIn.start(tool),
+  cancelAi: () => void aiSignIn.cancel(),
+  reopenAi: () => aiSignIn.reopen(),
+  sendAiCode: (code) => void aiSignIn.sendCode(code),
   restartTour: () => tour.restart(),
   navigate: (path) => shell.navigate(path),
 });

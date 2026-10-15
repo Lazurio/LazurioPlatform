@@ -931,6 +931,16 @@ button.tour-later:hover { background: transparent; color: var(--fg); }
 .start-title { font-size: 15px; font-weight: var(--lz-weight-akce); }
 .start-status { color: var(--muted-fg); font-size: 13.5px; }
 .start-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.start-status .spinner { display: inline-block; margin-right: 8px; vertical-align: -1px; }
+.start-warning { color: var(--warning-fg); font-size: 13.5px; }
+.start-note { max-width: 36rem; font-size: 13.5px; line-height: 1.45; }
+.start-choices, .start-code-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.start-code { display: grid; gap: 6px; max-width: 36rem; }
+.start-code-label { color: var(--muted-fg); font-size: 13.5px; }
+.start-code-row input { flex: 1; min-width: 14rem; font-family: var(--font-mono); }
+.start-code-note { font-size: 13px; }
+.start-code-note[data-tone="warn"] { color: var(--warning-fg); }
+.start-code-note[data-tone="quiet"] { color: var(--muted-fg); }
 #start-content { display: grid; gap: 12px; }
 #start-content:empty, #start-content > .content-note[hidden]:only-child { display: none; }
 #start-content .content-row { padding: 0; }
