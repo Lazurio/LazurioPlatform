@@ -5915,7 +5915,15 @@ the member, who could not fix the Organization's root, was still sent to Chat.
    basic is missing): the basics as steps in the order AI → GitHub → content (0201 point
    3), GitHub offered only once AI is there, the content's own rows in the third step and
    started by itself once this view saw GitHub connect (never after a stop, never while no
-   agent could help); then the Environment's vault as Nastavení → Trezor reads it, the
+   agent could help). **No start of the content comes before its turn** (Pablo's review of
+   #436): one rule, `contentBlockedBy`, decides the download button and "Zkusit znovu" (not
+   offered, only a sentence why), the line in Apps, a start request in the address (an
+   older `#lazurio-start=install-content` shows the AI step instead), the start after
+   GitHub, and the install route itself, which answers `403` with `"reason":
+   "ai-missing"`. Only a provably missing AI blocks (every CLI answered); an AI that could
+   not be checked does not, as it holds nothing else back: a timeout of Codex must not lock
+   an Environment out of its content, and a stop then leads to Chat. Then the
+   Environment's vault as Nastavení → Trezor reads it, the
    optional steps (Composio, SSH from the person's own computer, Codex Desktop) and the
    tour of Apps, Chat and Automate, which it starts again.
 4. **The onboarding shows until the basics exist** (0201 point 2). The tour points at the
@@ -5937,8 +5945,11 @@ the member, who could not fix the Organization's root, was still sent to Chat.
    this version of Lazurio yet, and to someone who cannot write its root that its Admin
    prepares it, with no Chat. Who can is GitHub's live answer through
    `GET /api/content/root-access?org=<login>` (an active Owner, or `write` on the
-   conventional root `<login>/<login>_GEN3`; any failure is no). It decides only where the
-   page points, never access.
+   conventional root `<login>/<login>_GEN3`; any failure is no). It answers only for the
+   Organization whose newest installation stopped that way; for any other it gives the same
+   `write: false` without asking GitHub, so an admitted visitor learns nothing about the
+   identity's rights in other Organizations. It decides only where the page points, never
+   access.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -5947,6 +5958,8 @@ the member, who could not fix the Organization's root, was still sent to Chat.
 | A flag in the Organization's settings for "AI provided" | One more setting to keep true. Rejected by 0201 point 6: the CLI says it |
 | Membership alone for who prepares the root | Simpler, but a Steward or Builder with `write` on the root can fix it too. Owner or `write` on the conventional root kept |
 | Keep the column line in Chat and Automate | It said one missing thing with its own buttons in two apps; the wireframe replaced it by one prompt to Začínáme in all three |
+| Hold the content back also while the AI could not be checked | Stricter, but a slow or failing Codex probe would lock a person out of their content with no way forward. Rejected: only a provably missing AI blocks |
+| Gate only the page, not the install route | Fewer moving parts, but a stale page, an older link or a script could start the content before AI. Rejected: the route refuses too |
 
 **Honest limits.** The AI step has no sign-in until task 742: without the Organization's AI
 pool, a person reaches a connected AI only outside Začínáme, so this change ships together
