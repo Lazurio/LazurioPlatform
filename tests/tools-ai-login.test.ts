@@ -116,7 +116,10 @@ async function calls(home: string, cli: string) {
     return (await readFile(join(home, `${cli}.calls`), "utf8"))
       .trim()
       .split("\n")
-      .map((line) => JSON.parse(line) as { args: string[]; browser: string });
+      .map(
+        (line) =>
+          JSON.parse(line) as { args: string[]; browser: string | null },
+      );
   } catch {
     return [];
   }
