@@ -48,6 +48,7 @@ import {
   disconnectText,
   integrationsHelp,
   liveAnnouncement,
+  liveText,
   monogram,
   type Note,
   type NoticeTone,
@@ -1148,6 +1149,7 @@ export function createIntegrationsPanel(
 
   /** Draws the page anew; `focus` names the field to focus after it. */
   function drawCustom(focus?: string) {
+    speak();
     const copy = options.copy();
     const page = custom;
     fields.clear();
@@ -1224,9 +1226,8 @@ export function createIntegrationsPanel(
       );
     const foot = element("div", "mcp-foot");
     const note = element("div", "mcp-foot-text");
+    // Its line is said through the page's one live region (`speak`).
     const status = element("p", "mcp-status");
-    status.setAttribute("role", "status");
-    status.setAttribute("aria-live", "polite");
     note.append(status);
     const save = element(
       "button",
@@ -1588,6 +1589,7 @@ export function createIntegrationsPanel(
         ? copy.integrationsMcpSaving
         : copy.integrationsMcpSave;
     }
+    speak();
   }
 
   /** Opens the page of a route: a new server's form, or reads a server's
@@ -1692,6 +1694,30 @@ export function createIntegrationsPanel(
     refreshCustom();
   }
 
+  /** The page's one live region (`#integrations-live`), mounted before
+   * anything changes: its text is written only when the page has something
+   * new to say, so drawing the page again says nothing again. */
+  function speak() {
+    const said = liveAnnouncement(
+      {
+        read: overview !== null,
+        loading,
+        failed: failed && custom === null,
+        note,
+        update: updating,
+        form:
+          custom === null
+            ? ""
+            : custom.failed
+              ? options.copy().integrationsMcpLoadFailed
+              : custom.status,
+      },
+      options.copy(),
+    );
+    const next = liveText(live.textContent ?? "", said);
+    if (next !== null) live.textContent = next;
+  }
+
   function render() {
     const copy = options.copy();
     // The page is drawn anew: an open account menu goes with it.
@@ -1713,21 +1739,11 @@ export function createIntegrationsPanel(
     composioApps.hidden = apps === null;
     if (apps === null) composioApps.removeAttribute("href");
     else composioApps.href = apps;
+    speak();
     // Every notice of the page is one callout of its tone, the page's
     // width, one under another (Matěj 2026-10-14): the line about the last
-    // action first, then what the reading says.
-    // The one live region, mounted before anything changes: what it says
-    // changes only when the page has something new to say.
-    const said = liveAnnouncement(
-      {
-        read: overview !== null,
-        loading,
-        failed: failed && custom === null,
-        note,
-      },
-      copy,
-    );
-    if (live.textContent !== said) live.textContent = said;
+    // action first, then what the reading says. None of them is a live
+    // region: `speak` says what changed.
     alert.hidden = note === null;
     alert.dataset.kind = note?.tone ?? "info";
     alert.replaceChildren(
@@ -1798,7 +1814,6 @@ export function createIntegrationsPanel(
         },
       );
       box.classList.add("integrations-update");
-      box.setAttribute("role", "status");
       problems.push(box);
     }
     problemsHost.replaceChildren(...problems);

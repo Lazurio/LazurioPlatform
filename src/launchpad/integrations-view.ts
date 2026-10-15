@@ -770,9 +770,10 @@ export function noticeIcon(tone: NoticeTone): string {
 
 /** What the page's one live region says (`#integrations-live`, always
  * mounted and never hidden, so a screen reader hears a change wherever the
- * notices are drawn): a reading that failed, first or again; else the line
- * about the last action; else that a reading runs (the first, or again after
- * Zkusit znovu or Zkontrolovat připojení); else nothing. A failure is said
+ * notices are drawn): a custom server page's line; else a reading that
+ * failed, first or again; else the line about the last action; else
+ * Composio's update running or failed; else that a reading runs (the first,
+ * or again after Zkusit znovu or Zkontrolovat připojení); else nothing. A failure is said
  * only once the reading ended, so a retry is heard as a reading again and
  * its failure as a failure again. */
 export function liveAnnouncement(
@@ -781,17 +782,34 @@ export function liveAnnouncement(
     read: boolean;
     loading: boolean;
     /** The last reading failed (and the page shows the apps, not a custom
-     * server's form, which says its own status). */
+     * server's form). */
     failed: boolean;
     note: Note | null;
+    /** Composio's update from this page (`ComposioUpdate`). */
+    update: ComposioUpdate;
+    /** The line of a custom server's page while it is shown: why its
+     * settings could not be read or why Save failed; "" for none. */
+    form: string;
   }>,
   copy: Copy,
 ): string {
+  if (state.form !== "") return state.form;
   if (state.failed && !state.loading) return copy.integrationsLoadFailed;
   if (state.note !== null) return state.note.text;
+  // Its success is the line about the last action ("Composio je
+  // aktualizované"); running and failed are said here.
+  if (state.update === "updating") return copy.integrationsComposioUpdating;
+  if (state.update === "failed") return copy.integrationsComposioUpdateFailed;
   if (state.loading)
     return state.read ? copy.integrationsChecking : copy.integrationsLoading;
   return "";
+}
+
+/** The text to write into the live region, or null to leave it: writing
+ * the same text again would make a screen reader say it again on every
+ * drawing of the page. */
+export function liveText(current: string, said: string): string | null {
+  return current === said ? null : said;
 }
 
 /** Why a connect did not start, from the route's `reason`: the line it
