@@ -11,7 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { activatableTools } from "../src/tools/catalog";
+import { findTool } from "../src/tools/catalog";
 import {
   challengeUrl,
   createLoginSessions,
@@ -796,8 +796,7 @@ test.skipIf(!keygen)(
       await assertNoKeyMaterial(opened.directory, state);
       // The sign-in probe now says the key is linked, without the network
       // beyond gh's own calls.
-      const probe = activatableTools().find((tool) => tool.name === "gh")
-        ?.activation.signInProbe;
+      const probe = findTool("gh")?.signInProbe;
       const [signIn] = await toolsSignIn(
         [
           {
@@ -1025,8 +1024,7 @@ test.skipIf(!keygen)(
       "gist read:org repo\n",
     );
     const sessions = createLoginSessions(opened.environment);
-    const probe = activatableTools().find((tool) => tool.name === "gh")
-      ?.activation.signInProbe;
+    const probe = findTool("gh")?.signInProbe;
     const status = {
       name: "gh",
       command: "gh",

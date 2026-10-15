@@ -846,7 +846,7 @@ test("the prepared agent prompt: task, target state and the rule to enable the t
 });
 
 const probeOf = (name: string) => {
-  const probe = findTool(name)?.activation?.signInProbe;
+  const probe = findTool(name)?.signInProbe;
   if (!probe) throw new Error("Expected a sign-in probe");
   return probe;
 };
@@ -856,12 +856,77 @@ const answer = (stdout: string, exitCode = 0, stderr = "") => ({
   stderr,
 });
 
+test("codex and claude carry their own sign-in probes, which read the CLIs' real answers", () => {
+  // The answers of codex-cli 0.162.1 and Claude Code 2.1.301 (F19's addendum
+  // of 2026-10-15); codex says nothing of the account, Claude its e-mail.
+  expect(findTool("codex")?.signInProbe?.argv).toEqual(["login", "status"]);
+  expect(findTool("claude")?.signInProbe?.argv).toEqual([
+    "auth",
+    "status",
+    "--json",
+  ]);
+  const codex = probeOf("codex");
+  expect(readSignIn(codex, answer("", 0, "Logged in using ChatGPT\n"))).toEqual(
+    { state: "signed-in" },
+  );
+  expect(
+    readSignIn(
+      codex,
+      answer("", 0, "Logged in using an API key - sk-proj-***ABCD\n"),
+    ),
+  ).toEqual({ state: "signed-in" });
+  expect(readSignIn(codex, answer("", 1, "Not logged in\n"))).toEqual({
+    state: "signed-out",
+  });
+  const claude = probeOf("claude");
+  expect(
+    readSignIn(
+      claude,
+      answer(
+        `${JSON.stringify(
+          {
+            loggedIn: true,
+            authMethod: "claude.ai",
+            apiProvider: "firstParty",
+            email: "person@example.com",
+            orgId: "00000000-0000-0000-0000-000000000000",
+            orgName: "person@example.com's Organization",
+            subscriptionType: "max",
+          },
+          null,
+          2,
+        )}\n`,
+      ),
+    ),
+  ).toEqual({
+    state: "signed-in",
+    account: "person@example.com",
+    organization: "person@example.com's Organization",
+  });
+  const signedOut = `${JSON.stringify(
+    {
+      loggedIn: false,
+      authMethod: "none",
+      apiProvider: "firstParty",
+      analyticsDisabled: false,
+    },
+    null,
+    2,
+  )}\n`;
+  expect(readSignIn(claude, answer(signedOut, 1))).toEqual({
+    state: "signed-out",
+  });
+  expect(readSignIn(claude, answer(signedOut, 0))).toEqual({
+    state: "signed-out",
+  });
+  expect(readSignIn(claude, answer("not json", 0))).toEqual({
+    state: "unknown",
+  });
+});
+
 test("each catalog probe reads signed in, as whom, signed out or unknown from its answer", () => {
   expect(
-    activatableTools().map((entry) => [
-      entry.name,
-      entry.activation.signInProbe?.argv,
-    ]),
+    activatableTools().map((entry) => [entry.name, entry.signInProbe?.argv]),
   ).toEqual([
     ["gh", ["auth", "status", "--hostname", "github.com"]],
     // Executor has no sign-in: its state is `lazurio executor status` (F44).
