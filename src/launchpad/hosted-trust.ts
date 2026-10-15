@@ -64,23 +64,59 @@ export type Denial =
   | "auth-denied"
   | "auth-redirect"
   | "auth-unavailable";
-/** An admitted request names its person only by the gateway's own answer
- * (`subject`), never by anything the request carries: see `admit`. */
+/** Whom the gateway's own answer named for an admitted session: the
+ * Lazurio account's subject and its Lazurio username, each exact or null.
+ * Nothing the request carries ever names anyone: see `admit`. */
+export type AdmittedPerson = Readonly<{
+  subject: string | null;
+  username: string | null;
+}>;
+
+/** Nobody named: a workstation, or a gateway whose answer names nobody. */
+export const nobody: AdmittedPerson = Object.freeze({
+  subject: null,
+  username: null,
+});
+
+/** An admitted request names its person only by the gateway's own answer,
+ * never by anything the request carries: see `admit`. */
 export type Admission =
-  | Readonly<{ ok: true; subject: string | null }>
+  | Readonly<{ ok: true } & AdmittedPerson>
   | Readonly<{ ok: false; reason: Denial }>;
+
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const uuidAnyCase = new RegExp(uuid.source, "i");
 
 /** A Lazurio account's subject as the Environment gateway's oauth2-proxy
  * names it: the identity provider's `sub`, a Keycloak user id, a lowercase
  * UUID. Anything else names nobody. */
 export const isAccountSubject = (value: unknown): value is string =>
+  typeof value === "string" && uuid.test(value);
+
+/** A Lazurio account's username (root decision 0203 point 4): the
+ * lowercase GitHub login of the first sign-in or a name chosen by the same
+ * rule, unique and never changed. 3 to 39 lowercase letters and digits,
+ * single dashes only between them; never shaped like a UUID in any case (a
+ * Keycloak username from before the change is the account's id) and never a
+ * Keycloak service account's (`service-account-…`). Anything else is no
+ * username. */
+export const isLazurioUsername = (value: unknown): value is string =>
   typeof value === "string" &&
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
+  value.length >= 3 &&
+  value.length <= 39 &&
+  /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) &&
+  !uuidAnyCase.test(value) &&
+  !value.startsWith("service-account-");
 
 /** Where the gateway's answer names the admitted session's person: its
  * oauth2-proxy runs with `set_xauthrequest = true` and its user claim is
  * `sub` (Machines `workloads/workspace-vm/gateway.ts`). */
 const subjectHeader = "x-auth-request-user";
+/** Where the same answer carries the person's Lazurio username: oauth2-proxy
+ * sets it from the ID token's `preferred_username`, which for the gateway's
+ * client is the Keycloak username, the Lazurio username (root decision 0203
+ * point 4). */
+const usernameHeader = "x-auth-request-preferred-username";
 
 /** The session cookie of the name in a bounded header, whole or in chunks:
  * its value, or why not.
@@ -162,12 +198,15 @@ export type HostedTrustOptions = Readonly<{
  *
  * The same answer names the admitted session's person: the subject in its
  * `X-Auth-Request-User`, a lowercase UUID or nobody (decision F11's
- * amendment of 2026-10-14). It comes server to server from the endpoint the
- * Launchpad itself asked, with the session it selected, so it is exactly as
- * trustworthy as the admission; a header of the request never names anyone.
- * Its one use is the membership of the Environment's own vault, whose
- * access is access to the Environment (root decision 0198 point 2); it is
- * never a repository right, an operator or a role.
+ * amendment of 2026-10-14), and the person's Lazurio username in its
+ * `X-Auth-Request-Preferred-Username`, by `isLazurioUsername` or none (the
+ * amendment of 2026-10-16, root decision 0203). Both come server to server
+ * from the endpoint the Launchpad itself asked, with the session it
+ * selected, so they are exactly as trustworthy as the admission; a header of
+ * the request never names anyone. Their one use is the membership of the
+ * Environment's own vault, whose access is access to the Environment (root
+ * decision 0198 point 2): the username is the person's address there. They
+ * are never a repository right, an operator or a role.
  */
 export function createHostedTrust(
   entry: HostedEntry,
@@ -182,7 +221,7 @@ export function createHostedTrust(
   // gateway's answer named.
   const admitted = new Map<
     string,
-    Readonly<{ until: number; subject: string | null }>
+    Readonly<{ until: number; person: AdmittedPerson }>
   >();
 
   async function revalidate(
@@ -192,7 +231,7 @@ export function createHostedTrust(
     const key = createHash("sha256").update(cookie.value).digest("hex");
     const known = admitted.get(key);
     if (known !== undefined && known.until > now())
-      return { ok: true, subject: known.subject };
+      return { ok: true, ...known.person };
     let response: Response;
     try {
       response = await fetcher(entry.authCheckUrl, {
@@ -222,15 +261,21 @@ export function createHostedTrust(
       return { ok: false, reason: "auth-redirect" };
     if (response.status < 200 || response.status >= 300)
       return { ok: false, reason: "auth-denied" };
-    // Whom the gateway's own answer names; one exact subject or nobody.
+    // Whom the gateway's own answer names: one exact subject or nobody, and
+    // one Lazurio username or none (a repeated header reads as a list, which
+    // is none).
     const named = response.headers.get(subjectHeader);
-    const subject = isAccountSubject(named) ? named : null;
-    admitted.set(key, { until: now() + cacheMs, subject });
+    const username = response.headers.get(usernameHeader);
+    const person: AdmittedPerson = Object.freeze({
+      subject: isAccountSubject(named) ? named : null,
+      username: isLazurioUsername(username) ? username : null,
+    });
+    admitted.set(key, { until: now() + cacheMs, person });
     // Bounded memory: forget expired entries when the map grows.
     if (admitted.size > 1024)
       for (const [k, entry] of admitted)
         if (entry.until <= now()) admitted.delete(k);
-    return { ok: true, subject };
+    return { ok: true, ...person };
   }
 
   return Object.freeze({
