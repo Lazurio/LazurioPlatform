@@ -1,6 +1,7 @@
 import { chmod, mkdtemp, open, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { AiProvider } from "./ai";
 import { challengeUrl } from "./challenge-url";
 
 // The sign-in page of codex and claude (root decision 0201 points 4 and 5,
@@ -19,40 +20,26 @@ import { challengeUrl } from "./challenge-url";
 // login`. The return to 127.0.0.1 then completes inside the Environment. On a
 // workstation nothing is set: the CLI opens the computer's own browser.
 
-/** The AI CLIs that sign in through their own browser sign-in. */
-export const aiSignInTools = ["codex", "claude"] as const;
-export type AiSignInTool = (typeof aiSignInTools)[number];
-
-export const isAiSignInTool = (name: string): name is AiSignInTool =>
-  (aiSignInTools as readonly string[]).includes(name);
-
-/** What people read for each: the subscription, not the program. */
-export const aiSignInName: Readonly<Record<AiSignInTool, string>> = {
-  codex: "ChatGPT",
-  claude: "Claude",
-};
-
 /** The official sign-in pages: only an https page on exactly one of these
  * hosts is opened for the person (`challengeUrl`). Codex signs in at OpenAI's
  * authorization server; Claude Code at claude.com (its `/cai/oauth/authorize`,
  * read from Claude Code 2.1.300), formerly claude.ai, and for the Console at
  * platform.claude.com or console.anthropic.com. */
-export const signInPageHosts: Readonly<
-  Record<AiSignInTool, readonly string[]>
-> = {
-  codex: ["auth.openai.com"],
-  claude: [
-    "claude.com",
-    "claude.ai",
-    "platform.claude.com",
-    "console.anthropic.com",
-  ],
-};
+export const signInPageHosts: Readonly<Record<AiProvider, readonly string[]>> =
+  {
+    codex: ["auth.openai.com"],
+    claude: [
+      "claude.com",
+      "claude.ai",
+      "platform.claude.com",
+      "console.anthropic.com",
+    ],
+  };
 
 /** The sign-in page of `tool` at `candidate`, or undefined when it is not
  * one (another host, scheme or port, credentials in the address). */
 export function signInPageOf(
-  tool: AiSignInTool,
+  tool: AiProvider,
   candidate: string,
 ): string | undefined {
   return challengeUrl(candidate, signInPageHosts[tool]);

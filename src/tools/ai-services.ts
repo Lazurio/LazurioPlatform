@@ -1,10 +1,13 @@
 import { join } from "node:path";
+import { restartCodexAppServer } from "../update/codex-app-server";
 import {
-  type CodexAppServerRestart,
-  restartCodexAppServer,
-} from "../update/codex-app-server";
-import type { AiSignInTool } from "./sign-in-page";
-import { aiSignInTools } from "./sign-in-page";
+  type AiProvider,
+  type AiServices,
+  aiProviders,
+  type T3Mismatch,
+  type T3Provider,
+  type T3Reload,
+} from "./ai";
 import { resolveOnPath, signInLabel, type ToolRunner } from "./status";
 
 // After `lazurio tools login codex|claude` confirmed the sign-in, the running
@@ -14,53 +17,6 @@ import { resolveOnPath, signInLabel, type ToolRunner } from "./status";
 // restarts the Codex app-server unit it manages and asks T3 Code to turn the
 // signed-in providers on and read them again (`t3 lazurio providers`,
 // Lazurio/t3code#72), where `t3 lazurio capabilities` says it can.
-
-/** One provider as T3 Code answered after the refresh. */
-export type T3Provider = Readonly<{
-  provider: string;
-  instanceId: string;
-  enabled: boolean;
-  status: string;
-  auth: string;
-}>;
-
-/** An instance under a default provider's ID that runs another driver: T3
- * then turned nothing on and refreshed nothing. */
-export type T3Mismatch = Readonly<{
-  provider: string;
-  instanceId: string;
-  driver: string;
-}>;
-
-export type T3Reload =
-  /** T3 Code turned the providers on and read them again. */
-  | Readonly<{ state: "refreshed"; providers: readonly T3Provider[] }>
-  /** No `t3` here (a workstation): nothing to tell. */
-  | Readonly<{ state: "not-installed" }>
-  /** A T3 Code without the refresh: it reads the sign-in at its own next
-   * check, within about five minutes. */
-  | Readonly<{ state: "not-supported" }>
-  | Readonly<{ state: "driver-mismatch"; mismatches: readonly T3Mismatch[] }>
-  | Readonly<{
-      state: "failed";
-      reason: "not-running" | "refused" | "unreadable" | "timeout";
-    }>;
-
-export type AiServices = Readonly<{
-  /** codex only: the Codex app-server unit. */
-  appServer?: CodexAppServerRestart;
-  t3: T3Reload;
-}>;
-
-/** Whether the services read the sign-in, or will by themselves: false for a
- * failed restart, a refused or failed refresh and a driver mismatch, which
- * the person or the Operator must see. */
-export function aiServicesReady(services: AiServices): boolean {
-  return (
-    services.appServer?.state !== "failed" &&
-    ["refreshed", "not-installed", "not-supported"].includes(services.t3.state)
-  );
-}
 
 const capabilitiesMs = 15_000;
 // The command waits up to 60 s for the service (`t3 lazurio providers`):
@@ -147,7 +103,7 @@ export function t3Mismatches(
  * sign-in again. */
 export async function refreshT3Providers(
   input: Readonly<{
-    providers: readonly AiSignInTool[];
+    providers: readonly AiProvider[];
     path: string | undefined;
     home: string | undefined;
     platform: string;
@@ -171,7 +127,7 @@ export async function refreshT3Providers(
   )
     return Object.freeze({ state: "not-supported" });
   const request = JSON.stringify({
-    providers: aiSignInTools.filter((tool) => input.providers.includes(tool)),
+    providers: aiProviders.filter((tool) => input.providers.includes(tool)),
     enable: true,
   });
   const answer = await input
@@ -211,8 +167,8 @@ export async function refreshT3Providers(
  * (codex only), then T3 Code asked about every AI CLI signed in now. */
 export async function reloadAiServices(
   input: Readonly<{
-    tool: AiSignInTool;
-    signedIn: readonly AiSignInTool[];
+    tool: AiProvider;
+    signedIn: readonly AiProvider[];
     path: string | undefined;
     home: string | undefined;
     platform: string;

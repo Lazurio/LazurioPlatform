@@ -68,6 +68,7 @@ import { readOrganizationApplications } from "../organizations/read-applications
 import type { RecoveryResult } from "../recover/recover";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
+import { isAiProvider } from "../tools/ai";
 import { type AiProbe, createAiProbe } from "../tools/ai-probe";
 import { reloadAiServices } from "../tools/ai-services";
 import {
@@ -95,7 +96,6 @@ import {
   toolsOverview,
 } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
-import { isAiSignInTool } from "../tools/sign-in-page";
 import { resolveOnPath } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
 import { toolsUpdate } from "../tools/update";
@@ -614,7 +614,7 @@ export async function startLaunchpad(
     ...toolsEnvironment,
     journal: (journaled) => {
       console.log(JSON.stringify({ scope: "tools-login", ...journaled }));
-      if (journaled.event === "end" && isAiSignInTool(journaled.tool)) {
+      if (journaled.event === "end" && isAiProvider(journaled.tool)) {
         ai.forget();
         setup.forget();
       }
@@ -1846,7 +1846,7 @@ export async function startLaunchpad(
           // codex and claude only sign in here, from Začínáme's AI step (F19's
           // addendum of 2026-10-15): no installation, update or sign-out, and
           // they are no catalog tools of agents.
-          const aiTool = isAiSignInTool(tool);
+          const aiTool = isAiProvider(tool);
           if (
             aiTool
               ? !url.pathname.startsWith("/api/tools/login/")

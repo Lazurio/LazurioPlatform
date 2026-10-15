@@ -13,7 +13,7 @@ import { PassThrough } from "node:stream";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
-import type { AiServices } from "../src/tools/ai-services";
+import type { AiServices } from "../src/tools/ai";
 import { hostedSignInPage, runToolsCommand } from "../src/tools/cli";
 import {
   codeOfPage,
