@@ -930,6 +930,25 @@ of 2026-10-14). It is not a repository right, not the Operator of a provider ope
 not a role and not shown as a person; GitHub stays the authority of repository
 operations, and a gateway that names nobody changes nothing else.
 
+**Amendment of 2026-10-16 (DEV-6631 task 774, root decision 0203 points 4 and 5): the
+same answer's Lazurio username.** Every Lazurio account now has a Lazurio username, its
+Keycloak username: the lowercase GitHub login of the first sign-in or a name the
+person chose by the same rule, unique and never changed. The same answer of the
+gateway's auth endpoint carries it in `X-Auth-Request-Preferred-Username`, which
+oauth2-proxy with `set_xauthrequest` sets from the ID token's `preferred_username`,
+the Keycloak username. The Launchpad accepts there only one value of 3 to 39 lowercase
+letters and digits with single dashes between them, never shaped like a UUID (a
+Keycloak username from before the change is the account's id) and never a service
+account's (`service-account-…`); anything else, a repeated header included, is no
+username. It keeps the username with the cached admission beside the subject and
+never reads one from a header of the request, from GitHub or from the subject. Its one
+use is the subject's: the person's address in the Environment's own vault ([F53's
+amendment of
+2026-10-16](#f53-amendment-of-2026-10-16-the-address-of-the-lazurio-username)), where
+the subject now only tells a named person from nobody. Like the subject, it is not a
+repository right, not the Operator of a provider operation, not a role and not shown
+as a person.
+
 ## F12 — Canonical-only Organizations and a deliberately narrow first delivery
 
 **Addendum 2026-09-28 (Matěj, question H1 of the Launchpad parity shaping,
@@ -11616,6 +11635,12 @@ token on argv, in the journal or in an answer.
 
 ### F53 addendum of 2026-10-14: Nastavení → Trezor and the Správci
 
+> **Amended on 2026-10-16 by root decision 0203 ([F53 amendment of
+> 2026-10-16](#f53-amendment-of-2026-10-16-the-address-of-the-lazurio-username)).**
+> Point 3's address is now `<Lazurio username>@account.lazurio.ai`, built from the
+> username of the gateway's own answer; a person named without one is added nowhere
+> (`no-username`).
+
 **Decided by the Admin (root decision 0198 points 2, 3 and 5; DEV-6631 tasks 648 and
 638b, contract C4 as shaped on 2026-10-13; the wireframe of
 HumanAndMachine-ai/prototypes-lazurio#33); implemented in this revision for Remote
@@ -11743,6 +11768,65 @@ journal, bw's argv or an answer), the admission's subject
 (`tests/launchpad-hosted-trust.test.ts`), the page's pure part
 (`tests/vault-page-view.test.ts`) and the assignment's fingerprint
 (`tests/vault-context.test.ts`).
+
+### F53 amendment of 2026-10-16: the address of the Lazurio username
+
+**Decided by the Admin on 2026-10-15 (root decision 0203 points 4, 5 and 8, text in
+HumanAndMachines/Lazurio#551; plan DEV-6631 task 774); implemented in this revision
+for Remote Environments on Linux. Amends point 3 of the addendum above.** Every
+Lazurio account has a Lazurio username, its Keycloak username, and a person's account
+in a Lazurio Vaultwarden is `<Lazurio username>@account.lazurio.ai`.
+
+1. **The address.** Point 3 now reads: the person is whom the gateway's own answer to
+   the request's admission names ([F11's amendments of 2026-10-14 and
+   2026-10-16](#f11--hosted-admission-is-not-identity)), at
+   `<Lazurio username>@account.lazurio.ai`, an identifier and never a mailbox, which
+   replaces `<subject>@vaultwarden-identity.lazurio.ai`. It is built only from the
+   username of that answer (`personAddress`, `accountAddressDomain` in
+   `src/vault/members.ts`), never from GitHub, a header of the request or the subject;
+   the subject now only tells a person the answer named from nobody.
+2. **No username, no address.** A person the answer names without a valid username is
+   `no-username`, distinct from `no-identity` (nobody named): Lazurio Auth issues no
+   usernames yet, or the session was signed in before the person's Keycloak username
+   became their Lazurio username and still carries the account's id, which is no
+   username, until it is signed in again. Nobody is invited, confirmed or changed for
+   them and the gate is not asked; a work Environment's audience is still settled
+   (point 6). Until Lazurio Auth issues usernames every admitted person is in this
+   state, as 0203 point 8 wants: nobody is invited while addresses could still change.
+3. **The page.** For `no-username` the row keeps "Otevřít trezor", and one line under
+   it says that the sign-in does not include the person's Lazurio username yet, so
+   the Environment cannot add them to its vault, and asks them to sign in again
+   ("Vaše přihlášení zatím neobsahuje uživatelské jméno v Lazuriu, proto vás toto
+   Prostředí nemůže přidat do svého trezoru. Přihlaste se prosím znovu."). The page
+   asks about the person again when its tab is shown again. It offers no sign-in
+   link: the Machines gateway serves oauth2-proxy's `/oauth2/*`, `/oauth2/sign_out`
+   included, only on the bare Machine hostname, never on the Launchpad's origin, and
+   the Launchpad derives no origin from its auth endpoint
+   ([hosted entry](hosted-entry.md)).
+4. **Unchanged.** The gate (point 5), the removal on reassignment (point 6), no stored
+   list (point 7), the vault's setup, the hand-over and a personal Environment's
+   behaviour apart from the address. The rest of root decision 0203 (a Lazurio
+   Vaultwarden per Organization, the vault's name, personal Environments on their own
+   Bitwarden) is not part of this amendment.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep `<subject>@vaultwarden-identity.lazurio.ai` | Replaced by root decision 0203 point 5 |
+| Take the username from GitHub (the assignment's login, gh's account) | Not the account's verified username; 0203 point 4: the Environment receives it from the sign-in and never composes it from GitHub; rejected |
+| Read the username from the account document the shell reads | The browser reads it and the server would trust the page, as for the subject; rejected for the admission's own answer |
+| Invite at the subject's address until usernames exist | Addresses that would have to change; rejected by 0203 point 8 |
+| A "Sign in again" link to the bare hostname's `/oauth2/sign_out?rd=…` | Derives an origin from the auth endpoint, which hosted-entry.md rejects; deferred until the gateway serves a sign-out on the Launchpad's origin or the entry records one |
+
+Verified by `tests/launchpad-hosted-trust.test.ts` (the username accepted; absent,
+empty, repeated, a UUID in either case, uppercase, a service account's, too short, too
+long or malformed refused; a forged header of the request ignored; kept with the
+cached admission and renewed with it), `tests/launchpad-vault-page.test.ts` over HTTP
+(`no-username` without a username and with an older session's id, nobody invited and
+no person's address sent to the vault, the page's line; the invitation to
+`petr@account.lazurio.ai` once a sign-in carries the username; every earlier case at
+the username's address), `tests/vault-members.test.ts` (the address, and only a named
+person with a valid username has one) and `tests/vault-page-view.test.ts` (the line
+in both locales).
 
 ## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
 

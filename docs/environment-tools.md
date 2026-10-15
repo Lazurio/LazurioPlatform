@@ -654,12 +654,15 @@ wave (`unsupported`, `workstation`).
   "Vytvořit účet v trezoru" while the person has no account in the network's vault
   and the vault takes the Lazurio sign-in (`GET /identity/sso/prevalidate`). `GET
   /api/vault` is the page, `POST /api/vault/membership` `{}` adds the person the
-  gateway admitted (the subject of its own answer, F11's amendment) on a personal or
-  work Environment: `<subject>@vaultwarden-identity.lazurio.ai` invited as an Admin
-  through the vault's API and confirmed with bw once accepted, only where the
-  network's vault refuses every password path of the address (`SSO_ONLY`, asked of its
-  token endpoint: "SSO sign-in is required"); elsewhere nobody is invited or confirmed
-  (`sign-in-not-required`), and a pending invitation (`awaiting-password`) is safe. A work Environment's Admin-type members all leave when
+  gateway admitted (whom its own answer names, F11's amendments) on a personal or
+  work Environment: `<username>@account.lazurio.ai`, the address of the Lazurio
+  username that answer carries (root decision 0203, F53's amendment of 2026-10-16),
+  invited as an Admin through the vault's API and confirmed with bw once accepted,
+  only where the network's vault refuses every password path of the address
+  (`SSO_ONLY`, asked of its token endpoint: "SSO sign-in is required"); elsewhere
+  nobody is invited or confirmed (`sign-in-not-required`), and a pending invitation
+  (`awaiting-password`) is safe. A person named without a valid username is added
+  nowhere (`no-username`), and the page asks them to sign in again. A work Environment's Admin-type members all leave when
   its assignment changes; the Owner and other roles are never touched; a personal
   Environment never removes; a Team or Automated one neither adds nor removes yet.
   The installed hosted Launchpad also looks at the assignment after its start and

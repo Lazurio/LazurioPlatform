@@ -2186,10 +2186,13 @@ is `src/launchpad/vault-page-view.ts` (`tests/vault-page-view.test.ts`) and its 
 `src/launchpad/vault-page-panel.ts`. On first view the page reads its model, then asks
 the vault itself (the Tools row's `POST /api/tools/bitwarden/refresh`) and where the
 person stands, and asks about the person again when its tab is shown again while they
-had no account. A hidden `#vault-requests` group above the row is the slot of the
-agents' secret requests (DEV-6631 task 651). The person is the subject the gateway's own
-answer to the request's admission named (`src/launchpad/hosted-trust.ts`); a workstation
-names nobody and has no vault. HTTP behaviour is tested in
+had no account or their sign-in no username. A hidden `#vault-requests` group above the row is the slot of the
+agents' secret requests (DEV-6631 task 651). The person is whom the gateway's own answer
+to the request's admission named, by the subject and the Lazurio username
+(`src/launchpad/hosted-trust.ts`); their address in the vault is
+`<username>@account.lazurio.ai`, a person named without a username is added nowhere
+(`no-username`, with a line asking them to sign in again), and a workstation names
+nobody and has no vault. HTTP behaviour is tested in
 `tests/launchpad-vault-page.test.ts` behind a fake gateway with the fake Vaultwarden and
 the fake bw of `tests/fixtures/fake-vault.ts`.
 
