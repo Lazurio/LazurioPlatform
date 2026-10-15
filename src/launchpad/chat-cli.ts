@@ -74,7 +74,7 @@ const reasons = {
     "t3-pairing-failed":
       "Bez párování: párovací volání T3 Code selhalo. Prostý odkaz otevře T3 Code, které si prohlížeč spáruje samo.",
     "not-hosted":
-      "Žádný odkaz na T3 Code: tenhle Folder nemá zaznamenaný vstup Remote Environmentu, T3 Code běží tam, kde ho Operátor spouští.",
+      "Žádný odkaz na T3 Code: tento Folder nemá zaznamenaný hostovaný vstup, T3 Code běží tam, kde ho Operátor spouští.",
   },
   paired: {
     en: "A one-time link, valid for 60 seconds: hand it to the operator.",

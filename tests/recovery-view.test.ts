@@ -272,7 +272,7 @@ test("healthy: the checks, and nothing to copy or file", () => {
   const view = recoveryView(healthy, messages("cs"));
   expect(view).toEqual({
     verdict: "healthy",
-    summary: "Lazurio na tomhle Environmentu je v pořádku.",
+    summary: "Lazurio v tomto Prostředí je v pořádku.",
     checks: [
       {
         id: "launchpad-health",

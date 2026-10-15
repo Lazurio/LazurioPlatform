@@ -326,7 +326,7 @@ describe("memory (the wireframe's formatMemory and memoryTone)", () => {
         { text: "Moduly 1,2 GB", title: null },
         {
           text: "Ostatní 3,5 GB",
-          title: "Launchpad, T3 Code, brána Environmentu, agenti a systém",
+          title: "Lazurio, T3 Code, brána Prostředí, agenti a systém",
         },
       ],
       hint: "Paměť je skoro plná. Zavřete těžké záložky a zastavte Moduly, které nepotřebujete.",
@@ -718,17 +718,17 @@ describe("closing for everyone, and Vrátit", () => {
     };
     expect(toastModel(pending, null, cs)).toEqual({
       note: null,
-      text: "Záložka se zavře v Environmentu.",
+      text: "Záložka se zavře v Prostředí.",
       undo: "Vrátit",
     });
     expect(
       toastModel({ ...pending, text: cs.closingAgent }, null, cs)?.text,
-    ).toBe("Záložka se zavře v Environmentu i agentovi.");
+    ).toBe("Záložka se zavře v Prostředí i agentovi.");
     expect(
       toastModel(pending, "Modul Deals se zastavil a uvolnil 780 MB.", cs),
     ).toEqual({
       note: "Modul Deals se zastavil a uvolnil 780 MB.",
-      text: "Záložka se zavře v Environmentu.",
+      text: "Záložka se zavře v Prostředí.",
       undo: "Vrátit",
     });
     expect(toastModel(null, "Záložku se nepodařilo zavřít.", cs)).toEqual({
@@ -746,7 +746,7 @@ describe("closing for everyone, and Vrátit", () => {
       ),
     ).toEqual({
       note: null,
-      text: "Záložky se zavřou v Environmentu.",
+      text: "Záložky se zavřou v Prostředí.",
       undo: "Vrátit",
     });
   });
@@ -1096,15 +1096,15 @@ describe("where things are, the tools' letters and what failed", () => {
         answer(503, { error: "holder-unavailable" }),
       ].map((failed) => actionFailure(failed, fallback, cs)),
     ).toEqual([
-      "Tento Environment nemá prohlížeč.",
-      "Prohlížeč Environmentu teď neodpovídá, zkuste to za chvíli znovu.",
-      "Launchpad teď neodpovídá, zkuste to za chvíli znovu.",
-      "Launchpad teď neodpovídá, zkuste to za chvíli znovu.",
+      "Toto Prostředí nemá prohlížeč.",
+      "Prohlížeč Prostředí teď neodpovídá, zkuste to za chvíli znovu.",
+      "Lazurio teď neodpovídá, zkuste to za chvíli znovu.",
+      "Lazurio teď neodpovídá, zkuste to za chvíli znovu.",
       "Záložku se nepodařilo zavřít.",
       "Záložku se nepodařilo zavřít.",
       // A Launchpad that closes does not answer for long; any other reason
       // it gives is the action's own failure.
-      "Launchpad teď neodpovídá, zkuste to za chvíli znovu.",
+      "Lazurio teď neodpovídá, zkuste to za chvíli znovu.",
       "Záložku se nepodařilo zavřít.",
     ]);
   });

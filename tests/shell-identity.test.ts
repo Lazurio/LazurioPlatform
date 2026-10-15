@@ -171,7 +171,7 @@ describe("one identity names an Environment", () => {
     expect(environmentIdentity(shell, "jana", cs)).toEqual({
       id: "jana",
       name: "Osobní",
-      who: "jen váš",
+      who: "jen vaše",
       glyph: { kind: "initials", text: "JA" },
     });
     // Without the person's initials, the kind's icon.
@@ -189,7 +189,7 @@ describe("one identity names an Environment", () => {
     expect(environmentIdentity(shell, "vm-02.acme", cs)).toEqual({
       id: "vm-02.acme",
       name: "Team Sales",
-      who: "sdílený Teamem",
+      who: "sdílené Teamem",
       glyph: acmeMark,
     });
     expect(environmentIdentity(shell, "vm-03.acme", en)).toEqual({
@@ -294,7 +294,7 @@ describe("one identity names an Environment", () => {
     expect(identityText(identity("vm-01.acme"))).toBe(
       "Acme Works · Pracovní · @jana",
     );
-    expect(identityText(identity("jana"))).toBe("Osobní · jen váš");
+    expect(identityText(identity("jana"))).toBe("Osobní · jen vaše");
     // An Organization's Dashboard names it once.
     expect(
       identityText({ glyph: acmeMark, name: "Acme Works", who: "Dashboard" }),
@@ -319,7 +319,7 @@ describe("<lazurio-environment>'s attributes", () => {
       "shared by the Team",
     );
     expect(elementIdentity(shell, "vm-02.acme", "de")?.who).toBe(
-      "sdílený Teamem",
+      "sdílené Teamem",
     );
   });
 

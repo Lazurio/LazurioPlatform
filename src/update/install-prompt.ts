@@ -124,7 +124,7 @@ function found(facts: InstallFacts, deviation: InstallDeviation): Text {
       };
     case "directory-not-on-path":
       return {
-        cs: `${directory} není v PATH procesu, který tenhle prompt vypsal.`,
+        cs: `${directory} není v PATH procesu, který tento prompt vypsal.`,
         en: `${directory} is not on the PATH of the process that printed this prompt.`,
       };
     case "shadowed":
@@ -146,7 +146,7 @@ export function installPrompt(
   const run = shellWord(selector);
   const pick = (text: Text) => text[locale];
   const standard: Text = {
-    cs: `Standardní instalace Lazuria na tomhle Environmentu (${platform}): instalační základna ${base} drží nainstalované verze a selektor ${selector}, odkaz na aktivní verzi; příkaz ${entry.path} je symbolický odkaz na ten selektor; ${directory} je v PATH operátora a žádný jiný program jménem lazurio se v PATH nenajde dřív. Lazurio se instaluje jednopříkazovým instalátorem (install.sh) nebo \`lazurio install\` a aktualizuje výhradně příkazem \`lazurio update\`.`,
+    cs: `Standardní instalace Lazuria v tomto Prostředí (${platform}): instalační základna ${base} drží nainstalované verze a selektor ${selector}, odkaz na aktivní verzi; příkaz ${entry.path} je symbolický odkaz na ten selektor; ${directory} je v PATH operátora a žádný jiný program jménem lazurio se v PATH nenajde dřív. Lazurio se instaluje jednopříkazovým instalátorem (install.sh) nebo \`lazurio install\` a aktualizuje výhradně příkazem \`lazurio update\`.`,
     en: `The standard Lazurio installation in this Environment (${platform}): the install base ${base} holds the installed versions and the selector ${selector}, a link to the active version; the command ${entry.path} is a symbolic link to that selector; ${directory} is on the operator's PATH and no other program named lazurio resolves before it. Lazurio is installed by the one-command installer (install.sh) or \`lazurio install\` and updated only with \`lazurio update\`.`,
   };
   const state: Text =
@@ -171,7 +171,7 @@ export function installPrompt(
         };
   return [
     pick({
-      cs: "Úkol: srovnej instalaci Lazuria na tomhle Environmentu do standardní podoby. Pravidlo operátora: Lazurio je na každém Environmentu nainstalované přesně standardně; odchylku nahlásíš a srovnáš podle tohohle postupu, nikdy ji potichu nepřepíšeš a nikdy ji nenecháš jako podporovanou variantu.",
+      cs: "Úkol: srovnej instalaci Lazuria v tomto Prostředí do standardní podoby. Pravidlo operátora: Lazurio je v každém Prostředí nainstalované přesně standardně; odchylku nahlásíš a srovnáš podle tohoto postupu, nikdy ji potichu nepřepíšeš a nikdy ji nenecháš jako podporovanou variantu.",
       en: "Task: straighten the Lazurio installation in this Environment to the standard. The operator's rule: Lazurio is installed exactly the standard way in every Environment; a deviation is reported and straightened by this procedure, never silently overwritten and never kept as a supported variant.",
     }),
     pick(standard),
@@ -181,7 +181,7 @@ export function installPrompt(
       en: `Without asking you may: read the state (\`${run} install prompt --json\`, \`${run} --version --json\`, \`${run} update status --json\`, \`command -v lazurio\`); run \`${run} install\`, which is convergent — it creates a missing ${entry.path} and replaces only a link to a Lazurio install base, nothing else; and when Lazurio is not installed, install it with the official installer \`curl -fsSL https://lazurio.ai/install | sh\`.`,
     }),
     pick({
-      cs: `Jen na výslovný pokyn operátora v téhle konverzaci: odsunout soubor, odkaz nebo adresář, který Lazuriu nepatří, z ${entry.path} nebo z jeho nadřazené cesty (přejmenovat na pojmenovanou zálohu vedle, nikdy nemazat); upravit shell profil (například ~/.profile, ~/.bashrc, ~/.zprofile nebo ~/.zshrc), aby ${directory} byl v PATH před každým adresářem s jiným lazurio; odstranit odkaz starého root CLI nebo jiný program jménem lazurio, který tuhle instalaci zakrývá (například odkaz, který \`bun link\` dal do ~/.bun/bin) — nejdřív operátorovi ukaž, co to je.`,
+      cs: `Jen na výslovný pokyn operátora v této konverzaci: odsunout soubor, odkaz nebo adresář, který Lazuriu nepatří, z ${entry.path} nebo z jeho nadřazené cesty (přejmenovat na pojmenovanou zálohu vedle, nikdy nemazat); upravit shell profil (například ~/.profile, ~/.bashrc, ~/.zprofile nebo ~/.zshrc), aby ${directory} byl v PATH před každým adresářem s jiným lazurio; odstranit odkaz starého root CLI nebo jiný program jménem lazurio, který tuto instalaci zakrývá (například odkaz, který \`bun link\` dal do ~/.bun/bin) — nejdřív operátorovi ukaž, co to je.`,
       en: `Only on the operator's explicit instruction in this conversation: move aside a file, link or directory that is not Lazurio's from ${entry.path} or from a directory on its path (rename it to a named backup next to it, never delete it); edit a shell profile (for example ~/.profile, ~/.bashrc, ~/.zprofile or ~/.zshrc) so that ${directory} is on PATH before every directory holding another lazurio; remove the legacy root CLI link or another program named lazurio that shadows this installation (for example a link \`bun link\` placed in ~/.bun/bin) — show the operator what it is first.`,
     }),
     pick({

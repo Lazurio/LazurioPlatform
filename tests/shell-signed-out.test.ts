@@ -168,9 +168,9 @@ const account = (): ShellAccount => {
 // The rail.
 
 test("the rail signed out is exactly the logo and the key, both leading to where sign-in starts, in the signed-in rail's order", () => {
-  for (const [copy, key] of [
-    [cs, "Přihlásit Lazurio účtem"],
-    [en, "Sign in with your Lazurio account"],
+  for (const [copy, key, home] of [
+    [cs, "Přihlásit Lazurio účtem", "Přehled"],
+    [en, "Sign in with your Lazurio account", "Dashboard"],
   ] as const) {
     const rail = signedOutRail(signedOut(), copy);
     // The logo first, as in the signed-in rail, keeping its name and label;
@@ -182,7 +182,7 @@ test("the rail signed out is exactly the logo and the key, both leading to where
         {
           kind: "home",
           href: "/auth/sign-in?return=%2F",
-          label: "Dashboard",
+          label: home,
           sub: copy.dashboardSub,
         },
         {

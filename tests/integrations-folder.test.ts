@@ -104,7 +104,7 @@ test("AGENTS.md says what an Integrace is, the order, the command and that agent
     if (origin === null)
       expect(agents).toContain(
         cs
-          ? "Když chybí, řekni mu, ať ji připojí v Launchpadu v Apps → Integrace."
+          ? "Když chybí, řekni mu, ať ji připojí v Apps → Integrace."
           : "When one is missing, ask them to connect it in the Launchpad under Apps → Integrations.",
       );
   }

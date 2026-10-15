@@ -381,7 +381,7 @@ test("prepare-content: a Folder prompt for the Environment's operator, opened in
   expect(document.id).toBe("prepare-content");
   expect(document.cwd).toBe("/home/x/Lazurio");
   expect(document.text).toStartWith(
-    "Příprava mého osobního prostoru (Personalspace) v tomhle Environmentu se zastavila u kroku „Stahuji“:\ndenied\n",
+    "Příprava mého osobního prostoru (Personalspace) v tomto Prostředí se zastavila u kroku „Stahuji“:\ndenied\n",
   );
   expect(document.text).toContain("`lazurio personalspace install`");
 });
@@ -555,7 +555,7 @@ posixTest(
       // The Lazurio Folder's root: the Organization is not here yet.
       expect(document.cwd).toBe(folder);
       expect(document.text?.split("\n").slice(0, 2)).toEqual([
-        "Příprava Organizace Example (GitHub example-org) v tomhle Environmentu se zastavila u kroku „Stahuji Organizaci“:",
+        "Příprava Organizace Example (GitHub example-org) v tomto Prostředí se zastavila u kroku „Stahuji Organizaci“:",
         "git clone failed: Permission denied (publickey)",
       ]);
       expect(document.text).toContain(

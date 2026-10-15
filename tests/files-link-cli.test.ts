@@ -215,7 +215,7 @@ test.skipIf(!posix)(
     const { folder, documents, context } = await world("hosted", "cs");
     const file = join(documents, "Úkol 42", "Zpráva (final).docx");
     expect((await link(context, file, "--folder", folder)).stderr).toBe(
-      "Předej Operátorovi tenhle odkaz místo cesty: otevře se mu v prohlížeči za přihlášením tohohle Environmentu a soubor stáhne (složka se otevře na stránce Soubory).",
+      "Předej Operátorovi tento odkaz místo cesty: otevře se mu v prohlížeči za přihlášením tohoto Prostředí a soubor stáhne (složka se otevře na stránce Soubory).",
     );
     expect((await link(context, "/", "--folder", folder)).stderr).toBe(
       "Files link refused (outside-documents): Cesta neleží v ~/Documents. Nejdřív soubor uložte nebo zkopírujte do ~/Documents/<úkol>/ a pak spusťte lazurio files link znovu.",

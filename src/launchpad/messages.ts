@@ -1455,9 +1455,8 @@ const cs: Record<MessageKey, string> = {
   voiceTitle: "Komunikace agentů",
   voiceEditor: "Tone of Voice pro agenty",
   voiceIntro:
-    "Nastavte, jak mají agenti v tomto Environmentu komunikovat — včetně e-mailů, zpráv na WhatsAppu a instrukcí pro další agenty.",
-  voiceShared:
-    "Tento týmový Environment používá jeden společný tón pro všechny.",
+    "Nastavte, jak mají agenti v tomto Prostředí komunikovat — včetně e-mailů, zpráv na WhatsAppu a instrukcí pro další agenty.",
+  voiceShared: "Toto Týmové Prostředí používá jeden společný tón pro všechny.",
   voiceLanguageLink: "Změnit jazyk v Obecném nastavení",
   voiceHint:
     "Text si můžete upravit. Uložené změny se projeví v nových konverzacích.",
@@ -1501,14 +1500,14 @@ const cs: Record<MessageKey, string> = {
   appServiceUnrecognized:
     "Existuje služba se jménem této aplikace, kterou ale Lazurio v očekávané podobě nevytvořilo. Nebyla spuštěna, zastavena ani změněna; prověřte ji správcem služeb operačního systému.",
   appHealthyPersistent:
-    "Deklarované zdravotní kontroly prošly. Tato aplikace běží dál i při restartu Launchpadu; restart Environmentu nepřežije. Po otevření ověřte funkci aplikace.",
+    "Deklarované zdravotní kontroly prošly. Tato aplikace běží dál i při restartu Lazuria; restart Prostředí nepřežije. Po otevření ověřte funkci aplikace.",
   appEnded:
     "Aplikace už neběží; její vlastník hlásí, že skončila. Prohlédněte výsledek a pak ji znovu spusťte, nebo ji zastavte a záznam tím uvolněte.",
   appStart: "Spustit",
   appStatus: "Stav",
   appOpen: "Získat odkaz aplikace",
   appStop: "Zastavit",
-  appVisit: "Otevřít aplikaci na tomto Environmentu",
+  appVisit: "Otevřít aplikaci v tomto Prostředí",
   appBusy: "Operace probíhá…",
   appStarted:
     "Proces je spuštěný. Před otevřením ověřte připravenost aplikace.",
@@ -1528,7 +1527,7 @@ const cs: Record<MessageKey, string> = {
   appLinkReady:
     "Lokální odkaz aplikace je připravený. Otevření samo neprokazuje její funkčnost.",
   appRemoteLink:
-    "Tato adresa patří Environmentu, který aplikaci spouští. Vzdálené otevření vyžaduje ověřenou přístupovou cestu.",
+    "Tato adresa patří Prostředí, které aplikaci spouští. Vzdálené otevření vyžaduje ověřenou přístupovou cestu.",
   updateTitle: "Aktualizace produktu",
   updateNotes: "Poznámky k vydání",
   updateUnknown: "Lazurio {running}.",
@@ -1537,15 +1536,15 @@ const cs: Record<MessageKey, string> = {
   updateAvailable: "Je k dispozici Lazurio {latest} (běží {running}).",
   updateDownloading: "Stahuje se a ověřuje Lazurio {latest}…",
   updateActivating:
-    "Aktivuje se Lazurio {latest}. Launchpad se restartuje; aplikace běží dál.",
+    "Aktivuje se Lazurio {latest} a restartuje se; aplikace běží dál.",
   updateRestart:
-    "Lazurio {active} je nainstalované. Aktualizaci dokončí restart Launchpadu.",
+    "Lazurio {active} je nainstalované. Aktualizaci dokončí restart Lazuria.",
   updateAction: "Aktualizovat",
   updateRetry: "Zkusit znovu",
   updateChecked: "Poslední ověřená kontrola: před {age}.",
   updateNeverChecked: "Zatím žádná ověřená kontrola.",
   updateStale:
-    "Poslední ověřená kontrola: před {age}. Novější vydání může být tomuhle Environmentu zadržováno.",
+    "Poslední ověřená kontrola: před {age}. Novější vydání může být tomuto Prostředí zadržováno.",
   updateFailed:
     "Aktualizace se nedokončila: {code}. Nainstalovaná verze běží dál; stejné kliknutí ji zopakuje.",
   updateStateInvalid:
@@ -1560,7 +1559,7 @@ const cs: Record<MessageKey, string> = {
   toolsTeamGithub: teamGithubText.cs,
   toolsTeamGithubLogout: teamGithubLogoutText.cs,
   toolsShared:
-    "Tohle je společný Environment celého Teamu. Přihlašujte se tu týmovými účty, třeba společnou schránkou nebo kalendářem. Co tu přihlásíte, může používat každý z Teamu. Svoje osobní účty propojujte ve svém vlastním Environmentu.",
+    "Toto je společné Prostředí celého Teamu. Přihlašujte se tu týmovými účty, třeba společnou schránkou nebo kalendářem. Co tu přihlásíte, může používat každý z Teamu. Svoje osobní účty propojujte ve svém vlastním Prostředí.",
   toolsRefresh: "Obnovit stav",
   toolsLoading: "Načítají se nástroje…",
   toolsLoadFailed:
@@ -1576,14 +1575,14 @@ const cs: Record<MessageKey, string> = {
   toolsInstalledNoVersion: "Nainstalováno, verze neznámá",
   toolsNotInstalled: "Není nainstalováno",
   toolsVersionError: "Zjištění verze selhalo: {error}.",
-  toolsNotPinned: "Tohle není sestavení, které Lazurio používá ({pinned}).",
+  toolsNotPinned: "Toto není sestavení, které Lazurio používá ({pinned}).",
   toolsFixWithAgent: "Opravit s agentem",
   toolsFixWithAgentNamed: "Opravit {name} s agentem",
   toolsFixPromptHint:
-    "Zkopírujte tenhle prompt a vložte ho do nového chatu na tomhle Environmentu. Agent nástroj srovná na jeho místo; nic se nepřeinstaluje a přihlášení zůstane.",
+    "Zkopírujte tento prompt a vložte ho do nového chatu v tomto Prostředí. Agent nástroj srovná na jeho místo; nic se nepřeinstaluje a přihlášení zůstane.",
   toolsFixPrompt:
-    "Úkol: nástroj `{command}` na tomhle Environmentu funguje, ale nespouští se ze standardního místa `~/.local/bin/{command}`; teď se spouští z `{path}`. Srovnej to: do `~/.local/bin` dej jen link nebo wrapper na fungující program, aby se `{command}` spouštěl odtud. Nic nepřeinstalovávej, neměň verzi a nesahej na přihlášení ani nastavení. Když to bez změny mimo domovský adresář nejde, nic neměň a řekni mi proč. Důkaz: `command -v {command}` vypíše `~/.local/bin/{command}` (rozbalené na domovský adresář), `{command} --version` odpoví stejnou verzí jako předtím a `lazurio tools status --json` u něj ukáže `standardPath: true`.",
-  toolsSetupLaunchpad: "Nastavení v Launchpadu",
+    "Úkol: nástroj `{command}` v tomto Prostředí funguje, ale nespouští se ze standardního místa `~/.local/bin/{command}`; teď se spouští z `{path}`. Srovnej to: do `~/.local/bin` dej jen link nebo wrapper na fungující program, aby se `{command}` spouštěl odtud. Nic nepřeinstalovávej, neměň verzi a nesahej na přihlášení ani nastavení. Když to bez změny mimo domovský adresář nejde, nic neměň a řekni mi proč. Důkaz: `command -v {command}` vypíše `~/.local/bin/{command}` (rozbalené na domovský adresář), `{command} --version` odpoví stejnou verzí jako předtím a `lazurio tools status --json` u něj ukáže `standardPath: true`.",
+  toolsSetupLaunchpad: "Nastavení v Lazuriu",
   toolsSetupAgent: "Nastavení s agentem",
   toolsEnabled: "Zapnuto",
   toolsDisabled: "Vypnuto",
@@ -1598,17 +1597,17 @@ const cs: Record<MessageKey, string> = {
   toolsOrganizationHow:
     "Změnit to může jen Admin Organizace, v jejím nastavení.",
   toolsOrganizationFromDashboard:
-    "Tenhle Environment se na ně ptá Dashboardu každé dvě minuty.",
+    "Toto Prostředí si je každé dvě minuty načítá z Přehledu Organizace.",
   toolsOrganizationFromRepository:
-    "Tenhle Environment je čte z repozitáře Organizace, který tu má.",
+    "Toto Prostředí je čte z repozitáře Organizace, který tu má.",
   toolsOrganizationVersion: "Verze {version}, použitá {time}.",
   toolsOrganizationNotApplied: "Zatím se nic nepoužilo.",
   toolsOrganizationChecked: "Naposledy ověřeno {time}.",
   toolsOrganizationNotChecked: "Zatím neověřeno.",
   toolsOrganizationUnreachable:
-    "Dashboard teď neodpovídá; platí naposledy použité nastavení.",
+    "Přehled Organizace teď neodpovídá; platí naposledy použité nastavení.",
   toolsOrganizationIdentity:
-    "Tenhle Environment se teď Dashboardu nemůže prokázat; platí naposledy použité nastavení.",
+    "Toto Prostředí se teď Přehledu Organizace nemůže prokázat; platí naposledy použité nastavení.",
   toolsOrganizationInvalid:
     "Nastavení Organizace je teď neplatné a musí ho opravit její Admin; platí naposledy použité nastavení.",
   toolsOrganizationRepository:
@@ -1644,9 +1643,9 @@ const cs: Record<MessageKey, string> = {
   toolsBlockedIncomplete:
     "Nic se neuložilo: předchozí změna se nedokončila. Dokončit ji může agent.",
   toolsBlockedIncompleteDetail:
-    "Dřívější změna tohohle Folderu nedoběhla. Dokončete ji v CLI příkazem lazurio profile-resume a načtěte znovu.",
+    "Dřívější změna tohoto Folderu nedoběhla. Dokončete ji v CLI příkazem lazurio profile-resume a načtěte znovu.",
   toolsBlockedOther:
-    "Nic se neuložilo: tuhle změnu tu teď nejde udělat. Důvod zjistí agent.",
+    "Nic se neuložilo: tuto změnu tu teď nejde udělat. Důvod zjistí agent.",
   toolsBlockedOtherDetail: "Lazurio změnu odmítlo s důvodem {reason}.",
   toolsFailed: "Nepodařilo se ověřit, jestli se změna uložila. Načtěte znovu.",
   toolsFailedDetail:
@@ -1664,10 +1663,10 @@ const cs: Record<MessageKey, string> = {
   toolsSignedOut: "Nepřipojeno",
   toolsSignInUnknown: "Připojení nezjištěno",
   toolsSignInUnchecked: "Připojení se nezjišťovalo",
-  toolsUsageCatalog: "Co o tomhle nástroji agentům říká Lazurio:",
+  toolsUsageCatalog: "Co o tomto nástroji agentům říká Lazurio:",
   toolsNoteLabel: "Vaše poznámka pro agenty",
   toolsNoteHint:
-    "Napište sem záměr, se kterým nástroj používáte. Agenti ji čtou v manual/this-machine.md tohohle Folderu; neuděluje žádný přístup.",
+    "Napište sem záměr, se kterým nástroj používáte. Agenti ji čtou v manual/this-machine.md tohoto Folderu; neuděluje žádný přístup.",
   toolsNoteCount: "{count} / {max} znaků",
   toolsNoteTooLong: "Poznámka je delší než {max} znaků.",
   toolsNoteTooManyLines: "Poznámka má víc než {max} řádků.",
@@ -1685,7 +1684,7 @@ const cs: Record<MessageKey, string> = {
   toolsSignOutAction: "Odpojit",
   toolsSignOutNamed: "Odpojit {name}",
   toolsSignedOutLocal:
-    "{name}: odhlášeno na tomhle Environmentu. Poskytovatel přihlášení eviduje, dokud ho nezrušíte v nastavení účtu u něj.",
+    "{name}: odhlášeno v tomto Prostředí. Poskytovatel přihlášení eviduje, dokud ho nezrušíte v nastavení účtu u něj.",
   toolsSignedOutRemote:
     "{name}: odhlášeno; propojené zařízení bylo z účtu odebráno.",
   toolsSignOutFailed:
@@ -1705,17 +1704,17 @@ const cs: Record<MessageKey, string> = {
     "{name} se instaluje z oficiálního zdroje. Může to chvíli trvat.",
   toolsInstalledNow: "{name} {version} je nainstalovaný.",
   toolsAlreadyInstalled:
-    "{name} na tomhle Environmentu už funguje; nic se neměnilo.",
+    "{name} v tomto Prostředí už funguje; nic se neměnilo.",
   toolsInstallFailed:
     "Instalace nedoběhla. Nic, co už fungovalo, se nezměnilo.",
   toolsInstallFailedDetail: "Krok {stage}: {reason}.",
   toolsInstallUnsupported:
-    "Instalátor zabudovaný v Lazuriu tenhle Environment nepokrývá.",
+    "Instalátor zabudovaný v Lazuriu toto Prostředí nepokrývá.",
   toolsInstallUnsupportedDetail: "Systém {platform}, architektura {arch}.",
   toolsInstallNotOnPath:
-    "~/.local/bin není na PATH tohoto Launchpadu, takže ho agenti nemusí najít, dokud se nepřidá do profilu shellu.",
+    "~/.local/bin není na PATH Lazuria, takže ho agenti nemusí najít, dokud se nepřidá do profilu shellu.",
   toolsInstallBusy:
-    "Tenhle nástroj se už instaluje. Počkejte, až instalace skončí, a obnovte stav.",
+    "Tento nástroj se už instaluje. Počkejte, až instalace skončí, a obnovte stav.",
   toolsUpdateAction: "Aktualizovat",
   toolsUpdateActionNamed: "Aktualizovat {name}",
   toolsUpdating:
@@ -1737,7 +1736,7 @@ const cs: Record<MessageKey, string> = {
   toolsLoginQrText:
     "V telefonu otevřete WhatsApp, pak Nastavení, Propojená zařízení, Propojit zařízení, a namiřte fotoaparát na tento kód. Kód se každých pár sekund mění; tady je vždy ten nejnovější.",
   toolsLoginQrAlt:
-    "QR kód, který propojí WhatsApp s tímto Environmentem. Naskenujte ho ve WhatsAppu v telefonu v Nastavení, Propojená zařízení, Propojit zařízení. Když ho naskenovat nejde, spárujte telefonním číslem níže.",
+    "QR kód, který propojí WhatsApp s tímto Prostředím. Naskenujte ho ve WhatsAppu v telefonu v Nastavení, Propojená zařízení, Propojit zařízení. Když ho naskenovat nejde, spárujte telefonním číslem níže.",
   toolsLoginPhoneTitle: "Spárovat raději telefonním číslem",
   toolsLoginPhoneLabel: "Vaše telefonní číslo ve WhatsAppu s předvolbou země",
   toolsLoginPhoneAction: "Získat párovací kód",
@@ -1754,9 +1753,9 @@ const cs: Record<MessageKey, string> = {
   toolsLoginAlreadySignedInAs:
     "{name} už byl připojený jako {account}; nic se neměnilo.",
   toolsLoginWacliSync:
-    "WhatsApp teď na pozadí kopíruje vaše nedávné zprávy do tohoto Environmentu. Okno můžete zavřít.",
+    "WhatsApp teď na pozadí kopíruje vaše nedávné zprávy do tohoto Prostředí. Okno můžete zavřít.",
   toolsLoginFailureNotInstalled:
-    "Nástroj na tomhle Environmentu není nainstalovaný. Zavřete okno a na jeho kartě zvolte Nainstalovat a přihlásit.",
+    "Nástroj v tomto Prostředí není nainstalovaný. Zavřete okno a na jeho kartě zvolte Nainstalovat a přihlásit.",
   toolsLoginFailureUrl:
     "Nástroj nabídl adresu, která není jeho oficiální přihlašovací stránkou, a proto se nezobrazila.",
   toolsLoginFailureOutput: "Nástroj odpověděl v podobě, kterou Lazurio nezná.",
@@ -1767,15 +1766,15 @@ const cs: Record<MessageKey, string> = {
   toolsLoginFailureSpawn:
     "Nástroj se nepodařilo spustit. Zkuste to znovu; když se nespustí, dokončete to s agentem.",
   toolsLoginFailureNoChallenge:
-    "Nástroj do minuty neukázal odkaz, kód ani QR kód, a proto se jeho přihlášení zastavilo. Ověřte, že se tenhle Environment dostane na internet, a zkuste to znovu; když se to zopakuje, dokončete to s agentem.",
+    "Nástroj do minuty neukázal odkaz, kód ani QR kód, a proto se jeho přihlášení zastavilo. Ověřte, že se toto Prostředí dostane na internet, a zkuste to znovu; když se to zopakuje, dokončete to s agentem.",
   toolsLoginNoAnswer:
-    "Launchpad včas neodpověděl. Zkuste to znovu; když zase neodpoví, obnovte stránku.",
+    "Lazurio včas neodpovědělo. Zkuste to znovu; když zase neodpoví, obnovte stránku.",
   toolsLoginExpired:
     "Přihlášení vypršelo dřív, než bylo dokončeno. Spusťte ho znovu, až se vám to bude hodit.",
   toolsLoginEnded:
     "Přihlášení už neběží. Když ho pořád potřebujete, spusťte ho znovu.",
   toolsLoginUnreadable:
-    "Odpověď Launchpadu se nepodařilo přečíst. Zavřete okno a zkuste to znovu.",
+    "Odpověď Lazuria se nepodařilo přečíst. Zavřete okno a zkuste to znovu.",
   toolsLoginTryAgain: "Zkusit znovu",
   toolsSshLinked: "SSH klíč propojený",
   toolsSshNotLinked: "SSH klíč nepropojený",
@@ -1783,31 +1782,31 @@ const cs: Record<MessageKey, string> = {
   toolsSshTeam: capitalized(teamGithubPhrase.cs),
   toolsWorksAs: capitalized(teamGithubWorksAs.cs),
   toolsLinkSshAction: "Propojit SSH klíč",
-  toolsLinkSshNamed: "Propojit SSH klíč tohohle Environmentu s účtem {name}",
+  toolsLinkSshNamed: "Propojit SSH klíč tohoto Prostředí s účtem {name}",
   toolsLoginTitleSsh: "Propojit SSH klíč: {name}",
   toolsStepLinking: "Propojení SSH klíče",
   toolsStepLinked: "SSH klíč propojený",
-  toolsLoginLinking: "Připojeno. Propojuji SSH klíč tohoto Environmentu…",
+  toolsLoginLinking: "Připojeno. Propojuji SSH klíč tohoto Prostředí…",
   toolsLoginRefreshText:
-    "Vaše přihlášení gh zatím nesmí spravovat SSH klíče vašeho účtu. Povolíte to na libovolném zařízení (tomhle počítači, jiném nebo telefonu): otevřete stránku zařízení GitHubu a zadejte tento kód:",
+    "Vaše přihlášení gh zatím nesmí spravovat SSH klíče vašeho účtu. Povolíte to na libovolném zařízení (tomto počítači, jiném nebo telefonu): otevřete stránku zařízení GitHubu a zadejte tento kód:",
   toolsSshLinkedDone: "Připojeno jako {account}.",
   toolsGitIdentitySet:
-    "Vaše commity v tomhle Environmentu ponesou jméno {name} <{email}>.",
+    "Vaše commity v tomto Prostředí ponesou jméno {name} <{email}>.",
   toolsGitIdentityCompleted:
-    "Git v tomhle Environmentu už zná vaše jméno i e-mail pro commity; co chybělo, doplnil z vašeho účtu GitHubu.",
+    "Git v tomto Prostředí už zná vaše jméno i e-mail pro commity; co chybělo, doplnil z vašeho účtu GitHubu.",
   toolsGitIdentityNotSet:
-    "Git v tomhle Environmentu zatím nezná vaše jméno a e-mail pro commity, takže publikování změn odsud selže. Požádejte agenta, ať vaši identitu v Gitu nastaví.",
+    "Git v tomto Prostředí zatím nezná vaše jméno a e-mail pro commity, takže publikování změn odsud selže. Požádejte agenta, ať vaši identitu v Gitu nastaví.",
   toolsSshKeyCreated:
     "Vytvořil se nový klíč bez hesla, aby ho agenti mohli používat: {path} ({fingerprint}).",
   toolsSshKeyReused:
     "Používá se stávající klíč {path} ({fingerprint}) beze změny.",
   toolsSshNotLinkedDone:
-    "gh je přihlášený jako {account}, ale SSH klíč tohohle Environmentu propojený není, takže git přes SSH zatím nefunguje.",
-  toolsSshFailureNotSignedIn: "gh na tomhle Environmentu není přihlášený.",
+    "gh je přihlášený jako {account}, ale SSH klíč tohoto Prostředí propojený není, takže git přes SSH zatím nefunguje.",
+  toolsSshFailureNotSignedIn: "gh v tomto Prostředí není přihlášený.",
   toolsSshFailureScopeMissing:
     "Přihlášení gh nesmí spravovat SSH klíče vašeho účtu.",
   toolsSshFailureKeygenMissing:
-    "Na tomhle Environmentu není nainstalovaný ssh-keygen.",
+    "V tomto Prostředí není nainstalovaný ssh-keygen.",
   toolsSshFailureKeygenFailed: "Nový klíč se v ~/.ssh nepodařilo vytvořit.",
   toolsSshFailureKeyPassphrase:
     "Stávající klíč {path} je chráněný heslem, které agenti zadat nemůžou. Zůstal, jak byl.",
@@ -1825,53 +1824,53 @@ const cs: Record<MessageKey, string> = {
     "~/.ssh/known_hosts obsahuje klíč serveru github.com, který se liší od klíčů zveřejněných GitHubem. Nic se nezměnilo.",
   toolsSshFailureKnownHostsFailed:
     "~/.ssh/known_hosts se nepodařilo přečíst ani zapsat.",
-  toolsSshFailureSshMissing: "Na tomhle Environmentu není nainstalované ssh.",
+  toolsSshFailureSshMissing: "V tomto Prostředí není nainstalované ssh.",
   toolsSshFailureProofFailed:
     "Zkušební spojení s GitHubem přes SSH neodpovědělo pozdravem GitHubu.",
   toolsSshFailureProofOtherAccount:
-    "GitHub přes SSH pozdravil jiný účet ({account}): tenhle Environment nabízí nejdřív jiný klíč.",
+    "GitHub přes SSH pozdravil jiný účet ({account}): toto Prostředí nabízí nejdřív jiný klíč.",
   toolsLoginFailureNotSignedIn:
-    "gh na tomhle Environmentu není přihlášený. Nejdřív se přihlaste; SSH klíč se propojí jako součást přihlášení.",
+    "gh v tomto Prostředí není přihlášený. Nejdřív se přihlaste; SSH klíč se propojí jako součást přihlášení.",
   toolsLoginFailureEnvironment:
-    "Druh tohoto Environmentu se nepodařilo přečíst, proto se přihlášení zastavilo dřív, než by cokoli dalšího změnilo.",
+    "Druh tohoto Prostředí se nepodařilo přečíst, proto se přihlášení zastavilo dřív, než by cokoli dalšího změnilo.",
   toolsSshRemoved:
-    "SSH klíč tohohle Environmentu byl z vašeho účtu GitHubu odebrán; soubory klíče na tomhle Environmentu zůstávají.",
+    "SSH klíč tohoto Prostředí byl z vašeho účtu GitHubu odebrán; soubory klíče v tomto Prostředí zůstávají.",
   toolsSshRemovalNotRegistered:
-    "SSH klíč tohohle Environmentu u vašeho účtu GitHubu registrovaný nebyl.",
+    "SSH klíč tohoto Prostředí u vašeho účtu GitHubu registrovaný nebyl.",
   toolsSshRemovalNoKey:
-    "Tenhle Environment nemá žádný SSH klíč; z GitHubu se nic neodebralo.",
+    "Toto Prostředí nemá žádný SSH klíč; z GitHubu se nic neodebralo.",
   toolsSshRemovalKept:
-    "SSH klíč tohohle Environmentu zůstává registrovaný u vašeho účtu GitHubu, protože ho neregistrovalo Lazurio. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má tenhle Environment přístup ztratit.",
+    "SSH klíč tohoto Prostředí zůstává registrovaný u vašeho účtu GitHubu, protože ho neregistrovalo Lazurio. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má toto Prostředí přístup ztratit.",
   toolsSshKeyFingerprint: "Otisk klíče: {fingerprint}.",
   toolsSshRemovalFailed:
-    "SSH klíč tohohle Environmentu může být u vašeho účtu GitHubu pořád registrovaný: gh ho nedokázal odebrat. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má tenhle Environment přístup ztratit.",
+    "SSH klíč tohoto Prostředí může být u vašeho účtu GitHubu pořád registrovaný: gh ho nedokázal odebrat. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má toto Prostředí přístup ztratit.",
   toolsComposioOrgLabel: "Organizace v Composiu",
   toolsComposioOrgCurrent: "{name} (aktuální)",
   toolsComposioOrgHint:
-    "Aplikace, které v Composiu napojíte, patří tomuto účtu a organizaci: účtu Environmentu, který používají jeho agenti.",
+    "Aplikace, které v Composiu napojíte, patří tomuto účtu a organizaci: účtu Prostředí, který používají jeho agenti.",
   toolsComposioOrgSaved:
-    "Organizace Composia pro tenhle Environment je teď {name}.",
+    "Organizace Composia pro toto Prostředí je teď {name}.",
   toolsComposioOrgFailed:
     "Organizaci se nepodařilo změnit. Změnit ji můžete později příkazem lazurio tools composio-org.",
   toolsComposioOrgLoading: "Načítají se vaše organizace v Composiu…",
   toolsComposioOrgUnavailable:
     "Organizace se nepodařilo načíst. Vybrat ji můžete později příkazem lazurio tools composio-org.",
   toolsComposioOrgMatches:
-    "Tento Environment používá vaši organizaci v Composiu „{name}“, pojmenovanou stejně jako jeho Organizace.",
+    "Toto Prostředí používá vaši organizaci v Composiu „{name}“, pojmenovanou stejně jako jeho Organizace.",
   toolsComposioOrgMissing:
-    "Ve vašem účtu Composia chybí organizace „{name}“, pojmenovaná jako Organizace tohoto Environmentu. Dokud ji nezaložíte, připojuje se tento Environment v organizaci, kterou máte vybranou. Založte ji v Composiu jen pro sebe a klikněte na Zkontrolovat znovu.",
+    "Ve vašem účtu Composia chybí organizace „{name}“, pojmenovaná jako Organizace tohoto Prostředí. Dokud ji nezaložíte, připojuje se toto Prostředí v organizaci, kterou máte vybranou. Založte ji v Composiu jen pro sebe a klikněte na Zkontrolovat znovu.",
   toolsComposioOrgAmbiguous:
-    "Ve vašem účtu Composia je víc organizací se jménem „{name}“. Dokud nezůstane jen jedna, připojuje se tento Environment v organizaci, kterou máte vybranou. Nechte jen jednu a klikněte na Zkontrolovat znovu.",
+    "Ve vašem účtu Composia je víc organizací se jménem „{name}“. Dokud nezůstane jen jedna, připojuje se toto Prostředí v organizaci, kterou máte vybranou. Nechte jen jednu a klikněte na Zkontrolovat znovu.",
   toolsComposioOrgElsewhere:
     "Composio se nepodařilo přepnout do vaší organizace „{name}“. Klikněte na Zkontrolovat znovu.",
   toolsComposioOrgCheckAgain: "Zkontrolovat znovu",
   toolsComposioOrgUnverified:
-    "Jméno Organizace tohoto Environmentu se nepodařilo přečíst, a tak nejde ověřit jeho organizaci v Composiu. Klikněte na Zkontrolovat znovu; když to nepomůže, požádejte agenta v Chatu, ať zkontroluje Folder tohoto Environmentu.",
+    "Jméno Organizace tohoto Prostředí se nepodařilo přečíst, a tak nejde ověřit jeho organizaci v Composiu. Klikněte na Zkontrolovat znovu; když to nepomůže, požádejte agenta v Chatu, ať zkontroluje Folder tohoto Prostředí.",
   toolsComposioOrgPersonal:
-    "Na osobním Environmentu vyberte svou výchozí organizaci, tu, kterou Composio založilo při vaší registraci.",
+    "V Osobním Prostředí vyberte svou výchozí organizaci, tu, kterou Composio založilo při vaší registraci.",
   toolsPromptTitle: "Připojit {name} s pomocí agenta",
   toolsPromptHint:
-    "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na tomhle Environmentu. Agent nástroj nainstaluje a provede vás přihlášením v prohlížeči. Žádný API klíč nikdy nekopírujete.",
+    "Zkopírujte tento prompt a vložte ho do nového chatu v T3 Code v tomto Prostředí. Agent nástroj nainstaluje a provede vás přihlášením v prohlížeči. Žádný API klíč nikdy nekopírujete.",
   toolsPromptLabel: "Připravený prompt",
   toolsCopy: "Zkopírovat prompt",
   toolsCopied: "Zkopírováno.",
@@ -1883,12 +1882,12 @@ const cs: Record<MessageKey, string> = {
     "Vlastní MCP servery přidáte v Apps → Integrace → Vlastní; agent ho přidá na váš výslovný pokyn.",
   toolsMcpAction: "Přidat s agentem",
   toolsMcpPromptHint:
-    "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na tomhle Environmentu. Agent se zeptá, který server chcete, a přidá ho do Executoru tohohle Environmentu; klíč pak zadáte v Integracích.",
+    "Zkopírujte tento prompt a vložte ho do nového chatu v T3 Code v tomto Prostředí. Agent se zeptá, který server chcete, a přidá ho do Executoru tohoto Prostředí; klíč pak zadáte v Integracích.",
   // The Apps home and its left column (decision F36).
   appsTitle: "Apps",
   appsAll: "Všechny moduly",
   appsPersonal: "Osobní",
-  appsOrganizationDashboard: "Dashboard Organizace",
+  appsOrganizationDashboard: "Přehled Organizace",
   appsModulesOne: "{count} modul",
   appsModulesFew: "{count} moduly",
   appsModulesMany: "{count} modulů",
@@ -1904,7 +1903,7 @@ const cs: Record<MessageKey, string> = {
   appsAbout: "O modulu",
   appsLog: "Log aplikace",
   appsLogHint:
-    "Launchpad log zatím neukazuje. Jeho poslední řádky přečtete v příkazové řádce tohoto Environmentu:",
+    "Lazurio log zatím neukazuje. Jeho poslední řádky přečtete v příkazové řádce tohoto Prostředí:",
   appsStarting: "Spouštím {name}…",
   appsStartFailed: "{name} se nepodařilo otevřít. Proč, říká přehled modulu.",
   // The org-agnostic description of a module by its stone's semantic key,
@@ -1922,7 +1921,8 @@ const cs: Record<MessageKey, string> = {
   appsDescriptionInvoice: "Faktury, odběratelé a evidence úhrad.",
   appsDescriptionInstallation:
     "Realizace u zákazníků a návazná projektová práce.",
-  appsDescriptionDashboard: "Přehled firmy, výsledků a důležitých ukazatelů.",
+  appsDescriptionDashboard:
+    "Přehled Organizace, výsledků a důležitých ukazatelů.",
   appsDescriptionProfitability: "Marže, náklady a finanční zdraví zakázek.",
   appsDescriptionMarketing: "Marketingové aktivity, kampaně a podklady.",
   appsDescriptionWebsite: "Webový obsah, stránky a veřejná prezentace.",
@@ -1973,18 +1973,18 @@ const cs: Record<MessageKey, string> = {
   appsSoon: "již brzy",
   appsMarketplaceSoon: "Již brzy",
   appsMarketplaceText:
-    "Tady si do Environmentu budete přidávat další moduly. Připravujeme to.",
+    "Tady si do Prostředí budete přidávat další moduly. Připravujeme to.",
   appsMarketplaceOrganization:
-    " Do té doby přibývají moduly v Dashboardu Organizace {name}.",
-  title: "Lazurio Launchpad",
-  homeTitle: "Launchpad",
-  catalogBreadcrumb: "Kde v Launchpadu jste",
+    " Do té doby přibývají moduly v Přehledu Organizace {name}.",
+  title: "Lazurio",
+  homeTitle: "Apps",
+  catalogBreadcrumb: "Kde v Lazuriu jste",
   catalogLoading: "Načítám Organizace…",
   catalogLoadFailed:
     "Organizace nelze načíst. Zkuste Načíst znovu; když to nepomůže, spusťte v CLI lazurio organization list.",
-  catalogEmpty: "V tomto Environmentu zatím nejsou žádné aplikace.",
+  catalogEmpty: "V tomto Prostředí zatím nejsou žádné aplikace.",
   catalogNotFound:
-    "Tahle Organizace nebo modul v tomhle Folderu není. Možná byl přejmenován nebo odstraněn; podívejte se na všechny Organizace.",
+    "Tato Organizace nebo modul v tomto Folderu není. Možná byl přejmenován nebo odstraněn; podívejte se na všechny Organizace.",
   chat: "Chat",
   mausbot: "Lazurio MausBot",
   catalogModules: "Moduly",
@@ -2018,15 +2018,15 @@ const cs: Record<MessageKey, string> = {
   catalogReasonUnavailable:
     "Složku nelze přečíst: musí to být skutečná složka, kterou vlastníte.",
   catalogReasonDuplicate:
-    "Jiná složka v tomhle Folderu deklaruje stejnou Organizaci.",
+    "Jiná složka v tomto Folderu deklaruje stejnou Organizaci.",
   catalogReasonPersonalspaceAmbiguous:
     "V personalspace/ je víc než jedna složka; smí tam být jen ta Operátorova a žádná se nečte, dokud nezůstane jediná.",
   catalogReasonPersonalspaceUnavailable:
     "Personalspace nelze přečíst: jeho složky musí být skutečné složky, které vlastníte.",
   catalogReasonPersonalspaceForeign:
-    "V personalspace/ je checkout, který není osobním prostorem účtu GitHub přihlášeného na tomto Environmentu. Proto se nečte a žádná jeho aplikace se nespustí. Zůstal, jak byl.",
+    "V personalspace/ je checkout, který není osobním prostorem účtu GitHub přihlášeného v tomto Prostředí. Proto se nečte a žádná jeho aplikace se nespustí. Zůstal, jak byl.",
   catalogReasonPersonalspaceNotOwned:
-    "GitHub tento osobní prostor nezná jako repozitář účtu přihlášeného na tomto Environmentu, proto se nečte.",
+    "GitHub tento osobní prostor nezná jako repozitář účtu přihlášeného v tomto Prostředí, proto se nečte.",
   catalogReasonPersonalspacePublic:
     "Repozitář tohoto osobního prostoru je na GitHubu veřejný. Osobní prostor musí být soukromý, proto se nečte, dokud jím nebude.",
   catalogReasonGithubSignedOut:
@@ -2034,7 +2034,7 @@ const cs: Record<MessageKey, string> = {
   catalogReasonGithubUnavailable:
     "GitHub neodpověděl, proto teď nejde ověřit, že je tento osobní prostor váš. Ověří se znovu, jakmile GitHub odpoví.",
   catalogReasonGithubIdentityMismatch:
-    "GitHub je tu přihlášený jiným účtem, než má vlastník tohoto Environmentu, proto se osobní prostor nečte.",
+    "GitHub je tu přihlášený jiným účtem, než má vlastník tohoto Prostředí, proto se osobní prostor nečte.",
   catalogReasonPersonalspaceUnverified:
     "Ověřujeme na GitHubu, že je tento osobní prostor váš…",
   catalogReasonDeclaration:
@@ -2049,15 +2049,15 @@ const cs: Record<MessageKey, string> = {
   catalogReasonDeclarationNotRegular:
     "{file} není obyčejný soubor (například je to symlink); Lazurio čte soubory modulu jen jako soubory vašeho vlastního checkoutu.",
   catalogReasonDeclarationOwner:
-    "{file} patří jinému účtu na tomhle Environmentu, takže to není soubor vašeho vlastního checkoutu. Vraťte ho do svého vlastnictví (například chown) nebo ho znovu checkoutněte.",
+    "{file} patří jinému účtu v tomto Prostředí, takže to není soubor vašeho vlastního checkoutu. Vraťte ho do svého vlastnictví (například chown) nebo ho znovu checkoutněte.",
   catalogReasonDeclarationTooLarge:
     "{file} je větší, než smí soubor checkoutu být (1 MiB; 16 MiB pro lockfile).",
   catalogReasonDirectoryNotRegular:
     "{file} není skutečná složka (například je to symlink); Lazurio čte checkout jen přes jeho vlastní složky.",
   catalogReasonDirectoryOwner:
-    "Složka {file} patří jinému účtu na tomhle Environmentu, takže to není váš vlastní checkout. Vraťte ji do svého vlastnictví (například chown) nebo ji znovu checkoutněte.",
+    "Složka {file} patří jinému účtu v tomto Prostředí, takže to není váš vlastní checkout. Vraťte ji do svého vlastnictví (například chown) nebo ji znovu checkoutněte.",
   preparationReasonOwnerInvalid:
-    "{file} nemůže tuhle aplikaci připravit: chybí, není to balíček, nebo aplikace není deklarovaným členem jeho workspace.",
+    "{file} nemůže tuto aplikaci připravit: chybí, není to balíček, nebo aplikace není deklarovaným členem jeho workspace.",
   preparationReasonScriptMissing:
     "Příprava deklarovaná v aplikaci jmenuje skript, který {file} nemá.",
   preparationReasonLockfileMissing:
@@ -2065,7 +2065,7 @@ const cs: Record<MessageKey, string> = {
   preparationReasonLockfileAmbiguous:
     "Vedle {file} je bun.lock i bun.lockb; nechte jen ten, ze kterého Bun instaluje.",
   preparationReasonLockfileUnused:
-    "{file} leží vedle balíčku, který nedeklaruje nic k instalaci: takový balíček lockfile nepotřebuje a Bun pro něj žádný nedrží, takže tenhle tu zůstal navíc. Odstraňte ho z modulu, nebo deklarujte závislosti, které zamyká.",
+    "{file} leží vedle balíčku, který nedeklaruje nic k instalaci: takový balíček lockfile nepotřebuje a Bun pro něj žádný nedrží, takže tento tu zůstal navíc. Odstraňte ho z modulu, nebo deklarujte závislosti, které zamyká.",
   preparationReasonPackageManager:
     "packageManager v {file} není přesná verze Bunu (bun@x.y.z); Lazurio moduly instaluje a spouští Bunem.",
   preparationReasonWorkspace:
@@ -2087,29 +2087,29 @@ const cs: Record<MessageKey, string> = {
   moduleReasonRequiredSlotUndeclared:
     "Aplikace potřebuje {file}, který manifest Organizace nedeklaruje, proto nebyla spuštěna. Opravte required_module_slots aplikace nebo manifest Organizace.",
   moduleReasonRequiredSlotPlanned:
-    "Aplikace potřebuje {file}, který manifest Organizace vede jako plánovaný, proto na tomto Environmentu zatím spustit nejde.",
+    "Aplikace potřebuje {file}, který manifest Organizace vede jako plánovaný, proto v tomto Prostředí zatím spustit nejde.",
   moduleReasonRequiredSlotMissing:
-    "Aplikace potřebuje {file}, který na tomto Environmentu vedle ní není, proto nebyla spuštěna. Synchronizujte Organizaci nebo si požádejte o přístup k tomu modulu a spusťte ji znovu.",
+    "Aplikace potřebuje {file}, který v tomto Prostředí vedle ní není, proto nebyla spuštěna. Synchronizujte Organizaci nebo si požádejte o přístup k tomu modulu a spusťte ji znovu.",
   moduleReasonRuntimeSecretUnavailable:
-    "Aplikace nebyla spuštěna: potřebuje tajné údaje, které jí trezor tohoto Environmentu nedal. {secrets}. Hodnoty se nikdy nezobrazují; v trezoru Environmentu přidejte nebo opravte položku pojmenovanou přesně jako ten údaj a spusťte ji znovu.",
+    "Aplikace nebyla spuštěna: potřebuje tajné údaje, které jí trezor tohoto Prostředí nedal. {secrets}. Hodnoty se nikdy nezobrazují; v trezoru Prostředí přidejte nebo opravte položku pojmenovanou přesně jako ten údaj a spusťte ji znovu.",
   moduleSecretsNotProvided:
     "Spuštěno bez těchto volitelných tajných údajů, takže schopnosti, které je potřebují, jsou vypnuté: {secrets}.",
   runtimeSecretPersonalspace:
-    "aplikace z Personalspace čte tajné údaje jen v osobním Environmentu svého člověka",
+    "aplikace z Personalspace čte tajné údaje jen v Osobním Prostředí svého člověka",
   runtimeSecretPersonalEnvironment:
-    "trezor osobního Environmentu slouží jen aplikacím z Personalspace",
-  runtimeSecretWorkstation: "tento počítač zatím trezor Environmentu nemá",
-  runtimeSecretNoVaultIdentity: "tento Environment zatím trezor nemá",
+    "trezor Osobního Prostředí slouží jen aplikacím z Personalspace",
+  runtimeSecretWorkstation: "tento počítač zatím trezor Prostředí nemá",
+  runtimeSecretNoVaultIdentity: "toto Prostředí zatím trezor nemá",
   runtimeSecretOtherOrganization:
-    "aplikace patří jiné Organizaci, než která vlastní tento Environment a jeho trezor",
+    "aplikace patří jiné Organizaci, než která vlastní toto Prostředí a jeho trezor",
   runtimeSecretNotConnected:
     "trezor ještě není nastavený (Nastavení → Nástroje → bitwarden)",
   runtimeSecretLocked: "trezor se nepodařilo odemknout",
   runtimeSecretBusy: "trezor je právě zaneprázdněný; zkuste to znovu",
   runtimeSecretUnreachable: "trezor není dostupný",
   runtimeSecretVaultFailed: "trezor neodpověděl tak, jak má",
-  runtimeSecretMissing: "v trezoru Environmentu není položka tohoto názvu",
-  runtimeSecretAmbiguous: "v trezoru Environmentu je víc položek tohoto názvu",
+  runtimeSecretMissing: "v trezoru Prostředí není položka tohoto názvu",
+  runtimeSecretAmbiguous: "v trezoru Prostředí je víc položek tohoto názvu",
   runtimeSecretEmpty: "jeho položka nemá heslo",
   moduleApplication: "Aplikace",
   moduleStart: "Spustit",
@@ -2127,8 +2127,8 @@ const cs: Record<MessageKey, string> = {
   moduleEnded:
     "Skončila sama. Zastavte ji, tím se ověří, že její procesy skončily, a pak ji spusťte znovu.",
   moduleKeepsRunning:
-    "Běží dál i po restartu Launchpadu; restart Environmentu ji ukončí.",
-  moduleSessionBound: "Skončí, až skončí tenhle Launchpad.",
+    "Běží dál i po restartu Lazuria; restart Prostředí ji ukončí.",
+  moduleSessionBound: "Skončí spolu s Lazuriem.",
   moduleStarted: "Spuštěno. Čekám, až se ohlásí zdravá…",
   moduleStartedHealthy: "Spuštěno a zdravé.",
   moduleAlreadyRunning: "Už běžela.",
@@ -2146,35 +2146,35 @@ const cs: Record<MessageKey, string> = {
   moduleReasonFailed:
     "Životní cyklus selhal dřív, než mohl změnu potvrdit, z důvodu, který neumí pojmenovat. Viz lazurio module status a lazurio doctor.",
   moduleNoLinkEntry:
-    "Bez odkazu: zaznamenaný vstup tohohle Remote Environmentu zatím neuvádí hostname pro moduly.",
+    "Bez odkazu: zaznamenaný vstup tohoto Prostředí zatím neuvádí hostname pro moduly.",
   moduleNoLinkApp:
-    "Bez odkazu: gateway tohohle Remote Environmentu obsluhuje jen výchozí aplikaci modulu.",
+    "Bez odkazu: gateway tohoto Prostředí obsluhuje jen výchozí aplikaci modulu.",
   moduleNoLinkBrowser: "Bez odkazu: aplikace nedeklaruje vstup pro prohlížeč.",
   moduleNoLink: "Bez odkazu: {reason}.",
   recoveryTitle: "Obnova",
-  recoveryModeTitle: "Launchpad je v režimu obnovy (Recovery mode)",
+  recoveryModeTitle: "Lazurio je v režimu obnovy (Recovery mode)",
   recoveryModeText:
-    "Nepodařilo se ho normálně spustit, a tak ukazuje jen tuhle stránku. T3 Code, vaše nástroje, Folder i repozitáře fungují dál.",
+    "Nepodařilo se ho normálně spustit, a tak ukazuje jen tuto stránku. T3 Code, vaše nástroje, Folder i repozitáře fungují dál.",
   recoveryCheckLabel: "Kontrola",
   recoveryReasonLabel: "Důvod",
   recoveryReasonFolderStateUnreadable:
-    "Tahle verze nedokáže přečíst Folder nebo jeho stav: nepatří vašemu účtu, nebo obsahuje položky, klíče či schéma, které tahle verze nezná.",
+    "Tato verze nedokáže přečíst Folder nebo jeho stav: nepatří vašemu účtu, nebo obsahuje položky, klíče či schéma, které tato verze nezná.",
   recoveryReasonFolderTransactionPending:
     "Změna profilu nebo nástrojů ve Folderu byla přerušena a není dokončená.",
   recoveryReasonFolderLockUnavailable: "Zámek operací Folderu nejde získat.",
   recoveryReasonHostedEntryInvalid:
-    "Hostovaný vstup zaznamenaný ve Folderu tahle verze nepřijímá.",
+    "Hostovaný vstup zaznamenaný ve Folderu tato verze nepřijímá.",
   recoveryReasonAssetMissing:
-    "Stránka, kterou tenhle program nese, se neservíruje celá.",
-  recoveryReasonUnknown: "Důvod, který tahle stránka nezná.",
+    "Stránka, kterou tento program nese, se neservíruje celá.",
+  recoveryReasonUnknown: "Důvod, který tato stránka nezná.",
   recoveryLoading: "Kontroluji…",
   recoveryAgain: "Zkontrolovat znovu",
   recoveryLoadFailed:
-    "Výsledek kontroly tady nejde načíst. Agent na tomhle Environmentu může spustit lazurio recover.",
-  recoveryHealthy: "Lazurio na tomhle Environmentu je v pořádku.",
-  recoveryBroken: "Lazurio na tomhle Environmentu potřebuje opravu.",
+    "Výsledek kontroly tady nejde načíst. Agent v tomto Prostředí může spustit lazurio recover.",
+  recoveryHealthy: "Lazurio v tomto Prostředí je v pořádku.",
+  recoveryBroken: "Lazurio v tomto Prostředí potřebuje opravu.",
   recoveryNotInstalled:
-    "Lazurio na tomhle Environmentu není nainstalované; není co kontrolovat.",
+    "Lazurio v tomto Prostředí není nainstalované; není co kontrolovat.",
   recoveryChecksTitle: "Kontroly",
   recoveryOutcomeOk: "v pořádku",
   recoveryOutcomeFailed: "selhala",
@@ -2182,13 +2182,13 @@ const cs: Record<MessageKey, string> = {
   recoveryEvidenceTitle: "Důkazy",
   recoveryEvidenceText:
     "Jen sanitizovaná strukturovaná pole, přesně jak je nese připravené issue.",
-  recoveryJournalShow: "Zobrazit journal (zůstává na tomhle Environmentu)",
+  recoveryJournalShow: "Zobrazit journal (zůstává v tomto Prostředí)",
   recoveryJournalHide: "Skrýt journal",
   recoveryJournalText:
-    "Sanitizovaný konec journalu Launchpadu. Nikdy automaticky neopouští tenhle Environment.",
+    "Sanitizovaný konec journalu Lazuria. Nikdy automaticky neopouští toto Prostředí.",
   recoveryPromptTitle: "Opravný agent",
   recoveryPromptText:
-    "Zkopírujte prompt a vložte ho do nového chatu své agentní aplikace na tomhle Environmentu (na Remote Environmentu do T3 Code). Agent opraví Lazurio směrem dopředu, nebo závadu zapíše na GitHub.",
+    "Zkopírujte prompt a vložte ho do nového chatu své agentní aplikace v tomto Prostředí (v Prostředí na serveru do T3 Code). Agent opraví Lazurio směrem dopředu, nebo závadu zapíše na GitHub.",
   recoveryPromptCopy: "Zkopírovat prompt",
   recoveryPromptOpenT3: "Otevřít T3 Code",
   recoveryIssueTitle: "Připravené issue",
@@ -2199,9 +2199,9 @@ const cs: Record<MessageKey, string> = {
   recoveryIssueLinkPaste:
     "Otevřít formulář issue v prohlížeči (tělo do něj vložte)",
   recoveryIssueRefused:
-    "Tělo issue se nepřipravilo: po sanitizaci v něm zůstalo {kinds}. Nic nesmí tenhle Environment opustit automaticky.",
+    "Tělo issue se nepřipravilo: po sanitizaci v něm zůstalo {kinds}. Nic nesmí toto Prostředí opustit automaticky.",
   recoveryNothingFiled:
-    "Nic nebylo odesláno. Tahle stránka issue jen připraví; nic automaticky neopouští tenhle Environment.",
+    "Nic nebylo odesláno. Tato stránka issue jen připraví; nic automaticky neopouští toto Prostředí.",
   settingsTitle: "Nastavení",
   settingsGeneral: "Obecné",
   settingsBack: "Zpět",
@@ -2209,31 +2209,31 @@ const cs: Record<MessageKey, string> = {
   navigationOpen: "Otevřít navigaci",
   technicalDetails: "Technické podrobnosti",
   presetHint:
-    "Druh Environmentu, pro který je tenhle Folder nastavený. Nabízejí se jen presety, které dovoluje jeho handover.",
+    "Druh Prostředí, pro který je tento Folder nastavený. Nabízejí se jen presety, které dovoluje jeho handover.",
   localeHint:
-    "Jazyk této stránky a instrukcí pro agenty v tomhle Folderu. Změní se, až změnu použijete.",
+    "Jazyk této stránky a instrukcí pro agenty v tomto Folderu. Změní se, až změnu použijete.",
   detailHint:
     "Jak agenti vysvětlují svou práci: stručně, nebo s technickým vysvětlením a důkazy.",
   coordinationHint:
     "Zda agenti pracují přímo, nebo delegují v rozsahu zadání a výsledek ověří.",
   profileHint:
-    "Náhled ukáže, co by se v tomhle Folderu změnilo; nic se nezapíše, dokud změnu nepoužijete.",
+    "Náhled ukáže, co by se v tomto Folderu změnilo; nic se nezapíše, dokud změnu nepoužijete.",
   toolsDetails: "Podrobnosti",
   toolsDetailsNamed: "Podrobnosti o {name}",
   toolsPathLabel: "Umístění",
-  legend: "Profil Environmentu",
-  machineTitle: "Tento Environment",
+  legend: "Profil Prostředí",
+  machineTitle: "Toto Prostředí",
   machineKind: "Druh",
   machineName: "Technický název",
   machineOwner: "Owner",
   machineTeam: "Team",
   machineAssignment: "Přiřazení",
-  machineAssignmentTeam: "sdílený Teamem",
+  machineAssignmentTeam: "sdílené Teamem",
   machineAssignmentAutomation:
-    "automatizovaný Environment persony Organizace; odpovědný operátor {operator}",
+    "Automatizované Prostředí persony Organizace; odpovědný operátor {operator}",
   machineTailnet: "Uzel tailnetu",
   machineHost: "Host",
-  machineRelationships: "Vztahy (vynucuje Headscale, ne tahle stránka)",
+  machineRelationships: "Vztahy (vynucuje Headscale, ne tato stránka)",
   machineNoPeers: "žádní peers nezaznamenáni",
   machineNoSsh: "bez SSH",
   machineNoHttps: "bez HTTPS",
@@ -2265,9 +2265,9 @@ const cs: Record<MessageKey, string> = {
     "Profil nelze načíst. Otevřete odkaz relace z CLI; rozpracovaný stav může vyžadovat obnovu přes CLI.",
   filesTitle: "Soubory",
   filesIntro:
-    "Složka Dokumenty tohoto Environmentu. Agenti sem ukládají hotové soubory; stáhněte si je, nebo sem nahrajte soubory pro agenty.",
+    "Složka Dokumenty tohoto Prostředí. Agenti sem ukládají hotové soubory; stáhněte si je, nebo sem nahrajte soubory pro agenty.",
   filesShared:
-    "Tenhle Environment je sdílený: celý Team vidí a mění stejnou složku.",
+    "Toto Prostředí je sdílené: celý Team vidí a mění stejnou složku.",
   filesRoot: "Dokumenty",
   filesPath: "Cesta ke složce",
   filesUpload: "Nahrát soubory",
@@ -2276,11 +2276,11 @@ const cs: Record<MessageKey, string> = {
   filesLoading: "Načítám složku…",
   filesLoadFailed: "Složku se nepodařilo načíst. Zkuste Načíst znovu.",
   filesUnavailable:
-    "Složku Dokumenty tohoto Environmentu nejde použít: není to složka, nebo je to link na domovskou složku či Lazurio Folder. Na požádání to opraví agent.",
-  filesEmpty: "Tahle složka je prázdná.",
+    "Složku Dokumenty tohoto Prostředí nejde použít: není to složka, nebo je to link na domovskou složku či Lazurio Folder. Na požádání to opraví agent.",
+  filesEmpty: "Tato složka je prázdná.",
   filesEmptyRoot:
-    "Tohle je složka Dokumenty vašeho Environmentu. Agenti sem ukládají hotové soubory a dorazí sem i soubory, které nahrajete. Zatím tu nic není.",
-  filesNotFound: "Tahle složka nebo soubor neexistuje.",
+    "Toto je složka Dokumenty vašeho Prostředí. Agenti sem ukládají hotové soubory a dorazí sem i soubory, které nahrajete. Zatím tu nic není.",
+  filesNotFound: "Tato složka nebo soubor neexistuje.",
   filesOpenRoot: "Otevřít Dokumenty",
   filesIsFile: "{name} je soubor.",
   filesOpenFolder: "Otevřít jeho složku",
@@ -2304,10 +2304,10 @@ const cs: Record<MessageKey, string> = {
   filesUploadCancelled: "Zrušeno",
   filesCancel: "Zrušit",
   filesCancelNamed: "Zrušit nahrávání {name}",
-  filesUploadDiskFull: "Na tomhle Environmentu není dost volného místa.",
+  filesUploadDiskFull: "V tomto Prostředí není dost volného místa.",
   filesUploadIncomplete: "Nahrávání se přerušilo. Zkuste to znovu.",
   filesUploadName:
-    "Tohle jméno tu použít nejde. Soubor přejmenujte a zkuste to znovu.",
+    "Toto jméno tu použít nejde. Soubor přejmenujte a zkuste to znovu.",
   filesUploadMissing: "Složka už neexistuje.",
   filesUploadFailed: "Nahrání se nezdařilo. Zkuste to znovu.",
   setupGithub: "GitHub není připojený. Bez něj tu nic nefunguje.",
@@ -2319,7 +2319,7 @@ const cs: Record<MessageKey, string> = {
   setupFailed: "Příprava se zastavila.",
   setupResolve: "Vyřešit v Chatu",
   setupRetry: "Zkusit znovu",
-  tourLabel: "Prohlídka Environmentu",
+  tourLabel: "Prohlídka Prostředí",
   tourGearTitle: "Nejdřív připojte GitHub",
   tourGearText: "Bez něj tu nic nefunguje.",
   tourSettingsToolsTitle: "Tady se připojují služby",
@@ -2332,7 +2332,7 @@ const cs: Record<MessageKey, string> = {
   tourGearOrganizationTitle: "Ještě stáhněte {name}",
   tourOrganizationText: "Pak tu uvidíte její moduly.",
   tourOrganization: "Organizaci",
-  tourSettingsEnvironmentTitle: "Obsah Environmentu je tady",
+  tourSettingsEnvironmentTitle: "Obsah Prostředí je tady",
   tourPrepareFailedTitle: "Něco se nepovedlo",
   tourPrepareFailedText: "Zkuste to znovu, nebo to vyřeší agent v Chatu.",
   tourPreparePersonalTitle: "Připravte osobní prostor",
@@ -2350,7 +2350,7 @@ const cs: Record<MessageKey, string> = {
   tourDone: "Hotovo",
   tourNotNow: "Teď ne",
   tourQuit: "Ukončit",
-  contentTitle: "Obsah Environmentu",
+  contentTitle: "Obsah Prostředí",
   contentPersonalspace: "Osobní prostor",
   contentAbsent: "Ještě tu není",
   contentPresent: "Připraveno",
@@ -2396,13 +2396,13 @@ const cs: Record<MessageKey, string> = {
   contentResolveCopyFailed:
     "Zadání se nepodařilo zkopírovat; otevřete Chat a řekněte agentovi, co se zastavilo.",
   preparePromptWhatPersonal:
-    "Příprava mého osobního prostoru (Personalspace) v tomhle Environmentu",
+    "Příprava mého osobního prostoru (Personalspace) v tomto Prostředí",
   preparePromptWhatOrganization:
-    "Příprava Organizace {name} (GitHub {login}) v tomhle Environmentu",
+    "Příprava Organizace {name} (GitHub {login}) v tomto Prostředí",
   preparePromptStoppedAt: "{what} se zastavila u kroku „{step}“:",
   preparePromptStopped: "{what} se zastavila.",
   preparePromptBody:
-    "Dotáhni prosím instalaci se vším všudy:\n1. Zjisti příčinu chyby a oprav ji v tomhle Environmentu.\n2. Dokonči přípravu stejným příkazem, jaký spouští Launchpad: `{command}`.\n3. Ověř výsledek: `lazurio doctor`, a u modulů, které mají testy, jejich testy.\n4. Řekni mi stručně, co bylo špatně, co jsi udělal a co jsi ověřil. Kdyby oprava potřebovala změnu mimo tenhle Environment (třeba v repozitáři), nejdřív se zeptej.",
+    "Dotáhni prosím instalaci se vším všudy:\n1. Zjisti příčinu chyby a oprav ji v tomto Prostředí.\n2. Dokonči přípravu stejným příkazem, jaký spouští Lazurio: `{command}`.\n3. Ověř výsledek: `lazurio doctor`, a u modulů, které mají testy, jejich testy.\n4. Řekni mi stručně, co bylo špatně, co jsi udělal a co jsi ověřil. Kdyby oprava potřebovala změnu mimo toto Prostředí (třeba v repozitáři), nejdřív se zeptej.",
   toolsDescriptionGh:
     "Připojení na GitHub, kde jsou uložené vaše moduly. Bez něj tu nic nefunguje.",
   toolsDescriptionComposio:
@@ -2415,8 +2415,8 @@ const cs: Record<MessageKey, string> = {
     "Připojení na databáze Neon, hlavně pro vývoj aplikací.",
   toolsDescriptionBitwarden: "Hesla a další položky pro agenty.",
   toolsDescriptionExecutor:
-    "Přes něj agenti používají aplikace připojené přímo z tohoto Environmentu. Instaluje ho a udržuje v chodu Lazurio.",
-  toolsNotOffered: "V tomhle Environmentu se nenabízí; agenti ho nepoužívají.",
+    "Přes něj agenti používají aplikace připojené přímo z tohoto Prostředí. Instaluje ho a udržuje v chodu Lazurio.",
+  toolsNotOffered: "V tomto Prostředí se nenabízí; agenti ho nepoužívají.",
   vaultRowChecking: "Zjišťuji stav…",
   vaultRowConnected: "Připojeno",
   vaultRowNotSetUp: "Zatím nenastaveno",
@@ -2426,9 +2426,9 @@ const cs: Record<MessageKey, string> = {
   vaultRowRevoked: "Přístup odebrán v trezoru",
   vaultRowUnreachable: "Trezor neodpovídá",
   vaultRowFailed: "Nastavení se nedokončilo",
-  vaultRowNoVault: "Tento Environment zatím trezor nemá",
+  vaultRowNoVault: "Toto Prostředí zatím trezor nemá",
   vaultRowSecondWave: "Brzy · druhá vlna",
-  vaultRowUnavailable: "V tomto Environmentu není k dispozici",
+  vaultRowUnavailable: "V tomto Prostředí není k dispozici",
   vaultPhaseInstall: "Instaluje se Bitwarden…",
   vaultPhaseAccount: "Připravuje se účet trezoru…",
   vaultPhaseVault: "Připravuje se trezor…",
@@ -2479,7 +2479,7 @@ const cs: Record<MessageKey, string> = {
   executorRowIncomplete: "Běží, nastavení není dokončené",
   executorRowConflict: "Koliduje s jinou instalací",
   executorRowSecondWave: "Brzy · druhá vlna",
-  executorRowUnavailable: "V tomhle Environmentu není k dispozici",
+  executorRowUnavailable: "V tomto Prostředí není k dispozici",
   executorPhaseInstall: "Instaluje se…",
   executorPhaseService: "Spouští se…",
   executorPhaseAgents: "Připojují se agenti…",
@@ -2496,7 +2496,7 @@ const cs: Record<MessageKey, string> = {
   executorDetailAgents: "Agenti",
   executorVersionPinned: "{version} se nainstaluje při příštím nastavení",
   executorVersionOther: "{installed} (Lazurio připíná {version})",
-  executorAddressLocal: "{address} (jen tento Environment)",
+  executorAddressLocal: "{address} (jen toto Prostředí)",
   executorServiceRunning: "běží",
   executorServiceStopped: "zastavená",
   executorServiceFailed: "selhala",
@@ -2514,7 +2514,7 @@ const cs: Record<MessageKey, string> = {
   executorFailed: "Nastavení se nedokončilo ({stage}: {reason}).",
   executorConflictTitle: "Vyřešit kolizi executoru s pomocí agenta",
   executorConflictPrompt:
-    "Úkol: v tomhle Environmentu koliduje Executor Lazuria s jinou instalací. Příkazem `lazurio executor status --json` zjisti, co koliduje: `entry` je `~/.local/bin/executor`, `agents` MCP server jménem `executor` v Codexu nebo Claude Code. Ukaž Operátorovi, co tam je, a jen s jeho souhlasem to odstraň nebo přejmenuj; pak spusť `lazurio executor setup --json` a ověř, že hlásí `running`. Nic dalšího neměň.",
+    "Úkol: v tomto Prostředí koliduje Executor Lazuria s jinou instalací. Příkazem `lazurio executor status --json` zjisti, co koliduje: `entry` je `~/.local/bin/executor`, `agents` MCP server jménem `executor` v Codexu nebo Claude Code. Ukaž Operátorovi, co tam je, a jen s jeho souhlasem to odstraň nebo přejmenuj; pak spusť `lazurio executor setup --json` a ověř, že hlásí `running`. Nic dalšího neměň.",
   toolsNotAdded: "Ještě není přidané",
   toolsLoginTitleGh: "Připojit GitHub",
   toolsLoginTitleComposio: "Připojit aplikace",
@@ -2529,23 +2529,23 @@ const cs: Record<MessageKey, string> = {
   machineWorksOnlyYou: "jen vy",
   machineWorksTeam: "Team {team}",
   machineWorksAutomation: "automatizace, odpovídá @{login}",
-  machineKindPersonal: "Osobní Remote Environment",
-  machineKindWork: "Pracovní Remote Environment",
-  machineKindTeam: "Týmový Remote Environment",
-  machineKindAutomated: "Automatizovaný Environment",
+  machineKindPersonal: "Osobní Prostředí",
+  machineKindWork: "Pracovní Prostředí",
+  machineKindTeam: "Týmové Prostředí",
+  machineKindAutomated: "Automatizované Prostředí",
   machineKindWorkstation: "Váš počítač",
   machineTechnicalKind: "Technický druh",
   machineSupport: "Pro podporu",
   browserToggle: "Prohlížeč",
-  browserTitle: "Prohlížeč Environmentu",
+  browserTitle: "Prohlížeč Prostředí",
   browserReload: "Načíst znovu",
   browserOpenTab: "Otevřít samostatně",
   browserTabClose: "Zavřít",
   browserTabCloseOthers: "Zavřít ostatní",
   browserTabCloseRight: "Zavřít vpravo",
   browserClose: "Zavřít",
-  browserFrame: "Záložka prohlížeče Environmentu",
-  browserFailed: "Tuto záložku prohlížeče Environmentu tu nejde zobrazit.",
+  browserFrame: "Záložka prohlížeče Prostředí",
+  browserFailed: "Tuto záložku prohlížeče Prostředí tu nejde zobrazit.",
   browserWidth: "Šířka prohlížeče",
   dividerHint: "Táhněte pro změnu šířky, dvojklik vrátí výchozí",
   columnHide: "Skrýt navigaci",
@@ -2553,7 +2553,7 @@ const cs: Record<MessageKey, string> = {
   columnWidth: "Šířka navigace",
   integrationsTitle: "Integrace",
   integrationsSubtitle:
-    "Co tu připojíte, používají všichni agenti a boti tohoto Environmentu.",
+    "Co tu připojíte, používají všichni agenti a boti tohoto Prostředí.",
   integrationsHelp: "Jak to funguje",
   integrationsSearch: "Hledat aplikace",
   integrationsRefresh: "Zkontrolovat připojení",
@@ -2574,37 +2574,37 @@ const cs: Record<MessageKey, string> = {
   integrationsPopupBlocked:
     "Prohlížeč zablokoval okno s připojením. Povolte vyskakovací okna a zkuste to znovu.",
   integrationsExecutorUnavailable:
-    "Executor v tomto Environmentu teď neběží, takže nic nejde připojit přímo.",
+    "Executor v tomto Prostředí teď neběží, takže nic nejde připojit přímo.",
   integrationsExecutorAbsent:
-    "Tento Environment nemá Executor, aplikace se tu proto připojují přes Composio nebo svým nástrojem.",
+    "Toto Prostředí nemá Executor, aplikace se tu proto připojují přes Composio nebo svým nástrojem.",
   integrationsExecutorUnreadable:
     "Executor odpověděl nečekaně, přímá připojení se nepodařilo načíst.",
   integrationsComposioUnreadable:
     "Připojení přes Composio se nepodařilo načíst.",
   integrationsComposioOrganizationMissing:
-    "Ve vašem účtu Composia chybí organizace „{name}“. Tento Environment patří Organizaci {name} a má se přes Composio připojovat ve vaší vlastní organizaci stejného jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
+    "Ve vašem účtu Composia chybí organizace „{name}“. Toto Prostředí patří Organizaci {name} a má se přes Composio připojovat ve vaší vlastní organizaci stejného jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
   integrationsComposioOrganizationAmbiguous:
-    "Ve vašem účtu Composia je víc organizací se jménem „{name}“. Dokud nezůstane jen jedna, připojuje se tento Environment v organizaci, kterou máte vybranou. Nechte jen jednu a klikněte na Zkontrolovat připojení.",
+    "Ve vašem účtu Composia je víc organizací se jménem „{name}“. Dokud nezůstane jen jedna, připojuje se toto Prostředí v organizaci, kterou máte vybranou. Nechte jen jednu a klikněte na Zkontrolovat připojení.",
   integrationsComposioOrganizationElsewhere:
     "Composio se nepodařilo přepnout do vaší organizace „{name}“, a tak se přes něj teď nic nepřipojí. Klikněte na Zkontrolovat připojení a zkuste to znovu.",
   integrationsComposioOrganizationUnverified:
-    "Jméno Organizace tohoto Environmentu se nepodařilo přečíst, a tak nejde ověřit jeho organizaci v Composiu a přes Composio se teď nic nepřipojí. Klikněte na Zkontrolovat připojení; když to nepomůže, požádejte agenta v Chatu, ať zkontroluje Folder tohoto Environmentu.",
+    "Jméno Organizace tohoto Prostředí se nepodařilo přečíst, a tak nejde ověřit jeho organizaci v Composiu a přes Composio se teď nic nepřipojí. Klikněte na Zkontrolovat připojení; když to nepomůže, požádejte agenta v Chatu, ať zkontroluje Folder tohoto Prostředí.",
   integrationsComposioOpen: "Otevřít Composio",
   integrationsComposioApps: "Aplikace v Composiu",
   integrationsComposioMissing: "Aplikaci tu nenajdete?",
   integrationsComposioConnectThere: "Připojte ji v Composiu",
   integrationsOutsideCatalog: "Z Composia, mimo katalog Lazuria.",
   integrationsComposioOrganizationChanged:
-    "Composio teď nepracuje v organizaci tohoto Environmentu. Klikněte na Zkontrolovat připojení.",
-  composioModelTitle: "Jak tento Environment používá Composio",
+    "Composio teď nepracuje v organizaci tohoto Prostředí. Klikněte na Zkontrolovat připojení.",
+  composioModelTitle: "Jak toto Prostředí používá Composio",
   composioModelAccount: "Váš účet Composia",
   composioModelAccountNote: "přihlášení přes GitHub",
   composioModelOrganization: "organizace „{name}“",
   composioModelOthers: "organizace pro každou vaši další Organizaci",
   composioModelDefault: "vaše výchozí organizace",
-  composioModelEnvironments: "Environmenty Organizace {name}",
-  composioModelOtherEnvironments: "jejich Environmenty",
-  composioModelPersonal: "váš osobní Environment",
+  composioModelEnvironments: "Prostředí Organizace {name}",
+  composioModelOtherEnvironments: "jejich Prostředí",
+  composioModelPersonal: "vaše Osobní Prostředí",
   composioModelCaption:
     "Do svých organizací nikoho nezvete a žádný klíč nesdílíte.",
   integrationsToolsUnreadable: "Nástroje se nepodařilo načíst.",
@@ -2625,7 +2625,7 @@ const cs: Record<MessageKey, string> = {
   integrationsCancel: "Zrušit",
   integrationsFinishInBrowser: "Dokončete připojení v prohlížeči",
   integrationsFinishInEnvironment:
-    "Dokončete přihlášení v prohlížeči Environmentu vpravo.",
+    "Dokončete přihlášení v prohlížeči Prostředí vpravo.",
   integrationsWaiting: "Čekám na přihlášení…",
   integrationsConnectedNow: "Připojeno: {app}.",
   integrationsReturnTitle: "Přihlášení",
@@ -2656,11 +2656,11 @@ const cs: Record<MessageKey, string> = {
   integrationsManageInComposio: "Spravovat v Composiu",
   integrationsDisconnect: "Odpojit",
   integrationsDisconnectTitle: "Odpojit {account} od aplikace {app}?",
-  integrationsDisconnectDirect: "Odpojí se jen v tomto Environmentu.",
+  integrationsDisconnectDirect: "Odpojí se jen v tomto Prostředí.",
   integrationsDisconnectComposio:
-    "Odpojí se z účtu Composia {account}, takže ve všech Environmentech, které ho používají.",
+    "Odpojí se z účtu Composia {account}, takže ve všech Prostředích, které ho používají.",
   integrationsDisconnectComposioAny:
-    "Odpojí se z vašeho účtu Composia, takže ve všech Environmentech, které ho používají.",
+    "Odpojí se z vašeho účtu Composia, takže ve všech Prostředích, které ho používají.",
   integrationsDisconnectPending:
     "Odvolá se jen tento účet; ostatní účty aplikace {app} zůstanou připojené.",
   integrationsDisconnectUnsupported:
@@ -2685,22 +2685,23 @@ const cs: Record<MessageKey, string> = {
   integrationsAskAdmin: "Požádat Admina",
   integrationsAskAdminCopied: "Zprávu pro Admina máte ve schránce.",
   integrationsAskAdminText:
-    "Prosím o zpřístupnění aplikace {app} v Integracích našich Environmentů: {line}",
-  integrationsSetUpInDashboard: "Nastavit v Dashboardu",
+    "Prosím o zpřístupnění aplikace {app} v Integracích našich Prostředí: {line}",
+  integrationsSetUpInDashboard: "Nastavit v Přehledu Organizace",
   integrationsAllowComposio: "Povolit Composio",
-  integrationsAdminWhere: "Nastavíte to v Dashboardu, v nastavení Organizace.",
+  integrationsAdminWhere:
+    "Nastavíte to v Přehledu Organizace, v jejím nastavení.",
   integrationsComposioSignIn:
     "Nejdřív se přihlaste do Composia: otevře se v Nastavení → Nástroje.",
   integrationsBrowserMissing:
-    "Přímé přihlášení potřebuje prohlížeč tohoto Environmentu, který tu teď není.",
+    "Přímé přihlášení potřebuje prohlížeč tohoto Prostředí, který tu teď není.",
   integrationsKeyTitle: "Klíč pro {app}",
   integrationsKeyText:
-    "Klíč jde jen do Executoru tohoto Environmentu a už se nikde nezobrazí.",
+    "Klíč jde jen do Executoru tohoto Prostředí a už se nikde nezobrazí.",
   integrationsKeyLabel: "Klíč",
   integrationsMcpTitle: "MCP servery",
   integrationsMcpAdd: "Přidat MCP server",
   integrationsMcpNone: "Zatím žádné MCP servery.",
-  integrationsMcpWhereCommand: "Příkaz na tomto Environmentu",
+  integrationsMcpWhereCommand: "Příkaz v tomto Prostředí",
   integrationsMcpReady: "Přidáno",
   integrationsMcpTools: "Připojeno · {tools}",
   integrationsMcpPending: "Spouštím…",
@@ -2752,7 +2753,7 @@ const cs: Record<MessageKey, string> = {
   integrationsMcpUrlInvalid:
     "Zadejte celou adresu, třeba https://mcp.example.com/mcp.",
   integrationsMcpUrlInsecure:
-    "Adresa musí začínat https://. http:// jde jen na tomto Environmentu (localhost).",
+    "Adresa musí začínat https://. http:// jde jen v tomto Prostředí (localhost).",
   integrationsMcpCwdInvalid: "Zadejte celou cestu, třeba ~/code nebo /srv/mcp.",
   integrationsMcpEnvNameInvalid:
     "Jen písmena, číslice a podtržítko, na začátku ne číslice.",
@@ -2769,22 +2770,22 @@ const cs: Record<MessageKey, string> = {
   // Settings → SSH from your devices (decision F49).
   sshTitle: "SSH ze zařízení",
   sshIntro:
-    "Připojte se do tohoto Environmentu přes SSH z terminálu na svém počítači. Každý počítač má vlastní klíč a tady ho můžete kdykoli odebrat.",
+    "Připojte se do tohoto Prostředí přes SSH z terminálu na svém počítači. Každý počítač má vlastní klíč a tady ho můžete kdykoli odebrat.",
   sshShared:
-    "Tohle je společný Environment celého Teamu: zařízení přidané tady se přihlašuje do účtu Teamu a každý z Teamu ho vidí a může odebrat.",
+    "Toto je společné Prostředí celého Teamu: zařízení přidané tady se přihlašuje do účtu Teamu a každý z Teamu ho vidí a může odebrat.",
   sshUnsupported:
-    "SSH ze zařízení je dostupné v Environmentech s Linuxem a macOS.",
+    "SSH ze zařízení je dostupné v Prostředích s Linuxem a macOS.",
   sshRefresh: "Obnovit",
   sshLoading: "Načítá se přístup přes SSH…",
   sshLoadFailed: "Přístup přes SSH se nepodařilo načíst. Zkuste Obnovit.",
   sshPromptTitle: "Prompt pro vašeho agenta",
   sshPromptNote:
-    "Předejte ho agentovi na svém počítači, třeba Codexu. Otevře si tuhle stránku ve svém panelu prohlížeče, kde se jen přihlásíte; zbytek nastaví sám.",
+    "Předejte ho agentovi na svém počítači, třeba Codexu. Otevře si tuto stránku ve svém panelu prohlížeče, kde se jen přihlásíte; zbytek nastaví sám.",
   sshPromptCopy: "Zkopírovat prompt",
   sshPromptUnavailable:
     "Prompt se objeví, jakmile budou známá nastavení pro váš počítač (níže).",
   sshPromptText:
-    "Připoj tento počítač přes SSH k mému Lazurio Environmentu „{alias}“ a přidej jeho Lazurio Folder do Codexu jako projekt.\n\nAdresu, účet a klíč hostu najdeš na stránce Environmentu: {url}\n\n1. Použij klíč {keyPath} (ve Windows {windowsKeyPath}). Když ještě neexistuje, vytvoř klíč ed25519. Soukromý klíč z počítače nikdy neodchází, ven smí jen soubor .pub.\n2. Na stránce v části „Přidat zařízení“ zaregistruj jeho veřejný klíč.\n3. Doplň nastavení SSH a řádek known_hosts ze stránky pro {alias}. Ostatní připojení nech, jak jsou. Když stejný záznam už existuje, použij ho; když pro {alias} existuje jiný, nic neměň a řekni mi to.\n4. Ověř, že SSH funguje: ssh {alias} true\n5. Pak otevři odkaz do Codexu ze stránky: {desktopLink}. Když ho aplikace neotevře, přidej alias a cestu k Folderu ze stránky sám v Settings → Connections → SSH.\n\nProfil Tailscale nepřepínej. Zaregistrovaný klíč přístup do sítě nedává, ten povoluje správce sítě. Nakonec mi napiš, jak připojení dopadlo.",
+    "Připoj tento počítač přes SSH k mému Prostředí „{alias}“ v Lazuriu a přidej jeho Lazurio Folder do Codexu jako projekt.\n\nAdresu, účet a klíč hostu najdeš na stránce Prostředí: {url}\n\n1. Použij klíč {keyPath} (ve Windows {windowsKeyPath}). Když ještě neexistuje, vytvoř klíč ed25519. Soukromý klíč z počítače nikdy neodchází, ven smí jen soubor .pub.\n2. Na stránce v části „Přidat zařízení“ zaregistruj jeho veřejný klíč.\n3. Doplň nastavení SSH a řádek known_hosts ze stránky pro {alias}. Ostatní připojení nech, jak jsou. Když stejný záznam už existuje, použij ho; když pro {alias} existuje jiný, nic neměň a řekni mi to.\n4. Ověř, že SSH funguje: ssh {alias} true\n5. Pak otevři odkaz do Codexu ze stránky: {desktopLink}. Když ho aplikace neotevře, přidej alias a cestu k Folderu ze stránky sám v Settings → Connections → SSH.\n\nProfil Tailscale nepřepínej. Zaregistrovaný klíč přístup do sítě nedává, ten povoluje správce sítě. Nakonec mi napiš, jak připojení dopadlo.",
   sshDevicesTitle: "Vaše zařízení",
   sshDevicesNone: "Zatím tu není přidané žádné zařízení.",
   sshAddedBy: "Přidáno {date}, účet {who}",
@@ -2796,27 +2797,26 @@ const cs: Record<MessageKey, string> = {
   sshRemoveCancel: "Zrušit",
   sshRemoved: "Zařízení {device} je odebrané a už se nepřihlásí.",
   sshRemovedStillAllowed:
-    "Zařízení {device} je tady odebrané, ale stejný klíč dál povoluje řádek přidaný mimo Launchpad.",
+    "Zařízení {device} je tady odebrané, ale stejný klíč dál povoluje řádek přidaný mimo Lazurio.",
   sshRemoveFailed:
     "Zařízení se nepodařilo odebrat. Zkuste Obnovit a odeberte ho znovu.",
-  sshRemoveNotFound: "Tenhle klíč už tu není. Zkuste Obnovit.",
-  sshRemoveNotOwn:
-    "Tenhle klíč byl přidaný mimo Launchpad; Launchpad ho neodebírá.",
-  sshOutsideTitle: "Přidané mimo Launchpad",
+  sshRemoveNotFound: "Tento klíč už tu není. Zkuste Obnovit.",
+  sshRemoveNotOwn: "Tento klíč byl přidaný mimo Lazurio; Lazurio ho neodebírá.",
+  sshOutsideTitle: "Přidané mimo Lazurio",
   sshOutsideNote:
-    "Tyhle klíče Launchpad nikdy nemění ani neodebírá, třeba klíč, se kterým byl tenhle Environment zřízený. Odebírá je ten, kdo se o Environment stará.",
-  sshOutsideUnreadable: "Řádek, kterému Launchpad nerozumí",
+    "Tyto klíče Lazurio nikdy nemění ani neodebírá, třeba klíč, se kterým bylo toto Prostředí zřízené. Odebírá je ten, kdo se o Prostředí stará.",
+  sshOutsideUnreadable: "Řádek, kterému Lazurio nerozumí",
   sshOutsideUntitled: "Klíč bez názvu",
   sshProblemDirectory:
-    "~/.ssh v tomhle Environmentu není běžná složka, proto ji Launchpad nemění.",
+    "~/.ssh v tomto Prostředí není běžná složka, proto ji Lazurio nemění.",
   sshProblemSymlink:
-    "~/.ssh/authorized_keys je odkaz, proto ho Launchpad nemění. Agent v tomhle Environmentu ho může nahradit běžným souborem.",
+    "~/.ssh/authorized_keys je odkaz, proto ho Lazurio nemění. Agent v tomto Prostředí ho může nahradit běžným souborem.",
   sshProblemNotFile:
-    "~/.ssh/authorized_keys není běžný soubor, proto ho Launchpad nemění.",
+    "~/.ssh/authorized_keys není běžný soubor, proto ho Lazurio nemění.",
   sshProblemForeignOwner:
-    "~/.ssh/authorized_keys patří jinému účtu, proto ho Launchpad nemění.",
+    "~/.ssh/authorized_keys patří jinému účtu, proto ho Lazurio nemění.",
   sshProblemTooLarge:
-    "~/.ssh/authorized_keys je větší než 1 MB, proto ho Launchpad nemění.",
+    "~/.ssh/authorized_keys je větší než 1 MB, proto ho Lazurio nemění.",
   sshAddTitle: "Přidat zařízení",
   sshAddNote:
     "Jeho název a veřejný klíč: jeden řádek ze souboru .pub, který začíná ssh-ed25519. Nikdy ne soukromý klíč.",
@@ -2828,30 +2828,30 @@ const cs: Record<MessageKey, string> = {
   sshAdded:
     "Zařízení {device} se teď může přihlásit. Nastavení pro váš počítač je níže.",
   sshAlreadyPresent:
-    "Tenhle klíč se tu už přihlásit může; nic se nezměnilo. Nastavení pro váš počítač je níže.",
+    "Tento klíč se tu už přihlásit může; nic se nezměnilo. Nastavení pro váš počítač je níže.",
   sshAddFailed:
-    "Zařízení se nepodařilo přidat. Zkuste to znovu; když to nepomůže, požádejte o pomoc agenta v tomhle Environmentu.",
+    "Zařízení se nepodařilo přidat. Zkuste to znovu; když to nepomůže, požádejte o pomoc agenta v tomto Prostředí.",
   sshRefusedKeyMissing: "Vložte veřejný klíč.",
   sshRefusedPrivateKey:
-    "Tohle je soukromý klíč. Nikam ho nevkládejte; vložte veřejný klíč ze souboru .pub.",
+    "Toto je soukromý klíč. Nikam ho nevkládejte; vložte veřejný klíč ze souboru .pub.",
   sshRefusedMultipleLines: "Vložte právě jeden klíč na jednom řádku.",
   sshRefusedOptions:
     "Vložte klíč bez voleb před ním, třeba command= nebo from=.",
   sshRefusedKeyRestricted:
-    "Tenhle klíč už je tu povolený s omezením přidaným mimo Launchpad (třeba from= nebo command=), takže se jím toto zařízení přihlásit nemůže. Vytvořte pro toto zařízení nový klíč, nebo se obraťte na toho, kdo se o Environment stará.",
+    "Tento klíč už je tu povolený s omezením přidaným mimo Lazurio (třeba from= nebo command=), takže se jím toto zařízení přihlásit nemůže. Vytvořte pro toto zařízení nový klíč, nebo se obraťte na toho, kdo se o Prostředí stará.",
   sshRefusedType:
     "Přijímáme jen klíče ed25519 (ssh-ed25519 nebo sk-ssh-ed25519@openssh.com). Vytvoříte ho příkazem ssh-keygen -t ed25519.",
   sshRefusedInvalidKey:
     "Klíč je poškozený nebo neúplný. Zkopírujte znovu celý řádek ze souboru .pub.",
   sshRefusedNotKey:
-    "Tohle není veřejný klíč SSH. Je to jeden řádek, který začíná ssh-ed25519.",
+    "Toto není veřejný klíč SSH. Je to jeden řádek, který začíná ssh-ed25519.",
   sshRefusedName: "Pojmenujte zařízení písmeny nebo číslicemi.",
   sshRefusedAddedBy:
     "Přihlášený účet se nepodařilo zaznamenat. Načtěte stránku znovu a zkuste to ještě jednou.",
-  sshCodexLink: "Přidat Environment do Codexu",
+  sshCodexLink: "Přidat Prostředí do Codexu",
   sshComputerTitle: "Nastavení pro váš počítač",
   sshComputerNote:
-    "Váš agent je zapíše do vašeho počítače. Klíč hostu je vlastní klíč tohoto Environmentu, takže si počítač ověří, že opravdu mluví s ním.",
+    "Váš agent je zapíše do vašeho počítače. Klíč hostu je vlastní klíč tohoto Prostředí, takže si počítač ověří, že opravdu mluví s ním.",
   sshConfigLabel: "SSH config",
   sshConfigNote: "Přidejte do ~/.ssh/config",
   sshKnownHostsLabel: "known_hosts",
@@ -2861,15 +2861,14 @@ const cs: Record<MessageKey, string> = {
   sshNetworkNote:
     "Přidaný klíč zařízení sám přístup do sítě nedá. Když SSH selže, dejte agentovi přesnou chybovou hlášku. Pokud zařízení do sítě zatím nesmí, povolí mu to správce sítě.",
   sshComputerMissing: "Nastavení pro váš počítač zatím není k dispozici:",
-  sshMissingTailscale: "V tomhle Environmentu není nainstalovaný Tailscale.",
-  sshMissingTailscaleFailed: "Tailscale v tomhle Environmentu neodpověděl.",
-  sshMissingNotRunning: "Tailscale v tomhle Environmentu není připojený.",
-  sshMissingDnsName:
-    "Tenhle Environment nemá ve svém tailnetu jméno (MagicDNS).",
+  sshMissingTailscale: "V tomto Prostředí není nainstalovaný Tailscale.",
+  sshMissingTailscaleFailed: "Tailscale v tomto Prostředí neodpověděl.",
+  sshMissingNotRunning: "Tailscale v tomto Prostředí není připojený.",
+  sshMissingDnsName: "Toto Prostředí nemá ve svém tailnetu jméno (MagicDNS).",
   sshMissingHostKey:
-    "Tenhle Environment nemá klíč hostu ed25519 (/etc/ssh/ssh_host_ed25519_key.pub).",
+    "Toto Prostředí nemá klíč hostu ed25519 (/etc/ssh/ssh_host_ed25519_key.pub).",
   sshMissingUser:
-    "Účet tohoto Environmentu nemá jméno, které by šlo použít v SSH config.",
+    "Účet tohoto Prostředí nemá jméno, které by šlo použít v SSH config.",
 };
 export function messages(
   locale: unknown,

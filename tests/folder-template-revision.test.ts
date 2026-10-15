@@ -21,8 +21,8 @@ import { bindings } from "./fixtures/machine-bindings";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-53",
-  digest: "a59c17c836465460052f3552b62ee82f76059b0653d85586cc7a57bb0c8cbf30",
+  revision: "base-instructions-54",
+  digest: "20d6c3cf4cab6b2a6f0eaacfa8914aa4dc46fe76ec81f1c895e7b5b49aac8b6a",
 } as const;
 
 const optionalTools = activatableTools()

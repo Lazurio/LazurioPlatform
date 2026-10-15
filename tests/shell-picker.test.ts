@@ -131,7 +131,7 @@ test("the picker lists the space's Environments one line each, without the Organ
   expect(
     section?.rows.map((row) => [row.name, row.who, row.glyph, row.current]),
   ).toEqual([
-    ["Team Orbit", "sdílený Teamem", { kind: "icon", icon: "users" }, false],
+    ["Team Orbit", "sdílené Teamem", { kind: "icon", icon: "users" }, false],
     ["Pracovní 2", "pracovní", { kind: "icon", icon: "user" }, false],
     ["Pracovní 3", "pracovní", { kind: "icon", icon: "user" }, true],
     ["Pracovní 4", "pracovní", { kind: "icon", icon: "user" }, false],
@@ -178,7 +178,7 @@ test("the picker's foot holds only Všechny Organizace; widened, the search fiel
   const picker = list(document(5), "picker");
   expect([picker.widen, picker.hints]).toEqual(["Všechny Organizace", []]);
   const widened = list(document(5), "picker", { widened: true });
-  expect(widened.search).toBe("Environment nebo Organizace…");
+  expect(widened.search).toBe("Prostředí nebo Organizace…");
   expect([widened.widen, widened.hints]).toEqual([null, []]);
   // Every space with Environments, each under its name; the empty
   // Organization has nothing to pick and no head to show.
@@ -200,7 +200,7 @@ test("the picker's foot holds only Všechny Organizace; widened, the search fiel
 
 test("the jump to any Environment keeps the Organization's heads, the search field and the key hints", () => {
   const jump = list(document(5), "jump");
-  expect(jump.search).toBe("Environment nebo Organizace…");
+  expect(jump.search).toBe("Prostředí nebo Organizace…");
   expect(jump.widen).toBeNull();
   expect(jump.hints).toEqual([
     { key: "↑↓", word: "vybrat" },
@@ -238,7 +238,7 @@ test("the jump to any Environment keeps the Organization's heads, the search fie
       null,
       ["Empty Example", "https://dashboard.example.invalid/orgs/empty"],
       0,
-      "Tady nemáte žádný Environment.",
+      "Tady nemáte žádné Prostředí.",
     ],
   ]);
   // The rows are the picker's one-line rows; the current one marked.
@@ -269,7 +269,7 @@ test("an Organization's Dashboard without an Environment: the picker says so and
       section.rows,
       section.empty,
     ]),
-  ).toEqual([["empty", null, [], "Tady nemáte žádný Environment."]]);
+  ).toEqual([["empty", null, [], "Tady nemáte žádné Prostředí."]]);
   expect([picker.search, picker.nothing, picker.widen, picker.start]).toEqual([
     null,
     null,

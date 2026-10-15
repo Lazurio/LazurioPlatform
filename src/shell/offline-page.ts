@@ -66,8 +66,8 @@ const copy: Record<"cs" | "en", Copy> = {
     title: "Zapněte Tailscale",
     place: (environment, organization) =>
       organization
-        ? `${environment} Environment v Organizaci ${organization}`
-        : `${environment} Environment`,
+        ? `${environment} Prostředí v Organizaci ${organization}`
+        : `${environment} Prostředí`,
     desktop: "Zapněte Tailscale a vyberte síť",
     phone: "Otevřete Tailscale a vyberte síť",
     windows:
@@ -75,8 +75,8 @@ const copy: Record<"cs" | "en", Copy> = {
     failed: "Nepovedlo se? Pomůže",
     docs: "podrobný návod",
     or: ", nebo se vraťte do",
-    dashboard: "Dashboardu",
-    home: "Dashboard",
+    dashboard: "Lazuria",
+    home: "Lazurio",
     you: "Vy",
     account: "Váš účet",
     otherTailnet: "jiná síť",

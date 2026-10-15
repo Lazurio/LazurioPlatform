@@ -249,7 +249,7 @@ test("the guide page names the Environment and its Organization in the tab's tit
   expect(
     renderOfflineGuide({ ...input, locale: "cs", environment: "Pracovní" }),
   ).toContain(
-    "<title>Zapněte Tailscale · Pracovní Environment v Organizaci Example</title>",
+    "<title>Zapněte Tailscale · Pracovní Prostředí v Organizaci Example</title>",
   );
   expect(
     renderOfflineGuide({ ...input, locale: "en", environment: "Work" }),
@@ -261,7 +261,7 @@ test("the guide page names the Environment and its Organization in the tab's tit
       locale: "cs",
       environment: "Osobní",
     }),
-  ).toContain("<title>Zapněte Tailscale · Osobní Environment</title>");
+  ).toContain("<title>Zapněte Tailscale · Osobní Prostředí</title>");
 });
 
 test("the guide page says one thing to do, with the tailnet, and one small line for when it fails", () => {
@@ -319,7 +319,7 @@ test("the guide page leads back to the Dashboard without the tailnet: the rail's
   expect(page).toContain(
     `<nav class="rail" aria-label="Lazurio"><a class="home" ${href}`,
   );
-  expect(page).toContain(`<a class="back" ${href}>Dashboardu</a>`);
+  expect(page).toContain(`<a class="back" ${href}>Lazuria</a>`);
   expect(page).toContain("nebo se vraťte do");
   expect(
     renderOfflineGuide({

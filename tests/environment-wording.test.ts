@@ -1,11 +1,14 @@
 import { expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { words as browserWords } from "../src/browser/people/words";
 import { renderManual } from "../src/folder/manual";
 import { presetNames, presetProfile } from "../src/folder/presets";
 import { environmentWording, renderInstructions } from "../src/folder/render";
 import { messages } from "../src/launchpad/messages";
+import { newTabCopy } from "../src/launchpad/new-tab-view";
 import { shellMessages } from "../src/shell/messages";
+import { renderOfflineGuide } from "../src/shell/offline-page";
 import {
   activatableTools,
   mcpServerPrompt,
@@ -167,6 +170,139 @@ test("the generated Folder instructions and manual say Environment towards peopl
   expect(found).toEqual([]);
 });
 
+// Root decision 0170, addendum 2026-10-15 (F28 addendum of the same day):
+// Czech that a person reads names the place Prostředí, a hosted one has no
+// Czech name of its own, the product is Lazurio, the Organization is
+// Organizace and demonstratives are tento, tato, toto. English is unchanged,
+// and so are the rules written for agents in the Folder, which may keep the
+// technical term Environment and the tenhle family; only the sentences an
+// agent is told to say follow these words, and the rule itself is checked
+// below by its content.
+const letter = "\\p{L}";
+const czechForbidden: readonly [string, RegExp][] = [
+  ["Environment (any form)", /Environment/],
+  ["Vzdálené Prostředí", /[Vv]zdálen\p{L}* [Pp]rostřed/u],
+  ["Launchpad as a name", /Launchpad/],
+  ["Dashboard as a name", /Dashboard/],
+  [
+    "firma for the Organization",
+    new RegExp(
+      `(?<!${letter})[Ff]irm(a|y|ě|u|ou|ám|ách|ami)?(?!${letter})`,
+      "u",
+    ),
+  ],
+  [
+    "the tenhle family",
+    new RegExp(
+      `(?<!${letter})[Tt](enhle|ahle|ohle|uhle|omhle|éhle|ohohle|yhle|ímhle|omuhle|ěmahle|ěchhle|ěmihle)(?!${letter})`,
+      "u",
+    ),
+  ],
+];
+
+// Removed before the Czech scan: commands, paths and identifiers, which are
+// quoted as code (`lazurio launchpad serve`). Nothing else is allowed.
+function czechFindings(where: string, text: string): string[] {
+  return [
+    ...findings(where, text),
+    ...text
+      .replace(/`[^`\n]*`/g, "``")
+      .split("\n")
+      .flatMap((line) =>
+        czechForbidden
+          .filter(([, pattern]) => pattern.test(line))
+          .map(([word]) => `${where}: ${word}: ${line.trim()}`),
+      ),
+  ];
+}
+
+// The Czech string literals of a source file whose words are not exported
+// (the CLI's human output and the prepared prompts built from facts): every
+// literal with a Czech letter outside comments. A literal that spans lines is
+// read line by line.
+async function czechLiterals(path: string): Promise<string> {
+  const source = await readFile(join(import.meta.dir, "..", path), "utf8");
+  return source
+    .split("\n")
+    .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+    .flatMap((line) =>
+      [
+        ...line.matchAll(
+          /"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`|'(?:[^'\\]|\\.)*'/g,
+        ),
+      ]
+        .map(([literal]) => literal.slice(1, -1))
+        .filter((literal) => /[ěščřžýáíéůúňťď]/i.test(literal)),
+    )
+    .join("\n");
+}
+
+test("Czech that people read says Prostředí, Lazurio, Organizace and tento (0170 addendum 2026-10-15)", async () => {
+  const found = [
+    ...Object.entries(messages("cs")).flatMap(([key, value]) =>
+      czechFindings(`messages.cs.${key}`, value),
+    ),
+    ...Object.entries(shellMessages("cs")).flatMap(([key, value]) =>
+      czechFindings(
+        `shell.cs.${key}`,
+        typeof value === "string" ? value : Object.values(value).join("\n"),
+      ),
+    ),
+    ...Object.entries(newTabCopy("cs")).flatMap(([key, value]) =>
+      czechFindings(`newTab.cs.${key}`, value),
+    ),
+    ...Object.entries(browserWords.cs).flatMap(([key, value]) =>
+      czechFindings(`browserWords.cs.${key}`, value),
+    ),
+    ...czechFindings(
+      "offline page",
+      renderOfflineGuide({
+        locale: "cs",
+        environment: "Pracovní",
+        organization: "Example",
+        tailnet: "headscale.example.lazurio.io",
+        docs: "https://documentation.lazurio.ai/cs/guide/tailscale/",
+        dashboard: "https://dashboard.lazurio.ai/home",
+      })
+        .replace(/<(script|style)[\s\S]*?<\/\1>/g, "")
+        .replace(/<[^>]*>/g, "\n"),
+    ),
+    ...czechFindings("mcpServerPrompt.cs", mcpServerPrompt("cs")),
+    ...activatableTools().flatMap(({ name, activation }) => [
+      ...czechFindings(`purpose.${name}.cs`, activation.purpose.cs),
+      ...[false, true].flatMap((team) =>
+        czechFindings(
+          `toolPrompt.${name}.cs${team ? ".team" : ""}`,
+          toolPrompt(name, "cs", { team }) ?? "",
+        ),
+      ),
+    ]),
+  ];
+  for (const path of [
+    "src/browser/cli.ts",
+    "src/files/cli.ts",
+    "src/doctor/cli.ts",
+    "src/launchpad/chat-cli.ts",
+    "src/tools/team-github.ts",
+    "src/recover/prompt.ts",
+    "src/update/install-prompt.ts",
+  ])
+    found.push(...czechFindings(path, await czechLiterals(path)));
+  expect(found).toEqual([]);
+});
+
+test("the generated rule tells agents to say Prostředí in Czech and Environment in English", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const rule = environmentWording[locale];
+    expect(rule).toContain("Prostředí");
+    expect(rule).toContain("Remote Environment");
+    expect(rule).toContain("Prostředí na serveru");
+    expect(rule).toContain("Lazurio");
+    expect(rule).toContain("0170");
+    expect(rule).toContain("2026-10-15");
+  }
+});
+
 // The guard must see what it guards: an old sentence is caught, and the
 // allowlist does not hide a user-facing noun next to an allowed term.
 test("the guard catches the old wording and the allowlist hides only its entries", () => {
@@ -182,6 +318,22 @@ test("the guard catches the old wording and the allowlist hides only its entries
     findings(
       "t",
       "Run `lazurio machine inspect`; ask Lazurio Machines; the **Machine** it runs on; vlastní mašinérií.",
+    ),
+  ).toEqual([]);
+  for (const old of [
+    "Na tomto Environmentu neběží.",
+    "Tenhle Remote Environment",
+    "Vzdálené Prostředí",
+    "Otevřít v Launchpadu",
+    "Nastavit v Dashboardu",
+    "Přehled firmy",
+    "Tahle záložka",
+  ])
+    expect(czechFindings("t", old)).not.toEqual([]);
+  expect(
+    czechFindings(
+      "t",
+      "Toto Prostředí na serveru spustí `lazurio launchpad serve`; firemní účet; proměnné prostředí.",
     ),
   ).toEqual([]);
 });

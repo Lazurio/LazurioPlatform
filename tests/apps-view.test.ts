@@ -378,7 +378,7 @@ test("the head links the Organization's name to its Dashboard; the personal spac
     text: "Example Company",
     link: {
       href: "https://dashboard.lazurio.ai/orgs/example",
-      title: "Dashboard Organizace",
+      title: "Přehled Organizace",
     },
   });
   expect(appsHeading(group, en, dashboard).link?.title).toBe(
@@ -429,7 +429,7 @@ test("the head links the Organization's name to its Dashboard; the personal spac
     appsHeading(personal, cs, () => "https://dashboard.lazurio.ai/home"),
   ).toEqual({ text: "Osobní", link: null });
   expect(appsHeading(null, cs, dashboard)).toEqual({
-    text: "Launchpad",
+    text: "Apps",
     link: null,
   });
 });
@@ -839,7 +839,7 @@ test("the personal space's starts: Chat and Automate lead where the switch's tab
       "Zadejte agentovi první úkol",
       { kind: "app", app: "chat", href: chat },
     ],
-    ["automate", "Automate", "MausBot na tomto Environmentu neběží", null],
+    ["automate", "Automate", "MausBot v tomto Prostředí neběží", null],
     ["integrations", "Integrace", "Připojte poštu a kalendář", integrations],
     ["files", "Soubory", "Nahrajte podklady pro agenty", files],
   ]);

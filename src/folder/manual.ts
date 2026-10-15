@@ -2152,7 +2152,7 @@ function environmentBrowser(preset: PresetName): readonly Text[] {
         ]
       : [
           t(
-            "- **Prohlížeč Organizace.** Tenhle prohlížeč a jeho přihlášení patří Environmentu Organizace: pracuj v něm jen na jejích věcech. Operátorovy osobní věci (osobní e-mail, datová schránka, banka, osobní domény) sem nepatří: nepřihlašuj se k nim tady a nepracuj s nimi tady, patří do jeho osobního Environmentu. Když o ně Operátor požádá tady, řekni mu to a navrhni osobní Environment.",
+            "- **Prohlížeč Organizace.** Tenhle prohlížeč a jeho přihlášení patří Environmentu Organizace: pracuj v něm jen na jejích věcech. Operátorovy osobní věci (osobní e-mail, datová schránka, banka, osobní domény) sem nepatří: nepřihlašuj se k nim tady a nepracuj s nimi tady, patří do jeho osobního Environmentu. Když o ně Operátor požádá tady, řekni mu to a navrhni jeho Osobní Prostředí.",
             "- **An Organization's browser.** This browser and its sign-ins belong to the Organization's Environment: work in it only on the Organization's matters. The Operator's personal matters (personal email, the government data box, the bank, personal domains) do not belong here: do not sign in to them or work on them here; they belong in their personal Environment. When the Operator asks for one here, tell them so and suggest their personal Environment.",
           ),
         ]),

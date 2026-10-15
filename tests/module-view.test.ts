@@ -288,7 +288,7 @@ test("a start refused for its runtime secrets names each one and why, and a star
   );
   const czech = moduleResultMessage(refused, cs);
   expect(czech).toContain("EXTERNAL_API_KEY, SECOND_KEY: v trezoru");
-  expect(czech).toContain("THIRD_KEY: v trezoru Environmentu je víc položek");
+  expect(czech).toContain("THIRD_KEY: v trezoru Prostředí je víc položek");
   expect(moduleStatusView(refused, cs).code).toBe("runtime-secret-unavailable");
   for (const copy of [en, cs])
     for (const reason of [

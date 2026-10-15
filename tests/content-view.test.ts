@@ -15,7 +15,7 @@ import {
 } from "../src/launchpad/content-view";
 import { messages } from "../src/launchpad/messages";
 
-// "Obsah Environmentu" (root decision 0188): the steps of the preparation in
+// "Obsah Prostředí" (root decision 0188): the steps of the preparation in
 // the wireframe's plain words, one sentence and the folded detail when it
 // stops, and the prompt "Vyřešit v Chatu" hands to Chat.
 
@@ -301,14 +301,14 @@ test("the prompt: the wireframe's brief, the step that stopped and its detail", 
   if (context === null) throw new Error("context");
   expect(preparePrompt(context.target, context.failure, cs)).toBe(
     [
-      "Příprava Organizace Example (GitHub example) v tomhle Environmentu se zastavila u kroku „Instaluji“:",
+      "Příprava Organizace Example (GitHub example) v tomto Prostředí se zastavila u kroku „Instaluji“:",
       "bun install in deals failed",
       "",
       "Dotáhni prosím instalaci se vším všudy:",
-      "1. Zjisti příčinu chyby a oprav ji v tomhle Environmentu.",
-      "2. Dokonči přípravu stejným příkazem, jaký spouští Launchpad: `lazurio organization install example`.",
+      "1. Zjisti příčinu chyby a oprav ji v tomto Prostředí.",
+      "2. Dokonči přípravu stejným příkazem, jaký spouští Lazurio: `lazurio organization install example`.",
       "3. Ověř výsledek: `lazurio doctor`, a u modulů, které mají testy, jejich testy.",
-      "4. Řekni mi stručně, co bylo špatně, co jsi udělal a co jsi ověřil. Kdyby oprava potřebovala změnu mimo tenhle Environment (třeba v repozitáři), nejdřív se zeptej.",
+      "4. Řekni mi stručně, co bylo špatně, co jsi udělal a co jsi ověřil. Kdyby oprava potřebovala změnu mimo toto Prostředí (třeba v repozitáři), nejdřív se zeptej.",
     ].join("\n"),
   );
   const english = preparePrompt({ kind: "personalspace" }, null, en);

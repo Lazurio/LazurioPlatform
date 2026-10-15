@@ -394,7 +394,7 @@ test("where nothing connects an app: one line and one action, the Admin's or any
     action: { kind: "ask-admin", label: "Požádat Admina" },
   });
   expect(cardView(outlook, entry("outlook"), options(cs, true))).toMatchObject({
-    action: { kind: "set-up", label: "Nastavit v Dashboardu" },
+    action: { kind: "set-up", label: "Nastavit v Přehledu Organizace" },
   });
   const salesforce = app("salesforce", {
     path: { path: null, missing: "composio", action: "ask-admin" },
@@ -415,7 +415,7 @@ test("where nothing connects an app: one line and one action, the Admin's or any
     const id = card.id;
     expect(cardView(card, entry(id), options(cs, true, false)).action).toEqual({
       kind: "where",
-      text: "Nastavíte to v Dashboardu, v nastavení Organizace.",
+      text: "Nastavíte to v Přehledu Organizace, v jejím nastavení.",
     });
     expect(cardView(card, entry(id), options(en, true, false)).action).toEqual({
       kind: "where",
@@ -493,7 +493,7 @@ test("accounts: one line when they need the person or are spare, and what discon
     retry: null,
   });
   expect(disconnectText(notion, account("connected"), null, cs)).toBe(
-    "Odpojí se jen v tomto Environmentu.",
+    "Odpojí se jen v tomto Prostředí.",
   );
   expect(
     disconnectText(
@@ -503,7 +503,7 @@ test("accounts: one line when they need the person or are spare, and what discon
       cs,
     ),
   ).toBe(
-    "Odpojí se z účtu Composia op@example.test, takže ve všech Environmentech, které ho používají.",
+    "Odpojí se z účtu Composia op@example.test, takže ve všech Prostředích, které ho používají.",
   );
   expect(disconnectText(notion, account("pending"), null, en)).toBe(
     "Only this account is withdrawn; the other accounts of Notion stay connected.",
@@ -770,7 +770,7 @@ test("a source that cannot be read says so on the page; custom servers count the
       cs,
     ),
   ).toEqual([
-    "Executor v tomto Environmentu teď neběží, takže nic nejde připojit přímo.",
+    "Executor v tomto Prostředí teď neběží, takže nic nejde připojit přímo.",
     "Připojení přes Composio se nepodařilo načíst.",
     "Nástroje se nepodařilo načíst.",
   ]);

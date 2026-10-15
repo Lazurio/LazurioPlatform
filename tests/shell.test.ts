@@ -162,9 +162,9 @@ test("a workstation's document: this computer, every Organization of the Folder 
   expect(
     spaces.map((space) => [space.space, space.href, space.active, space.sub]),
   ).toEqual([
-    ["personal", "/", false, "1 Environment"],
-    ["alpha", "/o/alpha", false, "1 Environment"],
-    ["beta", "/o/beta", true, "1 Environment"],
+    ["personal", "/", false, "1 Prostředí"],
+    ["alpha", "/o/alpha", false, "1 Prostředí"],
+    ["beta", "/o/beta", true, "1 Prostředí"],
   ]);
   expect(spaces[1]?.avatar).toBe("https://github.com/alpha-forge.png?size=96");
   expect(spaces[2]?.initials).toBe("BE");
@@ -177,9 +177,9 @@ test("a workstation's document: this computer, every Organization of the Folder 
       tab.missing,
     ]),
   ).toEqual([
-    ["chat", null, false, "Chat na tomto Environmentu neběží"],
+    ["chat", null, false, "Chat v tomto Prostředí neběží"],
     ["apps", "/", true, null],
-    ["automate", null, false, "MausBot na tomto Environmentu neběží"],
+    ["automate", null, false, "MausBot v tomto Prostředí neběží"],
   ]);
 });
 
@@ -434,7 +434,7 @@ test("an assigned work Environment says whose it is; an Automated one is its per
   expect(team.environments[0]?.assignee).toBeNull();
   const [shared] = team.environments;
   if (shared === undefined) throw new Error("The document has one");
-  expect(environmentWho(shared, cs)).toBe("sdílený Teamem");
+  expect(environmentWho(shared, cs)).toBe("sdílené Teamem");
   const automated = shellDocument({
     preset: "hosted-organization-steward",
     machine: bindings.automated as MachineBinding,

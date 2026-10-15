@@ -830,8 +830,8 @@ test("the account in another language: every Environment is named as without the
     environmentWho(entry, cs),
   ]);
   expect(names).toEqual([
-    ["ada", "Osobní", "jen váš"],
-    ["vm-01.example", "Sales", "sdílený Teamem"],
+    ["ada", "Osobní", "jen vaše"],
+    ["vm-01.example", "Sales", "sdílené Teamem"],
     ["vm-03.example", "Pracovní", "@ada"],
   ]);
   // Ids, apps, spaces and the last Environments are the account's as in the
@@ -870,10 +870,10 @@ test("the account in the local language: its words name the Environments", () =>
     locale: "cs",
     environments: document.environments.map((entry, at) =>
       at === 1
-        ? { ...entry, name: "Obchod", who: "sdílený Teamem" }
+        ? { ...entry, name: "Obchod", who: "sdílené Teamem" }
         : at === 2
-          ? { ...entry, name: "Pracovní 2", who: "jen váš" }
-          : { ...entry, name: "Osobní Ada", who: "jen váš" },
+          ? { ...entry, name: "Pracovní 2", who: "jen vaše" }
+          : { ...entry, name: "Osobní Ada", who: "jen vaše" },
     ),
   });
   const merged = mergeAccount(czech, read);
@@ -883,9 +883,9 @@ test("the account in the local language: its words name the Environments", () =>
       environmentWho(entry, cs),
     ]),
   ).toEqual([
-    ["Osobní Ada", "jen váš"],
-    ["Obchod", "sdílený Teamem"],
-    ["Pracovní 2", "jen váš"],
+    ["Osobní Ada", "jen vaše"],
+    ["Obchod", "sdílené Teamem"],
+    ["Pracovní 2", "jen vaše"],
   ]);
 });
 

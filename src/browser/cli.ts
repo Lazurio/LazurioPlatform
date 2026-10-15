@@ -158,13 +158,13 @@ const text = {
   },
   cs: {
     "not-declared":
-      "Tenhle Environment nemá prohlížeč Environmentu: předání sem nesměruje žádný pohled prohlížeče. Na Remote Environmentu přichází s cestou browser. v bráně.",
+      "Toto Prostředí nemá prohlížeč Prostředí: předání sem nesměruje žádný pohled prohlížeče. V Prostředí na serveru přichází s cestou browser. v bráně.",
     "no-session":
       "Chybí sezení: zadejte --session <jméno> (písmena, číslice, - a _, nejvýš 64), nebo spusťte příkaz z vlákna T3 Code, Codexu nebo Claude Code.",
     "browser-unreachable":
-      "Prohlížeč Environmentu na loopbacku neodpovídá. Spusťte lazurio doctor.",
+      "Prohlížeč Prostředí na loopbacku neodpovídá. Spusťte lazurio doctor.",
     "window-create-failed":
-      "Prohlížeč Environmentu neotevřel okno. Spusťte lazurio doctor.",
+      "Prohlížeč Prostředí neotevřel okno. Spusťte lazurio doctor.",
     "bind-failed":
       "Okno je otevřené, ale agent-browser k němu sezení nepřipojil.",
     failed: "lazurio browser selhal",
@@ -174,8 +174,8 @@ const text = {
     reused: "Tvoje okno už je otevřené.",
     created: "Tvoje okno je otevřené.",
     "hub-unreachable":
-      "Pohled prohlížeče Environmentu záložku neotevřel. Spusťte lazurio doctor.",
-    "invalid-address": "Tuhle adresu pohled neotevře.",
+      "Pohled prohlížeče Prostředí záložku neotevřel. Spusťte lazurio doctor.",
+    "invalid-address": "Tuto adresu pohled neotevře.",
     stopped:
       "Okno je puštěné: skončí, až ho nic nedrží a nikdo se na něj nedívá. Kdo ho má otevřené, tomu zůstane.",
     "no-daemon": "Tvoje sezení nemá spuštěný agent-browser: není co pustit.",

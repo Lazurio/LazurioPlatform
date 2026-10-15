@@ -3846,6 +3846,31 @@ manual's handoff block now has the agent say "Připravil jsem vám pull request"
 agents, and the prompts a person hands to an agent in their own words, keep ty; English is
 unchanged. Template revision `base-instructions-48`.
 
+**Addendum 2026-10-15 (Matěj, Organization Admin; root decision 0170 with its addendum of
+2026-10-15): in Czech the place people work in is „Prostředí“.** This replaces point 1 and
+the 2026-10-05 addendum for Czech; English is unchanged (Environment, Remote Environment).
+What a person reads in Czech (the Launchpad's catalog, the shell elements, Nová karta, the
+offline page, the CLI's human output, the prompts a person copies and the tools' purpose
+lines) says **Prostředí**: capital P, neuter (*toto Prostředí*, *v tomto Prostředí*,
+*3 Prostředí*), the kind as an adjective (*Osobní, Pracovní, Týmové, Místní, Automatizované
+Prostředí*). A hosted one has no Czech name of its own: never *Remote Environment* or
+*Vzdálené Prostředí*; only where it must be told apart from a local one, *Prostředí na
+serveru*. The Settings section is *Toto Prostředí*. Lowercase *prostředí* stays the common
+word. The companion rules of the root addendum apply to the same Czech text: the product is
+**Lazurio** (Launchpad and Dashboard are internal names; the place is named Apps, Přehled
+Organizace or Nastavení; command names, repositories and paths stay exact), the
+Organization is *Organizace*, not *firma*, and demonstratives are *tento, tato, toto*, not
+*tenhle, tahle, tohle*. The page name Integrace is unchanged. Rules written for agents in
+the Folder keep the technical term Environment and ty; the generated rule
+(`environmentWording`) now tells agents to say Prostředí in Czech and Environment in
+English and carries the companion rules, and the sentences the Folder has an agent say to a
+person follow them. The guard of point 4 also fails Czech person-facing text on Environment
+in any form, Remote Environment, Vzdálené Prostředí, Launchpad or Dashboard as a name, firma
+for the Organization and the tenhle family. Template revision `base-instructions-54`. The
+wording itself is held by the brand voice page of design-system-lazurio
+(`content/brand/hlas/hlas.md`, sections „Produktové texty“ and „Prostředí a Připojené
+aplikace“).
+
 ## F29 — Entry units of a Remote Environment: the Launchpad, T3 Code and the operator's Codex app-server
 
 **Decided by Matěj 2026-09-30 (plan DEV-6635); implemented in this revision.**
