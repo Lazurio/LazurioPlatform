@@ -61,6 +61,13 @@ import {
 import { createOwnerAnswers } from "./owner-answer";
 import { type PageRoute, settingsPath } from "./routes";
 
+import {
+  createWorkspaceGroups,
+  type WorkspaceGroup,
+  type WorkspaceGroupScope,
+  workspaceGroupTiles,
+} from "./workspace-groups";
+
 type Copy = Readonly<Record<MessageKey, string>>;
 
 /** The prompt "+ Nový modul" hands to Chat: its id and the Organization's
@@ -199,7 +206,11 @@ export function createCatalogPanel(
   // is read once, null when it is unavailable (today's behaviour stays:
   // favourites in this browser, apps in a new tab).
   let account:
-    | Readonly<{ openApps: OpenApps; favourites: AccountFavourites }>
+    | Readonly<{
+        login: string | null;
+        openApps: OpenApps;
+        favourites: AccountFavourites;
+      }>
     | null
     | undefined;
   void options
@@ -209,6 +220,7 @@ export function createCatalogPanel(
         value === null
           ? null
           : {
+              login: value.login,
               openApps: value.openApps,
               favourites: createAccountFavourites(
                 value.favourites,
@@ -371,6 +383,27 @@ export function createCatalogPanel(
     } catch {}
     render();
   };
+
+  const workspaceGroups = createWorkspaceGroups(() => localStorage);
+  const selectedGroups = new Map<string, WorkspaceGroup>();
+  const groupScope = (group: CatalogGroupEntry): WorkspaceGroupScope => ({
+    kind: group.sections === null ? "personal" : "organization",
+    id: scopeKey(group),
+  });
+  const groupSelectionKey = (group: CatalogGroupEntry) =>
+    JSON.stringify(groupScope(group));
+  const selectedGroup = (group: CatalogGroupEntry): WorkspaceGroup =>
+    selectedGroups.get(groupSelectionKey(group)) ?? "work";
+  const administrationOf = (group: CatalogGroupEntry) =>
+    workspaceGroups.list(account?.login ?? null, groupScope(group));
+  const focusGroup = () =>
+    body
+      .querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')
+      ?.focus();
+
+  window.addEventListener("storage", (event) => {
+    if (workspaceGroups.isStorageKey(event.key)) render();
+  });
 
   // --- A short message at the foot of the page (the wireframe's toast) --
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -565,6 +598,7 @@ export function createCatalogPanel(
   ): HTMLElement {
     const copy = options.copy();
     const box = element("div", "tile-menu");
+    box.dataset.menuKey = JSON.stringify([groupScope(group), item.key]);
     const button = element("button", "tile-menu-button");
     button.type = "button";
     button.setAttribute("aria-haspopup", "menu");
@@ -601,6 +635,47 @@ export function createCatalogPanel(
       void toggle(group, item.key);
     });
     list.append(star);
+    if (item.kind === "module") {
+      const destination: WorkspaceGroup = administrationOf(group).includes(
+        item.key,
+      )
+        ? "work"
+        : "administration";
+      const move = element("button", "tile-menu-item");
+      move.type = "button";
+      move.setAttribute("role", "menuitem");
+      move.disabled = account === undefined;
+      move.append(
+        svg("folder"),
+        destination === "work"
+          ? copy.appsGroupMoveWork
+          : copy.appsGroupMoveAdministration,
+      );
+      move.addEventListener("click", () => {
+        close();
+        const result = workspaceGroups.move(
+          account?.login ?? null,
+          groupScope(group),
+          item.key,
+          destination,
+        );
+        if (result === "failed") {
+          say(copy.appsGroupSaveFailed);
+          button.focus();
+          return;
+        }
+        render();
+        focusGroup();
+        say(
+          (destination === "work"
+            ? copy.appsGroupMovedWork
+            : copy.appsGroupMovedAdministration
+          ).replace("{name}", item.name) +
+            (result === "temporary" ? ` ${copy.appsGroupsTemporary}` : ""),
+        );
+      });
+      list.append(move);
+    }
     if (item.info !== null) {
       const info =
         item.kind === "module"
@@ -791,12 +866,87 @@ export function createCatalogPanel(
     const part = element("section", "apps-section");
     part.dataset.section = value.kind;
     const top = element("div", "section-head");
-    const title = element("h2", "section-pill", value.title);
-    top.append(title, element("span", "section-count", value.count));
+    const grouped = value.kind === "workspace" || value.kind === "personal";
+    const title = element(
+      "h2",
+      grouped ? "workspace-heading" : "section-pill",
+      value.title,
+    );
     const grid = element("div", "tile-grid");
-    grid.append(...value.tiles.map((item) => tile(item, group, owner)));
-    if (offer !== null) grid.append(newModuleTile(offer));
-    part.append(top, grid);
+    if (!grouped) {
+      top.append(title, element("span", "section-count", value.count));
+      grid.append(...value.tiles.map((item) => tile(item, group, owner)));
+      part.append(top, grid);
+      return part;
+    }
+    const copy = options.copy();
+    const selected = selectedGroup(group);
+    const assigned = administrationOf(group);
+    const choices = ["work", "administration"] as const;
+    const tabs = element("div", "workspace-tabs");
+    tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-label", value.title);
+    tabs.title = account?.login
+      ? copy.appsGroupsBrowser
+      : copy.appsGroupsTemporary;
+    const panel = element("div", "workspace-group-panel");
+    panel.id = "apps-workspace-panel";
+    panel.setAttribute("role", "tabpanel");
+    panel.setAttribute("aria-labelledby", `apps-group-${selected}`);
+    panel.tabIndex = 0;
+    for (const choice of choices) {
+      const tab = element("button", "workspace-tab");
+      const members = workspaceGroupTiles(value.tiles, assigned, choice);
+      const name =
+        choice === "work" ? copy.appsGroupWork : copy.appsGroupAdministration;
+      tab.type = "button";
+      tab.id = `apps-group-${choice}`;
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-controls", panel.id);
+      tab.setAttribute("aria-selected", String(choice === selected));
+      tab.tabIndex = choice === selected ? 0 : -1;
+      tab.append(
+        name,
+        element("span", "workspace-tab-count", String(members.length)),
+      );
+      const select = (next: WorkspaceGroup) => {
+        selectedGroups.set(groupSelectionKey(group), next);
+        render();
+        focusGroup();
+      };
+      tab.addEventListener("click", () => select(choice));
+      tab.addEventListener("keydown", (event) => {
+        let next: WorkspaceGroup;
+        if (event.key === "Home") next = "work";
+        else if (event.key === "End") next = "administration";
+        else if (event.key === "ArrowLeft" || event.key === "ArrowRight")
+          next = choice === "work" ? "administration" : "work";
+        else return;
+        event.preventDefault();
+        select(next);
+      });
+      tabs.append(tab);
+    }
+    top.classList.add("workspace-head");
+    top.append(title, tabs);
+    const visible = workspaceGroupTiles(value.tiles, assigned, selected);
+    grid.append(...visible.map((item) => tile(item, group, owner)));
+    if (offer !== null && selected === "work")
+      grid.append(newModuleTile(offer));
+    if (visible.length === 0)
+      panel.append(
+        element(
+          "p",
+          "workspace-group-empty",
+          selected === "work"
+            ? value.tiles.length === 0
+              ? copy.appsModulesNone
+              : copy.appsGroupWorkEmpty
+            : copy.appsGroupAdministrationEmpty,
+        ),
+      );
+    panel.append(grid);
+    part.append(top, panel);
     return part;
   }
 
@@ -1301,6 +1451,16 @@ export function createCatalogPanel(
   /** Draws the route now shown from the catalog last read. */
   function render(route: PageRoute = options.route()) {
     const copy = options.copy();
+    // Account/Owner reads can finish while a person uses a tile menu.
+    // Keep that same menu and keyboard position across a background redraw.
+    const previousMenu = body.querySelector<HTMLElement>(".tile-menu.is-open");
+    const menuKey = previousMenu?.dataset.menuKey;
+    const menuFocus =
+      previousMenu && document.activeElement instanceof HTMLElement
+        ? Array.from(
+            previousMenu.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+          ).indexOf(document.activeElement)
+        : -1;
     openMenu?.();
     status.textContent =
       notice ??
@@ -1347,6 +1507,7 @@ export function createCatalogPanel(
     }
     // The primary action is drawn again after every answer: keep the
     // keyboard focus on it.
+    const focusedGroup = document.activeElement?.getAttribute("role") === "tab";
     const focused =
       document.activeElement instanceof HTMLElement &&
       document.activeElement.dataset.moduleAction !== undefined;
@@ -1360,6 +1521,17 @@ export function createCatalogPanel(
           ? moduleView(catalog, scope, selection.organization, selection.module)
           : appsHome(catalog, scope)),
     );
+    if (menuKey !== undefined) {
+      const restored = Array.from(
+        body.querySelectorAll<HTMLElement>(".tile-menu"),
+      ).find((menu) => menu.dataset.menuKey === menuKey);
+      restored?.querySelector<HTMLButtonElement>(".tile-menu-button")?.click();
+      if (menuFocus >= 0)
+        restored
+          ?.querySelectorAll<HTMLElement>('[role="menuitem"]')
+          [menuFocus]?.focus();
+    }
+    if (focusedGroup) focusGroup();
     const action = body.querySelector<HTMLButtonElement>(
       "[data-module-action]",
     );

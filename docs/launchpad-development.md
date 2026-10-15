@@ -2484,3 +2484,6 @@ of it.
   `tests/first-run-shell.test.ts` (the shell document's `setup`, the column head's
   line, the GitHub probe, `prepare-content` over HTTP, the auto-on rule and the
   Nástroje texts).
+
+The proposed [Workspace groups](workspace-groups.md) extension documents the
+Work / Administration tabs, browser preference ownership and isolated UI checks.
