@@ -1,5 +1,7 @@
 import {
+  finishedTourProgress,
   firstProgress,
+  freshTourProgress,
   parseTourProgress,
   type TourFacts,
   type TourProgress,
@@ -14,14 +16,17 @@ import type { PageRoute } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
-// The first-run tour over the real interface (root decision 0188; the
-// wireframe's Tour.tsx, prototypes-lazurio 45c92830): a ring around a real
+// The first-run tour over the real interface (root decisions 0188 and 0201;
+// the wireframe's Tour.tsx, prototypes-lazurio 1eefc3d): a ring around a real
 // element and a bubble beside it. The layer lets every click through, so the
 // person does each step on the page and learns where it lives; the bubble
-// explains in a few words and, where a step needs no click, moves on. It
-// steps aside while a dialog (a sign-in) is open, and "Ukončit" puts it
-// away. Its progress lives in this browser per Environment (first-run.ts):
-// GitHub and the content are read live every time. The rules are pure in
+// explains in a few words and, where a step needs no click, moves on. While
+// a basic is missing it points at the next one on Začínáme; then the
+// introduction runs. It steps aside while a dialog (a sign-in) is open.
+// "Dokončím později" puts it away for this view only: until the basics
+// exist it is back on the next page load, and Začínáme starts the
+// introduction again. This browser keeps only where the introduction
+// points, per Environment (first-run.ts). The rules are pure in
 // first-run.ts; this module only draws them.
 
 export function createTour(
@@ -62,6 +67,8 @@ export function createTour(
   // The progress of the Environment shown, read once per Environment.
   let progress: { environment: string; value: TourProgress | null } | null =
     null;
+  // "Dokončím později": put away for this view (this page load) only.
+  let later = false;
   let drawnFor: string | null = null;
   let target: TourTarget | null = null;
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -83,7 +90,10 @@ export function createTour(
   function write(environment: string, value: TourProgress) {
     progress = { environment, value };
     try {
-      localStorage.setItem(tourStorageKey(environment), JSON.stringify(value));
+      localStorage.setItem(
+        tourStorageKey(environment),
+        JSON.stringify({ intro: value.intro }),
+      );
     } catch {}
   }
 
@@ -100,21 +110,12 @@ export function createTour(
       case "tab-chat":
       case "tab-automate":
         return query(`[data-tour="${name}"]`, head);
-      case "settings-tools":
-        return query('#settings-nav a[data-section="tools"]');
-      case "settings-machine":
-        return query('#settings-nav a[data-section="machine"]');
-      case "tool-gh":
-      case "tool-composio": {
-        const tool = name.slice("tool-".length);
-        return (
-          query(`[data-tool="${tool}"][data-control="curated"]`) ??
-          query(`[data-tool="${tool}"][data-control="link-ssh"]`) ??
-          query(`li[data-tool="${tool}"]`)
-        );
-      }
+      case "settings-start":
+        return query('#settings-nav a[data-section="start"]');
+      case "start-ai":
+      case "start-github":
       case "prepare":
-        return query('[data-tour="prepare"]');
+        return query(`#section-start [data-tour="${name}"]`);
     }
   }
 
@@ -198,6 +199,7 @@ export function createTour(
     const facts = options.facts();
     const environment = options.environment();
     if (
+      later ||
       options.off() ||
       facts === null ||
       environment === null ||
@@ -207,12 +209,12 @@ export function createTour(
       return hide();
     const value = read(environment, facts);
     const next = tourStep(facts, value, settingsOf(options.route()));
-    if (next === null || value === null) return hide();
+    if (next === null) return hide();
     const copy = options.copy();
-    const stop = tourStop(next, facts.content, options.apps(), copy);
+    const stop = tourStop(next, facts, options.apps(), copy);
     // The buttons are drawn again only for another stop or language, so the
     // focus stays on them.
-    const drawn = `${next}\n${copy.tourQuit}`;
+    const drawn = `${next}\n${copy.tourLater}`;
     const moved = drawn !== drawnFor;
     drawnFor = drawn;
     target = stop.target;
@@ -222,10 +224,17 @@ export function createTour(
     text.hidden = stop.text === null;
     bubble.setAttribute("aria-label", `${copy.tourLabel}: ${stop.title}`);
     if (moved) {
-      const act = (action: "next" | "not-now" | "quit") => () => {
-        const current = progress?.value;
-        if (current === null || current === undefined) return;
-        write(environment, tourAdvance(current, next, action));
+      const advance = () => {
+        write(
+          environment,
+          tourAdvance(progress?.value ?? freshTourProgress, next),
+        );
+        update();
+      };
+      // Nothing is lost (0201 point 2): Začínáme stays in Settings, and
+      // the next page load shows the tour again until the basics exist.
+      const putAway = () => {
+        later = true;
         update();
       };
       actions.replaceChildren(
@@ -235,11 +244,10 @@ export function createTour(
               button(
                 stop.next === "done" ? copy.tourDone : copy.tourNext,
                 "primary",
-                act("next"),
+                advance,
               ),
             ]),
-        ...(stop.notNow ? [button(copy.tourNotNow, "", act("not-now"))] : []),
-        button(copy.tourQuit, "tour-quit", act("quit")),
+        ...(stop.later ? [button(copy.tourLater, "tour-later", putAway)] : []),
       );
     }
     // An element that is not on the page now (the action of a preparation
@@ -252,6 +260,26 @@ export function createTour(
     if (timer === undefined) timer = setInterval(update, 250);
   }
 
+  /** Začínáme's "Spustit prohlídku": the introduction from its start, back
+   * in this view even after "Dokončím později". */
+  function restart() {
+    const environment = options.environment();
+    if (environment === null) return;
+    later = false;
+    write(environment, freshTourProgress);
+    update();
+  }
+
+  /** Whether the introduction was seen to its end here (Začínáme's
+   * "Prohlédnuto"); null while the Environment is not known. */
+  function toured(): boolean | null {
+    const environment = options.environment();
+    const facts = options.facts();
+    if (environment === null || facts === null) return null;
+    const value = read(environment, facts);
+    return value === null ? null : value.intro >= finishedTourProgress.intro;
+  }
+
   window.addEventListener("resize", () => place());
   // A dialog opening or closing (a sign-in) moves the tour aside or back at
   // once.
@@ -260,5 +288,5 @@ export function createTour(
     attributeFilter: ["open"],
     subtree: true,
   });
-  return { update };
+  return { update, restart, toured };
 }

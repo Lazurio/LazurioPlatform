@@ -8,6 +8,7 @@ import {
 import { defineShellElements, provideShell } from "../shell/elements";
 import { shellMessages } from "../shell/messages";
 import { environmentName, switchTabs } from "../shell/view";
+import { type AiReading, parseAiAnswer } from "../tools/ai";
 import type { ToolsOverview } from "../tools/overview";
 import { accountWriter, readAccount } from "./account";
 import { personalHolderOf, pluralKey } from "./apps-view";
@@ -30,12 +31,17 @@ import { createContentPanel } from "./content-panel";
 import { prepareContext, preparePrompt } from "./content-view";
 import { createFilesPanel } from "./files-panel";
 import {
+  type AiFact,
   appsSetupLine,
   composioFact,
+  githubAccount,
   githubFact,
+  nextBasic,
   readFragment,
+  resolveOf,
   type SetupAction,
   type StartRequest,
+  shellSetup,
   signsInAsPerson,
   startSection,
   type TourFacts,
@@ -49,11 +55,15 @@ import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
 import { type PageRoute, routeFrame, settingsPath } from "./routes";
 import { createShell } from "./shell";
 import { createSshPanel } from "./ssh-panel";
+import { keyGroups, parseSshOverview } from "./ssh-view";
+import { createStartPanel, type StartVaultRow } from "./start-panel";
+import { startCount } from "./start-view";
 import { createToolsPanel } from "./tools-panel";
 import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
 import { fill, pillView, pillVisible } from "./update-view";
 import { createVaultPagePanel } from "./vault-page-panel";
+import { parseVaultPage, vaultPageView } from "./vault-page-view";
 import { createVaultRequestsPanel } from "./vault-requests-panel";
 import { type VoiceView, voicePanel } from "./voice-panel";
 
@@ -209,8 +219,7 @@ let personalHolder: string | null = null;
 const catalog = createCatalogPanel({
   catalog: boot?.catalog ?? null,
   setupLine: () => {
-    const facts = firstRunFacts();
-    const line = facts === null ? null : appsSetupLine(facts, copy);
+    const line = setupLineNow();
     lineDrawn = JSON.stringify(line);
     return line;
   },
@@ -278,11 +287,13 @@ const catalog = createCatalogPanel({
       : switchTabs(shellDocument, shellMessages(locale), "apps"),
   holder: () => personalHolder,
 });
-// The first run of an Environment (root decision 0188): the line in Apps
-// until it is usable, "Obsah Environmentu" in Settings → Tento Environment
-// and the tour over the real interface. The facts are read live: GitHub from
-// Settings → Nástroje's reading of the profile shown, the content from the
-// content routes; only the tour's progress is kept, in this browser.
+// The first run of an Environment (root decisions 0188 and 0201): Nastavení →
+// Začínáme, the line in Apps and the shell's prompt until it has its basics,
+// "Obsah Environmentu" in Settings → Tento Environment and the tour over the
+// real interface. The facts are read live: the AI from `GET /api/ai`, GitHub
+// from Settings → Nástroje's reading of the profile shown, the content from
+// the content routes; only where the introduction points is kept, in this
+// browser.
 let profileState: Readonly<{
   preset: string;
   revision: number;
@@ -296,14 +307,96 @@ let loadFailed = false;
 let backgroundRead = false;
 let githubSeen: ReturnType<typeof githubFact> = "unknown";
 let contentSeen: ReturnType<typeof content.fact>["state"] = "loading";
+// The AI as `GET /api/ai` last answered (root decision 0201 point 6); null
+// before the first answer.
+let aiReading: AiReading | null = null;
+let aiRead = false;
+const aiFact = (): AiFact =>
+  aiReading === null ? (aiRead ? "unknown" : "loading") : aiReading.state;
+// GitHub was connected in this view: the content starts by itself (0201
+// point 3) once it is read and missing, unless an agent could not help.
+let startAfterGithub = false;
 function firstRunFacts(): TourFacts | null {
   if (profileState === null) return null;
   return {
     preset: profileState.preset,
+    ai: aiFact(),
     github: githubFact(toolsOverview, profileState.revision),
-    composio: composioFact(toolsOverview),
     content: content.fact(),
   };
+}
+// Whether this Environment's GitHub identity can prepare the Organization
+// of a stop that only its root's writers fix (root decision 0201 point 8),
+// as `GET /api/content/root-access` answered for that login.
+let rootAccess: Readonly<{ login: string; write: boolean | null }> | null =
+  null;
+/** Where a stopped preparation leads now: Chat, the AI step, or the
+ * sentence that the Admin prepares the Organization. */
+function resolveKind() {
+  const failure = content.job()?.failure;
+  const login =
+    failure?.item.kind === "organization" ? failure.item.login : null;
+  const code = failure?.code ?? null;
+  if (
+    login !== null &&
+    code !== null &&
+    unpreparedCode(code) &&
+    rootAccess?.login !== login
+  )
+    void readRootAccess(login);
+  return resolveOf({
+    ai: aiFact(),
+    code,
+    rootAccess: rootAccess?.login === login ? rootAccess.write : null,
+  });
+}
+function unpreparedCode(code: string): boolean {
+  return code === "root-not-found" || code === "organization-unreadable";
+}
+async function readRootAccess(login: string) {
+  rootAccess = { login, write: null };
+  let write = false;
+  try {
+    const { value, ok } = await get(
+      `/api/content/root-access?org=${encodeURIComponent(login)}`,
+    );
+    write =
+      ok &&
+      (value as { kind?: unknown; write?: unknown } | null)?.kind ===
+        "root-access" &&
+      (value as { write?: unknown }).write === true;
+  } catch {}
+  if (rootAccess?.login !== login) return;
+  rootAccess = { login, write };
+  content.render();
+  firstRun();
+}
+/** The line in Apps now. */
+function setupLineNow() {
+  const facts = firstRunFacts();
+  return facts === null
+    ? null
+    : appsSetupLine(
+        {
+          ...facts,
+          running: content.job()?.state === "running",
+          resolve: resolveKind(),
+        },
+        copy,
+      );
+}
+/** Reads the AI again; `fresh` asks the CLIs now instead of the minute the
+ * server keeps their answer (Začínáme's "Zkontrolovat znovu"). */
+async function readAi(fresh = false) {
+  let read: AiReading | null = null;
+  try {
+    const { value, ok } = await get(fresh ? "/api/ai?fresh=1" : "/api/ai");
+    read = ok ? parseAiAnswer(value) : null;
+  } catch {}
+  aiRead = true;
+  if (read !== null || aiReading === null) aiReading = read;
+  content.render();
+  firstRun();
 }
 // The Environment's id, the key of the tour:
 // the shell document's, once asked for; without it the Machine's name.
@@ -364,9 +457,19 @@ const content = createContentPanel({
       catalog.render();
     }
     void probePreparePrompt();
+    // GitHub was connected here: the content starts by itself once it is
+    // read and missing (0201 point 3), never after a stop and never while
+    // no agent could help with it.
+    if (startAfterGithub && state !== "loading" && state !== "unknown") {
+      startAfterGithub = false;
+      if (state === "missing" && aiFact() !== "missing" && !content.running())
+        void content.start();
+    }
     firstRun();
   },
+  resolveKind: () => resolveKind(),
   resolve: () => resolveInChat(),
+  connectAi: () => openAiStep(),
 });
 const tour = createTour({
   copy: () => copy,
@@ -382,20 +485,119 @@ const tour = createTour({
   // the Environment browser in the right panel.
   off: () => recoveryMode !== null || browser.isOpen(),
 });
+// Nastavení → Začínáme (root decision 0201): the basics from the same facts,
+// the vault's state as Nastavení → Trezor reads it, the optional steps and
+// the tour. Its vault and SSH rows are read each time it is shown.
+let vaultRow: StartVaultRow | null = null;
+let sshDevices: number | null = null;
+const startPanel = createStartPanel({
+  copy: () => copy,
+  facts: () => {
+    const facts = firstRunFacts();
+    return facts === null
+      ? null
+      : {
+          ...facts,
+          aiReading,
+          githubLogin: githubAccount(toolsOverview),
+          list: content.list(),
+        };
+  },
+  composio: () => composioFact(toolsOverview),
+  sshDevices: () => sshDevices,
+  vault: () => vaultRow,
+  toured: () => tour.toured(),
+  signInGithub: () => {
+    if (!tools.openSignIn("gh")) shell.navigate(settingsPath("tools"));
+  },
+  signInComposio: () => {
+    if (!tools.openSignIn("composio")) shell.navigate(settingsPath("tools"));
+  },
+  restartTour: () => tour.restart(),
+  navigate: (path) => shell.navigate(path),
+});
+/** Reads what only Začínáme shows: the vault's state and the devices with
+ * SSH, where the Environment has them (not this computer). */
+async function readStartExtras() {
+  if (profileState === null || profileState.preset === "local") {
+    vaultRow = null;
+    sshDevices = null;
+    startPanel.render();
+    return;
+  }
+  const [vault, ssh] = await Promise.all([
+    get("/api/vault").catch(() => null),
+    get("/api/ssh").catch(() => null),
+  ]);
+  const model = vault?.ok ? parseVaultPage(vault.value) : null;
+  const view = model === null ? null : vaultPageView(model, null, copy);
+  vaultRow =
+    view?.row === null || view?.row === undefined || view.note !== null
+      ? null
+      : { line: view.row.line, tone: view.row.tone };
+  const overview = ssh?.ok ? parseSshOverview(ssh.value) : null;
+  sshDevices =
+    overview?.keys === null || overview?.keys === undefined
+      ? null
+      : keyGroups(overview.keys).devices.length;
+  startPanel.render();
+}
+/** Začínáme's AI step, from a stop, a line or a hand-over without AI. */
+function openAiStep() {
+  const route = shell.route();
+  if (route.view !== "settings" || route.section !== "start")
+    shell.navigate(settingsPath("start"));
+  startPanel.focusAi();
+}
+const startNav = document.querySelector<HTMLElement>("#start-nav");
+const startCountNode = document.querySelector<HTMLElement>("#start-count");
+// The shell document the elements were last given, with the page's own
+// `setup`.
+let shellProvided: string | null = null;
 /** Draws what the first run says now: the line (Apps is drawn again only
  * when it changed from the one last drawn, so a running preparation does not
- * close an open tile menu every second, and nothing is drawn twice), the
- * tour, and a start request the page took on arrival. */
+ * close an open tile menu every second, and nothing is drawn twice),
+ * Začínáme and its count, the shell's prompt from this page's own facts,
+ * the tour, and a start request the page took on arrival. */
 let lineDrawn = JSON.stringify(null);
 function firstRun() {
   if (!framed) return;
   const facts = firstRunFacts();
-  const line = JSON.stringify(
-    facts === null ? null : appsSetupLine(facts, copy),
-  );
+  const line = JSON.stringify(setupLineNow());
   if (line !== lineDrawn) catalog.render();
+  if (startNav !== null)
+    startNav.hidden =
+      profileState !== null && !signsInAsPerson(profileState.preset);
+  const count = facts === null ? null : startCount(facts);
+  if (startCountNode !== null) {
+    startCountNode.hidden = count === null;
+    startCountNode.textContent = count ?? "";
+  }
+  startPanel.render();
+  provideOwnSetup(facts);
   tour.update();
   takeStart();
+}
+/** The column head of this page counts the basics from what the page
+ * itself read, which is newer than the shell document's last reading: the
+ * prompt follows a sign-in or an installation here at once. Nothing is
+ * changed while GitHub's state is not known here. */
+function provideOwnSetup(facts: TourFacts | null) {
+  if (shellDocument === null || facts === null || profileState === null) return;
+  if (facts.github === "unknown") return;
+  const setup = shellSetup({
+    preset: profileState.preset,
+    ai: facts.ai,
+    github: facts.github,
+    list: content.list(),
+    job: content.job(),
+  });
+  const { setup: _, ...rest } = shellDocument;
+  const next = setup === undefined ? rest : { ...rest, setup };
+  const drawn = JSON.stringify(next);
+  if (drawn === shellProvided) return;
+  shellProvided = drawn;
+  provideShell(next);
 }
 // A start request (`#lazurio-start=…`, or a button of the line) runs once
 // the page is in its Settings section and knows enough: gh's sign-in opens
@@ -413,7 +615,13 @@ function takeStart() {
   }
   if (start === "sign-in-gh") {
     const github = githubFact(toolsOverview, profileState.revision);
-    if (github === "unknown") return;
+    if (github === "unknown" || aiFact() === "loading") return;
+    // GitHub is offered once AI is there (0201 point 3).
+    if (aiFact() === "missing") {
+      pendingStart = null;
+      startPanel.focusAi();
+      return;
+    }
     if (github === "connected" || tools.openSignIn("gh")) pendingStart = null;
     return;
   }
@@ -427,7 +635,12 @@ function setupAction(action: SetupAction) {
     resolveInChat();
     return;
   }
-  // The button is a link to its Settings section; the move runs the start.
+  // The button is a link to Začínáme; the move runs the start.
+  if (action === "open-start") {
+    const facts = firstRunFacts();
+    if (facts !== null && nextBasic(facts) === "ai") startPanel.focusAi();
+    return;
+  }
   pendingStart = action;
 }
 // Whether this Launchpad serves the prepared prompt of the stop shown, for
@@ -457,8 +670,16 @@ async function probePreparePrompt() {
 }
 // "Vyřešit v Chatu" (root decision 0188): the wireframe's prompt that
 // finishes the preparation with the same command, tests included; only
-// inserted in Chat, never sent.
+// inserted in Chat, never sent. Without AI it leads to Začínáme's AI step
+// instead, and a stop only the Organization's Admin fixes has nothing to
+// hand over (root decision 0201 points 3 and 8).
 function resolveInChat() {
+  const lead = resolveKind();
+  if (lead === "ai") {
+    openAiStep();
+    return;
+  }
+  if (lead === "admin") return;
   const context = prepareContext(content.list(), content.job(), copy);
   if (context === null) return;
   const text = preparePrompt(context.target, context.failure, copy);
@@ -657,11 +878,16 @@ const shell = createShell({
     vaultRequests.show(route);
     if (framed && route.view === "settings") {
       // Settings read what only they show the first time they are shown;
-      // back in Tento Environment the content is read again.
+      // back in Tento Environment or Začínáme the content is read again, and
+      // Začínáme reads the AI, the vault and SSH each time.
       const read = backgroundRead;
       readBackground();
-      if (read && route.section === "machine")
+      if (read && (route.section === "machine" || route.section === "start"))
         void content.refresh({ restore: false });
+      if (route.section === "start") {
+        if (read) void readAi();
+        void readStartExtras();
+      }
     }
     firstRun();
   },
@@ -903,6 +1129,7 @@ function readBackground() {
   backgroundRead = true;
   void tools.refresh();
   void content.refresh();
+  void readAi();
 }
 /** Runs `task` once the page is idle, at the latest after two seconds. */
 function whenIdle(task: () => void) {
@@ -923,11 +1150,14 @@ const tools = createToolsPanel({
       void integrations.refresh();
     toolSignIns = signIns;
     toolsOverview = overview;
-    // Once GitHub is connected the content routes may answer otherwise.
+    // Once GitHub is connected the content routes may answer otherwise; a
+    // sign-in this view saw starts the content (0201 point 3).
     const github =
       profileState === null
         ? "unknown"
         : githubFact(overview, profileState.revision);
+    if (githubSeen === "missing" && github === "connected")
+      startAfterGithub = true;
     if (githubSeen !== "connected" && github === "connected")
       void content.refresh({ restore: false });
     githubSeen = github;
@@ -950,6 +1180,14 @@ const voice = voicePanel({
     controls.apply.disabled = true;
     await load();
   },
+});
+// Začínáme's "Zkontrolovat znovu": every fact asked again now, the CLIs and
+// gh's sign-in included.
+document.querySelector("#start-refresh")?.addEventListener("click", () => {
+  void readAi(true);
+  void tools.refresh({ signIn: true });
+  void content.refresh({ restore: false });
+  void readStartExtras();
 });
 controls.form.addEventListener("change", () => {
   pending = null;
@@ -1068,6 +1306,12 @@ async function pairedHref(app: string): Promise<string | null> {
 async function handOver(
   prompt: Readonly<{ id: string; organization: string | null; text: string }>,
 ): Promise<NewModuleOutcome> {
+  // No agent can take it while no AI is connected: Začínáme's AI step
+  // instead of an empty Chat (root decision 0201 point 3).
+  if (aiFact() === "missing") {
+    openAiStep();
+    return "needs-ai";
+  }
   const current = entry;
   const link: PromptLink | null =
     prompt.organization === null

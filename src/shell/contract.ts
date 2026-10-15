@@ -113,12 +113,16 @@ export type ShellSetupItem = Readonly<
 >;
 
 /** What the current Environment still lacks before it is usable (root
- * decision 0188, the first run): GitHub's sign-in of its person and its
- * content, the Organization or the Personalspace, as its Launchpad reads
- * them. The column head says it in Chat and Automate. Only an Environment
- * that signs in to GitHub as its person has it; the document leaves it out
- * elsewhere and whenever the Launchpad cannot tell. */
+ * decision 0188, the first run, and 0201 point 1: its basics): its AI, the
+ * GitHub sign-in of its person and its content, the Organization or the
+ * Personalspace, as its Launchpad reads them. The column head counts them in
+ * a quiet prompt that opens Začínáme. Only an Environment that signs in to
+ * GitHub as its person has it; the document leaves it out elsewhere and
+ * whenever the Launchpad cannot tell GitHub's state. */
 export type ShellSetup = Readonly<{
+  /** Absent: not known. `ready`: an agent can work here (the person's
+   * sign-in or the Organization's AI); additive in v1 (root decision 0201). */
+  ai?: "ready" | "missing";
   github: "connected" | "missing";
   /** Absent: not known (no content routes here, or they could not be
    * read). `failed`: the last preparation stopped. */
@@ -387,8 +391,9 @@ export function parseShellSetup(
 ): ShellSetup | undefined | false {
   if (value === undefined || value === null) return undefined;
   if (!isRecord(value)) return false;
-  const { github, content, item } = value;
+  const { ai, github, content, item } = value;
   if (
+    !(ai === undefined || ai === "ready" || ai === "missing") ||
     (github !== "connected" && github !== "missing") ||
     !(
       content === undefined ||
@@ -422,6 +427,7 @@ export function parseShellSetup(
     else return false;
   }
   return Object.freeze({
+    ...(ai === undefined ? {} : { ai }),
     github,
     ...(content === undefined ? {} : { content }),
     ...(read === undefined ? {} : { item: read }),

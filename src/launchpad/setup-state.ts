@@ -8,14 +8,13 @@ import {
   parseContentJob,
   parseContentList,
 } from "./content-client";
-import { contentFact } from "./content-view";
-import { signsInAsPerson } from "./first-run";
 
 // What the current Environment still lacks, for the shell document's
-// `setup` (root decision 0188): GitHub's sign-in of its person, read with
-// this Environment's `gh` as Settings → Nástroje reads it, and its content,
-// as the content routes answer. Only for an Environment that signs in as
-// its person; nothing is said when it is not known.
+// `setup` (root decisions 0188 and 0201, `shellSetup` in first-run.ts): its
+// AI (tools/ai-probe.ts), GitHub's sign-in of its person, read with this
+// Environment's `gh` as Settings → Nástroje reads it, and its content, as
+// the content routes answer. Only for an Environment that signs in as its
+// person; nothing is said when it is not known.
 
 /** The server's content routes as this module reads them (the routes
  * object of `content-routes.ts` itself): what lives here (`GET /api/content`)
@@ -36,45 +35,6 @@ export async function readContent(
     reader.lastJob().then(parseContentJob, () => null),
   ]);
   return { list, job };
-}
-
-/** The shell document's `setup` from what is known: undefined where the
- * preset does not sign in as its person or GitHub's state is not known. */
-export function shellSetup(
-  input: Readonly<{
-    preset: string;
-    github: "connected" | "missing" | "unknown";
-    list: ContentList | null;
-    job: ContentJob | null;
-  }>,
-): ShellSetup | undefined {
-  if (!signsInAsPerson(input.preset) || input.github === "unknown")
-    return undefined;
-  const fact = contentFact(input.list, input.job);
-  const base = { github: input.github } as const;
-  if (
-    fact.state === "none" ||
-    fact.state === "loading" ||
-    fact.state === "unknown"
-  )
-    return base;
-  if (fact.state === "ready") return { ...base, content: "ready" };
-  const item = fact.item;
-  const read =
-    item === null
-      ? undefined
-      : item.kind === "organization"
-        ? {
-            kind: "organization" as const,
-            name: item.name ?? item.login,
-            login: item.login,
-          }
-        : { kind: "personalspace" as const, login: item.login };
-  return {
-    ...base,
-    content: fact.state === "failed" ? "failed" : "missing",
-    ...(read === undefined ? {} : { item: read }),
-  };
 }
 
 /** GitHub's sign-in of this Environment's person, kept a short while so

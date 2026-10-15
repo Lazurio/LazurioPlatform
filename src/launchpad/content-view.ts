@@ -9,6 +9,20 @@ import { refersTo } from "./content-client";
 import type { MessageKey } from "./messages";
 import { fill } from "./update-view";
 
+/** Where a stopped preparation leads (first-run.ts `resolveOf`): Chat, the
+ * AI step, or the sentence that the Organization's Admin prepares it. */
+export type Resolve = "chat" | "ai" | "admin";
+
+/** The failure codes of an Organization that is not prepared for this
+ * version of Lazurio yet: its root repository does not declare itself
+ * (`lazurio.organization.json`), or its declaration cannot be read. Only
+ * someone who can write that repository fixes it (root decision 0201 point
+ * 8). */
+export const unpreparedCodes: readonly string[] = Object.freeze([
+  "root-not-found",
+  "organization-unreadable",
+]);
+
 type Copy = Readonly<Record<MessageKey, string>>;
 
 // What Settings → Tento Environment says about the content of this
@@ -93,17 +107,29 @@ export function contentStepLabel(
   return copy[label ?? "contentStepOther"];
 }
 
-/** The plain sentence of a step that stopped. */
+/** The plain sentence of a step that stopped. An Organization that is not
+ * prepared for this version of Lazurio (`code` one of `unpreparedCodes`,
+ * root decision 0201 point 8) says so, whichever step found it. */
 export function contentFailureSentence(
   kind: ContentItem["kind"],
   key: string,
   copy: Copy,
+  code = "",
 ): string {
+  if (kind === "organization" && unpreparedCodes.includes(code))
+    return copy.contentFailedUnready;
   const sentence = Object.hasOwn(failureSentences[kind], key)
     ? failureSentences[kind][key]
     : undefined;
   return copy[sentence ?? "contentFailedOther"];
 }
+
+/** What follows the stop's sentence, by where it leads (`resolveOf`). */
+const resolveSentence: Readonly<Record<Resolve, MessageKey>> = {
+  chat: "contentAgentFixes",
+  ai: "contentAgentAfterAi",
+  admin: "contentAdminPrepares",
+};
 
 /** The command the Launchpad runs for an item, as the prompt and
  * "Podrobnosti" name it. */
@@ -222,8 +248,12 @@ export type ContentRow = Readonly<{
   /** The steps, while it runs or after it stopped here. */
   steps: readonly StepView[] | null;
   /** The stop: one plain sentence, and for "Podrobnosti" the command and
-   * the detail. */
-  failure: Readonly<{ sentence: string; details: string }> | null;
+   * the detail; `resolve` where its button leads. */
+  failure: Readonly<{
+    sentence: string;
+    details: string;
+    resolve: Resolve;
+  }> | null;
   /** Why an item cannot be prepared now, for "Podrobnosti". */
   reason: string | null;
 }>;
@@ -241,7 +271,8 @@ export type ContentView = Readonly<{
 
 /** "Obsah Environmentu": a row per item and the one action. `github` says
  * whether GitHub is connected here (`unknown` does not block); `modules`
- * counts an Organization's modules once it is here. */
+ * counts an Organization's modules once it is here; `resolve` says where a
+ * stop leads (Chat when not given). */
 export function contentView(
   list: ContentList,
   job: ContentJob | null,
@@ -250,8 +281,10 @@ export function contentView(
     github: "missing" | "connected" | "unknown";
     modules?: (login: string) => number | null;
     pluralModules?: (count: number) => string;
+    resolve?: Resolve;
   }>,
 ): ContentView {
+  const resolve = options.resolve ?? "chat";
   const running = job?.state === "running";
   const fact = contentFact(list, job);
   const failedItem = fact.state === "failed" ? fact.item : null;
@@ -286,7 +319,8 @@ export function contentView(
     const failure =
       stoppedHere && fact.state === "failed"
         ? {
-            sentence: `${contentFailureSentence(item.kind, fact.job.failure?.key ?? "", copy)} ${copy.contentAgentFixes}`,
+            sentence: `${contentFailureSentence(item.kind, fact.job.failure?.key ?? "", copy, fact.job.failure?.code)} ${copy[resolveSentence[resolve]]}`,
+            resolve,
             details: [
               contentCommand(item),
               ...(fact.job.failure === undefined

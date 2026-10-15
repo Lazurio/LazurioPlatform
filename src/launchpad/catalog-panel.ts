@@ -69,13 +69,15 @@ type Copy = Readonly<Record<MessageKey, string>>;
 export type NewModulePrompt = PromptLink & Readonly<{ text: string }>;
 
 /** What "+ Nový modul" did: Chat opened with the prompt in its composer,
- * the prompt went to the clipboard, or neither. */
-export type NewModuleOutcome = "handed-over" | "copied" | "failed";
+ * the prompt went to the clipboard, neither, or no AI is connected yet and
+ * Začínáme's AI step opened instead (root decision 0201 point 3). */
+export type NewModuleOutcome = "handed-over" | "copied" | "failed" | "needs-ai";
 
 const newModuleSay: Readonly<Record<NewModuleOutcome, MessageKey>> = {
   "handed-over": "appsNewModuleOpened",
   copied: "appsNewModuleCopied",
   failed: "appsNewModuleCopyFailed",
+  "needs-ai": "appsNewModuleNeedsAi",
 };
 
 /** The current Environment as the Apps home names it under the
@@ -885,13 +887,14 @@ export function createCatalogPanel(
 
   // --- The main views -----------------------------------------------------
 
-  // The line until the Environment is usable (root decision 0188): one
-  // sentence and its buttons under the head. A button leads to Settings and
-  // tells the page what to start there; "Vyřešit v Chatu" hands the prompt
-  // over. No empty cards beside it.
+  // The line until the Environment has its basics (root decisions 0188 and
+  // 0201): one sentence and its buttons under the head. A button leads to
+  // Začínáme and tells the page what to start there; "Vyřešit v Chatu" hands
+  // the prompt over. No empty cards beside it.
   const setupStarts: Readonly<Record<SetupAction, string | null>> = {
-    "sign-in-gh": settingsPath("tools"),
-    "install-content": settingsPath("machine"),
+    "open-start": settingsPath("start"),
+    "sign-in-gh": settingsPath("start"),
+    "install-content": settingsPath("start"),
     "resolve-in-chat": null,
   };
   function setupLineNode(line: SetupLine): HTMLElement {
@@ -905,7 +908,13 @@ export function createCatalogPanel(
       const control =
         path === null
           ? element("button", className.replace("button", "").trim(), label)
-          : routeLink(`${path}#lazurio-start=${action}`, className, label);
+          : routeLink(
+              action === "open-start"
+                ? path
+                : `${path}#lazurio-start=${action}`,
+              className,
+              label,
+            );
       if (control instanceof HTMLButtonElement) control.type = "button";
       control.dataset.setupAction = action;
       control.addEventListener("click", (event) => {

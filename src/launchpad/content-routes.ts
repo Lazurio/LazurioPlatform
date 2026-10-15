@@ -2,6 +2,7 @@ import type { ContentHost } from "../content/host";
 import type { InstallRequest } from "../content/install";
 import { createContentJobs } from "../content/jobs";
 import { type ContentItemRef, githubLoginPattern } from "../content/model";
+import { canPrepareRoot } from "../content/role";
 import { contentStatus } from "../content/status";
 import { ownDataValue, stateFields } from "../folder/state-fields";
 import type { PersonalspaceHolderRead } from "../organizations/personalspace";
@@ -24,7 +25,11 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 // - `GET /api/content/jobs/<id>`: `{ id, state, steps, failure? }`;
 // - `GET /api/content/jobs/latest`: the newest job of this Launchpad in the
 //   same shape, `404` before the first one, so every browser of the
-//   Environment sees the same last installation.
+//   Environment sees the same last installation;
+// - `GET /api/content/root-access?org=<login>`: `{ kind: "root-access",
+//   write }`, whether this Environment's GitHub identity can prepare that
+//   Organization's root (root decision 0201 point 8, `canPrepareRoot`):
+//   where a stop that only the root's writers fix leads.
 // An Organization's scope follows the person's role, which the request does
 // not carry: the core resolves it live from GitHub through gh (an Owner's
 // membership, `maintain` or `write` on the root repository, or `read` on it
@@ -95,6 +100,7 @@ export function createContentRoutes(
     handles: (path: string) =>
       path === "/api/content" ||
       path === "/api/content/install" ||
+      path === "/api/content/root-access" ||
       path.startsWith("/api/content/jobs/"),
     async handle(
       request: Request,
@@ -110,6 +116,37 @@ export function createContentRoutes(
         return response(
           await contentStatus(input.folder, resolved(), input.personalspace),
         );
+      }
+      if (url.pathname === "/api/content/root-access") {
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        const keys = [...url.searchParams.keys()];
+        const login = url.searchParams.get("org");
+        if (
+          keys.length !== 1 ||
+          keys[0] !== "org" ||
+          login === null ||
+          !githubLoginPattern.test(login)
+        )
+          return response({ error: "invalid-request" }, 400);
+        // Two GitHub reads: the membership and the conventional root.
+        extend(30);
+        const github = resolved().github;
+        const [membership, root] = await Promise.all([
+          github
+            .membership(login)
+            .catch(() => ({ kind: "unavailable" }) as const),
+          github
+            .repository(login, `${login}_GEN3`)
+            .catch(() => ({ kind: "unavailable" }) as const),
+        ]);
+        return response({
+          kind: "root-access",
+          write: canPrepareRoot(
+            membership,
+            root.kind === "observed" ? root.repository.permission : null,
+          ),
+        });
       }
       if (url.pathname === "/api/content/install") {
         if (request.method !== "POST")

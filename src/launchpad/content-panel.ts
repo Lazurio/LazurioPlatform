@@ -4,6 +4,7 @@ import {
   type ContentRow,
   contentFact,
   contentView,
+  type Resolve,
   type StepView,
 } from "./content-view";
 import type { GithubFact } from "./first-run";
@@ -12,12 +13,16 @@ import type { MessageKey } from "./messages";
 type Copy = Readonly<Record<MessageKey, string>>;
 
 // "Obsah Environmentu" in Settings → Tento Environment (root decision 0188;
-// the wireframe's Prepare.tsx, prototypes-lazurio 45c92830): what lives in
-// this Environment, its Organization or the person's Personalspace, and its
+// the wireframe's Prepare.tsx, prototypes-lazurio 45c92830), drawn also as
+// the third step of Začínáme (root decision 0201): what lives in this
+// Environment, its Organization or the person's Personalspace, and its
 // preparation by the same Lazurio CLI as `lazurio organization install` and
 // `lazurio personalspace install`, through the content routes. While it
 // runs the steps say in plain words what happens; when one stops, one plain
-// sentence, the technical detail under "Podrobnosti" and "Vyřešit v Chatu".
+// sentence, the technical detail under "Podrobnosti" and where it leads:
+// "Vyřešit v Chatu" when an agent can work, "Připojit AI" while no AI is
+// connected, and for an Organization not prepared for this version, to
+// someone who cannot write its root, only that its Admin prepares it.
 // The content core decides availability, including the persona's own GitHub
 // account on an Automated Environment. A Team's brokered content stays with
 // its hosting. Every value from the server is drawn with textContent.
@@ -35,8 +40,12 @@ export function createContentPanel(
     /** The content or its preparation changed: the line, the tour and the
      * catalog follow. */
     changed: () => void;
+    /** Where a stop leads (first-run.ts `resolveOf`). */
+    resolveKind: () => Resolve;
     /** "Vyřešit v Chatu". */
     resolve: () => void;
+    /** "Připojit AI": the AI step of Začínáme. */
+    connectAi: () => void;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -45,7 +54,12 @@ export function createContentPanel(
     return element;
   };
   const group = find<HTMLElement>("#content-group");
-  const box = find<HTMLDivElement>("#content-list");
+  // Where it is drawn: Tento Environment's group, and Začínáme's third step
+  // (`bare`: a single item's name is the step's title already).
+  const places = [
+    { box: find<HTMLDivElement>("#content-list"), bare: false },
+    { box: find<HTMLDivElement>("#start-content"), bare: true },
+  ];
   let list: ContentList | null | "loading" = "loading";
   let job: ContentJob | null = null;
   let following: string | null = null;
@@ -114,13 +128,15 @@ export function createContentPanel(
     copy: Copy,
     action: HTMLElement | null,
     note: string | null,
+    named: boolean,
   ): HTMLElement {
     const node = element("div", "content-row");
     const head = element("div", "content-head");
     const text = element("div", "content-text");
     const status = element("div", "content-status", view.status);
     status.dataset.state = view.item.state;
-    text.append(element("div", "content-name", view.name), status);
+    if (named) text.append(element("div", "content-name", view.name));
+    text.append(status);
     head.append(text);
     if (action !== null) head.append(action);
     node.append(head);
@@ -128,16 +144,27 @@ export function createContentPanel(
     if (view.steps !== null) node.append(steps(view.steps, copy));
     if (view.failure !== null) {
       const failure = element("div", "content-failure");
-      const resolve = element("button", "primary", copy.setupResolve);
-      resolve.type = "button";
-      resolve.dataset.contentResolve = "";
-      resolve.addEventListener("click", () => options.resolve());
+      // The tour rings the stop on Začínáme (0201).
+      failure.dataset.tour = "prepare";
       const actions = element("p", "tool-actions");
-      actions.append(resolve);
+      const lead = view.failure.resolve;
+      if (lead !== "admin") {
+        const resolve = element(
+          "button",
+          "primary",
+          lead === "chat" ? copy.setupResolve : copy.setupAiAction,
+        );
+        resolve.type = "button";
+        resolve.dataset.contentResolve = lead;
+        resolve.addEventListener("click", () =>
+          lead === "chat" ? options.resolve() : options.connectAi(),
+        );
+        actions.append(resolve);
+      }
       failure.append(
         element("p", "", view.failure.sentence),
         details(copy.contentDetails, view.failure.details),
-        actions,
+        ...(actions.childElementCount > 0 ? [actions] : []),
       );
       node.append(failure);
     }
@@ -149,47 +176,59 @@ export function createContentPanel(
   function render() {
     const copy = options.copy();
     const read = list;
-    group.hidden = read === "loading" || read === null || !read.allowed;
-    if (group.hidden || read === "loading" || read === null) {
-      box.replaceChildren();
+    const empty =
+      read === "loading" ||
+      read === null ||
+      !read.allowed ||
+      read.items.length === 0;
+    group.hidden = empty;
+    if (empty) {
+      for (const place of places) place.box.replaceChildren();
       return;
     }
     const view = contentView(read, job, copy, {
       github: options.github(),
       modules: options.modules,
       pluralModules: options.pluralModules,
+      resolve: options.resolveKind(),
     });
-    if (read.items.length === 0) {
-      group.hidden = true;
-      box.replaceChildren();
-      return;
+    for (const place of places) {
+      let button: HTMLButtonElement | null = null;
+      if (view.action !== null) {
+        button = element("button", "primary", view.action.label);
+        button.type = "button";
+        button.dataset.tour = "prepare";
+        button.dataset.contentAction = "";
+        button.disabled = view.action.disabled || starting;
+        button.addEventListener("click", () => void start());
+      }
+      const named = !(place.bare && view.rows.length === 1);
+      const nodes = view.rows.map((entry, index) =>
+        row(
+          entry,
+          copy,
+          index === 0 ? button : null,
+          index === 0 ? view.note : null,
+          named,
+        ),
+      );
+      const said = element("p", "content-note", message ?? "");
+      said.setAttribute("role", "status");
+      said.setAttribute("aria-live", "polite");
+      said.hidden = message === null;
+      place.box.replaceChildren(...nodes, said);
+      // The focus goes back to the action of the place that is shown.
+      if (
+        focusAction &&
+        button !== null &&
+        !button.disabled &&
+        place.box.closest("[hidden]") === null
+      ) {
+        button.focus();
+        focusAction = false;
+      }
     }
-    let button: HTMLButtonElement | null = null;
-    if (view.action !== null) {
-      button = element("button", "primary", view.action.label);
-      button.type = "button";
-      button.dataset.tour = "prepare";
-      button.dataset.contentAction = "";
-      button.disabled = view.action.disabled || starting;
-      button.addEventListener("click", () => void start());
-    }
-    const nodes = view.rows.map((entry, index) =>
-      row(
-        entry,
-        copy,
-        index === 0 ? button : null,
-        index === 0 ? view.note : null,
-      ),
-    );
-    const said = element("p", "content-note", message ?? "");
-    said.setAttribute("role", "status");
-    said.setAttribute("aria-live", "polite");
-    said.hidden = message === null;
-    box.replaceChildren(...nodes, said);
-    if (focusAction && button !== null && !button.disabled) {
-      button.focus();
-      focusAction = false;
-    }
+    focusAction = false;
   }
 
   // Reads a job until it ends; the list is read again once it has.
@@ -259,6 +298,8 @@ export function createContentPanel(
     refresh,
     start,
     render,
+    /** Whether an installation runs now (started here or elsewhere). */
+    running: (): boolean => starting || following !== null,
     /** Where the content stands, for the line and the tour. */
     fact(): ContentFact {
       return contentFact(list, job);

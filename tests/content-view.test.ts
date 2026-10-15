@@ -227,10 +227,11 @@ test("the view: one action, the steps while it runs, the stop in one sentence", 
   expect(
     contentView(personal, null, cs, { github: "connected" }).action,
   ).toEqual({ label: "Připravit", disabled: false });
-  // Without GitHub the action waits and says why.
+  // Without GitHub the action waits: it starts by itself once GitHub is
+  // there (root decision 0201 point 3).
   const noGithub = contentView(work, null, cs, { github: "missing" });
   expect(noGithub.action?.disabled).toBe(true);
-  expect(noGithub.note).toBe("Nejdřív připojte GitHub v Nástrojích.");
+  expect(noGithub.note).toBe("Spustí se samo po připojení GitHubu.");
   // Running: no action, the steps, the status.
   const busy = contentView(work, running, cs, { github: "connected" });
   expect(busy.action).toBeNull();
@@ -245,6 +246,7 @@ test("the view: one action, the steps while it runs, the stop in one sentence", 
     sentence: "Moduly se nepodařilo nainstalovat. Agent v Chatu to opraví.",
     details:
       "lazurio organization install example\nbun install in deals failed\n(preparation-failed)",
+    resolve: "chat",
   });
   // Several missing: "Stáhnout vše"; present ones say so, with modules.
   const both = list({
@@ -341,5 +343,52 @@ test("the prompt: the wireframe's brief, the step that stopped and its detail", 
   expect(prepareContext(work, null, cs)).toBeNull();
   expect(contentCommand({ kind: "personalspace", login: null })).toBe(
     "lazurio personalspace install",
+  );
+});
+
+test("a stop says where it leads: Chat, the AI step, or the Admin of an unprepared Organization (0201)", () => {
+  const withoutAi = contentView(work, stopped, cs, {
+    github: "connected",
+    resolve: "ai",
+  });
+  expect(withoutAi.rows[0]?.failure).toMatchObject({
+    sentence:
+      "Moduly se nepodařilo nainstalovat. Agent v Chatu pomůže, až připojíte AI.",
+    resolve: "ai",
+  });
+  // The root does not declare itself: the Organization is not prepared for
+  // this version yet, whichever step found it.
+  const unprepared = job({
+    id: "job-2",
+    state: "failed",
+    steps: [{ item: org, key: "access", state: "failed" }],
+    failure: {
+      item: org,
+      key: "access",
+      code: "root-not-found",
+      detail:
+        "no repository of example this account can read declares itself the root (example/example_GEN3 included)",
+    },
+  });
+  expect(
+    contentView(work, unprepared, cs, { github: "connected", resolve: "admin" })
+      .rows[0]?.failure,
+  ).toMatchObject({
+    sentence:
+      "Organizace ještě není připravená pro tuto verzi Lazuria. Organizaci připravuje Admin.",
+    resolve: "admin",
+  });
+  expect(
+    contentView(work, unprepared, en, { github: "connected", resolve: "admin" })
+      .rows[0]?.failure?.sentence,
+  ).toBe(
+    "The Organization is not prepared for this version of Lazurio yet. The Organization's Admin prepares it.",
+  );
+  // Whoever can write the root gets the same sentence and Chat.
+  expect(
+    contentView(work, unprepared, cs, { github: "connected", resolve: "chat" })
+      .rows[0]?.failure?.sentence,
+  ).toBe(
+    "Organizace ještě není připravená pro tuto verzi Lazuria. Agent v Chatu to opraví.",
   );
 });

@@ -190,3 +190,18 @@ export function classifySlotAccess(
     ? "restricted"
     : "ordinary";
 }
+
+/** Whether this identity can prepare an Organization for this version of
+ * Lazurio when its root does not declare itself or cannot be read (root
+ * decision 0201 point 8): write its root repository, by an active Owner
+ * membership or `write` (or more) on the conventional root
+ * `<login>/<login>_GEN3`. GitHub's live answer only; nothing is recorded,
+ * and it decides only which way the Launchpad points (Chat, or the sentence
+ * that the Admin prepares it), never access. Anything GitHub does not
+ * confirm is no. */
+export function canPrepareRoot(
+  membership: MembershipAnswer,
+  rootPermission: RepositoryPermission | null,
+): boolean {
+  return isOwner(membership) || atLeast(rootPermission, "write");
+}

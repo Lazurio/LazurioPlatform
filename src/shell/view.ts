@@ -793,98 +793,63 @@ export function switchTabs(
   );
 }
 
-/** A link of the column head's setup line. */
-export type SetupLink = Readonly<{ label: string; href: string }>;
-
-export type ColumnSetupLine = Readonly<{
-  tone: "info" | "failed";
-  icon: "key" | "download" | "warning";
+/** The quiet prompt of the column head while the current Environment lacks
+ * a basic (root decision 0201 point 2): how many of the three are done, and
+ * Začínáme of its Launchpad. */
+export type ColumnSetupPrompt = Readonly<{
   text: string;
-  links: readonly SetupLink[];
+  href: string;
+  /** Basics done, of `total`. */
+  done: number;
+  total: number;
 }>;
 
-/** An address of the Launchpad of the current Environment (its Apps), with
- * the fragment that starts an action on arrival. */
-function launchpadHref(
-  apps: string,
-  path: string,
-  start: "sign-in-gh" | "install-content",
-): string {
-  const fragment = `#lazurio-start=${start}`;
-  if (!apps.startsWith("https:")) return `/${path}${fragment}`;
-  return `${new URL(path, apps).href}${fragment}`;
+/** Začínáme of the current Environment's Launchpad: a path when Apps is
+ * this origin's, else on the Launchpad's own origin. */
+function startHref(apps: string): string {
+  return apps.startsWith("https:")
+    ? new URL("settings/start", apps).href
+    : "/settings/start";
 }
 
-/** The line the column head shows in Chat and Automate until the current
- * Environment is usable (root decision 0188; the wireframe's `SetupBanner`
- * in the column, prototypes-lazurio 45c92830): without GitHub agents do not
- * work; with it, its Organization or Personalspace is not here yet, or its
- * preparation stopped. Each button leads to the Launchpad's Settings, which
- * starts the action on arrival; "Vyřešit v Chatu" opens Chat with the
- * prepared prompt by its id (and the login the fork needs, Lazurio/t3code
- * #36), never its text. Apps and Settings say it themselves, so nothing
- * there, nor on a page that is no Environment's. */
-export function columnSetupLine(
+/** The prompt the column head shows in Apps, Chat and Automate while one of
+ * the current Environment's basics is missing (root decision 0201 points 1
+ * and 2; the wireframe's `SetupPrompt`, prototypes-lazurio 1eefc3d): "Dokončit
+ * nastavení (1 ze 3)", leading to Začínáme. Its AI, GitHub and content count
+ * as done when they are ready (nothing to prepare counts as not done only
+ * while it is not known); it shows only once one is known to be missing.
+ * Settings have Začínáme in their own navigation, and a page that is no
+ * Environment's has none. */
+export function columnSetupPrompt(
   shell: Shell,
   copy: ShellCopy,
   active: ShellApp | null,
-): ColumnSetupLine | null {
+): ColumnSetupPrompt | null {
   const setup = shell.setup;
-  if (setup === undefined || (active !== "chat" && active !== "automate"))
-    return null;
+  if (setup === undefined || active === null) return null;
   const environment = currentEnvironment(shell);
   if (environment === null) return null;
-  const { apps } = environment;
-  if (setup.github === "missing")
-    return {
-      tone: "info",
-      icon: "key",
-      text: copy.setupGithub,
-      links: [
-        {
-          label: copy.setupGithubAction,
-          href: launchpadHref(apps.apps, "settings/tools", "sign-in-gh"),
-        },
-      ],
-    };
-  const install = launchpadHref(
-    apps.apps,
-    "settings/machine",
-    "install-content",
-  );
-  const item = setup.item;
-  if (setup.content === "failed") {
-    const login = item?.login ?? null;
-    const resolve =
-      apps.chat === null || login === null
-        ? []
-        : [
-            {
-              label: copy.setupResolve,
-              href: `${new URL(apps.chat).origin}/#lazurio-prompt=prepare-content&lazurio-org=${encodeURIComponent(login)}`,
-            },
-          ];
-    return {
-      tone: "failed",
-      icon: "warning",
-      text: copy.setupFailed,
-      links: [...resolve, { label: copy.setupRetry, href: install }],
-    };
-  }
-  if (setup.content !== "missing" || item === undefined) return null;
-  return item.kind === "personalspace"
-    ? {
-        tone: "info",
-        icon: "download",
-        text: copy.setupPersonalMissing,
-        links: [{ label: copy.setupPrepare, href: install }],
-      }
-    : {
-        tone: "info",
-        icon: "download",
-        text: fillShell(copy.setupOrganizationMissing, { name: item.name }),
-        links: [{ label: copy.setupDownload, href: install }],
-      };
+  const missing =
+    setup.ai === "missing" ||
+    setup.github === "missing" ||
+    setup.content === "missing" ||
+    setup.content === "failed";
+  if (!missing) return null;
+  const total = 3;
+  const done = [
+    setup.ai === "ready",
+    setup.github === "connected",
+    setup.content === "ready",
+  ].filter(Boolean).length;
+  return {
+    text: fillShell(copy.setupPrompt, {
+      done: String(done),
+      total: String(total),
+    }),
+    href: startHref(environment.apps.apps),
+    done,
+    total,
+  };
 }
 
 /** The Settings of an Environment, the gear's address beside its picker:
@@ -906,7 +871,7 @@ export function organizationSettingsHref(dashboard: string): string {
 
 /** The head of an app's left column as `<lazurio-column-head>` draws it:
  * the picker and what it names, the gear beside it (the Settings of exactly
- * that), the switch Chat · Apps · Automate and the setup line. */
+ * that), the switch Chat · Apps · Automate and the setup prompt. */
 export type ColumnHead = Readonly<{
   /** The space the picker's list shows. */
   here: string;
@@ -922,19 +887,19 @@ export type ColumnHead = Readonly<{
   }>;
   /** The switch; null on an Organization's Dashboard, which has none. */
   tabs: readonly SwitchTab[] | null;
-  setup: ColumnSetupLine | null;
+  setup: ColumnSetupPrompt | null;
 }>;
 
 /** What the column head shows, from the host's attributes (`space`,
  * `active`, `settings`). On an Environment's page: the Environment picker
  * (its identity in the space you are in), the gear of the Environment's
  * Settings (`settings`, else its Launchpad's `/settings`), the switch and
- * the setup line, as before. On an Organization's Dashboard (F36's addendum
+ * the setup prompt, as before. On an Organization's Dashboard (F36's addendum
  * of 2026-10-05, a page that is no Environment's with the Organization in
  * `space`): the picker names the Organization (its avatar, its name,
  * "Organization Dashboard"), the gear opens the Organization Settings
  * (`settings`, else `<its Dashboard page>/settings`), and there is no switch
- * and no setup line. On the personal Dashboard: nothing (null). `active`
+ * and no setup prompt. On the personal Dashboard: nothing (null). `active`
  * `settings` marks the gear in either. */
 export function columnHead(
   shell: Shell,
@@ -984,6 +949,6 @@ export function columnHead(
       current: inSettings,
     },
     tabs: switchTabs(shell, copy, app),
-    setup: columnSetupLine(shell, copy, app),
+    setup: columnSetupPrompt(shell, copy, app),
   };
 }
