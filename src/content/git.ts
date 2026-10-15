@@ -145,7 +145,14 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
       return { ok: false, detail: "git is not on this account's PATH" };
     try {
       const result = await environment.run(
-        [executable, "-C", directory, ...args],
+        // Never Git's background maintenance after one of these one-shot
+        // writes: `git commit` ends by starting `git maintenance run --auto
+        // --detach`, which outlives the command, keeps writing into the
+        // repository and races the removal of a temporary sibling
+        // (`publishNewCheckout`), which then survives (#442). Every write
+        // gets the same setting; none needs it, and the person's own git
+        // use later still gets it.
+        [executable, "-C", directory, "-c", "maintenance.auto=false", ...args],
         timeoutMs,
         env(),
       );
