@@ -8,6 +8,7 @@ import {
   aiProviders,
   isAiProvider,
 } from "./ai";
+import { converse, readCodex } from "./ai-probe";
 import { activatableTools, findTool, type ToolEntry } from "./catalog";
 import { challengeUrl } from "./challenge-url";
 import { ghStatus } from "./gh-status";
@@ -144,7 +145,10 @@ export type LoginFailure =
   | "no-challenge"
   /** codex and claude: the Environment browser did not open the sign-in
    * page, so the CLI was stopped. */
-  | "browser-unavailable";
+  | "browser-unavailable"
+  /** codex: Codex did not answer whether the Organization provides the AI
+   * here, so the sign-in did not start (fail closed). */
+  | "provider-unknown";
 
 /** One line of the owner's journal about a curated sign-in: the tool and the
  * outcome, never the tool's output, a challenge or an account. */
@@ -228,11 +232,6 @@ export type LoginEnvironment = Readonly<{
   /** codex and claude: where the sign-in page opens. Absent: the
    * computer's own browser. */
   signInPage?: SignInPage;
-  /** codex and claude, asked before a sign-in starts: whether the
-   * Organization provides this AI here, so the CLI is not signed in (root
-   * decision 0201 points 4 and 6; Codex's `account/read` says it). Absent:
-   * not asked. */
-  organizationProvides?: (tool: AiProvider) => Promise<boolean>;
   /** codex and claude, after the CLI's status confirmed the sign-in: what
    * makes the running services read it again (root decision 0201 point 4),
    * given every AI CLI signed in now. Absent: nothing is asked. */
@@ -296,6 +295,8 @@ const sshLinkMs = 5 * 60_000;
 // The services after an AI sign-in: a unit restart and T3 Code's refresh,
 // whose own bound is a minute.
 const servicesMs = 3 * 60_000;
+// Codex's `account/read` before codex signs in, bounded as GET /api/ai is.
+const providerReadMs = 10_000;
 const defaultPageGraceMs = 3_000;
 const maxCollected = 1024 * 1024;
 const maxLine = 16 * 1024;
@@ -1258,7 +1259,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
       if (options.phone !== undefined && phone === undefined)
         return refused("invalid-phone");
       // codex and claude: refused before anything runs where the page could
-      // not return to the CLI, or the Organization provides the AI.
+      // not return to the CLI, or where the Organization provides the AI.
       if (isAiProvider(name)) {
         const blocked = (
           reason: "no-environment-browser" | "organization-provided",
@@ -1269,9 +1270,22 @@ export function createLoginSessions(environment: LoginEnvironment) {
         };
         if (environment.signInPage?.kind === "none")
           return blocked("no-environment-browser");
-        const provides = environment.organizationProvides;
-        if (provides !== undefined && (await provides(name).catch(() => false)))
-          return blocked("organization-provided");
+        // Codex's own `account/read`, asked now, right before its CLI, never
+        // from a reading kept for the page (root decision 0201 points 4 and
+        // 6): a provider of the Organization that needs no OpenAI sign-in
+        // refuses it. An answer that cannot be read starts nothing either
+        // (fail closed): whether the sign-in would bypass the Organization's
+        // provider is not known. Claude has no such source.
+        if (name === "codex") {
+          const codex = await readCodex(
+            environment,
+            converse,
+            providerReadMs,
+          ).catch(() => ({ state: "unknown" }) as const);
+          if (codex.state === "provided")
+            return blocked("organization-provided");
+          if (codex.state === "unknown") return refused("provider-unknown");
+        }
       }
       cancelRunning(name);
       const path = await locate(entry);

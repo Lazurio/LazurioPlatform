@@ -21,7 +21,8 @@ import { join } from "node:path";
 // `codex.page`/`claude.page` replace the page's origin; `claude.no-browser`
 // never runs `$BROWSER` (a CLI that ignores it); `codex.provided` makes
 // `codex app-server` answer that the configured provider needs no sign-in,
-// which otherwise answers the stored ChatGPT account (`account/read`). For a
+// which otherwise answers the stored ChatGPT account (`account/read`), and
+// `codex.no-answer` makes it end without an answer. For a
 // walkthrough in a browser: `codex.auto` and `claude.auto` return from the
 // page by themselves after a few seconds (no person signs in to a fake), and
 // `claude.show-code` writes the code its code page would show to
@@ -73,6 +74,7 @@ if (args[0] === "login" && args[1] === "status") {
   console.error("Not logged in"); process.exit(1);
 }
 if (args[0] === "app-server") {
+  if (flag("codex.no-answer")) process.exit(1);
   const lines = createInterface({ input: process.stdin });
   lines.on("line", (line) => {
     const message = JSON.parse(line);

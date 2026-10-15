@@ -11,7 +11,6 @@ import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readFolderState } from "../folder/read-state";
 import { sharedEnvironment } from "../folder/render";
 import { updateTools } from "../folder/update-profile";
-import { converse, readCodex } from "./ai-probe";
 import { reloadAiServices } from "./ai-services";
 import { activatableTools, toolCatalog, toolPrompt } from "./catalog";
 import {
@@ -338,12 +337,8 @@ export async function runToolsCommand(
       install: { ...base, ...context.install },
       login: {
         ...base,
-        // codex and claude (F19's addendum of 2026-10-15): Codex's own
-        // answer whether the Organization provides the AI, and the running
+        // codex and claude (F19's addendum of 2026-10-15): the running
         // services that read a new sign-in.
-        organizationProvides: async (tool) =>
-          tool === "codex" &&
-          (await readCodex(tools, converse, 10_000)).state === "provided",
         reload: (tool, signedIn) =>
           reloadAiServices({ ...tools, tool, signedIn, env: context.env }),
         ...context.login,
