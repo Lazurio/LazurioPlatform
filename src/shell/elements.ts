@@ -24,7 +24,7 @@ import { applyTabIcon } from "./tab-icon";
 import { installShellTokens } from "./tokens";
 import { vendorText } from "./vendor-text" with { type: "macro" };
 import {
-  type ColumnSetupLine,
+  type ColumnSetupPrompt,
   columnHead,
   elementIdentity,
   hereOf,
@@ -889,9 +889,25 @@ export class LazurioColumnHead extends ShellElement {
     head.append(row);
     // No switch on an Organization's Dashboard.
     if (model.tabs !== null) head.append(this.appSwitch(model.tabs, copy));
-    if (model.setup !== null)
-      head.append(setupLine(model.setup, copy.setupLabel));
+    if (model.setup !== null) head.append(this.setupPrompt(model.setup));
     this.root.replaceChildren(head);
+  }
+
+  /** The quiet prompt under the switch while the Environment lacks a basic
+   * (root decision 0201 point 2): one link to Začínáme of its Launchpad, a
+   * move within the Launchpad's own page, a plain link elsewhere. */
+  private setupPrompt(prompt: ColumnSetupPrompt): HTMLElement {
+    const link = this.link(prompt.href, "setup-prompt");
+    link.dataset.tour = "setup-prompt";
+    // Its name also where a narrow column shows the icon alone.
+    link.setAttribute("aria-label", prompt.text);
+    link.title = prompt.text;
+    link.append(
+      icon("sparks", 15),
+      element("span", "setup-prompt-text", prompt.text),
+      icon("chevron-right", 14),
+    );
+    return link;
   }
 
   /** The switch Chat · Apps · Automate. */
@@ -934,40 +950,6 @@ export class LazurioColumnHead extends ShellElement {
     );
     return nav;
   }
-}
-
-/** The line under the switch in Chat and Automate until the Environment is
- * usable (root decision 0188): an icon, one sentence and its buttons. A link
- * on this page's own origin that differs only in its fragment loads the page
- * again, so the app reads it as it starts (Chat takes a prepared prompt's
- * link only then). */
-function setupLine(line: ColumnSetupLine, label: string): HTMLElement {
-  const box = element("div", "setup");
-  box.dataset.tone = line.tone;
-  box.setAttribute("role", "status");
-  box.setAttribute("aria-label", label);
-  const text = element("span", "setup-text", line.text);
-  const links = element("span", "setup-links");
-  for (const link of line.links) {
-    const anchor = element("a", "setup-link", link.label);
-    anchor.href = link.href;
-    anchor.addEventListener("click", (event) => {
-      if (!plainClick(event)) return;
-      const target = new URL(link.href, location.href);
-      if (
-        target.origin !== location.origin ||
-        target.pathname !== location.pathname ||
-        target.search !== location.search
-      )
-        return;
-      event.preventDefault();
-      location.hash = target.hash;
-      location.reload();
-    });
-    links.append(anchor);
-  }
-  box.append(icon(line.icon, 16), text, links);
-  return box;
 }
 
 /** Whether the nearest ancestor with an opaque background is dark (its

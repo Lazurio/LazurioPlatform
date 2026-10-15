@@ -937,3 +937,81 @@ posixTest(
   },
   60_000,
 );
+
+posixTest(
+  "root access (root decision 0201 point 8): an Owner or a writer of the conventional root prepares an unprepared Organization; anyone else, and every failure, does not",
+  async () => {
+    world = await createWorld();
+    const folder = await presetFolder(world, "local");
+    const member = {
+      kind: "member",
+      state: "active",
+      role: "member",
+    } as const;
+    const cases: readonly [
+      string,
+      Parameters<typeof stubGitHub>[1],
+      boolean,
+    ][] = [
+      ["an active Owner, root not visible", {}, true],
+      [
+        "a member with write on the root",
+        {
+          membership: member,
+          repositories: { "Alpha/Alpha_GEN3": { permission: "write" } },
+        },
+        true,
+      ],
+      [
+        "a member who only reads the root",
+        {
+          membership: member,
+          repositories: { "Alpha/Alpha_GEN3": { permission: "read" } },
+        },
+        false,
+      ],
+      ["a member, root not visible", { membership: member }, false],
+      [
+        "GitHub does not answer",
+        {
+          membership: { kind: "unavailable" },
+          repositories: { "Alpha/Alpha_GEN3": "unavailable" },
+        },
+        false,
+      ],
+    ];
+    for (const [name, options, write] of cases) {
+      const stub = stubGitHub(world, options);
+      const { get } = await launchpad(folder, contentHost(world, stub.github));
+      const answer = await get("/api/content/root-access?org=Alpha");
+      expect([name, answer.status, await answer.json()]).toEqual([
+        name,
+        200,
+        { kind: "root-access", write },
+      ]);
+      // Read-only: the membership and the conventional root, nothing else.
+      expect(
+        stub.calls.map((call) => `${call.kind} ${call.args.join("/")}`).sort(),
+      ).toEqual(["membership Alpha", "repository Alpha/Alpha_GEN3"]);
+      await closing?.();
+      closing = undefined;
+    }
+    const stub = stubGitHub(world);
+    const { get, post } = await launchpad(
+      folder,
+      contentHost(world, stub.github),
+    );
+    for (const path of [
+      "/api/content/root-access",
+      "/api/content/root-access?org=-x",
+      "/api/content/root-access?org=Alpha&org=Beta",
+      "/api/content/root-access?org=Alpha&write=1",
+    ])
+      expect([path, (await get(path)).status]).toEqual([path, 400]);
+    expect((await post("/api/content/root-access?org=Alpha", {})).status).toBe(
+      405,
+    );
+    expect(stub.calls).toEqual([]);
+  },
+  60_000,
+);

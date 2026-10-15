@@ -9,6 +9,7 @@ import {
   parseContentJob,
   parseContentList,
 } from "../src/launchpad/content-client";
+import { shellSetup } from "../src/launchpad/first-run";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import { messages } from "../src/launchpad/messages";
 import {
@@ -22,7 +23,6 @@ import { startLaunchpad } from "../src/launchpad/server";
 import {
   type ContentReader,
   createGithubProbe,
-  shellSetup,
 } from "../src/launchpad/setup-state";
 import { shellDocument } from "../src/launchpad/shell-document";
 import {
@@ -33,16 +33,17 @@ import {
 } from "../src/launchpad/tools-view";
 import { parseShell, parseShellSetup, type Shell } from "../src/shell/contract";
 import { shellMessages } from "../src/shell/messages";
-import { columnSetupLine } from "../src/shell/view";
+import { columnSetupPrompt } from "../src/shell/view";
 import type { ToolOverview } from "../src/tools/overview";
 import type { ToolRunner } from "../src/tools/status";
 import { writeOrganization } from "./fixtures/catalog-folder";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
 
-// The first run (root decision 0188) beyond the page: the shell document's
-// optional `setup`, the column head's line in Chat and Automate, the
-// prepared prompt `prepare-content` for "Vyřešit v Chatu", and in Settings
-// → Nástroje the plain sentences and the switch turned on after a sign-in.
+// The first run (root decisions 0188 and 0201) beyond the page: the shell
+// document's optional `setup` with the Environment's AI, the column head's
+// quiet prompt in Apps, Chat and Automate, the prepared prompt
+// `prepare-content` for "Vyřešit v Chatu", `GET /api/ai`, and in Settings →
+// Nástroje the plain sentences and the switch turned on after a sign-in.
 
 const posixTest = test.skipIf(process.platform === "win32");
 const cs = messages("cs");
@@ -86,6 +87,7 @@ test("the shell's setup: only for a person's Environment, only what is known", (
   expect(
     shellSetup({
       preset: "hosted-organization-team",
+      ai: "organization",
       github: "missing",
       list: workList,
       job: null,
@@ -94,23 +96,43 @@ test("the shell's setup: only for a person's Environment, only what is known", (
   expect(
     shellSetup({
       preset: "local",
+      ai: "missing",
       github: "unknown",
       list: workList,
       job: null,
     }),
   ).toBeUndefined();
-  // No content routes: GitHub alone.
+  // No content routes: the AI and GitHub alone; an AI not known says
+  // nothing of it.
   expect(
-    shellSetup({ preset: "local", github: "missing", list: null, job: null }),
-  ).toEqual({ github: "missing" });
+    shellSetup({
+      preset: "local",
+      ai: "missing",
+      github: "missing",
+      list: null,
+      job: null,
+    }),
+  ).toEqual({ ai: "missing", github: "missing" });
+  for (const ai of ["unknown", "loading"] as const)
+    expect(
+      shellSetup({
+        preset: "local",
+        ai,
+        github: "missing",
+        list: null,
+        job: null,
+      }),
+    ).toEqual({ github: "missing" });
   expect(
     shellSetup({
       preset: "hosted-organization-personal",
+      ai: "organization",
       github: "connected",
       list: workList,
       job: null,
     }),
   ).toEqual({
+    ai: "ready",
     github: "connected",
     content: "missing",
     item: { kind: "organization", name: "Example", login: "example-org" },
@@ -118,11 +140,13 @@ test("the shell's setup: only for a person's Environment, only what is known", (
   expect(
     shellSetup({
       preset: "hosted-organization-personal",
+      ai: "connected",
       github: "connected",
       list: workList,
       job: failedJob,
     }),
   ).toEqual({
+    ai: "ready",
     github: "connected",
     content: "failed",
     item: { kind: "organization", name: "Example", login: "example-org" },
@@ -130,6 +154,7 @@ test("the shell's setup: only for a person's Environment, only what is known", (
   expect(
     shellSetup({
       preset: "hosted-personal",
+      ai: "connected",
       github: "connected",
       list: parseContentList({
         allowed: true,
@@ -137,7 +162,7 @@ test("the shell's setup: only for a person's Environment, only what is known", (
       }),
       job: null,
     }),
-  ).toEqual({ github: "connected", content: "ready" });
+  ).toEqual({ ai: "ready", github: "connected", content: "ready" });
 });
 
 test("`setup` in lazurio.shell.v1: optional and additive, its exact shape or no document", () => {
@@ -162,6 +187,11 @@ test("`setup` in lazurio.shell.v1: optional and additive, its exact shape or no 
       setup: { github: "missing", unknownMember: true },
     })?.setup,
   ).toEqual({ github: "missing" });
+  // The AI (root decision 0201): optional and additive, ready or missing.
+  for (const ai of ["ready", "missing"] as const)
+    expect(
+      parseShell({ ...document, setup: { ai, github: "connected" } })?.setup,
+    ).toEqual({ ai, github: "connected" });
   expect(
     parseShellSetup({
       github: "connected",
@@ -185,6 +215,8 @@ test("`setup` in lazurio.shell.v1: optional and additive, its exact shape or no 
     },
     { github: "connected", item: { kind: "personalspace", login: 7 } },
     { github: "connected", item: { kind: "team" } },
+    { ai: "maybe", github: "connected" },
+    { ai: null, github: "connected" },
   ])
     expect([wrong, parseShell({ ...document, setup: wrong })]).toEqual([
       wrong,
@@ -219,89 +251,69 @@ const hostedShell = (setup: unknown, chat = true): Shell => {
   return shell;
 };
 
-test("the column head's line: in Chat and Automate only, its buttons lead to the Launchpad's Settings", () => {
-  const launchpad = "https://launchpad.workspace.example.lazurio.io";
-  const missingGithub = hostedShell({ github: "missing" });
-  expect(columnSetupLine(missingGithub, shellCs, "chat")).toEqual({
-    tone: "info",
-    icon: "key",
-    text: "Bez GitHubu agenti nepracují.",
-    links: [
-      {
-        label: "Připojit GitHub",
-        href: `${launchpad}/settings/tools#lazurio-start=sign-in-gh`,
-      },
-    ],
+test("the column head's prompt: in Apps, Chat and Automate while a basic is missing, counting the done ones, leading to Začínáme", () => {
+  const start = "https://launchpad.workspace.example.lazurio.io/settings/start";
+  const prompt = (setup: unknown, app: "chat" | "apps" | "automate" | null) =>
+    columnSetupPrompt(hostedShell(setup), shellCs, app);
+  expect(prompt({ ai: "missing", github: "missing" }, "chat")).toEqual({
+    text: "Dokončit nastavení (0 ze 3)",
+    href: start,
+    done: 0,
+    total: 3,
   });
-  expect(columnSetupLine(missingGithub, shellCs, "automate")?.text).toBe(
-    "Bez GitHubu agenti nepracují.",
-  );
-  // Apps and Settings say it themselves.
-  expect(columnSetupLine(missingGithub, shellCs, "apps")).toBeNull();
-  expect(columnSetupLine(missingGithub, shellCs, null)).toBeNull();
-  const install = `${launchpad}/settings/machine#lazurio-start=install-content`;
+  for (const app of ["apps", "chat", "automate"] as const)
+    expect(prompt({ ai: "ready", github: "missing" }, app)?.text).toBe(
+      "Dokončit nastavení (1 ze 3)",
+    );
   expect(
-    columnSetupLine(
-      hostedShell({
+    prompt(
+      {
+        ai: "ready",
         github: "connected",
-        content: "missing",
+        content: "failed",
         item: { kind: "organization", name: "Example", login: "example-org" },
-      }),
-      shellCs,
-      "chat",
-    ),
-  ).toEqual({
-    tone: "info",
-    icon: "download",
-    text: "Example tu ještě není.",
-    links: [{ label: "Stáhnout", href: install }],
-  });
-  expect(
-    columnSetupLine(
-      hostedShell({
-        github: "connected",
-        content: "missing",
-        item: { kind: "personalspace", login: "octocat" },
-      }),
-      shellCs,
-      "chat",
-    ),
-  ).toEqual({
-    tone: "info",
-    icon: "download",
-    text: "Osobní prostor tu ještě není.",
-    links: [{ label: "Připravit", href: install }],
-  });
-  // Stopped: Chat with the prompt by its id and the login, never its text;
-  // and trying again in Settings.
-  const failed = {
-    github: "connected",
-    content: "failed",
-    item: { kind: "organization", name: "Example", login: "example-org" },
-  };
-  expect(columnSetupLine(hostedShell(failed), shellCs, "automate")).toEqual({
-    tone: "failed",
-    icon: "warning",
-    text: "Příprava se zastavila.",
-    links: [
-      {
-        label: "Vyřešit v Chatu",
-        href: "https://t3code.workspace.example.lazurio.io/#lazurio-prompt=prepare-content&lazurio-org=example-org",
       },
-      { label: "Zkusit znovu", href: install },
-    ],
-  });
-  // Without Chat here, or without a login to name, only trying again.
+      "automate",
+    )?.text,
+  ).toBe("Dokončit nastavení (2 ze 3)");
   expect(
-    columnSetupLine(hostedShell(failed, false), shellCs, "automate")?.links,
-  ).toEqual([{ label: "Zkusit znovu", href: install }]);
-  // Usable, or nothing known: no line.
+    columnSetupPrompt(
+      hostedShell({ ai: "ready", github: "connected", content: "missing" }),
+      shellMessages("en"),
+      "apps",
+    )?.text,
+  ).toBe("Finish setting up (2 of 3)");
+  // Settings have Začínáme in their own navigation.
+  expect(prompt({ ai: "missing", github: "missing" }, null)).toBeNull();
+  // Nothing missing, or nothing known: no prompt. An AI not known is not
+  // claimed missing.
   for (const setup of [
+    { ai: "ready", github: "connected", content: "ready" },
+    { ai: "ready", github: "connected" },
     { github: "connected", content: "ready" },
-    { github: "connected" },
     undefined,
   ])
-    expect(columnSetupLine(hostedShell(setup), shellCs, "chat")).toBeNull();
+    expect(prompt(setup, "chat")).toBeNull();
+  // A Launchpad served on this origin (a workstation): a path, which the
+  // page moves to without a reload.
+  const local = JSON.parse(
+    JSON.stringify(
+      shellDocument({
+        preset: "local",
+        machine: null,
+        locale: "cs",
+        catalog: { kind: "catalog", organizations: [] },
+      }),
+    ),
+  );
+  const workstation = parseShell({
+    ...local,
+    setup: { ai: "missing", github: "missing" },
+  });
+  if (workstation === null) throw new Error("fixture");
+  expect(columnSetupPrompt(workstation, shellCs, "apps")?.href).toBe(
+    "/settings/start",
+  );
 });
 
 test("gh's state for the shell: asked with this Environment's gh, kept a minute, replaced by readings", async () => {
@@ -517,6 +529,7 @@ posixTest(
     const without = await hosted();
     try {
       expect(await knownSetup(without)).toEqual({
+        ai: "missing",
         github: "missing",
         content: "missing",
         item: { kind: "organization", name: "example", login: "example" },
@@ -527,6 +540,7 @@ posixTest(
     const stopped = await hosted(stub(listAnswer, failedAnswer));
     try {
       expect(await knownSetup(stopped)).toEqual({
+        ai: "missing",
         github: "missing",
         content: "failed",
         item: { kind: "organization", name: "Example", login: "example-org" },
