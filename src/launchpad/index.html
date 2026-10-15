@@ -270,6 +270,17 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .section-head { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--lz-blue-500); }
 .section-pill { padding: 5px 12px; border-radius: 7px 7px 0 0; background: var(--lz-blue-500); color: var(--lz-on-accent); font-size: 14px; font-weight: var(--lz-weight-akce); line-height: normal; }
 .section-count { color: var(--muted-fg); font-size: 13px; }
+.workspace-head { flex-wrap: wrap; column-gap: 20px; row-gap: 4px; }
+.workspace-heading { color: var(--muted-fg); font-size: 14px; font-weight: 500; }
+.workspace-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+button.workspace-tab { display: inline-flex; align-items: center; gap: 8px; height: auto; min-height: 36px; padding: 6px 12px; border: 0; border-radius: 7px 7px 0 0; background: transparent; color: var(--muted-fg); font-size: 14px; box-shadow: none; }
+button.workspace-tab[aria-selected="true"] { background: var(--lz-blue-500); color: var(--lz-on-accent); }
+button.workspace-tab:hover:not([aria-selected="true"]) { background: var(--lz-gray-50); color: var(--fg); }
+.workspace-tab:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.workspace-tab-count { font-size: 12px; font-weight: 400; }
+.workspace-group-panel { min-width: 0; }
+.workspace-group-empty { margin: 0 0 16px; color: var(--muted-fg); font-size: 14px; }
+
 /* Three columns on a full page, fewer as the page narrows, beside the open
    right panel too: the grid counts its columns from its own width, as the
    shell wireframe does (prototypes-lazurio#10). */

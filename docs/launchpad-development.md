@@ -2650,3 +2650,6 @@ Organization's, and it gets none of it.
   `tests/tour-placement.test.ts` (where the bubble stands: the page's own boxes at 1440,
   1280, 1024 and 800 px, short windows, a classic scrollbar and a sweep of elements
   across five windows).
+
+The proposed [Workspace groups](workspace-groups.md) extension documents the
+Work / Administration tabs, browser preference ownership and isolated UI checks.
