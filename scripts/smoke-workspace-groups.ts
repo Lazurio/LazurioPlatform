@@ -27,10 +27,15 @@ try {
         : route.abort(),
   );
   let login: string | null = "ada";
+  let releaseAccount: () => void = () => {};
+  const firstAccount = new Promise<void>((resolve) => {
+    releaseAccount = resolve;
+  });
   await context.route(
     "**/.lazurio/account/environments",
-    (route: { fulfill(options: unknown): Promise<void> }) =>
-      route.fulfill(
+    async (route: { fulfill(options: unknown): Promise<void> }) => {
+      await firstAccount;
+      return route.fulfill(
         login === null
           ? { status: 404, body: "" }
           : {
@@ -44,7 +49,8 @@ try {
                 }),
               ),
             },
-      ),
+      );
+    },
   );
   const page = await context.newPage();
   const reload = async () => {
@@ -111,6 +117,15 @@ try {
     await page.locator('[data-section="productionspace"] .tile').count(),
     2,
   );
+  // A tab chosen while the account is still loading must remain chosen
+  // once its saved assignments arrive.
+  await admin.click();
+  releaseAccount();
+  await page.waitForFunction(
+    () => !document.querySelector("#catalog-favorites .column-hint"),
+  );
+  assert.equal(await admin.getAttribute("aria-selected"), "true");
+  await work.click();
   await move("Mission Control", "administration");
   assert.equal(await menu("Mission Control").count(), 0);
   assert.ok((await admin.textContent()).includes("1"));

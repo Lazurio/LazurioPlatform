@@ -393,7 +393,7 @@ export function createCatalogPanel(
     id: scopeKey(group),
   });
   const groupSelectionKey = (group: CatalogGroupEntry) =>
-    JSON.stringify([account?.login ?? null, groupScope(group)]);
+    JSON.stringify(groupScope(group));
   const selectedGroup = (group: CatalogGroupEntry): WorkspaceGroup =>
     selectedGroups.get(groupSelectionKey(group)) ?? "work";
   const administrationOf = (group: CatalogGroupEntry) =>
