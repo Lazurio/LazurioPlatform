@@ -599,7 +599,7 @@ async function toolRows(
   const signIns = signIn
     ? await toolsSignIn(
         catalog.map((entry, index) => ({
-          probe: entry.activation.signInProbe,
+          probe: entry.signInProbe,
           status: status.tools[index] as (typeof status.tools)[number],
         })),
         tools,

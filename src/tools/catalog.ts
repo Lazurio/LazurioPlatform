@@ -38,11 +38,14 @@ export type ToolText = Readonly<{ cs: string; en: string }>;
 // fails. Nothing in this catalog installs anything.
 export type ToolSetup = "launchpad" | "agent";
 // How the Launchpad and `lazurio tools list --sign-in` ask a tool whether it
-// is signed in, and as whom (decision F18, addendum 2026-09-27). The probe is
-// the command the usage text names; it runs only on request, because a tool
-// may contact its provider to verify the sign-in. Signed in means: the
-// command exits 0, `signedOut` does not match its output, and the `account`
-// rules below hold. Only the extracted label ever leaves the probe.
+// is signed in, and as whom (decision F18, addendum 2026-09-27), and how a
+// curated sign-in confirms it (F19; codex and claude, F19's addendum of
+// 2026-10-15). The probe is the tool's own and lives on the tool, whatever
+// its activation: for an activatable tool it is the command the usage text
+// names. It runs only on request, because a tool may contact its provider to
+// verify the sign-in. Signed in means: the command exits 0, `signedOut` does
+// not match its output, and the `account` rules below hold. Only the
+// extracted label ever leaves the probe.
 export type SignInAccount =
   | Readonly<{
       kind: "json";
@@ -83,7 +86,6 @@ export type ToolActivation = Readonly<{
   /** The target state on a Team Environment (`hosted-organization-team`),
    * where it replaces `installation` and the prompt guides no sign-in. */
   team?: ToolText;
-  signInProbe?: SignInProbe;
   /** The prompt's task and its first step, for a tool whose setup is not
    * an installation and a person's sign-in (the Environment vault, decision
    * F43): it replaces the two generic paragraphs. */
@@ -109,6 +111,9 @@ export type ToolEntry = Readonly<{
   source: string;
   updater: ToolUpdater;
   activation?: ToolActivation;
+  /** The tool's own sign-in check (above); absent where a tool has none or
+   * its state is read through a core of its own (executor, bitwarden). */
+  signInProbe?: SignInProbe;
   /** The variable that names the tool's data directory, when the tool
    * writes its store on every start, even for `--version` (bw): the version
    * command then runs with a private temporary directory there, so no probe
@@ -155,6 +160,12 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
       windows:
         "$ErrorActionPreference = 'Stop'; $s = irm https://chatgpt.com/codex/install.ps1; iex $s",
     },
+    // What confirms `lazurio tools login codex` (F19's addendum of
+    // 2026-10-15): "Logged in using ChatGPT" (or "… an API key") exits 0,
+    // "Not logged in" exits 1. It names no account. Whether an agent can
+    // work here is Codex's `account/read` (src/tools/ai.ts), which also sees
+    // an Organization's provider that needs no sign-in.
+    signInProbe: { argv: ["login", "status"], signedOut: "not logged in" },
   }),
   tool({
     name: "claude",
@@ -162,6 +173,17 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     versionArgs: ["--version"],
     source: "https://docs.claude.com/en/docs/claude-code/setup",
     updater: { kind: "self", argv: ["update"] },
+    // `claude auth status --json`: `loggedIn`, and the account's `email`
+    // and `orgName` when signed in.
+    signInProbe: {
+      argv: ["auth", "status", "--json"],
+      account: {
+        kind: "json",
+        paths: [["email"]],
+        organization: ["orgName"],
+        flag: ["loggedIn"],
+      },
+    },
   }),
   tool({
     name: "gh",
@@ -169,19 +191,19 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     versionArgs: ["--version"],
     source: "https://github.com/cli/cli#installation",
     updater: { kind: "none" },
+    // The text form, for a gh older than 2.81.0: every gh probe asks
+    // `gh auth status --json hosts` first (gh-status.ts).
+    signInProbe: {
+      argv: ["auth", "status", "--hostname", "github.com"],
+      account: {
+        kind: "regex",
+        pattern:
+          "Logged in to github\\.com (?:account|as) ([A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\\[bot\\])?)",
+      },
+    },
     activation: {
       tier: "required",
       setup: "launchpad",
-      // The text form, for a gh older than 2.81.0: every gh probe asks
-      // `gh auth status --json hosts` first (gh-status.ts).
-      signInProbe: {
-        argv: ["auth", "status", "--hostname", "github.com"],
-        account: {
-          kind: "regex",
-          pattern:
-            "Logged in to github\\.com (?:account|as) ([A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\\[bot\\])?)",
-        },
-      },
       installation: installation(
         'Cílový stav: `gh` je první spustitelný soubor toho jména na PATH Operátora, ve standardní cestě `~/.local/bin/gh`, z oficiálního zdroje https://github.com/cli/cli#installation. Fungující `gh` jinde na PATH zůstává a jen se nahlásí. Operátor se přihlásí příkazem `gh auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key`: v prohlížeči otevře stránku zařízení a zadá jednorázový kód. Environment pak má SSH klíč propojený s týmž účtem: použije se stávající výchozí klíč (`~/.ssh/id_ed25519`, `id_ecdsa`, `id_rsa`, v tomto pořadí) beze změny, jinak se příkazem `ssh-keygen` vytvoří nový klíč `ed25519` bez hesla (`~/.ssh` 0700, soukromý klíč 0600); zaregistruje ho `gh ssh-key add <klíč>.pub --title "Lazurio: <hostname>" --type authentication` (chybí-li tokenu scope, `gh auth refresh --hostname github.com --scopes admin:public_key`); do `~/.ssh/known_hosts` přibudou jen chybějící klíče github.com zveřejněné v `gh api meta` (`ssh_keys`) a záznam github.com, který se od nich liší, se operátorovi nahlásí a nikdy nenahradí. Klíč, který GitHub odmítne jako použitý jiným účtem, se nahlásí; druhý klíč se přes něj nevytváří. Environment pak zná i Git identitu člověka: co globální ani systémová konfigurace Gitu nemá, doplní `git config --global user.name` (jméno z profilu GitHubu, jinak login) a `git config --global user.email` (`<id>+<login>@users.noreply.github.com`, `id` a `login` z `gh api user`); existující hodnotu nikdy neměň. Důkaz: `gh --version` odpoví, `gh auth status` skončí kódem 0 a jmenuje zamýšlený účet, `ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes git@github.com` pozdraví tentýž účet a `git config user.name` i `git config user.email` mimo repozitář odpoví. V týmovém Environmentu (hosted-organization-team) gh nepřihlašuj a klíč nepropojuj: Environment pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace.',
         "Target state: `gh` is the first executable of that name on the Operator's PATH, in the standard path `~/.local/bin/gh`, from the official source https://github.com/cli/cli#installation. A working `gh` elsewhere on PATH stays and is only reported. The operator signs in with `gh auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key`: they open the device page in their browser and enter the one-time code. The Environment then has an SSH key linked to the same account: the existing default key (`~/.ssh/id_ed25519`, `id_ecdsa`, `id_rsa`, in that order) is used unchanged, otherwise a new `ed25519` key without a passphrase is created with `ssh-keygen` (`~/.ssh` 0700, private key 0600); `gh ssh-key add <key>.pub --title \"Lazurio: <hostname>\" --type authentication` registers it (when the token lacks the scope, `gh auth refresh --hostname github.com --scopes admin:public_key` first); `~/.ssh/known_hosts` gains only the missing github.com keys published by `gh api meta` (`ssh_keys`), and a github.com entry that differs from them is reported to the operator, never replaced. A key GitHub refuses as in use by another account is reported; no second key is created over it. The Environment then also knows the person's Git identity: whatever git's global and system configuration lack is added with `git config --global user.name` (the GitHub profile's name, else the login) and `git config --global user.email` (`<id>+<login>@users.noreply.github.com`, `id` and `login` from `gh api user`); never change an existing value. Proof: `gh --version` answers, `gh auth status` exits 0 and names the intended account, `ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes git@github.com` greets that account, and `git config user.name` and `git config user.email` answer outside a repository. On a Team Environment (hosted-organization-team) do not sign in gh or link a key: the Environment works in GitHub through Lazurio for GitHub, set up by the Organization.",
@@ -282,21 +304,21 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     // (Composio's own from Composio's CLI, a newer one of the fork from the
     // build), not the pinned one, and the CLI's skill for Claude Code.
     updater: { kind: "curated" },
+    // `composio whoami` prints one JSON object line when signed in and "You
+    // are not logged in" otherwise, with exit code 0 either way.
+    signInProbe: {
+      argv: ["whoami"],
+      account: {
+        kind: "json",
+        paths: [["email"]],
+        organization: ["current_org_name"],
+        requireAccount: true,
+      },
+      signedOut: "not logged in",
+    },
     activation: {
       tier: "recommended",
       setup: "launchpad",
-      // `composio whoami` prints one JSON object line when signed in and
-      // "You are not logged in" otherwise, with exit code 0 either way.
-      signInProbe: {
-        argv: ["whoami"],
-        account: {
-          kind: "json",
-          paths: [["email"]],
-          organization: ["current_org_name"],
-          requireAccount: true,
-        },
-        signedOut: "not logged in",
-      },
       // Lazurio's build is the target state, so a working `composio` of
       // another build is replaced, only by that build and with the
       // Operator's consent: its "Never" says so instead of the general one.
@@ -368,23 +390,23 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     versionArgs: ["--version"],
     source: "https://github.com/openclaw/wacli",
     updater: { kind: "none" },
+    signInProbe: {
+      argv: ["auth", "status", "--json", "--read-only"],
+      // wacli wraps every `--json` answer in its envelope (`internal/out`
+      // `WriteJSON`): `{"success":true,"data":{"authenticated":…,
+      // "linked_jid":…,"phone":…},"error":null}` (#98).
+      account: {
+        kind: "json",
+        paths: [
+          ["data", "phone"],
+          ["data", "linked_jid"],
+        ],
+        flag: ["data", "authenticated"],
+      },
+    },
     activation: {
       tier: "optional",
       setup: "launchpad",
-      signInProbe: {
-        argv: ["auth", "status", "--json", "--read-only"],
-        // wacli wraps every `--json` answer in its envelope (`internal/out`
-        // `WriteJSON`): `{"success":true,"data":{"authenticated":…,
-        // "linked_jid":…,"phone":…},"error":null}` (#98).
-        account: {
-          kind: "json",
-          paths: [
-            ["data", "phone"],
-            ["data", "linked_jid"],
-          ],
-          flag: ["data", "authenticated"],
-        },
-      },
       installation: installation(
         "Cílový stav: `wacli` ve standardní cestě `~/.local/bin/wacli`, z oficiálního zdroje https://github.com/openclaw/wacli (Homebrew tap `openclaw/tap/wacli` nebo předpřipravený archiv z GitHub Releases; link nebo wrapper v `~/.local/bin`). Operátor spáruje CLI příkazem `wacli auth`: QR kód z terminálu naskenuje ve WhatsAppu na obrazovce Propojená zařízení; párování dělá jen on, svým telefonem. Relace je uložená v úložišti nástroje (Linux `~/.local/state/wacli`, jinde `~/.wacli`) a nikam se nekopíruje. Důkaz: `wacli --version` odpoví a `wacli auth status --json` hlásí přihlášený účet.",
         "Target state: `wacli` in the standard path `~/.local/bin/wacli`, from the official source https://github.com/openclaw/wacli (the Homebrew tap `openclaw/tap/wacli` or a prebuilt archive from GitHub Releases; a link or wrapper in `~/.local/bin`). The Operator pairs the CLI with `wacli auth`: they scan the terminal QR code in WhatsApp on the Linked devices screen; only they pair, with their own phone. The session lives in the tool's store (Linux `~/.local/state/wacli`, elsewhere `~/.wacli`) and is copied nowhere. Proof: `wacli --version` answers and `wacli auth status --json` reports the signed-in account.",
@@ -406,6 +428,14 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     versionArgs: ["--version"],
     source: "https://github.com/openclaw/gogcli",
     updater: { kind: "none" },
+    signInProbe: {
+      argv: ["auth", "list", "--check", "--json", "--no-input"],
+      account: {
+        kind: "json",
+        paths: [["email"], ["account"]],
+        list: [[], ["accounts"]],
+      },
+    },
     activation: {
       tier: "optional",
       setup: "agent",
@@ -413,14 +443,6 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
       // (root decision 0162 addendum 2026-10-09 point 5): a work
       // Environment does not offer gogcli; a personal one does.
       offered: "personal",
-      signInProbe: {
-        argv: ["auth", "list", "--check", "--json", "--no-input"],
-        account: {
-          kind: "json",
-          paths: [["email"], ["account"]],
-          list: [[], ["accounts"]],
-        },
-      },
       installation: installation(
         "Cílový stav: `gog` ve standardní cestě `~/.local/bin/gog`, z oficiálního zdroje https://github.com/openclaw/gogcli (Homebrew tap `openclaw/tap/gogcli` nebo binárka z vydání projektu; link nebo wrapper v `~/.local/bin`). Řekni Operátorovi předem a poctivě, co přihlášení obnáší: potřebuje vlastního OAuth klienta typu Desktop ve svém Google Cloud projektu, jehož staženým souborem se nástroj nastaví (`gog auth credentials set <soubor>`), a souhlas v prohlížeči, po kterém vloží zpět URL přesměrování (`gog auth add <email> --remote --step 1` a potom `--step 2`, nebo `--manual`). Soubor klienta i URL přesměrování s kódem jsou tajemství: předej je jen příkazu a nikde je neopakuj. Na headless Linuxu bez systémové klíčenky potřebuje souborový backend klíčenky heslo; to je tajemství držené v custody Operátora, nikdy ve skriptu, Gitu ani chatu; přesné nastavení backendu vezmi z dokumentace gogcli. Důkaz: `gog --version` odpoví a `gog auth list --check --json --no-input` skončí kódem 0 a jmenuje zamýšlený účet.",
         "Target state: `gog` in the standard path `~/.local/bin/gog`, from the official source https://github.com/openclaw/gogcli (the Homebrew tap `openclaw/tap/gogcli` or a binary of the project's releases; a link or wrapper in `~/.local/bin`). Tell the Operator up front and honestly what the sign-in takes: their own Desktop OAuth client in their Google Cloud project, whose downloaded file configures the tool (`gog auth credentials set <file>`), and a browser consent after which they paste the redirect URL back (`gog auth add <email> --remote --step 1` and then `--step 2`, or `--manual`). The client file and the redirect URL with its code are secrets: pass them only to the command and repeat them nowhere. On a headless Linux without a system keyring the file keyring backend needs a password; it is a secret held in the Operator's custody, never in a script, Git or chat; take the exact backend settings from the gogcli documentation. Proof: `gog --version` answers and `gog auth list --check --json --no-input` exits 0 and names the intended account.",
@@ -445,13 +467,13 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     versionArgs: ["--version"],
     source: "https://neon.com/docs/reference/neon-cli",
     updater: { kind: "none" },
+    signInProbe: {
+      argv: ["me", "-o", "json"],
+      account: { kind: "json", paths: [["email"], ["login"]] },
+    },
     activation: {
       tier: "optional",
       setup: "agent",
-      signInProbe: {
-        argv: ["me", "-o", "json"],
-        account: { kind: "json", paths: [["email"], ["login"]] },
-      },
       installation: installation(
         "Cílový stav: `neon` (alias `neonctl`) ve standardní cestě `~/.local/bin/neon`, z oficiálního zdroje https://neon.com/docs/reference/cli-install: binárka z vydání `neondatabase/neon-pkgs`, Homebrew formule `neonctl`, nebo npm balíček nad Node.js Operátora. Jméno npm balíčku a požadovanou verzi Node.js ověř na té stránce před instalací: dokumentace a README repozitáře `neondatabase/neonctl` je v době zápisu uvádějí různě a Lazurio je neověřilo. Operátor se přihlásí příkazem `neon login` (starší jméno `neon auth`), který otevírá okno prohlížeče k autorizaci; zda to jde dokončit na Environmentu bez prohlížeče, ověřeno není. Druhá dokumentovaná cesta je API klíč Neonu v proměnné `NEON_API_KEY`: je to tajemství v custody Operátora a nikdy se nepředává v argumentu příkazu, který skončí v historii nebo logu. Kam nástroj přihlášení ukládá, zjisti z `--config-dir` v dokumentaci; ten soubor nekopíruj. Důkaz: `neon --version` odpoví a `neon me -o json` skončí kódem 0 a jmenuje zamýšlený účet.",
         "Target state: `neon` (alias `neonctl`) in the standard path `~/.local/bin/neon`, from the official source https://neon.com/docs/reference/cli-install: a binary of the `neondatabase/neon-pkgs` releases, the Homebrew formula `neonctl`, or the npm package on the Operator's Node.js. Verify the npm package name and the required Node.js version on that page before installing: the documentation and the README of the `neondatabase/neonctl` repository state them differently at the time of writing and Lazurio has not verified them. The Operator signs in with `neon login` (older name `neon auth`), which opens a browser window for authorization; whether it can be completed in an Environment without a browser is not verified. The other documented way is a Neon API key in the `NEON_API_KEY` variable: it is a secret in the Operator's custody and is never passed in a command argument that ends in history or a log. Find where the tool stores the sign-in from `--config-dir` in the documentation; do not copy that file. Proof: `neon --version` answers and `neon me -o json` exits 0 and names the intended account.",

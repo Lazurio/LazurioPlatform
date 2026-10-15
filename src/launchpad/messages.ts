@@ -336,6 +336,8 @@ const en = {
     "The tool could not be started. Try again; if it does not start, finish it with an agent.",
   toolsLoginFailureNoChallenge:
     "The tool showed no link, code or QR code within a minute, so its sign-in was stopped. Check that this Environment reaches the internet and try again; if it happens again, finish it with an agent.",
+  toolsLoginFailureBrowser:
+    "The Environment browser did not open the sign-in page, so the sign-in was stopped. Try again in a moment.",
   toolsLoginNoAnswer:
     "The Launchpad did not answer in time. Try again; if it does not answer again, reload the page.",
   toolsLoginExpired:
@@ -1835,6 +1837,8 @@ const cs: Record<MessageKey, string> = {
     "Nástroj se nepodařilo spustit. Zkuste to znovu; když se nespustí, dokončete to s agentem.",
   toolsLoginFailureNoChallenge:
     "Nástroj do minuty neukázal odkaz, kód ani QR kód, a proto se jeho přihlášení zastavilo. Ověřte, že se tenhle Environment dostane na internet, a zkuste to znovu; když se to zopakuje, dokončete to s agentem.",
+  toolsLoginFailureBrowser:
+    "Prohlížeč Prostředí přihlašovací stránku neotevřel, a proto se přihlášení zastavilo. Zkuste to prosím za chvíli znovu.",
   toolsLoginNoAnswer:
     "Launchpad včas neodpověděl. Zkuste to znovu; když zase neodpoví, obnovte stránku.",
   toolsLoginExpired:

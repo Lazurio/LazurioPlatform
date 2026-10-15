@@ -1,9 +1,24 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { type ActivatableTool, activatableTools } from "./catalog";
+import { userInfo } from "node:os";
+import type { Writable } from "node:stream";
+import type { AiServices } from "./ai-services";
+import { activatableTools, findTool, type ToolEntry } from "./catalog";
+import { challengeUrl } from "./challenge-url";
 import { ghStatus } from "./gh-status";
 import { ensureGitIdentity, type GitIdentity } from "./git-identity";
 import { plainText } from "./redact";
+import {
+  type AiSignInTool,
+  aiSignInTools,
+  createPageCapture,
+  isAiSignInTool,
+  loopbackAddress,
+  type PageCapture,
+  returnsToCli,
+  signInCode,
+  signInPageOf,
+} from "./sign-in-page";
 import {
   ghAccount,
   hasKeyScope,
@@ -25,16 +40,17 @@ import {
   type ToolSignIn,
 } from "./status";
 
-/** The curated sign-in of a `setup: "launchpad"` catalog tool (decision F19).
- * One session per tool at a time, in memory, owned by the process that
- * started it (a `lazurio tools login` command or the Launchpad server). The
- * tool's own sign-in command runs as the current user with a minimal
- * environment; its output is parsed as it arrives and yields a challenge: a
- * URL to open (composio), a device code and its page (gh), a QR payload or a
- * pairing code (wacli). A challenge is sensitive while it is valid: it is
- * returned only to the holder of the session handle and never written to a
- * log, a file, the Folder or an error. The raw output of a tool never leaves
- * this module. */
+/** The curated sign-in of a `setup: "launchpad"` catalog tool (decision F19),
+ * and of the AI CLIs codex and claude (F19's addendum of 2026-10-15). One
+ * session per tool at a time, in memory, owned by the process that started
+ * it (a `lazurio tools login` command or the Launchpad server). The tool's
+ * own sign-in command runs as the current user with a minimal environment;
+ * its output is parsed as it arrives and yields a challenge: a URL to open
+ * (composio), a device code and its page (gh), a QR payload or a pairing code
+ * (wacli), the CLI's own sign-in page (codex, claude). A challenge is
+ * sensitive while it is valid: it is returned only to the holder of the
+ * session handle and never written to a log, a file, the Folder or an error.
+ * The raw output of a tool never leaves this module. */
 export type LoginChallenge =
   | Readonly<{ kind: "url"; url: string }>
   | Readonly<{ kind: "device-code"; url: string; code: string }>
@@ -44,7 +60,14 @@ export type LoginChallenge =
       phone: string;
       code: string;
       sequence: number;
-    }>;
+    }>
+  /** codex and claude: the CLI's sign-in page. `view`: where the
+   * Environment browser shows it (a Remote Environment); `url`: the page
+   * itself, which the CLI opened in the computer's own browser already (a
+   * workstation), for a person whose browser did not open. `code`: the page
+   * ends on a code the CLI waits for (Claude Code's code page), which the
+   * holder hands over with `code`. */
+  | Readonly<{ kind: "page"; view?: string; url?: string; code: boolean }>;
 
 export type LoginState =
   | Readonly<{ kind: "none"; tool: string }>
@@ -54,8 +77,10 @@ export type LoginState =
       /** The handle of the session: poll and cancel name it. */
       session: string;
       challenge?: LoginChallenge;
-      /** gh only: signed in, the SSH key of this Machine is being linked. */
-      step?: "ssh-key";
+      /** gh only: signed in, the SSH key of this Machine is being linked.
+       * codex and claude: signed in, the running services are asked to read
+       * the new sign-in. */
+      step?: "ssh-key" | "services";
       /** ISO time after which the session ends as `expired`. */
       expiresAt: string;
     }>
@@ -74,8 +99,20 @@ export type LoginState =
       /** The tool was signed in before this session: it connected without
        * showing a challenge, and its probe confirmed it (#98). */
       already?: true;
+      /** codex and claude: what became of the running services that read
+       * the sign-in (root decision 0201 point 4). */
+      services?: AiServices;
     }>
   | Readonly<{ kind: "failed"; tool: string; reason: LoginFailure }>
+  /** codex and claude, refused before anything ran: a Remote Environment
+   * without its Environment browser, where the page could not return to the
+   * CLI; or an Organization that provides the AI here (Codex's provider
+   * needs no sign-in, root decision 0201 points 4 and 6). */
+  | Readonly<{
+      kind: "blocked";
+      tool: string;
+      reason: "no-environment-browser" | "organization-provided";
+    }>
   /** gh on a Team Environment (Matěj 2026-09-28): the Environment became
    * a Team one while the session ran, so it stopped before the next step
    * that changes the account or the Machine. */
@@ -102,7 +139,10 @@ export type LoginFailure =
   | "environment-unreadable"
   /** The tool ran but showed no challenge (link, code, QR or pairing code)
    * within the bound, so the session stopped and its process was killed. */
-  | "no-challenge";
+  | "no-challenge"
+  /** codex and claude: the Environment browser did not open the sign-in
+   * page, so the CLI was stopped. */
+  | "browser-unavailable";
 
 /** One line of the owner's journal about a curated sign-in: the tool and the
  * outcome, never the tool's output, a challenge or an account. */
@@ -160,15 +200,53 @@ export type ComposioSelectResult =
         | "unreadable";
     }>;
 
+/** Where the sign-in page of codex and claude opens (F19's addendum of
+ * 2026-10-15). */
+export type SignInPage =
+  /** The computer's own browser, which the CLI opens itself (a workstation):
+   * nothing is set for it. */
+  | Readonly<{ kind: "own" }>
+  /** A Remote Environment without its Environment browser: the page could
+   * not return to the CLI there, so the sign-in does not start. */
+  | Readonly<{ kind: "none" }>
+  /** The Environment browser: the page the CLI would open is taken from it
+   * and `open` opens it there, answering the address where the person sees
+   * it, or null when it could not open it now. */
+  | Readonly<{
+      kind: "environment";
+      open: (url: string) => Promise<Readonly<{ view: string }> | null>;
+    }>;
+
 export type LoginEnvironment = Readonly<{
   path: string | undefined;
   home: string | undefined;
   xdg?: Readonly<Record<string, string>> | undefined;
   platform: string;
   run: ToolRunner;
+  /** codex and claude: where the sign-in page opens. Absent: the
+   * computer's own browser. */
+  signInPage?: SignInPage;
+  /** codex and claude, asked before a sign-in starts: whether the
+   * Organization provides this AI here, so the CLI is not signed in (root
+   * decision 0201 points 4 and 6; Codex's `account/read` says it). Absent:
+   * not asked. */
+  organizationProvides?: (tool: AiSignInTool) => Promise<boolean>;
+  /** codex and claude, after the CLI's status confirmed the sign-in: what
+   * makes the running services read it again (root decision 0201 point 4),
+   * given every AI CLI signed in now. Absent: nothing is asked. */
+  reload?: (
+    tool: AiSignInTool,
+    signedIn: readonly AiSignInTool[],
+  ) => Promise<AiServices>;
   /** Test seams. */
   now?: () => number;
-  lifetimes?: Partial<Record<"gh" | "composio" | "wacli", number>>;
+  lifetimes?: Partial<
+    Record<"gh" | "composio" | "wacli" | AiSignInTool, number>
+  >;
+  /** codex and claude on a Remote Environment: how long the sign-in waits
+   * for the CLI to hand over the page it opens, once it printed one that
+   * does not return to it, before it opens the printed one (default 3 s). */
+  pageGraceMs?: number;
   /** How long `start` waits for the first challenge. */
   firstChallengeMs?: number;
   /** How long a sign-in may run without showing its first challenge before
@@ -196,10 +274,14 @@ export type LoginEnvironment = Readonly<{
 
 // The lifetimes of the documented flows: a GitHub device code is valid for
 // 15 minutes, a pending Composio login for 10, and WhatsApp pairing gets 5.
+// The AI CLIs wait on localhost for as long as they run; their sign-in gets
+// 10 minutes, as long as the Environment browser keeps a tab nobody views.
 const defaultLifetimes = {
   gh: 15 * 60_000,
   composio: 10 * 60_000,
   wacli: 5 * 60_000,
+  codex: 10 * 60_000,
+  claude: 10 * 60_000,
 };
 // A tool that shows nothing to act on for a minute is not starting its
 // sign-in: gh prints its code and composio its link at once, and wacli's
@@ -211,14 +293,20 @@ const defaultConnectedMs = 20_000;
 const probeTimeoutMs = 10_000;
 // Linking the SSH key after the sign-in: every step is bounded by 30 s.
 const sshLinkMs = 5 * 60_000;
+// The services after an AI sign-in: a unit restart and T3 Code's refresh,
+// whose own bound is a minute.
+const servicesMs = 3 * 60_000;
+const defaultPageGraceMs = 3_000;
 const maxCollected = 1024 * 1024;
 const maxLine = 16 * 1024;
 const maxPendingOutput = 4 * 1024 * 1024;
 
 const ghDevicePage = "https://github.com/login/device";
 
-/** The tools with a curated sign-in: the `launchpad` ones. */
-export function loginTool(name: string): ActivatableTool | undefined {
+/** The tools with a curated sign-in: the `launchpad` ones, and the AI CLIs
+ * (F19's addendum of 2026-10-15), which are no agent tools of the Folder. */
+export function loginTool(name: string): ToolEntry | undefined {
+  if (isAiSignInTool(name)) return findTool(name);
   const entry = activatableTools().find((tool) => tool.name === name);
   return entry?.activation.setup === "launchpad" &&
     ["gh", "composio", "wacli"].includes(name)
@@ -236,20 +324,7 @@ export function normalizePhone(input: string): string | undefined {
 }
 
 // Only an https URL on exactly the expected host becomes a challenge.
-export function challengeUrl(
-  candidate: string,
-  hosts: readonly string[],
-): string | undefined {
-  try {
-    const url = new URL(candidate);
-    if (url.protocol !== "https:" || url.username || url.password)
-      return undefined;
-    if (url.port !== "" || !hosts.includes(url.hostname)) return undefined;
-    return url.href;
-  } catch {
-    return undefined;
-  }
-}
+export { challengeUrl };
 
 type Streamed = Readonly<{
   child: ChildProcess;
@@ -258,16 +333,18 @@ type Streamed = Readonly<{
 }>;
 
 // One tool process in its own process group, so a cancel, an expiry or a
-// shutdown kills its helpers too.
+// shutdown kills its helpers too. Its input is a pipe only where the sign-in
+// hands it something (claude's code); otherwise it reads nothing.
 function spawnGroup(
   command: readonly string[],
   env: Readonly<Record<string, string>>,
+  input = false,
 ): Streamed {
   const [executable, ...args] = command;
   if (!executable) throw new Error("A command is required");
   const child = spawn(executable, args, {
     env: { ...env },
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: [input ? "pipe" : "ignore", "pipe", "pipe"],
     detached: process.platform !== "win32",
     windowsHide: true,
   });
@@ -285,6 +362,8 @@ function spawnGroup(
     child.once("error", () => resolve(-1));
     child.once("close", (code, signal) => resolve(code ?? (signal ? -1 : 0)));
   });
+  // A process that ends without reading its input closes the pipe.
+  child.stdin?.on("error", () => undefined);
   return { child, exited, kill };
 }
 
@@ -293,8 +372,9 @@ function spawnLines(
   command: readonly string[],
   env: Readonly<Record<string, string>>,
   onLine: (line: string) => void,
+  input = false,
 ): Streamed {
-  const streamed = spawnGroup(command, env);
+  const streamed = spawnGroup(command, env, input);
   for (const stream of [streamed.child.stdout, streamed.child.stderr]) {
     let buffer = "";
     stream?.setEncoding("utf8");
@@ -366,7 +446,12 @@ type Session = {
   challenged: boolean;
   /** wacli reported `connected`: the probe decides from here, bounded. */
   connected?: boolean;
-  step?: "ssh-key";
+  step?: "ssh-key" | "services";
+  /** claude: the CLI's input, where a code from its code page goes. */
+  input?: Writable;
+  /** codex and claude on a Remote Environment: the stand-in for a browser
+   * that hands the CLI's page to this session. */
+  capture?: PageCapture;
   processes: Set<Streamed>;
   timers: Set<ReturnType<typeof setTimeout>>;
   finished?: Terminal;
@@ -384,28 +469,35 @@ export function createLoginSessions(environment: LoginEnvironment) {
   const finished = new Map<string, Session>();
   // wacli's bootstrap sync after pairing, left to its own idle exit.
   const background = new Set<Streamed>();
+  // The removal of an AI sign-in's private directory, until it is done.
+  const cleanups = new Set<Promise<void>>();
   let closed = false;
 
-  const processEnv = (): Record<string, string> => {
+  // The AI CLIs also get the account's name: Claude Code finds its sign-in
+  // in the macOS keychain by it (without it, it answers signed out).
+  const processEnv = (tool?: string): Record<string, string> => {
     const env: Record<string, string> = { NO_COLOR: "1" };
     if (environment.path) env.PATH = environment.path;
     if (environment.home) env.HOME = environment.home;
     for (const [name, value] of Object.entries(environment.xdg ?? {}))
       if (/^XDG_[A-Z_]+$/.test(name) && value) env[name] = value;
+    if (tool !== undefined && isAiSignInTool(tool))
+      try {
+        const { username } = userInfo();
+        env.USER = username;
+        env.LOGNAME = username;
+      } catch {}
     return env;
   };
-  const probeEnv = (): Record<string, string> => {
-    const { NO_COLOR: _, ...env } = processEnv();
+  const probeEnv = (tool?: string): Record<string, string> => {
+    const { NO_COLOR: _, ...env } = processEnv(tool);
     return env;
   };
-  const locate = (entry: ActivatableTool) =>
+  const locate = (entry: ToolEntry) =>
     resolveOnPath(entry.command, environment.path, environment.platform);
 
-  async function probe(
-    entry: ActivatableTool,
-    path: string,
-  ): Promise<ToolSignIn> {
-    const signInProbe = entry.activation.signInProbe;
+  async function probe(entry: ToolEntry, path: string): Promise<ToolSignIn> {
+    const signInProbe = entry.signInProbe;
     if (signInProbe === undefined) return { state: "unknown" };
     // gh: the JSON status first (gh-status.ts), with the kind of identity.
     if (entry.name === "gh")
@@ -423,7 +515,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
         await environment.run(
           [path, ...signInProbe.argv],
           probeTimeoutMs,
-          probeEnv(),
+          probeEnv(entry.name),
         ),
       );
     } catch {
@@ -467,6 +559,14 @@ export function createLoginSessions(environment: LoginEnvironment) {
     for (const running of session.processes)
       if (running !== keep) running.kill();
     session.processes.clear();
+    session.input?.destroy();
+    delete session.input;
+    if (session.capture !== undefined) {
+      const removed = session.capture.close().catch(() => undefined);
+      cleanups.add(removed);
+      void removed.then(() => cleanups.delete(removed));
+      delete session.capture;
+    }
     if (sessions.get(session.tool) === session) sessions.delete(session.tool);
     if (outcome.kind !== "cancelled") finished.set(session.tool, session);
     ended(session.tool, outcome);
@@ -530,7 +630,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
   // "gone" when the session ended meanwhile for another reason.
   async function confirm(
     session: Session,
-    entry: ActivatableTool,
+    entry: ToolEntry,
     path: string,
     keep?: Streamed,
   ): Promise<"signed-in" | "not-yet" | "gone"> {
@@ -701,11 +801,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
     });
   }
 
-  async function startGh(
-    session: Session,
-    entry: ActivatableTool,
-    path: string,
-  ) {
+  async function startGh(session: Session, entry: ToolEntry, path: string) {
     // The documented device flow with the key scope in the same code, so the
     // operator enters one code and gh may register the Machine's key.
     const exitCode = await ghDeviceFlow(session, [
@@ -767,7 +863,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
 
   async function startComposio(
     session: Session,
-    entry: ActivatableTool,
+    entry: ToolEntry,
     path: string,
   ) {
     // Step one prints the login URL and records a pending login in the
@@ -820,7 +916,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
 
   async function startWacli(
     session: Session,
-    entry: ActivatableTool,
+    entry: ToolEntry,
     path: string,
     phone: string | undefined,
   ) {
@@ -942,6 +1038,179 @@ export function createLoginSessions(environment: LoginEnvironment) {
       fail(session, exitCode === 0 ? "not-confirmed" : "tool-exit");
   }
 
+  // The AI CLIs signed in now: `tool`, which its status just confirmed, and
+  // every other one whose own status says so. What T3 Code is asked to turn
+  // on (root decision 0201 point 3).
+  async function aiSignedIn(tool: AiSignInTool): Promise<AiSignInTool[]> {
+    const others = await Promise.all(
+      aiSignInTools
+        .filter((other) => other !== tool)
+        .map(async (other) => {
+          const entry = loginTool(other);
+          const path = entry && (await locate(entry));
+          return entry !== undefined &&
+            path !== undefined &&
+            (await probe(entry, path)).state === "signed-in"
+            ? other
+            : undefined;
+        }),
+    );
+    return aiSignInTools.filter(
+      (candidate) => candidate === tool || others.includes(candidate),
+    );
+  }
+
+  // codex and claude (F19's addendum of 2026-10-15): the CLI's own browser
+  // sign-in (`codex login`, never its device code; `claude auth login`). On
+  // a Remote Environment `BROWSER` is a private stand-in that hands the page
+  // the CLI opens to this session, which opens it in the Environment
+  // browser: the page returns to the CLI on 127.0.0.1 inside the
+  // Environment. A CLI that hands over nothing
+  // within a moment of printing a page that does not return to it (Claude
+  // Code's code page) gets the printed one opened, and its code taken over
+  // `code`. On a workstation nothing is set: the CLI opens the computer's
+  // own browser and the printed page is offered beside it. Signed in is what
+  // the CLI's own status confirms after it ended; then the running services
+  // are asked to read the sign-in.
+  async function startAi(
+    session: Session,
+    entry: ToolEntry,
+    path: string,
+    tool: AiSignInTool,
+  ) {
+    const page = environment.signInPage ?? ({ kind: "own" } as const);
+    const capture =
+      page.kind === "environment" ? await createPageCapture() : undefined;
+    if (capture !== undefined) {
+      if (!current(session)) {
+        await capture.close();
+        return;
+      }
+      session.capture = capture;
+    }
+    const env = processEnv(tool);
+    if (capture !== undefined) env.BROWSER = capture.browser;
+    const grace = environment.pageGraceMs ?? defaultPageGraceMs;
+    let printed: string | undefined;
+    let printedAt = 0;
+    let deciding = false;
+    let opening = false;
+    // The page to open in the Environment browser: the one the CLI handed
+    // over, else the printed one once it returns to the CLI or the grace is
+    // over. Each address must be an official sign-in page.
+    const decide = async () => {
+      if (
+        page.kind !== "environment" ||
+        capture === undefined ||
+        deciding ||
+        opening ||
+        !current(session)
+      )
+        return;
+      deciding = true;
+      try {
+        let chosen: string | undefined;
+        for (const candidate of await capture.pages()) {
+          const accepted = signInPageOf(tool, candidate);
+          if (accepted === undefined) {
+            if (current(session)) fail(session, "unexpected-url");
+            return;
+          }
+          chosen ??= accepted;
+        }
+        if (
+          chosen === undefined &&
+          printed !== undefined &&
+          (returnsToCli(printed) || now() - printedAt >= grace)
+        )
+          chosen = printed;
+        if (chosen === undefined || !current(session)) return;
+        opening = true;
+        const opened = await page.open(chosen).catch(() => null);
+        if (!current(session)) return;
+        if (opened === null) return fail(session, "browser-unavailable");
+        setChallenge(session, {
+          kind: "page",
+          view: opened.view,
+          code: !returnsToCli(chosen),
+        });
+      } finally {
+        deciding = false;
+      }
+    };
+    const child = spawnLines(
+      [path, ...(tool === "codex" ? ["login"] : ["auth", "login"])],
+      env,
+      counted(session, (line) => {
+        if (session.challenge !== undefined || opening) return;
+        for (const match of line.matchAll(/https?:\/\/[^\s"'<>]+/g)) {
+          const candidate = match[0].replace(/[.,;:!?)]+$/, "");
+          // The CLI's own listener for the return (Codex prints it).
+          if (loopbackAddress(candidate)) continue;
+          const accepted = signInPageOf(tool, candidate);
+          if (accepted === undefined) return fail(session, "unexpected-url");
+          if (printed === undefined) {
+            printed = accepted;
+            printedAt = now();
+          }
+        }
+        if (printed === undefined) return;
+        if (page.kind === "environment") void decide();
+        else
+          setChallenge(session, {
+            kind: "page",
+            url: printed,
+            code: !returnsToCli(printed),
+          });
+      }),
+      tool === "claude",
+    );
+    track(session, child);
+    if (child.child.stdin) session.input = child.child.stdin;
+    if (page.kind === "environment") {
+      const tick = () => {
+        if (!current(session) || session.challenge !== undefined) return;
+        void decide();
+        later(session, 100, tick);
+      };
+      later(session, 100, tick);
+    }
+    const exitCode = await child.exited;
+    if (!current(session)) return;
+    session.processes.delete(child);
+    if (exitCode !== 0) return fail(session, "tool-exit");
+    const signIn = await probe(entry, path);
+    if (!current(session)) return;
+    if (signIn.state !== "signed-in") return fail(session, "not-confirmed");
+    // Signed in: the running services read the new sign-in (root decision
+    // 0201 point 4) before the session says so.
+    delete session.challenge;
+    session.input?.destroy();
+    delete session.input;
+    session.step = "services";
+    session.expiresAt = now() + servicesMs;
+    notify(session);
+    const reload = environment.reload;
+    const services =
+      reload === undefined
+        ? undefined
+        : await reload(tool, await aiSignedIn(tool)).catch(
+            (): AiServices => ({
+              t3: { state: "failed", reason: "refused" },
+            }),
+          );
+    if (!current(session)) return;
+    finish(session, {
+      kind: "signed-in",
+      tool,
+      ...(signIn.account === undefined ? {} : { account: signIn.account }),
+      ...(signIn.organization === undefined
+        ? {}
+        : { organization: signIn.organization }),
+      ...(services === undefined ? {} : { services }),
+    });
+  }
+
   const state = (session: Session): LoginState => {
     if (session.finished !== undefined) return session.finished;
     return {
@@ -988,6 +1257,22 @@ export function createLoginSessions(environment: LoginEnvironment) {
         options.phone === undefined ? undefined : normalizePhone(options.phone);
       if (options.phone !== undefined && phone === undefined)
         return refused("invalid-phone");
+      // codex and claude: refused before anything runs where the page could
+      // not return to the CLI, or the Organization provides the AI.
+      if (isAiSignInTool(name)) {
+        const blocked = (
+          reason: "no-environment-browser" | "organization-provided",
+        ): LoginState => {
+          const outcome = { kind: "blocked", tool: name, reason } as const;
+          ended(name, outcome);
+          return outcome;
+        };
+        if (environment.signInPage?.kind === "none")
+          return blocked("no-environment-browser");
+        const provides = environment.organizationProvides;
+        if (provides !== undefined && (await provides(name).catch(() => false)))
+          return blocked("organization-provided");
+      }
       cancelRunning(name);
       const path = await locate(entry);
       if (path === undefined) return refused("not-installed");
@@ -1028,8 +1313,9 @@ export function createLoginSessions(environment: LoginEnvironment) {
               session.connected === true ? "not-confirmed" : "no-challenge",
             );
         });
-      const flow =
-        name === "gh"
+      const flow = isAiSignInTool(name)
+        ? startAi(session, entry, path, name)
+        : name === "gh"
           ? options.sshKey === true
             ? startGhLink(session, path)
             : startGh(session, entry, path)
@@ -1085,6 +1371,31 @@ export function createLoginSessions(environment: LoginEnvironment) {
       });
     },
 
+    /** claude's code page (F19's addendum of 2026-10-15): the code the page
+     * showed, handed to the waiting CLI as one line of its input, only while
+     * the session's page is one that ends on a code. Never stored, logged or
+     * answered. */
+    code(
+      name: string,
+      handle: string,
+      input: unknown,
+    ): "accepted" | "invalid-code" | "not-waiting" {
+      const running = sessions.get(name);
+      if (
+        running?.id !== handle ||
+        !current(running) ||
+        running.challenge?.kind !== "page" ||
+        !running.challenge.code ||
+        running.input === undefined ||
+        running.input.destroyed
+      )
+        return "not-waiting";
+      const code = signInCode(input);
+      if (code === undefined) return "invalid-code";
+      running.input.write(`${code}\n`);
+      return "accepted";
+    },
+
     cancel(name: string, handle: string): LoginState {
       const running = sessions.get(name);
       if (running?.id !== handle) {
@@ -1106,7 +1417,8 @@ export function createLoginSessions(environment: LoginEnvironment) {
     /** Runs the tool's own logout command and checks the result with its probe. */
     async logout(name: string): Promise<LogoutResult> {
       const entry = loginTool(name);
-      if (entry === undefined) throw new Error("Not a curated catalog tool");
+      if (entry === undefined || isAiSignInTool(name))
+        throw new Error("Not a curated catalog tool");
       cancelRunning(name);
       const path = await locate(entry);
       if (path === undefined)
@@ -1249,12 +1561,13 @@ export function createLoginSessions(environment: LoginEnvironment) {
     /** Resolves when no process of this owner runs any more: the CLI waits
      * for wacli's bootstrap sync before it exits. */
     async settled(): Promise<void> {
-      await Promise.all(
-        [
+      await Promise.all([
+        ...[
           ...background,
           ...[...sessions.values()].flatMap((s) => [...s.processes]),
         ].map((child) => child.exited),
-      );
+        ...cleanups,
+      ]);
     },
 
     /** Drops every session and kills every process: the owner is ending. */
@@ -1265,7 +1578,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
       finished.clear();
       const running = [...background];
       for (const child of running) child.kill();
-      await Promise.all(running.map((child) => child.exited));
+      await Promise.all([...running.map((child) => child.exited), ...cleanups]);
     },
   };
 }

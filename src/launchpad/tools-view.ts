@@ -971,6 +971,7 @@ const loginFailures = [
   "not-signed-in",
   "environment-unreadable",
   "no-challenge",
+  "browser-unavailable",
 ] as const;
 
 function parseKeyFacts(input: unknown): SshKeyFacts | null {
@@ -1499,6 +1500,7 @@ export function loginEndMessage(
       "not-signed-in": "toolsLoginFailureNotSignedIn",
       "environment-unreadable": "toolsLoginFailureEnvironment",
       "no-challenge": "toolsLoginFailureNoChallenge",
+      "browser-unavailable": "toolsLoginFailureBrowser",
     };
     return {
       message: copy[reasons[state.reason]],
