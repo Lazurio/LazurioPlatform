@@ -4,6 +4,7 @@ import type { ManualPath } from "./outputs";
 import { type PresetName, presetVersion, workspacePreset } from "./presets";
 import type { FolderProfile } from "./profile";
 import {
+  accountProtection,
   agentTools,
   assignmentLine,
   type InstructionSource,
@@ -1303,6 +1304,8 @@ function microsoft365Guidance(preset: PresetName): readonly Text[] {
 // Executor, no own integrations, a write is a Publication.
 const connectedApplications = (preset: PresetName): readonly Text[] => [
   t("## Integrace", "## Integrations"),
+  ...accountProtection,
+  blank,
   t(
     "Integrace je aplikace nebo služba připojená k tomuhle Environmentu. Každá má právě jednu cestu: nástrojem z Nastavení → Nástroje (`gh` pro GitHub, `wacli` pro WhatsApp, `gogcli` pro Google na osobním Environmentu, `neon` pro Neon), přímo přes Executor tohohle Environmentu, nebo přes Composio s vlastním Composio účtem člověka (decision 0162). Lidé je připojují, vidí a odpojují v Launchpadu v Apps → Integrace; ty zjistíš totéž příkazem `lazurio integrations list --json`: u každé aplikace cestu, stav účtů a odkaz na její kartu.",
     "An Integration is an app or service connected to this Environment. Each has exactly one path: by its tool from Settings → Tools (`gh` for GitHub, `wacli` for WhatsApp, `gogcli` for Google on a personal Environment, `neon` for Neon), directly through this Environment's Executor, or through Composio with the person's own Composio account (decision 0162). People connect, see and disconnect them in the Launchpad under Apps → Integrations; you learn the same with `lazurio integrations list --json`: for each app its path, the state of its accounts and the link to its card.",

@@ -392,3 +392,44 @@ test("only the Team's shared Environment asks for a team account before connecti
         ]);
     }
 });
+
+// These are the delivered instruction documents, across personal, Organization,
+// Team and automated presets. Approval of content never bypasses provider rules.
+test("account protection reaches every journey in both instruction documents and locales", () => {
+  for (const journey of journeys) {
+    for (const locale of ["cs", "en"] as const) {
+      const source = {
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      };
+      const documents = [
+        renderInstructions(source),
+        renderManual(source)["manual/working-here.md"] as string,
+      ];
+      for (const text of documents) {
+        expect(text).toContain(
+          "https://help.x.com/en/rules-and-policies/x-automation",
+        );
+        expect(text).toContain(
+          locale === "cs"
+            ? "nejsou povolením platformy"
+            : "are not platform permission",
+        );
+        expect(text).toContain(
+          locale === "cs"
+            ? "koncepty pro ruční provedení"
+            : "drafts for the person to execute manually",
+        );
+        expect(text).toContain(
+          locale === "cs" ? "dotčené akce zastav" : "stop the affected actions",
+        );
+        expect(text).toContain(
+          locale === "cs"
+            ? "není důkaz blokace účtu"
+            : "is not proof of an account ban",
+        );
+      }
+    }
+  }
+});
