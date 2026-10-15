@@ -1086,8 +1086,9 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <nav class="integrations-tabs" id="integrations-tabs" aria-labelledby="integrations-tabs-label"><span class="sr-only" id="integrations-tabs-label" data-message="integrationsTabsLabel">Show</span><a class="integrations-tab" href="/integrations" data-tab="all" data-route>All</a><a class="integrations-tab" href="/integrations/connected" data-tab="connected" data-route>Connected</a><a class="integrations-tab" href="/integrations/custom" data-tab="custom" data-route>Custom</a></nav>
 <div class="integrations-tools"><label class="integrations-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only" data-message="integrationsSearch">Search apps</span><input type="search" id="integrations-search" autocomplete="off" spellcheck="false"></label><button type="button" class="ghost integrations-refresh" id="integrations-refresh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span class="sr-only" data-message="integrationsRefresh">Check connections</span></button></div>
 </div>
-<div id="integrations-notices" class="integrations-notices" hidden><div id="integrations-alert" class="callout callout-row" role="status" aria-live="polite" hidden></div><div id="integrations-problems"></div></div>
-<p id="integrations-status" class="row-status" role="status" aria-live="polite"></p>
+<p id="integrations-live" class="sr-only" role="status" aria-live="polite"></p>
+<div id="integrations-notices" class="integrations-notices" hidden><div id="integrations-alert" class="callout callout-row" hidden></div><div id="integrations-problems"></div></div>
+<p id="integrations-status" class="row-status"></p>
 <div id="integrations-body" class="stack"></div>
 <div id="integrations-form" class="mcp-page" hidden></div>
 </main>

@@ -768,6 +768,32 @@ export function noticeIcon(tone: NoticeTone): string {
       : "i-warning";
 }
 
+/** What the page's one live region says (`#integrations-live`, always
+ * mounted and never hidden, so a screen reader hears a change wherever the
+ * notices are drawn): a reading that failed, first or again; else the line
+ * about the last action; else that a reading runs (the first, or again after
+ * Zkusit znovu or Zkontrolovat připojení); else nothing. A failure is said
+ * only once the reading ended, so a retry is heard as a reading again and
+ * its failure as a failure again. */
+export function liveAnnouncement(
+  state: Readonly<{
+    /** A reading was shown before (the page reads again). */
+    read: boolean;
+    loading: boolean;
+    /** The last reading failed (and the page shows the apps, not a custom
+     * server's form, which says its own status). */
+    failed: boolean;
+    note: Note | null;
+  }>,
+  copy: Copy,
+): string {
+  if (state.failed && !state.loading) return copy.integrationsLoadFailed;
+  if (state.note !== null) return state.note.text;
+  if (state.loading)
+    return state.read ? copy.integrationsChecking : copy.integrationsLoading;
+  return "";
+}
+
 /** Why a connect did not start, from the route's `reason`: the line it
  * says, in its tone. `composio-signed-out` also opens Composio's sign-in
  * (the panel's part). */

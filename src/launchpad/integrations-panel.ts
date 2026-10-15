@@ -47,6 +47,7 @@ import {
   disconnectFailure,
   disconnectText,
   integrationsHelp,
+  liveAnnouncement,
   monogram,
   type Note,
   type NoticeTone,
@@ -153,6 +154,7 @@ export function createIntegrationsPanel(
   const alert = find<HTMLDivElement>("#integrations-alert");
   const problemsHost = find<HTMLDivElement>("#integrations-problems");
   const status = find<HTMLParagraphElement>("#integrations-status");
+  const live = find<HTMLParagraphElement>("#integrations-live");
   const body = find<HTMLDivElement>("#integrations-body");
   const formHost = find<HTMLDivElement>("#integrations-form");
   const confirm = find<HTMLDialogElement>("#integrations-confirm");
@@ -1714,6 +1716,18 @@ export function createIntegrationsPanel(
     // Every notice of the page is one callout of its tone, the page's
     // width, one under another (Matěj 2026-10-14): the line about the last
     // action first, then what the reading says.
+    // The one live region, mounted before anything changes: what it says
+    // changes only when the page has something new to say.
+    const said = liveAnnouncement(
+      {
+        read: overview !== null,
+        loading,
+        failed: failed && custom === null,
+        note,
+      },
+      copy,
+    );
+    if (live.textContent !== said) live.textContent = said;
     alert.hidden = note === null;
     alert.dataset.kind = note?.tone ?? "info";
     alert.replaceChildren(
