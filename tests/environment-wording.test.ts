@@ -183,19 +183,37 @@ const czechForbidden: readonly [string, RegExp][] = [
   ["Environment (any form)", /Environment/],
   ["Vzdálené Prostředí", /[Vv]zdálen\p{L}* [Pp]rostřed/u],
   // The kind is enough (the brand voice, "Druh Prostředí stačí"; Matěj
-  // 2026-10-14): never a suffix "jen vaše" or "sdílené Teamem". A sentence
-  // may still say in full words that a Team Prostředí is shared ("sdílené
-  // celým Teamem").
-  ["jen vaše", new RegExp(`(?<!${letter})jen va(š|s)${letter}*`, "iu")],
+  // 2026-10-14): never a label "jen vaše" or "sdílené Teamem". Stems, not
+  // listed endings, so every case of váš and tvůj is caught ("jen vaší",
+  // "jen tvou", "jen tvojí"); "jen vám" is another word and stays allowed.
+  // A sentence may still say in full words that a Team Prostředí is shared
+  // ("sdílené celým Teamem").
+  [
+    "jen vaše (any form)",
+    /(?<!\p{L})jen\s+(?:váš|vaš\p{L}*|tv\p{L}+)(?!\p{L})/iu,
+  ],
   ["sdílené Teamem", /sdílen\p{L}* Teamem/u],
+  // Prostředí is neuter. No neuter form ends in -ý, so a word in -ý before
+  // it is a masculine agreement ("Týmový Prostředí", "který Prostředí"), as
+  // are the masculine pronouns and numerals listed and a relative "který"
+  // right after it ("Prostředí, který"; write "Prostředí, které", or put the
+  // noun "který" refers to next to it). Both the term and the common word
+  // "prostředí" are checked.
+  [
+    "masculine agreement with Prostředí",
+    /(?<!\p{L})(?:ten|tento|tenhle|tenhleten|onen|jeden|náš|váš|svůj|tvůj|můj|\p{L}+ý)\s+Prostředí(?!\p{L})|Prostředí,?\s+který(?!\p{L})/iu,
+  ],
   ["Launchpad as a name", /Launchpad/],
   ["Dashboard as a name", /Dashboard/],
+  // Every form of the noun, by its stems (firm…, firem); the adjective
+  // "firemní" stays allowed, because it names a company's own tool or
+  // account (the decided "Firemní aplikace Microsoft"), not the
+  // Organization, and so does "firmware". Where "firmy" means other
+  // businesses, as records in a third-party app, the allow-list below names
+  // each sentence.
   [
     "firma for the Organization",
-    new RegExp(
-      `(?<!${letter})[Ff]irm(a|y|ě|u|ou|ám|ách|ami)?(?!${letter})`,
-      "u",
-    ),
+    /(?<!\p{L})(?:firm(?!ware)\p{L}*|firem)(?!\p{L})/iu,
   ],
   [
     "the tenhle family",
@@ -207,11 +225,25 @@ const czechForbidden: readonly [string, RegExp][] = [
 ];
 
 // Removed before the Czech scan: commands, paths and identifiers, which are
-// quoted as code (`lazurio launchpad serve`). Nothing else is allowed.
+// quoted as code (`lazurio launchpad serve`), and the sentences below, each
+// with its reason. Nothing else is allowed.
+const czechAllowed: readonly [string, string][] = [
+  // Integrace catalog: third-party apps whose records are other businesses
+  // (a CRM's companies, a professional network's company pages), not the
+  // Organization.
+  ["CRM: kontakty, firmy, obchody a marketing.", "HubSpot's records"],
+  ["CRM pro kontakty, firmy a obchody.", "Attio's records"],
+  ["Profesní síť: profily, příspěvky a firmy.", "LinkedIn's company pages"],
+];
+
 function czechFindings(where: string, text: string): string[] {
+  const allowed = czechAllowed.reduce(
+    (current, [sentence]) => current.replaceAll(sentence, ""),
+    text,
+  );
   return [
     ...findings(where, text),
-    ...text
+    ...allowed
       .replace(/`[^`\n]*`/g, "``")
       .split("\n")
       .flatMap((line) =>
@@ -284,6 +316,24 @@ test("Czech that people read says Prostředí, Lazurio, Organizace and tento (01
       ),
     ]),
   ];
+  // The Integrace catalog's Czech names and descriptions.
+  const catalog: unknown = JSON.parse(
+    await readFile(
+      join(import.meta.dir, "..", "src", "integrations", "catalog.json"),
+      "utf8",
+    ),
+  );
+  const czech = (value: unknown): string[] =>
+    Array.isArray(value)
+      ? value.flatMap(czech)
+      : typeof value === "object" && value !== null
+        ? Object.entries(value).flatMap(([key, entry]) =>
+            key === "cs" && typeof entry === "string" ? [entry] : czech(entry),
+          )
+        : [];
+  found.push(
+    ...czechFindings("integrations/catalog.json", czech(catalog).join("\n")),
+  );
   for (const path of [
     "src/browser/cli.ts",
     "src/files/cli.ts",
@@ -344,12 +394,80 @@ test("the guard catches the old wording and the allowlist hides only its entries
     "Vzdálené Prostředí",
     "Otevřít v Launchpadu",
     "Nastavit v Dashboardu",
-    "Přehled firmy",
     "Tahle záložka",
-    "Osobní · jen vaše",
     "Team Lazurio · sdílené Teamem",
   ])
     expect(czechFindings("t", old)).not.toEqual([]);
+});
+
+// Realistic regressions, one case each (the Dashboard twin's review found
+// gaps of this kind): every form the guard has to catch.
+test.each([
+  // firma for the Organization, in every case and number.
+  "Přehled firma",
+  "Přehled firmy",
+  "Ve firmě je to nastavené.",
+  "Vyberte firmu.",
+  "Spravováno firmou.",
+  "Seznam firem",
+  "Patří firmám.",
+  "Ve firmách",
+  "Mezi firmami",
+  "Firma Example",
+  "Firmo, přidejte se",
+  "o firmách",
+  // "jen vaše" as a label, formal and informal.
+  "Osobní · jen váš",
+  "Osobní · jen vaše",
+  "Osobní · jen vaši",
+  "Osobní · jen tvůj",
+  "Osobní · jen tvá",
+  "Osobní · jen tvoje",
+  "Osobní · jen tvé",
+  "jen tvou Organizaci",
+  "jen vaší Organizaci",
+  "jen tvojí Organizaci",
+  "jen vašimi",
+  // Masculine agreement with the neuter term.
+  "Týmový Prostředí",
+  "Automatizovaný Prostředí",
+  "Tento Prostředí",
+  "ten Prostředí",
+  "tenhle Prostředí",
+  "jeden Prostředí",
+  "který Prostředí",
+  "nový Prostředí",
+  "váš Prostředí",
+  "Prostředí, který",
+  "prostředí který",
+])("the Czech guard catches %p", (text) => {
+  expect(czechFindings("t", text)).not.toEqual([]);
+});
+
+test.each([
+  "Firemní aplikace Microsoft ještě není nastavená.",
+  "firemní účet",
+  "firemní",
+  "firmware",
+  "productionspace/firmware",
+  "jen vám",
+  "tato Prostředí",
+  "Prostředí, které",
+  "CRM: kontakty, firmy, obchody a marketing.",
+  "Týmové Prostředí",
+  "Automatizované Prostředí",
+  "Toto Prostředí",
+  "to Prostředí",
+  "jedno Prostředí",
+  "které Prostředí",
+  "nové Prostředí",
+  "vaše Prostředí",
+  "v tomto Prostředí",
+  "s jedním Prostředím",
+  "proměnné prostředí",
+  "Pracuje jen vám.",
+])("the Czech guard lets through %p", (text) => {
+  expect(czechFindings("t", text)).toEqual([]);
   expect(
     czechFindings(
       "t",

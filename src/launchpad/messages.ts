@@ -1846,7 +1846,7 @@ const cs: Record<MessageKey, string> = {
   toolsComposioOrgLabel: "Organizace v Composiu",
   toolsComposioOrgCurrent: "{name} (aktuální)",
   toolsComposioOrgHint:
-    "Aplikace, které v Composiu napojíte, patří tomuto účtu a organizaci: účtu Prostředí, který používají jeho agenti.",
+    "Aplikace, které v Composiu napojíte, patří tomuto účtu a organizaci: účtu, který používají agenti tohoto Prostředí.",
   toolsComposioOrgSaved:
     "Organizace Composia pro toto Prostředí je teď {name}.",
   toolsComposioOrgFailed:
@@ -2691,7 +2691,7 @@ const cs: Record<MessageKey, string> = {
   integrationsComposioSignIn:
     "Nejdřív se přihlaste do Composia: otevře se v Nastavení → Nástroje.",
   integrationsBrowserMissing:
-    "Přímé přihlášení potřebuje prohlížeč tohoto Prostředí, který tu teď není.",
+    "Přímé přihlášení potřebuje prohlížeč, který v tomto Prostředí teď není.",
   integrationsKeyTitle: "Klíč pro {app}",
   integrationsKeyText:
     "Klíč jde jen do Executoru tohoto Prostředí a už se nikde nezobrazí.",
