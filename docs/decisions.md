@@ -6641,6 +6641,63 @@ The boundaries stay:
 
 Template revision `base-instructions-44`.
 
+**Addendum 2026-10-15: the Environment browser is the Remote Environment's default
+browser.** Root decision 0201 point 5 (plan DEV-6665, task 2026-10-15-950,
+Lazurio/LazurioPlatform#427). On 2026-10-14 `codex login` on a Remote Environment printed
+"If your browser did not open…": the Environment had no default browser. The Organization
+Admin then opened the sign-in address in the Environment browser by hand. Codex's return to
+`localhost:1455` completed inside the Environment, and Claude's automatic return to
+`localhost` did too. Every CLI that opens a browser should land there: `codex login`, `claude
+auth login`, `gh auth login --web`, `composio login` and an agent's `xdg-open`.
+
+Decided:
+1. **`lazurio browser open <address>` is the default browser.** It takes the one address
+   `BROWSER` and `xdg-open` pass, as an argument, and opens a new tab at it through the
+   view's hub on loopback (C11), as `link --url` does. It prints the tab's link; with
+   `--json` the CLI contract's new `browser-open` answer `{session, targetId, link}`, an
+   addition within v1 (F50 point 3, vectors in `cli.json`). It opens only http and https: a
+   file, a script, another app's scheme or a bare path is refused with exit 2 and why, and
+   so is the view host of an Environment browser (F50 point 2). Exit 10 where the
+   Environment has no Environment browser: nothing opened, so the calling program shows its
+   address. Exit 1 where the hub did not open the tab. It ends without the update notice,
+   which would land in the calling program's output.
+2. **A T3 Code thread's panel shows it.** In a T3 Code thread (`AGENT_BROWSER_SESSION`
+   `t3-…`, which T3 Code sets for every process of a thread) the tab is opened for the
+   thread's strip, and the thread's session is bound to it and pinned with agent-browser's
+   own commands, under the account's window lock. T3 Code records a tab its thread's
+   session newly binds and opens the thread's panel on it (F47 point 4; the addendum of
+   2026-10-12 above). The thread's earlier window stays in its strip, whose holder file
+   keeps it, and the agent works in the new page next. A binding that fails leaves the page
+   open and says so on stderr.
+3. **Elsewhere nobody holds the tab.** A person's terminal, a Codex or Claude Code thread
+   and the Launchpad's own child processes get a tab nobody holds (root decision 0191 point
+   29): it waits 10 minutes for a viewer and ends 30 s after its last viewer leaves. It
+   shows in Přehled of every app's Nová karta and by its link. A Codex or Claude Code
+   thread's session is never moved: no panel follows it, and its agent's window, which
+   only that binding holds, would end.
+4. **Machines registers it.** On a Remote Environment whose entry has `browser` and whose
+   pinned Platform has this command, Machines makes it the Environment user's default
+   browser: `BROWSER` for the user services Lazurio starts and for login shells,
+   `xdg-open`'s handler of http and https, and `x-www-browser`/`www-browser`. T3 Code's own
+   service keeps `T3CODE_NO_BROWSER=true`, so T3 Code never opens its own address. A
+   workstation (Local Environment) is unchanged: its default browser is the computer's own
+   (root decision 0191's addendum of 2026-10-12, point 30).
+
+Not decided here:
+- How the Launchpad's Začínáme step (#422) shows the sign-in it starts in the Launchpad's
+  own panel, which shows only tabs the Launchpad holds. A CLI never calls the Launchpad
+  (as in F54 point 2).
+- A person's terminal inside a T3 Code thread does not carry the thread's session today,
+  so a page it opens waits in Přehled rather than in the thread's panel.
+- The Folder manual says nothing new until Machines registers the command on the
+  Environments; then agents learn that `xdg-open` lands in the Environment browser.
+- The Bitwarden extension of the Environment's vault in this browser (DEV-6631, root
+  decision 0198 point 9).
+
+Verified by `tests/environment-browser.test.ts` (the addresses taken and refused, the hub's
+refusals, an Environment without the browser, a T3 Code thread's binding and a failed one,
+a Codex thread left alone, the notice) and the CLI contract's vectors.
+
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
 **Decided by Matěj 2026-10-06 after the pilot (root decision 0191 points 11–18, plan
