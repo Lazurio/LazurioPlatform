@@ -172,6 +172,12 @@ a.tab:hover { color: var(--shell-ink); }
 .setup-prompt:hover { background: var(--shell-hover); }
 .setup-prompt > svg { flex: none; color: var(--shell-ink-muted); }
 .setup-prompt-text { flex: 1 1 auto; min-width: 0; }
+/* The quiet notice under the switch on a public Environment (decision F55,
+   the design system's lz-notice--quiet): the dot carries the colour, never a
+   band; the words in the column's muted ink, as small as the prompt's. */
+.public-notice { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 6px 4px 2px; color: var(--shell-ink-muted); font-size: 12px; font-weight: 450; line-height: 1.4; }
+.public-notice::before { content: ""; flex: none; width: 8px; height: 8px; margin-top: 4px; border-radius: 50%; background: var(--lz-warning); }
+.public-notice-text { flex: 1 1 auto; min-width: 0; }
 /* A dark host without colour roles (data-host-tone="dark", from
    --lazurio-host-tone or the host's background): no frame, light text, a
    translucent hover. A role the host sets wins. The marks and the list
@@ -195,6 +201,8 @@ a.tab:hover { color: var(--shell-ink); }
   .tab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .setup-prompt-text, .setup-prompt > svg:last-child { display: none; }
   .setup-prompt { justify-content: center; }
+  .public-notice { justify-content: center; }
+  .public-notice-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) { .pick > svg { transition: none; } }
 `;

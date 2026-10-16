@@ -2,11 +2,11 @@
   "source_repository": "HumanAndMachine-ai/Machines",
   "source_version": null,
   "source_tag": null,
-  "source_pull_request": "https://github.com/HumanAndMachine-ai/Machines/pull/543",
-  "source_commit": "de024c2735bb07b51ffb9bcb9e845e564bc1d2e9",
+  "source_pull_request": "https://github.com/HumanAndMachine-ai/Machines/pull/560",
+  "source_commit": "a1cee4eea554348c5a51e4a71c4fa9325dfa8bfc",
   "source_path": "workloads/workspace-vm/lazurio-machine.v1.schema.json",
-  "source_sha256": "16ddb29441af003a31615674bfff539b193cb891c4b21f49235da1afc1acd7ec",
-  "sha256": "16ddb29441af003a31615674bfff539b193cb891c4b21f49235da1afc1acd7ec",
+  "source_sha256": "f6bb3b3d53273184714ca1fd9d5b6412c9f5e1e07002a0cd5d47b1cd1ccf60c4",
+  "sha256": "f6bb3b3d53273184714ca1fd9d5b6412c9f5e1e07002a0cd5d47b1cd1ccf60c4",
   "publication_authorization": "https://github.com/HumanAndMachine-ai/Machines/pull/124#issuecomment-5688845105",
-  "pin_update": "https://github.com/HumanAndMachine-ai/Machines/pull/543"
+  "pin_update": "https://github.com/HumanAndMachine-ai/Machines/pull/560"
 }

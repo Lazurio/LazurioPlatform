@@ -18,13 +18,17 @@ import { ownerAnswerMs } from "./owner-answer";
  * endpoint, cookie name, ports) stay on the server. `mausbotOrigin` only on a
  * Machine that runs Lazurio MausBot; `browserOrigin` only where the gateway
  * routes the Environment browser's view (decision F38): the page opens the
- * view through `/.lazurio/browser.json`, never by this origin alone. */
+ * view through `/.lazurio/browser.json`, never by this origin alone.
+ * `audience` only on a public Environment (root decision 0204, decision
+ * F55): the page then runs the demo onboarding and has no Integrace and no
+ * Trezor; the server withholds them by the same recorded entry. */
 export type PublicEntry = Readonly<{
   launchpadOrigin: string;
   t3codeOrigin: string;
   moduleOriginTemplate: string;
   mausbotOrigin?: string;
   browserOrigin?: string;
+  audience?: "public";
 }>;
 
 export function publicEntry(entry: MachineEntry | null): PublicEntry | null {
@@ -39,6 +43,7 @@ export function publicEntry(entry: MachineEntry | null): PublicEntry | null {
     ...(entry.browserOrigin === undefined
       ? {}
       : { browserOrigin: entry.browserOrigin }),
+    ...(entry.audience === undefined ? {} : { audience: entry.audience }),
   });
 }
 

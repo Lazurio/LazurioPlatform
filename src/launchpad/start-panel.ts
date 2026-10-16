@@ -3,6 +3,8 @@ import type { ComposioFact } from "./first-run";
 import type { MessageKey } from "./messages";
 import {
   type AiAction,
+  type DemoRow,
+  type DemoStartView,
   type OptionalRow,
   optionalRows,
   type StartFacts,
@@ -22,7 +24,8 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // its two buttons, each with its mark (F36's addendum of 2026-10-16),
 // "Otevřít přihlášení", "Zrušit", "Zkusit znovu", "Přihlásit jiný účet" and
 // the field for the code of Claude's code page; the sign-in itself is
-// ai-sign-in.ts.
+// ai-sign-in.ts. A public Environment (decision F55) shows instead only
+// "Vyzkoušejte" (Apps, a module, Chat) and the tour.
 
 export type StartVaultRow = Readonly<{
   line: string;
@@ -34,6 +37,8 @@ export function createStartPanel(
     copy: () => Copy;
     /** What Začínáme reads, or null while the profile is not loaded. */
     facts: () => StartFacts | null;
+    /** A public Environment's Začínáme (`demoStartView`); null elsewhere. */
+    demo: () => DemoStartView | null;
     composio: () => ComposioFact;
     /** Devices with a key added here, null when not known. */
     sshDevices: () => number | null;
@@ -74,6 +79,9 @@ export function createStartPanel(
   const vaultState = find<HTMLParagraphElement>("#start-vault-state");
   const optional = find<HTMLDivElement>("#start-optional");
   const optionalGroup = find<HTMLElement>("#start-optional-group");
+  const tourGroup = find<HTMLElement>("#start-tour-group");
+  const demoGroup = find<HTMLElement>("#start-demo-group");
+  const demoRows = find<HTMLDivElement>("#start-demo");
   const tourState = find<HTMLParagraphElement>("#start-tour-state");
   const tourButton = find<HTMLButtonElement>("#start-tour");
 
@@ -338,9 +346,81 @@ export function createStartPanel(
     return node;
   }
 
+  /** One row of a public Environment's Začínáme: its title, its sentence,
+   * a state where it has one, and its button. Chat opens as the shell's own
+   * Chat entry does (the `lazurio-app` event pairs it); a route of this page
+   * moves within it. */
+  function demoNode(row: DemoRow): HTMLElement {
+    const node = element("div", "row");
+    node.dataset.demo = row.id;
+    const main = element("div", "row-main");
+    const copyBox = element("div", "row-copy");
+    copyBox.append(
+      element("p", "row-title", row.title),
+      element("p", "row-desc", row.text),
+    );
+    if (row.status !== null)
+      copyBox.append(element("p", "row-status", row.status));
+    main.append(copyBox);
+    const action = row.action;
+    if (action !== null) {
+      const control = element("div", "row-control");
+      const link = element("a", "button", action.label);
+      link.href = action.href;
+      if (action.app === undefined) link.dataset.route = "";
+      else
+        link.addEventListener("click", (event) => {
+          if (
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          )
+            return;
+          const asked = new CustomEvent("lazurio-app", {
+            detail: { app: action.app, href: action.href },
+            cancelable: true,
+          });
+          document.dispatchEvent(asked);
+          if (asked.defaultPrevented) event.preventDefault();
+        });
+      control.append(link);
+      main.append(control);
+    }
+    node.append(main);
+    return node;
+  }
+
+  /** A public Environment's Začínáme: "Vyzkoušejte" and the tour, never a
+   * sign-in. */
+  function renderDemo(view: DemoStartView, copy: Copy) {
+    notHere.hidden = true;
+    intro.hidden = false;
+    for (const group of groups) group.hidden = group !== tourGroup;
+    vaultGroup.hidden = true;
+    demoGroup.hidden = false;
+    const toured = options.toured();
+    const now = JSON.stringify(["demo", view, toured]);
+    if (now === drawn) return;
+    drawn = now;
+    intro.textContent = view.intro;
+    demoRows.replaceChildren(...view.rows.map(demoNode));
+    tourState.textContent =
+      toured === true ? copy.startToured : copy.startNotToured;
+    tourButton.textContent =
+      toured === true ? copy.startTourAgain : copy.startTourStart;
+  }
+
   function render() {
     const copy = options.copy();
     const facts = options.facts();
+    const demo = facts === null ? null : options.demo();
+    if (demo !== null) {
+      renderDemo(demo, copy);
+      return;
+    }
+    demoGroup.hidden = true;
     const view =
       facts === null
         ? null

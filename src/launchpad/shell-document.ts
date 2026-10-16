@@ -21,6 +21,7 @@ import {
   workstationId,
 } from "../shell/contract";
 import { initialsOf } from "../shell/view";
+import { isPublicEnvironment } from "./public-environment";
 
 // The Dashboard's slug lives with the contract, where the shell's merge of
 // the account reads it too (F37).
@@ -251,6 +252,9 @@ export function shellDocument(
 ): Shell {
   const { machine } = input;
   const entry = machine?.entry;
+  // A public Environment (root decision 0204, decision F55): its column head
+  // says so, and it has no first run to count.
+  const visitors = isPublicEnvironment(entry);
   const kind = presetKinds[input.preset];
   const held = shellOrganizations(input.catalog);
   // The owning Organization first.
@@ -299,7 +303,7 @@ export function shellDocument(
     schema: shellSchema,
     locale: input.locale,
     current: id,
-    ...(input.setup === undefined ? {} : { setup: input.setup }),
+    ...(input.setup === undefined || visitors ? {} : { setup: input.setup }),
     operator: {
       initials: login === null ? null : initialsOf(login).slice(0, 2) || null,
       login,
@@ -342,6 +346,7 @@ export function shellDocument(
     // MausBot's origins open it on their own origin too. Without it the
     // shell offers none.
     ...(entry?.signOutPath === undefined ? {} : { signOut: entry.signOutPath }),
+    ...(visitors ? { audience: "public" as const } : {}),
   };
   // The producer's own output passes the same parser as every consumer's.
   const parsed = parseShell(document);

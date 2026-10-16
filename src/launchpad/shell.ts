@@ -24,6 +24,10 @@ export function createShell(
     displayName?: (organization: string) => string | undefined;
     /** Called after every move, with the route now shown. */
     onRoute?: (route: PageRoute) => void;
+    /** The route shown for a route asked for: on a public Environment
+     * Integrace and Nastavení → Trezor show Apps and Settings in their place
+     * (decision F55). Absent: every route is itself. */
+    place?: (route: PageRoute) => PageRoute;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -114,6 +118,7 @@ export function createShell(
     how: Readonly<{ history: "push" | "replace"; focus: boolean }>,
   ) {
     if (pinned) next = route;
+    else if (options.place !== undefined) next = options.place(next);
     const path = routePath(next);
     const moved = routePath(route) !== path;
     if (moved)
@@ -255,6 +260,11 @@ export function createShell(
     navigate(path: string) {
       closeSheet(false);
       go(pageRoute(path), { history: "push", focus: true });
+    },
+    /** Shows the route again once what places it changed (the entry was
+     * read), replacing the address. */
+    replace() {
+      go(route, { history: "replace", focus: false });
     },
     /** Shows `next` and stays there: Recovery mode (docs/recovery.md). */
     pin(next: PageRoute) {

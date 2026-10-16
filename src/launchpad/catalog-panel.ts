@@ -1435,6 +1435,8 @@ export function createCatalogPanel(
     refresh,
     /** Whether the catalog is being read for the first time. */
     reading: () => state === "loading",
+    /** The catalog as last read; null before the first answer. */
+    current: (): Catalog | null => catalog,
     /** The display name of an Organization slug, once known. */
     displayName(slug: string): string | undefined {
       const organization =
