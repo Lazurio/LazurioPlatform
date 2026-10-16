@@ -30,7 +30,8 @@ export function guideVideoFile(
   locale: GuideVideoLocale,
   kind: "video" | "poster",
 ): string {
-  return `${name}-${locale}.${kind === "video" ? "mp4" : "webp"}`;
+  const extension = kind === "video" ? ".mp4" : ".webp";
+  return `${name}-${locale}${extension}`;
 }
 
 /** What the player shows: the button that opens it, and the browser's own
