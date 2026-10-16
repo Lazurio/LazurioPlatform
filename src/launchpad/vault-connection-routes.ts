@@ -4,24 +4,32 @@ import {
   connectionFields,
   connectPersonalBitwarden,
   disconnectPersonalBitwarden,
+  inviteeFields,
+  invitePersonalBitwarden,
 } from "../vault/connection";
 import { type VaultHost, type VaultPhase, vaultStatus } from "../vault/flow";
 import { BodyTooLarge, readJsonBody } from "./json-body";
 import type { VaultAnswer } from "./vault-routes";
 
 // A personal Environment connects its person's own Bitwarden in Settings →
-// Vault (root decision 0203 point 7, plan DEV-6631 task 775), behind the
-// admission of every `/api/*` route (locally the token and same origin,
-// behind the gateway its session and same origin for a write):
+// Vault (root decision 0203 point 7, plan DEV-6631 task 775; F53's
+// amendment of 2026-10-16, (2)), behind the admission of every `/api/*`
+// route (locally the token and same origin, behind the gateway its session
+// and same origin for a write):
 //
-//   POST /api/vault/connect     {region, clientId, clientSecret,
-//                               masterPassword, email}: exactly these keys,
-//                               JSON of at most 16 KiB; the agents' account
-//                               is checked and kept (src/vault/connection.ts)
-//                               and the one setup starts, answered as the
-//                               Tools row's setup answers: 202 {kind:
-//                               "vault-setting-up", job, phase} while it
-//                               runs, then the status
+//   POST /api/vault/connect     {clientId, clientSecret, masterPassword}:
+//                               exactly these keys, JSON of at most 16 KiB;
+//                               the agents' account is checked in the region
+//                               that accepts its API key and kept
+//                               (src/vault/connection.ts), and the one setup
+//                               starts, answered as the Tools row's setup
+//                               answers: 202 {kind: "vault-setting-up", job,
+//                               phase} while it runs, then the status
+//   POST /api/vault/invitee     {email}: the person asks to see the agents'
+//                               passwords in their own Bitwarden too; the
+//                               address is kept and invited at once, and the
+//                               answer is their membership, as
+//                               `POST /api/vault/membership` answers it
 //   POST /api/vault/disconnect  {}: the account forgotten, the organization
 //                               kept; 200 the status
 //
@@ -32,11 +40,11 @@ import type { VaultAnswer } from "./vault-routes";
 
 export const vaultConnectionPaths = Object.freeze({
   connect: "/api/vault/connect",
+  invitee: "/api/vault/invitee",
   disconnect: "/api/vault/disconnect",
 });
 
 const inputRefusals: ReadonlySet<ConnectionRefusal> = new Set([
-  "region-invalid",
   "client-id-invalid",
   "client-secret-invalid",
   "password-invalid",
@@ -91,6 +99,7 @@ export function createVaultConnectionRoutes(
   return Object.freeze({
     handles: (path: string) =>
       path === vaultConnectionPaths.connect ||
+      path === vaultConnectionPaths.invitee ||
       path === vaultConnectionPaths.disconnect,
     async handle(request: Request, url: URL): Promise<Response> {
       if (request.method !== "POST")
@@ -101,18 +110,28 @@ export function createVaultConnectionRoutes(
         const values = await body(request, connectionFields);
         if (values instanceof Response) return values;
         const connected = await connectPersonalBitwarden(input.host(), {
-          region: values.region,
           clientId: values.clientId,
           clientSecret: values.clientSecret,
           masterPassword: values.masterPassword,
-          email: values.email,
         });
         if (connected.kind !== "vault-connected")
           return blocked(connected.reason);
-        // The Environment creates its vault and invites the person now, in
-        // the one setup the Tools row and the start share.
+        // The Environment creates its vault now, in the one setup the Tools
+        // row and the start share.
         const started = await input.setup();
         return response(started.body, started.status);
+      }
+      if (url.pathname === vaultConnectionPaths.invitee) {
+        const values = await body(request, inviteeFields);
+        if (values instanceof Response) return values;
+        // A setup that runs holds the account; it ends first.
+        if (input.running() !== null) return blocked("setting-up");
+        const invited = await invitePersonalBitwarden(input.host(), {
+          email: values.email,
+        });
+        if (invited.kind === "vault-connection-refused")
+          return blocked(invited.reason);
+        return response(invited);
       }
       const empty = await body(request, []);
       if (empty instanceof Response) return empty;

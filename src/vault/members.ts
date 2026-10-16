@@ -37,10 +37,11 @@ import {
 //
 // A personal Environment's own Bitwarden (root decision 0203 point 7) has
 // one person, the one who connected it, at the address of their own
-// Bitwarden account they entered: invited as a User with Manage on Agenti
-// and confirmed once they accepted (invitee.ts), with no gate, since the
-// cloud's own sign-in protects their account; the admitted person changes
-// nothing there.
+// Bitwarden account they entered once they asked to be invited: invited as a
+// User with Manage on Agenti and confirmed once they accepted (invitee.ts),
+// with no gate, since the cloud's own sign-in protects their account; the
+// admitted person changes nothing there. Until they ask, they are
+// `not-invited` and nothing is sent.
 
 /** Where every person's account in a Lazurio Vaultwarden lives (root
  * decision 0203 point 5): `<Lazurio username>@account.lazurio.ai`, an
@@ -68,6 +69,10 @@ export type VaultMemberState =
   | "no-account"
   /** An account that signed in but has no master password yet. */
   | "awaiting-password"
+  /** A personal Environment's own Bitwarden whose person has not asked to
+   * be invited (connection.ts `invitePersonalBitwarden`): nothing is sent,
+   * and the page offers the invitation. */
+  | "not-invited"
   /** A personal Environment's own Bitwarden: the cloud e-mailed its person
    * the invitation, not accepted yet. */
   | "invitation-pending"
@@ -456,17 +461,26 @@ export async function vaultMembership(
 
 /**
  * A personal Environment's own Bitwarden (root decision 0203 point 7): the
- * person who connected it, at the address of their own Bitwarden account,
- * invited as a User with Manage on Agenti and confirmed once they accepted
- * the cloud's e-mail (invitee.ts). Whoever the gateway admitted changes
- * nothing, and there is no gate: the cloud's sign-in protects the person's
- * own account, and the Environment confirms only the address it invited.
+ * person who connected it, at the address of their own Bitwarden account
+ * once they asked to be invited, invited as a User with Manage on Agenti and
+ * confirmed once they accepted the cloud's e-mail (invitee.ts); until they
+ * ask, `not-invited`, which asks nothing of the cloud. Whoever the gateway
+ * admitted changes nothing, and there is no gate: the cloud's sign-in
+ * protects the person's own account, and the Environment confirms only the
+ * address it invited.
  */
 async function inviteeMembership(
   host: VaultHost,
   context: VaultContext,
-  invitee: string,
+  invitee: string | null,
 ): Promise<VaultMembership> {
+  if (invitee === null)
+    return (await connectedAccount(
+      vaultPaths(host.directory(context.host, context.account)),
+      context,
+    )) === null
+      ? unknown("not-connected")
+      : known("not-invited");
   return underLock(
     host,
     context,

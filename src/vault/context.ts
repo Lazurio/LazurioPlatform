@@ -45,22 +45,29 @@ export type VaultContext = Readonly<{
   /** A personal Environment's own Bitwarden (root decision 0203 point 7):
    * the Bitwarden cloud region of the agents' account the person connected,
    * and the address of the person's own Bitwarden account, which the vault
-   * invites. Absent for a Lazurio Vaultwarden the handover names. */
-  bitwarden?: Readonly<{ region: BitwardenRegion; invitee: string }>;
+   * invites once the person asks (null until then). Absent for a Lazurio
+   * Vaultwarden the handover names. */
+  bitwarden?: Readonly<{ region: BitwardenRegion; invitee: string | null }>;
 }>;
 
 /** A personal Environment whose handover names no vault and whose person has
  * not connected their own Bitwarden yet (root decision 0203 point 7): only
- * the person moves it on, in Settings → Vault; nothing runs for it. */
-export type VaultNeedsConnection = Readonly<{ kind: "needs-connection" }>;
+ * the person moves it on, in Settings → Vault; nothing runs for it. `name`
+ * is the name its vault gets once connected (`personalVaultName`), which
+ * the page shows the person beforehand. */
+export type VaultNeedsConnection = Readonly<{
+  kind: "needs-connection";
+  name: string;
+}>;
 
-/** The Bitwarden a personal Environment's person connected: its region, the
- * agents' account and the person's own account the vault invites. Not
- * secret; kept beside the custody (connection.ts). */
+/** The Bitwarden a personal Environment's person connected: the region
+ * whose identity host accepted the agents' API key, the agents' account and
+ * the person's own account the vault invites, null until the person asks to
+ * be invited. Not secret; kept beside the custody (connection.ts). */
 export type BitwardenConnection = Readonly<{
   region: BitwardenRegion;
   account: string;
-  invitee: string;
+  invitee: string | null;
 }>;
 
 /** The name of a personal Environment's own Bitwarden organization: "Osobní

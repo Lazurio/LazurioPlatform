@@ -10,14 +10,18 @@ import {
   bitwardenRegions,
   isBitwardenRegion,
 } from "./endpoints";
-import { deviceOf, type VaultHost } from "./flow";
+import { connectedAccount, deviceOf, ownPaths, type VaultHost } from "./flow";
 import { pinnedInstalled } from "./install";
+import { type VaultMembership, vaultMembership } from "./members";
 import { carriesReceipt } from "./organization";
 import {
+  type ApiKeyLogin,
   accountKdf,
   apiKeyLogin,
+  type Device,
   normalizeEmail,
   unlockPrivateKey,
+  type VaultClient,
   VaultwardenError,
   vaultRequest,
 } from "./register";
@@ -43,30 +47,33 @@ import {
 // DEV-6631 task 775). A personal Environment no longer uses a Lazurio
 // Vaultwarden: its person connects a Bitwarden of their choice, the
 // Bitwarden cloud in the EU or the US, through a separate agents' account,
-// never their main account, in the same service and region as their own.
-// The cloud verifies e-mail on sign-up, so the person creates the agents'
-// account and its API key and enters them once, with the account's master
-// password and the address of their own Bitwarden account, in Settings →
-// Vault. From then on the Environment works on its own (flow.ts): it
-// creates its vault, a Free organization for the agents' account (Owner)
-// and the person, and invites the person (invitee.ts).
+// never their main account. The cloud verifies e-mail on sign-up, so the
+// person creates the agents' account and its API key and enters them once,
+// with the account's master password, in Settings → Vault; which region it
+// is in, the Environment finds itself (F53's amendment of 2026-10-16, (2)).
+// From then on the Environment works on its own (flow.ts): it creates its
+// vault, a Free organization for the agents' account (Owner). The person
+// joins it only when they ask to: they enter the address of their own
+// Bitwarden account afterwards, and the Environment invites it
+// (`invitePersonalBitwarden`, invitee.ts).
 //
 // Connecting checks everything before anything is written: the API key
-// signs in at the region's identity host, the profile names the agents'
-// account, and the master password opens the account's keys with the KDF
-// the cloud reports (PBKDF2 or Argon2id). Only then are the account's
-// credentials written, whole, into the custody of decision F53 (the one
-// place the Platform writes credentials, docs/public-development.md), and
-// the connection beside it:
+// signs in at the EU's identity host, or at the US's where the EU's does not
+// know it, the profile names the agents' account, and the master password
+// opens the account's keys with the KDF the cloud reports (PBKDF2 or
+// Argon2id). Only then are the account's credentials written, whole, into
+// the custody of decision F53 (the one place the Platform writes
+// credentials, docs/public-development.md), and the connection beside it:
 //
 //   <state>/lazurio/vault/personal/                0700
 //     lock                                         the kernel lock of
-//                                                  connecting and
+//                                                  connecting, inviting and
 //                                                  disconnecting
 //     connection.json                              0600, not secret: the
-//                                                  region, the agents'
-//                                                  account, the person's
-//                                                  account to invite
+//                                                  region that accepted the
+//                                                  key, the agents' account,
+//                                                  the person's account to
+//                                                  invite once they ask
 //   <state>/lazurio/vault/<web host>/<account>/    the account's custody
 //
 // Disconnecting removes the account's credentials, its session and bw's
@@ -75,31 +82,40 @@ import {
 // its vault. No value is ever returned, logged or journaled, and none
 // reaches a process's arguments.
 
-/** The fields of the connection form, exactly. */
+/** The fields of the connection form, exactly: the agents' account's API
+ * key as Bitwarden's "API key" dialog names it, and its master password.
+ * No region and no person: the region is the one that accepts the key,
+ * and the person joins afterwards (`inviteeFields`). */
 export const connectionFields = [
-  "region",
   "clientId",
   "clientSecret",
   "masterPassword",
-  "email",
 ] as const;
 
 export type ConnectionInput = Readonly<
   Record<(typeof connectionFields)[number], unknown>
 >;
 
+/** The field of the invitation, exactly: the address of the person's own
+ * Bitwarden account. */
+export const inviteeFields = ["email"] as const;
+
+export type InviteeInput = Readonly<
+  Record<(typeof inviteeFields)[number], unknown>
+>;
+
 /** Why a value of the form is not one. */
 export type ConnectionInvalid =
-  | "region-invalid"
   | "client-id-invalid"
   | "client-secret-invalid"
-  | "password-invalid"
-  | "email-invalid";
+  | "password-invalid";
 
-/** Why a connection was not made, or a disconnect not done: a fixed code,
- * never a value or the cloud's words. */
+/** Why a connection was not made, an invitation not asked for or a
+ * disconnect not done: a fixed code, never a value or the cloud's words. */
 export type ConnectionRefusal =
   | ConnectionInvalid
+  /** The invitation's address is not an ordinary address. */
+  | "email-invalid"
   /** Not offered here: only a personal Environment whose handover names no
    * vault connects its person's own Bitwarden; every other keeps the vault
    * its handover names, or has none here. */
@@ -108,15 +124,19 @@ export type ConnectionRefusal =
   | "pilot-0197"
   /** Connected already: disconnect first. */
   | "connected"
-  /** Nothing to disconnect. */
+  /** Nothing to disconnect, or nothing connected (or no vault yet) to
+   * invite the person into. */
   | "not-connected"
-  /** The cloud refused the API key. */
+  /** Both regions refused the API key. */
   | "invalid-credentials"
   /** The master password does not open the agents' account. */
   | "wrong-password"
-  /** The agents' account is the person's own account: agents never get a
-   * person's main account. */
+  /** The address to invite is the agents' account: the person's own
+   * account is another one. */
   | "same-account"
+  /** Another address is invited already: disconnect and connect again to
+   * invite another one. */
+  | "invited"
   /** The agents' account owns or administers an organization already, other
    * than this Environment's own vault: not a separate agents' account, and
    * the cloud would refuse it a second Free organization. A fresh agents'
@@ -127,6 +147,8 @@ export type ConnectionRefusal =
   /** Keys of another form than Bitwarden's v1 account keys. */
   | "unsupported-keys"
   | "rate-limited"
+  /** A region's identity host or the cloud's API did not answer: no region
+   * is guessed. */
   | "unreachable"
   /** Another operation holds the lock. */
   | "busy"
@@ -137,21 +159,23 @@ export type ConnectionAnswer =
   | Readonly<{ kind: "vault-connected" }>
   | Readonly<{ kind: "vault-connection-refused"; reason: ConnectionRefusal }>;
 
-const refused = (reason: ConnectionRefusal): ConnectionAnswer =>
+type Refused = Readonly<{
+  kind: "vault-connection-refused";
+  reason: ConnectionRefusal;
+}>;
+
+const refused = (reason: ConnectionRefusal): Refused =>
   Object.freeze({ kind: "vault-connection-refused", reason });
 
 type Values = Readonly<{
-  region: BitwardenRegion;
   clientId: string;
   clientSecret: string;
   masterPassword: string;
-  email: string;
 }>;
 
 /** The form's values, each in its exact form, or the first that is not:
- * the region of the allow-list, the API key as Bitwarden issues it, the
- * master password on one line, an ordinary address. The API key and the
- * address are trimmed (a copy brings white space along); the master
+ * the API key as Bitwarden issues it and the master password on one line.
+ * The API key is trimmed (a copy brings white space along); the master
  * password is taken exactly as typed. */
 export function connectionValues(
   input: ConnectionInput,
@@ -160,7 +184,6 @@ export function connectionValues(
   | Readonly<{ ok: false; reason: ConnectionInvalid }> {
   const fail = (reason: ConnectionInvalid) =>
     Object.freeze({ ok: false as const, reason });
-  if (!isBitwardenRegion(input.region)) return fail("region-invalid");
   const trimmed = (value: unknown) =>
     typeof value === "string" ? value.trim() : null;
   const clientId = trimmed(input.clientId)?.toLowerCase() ?? null;
@@ -170,18 +193,23 @@ export function connectionValues(
   if (clientSecret === null || !/^[A-Za-z0-9]{8,128}$/.test(clientSecret))
     return fail("client-secret-invalid");
   if (!isEnteredPassword(input.masterPassword)) return fail("password-invalid");
-  const email = trimmed(input.email)?.toLowerCase() ?? null;
-  if (!isEnteredEmail(email)) return fail("email-invalid");
   return Object.freeze({
     ok: true as const,
     values: Object.freeze({
-      region: input.region,
       clientId,
       clientSecret,
       masterPassword: input.masterPassword,
-      email,
     }),
   });
+}
+
+/** The address of the person's own Bitwarden account as typed: trimmed and
+ * lowercased, as Bitwarden keeps it, or null when it is not an ordinary
+ * address. */
+export function inviteeValue(input: InviteeInput): string | null {
+  const email =
+    typeof input.email === "string" ? normalizeEmail(input.email) : null;
+  return isEnteredEmail(email) ? email : null;
 }
 
 // --- The connection file ------------------------------------------------
@@ -190,7 +218,8 @@ const connectionFile = (directory: string) =>
   join(directory, "connection.json");
 
 /** The connection a personal Environment's person made, or null when there
- * is none. A file that is there but is not one throws: nothing is guessed
+ * is none. Its `invitee` is null until the person asks to be invited. A
+ * file that is there but is not one throws: nothing is guessed
  * (`connection-unreadable`). */
 export async function readConnection(
   directory: string,
@@ -203,7 +232,7 @@ export async function readConnection(
     Object.keys(value).sort().join() !== "account,invitee,region" ||
     !isBitwardenRegion(value.region) ||
     !isEnteredEmail(value.account) ||
-    !isEnteredEmail(value.invitee) ||
+    !(value.invitee === null || isEnteredEmail(value.invitee)) ||
     value.account === value.invitee
   )
     throw new Error("Invalid vault connection");
@@ -214,6 +243,18 @@ export async function readConnection(
   });
 }
 
+/** The connection written whole, durably. */
+const writeConnection = (directory: string, connection: BitwardenConnection) =>
+  writeDurableFile(
+    directory,
+    "connection.json",
+    serialize({
+      region: connection.region,
+      account: connection.account,
+      invitee: connection.invitee,
+    }),
+  );
+
 async function ensureConnectionDirectory(directory: string): Promise<void> {
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const entry = await lstat(directory);
@@ -222,17 +263,19 @@ async function ensureConnectionDirectory(directory: string): Promise<void> {
   await chmod(directory, 0o700);
 }
 
-/** Work under the lock of connecting and disconnecting, or `busy`. */
+/** Work under the lock of connecting, inviting and disconnecting (the
+ * host's lock timeout, as the account's lock), or `busy`. */
 async function underConnectionLock<T>(
-  directory: string,
+  host: Pick<VaultHost, "connection" | "lockMs">,
   busy: () => T,
   work: () => Promise<T>,
 ): Promise<T> {
+  const directory = host.connection;
   await ensureConnectionDirectory(directory);
   let lock: Awaited<ReturnType<typeof acquireFileLock>>;
   try {
     lock = await acquireFileLock(join(directory, "lock"), {
-      timeoutMs: lockMs,
+      timeoutMs: host.lockMs ?? lockMs,
     });
   } catch (error) {
     if (error instanceof FileLockError && error.reason === "busy")
@@ -311,32 +354,72 @@ async function organizationsOf(
   return { ownsOther: carrying > 1, recordedGone };
 }
 
+/** The regions in the order the API key is tried: the EU first. */
+const regionOrder: readonly BitwardenRegion[] = ["eu", "us"];
+
+/** The API key signed in at the region whose identity host accepts it: the
+ * EU's first, the US's only where the EU's refuses it as unknown
+ * (`invalid-credentials`). A refusal of both is `invalid-credentials`, as
+ * one region's always was. Any other answer of the first region stops there:
+ * a host that does not answer is `unreachable` and the other is never tried
+ * in its place, so a region is never guessed. */
+async function regionLogin(
+  client: VaultClient,
+  values: Values,
+  device: Device,
+): Promise<Readonly<{ region: BitwardenRegion; login: ApiKeyLogin }>> {
+  for (const [index, region] of regionOrder.entries()) {
+    try {
+      const login = await apiKeyLogin(client, {
+        serverUrl: bitwardenRegions[region].web,
+        clientId: values.clientId,
+        clientSecret: values.clientSecret,
+        device,
+      });
+      return { region, login };
+    } catch (error) {
+      if (
+        index === regionOrder.length - 1 ||
+        !(error instanceof VaultwardenError) ||
+        error.reason !== "invalid-credentials"
+      )
+        throw error;
+    }
+  }
+  throw new VaultwardenError("invalid-credentials");
+}
+
 /** The agents' account the values name, checked as a client unlocks it:
- * signed in with its API key at the region's identity host, named by its
- * profile, a separate agents' account (not the person's own, and owning or
- * administering no organization but this Environment's vault: agents holding
- * its credentials would reach that organization's items too), its keys
- * opened by the master password with the KDF the cloud reports. Nothing is
- * written; the answer holds the account to keep and, when the vault recorded
- * for it is gone from Bitwarden, its ID (`gone`). */
+ * signed in with its API key at the identity host of the region that
+ * accepts it (`regionLogin`), named by its profile, a separate agents'
+ * account (owning or administering no organization but this Environment's
+ * vault: agents holding its credentials would reach that organization's
+ * items too), its keys opened by the master password with the KDF the cloud
+ * reports. Nothing is written; the answer holds the region, the account to
+ * keep and, when the vault recorded for it is gone from Bitwarden, its ID
+ * (`gone`). */
 async function verifiedAccount(
   host: VaultHost,
   values: Values,
 ): Promise<
-  | Readonly<{ ok: true; account: ReadyAccount; gone: string | null }>
+  | Readonly<{
+      ok: true;
+      region: BitwardenRegion;
+      account: ReadyAccount;
+      gone: string | null;
+    }>
   | Readonly<{ ok: false; reason: ConnectionRefusal }>
 > {
-  const server = bitwardenRegions[values.region].web;
   const client = { fetch: host.fetch };
   // The Environment's one device in this account's logins from now on.
   const deviceIdentifier = randomUUID();
   try {
-    const login = await apiKeyLogin(client, {
-      serverUrl: server,
-      clientId: values.clientId,
-      clientSecret: values.clientSecret,
-      device: deviceOf({ deviceIdentifier }),
-    });
+    const { region, login } = await regionLogin(
+      client,
+      values,
+      deviceOf({ deviceIdentifier }),
+    );
+    const server = bitwardenRegions[region].web;
     // The cloud's API as the agents' account, with the token it signed in to.
     const ask = (path: string) =>
       vaultRequest(client, server, path, { token: login.accessToken });
@@ -349,7 +432,6 @@ async function verifiedAccount(
       !isEnteredEmail(email)
     )
       return { ok: false, reason: "failed" };
-    if (email === values.email) return { ok: false, reason: "same-account" };
     // This account's vault from an earlier connection is its own, and so is
     // the one organization that carries its unresolved creation's receipt;
     // anything else it owns or administers is not.
@@ -369,6 +451,7 @@ async function verifiedAccount(
     });
     return {
       ok: true,
+      region,
       account: Object.freeze({
         email,
         server,
@@ -389,15 +472,16 @@ async function verifiedAccount(
  * Connects a personal Environment's own Bitwarden from the form's values
  * (root decision 0203 point 7): only a personal Environment whose handover
  * names no vault, that is not a 0197 pilot and is not connected yet. The
- * agents' account is checked first (`verifiedAccount`); then, under the
- * connection's lock, its credentials are written whole into its custody and
- * the connection beside it. A vault recorded for this account that is gone
- * from Bitwarden (a person deleted it there, which in their own Bitwarden is
- * theirs to do) is forgotten, so the setup creates a new one: the person's
- * connecting again is the decision, never a setup on its own. The vault
- * itself is created by the setup that follows (`vaultSetup`), which the
- * caller starts. Values go nowhere but the custody; the journal gets the
- * outcome and a fixed reason.
+ * agents' account is checked first (`verifiedAccount`), in the region that
+ * accepts its API key; then, under the connection's lock, its credentials
+ * are written whole into its custody and the connection beside it, with
+ * that region and nobody to invite yet. A vault recorded for this account
+ * that is gone from Bitwarden (a person deleted it there, which in their
+ * own Bitwarden is theirs to do) is forgotten, so the setup creates a new
+ * one: the person's connecting again is the decision, never a setup on its
+ * own. The vault itself is created by the setup that follows
+ * (`vaultSetup`), which the caller starts. Values go nowhere but the
+ * custody; the journal gets the outcome and a fixed reason.
  */
 export async function connectPersonalBitwarden(
   host: VaultHost,
@@ -426,9 +510,9 @@ export async function connectPersonalBitwarden(
     journal("refused", verified.reason);
     return refused(verified.reason);
   }
-  const { account, gone } = verified;
+  const { region, account, gone } = verified;
   return underConnectionLock(
-    host.connection,
+    host,
     () => refused("busy"),
     async () => {
       // Connected meanwhile by another request: nothing is written.
@@ -461,19 +545,91 @@ export async function connectPersonalBitwarden(
         },
       );
       if (!written) return refused("busy");
-      await writeDurableFile(
-        host.connection,
-        "connection.json",
-        serialize({
-          region: checked.values.region,
-          account: account.email,
-          invitee: checked.values.email,
-        }),
-      );
+      await writeConnection(host.connection, {
+        region,
+        account: account.email,
+        invitee: null,
+      });
       journal("connected");
       return Object.freeze({ kind: "vault-connected" as const });
     },
   );
+}
+
+// --- Inviting the person --------------------------------------------------
+
+/** Nobody: whom the gateway admitted changes nothing in a personal
+ * Environment's own Bitwarden (members.ts). */
+const nobody = Object.freeze({ subject: null, username: null });
+
+/**
+ * The person asks to see the agents' passwords in their own Bitwarden too
+ * (root decision 0203 point 7, F53's amendment of 2026-10-16, (2)): the
+ * address of their own Bitwarden account becomes the connection's invitee,
+ * once, and the membership look invites it at once as a User with Manage
+ * on Agenti (`vaultMembership`, invitee.ts), as every later look and setup
+ * moves it on. Only a connected personal Environment's own Bitwarden whose
+ * vault exists takes it; never the agents' account itself (`same-account`),
+ * and never a second address (`invited`: disconnecting and connecting
+ * again starts afresh); the same address again only looks again. The
+ * answer is the person's membership; the address goes nowhere but the
+ * connection and the cloud's invitation, and the journal gets the outcome.
+ */
+export async function invitePersonalBitwarden(
+  host: VaultHost,
+  input: InviteeInput,
+): Promise<VaultMembership | Refused> {
+  const email = inviteeValue(input);
+  if (email === null) return refused("email-invalid");
+  const context = await host.context();
+  if (context.kind === "pilot") return refused("pilot-0197");
+  if (context.kind !== "own")
+    return refused(
+      context.kind === "needs-connection" ||
+        context.reason === "connection-unreadable"
+        ? "not-connected"
+        : "not-offered",
+    );
+  const { bitwarden } = context;
+  if (bitwarden === undefined) return refused("not-offered");
+  if (email === context.account) return refused("same-account");
+  if (bitwarden.invitee !== null && bitwarden.invitee !== email)
+    return refused("invited");
+  // The invitation names the vault's collection Agenti: no vault, nobody to
+  // invite into it yet.
+  if ((await connectedAccount(ownPaths(host, context), context)) === null)
+    return refused("not-connected");
+  if (bitwarden.invitee === null) {
+    const set = await underConnectionLock(
+      host,
+      () => "busy" as const,
+      async () => {
+        // Read again under the lock: disconnected, connected anew or
+        // invited meanwhile by another request.
+        const connection = await readConnection(host.connection).catch(
+          () => null,
+        );
+        if (
+          connection === null ||
+          connection.account !== context.account ||
+          connection.region !== bitwarden.region
+        )
+          return "not-connected" as const;
+        if (connection.invitee !== null)
+          return connection.invitee === email
+            ? ("set" as const)
+            : ("invited" as const);
+        await writeConnection(host.connection, {
+          ...connection,
+          invitee: email,
+        });
+        host.journal?.({ operation: "members", outcome: "invitee-set" });
+        return "set" as const;
+      },
+    );
+    if (set !== "set") return refused(set);
+  }
+  return vaultMembership(host, nobody);
 }
 
 // --- Disconnecting ----------------------------------------------------------
@@ -506,7 +662,7 @@ export async function disconnectPersonalBitwarden(
     });
   const busy = (): DisconnectAnswer =>
     Object.freeze({ kind: "vault-connection-refused", reason: "busy" });
-  return underConnectionLock(host.connection, busy, async () => {
+  return underConnectionLock(host, busy, async () => {
     const connection = await readConnection(host.connection).catch(() => null);
     if (connection !== null) {
       const web = bitwardenRegions[connection.region].web;

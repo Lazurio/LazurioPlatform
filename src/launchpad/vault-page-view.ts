@@ -32,6 +32,7 @@ const phases: readonly VaultPhase[] = [
 const memberStates: readonly VaultMemberState[] = [
   "no-account",
   "awaiting-password",
+  "not-invited",
   "invitation-pending",
   "accepted",
   "member",
@@ -57,7 +58,19 @@ export type VaultPageModel = Readonly<{
   status: VaultStatus;
   setup: VaultPhase | null;
   environment: VaultEnvironmentKind | null;
+  /** The name a personal Environment's own Bitwarden vault gets once its
+   * person connects it (`Osobní <login>`), while it waits for them; null
+   * otherwise. */
+  name: string | null;
 }>;
+
+/** A vault's name as Bitwarden takes one: 1 to 50 characters on one
+ * line. */
+const isVaultName = (value: unknown): value is string =>
+  typeof value === "string" &&
+  value.length >= 1 &&
+  value.length <= 50 &&
+  !/\p{Cc}/u.test(value);
 
 export function parseVaultPage(input: unknown): VaultPageModel | null {
   if (!isRecord(input) || input.kind !== "vault-page") return null;
@@ -70,10 +83,13 @@ export function parseVaultPage(input: unknown): VaultPageModel | null {
     !kinds.includes(input.environment as VaultEnvironmentKind)
   )
     return null;
+  const name = input.name ?? null;
+  if (name !== null && !isVaultName(name)) return null;
   return {
     status,
     setup: input.setup as VaultPhase | null,
     environment: input.environment as VaultEnvironmentKind | null,
+    name,
   };
 }
 
@@ -216,9 +232,14 @@ export type VaultPageView = Readonly<{
    * only with a ready own vault (connected, unlocked, no setup running),
    * never for a 0197 pilot, which takes no requests. */
   guide: boolean;
-  /** The form that connects a personal Environment's own Bitwarden, while
-   * its person has not connected it (root decision 0203 point 7). */
-  connect: boolean;
+  /** The section that connects a personal Environment's own Bitwarden,
+   * while its person has not connected it (root decision 0203 point 7):
+   * `vault` is the name its vault gets, which its picture shows. */
+  connect: Readonly<{ vault: string }> | null;
+  /** "Chcete hesla agentů vidět i ve svém Bitwardenu?": the invitation the
+   * person of a connected personal Environment's own Bitwarden may ask for,
+   * while they have not (F53's amendment of 2026-10-16, (2)). */
+  invite: boolean;
   /** "Odpojit Bitwarden": a personal Environment's own Bitwarden, once
    * connected (or its record unreadable), while no setup runs. */
   disconnect: boolean;
@@ -308,7 +329,8 @@ export function vaultPageView(
     actions: [],
     hint: null,
     guide: false,
-    connect: false,
+    connect: null,
+    invite: false,
     disconnect: false,
     ...fields,
   });
@@ -337,9 +359,12 @@ export function vaultPageView(
             : copy.vaultRowUnavailable,
     });
   // A personal Environment whose person has not connected their own
-  // Bitwarden yet: the form, with its own explanation.
+  // Bitwarden yet: the section that connects it, with the vault it gets.
   if (status.state === "needs-connection")
-    return view({ rule: false, connect: true });
+    return view({
+      rule: false,
+      connect: { vault: model.name ?? copy.vaultPageTitle },
+    });
   // The vault's name; a 0197 pilot has none: the organization bw names.
   const named =
     status.name ??
@@ -432,13 +457,16 @@ export function vaultPageView(
 
 /**
  * A personal Environment's own Bitwarden (root decision 0203 point 7): the
- * row and "Odpojit Bitwarden", and what the person does next. A member adds
- * and opens; an invitation not accepted yet, or accepted and not confirmed
- * yet, says so in one line; a person removed in Bitwarden is told so. A
- * vault Bitwarden no longer accepts, and a failure the person resolves (the
- * agents' account owns another Free organization, its file is gone), says
- * what to do. Nobody else is added here: the person is whom they named when
- * connecting.
+ * row and "Odpojit Bitwarden", and what the person does next. Not invited
+ * yet: one line that it is connected and the invitation they may ask for
+ * (F53's amendment of 2026-10-16, (2)). A member adds and opens; an
+ * invitation not accepted yet, or accepted and not confirmed yet, says so in
+ * one line; a person removed in Bitwarden is told so. A vault Bitwarden no
+ * longer accepts, and a failure the person resolves (the agents' account
+ * owns another Free organization, its file is gone), says what to do.
+ * Nobody else is added here: the person is whom they asked to invite.
+ * While their answer is not there yet, the vault offers nothing to open: it
+ * opens only for a member.
  */
 function personalBitwardenView(
   status: VaultStatus,
@@ -475,9 +503,18 @@ function personalBitwardenView(
     href: links.open,
     primary: true,
   };
-  if (person === null || person.kind === "unknown")
+  if (person === null) return view({ guide, row, disconnect });
+  if (person.kind === "unknown")
     return view({ guide, row, actions: [open], disconnect });
   switch (person.state) {
+    case "not-invited":
+      return view({
+        guide,
+        row,
+        hint: copy.vaultPageConnected,
+        invite: true,
+        disconnect,
+      });
     case "invitation-pending":
       return view({
         guide,
@@ -730,28 +767,23 @@ export function bitwardenGuide(
   };
 }
 
-/** Why a connection was refused, in the page's words; null for none. */
+/** Why a connection was refused, in the page's words: one sentence that
+ * says what to do; null for none. */
 export function connectionRefusalText(
   reason: unknown,
   copy: Copy,
 ): string | null {
   switch (reason) {
-    case "region-invalid":
-      return copy.vaultConnectRegionInvalid;
     case "client-id-invalid":
       return copy.vaultConnectClientIdInvalid;
     case "client-secret-invalid":
       return copy.vaultConnectClientSecretInvalid;
     case "password-invalid":
       return copy.vaultConnectPasswordInvalid;
-    case "email-invalid":
-      return copy.vaultConnectEmailInvalid;
     case "invalid-credentials":
       return copy.vaultConnectInvalidCredentials;
     case "wrong-password":
       return copy.vaultConnectWrongPassword;
-    case "same-account":
-      return copy.vaultConnectSameAccount;
     case "owns-organization":
       return copy.vaultConnectOwnsOrganization;
     case "unsupported-kdf":
@@ -775,13 +807,101 @@ export function connectionRefusalText(
   }
 }
 
+/** Why the invitation the person asked for was refused, in the page's
+ * words: one sentence that says what to do; null for none. */
+export function inviteRefusalText(reason: unknown, copy: Copy): string | null {
+  switch (reason) {
+    case "email-invalid":
+      return copy.vaultInviteEmailInvalid;
+    case "same-account":
+      return copy.vaultInviteSameAccount;
+    case "invited":
+      return copy.vaultInviteInvited;
+    // No vault yet, or a setup that still creates it.
+    case "not-connected":
+    case "setting-up":
+      return copy.vaultInviteNotReady;
+    case "rate-limited":
+    case "unreachable":
+    case "busy":
+      return copy.vaultConnectBusy;
+    case "not-offered":
+    case "pilot-0197":
+      return copy.vaultConnectNotOffered;
+    case "failed":
+      return copy.vaultInviteFailed;
+    default:
+      return null;
+  }
+}
+
 /** The form's values as the person typed them: every field filled in. */
 export const connectionFilled = (
   values: Readonly<Record<string, string>>,
 ): boolean =>
-  ["region", "clientId", "clientSecret", "masterPassword", "email"].every(
+  ["clientId", "clientSecret", "masterPassword"].every(
     (field) => (values[field] ?? "").trim() !== "",
   );
+
+/** Bitwarden's own account creation of each region, where step 1 leads:
+ * the EU's first, the US's for a person who uses bitwarden.com. */
+export const bitwardenSignUps: Readonly<Record<BitwardenRegion, string>> = {
+  eu: "https://vault.bitwarden.eu/#/signup",
+  us: "https://vault.bitwarden.com/#/signup",
+};
+
+/** Step 1's way to Bitwarden: the button to the sign-up of the region
+ * chosen (the EU unless the person asked for the other), and the small
+ * switch to the other region's. */
+export function signUpLinks(
+  region: BitwardenRegion,
+  copy: Copy,
+): Readonly<{
+  open: Readonly<{ label: string; href: string }>;
+  other: Readonly<{ label: string; region: BitwardenRegion }>;
+}> {
+  const other: BitwardenRegion = region === "eu" ? "us" : "eu";
+  return {
+    open: {
+      label: fill(copy.vaultConnectOpen, {
+        service: bitwardenServices[region],
+      }),
+      href: bitwardenSignUps[region],
+    },
+    other: {
+      label: fill(copy.vaultConnectOther, {
+        service: bitwardenServices[other],
+      }),
+      region: other,
+    },
+  };
+}
+
+/** Bitwarden's own screens the connection's steps show, with the place to
+ * fill in ringed (`src/launchpad/images/bitwarden-<name>-<locale>.webp`):
+ * `signup`, the e-mail of a new account; `api-key`, the "API key" window's
+ * client_id and client_secret. */
+export type ConnectionPicture = "signup" | "api-key";
+
+/** The connection's words that depend on what the page knows: the picture
+ * of the vault between the person's Bitwarden and the agents, by the name
+ * the vault gets (its accessible name), and the alternative texts of
+ * Bitwarden's screens, by step. */
+export function connectionPictures(
+  vault: string,
+  copy: Copy,
+): Readonly<{
+  label: string;
+  steps: readonly Readonly<{ name: ConnectionPicture; alt: string }>[];
+}> {
+  return {
+    label: fill(copy.vaultConnectPicture, { name: vault }),
+    steps: [
+      { name: "signup", alt: copy.vaultConnectSignUpPicture },
+      { name: "api-key", alt: copy.vaultConnectApiKeyPicture },
+    ],
+  };
+}
 
 /** How soon the page is read again while a setup creates the vault. */
 export const vaultPageSetupPollMs = 2_000;

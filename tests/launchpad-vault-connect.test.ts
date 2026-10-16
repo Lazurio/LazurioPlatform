@@ -36,12 +36,14 @@ import {
 import { personalWithEntry } from "./fixtures/machine-bindings";
 
 // Settings → Vault on a personal Environment over HTTP (root decision 0203
-// point 7, plan DEV-6631 task 775): the installed consumer, `startLaunchpad`
-// behind a fake gateway auth endpoint, with the fake Bitwarden cloud and the
-// fake bw. The person connects their own Bitwarden through the one form
-// (`POST /api/vault/connect`, exact keys, at most 16 KiB, the same origin),
-// the Environment creates its vault and invites them, they accept, they are
-// confirmed, they disconnect; no value of the form ever comes back or
+// point 7, plan DEV-6631 task 775; F53's amendment of 2026-10-16, (2)): the
+// installed consumer, `startLaunchpad` behind a fake gateway auth endpoint,
+// with the fake Bitwarden cloud and the fake bw. The person connects their
+// own Bitwarden with the agents' API key and master password alone (`POST
+// /api/vault/connect`, exact keys, at most 16 KiB, the same origin), the
+// Environment creates its vault, the person asks to be invited (`POST
+// /api/vault/invitee`, the same rules), accepts, is confirmed, and
+// disconnects; no value of the form or the address ever comes back or
 // reaches a log, the journal or bw's arguments.
 
 const posix = process.platform !== "win32";
@@ -197,7 +199,7 @@ async function ended(
 }
 
 test.skipIf(!posix)(
-  "a personal Environment's person connects their own Bitwarden on the page: refused values say why, then the vault is created, they are invited, confirmed once they accept, and they disconnect",
+  "a personal Environment's person connects their own Bitwarden on the page: refused values say why, then the vault is created, they ask to be invited, are confirmed once they accept, and they disconnect",
   async () => {
     const lines: string[] = [];
     const log = spyOn(console, "log").mockImplementation(
@@ -215,26 +217,35 @@ test.skipIf(!posix)(
         parallelism: 1,
       });
       const form = {
-        region: "eu",
         clientId: key.clientId,
         clientSecret: key.clientSecret,
         masterPassword: password,
-        email: person,
       };
-      // Waiting for its person: the page shows the form.
+      // Waiting for its person: the page shows the section, with the name
+      // the vault gets.
       const waiting = parseVaultPage(await s.page());
       expect(waiting).toEqual({
         status: { kind: "vault-status", state: "needs-connection" },
         setup: null,
         environment: "personal",
+        name: "Osobní example",
       });
       const cs = messages("cs");
       expect(vaultPageView(waiting, null, cs)).toMatchObject({
-        connect: true,
+        connect: { vault: "Osobní example" },
+        invite: false,
         disconnect: false,
         row: null,
         actions: [],
       });
+      // Nobody to invite yet.
+      const early = await s.send("POST", "/api/vault/invitee", {
+        body: JSON.stringify({ email: person }),
+      });
+      expect([early.status, early.body]).toEqual([
+        409,
+        { kind: "blocked", reason: "not-connected" },
+      ]);
 
       // The form's body: exactly its keys, JSON, small, the same origin.
       const connect = async (
@@ -248,19 +259,24 @@ test.skipIf(!posix)(
         answers.push(answer.text);
         return answer;
       };
-      const { email: _, ...missing } = form;
+      const { masterPassword: _, ...missing } = form;
       for (const [body, status] of [
         [missing, 400],
         [{ ...form, extra: true }, 400],
         ["not json", 400],
-        [{ ...form, region: "de" }, 400],
+        // No region and no person: the server finds the region, and the
+        // person is invited only when they ask.
+        [{ ...form, region: "eu" }, 400],
+        [{ ...form, email: person }, 400],
         [{ ...form, masterPassword: "two\nlines" }, 400],
       ] as const)
         expect([body, (await connect(body)).status]).toEqual([body, status]);
-      expect((await connect({ ...form, region: "de" })).body).toEqual({
-        kind: "blocked",
-        reason: "region-invalid",
+      expect((await connect({ ...form, region: "eu" })).body).toEqual({
+        error: "invalid-request",
       });
+      expect(
+        (await connect({ ...form, clientId: "organization.example" })).body,
+      ).toEqual({ kind: "blocked", reason: "client-id-invalid" });
       expect(
         (await connect(form, { "content-type": "text/plain" })).status,
       ).toBe(415);
@@ -288,7 +304,7 @@ test.skipIf(!posix)(
       ]);
       expect(await readAccount(s.paths)).toBeNull();
 
-      // Connected: the setup creates the vault and invites the person.
+      // Connected: the setup creates the vault.
       const connected = await connect(form);
       expect([200, 202]).toContain(connected.status);
       const status = await ended(s, connected.body);
@@ -306,22 +322,103 @@ test.skipIf(!posix)(
         kind: "blocked",
         reason: "connected",
       });
-      // The person: invited by the cloud's e-mail, then confirmed once they
-      // accepted it. The answers are exact: they never carry an address of
-      // a Lazurio account (F53's addendum of 2026-10-16), although the
-      // gateway names a username, since the person signs in with their own
-      // Bitwarden account.
+      // Nobody is invited until the person asks: the page says it is
+      // connected and offers the invitation. The answers are exact: they
+      // never carry an address of a Lazurio account (F53's addendum of
+      // 2026-10-16), although the gateway names a username, since the person
+      // signs in with their own Bitwarden account.
+      expect(s.cloud.mails).toEqual([]);
+      const notInvited = await s.membership();
+      answers.push(JSON.stringify(notInvited));
+      expect(notInvited).toEqual({
+        kind: "vault-member",
+        state: "not-invited",
+      });
+      expect(
+        vaultPageView(page, parseVaultMembership(notInvited), cs),
+      ).toMatchObject({
+        hint: "Váš Bitwarden je připojený.",
+        invite: true,
+        actions: [],
+        disconnect: true,
+      });
+      // The invitation's body: exactly its one key, JSON, small, the same
+      // origin, behind the same admission as the connection.
+      const invite = async (
+        body: unknown,
+        headers?: Record<string, string>,
+        route = "/api/vault/invitee",
+      ) => {
+        const answer = await s.send("POST", route, {
+          body: typeof body === "string" ? body : JSON.stringify(body),
+          ...(headers === undefined ? {} : { headers }),
+        });
+        answers.push(answer.text);
+        return answer;
+      };
+      for (const [body, status] of [
+        [{}, 400],
+        [{ email: person, extra: true }, 400],
+        ["not json", 400],
+        [{ email: "not an address" }, 400],
+        [{ email: agents.toUpperCase() }, 409],
+      ] as const)
+        expect([body, (await invite(body)).status]).toEqual([body, status]);
+      expect((await invite({ email: "not an address" })).body).toEqual({
+        kind: "blocked",
+        reason: "email-invalid",
+      });
+      expect((await invite({ email: agents.toUpperCase() })).body).toEqual({
+        kind: "blocked",
+        reason: "same-account",
+      });
+      expect(
+        (await invite({ email: person }, { "content-type": "text/plain" }))
+          .status,
+      ).toBe(415);
+      expect((await invite({ email: "x".repeat(17 * 1024) })).status).toBe(413);
+      expect(
+        (
+          await invite(
+            { email: person },
+            { origin: "https://elsewhere.example" },
+          )
+        ).status,
+      ).toBe(401);
+      expect(
+        (
+          await s.send("POST", "/api/vault/invitee", {
+            body: JSON.stringify({ email: person }),
+            who: "stranger",
+          })
+        ).status,
+      ).toBe(401);
+      expect(
+        (await invite({ email: person }, undefined, "/api/vault/invitee?x=1"))
+          .status,
+      ).toBe(400);
+      expect((await s.send("GET", "/api/vault/invitee")).status).toBe(405);
+      expect(s.cloud.mails).toEqual([]);
+      // Asked for: kept and invited at once, by the cloud's e-mail; the
+      // answer is where the person stands, never their address.
+      const pending = await invite({ email: ` ${person.toUpperCase()} ` });
+      expect([pending.status, pending.body]).toEqual([
+        200,
+        { kind: "vault-member", state: "invitation-pending" },
+      ]);
       expect(s.cloud.mails).toEqual([person]);
-      const pending = await s.membership();
-      answers.push(JSON.stringify(pending));
-      expect(pending).toEqual({
+      expect(
+        (await invite({ email: "someone.else@example.com" })).body,
+      ).toEqual({ kind: "blocked", reason: "invited" });
+      expect(await s.membership()).toEqual({
         kind: "vault-member",
         state: "invitation-pending",
       });
       expect(
-        vaultPageView(page, parseVaultMembership(pending), cs),
+        vaultPageView(page, parseVaultMembership(pending.body), cs),
       ).toMatchObject({
         hint: cs.vaultPageInvitationPending,
+        invite: false,
         actions: [],
         disconnect: true,
       });
@@ -356,6 +453,10 @@ test.skipIf(!posix)(
       expect(await readAccount(s.paths)).toBeNull();
       expect(await s.cloud.organizationsOf(agents)).toHaveLength(1);
       expect((await s.send("POST", "/api/vault/disconnect")).body).toEqual({
+        kind: "blocked",
+        reason: "not-connected",
+      });
+      expect((await invite({ email: person })).body).toEqual({
         kind: "blocked",
         reason: "not-connected",
       });
@@ -422,11 +523,9 @@ test.skipIf(!posix)(
       await s.cloud.ownsFreeOrganization(agents);
       const answer = await s.send("POST", "/api/vault/connect", {
         body: JSON.stringify({
-          region: "eu",
           clientId: key.clientId,
           clientSecret: key.clientSecret,
           masterPassword: password,
-          email: person,
         }),
       });
       expect([answer.status, answer.body]).toEqual([

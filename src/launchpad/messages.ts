@@ -1105,71 +1105,79 @@ const en = {
   vaultPageWorkstation: "There is no vault on this computer.",
   vaultPageNoVault: "This Environment has no vault yet.",
   // A personal Environment connects its person's own Bitwarden (root
-  // decision 0203 point 7): the explanation, the form and its refusals.
-  vaultPageNeedsConnection:
-    "This personal Environment keeps its agents' passwords in your own Bitwarden, in a free organization for you and a separate agents' account.",
-  vaultConnectTitle: "Connect your Bitwarden",
-  vaultConnectMainAccount:
-    "Agents never get your main account: they sign in with the agents' account only.",
-  vaultConnectStep1:
-    "In the same service and region as your own account, create a new account for the agents.",
-  vaultConnectStep2:
-    "In it, open Account settings → Security → Keys → API key and copy the client_id and client_secret.",
-  vaultConnectStep3:
-    "Enter them here with the agents' account master password and the e-mail of your own account. This Environment creates the vault and invites you into it.",
-  vaultConnectRegion: "Bitwarden region",
-  vaultConnectRegionEu: "EU (bitwarden.eu)",
-  vaultConnectRegionUs: "US (bitwarden.com)",
-  vaultConnectClientId: "Agents' account client_id",
-  vaultConnectClientSecret: "Agents' account client_secret",
-  vaultConnectPassword: "Agents' account master password",
-  vaultConnectEmail: "E-mail of your own Bitwarden account",
-  vaultConnectEmailHint:
-    "Bitwarden sends you the invitation to the vault there.",
-  vaultConnectKept:
-    "These details stay only in this Environment and are never shown again.",
-  vaultConnectSubmit: "Connect Bitwarden",
+  // decision 0203 point 7; F53's amendment of 2026-10-16, (2)): the title,
+  // the picture of the vault between the person's Bitwarden and the agents,
+  // one line, two steps with Bitwarden's own screens, the fields, one
+  // button; then the invitation the person may ask for. Bitwarden's own
+  // words are quoted as its web vault shows them.
+  vaultConnectTitle: "Your agents' passwords in your Bitwarden",
+  vaultConnectLead: "Your agents get their own account. Yours stays yours.",
+  vaultConnectYours: "Your Bitwarden",
+  vaultConnectAgents: "Agents",
+  vaultConnectAgentsWhere: "in this Environment",
+  vaultConnectPicture:
+    "The vault {name} between your Bitwarden and the agents in this Environment",
+  vaultConnectSignUp:
+    "Create an account for your agents. For its e-mail, you can use your own with +agents: jana+agents@gmail.com",
+  vaultConnectOpen: "Open {service}",
+  vaultConnectOther: "Using {service}?",
+  vaultConnectSignUpPicture:
+    "Bitwarden: the “Email address” field of a new account",
+  vaultConnectApiKey:
+    "In the new account, open Settings → Security → Keys → View API key and copy both values here.",
+  vaultConnectApiKeyPicture:
+    "Bitwarden: the “API Key” window with client_id and client_secret",
+  vaultConnectClientId: "client_id",
+  vaultConnectClientSecret: "client_secret",
+  vaultConnectPassword: "Master password of the agents' account",
+  vaultConnectSubmit: "Connect",
   vaultConnectSubmitting: "Connecting…",
-  vaultConnectRegionInvalid: "Choose the region of your Bitwarden.",
-  vaultConnectClientIdInvalid: "Copy the whole client_id: it starts with user.",
+  vaultConnectKept: "These details stay only in this Environment.",
+  vaultConnectClientIdInvalid: "Copy the whole client_id.",
   vaultConnectClientSecretInvalid: "Copy the whole client_secret.",
   vaultConnectPasswordInvalid:
-    "Enter the agents' account master password on one line.",
-  vaultConnectEmailInvalid: "Enter the e-mail of your own Bitwarden account.",
+    "Enter the master password of the agents' account.",
   vaultConnectInvalidCredentials:
-    "Bitwarden did not accept this client_id and client_secret. Check them and the region.",
+    "Bitwarden did not accept this API key; copy it again.",
   vaultConnectWrongPassword:
-    "The master password does not match the agents' account.",
-  vaultConnectSameAccount:
-    "The agents' account must be another account than your own.",
+    "This is not the agents' account's master password; try again.",
   vaultConnectOwnsOrganization:
-    "The agents' account already owns or manages another organization. Please create a new agents' account.",
+    "This account is used elsewhere already; create a new one for your agents.",
   vaultConnectUnsupported:
-    "This Environment cannot open this agents' account yet. Please create a new agents' account.",
-  vaultConnectBusy: "Bitwarden is not responding. Try again in a moment.",
-  vaultConnectConnected:
-    "This Environment has its Bitwarden connected already.",
+    "This account cannot be connected; create a new one for your agents.",
+  vaultConnectBusy: "Bitwarden is not responding; try again in a moment.",
+  vaultConnectConnected: "Your Bitwarden is connected already.",
   vaultConnectNotOffered:
     "This Environment does not connect its own Bitwarden.",
-  vaultConnectFailed: "Connecting did not work. Try again.",
+  vaultConnectFailed: "Connecting did not work; try again.",
   vaultConnectAction: "Connect",
-  vaultPageInvitationPending:
-    "Bitwarden e-mailed you an invitation to the vault. Once you accept it, this Environment confirms you.",
+  vaultPageConnected: "Your Bitwarden is connected.",
+  vaultInviteTitle:
+    "Want to see your agents' passwords in your own Bitwarden too?",
+  vaultInviteEmail: "Your Bitwarden e-mail",
+  vaultInviteSubmit: "Invite me",
+  vaultInviteSubmitting: "Sending…",
+  vaultInviteEmailInvalid: "Enter the e-mail of your Bitwarden account.",
+  vaultInviteSameAccount:
+    "That is the agents' account; enter the e-mail of your own.",
+  vaultInviteInvited: "An invitation went to another e-mail already.",
+  vaultInviteNotReady: "The vault is not ready yet; try again in a moment.",
+  vaultInviteFailed: "The invitation did not go out; try again.",
+  vaultPageInvitationPending: "Accept the invitation Bitwarden e-mailed you.",
   vaultPageInvitationAccepted:
-    "The invitation is accepted. The confirmation is tried again on your next visit here.",
+    "The invitation is accepted; it completes on your next visit here.",
   vaultPageMemberRevoked: "Your access to the vault was removed in Bitwarden.",
   vaultPageRevokedPersonal:
-    "Bitwarden no longer accepts this vault or the agents' account's API key. Disconnect it and connect it again; a deleted vault is then created anew.",
+    "Bitwarden no longer accepts the vault; disconnect it and connect it again.",
   vaultPageFreeLimit:
-    "The agents' account already owns another free organization. Disconnect it and connect a new agents' account.",
+    "The agents' account is used elsewhere now; disconnect it and connect a new one.",
   vaultPageAccountMissing:
-    "The agents' account is missing in this Environment. Disconnect it and connect it again.",
+    "The agents' account is missing here; disconnect Bitwarden and connect it again.",
   vaultPageConnectionUnreadable:
-    "The connection of your Bitwarden cannot be read. Disconnect it and connect it again.",
+    "Your Bitwarden's connection cannot be read; disconnect it and connect it again.",
   vaultDisconnect: "Disconnect Bitwarden",
   vaultDisconnecting: "Disconnecting…",
-  vaultDisconnectNote:
-    "Disconnecting removes the agents' account details from this Environment; the organization stays in Bitwarden.",
+  vaultDisconnectNote: "The vault and its passwords stay in Bitwarden.",
   vaultPageAgentsOnly: "Only this Environment's agents use its vault.",
   vaultPageGuide:
     "Does an agent need a password or a key? Tell it in Chat. It asks for the value here, you fill it in, and it goes straight into the vault.",
@@ -2712,65 +2720,71 @@ const cs: Record<MessageKey, string> = {
   vaultPageRule: "Kdo má přístup do Prostředí, má všechna jeho hesla.",
   vaultPageWorkstation: "Trezor na tomto počítači není.",
   vaultPageNoVault: "Toto Prostředí zatím trezor nemá.",
-  vaultPageNeedsConnection:
-    "Toto osobní Prostředí ukládá hesla svých agentů do vašeho vlastního Bitwardenu, do bezplatné organizace pro vás a samostatný účet agentů.",
-  vaultConnectTitle: "Připojte svůj Bitwarden",
-  vaultConnectMainAccount:
-    "Agenti nikdy nedostanou váš hlavní účet: přihlašují se jen účtem agentů.",
-  vaultConnectStep1:
-    "Ve stejné službě a oblasti jako váš účet si založte nový účet pro agenty.",
-  vaultConnectStep2:
-    "V něm otevřete Nastavení účtu → Zabezpečení → Klíče → Klíč API a zkopírujte client_id a client_secret.",
-  vaultConnectStep3:
-    "Vyplňte je tady s hlavním heslem účtu agentů a e-mailem svého účtu. Toto Prostředí založí trezor a pozve vás do něj.",
-  vaultConnectRegion: "Oblast Bitwardenu",
-  vaultConnectRegionEu: "EU (bitwarden.eu)",
-  vaultConnectRegionUs: "USA (bitwarden.com)",
-  vaultConnectClientId: "client_id účtu agentů",
-  vaultConnectClientSecret: "client_secret účtu agentů",
-  vaultConnectPassword: "Hlavní heslo účtu agentů",
-  vaultConnectEmail: "E-mail vašeho účtu v Bitwardenu",
-  vaultConnectEmailHint: "Na něj vám Bitwarden pošle pozvánku do trezoru.",
-  vaultConnectKept:
-    "Tyto údaje zůstanou jen v tomto Prostředí a už se nikde nezobrazí.",
-  vaultConnectSubmit: "Připojit Bitwarden",
+  vaultConnectTitle: "Hesla pro agenty ve vašem Bitwardenu",
+  vaultConnectLead:
+    "Agenti dostanou vlastní účet. Ten váš zůstane jen pro vás.",
+  vaultConnectYours: "Váš Bitwarden",
+  vaultConnectAgents: "Agenti",
+  vaultConnectAgentsWhere: "v tomto Prostředí",
+  vaultConnectPicture:
+    "Trezor {name} mezi vaším Bitwardenem a agenty v tomto Prostředí",
+  vaultConnectSignUp:
+    "Založte účet pro agenty. Jako e-mail použijte třeba ten svůj s +agenti: jana+agenti@gmail.com",
+  vaultConnectOpen: "Otevřít {service}",
+  vaultConnectOther: "Používáte {service}?",
+  vaultConnectSignUpPicture: "Bitwarden: pole „E-mailová adresa“ nového účtu",
+  vaultConnectApiKey:
+    "V novém účtu otevřete Nastavení → Zabezpečení → Klíče → Zobrazit klíč API a oba údaje zkopírujte sem.",
+  vaultConnectApiKeyPicture:
+    "Bitwarden: okno „Klíč API“ s client_id a client_secret",
+  vaultConnectClientId: "client_id",
+  vaultConnectClientSecret: "client_secret",
+  vaultConnectPassword: "Hlavní heslo účtu pro agenty",
+  vaultConnectSubmit: "Připojit",
   vaultConnectSubmitting: "Připojuje se…",
-  vaultConnectRegionInvalid: "Vyberte oblast svého Bitwardenu.",
-  vaultConnectClientIdInvalid: "Zkopírujte celé client_id: začíná na user.",
+  vaultConnectKept: "Údaje zůstanou jen v tomto Prostředí.",
+  vaultConnectClientIdInvalid: "Zkopírujte celé client_id.",
   vaultConnectClientSecretInvalid: "Zkopírujte celé client_secret.",
-  vaultConnectPasswordInvalid:
-    "Zadejte hlavní heslo účtu agentů na jednom řádku.",
-  vaultConnectEmailInvalid: "Zadejte e-mail svého účtu v Bitwardenu.",
+  vaultConnectPasswordInvalid: "Zadejte hlavní heslo účtu pro agenty.",
   vaultConnectInvalidCredentials:
-    "Bitwarden tento client_id a client_secret nepřijal. Zkontrolujte je i oblast.",
-  vaultConnectWrongPassword: "Hlavní heslo neodpovídá účtu agentů.",
-  vaultConnectSameAccount: "Účet agentů musí být jiný než váš vlastní účet.",
+    "Bitwarden tento klíč API nepřijal, zkopírujte ho znovu.",
+  vaultConnectWrongPassword:
+    "Toto není hlavní heslo účtu pro agenty, zkuste to znovu.",
   vaultConnectOwnsOrganization:
-    "Účet agentů už vlastní nebo spravuje jinou organizaci. Založte prosím nový účet agentů.",
+    "Tento účet se už používá jinde, založte pro agenty nový.",
   vaultConnectUnsupported:
-    "Tento účet agentů zatím Prostředí neumí otevřít. Založte prosím nový účet agentů.",
-  vaultConnectBusy: "Bitwarden teď neodpovídá. Zkuste to prosím za chvíli.",
-  vaultConnectConnected: "Toto Prostředí už má Bitwarden připojený.",
+    "Tento účet nejde připojit, založte pro agenty nový.",
+  vaultConnectBusy: "Bitwarden teď neodpovídá, zkuste to za chvíli.",
+  vaultConnectConnected: "Váš Bitwarden už je připojený.",
   vaultConnectNotOffered: "Toto Prostředí si vlastní Bitwarden nepřipojuje.",
-  vaultConnectFailed: "Připojení se nepodařilo. Zkuste to znovu.",
+  vaultConnectFailed: "Připojení se nepodařilo, zkuste to znovu.",
   vaultConnectAction: "Připojit",
+  vaultPageConnected: "Váš Bitwarden je připojený.",
+  vaultInviteTitle: "Chcete hesla agentů vidět i ve svém Bitwardenu?",
+  vaultInviteEmail: "Váš e-mail v Bitwardenu",
+  vaultInviteSubmit: "Pozvat mě",
+  vaultInviteSubmitting: "Posílá se…",
+  vaultInviteEmailInvalid: "Zadejte e-mail svého účtu v Bitwardenu.",
+  vaultInviteSameAccount: "To je účet pro agenty, zadejte e-mail toho svého.",
+  vaultInviteInvited: "Pozvánka už odešla na jiný e-mail.",
+  vaultInviteNotReady: "Trezor ještě není hotový, zkuste to za chvíli.",
+  vaultInviteFailed: "Pozvánka neodešla, zkuste to znovu.",
   vaultPageInvitationPending:
-    "Bitwarden vám e-mailem poslal pozvánku do trezoru. Po jejím přijetí vás toto Prostředí potvrdí.",
+    "Přijměte pozvánku, kterou vám Bitwarden poslal e-mailem.",
   vaultPageInvitationAccepted:
-    "Pozvánka je přijatá. Potvrzení se zkusí znovu při vaší příští návštěvě této stránky.",
+    "Pozvánka je přijatá, dokončí se při vaší příští návštěvě.",
   vaultPageMemberRevoked: "Přístup do trezoru vám byl v Bitwardenu odebrán.",
   vaultPageRevokedPersonal:
-    "Bitwarden tento trezor nebo klíč API účtu agentů už nepřijímá. Odpojte Bitwarden a připojte ho znovu; smazaný trezor Prostředí založí znovu.",
+    "Bitwarden už trezor nepřijímá, odpojte ho a připojte znovu.",
   vaultPageFreeLimit:
-    "Účet agentů už vlastní jinou bezplatnou organizaci. Odpojte ho a připojte nový účet agentů.",
+    "Účet pro agenty se už používá jinde, odpojte ho a připojte nový.",
   vaultPageAccountMissing:
-    "Účet agentů v tomto Prostředí chybí. Odpojte ho a připojte znovu.",
+    "Účet pro agenty tu chybí, odpojte Bitwarden a připojte ho znovu.",
   vaultPageConnectionUnreadable:
-    "Připojení vašeho Bitwardenu se nedá přečíst. Odpojte ho a připojte znovu.",
+    "Připojení Bitwardenu nejde přečíst, odpojte ho a připojte znovu.",
   vaultDisconnect: "Odpojit Bitwarden",
   vaultDisconnecting: "Odpojuje se…",
-  vaultDisconnectNote:
-    "Odpojení smaže údaje účtu agentů z tohoto Prostředí; organizace v Bitwardenu zůstane.",
+  vaultDisconnectNote: "Trezor i hesla v Bitwardenu zůstanou.",
   vaultPageAgentsOnly: "Trezor tohoto Prostředí používají jen jeho agenti.",
   vaultPageGuide:
     "Potřebuje agent heslo nebo klíč? Řekněte mu to v Chatu. O hodnotu si řekne tady, vy ji vyplníte a uloží se rovnou do trezoru.",

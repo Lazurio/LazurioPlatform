@@ -302,7 +302,10 @@ test.skipIf(!posix)(
         env: {},
         executable: process.execPath,
         host: {
-          context: async () => ({ kind: "needs-connection" }),
+          context: async () => ({
+            kind: "needs-connection",
+            name: "Osobní example",
+          }),
           directory: () => join(parent, "never"),
           connection: join(parent, "never"),
           base: join(parent, "never"),

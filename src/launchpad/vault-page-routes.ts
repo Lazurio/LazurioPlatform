@@ -28,8 +28,10 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //
 //   GET  /api/vault             the page: the vault's status as
 //                               `lazurio vault status` reads it (local, no
-//                               value), the step of a setup that runs, and
-//                               the kind of Environment
+//                               value), the step of a setup that runs, the
+//                               kind of Environment, and the name the vault
+//                               of a personal Environment's own Bitwarden
+//                               gets while its person has not connected it
 //   POST /api/vault/membership  {}: where the admitted person stands in the
 //                               vault, after the Environment adds them and,
 //                               on a work Environment, after the Správci of
@@ -57,6 +59,11 @@ export type VaultPage = Readonly<{
   setup: VaultPhase | null;
   /** The kind of Environment; null where it has no vault here. */
   environment: VaultEnvironmentKind | null;
+  /** The name the vault gets once a personal Environment's person connects
+   * their own Bitwarden (`Osobní <login>`, root decision 0203 point 7),
+   * while it waits for them (`needs-connection`); null otherwise, where the
+   * status names the vault itself. */
+  name: string | null;
 }>;
 
 /** `POST /api/vault/membership`: the person's membership, and while they
@@ -112,6 +119,7 @@ export function createVaultPageRoutes(
           : context.kind === "needs-connection"
             ? "personal"
             : context.environment,
+      name: context.kind === "needs-connection" ? context.name : null,
     };
   }
 

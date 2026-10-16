@@ -1135,6 +1135,7 @@ test.skipIf(!posix)(
         },
         setup: null,
         environment: null,
+        name: null,
       });
       const membership = await fetch(
         new URL("/api/vault/membership", url.origin),

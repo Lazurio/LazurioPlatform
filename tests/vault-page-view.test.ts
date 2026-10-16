@@ -6,10 +6,13 @@ import {
   bitwardenReveal,
   bitwardenTarget,
   connectionFilled,
+  connectionPictures,
   connectionRefusalText,
+  inviteRefusalText,
   offersBitwarden,
   parseVaultMembership,
   parseVaultPage,
+  signUpLinks,
   type VaultPageModel,
   type VaultPagePerson,
   vaultPageLinks,
@@ -51,6 +54,7 @@ const model = (
   status,
   setup: null,
   environment: "personal",
+  name: null,
   ...fields,
 });
 const member = { kind: "known", state: "member", signIn: false } as const;
@@ -59,10 +63,24 @@ const labels = (view: ReturnType<typeof vaultPageView>) =>
 
 test("the page's answers are read only in their exact form", () => {
   const page = { kind: "vault-page", status: connected(), setup: null };
-  expect(parseVaultPage({ ...page, environment: "work" })).toEqual({
+  expect(parseVaultPage({ ...page, environment: "work", name: null })).toEqual({
     status: connected(),
     setup: null,
     environment: "work",
+    name: null,
+  });
+  // The name the vault of a personal Environment's own Bitwarden gets.
+  const waiting = {
+    kind: "vault-page",
+    status: { kind: "vault-status", state: "needs-connection" },
+    setup: null,
+    environment: "personal",
+  };
+  expect(parseVaultPage({ ...waiting, name: "Osobní example" })).toEqual({
+    status: { kind: "vault-status", state: "needs-connection" },
+    setup: null,
+    environment: "personal",
+    name: "Osobní example",
   });
   for (const refused of [
     null,
@@ -71,6 +89,10 @@ test("the page's answers are read only in their exact form", () => {
     { ...page, environment: "work", setup: "download" },
     { ...page, environment: "work", status: { kind: "vault-status" } },
     { ...page, environment: "work", kind: "vault-status" },
+    { ...waiting, name: "" },
+    { ...waiting, name: "x".repeat(51) },
+    { ...waiting, name: "Osobní\nexample" },
+    { ...waiting, name: 7 },
   ])
     expect(parseVaultPage(refused)).toBeNull();
   expect(
@@ -83,6 +105,9 @@ test("the page's answers are read only in their exact form", () => {
       signIn: true,
     }),
   ).toEqual({ kind: "known", state: "awaiting-password", signIn: true });
+  expect(
+    parseVaultMembership({ kind: "vault-member", state: "not-invited" }),
+  ).toEqual({ kind: "known", state: "not-invited", signIn: false });
   expect(
     parseVaultMembership({ kind: "vault-member-unknown", reason: "busy" }),
   ).toEqual({ kind: "unknown", reason: "busy" });
@@ -301,7 +326,8 @@ test("this computer and an Environment without a vault say so in one line; a 019
     actions: [],
     hint: null,
     guide: false,
-    connect: false,
+    connect: null,
+    invite: false,
     disconnect: false,
   });
   expect(
@@ -438,12 +464,17 @@ test("a ready own vault says how it is used: tell the agent in Chat, the value i
   ).toBe(false);
 });
 
-// A personal Environment's own Bitwarden (root decision 0203 point 7): the
-// form while its person has not connected it, then the row, the person's
-// state in one line and "Odpojit Bitwarden".
-test("a personal Environment waiting for its person shows the form; connected, the person's state in one line and the way out", () => {
+// A personal Environment's own Bitwarden (root decision 0203 point 7; F53's
+// amendment of 2026-10-16, (2)): the section that connects it while its
+// person has not, then the row, one line that it is connected with the
+// invitation the person may ask for, the person's state in one line and the
+// way out.
+test("a personal Environment waiting for its person shows the section with the vault it gets; connected, the invitation, the person's state in one line and the way out", () => {
   const waiting = vaultPageView(
-    model({ kind: "vault-status", state: "needs-connection" }),
+    model(
+      { kind: "vault-status", state: "needs-connection" },
+      { name: "Osobní example" },
+    ),
     { kind: "unknown", reason: "not-connected" },
     cs,
   );
@@ -452,9 +483,18 @@ test("a personal Environment waiting for its person shows the form; connected, t
     note: null,
     row: null,
     actions: [],
-    connect: true,
+    connect: { vault: "Osobní example" },
+    invite: false,
     disconnect: false,
   });
+  // A page without the name (never this server's): the vault's own word.
+  expect(
+    vaultPageView(
+      model({ kind: "vault-status", state: "needs-connection" }),
+      null,
+      en,
+    ).connect,
+  ).toEqual({ vault: "Vault" });
   const bitwarden = {
     ...connected(3),
     vault: "https://vault.bitwarden.eu",
@@ -463,21 +503,46 @@ test("a personal Environment waiting for its person shows the form; connected, t
     organization: "Osobní example",
     region: "eu",
   } as const;
-  const known = (state: "invitation-pending" | "accepted" | "revoked") =>
-    ({ kind: "known", state, signIn: false }) as const;
+  const known = (
+    state: "not-invited" | "invitation-pending" | "accepted" | "revoked",
+  ) => ({ kind: "known", state, signIn: false }) as const;
   const view = (
     person: Parameters<typeof vaultPageView>[1],
     status: VaultStatus = bitwarden,
-  ) => vaultPageView(model(status), person, cs);
+    copy = cs,
+  ) => vaultPageView(model(status), person, copy);
+  // Connected, nobody invited yet: one line, and the invitation.
+  expect(view(known("not-invited"))).toEqual({
+    rule: true,
+    note: null,
+    row: { title: "Osobní example", line: "3 položky", tone: "ok" },
+    actions: [],
+    hint: "Váš Bitwarden je připojený.",
+    guide: true,
+    connect: null,
+    invite: true,
+    disconnect: true,
+  });
+  expect(view(known("not-invited"), bitwarden, en).hint).toBe(
+    "Your Bitwarden is connected.",
+  );
   expect(view(known("invitation-pending"))).toMatchObject({
-    connect: false,
+    connect: null,
+    invite: false,
     disconnect: true,
     actions: [],
-    hint: "Bitwarden vám e-mailem poslal pozvánku do trezoru. Po jejím přijetí vás toto Prostředí potvrdí.",
+    hint: "Přijměte pozvánku, kterou vám Bitwarden poslal e-mailem.",
   });
-  expect(view(known("accepted")).hint).toBe(cs.vaultPageInvitationAccepted);
+  expect(view(known("invitation-pending"), bitwarden, en).hint).toBe(
+    "Accept the invitation Bitwarden e-mailed you.",
+  );
+  expect(view(known("accepted"))).toMatchObject({
+    invite: false,
+    hint: "Pozvánka je přijatá, dokončí se při vaší příští návštěvě.",
+  });
   expect(view(known("revoked"))).toMatchObject({
     actions: [],
+    invite: false,
     hint: "Přístup do trezoru vám byl v Bitwardenu odebrán.",
   });
   const joined = view(member);
@@ -496,9 +561,18 @@ test("a personal Environment waiting for its person shows the form; connected, t
   expect(joined).toMatchObject({
     disconnect: true,
     guide: true,
+    invite: false,
+    hint: null,
     row: { title: "Osobní example", line: "3 položky" },
   });
-  // Not known (busy, no answer): the vault opens.
+  // The person's answer not there yet: nothing to open before it says they
+  // are a member; not known (busy, no answer): the vault opens.
+  expect(view(null)).toMatchObject({
+    actions: [],
+    invite: false,
+    hint: null,
+    disconnect: true,
+  });
   expect(labels(view({ kind: "unknown", reason: "unreachable" }))).toEqual([
     [
       "open",
@@ -515,29 +589,39 @@ test("a personal Environment waiting for its person shows the form; connected, t
     ...facts_
   } = bitwarden;
   for (const [reason, hint] of [
-    ["free-organization-limit", cs.vaultPageFreeLimit],
-    ["account-missing", cs.vaultPageAccountMissing],
+    [
+      "free-organization-limit",
+      "Účet pro agenty se už používá jinde, odpojte ho a připojte nový.",
+    ],
+    [
+      "account-missing",
+      "Účet pro agenty tu chybí, odpojte Bitwarden a připojte ho znovu.",
+    ],
   ] as const)
     expect(
-      view(null, {
+      view(known("not-invited"), {
         ...facts_,
         state: "failed",
         stage: reason === "account-missing" ? "account" : "vault",
         reason,
         fallback: "agent",
       }),
-    ).toMatchObject({ hint, disconnect: true, actions: [] });
+    ).toMatchObject({ hint, disconnect: true, actions: [], invite: false });
   // A vault Bitwarden no longer accepts (deleted there, a rotated API key):
   // disconnect and connect again.
   expect(view(member, { ...facts_, state: "revoked" })).toMatchObject({
-    hint: "Bitwarden tento trezor nebo klíč API účtu agentů už nepřijímá. Odpojte Bitwarden a připojte ho znovu; smazaný trezor Prostředí založí znovu.",
+    hint: "Bitwarden už trezor nepřijímá, odpojte ho a připojte znovu.",
     disconnect: true,
     actions: [],
   });
-  // While a setup runs, nothing but its step; no disconnect.
+  // While a setup runs, nothing but its step; no invitation, no disconnect.
   expect(
-    vaultPageView(model(bitwarden, { setup: "vault" }), member, cs),
-  ).toMatchObject({ disconnect: false, actions: [] });
+    vaultPageView(
+      model(bitwarden, { setup: "vault" }),
+      known("not-invited"),
+      cs,
+    ),
+  ).toMatchObject({ disconnect: false, invite: false, actions: [] });
   // A connection that does not read: one line and the way out.
   expect(
     vaultPageView(
@@ -551,60 +635,297 @@ test("a personal Environment waiting for its person shows the form; connected, t
     ),
   ).toMatchObject({
     rule: false,
-    note: "The connection of your Bitwarden cannot be read. Disconnect it and connect it again.",
+    note: "Your Bitwarden's connection cannot be read; disconnect it and connect it again.",
     disconnect: true,
-    connect: false,
+    connect: null,
+    invite: false,
   });
-  // A Lazurio Vaultwarden's vault has no way out: it is the network's.
-  expect(vaultPageView(model(connected()), member, cs).disconnect).toBe(false);
+  // A Lazurio Vaultwarden's vault has no way out and no invitation: it is
+  // the network's, and its people are added by the gateway's answer.
+  expect(vaultPageView(model(connected()), member, cs)).toMatchObject({
+    disconnect: false,
+    invite: false,
+  });
 });
 
-test("the connection form's refusals say what the person can do, in both languages; it is sent only filled in", () => {
-  expect(connectionRefusalText("wrong-password", cs)).toBe(
-    "Hlavní heslo neodpovídá účtu agentů.",
-  );
-  expect(connectionRefusalText("owns-organization", en)).toBe(
-    "The agents' account already owns or manages another organization. Please create a new agents' account.",
-  );
+// The section's words (F53's amendment of 2026-10-16, (2), after the
+// Organization Admin's review: less text, pictures): a title, the picture
+// and one line, two steps with one line each, the fields and one button;
+// refusals of one sentence that say what to do next. Word for word in both
+// languages.
+test("the connection's words: the title, the picture of the vault, one line, two steps, the fields and the button, in both languages", () => {
+  const words = (copy: typeof cs) => [
+    copy.vaultConnectTitle,
+    copy.vaultConnectLead,
+    copy.vaultConnectYours,
+    copy.vaultConnectAgents,
+    copy.vaultConnectAgentsWhere,
+    copy.vaultConnectSignUp,
+    copy.vaultConnectApiKey,
+    copy.vaultConnectClientId,
+    copy.vaultConnectClientSecret,
+    copy.vaultConnectPassword,
+    copy.vaultConnectSubmit,
+    copy.vaultConnectSubmitting,
+    copy.vaultConnectKept,
+  ];
+  expect(words(cs)).toEqual([
+    "Hesla pro agenty ve vašem Bitwardenu",
+    "Agenti dostanou vlastní účet. Ten váš zůstane jen pro vás.",
+    "Váš Bitwarden",
+    "Agenti",
+    "v tomto Prostředí",
+    "Založte účet pro agenty. Jako e-mail použijte třeba ten svůj s +agenti: jana+agenti@gmail.com",
+    "V novém účtu otevřete Nastavení → Zabezpečení → Klíče → Zobrazit klíč API a oba údaje zkopírujte sem.",
+    "client_id",
+    "client_secret",
+    "Hlavní heslo účtu pro agenty",
+    "Připojit",
+    "Připojuje se…",
+    "Údaje zůstanou jen v tomto Prostředí.",
+  ]);
+  expect(words(en)).toEqual([
+    "Your agents' passwords in your Bitwarden",
+    "Your agents get their own account. Yours stays yours.",
+    "Your Bitwarden",
+    "Agents",
+    "in this Environment",
+    "Create an account for your agents. For its e-mail, you can use your own with +agents: jana+agents@gmail.com",
+    "In the new account, open Settings → Security → Keys → View API key and copy both values here.",
+    "client_id",
+    "client_secret",
+    "Master password of the agents' account",
+    "Connect",
+    "Connecting…",
+    "These details stay only in this Environment.",
+  ]);
+  // The picture: the vault by the name it gets, and Bitwarden's screens.
+  expect(connectionPictures("Osobní jana", cs)).toEqual({
+    label:
+      "Trezor Osobní jana mezi vaším Bitwardenem a agenty v tomto Prostředí",
+    steps: [
+      {
+        name: "signup",
+        alt: "Bitwarden: pole „E-mailová adresa“ nového účtu",
+      },
+      {
+        name: "api-key",
+        alt: "Bitwarden: okno „Klíč API“ s client_id a client_secret",
+      },
+    ],
+  });
+  expect(connectionPictures("Osobní jana", en)).toEqual({
+    label:
+      "The vault Osobní jana between your Bitwarden and the agents in this Environment",
+    steps: [
+      {
+        name: "signup",
+        alt: "Bitwarden: the “Email address” field of a new account",
+      },
+      {
+        name: "api-key",
+        alt: "Bitwarden: the “API Key” window with client_id and client_secret",
+      },
+    ],
+  });
+  // Step 1 opens bitwarden.eu's own sign-up; bitwarden.com on request.
+  expect(signUpLinks("eu", cs)).toEqual({
+    open: {
+      label: "Otevřít bitwarden.eu",
+      href: "https://vault.bitwarden.eu/#/signup",
+    },
+    other: { label: "Používáte bitwarden.com?", region: "us" },
+  });
+  expect(signUpLinks("us", en)).toEqual({
+    open: {
+      label: "Open bitwarden.com",
+      href: "https://vault.bitwarden.com/#/signup",
+    },
+    other: { label: "Using bitwarden.eu?", region: "eu" },
+  });
+  // The invitation: one question, one address, one button.
+  expect([
+    cs.vaultInviteTitle,
+    cs.vaultInviteEmail,
+    cs.vaultInviteSubmit,
+    cs.vaultInviteSubmitting,
+    cs.vaultDisconnectNote,
+  ]).toEqual([
+    "Chcete hesla agentů vidět i ve svém Bitwardenu?",
+    "Váš e-mail v Bitwardenu",
+    "Pozvat mě",
+    "Posílá se…",
+    "Trezor i hesla v Bitwardenu zůstanou.",
+  ]);
+  expect([
+    en.vaultInviteTitle,
+    en.vaultInviteEmail,
+    en.vaultInviteSubmit,
+    en.vaultInviteSubmitting,
+    en.vaultDisconnectNote,
+  ]).toEqual([
+    "Want to see your agents' passwords in your own Bitwarden too?",
+    "Your Bitwarden e-mail",
+    "Invite me",
+    "Sending…",
+    "The vault and its passwords stay in Bitwarden.",
+  ]);
+  // No mechanics in any of the section's words: no organization, no plan,
+  // no region, no "Free".
+  const section = [
+    ...words(cs),
+    ...words(en),
+    cs.vaultInviteTitle,
+    en.vaultInviteTitle,
+    cs.vaultDisconnectNote,
+    en.vaultDisconnectNote,
+  ].join("\n");
+  for (const word of [
+    /organi[sz]a/i,
+    /\bfree\b/i,
+    /bezplatn/i,
+    /oblast/i,
+    /region/i,
+  ])
+    expect([word.source, word.test(section)]).toEqual([word.source, false]);
+});
+
+test("the connection's and the invitation's refusals: one sentence that says what to do next, in both languages; the form is sent only filled in", () => {
+  const connecting = [
+    [
+      "client-id-invalid",
+      "Zkopírujte celé client_id.",
+      "Copy the whole client_id.",
+    ],
+    [
+      "client-secret-invalid",
+      "Zkopírujte celé client_secret.",
+      "Copy the whole client_secret.",
+    ],
+    [
+      "password-invalid",
+      "Zadejte hlavní heslo účtu pro agenty.",
+      "Enter the master password of the agents' account.",
+    ],
+    [
+      "invalid-credentials",
+      "Bitwarden tento klíč API nepřijal, zkopírujte ho znovu.",
+      "Bitwarden did not accept this API key; copy it again.",
+    ],
+    [
+      "wrong-password",
+      "Toto není hlavní heslo účtu pro agenty, zkuste to znovu.",
+      "This is not the agents' account's master password; try again.",
+    ],
+    [
+      "owns-organization",
+      "Tento účet se už používá jinde, založte pro agenty nový.",
+      "This account is used elsewhere already; create a new one for your agents.",
+    ],
+    [
+      "unsupported-keys",
+      "Tento účet nejde připojit, založte pro agenty nový.",
+      "This account cannot be connected; create a new one for your agents.",
+    ],
+    [
+      "unreachable",
+      "Bitwarden teď neodpovídá, zkuste to za chvíli.",
+      "Bitwarden is not responding; try again in a moment.",
+    ],
+    [
+      "connected",
+      "Váš Bitwarden už je připojený.",
+      "Your Bitwarden is connected already.",
+    ],
+    [
+      "failed",
+      "Připojení se nepodařilo, zkuste to znovu.",
+      "Connecting did not work; try again.",
+    ],
+  ] as const;
+  for (const [reason, czech, english] of connecting)
+    expect([
+      reason,
+      connectionRefusalText(reason, cs),
+      connectionRefusalText(reason, en),
+    ]).toEqual([reason, czech, english]);
   for (const reason of [
-    "region-invalid",
-    "client-id-invalid",
-    "client-secret-invalid",
-    "password-invalid",
-    "email-invalid",
-    "invalid-credentials",
-    "same-account",
     "unsupported-kdf",
-    "unsupported-keys",
     "rate-limited",
-    "unreachable",
     "busy",
     "setting-up",
-    "connected",
     "not-offered",
     "pilot-0197",
     "not-connected",
-    "failed",
   ])
     for (const copy of [cs, en])
       expect([reason, typeof connectionRefusalText(reason, copy)]).toEqual([
         reason,
         "string",
       ]);
-  expect(connectionRefusalText("something-else", cs)).toBeNull();
-  expect(connectionRefusalText(undefined, cs)).toBeNull();
-  const filled = {
-    region: "eu",
-    clientId: "user.x",
-    clientSecret: "s",
-    masterPassword: " ",
-    email: "e",
-  };
+  const inviting = [
+    [
+      "email-invalid",
+      "Zadejte e-mail svého účtu v Bitwardenu.",
+      "Enter the e-mail of your Bitwarden account.",
+    ],
+    [
+      "same-account",
+      "To je účet pro agenty, zadejte e-mail toho svého.",
+      "That is the agents' account; enter the e-mail of your own.",
+    ],
+    [
+      "invited",
+      "Pozvánka už odešla na jiný e-mail.",
+      "An invitation went to another e-mail already.",
+    ],
+    [
+      "not-connected",
+      "Trezor ještě není hotový, zkuste to za chvíli.",
+      "The vault is not ready yet; try again in a moment.",
+    ],
+    [
+      "failed",
+      "Pozvánka neodešla, zkuste to znovu.",
+      "The invitation did not go out; try again.",
+    ],
+  ] as const;
+  for (const [reason, czech, english] of inviting)
+    expect([
+      reason,
+      inviteRefusalText(reason, cs),
+      inviteRefusalText(reason, en),
+    ]).toEqual([reason, czech, english]);
+  for (const reason of [
+    "setting-up",
+    "busy",
+    "unreachable",
+    "rate-limited",
+    "not-offered",
+    "pilot-0197",
+  ])
+    for (const copy of [cs, en])
+      expect([reason, typeof inviteRefusalText(reason, copy)]).toEqual([
+        reason,
+        "string",
+      ]);
+  // Every refusal is one sentence.
+  for (const [, czech, english] of [...connecting, ...inviting])
+    for (const text of [czech, english])
+      expect([
+        text,
+        text.split(/[.?!](?:\s|$)/).filter(Boolean).length,
+      ]).toEqual([text, 1]);
+  for (const unknown of ["something-else", undefined, "region-invalid"]) {
+    expect(connectionRefusalText(unknown, cs)).toBeNull();
+    expect(inviteRefusalText(unknown, cs)).toBeNull();
+  }
+  const filled = { clientId: "user.x", clientSecret: "s", masterPassword: " " };
   expect(connectionFilled({ ...filled, masterPassword: "p" })).toBe(true);
   expect(connectionFilled(filled)).toBe(false);
-  expect(connectionFilled({ ...filled, masterPassword: "p", email: "" })).toBe(
-    false,
-  );
+  expect(
+    connectionFilled({ ...filled, masterPassword: "p", clientId: "" }),
+  ).toBe(false);
 });
 
 test("every text of the Trezor page's markup is a message of both languages", () => {
@@ -619,7 +940,8 @@ test("every text of the Trezor page's markup is a message of both languages", ()
   const keys = [...section.matchAll(/data-message="([^"]+)"/g)].map(
     (match) => match[1] as string,
   );
-  expect(keys).toContain("vaultConnectStep2");
+  expect(keys).toContain("vaultConnectApiKey");
+  expect(keys).toContain("vaultInviteTitle");
   for (const key of keys)
     for (const copy of [cs, en])
       expect([key, typeof (copy as Record<string, unknown>)[key]]).toEqual([
