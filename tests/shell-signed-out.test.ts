@@ -175,22 +175,13 @@ test("the rail signed out is exactly the logo and the key, both leading to where
     const rail = signedOutRail(signedOut(), copy);
     // The logo first, as in the signed-in rail, keeping its name and label;
     // the key last, where a person's account stands. Nothing else: no
-    // search (⌘⇧E), no spaces, no "+" and no account.
+    // search (⌘⇧E), no spaces, no "+" and no account. Each label is the
+    // item's name alone (F36's addendum of 2026-10-16).
     expect(rail).toEqual({
       label: "Lazurio",
       items: [
-        {
-          kind: "home",
-          href: "/auth/sign-in?return=%2F",
-          label: home,
-          sub: copy.dashboardSub,
-        },
-        {
-          kind: "sign-in",
-          href: "/auth/sign-in?return=%2F",
-          label: key,
-          sub: "",
-        },
+        { kind: "home", href: "/auth/sign-in?return=%2F", label: home },
+        { kind: "sign-in", href: "/auth/sign-in?return=%2F", label: key },
       ],
     });
     expect(Object.isFrozen(rail)).toBe(true);

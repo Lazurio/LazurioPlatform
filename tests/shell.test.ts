@@ -155,18 +155,19 @@ test("a workstation's document: this computer, every Organization of the Folder 
   expect(environmentHref(current, "beta", "apps")).toBe("/o/beta");
   expect(environmentHref(current, "personal", "apps")).toBe("/");
   // The rail: your space, then each Organization; the space a click on
-  // Beta leads to is this computer opened for Beta.
+  // Beta leads to is this computer opened for Beta. A label is the space's
+  // name alone (F36's addendum of 2026-10-16).
   const spaces = railSpaces(shell, cs, {
     here: "beta",
     app: "apps",
     last: noLast,
   });
   expect(
-    spaces.map((space) => [space.space, space.href, space.active, space.sub]),
+    spaces.map((space) => [space.space, space.href, space.active, space.title]),
   ).toEqual([
-    ["personal", "/", false, "1 Prostředí"],
-    ["alpha", "/o/alpha", false, "1 Prostředí"],
-    ["beta", "/o/beta", true, "1 Prostředí"],
+    ["personal", "/", false, "Osobní"],
+    ["alpha", "/o/alpha", false, "Alpha Example"],
+    ["beta", "/o/beta", true, "Beta Example"],
   ]);
   expect(spaces[1]?.avatar).toBe("https://github.com/alpha-forge.png?size=96");
   expect(spaces[2]?.initials).toBe("BE");
@@ -181,7 +182,7 @@ test("a workstation's document: this computer, every Organization of the Folder 
   ).toEqual([
     ["chat", null, false, "Chat v tomto Prostředí neběží"],
     ["apps", "/", true, null],
-    ["automate", null, false, "MausBot v tomto Prostředí neběží"],
+    ["automate", null, false, "Automate v tomto Prostředí neběží"],
   ]);
 });
 
@@ -613,15 +614,13 @@ test("several Organizations: a space's Environments, its last one remembered, th
     app: "automate",
     last: (space) => (space === "north" ? "vm-2.north" : null),
   });
-  expect(spaces.map((space) => [space.space, space.href, space.sub])).toEqual([
-    ["personal", "/", "2 Environments"],
+  expect(spaces.map((space) => [space.space, space.href, space.title])).toEqual(
     [
-      "north",
-      "https://launchpad.vm-2.north.lazurio.io/",
-      "5 Environments · last Work",
+      ["personal", "/", "Personal"],
+      ["north", "https://launchpad.vm-2.north.lazurio.io/", "North Example"],
+      ["south", "https://mausbot.vm-1.south.lazurio.io/", "South Example"],
     ],
-    ["south", "https://mausbot.vm-1.south.lazurio.io/", "1 Environment"],
-  ]);
+  );
   // The list under the picker: this space only, without a title or a head.
   const one = switcherList(shell, en, {
     kind: "picker",

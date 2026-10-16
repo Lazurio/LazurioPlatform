@@ -300,21 +300,13 @@ test("from a Dashboard page a space leads to the account's last Environment ther
     app: null,
     last: (space) => last.get(space) ?? null,
   });
-  expect(spaces.map((space) => [space.space, space.href, space.sub])).toEqual([
+  expect(spaces.map((space) => [space.space, space.href])).toEqual([
     // No visit: the first Environment, in Apps.
-    ["personal", "https://launchpad.ada.lazurio.io/", "1 Environment"],
+    ["personal", "https://launchpad.ada.lazurio.io/"],
     // The visit, in the app it recorded.
-    [
-      "example",
-      "https://t3code.vm-03.example.lazurio.io/",
-      "2 Environments · last Work",
-    ],
+    ["example", "https://t3code.vm-03.example.lazurio.io/"],
     // No Environment: its Dashboard.
-    [
-      "other-example",
-      "https://dashboard.lazurio.ai/orgs/other-example",
-      en.spaceEmpty,
-    ],
+    ["other-example", "https://dashboard.lazurio.ai/orgs/other-example"],
   ]);
   // A recorded app the Environment does not run opens its Apps; a visit of
   // an Environment the space does not hold is no visit, and the first one

@@ -3,25 +3,17 @@ import type { ShellEnvironmentKind } from "./contract";
 // The words of the shell elements, in the two languages of the Launchpad, in
 // its tone (decision F16 naming: Environment, never Machine or VM). The
 // elements live in other apps too (the forks), so they carry their own words
-// rather than the Launchpad's catalogue.
+// rather than the Launchpad's catalogue. A label of the rail is the item's
+// name alone (F36's addendum of 2026-10-16): no line about how many
+// Environments a space has, which one was last, or what a click does.
 
 export type ShellCopy = Readonly<{
   rail: string;
   dashboard: string;
-  dashboardSub: string;
   jump: string;
-  jumpShortcut: string;
   personal: string;
   addOrganization: string;
   account: string;
-  accountSub: string;
-  /** "{count} Environment(s)" by the Czech plural. */
-  environmentsOne: string;
-  environmentsFew: string;
-  environmentsMany: string;
-  last: string;
-  /** The second line of a space without an Environment: its Dashboard. */
-  spaceEmpty: string;
   /** The name of an Environment without its own name, by kind. */
   names: Readonly<Record<ShellEnvironmentKind, string>>;
   /** The kind on an Environment's second line, left out where the name
@@ -66,18 +58,10 @@ export type ShellCopy = Readonly<{
 const en: ShellCopy = {
   rail: "Organizations",
   dashboard: "Dashboard",
-  dashboardSub: "Your overview across Organizations",
   jump: "Go to an Environment",
-  jumpShortcut: "⌘⇧E",
   personal: "Personal",
   addOrganization: "Add an Organization",
   account: "Lazurio account",
-  accountSub: "Account settings in the Dashboard",
-  environmentsOne: "{count} Environment",
-  environmentsFew: "{count} Environments",
-  environmentsMany: "{count} Environments",
-  last: "last {name}",
-  spaceEmpty: "No Environment yet · opens its Dashboard",
   names: {
     personal: "Personal",
     work: "Work",
@@ -113,7 +97,7 @@ const en: ShellCopy = {
   apps: "Apps",
   automate: "Automate",
   chatMissing: "Chat does not run on this Environment",
-  automateMissing: "MausBot does not run on this Environment",
+  automateMissing: "Automate does not run on this Environment",
   setupPrompt: "Finish setting up ({done} of {total})",
   signedOutRail: "Lazurio",
   signIn: "Sign in with your Lazurio account",
@@ -122,18 +106,10 @@ const en: ShellCopy = {
 const cs: ShellCopy = {
   rail: "Organizace",
   dashboard: "Přehled",
-  dashboardSub: "napříč vašimi Organizacemi",
   jump: "Přejít na Prostředí",
-  jumpShortcut: "⌘⇧E",
   personal: "Osobní",
   addOrganization: "Přidat organizaci",
   account: "Lazurio účet",
-  accountSub: "Nastavení účtu v Lazuriu",
-  environmentsOne: "{count} Prostředí",
-  environmentsFew: "{count} Prostředí",
-  environmentsMany: "{count} Prostředí",
-  last: "naposledy {name}",
-  spaceEmpty: "Zatím žádné Prostředí · otevře Přehled Organizace",
   names: {
     personal: "Osobní",
     work: "Pracovní",
@@ -169,7 +145,7 @@ const cs: ShellCopy = {
   apps: "Apps",
   automate: "Automate",
   chatMissing: "Chat v tomto Prostředí neběží",
-  automateMissing: "MausBot v tomto Prostředí neběží",
+  automateMissing: "Automate v tomto Prostředí neběží",
   setupPrompt: "Dokončit nastavení ({done} ze {total})",
   signedOutRail: "Lazurio",
   signIn: "Přihlásit Lazurio účtem",

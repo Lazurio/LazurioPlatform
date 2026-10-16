@@ -839,7 +839,7 @@ test("the personal space's starts: Chat and Automate lead where the switch's tab
       "Zadejte agentovi první úkol",
       { kind: "app", app: "chat", href: chat },
     ],
-    ["automate", "Automate", "MausBot v tomto Prostředí neběží", null],
+    ["automate", "Automate", "Automate v tomto Prostředí neběží", null],
     ["integrations", "Integrace", "Připojte poštu a kalendář", integrations],
     ["files", "Soubory", "Nahrajte podklady pro agenty", files],
   ]);
@@ -851,7 +851,7 @@ test("the personal space's starts: Chat and Automate lead where the switch's tab
       [
         "automate",
         "Automate",
-        "MausBot does not run on this Environment",
+        "Automate does not run on this Environment",
         null,
       ],
       [

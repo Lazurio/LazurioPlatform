@@ -232,19 +232,11 @@ export function environmentHref(
   return `${root}o/${encodeURIComponent(space)}`;
 }
 
-const pluralKey = (count: number) =>
-  count === 1
-    ? "environmentsOne"
-    : count >= 2 && count <= 4
-      ? "environmentsFew"
-      : "environmentsMany";
-
 export type RailSpace = Readonly<{
   space: string;
-  /** The label's first line. */
+  /** Its label: the space's name, nothing else (F36's addendum of
+   * 2026-10-16). */
   title: string;
-  /** Its second line: how many Environments, and the last one. */
-  sub: string;
   href: string;
   active: boolean;
   /** The Organization's avatar or initials; the personal space's initials. */
@@ -289,20 +281,7 @@ export function railSpaces(
       space: id,
       title,
       // A space without an Environment (an Organization the account lists
-      // from the person's memberships) says so and leads to its Dashboard.
-      sub:
-        target === undefined
-          ? copy.spaceEmpty
-          : [
-              fillShell(copy[pluralKey(environments.length)], {
-                count: environments.length,
-              }),
-              last === undefined
-                ? null
-                : fillShell(copy.last, { name: environmentName(last, copy) }),
-            ]
-              .filter((part) => part !== null)
-              .join(" · "),
+      // from the person's memberships) leads to its Dashboard.
       href: target === undefined ? dashboard : environmentHref(target, id, app),
       active: options.here === id,
       ...marks,
@@ -341,10 +320,8 @@ export type SignedOutRailItem = Readonly<{
    * where a person's account stands. */
   kind: "home" | "sign-in";
   href: string;
-  /** Its accessible name and the first line of its label. */
+  /** Its accessible name and its label. */
   label: string;
-  /** The label's second line; empty for none. */
-  sub: string;
 }>;
 
 export type SignedOutRail = Readonly<{
@@ -368,18 +345,8 @@ export function signedOutRail(
   return Object.freeze({
     label: copy.signedOutRail,
     items: Object.freeze([
-      item({
-        kind: "home",
-        href: signedOut.signIn,
-        label: copy.dashboard,
-        sub: copy.dashboardSub,
-      }),
-      item({
-        kind: "sign-in",
-        href: signedOut.signIn,
-        label: copy.signIn,
-        sub: "",
-      }),
+      item({ kind: "home", href: signedOut.signIn, label: copy.dashboard }),
+      item({ kind: "sign-in", href: signedOut.signIn, label: copy.signIn }),
     ]),
   });
 }
