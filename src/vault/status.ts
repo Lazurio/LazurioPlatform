@@ -1,4 +1,5 @@
 import type { VaultUnsupportedReason } from "./context";
+import type { BitwardenRegion } from "./endpoints";
 import { readAccount, type VaultAccount, type VaultPaths } from "./store";
 
 // What the vault core answers (decisions F43, F46 and F53): the status of an
@@ -22,6 +23,10 @@ export type VaultFacts = Readonly<{
    * as before until its handover names a vault and DEV-6631 task 649 moves
    * its items. */
   origin: "own" | "pilot-0197";
+  /** A personal Environment's own Bitwarden (root decision 0203 point 7):
+   * the cloud region of the agents' account its person connected. Absent
+   * for a Lazurio Vaultwarden. */
+  region?: BitwardenRegion;
 }>;
 
 /** The steps of a setup, in order. */
@@ -34,6 +39,13 @@ export type VaultStatus =
       kind: "vault-status";
       state: "unsupported";
       reason: VaultUnsupportedReason;
+    }>
+  | Readonly<{
+      kind: "vault-status";
+      /** A personal Environment whose person has not connected their own
+       * Bitwarden yet (root decision 0203 point 7): they do it in Settings
+       * → Vault; nothing else moves it on. */
+      state: "needs-connection";
     }>
   | (VaultFacts &
       Readonly<{
@@ -120,6 +132,11 @@ export type VaultEnvResult =
 export const unsupportedStatus = (
   reason: VaultUnsupportedReason,
 ): VaultStatus => ({ kind: "vault-status", state: "unsupported", reason });
+
+export const needsConnectionStatus: VaultStatus = Object.freeze({
+  kind: "vault-status",
+  state: "needs-connection",
+});
 
 export function failedStatus(
   facts: VaultFacts,

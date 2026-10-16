@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { isAbsolute, join } from "node:path";
 import type { MachineContext } from "../machine/context";
+import { type BitwardenRegion, bitwardenRegions } from "./endpoints";
 
 // The Environment's own vault (root decision 0198, decision F53): which
 // network vault this Environment's technical account lives in, what the
@@ -9,6 +10,11 @@ import type { MachineContext } from "../machine/context";
 // or guessed: without the member the Environment has no vault yet. Pure: the
 // handover and the kind of Environment go in, the facts come out, or why
 // this Environment has no vault here. Nothing here reads a file.
+//
+// A personal Environment whose handover names no vault keeps its vault in
+// its person's own Bitwarden instead (root decision 0203 point 7): the
+// person connects it, and the connection they made (connection.ts) names
+// the region and the agents' account.
 
 /** The kinds of Remote Environment. A workstation (this computer) is the
  * second wave of root decision 0193. */
@@ -36,7 +42,60 @@ export type VaultContext = Readonly<{
    * hands. When it changes, the Správci of a work Environment leave its
    * vault (`src/vault/members.ts`). */
   assignment: string | null;
+  /** A personal Environment's own Bitwarden (root decision 0203 point 7):
+   * the Bitwarden cloud region of the agents' account the person connected,
+   * and the address of the person's own Bitwarden account, which the vault
+   * invites. Absent for a Lazurio Vaultwarden the handover names. */
+  bitwarden?: Readonly<{ region: BitwardenRegion; invitee: string }>;
 }>;
+
+/** A personal Environment whose handover names no vault and whose person has
+ * not connected their own Bitwarden yet (root decision 0203 point 7): only
+ * the person moves it on, in Settings → Vault; nothing runs for it. */
+export type VaultNeedsConnection = Readonly<{ kind: "needs-connection" }>;
+
+/** The Bitwarden a personal Environment's person connected: its region, the
+ * agents' account and the person's own account the vault invites. Not
+ * secret; kept beside the custody (connection.ts). */
+export type BitwardenConnection = Readonly<{
+  region: BitwardenRegion;
+  account: string;
+  invitee: string;
+}>;
+
+/** The name of a personal Environment's own Bitwarden organization: "Osobní
+ * <login>", the login of the handover's owner (at most 46 characters, under
+ * Bitwarden's 50). */
+export const personalVaultName = (login: string): string => `Osobní ${login}`;
+
+/** The vault facts of a personal Environment whose person connected their
+ * own Bitwarden: the region's web vault, the agents' account and the
+ * organization "Osobní <login>" it owns. Null for any other handover. */
+export function personalVaultContextOf(
+  input: Readonly<{
+    handover: MachineContext;
+    connection: BitwardenConnection;
+  }>,
+): VaultContext | null {
+  const { handover, connection } = input;
+  if (handover.owner.kind !== "principal" || handover.vault !== undefined)
+    return null;
+  const web = bitwardenRegions[connection.region].web;
+  return Object.freeze({
+    kind: "own",
+    vault: web,
+    host: new URL(web).hostname,
+    account: connection.account,
+    name: personalVaultName(handover.owner.github_login),
+    environment: "personal",
+    organization: null,
+    assignment: null,
+    bitwarden: Object.freeze({
+      region: connection.region,
+      invitee: connection.invitee,
+    }),
+  });
+}
 
 /** Why an Environment has no vault here; every reason refuses before
  * anything is installed, written or sent. */
@@ -54,7 +113,11 @@ export type VaultUnsupportedReason =
   | "not-operator"
   /** The handover names no vault for this Environment (yet): Machines
    * writes the member only where the network pre-allowed its account. */
-  | "no-vault";
+  | "no-vault"
+  /** A personal Environment's record of the Bitwarden its person connected
+   * is there but cannot be read: nothing is guessed; disconnecting removes
+   * it (root decision 0203 point 7). */
+  | "connection-unreadable";
 
 export type VaultUnsupported = Readonly<{
   kind: "unsupported";
@@ -130,10 +193,28 @@ export function vaultStateDirectory(
 ): string {
   if ([host, key].some((part) => part === "" || /[/\\]|^\.\.?$/.test(part)))
     throw new Error("Invalid vault state directory");
+  return join(vaultStateRoot(home, env), host, key);
+}
+
+/** `${XDG_STATE_HOME:-~/.local/state}/lazurio/vault`, where every account's
+ * directory is. */
+function vaultStateRoot(
+  home: string,
+  env: Readonly<Record<string, string | undefined>>,
+): string {
   const xdg = env.XDG_STATE_HOME;
   const state =
     xdg !== undefined && xdg !== "" && isAbsolute(xdg)
       ? xdg
       : join(home, ".local", "state");
-  return join(state, "lazurio", "vault", host, key);
+  return join(state, "lazurio", "vault");
 }
+
+/** Where a personal Environment keeps which Bitwarden its person connected
+ * (root decision 0203 point 7): `<state>/lazurio/vault/personal`, beside the
+ * accounts' directories and never one of them (those are named by a vault's
+ * host, which has a dot). */
+export const connectionDirectory = (
+  home: string,
+  env: Readonly<Record<string, string | undefined>>,
+): string => join(vaultStateRoot(home, env), "personal");

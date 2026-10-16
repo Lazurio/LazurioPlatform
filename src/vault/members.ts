@@ -6,12 +6,8 @@ import {
 import type { BwFailure, BwMember } from "./bw";
 import type { VaultContext } from "./context";
 import { connectedAccount, deviceOf, type VaultHost } from "./flow";
-import {
-  apiKeyLogin,
-  type VaultClient,
-  VaultwardenError,
-  vaultRequest,
-} from "./register";
+import { inviteeInvitation, settleInvitee } from "./invitee";
+import { accountApi, VaultwardenError, vaultRequest } from "./register";
 import { cliOf, lockMs, usableSession, withLock } from "./session";
 import {
   plainObject,
@@ -38,6 +34,13 @@ import {
 // only Owner: bw lists and confirms, the vault's API invites and removes (bw
 // does neither). Nothing here returns, logs or journals a person's address,
 // a member's id or a token.
+//
+// A personal Environment's own Bitwarden (root decision 0203 point 7) has
+// one person, the one who connected it, at the address of their own
+// Bitwarden account they entered: invited as a User with Manage on Agenti
+// and confirmed once they accepted (invitee.ts), with no gate, since the
+// cloud's own sign-in protects their account; the admitted person changes
+// nothing there.
 
 /** Where every person's account in a Lazurio Vaultwarden lives (root
  * decision 0203 point 5): `<Lazurio username>@account.lazurio.ai`, an
@@ -65,6 +68,9 @@ export type VaultMemberState =
   | "no-account"
   /** An account that signed in but has no master password yet. */
   | "awaiting-password"
+  /** A personal Environment's own Bitwarden: the cloud e-mailed its person
+   * the invitation, not accepted yet. */
+  | "invitation-pending"
   /** Accepted, but the Environment's confirmation did not go through now;
    * the next look confirms. */
   | "accepted"
@@ -164,6 +170,8 @@ type Turn = Readonly<{
   paths: VaultPaths;
   account: ReadyAccount;
   organizationId: string;
+  /** The collection Agenti. */
+  collectionId: string;
   members: () => Promise<readonly BwMember[]>;
   confirm: (memberId: string) => Promise<boolean>;
   api: (
@@ -191,15 +199,23 @@ async function underLock<T>(
       const bw = cliOf(host, paths);
       const session = await usableSession(host, bw, paths, ready.account);
       if (!session.ok) return failed(ofBw(session.reason).reason);
-      const { organizationId } = ready.recorded;
-      const client: VaultClient = { fetch: host.fetch };
-      let token: string | null = null;
+      const { organizationId, collectionId } = ready.recorded;
+      const api = accountApi(
+        { fetch: host.fetch },
+        {
+          serverUrl: context.vault,
+          clientId: ready.account.clientId,
+          clientSecret: ready.account.clientSecret,
+          device: deviceOf(ready.account),
+        },
+      );
       const turn: Turn = {
         host,
         context,
         paths,
         account: ready.account,
         organizationId,
+        collectionId,
         async members() {
           const listed = await bw.orgMembers(session.session, organizationId);
           if (!listed.ok) throw ofBw(listed.reason);
@@ -213,20 +229,7 @@ async function underLock<T>(
           );
           return done.ok;
         },
-        async api(path, options) {
-          token ??= (
-            await apiKeyLogin(client, {
-              serverUrl: context.vault,
-              clientId: ready.account.clientId,
-              clientSecret: ready.account.clientSecret,
-              device: deviceOf(ready.account),
-            })
-          ).accessToken;
-          return vaultRequest(client, context.vault, path, {
-            ...options,
-            token,
-          });
-        },
+        api,
       };
       try {
         return await work(turn);
@@ -402,7 +405,10 @@ export async function vaultMembership(
   person: AdmittedPerson,
 ): Promise<VaultMembership> {
   const context = await host.context();
+  if (context.kind === "needs-connection") return unknown("not-connected");
   if (context.kind !== "own") return unknown("no-vault");
+  if (context.bitwarden !== undefined)
+    return inviteeMembership(host, context, context.bitwarden.invitee);
   if (!addsPeople(context)) return unknown("not-managed");
   // Nothing is asked of a vault that is not set up here.
   const paths = vaultPaths(host.directory(context.host, context.account));
@@ -448,6 +454,42 @@ export async function vaultMembership(
   );
 }
 
+/**
+ * A personal Environment's own Bitwarden (root decision 0203 point 7): the
+ * person who connected it, at the address of their own Bitwarden account,
+ * invited as a User with Manage on Agenti and confirmed once they accepted
+ * the cloud's e-mail (invitee.ts). Whoever the gateway admitted changes
+ * nothing, and there is no gate: the cloud's sign-in protects the person's
+ * own account, and the Environment confirms only the address it invited.
+ */
+async function inviteeMembership(
+  host: VaultHost,
+  context: VaultContext,
+  invitee: string,
+): Promise<VaultMembership> {
+  return underLock(
+    host,
+    context,
+    async (turn) =>
+      known(
+        await settleInvitee({
+          invitee,
+          members: turn.members,
+          async invite() {
+            await turn.api(
+              `/api/organizations/${turn.organizationId}/users/invite`,
+              { json: inviteeInvitation(invitee, turn.collectionId) },
+            );
+          },
+          confirm: turn.confirm,
+          journal: (outcome) =>
+            turn.host.journal?.({ operation: "members", outcome }),
+        }),
+      ),
+    unknown,
+  );
+}
+
 /** What a look at the audience did. */
 export type VaultAudience = "unchanged" | "settled" | VaultMemberUnknown;
 
@@ -483,7 +525,13 @@ export async function vaultAudience(host: VaultHost): Promise<VaultAudience> {
  */
 export async function vaultSignIn(host: VaultHost): Promise<boolean> {
   const context = await host.context();
-  if (context.kind === "unsupported") return false;
+  // A personal Environment's own Bitwarden takes no Lazurio sign-in.
+  if (
+    context.kind === "unsupported" ||
+    context.kind === "needs-connection" ||
+    (context.kind === "own" && context.bitwarden !== undefined)
+  )
+    return false;
   try {
     const answer = plainObject(
       await vaultRequest(

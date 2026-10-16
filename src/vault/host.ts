@@ -18,9 +18,13 @@ import {
 import { vaultToolName } from "../tools/catalog";
 import type { ToolRunner } from "../tools/status";
 import { resolveInstallBase } from "../update/base";
+import { readConnection } from "./connection";
 import {
+  connectionDirectory,
+  personalVaultContextOf,
   type VaultContext,
   type VaultEnvironmentKind,
+  type VaultNeedsConnection,
   type VaultUnsupported,
   type VaultUnsupportedReason,
   vaultContextOf,
@@ -28,6 +32,7 @@ import {
 } from "./context";
 import type { VaultHost, VaultJournalEntry } from "./flow";
 import { type PilotContext, pilotContextOf } from "./legacy-0197/context";
+import { pilotConnected } from "./legacy-0197/pilot";
 
 // The production composition of the Environment vault (decisions F43, F53):
 // the facts of this Remote Environment from its root-issued handover, read
@@ -35,7 +40,10 @@ import { type PilotContext, pilotContextOf } from "./legacy-0197/context";
 // Only the handover's declared operator, in a hosted Folder on Linux, has a
 // vault; everything else is a workstation of the second wave or a handover
 // that cannot be trusted, and refuses before anything runs. A handover that
-// names no vault yet may still be a 0197 pilot's (legacy-0197/).
+// names no vault yet may still be a 0197 pilot's (legacy-0197/). A personal
+// Environment whose handover names no vault and that is no connected pilot
+// keeps its vault in its person's own Bitwarden (root decision 0203 point
+// 7): connected as its connection records it, or waiting for its person.
 
 const unsupported = (reason: VaultUnsupportedReason): VaultUnsupported =>
   Object.freeze({ kind: "unsupported", reason });
@@ -49,8 +57,16 @@ export async function readVaultContext(
     /** The process's home: it must be the declared operator's. */
     home: string | undefined;
     sources?: HostedOperatorSources | undefined;
+    /** Where the accounts' custody is (`VaultHost.directory`): a 0197
+     * pilot's is looked at there. */
+    directory: VaultHost["directory"];
+    /** Where a personal Environment records the Bitwarden its person
+     * connected (`VaultHost.connection`). */
+    connection: string;
   }>,
-): Promise<VaultContext | PilotContext | VaultUnsupported> {
+): Promise<
+  VaultContext | PilotContext | VaultUnsupported | VaultNeedsConnection
+> {
   if (input.platform !== "linux" || input.folder === undefined)
     return unsupported("workstation");
   const folder = input.folder;
@@ -99,7 +115,22 @@ export async function readVaultContext(
   if (own.kind !== "unsupported") return own;
   // No vault named yet: an Environment connected the 0197 way keeps reading
   // its collection until its handover names its own vault.
-  return pilotContextOf({ handover, environment }) ?? own;
+  const pilot = pilotContextOf({ handover, environment });
+  if (environment !== "personal" || handover.owner.kind !== "principal")
+    return pilot ?? own;
+  // A personal Environment: its person's own Bitwarden, as connected, a
+  // connected pilot as before, or waiting for its person.
+  let connection: Awaited<ReturnType<typeof readConnection>>;
+  try {
+    connection = await readConnection(input.connection);
+  } catch {
+    return unsupported("connection-unreadable");
+  }
+  if (connection !== null)
+    return personalVaultContextOf({ handover, connection }) ?? own;
+  if (pilot !== null && (await pilotConnected(input.directory, pilot)))
+    return pilot;
+  return Object.freeze({ kind: "needs-connection" });
 }
 
 /** "Používají agenti" on for the vault in one Folder, at its current
@@ -159,6 +190,9 @@ export function processVaultHost(
           env: input.env,
           homedir: home,
         });
+  const directory = (host: string, key: string) =>
+    vaultStateDirectory(host, key, home ?? "/nonexistent", input.env);
+  const connection = connectionDirectory(home ?? "/nonexistent", input.env);
   return Object.freeze({
     async context() {
       if (home === undefined || base === undefined)
@@ -174,10 +208,12 @@ export function processVaultHost(
         platform: input.platform,
         home,
         sources: input.sources,
+        directory,
+        connection,
       });
     },
-    directory: (host, key) =>
-      vaultStateDirectory(host, key, home ?? "/nonexistent", input.env),
+    directory,
+    connection,
     base: base ?? "/nonexistent",
     bin: join(home ?? "/nonexistent", ".local", "bin"),
     home: home ?? "/nonexistent",

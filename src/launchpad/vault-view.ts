@@ -1,4 +1,5 @@
 import type { VaultUnsupportedReason } from "../vault/context";
+import { isBitwardenRegion } from "../vault/endpoints";
 import type { VaultPhase, VaultStatus } from "../vault/flow";
 import type { MessageKey } from "./messages";
 
@@ -13,6 +14,7 @@ type Copy = Readonly<Record<MessageKey, string>>;
 
 const states = [
   "unsupported",
+  "needs-connection",
   "not-set-up",
   "creating",
   "not-allowed",
@@ -29,6 +31,7 @@ const unsupportedReasons: readonly VaultUnsupportedReason[] = [
   "handover-unreadable",
   "not-operator",
   "no-vault",
+  "connection-unreadable",
 ];
 
 const phases: readonly VaultPhase[] = [
@@ -97,12 +100,16 @@ export function parseVaultStatus(input: unknown): VaultStatus | null {
           reason: value.reason as VaultUnsupportedReason,
         }
       : null;
+  if (value.state === "needs-connection")
+    return { kind: "vault-status", state: "needs-connection" };
   if (
     vaultOrigin(value.vault) === null ||
     !plain(value.account, 320) ||
     !nullable(value.name) ||
     typeof value.team !== "boolean" ||
-    (value.origin !== "own" && value.origin !== "pilot-0197")
+    (value.origin !== "own" && value.origin !== "pilot-0197") ||
+    // A personal Environment's own Bitwarden names its region.
+    !(value.region === undefined || isBitwardenRegion(value.region))
   )
     return null;
   const facts = {
@@ -111,6 +118,7 @@ export function parseVaultStatus(input: unknown): VaultStatus | null {
     name: value.name,
     team: value.team,
     origin: value.origin as "own" | "pilot-0197",
+    ...(isBitwardenRegion(value.region) ? { region: value.region } : {}),
   };
   switch (value.state) {
     case "not-set-up":
@@ -221,6 +229,9 @@ export function vaultRowLine(
               : copy.vaultRowUnavailable,
         state: "unknown",
       };
+    // A personal Environment's own Bitwarden waits for its person.
+    case "needs-connection":
+      return { text: copy.vaultRowNeedsConnection, state: "unknown" };
     case "not-set-up":
       return { text: copy.vaultRowNotSetUp, state: "unknown" };
     case "creating":
@@ -256,6 +267,7 @@ export function vaultAction(
     running !== null ||
     status === null ||
     status.state === "unsupported" ||
+    status.state === "needs-connection" ||
     status.origin !== "own"
   )
     return null;

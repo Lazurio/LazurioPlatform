@@ -25,6 +25,7 @@ import {
   completeAccount,
   createAccount,
   ensureVaultDirectories,
+  forgetEnteredAccount,
   forgetUnregisteredAccount,
   parseAccount,
   readAccount,
@@ -32,6 +33,7 @@ import {
   readSession,
   type VaultAccount,
   vaultPaths,
+  writeEnteredAccount,
   writeRecord,
   writeSession,
 } from "../src/vault/store";
@@ -85,6 +87,65 @@ test("the account file is taken only in its exact form, an own account's or a 01
     null,
   ])
     expect(() => parseAccount(refused)).toThrow("Invalid vault account");
+});
+
+test("an account a person entered, in a Bitwarden cloud region, is theirs: any ordinary address and their own master password; written whole and forgotten with bw's store", async () => {
+  const entered = {
+    ...account,
+    ...key,
+    email: "agents.example+lazurio@example.com",
+    server: "https://vault.bitwarden.eu",
+    masterPassword: "Correct horse battery staple 7",
+  };
+  expect(parseAccount(entered)).toEqual(entered);
+  expect(
+    parseAccount({ ...entered, server: "https://vault.bitwarden.com" }),
+  ).toMatchObject({ server: "https://vault.bitwarden.com" });
+  for (const refused of [
+    // An entered address names a directory: no slash, no white space, no
+    // upper case (Bitwarden keeps it lowercased).
+    { ...entered, email: "agents/example@example.com" },
+    { ...entered, email: "Agents@Example.com" },
+    { ...entered, email: "agents @example.com" },
+    // The master password on one line, without control characters.
+    { ...entered, masterPassword: "two\nlines" },
+    { ...entered, masterPassword: "" },
+    { ...entered, masterPassword: "x".repeat(1025) },
+    // Only the cloud's regions take entered accounts: a Lazurio
+    // Vaultwarden's accounts keep the rules of their generation.
+    { ...entered, server: "https://vaultwarden.example.lazurio.io" },
+    { ...entered, server: "https://vault.bitwarden.eu.example.com" },
+  ])
+    expect(() => parseAccount(refused)).toThrow("Invalid vault account");
+  const t = await temporary();
+  try {
+    await writeEnteredAccount(t.paths, entered);
+    expect(await readAccount(t.paths)).toEqual(entered);
+    expect((await lstat(t.paths.account)).mode & 0o777).toBe(0o600);
+    // Written whole again with what the person entered anew.
+    const again = { ...entered, masterPassword: "Another one, 8 words long" };
+    await writeEnteredAccount(t.paths, again);
+    expect(await readAccount(t.paths)).toEqual(again);
+    // A generated account is never written this way.
+    await expect(
+      writeEnteredAccount(t.paths, { ...account, ...key }),
+    ).rejects.toThrow("Not an entered vault account");
+    // Forgotten: the credentials, the session and whatever bw keeps go; the
+    // record of the vault stays.
+    await writeSession(t.paths, "Q".repeat(86).concat("=="));
+    await writeFile(join(t.paths.data, "data.json"), "{}");
+    await mkdir(join(t.paths.data, "more"));
+    await writeRecord(t.paths, {
+      organizationId: "0b9e2f3a-5c1d-4e8f-9a7b-1c2d3e4f5a6b",
+      collectionId: "6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d",
+      pendingKey: null,
+      pendingSince: null,
+    });
+    await forgetEnteredAccount(t.paths);
+    expect(await readdir(t.paths.data)).toEqual(["lazurio-vault.json"]);
+  } finally {
+    await t.close();
+  }
 });
 
 test("the password is written once, before the registration; the API key joins it once", async () => {

@@ -4,10 +4,12 @@ import type { ToolRunner } from "../tools/status";
 import type { BwCli, BwFailure } from "./bw";
 import type {
   VaultContext,
+  VaultNeedsConnection,
   VaultUnsupported,
   VaultUnsupportedReason,
 } from "./context";
 import { installPinnedBw, pinnedInstalled } from "./install";
+import { inviteeInvitation, settleInvitee } from "./invitee";
 import type { PilotContext } from "./legacy-0197/context";
 import {
   pilotEnv,
@@ -19,6 +21,7 @@ import {
 import { ensureOwnVault } from "./organization";
 import type { BitwardenPin } from "./pin";
 import {
+  accountApi,
   DEVICE_TYPE_SDK,
   type Device,
   fetchApiKey,
@@ -40,6 +43,7 @@ import {
 import {
   accountOf,
   failedStatus,
+  needsConnectionStatus,
   type SecretApplication,
   unsupportedStatus,
   type VaultEnvResult,
@@ -94,15 +98,29 @@ export type {
 // journal carries the operation, the outcome and a fixed reason, never a
 // value. An Environment connected the 0197 way, whose handover names no
 // vault yet, is read by the frozen subset in `legacy-0197/` instead.
+//
+// A personal Environment whose handover names no vault keeps its vault in
+// its person's own Bitwarden (root decision 0203 point 7): until the person
+// connects it (connection.ts) it `needs-connection` and nothing runs; once
+// connected, the agents' account the person entered is the account here,
+// never registered, and the same setup creates its vault, a Free
+// organization, and invites the person into it (invitee.ts).
 
 /** Where the vault runs: trusted composition, never HTTP input. */
 export type VaultHost = Readonly<{
-  /** The Environment's vault, a 0197 pilot's, or why it has none here; read
-   * at the start of every operation. */
-  context: () => Promise<VaultContext | PilotContext | VaultUnsupported>;
+  /** The Environment's vault, a 0197 pilot's, a personal Environment's that
+   * needs its person's connection, or why it has none here; read at the
+   * start of every operation. */
+  context: () => Promise<
+    VaultContext | PilotContext | VaultUnsupported | VaultNeedsConnection
+  >;
   /** The state directory of one account: the vault's host and the key (the
    * own account itself; a 0197 pilot's Environment address). */
   directory: (host: string, key: string) => string;
+  /** Where a personal Environment keeps which Bitwarden its person
+   * connected, and the lock of connecting and disconnecting
+   * (`connectionDirectory`, connection.ts). */
+  connection: string;
   /** The product's install base, where the pinned CLI lives. */
   base: string;
   /** `~/.local/bin`, the standard entry of `bw`. */
@@ -136,7 +154,9 @@ export type VaultJournalEntry = Readonly<{
     | "secrets"
     | "vault"
     | "members"
-    | "request";
+    | "request"
+    | "connect"
+    | "disconnect";
   outcome: string;
   reason?: string;
   /** The Launchpad's own setup after its start. */
@@ -151,6 +171,9 @@ const ownFacts = (context: VaultContext): VaultFacts => ({
   name: context.name,
   team: context.environment === "team",
   origin: "own",
+  ...(context.bitwarden === undefined
+    ? {}
+    : { region: context.bitwarden.region }),
 });
 
 /** The custody of the Environment's own account on this host. */
@@ -170,14 +193,26 @@ const creating = (facts: VaultFacts): VaultStatus => ({
   ...facts,
 });
 
+/** The agents' account a personal Environment's person connected, without
+ * its file: never registered here; the person disconnects and connects it
+ * again in Settings → Vault. */
+const enteredAccountMissing = (facts: VaultFacts): VaultStatus =>
+  failedStatus(facts, "account", "account-missing");
+
 /** Whether the Launchpad's start moves this vault on (the Executor pattern,
  * decision F44's addendum of 2026-10-11): an own vault not set up yet or
  * whose creation is not confirmed yet, one whose session is not the
  * unlocked one, or one whose name is no longer the handover's. Never a 0197
- * pilot, a vault that is not supported here, or one that ended in a failure
+ * pilot, a vault that is not supported here, a personal Environment whose
+ * person has not connected their Bitwarden, or one that ended in a failure
  * or a revocation: those wait for a person or an agent. */
 export function setUpAtStart(status: VaultStatus): boolean {
-  if (status.state === "unsupported" || status.origin !== "own") return false;
+  if (
+    status.state === "unsupported" ||
+    status.state === "needs-connection" ||
+    status.origin !== "own"
+  )
+    return false;
   if (status.state === "not-set-up" || status.state === "creating") return true;
   return (
     status.state === "connected" &&
@@ -271,6 +306,13 @@ async function ownState(
       kind: "status",
       status: failedStatus(facts, "account", "account-mismatch"),
     };
+  // The agents' account a person connected is never registered here: its
+  // file gone, only the person connects it again.
+  if (
+    context.bitwarden !== undefined &&
+    (account === null || !isReady(account))
+  )
+    return { kind: "status", status: enteredAccountMissing(facts) };
   if (!(await pinnedInstalled(host.base, host.pin)))
     return { kind: "status", status: notSetUp(facts, "install") };
   if (account === null || !isReady(account))
@@ -300,6 +342,7 @@ async function ownState(
 export async function vaultStatus(host: VaultHost): Promise<VaultStatus> {
   const context = await host.context();
   if (context.kind === "unsupported") return unsupportedStatus(context.reason);
+  if (context.kind === "needs-connection") return needsConnectionStatus;
   if (context.kind === "pilot") return pilotStatus(host, context);
   const facts = ownFacts(context);
   const paths = ownPaths(host, context);
@@ -332,7 +375,9 @@ export async function vaultStatus(host: VaultHost): Promise<VaultStatus> {
 }
 
 /** The Environment's one device in its account's logins. */
-export const deviceOf = (account: VaultAccount): Device => ({
+export const deviceOf = (
+  account: Pick<VaultAccount, "deviceIdentifier">,
+): Device => ({
   identifier: account.deviceIdentifier,
   name: "Lazurio Launchpad",
   type: DEVICE_TYPE_SDK,
@@ -385,6 +430,9 @@ async function ensureAccount(
     };
   if (existing !== null && isReady(existing))
     return { kind: "ready", value: existing };
+  // The agents' account a person connected is theirs: never registered.
+  if (context.bitwarden !== undefined)
+    return { kind: "status", status: enteredAccountMissing(facts) };
   const account =
     existing ??
     (await (async () => {
@@ -552,6 +600,66 @@ async function signIn(
   return login.ok ? { ok: true } : login;
 }
 
+/** A personal Environment's own Bitwarden (root decision 0203 point 7): its
+ * person invited into the vault, or confirmed once they accepted, after a
+ * setup that left it connected. Best effort: a failure is journaled with a
+ * fixed reason and the next setup, or the person's next look at Settings →
+ * Vault, moves it on; it is never the setup's. */
+async function invitePerson(
+  host: VaultHost,
+  context: VaultContext,
+  account: ReadyAccount,
+  bw: BwCli,
+  session: string,
+  vault: Recorded,
+): Promise<void> {
+  const invitee = context.bitwarden?.invitee;
+  if (invitee === undefined) return;
+  const journal = (outcome: string, reason?: string) =>
+    host.journal?.({
+      operation: "members",
+      outcome,
+      ...(reason === undefined ? {} : { reason }),
+    });
+  const api = accountApi(
+    { fetch: host.fetch },
+    {
+      serverUrl: context.vault,
+      clientId: account.clientId,
+      clientSecret: account.clientSecret,
+      device: deviceOf(account),
+    },
+  );
+  try {
+    await settleInvitee({
+      invitee,
+      async members() {
+        const listed = await bw.orgMembers(session, vault.organizationId);
+        if (!listed.ok)
+          throw new VaultwardenError(
+            listed.reason === "unreachable" || listed.reason === "timeout"
+              ? "unreachable"
+              : "unexpected",
+          );
+        return listed.value;
+      },
+      async invite() {
+        await api(`/api/organizations/${vault.organizationId}/users/invite`, {
+          json: inviteeInvitation(invitee, vault.collectionId),
+        });
+      },
+      confirm: async (memberId) =>
+        (await bw.confirmMember(session, memberId, vault.organizationId)).ok,
+      journal,
+    });
+  } catch (error) {
+    journal(
+      "failed",
+      error instanceof VaultwardenError ? error.reason : "unexpected",
+    );
+  }
+}
+
 /** The vault became ready in this setup: "Používají agenti" on for it, by
  * the composition (decision F53), after the account's lock is released. Best
  * effort: a failure is journaled and is never the setup's, and the switch
@@ -581,13 +689,17 @@ const unreachableOr = (
  * renamed when needed, unlocked and synced again. Never runs twice at once.
  * The setup in which the vault becomes ready turns the agents' switch on
  * (`enableForAgents`); no later one does. A 0197 pilot is only read: no
- * Environment is connected the old way any more. */
+ * Environment is connected the old way any more. A personal Environment's
+ * own Bitwarden is set up the same way from the agents' account its person
+ * connected, never registered, and its person is invited into the vault
+ * (`invitePerson`); one whose person has not connected it runs nothing. */
 export async function vaultSetup(
   host: VaultHost,
   onPhase: (phase: VaultPhase) => void = () => undefined,
 ): Promise<VaultStatus> {
   const context = await host.context();
   if (context.kind === "unsupported") return unsupportedStatus(context.reason);
+  if (context.kind === "needs-connection") return needsConnectionStatus;
   if (context.kind === "pilot") return pilotStatus(host, context);
   const facts = ownFacts(context);
   const paths = ownPaths(host, context);
@@ -656,7 +768,17 @@ export async function vaultSetup(
       );
       if (observation.kind === "failed")
         return journal(failedStatus(facts, "status", observation.reason));
-      return journal(statusOf(facts, vault.value, observation));
+      const connected = statusOf(facts, vault.value, observation);
+      if (connected.state === "connected")
+        await invitePerson(
+          host,
+          context,
+          account.value,
+          bw,
+          session.session,
+          vault.value,
+        );
+      return journal(connected);
     },
   );
   if (ready.became) await turnAgentsOn(host);
@@ -669,6 +791,7 @@ export async function vaultSetup(
 export async function vaultRefresh(host: VaultHost): Promise<VaultStatus> {
   const context = await host.context();
   if (context.kind === "unsupported") return unsupportedStatus(context.reason);
+  if (context.kind === "needs-connection") return needsConnectionStatus;
   if (context.kind === "pilot") return pilotRefresh(host, context);
   const facts = ownFacts(context);
   const paths = ownPaths(host, context);
@@ -739,6 +862,8 @@ export async function vaultEnv(host: VaultHost): Promise<VaultEnvResult> {
   const context = await host.context();
   if (context.kind === "unsupported")
     return { kind: "vault-env-refused", reason: context.reason };
+  if (context.kind === "needs-connection")
+    return { kind: "vault-env-refused", reason: "not-connected" };
   if (context.kind === "pilot") return pilotEnv(host, context);
   const paths = ownPaths(host, context);
   const ready = await connectedAccount(paths, context);
@@ -807,6 +932,7 @@ export async function vaultSecretsAdmission(
 ): Promise<VaultSecretsRefusal | null> {
   const context = await host.context();
   if (context.kind === "unsupported") return unsupportedRefusal(context.reason);
+  if (context.kind === "needs-connection") return "not-connected";
   if (context.kind === "pilot")
     return pilotSecretsAdmission(host, context, application);
   return ownAdmission(context, application);
@@ -843,6 +969,7 @@ async function readVaultSecrets(
   const context = await host.context();
   if (context.kind === "unsupported")
     return refuse(unsupportedRefusal(context.reason));
+  if (context.kind === "needs-connection") return refuse("not-connected");
   if (context.kind === "pilot") return pilotSecrets(host, context, input);
   const admission = ownAdmission(context, input);
   if (admission !== null) return refuse(admission);
