@@ -1180,6 +1180,8 @@ const en = {
   vaultPageInvitationAccepted:
     "The invitation is accepted. The confirmation is tried again on your next visit here.",
   vaultPageMemberRevoked: "Your access to the vault was removed in Bitwarden.",
+  vaultPageRevokedPersonal:
+    "Bitwarden no longer accepts this vault or the agents' account's API key. Disconnect it and connect it again; a deleted vault is then created anew.",
   vaultPageFreeLimit:
     "The agents' account already owns another free organization. Disconnect it and connect a new agents' account.",
   vaultPageAccountMissing:
@@ -2774,6 +2776,8 @@ const cs: Record<MessageKey, string> = {
   vaultPageInvitationAccepted:
     "Pozvánka je přijatá. Potvrzení se zkusí znovu při vaší příští návštěvě této stránky.",
   vaultPageMemberRevoked: "Přístup do trezoru vám byl v Bitwardenu odebrán.",
+  vaultPageRevokedPersonal:
+    "Bitwarden tento trezor nebo klíč API účtu agentů už nepřijímá. Odpojte Bitwarden a připojte ho znovu; smazaný trezor Prostředí založí znovu.",
   vaultPageFreeLimit:
     "Účet agentů už vlastní jinou bezplatnou organizaci. Odpojte ho a připojte nový účet agentů.",
   vaultPageAccountMissing:

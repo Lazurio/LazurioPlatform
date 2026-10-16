@@ -303,16 +303,17 @@ export function createVaultPagePanel(
       const running = parseVaultSettingUp(answer.value);
       if (running !== null) void follow(running.job);
       else outcome = endedOf(parseVaultStatus(answer.value));
-      await refresh();
-      return;
+    } else {
+      const copy = options.copy();
+      problem =
+        connectionRefusalText(
+          (answer?.value as { reason?: unknown } | null)?.reason,
+          copy,
+        ) ?? copy.vaultConnectFailed;
     }
-    const copy = options.copy();
-    problem =
-      connectionRefusalText(
-        (answer?.value as { reason?: unknown } | null)?.reason,
-        copy,
-      ) ?? copy.vaultConnectFailed;
-    render();
+    // Read again either way: a refusal may come from a vault connected
+    // meanwhile, which then shows instead of the form.
+    await refresh();
   }
 
   /** A setup's answer worth keeping on the page: one that did not connect. */

@@ -412,9 +412,10 @@ export function vaultPageView(
  * row and "Odpojit Bitwarden", and what the person does next. A member adds
  * and opens; an invitation not accepted yet, or accepted and not confirmed
  * yet, says so in one line; a person removed in Bitwarden is told so. A
- * failure the person resolves (the agents' account owns another Free
- * organization, its file is gone) says what to do. Nobody else is added
- * here: the person is whom they named when connecting.
+ * vault Bitwarden no longer accepts, and a failure the person resolves (the
+ * agents' account owns another Free organization, its file is gone), says
+ * what to do. Nobody else is added here: the person is whom they named when
+ * connecting.
  */
 function personalBitwardenView(
   status: VaultStatus,
@@ -430,16 +431,21 @@ function personalBitwardenView(
 ): VaultPageView {
   const { guide, row, view } = shown;
   const disconnect = setup === null;
-  const failure =
-    status.state === "failed"
-      ? status.reason === "free-organization-limit"
-        ? copy.vaultPageFreeLimit
-        : status.reason === "account-missing"
-          ? copy.vaultPageAccountMissing
-          : null
-      : null;
-  if (setup !== null || failure !== null || links.open === null)
-    return view({ guide, row, hint: failure, disconnect });
+  // What the person does about a vault that stopped: disconnect and connect
+  // again (a fresh agents' account where the old one owns another Free
+  // organization).
+  const problem =
+    status.state === "revoked"
+      ? copy.vaultPageRevokedPersonal
+      : status.state === "failed"
+        ? status.reason === "free-organization-limit"
+          ? copy.vaultPageFreeLimit
+          : status.reason === "account-missing"
+            ? copy.vaultPageAccountMissing
+            : null
+        : null;
+  if (setup !== null || problem !== null || links.open === null)
+    return view({ guide, row, hint: problem, disconnect });
   const open: VaultPageAction = {
     control: "open",
     label: copy.vaultPageOpen,

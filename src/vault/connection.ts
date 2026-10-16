@@ -35,6 +35,7 @@ import {
   type VaultRecord,
   vaultPaths,
   writeEnteredAccount,
+  writeRecord,
 } from "./store";
 
 // A personal Environment's own Bitwarden (root decision 0203 point 7, plan
@@ -261,16 +262,19 @@ const refusalOf = (error: unknown): ConnectionRefusal => {
   }
 };
 
-/** Whether a profile shows its account an Owner or Admin of an organization
- * other than the one this Environment recorded for it: the vault of an
- * earlier connection of the same account, or one whose creation it is
- * still looking for (a receipt), is its own. Every entry must read. */
-function ownsOtherOrganization(
+/** What a profile says of its account's organizations against the record
+ * this Environment keeps for it: whether the account owns or administers one
+ * other than its recorded vault (the vault of an earlier connection of the
+ * same account, or one whose creation is still looked for by its receipt, is
+ * its own), and whether the recorded vault is gone from its memberships (a
+ * person deleted it in Bitwarden). Every entry must read; null otherwise. */
+function organizationsOf(
   profile: Record<string, unknown>,
   record: VaultRecord,
-): boolean | null {
+): Readonly<{ ownsOther: boolean; recordedGone: boolean }> | null {
   if (!Array.isArray(profile.organizations)) return null;
-  let owns = false;
+  let ownsOther = false;
+  let recordedListed = false;
   for (const entry of profile.organizations) {
     const organization = plainObject(entry);
     if (
@@ -279,27 +283,35 @@ function ownsOtherOrganization(
       typeof organization.type !== "number"
     )
       return null;
-    if (
+    if (organization.id === record.organizationId) recordedListed = true;
+    else if (
       (organization.type === 0 || organization.type === 1) &&
-      organization.id !== record.organizationId &&
       record.pendingKey === null
     )
-      owns = true;
+      ownsOther = true;
   }
-  return owns;
+  return {
+    ownsOther,
+    recordedGone:
+      record.organizationId !== null &&
+      record.pendingKey === null &&
+      !recordedListed,
+  };
 }
 
 /** The agents' account the values name, checked as a client unlocks it:
  * signed in with its API key at the region's identity host, named by its
- * profile, a separate agents' account (not the person's own, owning or
- * administering no organization but this Environment's vault), its keys
+ * profile, a separate agents' account (not the person's own, and owning or
+ * administering no organization but this Environment's vault: agents holding
+ * its credentials would reach that organization's items too), its keys
  * opened by the master password with the KDF the cloud reports. Nothing is
- * written; the answer holds the account to keep. */
+ * written; the answer holds the account to keep and, when the vault recorded
+ * for it is gone from Bitwarden, its ID (`gone`). */
 async function verifiedAccount(
   host: VaultHost,
   values: Values,
 ): Promise<
-  | Readonly<{ ok: true; account: ReadyAccount }>
+  | Readonly<{ ok: true; account: ReadyAccount; gone: string | null }>
   | Readonly<{ ok: false; reason: ConnectionRefusal }>
 > {
   const server = bitwardenRegions[values.region].web;
@@ -332,9 +344,10 @@ async function verifiedAccount(
     const record = await readRecord(
       vaultPaths(host.directory(new URL(server).hostname, email)),
     ).catch(() => emptyRecord);
-    const owns = ownsOtherOrganization(profile, record);
-    if (owns === null) return { ok: false, reason: "failed" };
-    if (owns) return { ok: false, reason: "owns-organization" };
+    const organizations = organizationsOf(profile, record);
+    if (organizations === null) return { ok: false, reason: "failed" };
+    if (organizations.ownsOther)
+      return { ok: false, reason: "owns-organization" };
     await unlockPrivateKey({
       email,
       password: values.masterPassword,
@@ -353,6 +366,7 @@ async function verifiedAccount(
         clientId: values.clientId,
         clientSecret: values.clientSecret,
       }),
+      gone: organizations.recordedGone ? record.organizationId : null,
     };
   } catch (error) {
     return { ok: false, reason: refusalOf(error) };
@@ -365,9 +379,13 @@ async function verifiedAccount(
  * names no vault, that is not a 0197 pilot and is not connected yet. The
  * agents' account is checked first (`verifiedAccount`); then, under the
  * connection's lock, its credentials are written whole into its custody and
- * the connection beside it. The vault itself is created by the setup that
- * follows (`vaultSetup`), which the caller starts. Values go nowhere but the
- * custody; the journal gets the outcome and a fixed reason.
+ * the connection beside it. A vault recorded for this account that is gone
+ * from Bitwarden (a person deleted it there, which in their own Bitwarden is
+ * theirs to do) is forgotten, so the setup creates a new one: the person's
+ * connecting again is the decision, never a setup on its own. The vault
+ * itself is created by the setup that follows (`vaultSetup`), which the
+ * caller starts. Values go nowhere but the custody; the journal gets the
+ * outcome and a fixed reason.
  */
 export async function connectPersonalBitwarden(
   host: VaultHost,
@@ -396,7 +414,7 @@ export async function connectPersonalBitwarden(
     journal("refused", verified.reason);
     return refused(verified.reason);
   }
-  const { account } = verified;
+  const { account, gone } = verified;
   return underConnectionLock(
     host.connection,
     () => refused("busy"),
@@ -415,6 +433,17 @@ export async function connectPersonalBitwarden(
         host.lockMs ?? lockMs,
         () => false,
         async () => {
+          // The vault the person deleted in Bitwarden, if the record still
+          // names it as it did when the profile was read.
+          const current = await readRecord(paths).catch(() => null);
+          if (
+            gone !== null &&
+            current?.organizationId === gone &&
+            current.pendingKey === null
+          ) {
+            await writeRecord(paths, emptyRecord);
+            journal("record-discarded");
+          }
           await writeEnteredAccount(paths, account);
           return true;
         },
