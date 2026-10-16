@@ -114,6 +114,13 @@ is not a guarantee or an authority for the terms.
 | Asset | Where | License |
 | --- | --- | --- |
 | Brand icons of the Integrace catalog: the SVG path and colour of an app's icon | `src/integrations/catalog.json` (`icon.source` names `simple-icons@<version>/<slug>`) | [simple-icons](https://github.com/simple-icons/simple-icons), CC0-1.0; an icon simple-icons marks with a license of its own is never bundled |
+| Claude's mark on Začínáme's "Přihlásit Claude": the SVG path only, filled in the button's colour | `src/launchpad/index.html` (the sprite's `i-claude`, its source named beside it) | simple-icons@16.35.0 `claude`, CC0-1.0 |
+
+ChatGPT has no mark in this repository: simple-icons removed OpenAI in 16.0.0
+(simple-icons#13944), because OpenAI's brand terms grant a permission that is not
+transferable. "Přihlásit ChatGPT" shows its first letter instead, as Integrace does for
+a brand simple-icons does not carry; bundling OpenAI's own mark would be a decision of
+its own.
 
 Brand names and logos remain the trademarks of their owners; the Launchpad shows
 them only to identify the app an Integrace connects (decision F42,

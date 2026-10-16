@@ -2969,6 +2969,8 @@ SSH, the terminal and every agent read it.
    signing in with where to finish it, "Otevřít přihlášení" and "Zrušit"; Claude's code
    field; connected with the accounts and "Přihlásit jiný účet"; a sign-in that did not
    finish with "Zkusit znovu"; without the Environment browser the sentence why.
+   *(Since F36's addendum of 2026-10-16: only the title and the two buttons, each with
+   its mark, and no sentence before them.)*
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -6217,9 +6219,8 @@ who know what we plan or what should happen. The rule for every text a person re
   future work: a second wave, an update that will add something, "zatím" about Lazurio's
   own plans, a decision, a release or the component behind an app.
 - **It stays** when it is a label or a name, an action, or an instruction the person needs
-  now: an error or a refusal that says what happened and what to do, the sentence before
-  the AI sign-in about the password and the phone, a privacy note ("the key stays only in
-  this Environment"). "Zatím" stays where it is the person's own progress ("Zatím žádné MCP
+  now: an error or a refusal that says what happened and what to do, a privacy note ("the
+  key stays only in this Environment"). "Zatím" stays where it is the person's own progress ("Zatím žádné MCP
   servery"): it invites them to add one. Detail stays where the person opens it on
   purpose: "Technické podrobnosti", "Pro podporu", a tool's "Podrobnosti", the Recovery
   page, whose evidence is the repair agent's.
@@ -6258,6 +6259,39 @@ What this changes, in both languages:
    key "zůstane jen v tomto Prostředí" instead of naming Executor.
 7. **SSH ze zařízení.** The computer's settings no longer explain how a host key is
    checked, and keys added outside Lazurio say only who removes them.
+8. **Začínáme, simpler** (Matěj, the same afternoon: "far too much needless text… just
+   'Připojit AI' and a button 'Přihlásit ChatGPT' or 'Přihlásit Claude', as icons; we
+   must simplify the whole thing"). Each row is its title, its action and its state, with
+   at most one short line where the title alone does not say what it is for.
+   - **Připojit AI** is the title and the two buttons, each with its mark before its
+     name: no "Agent vám pak pomůže s dalšími kroky." and no sentence before them. The
+     sentence about the password and the phone (0201 point 7, F19's addendum of
+     2026-10-15 point 6) goes too: Matěj accepted on 2026-10-14 that passkeys and the
+     computer's password manager do not reach the Environment browser, as an edge case,
+     and now wants no warning for it. What a click brings stays, short: where to finish
+     the sign-in, Claude's code field ("Kód je odeslaný. Chvíli počkejte."), the accounts
+     once connected, and a failure with "Zkusit znovu" ("Přihlášení se nespustilo." where
+     Codex did not say whether the Organization provides the AI; Chat's refusal without
+     the reason it guessed).
+   - **The marks.** Claude's is simple-icons@16.35.0 `claude` (CC0), the sprite's
+     `i-claude`, filled in the button's colour, so it reads on the dark primary and the
+     light secondary button alike. simple-icons has carried no OpenAI mark since 16.0.0
+     (removed because OpenAI's brand terms grant a permission that is not transferable),
+     so "Přihlásit ChatGPT" shows its first letter in a ring of the same size, as
+     Integrace draws a brand simple-icons does not carry (F42, [licensing](licensing.md)).
+     OpenAI's own mark would need Matěj's decision to bundle it under OpenAI's terms.
+   - **GitHub** keeps its one line, what it is for ("Zpřístupní vaše repozitáře a
+     moduly."); "Nabídne se po připojení AI." goes, as the step's number says the order.
+     The content's "comes after AI or GitHub" sentences go from Začínáme for the same
+     reason and stay in Toto Prostředí, which has no numbers (`turn`).
+   - **Trezor Prostředí** keeps only the rule of root decision 0198, "Kdo má přístup do
+     Prostředí, má všechna jeho hesla."; "Agenti ho používají sami." goes. The other
+     option, no line at all (the rule stays on Nastavení → Trezor), is Matěj's to choose.
+   - **Prohlídka aplikace** loses "Krátce ukáže, co je kde."; a ready Environment says
+     "Prostředí je připravené." without "Sem se můžete kdykoli vrátit.", and a Team or
+     Automated Environment "Tady není co nastavovat." without who prepares it.
+     Composio's, SSH's and Codex Desktop's lines stay: their titles do not say what they
+     are for.
 
 Not changed: what any click does, the routes, `lazurio.shell.v1` and `lazurio.account.v1`,
 error and refusal texts, the update pill's line of the last verified check (by it a frozen
@@ -6276,11 +6310,13 @@ Verified by unit tests: the rail's spaces and the signed-out rail without a seco
 (`tests/apps-view.test.ts`), the module's facts (`tests/catalog-view.test.ts`), Začínáme
 and the tour (`tests/start-view.test.ts`, `tests/first-run.test.ts`), the rows of
 executor and bitwarden (`tests/executor-view.test.ts`, `tests/vault-view.test.ts`), the
-vault page (`tests/vault-page-view.test.ts`, `tests/launchpad-vault-page.test.ts`),
+content step's order note (`tests/content-view.test.ts`), the vault page
+(`tests/vault-page-view.test.ts`, `tests/launchpad-vault-page.test.ts`),
 Integrace's cards and notices (`tests/integrations-page.test.ts`) and the Folder refresh
 line (`tests/update-view.test.ts`); the Czech wording guard over every message
 (`tests/environment-wording.test.ts`); and in a browser (root decision 0178) on the hosted
-preview in both languages.
+preview in both languages, Začínáme's AI step through idle, waiting and connected with
+stand-in `codex` and `claude` CLIs.
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
