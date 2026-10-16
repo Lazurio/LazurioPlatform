@@ -12443,6 +12443,10 @@ member's links into bitwarden.eu, disconnect and reconnect, the Tools row's link
 
 ### F53 addendum of 2026-10-16: Bitwarden in Codex Desktop and the person's browser
 
+> **Step 1 amended on 2026-10-16 by the [addendum on the guide
+> video](#f53-addendum-of-2026-10-16-the-guide-video-of-trezor-in-bitwarden)**: it names
+> the Chrome Web Store's own button, and the guide's video shows the steps above them.
+
 **Asked for by Matěj (Organization Admin) on 2026-10-16 (plan DEV-6665) and reworked after
 his review of the preview the same day: a person finds their way without composing
 anything, in the extension's own words and screens. The row is the wireframe's
@@ -12593,6 +12597,70 @@ into the steps with the focus on their heading below the page's head, the store 
 Copy fields with `jana@account.lazurio.ai`, both pictures in the page's language, the
 Trezor page in a new tab, and step 3's lines while the membership answer is held back and
 when it fails.
+
+### F53 addendum of 2026-10-16: the guide video of Trezor in Bitwarden
+
+**Approved by Matěj (Organization Admin) on 2026-10-16 (plan DEV-6665), who asked for it
+to be published.** The guide "V Codex Desktopu a ve vašem prohlížeči" on Nastavení →
+Trezor (the addendum above) gets its video, and step 1 says plainly that it is the
+Bitwarden extension from the Chrome Web Store.
+
+1. **The video.** At the top of the section, above the steps, for an Organization's
+   Lazurio Vaultwarden, whose steps it shows (the extension from the Chrome Web Store,
+   the self-hosted server, the Lazurio sign-in): one button "Přehrát video" ("Play
+   video"), whose accessible name is "Přehrát video: Trezor v Bitwardenu", puts the
+   browser's own player in its place, inline, and plays it. Nothing plays before the
+   person presses it, nothing of the video loads before (`preload="none"`), the files
+   carry no audio track, a phone plays it inline (`playsinline`), and the browser's own
+   controls serve the keyboard and a screen reader; the steps under it are its text
+   (`aria-describedby`). A personal Environment's own Bitwarden has other steps and
+   shows no video. The component is `createGuideVideo` (`src/launchpad/guide-video.ts`),
+   for every guide video of the Launchpad (docs/launchpad-development.md "Guide
+   videos"); a personal Environment's own Bitwarden gets its video from its own guide
+   (DEV-6631).
+2. **The files.** `src/launchpad/videos/vault-bitwarden-cs.mp4` and `-en.mp4` (H.264,
+   1920×1080, 30 frames a second, 36.2 s, no audio, the index first; 2.4 and 2.3 MiB)
+   and their posters `vault-bitwarden-cs.webp` and `-en.webp` (1920×1080, 36 and 41 KiB),
+   embedded in the executable with `{ type: "file" }` as the shell's fonts are, so the
+   Platform release carries them. MP4 only: H.264 plays in every browser the Launchpad
+   serves, Safari included.
+3. **Served by byte range** at `/videos/<file>` beside the page's routes: locally without
+   the token, as the page; hosted only after the gateway's admission, answered by the
+   server itself so that the byte range reaches it. Safari and iOS play a video only from
+   a server that answers ranges: one range `206 Partial Content`, a range past the end
+   `416`, anything else the whole file; `Accept-Ranges: bytes`, the file's type, and
+   `Cache-Control: no-cache` with the content's digest as a strong ETag, so that a
+   release with a new cut under the same name replaces the browser's copy.
+4. **Step 1** now reads "Otevřete rozšíření Bitwarden v Chrome Web Store a klikněte na
+   „Přidat do Chromu“. V Codex Desktopu to udělejte v jeho prohlížeči, rozšíření pak
+   najdete v Nastavení → Prohlížeč → Rozšíření." ("Open the Bitwarden extension in the
+   Chrome Web Store and click “Add to Chrome”. In Codex Desktop, do this in its browser;
+   the extension then appears in Settings → Browser → Extensions."), with the same link.
+   „Přidat do Chromu“ and “Add to Chrome” are the store's own button on its Czech and
+   English pages. Matěj asked for the step to say clearly that it is the extension from
+   the Chrome Web Store, and for it to stay short; the clause about other browsers'
+   stores (the addendum above, after Pablo's review of 8de1d1b) is left out by that
+   choice: the guide's browsers are Chrome and Codex Desktop's.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The player in a dialog | Focus and closing to manage for a video that fits the section; inline |
+| The player and its poster on the page from the start | A large frame above the steps on every visit; one button, the player when asked |
+| The files through the page's bundle (Bun's HTML import) | Its static answers take no byte ranges, and Safari would not play the video; a route of its own |
+| Hosted, through the inner listener like the page's assets | Its proxy forwards no `Range` and streams without a length; the server answers after the admission itself |
+| WebM beside the MP4 | No browser the Launchpad serves needs it, and the release would carry both; MP4 only |
+| The file names cached as immutable, as the fonts | A new cut under the same name would stay in the browser; `no-cache` with the content's ETag |
+
+Verified by `tests/launchpad-guide-video.test.ts` (the player's markup and accessible
+names in both languages, the file of the page's language, the slot above the steps; each
+file H.264 with its index first, one video track and no audio, a WebP poster, the sizes;
+over HTTP, from the route itself, locally without the token and hosted only after the
+admission: 206 with exactly the bytes asked, open-ended and suffix ranges, 416 past the
+end, 200 for the whole file, several ranges or another version's `If-Range`, 304 for a
+current copy, the poster, 404 for anything else), `tests/vault-page-view.test.ts` (step 1
+word for word) and `tests/update-compiled.test.ts` (a byte range of the video from the
+compiled executable); and in a browser (root decision 0178) on the hosted preview in both
+languages: the button plays the video in the page, seeking works, no page errors.
 
 ## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
 
