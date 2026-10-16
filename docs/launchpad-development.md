@@ -2552,8 +2552,9 @@ Organization's, and it gets none of it.
   otherwise lay over it; 300 px wide, or what a narrower window leaves; its arrow points
   at the element. Without the element on screen (the Settings column of a narrow
   window, closed) it stands in the bottom right corner. A ringed link is the page's own
-  link: a plain click moves within the page, and only a click with a modifier (⌘ or
-  Ctrl, Shift) or the middle button opens a new tab or window, as for every link.
+  link: a plain click moves within the page, and only a click with ⌘ (Ctrl outside a
+  Mac, where Ctrl opens the context menu), Shift or the middle button opens a new tab or
+  window, as for every link.
 - **Where the progress lives.** Only where the introduction points, in this browser's
   `localStorage` per Environment (`lazurio.tour:<Environment id>` = `{ "intro": n }`, the
   shell document's `current`). Nothing about the basics is stored: they are the
