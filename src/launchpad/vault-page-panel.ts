@@ -10,6 +10,7 @@ import {
   connectionFilled,
   connectionPictures,
   connectionRefusalText,
+  disconnectedLine,
   inviteRefusalText,
   parseVaultMembership,
   parseVaultPage,
@@ -151,6 +152,10 @@ export function createVaultPagePanel(
   let outcome: VaultStatus | null = null;
   let disconnecting = false;
   let notice: string | null = null;
+  // A disconnect that succeeded in this page: one line says that the vault
+  // stays in the person's Bitwarden until they connect again or the page is
+  // loaded anew (`disconnectedLine`).
+  let disconnected = false;
   // Whose sign-up step 1 opens: bitwarden.eu unless the person asked for
   // bitwarden.com; and the invitation: whether it is sent now and why the
   // last one was refused.
@@ -269,13 +274,13 @@ export function createVaultPagePanel(
   function render() {
     const copy = options.copy();
     again.disabled = loading;
+    const view = vaultPageView(model, person, copy, outcome ?? fresh);
     status.textContent =
       loading && model === null
         ? copy.vaultRowChecking
         : failed
           ? copy.vaultLoadFailed
-          : (notice ?? "");
-    const view = vaultPageView(model, person, copy, outcome ?? fresh);
+          : (notice ?? disconnectedLine(view, disconnected, copy) ?? "");
     connectSection.hidden = view.connect === null;
     if (view.connect !== null) drawConnection(view.connect.vault, copy);
     connectSubmit.textContent = connecting
@@ -544,6 +549,8 @@ export function createVaultPagePanel(
     if (connecting || !connectionFilled(sent)) return;
     connecting = true;
     problem = null;
+    // Connecting again: the line of the last disconnect goes.
+    disconnected = false;
     forget(false);
     render();
     let answer: { value: unknown; ok: boolean } | null = null;
@@ -625,15 +632,18 @@ export function createVaultPagePanel(
   }
 
   /** Disconnects the person's own Bitwarden: the account forgotten here,
-   * the organization kept in Bitwarden. */
+   * the organization kept in Bitwarden, which one line says once it is
+   * done. */
   async function disconnect(): Promise<void> {
     if (disconnecting) return;
     disconnecting = true;
     notice = null;
+    disconnected = false;
     render();
     try {
       const { value, ok } = await options.post("/api/vault/disconnect", {});
-      if (!ok)
+      if (ok) disconnected = true;
+      else
         notice = connectionRefusalText(
           (value as { reason?: unknown } | null)?.reason,
           options.copy(),

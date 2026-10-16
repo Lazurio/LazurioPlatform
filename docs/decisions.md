@@ -12724,6 +12724,12 @@ fields and one button.
    `email-invalid` and `same-account`, which move to the invitation (point 3), the
    invitation's new `invited`, and `account-refused` (point 2). The failures the person
    resolves, the disconnect's note and the person's states are shortened the same way.
+   After „Odpojit Bitwarden", when the section comes back, the page's status line says
+   „Trezor i hesla zůstaly ve vašem Bitwardenu." ("Your vault and its passwords stay in
+   your Bitwarden.") until the person connects again or the page is loaded anew
+   (`disconnectedLine`): the browser acceptance of #468 missed that reassurance right
+   after the disconnect, where it matters most; before it, the note beside the button
+   says the same.
    Gone: the lead about a free organization and a separate agents' account, the three
    text steps, the region, the person's e-mail and its hint.
 2. **No region.** `POST /api/vault/connect` takes exactly `{clientId, clientSecret,
@@ -12874,14 +12880,17 @@ one in the US, the agents' own address as invitee refused), over HTTP
 invitation; its refusals and answers; no value or address in any answer, log, the
 journal or bw's arguments) and `tests/vault-page-view.test.ts` (the section, the
 invitation and the person's states word for word in both languages, every refusal one
-sentence, the sign-up links, the picture's words, no mechanics in the section's words,
-and each picture once per language, a 2x WebP under 64 KB of its declared size); and in a
-browser (root decision 0178) on the personal preview, which now runs the tests' fake
-Bitwarden cloud (`scripts/preview-launchpad.ts personal cs|en`), in both languages at
-1440×900 and 390 px wide: the section with both pictures of the page's language only,
-bitwarden.com on request, a refused master password with the secret fields emptied,
-connecting, the invitation card, the agents' own address refused, the invitation, its
-pending line, and the member's links after the acceptance.
+sentence but a wrong master password's two, the line after a disconnect only while the
+section shows, the sign-up links, the picture's words, no mechanics in the section's
+words, and each picture once per language, a 2x WebP under 64 KB of its declared size);
+and in a browser (root decision 0178) on the personal preview, which now runs the tests'
+fake Bitwarden cloud (`scripts/preview-launchpad.ts personal cs|en`), in both languages
+at 1440×900 and 390 px wide: the section with both pictures of the page's language only,
+bitwarden.com on request, a refused master password with the secret fields emptied and
+the words to paste both again, connecting, the invitation card, the agents' own address
+refused, the invitation, its pending line, the member's links after the acceptance, and
+"Odpojit Bitwarden": the section back with its line, gone once connected again and after
+a reload.
 
 ## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
 

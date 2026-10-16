@@ -2248,6 +2248,9 @@ Bitwarden address and sends `POST /api/vault/invitee` ("Pozvat mě"); its refusa
 e-mailed, accepted and being confirmed, or removed in Bitwarden), a member gets
 "Přidat položku" and "Otevřít trezor" into the region's web vault, and "Odpojit
 Bitwarden" (`POST /api/vault/disconnect`) with its note shows whenever no setup runs.
+Once it succeeded, the section comes back and the page's status line says „Trezor i
+hesla zůstaly ve vašem Bitwardenu." until the person connects again or the page is
+loaded anew (`disconnectedLine`).
 The page asks about the person again when its tab is shown again while their
 invitation waits. Tested over HTTP in `tests/launchpad-vault-connect.test.ts` with the
 fake Bitwarden cloud of `tests/fixtures/fake-bitwarden-cloud.ts`, and the pure part in

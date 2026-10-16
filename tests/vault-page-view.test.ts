@@ -8,6 +8,7 @@ import {
   connectionFilled,
   connectionPictures,
   connectionRefusalText,
+  disconnectedLine,
   inviteRefusalText,
   offersBitwarden,
   parseVaultMembership,
@@ -648,6 +649,46 @@ test("a personal Environment waiting for its person shows the section with the v
   });
 });
 
+// After "Odpojit Bitwarden" (the browser acceptance of #468): the section
+// that connects it comes back, and one line says that the vault and its
+// passwords stay in the person's Bitwarden. The panel keeps that a
+// disconnect succeeded in this page and forgets it when the person connects
+// again; a page loaded anew never knew it.
+test("after a disconnect, one line says that the vault and its passwords stay in the person's Bitwarden, only while the section that connects it shows", () => {
+  const waiting = vaultPageView(
+    model(
+      { kind: "vault-status", state: "needs-connection" },
+      { name: "Osobní example" },
+    ),
+    null,
+    cs,
+  );
+  expect(disconnectedLine(waiting, true, cs)).toBe(
+    "Trezor i hesla zůstaly ve vašem Bitwardenu.",
+  );
+  expect(disconnectedLine(waiting, true, en)).toBe(
+    "Your vault and its passwords stay in your Bitwarden.",
+  );
+  // No disconnect in this page (loaded anew, or connecting again): none.
+  expect(disconnectedLine(waiting, false, cs)).toBeNull();
+  // Anything but the section that connects it: none (connected again, a
+  // Lazurio Vaultwarden, the page not read yet).
+  const bitwarden = {
+    ...connected(0),
+    vault: "https://vault.bitwarden.eu",
+    account: "agents.example+lazurio@example.com",
+    name: "Osobní example",
+    organization: "Osobní example",
+    region: "eu",
+  } as const;
+  for (const view of [
+    vaultPageView(model(bitwarden), member, cs),
+    vaultPageView(model(connected()), member, cs),
+    vaultPageView(null, null, cs),
+  ])
+    expect(disconnectedLine(view, true, cs)).toBeNull();
+});
+
 // The section's words (F53's amendment of 2026-10-16, (2), after the
 // Organization Admin's review: less text, pictures): a title, the picture
 // and one line, two steps with one line each, the fields and one button;
@@ -779,6 +820,8 @@ test("the connection's words: the title, the picture of the vault, one line, two
     en.vaultInviteTitle,
     cs.vaultDisconnectNote,
     en.vaultDisconnectNote,
+    cs.vaultDisconnected,
+    en.vaultDisconnected,
   ].join("\n");
   for (const word of [
     /organi[sz]a/i,

@@ -1180,6 +1180,7 @@ const en = {
   vaultDisconnect: "Disconnect Bitwarden",
   vaultDisconnecting: "Disconnecting…",
   vaultDisconnectNote: "The vault and its passwords stay in Bitwarden.",
+  vaultDisconnected: "Your vault and its passwords stay in your Bitwarden.",
   vaultPageAgentsOnly: "Only this Environment's agents use its vault.",
   vaultPageGuide:
     "Does an agent need a password or a key? Tell it in Chat. It asks for the value here, you fill it in, and it goes straight into the vault.",
@@ -2789,6 +2790,7 @@ const cs: Record<MessageKey, string> = {
   vaultDisconnect: "Odpojit Bitwarden",
   vaultDisconnecting: "Odpojuje se…",
   vaultDisconnectNote: "Trezor i hesla v Bitwardenu zůstanou.",
+  vaultDisconnected: "Trezor i hesla zůstaly ve vašem Bitwardenu.",
   vaultPageAgentsOnly: "Trezor tohoto Prostředí používají jen jeho agenti.",
   vaultPageGuide:
     "Potřebuje agent heslo nebo klíč? Řekněte mu to v Chatu. O hodnotu si řekne tady, vy ji vyplníte a uloží se rovnou do trezoru.",

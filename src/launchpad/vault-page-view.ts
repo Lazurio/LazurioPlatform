@@ -767,6 +767,19 @@ export function bitwardenGuide(
   };
 }
 
+/** What the page says once the person disconnected a personal
+ * Environment's own Bitwarden (`disconnected`: a disconnect that succeeded
+ * in this page, which it forgets when they connect again or the page is
+ * loaded anew): that the vault and its passwords stay in their Bitwarden,
+ * while the section that connects it shows; null otherwise. */
+export function disconnectedLine(
+  view: Pick<VaultPageView, "connect">,
+  disconnected: boolean,
+  copy: Copy,
+): string | null {
+  return disconnected && view.connect !== null ? copy.vaultDisconnected : null;
+}
+
 /** Why a connection was refused, in the page's words: one sentence that
  * says what to do, and for a wrong master password a second one that names
  * both values to paste again, since the form empties the secret ones as
