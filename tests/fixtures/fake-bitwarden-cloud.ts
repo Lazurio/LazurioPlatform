@@ -583,8 +583,10 @@ export async function startFakeBitwardenCloud(home: string) {
       account.clientSecret = secret;
       await writeApiKeys();
     },
-    /** An account that owns a Free organization already (its family's). */
-    async ownsFreeOrganization(email: string) {
+    /** An account that owns a Free organization already (its family's),
+     * whose public key is `publicKey` (another than any receipt's unless a
+     * test names one). */
+    async ownsFreeOrganization(email: string, publicKey = "x".repeat(120)) {
       const account = accounts.get(email);
       if (account === undefined) throw new Error("No such account");
       const organization: FakeCloudOrganization = {
@@ -592,7 +594,7 @@ export async function startFakeBitwardenCloud(home: string) {
         name: "Family",
         billingEmail: email,
         free: true,
-        publicKey: "x".repeat(120),
+        publicKey,
         encryptedPrivateKey: "2.a|b|c",
         collections: [{ id: randomUUID(), name: "2.a|b|c" }],
       };

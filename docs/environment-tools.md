@@ -765,7 +765,9 @@ it is the second wave (`unsupported`, `workstation`).
   host (never the password grant: API-key sign-ins are exempt from new-device
   verification), reads the agents' address from the profile, refuses the person's own
   address (`same-account`) and an account that owns or administers another
-  organization (`owns-organization`), and opens its keys with the cloud's KDF,
+  organization (`owns-organization`; while an earlier connection's creation receipt
+  is unresolved, only the one organization whose public key the API shows as that
+  receipt is exempt, and an unreadable key refuses), and opens its keys with the cloud's KDF,
   PBKDF2-SHA256 or Argon2id (`wrong-password`, `unsupported-kdf`,
   `unsupported-keys`). Only then does it write the account whole into its custody
   (`<state>/lazurio/vault/vault.bitwarden.eu/<agents' address>/bw/lazurio-account.json`,

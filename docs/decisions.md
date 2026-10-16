@@ -12102,7 +12102,14 @@ there the Environment works on its own.
    own or administer an organization other than this Environment's recorded vault
    (`owns-organization`: not a separate agents' account, since agents holding its
    credentials would reach that organization's items too, and the cloud would refuse
-   it a second Free organization); the master password opens the account's user key and
+   it a second Free organization). While a creation's receipt of an earlier
+   connection is unresolved, exactly one more Owner or Admin organization is
+   exempt: the one whose public key the cloud's API shows the agents' account as
+   that receipt, by the test the setup finds its creation with (`carriesReceipt`);
+   a key the cloud refuses to show or a second organization carrying it refuses as
+   `owns-organization`, and a key the cloud does not answer for refuses with its
+   reason (`unreachable`), always before anything is written. The master password
+   opens the account's user key and
    private key with the KDF the token answer carries, or the prelogin's
    (`POST <identity>/accounts/prelogin`): PBKDF2-SHA256, or Argon2id with the salt the
    SHA-256 of the normalized e-mail, the memory in MiB as Bitwarden keeps it and 32
@@ -12189,7 +12196,10 @@ accounts connected end to end with the exact organization request, the User and
 Manage invitation, its acceptance and confirmation; the refusals; the KDF from the
 prelogin; the Free limit before writing and at creation, and a person owning a Free
 organization joining as a User; an interrupted creation resumed by its receipt;
-disconnect and reconnect; a vault deleted in Bitwarden created anew only when the
+a pending receipt that exempts only the one organization carrying it (another owned
+organization, two carrying it or an unreadable key refused before anything is
+written, Pablo's review of #450); disconnect and reconnect; a vault deleted in
+Bitwarden created anew only when the
 person connects again, and a rotated API key reconnecting to the same vault; a lost
 account file; no value in the journal, bw's arguments or the custody after
 disconnect), `tests/vault-register.test.ts` (Bitwarden's
