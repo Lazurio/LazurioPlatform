@@ -9,6 +9,7 @@ import {
   unpreparedCodes,
 } from "./content-view";
 import type { MessageKey } from "./messages";
+import type { EntryAudience } from "./public-environment";
 import type { SettingsSection } from "./routes";
 import { fill } from "./update-view";
 
@@ -26,8 +27,11 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // next missing basic, Apps says it in one line and the shell's column keeps a
 // quiet prompt. "Dokončím později" puts the tour away for this view only. The
 // browser keeps only where the introduction after the basics points. It runs
-// only where the Environment signs in to GitHub as its person. Pure: the DOM
-// is tour.ts, start-panel.ts and catalog-panel.ts.
+// only where the Environment signs in to GitHub as its person. A public
+// Environment (root decision 0204, decision F55) has none of it: nobody signs
+// in there, so it has no basics, and its tour is the introduction from the
+// first visit (`demoOnboarding`). Pure: the DOM is tour.ts, start-panel.ts
+// and catalog-panel.ts.
 
 /** The presets whose Environment signs in to GitHub as its person: a
  * personal Remote Environment, an Organization's work Environment of one
@@ -101,13 +105,32 @@ export function composioFact(overview: ToolsReading): ComposioFact {
  * `loading` until the first answer. */
 export type AiFact = AiState | "loading";
 
-/** What the first run reads: the preset, and the three basics. */
+/** What the first run reads: the preset, and the three basics; `audience`
+ * where the recorded entry says the Environment is public (absent
+ * elsewhere, as on every Environment before root decision 0204). */
 export type TourFacts = Readonly<{
   preset: string | null;
+  audience?: EntryAudience | undefined;
   ai: AiFact;
   github: GithubFact;
   content: ContentFact;
 }>;
+
+/** A public Environment's demo onboarding (root decision 0204's line on
+ * 0201, decision F55): no AI, GitHub or vault step, since its visitors sign
+ * in to nothing there; Začínáme says what to try, and the tour introduces
+ * Apps, Chat and Automate from the first visit. */
+export function demoOnboarding(facts: Pick<TourFacts, "audience">): boolean {
+  return facts.audience === "public";
+}
+
+/** Whether the Environment has the basics of a person (0201): it signs in as
+ * its person and is no public Environment. */
+function personOnboarding(
+  facts: Pick<TourFacts, "preset" | "audience">,
+): boolean {
+  return signsInAsPerson(facts.preset) && !demoOnboarding(facts);
+}
 
 /** The basics of 0201 point 1, in their order (point 3). */
 export const basics = Object.freeze(["ai", "github", "content"] as const);
@@ -149,7 +172,7 @@ export function basicsDone(facts: TourFacts): number {
  * unknown GitHub and an unread content wait; an AI that could not be read
  * (`unknown`) is never claimed missing, so it does not hold the rest. */
 export function nextBasic(facts: TourFacts): Basic | null | undefined {
-  if (!signsInAsPerson(facts.preset)) return null;
+  if (!personOnboarding(facts)) return null;
   if (facts.ai === "loading") return undefined;
   if (facts.ai === "missing") return "ai";
   const github = basicState(facts, "github");
@@ -226,6 +249,8 @@ export function parseTourProgress(raw: string | null): TourProgress | null {
  * it. Null, so nothing is stored yet, while a basic that decides it is not
  * known (the Steward's review of #180: a failed read must not finish it). */
 export function firstProgress(facts: TourFacts): TourProgress | null {
+  // A visitor of a public Environment is new to it on every first visit.
+  if (demoOnboarding(facts)) return freshTourProgress;
   const next = nextBasic(facts);
   if (!signsInAsPerson(facts.preset) || next === undefined) return null;
   return next === null ? finishedTourProgress : freshTourProgress;
@@ -241,6 +266,9 @@ export function tourStep(
   progress: TourProgress | null,
   settings: SettingsSection | null,
 ): TourStep | null {
+  // A public Environment has no basics: only the introduction.
+  if (demoOnboarding(facts))
+    return progress === null ? null : (tourIntro[progress.intro] ?? null);
   if (!signsInAsPerson(facts.preset)) return null;
   const next = nextBasic(facts);
   if (next === undefined) return null;
@@ -289,10 +317,11 @@ export type TourStop = Readonly<{
 /** What one stop says (Matěj 2026-10-04): at most ten to twelve words, why
  * it matters and what happens, nothing technical, no "click here" (the ring
  * shows where) and no headings above the title. `apps` names whether Chat
- * and Automate run on this Environment. */
+ * and Automate run on this Environment; on a public Environment Chat's stop
+ * says its AI is not connected. */
 export function tourStop(
   step: TourStep,
-  facts: Pick<TourFacts, "preset" | "ai" | "github" | "content">,
+  facts: Pick<TourFacts, "preset" | "audience" | "ai" | "github" | "content">,
   apps: Readonly<{ chat: boolean; automate: boolean }>,
   copy: Copy,
 ): TourStop {
@@ -356,7 +385,11 @@ export function tourStop(
       return stop(
         "tab-chat",
         copy.tourChatTitle,
-        apps.chat ? copy.tourChatText : copy.tourChatMissingText,
+        !apps.chat
+          ? copy.tourChatMissingText
+          : demoOnboarding(facts)
+            ? copy.tourChatDemoText
+            : copy.tourChatText,
         "next",
       );
     case "automate":
@@ -386,14 +419,14 @@ export function tourStop(
  * answer) does not hold the content back, as it holds nothing else back: a
  * timeout must not lock an Environment out of its content, and a stop then
  * leads to Chat. Elsewhere (a Team or an Automated Environment, whose basics
- * are the Organization's) only a known missing GitHub does. Null: it may
- * start. */
+ * are the Organization's) and on a public Environment, whose visitors sign
+ * in to nothing, only a known missing GitHub does. Null: it may start. */
 export type ContentBlock = "ai" | "github" | "unknown";
 
 export function contentBlockedBy(
-  facts: Pick<TourFacts, "preset" | "ai" | "github">,
+  facts: Pick<TourFacts, "preset" | "audience" | "ai" | "github">,
 ): ContentBlock | null {
-  if (!signsInAsPerson(facts.preset))
+  if (!personOnboarding(facts))
     return facts.github === "missing" ? "github" : null;
   if (facts.ai === "missing") return "ai";
   if (facts.ai === "loading") return "unknown";
@@ -444,8 +477,7 @@ export function autoStartStep(
     (state.github === false && github === true);
   const next = (armed: boolean): AutoStart =>
     Object.freeze({ ai, github, armed });
-  if (!signsInAsPerson(facts.preset))
-    return { state: next(false), start: false };
+  if (!personOnboarding(facts)) return { state: next(false), start: false };
   const armed = state.armed || arrived;
   if (!armed) return { state: next(false), start: false };
   const content = facts.content.state;
@@ -473,7 +505,7 @@ export function startDecision(
   request: StartRequest,
   facts: TourFacts,
 ): StartDecision {
-  if (!signsInAsPerson(facts.preset)) return "drop";
+  if (!personOnboarding(facts)) return "drop";
   if (request === "sign-in-gh") {
     if (facts.github === "unknown" || facts.ai === "loading") return "wait";
     if (facts.ai === "missing") return "open-ai";
@@ -494,14 +526,17 @@ export function startDecision(
  * (`unpreparedCodes`), to someone who cannot write its root repository
  * (`rootAccess` not confirmed, which includes not known yet), only the
  * sentence that its Admin prepares it. An AI not known yet is not claimed
- * missing. */
+ * missing. On a public Environment, whose visitors connect no AI and fix
+ * nothing of the Organization, it is always that sentence (decision F55). */
 export function resolveOf(
   input: Readonly<{
     ai: AiFact;
     code: string | null;
     rootAccess: boolean | null;
+    audience?: EntryAudience | undefined;
   }>,
 ): Resolve {
+  if (demoOnboarding(input)) return "admin";
   if (
     input.code !== null &&
     unpreparedCodes.includes(input.code) &&
@@ -616,20 +651,21 @@ export function appsSetupLine(
 }
 
 /** The shell document's `setup` from what is known (root decisions 0188 and
- * 0201): undefined where the preset does not sign in as its person or
- * GitHub's state is not known; `ai` only when it is known. The server's
- * document and the Launchpad page's own column head both draw from it. */
+ * 0201): undefined where the preset does not sign in as its person, on a
+ * public Environment (decision F55) or while GitHub's state is not known;
+ * `ai` only when it is known. The server's document and the Launchpad
+ * page's own column head both draw from it. */
 export function shellSetup(
   input: Readonly<{
     preset: string;
+    audience?: EntryAudience | undefined;
     ai: AiFact;
     github: GithubFact;
     list: ContentList | null;
     job: ContentJob | null;
   }>,
 ): ShellSetup | undefined {
-  if (!signsInAsPerson(input.preset) || input.github === "unknown")
-    return undefined;
+  if (!personOnboarding(input) || input.github === "unknown") return undefined;
   const fact = contentFact(input.list, input.job);
   const base = {
     ...(input.ai === "organization" || input.ai === "connected"

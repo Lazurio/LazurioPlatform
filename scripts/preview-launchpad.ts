@@ -52,8 +52,13 @@
 // before the start, so Začínáme and Nastavení → Trezor show it with the
 // steps for Bitwarden in Codex Desktop (F53's addendum of 2026-10-16); the
 // fake bw keeps everything under the synthetic home, and the gateway names a
-// fictional person, jana, whose own address the steps offer. Synthetic names
-// only; stop it with Ctrl-C.
+// fictional person, jana, whose own address the steps offer. With `public`
+// anywhere after the mode, a hosted preview's work Environment is a public
+// Environment (root decision 0204, decision F55): its entry carries
+// `audience: "public"`, so the Launchpad runs the demo onboarding, the
+// column head says the Environment is public and shared, and Integrace and
+// Nastavení → Trezor answer as absent. Synthetic names only; stop it with
+// Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -112,6 +117,8 @@ const mode =
     : "local";
 const fresh = process.argv[6] === "fresh";
 const composioOff = process.argv.slice(3).includes("composio-off");
+const publicEnvironment =
+  process.argv[2] === "hosted" && process.argv.slice(3).includes("public");
 const microsoft365 = process.argv.slice(3).includes("microsoft365");
 const composioOrgMissing = process.argv
   .slice(3)
@@ -148,11 +155,18 @@ else {
   await initializeHandoverFolder(folder, {
     preset,
     // A Remote Environment as the gateway serves it: the Environment
-    // browser's view and the person's sign-out (Machines#358).
+    // browser's view and the person's sign-out (Machines#358), and with
+    // `public` a public Environment's audience (decision F55).
     machine:
       mode === "personal"
         ? personalWithEntry(listenPort, true, true)
-        : organizationWithEntry(listenPort, host, true, true),
+        : organizationWithEntry(
+            listenPort,
+            host,
+            true,
+            true,
+            publicEnvironment,
+          ),
     profile: presetProfile(preset, os, { locale }),
   });
 }

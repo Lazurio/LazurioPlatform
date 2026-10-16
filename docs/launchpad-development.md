@@ -527,7 +527,10 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `/.lazurio/account/…`. The hosted entry also routes the Environment browser's view
   ([the right panel](#the-right-panel-the-environment-browser)): agent-browser is not
   run, the Launchpad answers the view with a synthetic token on the origin the preview
-  prints as `browser`, and a browser automation stands in for that origin.
+  prints as `browser`, and a browser automation stands in for that origin. With
+  `public` after the mode, the hosted entry also carries `audience: "public"`: a public
+  Environment's demo onboarding, its notice in the column head and no Integrace or
+  Trezor ([F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-no-integrace-and-no-trezor)).
   Screenshots come from Chrome through playwright-core.
 - **A fork's snippet** is in decision F36 point 5 and in the target shell's "The forks
   and `/.lazurio/`": the rail, and the column head at the top of the fork's sidebar.

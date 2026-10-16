@@ -288,6 +288,10 @@
           "properties": {
             "path": { "description": "Path on the shell's own origin.", "const": "/.lazurio/sign-out" }
           }
+        },
+        "audience": {
+          "description": "Present only on a work VM whose gateway admits any Lazurio account (root decision 0204, the public-account admission): its Environment is public and shared by its visitors. A Platform reads it to say so and to keep visitors' own accounts out of the Environment; it grants nothing and does not replace the gateway's admission. A reader vendoring an earlier schema refuses a document carrying it.",
+          "const": "public"
         }
       }
     },

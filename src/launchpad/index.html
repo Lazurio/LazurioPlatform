@@ -84,6 +84,11 @@
 html, body { margin: 0; }
 body { background: var(--lz-gray-50); color: var(--fg); font: 15px/1.45 var(--font-sans); letter-spacing: var(--lz-track-body); -webkit-font-smoothing: antialiased; }
 [hidden] { display: none !important; }
+/* A public Environment (decision F55, ui.ts `drawAudience`): no Integrace,
+   no Trezor and nothing for Začínáme to check again. */
+html[data-audience="public"] li:has(> #integrations-open),
+html[data-audience="public"] #settings-nav li:has(> a[data-section="vault"]),
+html[data-audience="public"] #start-refresh { display: none !important; }
 /* The first paint is the final page (F36's addendum of 2026-10-08). Only the
    frame and the Settings section the inline script above names are shown
    (shell.ts keeps them as the page moves), and nothing at all until the
@@ -1212,7 +1217,8 @@ button:not(.primary) .provider-openai { color: #000000; }
 <!-- Začínáme (root decision 0201, the wireframe's Start.tsx of
      prototypes-lazurio 1eefc3d): the Environment's basics checked from live
      facts, the vault, the optional steps and the tour; drawn by
-     start-panel.ts. Only where the Environment signs in as its person. -->
+     start-panel.ts. Only where the Environment signs in as its person; a
+     public Environment (decision F55) shows "Vyzkoušejte" and the tour. -->
 <section id="section-start" data-section="start" aria-labelledby="page-heading">
 <div class="section-head-text">
 <p class="intro" id="start-intro" role="status" aria-live="polite"></p>
@@ -1231,7 +1237,11 @@ button:not(.primary) .provider-openai { color: #000000; }
 <div class="group-head"><h2 id="start-optional-heading" data-message="startOptional">Optional</h2></div>
 <div class="card" id="start-optional"></div>
 </section>
-<section class="group" data-start aria-labelledby="start-tour-heading" hidden>
+<section class="group" id="start-demo-group" aria-labelledby="start-demo-heading" hidden>
+<div class="group-head"><h2 id="start-demo-heading" data-message="startDemoGroup">Try it</h2></div>
+<div class="card" id="start-demo"></div>
+</section>
+<section class="group" id="start-tour-group" data-start aria-labelledby="start-tour-heading" hidden>
 <div class="group-head"><h2 id="start-tour-heading" data-message="startTourGroup">App tour</h2></div>
 <div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" data-message="startTourTitle">Apps, Chat and Automate</p><p class="row-status" id="start-tour-state"></p></div><div class="row-control"><button type="button" id="start-tour"></button></div></div></div></div>
 </section>

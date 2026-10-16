@@ -137,6 +137,15 @@ export function withSignOut<T extends object>(entry: T, path = signOutPath) {
   return { ...entry, sign_out: { path } };
 }
 
+// Root decision 0204 (Machines #560): the entry of a work VM whose gateway
+// admits any Lazurio account, as Machines writes `entry.audience`.
+export function withAudience<T extends object>(
+  entry: T,
+  audience: unknown = "public",
+) {
+  return { ...entry, audience };
+}
+
 // The handover shapes the presets derive from, projected exactly as the
 // machine CLI would project a validated root-issued document.
 export function binding(document: unknown) {
@@ -149,20 +158,23 @@ export function binding(document: unknown) {
 const { team: _, ...withoutTeam } = organization.owner;
 // An Organization work VM of one operator (no Team) with its entry on `port`,
 // for the Machine hostname `host`; with `browser`, the entry also routes the
-// Environment browser's view (root decision 0191), and with `signOut` it
-// names the person's sign-out (Machines#358).
+// Environment browser's view (root decision 0191), with `signOut` it names
+// the person's sign-out (Machines#358) and with `audience` it is a public
+// Environment (root decision 0204).
 export function organizationWithEntry(
   listenPort = 20000,
   host = "workspace.example.lazurio.io",
   browser = false,
   signOut = false,
+  audience = false,
 ) {
   const entry = handoverEntry(host, listenPort);
   const routed = browser ? withBrowser(entry, host) : entry;
+  const signed = signOut ? withSignOut(routed) : routed;
   return binding({
     ...organization,
     owner: withoutTeam,
-    entry: signOut ? withSignOut(routed) : routed,
+    entry: audience ? withAudience(signed) : signed,
   });
 }
 // An Organization work VM of one operator whose entry, on `port`, carries
@@ -277,5 +289,17 @@ export const bindings = Object.freeze({
   personalSignOut: binding({
     ...personal,
     entry: withSignOut(entries.personal),
+  }),
+  // Root decision 0204 (Machines #560): a public Environment, on a work
+  // Environment of one operator and on a Team Environment.
+  organizationPublic: binding({
+    ...organization,
+    owner: withoutTeam,
+    entry: withAudience(entries.organization),
+  }),
+  teamPublic: binding({
+    ...organization,
+    owner: { ...organization.owner, assignment: assignments.team },
+    entry: withAudience(entries.organization),
   }),
 });

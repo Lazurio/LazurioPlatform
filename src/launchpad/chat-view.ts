@@ -1,5 +1,6 @@
 import type { PublicEntry } from "./chat";
 import { isHttpsOrigin, isModuleOriginTemplate } from "./hosted-entry";
+import { isEntryAudience } from "./public-environment";
 
 // The page's side of Chat (launchpad-parity B8) and of Lazurio MausBot
 // (DEV-6632): which link it shows, taken as the server answered it. The page
@@ -21,7 +22,9 @@ export function parseEntryAnswer(value: unknown): PublicEntry | null {
     !isModuleOriginTemplate(entry.moduleOriginTemplate) ||
     (entry.mausbotOrigin !== undefined &&
       !isHttpsOrigin(entry.mausbotOrigin)) ||
-    (entry.browserOrigin !== undefined && !isHttpsOrigin(entry.browserOrigin))
+    (entry.browserOrigin !== undefined &&
+      !isHttpsOrigin(entry.browserOrigin)) ||
+    (entry.audience !== undefined && !isEntryAudience(entry.audience))
   )
     return null;
   return Object.freeze({
@@ -34,6 +37,7 @@ export function parseEntryAnswer(value: unknown): PublicEntry | null {
     ...(entry.browserOrigin === undefined
       ? {}
       : { browserOrigin: entry.browserOrigin }),
+    ...(entry.audience === undefined ? {} : { audience: entry.audience }),
   });
 }
 

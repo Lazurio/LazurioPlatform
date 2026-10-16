@@ -24,6 +24,7 @@ import { applyTabIcon } from "./tab-icon";
 import { installShellTokens } from "./tokens";
 import { vendorText } from "./vendor-text" with { type: "macro" };
 import {
+  type ColumnNotice,
   type ColumnSetupPrompt,
   columnHead,
   elementIdentity,
@@ -943,7 +944,21 @@ export class LazurioColumnHead extends ShellElement {
     // No switch on an Organization's Dashboard.
     if (model.tabs !== null) head.append(this.appSwitch(model.tabs, copy));
     if (model.setup !== null) head.append(this.setupPrompt(model.setup));
+    if (model.notice !== undefined)
+      head.append(this.publicNotice(model.notice));
     this.root.replaceChildren(head);
+  }
+
+  /** The quiet notice under the switch on a public Environment (decision
+   * F55): its words beside a dot that carries the colour (the design
+   * system's `lz-notice--quiet`), a note and no link. A narrow column keeps
+   * the dot alone and the words for assistive technology. */
+  private publicNotice(notice: ColumnNotice): HTMLElement {
+    const note = element("p", "public-notice");
+    note.setAttribute("role", "note");
+    note.dataset.notice = "public";
+    note.append(element("span", "public-notice-text", notice.text));
+    return note;
   }
 
   /** The quiet prompt under the switch while the Environment lacks a basic

@@ -1,3 +1,4 @@
+import type { Catalog } from "../organizations/catalog";
 import {
   type AiProvider,
   type AiProviderReading,
@@ -6,6 +7,8 @@ import {
   aiServicesReady,
 } from "../tools/ai";
 import { type AiSignIn, type AiSignInPlace, idleAiSignIn } from "./ai-sign-in";
+import { moduleName } from "./apps-view";
+import { moduleRoute } from "./catalog-view";
 import type { ContentList } from "./content-client";
 import {
   type Basic,
@@ -14,6 +17,7 @@ import {
   basicsDone,
   type ComposioFact,
   contentBlockedBy,
+  demoOnboarding,
   signsInAsPerson,
   type TourFacts,
 } from "./first-run";
@@ -331,9 +335,10 @@ function contentStep(facts: StartFacts, copy: Copy): StartStep {
 }
 
 /** Začínáme from the facts, or null where the Environment has none (a Team
- * or an Automated Environment: their Organization prepares them). */
+ * or an Automated Environment: their Organization prepares them) or has the
+ * demo onboarding instead (a public Environment, `demoStartView`). */
 export function startView(facts: StartFacts, copy: Copy): StartView | null {
-  if (!signsInAsPerson(facts.preset)) return null;
+  if (!signsInAsPerson(facts.preset) || demoOnboarding(facts)) return null;
   const [github, action] = githubStep(facts, copy);
   const [ai, aiAction] = aiStep(facts, copy);
   const steps = [ai, github, contentStep(facts, copy)];
@@ -355,7 +360,7 @@ export function startView(facts: StartFacts, copy: Copy): StartView | null {
 /** The count beside Začínáme in the Settings navigation ("1/3") while a
  * basic is missing; null otherwise. */
 export function startCount(facts: TourFacts): string | null {
-  if (!signsInAsPerson(facts.preset)) return null;
+  if (!signsInAsPerson(facts.preset) || demoOnboarding(facts)) return null;
   const missing = basics.some(
     (basic) => basicState(facts, basic) === "missing",
   );
@@ -446,4 +451,93 @@ export function optionalRows(
       action: { label: copy.startGuide, to: "/settings/ssh" },
     });
   return rows;
+}
+
+/** One row of a public Environment's Začínáme: its title, one sentence, a
+ * state only where one needs saying, and where its button leads (a route of
+ * this page, or with `app` the switch's Chat, which the page pairs on the
+ * way); none where the app does not run here. */
+export type DemoRow = Readonly<{
+  id: "apps" | "module" | "chat";
+  title: string;
+  text: string;
+  status: string | null;
+  action: Readonly<{ label: string; href: string; app?: "chat" }> | null;
+}>;
+
+export type DemoStartView = Readonly<{
+  intro: string;
+  rows: readonly DemoRow[];
+}>;
+
+/** The module Začínáme of a public Environment offers to try: the first one
+ * of the Folder's first Organization that has an app to open, by its
+ * overview's route; null where there is none. */
+export function demoModule(
+  catalog: Catalog | null,
+): Readonly<{ name: string; href: string }> | null {
+  for (const organization of catalog?.organizations ?? [])
+    for (const module of organization.modules) {
+      if (
+        module.absent === true ||
+        module.defaultApp === null ||
+        !module.executable
+      )
+        continue;
+      const href =
+        catalog === null ? null : moduleRoute(catalog, organization, module);
+      if (href !== null) return { name: moduleName(module), href };
+    }
+  return null;
+}
+
+/** Začínáme of a public Environment (root decision 0204's line on 0201,
+ * decision F55): what a visitor can do here, never a sign-in. Apps, a module
+ * to try (`module`, or any in Apps) and Chat (`chat`: its address on this
+ * Environment, null where it does not run), which says the AI is not
+ * connected: a visitor gets no AI in a shared Environment (0204 point 6). */
+export function demoStartView(
+  input: Readonly<{
+    chat: string | null;
+    module: Readonly<{ name: string; href: string }> | null;
+  }>,
+  copy: Copy,
+): DemoStartView {
+  return {
+    intro: copy.startDemoIntro,
+    rows: [
+      {
+        id: "apps",
+        title: "Apps",
+        text: copy.startDemoAppsText,
+        status: null,
+        action: { label: copy.startOpen, href: "/" },
+      },
+      input.module === null
+        ? {
+            id: "module",
+            title: copy.startDemoModuleTitle,
+            text: copy.startDemoModuleAny,
+            status: null,
+            action: { label: copy.startOpen, href: "/" },
+          }
+        : {
+            id: "module",
+            title: input.module.name,
+            text: copy.startDemoModuleText,
+            status: null,
+            action: { label: copy.startOpen, href: input.module.href },
+          },
+      {
+        id: "chat",
+        title: "Chat",
+        text: copy.startDemoChatText,
+        status: copy.startDemoNoAi,
+        action:
+          input.chat === null
+            ? null
+            : { label: copy.startOpen, href: input.chat, app: "chat" },
+      },
+    ],
+  };
 }

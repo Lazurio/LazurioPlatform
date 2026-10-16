@@ -53,6 +53,9 @@ export type ShellCopy = Readonly<{
   /** The quiet prompt under the switch while the Environment lacks a basic
    * (root decision 0201 point 2): "{done}" of "{total}" done. */
   setupPrompt: string;
+  /** The quiet notice of the column head on a public Environment (root
+   * decision 0204 point 4, decision F55): one or two sentences. */
+  publicNotice: string;
   /** The rail on a host's page with nobody signed in (F36's addendum of
    * 2026-10-06): its accessible name, and the key's name and label. */
   signedOutRail: string;
@@ -105,6 +108,8 @@ const en: ShellCopy = {
   chatMissing: "Chat does not run on this Environment",
   automateMissing: "Automate does not run on this Environment",
   setupPrompt: "Finish setting up ({done} of {total})",
+  publicNotice:
+    "This Environment is public and shared: other visitors and the operators can see it, and it is wiped at least nightly. Don't enter personal data here or sign in to your own accounts.",
   signedOutRail: "Lazurio",
   signIn: "Sign in with your Lazurio account",
 };
@@ -155,6 +160,8 @@ const cs: ShellCopy = {
   chatMissing: "Chat v tomto Prostředí neběží",
   automateMissing: "Automate v tomto Prostředí neběží",
   setupPrompt: "Dokončit nastavení ({done} ze {total})",
+  publicNotice:
+    "Toto Prostředí je veřejné a sdílené: vidí ho ostatní návštěvníci i provozovatelé a nejméně jednou za noc se smaže. Nezadávejte sem osobní údaje a nepřihlašujte se ke svým účtům.",
   signedOutRail: "Lazurio",
   signIn: "Přihlásit Lazurio účtem",
 };

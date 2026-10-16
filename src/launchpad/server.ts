@@ -158,6 +158,8 @@ import {
   promptDocument,
   promptOrganization,
 } from "./prompts";
+import { isPublicEnvironment, withheldInPublic } from "./public-environment";
+import { pageRoute } from "./routes";
 import {
   type ContentReader,
   createGithubProbe,
@@ -559,6 +561,9 @@ export async function startLaunchpad(
   // condition this start can name refuses it with `LaunchpadStartRefused`,
   // before anything listens, so the caller can serve Recovery mode instead.
   const { entry } = await readStartState(folder, { locked: true });
+  // A public Environment (root decision 0204, decision F55): no first run,
+  // no Integrace and no Nastavení → Trezor, by the entry recorded at start.
+  const publicEnvironment = isPublicEnvironment(entry);
   if (!(await privatePage(checkBundledPage)))
     throw new LaunchpadStartRefused("asset-missing", entry);
   const trust = entry === null ? null : createHostedTrust(entry, hostedOptions);
@@ -741,7 +746,8 @@ export async function startLaunchpad(
     // start. One that could not be checked does not.
     refuseInstall: async () => {
       const preset = await folderPreset(folder).catch(() => undefined);
-      if (preset === undefined || !signsInAsPerson(preset)) return null;
+      if (preset === undefined || !signsInAsPerson(preset) || publicEnvironment)
+        return null;
       return (await ai.state()).state === "missing" ? "ai-missing" : null;
     },
     host: () =>
@@ -900,7 +906,7 @@ export async function startLaunchpad(
       readFolderState(state),
     );
     const preset = current.preferences.preset.name;
-    if (!signsInAsPerson(preset)) return undefined;
+    if (!signsInAsPerson(preset) || publicEnvironment) return undefined;
     const [reading, signIn, read] = await Promise.all([
       ai.state(),
       github.state(),
@@ -1048,7 +1054,14 @@ export async function startLaunchpad(
           return fromShell(
             request,
             `${url.pathname}${url.search}`,
-            (page) => page.status,
+            // What a public Environment does not have answers as absent:
+            // the page itself, which shows Apps or Settings in its place.
+            (page) =>
+              page.ok &&
+              publicEnvironment &&
+              withheldInPublic(pageRoute(url.pathname))
+                ? 404
+                : page.status,
             // Nová karta is framed only by the Environment's own apps (F47
             // point 1).
             url.pathname === newTabPagePath && entry !== null
@@ -1496,6 +1509,17 @@ export async function startLaunchpad(
           return response({ error: "operation-failed" }, 500);
         }
       }
+      // A public Environment has no Integrace and no vault of its own (root
+      // decision 0204 point 4): their routes answer as absent, before any of
+      // them reads Executor, Composio or the vault.
+      if (
+        publicEnvironment &&
+        (integrations.handles(url.pathname) ||
+          vaultPage.handles(url.pathname) ||
+          vaultRequests.handles(url.pathname) ||
+          vaultConnection.handles(url.pathname))
+      )
+        return response({ error: "not-found" }, 404);
       if (content.handles(url.pathname)) {
         if (closing) return response({ error: "closing" }, 503);
         try {
