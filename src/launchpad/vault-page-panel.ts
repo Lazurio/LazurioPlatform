@@ -4,7 +4,7 @@ import {
   type BitwardenGuide,
   type BitwardenStep,
   bitwardenGuide,
-  bitwardenTarget,
+  bitwardenReveal,
   connectionFilled,
   connectionRefusalText,
   parseVaultMembership,
@@ -256,8 +256,9 @@ export function createVaultPagePanel(
   }
 
   /** The Bitwarden steps, drawn again only when they say something else, so
-   * a Copy button keeps its word; brought into view and focus once they
-   * show, when Začínáme asked for them, or forgotten where they will not. */
+   * a Copy button keeps its word; when Začínáme asked for them, brought into
+   * view and focus once it is certain they show (`bitwardenReveal`), unless
+   * the person moved the focus meanwhile, or forgotten where they will not. */
   function drawBitwarden(steps: BitwardenGuide | null, copy: Copy) {
     bitwarden.hidden = steps === null;
     const now = JSON.stringify(steps) + copy.vaultBitwardenCopy;
@@ -272,16 +273,27 @@ export function createVaultPagePanel(
       bitwardenNote.textContent = steps?.note ?? "";
     }
     if (!reveal) return;
-    if (!options.shown()) reveal = false;
-    else if (steps !== null) {
-      reveal = false;
+    const next = bitwardenReveal({
+      shown: options.shown(),
+      loading,
+      model,
+      person,
+      steps: steps !== null,
+    });
+    if (next === "wait") return;
+    reveal = false;
+    // The opened page put the focus on its heading; anything else is the
+    // person's own choice made while the answer came.
+    const focused = document.activeElement;
+    if (
+      next === "reveal" &&
+      (focused === null ||
+        focused === document.body ||
+        focused.id === "page-heading")
+    ) {
       bitwarden.scrollIntoView({ block: "start", behavior: "smooth" });
       bitwardenHeading.focus({ preventScroll: true });
-    } else if (
-      model !== null &&
-      (person !== null || bitwardenTarget(model) === null)
-    )
-      reveal = false;
+    }
   }
 
   /** One step: its sentence, and the value it asks for with a Copy button

@@ -9,8 +9,10 @@ import {
   startView,
 } from "../src/launchpad/start-view";
 import {
-  bitwardenTarget,
+  bitwardenGuide,
+  offersBitwarden,
   type VaultPageModel,
+  type VaultPagePerson,
 } from "../src/launchpad/vault-page-view";
 import type { VaultStatus } from "../src/vault/flow";
 
@@ -614,9 +616,9 @@ test("the content step waits for AI even with GitHub connected (Pablo's review o
 });
 
 // "Trezor v Bitwardenu" (the wireframe's row of prototypes-lazurio 1eefc3d,
-// F53's addendum of 2026-10-16, plan DEV-6665): where Nastavení → Trezor
-// gives the steps for Bitwarden in Codex Desktop and the person's browser,
-// its "Návod" leads there, to their section. No state: the extension is on
+// F53's addendum of 2026-10-16, plan DEV-6665): exactly where Nastavení →
+// Trezor gives the steps for Bitwarden in Codex Desktop and the person's
+// browser, its "Návod" leads there, to their section. No state: the extension is on
 // the person's computer, where the Environment cannot see it.
 test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose page gives the steps, leading to them", () => {
   const remote = {
@@ -656,8 +658,9 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
     action: { label: "Guide", to: "/settings/vault", part: "bitwarden" },
   });
   // The row follows the vault as Nastavení → Trezor reads it (`GET
-  // /api/vault`): shown with an Organization's vault or a personal
-  // Environment's own Bitwarden, hidden without one.
+  // /api/vault`) and, for a Lazurio Vaultwarden, the person's membership
+  // answer the page asks too (`offersBitwarden`): exactly where the page
+  // gives the steps (Pablo's review of #465).
   const vault = "https://vaultwarden.example.lazurio.io";
   const facts = {
     vault,
@@ -667,6 +670,15 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
     team: false,
     origin: "own",
   } as const;
+  const connected: VaultStatus = {
+    kind: "vault-status",
+    state: "connected",
+    ...facts,
+    organizationId: "0b9e2f3a-5c1d-4e8f-9a7b-1c2d3e4f5a6b",
+    collectionId: "6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d",
+    organization: facts.name,
+    items: 2,
+  };
   const page = (
     status: VaultStatus,
     environment: VaultPageModel["environment"],
@@ -674,6 +686,7 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
   const shown = (
     status: VaultStatus,
     environment: VaultPageModel["environment"],
+    person: VaultPagePerson | null,
   ) =>
     optionalRows(
       {
@@ -682,27 +695,42 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
           environment === "personal"
             ? "hosted-personal"
             : "hosted-organization-personal",
-        bitwarden: bitwardenTarget(page(status, environment)) !== null,
+        bitwarden: offersBitwarden(page(status, environment), person),
       },
       cs,
     ).some((row) => row.id === "bitwarden");
+  const member = { kind: "known", state: "member", signIn: false } as const;
+  const steps = (
+    status: VaultStatus,
+    environment: VaultPageModel["environment"],
+    person: VaultPagePerson | null,
+  ) => bitwardenGuide(page(status, environment), person, cs) !== null;
+  // A Lazurio Vaultwarden: once the answer is there, and only where it does
+  // not say that only the agents use the vault; the page agrees each time.
+  for (const [person, expected] of [
+    [member, true],
+    [{ kind: "known", state: "no-account", signIn: true }, true],
+    [{ kind: "unknown", reason: "no-username" }, true],
+    [{ kind: "unknown", reason: "failed" }, true],
+    [{ kind: "unknown", reason: "sign-in-not-required" }, false],
+    [{ kind: "unknown", reason: "not-managed" }, false],
+  ] as const) {
+    expect([person, shown(connected, "work", person)]).toEqual([
+      person,
+      expected,
+    ]);
+    expect(steps(connected, "work", person)).toBe(expected);
+  }
+  // Before the answer: not promised yet.
+  expect(shown(connected, "work", null)).toBe(false);
   expect(
     shown(
-      {
-        kind: "vault-status",
-        state: "connected",
-        ...facts,
-        organizationId: "0b9e2f3a-5c1d-4e8f-9a7b-1c2d3e4f5a6b",
-        collectionId: "6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d",
-        organization: facts.name,
-        items: 2,
-      },
+      { kind: "vault-status", state: "not-allowed", ...facts },
       "work",
+      member,
     ),
   ).toBe(true);
-  expect(
-    shown({ kind: "vault-status", state: "not-allowed", ...facts }, "work"),
-  ).toBe(true);
+  // A personal Environment's own Bitwarden needs no answer.
   expect(
     shown(
       {
@@ -714,14 +742,20 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
         region: "eu",
       },
       "personal",
+      null,
     ),
   ).toBe(true);
   expect(
-    shown({ kind: "vault-status", state: "needs-connection" }, "personal"),
+    shown(
+      { kind: "vault-status", state: "needs-connection" },
+      "personal",
+      null,
+    ),
   ).toBe(false);
   expect(
     shown(
       { kind: "vault-status", state: "unsupported", reason: "no-vault" },
+      null,
       null,
     ),
   ).toBe(false);

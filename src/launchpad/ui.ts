@@ -71,7 +71,10 @@ import { fill, pillView, pillVisible } from "./update-view";
 import { createVaultPagePanel } from "./vault-page-panel";
 import {
   bitwardenTarget,
+  offersBitwarden,
+  parseVaultMembership,
   parseVaultPage,
+  type VaultPagePerson,
   vaultPageView,
 } from "./vault-page-view";
 import { createVaultRequestsPanel } from "./vault-requests-panel";
@@ -504,9 +507,13 @@ const tour = createTour({
 // the vault's state as Nastavení → Trezor reads it, the optional steps and
 // the tour. Its vault and SSH rows are read each time it is shown, and so is
 // whether Nastavení → Trezor gives the steps for Bitwarden ("Trezor v
-// Bitwardenu", F53's addendum of 2026-10-16).
+// Bitwardenu", F53's addendum of 2026-10-16). Where the vault is a Lazurio
+// Vaultwarden, that follows the person's membership answer, which the Trezor
+// page asks too: asked here once per page, again only after an answer that
+// says nothing yet (busy, no answer).
 let vaultRow: StartVaultRow | null = null;
 let vaultBitwarden = false;
+let vaultPerson: VaultPagePerson | null = null;
 let sshDevices: number | null = null;
 // "Přihlásit ChatGPT" and "Přihlásit Claude" (root decision 0201 points 3-6,
 // F19's addendum of 2026-10-15): the CLI's sign-in through the Launchpad; on
@@ -576,13 +583,32 @@ async function readStartExtras() {
     view?.row === null || view?.row === undefined || view.note !== null
       ? null
       : { line: view.row.line, tone: view.row.tone };
-  vaultBitwarden = bitwardenTarget(model) !== null;
+  vaultBitwarden = offersBitwarden(model, vaultPerson);
   const overview = ssh?.ok ? parseSshOverview(ssh.value) : null;
   sshDevices =
     overview?.keys === null || overview?.keys === undefined
       ? null
       : keyGroups(overview.keys).devices.length;
   startPanel.render();
+  if (bitwardenTarget(model)?.kind !== "server" || vaultPerson !== null) return;
+  const person = await readVaultPerson();
+  if (
+    person.kind === "known" ||
+    !["busy", "unreachable", "failed"].includes(person.reason)
+  )
+    vaultPerson = person;
+  vaultBitwarden = offersBitwarden(model, person);
+  startPanel.render();
+}
+/** Where the person stands in the vault, as Nastavení → Trezor asks it
+ * (`POST /api/vault/membership`); "failed" without an answer, as there. */
+async function readVaultPerson(): Promise<VaultPagePerson> {
+  try {
+    const { value, ok } = await post("/api/vault/membership", {});
+    const person = ok ? parseVaultMembership(value) : null;
+    if (person !== null) return person;
+  } catch {}
+  return { kind: "unknown", reason: "failed" };
 }
 /** Začínáme's AI step, from a stop, a line or a hand-over without AI. */
 function openAiStep() {

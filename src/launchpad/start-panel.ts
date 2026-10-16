@@ -40,7 +40,7 @@ export function createStartPanel(
     /** The vault's row as Nastavení → Trezor says it; null hides it. */
     vault: () => StartVaultRow | null;
     /** Whether Nastavení → Trezor gives the steps for Bitwarden here
-     * (`bitwardenTarget`): the row "Trezor v Bitwardenu". */
+     * (`offersBitwarden`): the row "Trezor v Bitwardenu". */
     bitwarden: () => boolean;
     /** Brings a part of the page just opened into view: "Návod" of
      * "Trezor v Bitwardenu" opens Nastavení → Trezor at its steps. */

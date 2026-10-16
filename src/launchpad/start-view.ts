@@ -385,7 +385,7 @@ export type OptionalRow = Readonly<{
  * (its state is the person's computer's, so it has none here). Between them
  * "Trezor v Bitwardenu" where Nastavení → Trezor gives the steps that add the
  * Environment's vault to Bitwarden in Codex Desktop and the person's browser
- * (`bitwarden`, `bitwardenTarget`; F53's addendum of 2026-10-16): no state
+ * (`bitwarden`, `offersBitwarden`; F53's addendum of 2026-10-16): no state
  * either, since the extension is on the person's computer. */
 export function optionalRows(
   input: Readonly<{

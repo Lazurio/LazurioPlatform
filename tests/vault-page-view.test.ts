@@ -3,9 +3,11 @@ import { readFileSync } from "node:fs";
 import { messages } from "../src/launchpad/messages";
 import {
   bitwardenGuide,
+  bitwardenReveal,
   bitwardenTarget,
   connectionFilled,
   connectionRefusalText,
+  offersBitwarden,
   parseVaultMembership,
   parseVaultPage,
   type VaultPageModel,
@@ -866,4 +868,99 @@ test("no steps where the person has no vault to add here: this computer, no vaul
     { kind: "known", state: "revoked", signIn: false },
   ] as const)
     expect(bitwardenGuide(work(), person, cs)?.kind).toBe("server");
+});
+
+// Pablo's review of #465: Začínáme's row promises exactly the steps the page
+// gives, and a pending "Návod" reveals them only once it is certain they show.
+test("the row and the steps follow one rule: the vault, and for a Lazurio Vaultwarden the person's answer", () => {
+  const agentsOnly = [
+    { kind: "unknown", reason: "sign-in-not-required" },
+    { kind: "unknown", reason: "not-managed" },
+  ] as const;
+  for (const person of agentsOnly) {
+    expect(bitwardenTarget(work(), person)).toBeNull();
+    expect(offersBitwarden(work(), person)).toBe(false);
+    expect(bitwardenGuide(work(), person, cs)).toBeNull();
+    // A connected work vault whose network does not require the Lazurio
+    // sign-in yet: the page says that only its agents use it.
+    expect(vaultPageView(work(), person, cs).hint).toBe(cs.vaultPageAgentsOnly);
+  }
+  for (const person of [
+    member,
+    known("no-account", true),
+    { kind: "unknown", reason: "no-username" },
+    { kind: "unknown", reason: "busy" },
+  ] as const) {
+    expect(bitwardenTarget(work(), person)).toEqual({
+      kind: "server",
+      server: vault,
+    });
+    expect(offersBitwarden(work(), person)).toBe(true);
+    expect(bitwardenGuide(work(), person, cs)?.kind).toBe("server");
+  }
+  // Not answered yet: the page may show the steps, the row waits.
+  expect(bitwardenGuide(work(), null, cs)?.kind).toBe("server");
+  expect(offersBitwarden(work(), null)).toBe(false);
+  // A personal Environment's own Bitwarden needs no answer.
+  expect(offersBitwarden(model(own("eu")), null)).toBe(true);
+  expect(offersBitwarden(null, member)).toBe(false);
+  expect(
+    offersBitwarden(
+      model({ kind: "vault-status", state: "needs-connection" }),
+      null,
+    ),
+  ).toBe(false);
+});
+
+test("a pending Návod waits for the answer that decides whether the steps show, reveals them only then, and is forgotten once the page is left", () => {
+  const at = (
+    fields: Partial<Parameters<typeof bitwardenReveal>[0]>,
+  ): ReturnType<typeof bitwardenReveal> =>
+    bitwardenReveal({
+      shown: true,
+      loading: false,
+      model: null,
+      person: null,
+      steps: false,
+      ...fields,
+    });
+  // Opened before the page is read: wait; a read that failed forgets it.
+  expect(at({ loading: true })).toBe("wait");
+  expect(at({ loading: false })).toBe("forget");
+  // A Lazurio Vaultwarden read, the person not answered yet: the steps are
+  // drawn, but an answer could still hide them, so it waits.
+  const read = { model: work(), steps: true };
+  expect(at(read)).toBe("wait");
+  // The answer: a member reveals; only the agents use the vault forgets
+  // (the steps are hidden by then).
+  expect(at({ ...read, person: member })).toBe("reveal");
+  expect(at({ ...read, person: known("no-account", true) })).toBe("reveal");
+  expect(
+    at({
+      model: work(),
+      person: { kind: "unknown", reason: "sign-in-not-required" },
+      steps: false,
+    }),
+  ).toBe("forget");
+  // No answer from the membership (the page then says failed): reveals.
+  expect(at({ ...read, person: { kind: "unknown", reason: "failed" } })).toBe(
+    "reveal",
+  );
+  // A personal Environment's own Bitwarden needs no answer.
+  expect(at({ model: model(own("eu")), steps: true })).toBe("reveal");
+  // No vault to add here (a Team Environment, waiting for the person's
+  // Bitwarden): forgotten without waiting.
+  expect(at({ model: work(connected(), { environment: "team" }) })).toBe(
+    "forget",
+  );
+  expect(
+    at({ model: model({ kind: "vault-status", state: "needs-connection" }) }),
+  ).toBe("forget");
+  // The page left at any point: forgotten, whatever comes later.
+  for (const fields of [
+    { loading: true },
+    read,
+    { ...read, person: member },
+  ] as const)
+    expect(at({ ...fields, shown: false })).toBe("forget");
 });

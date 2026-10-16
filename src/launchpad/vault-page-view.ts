@@ -519,21 +519,26 @@ const bitwardenServices: Readonly<Record<BitwardenRegion, string>> = {
 };
 
 /**
- * Where the person adds this Environment's vault to Bitwarden, from the page's
- * model alone (Začínáme's row "Trezor v Bitwardenu" asks only this): a
- * personal or work Environment whose vault is its Organization's Lazurio
- * Vaultwarden, in any state, since the person's account there does not depend
- * on this Environment's own vault, or its person's own Bitwarden once
- * connected. Null on this computer, without a vault, while a personal
- * Environment waits for its person's Bitwarden, and on a Team or Automated
- * Environment, whose vault only its agents use.
+ * Where the person adds this Environment's vault to Bitwarden: a personal or
+ * work Environment whose vault is its Organization's Lazurio Vaultwarden, in
+ * any state, since the person's account there does not depend on this
+ * Environment's own vault, or its person's own Bitwarden once connected. Null
+ * on this computer, without a vault, while a personal Environment waits for
+ * its person's Bitwarden, on a Team or Automated Environment, and where the
+ * person's membership answer says that only the agents use the vault (a
+ * network that does not require the Lazurio sign-in of people yet). The
+ * person is null while not known.
  */
 export function bitwardenTarget(
   model: VaultPageModel | null,
+  person: VaultPagePerson | null = null,
 ): BitwardenTarget | null {
   if (
     model === null ||
-    (model.environment !== "personal" && model.environment !== "work")
+    (model.environment !== "personal" && model.environment !== "work") ||
+    (person?.kind === "unknown" &&
+      (person.reason === "not-managed" ||
+        person.reason === "sign-in-not-required"))
   )
     return null;
   const { status } = model;
@@ -543,6 +548,48 @@ export function bitwardenTarget(
     return { kind: "cloud", service: bitwardenServices[status.region] };
   const server = origin(status.vault);
   return server === null ? null : { kind: "server", server };
+}
+
+/**
+ * Whether Začínáme shows "Trezor v Bitwardenu": exactly where Nastavení →
+ * Trezor gives the steps. A Lazurio Vaultwarden's steps depend on the
+ * person's membership answer, so its row waits for that answer; a personal
+ * Environment's own Bitwarden needs none.
+ */
+export function offersBitwarden(
+  model: VaultPageModel | null,
+  person: VaultPagePerson | null,
+): boolean {
+  const target = bitwardenTarget(model, person);
+  return target !== null && (target.kind === "cloud" || person !== null);
+}
+
+/**
+ * What a pending "Návod" of Začínáme does now (the steps brought into view
+ * and focus on Nastavení → Trezor): reveal them, wait for the answer that
+ * decides whether they show, or forget it. Forgotten once the page is left or
+ * the steps will not show; a Lazurio Vaultwarden's wait for the person's
+ * membership answer, so a heading never gets the focus just before an
+ * answer hides it.
+ */
+export function bitwardenReveal(
+  input: Readonly<{
+    /** Whether Nastavení → Trezor is the page shown now. */
+    shown: boolean;
+    /** Whether the page's model is being read. */
+    loading: boolean;
+    model: VaultPageModel | null;
+    person: VaultPagePerson | null;
+    /** Whether the steps are drawn now. */
+    steps: boolean;
+  }>,
+): "reveal" | "wait" | "forget" {
+  if (!input.shown) return "forget";
+  if (input.model === null) return input.loading ? "wait" : "forget";
+  const target = bitwardenTarget(input.model);
+  if (target === null) return "forget";
+  if (target.kind === "server" && input.person === null) return "wait";
+  return input.steps ? "reveal" : "forget";
 }
 
 /** One step of the guide, and the value it asks for with its Copy button
@@ -572,8 +619,7 @@ export type BitwardenGuide = Readonly<{
  * trezoru", and the network under the steps. The page has no person's
  * username to copy: the gateway names it only for the membership. A personal
  * Environment's own Bitwarden: its region's service and the person's own
- * account. None where `bitwardenTarget` has none, nor where the page says
- * that only the agents use the vault.
+ * account. None where `bitwardenTarget` has none for the person.
  */
 export function bitwardenGuide(
   model: VaultPageModel | null,
@@ -581,14 +627,8 @@ export function bitwardenGuide(
   copy: Copy,
   view: Pick<VaultPageView, "actions"> | null = null,
 ): BitwardenGuide | null {
-  const target = bitwardenTarget(model);
-  if (
-    target === null ||
-    (person?.kind === "unknown" &&
-      (person.reason === "not-managed" ||
-        person.reason === "sign-in-not-required"))
-  )
-    return null;
+  const target = bitwardenTarget(model, person);
+  if (target === null) return null;
   const add = { text: copy.vaultBitwardenAdd, value: null };
   if (target.kind === "cloud")
     return {
