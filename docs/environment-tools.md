@@ -781,7 +781,8 @@ it is the second wave (`unsupported`, `workstation`).
   `accepted`, `member`, `revoked`). "Odpojit Bitwarden" (`POST /api/vault/disconnect`)
   signs bw out and removes the credentials, the session and bw's data, keeps the
   record and the requests and never deletes the organization; the same account
-  connected again finds its vault. The journal says `operation: "connect"` or
+  connected again finds its vault, or, when the person deleted it in Bitwarden, the
+  record is forgotten on that connection and the setup creates a new one. The journal says `operation: "connect"` or
   `"disconnect"` with a fixed outcome and reason, never a value or an address.
 
 The agents' texts are the catalog entry's (`purpose` in `AGENTS.md`, `usage` in

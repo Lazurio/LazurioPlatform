@@ -836,3 +836,63 @@ test.skipIf(!posix)(
   },
   60_000,
 );
+
+test.skipIf(!posix)(
+  "a vault the person deleted in Bitwarden reads as revoked, and connecting the same account again creates a new one; a rotated API key reconnects to the same vault",
+  async () => {
+    const w = await world();
+    try {
+      const values = await form(w.cloud);
+      await connectPersonalBitwarden(w.host, values);
+      const first = await vaultSetup(w.host);
+      if (first.state !== "connected") throw new Error("Expected connected");
+      // The person deletes the vault in the web vault: never recreated by a
+      // setup on its own.
+      await w.cloud.deleteOrganization(first.organizationId);
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "revoked" });
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "revoked" });
+      expect(await w.cloud.organizationsOf(agents)).toHaveLength(0);
+      // Connecting again is the person's decision: the record of the gone
+      // vault is forgotten and the setup creates a new one.
+      expect(await disconnectPersonalBitwarden(w.host)).toEqual({
+        kind: "vault-disconnected",
+      });
+      expect(await connectPersonalBitwarden(w.host, values)).toEqual({
+        kind: "vault-connected",
+      });
+      expect(w.journal).toContainEqual({
+        operation: "connect",
+        outcome: "record-discarded",
+      });
+      const second = await vaultSetup(w.host);
+      expect(second).toMatchObject({ state: "connected" });
+      if (second.state !== "connected") throw new Error("Expected connected");
+      expect(second.organizationId).not.toBe(first.organizationId);
+      expect(await w.cloud.organizationsOf(agents)).toHaveLength(1);
+      // A rotated API key: the old one is refused (revoked); the new one,
+      // connected again, finds the same vault and keeps its record.
+      await w.cloud.rotateApiKey(agents, "rotatedsecret0123456789");
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "revoked" });
+      await disconnectPersonalBitwarden(w.host);
+      const before = w.journal.filter(
+        (entry) => entry.outcome === "record-discarded",
+      ).length;
+      expect(
+        await connectPersonalBitwarden(w.host, {
+          ...values,
+          clientSecret: "rotatedsecret0123456789",
+        }),
+      ).toEqual({ kind: "vault-connected" });
+      expect(
+        w.journal.filter((entry) => entry.outcome === "record-discarded"),
+      ).toHaveLength(before);
+      expect(await vaultSetup(w.host)).toMatchObject({
+        state: "connected",
+        organizationId: second.organizationId,
+      });
+    } finally {
+      await w.close();
+    }
+  },
+  120_000,
+);

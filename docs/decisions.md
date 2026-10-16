@@ -12100,8 +12100,9 @@ there the Environment works on its own.
    new-device verification; never the password grant); the profile names the agents'
    account, which must not be the person's own address (`same-account`) and must not
    own or administer an organization other than this Environment's recorded vault
-   (`owns-organization`: not a separate agents' account, and the cloud would refuse it
-   a second Free organization); the master password opens the account's user key and
+   (`owns-organization`: not a separate agents' account, since agents holding its
+   credentials would reach that organization's items too, and the cloud would refuse
+   it a second Free organization); the master password opens the account's user key and
    private key with the KDF the token answer carries, or the prelogin's
    (`POST <identity>/accounts/prelogin`): PBKDF2-SHA256, or Argon2id with the salt the
    SHA-256 of the normalized e-mail, the memory in MiB as Bitwarden keeps it and 32
@@ -12143,7 +12144,14 @@ there the Environment works on its own.
    directory are removed, then the connection; the record of the vault and the
    agents' requests stay, and the organization is never deleted in Bitwarden. The same
    account connected again finds its vault by the record; another account starts
-   afresh in a directory of its own.
+   afresh in a directory of its own. A recorded vault the account no longer belongs to
+   is `revoked`, as in point 3, and no setup replaces it; but in the person's own
+   Bitwarden deleting it is the person's to do, so when the person connects the same
+   account again and its profile no longer lists the recorded vault, the record is
+   forgotten (journal `record-discarded`) and the setup creates a new vault. A rotated
+   API key reads as `revoked` too; connected again with the new key, the account finds
+   its vault. The page says so under the row ("Bitwarden tento trezor nebo klíč API
+   účtu agentů už nepřijímá. …").
 8. **Unchanged.** The pinned CLI, the one shared session, `lazurio vault env`, runtime
    secrets (F46 as amended, a personal Environment's Personalspace modules), the
    agents' secret requests (F54) and the agents' switch turned on once the vault is
@@ -12181,8 +12189,10 @@ accounts connected end to end with the exact organization request, the User and
 Manage invitation, its acceptance and confirmation; the refusals; the KDF from the
 prelogin; the Free limit before writing and at creation, and a person owning a Free
 organization joining as a User; an interrupted creation resumed by its receipt;
-disconnect and reconnect; a lost account file; no value in the journal, bw's
-arguments or the custody after disconnect), `tests/vault-register.test.ts` (Bitwarden's
+disconnect and reconnect; a vault deleted in Bitwarden created anew only when the
+person connects again, and a rotated API key reconnecting to the same vault; a lost
+account file; no value in the journal, bw's arguments or the custody after
+disconnect), `tests/vault-register.test.ts` (Bitwarden's
 own Argon2id master-key vector, PBKDF2 and Argon2id unlock from a fixed password,
 e-mail and user key with `wrong-password` and `unsupported-keys`, the KDF bounds, the
 API-key answer's KDF, the region allow-list and its routing, the Free-limit reason),

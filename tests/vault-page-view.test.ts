@@ -522,6 +522,13 @@ test("a personal Environment waiting for its person shows the form; connected, t
         fallback: "agent",
       }),
     ).toMatchObject({ hint, disconnect: true, actions: [] });
+  // A vault Bitwarden no longer accepts (deleted there, a rotated API key):
+  // disconnect and connect again.
+  expect(view(member, { ...facts_, state: "revoked" })).toMatchObject({
+    hint: "Bitwarden tento trezor nebo klíč API účtu agentů už nepřijímá. Odpojte Bitwarden a připojte ho znovu; smazaný trezor Prostředí založí znovu.",
+    disconnect: true,
+    actions: [],
+  });
   // While a setup runs, nothing but its step; no disconnect.
   expect(
     vaultPageView(model(bitwarden, { setup: "vault" }), member, cs),

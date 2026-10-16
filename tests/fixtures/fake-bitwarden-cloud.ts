@@ -575,6 +575,14 @@ export async function startFakeBitwardenCloud(home: string) {
         clientSecret: account.clientSecret,
       };
     },
+    /** The person creates a new API key for an account in the web vault:
+     * the one before is refused from now on. */
+    async rotateApiKey(email: string, secret: string) {
+      const account = accounts.get(email);
+      if (account === undefined) throw new Error("No such account");
+      account.clientSecret = secret;
+      await writeApiKeys();
+    },
     /** An account that owns a Free organization already (its family's). */
     async ownsFreeOrganization(email: string) {
       const account = accounts.get(email);
