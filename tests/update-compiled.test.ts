@@ -247,6 +247,25 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
           action: null,
           supervised: false,
         });
+        // The guide videos ride in the executable (guide-video-files.ts):
+        // a byte range of one, without the token, as the page.
+        const video = await readFile(
+          new URL(
+            "../src/launchpad/videos/vault-bitwarden-cs.mp4",
+            import.meta.url,
+          ),
+        );
+        const part = await fetch(
+          new URL("/videos/vault-bitwarden-cs.mp4", session),
+          { headers: { range: "bytes=0-15" } },
+        );
+        expect([part.status, part.headers.get("content-range")]).toEqual([
+          206,
+          `bytes 0-15/${video.length}`,
+        ]);
+        expect(new Uint8Array(await part.arrayBuffer())).toEqual(
+          new Uint8Array(video.subarray(0, 16)),
+        );
         const refused = await fetch(new URL("/api/update/apply", session), {
           method: "POST",
           headers: {

@@ -1,4 +1,5 @@
 import type { VaultStatus } from "../vault/flow";
+import { createGuideVideo } from "./guide-video";
 import type { MessageKey } from "./messages";
 import {
   type BitwardenGuide,
@@ -89,6 +90,16 @@ export function createVaultPagePanel(
   const bitwardenFirst = find<HTMLParagraphElement>("#vault-bitwarden-first");
   const bitwardenSteps = find<HTMLOListElement>("#vault-bitwarden-steps");
   const bitwardenNote = find<HTMLParagraphElement>("#vault-bitwarden-note");
+  // The guide's video above the steps, for an Organization's Lazurio
+  // Vaultwarden, whose steps it shows (guide-video.ts).
+  const bitwardenVideoSlot = find<HTMLDivElement>("#vault-bitwarden-video");
+  const bitwardenVideo = createGuideVideo(bitwardenVideoSlot, {
+    name: "vault-bitwarden",
+    title: () => options.copy().startBitwardenTitle,
+    describedBy: "vault-bitwarden-steps",
+    copy: options.copy,
+    locale: () => (document.documentElement.lang === "cs" ? "cs" : "en"),
+  });
   // The extension's screens, one per picture and language, bundled with the
   // page; a step shows a copy of the one in the page's language.
   const pictures = [
@@ -271,6 +282,8 @@ export function createVaultPagePanel(
    * the person moved the focus meanwhile, or forgotten where they will not. */
   function drawBitwarden(steps: BitwardenGuide | null, copy: Copy) {
     bitwarden.hidden = steps === null;
+    bitwardenVideoSlot.hidden = steps?.kind !== "server";
+    bitwardenVideo.render();
     const now = JSON.stringify(steps) + copy.vaultBitwardenCopy;
     if (now !== drawnGuide) {
       drawnGuide = now;

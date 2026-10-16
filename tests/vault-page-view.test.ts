@@ -725,7 +725,7 @@ test("an Organization's vault: the extension from the Chrome Web Store, the vaul
     first: null,
     steps: [
       {
-        text: "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do Chromu ho přidejte z Chrome Web Store, do jiného prohlížeče z jeho vlastního obchodu s rozšířeními.",
+        text: "Otevřete rozšíření Bitwarden v Chrome Web Store a klikněte na „Přidat do Chromu“. V Codex Desktopu to udělejte v jeho prohlížeči, rozšíření pak najdete v Nastavení → Prohlížeč → Rozšíření.",
         value: null,
         missing: null,
         link: store,
@@ -766,7 +766,7 @@ test("an Organization's vault: the extension from the Chrome Web Store, the vaul
     first: null,
     steps: [
       {
-        text: "In Codex Desktop, open Settings → Browser → Extensions and add Bitwarden. Add it to Chrome from the Chrome Web Store, and to another browser from that browser's own extension store.",
+        text: "Open the Bitwarden extension in the Chrome Web Store and click “Add to Chrome”. In Codex Desktop, do this in its browser; the extension then appears in Settings → Browser → Extensions.",
         value: null,
         missing: null,
         link: { ...store, label: "Bitwarden in the Chrome Web Store" },
@@ -848,6 +848,28 @@ test("an Organization's vault: the extension from the Chrome Web Store, the vaul
     cs.vaultBitwardenAddressFailed.replace("{refresh}", cs.toolsRefresh),
   );
   expect(cs.vaultBitwardenAddressFailed).toContain("„{refresh}“");
+  // Step 1 says that it is the Bitwarden extension from the Chrome Web
+  // Store, by the store's own button (Matěj, 2026-10-16), and where Codex
+  // Desktop then lists it.
+  for (const [copy, words] of [
+    [
+      cs,
+      [
+        "rozšíření Bitwarden v Chrome Web Store",
+        "„Přidat do Chromu“",
+        "Nastavení → Prohlížeč → Rozšíření",
+      ],
+    ],
+    [
+      en,
+      [
+        "Bitwarden extension in the Chrome Web Store",
+        "“Add to Chrome”",
+        "Settings → Browser → Extensions",
+      ],
+    ],
+  ] as const)
+    for (const word of words) expect(copy.vaultBitwardenAdd).toContain(word);
   // The extension's own words, as its version 2026.10.0 shows them.
   for (const label of [
     "„Přistupujete na“",
@@ -952,7 +974,7 @@ test("a personal Environment's own Bitwarden: the extension, its service by the 
       first: null,
       steps: [
         {
-          text: "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do Chromu ho přidejte z Chrome Web Store, do jiného prohlížeče z jeho vlastního obchodu s rozšířeními.",
+          text: "Otevřete rozšíření Bitwarden v Chrome Web Store a klikněte na „Přidat do Chromu“. V Codex Desktopu to udělejte v jeho prohlížeči, rozšíření pak najdete v Nastavení → Prohlížeč → Rozšíření.",
           value: null,
           missing: null,
           link: {
