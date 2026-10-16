@@ -6276,10 +6276,17 @@ What this changes, in both languages:
    - **The marks.** Claude's is simple-icons@16.35.0 `claude` (CC0), the sprite's
      `i-claude`, filled in the button's colour, so it reads on the dark primary and the
      light secondary button alike. simple-icons has carried no OpenAI mark since 16.0.0
-     (removed because OpenAI's brand terms grant a permission that is not transferable),
-     so "Přihlásit ChatGPT" shows its first letter in a ring of the same size, as
-     Integrace draws a brand simple-icons does not carry (F42, [licensing](licensing.md)).
-     OpenAI's own mark would need Matěj's decision to bundle it under OpenAI's terms.
+     (removed because OpenAI's brand terms grant a permission that is not transferable).
+     So "Přihlásit ChatGPT" carries OpenAI's Blossom from OpenAI's own brand kit, the
+     sprite's `i-openai`: the one exception to the simple-icons rule, approved by
+     Matěj (Organization Admin) on 2026-10-16 in the DEV-6665 thread (option (b) of
+     three: the first letter, OpenAI's mark, or no marks). As OpenAI's guidelines ask, it
+     is drawn exactly as provided, its frame keeping the prescribed clear space (so it
+     is 22 px for the Blossom to match Claude's 16 px mark), only in OpenAI's black or
+     white (white on the dark primary button, black on any other, pinned in the page's
+     styles), and only to name ChatGPT. Its source, terms and scope are in
+     [licensing](licensing.md#bundled-third-party-assets); Integrace still takes no mark
+     from outside simple-icons (F42).
    - **GitHub** keeps its one line, what it is for ("Zpřístupní vaše repozitáře a
      moduly."); "Nabídne se po připojení AI." goes, as the step's number says the order.
      The content's "comes after AI or GitHub" sentences go from Začínáme for the same

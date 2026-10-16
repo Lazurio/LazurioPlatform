@@ -115,13 +115,33 @@ is not a guarantee or an authority for the terms.
 | --- | --- | --- |
 | Brand icons of the Integrace catalog: the SVG path and colour of an app's icon | `src/integrations/catalog.json` (`icon.source` names `simple-icons@<version>/<slug>`) | [simple-icons](https://github.com/simple-icons/simple-icons), CC0-1.0; an icon simple-icons marks with a license of its own is never bundled |
 | Claude's mark on Začínáme's "Přihlásit Claude": the SVG path only, filled in the button's colour | `src/launchpad/index.html` (the sprite's `i-claude`, its source named beside it) | simple-icons@16.35.0 `claude`, CC0-1.0 |
+| OpenAI's Blossom on Začínáme's "Přihlásit ChatGPT": the path and frame of `OpenAI-black-monoblossom.svg` (SHA-256 `7be72f1fea831d3ba81a545cee79b7e0ae69449d5d7837c9571ccbfb4aa1e00b`), without its clip groups, which cut nothing | `src/launchpad/index.html` (the sprite's `i-openai`, its source named beside it; its colour pinned in the page's styles) | Not licensed to this repository: a trademark of OpenAI, used under [OpenAI's brand guidelines and usage terms](https://openai.com/brand/) |
 
-ChatGPT has no mark in this repository: simple-icons removed OpenAI in 16.0.0
-(simple-icons#13944), because OpenAI's brand terms grant a permission that is not
-transferable. "Přihlásit ChatGPT" shows its first letter instead, as Integrace does for
-a brand simple-icons does not carry; bundling OpenAI's own mark would be a decision of
-its own.
+**OpenAI's Blossom is the one exception to the simple-icons-only rule.** simple-icons
+removed OpenAI in 16.0.0 (simple-icons#13944), because OpenAI's brand terms grant a
+permission that is not transferable, so no CC0 copy exists. The Organization Admin
+(Matěj) approved bundling OpenAI's own mark on 2026-10-16 in the DEV-6665 thread, for
+this one place.
+
+- **Source:** OpenAI's brand kit
+  <https://cdn.openai.com/brand/OpenAI-Logos-2025.zip> (Last-Modified 2025-02-04, the
+  archive's SHA-256 `b2c4cd1e86bbe76bdc4946a72d014efa455240c177f4878fd68cc9b88c71d2ec`),
+  its `SVGs/OpenAI-black-monoblossom.svg` and `OpenAI-white-monoblossom.svg`, which
+  draw the same Blossom in black and in white.
+- **Terms:** <https://openai.com/brand/> ("Design Guidelines", its Blossom rules and
+  "Usage terms", read on 2026-10-16). The Blossom is used exactly as provided, at its
+  proportions and with the clear space its frame carries; only in OpenAI's black or
+  white, never in a colour of ours (white on the dark primary button, black on a light
+  one); only to name ChatGPT, OpenAI's service the button signs in to; never as
+  Lazurio's branding and never more prominent than Lazurio's own marks.
+- **Scope:** the "Přihlásit ChatGPT" button of Nastavení → Začínáme only. Anything
+  else that would show it is a new decision.
+- **Not passed on:** OpenAI's permission is non-exclusive and not transferable, and
+  the Elastic License 2.0 of this repository does not cover the mark. Whoever copies
+  or forks this code needs OpenAI's own permission to use it.
+- **Kept current:** OpenAI may change its guidelines or withdraw the permission;
+  the mark then changes or goes within a reasonable time, as its terms ask.
 
 Brand names and logos remain the trademarks of their owners; the Launchpad shows
-them only to identify the app an Integrace connects (decision F42,
-[integrations](integrations.md#icons)).
+them only to identify the app an Integrace connects or a sign-in leads to (decision
+F42, [integrations](integrations.md#icons)).

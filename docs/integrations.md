@@ -783,7 +783,10 @@ colour of [simple-icons](https://simpleicons.org) (CC0-1.0, the version in its
 `source`), bundled into the catalog; an icon simple-icons marks with a license of
 its own is never taken, and an app without one shows its first letter. Brand
 names and logos belong to their owners and only identify the app
-([licensing](licensing.md)).
+([licensing](licensing.md)). The one mark from outside simple-icons in the
+Launchpad is OpenAI's Blossom on Začínáme's "Přihlásit ChatGPT", bundled under
+OpenAI's brand terms with the Organization Admin's approval of 2026-10-16
+([licensing](licensing.md#bundled-third-party-assets)); Integrace takes none.
 
 ## The Folder
 
