@@ -509,7 +509,7 @@ export function demoStartView(
       {
         id: "apps",
         title: "Apps",
-        text: copy.startDemoAppsText,
+        text: copy.demoAppsText,
         status: null,
         action: { label: copy.startOpen, href: "/" },
       },

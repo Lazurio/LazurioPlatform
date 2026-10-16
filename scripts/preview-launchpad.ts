@@ -56,8 +56,8 @@
 // anywhere after the mode, a hosted preview's work Environment is a public
 // Environment (root decision 0204, decision F55): its entry carries
 // `audience: "public"`, so the Launchpad runs the demo onboarding, the
-// column head says the Environment is public and shared, and Integrace and
-// Nastavení → Trezor answer as absent. Synthetic names only; stop it with
+// column head says the Environment is public and shared, and Integrace,
+// Nastavení → Trezor and Nastavení → Nástroje answer as absent. Synthetic names only; stop it with
 // Ctrl-C.
 import {
   chmod,

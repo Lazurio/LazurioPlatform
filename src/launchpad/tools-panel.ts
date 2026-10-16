@@ -76,6 +76,9 @@ export function createToolsPanel(
     /** The Folder changed through this panel: the rest of the page reloads,
      * and that reload refreshes this panel too. */
     changed: () => Promise<void>;
+    /** Whether this Environment has no Nástroje (a public Environment,
+     * decision F55): nothing is read, so nothing is offered. */
+    absent?: () => boolean;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -1493,6 +1496,7 @@ export function createToolsPanel(
   async function refresh(
     request: Readonly<{ signIn?: boolean }> = {},
   ): Promise<void> {
+    if (options.absent?.() === true) return;
     const copy = options.copy();
     const turn = ++sequence;
     const probe = request.signIn ?? !signInChecked;

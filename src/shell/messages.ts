@@ -109,7 +109,7 @@ const en: ShellCopy = {
   automateMissing: "Automate does not run on this Environment",
   setupPrompt: "Finish setting up ({done} of {total})",
   publicNotice:
-    "This Environment is public and shared: other visitors and the operators can see it, and it is wiped at least nightly. Don't enter personal data here or sign in to your own accounts.",
+    "This Environment is public and shared and is wiped every night. Do not enter personal data or sign in to your own accounts.",
   signedOutRail: "Lazurio",
   signIn: "Sign in with your Lazurio account",
 };
@@ -161,7 +161,7 @@ const cs: ShellCopy = {
   automateMissing: "Automate v tomto Prostředí neběží",
   setupPrompt: "Dokončit nastavení ({done} ze {total})",
   publicNotice:
-    "Toto Prostředí je veřejné a sdílené: vidí ho ostatní návštěvníci i provozovatelé a nejméně jednou za noc se smaže. Nezadávejte sem osobní údaje a nepřihlašujte se ke svým účtům.",
+    "Toto Prostředí je veřejné a sdílené a každou noc se smaže. Nezadávejte sem osobní údaje a nepřihlašujte se ke svým účtům.",
   signedOutRail: "Lazurio",
   signIn: "Přihlásit Lazurio účtem",
 };

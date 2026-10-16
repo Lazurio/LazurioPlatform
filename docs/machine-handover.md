@@ -410,8 +410,8 @@ account (root decision 0204, Machines' `public-account` admission, which only th
 platform's allowlist of public Organizations gets): exactly `"public"`. Its Environment
 is public and shared by its visitors, so the Launchpad runs a demo onboarding instead of
 Začínáme's sign-ins, the shell document says `audience: "public"` and its column head a
-quiet notice, and Integrace and Nastavení → Trezor answer as absent
-([F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-no-integrace-and-no-trezor)).
+quiet notice, and Integrace, Nastavení → Trezor and Nastavení → Nástroje answer as absent
+([F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-nothing-to-sign-in-to)).
 It grants nothing; the gateway's admission decides who enters. Machines writes it only
 for a pinned Platform at least its `PLATFORM_ENTRY_AUDIENCE_MINIMUM`, the first release
 that reads it. Absent, the Environment is not public.

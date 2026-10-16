@@ -317,8 +317,9 @@ export type TourStop = Readonly<{
 /** What one stop says (Matěj 2026-10-04): at most ten to twelve words, why
  * it matters and what happens, nothing technical, no "click here" (the ring
  * shows where) and no headings above the title. `apps` names whether Chat
- * and Automate run on this Environment; on a public Environment Chat's stop
- * says its AI is not connected. */
+ * and Automate run on this Environment; on a public Environment the Apps
+ * stop says the modules are the Organization's and Chat's stop that its AI
+ * is not connected. */
 export function tourStop(
   step: TourStep,
   facts: Pick<TourFacts, "preset" | "audience" | "ai" | "github" | "content">,
@@ -380,7 +381,13 @@ export function tourStop(
             copy.tourOrganizationText,
           );
     case "apps":
-      return stop("tab-apps", copy.tourAppsTitle, copy.tourAppsText, "next");
+      // A visitor's modules are the Organization's, not theirs.
+      return stop(
+        "tab-apps",
+        copy.tourAppsTitle,
+        demoOnboarding(facts) ? copy.demoAppsText : copy.tourAppsText,
+        "next",
+      );
     case "chat":
       return stop(
         "tab-chat",
