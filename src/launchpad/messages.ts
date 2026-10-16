@@ -981,8 +981,6 @@ const en = {
   startContentNothing: "There is nothing to download here.",
   startVaultGroup: "Passwords for agents",
   startVaultTitle: "Environment vault",
-  startVaultText:
-    "Whoever has access to the Environment has all of its passwords.",
   startOpen: "Open",
   startOptional: "Optional",
   startComposioText: "Mail, calendar and other apps for agents.",
@@ -2557,7 +2555,6 @@ const cs: Record<MessageKey, string> = {
   startContentNothing: "Tady není co stahovat.",
   startVaultGroup: "Hesla pro agenty",
   startVaultTitle: "Trezor Prostředí",
-  startVaultText: "Kdo má přístup do Prostředí, má všechna jeho hesla.",
   startOpen: "Otevřít",
   startOptional: "Volitelné",
   startComposioText: "Pošta, kalendář a další aplikace pro agenty.",
