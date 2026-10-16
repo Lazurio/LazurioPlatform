@@ -645,7 +645,7 @@ test.skipIf(!posix)(
         );
         expect(view.actions).toEqual([]);
         expect(view.hint).toBe(
-          "Trezor tohoto Prostředí zatím používají jen jeho agenti.",
+          "Trezor tohoto Prostředí používají jen jeho agenti.",
         );
       } finally {
         await s.close();
@@ -915,7 +915,7 @@ test.skipIf(!posix)(
       );
       expect(view.actions).toEqual([]);
       expect(view.hint).toBe(
-        "Trezor tohoto Prostředí zatím používají jen jeho agenti.",
+        "Trezor tohoto Prostředí používají jen jeho agenti.",
       );
     } finally {
       await s.close();
@@ -1038,7 +1038,7 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "a workstation's page says the vault is not here yet",
+  "a workstation's page says the vault is not here",
   async () => {
     const parent = await realpath(
       await mkdtemp(join(tmpdir(), "launchpad-vault-page-local-")),
@@ -1118,7 +1118,7 @@ test.skipIf(!posix)(
       });
       expect(vaultPageView(model, null, messages("cs"))).toMatchObject({
         rule: false,
-        note: "Trezor na tomto počítači zatím není.",
+        note: "Trezor na tomto počítači není.",
         row: null,
         actions: [],
       });

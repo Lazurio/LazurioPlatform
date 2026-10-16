@@ -448,7 +448,7 @@ test("where nothing connects an app: one line and one action, the Admin's or any
       options(cs),
     ),
   ).toMatchObject({
-    line: "Tady se zatím připojit nedá.",
+    line: "Tady se připojit nedá.",
     action: { kind: "none" },
   });
 });
@@ -752,9 +752,7 @@ test("an app connected in Composio that the catalog does not know is under Přip
       },
       composio: true,
     });
-  expect(cs.integrationsOutsideCatalog).toBe(
-    "Z Composia, mimo katalog Lazuria.",
-  );
+  expect(cs.integrationsOutsideCatalog).toBe("Z Composia.");
 });
 
 test("a source that cannot be read says so on the page; custom servers count their tools", () => {
@@ -774,7 +772,8 @@ test("a source that cannot be read says so on the page; custom servers count the
     "Připojení přes Composio se nepodařilo načíst.",
     "Nástroje se nepodařilo načíst.",
   ]);
-  // An Environment without Executor says why nothing is direct.
+  // An Environment without Executor says nothing about it: its cards take
+  // the next way (F36's addendum of 2026-10-16).
   expect(
     sourceLines(
       overview([], {
@@ -782,9 +781,7 @@ test("a source that cannot be read says so on the page; custom servers count the
       }),
       en,
     ),
-  ).toEqual([
-    "This Environment has no Executor, so apps connect here through Composio or their tool.",
-  ]);
+  ).toEqual([]);
   const server = (
     tools: number | null,
     state: "connected" | "failed" | "ready" = "connected",

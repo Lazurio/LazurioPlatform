@@ -51,7 +51,7 @@ const facts = (overrides: Partial<StartFacts> = {}): StartFacts => ({
 test("a new work Environment: AI now, GitHub after it, the content after GitHub", () => {
   const view = startView(facts(), cs);
   expect(view).toEqual({
-    intro: "Hotovo 0 ze 3 kroků. Stav se ověřuje přímo v Prostředí.",
+    intro: "Hotovo 0 ze 3 kroků.",
     done: 0,
     total: 3,
     steps: [
@@ -178,8 +178,7 @@ test("Připojit AI: ChatGPT or Claude, the sentence before them in the Environme
       basic: "ai",
       mark: "now",
       title: "Připojit AI",
-      status:
-        "Přihlášení se otevírá v prohlížeči Prostředí. Ten tu zatím není, doplní ho aktualizace Prostředí.",
+      status: "Přihlášení tu teď nejde otevřít.",
     },
     ai: { kind: "none" },
   });
@@ -282,7 +281,7 @@ test("Připojit AI while signing in: where to finish it, the panel again, Zruši
   expect(
     step({ aiSignIn: { kind: "finishing", tool: "claude", session } }),
   ).toEqual({
-    status: "Přihlášeno k Claude. Chat a Codex teď přihlášení načítají…",
+    status: "Přihlášeno k Claude. Dokončuje se…",
     mark: "now",
     ai: { kind: "none" },
   });
@@ -434,9 +433,7 @@ test("GitHub once AI is there, then the content, then all done", () => {
     status: "Zpřístupní vaše repozitáře a moduly.",
   });
   expect(withAi?.github).toEqual({ enabled: true });
-  expect(withAi?.intro).toBe(
-    "Hotovo 1 ze 3 kroků. Stav se ověřuje přímo v Prostředí.",
-  );
+  expect(withAi?.intro).toBe("Hotovo 1 ze 3 kroků.");
   const withGithub = startView(
     facts({ ai: "connected", github: "connected", githubLogin: "octocat" }),
     cs,

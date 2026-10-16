@@ -1478,11 +1478,5 @@ export function createCatalogPanel(
         ? null
         : catalogOrganizationKey(catalog, organization);
     },
-    /** The Organization a route shows, for the Marketplace's sentence. */
-    scopeName(route: PageRoute): string | null {
-      if (catalog === null) return null;
-      const scope = appsScope(catalog, route, options.copy());
-      return scope === null || scope.sections === null ? null : scope.name;
-    },
   };
 }

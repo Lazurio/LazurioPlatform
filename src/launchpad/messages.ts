@@ -111,8 +111,7 @@ const en = {
     "Update state needs a person: {path}. Nothing is changed automatically.",
   updateStarted: "Update started…",
   updateRefused: "The update was not started; the state shown was refreshed.",
-  updateFolderRefresh:
-    "Folder refresh needed: this Folder was rendered by {recorded}, Lazurio renders {product}. Run: {command}",
+  updateFolderRefresh: "Folder refresh needed. Run: {command}",
   toolsTitle: "Tools",
   toolsSwitchLabel: "Used by agents",
   toolsSwitchNamed: "Used by agents: {name}",
@@ -234,8 +233,7 @@ const en = {
   toolsSignInUnchecked: "Connection not checked",
   toolsUsageCatalog: "What Lazurio tells agents about this tool:",
   toolsNoteLabel: "Your note for agents",
-  toolsNoteHint:
-    "Write the intent with which you use this tool here. Agents read it in manual/this-machine.md of this Folder; it grants no access.",
+  toolsNoteHint: "Write the intent with which you use this tool here.",
   toolsNoteCount: "{count} / {max} characters",
   toolsNoteTooLong: "The note is longer than {max} characters.",
   toolsNoteTooManyLines: "The note has more than {max} lines.",
@@ -444,7 +442,7 @@ const en = {
     "On a personal Environment, choose your default organization, the one Composio made when you signed up.",
   toolsPromptTitle: "Connect {name} with an agent",
   toolsPromptHint:
-    "Copy this prompt and paste it into a new chat in T3 Code in this Environment. The agent installs the tool and guides you through the sign-in in your browser. You never copy an API key.",
+    "Copy this prompt and paste it into a new thread in Chat. The agent installs the tool and guides you through the sign-in in your browser. You never copy an API key.",
   toolsPromptLabel: "Prepared prompt",
   toolsCopy: "Copy prompt",
   toolsCopied: "Copied.",
@@ -456,7 +454,7 @@ const en = {
     "You add custom MCP servers in Apps → Integrations → Custom; an agent adds one on your explicit request.",
   toolsMcpAction: "Add one with an agent",
   toolsMcpPromptHint:
-    "Copy this prompt and paste it into a new chat in T3 Code in this Environment. The agent asks which server you want and adds it to this Environment's Executor; a key you enter yourself in Integrations.",
+    "Copy this prompt and paste it into a new thread in Chat. The agent asks which server you want and adds it; a key you enter yourself in Integrations.",
   // The Apps home and its left column (decision F36).
   appsTitle: "Apps",
   appsAll: "All modules",
@@ -477,7 +475,7 @@ const en = {
   appsAbout: "About the module",
   appsLog: "App log",
   appsLogHint:
-    "The Launchpad does not show the log yet. Its last lines are read on the command line of this Environment:",
+    "Read the log's last lines on the command line of this Environment:",
   appsStarting: "Starting {name}…",
   appsStartFailed: "{name} could not be opened. Its overview says why.",
   // The org-agnostic description of a module by its stone's semantic key,
@@ -548,10 +546,6 @@ const en = {
   appsMarketplace: "Marketplace",
   appsSoon: "coming soon",
   appsMarketplaceSoon: "Coming soon",
-  appsMarketplaceText:
-    "This is where you will add more modules to the Environment. We are preparing it.",
-  appsMarketplaceOrganization:
-    " Until then, modules are added in the Dashboard of the Organization {name}.",
   title: "Lazurio Launchpad",
   homeTitle: "Launchpad",
   catalogBreadcrumb: "Where you are in the Launchpad",
@@ -785,16 +779,12 @@ const en = {
   settingsBreadcrumb: "Where you are in Settings",
   navigationOpen: "Open navigation",
   technicalDetails: "Technical details",
-  presetHint:
-    "The kind of Environment this Folder is set up for. Only the presets its handover allows are offered.",
-  localeHint:
-    "The language of this page and of the agent instructions in this Folder. It changes once the change is applied.",
+  presetHint: "The kind of this Environment.",
+  localeHint: "The language of this page and of the agents.",
   detailHint:
     "How agents explain their work: briefly, or with technical explanation and evidence.",
   coordinationHint:
     "Whether agents work directly, or delegate within the task and verify the results.",
-  profileHint:
-    "Preview shows what would change in this Folder; nothing is written until you apply it.",
   toolsDetails: "Details",
   toolsDetailsNamed: "Details of {name}",
   toolsPathLabel: "Found at",
@@ -816,8 +806,6 @@ const en = {
   machineNoHttps: "no HTTPS",
   machineNone: "not recorded",
   preset: "Workspace preset",
-  presetDerived: "derived from the handover",
-  presetExplicit: "explicit choice",
   presetLocal: "Local workstation",
   presetHostedPersonal: "Personal",
   presetHostedOrganizationPersonal: "Work",
@@ -833,7 +821,6 @@ const en = {
   preview: "Preview",
   reload: "Reload profile",
   apply: "Apply previewed change",
-  revision: "Revision",
   previewComplete: "Preview complete. No changes applied.",
   refused: "Operation refused; reload state or use CLI recovery.",
   reloadFailed: "Cannot reload profile; CLI recovery may be required.",
@@ -929,18 +916,17 @@ const en = {
   tourAppsText: "Your modules' apps.",
   tourChatTitle: "Chat",
   tourChatText: "Work with agents.",
-  tourChatMissingText: "Work with agents. Not running here yet.",
+  tourChatMissingText: "Work with agents. Not running here.",
   tourAutomateTitle: "Automate",
   tourAutomateText: "Regular tasks and automation.",
-  tourAutomateMissingText: "Automation does not run here yet.",
+  tourAutomateMissingText: "Automation does not run here.",
   tourSettingsTitle: "Settings",
   tourSettingsText: "Getting started is always here.",
   tourNext: "Next",
   tourDone: "Done",
   tourLater: "Finish later",
   startTitle: "Getting started",
-  startIntro:
-    "{done} of {total} steps done. Each is checked in the Environment itself.",
+  startIntro: "{done} of {total} steps done.",
   startReady: "The Environment is ready. You can come back here any time.",
   startNotHere:
     "Its Organization prepares this Environment; there is nothing to set up here.",
@@ -962,8 +948,7 @@ const en = {
   startAiFinishPanel:
     "Finish signing in to {name} in the browser on the right.",
   startAiFinishOwn: "Finish signing in to {name} in your browser window.",
-  startAiFinishing:
-    "Signed in to {name}. Chat and Codex are loading the sign-in…",
+  startAiFinishing: "Signed in to {name}. Finishing…",
   startAiOpen: "Open the sign-in",
   startAiCancel: "Cancel",
   startAiFailed: "The sign-in did not work. Please try again.",
@@ -974,8 +959,7 @@ const en = {
     "Codex did not say whether your Organization provides the AI here, so nothing was started. Please try again.",
   startAiBrowserFailed:
     "The Environment browser did not open the sign-in page. Please try again.",
-  startAiNoBrowser:
-    "The sign-in opens in the Environment browser, which this Environment does not have yet. An update of the Environment adds it.",
+  startAiNoBrowser: "The sign-in cannot open here right now.",
   startAiRetry: "Try again",
   startAiOtherAccount: "Sign in another account",
   startAiCodeLabel: "Code from the sign-in page",
@@ -1095,7 +1079,7 @@ const en = {
     "The connection to Neon databases, mainly for developing apps.",
   toolsDescriptionBitwarden: "Passwords and other items for agents.",
   toolsDescriptionExecutor:
-    "Agents use the apps connected directly from this Environment through it. Lazurio installs it and keeps it running.",
+    "Agents use the apps connected directly from this Environment through it.",
   toolsNotOffered: "Not offered in this Environment; agents do not use it.",
   vaultRowChecking: "Checking…",
   vaultRowConnected: "Connected",
@@ -1108,7 +1092,6 @@ const en = {
   vaultRowFailed: "The setup did not finish",
   vaultRowNoVault: "This Environment has no vault yet",
   vaultRowNeedsConnection: "Waiting for your Bitwarden",
-  vaultRowSecondWave: "Soon · second wave",
   vaultRowUnavailable: "Not available in this Environment",
   vaultPhaseInstall: "Installing Bitwarden…",
   vaultPhaseAccount: "Preparing the vault's account…",
@@ -1124,7 +1107,7 @@ const en = {
   vaultPageTitle: "Vault",
   vaultPageRule:
     "Whoever has access to the Environment has all of its passwords.",
-  vaultPageWorkstation: "There is no vault on this computer yet.",
+  vaultPageWorkstation: "There is no vault on this computer.",
   vaultPageNoVault: "This Environment has no vault yet.",
   // A personal Environment connects its person's own Bitwarden (root
   // decision 0203 point 7): the explanation, the form and its refusals.
@@ -1192,7 +1175,7 @@ const en = {
   vaultDisconnecting: "Disconnecting…",
   vaultDisconnectNote:
     "Disconnecting removes the agents' account details from this Environment; the organization stays in Bitwarden.",
-  vaultPageAgentsOnly: "Only this Environment's agents use its vault for now.",
+  vaultPageAgentsOnly: "Only this Environment's agents use its vault.",
   vaultPageGuide:
     "Does an agent need a password or a key? Tell it in Chat. It asks for the value here, you fill it in, and it goes straight into the vault.",
   vaultPageGuideChat: "Open Chat",
@@ -1237,7 +1220,6 @@ const en = {
   executorRowNotRunning: "Not running",
   executorRowIncomplete: "Running, setup not finished",
   executorRowConflict: "Conflicts with another installation",
-  executorRowSecondWave: "Soon · second wave",
   executorRowUnavailable: "Not available in this Environment",
   executorPhaseInstall: "Installing…",
   executorPhaseService: "Starting…",
@@ -1333,8 +1315,6 @@ const en = {
     "The browser blocked the connection window. Allow pop-ups and try again.",
   integrationsExecutorUnavailable:
     "Executor does not run in this Environment now, so nothing connects directly.",
-  integrationsExecutorAbsent:
-    "This Environment has no Executor, so apps connect here through Composio or their tool.",
   integrationsExecutorUnreadable:
     "Executor answered unexpectedly; the direct connections could not be read.",
   integrationsComposioUnreadable:
@@ -1351,7 +1331,7 @@ const en = {
   integrationsComposioApps: "Apps in Composio",
   integrationsComposioMissing: "Can't find an app here?",
   integrationsComposioConnectThere: "Connect it in Composio",
-  integrationsOutsideCatalog: "From Composio, outside Lazurio's catalog.",
+  integrationsOutsideCatalog: "From Composio.",
   integrationsComposioOrganizationChanged:
     "Composio does not work in this Environment's organization now. Click Check connections.",
   composioModelTitle: "How this Environment uses Composio",
@@ -1433,7 +1413,7 @@ const en = {
   integrationsComposioUpdated: "Composio is updated.",
   integrationsComposioUpdateFailed: "The update did not finish. Try again.",
   integrationsOpenComposio: "Open Composio",
-  integrationsMissingPath: "It cannot be connected here yet.",
+  integrationsMissingPath: "It cannot be connected here.",
   integrationsMissingTool: "The tool {tool} connects it.",
   integrationsOpenTools: "Open Tools",
   integrationsMissingCompanyApp:
@@ -1454,7 +1434,7 @@ const en = {
     "A direct sign-in needs this Environment's browser, which is not available here.",
   integrationsKeyTitle: "Key for {app}",
   integrationsKeyText:
-    "The key goes only to this Environment's Executor and is never shown again.",
+    "The key stays only in this Environment and is never shown again.",
   integrationsKeyLabel: "Key",
   integrationsMcpTitle: "MCP servers",
   integrationsMcpAdd: "Add MCP server",
@@ -1562,8 +1542,7 @@ const en = {
   sshRemoveNotOwn:
     "This key was added outside Launchpad; Launchpad does not remove it.",
   sshOutsideTitle: "Added outside Launchpad",
-  sshOutsideNote:
-    "Launchpad never changes or removes these keys, for example the key this Environment was set up with. Whoever looks after this Environment removes them.",
+  sshOutsideNote: "Whoever looks after this Environment removes them.",
   sshOutsideUnreadable: "A line Launchpad cannot read",
   sshOutsideUntitled: "A key without a name",
   sshProblemDirectory:
@@ -1609,8 +1588,7 @@ const en = {
     "The signed-in account could not be recorded. Reload the page and try again.",
   sshCodexLink: "Add Environment to Codex",
   sshComputerTitle: "Settings for your computer",
-  sshComputerNote:
-    "Your agent writes these on your computer. The host key is this Environment's own, so your computer checks that it really talks to this Environment.",
+  sshComputerNote: "Your agent writes these on your computer.",
   sshConfigLabel: "SSH config",
   sshConfigNote: "Add to ~/.ssh/config",
   sshKnownHostsLabel: "known_hosts",
@@ -1732,8 +1710,7 @@ const cs: Record<MessageKey, string> = {
     "Stav aktualizace vyžaduje zásah člověka: {path}. Automaticky se nic nemění.",
   updateStarted: "Aktualizace spuštěna…",
   updateRefused: "Aktualizace nebyla spuštěna; zobrazený stav byl obnoven.",
-  updateFolderRefresh:
-    "Folder je potřeba obnovit: vykreslila ho revize šablon {recorded}, Lazurio teď vykresluje {product}. Spusťte: {command}",
+  updateFolderRefresh: "Folder je potřeba obnovit. Spusťte: {command}",
   toolsTitle: "Nástroje",
   toolsSwitchLabel: "Používají agenti",
   toolsSwitchNamed: "Používají agenti: {name}",
@@ -1846,8 +1823,7 @@ const cs: Record<MessageKey, string> = {
   toolsSignInUnchecked: "Připojení se nezjišťovalo",
   toolsUsageCatalog: "Co o tomto nástroji agentům říká Lazurio:",
   toolsNoteLabel: "Vaše poznámka pro agenty",
-  toolsNoteHint:
-    "Napište sem záměr, se kterým nástroj používáte. Agenti ji čtou v manual/this-machine.md tohoto Folderu; neuděluje žádný přístup.",
+  toolsNoteHint: "Napište sem záměr, se kterým nástroj používáte.",
   toolsNoteCount: "{count} / {max} znaků",
   toolsNoteTooLong: "Poznámka je delší než {max} znaků.",
   toolsNoteTooManyLines: "Poznámka má víc než {max} řádků.",
@@ -2055,7 +2031,7 @@ const cs: Record<MessageKey, string> = {
     "V Osobním Prostředí vyberte svou výchozí organizaci, tu, kterou Composio založilo při vaší registraci.",
   toolsPromptTitle: "Připojit {name} s pomocí agenta",
   toolsPromptHint:
-    "Zkopírujte tento prompt a vložte ho do nového chatu v T3 Code v tomto Prostředí. Agent nástroj nainstaluje a provede vás přihlášením v prohlížeči. Žádný API klíč nikdy nekopírujete.",
+    "Zkopírujte tento prompt a vložte ho v Chatu do nového vlákna. Agent nástroj nainstaluje a provede vás přihlášením v prohlížeči. Žádný API klíč nikdy nekopírujete.",
   toolsPromptLabel: "Připravený prompt",
   toolsCopy: "Zkopírovat prompt",
   toolsCopied: "Zkopírováno.",
@@ -2067,7 +2043,7 @@ const cs: Record<MessageKey, string> = {
     "Vlastní MCP servery přidáte v Apps → Integrace → Vlastní; agent ho přidá na váš výslovný pokyn.",
   toolsMcpAction: "Přidat s agentem",
   toolsMcpPromptHint:
-    "Zkopírujte tento prompt a vložte ho do nového chatu v T3 Code v tomto Prostředí. Agent se zeptá, který server chcete, a přidá ho do Executoru tohoto Prostředí; klíč pak zadáte v Integracích.",
+    "Zkopírujte tento prompt a vložte ho v Chatu do nového vlákna. Agent se zeptá, který server chcete, a přidá ho; klíč pak zadáte v Integracích.",
   // The Apps home and its left column (decision F36).
   appsTitle: "Apps",
   appsAll: "Všechny moduly",
@@ -2088,7 +2064,7 @@ const cs: Record<MessageKey, string> = {
   appsAbout: "O modulu",
   appsLog: "Log aplikace",
   appsLogHint:
-    "Lazurio log zatím neukazuje. Jeho poslední řádky přečtete v příkazové řádce tohoto Prostředí:",
+    "Poslední řádky logu přečtete v příkazové řádce tohoto Prostředí:",
   appsStarting: "Spouštím {name}…",
   appsStartFailed: "{name} se nepodařilo otevřít. Proč, říká přehled modulu.",
   // The org-agnostic description of a module by its stone's semantic key,
@@ -2159,10 +2135,6 @@ const cs: Record<MessageKey, string> = {
   appsMarketplace: "Marketplace",
   appsSoon: "již brzy",
   appsMarketplaceSoon: "Již brzy",
-  appsMarketplaceText:
-    "Tady si do Prostředí budete přidávat další moduly. Připravujeme to.",
-  appsMarketplaceOrganization:
-    " Do té doby přibývají moduly v Přehledu Organizace {name}.",
   title: "Lazurio",
   homeTitle: "Apps",
   catalogBreadcrumb: "Kde v Lazuriu jste",
@@ -2395,16 +2367,12 @@ const cs: Record<MessageKey, string> = {
   settingsBreadcrumb: "Kde v nastavení jste",
   navigationOpen: "Otevřít navigaci",
   technicalDetails: "Technické podrobnosti",
-  presetHint:
-    "Druh Prostředí, pro který je tento Folder nastavený. Nabízejí se jen presety, které dovoluje jeho handover.",
-  localeHint:
-    "Jazyk této stránky a instrukcí pro agenty v tomto Folderu. Změní se, až změnu použijete.",
+  presetHint: "Druh tohoto Prostředí.",
+  localeHint: "Jazyk této stránky a agentů.",
   detailHint:
     "Jak agenti vysvětlují svou práci: stručně, nebo s technickým vysvětlením a důkazy.",
   coordinationHint:
     "Zda agenti pracují přímo, nebo delegují v rozsahu zadání a výsledek ověří.",
-  profileHint:
-    "Náhled ukáže, co by se v tomto Folderu změnilo; nic se nezapíše, dokud změnu nepoužijete.",
   toolsDetails: "Podrobnosti",
   toolsDetailsNamed: "Podrobnosti o {name}",
   toolsPathLabel: "Umístění",
@@ -2426,8 +2394,6 @@ const cs: Record<MessageKey, string> = {
   machineNoHttps: "bez HTTPS",
   machineNone: "nezaznamenáno",
   preset: "Preset pracovního prostředí",
-  presetDerived: "odvozeno z handoveru",
-  presetExplicit: "výslovná volba",
   presetLocal: "Lokální pracovní stanice",
   presetHostedPersonal: "Osobní",
   presetHostedOrganizationPersonal: "Pracovní",
@@ -2443,7 +2409,6 @@ const cs: Record<MessageKey, string> = {
   preview: "Náhled",
   reload: "Načíst aktuální profil",
   apply: "Použít zobrazenou změnu",
-  revision: "Revize",
   previewComplete: "Náhled je připravený. Žádné změny nebyly použity.",
   refused:
     "Operace byla odmítnuta. Načtěte aktuální stav nebo použijte obnovu přes CLI.",
@@ -2537,18 +2502,17 @@ const cs: Record<MessageKey, string> = {
   tourAppsText: "Aplikace vašich modulů.",
   tourChatTitle: "Chat",
   tourChatText: "Práce s agenty.",
-  tourChatMissingText: "Práce s agenty. Tady zatím neběží.",
+  tourChatMissingText: "Práce s agenty. Tady neběží.",
   tourAutomateTitle: "Automate",
   tourAutomateText: "Pravidelné úkoly a automatizace.",
-  tourAutomateMissingText: "Automatizace tu zatím neběží.",
+  tourAutomateMissingText: "Automatizace tu neběží.",
   tourSettingsTitle: "Nastavení",
   tourSettingsText: "Začínáme tu najdete kdykoli.",
   tourNext: "Další",
   tourDone: "Hotovo",
   tourLater: "Dokončím později",
   startTitle: "Začínáme",
-  startIntro:
-    "Hotovo {done} ze {total} kroků. Stav se ověřuje přímo v Prostředí.",
+  startIntro: "Hotovo {done} ze {total} kroků.",
   startReady: "Prostředí je připravené. Sem se můžete kdykoli vrátit.",
   startNotHere:
     "Toto Prostředí připravuje jeho Organizace; není tu co nastavovat.",
@@ -2569,8 +2533,7 @@ const cs: Record<MessageKey, string> = {
   startAiStarting: "Spouštím přihlášení…",
   startAiFinishPanel: "Dokončete přihlášení k {name} v prohlížeči vpravo.",
   startAiFinishOwn: "Dokončete přihlášení k {name} v okně prohlížeče.",
-  startAiFinishing:
-    "Přihlášeno k {name}. Chat a Codex teď přihlášení načítají…",
+  startAiFinishing: "Přihlášeno k {name}. Dokončuje se…",
   startAiOpen: "Otevřít přihlášení",
   startAiCancel: "Zrušit",
   startAiFailed: "Přihlášení se nepovedlo. Zkuste to prosím znovu.",
@@ -2581,8 +2544,7 @@ const cs: Record<MessageKey, string> = {
     "Codex neřekl, jestli tu AI zajišťuje vaše Organizace, a proto se nic nespustilo. Zkuste to prosím znovu.",
   startAiBrowserFailed:
     "Prohlížeč Prostředí přihlašovací stránku neotevřel. Zkuste to prosím znovu.",
-  startAiNoBrowser:
-    "Přihlášení se otevírá v prohlížeči Prostředí. Ten tu zatím není, doplní ho aktualizace Prostředí.",
+  startAiNoBrowser: "Přihlášení tu teď nejde otevřít.",
   startAiRetry: "Zkusit znovu",
   startAiOtherAccount: "Přihlásit jiný účet",
   startAiCodeLabel: "Kód z přihlašovací stránky",
@@ -2701,7 +2663,7 @@ const cs: Record<MessageKey, string> = {
     "Připojení na databáze Neon, hlavně pro vývoj aplikací.",
   toolsDescriptionBitwarden: "Hesla a další položky pro agenty.",
   toolsDescriptionExecutor:
-    "Přes něj agenti používají aplikace připojené přímo z tohoto Prostředí. Instaluje ho a udržuje v chodu Lazurio.",
+    "Přes něj agenti používají aplikace připojené přímo z tohoto Prostředí.",
   toolsNotOffered: "V tomto Prostředí se nenabízí; agenti ho nepoužívají.",
   vaultRowChecking: "Zjišťuji stav…",
   vaultRowConnected: "Připojeno",
@@ -2714,7 +2676,6 @@ const cs: Record<MessageKey, string> = {
   vaultRowFailed: "Nastavení se nedokončilo",
   vaultRowNoVault: "Toto Prostředí zatím trezor nemá",
   vaultRowNeedsConnection: "Čeká na váš Bitwarden",
-  vaultRowSecondWave: "Brzy · druhá vlna",
   vaultRowUnavailable: "V tomto Prostředí není k dispozici",
   vaultPhaseInstall: "Instaluje se Bitwarden…",
   vaultPhaseAccount: "Připravuje se účet trezoru…",
@@ -2727,7 +2688,7 @@ const cs: Record<MessageKey, string> = {
   vaultLoadFailed: "Stav trezoru se nepodařilo přečíst.",
   vaultPageTitle: "Trezor",
   vaultPageRule: "Kdo má přístup do Prostředí, má všechna jeho hesla.",
-  vaultPageWorkstation: "Trezor na tomto počítači zatím není.",
+  vaultPageWorkstation: "Trezor na tomto počítači není.",
   vaultPageNoVault: "Toto Prostředí zatím trezor nemá.",
   vaultPageNeedsConnection:
     "Toto osobní Prostředí ukládá hesla svých agentů do vašeho vlastního Bitwardenu, do bezplatné organizace pro vás a samostatný účet agentů.",
@@ -2788,8 +2749,7 @@ const cs: Record<MessageKey, string> = {
   vaultDisconnecting: "Odpojuje se…",
   vaultDisconnectNote:
     "Odpojení smaže údaje účtu agentů z tohoto Prostředí; organizace v Bitwardenu zůstane.",
-  vaultPageAgentsOnly:
-    "Trezor tohoto Prostředí zatím používají jen jeho agenti.",
+  vaultPageAgentsOnly: "Trezor tohoto Prostředí používají jen jeho agenti.",
   vaultPageGuide:
     "Potřebuje agent heslo nebo klíč? Řekněte mu to v Chatu. O hodnotu si řekne tady, vy ji vyplníte a uloží se rovnou do trezoru.",
   vaultPageGuideChat: "Otevřít Chat",
@@ -2829,7 +2789,6 @@ const cs: Record<MessageKey, string> = {
   executorRowNotRunning: "Neběží",
   executorRowIncomplete: "Běží, nastavení není dokončené",
   executorRowConflict: "Koliduje s jinou instalací",
-  executorRowSecondWave: "Brzy · druhá vlna",
   executorRowUnavailable: "V tomto Prostředí není k dispozici",
   executorPhaseInstall: "Instaluje se…",
   executorPhaseService: "Spouští se…",
@@ -2925,8 +2884,6 @@ const cs: Record<MessageKey, string> = {
     "Prohlížeč zablokoval okno s připojením. Povolte vyskakovací okna a zkuste to znovu.",
   integrationsExecutorUnavailable:
     "Executor v tomto Prostředí teď neběží, takže nic nejde připojit přímo.",
-  integrationsExecutorAbsent:
-    "Toto Prostředí nemá Executor, aplikace se tu proto připojují přes Composio nebo svým nástrojem.",
   integrationsExecutorUnreadable:
     "Executor odpověděl nečekaně, přímá připojení se nepodařilo načíst.",
   integrationsComposioUnreadable:
@@ -2943,7 +2900,7 @@ const cs: Record<MessageKey, string> = {
   integrationsComposioApps: "Aplikace v Composiu",
   integrationsComposioMissing: "Aplikaci tu nenajdete?",
   integrationsComposioConnectThere: "Připojte ji v Composiu",
-  integrationsOutsideCatalog: "Z Composia, mimo katalog Lazuria.",
+  integrationsOutsideCatalog: "Z Composia.",
   integrationsComposioOrganizationChanged:
     "Composio teď nepracuje v organizaci tohoto Prostředí. Klikněte na Zkontrolovat připojení.",
   composioModelTitle: "Jak toto Prostředí používá Composio",
@@ -3025,7 +2982,7 @@ const cs: Record<MessageKey, string> = {
   integrationsComposioUpdated: "Composio je aktualizované.",
   integrationsComposioUpdateFailed: "Aktualizace nedoběhla. Zkuste to znovu.",
   integrationsOpenComposio: "Otevřít Composio",
-  integrationsMissingPath: "Tady se zatím připojit nedá.",
+  integrationsMissingPath: "Tady se připojit nedá.",
   integrationsMissingTool: "Připojuje se nástrojem {tool}.",
   integrationsOpenTools: "Otevřít Nástroje",
   integrationsMissingCompanyApp:
@@ -3046,7 +3003,7 @@ const cs: Record<MessageKey, string> = {
     "Přímé přihlášení potřebuje prohlížeč, který v tomto Prostředí teď není.",
   integrationsKeyTitle: "Klíč pro {app}",
   integrationsKeyText:
-    "Klíč jde jen do Executoru tohoto Prostředí a už se nikde nezobrazí.",
+    "Klíč zůstane jen v tomto Prostředí a už se nikde nezobrazí.",
   integrationsKeyLabel: "Klíč",
   integrationsMcpTitle: "MCP servery",
   integrationsMcpAdd: "Přidat MCP server",
@@ -3153,8 +3110,7 @@ const cs: Record<MessageKey, string> = {
   sshRemoveNotFound: "Tento klíč už tu není. Zkuste Obnovit.",
   sshRemoveNotOwn: "Tento klíč byl přidaný mimo Lazurio; Lazurio ho neodebírá.",
   sshOutsideTitle: "Přidané mimo Lazurio",
-  sshOutsideNote:
-    "Tyto klíče Lazurio nikdy nemění ani neodebírá, třeba klíč, se kterým bylo toto Prostředí zřízené. Odebírá je ten, kdo se o Prostředí stará.",
+  sshOutsideNote: "Odebírá je ten, kdo se o Prostředí stará.",
   sshOutsideUnreadable: "Řádek, kterému Lazurio nerozumí",
   sshOutsideUntitled: "Klíč bez názvu",
   sshProblemDirectory:
@@ -3200,8 +3156,7 @@ const cs: Record<MessageKey, string> = {
     "Přihlášený účet se nepodařilo zaznamenat. Načtěte stránku znovu a zkuste to ještě jednou.",
   sshCodexLink: "Přidat Prostředí do Codexu",
   sshComputerTitle: "Nastavení pro váš počítač",
-  sshComputerNote:
-    "Váš agent je zapíše do vašeho počítače. Klíč hostu je vlastní klíč tohoto Prostředí, takže si počítač ověří, že opravdu mluví s ním.",
+  sshComputerNote: "Váš agent je zapíše do vašeho počítače.",
   sshConfigLabel: "SSH config",
   sshConfigNote: "Přidejte do ~/.ssh/config",
   sshKnownHostsLabel: "known_hosts",

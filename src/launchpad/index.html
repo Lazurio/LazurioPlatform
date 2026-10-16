@@ -1122,10 +1122,10 @@ button.tour-later:hover { background: transparent; color: var(--fg); }
 </main>
 
 <!-- The Marketplace (decision F36 addendum of 2026-10-04): where modules
-     will be added to the Environment; for now it says it is coming. -->
+     will be added to the Environment; for now it says only that it is
+     coming (F36's addendum of 2026-10-16). -->
 <main id="view-marketplace" class="container" data-view="marketplace">
 <header class="market-head"><span class="market-icon"><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg></span><div><h1 class="apps-title" data-page-heading tabindex="-1" data-message="appsMarketplace">Marketplace</h1><p class="module-meta" data-message="appsMarketplaceSoon">Coming soon</p></div></header>
-<p class="empty" id="marketplace-text"></p>
 </main>
 
 <!-- Integrace (decision F42): the apps and services connected to this
@@ -1202,11 +1202,11 @@ button.tour-later:hover { background: transparent; color: var(--fg); }
 <fieldset disabled id="choices" class="group">
 <legend><h2 id="legend" data-message="legend">Environment profile</h2></legend>
 <div class="card">
-<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="preset" data-message="preset">Workspace preset</label><p class="row-desc" id="preset-hint" data-message="presetHint">The kind of Environment this Folder is set up for. Only the presets its handover allows are offered.</p><p class="row-status" id="preset-selection"></p></div><div class="row-control"><select name="preset" id="preset" aria-describedby="preset-hint preset-selection"></select></div></div></div>
-<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="locale" data-message="locale">Language</label><p class="row-desc" id="locale-hint" data-message="localeHint">The language of this page and of the agent instructions in this Folder. It changes once the change is applied.</p></div><div class="row-control"><select name="locale" id="locale" aria-describedby="locale-hint"><option value="en">English</option><option value="cs">Čeština</option></select></div></div></div>
+<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="preset" data-message="preset">Workspace preset</label><p class="row-desc" id="preset-hint" data-message="presetHint">The kind of this Environment.</p></div><div class="row-control"><select name="preset" id="preset" aria-describedby="preset-hint"></select></div></div></div>
+<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="locale" data-message="locale">Language</label><p class="row-desc" id="locale-hint" data-message="localeHint">The language of this page and of the agents.</p></div><div class="row-control"><select name="locale" id="locale" aria-describedby="locale-hint"><option value="en">English</option><option value="cs">Čeština</option></select></div></div></div>
 <div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="detail" data-message="detail">Detail</label><p class="row-desc" id="detail-hint" data-message="detailHint">How agents explain their work: briefly, or with technical explanation and evidence.</p></div><div class="row-control"><select name="detail" id="detail" aria-describedby="detail-hint"><option value="concise" data-message="concise">Concise</option><option value="technical" data-message="technical">Technical</option></select></div></div></div>
 <div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="coordination" data-message="coordination">Coordination</label><p class="row-desc" id="coordination-hint" data-message="coordinationHint">Whether agents work directly, or delegate within the task and verify the results.</p></div><div class="row-control"><select name="coordination" id="coordination" aria-describedby="coordination-hint"><option value="direct" data-message="direct">Direct</option><option value="coordinator" data-message="coordinator">Coordinator</option></select></div></div></div>
-<div class="row"><div class="row-main"><div class="row-copy"><p class="row-desc" data-message="profileHint">Preview shows what would change in this Folder; nothing is written until you apply it.</p><p id="status" class="row-status" role="status">Loading…</p></div><div class="row-control"><button type="submit" data-message="preview">Preview</button><button type="button" id="apply" class="primary" data-message="apply" disabled>Apply previewed change</button></div></div></div>
+<div class="row"><div class="row-main"><div class="row-copy"><p id="status" class="row-status" role="status">Loading…</p></div><div class="row-control"><button type="submit" data-message="preview">Preview</button><button type="button" id="apply" class="primary" data-message="apply" disabled>Apply previewed change</button></div></div></div>
 </div>
 </fieldset>
 </form>
@@ -1344,7 +1344,7 @@ button.tour-later:hover { background: transparent; color: var(--fg); }
 </form>
 </section>
 <section class="group" id="ssh-computer" aria-labelledby="ssh-computer-heading">
-<div class="group-head"><h2 id="ssh-computer-heading" data-message="sshComputerTitle">Settings for your computer</h2><p class="group-note" data-message="sshComputerNote">Your agent writes these on your computer. The host key is this Environment's own, so your computer checks that it really talks to this Environment.</p></div>
+<div class="group-head"><h2 id="ssh-computer-heading" data-message="sshComputerTitle">Settings for your computer</h2><p class="group-note" data-message="sshComputerNote">Your agent writes these on your computer.</p></div>
 <p id="ssh-added" class="callout" role="status" aria-live="polite" hidden></p>
 <div class="card" id="ssh-computer-ready" hidden>
 <div class="row"><div><a id="ssh-codex" data-message="sshCodexLink" hidden>Add Environment to Codex</a><p id="ssh-project-path" class="row-desc"></p></div></div>
@@ -1355,7 +1355,7 @@ button.tour-later:hover { background: transparent; color: var(--fg); }
 <p class="group-note" data-message="sshNetworkNote">Adding a key does not give this device network access by itself. If SSH fails, give your agent the exact error. If the device is not allowed on the network yet, the network administrator can allow it.</p>
 </section>
 <section class="group" id="ssh-outside-group" aria-labelledby="ssh-outside-heading" hidden>
-<div class="group-head"><h2 id="ssh-outside-heading" data-message="sshOutsideTitle">Added outside Launchpad</h2><p class="group-note" data-message="sshOutsideNote">Launchpad never changes or removes these keys, for example the key this Environment was set up with. Whoever looks after this Environment removes them.</p></div>
+<div class="group-head"><h2 id="ssh-outside-heading" data-message="sshOutsideTitle">Added outside Launchpad</h2><p class="group-note" data-message="sshOutsideNote">Whoever looks after this Environment removes them.</p></div>
 <ul class="card" id="ssh-outside"></ul>
 </section>
 </section>

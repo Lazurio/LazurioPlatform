@@ -131,7 +131,9 @@ test("one plain line and at most one action per state, in both languages", () =>
         line: { text, state: "signed-out" },
         action,
       });
-    // Where it is not offered: a computer is the second wave.
+    // Where it is not offered: on a computer, which is its second wave, it
+    // is not available, said without the plan (F36's addendum of
+    // 2026-10-16).
     expect(
       of({
         kind: "executor-status",
@@ -139,7 +141,7 @@ test("one plain line and at most one action per state, in both languages", () =>
         reason: "workstation",
       }),
     ).toEqual({
-      line: { text: copy.executorRowSecondWave, state: "unknown" },
+      line: { text: copy.executorRowUnavailable, state: "unknown" },
       action: null,
     });
     expect(

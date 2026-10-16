@@ -390,7 +390,7 @@ test("the stops speak the wireframe's words", () => {
   });
   expect(
     tourStop("automate", prepared, { chat: true, automate: false }, cs).text,
-  ).toBe("Automatizace tu zatím neběží.");
+  ).toBe("Automatizace tu neběží.");
   expect(cs.tourLater).toBe("Dokončím později");
   expect(en.tourLater).toBe("Finish later");
 });

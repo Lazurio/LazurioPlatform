@@ -58,7 +58,7 @@ import { environmentFacts, type Fact, type MachineView } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
 import { createRecoveryPanel } from "./recovery-panel";
 import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
-import { type PageRoute, routeFrame, settingsPath } from "./routes";
+import { routeFrame, settingsPath } from "./routes";
 import { createShell } from "./shell";
 import { createSshPanel } from "./ssh-panel";
 import { keyGroups, parseSshOverview } from "./ssh-view";
@@ -104,8 +104,6 @@ const machineSupportList = document.querySelector<HTMLDListElement>(
   "#machine-support-list",
 );
 const presetSelect = document.querySelector<HTMLSelectElement>("#preset");
-const presetSelection =
-  document.querySelector<HTMLSpanElement>("#preset-selection");
 if (
   !form ||
   !choices ||
@@ -114,7 +112,6 @@ if (
   !result ||
   !machine ||
   !presetSelect ||
-  !presetSelection ||
   !machineSupport ||
   !machineSupportList
 )
@@ -127,7 +124,6 @@ const controls = {
   result,
   machine,
   presetSelect,
-  presetSelection,
   machineSupport,
   machineSupportList,
 };
@@ -159,8 +155,6 @@ const rail = document.querySelector<HTMLElement>("#rail");
 // The documentation of the Launchpad's "Guide" (the root Launchpad's
 // `guideDocumentationUrl`), in the page's language.
 const guide = document.querySelector<HTMLAnchorElement>("#catalog-guide");
-const marketplaceText =
-  document.querySelector<HTMLParagraphElement>("#marketplace-text");
 // Whether the shell document was asked for once (read or not).
 let shellRead = false;
 // The page shows once it is drawn (F36's addendum of 2026-10-08, the
@@ -237,7 +231,6 @@ const catalog = createCatalogPanel({
   navigate: (path) => shell.navigate(path),
   loaded: () => {
     shell.relabel();
-    drawMarketplace(shell.route());
     drawMachine();
     showWhenDrawn();
   },
@@ -890,7 +883,6 @@ const shell = createShell({
     // starts below, once the frame exists).
     if (framed && (route.view === "home" || route.view === "organization"))
       void catalog.refresh();
-    drawMarketplace(route);
     files.show(route);
     integrations.show(route);
     if (
@@ -1036,7 +1028,6 @@ function relabel() {
   if (guide !== null)
     guide.href = `https://documentation.lazurio.ai/${locale === "en" ? "en" : "cs"}/guide/?utm_source=launchpad&utm_medium=product&utm_campaign=guide`;
   shell.relabel();
-  drawMarketplace(shell.route());
   recovery.render();
   ssh.render();
   vaultPage.render();
@@ -1045,19 +1036,6 @@ function relabel() {
   integrations.relabel();
   column.relabel();
   browser.relabel();
-}
-// The Marketplace's sentence, in the page's language and naming the
-// Organization the route shows. It is drawn on the route and again once the
-// language or the catalog is known: a workstation's page reads both after
-// its first route (#388).
-function drawMarketplace(route: PageRoute) {
-  if (route.view !== "marketplace" || marketplaceText === null) return;
-  const name = catalog.scopeName(route);
-  marketplaceText.textContent =
-    copy.appsMarketplaceText +
-    (name === null
-      ? ""
-      : copy.appsMarketplaceOrganization.replace("{name}", name));
 }
 async function post(path: string, body: unknown) {
   const response = await fetch(path, {
@@ -1131,15 +1109,13 @@ async function load() {
         ),
     ),
   );
-  controls.presetSelection.textContent =
-    current.preset.selection === "explicit"
-      ? copy.presetExplicit
-      : copy.presetDerived;
   for (const [key, value] of Object.entries(current.profile)) {
     const control = controls.form.elements.namedItem(key);
     if (control instanceof HTMLSelectElement) control.value = value;
   }
-  controls.status.textContent = `${copy.revision} ${current.revision} · ${current.profile.os}`;
+  // The Folder's revision and its OS are nothing a person needs here (F36's
+  // addendum of 2026-10-16); a preview or a refusal says its result.
+  controls.status.textContent = "";
   controls.choices.disabled = false;
   if (first) {
     // What only Settings show (and the first run's line in Apps) is read on
