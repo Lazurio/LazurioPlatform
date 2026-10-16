@@ -331,6 +331,11 @@ export function shellDocument(
     dashboard: dashboardUrl,
     account: accountUrl,
     addOrganization: addOrganizationUrl,
+    // The person's sign-out where the gateway serves it on the shell's
+    // origins (Machines#358): a path, so the elements on T3 Code's and
+    // MausBot's origins open it on their own origin too. Without it the
+    // shell offers none.
+    ...(entry?.signOutPath === undefined ? {} : { signOut: entry.signOutPath }),
   };
   // The producer's own output passes the same parser as every consumer's.
   const parsed = parseShell(document);

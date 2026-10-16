@@ -14,6 +14,10 @@ export type ShellCopy = Readonly<{
   personal: string;
   addOrganization: string;
   account: string;
+  /** The two entries of the account's menu where the document names a
+   * sign-out (F36's addendum of 2026-10-16). */
+  accountSettings: string;
+  signOut: string;
   /** The name of an Environment without its own name, by kind. */
   names: Readonly<Record<ShellEnvironmentKind, string>>;
   /** The kind on an Environment's second line, left out where the name
@@ -62,6 +66,8 @@ const en: ShellCopy = {
   personal: "Personal",
   addOrganization: "Add an Organization",
   account: "Lazurio account",
+  accountSettings: "Account settings",
+  signOut: "Sign out",
   names: {
     personal: "Personal",
     work: "Work",
@@ -110,6 +116,8 @@ const cs: ShellCopy = {
   personal: "Osobní",
   addOrganization: "Přidat organizaci",
   account: "Lazurio účet",
+  accountSettings: "Nastavení účtu",
+  signOut: "Odhlásit",
   names: {
     personal: "Osobní",
     work: "Pracovní",

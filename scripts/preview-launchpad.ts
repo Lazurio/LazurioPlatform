@@ -147,10 +147,12 @@ else {
     mode === "personal" ? "hosted-personal" : "hosted-organization-personal";
   await initializeHandoverFolder(folder, {
     preset,
+    // A Remote Environment as the gateway serves it: the Environment
+    // browser's view and the person's sign-out (Machines#358).
     machine:
       mode === "personal"
-        ? personalWithEntry(listenPort, true)
-        : organizationWithEntry(listenPort, host, true),
+        ? personalWithEntry(listenPort, true, true)
+        : organizationWithEntry(listenPort, host, true, true),
     profile: presetProfile(preset, os, { locale }),
   });
 }

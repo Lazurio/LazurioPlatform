@@ -6326,6 +6326,69 @@ line (`tests/update-view.test.ts`); the Czech wording guard over every message
 preview in both languages, Začínáme's AI step through idle, waiting and connected with
 stand-in `codex` and `claude` CLIs.
 
+### F36 addendum of 2026-10-16: the person's sign-out from the account in the rail
+
+**Decided by Matěj (Organization Admin) on 2026-10-16 (root decision 0201 point 9,
+HumanAndMachine-ai/Machines#358; the design on that issue); the account's menu after the
+shell wireframe (prototypes-lazurio `AccountMenu`, "Menu účtu: Nastavení, motiv, jazyk,
+Odhlásit").** "Odhlásit" ends two sessions in this browser: the Environment's gateway
+session and the person's Lazurio account (Keycloak) session. The person's GitHub session
+stays theirs to end. Nothing in Lazurio offered a sign-out, and the gateway's own
+`/oauth2/sign_out` cleared only its cookie, so Keycloak's live session (and since 0201
+GitHub) signed the person straight back in.
+
+1. **Machines serves it.** The gateway serves the sign-out on the shell's origins (the
+   Launchpad, T3 Code, MausBot) behind the Platform Launchpad, at `/.lazurio/sign-out`,
+   before its admission: it clears the gateway session and hands the issuer's
+   end-session endpoint the session's ID token, which ends the Keycloak session and lands
+   on Keycloak's own signed-out page ("Jste odhlášeni z Lazuria.", one button to the
+   Lazurio home). That page never starts a sign-in, which an automatic redirect would.
+   Machines writes the path as the handover's optional `entry.sign_out` behind its own
+   Platform gate ([machine handover](machine-handover.md#the-hosted-entry-decision-f16)).
+2. **The handover and the binding.** The vendored schema is Machines #543's, which adds
+   only that member: closed, exactly that path. The binding records it as
+   `signOutPath`, checked again by the same rule; absent stays absent, so an entry
+   recorded from an older handover is unchanged byte for byte. A refresh records a
+   sign-out the handover gained although no generated text changes. It is never
+   rendered into the Folder or part of the Launchpad's public entry.
+3. **The shell document.** `lazurio.shell.v1` gains the optional `signOut` (additive:
+   an older parser ignores it): an https URL, or a path on the page's own origin, as the
+   Dashboard's addresses; absent or null is none. The Launchpad puts in exactly the
+   handover's path, so the elements on T3 Code's and MausBot's origins open it on their
+   own origin, where the gateway serves it too. A host page (the Dashboard) may name its
+   own sign-out the same way.
+4. **The account's menu.** Without `signOut` the account at the foot of the rail stays
+   the link to the account settings. With it the account is a button that opens a small
+   menu beside it, in the list's look: "Nastavení účtu" and "Odhlásit" (`railAccount`
+   in `view.ts`). Its label stays its name alone, "Lazurio účet" ([the addendum
+   above](#f36-addendum-of-2026-10-16-the-shell-and-the-launchpad-say-only-what-a-person-needs)). The menu is a popover whose invoker is the account, so the browser opens
+   and closes it (a second click, a click outside, Escape) and returns the focus.
+   "Nastavení účtu" is a link the host may take over, as every link; "Odhlásit" is a
+   plain link that never announces `lazurio-navigate`, so no host's router can stand in
+   for the gateway. The rest of the wireframe's menu (theme, language, Organizations) is
+   not part of this addendum.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Link the bare Machine hostname's `/oauth2/sign_out` | Composes an origin from the auth endpoint, which [hosted entry](hosted-entry.md) rejects; the gateway serves the path on the shell's own origins instead |
+| A `post_logout_redirect_uri` to a signed-out page of the Environment | Needs the post-logout addresses of every gateway client at the issuer, and a page that offers sign-in again would sign the person in through GitHub at once; Keycloak's own page already says it and leads to the Lazurio home |
+| End the Keycloak session from the server (`backend_logout_url`) | Would act on every `/oauth2/sign_out`, including the account relay's after a Dashboard `401`, and a minimal session keeps no ID token for it; rejected on Machines#358 |
+| "Odhlásit" as a separate rail item | One more item at the foot of every rail; the wireframe puts it into the account's menu |
+
+**Honest limits.** Until a release of this repository reads `entry.sign_out` and Machines
+sets `PLATFORM_ENTRY_SIGN_OUT_MINIMUM` to it, no handover carries the member and no shell
+shows "Odhlásit". Other open Environments keep their gateway session until their next
+refresh fails (within two minutes where it refreshes). With a live GitHub session the
+next sign-in passes through GitHub silently (0201). The vault page's "Přihlaste se prosím
+znovu" ([F53's amendment of 2026-10-16](#f53-amendment-of-2026-10-16-the-address-of-the-lazurio-username))
+still offers no link; the sign-out is now one, a follow-up.
+
+Verified by `tests/shell-sign-out.test.ts` (the vendored member exactly; the handover read
+and projected, refused shapes, the binding read back, a refresh that records it with the
+same text; the shell document with and without it, merged with the account; the parser's
+addresses; the account's link or menu in both languages) and in headless Chrome (root
+decision 0178) on the hosted preview with the member, in both languages.
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction

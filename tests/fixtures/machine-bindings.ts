@@ -130,6 +130,13 @@ export function withEnvironmentRelay<T extends object>(
   return { ...entry, environment_relay: { socket } };
 }
 
+// Machines#358 (F36's addendum of 2026-10-16): the entry of a Machine behind
+// the Platform Launchpad, as Machines writes `entry.sign_out`.
+export const signOutPath = "/.lazurio/sign-out";
+export function withSignOut<T extends object>(entry: T, path = signOutPath) {
+  return { ...entry, sign_out: { path } };
+}
+
 // The handover shapes the presets derive from, projected exactly as the
 // machine CLI would project a validated root-issued document.
 export function binding(document: unknown) {
@@ -142,17 +149,20 @@ export function binding(document: unknown) {
 const { team: _, ...withoutTeam } = organization.owner;
 // An Organization work VM of one operator (no Team) with its entry on `port`,
 // for the Machine hostname `host`; with `browser`, the entry also routes the
-// Environment browser's view (root decision 0191).
+// Environment browser's view (root decision 0191), and with `signOut` it
+// names the person's sign-out (Machines#358).
 export function organizationWithEntry(
   listenPort = 20000,
   host = "workspace.example.lazurio.io",
   browser = false,
+  signOut = false,
 ) {
   const entry = handoverEntry(host, listenPort);
+  const routed = browser ? withBrowser(entry, host) : entry;
   return binding({
     ...organization,
     owner: withoutTeam,
-    entry: browser ? withBrowser(entry, host) : entry,
+    entry: signOut ? withSignOut(routed) : routed,
   });
 }
 // An Organization work VM of one operator whose entry, on `port`, carries
@@ -168,14 +178,19 @@ export function organizationWithRelay(
     entry: withEnvironmentRelay(handoverEntry(host, listenPort)),
   });
 }
-// A personal VM of `example` with its entry on `port`, and with `browser`
-// the Environment browser's view.
-export function personalWithEntry(listenPort = 20000, browser = false) {
+// A personal VM of `example` with its entry on `port`, with `browser` the
+// Environment browser's view and with `signOut` the person's sign-out.
+export function personalWithEntry(
+  listenPort = 20000,
+  browser = false,
+  signOut = false,
+) {
   const host = "example.lazurio.io";
   const entry = handoverEntry(host, listenPort);
+  const routed = browser ? withBrowser(entry, host) : entry;
   return binding({
     ...personal,
-    entry: browser ? withBrowser(entry, host) : entry,
+    entry: signOut ? withSignOut(routed) : routed,
   });
 }
 // The Automated Environment of decision 0169 as the binding records it: a work
@@ -251,5 +266,16 @@ export const bindings = Object.freeze({
   personalRelay: binding({
     ...personal,
     entry: withEnvironmentRelay(entries.personal),
+  }),
+  // Machines#358: the entry with the person's sign-out, on a work
+  // Environment of one operator and on a personal one.
+  organizationSignOut: binding({
+    ...organization,
+    owner: withoutTeam,
+    entry: withSignOut(entries.organization),
+  }),
+  personalSignOut: binding({
+    ...personal,
+    entry: withSignOut(entries.personal),
   }),
 });

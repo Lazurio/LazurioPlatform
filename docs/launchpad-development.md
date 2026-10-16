@@ -517,7 +517,10 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   for Files and Tools whose `gh` answers for the example Organization as the role says
   (an Owner by default; a Steward maintains its workspace modules' repositories), and
   with `hosted` a recorded entry plus a loopback proxy that adds the gateway's Host and
-  cookie. The account is not part of the preview: a browser automation, or a small
+  cookie. The entry names the person's sign-out (Machines#358), so the account at the
+  foot of the rail opens its menu; the preview has no gateway, so its "Odhlásit"
+  reaches the Launchpad, which does not serve the sign-out. The account is not part of
+  the preview: a browser automation, or a small
   stub in front of the hosted proxy, stands in for the gateway's relay of
   `/.lazurio/account/…`. The hosted entry also routes the Environment browser's view
   ([the right panel](#the-right-panel-the-environment-browser)): agent-browser is not

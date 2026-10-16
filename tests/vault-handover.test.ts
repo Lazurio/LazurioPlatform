@@ -37,8 +37,10 @@ const documents = {
 };
 
 test("the vendored schema is Machines #500's: the member with a work and a personal account shape", () => {
+  // Re-pinned since to Machines #543, which adds only `entry.sign_out`
+  // (tests/shell-sign-out.test.ts).
   expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/500",
+    "https://github.com/HumanAndMachine-ai/Machines/pull/543",
   );
   const defs = (
     schema as unknown as {

@@ -279,6 +279,15 @@
           "properties": {
             "socket": { "description": "Absolute path of the relay's unix socket.", "type": "string", "maxLength": 100, "pattern": "^/run/[a-z0-9-]+/[a-z0-9-]+\\.sock$" }
           }
+        },
+        "sign_out": {
+          "description": "The person's sign-out of this Machine (Machines#358, root decision 0201 point 9), present only behind the Platform Launchpad: the path the gateway serves on the origins of the Lazurio shell (the Launchpad, T3 Code and Lazurio MausBot). It ends this Machine's gateway session and the person's Lazurio account session in this browser, and lands on the issuer's signed-out page. A reader vendoring an earlier schema refuses a document carrying it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path"],
+          "properties": {
+            "path": { "description": "Path on the shell's own origin.", "const": "/.lazurio/sign-out" }
+          }
         }
       }
     },
