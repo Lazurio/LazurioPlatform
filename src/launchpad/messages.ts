@@ -1139,6 +1139,8 @@ const en = {
     "Enter the master password of the agents' account.",
   vaultConnectInvalidCredentials:
     "Bitwarden did not accept this API key; copy it again.",
+  vaultConnectAccountRefused:
+    "Bitwarden did not accept this account; check it in Bitwarden.",
   vaultConnectWrongPassword:
     "This is not the agents' account's master password; try again.",
   vaultConnectOwnsOrganization:
@@ -2748,6 +2750,8 @@ const cs: Record<MessageKey, string> = {
   vaultConnectPasswordInvalid: "Zadejte hlavní heslo účtu pro agenty.",
   vaultConnectInvalidCredentials:
     "Bitwarden tento klíč API nepřijal, zkopírujte ho znovu.",
+  vaultConnectAccountRefused:
+    "Bitwarden tento účet nepřijal, zkontrolujte ho v Bitwardenu.",
   vaultConnectWrongPassword:
     "Toto není hlavní heslo účtu pro agenty, zkuste to znovu.",
   vaultConnectOwnsOrganization:

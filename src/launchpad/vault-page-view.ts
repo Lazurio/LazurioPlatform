@@ -782,6 +782,8 @@ export function connectionRefusalText(
       return copy.vaultConnectPasswordInvalid;
     case "invalid-credentials":
       return copy.vaultConnectInvalidCredentials;
+    case "account-refused":
+      return copy.vaultConnectAccountRefused;
     case "wrong-password":
       return copy.vaultConnectWrongPassword;
     case "owns-organization":

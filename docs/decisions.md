@@ -12716,19 +12716,35 @@ fields and one button.
    Every refusal is one sentence that says what to do next, without mechanics
    (`connectionRefusalText`, `inviteRefusalText`). The codes stay those of the amendment
    above, but for `region-invalid`, which can no longer happen, `email-invalid` and
-   `same-account`, which move to the invitation (point 3), and the invitation's new
-   `invited`. The failures the person resolves, the disconnect's note and the person's
+   `same-account`, which move to the invitation (point 3), the invitation's new
+   `invited`, and `account-refused` (point 2). The failures the person resolves, the disconnect's note and the person's
    states are shortened the same way.
    Gone: the lead about a free organization and a separate agents' account, the three
    text steps, the region, the person's e-mail and its hint.
 2. **No region.** `POST /api/vault/connect` takes exactly `{clientId, clientSecret,
    masterPassword}`; a `region` or an `email` key is refused as any other key
-   (`invalid-request`). The API key signs in at the EU's identity host first and at the
-   US's only where the EU's refuses it as unknown (`invalid-credentials`); the region that
-   accepted it is the connection's, as before. Both refusing is `invalid-credentials`; a
-   host that does not answer, a 5xx or a rate limit at the first stops there
-   (`unreachable`, `rate-limited`): the other region is never tried in its place, so a
-   region is never guessed. A key of the US costs one refused sign-in at the EU.
+   (`invalid-request`). The API key signs in at the EU's identity host first, and at the
+   US's only where the EU's identity server answers that it does not know the key: HTTP
+   400 with the OAuth error `invalid_client`, exactly (`unknownClientAnswer` in
+   `src/vault/register.ts`). That is the Bitwarden cloud's answer to an unknown key or a
+   secret that does not match: its Identity project (bitwarden/server
+   `0d707bf6842c05e523bc5d802e6d46a8dd62fedc`, `src/Identity/IdentityServer/
+   DynamicClientStore.cs` and `ClientProviders/UserClientProvider.cs`) finds no client
+   for a `user.<id>` it does not know and gives a known one its API key as the only
+   secret, and Duende IdentityServer 7.4.6, which it pins (DuendeSoftware/products tag
+   `is-7.4.6`, `identity-server/src/IdentityServer/Validation/Default/
+   ClientSecretValidator.cs`), fails both with `invalid_client`, which its
+   `TokenEndpoint` writes as a `TokenErrorResult` with status 400
+   (`Endpoints/Results/TokenErrorResult.cs`). The region that accepted the key is the
+   connection's, as before. Both answering `invalid_client` is `invalid-credentials`
+   ("Bitwarden tento klíč API nepřijal, zkopírujte ho znovu."). Any other refusal of the
+   first region stops there, and so does such an answer of the US: `invalid_request`,
+   `invalid_grant`, an `access_denied` (a blocked account), another 4xx or a proxy's page
+   is `account-refused` ("Bitwarden tento účet nepřijal, zkontrolujte ho v Bitwardenu.");
+   a rate limit is `rate-limited`, and no answer or a 5xx `unreachable`. The other region
+   is never tried in its place, so a region is never guessed and a key the EU refuses for
+   any other reason never goes to the US (Henry's review of #468 at `5cc1756`). A key of
+   the US costs one refused sign-in at the EU.
 3. **The person joins when they ask** (amends point 6). Connecting no longer names the
    person: `connection.json` keeps `invitee: null` (a connection of the amendment above,
    with an address, reads as before), the setup creates the vault for the agents alone,
@@ -12823,16 +12839,24 @@ keeps. The pictures and words go stale together when Bitwarden changes these scr
 | Keep the region field | A person does not know which region their account is in; the server finds it |
 | Try both regions at once | Twice the sign-ins for every key; the EU first, the US only after an unknown key |
 | Guess the other region when one does not answer | Could connect the wrong service; a host that does not answer stops it |
+| Any refusal of the EU sends the key to the US (this change's first revision) | A blocked account or a malformed request would be read as an unknown key and the key sent to another service (Henry's review of #468); only the identity server's own `invalid_client` does |
 | Keep the person's e-mail in the connection form | One more field and a decision before anything works; the invitation is optional, after |
 | Invite on connecting when an address is given | Two ways to the same state; one card after connecting |
 | A video now | Later, in the shared player (#452) |
 | Drawn lookalikes of Bitwarden's screens | Drift from what the person sees; its real web vault is used |
 
-Verified by `tests/vault-connection.test.ts` (the form's three values and the invitation's
-address in their exact form; PBKDF2 and Argon2id accounts found in the EU, a bitwarden.com
-account found after the EU refused it, recorded as `us` and set up on the US hosts; both
-refusing, a host that does not answer, a 5xx and a rate limit at the first, the other
-never tried; nobody invited until asked, `not-invited`, then the invitation at once, its
+Verified by `tests/vault-register.test.ts` (only HTTP 400 `invalid_client` of a token
+request is marked as an unknown key; `access_denied` 403, `invalid_request`,
+`invalid_grant`, `unauthorized_client`, a 401 `invalid_client`, a non-JSON or array body,
+a 429, a 5xx and no answer are not), `tests/vault-connection.test.ts` (the form's three
+values and the invitation's address in their exact form; PBKDF2 and Argon2id accounts
+found in the EU, a bitwarden.com account found after the EU answered `invalid_client`,
+recorded as `us` and set up on the US hosts; both answering `invalid_client` is
+`invalid-credentials`; an EU 403 `access_denied`, 400 `invalid_request`, 400
+`invalid_grant`, 401 `invalid_client` and a proxy's 403 page are `account-refused`, and
+an EU 5xx, no answer and a rate limit stop as before, each without one request to the
+US's identity host; a US refusal or no answer after the EU's `invalid_client` stops
+there; nobody invited until asked, `not-invited`, then the invitation at once, its
 acceptance and confirmation; `email-invalid`, `same-account`, `invited`, `busy`,
 `not-connected` before the vault exists, the same address again only looking; only a
 connected personal Environment's own Bitwarden taking an invitation; no address in the

@@ -58,8 +58,9 @@ import {
 // (`invitePersonalBitwarden`, invitee.ts).
 //
 // Connecting checks everything before anything is written: the API key
-// signs in at the EU's identity host, or at the US's where the EU's does not
-// know it, the profile names the agents' account, and the master password
+// signs in at the EU's identity host, or at the US's only where the EU's
+// answers that it does not know the key (`invalid_client`), the profile
+// names the agents' account, and the master password
 // opens the account's keys with the KDF the cloud reports (PBKDF2 or
 // Argon2id). Only then are the account's credentials written, whole, into
 // the custody of decision F53 (the one place the Platform writes
@@ -127,8 +128,14 @@ export type ConnectionRefusal =
   /** Nothing to disconnect, or nothing connected (or no vault yet) to
    * invite the person into. */
   | "not-connected"
-  /** Both regions refused the API key. */
+  /** Neither region knows the API key: each identity server answered
+   * `invalid_client` (register.ts `unknownClientAnswer`). */
   | "invalid-credentials"
+  /** A region's identity server refused the API key otherwise than as
+   * unknown (`invalid_request`, `invalid_grant`, an `access_denied`, another
+   * 4xx): the account cannot sign in there now, and the person checks it in
+   * Bitwarden. The other region is never asked in its place. */
+  | "account-refused"
   /** The master password does not open the agents' account. */
   | "wrong-password"
   /** The address to invite is the agents' account: the person's own
@@ -294,7 +301,9 @@ async function underConnectionLock<T>(
 const refusalOf = (error: unknown): ConnectionRefusal => {
   if (!(error instanceof VaultwardenError)) return "failed";
   switch (error.reason) {
+    // Unknown to the region asked last, or refused there for another reason.
     case "invalid-credentials":
+      return error.unknownClient ? "invalid-credentials" : "account-refused";
     case "wrong-password":
     case "unsupported-kdf":
     case "unsupported-keys":
@@ -358,11 +367,15 @@ async function organizationsOf(
 const regionOrder: readonly BitwardenRegion[] = ["eu", "us"];
 
 /** The API key signed in at the region whose identity host accepts it: the
- * EU's first, the US's only where the EU's refuses it as unknown
- * (`invalid-credentials`). A refusal of both is `invalid-credentials`, as
- * one region's always was. Any other answer of the first region stops there:
- * a host that does not answer is `unreachable` and the other is never tried
- * in its place, so a region is never guessed. */
+ * EU's first, the US's only where the EU's identity server answers that it
+ * does not know the key, HTTP 400 `invalid_client` and nothing else
+ * (register.ts `unknownClientAnswer`, after bitwarden/server's Identity and
+ * Duende IdentityServer 7.4.6). Both answering so is `invalid-credentials`.
+ * Any other answer of the first region stops there: another refusal
+ * (`invalid_request`, `invalid_grant`, an `access_denied`, another 4xx) as
+ * `account-refused`, a rate limit as `rate-limited`, and a host that does not
+ * answer or answers 5xx as `unreachable`; the other region is never tried in
+ * its place, so a region is never guessed. */
 async function regionLogin(
   client: VaultClient,
   values: Values,
@@ -381,12 +394,13 @@ async function regionLogin(
       if (
         index === regionOrder.length - 1 ||
         !(error instanceof VaultwardenError) ||
-        error.reason !== "invalid-credentials"
+        error.reason !== "invalid-credentials" ||
+        !error.unknownClient
       )
         throw error;
     }
   }
-  throw new VaultwardenError("invalid-credentials");
+  throw new VaultwardenError("invalid-credentials", 400, true);
 }
 
 /** The agents' account the values name, checked as a client unlocks it:

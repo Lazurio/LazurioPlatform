@@ -21,6 +21,7 @@ import {
   readConnection,
 } from "../src/vault/connection";
 import { personalVaultName } from "../src/vault/context";
+import { bitwardenRegions } from "../src/vault/endpoints";
 import {
   setUpAtStart,
   type VaultHost,
@@ -597,9 +598,11 @@ test.skipIf(!posix)(
 );
 
 // The region is never asked for: the API key signs in at the EU's identity
-// host first and at the US's only where the EU's refuses it as unknown (F53's
-// amendment of 2026-10-16, (2)). A host that does not answer stops there: the
-// other region is never tried in its place.
+// host first and at the US's only where the EU's identity server answers that
+// it does not know the key, HTTP 400 invalid_client (F53's amendment of
+// 2026-10-16, (2); register.ts `unknownClientAnswer`). Any other refusal, a
+// rate limit, a 5xx or no answer stops there: the other region is never tried
+// in its place.
 test.skipIf(!posix)(
   "an agents' account of bitwarden.com connects after the EU refuses its key: the US region is recorded, and the vault and the invitation are on the US hosts",
   async () => {
@@ -659,78 +662,133 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "a key both regions refuse is invalid-credentials; a region that does not answer is unreachable and the other is never tried in its place",
+  "only the EU's invalid_client sends the key on to the US: both unknown is invalid-credentials; another refusal, a rate limit, no answer or a 5xx at the EU stops there without asking the US",
   async () => {
     const w = await world();
     try {
       const values = await form(w.cloud);
+      // Every identity host the core asked, also where an answer below
+      // stands in for the fake cloud's.
+      let identity: string[] = [];
+      const identityOf = (url: string) =>
+        (["eu", "us"] as const).find(
+          (region) =>
+            new URL(url).host ===
+            new URL(bitwardenRegions[region].identity).host,
+        );
+      const via = (
+        answers: Partial<Record<"eu" | "us", () => Promise<Response>>>,
+      ): VaultHost => ({
+        ...w.host,
+        fetch: async (url, init) => {
+          const region = identityOf(url);
+          if (region !== undefined) {
+            identity.push(region);
+            const answer = answers[region];
+            if (answer !== undefined) return answer();
+          }
+          return w.cloud.fetch(url, init);
+        },
+      });
       const answer = async (host: VaultHost, input = values) => {
-        w.cloud.requests.length = 0;
+        identity = [];
         const connected = await connectPersonalBitwarden(host, input);
         return [
           connected.kind === "vault-connection-refused"
             ? connected.reason
             : connected.kind,
-          asked(w.cloud),
+          identity,
         ];
       };
-      // Neither region knows it.
+      const json = (status: number, body: unknown) => async () =>
+        Response.json(body, { status });
+      // Neither region knows it: each answers 400 invalid_client, as the
+      // Bitwarden cloud's Identity does for an unknown key or secret.
       expect(
-        await answer(w.host, { ...values, clientSecret: "wrongsecret1" }),
-      ).toEqual([
-        "invalid-credentials",
-        ["identity eu /connect/token", "identity us /connect/token"],
-      ]);
-      // The EU's identity host does not answer (no connection, or a 5xx):
-      // the US is never asked in its place.
-      const failing = (
-        region: "eu" | "us",
-        fail: () => Promise<Response>,
-      ): VaultHost => ({
-        ...w.host,
-        fetch: (url, init) =>
-          url.startsWith(
-            `https://identity.bitwarden.${region === "eu" ? "eu" : "com"}/`,
-          )
-            ? fail()
-            : w.cloud.fetch(url, init),
-      });
+        await answer(via({}), { ...values, clientSecret: "wrongsecret1" }),
+      ).toEqual(["invalid-credentials", ["eu", "us"]]);
+      // Any other refusal of the EU stops there, and the US is never asked:
+      // a blocked account, a malformed request, a refused grant, an
+      // invalid_client that is not Bitwarden's 400, a page of a proxy.
+      for (const refusal of [
+        json(403, {
+          error: "access_denied",
+          error_description: "This account is blocked",
+        }),
+        json(400, { error: "invalid_request" }),
+        json(400, {
+          error: "invalid_grant",
+          error_description: "The account cannot sign in.",
+        }),
+        json(401, { error: "invalid_client" }),
+        async () => new Response("<html>Forbidden</html>", { status: 403 }),
+      ])
+        expect(await answer(via({ eu: refusal }))).toEqual([
+          "account-refused",
+          ["eu"],
+        ]);
+      // No answer, a 5xx or a rate limit at the EU: stopped, never the US.
       expect(
         await answer(
-          failing("eu", async () => {
-            throw new Error("connect ECONNREFUSED");
+          via({
+            eu: async () => {
+              throw new Error("connect ECONNREFUSED");
+            },
           }),
         ),
-      ).toEqual(["unreachable", []]);
+      ).toEqual(["unreachable", ["eu"]]);
       expect(
         await answer(
-          failing("eu", async () => new Response("", { status: 502 })),
+          via({ eu: async () => new Response("", { status: 502 }) }),
         ),
-      ).toEqual(["unreachable", []]);
-      // The EU refuses it as unknown and the US does not answer: unreachable,
-      // never "the key is wrong".
+      ).toEqual(["unreachable", ["eu"]]);
+      expect(
+        await answer(via({ eu: json(429, { message: "Too many requests" }) })),
+      ).toEqual(["rate-limited", ["eu"]]);
+      // An account of bitwarden.com: the EU answers invalid_client, and the
+      // US's own answer decides; the cloud's rate limit at the EU stops it
+      // before the US.
       const us = await form(w.cloud, {
         email: "agents.us@example.com",
         region: "us",
       });
       expect(
         await answer(
-          failing("us", async () => {
-            throw new Error("connect ETIMEDOUT");
+          via({
+            us: async () => {
+              throw new Error("connect ETIMEDOUT");
+            },
           }),
           us,
         ),
-      ).toEqual(["unreachable", ["identity eu /connect/token"]]);
-      // The EU's rate limit stops there too.
+      ).toEqual(["unreachable", ["eu", "us"]]);
+      expect(
+        await answer(via({ us: json(403, { error: "access_denied" }) }), us),
+      ).toEqual(["account-refused", ["eu", "us"]]);
       w.cloud.flags.rateLimit = true;
-      expect(await answer(w.host, us)).toEqual([
-        "rate-limited",
-        ["identity eu /connect/token"],
-      ]);
+      expect(await answer(via({}), us)).toEqual(["rate-limited", ["eu"]]);
       w.cloud.flags.rateLimit = false;
-      // Nothing was written by any of them.
+      // Nothing was written by any of them, and the journal says each by
+      // its fixed reason.
       expect(await readConnection(w.host.connection)).toBeNull();
       expect(await files(join(w.home, ".local"))).toEqual([]);
+      expect(w.journal.map((entry) => entry.reason)).toEqual([
+        "invalid-credentials",
+        ...Array(5).fill("account-refused"),
+        "unreachable",
+        "unreachable",
+        "rate-limited",
+        "unreachable",
+        "account-refused",
+        "rate-limited",
+      ]);
+      // The US's account connects in the US once the EU says it does not
+      // know the key.
+      expect(await answer(via({}), us)).toEqual([
+        "vault-connected",
+        ["eu", "us"],
+      ]);
+      expect((await readConnection(w.host.connection))?.region).toBe("us");
     } finally {
       await w.close();
     }

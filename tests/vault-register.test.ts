@@ -797,6 +797,95 @@ describe("the Bitwarden cloud", () => {
     expect(asked).toHaveLength(6);
   });
 
+  // Only an identity server's explicit answer that it does not know the
+  // client is "unknown": HTTP 400 invalid_client, as the Bitwarden cloud's
+  // Identity answers through Duende IdentityServer 7.4.6 for an unknown
+  // user.<id> or a secret that does not match (register.ts
+  // `unknownClientAnswer`). Every other refusal of a token request stays
+  // invalid-credentials without that mark; a rate limit, a 5xx and no answer
+  // keep their own reasons.
+  test("a token request's refusal is marked unknown only for HTTP 400 invalid_client", async () => {
+    const refusal = async (
+      answer: () => Promise<Response>,
+      path = "/identity/connect/token",
+    ) =>
+      vr
+        .vaultRequest({ fetch: answer }, "https://vault.bitwarden.eu", path, {
+          form: { grant_type: "client_credentials" },
+        })
+        .then(
+          () => "resolved",
+          (error) => {
+            const failure = error as vr.VaultwardenError;
+            return [failure.reason, failure.status, failure.unknownClient];
+          },
+        );
+    const json = (status: number, body: unknown) => async () =>
+      Response.json(body, { status });
+    expect(await refusal(json(400, { error: "invalid_client" }))).toEqual([
+      "invalid-credentials",
+      400,
+      true,
+    ]);
+    expect(
+      await refusal(
+        json(400, { error: "invalid_client", error_description: null }),
+      ),
+    ).toEqual(["invalid-credentials", 400, true]);
+    for (const [answer, status] of [
+      [
+        json(403, {
+          error: "access_denied",
+          error_description: "This account is blocked",
+        }),
+        403,
+      ],
+      [json(400, { error: "invalid_request" }), 400],
+      [json(400, { error: "invalid_grant" }), 400],
+      [json(400, { error: "unauthorized_client" }), 400],
+      [json(401, { error: "invalid_client" }), 401],
+      [json(400, ["invalid_client"]), 400],
+      [json(400, { message: "invalid_client" }), 400],
+      [async () => new Response("invalid_client", { status: 400 }), 400],
+      [
+        async () => new Response("<html>Forbidden</html>", { status: 403 }),
+        403,
+      ],
+    ] as const)
+      expect(await refusal(answer)).toEqual([
+        "invalid-credentials",
+        status,
+        false,
+      ]);
+    expect(await refusal(json(429, { message: "Too many" }))).toEqual([
+      "rate-limited",
+      429,
+      false,
+    ]);
+    expect(await refusal(json(502, { error: "invalid_client" }))).toEqual([
+      "unreachable",
+      502,
+      false,
+    ]);
+    expect(
+      await refusal(async () => {
+        throw new Error("connect ECONNREFUSED");
+      }),
+    ).toEqual(["unreachable", undefined, false]);
+    // Not a token request: never marked, whatever it says.
+    expect(
+      await refusal(
+        json(400, { error: "invalid_client" }),
+        "/identity/accounts/prelogin",
+      ),
+    ).toEqual(["unexpected", 400, false]);
+    expect(vr.unknownClientAnswer(400, { error: "invalid_client" })).toBe(true);
+    expect(vr.unknownClientAnswer(400, { error: "INVALID_CLIENT" })).toBe(
+      false,
+    );
+    expect(vr.unknownClientAnswer(400, null)).toBe(false);
+  });
+
   test("a second Free organization of an account that owns one is a fixed reason", async () => {
     const cloud = scripted({
       "/organizations": () =>

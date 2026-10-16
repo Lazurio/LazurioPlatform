@@ -765,9 +765,11 @@ it is the second wave (`unsupported`, `workstation`).
   and enters `client_id`, `client_secret` and the agents' master password once in
   Settings → Vault (`POST /api/vault/connect`, exactly those keys, at most 16 KiB,
   same origin). The Environment signs in with the API key at the EU's identity host,
-  and at the US's only where the EU's refuses it as unknown (both refusing is
-  `invalid-credentials`; a host that does not answer is `unreachable` and the other is
-  never tried in its place), and records the region that accepted it (never the
+  and at the US's only where the EU's identity server answers HTTP 400
+  `invalid_client`, its answer to an unknown key or a secret that does not match (both
+  answering so is `invalid-credentials`; any other refusal is `account-refused`, a rate
+  limit `rate-limited`, no answer or a 5xx `unreachable`, and the other region is never
+  tried in its place), and records the region that accepted it (never the
   password grant: API-key sign-ins are exempt from new-device verification); it reads
   the agents' address from the profile, refuses an account that owns or administers
   another organization (`owns-organization`; while an earlier connection's creation receipt

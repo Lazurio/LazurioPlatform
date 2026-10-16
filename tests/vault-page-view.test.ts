@@ -813,6 +813,11 @@ test("the connection's and the invitation's refusals: one sentence that says wha
       "Bitwarden did not accept this API key; copy it again.",
     ],
     [
+      "account-refused",
+      "Bitwarden tento účet nepřijal, zkontrolujte ho v Bitwardenu.",
+      "Bitwarden did not accept this account; check it in Bitwarden.",
+    ],
+    [
       "wrong-password",
       "Toto není hlavní heslo účtu pro agenty, zkuste to znovu.",
       "This is not the agents' account's master password; try again.",
