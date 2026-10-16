@@ -4481,8 +4481,8 @@ at all.
 | Mark absent in the catalog, leave it out of the Launchpad's lists (selected) | One filesystem fact, stated once; the CLI keeps the whole declaration; nobody sees a module they cannot open |
 
 **Addendum 2026-10-16, decided by Matěj (Organization Admin) after a partner
-Organization's Owner proposed Work / Administration groups (#428, #446): the
-Organization arranges its Workspace into tabs of its own.** Workspace and
+Organization's Owner proposed Work / Administration groups (#428, #446); root
+decision 0206: the Organization arranges its Workspace into tabs of its own.** Workspace and
 Productionspace stay. Inside Workspace an Organization may name its own tabs
 ("Každodenní práce", "Finance", "Sklad") and put each module into one of them,
 the same for every member. It does what Teams were once drawn for (point 2
@@ -4528,9 +4528,10 @@ the settings they applied last; so no Organization declares tabs before
 then;
 delivering the tabs through the Environment's relay (F45), which would show an
 Owner's change within about two minutes instead of after the next content
-synchronization; Lazurio Core's copy of the closed tree
-(`organization-settings-lib.mjs` and the schema's `$defs.organizationSettings`),
-upstream of this one. Shaping: [Workspace tabs](workspace-tabs.md).
+synchronization. Lazurio Core's copy of the closed tree
+(`organization-settings-lib.mjs` and the schema's `$defs.organizationSettings`)
+comes upstream with root decision 0206 (HumanAndMachines/Lazurio#561), with
+the same name pattern. Shaping: [Workspace tabs](workspace-tabs.md).
 
 | Alternative | Trade-off / disposition |
 | --- | --- |

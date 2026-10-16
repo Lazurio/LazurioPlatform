@@ -1,6 +1,6 @@
 # Workspace tabs: an Organization's own arrangement of its modules
 
-Decision: [F32's addendum of 2026-10-16](decisions.md). Related: #428 (hide
+Decision: [F32's addendum of 2026-10-16](decisions.md), root decision 0206. Related: #428 (hide
 auxiliary module tiles), #446 (the first proposal, Work / Administration per
 browser, whose tabs pattern and tests this builds on).
 
@@ -82,8 +82,9 @@ was made for this kind of Organization-wide choice and fails safe.
 
 ## Rollout order and next steps
 
-1. Lazurio Core: add `workspace.tabs` to `organization-settings-lib.mjs` and
-   the schema's `$defs.organizationSettings` (upstream of this contract).
+1. Lazurio Core: `workspace.tabs` in `organization-settings-lib.mjs` and the
+   schema's `$defs.organizationSettings`, upstream of this contract (root
+   decision 0206, HumanAndMachines/Lazurio#561).
 2. This Platform change, released to the Organization's Environments.
 3. Dashboard: validate the key, deliver it, and an editor in Nastavení
    Organizace → Moduly (create, rename, reorder, delete tabs; place modules),

@@ -75,10 +75,11 @@ export const launchpadCallbackPattern =
 export const microsoft365CallbacksMax = 255;
 
 /** A Workspace tab's name as an Organization's Admin writes it: 1 to 40
- * characters, no control character, no space at either end. */
+ * characters, no control character, no space at either end; the same
+ * pattern as Lazurio Core's and the manifest schema's (root decision 0206). */
 export const workspaceTabNamePattern =
   // biome-ignore lint/suspicious/noControlCharactersInRegex: the control characters are what it refuses.
-  /^(?=[^\u0000-\u001f\u007f]{1,40}$)\S(?:.*\S)?$/u;
+  /^(?=[^\u0000-\u001f\u007f]{1,40}$)[^\s\u0000-\u001f\u007f](?:.*[^\s\u0000-\u001f\u007f])?$/;
 /** A module of a tab, by its `lazurio.module.v1` id. */
 export const workspaceModulePattern = /^[a-z0-9][a-z0-9-]{0,62}$/;
 /** At most this many tabs: a row a person reads at a glance. */
