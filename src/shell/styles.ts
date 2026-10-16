@@ -87,7 +87,6 @@ ${switcherCss}
    (Matěj 2026-10-04): no border, no shadow, no line. */
 :host {
   --shell-surface: var(--lazurio-surface, var(--lz-paper));
-  --shell-host-tip-sub: color-mix(in srgb, var(--lazurio-surface) 70%, transparent);
 }
 :host { position: fixed; inset: 0 auto 0 0; z-index: 40; display: block; width: ${railWidth}; background: var(--shell-surface); }
 nav { display: flex; height: 100%; flex-direction: column; align-items: center; gap: 4px; padding: 12px 0; }
@@ -125,11 +124,10 @@ nav { display: flex; height: 100%; flex-direction: column; align-items: center; 
 /* With nobody signed in (F36's addendum of 2026-10-06) the sign-in key stands
    at the foot, where a person's account stands, in the items' colours. */
 .sign-in { margin-top: auto; }
-/* The rail's label floats above the page: the one shadow. */
+/* The rail's label floats above the page: the one shadow. It is the item's
+   name alone, one line (F36's addendum of 2026-10-16). */
 .tip { position: fixed; z-index: 60; display: grid; max-width: 260px; padding: 6px 10px; border-radius: var(--lz-radius-sm); background: var(--shell-inverse); color: var(--shell-inverse-ink); font-size: 13px; line-height: 1.3; pointer-events: none; transform: translateY(-50%); box-shadow: var(--lz-shadow-float); }
 .tip strong { font-weight: 600; }
-.tip span { color: var(--shell-host-tip-sub, rgb(255 255 255 / 70%)); font-size: 12px; }
-.tip span:empty { display: none; }
 `;
 
 export const columnHeadCss = `${hostTokens}

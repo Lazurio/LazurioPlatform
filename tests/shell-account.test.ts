@@ -501,9 +501,10 @@ test("spaces without an Environment: the rail shows the Organization's avatar, s
     ["Example", "Example Company", true],
     ["other-example", "Other Example", false],
   ]);
+  // Named alone, as every space (F36's addendum of 2026-10-16), and it
+  // leads to its Dashboard.
   const other = spaces[2];
   expect(other?.href).toBe("https://dashboard.lazurio.ai/orgs/other-example");
-  expect(other?.sub).toBe(en.spaceEmpty);
   expect(other?.avatar).toBe(
     "https://avatars.githubusercontent.com/u/720202?v=4",
   );
@@ -511,9 +512,8 @@ test("spaces without an Environment: the rail shows the Organization's avatar, s
   // same app where it has it, else Apps.
   expect(spaces[0]?.initials).toBe("A");
   expect(spaces[0]?.href).toBe("https://launchpad.ada.lazurio.io/");
-  expect(spaces[0]?.sub).toBe("1 Environment");
   // The example Organization now holds two Environments.
-  expect(spaces[1]?.sub).toBe("2 Environments");
+  expect(spaceEnvironments(merged, "Example")).toHaveLength(2);
   // ⌘⇧E lists the empty one with its Dashboard head, no row and "You have
   // no Environment here." under it. Under the picker "All Organizations"
   // leaves it out: the picker has no heads (F36's addendum of 2026-10-06).
@@ -587,7 +587,7 @@ test("the account's last Environment per space, by the merged space's id, only f
     ["personal", { environment: "ada", app: "apps" }],
     ["Example", { environment: "vm-03.example", app: "chat" }],
   ]);
-  // The rail leads there, with its "last" line.
+  // The rail leads there.
   const last = accountLastBySpace(merged, read);
   const spaces = railSpaces(merged, en, {
     here: "personal",
@@ -595,7 +595,6 @@ test("the account's last Environment per space, by the merged space's id, only f
     last: (space) => last.get(space) ?? null,
   });
   expect(spaces[1]?.href).toBe("https://t3code.vm-03.example.lazurio.io/");
-  expect(spaces[1]?.sub).toBe("2 Environments · last Work");
 });
 
 // An ambiguous Dashboard slug (Pablo's review of #166): two local
@@ -807,7 +806,7 @@ test("an account-side ambiguous slug never lends its last Environment to the loc
   });
   const example = spaces.find((space) => space.space === "Example");
   expect(example?.href).toBe("https://launchpad.vm-01.example.lazurio.io/");
-  expect(example?.sub).toBe("2 Environments");
+  expect(spaceEnvironments(merged, "Example")).toHaveLength(2);
   // A local-side ambiguity is gated the same way, even when its last names
   // a local Environment.
   const localSide = ambiguousLocal();

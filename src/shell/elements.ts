@@ -544,19 +544,19 @@ export class LazurioRail extends ShellElement {
     return shell.current === null ? null : this.app();
   }
 
-  private withTip<T extends HTMLElement>(node: T, title: string, sub: string) {
+  private withTip<T extends HTMLElement>(node: T, title: string) {
     node.dataset.tip = title;
-    node.dataset.tipSub = sub;
     return node;
   }
 
   /** The rail's own label: at once, beside the item under the pointer or
-   * the focus, two lines. Appended as the last child of `nav`. */
+   * the focus, the item's name alone (F36's addendum of 2026-10-16).
+   * Appended as the last child of `nav`. */
   private labelled(nav: HTMLElement): void {
     const tip = element("div", "tip");
     tip.setAttribute("role", "tooltip");
     tip.hidden = true;
-    tip.append(element("strong"), element("span"));
+    tip.append(element("strong"));
     this.tip = tip;
     nav.append(tip);
     const show = (event: Event) => {
@@ -567,9 +567,8 @@ export class LazurioRail extends ShellElement {
             node instanceof HTMLElement && node.dataset.tip !== undefined,
         );
       if (!target || !this.tip) return;
-      const [title, sub] = [...this.tip.children] as HTMLElement[];
+      const [title] = [...this.tip.children] as HTMLElement[];
       if (title) title.textContent = target.dataset.tip ?? "";
-      if (sub) sub.textContent = target.dataset.tipSub ?? "";
       const rect = target.getBoundingClientRect();
       this.tip.style.left = `${rect.right + 10}px`;
       this.tip.style.top = `${rect.top + rect.height / 2}px`;
@@ -597,7 +596,6 @@ export class LazurioRail extends ShellElement {
       const link = this.withTip(
         this.link(item.href, `item ${item.kind}`),
         item.label,
-        item.sub,
       );
       link.setAttribute("aria-label", item.label);
       link.append(item.kind === "home" ? logoDisc() : icon("key", 20));
@@ -663,17 +661,12 @@ export class LazurioRail extends ShellElement {
     const home = this.withTip(
       this.link(dashboard.href, "item home"),
       copy.dashboard,
-      copy.dashboardSub,
     );
     home.setAttribute("aria-label", copy.dashboard);
     if (dashboard.current) home.setAttribute("aria-current", "page");
     home.append(logoDisc());
 
-    const search = this.withTip(
-      element("button", "item search"),
-      copy.jump,
-      copy.jumpShortcut,
-    );
+    const search = this.withTip(element("button", "item search"), copy.jump);
     search.type = "button";
     search.setAttribute("aria-label", copy.jump);
     search.setAttribute("aria-keyshortcuts", "Meta+Shift+E Control+Shift+E");
@@ -686,7 +679,6 @@ export class LazurioRail extends ShellElement {
       const link = this.withTip(
         this.link(space.href, "item space"),
         space.title,
-        space.sub,
       );
       link.setAttribute("aria-label", space.title);
       if (space.active) link.setAttribute("aria-current", "true");
@@ -702,7 +694,6 @@ export class LazurioRail extends ShellElement {
       const add = this.withTip(
         this.link(shell.addOrganization, "item add"),
         copy.addOrganization,
-        "",
       );
       add.setAttribute("aria-label", copy.addOrganization);
       add.append(icon("plus", 16));
@@ -712,7 +703,6 @@ export class LazurioRail extends ShellElement {
     const account = this.withTip(
       this.link(shell.account, "item account"),
       copy.account,
-      copy.accountSub,
     );
     account.setAttribute("aria-label", copy.account);
     const photo = () => {
