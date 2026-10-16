@@ -23,6 +23,11 @@ shared session. When the handover gains `vault`, the Environment's own vault is 
 with the new account in a directory of its own, and this pilot's directory stays
 untouched for the move of its items (DEV-6631 task 649).
 
+A personal Environment whose pilot was never connected (`pilotConnected` is false)
+connects its person's own Bitwarden instead (root decision 0203 point 7,
+`../connection.ts`); a connected pilot keeps working as above and offers no such
+connection.
+
 ## Deletion condition
 
 Delete this folder when both hold:
@@ -30,7 +35,7 @@ Delete this folder when both hold:
 1. every Environment's handover carries `vault`, and
 2. DEV-6631 task 649 has moved every pilot's items into its Environment's own vault.
 
-Deleting it means removing this folder, the `pilotContextOf` fallback in `../host.ts`,
-the `context.kind === "pilot"` branches and the `PilotContext` member of
-`VaultHost.context` in `../flow.ts`, and the pilot tests
+Deleting it means removing this folder, the `pilotContextOf` and `pilotConnected`
+fallbacks in `../host.ts`, the `context.kind === "pilot"` branches and the
+`PilotContext` member of `VaultHost.context` in `../flow.ts`, and the pilot tests
 (`tests/vault-pilot.test.ts`). Nothing else depends on it.

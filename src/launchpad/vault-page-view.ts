@@ -138,7 +138,12 @@ export type VaultPageLinks = Readonly<{
 
 export function vaultPageLinks(status: VaultStatus | null): VaultPageLinks {
   const none = { add: null, open: null, account: null };
-  if (status === null || status.state === "unsupported") return none;
+  if (
+    status === null ||
+    status.state === "unsupported" ||
+    status.state === "needs-connection"
+  )
+    return none;
   const base = origin(status.vault);
   if (base === null) return none;
   const account = `${base}/#/login`;
@@ -232,6 +237,8 @@ function rowLine(
     case "failed":
       return { line: copy.vaultRowFailed, tone: "warn" };
     // Every state has its words: a new one fails to compile here.
+    case "needs-connection":
+      return { line: copy.vaultRowNeedsConnection, tone: "quiet" };
     case "unsupported":
       return { line: copy.vaultRowUnavailable, tone: "quiet" };
   }
@@ -286,6 +293,10 @@ export function vaultPageView(
             ? copy.vaultPageNoVault
             : copy.vaultRowUnavailable,
     });
+  // A personal Environment whose person has not connected their own
+  // Bitwarden yet (root decision 0203 point 7).
+  if (status.state === "needs-connection")
+    return view({ rule: false, note: copy.vaultPageNeedsConnection });
   // The vault's name; a 0197 pilot has none: the organization bw names.
   const named =
     status.name ??

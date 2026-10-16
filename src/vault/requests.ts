@@ -394,6 +394,9 @@ async function ownVault(host: VaultHost): Promise<Own> {
   const context = await host.context();
   if (context.kind === "unsupported")
     return { ok: false, reason: context.reason };
+  // A personal Environment whose person has not connected their Bitwarden.
+  if (context.kind === "needs-connection")
+    return { ok: false, reason: "not-connected" };
   if (context.kind === "pilot") return { ok: false, reason: "pilot-0197" };
   return { ok: true, context, paths: ownPaths(host, context) };
 }

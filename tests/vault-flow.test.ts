@@ -970,6 +970,7 @@ test("a Remote Environment without a vault refuses everything before anything ru
       const host_: VaultHost = {
         context: async () => ({ kind: "unsupported", reason }),
         directory: () => join(parent, "never"),
+        connection: join(parent, "never"),
         base: join(parent, "never"),
         bin: join(parent, "never"),
         home: parent,

@@ -258,7 +258,78 @@ test("the status in words names what is missing and never a secret", () => {
   ).toBe(
     `Connected the 0197 way (read only until this Environment's own vault replaces it): vaultwarden@example.lazurio.io in ${vaultOrigin}, collection ${collectionId} of Example Organization; it holds 2 items.`,
   );
+  // A personal Environment's own Bitwarden (root decision 0203 point 7):
+  // its person connects it; an agent never asks for its credentials.
+  const waiting = statusText({
+    kind: "vault-status",
+    state: "needs-connection",
+  });
+  expect(waiting).toContain("Settings → Vault");
+  expect(waiting).toContain("never ask for that account's credentials");
+  const personal = {
+    ...facts,
+    vault: "https://vault.bitwarden.eu",
+    account: "agents.example+lazurio@example.com",
+    name: "Osobní example",
+    region: "eu",
+  } as const;
+  expect(
+    statusText({
+      ...personal,
+      state: "failed",
+      stage: "vault",
+      reason: "free-organization-limit",
+      fallback: "agent",
+    }),
+  ).toContain("connects a new agents' account");
+  expect(
+    statusText({
+      kind: "vault-status",
+      state: "unsupported",
+      reason: "connection-unreadable",
+    }),
+  ).toContain("disconnect it");
 });
+
+test.skipIf(!posix)(
+  "setup on a personal Environment waiting for its person runs nothing and waits for them (exit 2)",
+  async () => {
+    const parent = await realpath(await mkdtemp(join(tmpdir(), "vault-cli-")));
+    try {
+      const context: VaultCliContext = {
+        identity: embeddedIdentity(),
+        platform: "linux",
+        env: {},
+        executable: process.execPath,
+        host: {
+          context: async () => ({ kind: "needs-connection" }),
+          directory: () => join(parent, "never"),
+          connection: join(parent, "never"),
+          base: join(parent, "never"),
+          bin: join(parent, "never"),
+          home: parent,
+          path: undefined,
+          platform: "linux",
+          arch: "x64",
+          run: async () => {
+            throw new Error("nothing may run");
+          },
+        },
+      };
+      const setup = await runVaultCommand(["setup", "--json"], context);
+      expect(setup.code).toBe(2);
+      expect(JSON.parse(setup.stdout ?? "")).toEqual({
+        kind: "vault-status",
+        state: "needs-connection",
+      });
+      const env = await runVaultCommand(["env"], context);
+      expect(env.code).toBe(2);
+      expect(env.stdout).toBeUndefined();
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
 
 test("a wrong invocation is a usage error with the help", async () => {
   const context: VaultCliContext = {
@@ -271,6 +342,7 @@ test("a wrong invocation is a usage error with the help", async () => {
         throw new Error("nothing may be read");
       },
       directory: () => "/nonexistent",
+      connection: "/nonexistent",
       base: "/nonexistent",
       bin: "/nonexistent",
       home: "/nonexistent",

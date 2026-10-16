@@ -1107,6 +1107,7 @@ const en = {
   vaultRowUnreachable: "The vault does not answer",
   vaultRowFailed: "The setup did not finish",
   vaultRowNoVault: "This Environment has no vault yet",
+  vaultRowNeedsConnection: "Waiting for your Bitwarden",
   vaultRowSecondWave: "Soon · second wave",
   vaultRowUnavailable: "Not available in this Environment",
   vaultPhaseInstall: "Installing Bitwarden…",
@@ -1125,6 +1126,8 @@ const en = {
     "Whoever has access to the Environment has all of its passwords.",
   vaultPageWorkstation: "There is no vault on this computer yet.",
   vaultPageNoVault: "This Environment has no vault yet.",
+  vaultPageNeedsConnection:
+    "This personal Environment keeps its agents' passwords in your own Bitwarden. Connect it here.",
   vaultPageAgentsOnly: "Only this Environment's agents use its vault for now.",
   vaultPageGuide:
     "Does an agent need a password or a key? Tell it in Chat. It asks for the value here, you fill it in, and it goes straight into the vault.",
@@ -2646,6 +2649,7 @@ const cs: Record<MessageKey, string> = {
   vaultRowUnreachable: "Trezor neodpovídá",
   vaultRowFailed: "Nastavení se nedokončilo",
   vaultRowNoVault: "Toto Prostředí zatím trezor nemá",
+  vaultRowNeedsConnection: "Čeká na váš Bitwarden",
   vaultRowSecondWave: "Brzy · druhá vlna",
   vaultRowUnavailable: "V tomto Prostředí není k dispozici",
   vaultPhaseInstall: "Instaluje se Bitwarden…",
@@ -2661,6 +2665,8 @@ const cs: Record<MessageKey, string> = {
   vaultPageRule: "Kdo má přístup do Prostředí, má všechna jeho hesla.",
   vaultPageWorkstation: "Trezor na tomto počítači zatím není.",
   vaultPageNoVault: "Toto Prostředí zatím trezor nemá.",
+  vaultPageNeedsConnection:
+    "Toto osobní Prostředí ukládá hesla svých agentů do vašeho vlastního Bitwardenu. Připojte ho tady.",
   vaultPageAgentsOnly:
     "Trezor tohoto Prostředí zatím používají jen jeho agenti.",
   vaultPageGuide:

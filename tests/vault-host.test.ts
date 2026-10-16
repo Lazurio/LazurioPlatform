@@ -29,7 +29,10 @@ import personal from "./fixtures/machine-context-personal.json";
 // The production composition of the Environment vault's facts (decisions
 // F43, F53) on real files: a root-issued handover and a hosted Folder under a
 // private root, read as `lazurio vault` and the Launchpad read them. Only the
-// handover's place and the operator's system record are this test's.
+// handover's place and the operator's system record are this test's. A
+// personal Environment whose handover names no vault keeps its vault in its
+// person's own Bitwarden (root decision 0203 point 7): connected, a
+// connected 0197 pilot as before, or waiting for its person.
 
 const posix = process.platform !== "win32";
 const uid = process.getuid?.() ?? -1;
@@ -84,6 +87,8 @@ async function machine(of: keyof typeof documents, handover = true) {
     machine: binding(documents[of]),
     profile: presetProfile(presets[of], executionOs(process.platform)),
   });
+  // The custody of the accounts and the personal connection.
+  const state = join(parent, "state");
   const sources = (username = "operator"): HostedOperatorSources => ({
     handover: { platform: "linux", root, custodian: uid },
     operator: async () =>
@@ -97,8 +102,16 @@ async function machine(of: keyof typeof documents, handover = true) {
   return {
     folder,
     sources,
+    directory: (host: string, key: string) => join(state, host, key),
+    connection: join(state, "personal"),
     close: () => rm(parent, { recursive: true, force: true }),
   };
+}
+
+/** A file of the custody, as the Platform writes it. */
+async function custody(path: string, value: unknown) {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  await writeFile(path, JSON.stringify(value), { mode: 0o600 });
 }
 
 test.skipIf(!posix || uid === 0)(
@@ -110,6 +123,8 @@ test.skipIf(!posix || uid === 0)(
         platform: "linux",
         home: "/home/operator",
         sources: vm.sources(),
+        directory: vm.directory,
+        connection: vm.connection,
       });
     const vms = {
       personal: await machine("personal"),
@@ -135,6 +150,30 @@ test.skipIf(!posix || uid === 0)(
         environment: "team",
         organization: "example",
       });
+      // A personal Environment that was never connected the 0197 way: its
+      // person connects their own Bitwarden.
+      expect(await read(vms.personalPilot)).toEqual({
+        kind: "needs-connection",
+      });
+      // Connected the 0197 way: the pilot, read as before.
+      const pilot = vms.personalPilot.directory(
+        "vaultwarden.example.lazurio.io",
+        "example.lazurio.io",
+      );
+      await custody(join(pilot, "bw", "lazurio-account.json"), {
+        email: "vaultwarden@example.lazurio.io",
+        server: "https://vaultwarden.example.lazurio.io",
+        deviceIdentifier: "0b9e2f3a-5c1d-4e8f-9a7b-1c2d3e4f5a6b",
+        masterPassword: "a".repeat(43),
+        createdAt: "2026-10-01T00:00:00.000Z",
+        clientId: "user.6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d",
+        clientSecret: "a1b2c3d4e5f6a1b2",
+      });
+      await custody(join(pilot, "bw", "lazurio-vault.json"), {
+        organizationId: "0b9e2f3a-5c1d-4e8f-9a7b-1c2d3e4f5a6b",
+        collectionId: "6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d",
+        fingerprint: "invented-fingerprint-phrase",
+      });
       expect(await read(vms.personalPilot)).toEqual({
         kind: "pilot",
         vault: "https://vaultwarden.example.lazurio.io",
@@ -143,6 +182,33 @@ test.skipIf(!posix || uid === 0)(
         account: "vaultwarden@example.lazurio.io",
         environment: "personal",
         organization: null,
+      });
+      await rm(pilot, { recursive: true });
+      // Connected to its person's own Bitwarden: the agents' account in the
+      // region, the organization "Osobní <owner's login>", the person's
+      // own account to invite.
+      const connection = join(vms.personalPilot.connection, "connection.json");
+      await custody(connection, {
+        region: "eu",
+        account: "agents.example+lazurio@example.com",
+        invitee: "person@example.com",
+      });
+      expect(await read(vms.personalPilot)).toEqual({
+        kind: "own",
+        vault: "https://vault.bitwarden.eu",
+        host: "vault.bitwarden.eu",
+        account: "agents.example+lazurio@example.com",
+        name: "Osobní example",
+        environment: "personal",
+        organization: null,
+        assignment: null,
+        bitwarden: { region: "eu", invitee: "person@example.com" },
+      });
+      // A connection that does not read is never guessed.
+      await writeFile(connection, '{"region":"eu"}');
+      expect(await read(vms.personalPilot)).toEqual({
+        kind: "unsupported",
+        reason: "connection-unreadable",
       });
       expect(await read(vms.teamPilot)).toMatchObject({
         kind: "pilot",
@@ -170,6 +236,8 @@ test.skipIf(!posix || uid === 0)(
           platform: "linux",
           home: "/home/operator",
           sources: vm.sources(),
+          directory: vm.directory,
+          connection: vm.connection,
           ...input,
         });
       const refused = (reason: VaultUnsupportedReason): VaultUnsupported => ({

@@ -80,7 +80,7 @@ async function pilotRecord(
  * address. Null when it was never connected (or was disconnected): then the
  * Environment has no vault yet. */
 async function pilotOf(
-  host: VaultHost,
+  host: Pick<VaultHost, "directory">,
   context: PilotContext,
 ): Promise<Pilot | null> {
   const paths = vaultPaths(host.directory(context.host, context.address));
@@ -94,6 +94,18 @@ async function pilotOf(
     return null;
   const record = await pilotRecord(paths);
   return record === null ? null : { paths, account, ...record };
+}
+
+/** Whether this Environment was connected the 0197 way and still is: read by
+ * the production composition (`../host.ts`), so that a personal Environment
+ * whose pilot was never connected connects its person's own Bitwarden
+ * instead (root decision 0203 point 7), while a connected pilot keeps
+ * working as before. */
+export async function pilotConnected(
+  directory: VaultHost["directory"],
+  context: PilotContext,
+): Promise<boolean> {
+  return (await pilotOf({ directory }, context)) !== null;
 }
 
 const factsOf = (context: PilotContext): VaultFacts => ({

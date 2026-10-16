@@ -275,3 +275,54 @@ test("the row opens the connected vault and offers one action only where a setup
     ),
   ).toBeNull();
 });
+
+// A personal Environment's own Bitwarden (root decision 0203 point 7): the
+// state while its person has not connected it, its region, and the record
+// of a connection that does not read.
+test("a personal Environment's own Bitwarden is read with its region; one waiting for its person offers no setup", () => {
+  const needs = { kind: "vault-status", state: "needs-connection" } as const;
+  expect(parseVaultStatus(needs)).toEqual(needs);
+  expect(
+    parseVaultStatus({
+      kind: "vault-status",
+      state: "unsupported",
+      reason: "connection-unreadable",
+    }),
+  ).toMatchObject({ reason: "connection-unreadable" });
+  const bitwarden = {
+    ...facts,
+    vault: "https://vault.bitwarden.eu",
+    account: "agents.example+lazurio@example.com",
+    name: "Osobní example",
+    region: "eu",
+  };
+  expect(
+    parseVaultStatus({ kind: "vault-status", ...bitwarden, ...connected }),
+  ).toEqual({
+    kind: "vault-status",
+    ...bitwarden,
+    ...connected,
+  } as VaultStatus);
+  for (const refused of [
+    { kind: "vault-status", ...bitwarden, region: "de", ...connected },
+    { kind: "vault-status", ...bitwarden, region: null, ...connected },
+  ])
+    expect([refused, parseVaultStatus(refused)]).toEqual([refused, null]);
+  const waiting = parseVaultStatus(needs);
+  expect(vaultRowLine(waiting, null, cs)).toEqual({
+    text: "Čeká na váš Bitwarden",
+    state: "unknown",
+  });
+  expect(vaultRowLine(waiting, null, en)).toEqual({
+    text: "Waiting for your Bitwarden",
+    state: "unknown",
+  });
+  expect(vaultAction(waiting, null, cs)).toBeNull();
+  expect(vaultOpenLink(waiting)).toBeNull();
+  // Connected, it opens in the region's web vault.
+  expect(
+    vaultOpenLink(
+      parseVaultStatus({ kind: "vault-status", ...bitwarden, ...connected }),
+    ),
+  ).toBe(`https://vault.bitwarden.eu/#/vault?organizationId=${organizationId}`);
+});

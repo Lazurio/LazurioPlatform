@@ -1098,6 +1098,14 @@ export function fakeHost(
   return {
     context: input.context ?? (async () => ownContext()),
     directory: (host, key) => stateDirectory(input.home, host, key),
+    connection: join(
+      input.home,
+      ".local",
+      "state",
+      "lazurio",
+      "vault",
+      "personal",
+    ),
     base: join(input.home, ".local", "share", "lazurio"),
     bin: join(input.home, ".local", "bin"),
     home: input.home,

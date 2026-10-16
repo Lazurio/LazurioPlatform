@@ -93,7 +93,12 @@ export function createVaultPageRoutes(
       kind: "vault-page",
       status,
       setup: input.setup(),
-      environment: context.kind === "unsupported" ? null : context.environment,
+      environment:
+        context.kind === "unsupported"
+          ? null
+          : context.kind === "needs-connection"
+            ? "personal"
+            : context.environment,
     };
   }
 

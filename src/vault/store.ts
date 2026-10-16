@@ -5,6 +5,7 @@ import {
   lstat,
   mkdir,
   open,
+  readdir,
   readFile,
   rm,
 } from "node:fs/promises";
@@ -12,6 +13,7 @@ import { join } from "node:path";
 import { acquireFileLock, type FileLock } from "../platform/flock";
 import { parseUniqueJson } from "../providers/unique-json";
 import { syncDirectory, writeDurableFile } from "../update/durable-file";
+import { bitwardenRegionOf } from "./endpoints";
 
 // The custody of one Environment vault account (decisions F43 and F53): the
 // files the account needs on this Environment and nothing else, written by
@@ -105,31 +107,70 @@ export function plainObject(input: unknown): Record<string, unknown> | null {
     : null;
 }
 
+/** The address of an account a person entered (root decision 0203 point 7):
+ * any ordinary address, as Bitwarden keeps it lowercased; a dot or a plus is
+ * fine, a slash or white space never (it also names a directory). */
+export const isEnteredEmail = (value: unknown): value is string =>
+  typeof value === "string" &&
+  value.length <= 254 &&
+  /^[a-z0-9_%+-]+(?:\.[a-z0-9_%+-]+)*@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(
+    value,
+  ) &&
+  value.indexOf("@") <= 64;
+
+/** The master password of an account a person entered: theirs, 1 to 1024
+ * characters on one line (bw reads the first line of `--passwordfile`), no
+ * control character. */
+export const isEnteredPassword = (value: unknown): value is string =>
+  typeof value === "string" &&
+  value.length >= 1 &&
+  value.length <= 1024 &&
+  !/\p{Cc}/u.test(value);
+
 /** The account file, only in its exact form; anything else is refused, and
  * nothing of it is ever echoed. Whose account it is, every caller checks
- * against its own context (the handover's `vault.account`, or a 0197
- * pilot's `vaultwarden@<address>`). */
+ * against its own context (the handover's `vault.account`, a 0197 pilot's
+ * `vaultwarden@<address>`, or the agents' account a personal Environment's
+ * person connected). An account in a Bitwarden cloud region is one a person
+ * entered (root decision 0203 point 7): its address and master password are
+ * the person's, by `isEnteredEmail` and `isEnteredPassword`; any other is
+ * one generated here, by the stricter rules of its generation. */
 export function parseAccount(input: unknown): VaultAccount {
   const value = plainObject(input);
   if (value === null) throw new Error("Invalid vault account");
   for (const key of Object.keys(value))
     if (!(accountKeys as readonly string[]).includes(key))
       throw new Error("Invalid vault account");
-  const text = (key: string, pattern: RegExp) => {
+  const text = (key: string, valid: (field: string) => boolean) => {
     const field = value[key];
-    if (typeof field !== "string" || !pattern.test(field))
+    if (typeof field !== "string" || !valid(field))
       throw new Error("Invalid vault account");
     return field;
   };
+  const pattern = (expression: RegExp) => (field: string) =>
+    expression.test(field);
+  const server = text(
+    "server",
+    pattern(/^https:\/\/[a-z0-9.-]{1,240}(?::\d{1,5})?$/),
+  );
+  const entered = bitwardenRegionOf(server) !== null;
   const account: VaultAccount = {
-    email: text("email", /^[a-z0-9](?:[a-z0-9-]{0,62})@[a-z0-9.-]{1,240}$/),
-    server: text("server", /^https:\/\/[a-z0-9.-]{1,240}(?::\d{1,5})?$/),
+    email: text(
+      "email",
+      entered
+        ? isEnteredEmail
+        : pattern(/^[a-z0-9](?:[a-z0-9-]{0,62})@[a-z0-9.-]{1,240}$/),
+    ),
+    server,
     deviceIdentifier: text(
       "deviceIdentifier",
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      pattern(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
     ),
-    masterPassword: text("masterPassword", /^[A-Za-z0-9_-]{43,128}$/),
-    createdAt: text("createdAt", /^\d{4}-\d\d-\d\dT[0-9:.]+Z$/),
+    masterPassword: text(
+      "masterPassword",
+      entered ? isEnteredPassword : pattern(/^[A-Za-z0-9_-]{43,128}$/),
+    ),
+    createdAt: text("createdAt", pattern(/^\d{4}-\d\d-\d\dT[0-9:.]+Z$/)),
   };
   const withKey = value.clientId !== undefined;
   if (withKey !== (value.clientSecret !== undefined))
@@ -137,8 +178,8 @@ export function parseAccount(input: unknown): VaultAccount {
   if (!withKey) return Object.freeze(account);
   return Object.freeze({
     ...account,
-    clientId: text("clientId", /^user\.[0-9a-f-]{36}$/),
-    clientSecret: text("clientSecret", /^[A-Za-z0-9]{8,128}$/),
+    clientId: text("clientId", pattern(/^user\.[0-9a-f-]{36}$/)),
+    clientSecret: text("clientSecret", pattern(/^[A-Za-z0-9]{8,128}$/)),
   });
 }
 
@@ -223,6 +264,36 @@ export async function completeAccount(
   const ready = parseAccount({ ...current, ...key }) as ReadyAccount;
   await writeDurableFile(paths.data, "lazurio-account.json", serialize(ready));
   return ready;
+}
+
+/** The agents' account a personal Environment's person entered (root
+ * decision 0203 point 7), written whole, and only once its vault accepted
+ * the API key and the master password opened its keys. A file of the same
+ * account from before is replaced: the person holds the account's
+ * credentials, so this file is never their only copy. */
+export async function writeEnteredAccount(
+  paths: VaultPaths,
+  account: ReadyAccount,
+): Promise<void> {
+  const parsed = parseAccount(account);
+  if (!isReady(parsed) || bitwardenRegionOf(parsed.server) === null)
+    throw new Error("Not an entered vault account");
+  await writeDurableFile(paths.data, "lazurio-account.json", serialize(parsed));
+}
+
+/** A personal Environment's own Bitwarden disconnected (root decision 0203
+ * point 7): the account's credentials, its one session and everything bw
+ * keeps in its data directory (its store keeps the API key) leave this
+ * Environment. The record of its vault and the agents' requests stay
+ * (neither is secret), so connecting the same account again finds its vault
+ * instead of asking the cloud for a second one. */
+export async function forgetEnteredAccount(paths: VaultPaths): Promise<void> {
+  const kept = new Set(["lazurio-vault.json"]);
+  const entries = await readdir(paths.data).catch(() => [] as string[]);
+  for (const name of entries)
+    if (!kept.has(name))
+      await rm(join(paths.data, name), { recursive: true, force: true });
+  await syncDirectory(paths.data).catch(() => undefined);
 }
 
 /** A registration the vault refused, of a password generated in the same
