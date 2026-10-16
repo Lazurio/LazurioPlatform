@@ -19,7 +19,7 @@ import {
 import { messages } from "../src/launchpad/messages";
 import { organizationRule } from "../src/launchpad/tools-view";
 import { readFolderCatalog } from "../src/organizations/catalog";
-import { selectCatalogOrganization } from "../src/organizations/catalog-selection";
+import { selectOwnerOrganization } from "../src/organizations/catalog-selection";
 import { embeddedIdentity } from "../src/update/identity";
 import { writeOrganization } from "./fixtures/catalog-folder";
 import {
@@ -145,16 +145,17 @@ test("the rule: an Organization's Environment by its Organization's name, unveri
 // The Machine handover names the owner by its lowercased GitHub login; a
 // manifest keeps its capitals (a real Environment of rc.65: owner `example`,
 // slug and login `Example`). The owner is the Organization that Organization
-// settings select (F45, `selectCatalogOrganization`): by its slug whatever the
-// case, else by the GitHub login its manifest binds, else by its directory;
-// both read the one shared rule (Pablo's review of #398), so a login-only
-// owner (slug `Example`, login `ExampleCo`) names the same Organization in
-// both, and two slugs answering the owner select nothing.
+// settings select (F45, `selectOwnerOrganization`): by the GitHub login its
+// manifest binds whatever the case, by its slug only where it binds none, else
+// by its directory; both read the one owner rule (Pablo's review of #398), so
+// a login-only owner (slug `Example`, login `ExampleCo`) names the same
+// Organization in both, another Organization's slug never takes the owner
+// (Pablo's review of #457), and two candidates select nothing.
 test("the rule takes the owning Organization that Organization settings select (F45), whatever the case", async () => {
   const owner = bindings.organization.owner;
   if (owner.kind !== "organization") throw new Error("organization binding");
   const agree = async (folder: string) => {
-    const selection = selectCatalogOrganization(
+    const selection = selectOwnerOrganization(
       await readFolderCatalog(folder),
       owner.organization,
     );
@@ -187,6 +188,30 @@ test("the rule takes the owning Organization that Organization settings select (
   expect(await agree(byLogin)).toEqual({
     kind: "named",
     name: "Example Corp",
+  });
+
+  // The owner's login is another Organization's slug (Pablo's review of
+  // #457): the Organization bound to the login owns the Machine; the one
+  // whose slug it is binds another login and is never taken for it.
+  const slugOfAnother = join(await parent(), "Lazurio");
+  await mkdir(slugOfAnother, { recursive: true, mode: 0o700 });
+  await writeOrganization(slugOfAnother, "Alpha_GEN3", {
+    slug: "Alpha",
+    forge: "Example",
+    state: "current",
+    modules: [],
+    displayName: "Alpha Org",
+  });
+  await writeOrganization(slugOfAnother, "Example_GEN3", {
+    slug: "Example",
+    forge: "OtherLogin",
+    state: "current",
+    modules: [],
+    displayName: "Other Org",
+  });
+  expect(await agree(slugOfAnother)).toEqual({
+    kind: "named",
+    name: "Alpha Org",
   });
 
   // Two manifests binding the same login select nothing: neither is guessed.
