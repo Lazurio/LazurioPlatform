@@ -2468,14 +2468,15 @@ Organization's, and it gets none of it.
   - the content from the content routes (`content-client.ts`, `content-view.ts`).
 - **Nastavení → Začínáme** (`/settings/start`, first in the Settings column with the
   count "1/3" while a basic is missing; `start-view.ts`, `start-panel.ts`): "Hotovo
-  {n} ze 3 kroků." (all there: "Prostředí je připravené. Sem se můžete kdykoli
-  vrátit."), then "Povinné kroky":
+  {n} ze 3 kroků." (all there: "Prostředí je připravené."), then "Povinné kroky". Each
+  row is its title, its action and its state, with at most one short line where the
+  title alone does not say what it is for (F36's addendum of 2026-10-16):
   1. **Připojit AI** (`ai-sign-in.ts` holds the sign-in in the page): "Zajišťuje vaše
-     Organizace." (done, nothing runs); "Agent vám pak pomůže s dalšími kroky." (or that
-     it could not be checked) with "Přihlásit ChatGPT" and "Přihlásit Claude", and on a
-     Remote Environment before them "Připravte si heslo k ChatGPT nebo Claude (případně
-     ke Googlu) a telefon, protože správce hesel ani passkey z počítače tu nefungují.";
-     signing in, "Dokončete přihlášení k {ChatGPT|Claude} v prohlížeči vpravo." (the
+     Organizace." (done, nothing runs); otherwise only the title and "Přihlásit ChatGPT"
+     and "Přihlásit Claude", each with its mark before its name (Claude's simple-icons
+     mark, the sprite's `i-claude`; ChatGPT's first letter, as Integrace draws a brand
+     simple-icons does not carry), nothing said before them (where the AI could not be
+     checked, that line); signing in, "Dokončete přihlášení k {ChatGPT|Claude} v prohlížeči vpravo." (the
      right panel opens on the Environment browser's tab, as for Integrace) or "… v okně
      prohlížeče." (a workstation, whose CLI opens the computer's browser), with
      "Otevřít přihlášení" and "Zrušit", and for Claude's code page one field for its
@@ -2485,8 +2486,9 @@ Organization's, and it gets none of it.
      open it) with "Zkusit znovu"; a T3 Code that did not turn the provider on, said
      beside the account; and without the Environment browser "Přihlášení tu teď nejde
      otevřít.", nothing started. Signed in, the page reads `GET /api/ai?fresh=1` at once;
-  2. **GitHub**: "Připojeno jako @login", or "Připojit" (gh's own sign-in dialog of
-     Nástroje), offered only once AI is there ("Nabídne se po připojení AI.");
+  2. **GitHub**: "Připojeno jako @login", or "Zpřístupní vaše repozitáře a moduly." with
+     "Připojit" (gh's own sign-in dialog of Nástroje), enabled only once AI is there;
+     before, the step waits under its number;
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
      rows inside the step (the same `content-panel.ts` as Toto Prostředí draws).
      Once this view saw GitHub or the AI arrive (from missing to there; what was there
@@ -2495,7 +2497,8 @@ Organization's, and it gets none of it.
      (`autoStartStep`: in memory only, never after a stop, never during a run). Nothing
      starts it before its turn (`contentBlockedBy`): without AI or GitHub neither the
      download nor "Zkusit znovu" is offered, only "Nabídne se po připojení AI." or
-     "Spustí se samo po připojení GitHubu."; a start request in the address follows
+     "Spustí se samo po připojení GitHubu." in Toto Prostředí, and nothing in Začínáme,
+     whose numbered steps say the order (`turn`); a start request in the address follows
      `startDecision`; and `POST /api/content/install` refuses with `403`
      `"reason": "ai-missing"` while the AI is provably missing. An AI that could not be
      checked holds nothing back.
@@ -2506,7 +2509,7 @@ Organization's, and it gets none of it.
   Environment SSH z vlastního počítače, "Nastaveno" once a device's key was added here,
   and Codex Desktop, both leading to Settings → SSH) and "Prohlídka aplikace" ("Spustit
   prohlídku" / "Spustit znovu" starts the introduction in Apps). A Team or Automated
-  Environment's Začínáme says only that its Organization prepares it.
+  Environment's Začínáme says only "Tady není co nastavovat.".
 - **The line in Apps** (`appsSetupLine`): until the basics exist, one line under the
   head, the next missing basic first: "AI není připojené." · "Připojit AI";
   "GitHub není připojený." · "Připojit GitHub"; "<Organizace> tu ještě není." ·
