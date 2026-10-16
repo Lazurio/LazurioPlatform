@@ -1011,6 +1011,72 @@ test("every picture a step names is in the page once per language, a small 2x We
     }
 });
 
+// Bitwarden's own screens of the connection's two steps (F53's amendment of
+// 2026-10-16, (2)): each in the page once per language, the small 2x WebP of
+// the size the page declares; how the steps look is checked in a browser
+// (root decision 0178).
+test("every picture the connection's steps show is in the page once per language, a small 2x WebP of the declared size", () => {
+  const html = readFileSync(
+    new URL("../src/launchpad/index.html", import.meta.url),
+    "utf8",
+  );
+  const start = html.indexOf('<div id="vault-connect-pictures" hidden>');
+  expect(start).toBeGreaterThan(0);
+  const block = html.slice(start, html.indexOf("</div>", start));
+  const pictures = [...block.matchAll(/<img ([^>]*)>/g)].map(
+    (match) =>
+      new Map(
+        [...(match[1] as string).matchAll(/([a-z-]+)="([^"]*)"/g)].map(
+          (pair) => [pair[1] as string, pair[2] as string],
+        ),
+      ),
+  );
+  // The slots of the steps, in the section's markup, name the same pictures.
+  const section = html.slice(
+    html.indexOf('<section class="group" id="vault-connect"'),
+    start,
+  );
+  const slots = [...section.matchAll(/data-shot="([^"]+)"/g)].map(
+    (match) => match[1],
+  );
+  const named = connectionPictures("Osobní example", cs).steps.map(
+    (step) => step.name,
+  );
+  expect(named).toEqual(["signup", "api-key"]);
+  expect(slots).toEqual(named);
+  expect(pictures).toHaveLength(named.length * 2);
+  for (const name of named)
+    for (const locale of ["cs", "en"]) {
+      const found = pictures.filter(
+        (picture) =>
+          picture.get("data-picture") === name &&
+          picture.get("data-locale") === locale,
+      );
+      expect(found).toHaveLength(1);
+      const [picture] = found as [Map<string, string>];
+      expect(picture.get("src")).toBe(
+        `./images/bitwarden-${name}-${locale}.webp`,
+      );
+      expect(picture.get("alt")).toBe("");
+      expect(picture.get("loading")).toBe("lazy");
+      const file = readFileSync(
+        new URL(
+          `../src/launchpad/images/bitwarden-${name}-${locale}.webp`,
+          import.meta.url,
+        ),
+      );
+      expect(file.length).toBeLessThan(64 * 1024);
+      // RIFF, WEBP and the extended header, whose canvas is twice the
+      // declared size.
+      expect(file.subarray(0, 4).toString("latin1")).toBe("RIFF");
+      expect(file.subarray(8, 16).toString("latin1")).toBe("WEBPVP8X");
+      expect([file.readUIntLE(24, 3) + 1, file.readUIntLE(27, 3) + 1]).toEqual([
+        2 * Number(picture.get("width")),
+        2 * Number(picture.get("height")),
+      ]);
+    }
+});
+
 // Bitwarden in Codex Desktop and the person's own browser (F53's addendum of
 // 2026-10-16, plan DEV-6665): the steps under "V Codex Desktopu a ve vašem
 // prohlížeči" on Nastavení → Trezor, for an Organization's Lazurio

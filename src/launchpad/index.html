@@ -546,9 +546,10 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .vault-connect-field label { color: var(--fg); font-size: 13.5px; font-weight: var(--lz-weight-akce); }
 .vault-connect-field input { width: min(26rem, 100%); font-family: var(--font-mono); font-size: 13px; }
 .vault-connect-submit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.vault-invite { display: grid; gap: 10px; }
 .vault-invite[hidden] { display: none; }
-.vault-invite input { width: min(20rem, 100%); }
+.vault-invite-field { display: grid; gap: 6px; }
+.vault-invite-field .vault-request-value { margin-top: 4px; }
+.vault-invite input { width: min(20rem, 100%); font-family: inherit; font-size: 14px; }
 .vault-disconnect { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
 .vault-disconnect[hidden] { display: none; }
 /* The vault in the Bitwarden extension of Codex Desktop and the person's
@@ -1337,7 +1338,7 @@ button:not(.primary) .provider-openai { color: #000000; }
 <!-- The invitation a personal Environment's person may ask for once their
      own Bitwarden is connected (F53's amendment of 2026-10-16, (2)): one
      question, one address, one button; drawn by vault-page-panel.ts. -->
-<form class="card vault-invite" id="vault-invite" novalidate hidden><div class="row"><div class="vault-connect-field"><p class="row-title" data-message="vaultInviteTitle">Want to see your agents' passwords in your own Bitwarden too?</p><label for="vault-invite-email" class="row-desc" data-message="vaultInviteEmail">Your Bitwarden e-mail</label><span class="vault-request-value"><input id="vault-invite-email" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="254"><button type="submit" class="primary" id="vault-invite-submit" disabled>Invite me</button></span><p class="vault-request-error" id="vault-invite-error" role="alert"></p></div></div></form>
+<form class="card vault-invite" id="vault-invite" novalidate hidden><div class="row"><div class="vault-invite-field"><p class="row-title" data-message="vaultInviteTitle">Want to see your agents' passwords in your own Bitwarden too?</p><label for="vault-invite-email" class="row-desc" data-message="vaultInviteEmail">Your Bitwarden e-mail</label><span class="vault-request-value"><input id="vault-invite-email" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="254"><button type="submit" class="primary" id="vault-invite-submit" disabled>Invite me</button></span><p class="vault-request-error" id="vault-invite-error" role="alert"></p></div></div></form>
 <div class="vault-disconnect" id="vault-page-disconnect" hidden><p class="group-note" data-message="vaultDisconnectNote">The vault and its passwords stay in Bitwarden.</p><button type="button" id="vault-disconnect" data-message="vaultDisconnect">Disconnect Bitwarden</button></div>
 </section>
 <!-- The vault in the Bitwarden extension of Codex Desktop and the person's
@@ -1384,6 +1385,11 @@ button:not(.primary) .provider-openai { color: #000000; }
 </div></li>
 </ol>
 </form>
+<!-- Bitwarden's own screens (its web vault 2026.10.0 and 2026.7.0, the
+     same words; fictional values), the place to fill in ringed; bundled with
+     the page, never shown here: a step shows a copy in the page's language
+     once the section shows. -->
+<div id="vault-connect-pictures" hidden><img data-picture="signup" data-locale="cs" src="./images/bitwarden-signup-cs.webp" width="380" height="448" alt="" loading="lazy" decoding="async"><img data-picture="signup" data-locale="en" src="./images/bitwarden-signup-en.webp" width="380" height="427" alt="" loading="lazy" decoding="async"><img data-picture="api-key" data-locale="cs" src="./images/bitwarden-api-key-cs.webp" width="380" height="277" alt="" loading="lazy" decoding="async"><img data-picture="api-key" data-locale="en" src="./images/bitwarden-api-key-en.webp" width="380" height="277" alt="" loading="lazy" decoding="async"></div>
 </section>
 <!-- One agent's secret request (/settings/vault/requests/<id>, decision
      F54): on its route it alone shows of this section (`data-request`),
