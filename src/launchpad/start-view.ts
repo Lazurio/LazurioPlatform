@@ -365,7 +365,7 @@ export function startCount(facts: TourFacts): string | null {
 /** One optional row: its title, one sentence, its state in a word, and
  * where its button leads (a Settings path) or what it opens. */
 export type OptionalRow = Readonly<{
-  id: "composio" | "ssh" | "codex";
+  id: "composio" | "ssh" | "bitwarden" | "codex";
   title: string;
   text: string;
   status: string | null;
@@ -373,18 +373,26 @@ export type OptionalRow = Readonly<{
   action: Readonly<{
     label: string;
     to: "composio" | `/settings/${string}`;
+    /** The part of that page the button brings into view: Nastavení →
+     * Trezor's steps for Bitwarden. */
+    part?: "bitwarden";
   }> | null;
 }>;
 
 /** "Volitelné": Composio where Tools offer it; on a Remote Environment SSH
  * from the person's own computer (`sshDevices`: how many devices have a
  * key, null when not known) and Codex Desktop, which works over that SSH
- * (its state is the person's computer's, so it has none here). */
+ * (its state is the person's computer's, so it has none here). Between them
+ * "Trezor v Bitwardenu" where Nastavení → Trezor gives the steps that add the
+ * Environment's vault to Bitwarden in Codex Desktop and the person's browser
+ * (`bitwarden`, `bitwardenTarget`; F53's addendum of 2026-10-16): no state
+ * either, since the extension is on the person's computer. */
 export function optionalRows(
   input: Readonly<{
     preset: string | null;
     composio: ComposioFact;
     sshDevices: number | null;
+    bitwarden: boolean;
   }>,
   copy: Copy,
 ): readonly OptionalRow[] {
@@ -403,7 +411,8 @@ export function optionalRows(
           ? null
           : { label: copy.startConnect, to: "composio" },
     });
-  if (input.preset !== "local") {
+  const remote = input.preset !== "local";
+  if (remote)
     rows.push({
       id: "ssh",
       title: copy.startSshTitle,
@@ -416,6 +425,19 @@ export function optionalRows(
             : copy.startNotSet,
       action: { label: copy.startGuide, to: "/settings/ssh" },
     });
+  if (input.bitwarden)
+    rows.push({
+      id: "bitwarden",
+      title: copy.startBitwardenTitle,
+      text: copy.startBitwardenText,
+      status: null,
+      action: {
+        label: copy.startGuide,
+        to: "/settings/vault",
+        part: "bitwarden",
+      },
+    });
+  if (remote)
     rows.push({
       id: "codex",
       title: "Codex Desktop",
@@ -423,6 +445,5 @@ export function optionalRows(
       status: null,
       action: { label: copy.startGuide, to: "/settings/ssh" },
     });
-  }
   return rows;
 }

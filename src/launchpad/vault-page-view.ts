@@ -1,4 +1,5 @@
 import type { VaultEnvironmentKind } from "../vault/context";
+import type { BitwardenRegion } from "../vault/endpoints";
 import type { VaultPhase, VaultStatus } from "../vault/flow";
 import type { VaultMemberState, VaultMemberUnknown } from "../vault/members";
 import { pluralKey } from "./apps-view";
@@ -499,6 +500,123 @@ function personalBitwardenView(
     case "awaiting-password":
       return view({ guide, row, actions: [open], disconnect });
   }
+}
+
+/** Where this Environment's vault is for the Bitwarden extension in Codex
+ * Desktop and the person's own browser (F53's addendum of 2026-10-16): an
+ * Organization's Lazurio Vaultwarden at its own address, added as a
+ * self-hosted server (root decision 0203 point 1), or a personal
+ * Environment's own Bitwarden in its region's service (point 7). */
+export type BitwardenTarget =
+  | Readonly<{ kind: "server"; server: string }>
+  | Readonly<{ kind: "cloud"; service: string }>;
+
+/** The services Bitwarden's extension offers under „Přistupujete na“
+ * ("Accessing"), by the region of a personal Environment's own Bitwarden. */
+const bitwardenServices: Readonly<Record<BitwardenRegion, string>> = {
+  eu: "bitwarden.eu",
+  us: "bitwarden.com",
+};
+
+/**
+ * Where the person adds this Environment's vault to Bitwarden, from the page's
+ * model alone (Začínáme's row "Trezor v Bitwardenu" asks only this): a
+ * personal or work Environment whose vault is its Organization's Lazurio
+ * Vaultwarden, in any state, since the person's account there does not depend
+ * on this Environment's own vault, or its person's own Bitwarden once
+ * connected. Null on this computer, without a vault, while a personal
+ * Environment waits for its person's Bitwarden, and on a Team or Automated
+ * Environment, whose vault only its agents use.
+ */
+export function bitwardenTarget(
+  model: VaultPageModel | null,
+): BitwardenTarget | null {
+  if (
+    model === null ||
+    (model.environment !== "personal" && model.environment !== "work")
+  )
+    return null;
+  const { status } = model;
+  if (status.state === "unsupported" || status.state === "needs-connection")
+    return null;
+  if (status.region !== undefined)
+    return { kind: "cloud", service: bitwardenServices[status.region] };
+  const server = origin(status.vault);
+  return server === null ? null : { kind: "server", server };
+}
+
+/** One step of the guide, and the value it asks for with its Copy button
+ * where the page has it. */
+export type BitwardenStep = Readonly<{ text: string; value: string | null }>;
+
+/** "V Codex Desktopu a ve vašem prohlížeči" on Nastavení → Trezor. */
+export type BitwardenGuide = Readonly<{
+  kind: BitwardenTarget["kind"];
+  /** Before the steps: create the account first, while the page offers
+   * "Vytvořit účet v trezoru". */
+  first: string | null;
+  steps: readonly BitwardenStep[];
+  /** After the steps: a Lazurio Vaultwarden answers only on its network. */
+  note: string | null;
+}>;
+
+/**
+ * The steps that add this Environment's vault to the Bitwarden extension in
+ * Codex Desktop (Nastavení → Prohlížeč → Rozšíření) and in the person's own
+ * browser (F53's addendum of 2026-10-16). An Organization's Lazurio
+ * Vaultwarden: its address as the self-hosted server, to copy; the person's
+ * Lazurio address, `<username>@account.lazurio.ai`, with single sign-on
+ * through Lazurio and their master password, since the vault takes people's
+ * accounts only through the Lazurio sign-in (root decisions 0197 point 2 and
+ * 0203 point 5); a line first while the page (`view`) offers "Vytvořit účet v
+ * trezoru", and the network under the steps. The page has no person's
+ * username to copy: the gateway names it only for the membership. A personal
+ * Environment's own Bitwarden: its region's service and the person's own
+ * account. None where `bitwardenTarget` has none, nor where the page says
+ * that only the agents use the vault.
+ */
+export function bitwardenGuide(
+  model: VaultPageModel | null,
+  person: VaultPagePerson | null,
+  copy: Copy,
+  view: Pick<VaultPageView, "actions"> | null = null,
+): BitwardenGuide | null {
+  const target = bitwardenTarget(model);
+  if (
+    target === null ||
+    (person?.kind === "unknown" &&
+      (person.reason === "not-managed" ||
+        person.reason === "sign-in-not-required"))
+  )
+    return null;
+  const add = { text: copy.vaultBitwardenAdd, value: null };
+  if (target.kind === "cloud")
+    return {
+      kind: "cloud",
+      first: null,
+      steps: [
+        add,
+        {
+          text: fill(copy.vaultBitwardenCloud, { service: target.service }),
+          value: null,
+        },
+      ],
+      note: null,
+    };
+  return {
+    kind: "server",
+    first:
+      view?.actions.some((action) => action.control === "account") === true
+        ? copy.vaultBitwardenAccount
+        : null,
+    steps: [
+      add,
+      { text: copy.vaultBitwardenServer, value: target.server },
+      { text: copy.vaultBitwardenAddress, value: null },
+      { text: copy.vaultBitwardenSignIn, value: null },
+    ],
+    note: copy.vaultBitwardenNetwork,
+  };
 }
 
 /** Why a connection was refused, in the page's words; null for none. */

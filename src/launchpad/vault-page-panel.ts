@@ -1,6 +1,10 @@
 import type { VaultStatus } from "../vault/flow";
 import type { MessageKey } from "./messages";
 import {
+  type BitwardenGuide,
+  type BitwardenStep,
+  bitwardenGuide,
+  bitwardenTarget,
   connectionFilled,
   connectionRefusalText,
   parseVaultMembership,
@@ -32,7 +36,10 @@ type Answer = Promise<{ value: unknown; ok: boolean }>;
 // the inputs into the one `POST /api/vault/connect` and nowhere else (no
 // storage, address or log), the secret ones are emptied as they are sent
 // and the rest once connected; the page then follows the setup that
-// creates the vault, as the Tools row does.
+// creates the vault, as the Tools row does. Under the vault, "V Codex
+// Desktopu a ve vašem prohlížeči": the steps that add the vault to the
+// Bitwarden extension (F53's addendum of 2026-10-16), a value with its Copy
+// button; Začínáme's "Návod" brings them into view (`revealBitwarden`).
 export function createVaultPagePanel(
   options: Readonly<{
     get: (path: string) => Answer;
@@ -74,6 +81,11 @@ export function createVaultPagePanel(
   ];
   const disconnectBox = find<HTMLDivElement>("#vault-page-disconnect");
   const disconnectButton = find<HTMLButtonElement>("#vault-disconnect");
+  const bitwarden = find<HTMLElement>("#vault-bitwarden");
+  const bitwardenHeading = find<HTMLHeadingElement>("#vault-bitwarden-heading");
+  const bitwardenFirst = find<HTMLParagraphElement>("#vault-bitwarden-first");
+  const bitwardenSteps = find<HTMLOListElement>("#vault-bitwarden-steps");
+  const bitwardenNote = find<HTMLParagraphElement>("#vault-bitwarden-note");
 
   let model: VaultPageModel | null = null;
   // The vault's own answer (the refresh), newer than the recorded state.
@@ -91,6 +103,11 @@ export function createVaultPagePanel(
   let outcome: VaultStatus | null = null;
   let disconnecting = false;
   let notice: string | null = null;
+  // The Bitwarden steps as last drawn (a Copy button's word stays while
+  // they say the same), and whether they are to be brought into view once
+  // shown.
+  let drawnGuide: string | null = null;
+  let reveal = false;
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -235,6 +252,76 @@ export function createVaultPagePanel(
     hint.textContent = view.hint ?? "";
     guide.hidden = !view.guide;
     guide.replaceChildren(...(view.guide ? guideOf(copy) : []));
+    drawBitwarden(bitwardenGuide(model, person, copy, view), copy);
+  }
+
+  /** The Bitwarden steps, drawn again only when they say something else, so
+   * a Copy button keeps its word; brought into view and focus once they
+   * show, when Začínáme asked for them, or forgotten where they will not. */
+  function drawBitwarden(steps: BitwardenGuide | null, copy: Copy) {
+    bitwarden.hidden = steps === null;
+    const now = JSON.stringify(steps) + copy.vaultBitwardenCopy;
+    if (now !== drawnGuide) {
+      drawnGuide = now;
+      bitwardenFirst.hidden = steps?.first == null;
+      bitwardenFirst.textContent = steps?.first ?? "";
+      bitwardenSteps.replaceChildren(
+        ...(steps?.steps ?? []).map((step) => stepOf(step, copy)),
+      );
+      bitwardenNote.hidden = steps?.note == null;
+      bitwardenNote.textContent = steps?.note ?? "";
+    }
+    if (!reveal) return;
+    if (!options.shown()) reveal = false;
+    else if (steps !== null) {
+      reveal = false;
+      bitwarden.scrollIntoView({ block: "start", behavior: "smooth" });
+      bitwardenHeading.focus({ preventScroll: true });
+    } else if (
+      model !== null &&
+      (person !== null || bitwardenTarget(model) === null)
+    )
+      reveal = false;
+  }
+
+  /** One step: its sentence, and the value it asks for with a Copy button
+   * that says whether it copied; where copying is not available, the value
+   * is selected for the keyboard. */
+  function stepOf(step: BitwardenStep, copy: Copy): HTMLLIElement {
+    const item = element("li");
+    item.append(element("span", "vault-bitwarden-text", step.text));
+    const { value } = step;
+    if (value === null) return item;
+    const shown = element("code", "vault-bitwarden-value", value);
+    const said = element("span", "row-status");
+    said.setAttribute("role", "status");
+    said.setAttribute("aria-live", "polite");
+    const button = element("button", "", copy.vaultBitwardenCopy);
+    button.type = "button";
+    button.prepend(svg("copy"));
+    button.addEventListener("click", () => {
+      const words = options.copy();
+      const copying =
+        navigator.clipboard?.writeText(value) ??
+        Promise.reject(new Error("No clipboard"));
+      void copying.then(
+        () => {
+          said.textContent = words.vaultBitwardenCopied;
+        },
+        () => {
+          const range = document.createRange();
+          range.selectNodeContents(shown);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          said.textContent = words.toolsCopyFailed;
+        },
+      );
+    });
+    const box = element("span", "vault-bitwarden-copy");
+    box.append(shown, button, said);
+    item.append(box);
+    return item;
   }
 
   /** The way to use the vault: one line, and Chat to start in. Chat opens
@@ -402,6 +489,12 @@ export function createVaultPagePanel(
   return Object.freeze({
     refresh,
     render,
+    /** Brings the Bitwarden steps into view once they show (Začínáme's
+     * "Návod" of "Trezor v Bitwardenu"), right after the page opened. */
+    revealBitwarden() {
+      reveal = true;
+      render();
+    },
     /** Whether the section was read once. */
     get loaded() {
       return model !== null || loading;
