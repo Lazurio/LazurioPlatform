@@ -308,8 +308,9 @@ export function createVaultPagePanel(
 
   /** One step: its sentence; the link it opens, in a new tab; the value it
    * asks for with a Copy button that says whether it copied (where copying is
-   * not available, the value is selected for the keyboard); and the
-   * extension's screen in the page's language. */
+   * not available, the value is selected for the keyboard), or the line said
+   * in its place while the page does not have it; and the extension's screen
+   * in the page's language. */
   function stepOf(step: BitwardenStep, copy: Copy): HTMLLIElement {
     const item = element("li");
     item.append(element("span", "vault-bitwarden-text", step.text));
@@ -324,6 +325,8 @@ export function createVaultPagePanel(
       item.append(box);
     }
     if (step.value !== null) item.append(copyOf(step.value, copy));
+    else if (step.missing !== null)
+      item.append(element("span", "vault-bitwarden-missing", step.missing));
     if (step.picture !== null) {
       const language = document.documentElement.lang === "cs" ? "cs" : "en";
       const source = pictures.find(

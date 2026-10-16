@@ -12385,17 +12385,23 @@ and the steps live in one.
    language (its shipped `_locales`, checked on its rendered screens).
    - *An Organization's Lazurio Vaultwarden* (root decision 0203 point 1), in Czech:
      1. "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden.
-        Do svého prohlížeče ho přidejte z Chrome Web Store.", with a link "Bitwarden v
-        Chrome Web Store" to the extension's page there (`bitwardenStoreUrl`, a new tab);
+        Do Chromu ho přidejte z Chrome Web Store, do jiného prohlížeče z jeho vlastního
+        obchodu s rozšířeními.", with a link "Bitwarden v Chrome Web Store" to the
+        extension's page there (`bitwardenStoreUrl`, a new tab); Firefox and Safari
+        distribute it through their own stores (Pablo's review of 8de1d1b);
      2. "Dole u „Přistupujete na“ zvolte „vlastní server“. Do pole „URL serveru“ vložte tuto
         adresu a klikněte na „Uložit“:", the vault's address with a Copy button (the
         handover's `vault.server_url`, as `GET /api/vault` reports it) and the picture of
         that screen;
      3. "Do pole „E-mailová adresa“ vložte svou adresu a klikněte na „Použít jednotné
         přihlášení“:", the person's own address with a Copy button (point 3) and the
-        picture of that screen; without the address (nobody named, no username, the
-        answer not there yet) the step says how it is formed: "Do pole „E-mailová adresa“
-        zadejte své uživatelské jméno v Lazuriu s koncovkou @account.lazurio.ai…";
+        picture of that screen. The person is never asked to compose the address. Until
+        the answer carries it, one line stands in its place: "Načítá se vaše adresa…"
+        while the page waits for the answer (opened directly, the page draws the steps
+        before it), "Svou adresu tu uvidíte, až se znovu přihlásíte." where the sign-in
+        carried no Lazurio username (the page's line above asks them to sign in again),
+        and otherwise "Vaši adresu se nepodařilo načíst. Zkuste „Obnovit stav“.", naming
+        the page's own refresh, which asks again (Pablo's review of 8de1d1b);
      4. "Přihlaste se přes Lazurio a trezor odemkněte hlavním heslem." People enter a
         Lazurio Vaultwarden only through the Lazurio sign-in (0197 point 2, `SSO_ONLY`), so
         the extension's master-password sign-in alone is refused.
@@ -12461,7 +12467,8 @@ Trezor. The Codex Desktop section of SSH ze zařízení does not point to the st
 | The row from the vault alone (this change's first revision) | Promised steps the page hides where only the agents use the vault (Pablo's review of #465); the row asks the page's own answer |
 | A membership answer without its effect for the row | There is none; adding one would be a new contract for one row |
 | A state on the row ("Nastaveno") | Nothing in the Environment can see the extension on the person's computer; left out |
-| The step says how the address is formed (this change's second revision) | Matěj's review: a person should not have to compose their username with `@account.lazurio.ai`; kept only where the answer carries no address |
+| The step says how the address is formed (this change's second revision) | Matěj's review: a person should not have to compose their username with `@account.lazurio.ai`; rejected, and so is keeping it while the answer is pending or failed (Pablo's review of 8de1d1b): a line says the address is loading, shows after signing in again, or could not be loaded |
+| One Chrome Web Store sentence for every browser | Misdirects people on Firefox or Safari (Pablo's review of 8de1d1b); the link stays for Codex Desktop and Chrome, and the sentence sends other browsers to their own store |
 | The person's address from the shell's GitHub login | 0203 point 4: the username is never composed from GitHub; rejected |
 | The person's address from the shell's account document | Not the admission's answer, which alone carries the Lazurio username the vault uses; rejected for the membership answer |
 | The address in a new route of its own | One more route for what the membership answer already decides; the answer the page asks anyway carries it |
@@ -12472,9 +12479,11 @@ Trezor. The Codex Desktop section of SSH ze zařízení does not point to the st
 Verified by `tests/start-view.test.ts` (the row, its order, its link to the steps, and that
 it shows exactly where the page gives them, for each membership answer),
 `tests/vault-page-view.test.ts` (both kinds of vault in both languages word for word: the
-store link, the extension's labels, the values to copy, the pictures; the step without an
-address; no address offered on a personal Environment's own Bitwarden even when an answer
-carries one; the answer's address read only in its exact form; every picture a step names
+store link, the extension's labels, the values to copy, the pictures; step 3's line while
+the answer is pending, after a sign-in without a username, and when the answer failed, was
+busy or named nobody; no step in any state of the page and the answer asking the person to
+compose the address; no address offered on a personal Environment's own Bitwarden even
+when an answer carries one; the answer's address read only in its exact form; every picture a step names
 in the page once per language, a 2x WebP under 64 KB of its declared size; the line exactly
 where the page offers "Vytvořit účet v trezoru", none without a vault a person adds or
 where only the agents use it, and a pending "Návod" waiting for the answer, revealing,
@@ -12488,8 +12497,9 @@ address in the answer although the gateway names a username); and in a browser (
 decision 0178) on the hosted preview in both languages, whose work Environment has the
 tests' fake vault and whose gateway names the fictional person `jana`: the row, "Návod"
 into the steps with the focus on their heading below the page's head, the store link, both
-Copy fields with `jana@account.lazurio.ai`, both pictures in the page's language, and the
-Trezor page in a new tab.
+Copy fields with `jana@account.lazurio.ai`, both pictures in the page's language, the
+Trezor page in a new tab, and step 3's lines while the membership answer is held back and
+when it fails.
 
 ## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
 

@@ -2233,7 +2233,8 @@ again while their invitation waits. Tested over HTTP in
 Under the vault, "V Codex Desktopu a ve vašem prohlížeči" (`#vault-bitwarden`) gives the
 steps that add the vault to the Bitwarden extension in Codex Desktop (Nastavení →
 Prohlížeč → Rozšíření) and in the person's own browser, in the extension's own words:
-the extension's page in the Chrome Web Store; for an Organization's Lazurio Vaultwarden
+the extension's page in the Chrome Web Store, and another browser's own store for other
+browsers; for an Organization's Lazurio Vaultwarden
 the vault's address and the person's own address, each with a Copy button and a picture
 of the extension's screen where it goes, the Lazurio sign-in, a line pointing to
 "Vytvořit účet v trezoru" while the page offers it, and the network under the steps; for
@@ -2241,7 +2242,9 @@ a personal Environment's own Bitwarden its region's service and the person's own
 account; none where the person's membership answer says that only the agents use the
 vault. The person's address is the membership answer's `address`, which the server
 builds from the Lazurio username of the gateway's own answer, only for a Lazurio
-Vaultwarden; without it the step says how the address is formed. `bitwardenTarget` and
+Vaultwarden; the person never composes it: until it is there, one line in its place says
+that it is loading, that it shows after signing in again, or that it could not be loaded
+(with the page's "Obnovit stav"). `bitwardenTarget` and
 `bitwardenGuide` in `src/launchpad/vault-page-view.ts` decide it; Začínáme's "Trezor v
 Bitwardenu" shows exactly there (`offersBitwarden`: for a Lazurio Vaultwarden Začínáme
 asks the same membership answer, once per page), and its "Návod" brings the steps into
