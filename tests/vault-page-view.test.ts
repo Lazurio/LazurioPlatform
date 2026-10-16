@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { messages } from "../src/launchpad/messages";
 import {
+  connectionFilled,
+  connectionRefusalText,
   parseVaultMembership,
   parseVaultPage,
   type VaultPageModel,
@@ -293,6 +296,8 @@ test("this computer and an Environment without a vault say so in one line; a 019
     actions: [],
     hint: null,
     guide: false,
+    connect: false,
+    disconnect: false,
   });
   expect(
     vaultPageView(
@@ -426,4 +431,187 @@ test("a ready own vault says how it is used: tell the agent in Chat, the value i
       cs,
     ).guide,
   ).toBe(false);
+});
+
+// A personal Environment's own Bitwarden (root decision 0203 point 7): the
+// form while its person has not connected it, then the row, the person's
+// state in one line and "Odpojit Bitwarden".
+test("a personal Environment waiting for its person shows the form; connected, the person's state in one line and the way out", () => {
+  const waiting = vaultPageView(
+    model({ kind: "vault-status", state: "needs-connection" }),
+    { kind: "unknown", reason: "not-connected" },
+    cs,
+  );
+  expect(waiting).toMatchObject({
+    rule: false,
+    note: null,
+    row: null,
+    actions: [],
+    connect: true,
+    disconnect: false,
+  });
+  const bitwarden = {
+    ...connected(3),
+    vault: "https://vault.bitwarden.eu",
+    account: "agents.example+lazurio@example.com",
+    name: "Osobní example",
+    organization: "Osobní example",
+    region: "eu",
+  } as const;
+  const known = (state: "invitation-pending" | "accepted" | "revoked") =>
+    ({ kind: "known", state, signIn: false }) as const;
+  const view = (
+    person: Parameters<typeof vaultPageView>[1],
+    status: VaultStatus = bitwarden,
+  ) => vaultPageView(model(status), person, cs);
+  expect(view(known("invitation-pending"))).toMatchObject({
+    connect: false,
+    disconnect: true,
+    actions: [],
+    hint: "Bitwarden vám e-mailem poslal pozvánku do trezoru. Po jejím přijetí vás toto Prostředí potvrdí.",
+  });
+  expect(view(known("accepted")).hint).toBe(cs.vaultPageInvitationAccepted);
+  expect(view(known("revoked"))).toMatchObject({
+    actions: [],
+    hint: "Přístup do trezoru vám byl v Bitwardenu odebrán.",
+  });
+  const joined = view(member);
+  expect(labels(joined)).toEqual([
+    [
+      "add",
+      "Přidat položku",
+      `https://vault.bitwarden.eu/#/vault?organizationId=${organizationId}&collectionId=${collectionId}`,
+    ],
+    [
+      "open",
+      "Otevřít trezor",
+      `https://vault.bitwarden.eu/#/vault?organizationId=${organizationId}`,
+    ],
+  ]);
+  expect(joined).toMatchObject({
+    disconnect: true,
+    guide: true,
+    row: { title: "Osobní example", line: "3 položky" },
+  });
+  // Not known (busy, no answer): the vault opens.
+  expect(labels(view({ kind: "unknown", reason: "unreachable" }))).toEqual([
+    [
+      "open",
+      "Otevřít trezor",
+      `https://vault.bitwarden.eu/#/vault?organizationId=${organizationId}`,
+    ],
+  ]);
+  // A failure the person resolves says what to do; the way out stays.
+  const {
+    organizationId: _,
+    collectionId: __,
+    organization: ___,
+    items: ____,
+    ...facts_
+  } = bitwarden;
+  for (const [reason, hint] of [
+    ["free-organization-limit", cs.vaultPageFreeLimit],
+    ["account-missing", cs.vaultPageAccountMissing],
+  ] as const)
+    expect(
+      view(null, {
+        ...facts_,
+        state: "failed",
+        stage: reason === "account-missing" ? "account" : "vault",
+        reason,
+        fallback: "agent",
+      }),
+    ).toMatchObject({ hint, disconnect: true, actions: [] });
+  // While a setup runs, nothing but its step; no disconnect.
+  expect(
+    vaultPageView(model(bitwarden, { setup: "vault" }), member, cs),
+  ).toMatchObject({ disconnect: false, actions: [] });
+  // A connection that does not read: one line and the way out.
+  expect(
+    vaultPageView(
+      model({
+        kind: "vault-status",
+        state: "unsupported",
+        reason: "connection-unreadable",
+      }),
+      null,
+      en,
+    ),
+  ).toMatchObject({
+    rule: false,
+    note: "The connection of your Bitwarden cannot be read. Disconnect it and connect it again.",
+    disconnect: true,
+    connect: false,
+  });
+  // A Lazurio Vaultwarden's vault has no way out: it is the network's.
+  expect(vaultPageView(model(connected()), member, cs).disconnect).toBe(false);
+});
+
+test("the connection form's refusals say what the person can do, in both languages; it is sent only filled in", () => {
+  expect(connectionRefusalText("wrong-password", cs)).toBe(
+    "Hlavní heslo neodpovídá účtu agentů.",
+  );
+  expect(connectionRefusalText("owns-organization", en)).toBe(
+    "The agents' account already owns or manages another organization. Please create a new agents' account.",
+  );
+  for (const reason of [
+    "region-invalid",
+    "client-id-invalid",
+    "client-secret-invalid",
+    "password-invalid",
+    "email-invalid",
+    "invalid-credentials",
+    "same-account",
+    "unsupported-kdf",
+    "unsupported-keys",
+    "rate-limited",
+    "unreachable",
+    "busy",
+    "setting-up",
+    "connected",
+    "not-offered",
+    "pilot-0197",
+    "not-connected",
+    "failed",
+  ])
+    for (const copy of [cs, en])
+      expect([reason, typeof connectionRefusalText(reason, copy)]).toEqual([
+        reason,
+        "string",
+      ]);
+  expect(connectionRefusalText("something-else", cs)).toBeNull();
+  expect(connectionRefusalText(undefined, cs)).toBeNull();
+  const filled = {
+    region: "eu",
+    clientId: "user.x",
+    clientSecret: "s",
+    masterPassword: " ",
+    email: "e",
+  };
+  expect(connectionFilled({ ...filled, masterPassword: "p" })).toBe(true);
+  expect(connectionFilled(filled)).toBe(false);
+  expect(connectionFilled({ ...filled, masterPassword: "p", email: "" })).toBe(
+    false,
+  );
+});
+
+test("every text of the Trezor page's markup is a message of both languages", () => {
+  const html = readFileSync(
+    new URL("../src/launchpad/index.html", import.meta.url),
+    "utf8",
+  );
+  const section = html.slice(
+    html.indexOf('<section id="section-vault"'),
+    html.indexOf("<!-- SSH from your devices"),
+  );
+  const keys = [...section.matchAll(/data-message="([^"]+)"/g)].map(
+    (match) => match[1] as string,
+  );
+  expect(keys).toContain("vaultConnectStep2");
+  for (const key of keys)
+    for (const copy of [cs, en])
+      expect([key, typeof (copy as Record<string, unknown>)[key]]).toEqual([
+        key,
+        "string",
+      ]);
 });

@@ -175,9 +175,10 @@ import {
   readStartState,
 } from "./start-check";
 import type { UpdatePill } from "./update-pill";
+import { createVaultConnectionRoutes } from "./vault-connection-routes";
 import { createVaultPageRoutes } from "./vault-page-routes";
 import { createVaultRequestRoutes } from "./vault-request-routes";
-import { createVaultRoutes, isVaultJob } from "./vault-routes";
+import { createVaultRoutes, isVaultJob, vaultRoutePaths } from "./vault-routes";
 
 // One local owner. Optional application adapters are trusted composition, never
 // HTTP input; the browser cannot supply a filesystem root or executable.
@@ -695,6 +696,15 @@ export async function startLaunchpad(
   // page and `lazurio vault request` share one store and one lock.
   const vaultRequests = createVaultRequestRoutes({
     host: vaultHostOf,
+    headers,
+  });
+  // A personal Environment connects its person's own Bitwarden (root
+  // decision 0203 point 7): the same vault host, and the one setup of the
+  // Tools row creates its vault right after.
+  const vaultConnection = createVaultConnectionRoutes({
+    host: vaultHostOf,
+    setup: () => vault.handle(vaultRoutePaths.setup),
+    running: () => vault.running(),
     headers,
   });
   // Executor (decision F44): its setup journals the outcome and a fixed
@@ -1548,6 +1558,18 @@ export async function startLaunchpad(
           return await vaultRequests.handle(request, url, (seconds) =>
             server.timeout(request, seconds),
           );
+        } catch {
+          // Never a value, a path or an output of bw.
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      if (vaultConnection.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        // Connecting asks the cloud a few times and derives the master key;
+        // disconnecting signs bw out.
+        server.timeout(request, 120);
+        try {
+          return await vaultConnection.handle(request, url);
         } catch {
           // Never a value, a path or an output of bw.
           return response({ error: "operation-failed" }, 500);

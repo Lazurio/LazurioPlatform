@@ -31,6 +31,7 @@ const phases: readonly VaultPhase[] = [
 const memberStates: readonly VaultMemberState[] = [
   "no-account",
   "awaiting-password",
+  "invitation-pending",
   "accepted",
   "member",
   "revoked",
@@ -192,6 +193,12 @@ export type VaultPageView = Readonly<{
    * only with a ready own vault (connected, unlocked, no setup running),
    * never for a 0197 pilot, which takes no requests. */
   guide: boolean;
+  /** The form that connects a personal Environment's own Bitwarden, while
+   * its person has not connected it (root decision 0203 point 7). */
+  connect: boolean;
+  /** "Odpojit Bitwarden": a personal Environment's own Bitwarden, once
+   * connected (or its record unreadable), while no setup runs. */
+  disconnect: boolean;
 }>;
 
 /** The vault's state in a few words: the items, the creation, no answer. */
@@ -278,11 +285,24 @@ export function vaultPageView(
     actions: [],
     hint: null,
     guide: false,
+    connect: false,
+    disconnect: false,
     ...fields,
   });
   if (model === null) return view({});
   const { setup } = model;
   const status = fresh ?? model.status;
+  // A personal Environment whose record of its own Bitwarden does not read:
+  // one line, and the way out (root decision 0203 point 7).
+  if (
+    status.state === "unsupported" &&
+    status.reason === "connection-unreadable"
+  )
+    return view({
+      rule: false,
+      note: copy.vaultPageConnectionUnreadable,
+      disconnect: setup === null,
+    });
   if (status.state === "unsupported")
     return view({
       rule: false,
@@ -294,9 +314,9 @@ export function vaultPageView(
             : copy.vaultRowUnavailable,
     });
   // A personal Environment whose person has not connected their own
-  // Bitwarden yet (root decision 0203 point 7).
+  // Bitwarden yet: the form, with its own explanation.
   if (status.state === "needs-connection")
-    return view({ rule: false, note: copy.vaultPageNeedsConnection });
+    return view({ rule: false, connect: true });
   // The vault's name; a 0197 pilot has none: the organization bw names.
   const named =
     status.name ??
@@ -316,6 +336,12 @@ export function vaultPageView(
   const links = vaultPageLinks(
     status.state === "unreachable" ? model.status : status,
   );
+  if (status.region !== undefined)
+    return personalBitwardenView(status, setup, person, links, copy, {
+      guide,
+      row,
+      view,
+    });
   if (setup !== null || links.open === null) return view({ guide, row });
   const open: VaultPageAction = {
     control: "open",
@@ -380,6 +406,147 @@ export function vaultPageView(
           ],
   });
 }
+
+/**
+ * A personal Environment's own Bitwarden (root decision 0203 point 7): the
+ * row and "Odpojit Bitwarden", and what the person does next. A member adds
+ * and opens; an invitation not accepted yet, or accepted and not confirmed
+ * yet, says so in one line; a person removed in Bitwarden is told so. A
+ * failure the person resolves (the agents' account owns another Free
+ * organization, its file is gone) says what to do. Nobody else is added
+ * here: the person is whom they named when connecting.
+ */
+function personalBitwardenView(
+  status: VaultStatus,
+  setup: VaultPhase | null,
+  person: VaultPagePerson | null,
+  links: VaultPageLinks,
+  copy: Copy,
+  shown: Readonly<{
+    guide: boolean;
+    row: NonNullable<VaultPageView["row"]>;
+    view: (fields: Partial<VaultPageView>) => VaultPageView;
+  }>,
+): VaultPageView {
+  const { guide, row, view } = shown;
+  const disconnect = setup === null;
+  const failure =
+    status.state === "failed"
+      ? status.reason === "free-organization-limit"
+        ? copy.vaultPageFreeLimit
+        : status.reason === "account-missing"
+          ? copy.vaultPageAccountMissing
+          : null
+      : null;
+  if (setup !== null || failure !== null || links.open === null)
+    return view({ guide, row, hint: failure, disconnect });
+  const open: VaultPageAction = {
+    control: "open",
+    label: copy.vaultPageOpen,
+    href: links.open,
+    primary: true,
+  };
+  if (person === null || person.kind === "unknown")
+    return view({ guide, row, actions: [open], disconnect });
+  switch (person.state) {
+    case "invitation-pending":
+      return view({
+        guide,
+        row,
+        hint: copy.vaultPageInvitationPending,
+        disconnect,
+      });
+    case "accepted":
+      return view({
+        guide,
+        row,
+        hint: copy.vaultPageInvitationAccepted,
+        disconnect,
+      });
+    case "revoked":
+      return view({
+        guide,
+        row,
+        hint: copy.vaultPageMemberRevoked,
+        disconnect,
+      });
+    case "member":
+      return view({
+        guide,
+        row,
+        actions:
+          links.add === null
+            ? [open]
+            : [
+                {
+                  control: "add",
+                  label: copy.vaultPageAddItem,
+                  href: links.add,
+                  primary: false,
+                },
+                open,
+              ],
+        disconnect,
+      });
+    // A Lazurio Vaultwarden's states: never a personal Bitwarden's.
+    case "no-account":
+    case "awaiting-password":
+      return view({ guide, row, actions: [open], disconnect });
+  }
+}
+
+/** Why a connection was refused, in the page's words; null for none. */
+export function connectionRefusalText(
+  reason: unknown,
+  copy: Copy,
+): string | null {
+  switch (reason) {
+    case "region-invalid":
+      return copy.vaultConnectRegionInvalid;
+    case "client-id-invalid":
+      return copy.vaultConnectClientIdInvalid;
+    case "client-secret-invalid":
+      return copy.vaultConnectClientSecretInvalid;
+    case "password-invalid":
+      return copy.vaultConnectPasswordInvalid;
+    case "email-invalid":
+      return copy.vaultConnectEmailInvalid;
+    case "invalid-credentials":
+      return copy.vaultConnectInvalidCredentials;
+    case "wrong-password":
+      return copy.vaultConnectWrongPassword;
+    case "same-account":
+      return copy.vaultConnectSameAccount;
+    case "owns-organization":
+      return copy.vaultConnectOwnsOrganization;
+    case "unsupported-kdf":
+    case "unsupported-keys":
+      return copy.vaultConnectUnsupported;
+    case "rate-limited":
+    case "unreachable":
+    case "busy":
+    case "setting-up":
+      return copy.vaultConnectBusy;
+    case "connected":
+      return copy.vaultConnectConnected;
+    case "not-offered":
+    case "pilot-0197":
+    case "not-connected":
+      return copy.vaultConnectNotOffered;
+    case "failed":
+      return copy.vaultConnectFailed;
+    default:
+      return null;
+  }
+}
+
+/** The form's values as the person typed them: every field filled in. */
+export const connectionFilled = (
+  values: Readonly<Record<string, string>>,
+): boolean =>
+  ["region", "clientId", "clientSecret", "masterPassword", "email"].every(
+    (field) => (values[field] ?? "").trim() !== "",
+  );
 
 /** How soon the page is read again while a setup creates the vault. */
 export const vaultPageSetupPollMs = 2_000;
