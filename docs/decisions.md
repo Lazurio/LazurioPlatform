@@ -6291,9 +6291,10 @@ What this changes, in both languages:
      moduly."); "Nabídne se po připojení AI." goes, as the step's number says the order.
      The content's "comes after AI or GitHub" sentences go from Začínáme for the same
      reason and stay in Toto Prostředí, which has no numbers (`turn`).
-   - **Trezor Prostředí** keeps only the rule of root decision 0198, "Kdo má přístup do
-     Prostředí, má všechna jeho hesla."; "Agenti ho používají sami." goes. The other
-     option, no line at all (the rule stays on Nastavení → Trezor), is Matěj's to choose.
+   - **Trezor Prostředí** is its title, its state and "Otevřít", with no line: Matěj
+     chose this of the two options on 2026-10-16 ("méně je více"; the other kept the
+     rule of root decision 0198 as the one line). The rule, "Kdo má přístup do
+     Prostředí, má všechna jeho hesla.", stays on Nastavení → Trezor (`vaultPageRule`).
    - **Prohlídka aplikace** loses "Krátce ukáže, co je kde."; a ready Environment says
      "Prostředí je připravené." without "Sem se můžete kdykoli vrátit.", and a Team or
      Automated Environment "Tady není co nastavovat." without who prepares it.

@@ -115,7 +115,7 @@ is not a guarantee or an authority for the terms.
 | --- | --- | --- |
 | Brand icons of the Integrace catalog: the SVG path and colour of an app's icon | `src/integrations/catalog.json` (`icon.source` names `simple-icons@<version>/<slug>`) | [simple-icons](https://github.com/simple-icons/simple-icons), CC0-1.0; an icon simple-icons marks with a license of its own is never bundled |
 | Claude's mark on Začínáme's "Přihlásit Claude": the SVG path only, filled in the button's colour | `src/launchpad/index.html` (the sprite's `i-claude`, its source named beside it) | simple-icons@16.35.0 `claude`, CC0-1.0 |
-| OpenAI's Blossom on Začínáme's "Přihlásit ChatGPT": the path and frame of `OpenAI-black-monoblossom.svg` (SHA-256 `7be72f1fea831d3ba81a545cee79b7e0ae69449d5d7837c9571ccbfb4aa1e00b`), without its clip groups, which cut nothing | `src/launchpad/index.html` (the sprite's `i-openai`, its source named beside it; its colour pinned in the page's styles) | Not licensed to this repository: a trademark of OpenAI, used under [OpenAI's brand guidelines and usage terms](https://openai.com/brand/) |
+| OpenAI's Blossom on Začínáme's "Přihlásit ChatGPT": the path and frame of `OpenAI-logos(new)/SVGs/OpenAI-black-monoblossom.svg` in the kit (SHA-256 `7be72f1fea831d3ba81a545cee79b7e0ae69449d5d7837c9571ccbfb4aa1e00b`), without its clip groups, which cut nothing | `src/launchpad/index.html` (the sprite's `i-openai`, its source named beside it; its colour pinned in the page's styles) | Not licensed to this repository: a trademark of OpenAI, used under [OpenAI's brand guidelines and usage terms](https://openai.com/brand/) |
 
 **OpenAI's Blossom is the one exception to the simple-icons-only rule.** simple-icons
 removed OpenAI in 16.0.0 (simple-icons#13944), because OpenAI's brand terms grant a
@@ -126,8 +126,9 @@ this one place.
 - **Source:** OpenAI's brand kit
   <https://cdn.openai.com/brand/OpenAI-Logos-2025.zip> (Last-Modified 2025-02-04, the
   archive's SHA-256 `b2c4cd1e86bbe76bdc4946a72d014efa455240c177f4878fd68cc9b88c71d2ec`),
-  its `SVGs/OpenAI-black-monoblossom.svg` and `OpenAI-white-monoblossom.svg`, which
-  draw the same Blossom in black and in white.
+  its `OpenAI-logos(new)/SVGs/OpenAI-black-monoblossom.svg` and
+  `OpenAI-logos(new)/SVGs/OpenAI-white-monoblossom.svg`, which draw the same Blossom
+  in black and in white.
 - **Terms:** <https://openai.com/brand/> ("Design Guidelines", its Blossom rules and
   "Usage terms", read on 2026-10-16). The Blossom is used exactly as provided, at its
   proportions and with the clear space its frame carries; only in OpenAI's black or
