@@ -244,9 +244,13 @@ export type RailSpace = Readonly<{
   initials: string | null;
 }>;
 
-/** The rail: your personal space, then every Organization of the document
- * in its order. A click leads to the space's last Environment (`last`, by
- * space: the account's or what this browser remembers), else its first;
+/** The rail: your personal space when you have one, then every
+ * Organization of the document in its order. The personal space is listed
+ * only while it holds an Environment of yours (`spaceEnvironments`) or you
+ * are in it: personal Environments are not offered by self-service yet
+ * (product decision of 2026-10-16), so an empty personal space would be an
+ * entry point to nothing. It appears by itself once one exists. A click
+ * leads to the space's last Environment (`last`, by space: the account's or what this browser remembers), else its first;
  * a space without one leads to its Dashboard. On an Environment's page it
  * stays in the rail's app (`app`). On a page that is no Environment's
  * (`app` null, F36's addendum of 2026-10-05) there is no app to stay in: the
@@ -287,11 +291,18 @@ export function railSpaces(
       ...marks,
     });
   };
+  const personal =
+    options.here === personalSpace ||
+    spaceEnvironments(shell, personalSpace).length > 0
+      ? [
+          space(personalSpace, copy.personal, shell.dashboard, {
+            avatar: null,
+            initials: shell.operator.initials,
+          }),
+        ]
+      : [];
   return [
-    space(personalSpace, copy.personal, shell.dashboard, {
-      avatar: null,
-      initials: shell.operator.initials,
-    }),
+    ...personal,
     ...shell.organizations.map((organization) =>
       space(organization.slug, organization.name, organization.dashboard, {
         avatar: organization.avatar,

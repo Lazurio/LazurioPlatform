@@ -6389,6 +6389,36 @@ same text; the shell document with and without it, merged with the account; the 
 addresses; the account's link or menu in both languages) and in headless Chrome (root
 decision 0178) on the hosted preview with the member, in both languages.
 
+### F36 addendum of 2026-10-16: the personal space only with a personal Environment, no "+" for now
+
+**Decided by Matěj (Organization Admin) on 2026-10-16 (product decision "produkt 1A", plan
+DEV-6662). It changes point 1 of the second iteration above (the rail).** Personal
+Environments and self-service creation of a personal space or an Organization are not
+finished. A person without a personal Environment saw "Osobní" in the rail that led to an
+empty personal Dashboard, and "+" that led to a creation flow which is not ready.
+
+1. **The personal space only when it holds something.** The rail lists your personal space
+   only while `spaceEnvironments(shell, "personal")` is not empty (a personal Remote
+   Environment, a workstation, or an Environment of no Organization, from this
+   Environment's document or merged from the account), or while you are in it. It is pure
+   data: when the account later lists a personal Environment, the space appears by itself,
+   with no flag. People who have one see the rail exactly as before. Without it the rail
+   starts with the Organizations; the divider stands only after the personal space, and
+   the first Organization is drawn with its own mark, never as your initials. The logo
+   still leads to the Dashboard; the jump already drops an empty personal section.
+2. **No "+" for now.** The Launchpad's document says `addOrganization: null`
+   (`selfServiceCreationEnabled = false` in `src/launchpad/shell-document.ts`), which the
+   contract already reads as "no +". The address and the Dashboard's route stay, unlinked,
+   for when self-service creation returns; turning it back on is that one constant.
+
+**Honest limits.** On an Environment whose gateway cannot relay the account, the rail knows
+only this Environment's document: a person with a personal Environment elsewhere then sees
+no personal space until the account answers. The Dashboard hosts the shell from its vendored
+bundle, so its rail changes only when it vendors a release with this addendum.
+
+Verified by unit tests: `tests/shell.test.ts`, `tests/shell-account.test.ts` (an account
+without a personal Environment, the same account with one, the jump's sections).
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction

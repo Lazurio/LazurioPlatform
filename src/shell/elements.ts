@@ -29,6 +29,7 @@ import {
   elementIdentity,
   hereOf,
   initialsOf,
+  personalSpace,
   type RailAccount,
   railAccount,
   railHome,
@@ -46,10 +47,11 @@ import {
 
 // The Lazurio shell as framework-free custom elements (decision F36,
 // addendum of 2026-10-04): `<lazurio-rail>` (level 1: the logo to the
-// Dashboard, the jump to an Environment, your personal space, one avatar per
-// Organization, the account) and `<lazurio-column-head>` (the head of an
-// app's left column: the Environment picker with the gear of this
-// Environment's Settings beside it, then the switch Chat · Apps · Automate).
+// Dashboard, the jump to an Environment, your personal space when you have
+// an Environment there, one avatar per Organization, the account) and
+// `<lazurio-column-head>` (the head of an app's left column: the Environment
+// picker with the gear of this Environment's Settings beside it, then the
+// switch Chat · Apps · Automate).
 // Each draws into its own shadow root, so neither the host's styles nor these
 // leak across. The panel below the head stays the app's own.
 // `<lazurio-buddy>` is reserved for Buddy's bubble (decision 0180) and not
@@ -749,15 +751,19 @@ export class LazurioRail extends ShellElement {
     search.addEventListener("click", () => this.openJump());
 
     const scroll = element("div", "scroll");
+    // Your personal space, when the rail lists it, comes first with your
+    // initials, a divider between it and the Organizations.
     spaces.forEach((space, index) => {
-      if (index === 1) scroll.append(element("div", "divider"));
+      const personal = space.space === personalSpace;
+      if (index > 0 && spaces[index - 1]?.space === personalSpace)
+        scroll.append(element("div", "divider"));
       const link = this.withTip(
         this.link(space.href, "item space"),
         space.title,
       );
       link.setAttribute("aria-label", space.title);
       if (space.active) link.setAttribute("aria-current", "true");
-      if (index === 0) {
+      if (personal) {
         const mark = element("span", "initials");
         if (space.initials !== null) mark.textContent = space.initials;
         else mark.append(icon("user", 16));
