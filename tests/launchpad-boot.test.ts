@@ -16,8 +16,9 @@ import {
 } from "../src/launchpad/boot";
 import { launchpadBoot } from "../src/launchpad/boot-document";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
+import { notModified } from "../src/launchpad/http-conditions";
 import { messages } from "../src/launchpad/messages";
-import { notModified, shellEtag, shellSource } from "../src/launchpad/page";
+import { shellEtag, shellSource } from "../src/launchpad/page";
 import { startRecoveryMode } from "../src/launchpad/recovery-mode";
 import { startLaunchpad } from "../src/launchpad/server";
 import {
