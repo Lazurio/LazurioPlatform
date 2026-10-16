@@ -1133,6 +1133,11 @@ async function load() {
     // a Settings route at once, elsewhere once the page is idle.
     if (shell.route().view === "settings") readBackground();
     else whenIdle(readBackground);
+    // Začínáme opened directly (the shell's "Dokončit nastavení" loads it)
+    // reads its vault and SSH rows too, as a move to it does.
+    const route = shell.route();
+    if (route.view === "settings" && route.section === "start")
+      void readStartExtras();
   }
   // The tools section follows the same state: locale and revision.
   else void tools.refresh();
