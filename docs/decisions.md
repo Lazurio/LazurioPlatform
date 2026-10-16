@@ -12619,7 +12619,7 @@ Bitwarden extension from the Chrome Web Store.
    videos"); a personal Environment's own Bitwarden gets its video from its own guide
    (DEV-6631).
 2. **The files.** `src/launchpad/videos/vault-bitwarden-cs.mp4` and `-en.mp4` (H.264,
-   1920×1080, 30 frames a second, 36.2 s, no audio, the index first; 2.4 and 2.3 MiB)
+   1920×1080, 30 frames a second, 39.1 s, no audio, the index first; 2.8 and 2.7 MiB)
    and their posters `vault-bitwarden-cs.webp` and `-en.webp` (1920×1080, 36 and 41 KiB),
    embedded in the executable with `{ type: "file" }` as the shell's fonts are, so the
    Platform release carries them. MP4 only: H.264 plays in every browser the Launchpad
