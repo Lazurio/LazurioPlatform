@@ -22,8 +22,8 @@ import {
 } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
-import { selectRange } from "../src/launchpad/files-routes";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
+import { selectRange } from "../src/launchpad/http-conditions";
 import { startLaunchpad } from "../src/launchpad/server";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
 import { readZip, unzipTest } from "./fixtures/zip-reader";

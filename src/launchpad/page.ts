@@ -6,6 +6,7 @@ import { shellScript } from "../shell/bundle" with { type: "macro" };
 import { shellFontPaths } from "../shell/font-files";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import { stoneFilePaths } from "../shell/stone-files";
+import { notModified } from "./http-conditions";
 import index from "./index.html";
 import newTabPage from "./new-tab.html";
 import { pagePaths } from "./routes";
@@ -17,18 +18,6 @@ export const shellSource: string = shellScript();
  * it (`no-cache`), so an unchanged script answers 304 without its body (F36's
  * addendum of 2026-10-08). */
 export const shellEtag = `"${createHash("sha256").update(shellSource).digest("hex").slice(0, 32)}"`;
-
-/** Whether a request's `If-None-Match` names `etag` (`*`, or the tag, weak
- * or strong). */
-export function notModified(request: Request, etag: string): boolean {
-  const asked = request.headers.get("if-none-match");
-  if (asked === null) return false;
-  const tag = etag.replace(/^W\//, "");
-  return asked
-    .split(",")
-    .map((value) => value.trim())
-    .some((value) => value === "*" || value.replace(/^W\//, "") === tag);
-}
 
 const assetHeaders = {
   "Cache-Control": "no-cache",
