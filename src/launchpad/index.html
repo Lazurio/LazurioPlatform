@@ -549,6 +549,10 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .vault-bitwarden-picture { display: block; width: min(100%, 380px); height: auto; margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; }
 .vault-bitwarden-value { padding: 0.2rem 0.45rem; border: 1px solid var(--border); border-radius: var(--lz-radius-xs); background: var(--muted); color: var(--fg); font-size: 13px; overflow-wrap: anywhere; user-select: all; }
 .vault-bitwarden-copy .row-status:empty { display: none; }
+.guide-video { margin: 0 0 12px; }
+.guide-video-play .icon { width: 14px; height: 14px; }
+.guide-video-player { display: block; width: 100%; max-width: 720px; height: auto; aspect-ratio: 16 / 9; border: 1px solid var(--border); border-radius: 12px; background: var(--muted); }
+.guide-video-player:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px var(--lz-accent); }
 
 /* Files (decision F35): the Documents folder as a list of rows, the path as
    links, the upload queue and the drop overlay. Below 36 rem of the list's
@@ -1010,6 +1014,7 @@ button:not(.primary) .provider-openai { color: #000000; }
 <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 20L18 20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 16V4M12 4L15.5 7.5M12 4L8.5 7.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 20L18 20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 4V16M12 16L15.5 12.5M12 16L8.5 12.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-recovery" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2351 14.8906L5 19.0001" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.7649 14.8906L19 19.0001" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.7649 9.10943L19 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2351 9.10943L5 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6.90588 4.53682C6.50592 4.2998 6 4.58808 6 5.05299V18.947C6 19.4119 6.50592 19.7002 6.90588 19.4632L18.629 12.5162C19.0211 12.2838 19.0211 11.7162 18.629 11.4838L6.90588 4.53682Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-external" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M21 3L15 3M21 3L12 12M21 3V9" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 13V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H11" stroke="currentColor" stroke-linecap="round"/></symbol>
 <symbol id="i-chevron-left" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M15 6L9 12L15 18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 9L12 15L18 9" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -1319,6 +1324,9 @@ button:not(.primary) .provider-openai { color: #000000; }
      no vault to add here. Začínáme's "Návod" brings it into view. -->
 <section class="group" id="vault-bitwarden" aria-labelledby="vault-bitwarden-heading" hidden>
 <div class="group-head"><h2 id="vault-bitwarden-heading" tabindex="-1" data-message="vaultBitwardenTitle">In Codex Desktop and your browser</h2></div>
+<!-- The guide's video (guide-video.ts): "Přehrát video", then the browser's
+     own player in its place. -->
+<div class="guide-video" id="vault-bitwarden-video"></div>
 <p class="group-note" id="vault-bitwarden-first" hidden></p>
 <ol class="card vault-bitwarden-steps" id="vault-bitwarden-steps"></ol>
 <p class="group-note" id="vault-bitwarden-note" hidden></p>

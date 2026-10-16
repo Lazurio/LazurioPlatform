@@ -1190,8 +1190,12 @@ const en = {
   // own browser (F53's addendum of 2026-10-16). The extension's own labels
   // are quoted as its version 2026.10.0 shows them.
   vaultBitwardenTitle: "In Codex Desktop and your browser",
+  // A guide's video (guide-video.ts): the button that opens the browser's
+  // own player; its accessible name names the video.
+  guideVideoPlay: "Play video",
+  guideVideoPlayNamed: "Play video: {title}",
   vaultBitwardenAdd:
-    "In Codex Desktop, open Settings → Browser → Extensions and add Bitwarden. Add it to Chrome from the Chrome Web Store, and to another browser from that browser's own extension store.",
+    "Open the Bitwarden extension in the Chrome Web Store and click “Add to Chrome”. In Codex Desktop, do this in its browser; the extension then appears in Settings → Browser → Extensions.",
   vaultBitwardenStore: "Bitwarden in the Chrome Web Store",
   vaultBitwardenServer:
     "At the bottom, next to “Accessing”, choose “self-hosted”. Paste this address into the “Server URL” field and click “Save”:",
@@ -2782,8 +2786,10 @@ const cs: Record<MessageKey, string> = {
   vaultPageNoUsername:
     "Vaše přihlášení zatím neobsahuje uživatelské jméno v Lazuriu, proto vás toto Prostředí nemůže přidat do svého trezoru. Přihlaste se prosím znovu.",
   vaultBitwardenTitle: "V Codex Desktopu a ve vašem prohlížeči",
+  guideVideoPlay: "Přehrát video",
+  guideVideoPlayNamed: "Přehrát video: {title}",
   vaultBitwardenAdd:
-    "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do Chromu ho přidejte z Chrome Web Store, do jiného prohlížeče z jeho vlastního obchodu s rozšířeními.",
+    "Otevřete rozšíření Bitwarden v Chrome Web Store a klikněte na „Přidat do Chromu“. V Codex Desktopu to udělejte v jeho prohlížeči, rozšíření pak najdete v Nastavení → Prohlížeč → Rozšíření.",
   vaultBitwardenStore: "Bitwarden v Chrome Web Store",
   vaultBitwardenServer:
     "Dole u „Přistupujete na“ zvolte „vlastní server“. Do pole „URL serveru“ vložte tuto adresu a klikněte na „Uložit“:",

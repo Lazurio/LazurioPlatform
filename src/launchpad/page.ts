@@ -6,6 +6,7 @@ import { shellScript } from "../shell/bundle" with { type: "macro" };
 import { shellFontPaths } from "../shell/font-files";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import { stoneFilePaths } from "../shell/stone-files";
+import { guideVideoRoutes } from "./guide-video-files";
 import { notModified } from "./http-conditions";
 import index from "./index.html";
 import newTabPage from "./new-tab.html";
@@ -88,6 +89,7 @@ export const pageRoutes = {
   ...Object.fromEntries(pagePaths.map((path) => [path, index])),
   [newTabPagePath]: newTabPage,
   ...shellRoutes,
+  ...guideVideoRoutes,
 };
 
 // A private unix socket under a fresh private temporary directory: no ambient

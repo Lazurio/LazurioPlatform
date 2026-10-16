@@ -111,6 +111,8 @@ import { prepareContext } from "./content-view";
 import { createExecutorRoutes, isExecutorJob } from "./executor-routes";
 import { createFilesRoutes, maxRequestBytes } from "./files-routes";
 import { shellSetup, signsInAsPerson } from "./first-run";
+import { guideVideoPath } from "./guide-video";
+import { guideVideoAnswer, isGuideVideoPath } from "./guide-video-files";
 import { serveHealthSocket } from "./health-socket";
 import {
   type AdmittedPerson,
@@ -1028,6 +1030,16 @@ export async function startLaunchpad(
             page.ok ? answer.status : page.status,
           );
         }
+        // A guide video, answered here and not through the inner listener,
+        // so that its byte range reaches it (guide-video-files.ts).
+        if (
+          (request.method === "GET" || request.method === "HEAD") &&
+          isGuideVideoPath(url.pathname)
+        )
+          return guideVideoAnswer(
+            request,
+            url.pathname.slice(guideVideoPath.length),
+          );
         if (
           request.method === "GET" &&
           !url.pathname.startsWith("/api/") &&
