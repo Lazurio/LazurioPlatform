@@ -52,8 +52,15 @@
 // before the start, so Začínáme and Nastavení → Trezor show it with the
 // steps for Bitwarden in Codex Desktop (F53's addendum of 2026-10-16); the
 // fake bw keeps everything under the synthetic home, and the gateway names a
-// fictional person, jana, whose own address the steps offer. Synthetic names
-// only; stop it with Ctrl-C.
+// fictional person, jana, whose own address the steps offer. A personal
+// preview's vault is its person's own Bitwarden (root decision 0203 point 7)
+// in the tests' fake Bitwarden cloud, waiting for its person: the JSON line's
+// `bitwarden` has a fictional agents' account's `client_id`, `client_secret`
+// and master password to connect with on Nastavení → Trezor (the account is
+// in the cloud's EU region, or in the US with `bitwarden-us` anywhere after
+// the mode), and `accept`, a file whose creation makes the person accept the
+// invitation the page asked for, as Bitwarden's e-mail would. Synthetic
+// names only; stop it with Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -82,11 +89,16 @@ import { microsoft365Description } from "../src/integrations/microsoft365-execut
 import { startLaunchpad } from "../src/launchpad/server";
 import { toolsEnvironmentOf } from "../src/tools/overview";
 import { runTool } from "../src/tools/status";
+import { readConnection } from "../src/vault/connection";
 import { vaultSetup } from "../src/vault/flow";
 import {
   writeModule,
   writeOrganization,
 } from "../tests/fixtures/catalog-folder";
+import {
+  cloudHost,
+  startFakeBitwardenCloud,
+} from "../tests/fixtures/fake-bitwarden-cloud";
 import { executorWorld } from "../tests/fixtures/fake-executor";
 import { startFakeExecutor } from "../tests/fixtures/fake-executor-api";
 import {
@@ -116,6 +128,7 @@ const microsoft365 = process.argv.slice(3).includes("microsoft365");
 const composioOrgMissing = process.argv
   .slice(3)
   .includes("composio-org-missing");
+const bitwardenUs = process.argv.slice(3).includes("bitwarden-us");
 const locale = process.argv[3] === "en" ? "en" : "cs";
 const listenPort = Number(process.argv[4] ?? 24611);
 const role =
@@ -502,8 +515,50 @@ await writeFile(
 // on the tools' PATH, so the row's installation reads what its setup placed.
 const executor = mode === "local" ? undefined : await executorWorld({ home });
 // The work Environment's own vault, set up and connected before the start;
-// locally and on the personal preview, this process's (none on a computer).
-const vaultHost = mode === "hosted" ? await previewVault() : undefined;
+// the personal preview's person's own Bitwarden in the fake cloud, waiting
+// for its person; locally, this process's (none on a computer).
+let bitwarden: Readonly<Record<string, string>> | null = null;
+const vaultHost =
+  mode === "hosted"
+    ? await previewVault()
+    : mode === "personal"
+      ? await previewBitwarden()
+      : undefined;
+async function previewBitwarden() {
+  const cloud = await startFakeBitwardenCloud(home);
+  const masterPassword = "Preview agents 2026";
+  const key = await cloud.account(
+    "jana+agents@example.com",
+    masterPassword,
+    undefined,
+    "v1",
+    bitwardenUs ? "us" : "eu",
+  );
+  const zip = zipOf("bw", fakeBw);
+  const pin = fakePin(zip);
+  const host = cloudHost({
+    home,
+    cloud,
+    pin,
+    download: fakeRelease(pin, zip).fetch,
+  });
+  // The person accepts the invitation the page asked for once this file
+  // appears, as Bitwarden's e-mail would let them.
+  const accept = join(parent, "accept");
+  setInterval(async () => {
+    if (!(await Bun.file(accept).exists())) return;
+    await Bun.file(accept).delete();
+    const connection = await readConnection(host.connection).catch(() => null);
+    if (connection?.invitee) await cloud.accept(connection.invitee);
+  }, 500);
+  bitwarden = {
+    clientId: key.clientId,
+    clientSecret: key.clientSecret,
+    masterPassword,
+    accept,
+  };
+  return { ...host, enableForAgents: async () => undefined };
+}
 async function previewVault() {
   const vault = await startFakeVault(home);
   vault.allow(workAccount);
@@ -746,5 +801,6 @@ console.log(
     proxy,
     browser: mode === "local" ? null : browserOrigin,
     folder,
+    ...(bitwarden === null ? {} : { bitwarden }),
   }),
 );
