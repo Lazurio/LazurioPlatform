@@ -78,16 +78,37 @@ export function parseVaultPage(input: unknown): VaultPageModel | null {
 }
 
 /** Where the person at the browser stands, as `POST /api/vault/membership`
- * answers. */
-export type VaultPagePerson =
+ * answers, and their own address in a Lazurio Vaultwarden where the answer
+ * carries it. */
+export type VaultPagePerson = (
   | Readonly<{ kind: "known"; state: VaultMemberState; signIn: boolean }>
-  | Readonly<{ kind: "unknown"; reason: VaultMemberUnknown }>;
+  | Readonly<{ kind: "unknown"; reason: VaultMemberUnknown }>
+) &
+  Readonly<{ address?: string }>;
+
+/** A person's address in a Lazurio Vaultwarden, exactly: a Lazurio username
+ * (3 to 39 lowercase letters and digits, single dashes between them) at
+ * account.lazurio.ai (root decision 0203 points 4 and 5). */
+const isPersonAddress = (value: unknown): value is string =>
+  typeof value === "string" &&
+  /^[a-z0-9]+(?:-[a-z0-9]+)*@account\.lazurio\.ai$/.test(value) &&
+  value.indexOf("@") >= 3 &&
+  value.indexOf("@") <= 39;
 
 export function parseVaultMembership(input: unknown): VaultPagePerson | null {
   if (!isRecord(input)) return null;
+  if (input.address !== undefined && !isPersonAddress(input.address))
+    return null;
+  const address = isPersonAddress(input.address)
+    ? { address: input.address }
+    : {};
   if (input.kind === "vault-member-unknown")
     return unknownReasons.includes(input.reason as VaultMemberUnknown)
-      ? { kind: "unknown", reason: input.reason as VaultMemberUnknown }
+      ? {
+          kind: "unknown",
+          reason: input.reason as VaultMemberUnknown,
+          ...address,
+        }
       : null;
   if (
     input.kind !== "vault-member" ||
@@ -99,6 +120,7 @@ export function parseVaultMembership(input: unknown): VaultPagePerson | null {
     kind: "known",
     state: input.state as VaultMemberState,
     signIn: input.signIn === true,
+    ...address,
   };
 }
 
@@ -592,9 +614,25 @@ export function bitwardenReveal(
   return input.steps ? "reveal" : "forget";
 }
 
-/** One step of the guide, and the value it asks for with its Copy button
- * where the page has it. */
-export type BitwardenStep = Readonly<{ text: string; value: string | null }>;
+/** The Bitwarden extension in the Chrome Web Store, where step 1 leads. */
+export const bitwardenStoreUrl =
+  "https://chromewebstore.google.com/detail/bitwarden-password-manager/nngceckbapebfimnlniiiahkandclblb";
+
+/** The extension's own screens the steps show, with the place to fill in
+ * ringed (`src/launchpad/images/bitwarden-<name>-<locale>.webp`): `server`,
+ * "Přistupujete na" with "vlastní server" chosen above "URL serveru"; `email`,
+ * the login's "E-mailová adresa" and "Použít jednotné přihlášení". */
+export type BitwardenPicture = "server" | "email";
+
+/** One step of the guide: its sentence, the value it asks for with a Copy
+ * button where the page has it, the link it opens, and the extension's own
+ * screen it shows. */
+export type BitwardenStep = Readonly<{
+  text: string;
+  value: string | null;
+  link: Readonly<{ label: string; href: string }> | null;
+  picture: Readonly<{ name: BitwardenPicture; alt: string }> | null;
+}>;
 
 /** "V Codex Desktopu a ve vašem prohlížeči" on Nastavení → Trezor. */
 export type BitwardenGuide = Readonly<{
@@ -610,16 +648,19 @@ export type BitwardenGuide = Readonly<{
 /**
  * The steps that add this Environment's vault to the Bitwarden extension in
  * Codex Desktop (Nastavení → Prohlížeč → Rozšíření) and in the person's own
- * browser (F53's addendum of 2026-10-16). An Organization's Lazurio
- * Vaultwarden: its address as the self-hosted server, to copy; the person's
- * Lazurio address, `<username>@account.lazurio.ai`, with single sign-on
- * through Lazurio and their master password, since the vault takes people's
- * accounts only through the Lazurio sign-in (root decisions 0197 point 2 and
- * 0203 point 5); a line first while the page (`view`) offers "Vytvořit účet v
- * trezoru", and the network under the steps. The page has no person's
- * username to copy: the gateway names it only for the membership. A personal
- * Environment's own Bitwarden: its region's service and the person's own
- * account. None where `bitwardenTarget` has none for the person.
+ * browser (F53's addendum of 2026-10-16), in the extension's own words. First
+ * the extension, with its page in the Chrome Web Store. Then an
+ * Organization's Lazurio Vaultwarden: "vlastní server" under "Přistupujete
+ * na" and the vault's address in "URL serveru", to copy; the person's own
+ * address in "E-mailová adresa", to copy where the membership answer carries
+ * it (otherwise how it is formed), and "Použít jednotné přihlášení", since the
+ * vault takes people's accounts only through the Lazurio sign-in (root
+ * decisions 0197 point 2 and 0203 point 5); the master password last; each of
+ * the two with the extension's screen. A line first while the page (`view`)
+ * offers "Vytvořit účet v trezoru", and the network under the steps. A
+ * personal Environment's own Bitwarden: its region's service under
+ * "Přistupujete na" and the person's own account. None where
+ * `bitwardenTarget` has none for the person.
  */
 export function bitwardenGuide(
   model: VaultPageModel | null,
@@ -629,20 +670,27 @@ export function bitwardenGuide(
 ): BitwardenGuide | null {
   const target = bitwardenTarget(model, person);
   if (target === null) return null;
-  const add = { text: copy.vaultBitwardenAdd, value: null };
+  const step = (text: string, fields: Partial<BitwardenStep> = {}) => ({
+    text,
+    value: null,
+    link: null,
+    picture: null,
+    ...fields,
+  });
+  const add = step(copy.vaultBitwardenAdd, {
+    link: { label: copy.vaultBitwardenStore, href: bitwardenStoreUrl },
+  });
   if (target.kind === "cloud")
     return {
       kind: "cloud",
       first: null,
       steps: [
         add,
-        {
-          text: fill(copy.vaultBitwardenCloud, { service: target.service }),
-          value: null,
-        },
+        step(fill(copy.vaultBitwardenCloud, { service: target.service })),
       ],
       note: null,
     };
+  const address = person?.address ?? null;
   return {
     kind: "server",
     first:
@@ -651,9 +699,20 @@ export function bitwardenGuide(
         : null,
     steps: [
       add,
-      { text: copy.vaultBitwardenServer, value: target.server },
-      { text: copy.vaultBitwardenAddress, value: null },
-      { text: copy.vaultBitwardenSignIn, value: null },
+      step(copy.vaultBitwardenServer, {
+        value: target.server,
+        picture: { name: "server", alt: copy.vaultBitwardenServerPicture },
+      }),
+      step(
+        address === null
+          ? copy.vaultBitwardenAddressTyped
+          : copy.vaultBitwardenAddress,
+        {
+          value: address,
+          picture: { name: "email", alt: copy.vaultBitwardenEmailPicture },
+        },
+      ),
+      step(copy.vaultBitwardenSignIn),
     ],
     note: copy.vaultBitwardenNetwork,
   };

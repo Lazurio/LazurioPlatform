@@ -7,13 +7,18 @@ import {
   vaultStatus,
 } from "../vault/flow";
 import {
+  personAddress,
   type VaultAudience,
   type VaultMembership,
   vaultAudience,
   vaultMembership,
   vaultSignIn,
 } from "../vault/members";
-import type { AdmittedPerson } from "./hosted-trust";
+import {
+  type AdmittedPerson,
+  isAccountSubject,
+  isLazurioUsername,
+} from "./hosted-trust";
 import { BodyTooLarge, readJsonBody } from "./json-body";
 
 // Settings → Vault, Nastavení → Trezor (root decision 0198 points 2, 3 and
@@ -29,7 +34,10 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //                               vault, after the Environment adds them and,
 //                               on a work Environment, after the Správci of
 //                               an earlier assignment left; with `signIn`
-//                               while they have no account yet
+//                               while they have no account yet, and with
+//                               `address`, their own address in a Lazurio
+//                               Vaultwarden, for the Bitwarden steps of the
+//                               page (F53's addendum of 2026-10-16)
 //
 // The person is whom the gateway's own answer to this request's admission
 // named, by the subject and the Lazurio username (hosted-trust.ts), passed in
@@ -53,11 +61,16 @@ export type VaultPage = Readonly<{
 
 /** `POST /api/vault/membership`: the person's membership, and while they
  * have no account (or no master password) yet whether the network's vault
- * takes a sign-in with the Lazurio account, which creates one. */
-export type VaultPageMembership =
+ * takes a sign-in with the Lazurio account, which creates one. `address` is
+ * the admitted person's own address in the Environment's Lazurio Vaultwarden
+ * (`<Lazurio username>@account.lazurio.ai`), present only where the gateway's
+ * answer named them with a Lazurio username. */
+export type VaultPageMembership = (
   | (Extract<VaultMembership, { kind: "vault-member" }> &
       Readonly<{ signIn?: boolean }>)
-  | Extract<VaultMembership, { kind: "vault-member-unknown" }>;
+  | Extract<VaultMembership, { kind: "vault-member-unknown" }>
+) &
+  Readonly<{ address?: string }>;
 
 /** How long the vault's answer whether it takes Lazurio sign-in is kept. */
 const signInMs = 60_000;
@@ -107,12 +120,39 @@ export function createVaultPageRoutes(
   ): Promise<VaultPageMembership> {
     const host = input.host();
     const answer = await vaultMembership(host, person);
+    const address = await addressOf(host, person);
+    const own = address === null ? {} : { address };
     if (
       answer.kind === "vault-member" &&
       (answer.state === "no-account" || answer.state === "awaiting-password")
     )
-      return { ...answer, signIn: await takesSignIn(host) };
-    return answer;
+      return { ...answer, signIn: await takesSignIn(host), ...own };
+    return { ...answer, ...own };
+  }
+
+  /** The admitted person's own address, which the page's Bitwarden steps
+   * offer to copy: in a Lazurio Vaultwarden (an Environment's own one, or a
+   * 0197 pilot's network vault) the person's account is
+   * `<Lazurio username>@account.lazurio.ai`, built from the username of the
+   * gateway's own answer alone (root decision 0203 points 4 and 5), never
+   * from GitHub or a header of the request. None for a personal
+   * Environment's own Bitwarden, where the person signs in with their own
+   * account, none without a vault, and none where the answer named nobody
+   * or no username. It goes only to that person, in their own answer. */
+  async function addressOf(
+    host: VaultHost,
+    person: AdmittedPerson,
+  ): Promise<string | null> {
+    if (
+      !isAccountSubject(person.subject) ||
+      !isLazurioUsername(person.username)
+    )
+      return null;
+    const context = await host.context();
+    const lazurio =
+      context.kind === "pilot" ||
+      (context.kind === "own" && context.bitwarden === undefined);
+    return lazurio ? personAddress(person.username) : null;
   }
 
   return Object.freeze({

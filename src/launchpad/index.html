@@ -542,8 +542,10 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .vault-bitwarden-steps { counter-reset: bitwarden-step; }
 .vault-bitwarden-steps > li { counter-increment: bitwarden-step; display: grid; grid-template-columns: 24px minmax(0, 1fr); column-gap: 12px; padding: 14px 16px; color: var(--fg); font-size: 14px; line-height: 1.45; }
 .vault-bitwarden-steps > li::before { content: counter(bitwarden-step); grid-row: 1; display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid var(--lz-line); border-radius: 50%; color: var(--muted-fg); font-size: 12.5px; font-weight: var(--lz-weight-akce); }
-.vault-bitwarden-text, .vault-bitwarden-copy { grid-column: 2; min-width: 0; }
-.vault-bitwarden-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 8px; }
+.vault-bitwarden-text, .vault-bitwarden-copy, .vault-bitwarden-link, .vault-bitwarden-picture { grid-column: 2; min-width: 0; }
+.vault-bitwarden-copy, .vault-bitwarden-link { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 8px; }
+.vault-bitwarden-link .icon { width: 14px; height: 14px; }
+.vault-bitwarden-picture { display: block; width: min(100%, 380px); height: auto; margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; }
 .vault-bitwarden-value { padding: 0.2rem 0.45rem; border: 1px solid var(--border); border-radius: var(--lz-radius-xs); background: var(--muted); color: var(--fg); font-size: 13px; overflow-wrap: anywhere; user-select: all; }
 .vault-bitwarden-copy .row-status:empty { display: none; }
 
@@ -1298,6 +1300,10 @@ button.tour-later:hover { background: transparent; color: var(--fg); }
 <p class="group-note" id="vault-bitwarden-first" hidden></p>
 <ol class="card vault-bitwarden-steps" id="vault-bitwarden-steps"></ol>
 <p class="group-note" id="vault-bitwarden-note" hidden></p>
+<!-- The Bitwarden extension's own screens (version 2026.10.0, fictional
+     values), the place to fill in ringed; bundled with the page, never shown
+     here: a step shows a copy in the page's language. -->
+<div id="vault-bitwarden-pictures" hidden><img data-picture="server" data-locale="cs" src="./images/bitwarden-server-cs.webp" width="380" height="423" alt="" loading="lazy" decoding="async"><img data-picture="server" data-locale="en" src="./images/bitwarden-server-en.webp" width="380" height="423" alt="" loading="lazy" decoding="async"><img data-picture="email" data-locale="cs" src="./images/bitwarden-email-cs.webp" width="380" height="397" alt="" loading="lazy" decoding="async"><img data-picture="email" data-locale="en" src="./images/bitwarden-email-en.webp" width="380" height="397" alt="" loading="lazy" decoding="async"></div>
 </section>
 <!-- A personal Environment connects its person's own Bitwarden (root
      decision 0203 point 7, plan DEV-6631 task 775): the explanation, the

@@ -1215,22 +1215,29 @@ const en = {
     "Your sign-in does not include your Lazurio username yet, so this Environment cannot add you to its vault. Please sign in again.",
   // The vault in the Bitwarden extension of Codex Desktop and the person's
   // own browser (F53's addendum of 2026-10-16). The extension's own labels
-  // are quoted as it shows them.
+  // are quoted as its version 2026.10.0 shows them.
   vaultBitwardenTitle: "In Codex Desktop and your browser",
   vaultBitwardenAdd:
-    "In Codex Desktop, open Settings → Browser → Extensions and add Bitwarden. In your own browser, add it from its extension store.",
+    "In Codex Desktop, open Settings → Browser → Extensions and add Bitwarden. In your own browser, add it from the Chrome Web Store.",
+  vaultBitwardenStore: "Bitwarden in the Chrome Web Store",
   vaultBitwardenServer:
-    "In the extension, choose “self-hosted” and enter this as the Server URL:",
+    "At the bottom, next to “Accessing”, choose “self-hosted”. Paste this address into the “Server URL” field and click “Save”:",
   vaultBitwardenAddress:
-    "As the email address, enter your Lazurio username followed by @account.lazurio.ai and choose “Use single sign-on”.",
+    "Paste your address into the “Email address” field and click “Use single sign-on”:",
+  vaultBitwardenAddressTyped:
+    "Into the “Email address” field, type your Lazurio username followed by @account.lazurio.ai and click “Use single sign-on”.",
   vaultBitwardenSignIn:
     "Sign in with Lazurio and unlock the vault with your master password.",
+  vaultBitwardenServerPicture:
+    "Bitwarden: “Accessing” with “self-hosted” chosen, and the “Server URL” field",
+  vaultBitwardenEmailPicture:
+    "Bitwarden: the “Email address” field and “Use single sign-on”",
   vaultBitwardenAccount:
     "You have no account in the vault yet: first create one with “Create an account in the vault”.",
   vaultBitwardenNetwork:
     "The computer must be connected to the Organization's network.",
   vaultBitwardenCloud:
-    "In the extension, choose {service} and sign in with your own Bitwarden account.",
+    "At the bottom, next to “Accessing”, choose “{service}” and log in with your own Bitwarden account.",
   vaultBitwardenCopy: "Copy",
   vaultBitwardenCopied: "Copied.",
   // An agent's secret request in Nastavení → Trezor (root decision 0198
@@ -2833,18 +2840,25 @@ const cs: Record<MessageKey, string> = {
     "Vaše přihlášení zatím neobsahuje uživatelské jméno v Lazuriu, proto vás toto Prostředí nemůže přidat do svého trezoru. Přihlaste se prosím znovu.",
   vaultBitwardenTitle: "V Codex Desktopu a ve vašem prohlížeči",
   vaultBitwardenAdd:
-    "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do svého prohlížeče ho přidejte z obchodu s rozšířeními.",
+    "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do svého prohlížeče ho přidejte z Chrome Web Store.",
+  vaultBitwardenStore: "Bitwarden v Chrome Web Store",
   vaultBitwardenServer:
-    "V rozšíření zvolte „vlastní server“ a jako URL serveru zadejte:",
+    "Dole u „Přistupujete na“ zvolte „vlastní server“. Do pole „URL serveru“ vložte tuto adresu a klikněte na „Uložit“:",
   vaultBitwardenAddress:
-    "Jako e-mailovou adresu zadejte své uživatelské jméno v Lazuriu s koncovkou @account.lazurio.ai a zvolte „Použít jednotné přihlášení“.",
+    "Do pole „E-mailová adresa“ vložte svou adresu a klikněte na „Použít jednotné přihlášení“:",
+  vaultBitwardenAddressTyped:
+    "Do pole „E-mailová adresa“ zadejte své uživatelské jméno v Lazuriu s koncovkou @account.lazurio.ai a klikněte na „Použít jednotné přihlášení“.",
   vaultBitwardenSignIn:
-    "Přihlaste se přes Lazurio a trezor odemkněte svým hlavním heslem.",
+    "Přihlaste se přes Lazurio a trezor odemkněte hlavním heslem.",
+  vaultBitwardenServerPicture:
+    "Bitwarden: „Přistupujete na“ s volbou „vlastní server“ a pole „URL serveru“",
+  vaultBitwardenEmailPicture:
+    "Bitwarden: pole „E-mailová adresa“ a tlačítko „Použít jednotné přihlášení“",
   vaultBitwardenAccount:
     "Účet v trezoru ještě nemáte: nejdřív si ho vytvořte tlačítkem „Vytvořit účet v trezoru“.",
   vaultBitwardenNetwork: "Počítač musí být připojený k síti Organizace.",
   vaultBitwardenCloud:
-    "V rozšíření zvolte {service} a přihlaste se svým vlastním účtem Bitwardenu.",
+    "Dole u „Přistupujete na“ zvolte „{service}“ a přihlaste se svým vlastním účtem Bitwardenu.",
   vaultBitwardenCopy: "Kopírovat",
   vaultBitwardenCopied: "Zkopírováno.",
   vaultRequestsTitle: "Žádosti agentů",
