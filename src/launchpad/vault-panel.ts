@@ -151,6 +151,17 @@ export function createVaultPanel(
       node.addEventListener("click", () => void setup());
       controls.push(node);
     }
+    // A personal Environment whose person has not connected their own
+    // Bitwarden (root decision 0203 point 7): the way to the form, never a
+    // setup, which would only wait for them.
+    if (running === null && status?.state === "needs-connection") {
+      const connect = element("a", "button primary", copy.vaultConnectAction);
+      connect.href = "/settings/vault";
+      connect.dataset.route = "";
+      connect.dataset.tool = "bitwarden";
+      connect.dataset.control = "vault-connect";
+      controls.push(connect);
+    }
     const link = running === null ? vaultOpenLink(status) : null;
     if (link !== null) {
       const anchor = element("a", "button", copy.vaultOpen);

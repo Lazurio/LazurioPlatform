@@ -521,6 +521,18 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .vault-request-error { color: var(--destructive); font-size: 13px; }
 .vault-request-error:empty { display: none; }
 .vault-request-state[data-state="saved"] { border-color: var(--success-border); background: var(--success-bg); }
+/* A personal Environment connects its person's own Bitwarden (root decision
+   0203 point 7): the explanation, the slot of its motion graphic (#452),
+   the form and the way out. */
+#vault-connect { display: grid; gap: 12px; }
+#vault-connect[hidden] { display: none; }
+.vault-connect-motion:empty { display: none; }
+.vault-connect-steps { margin: 0; padding-left: 1.25rem; display: grid; gap: 4px; font-size: 14px; }
+.vault-connect-field { display: grid; gap: 0.4rem; }
+.vault-connect-field input, .vault-connect-field select { width: min(26rem, 100%); }
+.vault-connect-field input { font-family: var(--font-mono); font-size: 13px; }
+.vault-disconnect { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
+.vault-disconnect[hidden] { display: none; }
 
 /* Files (decision F35): the Documents folder as a list of rows, the path as
    links, the upload queue and the drop overlay. Below 36 rem of the list's
@@ -1262,6 +1274,32 @@ button.tour-later:hover { background: transparent; color: var(--fg); }
 <section class="group" id="vault-page-group" hidden>
 <div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" id="vault-page-name"></p><p class="row-status vault-page-state" id="vault-page-state" role="status" aria-live="polite"></p></div><div class="row-control" id="vault-page-actions"></div></div></div></div>
 <p class="group-note" id="vault-page-hint" hidden></p>
+<div class="vault-disconnect" id="vault-page-disconnect" hidden><p class="group-note" data-message="vaultDisconnectNote">Disconnecting removes the agents' account details from this Environment; the organization stays in Bitwarden.</p><button type="button" id="vault-disconnect" data-message="vaultDisconnect">Disconnect Bitwarden</button></div>
+</section>
+<!-- A personal Environment connects its person's own Bitwarden (root
+     decision 0203 point 7, plan DEV-6631 task 775): the explanation, the
+     slot of its motion graphic (Lazurio/LazurioPlatform#452) and the one
+     form, shown while the vault waits for the connection; drawn by
+     vault-page-panel.ts. A value goes from its input to the one connect
+     request and nowhere else. -->
+<section class="group" id="vault-connect" aria-labelledby="vault-connect-heading" hidden>
+<div class="group-head"><h2 id="vault-connect-heading" data-message="vaultConnectTitle">Connect your Bitwarden</h2></div>
+<div class="vault-connect-motion" id="vault-connect-motion" data-motion="personal-bitwarden" aria-hidden="true"></div>
+<p class="intro" data-message="vaultPageNeedsConnection">This personal Environment keeps its agents' passwords in your own Bitwarden, in a free organization for you and a separate agents' account.</p>
+<p class="intro" data-message="vaultConnectMainAccount">Agents never get your main account: they sign in with the agents' account only.</p>
+<ol class="vault-connect-steps">
+<li data-message="vaultConnectStep1">In the same service and region as your own account, create a new account for the agents.</li>
+<li data-message="vaultConnectStep2">In it, open Account settings → Security → Keys → API key and copy the client_id and client_secret.</li>
+<li data-message="vaultConnectStep3">Enter them here with the agents' account master password and the e-mail of your own account. This Environment creates the vault and invites you into it.</li>
+</ol>
+<form id="vault-connect-form" class="card" novalidate autocomplete="off">
+<div class="row"><div class="vault-connect-field"><label class="row-title" for="vault-connect-region" data-message="vaultConnectRegion">Bitwarden region</label><select id="vault-connect-region" name="region"><option value="eu" data-message="vaultConnectRegionEu">EU (bitwarden.eu)</option><option value="us" data-message="vaultConnectRegionUs">US (bitwarden.com)</option></select></div></div>
+<div class="row"><div class="vault-connect-field"><label class="row-title" for="vault-connect-client-id" data-message="vaultConnectClientId">Agents' account client_id</label><input id="vault-connect-client-id" name="clientId" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="200" placeholder="user.…"></div></div>
+<div class="row"><div class="vault-connect-field"><label class="row-title" for="vault-connect-client-secret" data-message="vaultConnectClientSecret">Agents' account client_secret</label><span class="vault-request-value"><input id="vault-connect-client-secret" name="clientSecret" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="200"><button type="button" class="ghost" data-reveal="vault-connect-client-secret" aria-controls="vault-connect-client-secret" aria-pressed="false">Show</button></span></div></div>
+<div class="row"><div class="vault-connect-field"><label class="row-title" for="vault-connect-password" data-message="vaultConnectPassword">Agents' account master password</label><span class="vault-request-value"><input id="vault-connect-password" name="masterPassword" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="1024"><button type="button" class="ghost" data-reveal="vault-connect-password" aria-controls="vault-connect-password" aria-pressed="false">Show</button></span></div></div>
+<div class="row"><div class="vault-connect-field"><label class="row-title" for="vault-connect-email" data-message="vaultConnectEmail">E-mail of your own Bitwarden account</label><input id="vault-connect-email" name="email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="254" aria-describedby="vault-connect-email-hint"><p class="row-desc" id="vault-connect-email-hint" data-message="vaultConnectEmailHint">Bitwarden sends you the invitation to the vault there.</p></div></div>
+<div class="row"><div class="row-main"><div class="row-copy"><p class="row-desc" data-message="vaultConnectKept">These details stay only in this Environment and are never shown again.</p><p class="vault-request-error" id="vault-connect-error" role="alert"></p></div><div class="row-control"><button type="submit" class="primary" id="vault-connect-submit" disabled>Connect Bitwarden</button></div></div></div>
+</form>
 </section>
 <!-- One agent's secret request (/settings/vault/requests/<id>, decision
      F54): on its route it alone shows of this section (`data-request`),
