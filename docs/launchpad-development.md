@@ -2473,10 +2473,11 @@ Organization's, and it gets none of it.
   title alone does not say what it is for (F36's addendum of 2026-10-16):
   1. **Připojit AI** (`ai-sign-in.ts` holds the sign-in in the page): "Zajišťuje vaše
      Organizace." (done, nothing runs); otherwise only the title and "Přihlásit ChatGPT"
-     and "Přihlásit Claude", each with its mark before its name (Claude's simple-icons
-     mark, the sprite's `i-claude`; ChatGPT's first letter, as Integrace draws a brand
-     simple-icons does not carry), nothing said before them (where the AI could not be
-     checked, that line); signing in, "Dokončete přihlášení k {ChatGPT|Claude} v prohlížeči vpravo." (the
+     and "Přihlásit Claude", each with its mark before its name (OpenAI's Blossom from
+     its brand kit, the sprite's `i-openai`, in OpenAI's white or black only; Claude's
+     simple-icons mark, `i-claude`; [licensing](licensing.md#bundled-third-party-assets)),
+     nothing said before them (where the AI could not be checked, that line); signing
+     in, "Dokončete přihlášení k {ChatGPT|Claude} v prohlížeči vpravo." (the
      right panel opens on the Environment browser's tab, as for Integrace) or "… v okně
      prohlížeče." (a workstation, whose CLI opens the computer's browser), with
      "Otevřít přihlášení" and "Zrušit", and for Claude's code page one field for its
