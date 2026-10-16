@@ -2542,6 +2542,18 @@ Organization's, and it gets none of it.
   view only: until the basics exist the tour is back on the next page load, and Začínáme
   never goes away. It steps aside while a dialog or the Environment browser is open and
   waits while its element is not on the page (a preparation that runs).
+- **Where the bubble stands** (`tour-placement.ts`, Lazurio/LazurioPlatform#461): one
+  rule for every stop. Beside the ringed element when there is room, else under it,
+  above it or on its left; along that side it starts where the ring starts, or ends
+  where the ring ends when starting there would leave the window, so the bubble at
+  "Zkusit znovu" on the right edge of Začínáme stays over the content. It is always
+  whole inside the window's visible area, 12 px from its edges, measured without the
+  scrollbar (`clientWidth`), which a classic one (Windows, a Mac with a mouse) would
+  otherwise lay over it; 300 px wide, or what a narrower window leaves; its arrow points
+  at the element. Without the element on screen (the Settings column of a narrow
+  window, closed) it stands in the bottom right corner. A ringed link is the page's own
+  link: a plain click moves within the page, and only a click with a modifier (⌘ or
+  Ctrl, Shift) or the middle button opens a new tab or window, as for every link.
 - **Where the progress lives.** Only where the introduction points, in this browser's
   `localStorage` per Environment (`lazurio.tour:<Environment id>` = `{ "intro": n }`, the
   shell document's `current`). Nothing about the basics is stored: they are the
@@ -2597,6 +2609,9 @@ Organization's, and it gets none of it.
   probe over fake processes and fake CLIs, `GET /api/ai`),
   `tests/content-client.test.ts` (the client against stubs of the fixed API),
   `tests/content-view.test.ts` (steps, the stop and where it leads, the prompt),
-  `tests/content-routes.test.ts` (`root-access`) and `tests/first-run-shell.test.ts`
+  `tests/content-routes.test.ts` (`root-access`), `tests/first-run-shell.test.ts`
   (the shell document's `setup` with `ai`, the column head's prompt, the GitHub probe,
-  `prepare-content` over HTTP, the auto-on rule and the Nástroje texts).
+  `prepare-content` over HTTP, the auto-on rule and the Nástroje texts) and
+  `tests/tour-placement.test.ts` (where the bubble stands: the page's own boxes at 1440,
+  1280, 1024 and 800 px, short windows, a classic scrollbar and a sweep of elements
+  across five windows).
