@@ -718,7 +718,10 @@ it is the second wave (`unsupported`, `workstation`).
   (`SSO_ONLY`, asked of its token endpoint: "SSO sign-in is required"); elsewhere
   nobody is invited or confirmed (`sign-in-not-required`), and a pending invitation
   (`awaiting-password`) is safe. A person named without a valid username is added
-  nowhere (`no-username`), and the page asks them to sign in again. A work Environment's Admin-type members all leave when
+  nowhere (`no-username`), and the page asks them to sign in again. The answer carries
+  the person's own address (`address`) where that answer named them with a username and
+  the vault is a Lazurio Vaultwarden, for the page's Bitwarden steps (F53's addendum
+  of 2026-10-16). A work Environment's Admin-type members all leave when
   its assignment changes; the Owner and other roles are never touched; a personal
   Environment never removes; a Team or Automated one neither adds nor removes yet.
   The installed hosted Launchpad also looks at the assignment after its start and
