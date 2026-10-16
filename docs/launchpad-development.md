@@ -2219,9 +2219,10 @@ between "Váš Bitwarden" and "Agenti v tomto Prostředí", built from the desig
 system's tokens and the page's own icons, whose middle is the name the vault gets
 (`GET /api/vault`'s `name`, "Osobní <login>", fitted to its column and whole in the
 picture's accessible name); one line ("Agenti dostanou vlastní účet. Ten váš zůstane
-jen pro vás."); the slot of the guide's video (`#vault-connect-video`,
-`data-guide="vault-personal-bitwarden"`, empty and collapsed until the shared guide
-player of plan DEV-6665 fills it, #452); and two numbered steps in the look of
+jen pro vás."); the slot of the guide's video (`<div class="guide-video"
+id="vault-connect-video">`, empty and collapsed until its video
+`vault-personal-bitwarden` exists and the panel mounts `createGuideVideo` there, as
+[Guide videos](#guide-videos) says, #452); and two numbered steps in the look of
 `#vault-bitwarden`, each with one line and a picture of Bitwarden's own web vault, the
 place to fill in ringed. Step 1, "Založte účet pro agenty" with the tip of a
 `+agenti` address, opens bitwarden.eu's own sign-up in a new tab ("Otevřít

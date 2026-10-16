@@ -1016,6 +1016,31 @@ test("every picture a step names is in the page once per language, a small 2x We
     }
 });
 
+// The guide video's slot (guide-video.ts): empty and collapsed under the
+// section's line, above the steps, in the component's shape, until the video
+// `vault-personal-bitwarden` exists and the panel mounts it (#452).
+test("the connection's section keeps an empty guide-video slot under its line, above the steps", () => {
+  const html = readFileSync(
+    new URL("../src/launchpad/index.html", import.meta.url),
+    "utf8",
+  );
+  const section = html.slice(
+    html.indexOf('<section class="group" id="vault-connect"'),
+    html.indexOf("</section>", html.indexOf('id="vault-connect"')),
+  );
+  expect(section).toContain(
+    '<div class="guide-video" id="vault-connect-video"></div>',
+  );
+  const order = [
+    'data-message="vaultConnectLead"',
+    'id="vault-connect-video"',
+    'id="vault-connect-form"',
+  ].map((marker) => section.indexOf(marker));
+  expect(order.every((at) => at >= 0)).toBe(true);
+  expect([...order].sort((a, b) => a - b)).toEqual(order);
+  expect(html).toContain("#vault-connect-video:empty { display: none; }");
+});
+
 // Bitwarden's own screens of the connection's two steps (F53's amendment of
 // 2026-10-16, (2)): each in the page once per language, the small 2x WebP of
 // the size the page declares; how the steps look is checked in a browser

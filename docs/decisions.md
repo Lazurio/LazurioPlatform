@@ -12817,14 +12817,16 @@ fields and one button.
      values replaced and the two entries hidden, the title row and the box stacked with a
      12 px white gap. When Bitwarden changes these screens or words, the steps and the
      pictures are refreshed together.
-6. **The guide's video.** A clean place waits under the line: `#vault-connect-video`,
-   `data-guide="vault-personal-bitwarden"`, empty and collapsed. Guide videos are bundled
-   with the Launchpad, never linked: the clip in
-   `src/launchpad/videos/<guide>-<locale>.mp4` (H.264, yuv420p, 30 fps, faststart, no
-   audio, 16:9, at most 3 MB) and its poster in `<guide>-<locale>.webp`, played by the one
-   shared guide player that plan DEV-6665 adds ("Přehrát video", then a native `<video
-   controls playsinline preload="none" poster>`, with HTTP Range on the static route).
-   This change adds neither a player nor a video (Lazurio/LazurioPlatform#452).
+6. **The guide's video.** A clean place waits under the line, in the shape of the
+   [guide video's addendum](#f53-addendum-of-2026-10-16-the-guide-video-of-trezor-in-bitwarden):
+   `<div class="guide-video" id="vault-connect-video">`, empty and collapsed. Its video,
+   `vault-personal-bitwarden`, comes as that addendum's does
+   (docs/launchpad-development.md "Guide videos"): its files
+   `src/launchpad/videos/vault-personal-bitwarden-<cs|en>.mp4` and `.webp`, the name in
+   `guideVideoNames` and its imports in `guideVideoFilePaths`, and the panel mounting
+   `createGuideVideo(slot, { name, title, describedBy, copy, locale }).render()` there.
+   This change adds neither a video nor a mount, since the motion graphic does not exist
+   yet (Lazurio/LazurioPlatform#452).
 
 **Honest limits.** Without the person's address at connecting, `same-account` can be
 checked only when they ask to be invited: a person who connects their main account and

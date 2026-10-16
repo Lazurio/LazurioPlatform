@@ -538,7 +538,7 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .vault-connect-picture .vault-connect-lock { color: var(--lz-blue-500); }
 .vault-connect-picture text { fill: var(--fg); font: var(--lz-weight-akce) 13px var(--font-sans); text-anchor: middle; }
 .vault-connect-picture text.vault-connect-where { fill: var(--muted-fg); font-weight: 400; font-size: 12px; }
-.vault-connect-video:empty { display: none; }
+#vault-connect-video:empty { display: none; }
 .vault-connect-steps > li > * { grid-column: 2; min-width: 0; }
 .vault-connect-steps .link-button { height: 30px; }
 .vault-connect-fields { display: grid; gap: 12px; margin-top: 14px; }
@@ -1362,9 +1362,7 @@ button:not(.primary) .provider-openai { color: #000000; }
      decision 0203 point 7, plan DEV-6631 task 775; F53's amendment of
      2026-10-16, (2)): the title, the picture of the vault between the
      person's Bitwarden and the agents, one line, the slot of the guide's
-     video (`vault-personal-bitwarden`, Lazurio/LazurioPlatform#452: the
-     shared guide player sits there once it exists, empty and collapsed until
-     then), two steps with Bitwarden's own screens, the fields and one
+     video, two steps with Bitwarden's own screens, the fields and one
      button; shown while the vault waits for the connection, drawn by
      vault-page-panel.ts. A value goes from its input to the one connect
      request and nowhere else. -->
@@ -1372,7 +1370,12 @@ button:not(.primary) .provider-openai { color: #000000; }
 <div class="group-head"><h2 id="vault-connect-heading" data-message="vaultConnectTitle">Your agents' passwords in your Bitwarden</h2></div>
 <svg class="vault-connect-picture" id="vault-connect-picture" viewBox="0 0 340 108" width="340" height="108" role="img" aria-labelledby="vault-connect-picture-label"><title id="vault-connect-picture-label"></title><line class="vault-connect-link" x1="79" y1="30" x2="146" y2="30"/><line class="vault-connect-link" x1="194" y1="30" x2="261" y2="30"/><rect class="vault-connect-node" x="31.5" y="6.5" width="47" height="47" rx="10"/><rect class="vault-connect-node" x="261.5" y="6.5" width="47" height="47" rx="10"/><use class="vault-connect-side" href="#i-user" x="43" y="18" width="24" height="24"/><rect class="vault-connect-vault" x="146" y="6" width="48" height="48" rx="10"/><use class="vault-connect-lock" href="#i-lock" x="156" y="16" width="28" height="28"/><use class="vault-connect-side" href="#i-bot" x="273" y="18" width="24" height="24"/><text x="55" y="78" data-message="vaultConnectYours">Your Bitwarden</text><text x="170" y="78" id="vault-connect-picture-vault"></text><text x="285" y="78" data-message="vaultConnectAgents">Agents</text><text class="vault-connect-where" x="285" y="96" data-message="vaultConnectAgentsWhere">in this Environment</text></svg>
 <p class="intro" data-message="vaultConnectLead">Your agents get their own account. Yours stays yours.</p>
-<div class="vault-connect-video" id="vault-connect-video" data-guide="vault-personal-bitwarden"></div>
+<!-- The guide's video (guide-video.ts, as #vault-bitwarden-video): the
+     panel mounts createGuideVideo here with the name
+     `vault-personal-bitwarden` once its files exist in src/launchpad/videos/
+     and the name is in guideVideoNames (Lazurio/LazurioPlatform#452); empty
+     and collapsed until then. -->
+<div class="guide-video" id="vault-connect-video"></div>
 <form id="vault-connect-form" novalidate autocomplete="off">
 <ol class="card vault-bitwarden-steps vault-connect-steps">
 <li><span class="vault-bitwarden-text" data-message="vaultConnectSignUp">Create an account for your agents. For its e-mail, you can use your own with +agents: jana+agents@gmail.com</span><span class="vault-bitwarden-link"><a class="button primary" id="vault-connect-open" target="_blank" rel="noopener noreferrer"><span id="vault-connect-open-label">Open bitwarden.eu</span><svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a><button type="button" class="link-button" id="vault-connect-other">Using bitwarden.com?</button></span><span class="vault-connect-shot" data-shot="signup"></span></li>
