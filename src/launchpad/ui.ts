@@ -638,10 +638,10 @@ function openAiStep() {
   startPanel.focusAi();
 }
 // What a public Environment does not have (decision F55): the page's
-// stylesheet hides Integrace in the Apps column, Trezor in the settings
-// navigation and Začínáme's "Zkontrolovat znovu" while `<html
+// stylesheet hides Integrace in the Apps column, Trezor and Nástroje in the
+// settings navigation and Začínáme's "Zkontrolovat znovu" while `<html
 // data-audience="public">` says so; the router shows Apps and Settings in
-// place of the first two.
+// place of the first three.
 function drawAudience() {
   if (isPublicEnvironment(entry))
     document.documentElement.dataset.audience = "public";
@@ -1261,6 +1261,8 @@ const tools = createToolsPanel({
     controls.apply.disabled = true;
     await load();
   },
+  // A public Environment has no Nástroje (decision F55): nothing to read.
+  absent: () => isPublicEnvironment(entry),
 });
 const voice = voicePanel({
   post,

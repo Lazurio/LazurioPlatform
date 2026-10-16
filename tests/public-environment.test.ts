@@ -34,6 +34,7 @@ import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import { messages } from "../src/launchpad/messages";
 import {
   isPublicEnvironment,
+  isToolsApiPath,
   publicRoute,
   withheldInPublic,
 } from "../src/launchpad/public-environment";
@@ -79,8 +80,9 @@ import organization from "./fixtures/machine-context.json";
 // "public"` for such a work VM (Machines #560, behind its own Platform
 // gate); the Launchpad then runs a demo onboarding instead of Začínáme's
 // sign-ins, says in the shell's column head that the Environment is public
-// and shared, and has no Integrace and no Nastavení → Trezor. Without the
-// member nothing changes. Example names only.
+// and shared, and has no Integrace, no Nastavení → Trezor and no Nastavení →
+// Nástroje, whose rows sign tools in. Without the member nothing changes.
+// Example names only.
 
 const bytes = (value: unknown) => Buffer.from(JSON.stringify(value));
 const { team: _, ...withoutTeam } = organization.owner;
@@ -339,10 +341,21 @@ for (const preset of publicPresets)
     expect(tourStop("chat", facts, apps, en).text).toBe(
       "Work with agents. AI is not connected in this demo.",
     );
-    // The other stops say what they say everywhere.
-    expect(tourStop("apps", facts, apps, cs)).toEqual(
-      tourStop("apps", { ...facts, audience: undefined }, apps, cs),
+    // Apps: the modules are the Organization's, not the visitor's.
+    expect(tourStop("apps", facts, apps, cs).text).toBe(
+      "Aplikace modulů této Organizace.",
     );
+    expect(tourStop("apps", facts, apps, en).text).toBe(
+      "The apps of this Organization's modules.",
+    );
+    expect(
+      tourStop("apps", { ...facts, audience: undefined }, apps, cs).text,
+    ).toBe("Aplikace vašich modulů.");
+    // The other stops say what they say everywhere.
+    for (const step of ["automate", "settings"] as const)
+      expect(tourStop(step, facts, apps, cs)).toEqual(
+        tourStop(step, { ...facts, audience: undefined }, apps, cs),
+      );
   });
 
 test("Začínáme of a public Environment: Apps, a module and Chat, which says AI is not connected", () => {
@@ -418,7 +431,7 @@ test("without the member Začínáme, the count, the line and the tour are what 
 
 // --- Integrace and Nastavení → Trezor -----------------------------------
 
-test("a public Environment withholds Integrace and Nastavení → Trezor, and shows Apps and Settings in their place", () => {
+test("a public Environment withholds Integrace, Nastavení → Trezor and Nastavení → Nástroje, and shows Apps and Settings in their place", () => {
   for (const path of [
     "/integrations",
     "/integrations/connected",
@@ -427,6 +440,7 @@ test("a public Environment withholds Integrace and Nastavení → Trezor, and sh
     "/integrations/app/gmail",
     "/settings/vault",
     "/settings/vault/requests/abcdefghijklmnopqrstuvwx",
+    "/settings/tools",
   ])
     expect([path, withheldInPublic(pageRoute(path))]).toEqual([path, true]);
   for (const path of [
@@ -437,7 +451,7 @@ test("a public Environment withholds Integrace and Nastavení → Trezor, and sh
     "/marketplace",
     "/settings",
     "/settings/start",
-    "/settings/tools",
+    "/settings/general",
     "/settings/machine",
     "/settings/ssh",
   ])
@@ -445,12 +459,42 @@ test("a public Environment withholds Integrace and Nastavení → Trezor, and sh
   expect(publicRoute(pageRoute("/integrations/connected"))).toEqual({
     view: "home",
   });
-  expect(publicRoute(pageRoute("/settings/vault"))).toEqual({
-    view: "settings",
-    section: "general",
-  });
+  for (const path of ["/settings/vault", "/settings/tools"])
+    expect(publicRoute(pageRoute(path))).toEqual({
+      view: "settings",
+      section: "general",
+    });
   for (const path of ["/", "/settings/start", "/o/example/deals"])
     expect(publicRoute(pageRoute(path))).toEqual(pageRoute(path));
+});
+
+test("a public Environment withholds Nástroje's whole API: every sign-in and sign-out, Bitwarden, Executor, installations and updates", () => {
+  for (const path of [
+    "/api/tools",
+    "/api/tools/status",
+    "/api/tools/login/start",
+    "/api/tools/login/poll",
+    "/api/tools/login/code",
+    "/api/tools/login/cancel",
+    "/api/tools/logout",
+    "/api/tools/composio/organizations",
+    "/api/tools/composio/organization",
+    "/api/tools/bitwarden/status",
+    "/api/tools/bitwarden/setup",
+    "/api/tools/executor/setup",
+    "/api/tools/install",
+    "/api/tools/upgrade",
+    "/api/tools/update",
+  ])
+    expect([path, isToolsApiPath(path)]).toEqual([path, true]);
+  for (const path of [
+    "/api/toolsx",
+    "/api/ai",
+    "/api/entry",
+    "/api/content",
+    "/api/profile",
+  ])
+    expect([path, isToolsApiPath(path)]).toEqual([path, false]);
 });
 
 // --- The shell's notice ------------------------------------------------
@@ -535,20 +579,20 @@ test("the shell document takes the audience only as public, and only beside a cu
   expect(shellWith(undefined, null)).not.toBeNull();
 });
 
-test("the column head says it in Apps, Chat and Automate: public and shared, wiped nightly, no personal data or own accounts", () => {
+test("the column head says it in Apps, Chat and Automate in two short sentences: public and shared, wiped nightly, no personal data or own accounts", () => {
   const shell = shellWith("public") as Shell;
   for (const active of ["apps", "chat", "automate", "settings"])
     expect(
       columnHead(shell, shellCs, { space: null, active, settings: null })
         ?.notice,
     ).toEqual({
-      text: "Toto Prostředí je veřejné a sdílené: vidí ho ostatní návštěvníci i provozovatelé a nejméně jednou za noc se smaže. Nezadávejte sem osobní údaje a nepřihlašujte se ke svým účtům.",
+      text: "Toto Prostředí je veřejné a sdílené a každou noc se smaže. Nezadávejte sem osobní údaje a nepřihlašujte se ke svým účtům.",
     });
   expect(
     columnHead(shell, shellEn, { space: null, active: "chat", settings: null })
       ?.notice,
   ).toEqual({
-    text: "This Environment is public and shared: other visitors and the operators can see it, and it is wiped at least nightly. Don't enter personal data here or sign in to your own accounts.",
+    text: "This Environment is public and shared and is wiped every night. Do not enter personal data or sign in to your own accounts.",
   });
   // Without the member no notice, not even the member.
   const plain = columnHead(shellWith(undefined) as Shell, shellCs, {
@@ -617,11 +661,17 @@ async function hosted(audience: boolean) {
     "__Secure-lazurio-workspace=valid"
       ? new Response("ok")
       : new Response("no", { status: 401 });
-  const run: ToolRunner = async () => ({
-    exitCode: 1,
-    stdout: "",
-    stderr: "You are not logged into any GitHub hosts.",
-  });
+  // Every command the Launchpad asks its tools, so a test can prove that
+  // nothing was signed in, out or installed.
+  const commands: string[][] = [];
+  const run: ToolRunner = async (command) => {
+    commands.push([...command]);
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "You are not logged into any GitHub hosts.",
+    };
+  };
   const app = await startLaunchpad(
     folder,
     undefined,
@@ -639,6 +689,7 @@ async function hosted(audience: boolean) {
   const headers = { host, cookie: "__Secure-lazurio-workspace=valid" };
   return {
     folder,
+    commands,
     get: (path: string) => fetch(`${base}${path}`, { headers }),
     post: (path: string, body: unknown = {}) =>
       fetch(`${base}${path}`, {
@@ -664,11 +715,39 @@ const withheldPages = [
   "/integrations/app/gmail",
   "/settings/vault",
   "/settings/vault/requests/abcdefghijklmnopqrstuvwx",
+  "/settings/tools",
 ];
-const shownPages = ["/", "/settings/start", "/settings/tools", "/o/example"];
+const shownPages = ["/", "/settings/start", "/settings/general", "/o/example"];
+// Nástroje's routes and their bodies as the page sends them: the reading,
+// every sign-in the rows offer (gh, Codex, Claude, Composio, wacli, neon),
+// its steps and the sign-out, Composio's organizations, the vault's
+// Bitwarden, Executor's setup, an installation and an update.
+const toolRoutes: readonly (readonly [string, string, unknown])[] = [
+  ["GET", "/api/tools/status", undefined],
+  ["POST", "/api/tools/status", { signIn: true }],
+  ...["gh", "codex", "claude", "composio", "wacli", "neon"].map(
+    (tool) => ["POST", "/api/tools/login/start", { tool }] as const,
+  ),
+  ["POST", "/api/tools/login/poll", { tool: "gh", session: "x" }],
+  [
+    "POST",
+    "/api/tools/login/code",
+    { tool: "claude", session: "x", code: "x" },
+  ],
+  ["POST", "/api/tools/login/cancel", { tool: "gh", session: "x" }],
+  ["POST", "/api/tools/logout", { tool: "gh" }],
+  ["POST", "/api/tools/composio/organizations", {}],
+  ["POST", "/api/tools/composio/organization", { id: "x" }],
+  ["POST", "/api/tools/bitwarden/status", {}],
+  ["POST", "/api/tools/bitwarden/setup", {}],
+  ["POST", "/api/tools/executor/setup", {}],
+  ["POST", "/api/tools/install", { tool: "wacli" }],
+  ["POST", "/api/tools/upgrade", { tool: "composio" }],
+  ["POST", "/api/tools/update", { expectedRevision: 1, tools: ["gh"] }],
+];
 
 posixTest(
-  "hosted, public: Integrace and Trezor answer as absent, the shell says it is public, the entry names the audience",
+  "hosted, public: Integrace, Trezor and Nástroje answer as absent, the shell says it is public, the entry names the audience",
   async () => {
     const app = await hosted(true);
     try {
@@ -722,7 +801,39 @@ posixTest(
 );
 
 posixTest(
-  "hosted, not public: the same Environment serves Integrace and Trezor as before and its shell says nothing of an audience",
+  "hosted, public: Nástroje offers no sign-in: its page and every route of its rows answer as absent, and no tool is asked to sign in, out, install or set up",
+  async () => {
+    const app = await hosted(true);
+    try {
+      const page = await app.get("/settings/tools");
+      expect(page.status).toBe(404);
+      expect(page.headers.get("content-type")).toStartWith("text/html");
+      await page.body?.cancel();
+      for (const [method, path, body] of toolRoutes) {
+        const answer =
+          method === "GET" ? await app.get(path) : await app.post(path, body);
+        expect([method, path, answer.status, await answer.json()]).toEqual([
+          method,
+          path,
+          404,
+          { error: "not-found" },
+        ]);
+      }
+      // Nothing was signed in, out, installed or set up for a visitor.
+      expect(
+        app.commands.filter((command) =>
+          command.some((part) => /^(login|logout|install|setup)$/.test(part)),
+        ),
+      ).toEqual([]);
+    } finally {
+      await app.close();
+    }
+  },
+  30_000,
+);
+
+posixTest(
+  "hosted, not public: the same Environment serves Integrace, Trezor and Nástroje as before and its shell says nothing of an audience",
   async () => {
     const app = await hosted(false);
     try {
@@ -733,6 +844,13 @@ posixTest(
       }
       const shell = await (await app.get("/.lazurio/shell.json")).json();
       expect(Object.hasOwn(shell, "audience")).toBe(false);
+      // Nástroje answer as before: the reading of the tools.
+      const tools = await app.post("/api/tools/status", {});
+      expect(tools.status).toBe(200);
+      const overview = await tools.json();
+      expect(
+        overview.tools.some((tool: { name: string }) => tool.name === "gh"),
+      ).toBe(true);
       const entry = await (await app.get("/api/entry")).json();
       expect(Object.hasOwn(entry.entry, "audience")).toBe(false);
     } finally {

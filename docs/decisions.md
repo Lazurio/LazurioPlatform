@@ -12793,7 +12793,7 @@ languages (`tests/folder-manual.test.ts`). Checked in a browser with the fake va
 (root decision 0178): the section, filling in, show and hide, save, decline, an
 unreachable vault and the retry, a narrow screen.
 
-## F55 — A public Environment: a demo onboarding, a quiet notice that it is public, no Integrace and no Trezor
+## F55 — A public Environment: a demo onboarding, a quiet notice that it is public, nothing to sign in to
 
 **Decided by Matěj (Organization Admin) on 2026-10-16 (root decision 0204 points 3, 4 and
 6 and its line on 0201, plan DEV-6668 slice 1); the handover member is
@@ -12805,8 +12805,9 @@ Lazurio account, without membership, invitation or grant (0204 point 3). Nobody 
 to anything in its shared Environment: no vault, no Integrace, no AI subscription, and
 its entry forbids personal data and the visitors' own accounts (point 4); a visitor gets
 no AI (point 6). The first run of 0201 would lead every visitor straight to signing in
-to ChatGPT or Claude and to GitHub, which is exactly what 0204 forbids, and to Integrace
-and Trezor, which a visitor must not have.
+to ChatGPT or Claude and to GitHub, which is exactly what 0204 forbids, and Integrace,
+Trezor and Nástroje offer sign-ins a visitor must not have. A notice alone is not enough
+while the page offers the button (the review of #471, 2026-10-17).
 
 1. **The handover says it, the platform decides it.** The vendored schema is the merge
    of Machines #560 into `main`, which adds only the optional `entry.audience`, exactly
@@ -12821,8 +12822,9 @@ and Trezor, which a visitor must not have.
    visitor of slice 1 has no AI. It grants nothing; the gateway's admission decides who
    enters.
 2. **One rule for the page and the server** (`src/launchpad/public-environment.ts`):
-   whether the recorded entry is public, which routes a public Environment withholds and
-   which route it shows in their place. The server reads the entry recorded at its
+   whether the recorded entry is public, which routes a public Environment withholds
+   (Integrace, Nastavení → Trezor, Nastavení → Nástroje and Nástroje's API) and which
+   route it shows in their place. The server reads the entry recorded at its
    start; the page reads the same entry's public parts (`GET /api/entry`, the boot
    document), which now carry `audience`.
 3. **A demo onboarding instead of the basics.** A public Environment has no basics,
@@ -12837,24 +12839,29 @@ and Trezor, which a visitor must not have.
    aplikace". No vault, Bitwarden, Composio, SSH or Codex Desktop row, and no
    "Zkontrolovat znovu", since nothing is to be checked. The tour's introduction (Apps,
    Chat, Automate, Settings) runs from the first visit in each browser, a visitor being
-   new there, and its Chat stop says that the AI is not connected.
+   new there; its Apps stop says "Aplikace modulů této Organizace" and its Chat stop that
+   the AI is not connected.
 4. **A quiet notice in the shell's column head.** `lazurio.shell.v1` gains the optional
    `audience: "public"` (additive: an older parser ignores it; null is none; absent on a
    page that belongs to no Environment). Where it is present the column head shows, under
    the switch in Apps, Chat, Automate and Settings alike, the design system's quiet
-   notice (`lz-notice--quiet`: the dot carries the colour, never a band): "Toto
-   Prostředí je veřejné a sdílené: vidí ho ostatní návštěvníci i provozovatelé a nejméně
-   jednou za noc se smaže. Nezadávejte sem osobní údaje a nepřihlašujte se ke svým
-   účtům." A narrow column keeps the dot, and the words for assistive technology. T3 Code
+   notice (`lz-notice--quiet`: the dot carries the colour, never a band), two short
+   sentences: "Toto Prostředí je veřejné a sdílené a každou noc se smaže. Nezadávejte sem
+   osobní údaje a nepřihlašujte se ke svým účtům." A narrow column keeps the dot, and the
+   words for assistive technology. T3 Code
    and MausBot draw it without a change of theirs: their column head is the Launchpad's
    `shell.js` over the Launchpad's `shell.json`.
-5. **No Integrace and no Trezor.** Their items in the Apps column and the settings
-   navigation are hidden; `/integrations…` and `/settings/vault…` (an agent's secret
-   request included) answer `404` with the page, which shows Apps or Nastavení → Obecné
-   in their place; their API routes (`/api/integrations…`, `/api/vault`,
-   `/api/vault/membership`, `/api/vault/requests…`, `/api/vault/connect`,
-   `/api/vault/disconnect`) answer `404 {"error": "not-found"}` before anything reads
-   Executor, Composio or a vault.
+5. **No Integrace, no Trezor and no Nástroje.** Their items in the Apps column and the
+   settings navigation are hidden; `/integrations…`, `/settings/vault…` (an agent's
+   secret request included) and `/settings/tools` answer `404` with the page, which
+   shows Apps or Nastavení → Obecné in their place; their API routes
+   (`/api/integrations…`, `/api/vault`, `/api/vault/membership`,
+   `/api/vault/requests…`, `/api/vault/connect`, `/api/vault/disconnect` and every
+   `/api/tools/…`) answer `404 {"error": "not-found"}` before anything signs a tool in
+   or out, installs or updates it, or reads Executor, Composio or a vault. Nástroje go
+   whole, not as a read-only remainder: every row that remains without its sign-in (git,
+   Node.js, npm, Bun, Executor) is a version or a setup a visitor has no use for, and
+   the page does not read Nástroje at all.
 6. **Without the member nothing changes:** the binding, the public entry, the boot
    document, the shell document, the column head's model, Začínáme, the tour and every
    route are what they were.
@@ -12866,17 +12873,19 @@ and Trezor, which a visitor must not have.
 | Hide Integrace and Trezor only in the page | A stale page, an older link or a script would still reach Executor, Composio or a vault. Rejected: the routes answer as absent too, as F36's 0201 addendum gates the install route |
 | The notice as a band over the Launchpad's page only | Not in Chat, where a visitor types most. The column head is the one place every app of the Environment draws |
 | Keep Začínáme's steps, disabled, with a sentence why | Steps a visitor must not take, and dead buttons ("Obrazovky nastavení" of the design system). Rejected for what to try instead |
+| Nástroje read-only: the sign-in rows removed, the other tools as state | Versions of git, Node.js, npm, Bun and Executor that a visitor cannot act on, and a second mode of the Tools page to keep. Rejected for withholding the section as Trezor is |
 
-**Honest limits.** Settings → Nástroje still offers the sign-ins of `gh`, Codex, Claude
-and Composio and the Bitwarden row; the notice forbids using them, and hiding them is a
-separate decision (a visitor's own Environment of slice 2 allows their own GitHub and AI).
-Until a release of this repository reads `entry.audience` and Machines sets
+**Honest limits.** The page withholds what offers a sign-in; a visitor has the
+Environment's terminal (0204 point 3) and can run any CLI's own sign-in there, which only
+the notice forbids. A visitor's own Environment of slice 2 will have an audience value of
+its own; nothing here is designed for it. Until a release of this repository reads `entry.audience` and Machines sets
 `PLATFORM_ENTRY_AUDIENCE_MINIMUM` to it, no handover carries the member; the gateway's
 sign-in page already shows its own notice. The gate must name the first release whose
 source has this decision: a final release cut from an earlier candidate's source would
 not read the member, though it compares above that candidate. A page that gets neither
 its boot document nor `GET /api/entry` in time shows Integrace and Trezor in its
-navigation until it reads the entry; their routes answer as absent all the same. Visitors
+navigation until it reads the entry; their routes answer as absent all the same. The
+same holds for Nástroje. Visitors
 still share one Environment; the notice is what 0204 asks of slice 1, and separation is
 slice 2.
 
@@ -12884,13 +12893,17 @@ Verified by `tests/public-environment.test.ts` (the vendored member exactly; the
 read and projected, refused values, the binding read back on a work and a Team
 Environment, a refresh that records it with the same text; the entry's answer and the
 boot document; no basics, no count, line, prompt or start on both presets, the content's
-rule, the tour from the first visit and Chat's stop; Začínáme's rows in both languages;
-the withheld routes and their places; the shell document, its parser and the column
-head's notice in both languages; a hosted Launchpad behind a fake gateway with and
-without the member: the withheld pages and API routes, the shell document and the entry)
+rule, the tour from the first visit with its Apps and Chat stops; Začínáme's rows in
+both languages; the withheld routes and their places, Nástroje's API included; the shell
+document, its parser and the column head's notice in both languages; a hosted Launchpad
+behind a fake gateway with and without the member: the withheld pages and API routes,
+every sign-in, sign-out, installation and setup of Nástroje answering as absent with no
+command of the tools asked to sign in, out, install or set up, the shell document and the
+entry, and without the member Nástroje reading the tools as before)
 and in headless Chrome (root decision 0178) on the hosted preview with `public` in Czech
-and English: the notice in Apps and Settings, the tour from Apps to its end with Chat's
-stop, Začínáme's three rows and the tour row, the module row opening the module, no
-Integrace or Trezor in the navigation, `/integrations/connected` and `/settings/vault`
-answering 404 and showing Apps and Obecné, and the same preview without `public` keeping
-the AI step, Integrace and Trezor with no notice.
+and English: the notice in Apps and Settings, the tour from Apps to its end with its Apps and
+Chat stops, Začínáme's three rows and the tour row, the module row opening the module, no
+Integrace, Trezor or Nástroje in the navigation, `/integrations/connected`,
+`/settings/vault` and `/settings/tools` answering 404 and showing Apps and Obecné, and the
+same preview without `public` keeping the AI step, Integrace, Trezor and Nástroje with no
+notice.

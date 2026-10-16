@@ -158,7 +158,11 @@ import {
   promptDocument,
   promptOrganization,
 } from "./prompts";
-import { isPublicEnvironment, withheldInPublic } from "./public-environment";
+import {
+  isPublicEnvironment,
+  isToolsApiPath,
+  withheldInPublic,
+} from "./public-environment";
 import { pageRoute } from "./routes";
 import {
   type ContentReader,
@@ -1509,12 +1513,14 @@ export async function startLaunchpad(
           return response({ error: "operation-failed" }, 500);
         }
       }
-      // A public Environment has no Integrace and no vault of its own (root
-      // decision 0204 point 4): their routes answer as absent, before any of
-      // them reads Executor, Composio or the vault.
+      // A public Environment has no sign-in, no Integrace and no vault of its
+      // own (root decision 0204 point 4): Nástroje, Integrace and Trezor
+      // answer as absent, before anything signs a tool in, installs it or
+      // reads Executor, Composio or the vault.
       if (
         publicEnvironment &&
-        (integrations.handles(url.pathname) ||
+        (isToolsApiPath(url.pathname) ||
+          integrations.handles(url.pathname) ||
           vaultPage.handles(url.pathname) ||
           vaultRequests.handles(url.pathname) ||
           vaultConnection.handles(url.pathname))
