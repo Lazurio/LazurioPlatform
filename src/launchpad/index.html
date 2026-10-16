@@ -542,7 +542,8 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .vault-bitwarden-steps { counter-reset: bitwarden-step; }
 .vault-bitwarden-steps > li { counter-increment: bitwarden-step; display: grid; grid-template-columns: 24px minmax(0, 1fr); column-gap: 12px; padding: 14px 16px; color: var(--fg); font-size: 14px; line-height: 1.45; }
 .vault-bitwarden-steps > li::before { content: counter(bitwarden-step); grid-row: 1; display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid var(--lz-line); border-radius: 50%; color: var(--muted-fg); font-size: 12.5px; font-weight: var(--lz-weight-akce); }
-.vault-bitwarden-text, .vault-bitwarden-copy, .vault-bitwarden-link, .vault-bitwarden-picture { grid-column: 2; min-width: 0; }
+.vault-bitwarden-text, .vault-bitwarden-copy, .vault-bitwarden-missing, .vault-bitwarden-link, .vault-bitwarden-picture { grid-column: 2; min-width: 0; }
+.vault-bitwarden-missing { margin-top: 8px; color: var(--muted-fg); font-size: 13px; }
 .vault-bitwarden-copy, .vault-bitwarden-link { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 8px; }
 .vault-bitwarden-link .icon { width: 14px; height: 14px; }
 .vault-bitwarden-picture { display: block; width: min(100%, 380px); height: auto; margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; }

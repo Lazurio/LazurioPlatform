@@ -725,14 +725,16 @@ test("an Organization's vault: the extension from the Chrome Web Store, the vaul
     first: null,
     steps: [
       {
-        text: "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do svého prohlížeče ho přidejte z Chrome Web Store.",
+        text: "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do Chromu ho přidejte z Chrome Web Store, do jiného prohlížeče z jeho vlastního obchodu s rozšířeními.",
         value: null,
+        missing: null,
         link: store,
         picture: null,
       },
       {
         text: "Dole u „Přistupujete na“ zvolte „vlastní server“. Do pole „URL serveru“ vložte tuto adresu a klikněte na „Uložit“:",
         value: vault,
+        missing: null,
         link: null,
         picture: {
           name: "server",
@@ -742,6 +744,7 @@ test("an Organization's vault: the extension from the Chrome Web Store, the vaul
       {
         text: "Do pole „E-mailová adresa“ vložte svou adresu a klikněte na „Použít jednotné přihlášení“:",
         value: "jana@account.lazurio.ai",
+        missing: null,
         link: null,
         picture: {
           name: "email",
@@ -751,6 +754,7 @@ test("an Organization's vault: the extension from the Chrome Web Store, the vaul
       {
         text: "Přihlaste se přes Lazurio a trezor odemkněte hlavním heslem.",
         value: null,
+        missing: null,
         link: null,
         picture: null,
       },
@@ -762,14 +766,16 @@ test("an Organization's vault: the extension from the Chrome Web Store, the vaul
     first: null,
     steps: [
       {
-        text: "In Codex Desktop, open Settings → Browser → Extensions and add Bitwarden. In your own browser, add it from the Chrome Web Store.",
+        text: "In Codex Desktop, open Settings → Browser → Extensions and add Bitwarden. Add it to Chrome from the Chrome Web Store, and to another browser from that browser's own extension store.",
         value: null,
+        missing: null,
         link: { ...store, label: "Bitwarden in the Chrome Web Store" },
         picture: null,
       },
       {
         text: "At the bottom, next to “Accessing”, choose “self-hosted”. Paste this address into the “Server URL” field and click “Save”:",
         value: vault,
+        missing: null,
         link: null,
         picture: {
           name: "server",
@@ -779,6 +785,7 @@ test("an Organization's vault: the extension from the Chrome Web Store, the vaul
       {
         text: "Paste your address into the “Email address” field and click “Use single sign-on”:",
         value: "jana@account.lazurio.ai",
+        missing: null,
         link: null,
         picture: {
           name: "email",
@@ -788,31 +795,59 @@ test("an Organization's vault: the extension from the Chrome Web Store, the vaul
       {
         text: "Sign in with Lazurio and unlock the vault with your master password.",
         value: null,
+        missing: null,
         link: null,
         picture: null,
       },
     ],
     note: "The computer must be connected to the Organization's network.",
   });
-  // Without the person's address (nobody named, no username, not answered
-  // yet), the step says how it is formed, with the same screen.
-  for (const person of [
-    member,
-    null,
-    { kind: "unknown", reason: "no-username" },
-  ] as const)
-    expect(bitwardenGuide(work(), person, cs)?.steps[2]).toEqual({
-      text: "Do pole „E-mailová adresa“ zadejte své uživatelské jméno v Lazuriu s koncovkou @account.lazurio.ai a klikněte na „Použít jednotné přihlášení“.",
-      value: null,
-      link: null,
-      picture: {
-        name: "email",
-        alt: "Bitwarden: pole „E-mailová adresa“ a tlačítko „Použít jednotné přihlášení“",
-      },
-    });
-  expect(bitwardenGuide(work(), null, en)?.steps[2]?.text).toBe(
-    "Into the “Email address” field, type your Lazurio username followed by @account.lazurio.ai and click “Use single sign-on”.",
+  // Until the answer carries the address, the same step and screen, and in
+  // place of the address one line (Pablo's review of 8de1d1b): loading while
+  // the page waits for the answer (opened directly, the page draws the steps
+  // before it), after signing in again where the sign-in carried no Lazurio
+  // username, and otherwise not loaded, with the page's own refresh button.
+  const third = (person: VaultPagePerson | null, copy = cs) =>
+    bitwardenGuide(work(), person, copy)?.steps[2];
+  expect(third(null)).toEqual({
+    text: "Do pole „E-mailová adresa“ vložte svou adresu a klikněte na „Použít jednotné přihlášení“:",
+    value: null,
+    missing: "Načítá se vaše adresa…",
+    link: null,
+    picture: {
+      name: "email",
+      alt: "Bitwarden: pole „E-mailová adresa“ a tlačítko „Použít jednotné přihlášení“",
+    },
+  });
+  expect(third(null, en)?.missing).toBe("Loading your address…");
+  expect(third({ kind: "unknown", reason: "no-username" })?.missing).toBe(
+    "Svou adresu tu uvidíte, až se znovu přihlásíte.",
   );
+  expect(third({ kind: "unknown", reason: "no-username" }, en)?.missing).toBe(
+    "You will see your address here once you sign in again.",
+  );
+  for (const person of [
+    { kind: "unknown", reason: "failed" },
+    { kind: "unknown", reason: "busy" },
+    { kind: "unknown", reason: "unreachable" },
+    { kind: "unknown", reason: "no-identity" },
+    member,
+  ] as const) {
+    expect([person, third(person)?.missing]).toEqual([
+      person,
+      "Vaši adresu se nepodařilo načíst. Zkuste „Obnovit stav“.",
+    ]);
+    expect(third(person, en)?.missing).toBe(
+      "Your address could not be loaded. Try “Refresh status”.",
+    );
+    expect(third(person)?.value).toBeNull();
+  }
+  // It names the page's own refresh button.
+  expect(third(null, cs)?.text).toBe(cs.vaultBitwardenAddress);
+  expect(third({ kind: "unknown", reason: "failed" })?.missing).toBe(
+    cs.vaultBitwardenAddressFailed.replace("{refresh}", cs.toolsRefresh),
+  );
+  expect(cs.vaultBitwardenAddressFailed).toContain("„{refresh}“");
   // The extension's own words, as its version 2026.10.0 shows them.
   for (const label of [
     "„Přistupujete na“",
@@ -917,8 +952,9 @@ test("a personal Environment's own Bitwarden: the extension, its service by the 
       first: null,
       steps: [
         {
-          text: "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do svého prohlížeče ho přidejte z Chrome Web Store.",
+          text: "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do Chromu ho přidejte z Chrome Web Store, do jiného prohlížeče z jeho vlastního obchodu s rozšířeními.",
           value: null,
+          missing: null,
           link: {
             label: "Bitwarden v Chrome Web Store",
             href: "https://chromewebstore.google.com/detail/bitwarden-password-manager/nngceckbapebfimnlniiiahkandclblb",
@@ -928,6 +964,7 @@ test("a personal Environment's own Bitwarden: the extension, its service by the 
         {
           text: `Dole u „Přistupujete na“ zvolte „${service}“ a přihlaste se svým vlastním účtem Bitwardenu.`,
           value: null,
+          missing: null,
           link: null,
           picture: null,
         },
@@ -937,6 +974,7 @@ test("a personal Environment's own Bitwarden: the extension, its service by the 
     expect(bitwardenGuide(personal, null, en)?.steps[1]).toEqual({
       text: `At the bottom, next to “Accessing”, choose “${service}” and log in with your own Bitwarden account.`,
       value: null,
+      missing: null,
       link: null,
       picture: null,
     });
@@ -971,6 +1009,62 @@ test("a personal Environment's own Bitwarden: the extension, its service by the 
       }),
     ),
   ).toEqual({ kind: "cloud", service: "bitwarden.eu" });
+});
+
+// Matěj's review of the preview of 97eab50: a person is never asked to
+// compose "username + @account.lazurio.ai". In no state of the page does a
+// step's sentence or line name the address's domain: the address is only
+// ever the value to copy.
+test("no step asks the person to compose their address, whatever the answer", () => {
+  const people: (VaultPagePerson | null)[] = [
+    null,
+    ...[
+      "no-identity",
+      "no-username",
+      "no-vault",
+      "not-connected",
+      "busy",
+      "unreachable",
+      "failed",
+    ].map((reason) => ({ kind: "unknown", reason }) as VaultPagePerson),
+    ...(
+      [
+        "member",
+        "no-account",
+        "awaiting-password",
+        "invitation-pending",
+        "accepted",
+        "revoked",
+      ] as const
+    ).flatMap((state) => [
+      { kind: "known", state, signIn: true } as VaultPagePerson,
+      {
+        kind: "known",
+        state,
+        signIn: false,
+        address: "jana@account.lazurio.ai",
+      } as VaultPagePerson,
+    ]),
+  ];
+  const models = [
+    work(),
+    model(connected()),
+    work({ ...connected(), origin: "pilot-0197", name: null }),
+    model(own("eu")),
+  ];
+  let checked = 0;
+  for (const copy of [cs, en])
+    for (const page of models)
+      for (const person of people)
+        for (const step of bitwardenGuide(page, person, copy)?.steps ?? []) {
+          checked += 1;
+          for (const words of [step.text, step.missing ?? ""])
+            expect([words, words.includes("account.lazurio.ai")]).toEqual([
+              words,
+              false,
+            ]);
+        }
+  expect(checked).toBeGreaterThan(100);
 });
 
 test("no steps where the person has no vault to add here: this computer, no vault yet, a personal Environment's Bitwarden not connected, a Team or Automated Environment, a vault only its agents use", () => {

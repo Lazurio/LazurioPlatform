@@ -1218,14 +1218,17 @@ const en = {
   // are quoted as its version 2026.10.0 shows them.
   vaultBitwardenTitle: "In Codex Desktop and your browser",
   vaultBitwardenAdd:
-    "In Codex Desktop, open Settings → Browser → Extensions and add Bitwarden. In your own browser, add it from the Chrome Web Store.",
+    "In Codex Desktop, open Settings → Browser → Extensions and add Bitwarden. Add it to Chrome from the Chrome Web Store, and to another browser from that browser's own extension store.",
   vaultBitwardenStore: "Bitwarden in the Chrome Web Store",
   vaultBitwardenServer:
     "At the bottom, next to “Accessing”, choose “self-hosted”. Paste this address into the “Server URL” field and click “Save”:",
   vaultBitwardenAddress:
     "Paste your address into the “Email address” field and click “Use single sign-on”:",
-  vaultBitwardenAddressTyped:
-    "Into the “Email address” field, type your Lazurio username followed by @account.lazurio.ai and click “Use single sign-on”.",
+  vaultBitwardenAddressLoading: "Loading your address…",
+  vaultBitwardenAddressSignIn:
+    "You will see your address here once you sign in again.",
+  vaultBitwardenAddressFailed:
+    "Your address could not be loaded. Try “{refresh}”.",
   vaultBitwardenSignIn:
     "Sign in with Lazurio and unlock the vault with your master password.",
   vaultBitwardenServerPicture:
@@ -2840,14 +2843,17 @@ const cs: Record<MessageKey, string> = {
     "Vaše přihlášení zatím neobsahuje uživatelské jméno v Lazuriu, proto vás toto Prostředí nemůže přidat do svého trezoru. Přihlaste se prosím znovu.",
   vaultBitwardenTitle: "V Codex Desktopu a ve vašem prohlížeči",
   vaultBitwardenAdd:
-    "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do svého prohlížeče ho přidejte z Chrome Web Store.",
+    "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do Chromu ho přidejte z Chrome Web Store, do jiného prohlížeče z jeho vlastního obchodu s rozšířeními.",
   vaultBitwardenStore: "Bitwarden v Chrome Web Store",
   vaultBitwardenServer:
     "Dole u „Přistupujete na“ zvolte „vlastní server“. Do pole „URL serveru“ vložte tuto adresu a klikněte na „Uložit“:",
   vaultBitwardenAddress:
     "Do pole „E-mailová adresa“ vložte svou adresu a klikněte na „Použít jednotné přihlášení“:",
-  vaultBitwardenAddressTyped:
-    "Do pole „E-mailová adresa“ zadejte své uživatelské jméno v Lazuriu s koncovkou @account.lazurio.ai a klikněte na „Použít jednotné přihlášení“.",
+  vaultBitwardenAddressLoading: "Načítá se vaše adresa…",
+  vaultBitwardenAddressSignIn:
+    "Svou adresu tu uvidíte, až se znovu přihlásíte.",
+  vaultBitwardenAddressFailed:
+    "Vaši adresu se nepodařilo načíst. Zkuste „{refresh}“.",
   vaultBitwardenSignIn:
     "Přihlaste se přes Lazurio a trezor odemkněte hlavním heslem.",
   vaultBitwardenServerPicture:

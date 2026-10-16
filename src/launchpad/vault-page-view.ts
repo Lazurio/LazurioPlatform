@@ -625,11 +625,13 @@ export const bitwardenStoreUrl =
 export type BitwardenPicture = "server" | "email";
 
 /** One step of the guide: its sentence, the value it asks for with a Copy
- * button where the page has it, the link it opens, and the extension's own
+ * button where the page has it, or the line said in its place while the page
+ * does not have it (`missing`), the link it opens, and the extension's own
  * screen it shows. */
 export type BitwardenStep = Readonly<{
   text: string;
   value: string | null;
+  missing: string | null;
   link: Readonly<{ label: string; href: string }> | null;
   picture: Readonly<{ name: BitwardenPicture; alt: string }> | null;
 }>;
@@ -652,11 +654,14 @@ export type BitwardenGuide = Readonly<{
  * the extension, with its page in the Chrome Web Store. Then an
  * Organization's Lazurio Vaultwarden: "vlastní server" under "Přistupujete
  * na" and the vault's address in "URL serveru", to copy; the person's own
- * address in "E-mailová adresa", to copy where the membership answer carries
- * it (otherwise how it is formed), and "Použít jednotné přihlášení", since the
- * vault takes people's accounts only through the Lazurio sign-in (root
- * decisions 0197 point 2 and 0203 point 5); the master password last; each of
- * the two with the extension's screen. A line first while the page (`view`)
+ * address in "E-mailová adresa", to copy, and "Použít jednotné přihlášení",
+ * since the vault takes people's accounts only through the Lazurio sign-in
+ * (root decisions 0197 point 2 and 0203 point 5); the master password last;
+ * each of the two with the extension's screen. The person is never asked to
+ * compose their address: until the membership answer carries it, one line in
+ * its place says that it is loading, that it shows after signing in again
+ * (`no-username`), or that it could not be loaded, with the page's own
+ * refresh. A line first while the page (`view`)
  * offers "Vytvořit účet v trezoru", and the network under the steps. A
  * personal Environment's own Bitwarden: its region's service under
  * "Přistupujete na" and the person's own account. None where
@@ -673,6 +678,7 @@ export function bitwardenGuide(
   const step = (text: string, fields: Partial<BitwardenStep> = {}) => ({
     text,
     value: null,
+    missing: null,
     link: null,
     picture: null,
     ...fields,
@@ -691,6 +697,16 @@ export function bitwardenGuide(
       note: null,
     };
   const address = person?.address ?? null;
+  const missing =
+    address !== null
+      ? null
+      : person === null
+        ? copy.vaultBitwardenAddressLoading
+        : person.kind === "unknown" && person.reason === "no-username"
+          ? copy.vaultBitwardenAddressSignIn
+          : fill(copy.vaultBitwardenAddressFailed, {
+              refresh: copy.toolsRefresh,
+            });
   return {
     kind: "server",
     first:
@@ -703,15 +719,11 @@ export function bitwardenGuide(
         value: target.server,
         picture: { name: "server", alt: copy.vaultBitwardenServerPicture },
       }),
-      step(
-        address === null
-          ? copy.vaultBitwardenAddressTyped
-          : copy.vaultBitwardenAddress,
-        {
-          value: address,
-          picture: { name: "email", alt: copy.vaultBitwardenEmailPicture },
-        },
-      ),
+      step(copy.vaultBitwardenAddress, {
+        value: address,
+        missing,
+        picture: { name: "email", alt: copy.vaultBitwardenEmailPicture },
+      }),
       step(copy.vaultBitwardenSignIn),
     ],
     note: copy.vaultBitwardenNetwork,
