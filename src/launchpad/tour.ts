@@ -13,6 +13,7 @@ import {
 } from "./first-run";
 import type { MessageKey } from "./messages";
 import type { PageRoute } from "./routes";
+import { tourPlacement, tourWidth } from "./tour-placement";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
@@ -27,7 +28,8 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // exist it is back on the next page load, and Začínáme starts the
 // introduction again. This browser keeps only where the introduction
 // points, per Environment (first-run.ts). The rules are pure in
-// first-run.ts; this module only draws them.
+// first-run.ts, where the bubble stands in tour-placement.ts
+// (Lazurio/LazurioPlatform#461); this module only draws them.
 
 export function createTour(
   options: Readonly<{
@@ -119,62 +121,59 @@ export function createTour(
     }
   }
 
+  // The window's visible area: without a scrollbar, which a classic one
+  // (Windows, a Mac with a mouse) takes from the page and would cover the
+  // bubble at the window's edge.
+  const visible = () => ({
+    width: document.documentElement.clientWidth,
+    height: document.documentElement.clientHeight,
+  });
+
   // Where the ringed element is now, null when it is not on screen.
   function rect(name: TourTarget): DOMRect | null {
     const found = element(name);
     if (found === null) return null;
     const box = found.getBoundingClientRect();
+    const area = visible();
     if (
       box.width === 0 ||
       box.height === 0 ||
       box.right <= 0 ||
       box.bottom <= 0 ||
-      box.left >= window.innerWidth ||
-      box.top >= window.innerHeight
+      box.left >= area.width ||
+      box.top >= area.height
     )
       return null;
     return box;
   }
 
-  // Beside the element when there is room, else under it; without it, at
-  // the bottom right.
+  // One rule for every stop (tour-placement.ts): beside the element when
+  // there is room, else under, above or left of it, always whole in the
+  // window, its arrow at the element; without it, at the bottom right.
   function place() {
     if (target === null) return;
     const box = rect(target);
-    const width = Math.min(300, window.innerWidth - 24);
-    if (box === null) {
-      ring.hidden = true;
-      delete bubble.dataset.side;
-      Object.assign(bubble.style, {
-        left: "",
-        top: "",
-        right: "24px",
-        bottom: "24px",
+    const area = visible();
+    // The width first: the height the rule needs is the bubble's at it.
+    bubble.style.width = `${tourWidth(area.width)}px`;
+    const at = tourPlacement({
+      anchor: box,
+      height: bubble.offsetHeight,
+      viewport: area,
+    });
+    ring.hidden = box === null;
+    if (box !== null)
+      Object.assign(ring.style, {
+        left: `${box.left - 5}px`,
+        top: `${box.top - 5}px`,
+        width: `${box.width + 10}px`,
+        height: `${box.height + 10}px`,
       });
-      return;
-    }
-    ring.hidden = false;
-    Object.assign(ring.style, {
-      left: `${box.left - 5}px`,
-      top: `${box.top - 5}px`,
-      width: `${box.width + 10}px`,
-      height: `${box.height + 10}px`,
-    });
-    const right = box.right + 16 + width < window.innerWidth;
-    const height = bubble.offsetHeight || 140;
-    const top = right
-      ? Math.max(12, Math.min(box.top - 6, window.innerHeight - height - 12))
-      : Math.min(box.bottom + 14, window.innerHeight - height - 12);
-    const left = right
-      ? box.right + 16
-      : Math.max(12, Math.min(box.left, window.innerWidth - width - 12));
-    bubble.dataset.side = right ? "right" : "below";
-    Object.assign(bubble.style, {
-      left: `${left}px`,
-      top: `${top}px`,
-      right: "",
-      bottom: "",
-    });
+    if (at.side === null) delete bubble.dataset.side;
+    else bubble.dataset.side = at.side;
+    if (at.arrow === null) bubble.style.removeProperty("--tour-arrow");
+    else bubble.style.setProperty("--tour-arrow", `${at.arrow}px`);
+    Object.assign(bubble.style, { left: `${at.left}px`, top: `${at.top}px` });
   }
 
   function hide() {
