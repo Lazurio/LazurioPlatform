@@ -207,12 +207,14 @@ export function createContentPanel(
         button.addEventListener("click", () => void start());
       }
       const named = !(place.bare && view.rows.length === 1);
+      // Začínáme's numbered steps say the order: no "after AI" there.
+      const note = place.bare && view.turn ? null : view.note;
       const nodes = view.rows.map((entry, index) =>
         row(
           entry,
           copy,
           index === 0 ? button : null,
-          index === 0 ? view.note : null,
+          index === 0 ? note : null,
           named,
         ),
       );

@@ -19,9 +19,10 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // agenty" with the Environment's vault, "Volitelné" and "Prohlídka
 // aplikace". Every value is drawn with textContent. The AI step signs
 // ChatGPT and Claude in through their CLIs (F19's addendum of 2026-10-15):
-// its buttons, the sentence before them, "Otevřít přihlášení", "Zrušit",
-// "Zkusit znovu", "Přihlásit jiný účet" and the field for the code of
-// Claude's code page; the sign-in itself is ai-sign-in.ts.
+// its two buttons, each with its mark (F36's addendum of 2026-10-16),
+// "Otevřít přihlášení", "Zrušit", "Zkusit znovu", "Přihlásit jiný účet" and
+// the field for the code of Claude's code page; the sign-in itself is
+// ai-sign-in.ts.
 
 export type StartVaultRow = Readonly<{
   line: string;
@@ -158,8 +159,36 @@ export function createStartPanel(
     return node;
   };
 
+  /** A provider's mark before its name, in the button's own colour: Claude's
+   * from simple-icons (the sprite's `i-claude`); ChatGPT's first letter, as
+   * Integrace draws a brand simple-icons does not carry (decision F42,
+   * docs/licensing.md). The button's text stays its name. */
+  const providerMark = (tool: AiProvider): Element => {
+    if (tool === "claude") return svg("claude");
+    const letter = element("span", "provider-letter", "C");
+    letter.setAttribute("aria-hidden", "true");
+    return letter;
+  };
+  const signInButton = (
+    tool: AiProvider,
+    label: string,
+    primary = false,
+  ): HTMLButtonElement => {
+    const node = button(
+      label,
+      () => {
+        choosing = false;
+        options.signInAi(tool);
+      },
+      primary,
+    );
+    node.dataset.provider = tool;
+    node.prepend(providerMark(tool));
+    return node;
+  };
+
   /** The AI step's buttons, and what its body holds: the choice of ChatGPT
-   * or Claude with the sentence before it, or the code's field. */
+   * or Claude, or the code's field. */
   function aiParts(
     action: AiAction,
     copy: Copy,
@@ -191,18 +220,8 @@ export function createStartPanel(
       case "choose": {
         const choices = element("div", "start-choices");
         choices.append(
-          button(
-            copy.startAiSignInChatgpt,
-            () => {
-              choosing = false;
-              options.signInAi("codex");
-            },
-            true,
-          ),
-          button(copy.startAiSignInClaude, () => {
-            choosing = false;
-            options.signInAi("claude");
-          }),
+          signInButton("codex", copy.startAiSignInChatgpt, true),
+          signInButton("claude", copy.startAiSignInClaude),
         );
         if (action.cancel)
           choices.append(
@@ -211,15 +230,7 @@ export function createStartPanel(
               render();
             }),
           );
-        return {
-          actions: [],
-          body: [
-            ...(action.before === null
-              ? []
-              : [element("p", "start-note", action.before)]),
-            choices,
-          ],
-        };
+        return { actions: [], body: [choices] };
       }
       case "signing-in": {
         const actions: HTMLElement[] = [];

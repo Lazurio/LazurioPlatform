@@ -927,9 +927,8 @@ const en = {
   tourLater: "Finish later",
   startTitle: "Getting started",
   startIntro: "{done} of {total} steps done.",
-  startReady: "The Environment is ready. You can come back here any time.",
-  startNotHere:
-    "Its Organization prepares this Environment; there is nothing to set up here.",
+  startReady: "The Environment is ready.",
+  startNotHere: "There is nothing to set up here.",
   startRefresh: "Check again",
   startRequired: "Required steps",
   startDoneMark: "(done)",
@@ -937,11 +936,8 @@ const en = {
   startAiTitle: "Connect AI",
   startAiOrganization: "Provided by your Organization.",
   startAiConnected: "Connected: {accounts}",
-  startAiMissing: "An agent then helps you with the next steps.",
   startAiUnknown: "Could not check whether AI works here.",
   startAiApiKey: "OpenAI API key",
-  startAiBefore:
-    "Have your ChatGPT or Claude password (or your Google one) and your phone ready: your computer's password manager and passkeys do not work here.",
   startAiSignInChatgpt: "Sign in to ChatGPT",
   startAiSignInClaude: "Sign in to Claude",
   startAiStarting: "Starting the sign-in…",
@@ -955,8 +951,7 @@ const en = {
   startAiExpired: "The sign-in expired. Please try again.",
   startAiNoAnswer:
     "Lazurio did not answer about the sign-in. Please try again.",
-  startAiProviderUnknown:
-    "Codex did not say whether your Organization provides the AI here, so nothing was started. Please try again.",
+  startAiProviderUnknown: "The sign-in did not start. Please try again.",
   startAiBrowserFailed:
     "The Environment browser did not open the sign-in page. Please try again.",
   startAiNoBrowser: "The sign-in cannot open here right now.",
@@ -967,19 +962,17 @@ const en = {
   startAiCodeSend: "Send the code",
   startAiCodeInvalid:
     "This is not the whole code. Please copy all of it again.",
-  startAiCodeSent:
-    "The code was sent. Wait a moment for the sign-in to finish.",
+  startAiCodeSent: "The code was sent. Wait a moment.",
   startAiServicesLater:
     "Chat and Codex start using the sign-in a little later.",
   startAiChatMismatch:
-    "Chat did not turn {provider} on, because another provider has that name there. Check the providers in Chat's Settings.",
+    "Chat did not turn {provider} on. Check the providers in Chat's Settings.",
   startAiChatOff:
     "Chat did not turn {provider} on. Check the providers in Chat's Settings.",
   startGithubTitle: "GitHub",
   startGithubConnected: "Connected as @{login}",
   startGithubConnectedPlain: "Connected",
   startGithubMissing: "Opens your repositories and modules.",
-  startGithubAfterAi: "Offered once AI is connected.",
   startConnect: "Connect",
   startContentOrganization: "Download {name}",
   startContentPersonal: "Prepare your personal space",
@@ -989,7 +982,7 @@ const en = {
   startVaultGroup: "Passwords for agents",
   startVaultTitle: "Environment vault",
   startVaultText:
-    "Whoever has access to the Environment has all of its passwords. Agents use it themselves.",
+    "Whoever has access to the Environment has all of its passwords.",
   startOpen: "Open",
   startOptional: "Optional",
   startComposioText: "Mail, calendar and other apps for agents.",
@@ -1003,7 +996,6 @@ const en = {
   startCodexText: "Work with this Environment from the Codex app.",
   startTourGroup: "App tour",
   startTourTitle: "Apps, Chat and Automate",
-  startTourText: "Shows briefly what is where.",
   startToured: "Seen",
   startNotToured: "Not yet",
   startTourStart: "Start the tour",
@@ -2513,9 +2505,8 @@ const cs: Record<MessageKey, string> = {
   tourLater: "Dokončím později",
   startTitle: "Začínáme",
   startIntro: "Hotovo {done} ze {total} kroků.",
-  startReady: "Prostředí je připravené. Sem se můžete kdykoli vrátit.",
-  startNotHere:
-    "Toto Prostředí připravuje jeho Organizace; není tu co nastavovat.",
+  startReady: "Prostředí je připravené.",
+  startNotHere: "Tady není co nastavovat.",
   startRefresh: "Zkontrolovat znovu",
   startRequired: "Povinné kroky",
   startDoneMark: "(hotovo)",
@@ -2523,11 +2514,8 @@ const cs: Record<MessageKey, string> = {
   startAiTitle: "Připojit AI",
   startAiOrganization: "Zajišťuje vaše Organizace.",
   startAiConnected: "Připojeno: {accounts}",
-  startAiMissing: "Agent vám pak pomůže s dalšími kroky.",
   startAiUnknown: "Nepodařilo se ověřit, jestli tu AI funguje.",
   startAiApiKey: "API klíč OpenAI",
-  startAiBefore:
-    "Připravte si heslo k ChatGPT nebo Claude (případně ke Googlu) a telefon, protože správce hesel ani passkey z počítače tu nefungují.",
   startAiSignInChatgpt: "Přihlásit ChatGPT",
   startAiSignInClaude: "Přihlásit Claude",
   startAiStarting: "Spouštím přihlášení…",
@@ -2540,8 +2528,7 @@ const cs: Record<MessageKey, string> = {
   startAiExpired: "Přihlášení vypršelo. Zkuste to prosím znovu.",
   startAiNoAnswer:
     "Lazurio na přihlášení neodpovědělo. Zkuste to prosím znovu.",
-  startAiProviderUnknown:
-    "Codex neřekl, jestli tu AI zajišťuje vaše Organizace, a proto se nic nespustilo. Zkuste to prosím znovu.",
+  startAiProviderUnknown: "Přihlášení se nespustilo. Zkuste to prosím znovu.",
   startAiBrowserFailed:
     "Prohlížeč Prostředí přihlašovací stránku neotevřel. Zkuste to prosím znovu.",
   startAiNoBrowser: "Přihlášení tu teď nejde otevřít.",
@@ -2551,19 +2538,17 @@ const cs: Record<MessageKey, string> = {
   startAiCodeHint: "Ukázala vám stránka kód? Vložte ho sem.",
   startAiCodeSend: "Odeslat kód",
   startAiCodeInvalid: "Toto není celý kód. Zkopírujte ho prosím znovu celý.",
-  startAiCodeSent:
-    "Kód je odeslaný. Chvíli počkejte, než se přihlášení dokončí.",
+  startAiCodeSent: "Kód je odeslaný. Chvíli počkejte.",
   startAiServicesLater:
     "Chat a Codex začnou přihlášení používat o něco později.",
   startAiChatMismatch:
-    "Chat nezapnul {provider}, protože se tak u něj jmenuje jiný poskytovatel. Zkontrolujte poskytovatele v Nastavení Chatu.",
+    "Chat nezapnul {provider}. Zkontrolujte poskytovatele v Nastavení Chatu.",
   startAiChatOff:
     "Chat nezapnul {provider}. Zkontrolujte poskytovatele v Nastavení Chatu.",
   startGithubTitle: "GitHub",
   startGithubConnected: "Připojeno jako @{login}",
   startGithubConnectedPlain: "Připojeno",
   startGithubMissing: "Zpřístupní vaše repozitáře a moduly.",
-  startGithubAfterAi: "Nabídne se po připojení AI.",
   startConnect: "Připojit",
   startContentOrganization: "Stáhnout {name}",
   startContentPersonal: "Připravit osobní prostor",
@@ -2572,8 +2557,7 @@ const cs: Record<MessageKey, string> = {
   startContentNothing: "Tady není co stahovat.",
   startVaultGroup: "Hesla pro agenty",
   startVaultTitle: "Trezor Prostředí",
-  startVaultText:
-    "Kdo má přístup do Prostředí, má všechna jeho hesla. Agenti ho používají sami.",
+  startVaultText: "Kdo má přístup do Prostředí, má všechna jeho hesla.",
   startOpen: "Otevřít",
   startOptional: "Volitelné",
   startComposioText: "Pošta, kalendář a další aplikace pro agenty.",
@@ -2587,7 +2571,6 @@ const cs: Record<MessageKey, string> = {
   startCodexText: "Pracujte s tímto Prostředím z aplikace Codex.",
   startTourGroup: "Prohlídka aplikace",
   startTourTitle: "Apps, Chat a Automate",
-  startTourText: "Krátce ukáže, co je kde.",
   startToured: "Prohlédnuto",
   startNotToured: "Ještě ne",
   startTourStart: "Spustit prohlídku",
