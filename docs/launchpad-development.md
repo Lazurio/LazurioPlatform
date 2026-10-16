@@ -2257,9 +2257,52 @@ view once it is certain they show (`revealBitwarden`, `bitwardenReveal`). The pi
 are `src/launchpad/images/bitwarden-<server|email>-<cs|en>.webp`, bundled through the
 hidden `#vault-bitwarden-pictures`, from which a step clones the one of its name and the
 page's language; the decision records the extension's version and how to capture them
-again. A hosted preview (`scripts/preview-launchpad.ts hosted`) has the tests' fake vault
-and a gateway that names the fictional person `jana`, so both show there with
+again. Above the steps, for an Organization's Lazurio Vaultwarden, the guide's video
+`vault-bitwarden` ("Přehrát video", see Guide videos below) shows the same steps. A
+hosted preview (`scripts/preview-launchpad.ts hosted`) has the tests' fake vault and a
+gateway that names the fictional person `jana`, so both show there with
 `jana@account.lazurio.ai`.
+
+## Guide videos
+
+A guide may show its steps in a short silent video beside them ([F53's addendum of
+2026-10-16 on the guide video](decisions.md#f53-addendum-of-2026-10-16-the-guide-video-of-trezor-in-bitwarden));
+the steps stay the video's text. The component is **`createGuideVideo`** in
+`src/launchpad/guide-video.ts`: given a slot element, a video's `name`, its `title` (the
+accessible name), the id of the steps it shows (`describedBy`), the page's copy and its
+language, it draws one button, "Přehrát video" / "Play video", whose accessible name is
+"Přehrát video: <title>". Pressed, it puts the browser's own player in its place,
+`<video controls playsinline preload="none" poster=…>` with one `<source type="video/mp4">`
+in the page's language, focuses it and plays it. Never `autoplay`, `muted` or `loop`; the
+files carry no audio track; nothing of the video loads before the press. `render()`
+follows the page's language: the button's words, or an open video replaced by the new
+language's, paused. The pure part, `guideVideoPlayer`, decides the markup and the names
+(`tests/launchpad-guide-video.test.ts`). Nastavení → Trezor mounts it in
+`#vault-bitwarden-video` at the top of "V Codex Desktopu a ve vašem prohlížeči"
+(`vault-page-panel.ts`, hidden for a personal Environment's own Bitwarden, whose steps
+differ).
+
+The files are `src/launchpad/videos/<name>-<cs|en>.mp4` and their posters
+`<name>-<cs|en>.webp`, embedded in the executable with `{ type: "file" }` like the shell's
+fonts (`guide-video-files.ts`), so every release carries them. They are served at
+`/videos/<file>` beside the page's routes: locally without the token, as the page;
+hosted only after the gateway's admission, answered by the server itself rather than
+through the inner listener so that the request's byte range reaches it. Safari and iOS
+play a video only from a server that answers ranges: one range is `206 Partial Content`
+with `Content-Range`, a range past the end `416` with `bytes */<size>`, anything else
+(no range, several, an `If-Range` of another version) the whole file with `200`; every
+answer says `Accept-Ranges: bytes`, `Content-Type: video/mp4` or `image/webp`, and
+`Cache-Control: no-cache` with the content's digest as a strong ETag, so a release with a
+new cut under the same name replaces the browser's copy, and `If-None-Match` of the
+current one is `304`. The range rules are `selectRange` in `http-conditions.ts`, shared
+with the Files downloads. A file must be H.264 in MP4 (no WebM), its `moov` before its
+`mdat`, one video track and no audio, under 4 MiB, its poster a WebP under 100 KiB; the
+test checks each, the HTTP answers locally and hosted, and `tests/update-compiled.test.ts`
+a range of the compiled executable.
+
+To add a video: put both languages' files in `src/launchpad/videos/`, add the name to
+`guideVideoNames` and the four imports to `guideVideoFilePaths`, give the guide a slot in
+`index.html` and mount `createGuideVideo` on it in its panel.
 
 ## Files page
 
