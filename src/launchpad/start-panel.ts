@@ -159,15 +159,17 @@ export function createStartPanel(
     return node;
   };
 
-  /** A provider's mark before its name, in the button's own colour: Claude's
-   * from simple-icons (the sprite's `i-claude`); ChatGPT's first letter, as
-   * Integrace draws a brand simple-icons does not carry (decision F42,
-   * docs/licensing.md). The button's text stays its name. */
+  /** A provider's mark before its name: Claude's from simple-icons (the
+   * sprite's `i-claude`, in the button's colour); for ChatGPT OpenAI's
+   * Blossom from its brand kit (`i-openai`, only in OpenAI's black or white:
+   * the styles pin it), the one exception to the simple-icons rule
+   * (docs/licensing.md). Both are hidden from assistive technology: the
+   * button's text stays its name. */
   const providerMark = (tool: AiProvider): Element => {
     if (tool === "claude") return svg("claude");
-    const letter = element("span", "provider-letter", "C");
-    letter.setAttribute("aria-hidden", "true");
-    return letter;
+    const mark = svg("openai");
+    mark.classList.add("provider-openai");
+    return mark;
   };
   const signInButton = (
     tool: AiProvider,
