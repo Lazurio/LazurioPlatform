@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   type ConnectionInput,
+  type ConnectionRefusal,
   connectionValues,
   connectPersonalBitwarden,
   disconnectPersonalBitwarden,
@@ -40,10 +41,13 @@ import {
 } from "../src/vault/register";
 import { createSecretRequest } from "../src/vault/requests";
 import {
+  ensureVaultDirectories,
   readAccount,
   readRecord,
   readSession,
+  type VaultRecord,
   vaultPaths,
+  writeRecord,
 } from "../src/vault/store";
 import {
   cloudHost,
@@ -890,6 +894,218 @@ test.skipIf(!posix)(
         state: "connected",
         organizationId: second.organizationId,
       });
+    } finally {
+      await w.close();
+    }
+  },
+  120_000,
+);
+
+// An unresolved creation's receipt (decision F53 point 3) exempts exactly one
+// organization from "owns or administers another organization": the one
+// whose public key the cloud's API shows as that receipt, by the setup's own
+// test (`carriesReceipt`). Everything else is refused before anything is
+// written (Pablo's review of #450 at 386f4f58).
+
+/** A receipt as the setup records it before asking for a creation: the new
+ * organization's public key and the time. */
+const receipt = "ReceiptKey".repeat(15);
+
+/** The agents' account's custody holding an unresolved creation's receipt,
+ * as an interrupted setup of an earlier connection left it. */
+async function pendingReceipt(
+  paths: ReturnType<typeof vaultPaths>,
+): Promise<VaultRecord> {
+  await ensureVaultDirectories(paths);
+  const record: VaultRecord = {
+    organizationId: null,
+    collectionId: null,
+    pendingKey: receipt,
+    pendingSince: new Date().toISOString(),
+  };
+  await writeRecord(paths, record);
+  return record;
+}
+
+test.skipIf(!posix)(
+  "a pending receipt does not exempt another organization the agents' account owns: refused before anything is written",
+  async () => {
+    const w = await world();
+    try {
+      const values = await form(w.cloud);
+      const record = await pendingReceipt(w.paths());
+      // A Free organization of its own, whose key is not the receipt's.
+      const family = await w.cloud.ownsFreeOrganization(agents);
+      expect(await connectPersonalBitwarden(w.host, values)).toEqual({
+        kind: "vault-connection-refused",
+        reason: "owns-organization",
+      });
+      // Told apart by its key, asked as the agents' account.
+      expect(
+        w.cloud.requests.some(
+          (entry) =>
+            entry.host === "api" &&
+            entry.method === "GET" &&
+            entry.path === `/organizations/${family}/public-key`,
+        ),
+      ).toBe(true);
+      // Nothing written: no credentials, no connection, the receipt as it was.
+      expect(await readAccount(w.paths())).toBeNull();
+      expect(await readConnection(w.host.connection)).toBeNull();
+      expect(await readRecord(w.paths())).toEqual(record);
+      expect(w.journal).toEqual([
+        {
+          operation: "connect",
+          outcome: "refused",
+          reason: "owns-organization",
+        },
+      ]);
+      expect(await vaultStatus(w.host)).toEqual({
+        kind: "vault-status",
+        state: "needs-connection",
+      });
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "a pending receipt exempts exactly the organization that carries it: reconnected after a lost creation answer, the setup finds that vault and makes no second one",
+  async () => {
+    const w = await world();
+    try {
+      const values = await form(w.cloud);
+      await connectPersonalBitwarden(w.host, values);
+      // The creation reaches the cloud and its answer is lost: the receipt
+      // stays unresolved.
+      const lossy: VaultHost = {
+        ...w.host,
+        fetch: async (url, init) => {
+          const answer = await w.cloud.fetch(url, init);
+          if (url === "https://api.bitwarden.eu/organizations")
+            throw new Error("connection reset");
+          return answer;
+        },
+      };
+      expect(await vaultSetup(lossy)).toMatchObject({ state: "unreachable" });
+      expect(await vaultStatus(w.host)).toMatchObject({ state: "creating" });
+      const [created] = await w.cloud.organizationsOf(agents);
+      if (created === undefined) throw new Error("Expected the creation");
+      const pending = await readRecord(w.paths());
+      expect(pending.pendingKey).toBe(created.publicKey);
+      // The person disconnects and connects the same account again: the one
+      // organization it owns carries the receipt, so it connects.
+      expect(await disconnectPersonalBitwarden(w.host)).toEqual({
+        kind: "vault-disconnected",
+      });
+      expect(await connectPersonalBitwarden(w.host, values)).toEqual({
+        kind: "vault-connected",
+      });
+      expect(
+        w.cloud.requests.filter(
+          (entry) =>
+            entry.method === "GET" &&
+            entry.path === `/organizations/${created.id}/public-key`,
+        ).length,
+      ).toBeGreaterThan(0);
+      // The setup resolves the receipt to it: one vault, one creation.
+      expect(await vaultSetup(w.host)).toMatchObject({
+        state: "connected",
+        organizationId: created.id,
+      });
+      expect(await w.cloud.organizationsOf(agents)).toHaveLength(1);
+      expect(
+        w.cloud.requests.filter(
+          (entry) =>
+            entry.host === "api" &&
+            entry.method === "POST" &&
+            entry.path === "/organizations",
+        ),
+      ).toHaveLength(1);
+      expect(await readRecord(w.paths())).toMatchObject({
+        organizationId: created.id,
+        pendingKey: null,
+      });
+    } finally {
+      await w.close();
+    }
+  },
+  120_000,
+);
+
+test.skipIf(!posix)(
+  "with a pending receipt, two organizations that carry it, or one whose key cannot be read, refuse before anything is written",
+  async () => {
+    const w = await world();
+    try {
+      const refusedNothingWritten = async (
+        host: VaultHost,
+        values: ConnectionInput,
+        account: string,
+        record: VaultRecord,
+        reason: ConnectionRefusal,
+      ) => {
+        expect(await connectPersonalBitwarden(host, values)).toEqual({
+          kind: "vault-connection-refused",
+          reason,
+        });
+        expect(await readAccount(w.paths(account))).toBeNull();
+        expect(await readConnection(w.host.connection)).toBeNull();
+        expect(await readRecord(w.paths(account))).toEqual(record);
+      };
+      // Two organizations carry the receipt: not one that is provably this
+      // Environment's vault.
+      const twice = "agents.twice@example.com";
+      const twiceValues = await form(w.cloud, { email: twice });
+      const twiceRecord = await pendingReceipt(w.paths(twice));
+      await w.cloud.ownsFreeOrganization(twice, receipt);
+      await w.cloud.ownsFreeOrganization(twice, receipt);
+      await refusedNothingWritten(
+        w.host,
+        twiceValues,
+        twice,
+        twiceRecord,
+        "owns-organization",
+      );
+      // One that carries it, but whose key the cloud will not show, or does
+      // not answer for: unproven, so refused (fail closed).
+      const hidden = "agents.hidden@example.com";
+      const hiddenValues = await form(w.cloud, { email: hidden });
+      const hiddenRecord = await pendingReceipt(w.paths(hidden));
+      const organization = await w.cloud.ownsFreeOrganization(hidden, receipt);
+      const keyAnswer = (status: number): VaultHost => ({
+        ...w.host,
+        fetch: async (url, init) =>
+          url ===
+          `https://api.bitwarden.eu/organizations/${organization}/public-key`
+            ? Response.json({ message: "Resource not found." }, { status })
+            : w.cloud.fetch(url, init),
+      });
+      await refusedNothingWritten(
+        keyAnswer(404),
+        hiddenValues,
+        hidden,
+        hiddenRecord,
+        "owns-organization",
+      );
+      await refusedNothingWritten(
+        keyAnswer(503),
+        hiddenValues,
+        hidden,
+        hiddenRecord,
+        "unreachable",
+      );
+      // The same, its key readable: the one organization that carries the
+      // receipt is this Environment's own vault, and it connects.
+      expect(await connectPersonalBitwarden(w.host, hiddenValues)).toEqual({
+        kind: "vault-connected",
+      });
+      // Only fixed reasons in the journal, never an address or a key.
+      const journal = JSON.stringify(w.journal);
+      for (const value of [twice, hidden, receipt, organization])
+        expect(journal).not.toContain(value);
     } finally {
       await w.close();
     }

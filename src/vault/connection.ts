@@ -12,6 +12,7 @@ import {
 } from "./endpoints";
 import { deviceOf, type VaultHost } from "./flow";
 import { pinnedInstalled } from "./install";
+import { carriesReceipt } from "./organization";
 import {
   accountKdf,
   apiKeyLogin,
@@ -263,17 +264,24 @@ const refusalOf = (error: unknown): ConnectionRefusal => {
 };
 
 /** What a profile says of its account's organizations against the record
- * this Environment keeps for it: whether the account owns or administers one
- * other than its recorded vault (the vault of an earlier connection of the
- * same account, or one whose creation is still looked for by its receipt, is
- * its own), and whether the recorded vault is gone from its memberships (a
- * person deleted it in Bitwarden). Every entry must read; null otherwise. */
-function organizationsOf(
+ * this Environment keeps for it: whether the account owns or administers an
+ * organization that is not provably this Environment's vault, and whether
+ * the recorded vault is gone from its memberships (a person deleted it in
+ * Bitwarden). The recorded vault (an earlier connection of the same account)
+ * is this Environment's. While a creation's receipt is unresolved, one more
+ * Owner or Admin organization may be: only the one whose public key the
+ * vault's API shows the account (`ask`, its token) as that receipt, by the
+ * test the setup finds its creation with (`carriesReceipt`). Any other
+ * Owner or Admin organization, one whose key is refused, and a second one
+ * that carries the receipt count as another organization (fail closed); a
+ * failure of the API throws. Every entry must read; null otherwise. */
+async function organizationsOf(
   profile: Record<string, unknown>,
   record: VaultRecord,
-): Readonly<{ ownsOther: boolean; recordedGone: boolean }> | null {
+  ask: (path: string) => Promise<unknown>,
+): Promise<Readonly<{ ownsOther: boolean; recordedGone: boolean }> | null> {
   if (!Array.isArray(profile.organizations)) return null;
-  let ownsOther = false;
+  const administered: string[] = [];
   let recordedListed = false;
   for (const entry of profile.organizations) {
     const organization = plainObject(entry);
@@ -284,19 +292,23 @@ function organizationsOf(
     )
       return null;
     if (organization.id === record.organizationId) recordedListed = true;
-    else if (
-      (organization.type === 0 || organization.type === 1) &&
-      record.pendingKey === null
-    )
-      ownsOther = true;
+    else if (organization.type === 0 || organization.type === 1)
+      administered.push(organization.id);
   }
-  return {
-    ownsOther,
-    recordedGone:
-      record.organizationId !== null &&
-      record.pendingKey === null &&
-      !recordedListed,
-  };
+  const recordedGone =
+    record.organizationId !== null &&
+    record.pendingKey === null &&
+    !recordedListed;
+  const { pendingKey } = record;
+  if (pendingKey === null)
+    return { ownsOther: administered.length > 0, recordedGone };
+  let carrying = 0;
+  for (const id of administered) {
+    if ((await carriesReceipt(ask, id, pendingKey)) !== "carries")
+      return { ownsOther: true, recordedGone };
+    carrying += 1;
+  }
+  return { ownsOther: carrying > 1, recordedGone };
 }
 
 /** The agents' account the values name, checked as a client unlocks it:
@@ -325,11 +337,10 @@ async function verifiedAccount(
       clientSecret: values.clientSecret,
       device: deviceOf({ deviceIdentifier }),
     });
-    const profile = plainObject(
-      await vaultRequest(client, server, "/api/accounts/profile", {
-        token: login.accessToken,
-      }),
-    );
+    // The cloud's API as the agents' account, with the token it signed in to.
+    const ask = (path: string) =>
+      vaultRequest(client, server, path, { token: login.accessToken });
+    const profile = plainObject(await ask("/api/accounts/profile"));
     const email =
       typeof profile?.email === "string" ? normalizeEmail(profile.email) : "";
     if (
@@ -339,12 +350,13 @@ async function verifiedAccount(
     )
       return { ok: false, reason: "failed" };
     if (email === values.email) return { ok: false, reason: "same-account" };
-    // This account's vault from an earlier connection is its own; anything
-    // else it owns or administers is not.
+    // This account's vault from an earlier connection is its own, and so is
+    // the one organization that carries its unresolved creation's receipt;
+    // anything else it owns or administers is not.
     const record = await readRecord(
       vaultPaths(host.directory(new URL(server).hostname, email)),
     ).catch(() => emptyRecord);
-    const organizations = organizationsOf(profile, record);
+    const organizations = await organizationsOf(profile, record, ask);
     if (organizations === null) return { ok: false, reason: "failed" };
     if (organizations.ownsOther)
       return { ok: false, reason: "owns-organization" };

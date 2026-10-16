@@ -119,6 +119,31 @@ const refused = (error: unknown): boolean =>
   error.status < 500 &&
   error.status !== 429;
 
+/** Whether one organization carries a creation's receipt: the public key the
+ * vault's API shows the signed-in account for it (`GET /api/organizations/
+ * <id>/public-key`) is the one recorded before the creation was asked for
+ * (`carries`), another (`other`), or one the vault refuses to show, a 4xx but
+ * a rate limit (`refused`). Any other failure throws. The one test of a
+ * receipt: the setup finds its creation by it (`ensureOwnVault`), and a
+ * personal Environment's connection tells its own vault from another
+ * organization of the account by it (connection.ts). */
+export async function carriesReceipt(
+  ask: (path: string) => Promise<unknown>,
+  organizationId: string,
+  pendingKey: string,
+): Promise<"carries" | "other" | "refused"> {
+  let answer: Record<string, unknown> | null;
+  try {
+    answer = plainObject(
+      await ask(`/api/organizations/${organizationId}/public-key`),
+    );
+  } catch (error) {
+    if (refused(error)) return "refused";
+    throw error;
+  }
+  return answer?.publicKey === pendingKey ? "carries" : "other";
+}
+
 /**
  * Makes the account's own vault exist, as the record and the handover say,
  * and returns it:
@@ -191,21 +216,14 @@ export async function ensureOwnVault(
   // failure throws, and the receipt stays for the next run.
   if (record.organizationId === null && record.pendingKey !== null) {
     let found: Membership | null = null;
-    for (const membership of membershipsOf(profile, "any")) {
-      let answer: Record<string, unknown> | null;
-      try {
-        answer = plainObject(
-          await ask(`/api/organizations/${membership.id}/public-key`),
-        );
-      } catch (error) {
-        if (refused(error)) continue;
-        throw error;
-      }
-      if (answer?.publicKey === record.pendingKey) {
+    for (const membership of membershipsOf(profile, "any"))
+      if (
+        (await carriesReceipt(ask, membership.id, record.pendingKey)) ===
+        "carries"
+      ) {
         found = membership;
         break;
       }
-    }
     if (found?.confirmed === true)
       await save({
         organizationId: found.id,
