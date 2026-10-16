@@ -30,8 +30,10 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // GitHub, 3. the Organization's download or the personal space, which starts
 // by itself once GitHub is there. Then the vault, the optional steps and the
 // tour of the app. The AI step signs ChatGPT and Claude in through their CLIs
-// (F19's addendum of 2026-10-15, ai-sign-in.ts). Pure: the DOM is
-// start-panel.ts.
+// (F19's addendum of 2026-10-15, ai-sign-in.ts). Each row is its title, its
+// action and its state, with at most one short line where the title alone
+// does not say what it is for (F36's addendum of 2026-10-16, Matěj's
+// "simplify the whole thing"). Pure: the DOM is start-panel.ts.
 
 /** How a step stands: done, the one to do now, one that waits for an
  * earlier one, or a stop. */
@@ -59,9 +61,9 @@ export type AiAction =
    * Environment browser, or the services reading a new sign-in. */
   | Readonly<{ kind: "none" }>
   /** "Přihlásit ChatGPT" and "Přihlásit Claude" (both may be signed in),
-   * with the sentence before them where the page opens in the Environment
-   * browser; `cancel` where they were opened from a connected step. */
-  | Readonly<{ kind: "choose"; before: string | null; cancel: boolean }>
+   * each with its mark and nothing said before them; `cancel` where they
+   * were opened from a connected step. */
+  | Readonly<{ kind: "choose"; cancel: boolean }>
   /** Connected: "Přihlásit jiný účet" opens the choice again. */
   | Readonly<{ kind: "connected" }>
   /** Signing in: "Otevřít přihlášení" (the right panel again, or the page
@@ -162,11 +164,7 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
   const place = facts.aiPlace ?? "own";
   const ready = facts.ai === "organization" || facts.ai === "connected";
   const mark: StartMark = ready ? "done" : "now";
-  const choose: AiAction = {
-    kind: "choose",
-    before: place === "panel" ? copy.startAiBefore : null,
-    cancel: ready,
-  };
+  const choose: AiAction = { kind: "choose", cancel: ready };
   // A sign-in under way says where to finish it.
   if (signIn.kind === "starting")
     return [
@@ -263,8 +261,9 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
       { kind: "none" },
     ];
   switch (facts.ai) {
+    // Only the title and the two sign-ins (Matěj, 2026-10-16).
     case "missing":
-      return [{ ...base, mark: "now", status: copy.startAiMissing }, choose];
+      return [{ ...base, mark: "now", status: null }, choose];
     case "unknown":
       return [{ ...base, mark: "now", status: copy.startAiUnknown }, choose];
     case "loading":
@@ -291,13 +290,14 @@ function githubStep(facts: StartFacts, copy: Copy): [StartStep, GithubAction] {
     ];
   if (facts.github === "unknown")
     return [{ ...base, mark: "later", status: copy.startChecking }, null];
-  // Offered once an agent can help (an AI not known is not claimed missing).
+  // Offered once an agent can help (an AI not known is not claimed missing);
+  // before, the step waits, its number saying the order.
   const ready = facts.ai !== "missing" && facts.ai !== "loading";
   return [
     {
       ...base,
       mark: ready ? "now" : "later",
-      status: ready ? copy.startGithubMissing : copy.startGithubAfterAi,
+      status: copy.startGithubMissing,
     },
     { enabled: ready },
   ];

@@ -404,6 +404,9 @@ test("no download and no Zkusit znovu before their turn (Pablo's review of #436)
     });
     expect(view.action).toBeNull();
     expect(view.note).toBe("Nabídne se po připojení AI.");
+    // Only the order: Začínáme's numbered steps say it, so it leaves this
+    // note out; Toto Prostředí shows it (F36's addendum of 2026-10-16).
+    expect(view.turn).toBe(true);
   }
   expect(
     contentView(work, null, en, { github: "connected", blockedBy: "ai" }).note,
@@ -414,10 +417,11 @@ test("no download and no Zkusit znovu before their turn (Pablo's review of #436)
   ).toMatchObject({
     action: null,
     note: "Spustí se samo po připojení GitHubu.",
+    turn: true,
   });
   expect(
     contentView(work, null, cs, { github: "connected", blockedBy: "unknown" }),
-  ).toMatchObject({ action: null, note: null });
+  ).toMatchObject({ action: null, note: null, turn: false });
   // Its turn: offered.
   expect(
     contentView(work, null, cs, { github: "connected", blockedBy: null })

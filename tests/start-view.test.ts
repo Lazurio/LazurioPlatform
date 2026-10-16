@@ -55,17 +55,14 @@ test("a new work Environment: AI now, GitHub after it, the content after GitHub"
     done: 0,
     total: 3,
     steps: [
-      {
-        basic: "ai",
-        mark: "now",
-        title: "Připojit AI",
-        status: "Agent vám pak pomůže s dalšími kroky.",
-      },
+      // Only the title and the two sign-ins (Matěj, 2026-10-16).
+      { basic: "ai", mark: "now", title: "Připojit AI", status: null },
+      // What GitHub is for; its number says it comes after AI.
       {
         basic: "github",
         mark: "later",
         title: "GitHub",
-        status: "Nabídne se po připojení AI.",
+        status: "Zpřístupní vaše repozitáře a moduly.",
       },
       {
         basic: "content",
@@ -76,8 +73,8 @@ test("a new work Environment: AI now, GitHub after it, the content after GitHub"
     ],
     // "Připojit" is there, disabled until an agent can help.
     github: { enabled: false },
-    // ChatGPT or Claude; on a computer of one's own no sentence before them.
-    ai: { kind: "choose", before: null, cancel: false },
+    // ChatGPT or Claude, nothing said before them.
+    ai: { kind: "choose", cancel: false },
   });
 });
 
@@ -139,37 +136,30 @@ test("the AI step from the CLIs: the Organization's, the person's accounts, or n
   ).toEqual({ enabled: true });
 });
 
-test("Připojit AI: ChatGPT or Claude, the sentence before them in the Environment browser, and nothing without it (F19's addendum of 2026-10-15)", () => {
+test("Připojit AI: only the title and ChatGPT or Claude, in the Environment browser and on a computer alike, and nothing without it (F19's addendum of 2026-10-15, F36's of 2026-10-16)", () => {
   const step = (overrides: Partial<StartFacts>, copy = cs) => {
     const view = startView(facts(overrides), copy);
     return { step: view?.steps[0], ai: view?.ai };
   };
-  // A Remote Environment with its Environment browser: the passwords of the
-  // person's own computer do not reach it, said once before the choice.
-  expect(step({ aiPlace: "panel" })).toEqual({
-    step: {
-      basic: "ai",
-      mark: "now",
-      title: "Připojit AI",
-      status: "Agent vám pak pomůže s dalšími kroky.",
-    },
-    ai: {
-      kind: "choose",
-      before:
-        "Připravte si heslo k ChatGPT nebo Claude (případně ke Googlu) a telefon, protože správce hesel ani passkey z počítače tu nefungují.",
-      cancel: false,
-    },
-  });
-  expect(step({ aiPlace: "panel" }, en).ai).toEqual({
+  // With the Environment browser too: no line and no sentence before the
+  // choice, in either language (Matěj, 2026-10-16).
+  for (const copy of [cs, en])
+    expect(step({ aiPlace: "panel" }, copy)).toEqual({
+      step: {
+        basic: "ai",
+        mark: "now",
+        title: copy.startAiTitle,
+        status: null,
+      },
+      ai: { kind: "choose", cancel: false },
+    });
+  expect(step({ aiPlace: "own" }).ai).toEqual({
     kind: "choose",
-    before:
-      "Have your ChatGPT or Claude password (or your Google one) and your phone ready: your computer's password manager and passkeys do not work here.",
     cancel: false,
   });
   // An AI that could not be checked is offered too.
   expect(step({ ai: "unknown", aiReading: null, aiPlace: "own" }).ai).toEqual({
     kind: "choose",
-    before: null,
     cancel: false,
   });
   // Without the Environment browser the step says why and starts nothing.
@@ -338,8 +328,6 @@ test("Připojit AI that did not finish, and a connected one: Zkusit znovu, the a
   // "Přihlásit jiný účet": the choice again, with Zrušit.
   expect(view({ ...connected, aiChoosing: true })?.ai).toEqual({
     kind: "choose",
-    before:
-      "Připravte si heslo k ChatGPT nebo Claude (případně ke Googlu) a telefon, protože správce hesel ani passkey z počítače tu nefungují.",
     cancel: true,
   });
   // Signing the second one in keeps the step done.
@@ -373,9 +361,7 @@ test("Připojit AI that did not finish, and a connected one: Zkusit znovu, the a
         },
       },
     })?.steps[0]?.warning,
-  ).toBe(
-    "Chat nezapnul Codex, protože se tak u něj jmenuje jiný poskytovatel. Zkontrolujte poskytovatele v Nastavení Chatu.",
-  );
+  ).toBe("Chat nezapnul Codex. Zkontrolujte poskytovatele v Nastavení Chatu.");
   expect(
     view(
       {
@@ -403,14 +389,13 @@ test("Připojit AI that did not finish, and a connected one: Zkusit znovu, the a
       },
     })?.steps[0]?.warning,
   ).toBe("Chat nezapnul Claude. Zkontrolujte poskytovatele v Nastavení Chatu.");
-  // Codex did not say whether the Organization provides the AI.
+  // Codex did not say whether the Organization provides the AI: said
+  // without the mechanics (F36's addendum of 2026-10-16).
   expect(
     view({
       aiSignIn: { kind: "failed", tool: "codex", reason: "provider-unknown" },
     })?.steps[0]?.status,
-  ).toBe(
-    "Codex neřekl, jestli tu AI zajišťuje vaše Organizace, a proto se nic nespustilo. Zkuste to prosím znovu.",
-  );
+  ).toBe("Přihlášení se nespustilo. Zkuste to prosím znovu.");
   // Services that read it, or will by themselves: nothing to say.
   expect(
     view({
@@ -466,9 +451,7 @@ test("GitHub once AI is there, then the content, then all done", () => {
     cs,
   );
   expect(ready?.done).toBe(3);
-  expect(ready?.intro).toBe(
-    "Prostředí je připravené. Sem se můžete kdykoli vrátit.",
-  );
+  expect(ready?.intro).toBe("Prostředí je připravené.");
   expect(ready?.steps.map((step) => step.mark)).toEqual([
     "done",
     "done",

@@ -266,6 +266,10 @@ export type ContentView = Readonly<{
   action: Readonly<{ label: string; disabled: boolean }> | null;
   /** A sentence under the action: why it cannot be used now. */
   note: string | null;
+  /** The note only says that the content's turn comes after AI or GitHub:
+   * Začínáme leaves it out, as its numbered steps say the order (F36's
+   * addendum of 2026-10-16). */
+  turn: boolean;
   /** Whether the stopped installation can be handed to Chat. */
   resolve: boolean;
 }>;
@@ -373,6 +377,7 @@ export function contentView(
       rows,
       action: null,
       note: notYet,
+      turn: notYet !== null,
       resolve: fact.state === "failed",
     };
   const action =
@@ -393,6 +398,7 @@ export function contentView(
     rows,
     action,
     note: action === null ? null : blockedBy,
+    turn: false,
     resolve: fact.state === "failed",
   };
 }
