@@ -2235,11 +2235,13 @@ Prohlížeč → Rozšíření) and in the person's own browser: for an Organiza
 Vaultwarden its address with a Copy button, the person's Lazurio address and single
 sign-on, a line pointing to "Vytvořit účet v trezoru" while the page offers it, and the
 network under the steps; for a personal Environment's own Bitwarden its region's service
-and the person's own account. `bitwardenTarget` and `bitwardenGuide` in
-`src/launchpad/vault-page-view.ts` decide it; Začínáme's "Trezor v Bitwardenu" shows where
-`bitwardenTarget` has a place, and its "Návod" brings the steps into view
-(`revealBitwarden`). A hosted preview (`scripts/preview-launchpad.ts hosted`) has the
-tests' fake vault, so both show there.
+and the person's own account; none where the person's membership answer says that only
+the agents use the vault. `bitwardenTarget` and `bitwardenGuide` in
+`src/launchpad/vault-page-view.ts` decide it; Začínáme's "Trezor v Bitwardenu" shows exactly
+there (`offersBitwarden`: for a Lazurio Vaultwarden Začínáme asks the same membership answer,
+once per page), and its "Návod" brings the steps into view once it is certain they show
+(`revealBitwarden`, `bitwardenReveal`). A hosted preview (`scripts/preview-launchpad.ts
+hosted`) has the tests' fake vault, so both show there.
 
 ## Files page
 

@@ -14,6 +14,7 @@ import { messages } from "../src/launchpad/messages";
 import { startLaunchpad } from "../src/launchpad/server";
 import {
   bitwardenGuide,
+  offersBitwarden,
   parseVaultMembership,
   parseVaultPage,
   vaultPageLinks,
@@ -1134,7 +1135,7 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "Bitwarden in Codex Desktop: the steps carry the address of the vault the handover names, point to Vytvořit účet v trezoru while the person has no account, and are left out where only the agents use the vault",
+  "Bitwarden in Codex Desktop: the steps carry the address of the vault the handover names, point to Vytvořit účet v trezoru while the person has no account, and are left out, with Začínáme's row, where only the agents use the vault",
   async () => {
     const cs = messages("cs");
     const s = await hosted({ kind: "work" });
@@ -1173,6 +1174,30 @@ test.skipIf(!posix)(
       expect(joined?.steps[1]?.value).toBe(vaultOrigin);
     } finally {
       await s.close();
+    }
+    // A network whose vault does not require the Lazurio sign-in of people
+    // yet (SSO declared, not SSO_ONLY): the membership says that only the
+    // agents use the vault, so neither the page's steps nor Začínáme's row
+    // (Pablo's review of #465).
+    const open = await hosted({ kind: "work" });
+    try {
+      open.vault.flags.ssoOnly = false;
+      open.admit("member", somebody());
+      const model = parseVaultPage((await open.page("member")).body);
+      const answer = (await open.membership("member")).body;
+      expect(answer).toEqual({
+        kind: "vault-member-unknown",
+        reason: "sign-in-not-required",
+      });
+      const standing = parseVaultMembership(answer);
+      expect(model?.status.state).toBe("connected");
+      expect(bitwardenGuide(model, standing, cs)).toBeNull();
+      expect(offersBitwarden(model, standing)).toBe(false);
+      expect(vaultPageView(model, standing, cs).hint).toBe(
+        cs.vaultPageAgentsOnly,
+      );
+    } finally {
+      await open.close();
     }
     // A Team Environment adds nobody: only its agents use the vault, so the
     // page gives no steps.

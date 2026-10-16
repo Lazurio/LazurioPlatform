@@ -12229,14 +12229,22 @@ own browser. The onboarding says so in two places, and the steps live in one.
    z vlastního počítače and Codex Desktop as in the wireframe: "Hesla z Trezoru Prostředí
    i v Codex Desktopu a ve vašem prohlížeči." and "Návod". No state: the extension is on
    the person's computer, which the Environment cannot see, so the wireframe's "Brzy, po
-   přihlášení účtem Lazuria" is left out. The row shows only where Nastavení → Trezor gives
-   the steps (`bitwardenTarget` in `src/launchpad/vault-page-view.ts`): a personal or work
-   Environment whose vault is its Organization's Lazurio Vaultwarden, in any state, since
-   the person's account there does not depend on this Environment's own vault, or a
-   personal Environment's own Bitwarden once connected. Never on this computer, without a
-   vault, while a personal Environment waits for its person's Bitwarden, or on a Team or
-   Automated Environment. "Návod" opens Nastavení → Trezor and brings the steps into view,
-   the focus on their heading; opened in a new tab, it is the Trezor page.
+   přihlášení účtem Lazuria" is left out. The row shows exactly where Nastavení → Trezor
+   gives the steps (`offersBitwarden`, one rule with the page's `bitwardenTarget` in
+   `src/launchpad/vault-page-view.ts`): a personal or work Environment whose vault is its
+   Organization's Lazurio Vaultwarden, in any state, since the person's account there does
+   not depend on this Environment's own vault, or a personal Environment's own Bitwarden
+   once connected. Never on this computer, without a vault, while a personal Environment
+   waits for its person's Bitwarden, or on a Team or Automated Environment. A Lazurio
+   Vaultwarden's steps also depend on the person: on a network that does not require the
+   Lazurio sign-in of people yet, the membership answer says that only the agents use the
+   vault, and the page gives none. Začínáme therefore asks the same answer the Trezor page
+   asks (`POST /api/vault/membership`, once per page, again only after an answer that says
+   nothing yet) and shows the row once it is there and does not say so (Pablo's review of
+   #465). "Návod" opens Nastavení → Trezor and brings the steps into view, the focus on
+   their heading, once it is certain they show (`bitwardenReveal`: a Lazurio Vaultwarden's
+   wait for the person's answer); not when the person moved the focus meanwhile, and not
+   at all once the page is left. Opened in a new tab, it is the Trezor page.
 2. **Nastavení → Trezor, "V Codex Desktopu a ve vašem prohlížeči"** ("In Codex Desktop and
    your browser"), under the vault (`bitwardenGuide`). The extension's own labels are
    quoted as it shows them in each language.
@@ -12265,23 +12273,31 @@ own browser. The onboarding says so in two places, and the steps live in one.
    direct load (the shell's "Dokončit nastavení" opens one) showed neither the vault's row
    nor this one until the person moved away and back.
 
-Not changed: the vault, its setup, its routes, the hand-over and the membership. The
-Codex Desktop section of SSH ze zařízení does not point to the steps yet.
+Not changed: the vault, its setup, its routes, the hand-over and the membership's rules.
+The membership answer is the Trezor page's own; since Začínáme asks it too, the
+Environment may add the person to its vault (the addendum of 2026-10-14, point 4) when
+they open Začínáme, as it does when they open Trezor. The Codex Desktop section of SSH ze
+zařízení does not point to the steps yet.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
 | The steps in Začínáme itself | Začínáme knows neither the vault's address nor the person's membership; the Trezor page knows both, so the steps live there once |
+| The row from the vault alone (this change's first revision) | Promised steps the page hides where only the agents use the vault (Pablo's review of #465); the row asks the page's own answer |
+| A membership answer without its effect for the row | There is none; adding one would be a new contract for one row |
 | A state on the row ("Nastaveno") | Nothing in the Environment can see the extension on the person's computer; left out |
 | The person's address from the shell's GitHub login | 0203 point 4: the username is never composed from GitHub; rejected |
 | The person's address in the membership's answer | A new contract and the first answer that names a person's address; not part of this change |
 | "Sign in with your address and master password" | Refused under `SSO_ONLY`; the Lazurio sign-in comes first |
 
 Verified by `tests/start-view.test.ts` (the row, its order, its link to the steps, and that
-it follows `bitwardenTarget`), `tests/vault-page-view.test.ts` (both kinds of vault in
-both languages, the value to copy, the line exactly where the page offers "Vytvořit účet v
-trezoru", none without a vault a person adds) and `tests/launchpad-vault-page.test.ts` over
-HTTP (the address is the handover's, the line for a person without an account, none on a
-Team Environment); and in a browser (root decision 0178) on the hosted preview in both
+it shows exactly where the page gives them, for each membership answer),
+`tests/vault-page-view.test.ts` (both kinds of vault in both languages, the value to copy,
+the line exactly where the page offers "Vytvořit účet v trezoru", none without a vault a
+person adds or where only the agents use it, and a pending "Návod" waiting for the answer,
+revealing, forgotten when the steps will not show or the page is left) and
+`tests/launchpad-vault-page.test.ts` over HTTP (the address is the handover's, the line for
+a person without an account, none on a Team Environment or on a network without
+`SSO_ONLY`, row included); and in a browser (root decision 0178) on the hosted preview in both
 languages, whose work Environment now has the tests' fake vault: the row, "Návod" into the
 steps with the focus on their heading below the page's head (on a short window too), Copy,
 and the Trezor page in a new tab.
