@@ -29,6 +29,8 @@ import {
   elementIdentity,
   hereOf,
   initialsOf,
+  type RailAccount,
+  railAccount,
   railHome,
   railSpaces,
   type ShellApp,
@@ -607,6 +609,79 @@ export class LazurioRail extends ShellElement {
     this.root.replaceChildren(nav);
   }
 
+  /** The account at the foot of the rail (`railAccount`): the link to its
+   * settings, or the button that opens its menu with the sign-out. The menu
+   * is a popover in the top layer, as the list under the picker, beside the
+   * account; the button is its invoker, so the browser opens and closes it
+   * (a second click, a click outside or Escape) and returns the focus. Its
+   * sign-out is a plain link, never announced, so the browser navigates to
+   * it whatever the host routes. */
+  private account(
+    shell: Shell,
+    model: RailAccount,
+  ): Readonly<{ item: HTMLElement; menu: HTMLElement | null }> {
+    const account =
+      model.kind === "link"
+        ? this.link(model.href, "item account")
+        : element("button", "item account");
+    this.withTip(account, model.label);
+    account.setAttribute("aria-label", model.label);
+    const photo = () => {
+      const mark = element("span", "avatar");
+      if (shell.operator.initials !== null)
+        mark.textContent = shell.operator.initials;
+      else mark.append(icon("user", 16));
+      return mark;
+    };
+    if (shell.operator.avatar !== null) {
+      const picture = element("img", "avatar");
+      picture.alt = "";
+      picture.referrerPolicy = "no-referrer";
+      picture.src = shell.operator.avatar;
+      picture.addEventListener("error", () => picture.replaceWith(photo()), {
+        once: true,
+      });
+      account.append(picture);
+    } else account.append(photo());
+    if (model.kind === "link") return { item: account, menu: null };
+
+    const button = account as HTMLButtonElement;
+    button.type = "button";
+    button.setAttribute("aria-expanded", "false");
+    const menu = element("div", "switcher-box switcher-popover account-menu");
+    menu.popover = "auto";
+    menu.setAttribute("aria-label", model.label);
+    const list = element("div", "switcher-list");
+    for (const entry of model.entries) {
+      const link = entry.announce
+        ? this.link(entry.href, "switcher-row")
+        : element("a", "switcher-row");
+      if (!entry.announce) link.href = entry.href;
+      link.dataset.entry = entry.kind;
+      const glyph = element("span", "switcher-glyph");
+      glyph.append(icon(entry.kind === "settings" ? "settings" : "logout", 16));
+      link.append(glyph, element("span", "switcher-name", entry.label));
+      link.addEventListener("click", () => menu.hidePopover());
+      list.append(link);
+    }
+    menu.append(list);
+    button.popoverTargetElement = menu;
+    // Beside the account, its foot level with the account's, never below
+    // the window.
+    menu.addEventListener("beforetoggle", (event) => {
+      if ((event as ToggleEvent).newState !== "open") return;
+      const rect = button.getBoundingClientRect();
+      menu.style.left = `${rect.right + 8}px`;
+      menu.style.bottom = `${Math.max(8, window.innerHeight - rect.bottom)}px`;
+    });
+    menu.addEventListener("toggle", (event) => {
+      const open = (event as ToggleEvent).newState === "open";
+      button.setAttribute("aria-expanded", String(open));
+      if (open) (list.firstElementChild as HTMLElement | null)?.focus();
+    });
+    return { item: button, menu };
+  }
+
   protected render() {
     const signedOut = state.signedOut();
     if (signedOut !== null) {
@@ -700,28 +775,10 @@ export class LazurioRail extends ShellElement {
       scroll.append(add);
     }
 
-    const account = this.withTip(
-      this.link(shell.account, "item account"),
-      copy.account,
+    const { item: account, menu } = this.account(
+      shell,
+      railAccount(shell, copy),
     );
-    account.setAttribute("aria-label", copy.account);
-    const photo = () => {
-      const mark = element("span", "avatar");
-      if (shell.operator.initials !== null)
-        mark.textContent = shell.operator.initials;
-      else mark.append(icon("user", 16));
-      return mark;
-    };
-    if (shell.operator.avatar !== null) {
-      const picture = element("img", "avatar");
-      picture.alt = "";
-      picture.referrerPolicy = "no-referrer";
-      picture.src = shell.operator.avatar;
-      picture.addEventListener("error", () => picture.replaceWith(photo()), {
-        once: true,
-      });
-      account.append(picture);
-    } else account.append(photo());
 
     const jump = element("dialog", "switcher-dialog");
     jump.addEventListener("click", (event) => {
@@ -731,7 +788,7 @@ export class LazurioRail extends ShellElement {
 
     nav.append(home, search, element("div", "divider"), scroll, account);
     this.labelled(nav);
-    this.root.replaceChildren(nav, jump);
+    this.root.replaceChildren(nav, jump, ...(menu === null ? [] : [menu]));
   }
 }
 

@@ -164,6 +164,15 @@ export type Shell = Readonly<{
   /** Where an Organization is added (the "+" under the Organizations); null
    * hides it. */
   addOrganization: string | null;
+  /** Where the person signs out in this browser (F36's addendum of
+   * 2026-10-16, additive in v1): an https URL, or a path on the page's own
+   * origin as the Dashboard's addresses. On an Environment's page it is the
+   * sign-out its gateway serves on the shell's origins (Machines#358,
+   * `entry.sign_out`), which ends the Environment's session and the Lazurio
+   * account's. With it the account at the bottom opens a menu of the account
+   * settings and the sign-out; absent (or null) there is no sign-out and the
+   * account is the link to its settings, as before. */
+  signOut?: string;
 }>;
 
 type Data = Readonly<Record<string, unknown>>;
@@ -449,11 +458,16 @@ export function parseShellSetup(
  * shape beside a current Environment, which it describes, and absent (not
  * even null) on a page that belongs to no Environment. So is the optional
  * `offlineGuide` (decision F41): absent, false or true beside a current
- * Environment, kept only when true. */
+ * Environment, kept only when true. The optional `signOut` (F36's addendum
+ * of 2026-10-16) is absent, null or an address as the Dashboard's; kept only
+ * when it is one. */
 export function parseShell(input: unknown): Shell | null {
   if (!isRecord(input) || input.schema !== shellSchema) return null;
   if (!isPageUrl(input.dashboard) || !isPageUrl(input.account)) return null;
   if (!(input.addOrganization === null || isPageUrl(input.addOrganization)))
+    return null;
+  const signOut = input.signOut;
+  if (!(signOut === undefined || signOut === null || isPageUrl(signOut)))
     return null;
   const shared = entries(input);
   if (shared === null) return null;
@@ -486,6 +500,7 @@ export function parseShell(input: unknown): Shell | null {
     dashboard: input.dashboard,
     account: input.account,
     addOrganization: input.addOrganization as string | null,
+    ...(typeof signOut === "string" ? { signOut } : {}),
   });
 }
 

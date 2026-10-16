@@ -121,6 +121,14 @@ nav { display: flex; height: 100%; flex-direction: column; align-items: center; 
 .space[aria-current="true"] .org-mark, .space[aria-current="true"] .initials { box-shadow: inset 0 0 0 1px var(--shell-mark-line), 0 0 0 3px var(--shell-selected), 0 0 0 4px var(--shell-line-strong); }
 .add { width: 32px; height: 32px; margin: 4px 0; border: 1px dashed var(--shell-line); border-radius: var(--lz-radius-sm); }
 .account .avatar { display: grid; width: 28px; height: 28px; place-items: center; overflow: hidden; border-radius: 50%; background: var(--shell-inverse); color: var(--shell-inverse-ink); font-size: 11px; font-weight: var(--lz-weight-akce); object-fit: cover; }
+.account[aria-expanded="true"] { background: var(--shell-selected); }
+/* The account's menu (F36's addendum of 2026-10-16, the wireframe's menu of
+   the account): the list under the picker's look, one line per entry, beside
+   the account. A popover the browser opens and closes; closed it takes no
+   room, whatever the list's own display says. */
+.account-menu { width: 240px; }
+.account-menu:not(:popover-open) { display: none; }
+.account-menu .switcher-list { padding: 6px; }
 /* With nobody signed in (F36's addendum of 2026-10-06) the sign-in key stands
    at the foot, where a person's account stands, in the items' colours. */
 .sign-in { margin-top: auto; }

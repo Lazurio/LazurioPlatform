@@ -314,6 +314,62 @@ export function railHome(
   });
 }
 
+/** An entry of the account's menu. `announce`: a link the host may take
+ * over (`lazurio-navigate`, as every link on the page's origin); the sign-out
+ * never is one, because the gateway serves it and no host's router may stand
+ * in for it. */
+export type RailAccountEntry = Readonly<{
+  kind: "settings" | "sign-out";
+  href: string;
+  label: string;
+  announce: boolean;
+}>;
+
+/** The person's account at the foot of the rail: its accessible name, which
+ * is its label too (the name alone, F36's addendum of 2026-10-16), and either
+ * the link to the account settings or the menu it opens. */
+export type RailAccount = Readonly<{
+  label: string;
+}> &
+  (
+    | Readonly<{ kind: "link"; href: string }>
+    | Readonly<{ kind: "menu"; entries: readonly RailAccountEntry[] }>
+  );
+
+/** The account at the foot of the rail (F36's addendum of 2026-10-16, the
+ * shell wireframe's menu of the account). Without a sign-out in the document
+ * it is the link to the account settings it always was. With one it opens a
+ * menu of the two: "Nastavení účtu" and "Odhlásit", which ends this
+ * Environment's session and the Lazurio account's in this browser
+ * (Machines#358). The sign-out is a plain navigation to the address the
+ * document names (`announce: false`). */
+export function railAccount(shell: Shell, copy: ShellCopy): RailAccount {
+  if (shell.signOut === undefined)
+    return Object.freeze({
+      kind: "link",
+      href: shell.account,
+      label: copy.account,
+    });
+  return Object.freeze({
+    kind: "menu",
+    label: copy.account,
+    entries: Object.freeze([
+      Object.freeze({
+        kind: "settings",
+        href: shell.account,
+        label: copy.accountSettings,
+        announce: true,
+      }),
+      Object.freeze({
+        kind: "sign-out",
+        href: shell.signOut,
+        label: copy.signOut,
+        announce: false,
+      }),
+    ]),
+  });
+}
+
 /** An item of the rail while nobody is signed in. */
 export type SignedOutRailItem = Readonly<{
   /** `home`: the Lazurio logo at the top; `sign-in`: the key at the foot,

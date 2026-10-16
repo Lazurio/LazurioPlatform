@@ -56,7 +56,9 @@ export type OrganizationAssignment =
 // of the Environment browser; `environment_relay` (root decision 0194, DEV-6653
 // contract C3, Machines #449) only on an Organization work VM that declares its
 // own identity at the Lazurio issuer: the unix socket on which the Launchpad
-// asks the Dashboard as this Environment.
+// asks the Dashboard as this Environment. `sign_out` (Machines#358, F36's
+// addendum of 2026-10-16) only behind the Platform Launchpad: the path of the
+// person's sign-out, which the gateway serves on the shell's origins.
 export type MachineEntry = Readonly<{
   launchpad: Readonly<{
     external_origin: string;
@@ -69,6 +71,7 @@ export type MachineEntry = Readonly<{
   mausbot?: Readonly<{ external_origin: string; listen_port: number }>;
   browser?: Readonly<{ external_origin: string; listen_port: number }>;
   environment_relay?: Readonly<{ socket: string }>;
+  sign_out?: Readonly<{ path: string }>;
 }>;
 // This Environment's own vault (root decision 0198 point 1, DEV-6631 contract
 // C2): the network's Lazurio Vaultwarden, the technical account the network

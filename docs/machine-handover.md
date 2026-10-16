@@ -11,11 +11,16 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
-from Machines **v0.12.159** (tag commit `8b66889bf4e00b111027f9b280423f4b9cdfcf4e`, the
-merge of pull request **#500**; SHA-256
-`76a058045be25b718caed8a04e533d67fa8666945bfa4fa0153d618bc4d78957`), which adds only
-the optional top-level member `vault` ([below](#the-environments-own-vault-decision-f53),
-DEV-6631 contract C2) and changes nothing else. Before it, the pin was the merge of
+from the merge of Machines pull request **#543** into `main` (commit
+`de024c2735bb07b51ffb9bcb9e845e564bc1d2e9`, SHA-256
+`16ddb29441af003a31615674bfff539b193cb891c4b21f49235da1afc1acd7ec`), which adds only
+the optional `entry.sign_out` ([below](#the-hosted-entry-decision-f16), Machines#358)
+and changes nothing else. Before it, the pin was Machines **v0.12.159** (tag
+commit `8b66889bf4e00b111027f9b280423f4b9cdfcf4e`, the merge of pull request **#500**;
+SHA-256 `76a058045be25b718caed8a04e533d67fa8666945bfa4fa0153d618bc4d78957`), which
+added only the optional top-level member `vault`
+([below](#the-environments-own-vault-decision-f53), DEV-6631 contract C2); before
+that, the merge of
 Machines pull request **#449** into `main` (commit
 `30c2fcf8a77914b5a44c652265e927683b2b413c`, SHA-256
 `fbbd159b8e6dfc8580a7b8460ddb4a2b2d3158a1b74ab2a420d8ff68005ae53f`), which added the
@@ -356,7 +361,8 @@ reads it: a Platform vendoring the earlier schema refuses the whole handover.
                  "listen_port": 4102 },
   "browser":   { "external_origin": "https://browser.<vm>.<org>.lazurio.io",
                  "listen_port": 4848 },
-  "environment_relay": { "socket": "/run/lazurio-environment/relay.sock" }
+  "environment_relay": { "socket": "/run/lazurio-environment/relay.sock" },
+  "sign_out":  { "path": "/.lazurio/sign-out" }
 }
 ```
 
@@ -382,6 +388,18 @@ for it. Machines writes it only for a pinned Platform at least its
 `PLATFORM_ENTRY_ENVIRONMENT_RELAY_MINIMUM`, the first release that reads it. Absent,
 this Machine has no relay and the Launchpad asks no Dashboard.
 
+`sign_out` is optional and present only on a Machine behind the Platform Launchpad,
+whose gateway serves the person's sign-out on the shell's origins (the Launchpad,
+T3 Code, MausBot; Machines#358): exactly the path `/.lazurio/sign-out`. It ends the
+Environment's gateway session and the person's Lazurio account session in this
+browser and lands on the issuer's signed-out page. The Launchpad passes it into the
+shell document as `signOut` ([F36's addendum of
+2026-10-16](decisions.md#f36-addendum-of-2026-10-16-the-persons-sign-out-from-the-account-in-the-rail)),
+a path, so the shell on T3 Code's and MausBot's origins opens it on its own origin
+too. Machines writes it only for a pinned Platform at least its
+`PLATFORM_ENTRY_SIGN_OUT_MINIMUM`, the first release that reads it. Absent, the
+shell offers no sign-out.
+
 On a personal VM the Machine hostname has no Organization label
 (`https://launchpad.<login>.lazurio.io`, `https://{module}.<login>.lazurio.io`).
 
@@ -400,9 +418,11 @@ The binding records it one member to one, as `entry` next to the relationships:
 | `browser.external_origin` | `browserOrigin` (optional) | as `externalOrigin` |
 | `browser.listen_port` | `browserListenPort` (optional) | as `listenPort` |
 | `environment_relay.socket` | `environmentRelaySocket` (optional) | `/run/<directory>/<name>.sock`, lowercase letters, digits and `-`, at most 100 characters |
+| `sign_out.path` | `signOutPath` (optional) | exactly `/.lazurio/sign-out` |
 
-The relay's socket is recorded only when the handover carries it; it is never rendered
-into the Folder and never part of the Launchpad's public entry. The two MausBot fields, like the two browser fields, are recorded both or neither, and absent (never `null`) when the
+The relay's socket and the sign-out's path are recorded only when the handover
+carries them; neither is rendered into the Folder or part of the Launchpad's public
+entry. The two MausBot fields, like the two browser fields, are recorded both or neither, and absent (never `null`) when the
 handover has no `mausbot`, so an entry recorded from an older handover is unchanged
 byte for byte. A present but invalid `mausbot` refuses the whole handover
 (`machine-context-invalid`), as every other entry value does.
