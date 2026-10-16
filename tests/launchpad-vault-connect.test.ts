@@ -19,6 +19,7 @@ import {
   parseVaultSettingUp,
   parseVaultStatus,
 } from "../src/launchpad/vault-view";
+import { acquireFileLock } from "../src/platform/flock";
 import { runTool } from "../src/tools/status";
 import type { VaultJournalEntry, VaultStatus } from "../src/vault/flow";
 import { readAccount, readSession, vaultPaths } from "../src/vault/store";
@@ -167,6 +168,7 @@ async function personal() {
     cloud,
     journal,
     send,
+    connection: host.connection,
     paths: vaultPaths(stateDirectory(home, "vault.bitwarden.eu", agents)),
     page: async () => (await send("GET", "/api/vault")).body,
     membership: async () => (await send("POST", "/api/vault/membership")).body,
@@ -398,6 +400,19 @@ test.skipIf(!posix)(
           .status,
       ).toBe(400);
       expect((await s.send("GET", "/api/vault/invitee")).status).toBe(405);
+      // Another request holds the connection's lock: busy, nothing kept.
+      const lock = await acquireFileLock(join(s.connection, "lock"), {
+        timeoutMs: 1_000,
+      });
+      try {
+        const busy = await invite({ email: person });
+        expect([busy.status, busy.body]).toEqual([
+          503,
+          { kind: "blocked", reason: "busy" },
+        ]);
+      } finally {
+        await lock.release();
+      }
       expect(s.cloud.mails).toEqual([]);
       // Asked for: kept and invited at once, by the cloud's e-mail; the
       // answer is where the person stands, never their address.
