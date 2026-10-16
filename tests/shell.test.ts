@@ -112,7 +112,9 @@ test("a workstation's document: this computer, every Organization of the Folder 
     ],
     dashboard: "https://dashboard.lazurio.ai/home",
     account: "https://dashboard.lazurio.ai/settings/account",
-    addOrganization: "https://dashboard.lazurio.ai/add-organization",
+    // No "+" in the rail while self-service creation is unfinished
+    // (product decision of 2026-10-16).
+    addOrganization: null,
   });
   const current = shell.environments[0];
   if (current === undefined) throw new Error("The document has one");
@@ -213,11 +215,12 @@ test("a hosted work Environment is named by its kind and its person, never by it
     app: "chat",
     last: noLast,
   });
-  // Your personal space has no Environment here: its Dashboard.
+  // Your personal space has no Environment here: the rail does not list
+  // it (product decision of 2026-10-16); the logo still leads to the
+  // Dashboard.
   expect(
     spaces.map((space) => [space.space, space.href, space.active]),
   ).toEqual([
-    ["personal", "https://dashboard.lazurio.ai/home", false],
     // A click stays in the app the rail sits in (Chat).
     ["example", "https://t3code.workspace.example.lazurio.io/", true],
   ]);
@@ -281,10 +284,7 @@ test("an Organization's Environment stands in its Organization's space even befo
       railSpaces(shell, cs, { here: "example", app: "apps", last: noLast }).map(
         (space) => [space.space, space.active],
       ),
-    ).toEqual([
-      ["personal", false],
-      ["example", true],
-    ]);
+    ).toEqual([["example", true]]);
     expect(spaceEnvironments(shell, "personal")).toEqual([]);
   }
   // Read from the Folder, the owner keeps its name and avatar and comes

@@ -85,8 +85,9 @@ Dashboard is not in the switch; the Lazurio logo at the top of the rail opens it
 **Rail.** The rail switches spaces, not Environments. From the top: the Lazurio logo
 (the Dashboard), the search button that opens the jump dialog (**⌘⇧E**, Ctrl+Shift+E on
 Windows and Linux; not ⌘K, which T3 Code uses for its own command palette), the personal
-space (its Owner's initials), one GitHub avatar per Organization, and "+" to add an
-Organization. At the bottom there is only the account, shown as the person's GitHub
+space (its Owner's initials) when the person has an Environment there, one GitHub avatar
+per Organization, and "+" to add an Organization when the document names an address for
+it (none for now: F36's addendum of 2026-10-16). At the bottom there is only the account, shown as the person's GitHub
 photo. There are no Environment icons, no Organization folders and no "+N"/"méně": a
 kind icon looks the same in every Organization and a wrong click is easy, while an
 Organization's avatar is recognised at a glance. The avatar is the GitHub
@@ -298,7 +299,8 @@ the Buddy bubble, and knows nothing of Lazurio's data:
   stays in its avatar. Same origin: no CORS and no cookie of another site.
 - `shell.js` defines three Web Components with Shadow DOM, so neither side's CSS reaches
   the other: `<lazurio-rail>` (the logo to the Dashboard, the search for the ⌘⇧E jump,
-  the personal space, one avatar per Organization, "+", the account),
+  the personal space when it holds an Environment, one avatar per Organization, "+" when
+  the document names it, the account),
   `<lazurio-column-head>` (the Environment picker with the Settings gear, over the app
   switch, in place of the fork's logo at the top of its sidebar) and `<lazurio-buddy>`
   (the bubble).

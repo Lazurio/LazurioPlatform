@@ -569,10 +569,59 @@ test("without the account the rail and the picker are exactly today's", () => {
   expect(railSpaces(mergeAccount(local, null), en, options)).toEqual(
     railSpaces(local, en, options),
   );
+  // This Environment alone knows no personal Environment of yours: no
+  // personal space in the rail.
   expect(railSpaces(local, en, options).map((space) => space.space)).toEqual([
-    "personal",
     "Example",
   ]);
+});
+
+test("the rail lists your personal space only while it holds an Environment of yours, and by itself once it does", () => {
+  const options = { here: "Example", app: "apps", last: noLast } as const;
+  // An account without a personal Environment (product decision of
+  // 2026-10-16: personal Environments are not offered by self-service yet):
+  // the rail starts with the Organizations, the first never drawn as you.
+  const without = mergeAccount(
+    local,
+    account({
+      environments: accountDocument().environments.filter(
+        (entry) => entry.kind !== "personal",
+      ),
+    }),
+  );
+  expect(spaceEnvironments(without, "personal")).toEqual([]);
+  const organizations = railSpaces(without, en, options);
+  expect(organizations.map((space) => [space.space, space.initials])).toEqual([
+    ["Example", "EC"],
+    ["other-example", "OE"],
+  ]);
+  // The jump lists no empty personal section either.
+  expect(
+    switcherList(without, en, {
+      kind: "jump",
+      here: "Example",
+      widened: false,
+      app: "apps",
+      query: "",
+    }).sections.map((section) => section.space),
+  ).toEqual(["Example", "other-example"]);
+  // The same account once it holds a personal Environment: the personal
+  // space comes first, with your initials, without any flag.
+  const withOne = mergeAccount(local, account());
+  expect(
+    railSpaces(withOne, en, options).map((space) => [
+      space.space,
+      space.initials,
+    ]),
+  ).toEqual([
+    ["personal", "A"],
+    ["Example", "EC"],
+    ["other-example", "OE"],
+  ]);
+  // In your personal space the rail lists it, whatever else it holds.
+  expect(
+    railSpaces(without, en, { ...options, here: "personal" })[0]?.space,
+  ).toBe("personal");
 });
 
 test("the account's last Environment per space, by the merged space's id, only for listed Environments", () => {

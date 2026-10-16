@@ -47,6 +47,12 @@ export const accountUrl = "https://dashboard.lazurio.ai/settings/account";
 export const addOrganizationUrl =
   "https://dashboard.lazurio.ai/add-organization";
 
+/** Whether the rail offers adding an Organization. Off: creating an
+ * Organization or a personal space by self-service is not finished yet
+ * (product decision of 2026-10-16, "produkt 1A"), so the rail draws no "+"
+ * (`addOrganization: null`). The address stays for when it returns. */
+export const selfServiceCreationEnabled = false;
+
 /** An Organization's page in the Dashboard; its home when the slug reduces
  * to nothing. */
 export const organizationDashboardUrl = (slug: string): string => {
@@ -330,7 +336,7 @@ export function shellDocument(
     organizations,
     dashboard: dashboardUrl,
     account: accountUrl,
-    addOrganization: addOrganizationUrl,
+    addOrganization: selfServiceCreationEnabled ? addOrganizationUrl : null,
     // The person's sign-out where the gateway serves it on the shell's
     // origins (Machines#358): a path, so the elements on T3 Code's and
     // MausBot's origins open it on their own origin too. Without it the
