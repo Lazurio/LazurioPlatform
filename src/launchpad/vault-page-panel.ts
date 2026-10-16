@@ -38,8 +38,11 @@ type Answer = Promise<{ value: unknown; ok: boolean }>;
 // and the rest once connected; the page then follows the setup that
 // creates the vault, as the Tools row does. Under the vault, "V Codex
 // Desktopu a ve vašem prohlížeči": the steps that add the vault to the
-// Bitwarden extension (F53's addendum of 2026-10-16), a value with its Copy
-// button; Začínáme's "Návod" brings them into view (`revealBitwarden`).
+// Bitwarden extension (F53's addendum of 2026-10-16), with the extension's
+// page in the Chrome Web Store, the values to paste with their Copy buttons
+// (the server, and the person's own address where the membership answer
+// carries it) and the extension's own screens; Začínáme's "Návod" brings
+// them into view (`revealBitwarden`).
 export function createVaultPagePanel(
   options: Readonly<{
     get: (path: string) => Answer;
@@ -86,6 +89,13 @@ export function createVaultPagePanel(
   const bitwardenFirst = find<HTMLParagraphElement>("#vault-bitwarden-first");
   const bitwardenSteps = find<HTMLOListElement>("#vault-bitwarden-steps");
   const bitwardenNote = find<HTMLParagraphElement>("#vault-bitwarden-note");
+  // The extension's screens, one per picture and language, bundled with the
+  // page; a step shows a copy of the one in the page's language.
+  const pictures = [
+    ...document.querySelectorAll<HTMLImageElement>(
+      "#vault-bitwarden-pictures img",
+    ),
+  ];
 
   let model: VaultPageModel | null = null;
   // The vault's own answer (the refresh), newer than the recorded state.
@@ -296,14 +306,43 @@ export function createVaultPagePanel(
     }
   }
 
-  /** One step: its sentence, and the value it asks for with a Copy button
-   * that says whether it copied; where copying is not available, the value
-   * is selected for the keyboard. */
+  /** One step: its sentence; the link it opens, in a new tab; the value it
+   * asks for with a Copy button that says whether it copied (where copying is
+   * not available, the value is selected for the keyboard); and the
+   * extension's screen in the page's language. */
   function stepOf(step: BitwardenStep, copy: Copy): HTMLLIElement {
     const item = element("li");
     item.append(element("span", "vault-bitwarden-text", step.text));
-    const { value } = step;
-    if (value === null) return item;
+    if (step.link !== null) {
+      const box = element("span", "vault-bitwarden-link");
+      const anchor = element("a", "button", step.link.label);
+      anchor.href = step.link.href;
+      anchor.target = "_blank";
+      anchor.rel = "noopener noreferrer";
+      anchor.append(svg("external"));
+      box.append(anchor);
+      item.append(box);
+    }
+    if (step.value !== null) item.append(copyOf(step.value, copy));
+    if (step.picture !== null) {
+      const language = document.documentElement.lang === "cs" ? "cs" : "en";
+      const source = pictures.find(
+        (picture) =>
+          picture.dataset.picture === step.picture?.name &&
+          picture.dataset.locale === language,
+      );
+      if (source !== undefined) {
+        const picture = source.cloneNode(false) as HTMLImageElement;
+        picture.className = "vault-bitwarden-picture";
+        picture.alt = step.picture.alt;
+        item.append(picture);
+      }
+    }
+    return item;
+  }
+
+  /** A value with its Copy button. */
+  function copyOf(value: string, copy: Copy): HTMLElement {
     const shown = element("code", "vault-bitwarden-value", value);
     const said = element("span", "row-status");
     said.setAttribute("role", "status");
@@ -332,8 +371,7 @@ export function createVaultPagePanel(
     });
     const box = element("span", "vault-bitwarden-copy");
     box.append(shown, button, said);
-    item.append(box);
-    return item;
+    return box;
   }
 
   /** The way to use the vault: one line, and Chat to start in. Chat opens

@@ -51,8 +51,9 @@
 // tests' fake Vaultwarden at the example Organization's address, set up
 // before the start, so Začínáme and Nastavení → Trezor show it with the
 // steps for Bitwarden in Codex Desktop (F53's addendum of 2026-10-16); the
-// fake bw keeps everything under the synthetic home. Synthetic names only;
-// stop it with Ctrl-C.
+// fake bw keeps everything under the synthetic home, and the gateway names a
+// fictional person, jana, whose own address the steps offer. Synthetic names
+// only; stop it with Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -584,7 +585,24 @@ const app = await startLaunchpad(
   undefined,
   undefined,
   undefined,
-  mode === "local" ? {} : { fetcher: async () => new Response("ok") },
+  mode === "local"
+    ? {}
+    : {
+        // A hosted preview's gateway names a fictional person with a Lazurio
+        // username, as Lazurio Auth's answer does, so Nastavení → Trezor
+        // offers her own address (F53's addendum of 2026-10-16).
+        fetcher: async () =>
+          new Response("ok", {
+            headers:
+              mode === "hosted"
+                ? {
+                    "x-auth-request-user":
+                      "00000000-0000-4000-8000-00000000a11a",
+                    "x-auth-request-preferred-username": "jana",
+                  }
+                : {},
+          }),
+      },
   // The preview's GitHub identity answers the Owner question of the Apps
   // home ("+ Nový modul", "Přístup k modulu") and a Steward's `maintain` on
   // the example Organization's repositories by its role, and its T3 Code is a

@@ -628,6 +628,67 @@ test("every text of the Trezor page's markup is a message of both languages", ()
       ]);
 });
 
+// The two pictures of the extension's own screens (F53's addendum of
+// 2026-10-16): each step that names one finds it in the page once per
+// language, and the file is the small 2x WebP of the size the page declares.
+// How the steps look is checked in a browser (root decision 0178).
+test("every picture a step names is in the page once per language, a small 2x WebP of the declared size", () => {
+  const html = readFileSync(
+    new URL("../src/launchpad/index.html", import.meta.url),
+    "utf8",
+  );
+  const block = html.slice(
+    html.indexOf('<div id="vault-bitwarden-pictures" hidden>'),
+    html.indexOf("</div>", html.indexOf('<div id="vault-bitwarden-pictures"')),
+  );
+  const pictures = [...block.matchAll(/<img ([^>]*)>/g)].map(
+    (match) =>
+      new Map(
+        [...(match[1] as string).matchAll(/([a-z-]+)="([^"]*)"/g)].map(
+          (pair) => [pair[1] as string, pair[2] as string],
+        ),
+      ),
+  );
+  const named = (
+    bitwardenGuide(
+      model(connected(), { environment: "work" }),
+      { ...member, address: "jana@account.lazurio.ai" },
+      cs,
+    )?.steps ?? []
+  ).flatMap((step) => (step.picture === null ? [] : [step.picture.name]));
+  expect(named).toEqual(["server", "email"]);
+  expect(pictures).toHaveLength(named.length * 2);
+  for (const name of named)
+    for (const locale of ["cs", "en"]) {
+      const found = pictures.filter(
+        (picture) =>
+          picture.get("data-picture") === name &&
+          picture.get("data-locale") === locale,
+      );
+      expect(found).toHaveLength(1);
+      const [picture] = found as [Map<string, string>];
+      expect(picture.get("src")).toBe(
+        `./images/bitwarden-${name}-${locale}.webp`,
+      );
+      expect(picture.get("alt")).toBe("");
+      const file = readFileSync(
+        new URL(
+          `../src/launchpad/images/bitwarden-${name}-${locale}.webp`,
+          import.meta.url,
+        ),
+      );
+      expect(file.length).toBeLessThan(64 * 1024);
+      // RIFF, WEBP and the extended header, whose canvas is twice the
+      // declared size.
+      expect(file.subarray(0, 4).toString("latin1")).toBe("RIFF");
+      expect(file.subarray(8, 16).toString("latin1")).toBe("WEBPVP8X");
+      expect([file.readUIntLE(24, 3) + 1, file.readUIntLE(27, 3) + 1]).toEqual([
+        2 * Number(picture.get("width")),
+        2 * Number(picture.get("height")),
+      ]);
+    }
+});
+
 // Bitwarden in Codex Desktop and the person's own browser (F53's addendum of
 // 2026-10-16, plan DEV-6665): the steps under "V Codex Desktopu a ve vašem
 // prohlížeči" on Nastavení → Trezor, for an Organization's Lazurio
@@ -652,54 +713,116 @@ const known = (
   signIn: boolean,
 ): VaultPagePerson => ({ kind: "known", state, signIn });
 
-test("an Organization's vault: the extension in Codex Desktop and the browser, the vault's address to copy, the Lazurio sign-in and the network", () => {
+test("an Organization's vault: the extension from the Chrome Web Store, the vault's address and the person's own to paste where the extension's own screens show, the Lazurio sign-in and the network", () => {
   expect(bitwardenTarget(work())).toEqual({ kind: "server", server: vault });
-  expect(bitwardenGuide(work(), member, cs)).toEqual({
+  const store = {
+    label: "Bitwarden v Chrome Web Store",
+    href: "https://chromewebstore.google.com/detail/bitwarden-password-manager/nngceckbapebfimnlniiiahkandclblb",
+  };
+  const jana = { ...member, address: "jana@account.lazurio.ai" };
+  expect(bitwardenGuide(work(), jana, cs)).toEqual({
     kind: "server",
     first: null,
     steps: [
       {
-        text: "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do svého prohlížeče ho přidejte z obchodu s rozšířeními.",
+        text: "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do svého prohlížeče ho přidejte z Chrome Web Store.",
         value: null,
+        link: store,
+        picture: null,
       },
       {
-        text: "V rozšíření zvolte „vlastní server“ a jako URL serveru zadejte:",
+        text: "Dole u „Přistupujete na“ zvolte „vlastní server“. Do pole „URL serveru“ vložte tuto adresu a klikněte na „Uložit“:",
         value: vault,
+        link: null,
+        picture: {
+          name: "server",
+          alt: "Bitwarden: „Přistupujete na“ s volbou „vlastní server“ a pole „URL serveru“",
+        },
       },
       {
-        text: "Jako e-mailovou adresu zadejte své uživatelské jméno v Lazuriu s koncovkou @account.lazurio.ai a zvolte „Použít jednotné přihlášení“.",
-        value: null,
+        text: "Do pole „E-mailová adresa“ vložte svou adresu a klikněte na „Použít jednotné přihlášení“:",
+        value: "jana@account.lazurio.ai",
+        link: null,
+        picture: {
+          name: "email",
+          alt: "Bitwarden: pole „E-mailová adresa“ a tlačítko „Použít jednotné přihlášení“",
+        },
       },
       {
-        text: "Přihlaste se přes Lazurio a trezor odemkněte svým hlavním heslem.",
+        text: "Přihlaste se přes Lazurio a trezor odemkněte hlavním heslem.",
         value: null,
+        link: null,
+        picture: null,
       },
     ],
     note: "Počítač musí být připojený k síti Organizace.",
   });
-  expect(bitwardenGuide(work(), member, en)).toEqual({
+  expect(bitwardenGuide(work(), jana, en)).toEqual({
     kind: "server",
     first: null,
     steps: [
       {
-        text: "In Codex Desktop, open Settings → Browser → Extensions and add Bitwarden. In your own browser, add it from its extension store.",
+        text: "In Codex Desktop, open Settings → Browser → Extensions and add Bitwarden. In your own browser, add it from the Chrome Web Store.",
         value: null,
+        link: { ...store, label: "Bitwarden in the Chrome Web Store" },
+        picture: null,
       },
       {
-        text: "In the extension, choose “self-hosted” and enter this as the Server URL:",
+        text: "At the bottom, next to “Accessing”, choose “self-hosted”. Paste this address into the “Server URL” field and click “Save”:",
         value: vault,
+        link: null,
+        picture: {
+          name: "server",
+          alt: "Bitwarden: “Accessing” with “self-hosted” chosen, and the “Server URL” field",
+        },
       },
       {
-        text: "As the email address, enter your Lazurio username followed by @account.lazurio.ai and choose “Use single sign-on”.",
-        value: null,
+        text: "Paste your address into the “Email address” field and click “Use single sign-on”:",
+        value: "jana@account.lazurio.ai",
+        link: null,
+        picture: {
+          name: "email",
+          alt: "Bitwarden: the “Email address” field and “Use single sign-on”",
+        },
       },
       {
         text: "Sign in with Lazurio and unlock the vault with your master password.",
         value: null,
+        link: null,
+        picture: null,
       },
     ],
     note: "The computer must be connected to the Organization's network.",
   });
+  // Without the person's address (nobody named, no username, not answered
+  // yet), the step says how it is formed, with the same screen.
+  for (const person of [
+    member,
+    null,
+    { kind: "unknown", reason: "no-username" },
+  ] as const)
+    expect(bitwardenGuide(work(), person, cs)?.steps[2]).toEqual({
+      text: "Do pole „E-mailová adresa“ zadejte své uživatelské jméno v Lazuriu s koncovkou @account.lazurio.ai a klikněte na „Použít jednotné přihlášení“.",
+      value: null,
+      link: null,
+      picture: {
+        name: "email",
+        alt: "Bitwarden: pole „E-mailová adresa“ a tlačítko „Použít jednotné přihlášení“",
+      },
+    });
+  expect(bitwardenGuide(work(), null, en)?.steps[2]?.text).toBe(
+    "Into the “Email address” field, type your Lazurio username followed by @account.lazurio.ai and click “Use single sign-on”.",
+  );
+  // The extension's own words, as its version 2026.10.0 shows them.
+  for (const label of [
+    "„Přistupujete na“",
+    "„vlastní server“",
+    "„URL serveru“",
+    "„Uložit“",
+  ])
+    expect(cs.vaultBitwardenServer).toContain(label);
+  for (const label of ["„E-mailová adresa“", "„Použít jednotné přihlášení“"])
+    expect(cs.vaultBitwardenAddress).toContain(label);
   // The person's account is the network vault's, whatever state this
   // Environment's own vault is in: the address is always the vault's own.
   const {
@@ -782,7 +905,7 @@ test("a person without an account in the vault is first pointed to Vytvořit ú�
   ).toBeNull();
 });
 
-test("a personal Environment's own Bitwarden: its service by the region, the person's own account, nothing to copy", () => {
+test("a personal Environment's own Bitwarden: the extension, its service by the region, the person's own account, nothing to copy", () => {
   for (const [region, service] of [
     ["eu", "bitwarden.eu"],
     ["us", "bitwarden.com"],
@@ -794,20 +917,40 @@ test("a personal Environment's own Bitwarden: its service by the region, the per
       first: null,
       steps: [
         {
-          text: "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do svého prohlížeče ho přidejte z obchodu s rozšířeními.",
+          text: "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do svého prohlížeče ho přidejte z Chrome Web Store.",
           value: null,
+          link: {
+            label: "Bitwarden v Chrome Web Store",
+            href: "https://chromewebstore.google.com/detail/bitwarden-password-manager/nngceckbapebfimnlniiiahkandclblb",
+          },
+          picture: null,
         },
         {
-          text: `V rozšíření zvolte ${service} a přihlaste se svým vlastním účtem Bitwardenu.`,
+          text: `Dole u „Přistupujete na“ zvolte „${service}“ a přihlaste se svým vlastním účtem Bitwardenu.`,
           value: null,
+          link: null,
+          picture: null,
         },
       ],
       note: null,
     });
     expect(bitwardenGuide(personal, null, en)?.steps[1]).toEqual({
-      text: `In the extension, choose ${service} and sign in with your own Bitwarden account.`,
+      text: `At the bottom, next to “Accessing”, choose “${service}” and log in with your own Bitwarden account.`,
       value: null,
+      link: null,
+      picture: null,
     });
+    // An address in the answer is never offered there: the person signs in
+    // with their own Bitwarden account.
+    expect(
+      JSON.stringify(
+        bitwardenGuide(
+          personal,
+          { ...member, address: "jana@account.lazurio.ai" },
+          cs,
+        ),
+      ),
+    ).not.toContain("account.lazurio.ai");
   }
   // Whatever the vault's state and the person's: the account is theirs.
   const invited = {
@@ -963,4 +1106,53 @@ test("a pending Návod waits for the answer that decides whether the steps show,
     { ...read, person: member },
   ] as const)
     expect(at({ ...fields, shown: false })).toBe("forget");
+});
+
+// The membership answer's `address` (F53's addendum of 2026-10-16, after
+// Matěj's review of #465): the admitted person's own address in a Lazurio
+// Vaultwarden, optional, accepted only in its exact form.
+test("the membership answer's own address is read only in its exact form", () => {
+  expect(
+    parseVaultMembership({
+      kind: "vault-member",
+      state: "member",
+      address: "jana@account.lazurio.ai",
+    }),
+  ).toEqual({
+    kind: "known",
+    state: "member",
+    signIn: false,
+    address: "jana@account.lazurio.ai",
+  });
+  expect(
+    parseVaultMembership({
+      kind: "vault-member-unknown",
+      reason: "no-username",
+    }),
+  ).toEqual({ kind: "unknown", reason: "no-username" });
+  expect(
+    parseVaultMembership({
+      kind: "vault-member",
+      state: "no-account",
+      signIn: true,
+      address: "jana-novak2@account.lazurio.ai",
+    }),
+  ).toMatchObject({ address: "jana-novak2@account.lazurio.ai" });
+  for (const address of [
+    "jana@lazurio.ai",
+    "Jana@account.lazurio.ai",
+    "ja@account.lazurio.ai",
+    "jana@account.lazurio.ai.example",
+    "jana--novak@account.lazurio.ai",
+    "-jana@account.lazurio.ai",
+    `${"a".repeat(40)}@account.lazurio.ai`,
+    "jana@account.lazurio.ai ",
+    "",
+    42,
+    null,
+  ])
+    expect([
+      address,
+      parseVaultMembership({ kind: "vault-member", state: "member", address }),
+    ]).toEqual([address, null]);
 });

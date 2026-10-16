@@ -10,6 +10,7 @@ import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import { messages } from "../src/launchpad/messages";
 import { startLaunchpad } from "../src/launchpad/server";
 import {
+  bitwardenGuide,
   parseVaultMembership,
   parseVaultPage,
   vaultPageView,
@@ -306,7 +307,10 @@ test.skipIf(!posix)(
         reason: "connected",
       });
       // The person: invited by the cloud's e-mail, then confirmed once they
-      // accepted it.
+      // accepted it. The answers are exact: they never carry an address of
+      // a Lazurio account (F53's addendum of 2026-10-16), although the
+      // gateway names a username, since the person signs in with their own
+      // Bitwarden account.
       expect(s.cloud.mails).toEqual([person]);
       const pending = await s.membership();
       answers.push(JSON.stringify(pending));
@@ -443,6 +447,28 @@ test.skipIf(!posix)(
       expect(
         await readFile(join(s.home, "bw.calls"), "utf8").catch(() => ""),
       ).toBe("");
+    } finally {
+      await s.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "a personal Environment's own Bitwarden never offers a Lazurio address: waiting for its person, the membership answer has none although the gateway names a username",
+  async () => {
+    const s = await personal();
+    try {
+      expect(await s.membership()).toEqual({
+        kind: "vault-member-unknown",
+        reason: "not-connected",
+      });
+      const cs = messages("cs");
+      const page = parseVaultPage(await s.page());
+      expect(page?.status.state).toBe("needs-connection");
+      expect(
+        bitwardenGuide(page, parseVaultMembership(await s.membership()), cs),
+      ).toBeNull();
     } finally {
       await s.close();
     }

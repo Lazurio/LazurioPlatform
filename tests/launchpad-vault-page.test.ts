@@ -9,7 +9,11 @@ import {
 } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
-import type { AuthFetcher } from "../src/launchpad/hosted-trust";
+import {
+  type AuthFetcher,
+  isAccountSubject,
+  isLazurioUsername,
+} from "../src/launchpad/hosted-trust";
 import { messages } from "../src/launchpad/messages";
 import { startLaunchpad } from "../src/launchpad/server";
 import {
@@ -263,6 +267,23 @@ async function hosted(
     });
     return { status: response.status, body: (await response.json()) as Json };
   };
+  const membershipOf = async (
+    who: string,
+    headers?: Record<string, string>,
+  ) => {
+    const answer = await send("POST", "/api/vault/membership", who, headers);
+    const named = people.get(who) ?? null;
+    const { address, ...body } = answer.body;
+    expect([who, address]).toEqual([
+      who,
+      answer.status === 200 &&
+      isAccountSubject(named?.subject) &&
+      isLazurioUsername(named?.username)
+        ? personAddress(named?.username ?? "")
+        : undefined,
+    ]);
+    return { status: answer.status, body, full: answer.body };
+  };
   const organizationId = async () => {
     const [own] = vault.organizationsOf(account);
     if (own === undefined) throw new Error("No vault");
@@ -285,8 +306,18 @@ async function hosted(
     },
     page: (who: string, headers?: Record<string, string>) =>
       send("GET", "/api/vault", who, headers),
-    membership: (who: string, headers?: Record<string, string>) =>
-      send("POST", "/api/vault/membership", who, headers),
+    /** The membership's answer, which carries the admitted person's own
+     * address exactly where the gateway's answer named them with a Lazurio
+     * username (F53's addendum of 2026-10-16), never one a header of the
+     * request names (`membershipOf` checks it on every call); the rest,
+     * which the cases compare. */
+    async membership(who: string, headers?: Record<string, string>) {
+      const { status, body } = await membershipOf(who, headers);
+      return { status, body };
+    },
+    /** The membership's whole answer, its address included. */
+    answer: async (who: string, headers?: Record<string, string>) =>
+      (await membershipOf(who, headers)).full,
     send,
     organizationId,
     members: async () => vault.members(await organizationId()),
@@ -970,7 +1001,7 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "no value, token or address reaches the logs, the journal, bw's argv or an answer",
+  "no value, token or address reaches the logs, the journal, bw's argv or an answer, but the admitted person's own address in their membership answer",
   async () => {
     const lines: string[] = [];
     const log = spyOn(console, "log").mockImplementation(
@@ -984,6 +1015,9 @@ test.skipIf(!posix)(
       s.vault.person(personAddress((people[0] as Person).username), true);
       s.vault.person(personAddress((people[1] as Person).username), false);
       const answers: unknown[] = [];
+      // A membership answer carries the admitted person's own address, which
+      // `membership` checks and sets aside (F53's addendum of 2026-10-16);
+      // the rest of every answer names nobody.
       for (const [index, person] of people.entries()) {
         s.admit(`p${index}`, person);
         answers.push((await s.membership(`p${index}`)).body);
@@ -1144,9 +1178,7 @@ test.skipIf(!posix)(
       s.admit("member", person);
       const read = async () => {
         const model = parseVaultPage((await s.page("member")).body);
-        const standing = parseVaultMembership(
-          (await s.membership("member")).body,
-        );
+        const standing = parseVaultMembership(await s.answer("member"));
         return bitwardenGuide(
           model,
           standing,
@@ -1154,19 +1186,36 @@ test.skipIf(!posix)(
           vaultPageView(model, standing, cs),
         );
       };
-      // No account in the network's vault yet: the address to copy is the
-      // handover's `vault.server_url`, and the guide points to the page's
-      // own button first.
+      // No account in the network's vault yet: the server to copy is the
+      // handover's `vault.server_url`, the address the person's own, built
+      // from the username of the gateway's answer, and the guide points to
+      // the page's own button first.
       const first = await read();
       expect(s.state.handover.vault?.server_url).toBe(vaultOrigin);
       expect(first?.kind).toBe("server");
       expect(first?.steps.map((step) => step.value)).toEqual([
         null,
         vaultOrigin,
-        null,
+        personAddress(person.username),
         null,
       ]);
       expect(first?.first).toBe(cs.vaultBitwardenAccount);
+      // The address comes only with a username the gateway's answer names:
+      // none without one, none for nobody, and never another person's.
+      s.admit("unnamed", { subject: randomUUID(), username: null });
+      s.admit("nobody", null);
+      for (const who of ["unnamed", "nobody"]) {
+        const answer = await s.answer(who);
+        expect([who, answer.address]).toEqual([who, undefined]);
+        const standing = parseVaultMembership(answer);
+        const model = parseVaultPage((await s.page(who)).body);
+        expect(bitwardenGuide(model, standing, cs)?.steps[2]?.value).toBeNull();
+      }
+      const other = somebody();
+      s.admit("other", other);
+      expect((await s.answer("other")).address).toBe(
+        personAddress(other.username),
+      );
       // With an account, the steps alone.
       s.vault.person(personAddress(person.username), true);
       const joined = await read();
@@ -1185,7 +1234,7 @@ test.skipIf(!posix)(
       open.admit("member", somebody());
       const model = parseVaultPage((await open.page("member")).body);
       const answer = (await open.membership("member")).body;
-      expect(answer).toEqual({
+      expect(answer).toMatchObject({
         kind: "vault-member-unknown",
         reason: "sign-in-not-required",
       });
