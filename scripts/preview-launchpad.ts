@@ -46,8 +46,13 @@
 // "Microsoft 365" offers "Připojit", and its sign-in goes to Microsoft's
 // address, which a browser automation answers with a stand-in authorization
 // page that returns to the Launchpad; the fake Executor holds the company
-// app's integration already and finishes a sign-in only when it returns. Synthetic names only; stop it with
-// Ctrl-C.
+// app's integration already and finishes a sign-in only when it returns. A
+// hosted preview's work Environment has its own vault (decision F53) in the
+// tests' fake Vaultwarden at the example Organization's address, set up
+// before the start, so Začínáme and Nastavení → Trezor show it with the
+// steps for Bitwarden in Codex Desktop (F53's addendum of 2026-10-16); the
+// fake bw keeps everything under the synthetic home. Synthetic names only;
+// stop it with Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -76,12 +81,25 @@ import { microsoft365Description } from "../src/integrations/microsoft365-execut
 import { startLaunchpad } from "../src/launchpad/server";
 import { toolsEnvironmentOf } from "../src/tools/overview";
 import { runTool } from "../src/tools/status";
+import { vaultSetup } from "../src/vault/flow";
 import {
   writeModule,
   writeOrganization,
 } from "../tests/fixtures/catalog-folder";
 import { executorWorld } from "../tests/fixtures/fake-executor";
 import { startFakeExecutor } from "../tests/fixtures/fake-executor-api";
+import {
+  fakeBw,
+  fakeHost,
+  fakePin,
+  fakeRelease,
+  ownContext,
+  startFakeVault,
+  vaultMember,
+  workAccount,
+  workHandover,
+  zipOf,
+} from "../tests/fixtures/fake-vault";
 import {
   organizationWithEntry,
   personalWithEntry,
@@ -480,6 +498,30 @@ await writeFile(
 // Executor's fake world (decision F44) in a Remote Environment; its entry is
 // on the tools' PATH, so the row's installation reads what its setup placed.
 const executor = mode === "local" ? undefined : await executorWorld({ home });
+// The work Environment's own vault, set up and connected before the start;
+// locally and on the personal preview, this process's (none on a computer).
+const vaultHost = mode === "hosted" ? await previewVault() : undefined;
+async function previewVault() {
+  const vault = await startFakeVault(home);
+  vault.allow(workAccount);
+  const zip = zipOf("bw", fakeBw);
+  const pin = fakePin(zip);
+  const host = fakeHost({
+    home,
+    vault,
+    pin,
+    download: fakeRelease(pin, zip).fetch,
+    context: async () =>
+      ownContext(
+        workHandover(vaultMember(workAccount, "Pracovní example")),
+        "work",
+      ),
+  });
+  const setUp = await vaultSetup(host);
+  if (setUp.state !== "connected")
+    throw new Error("The preview's vault is not set up");
+  return { ...host, enableForAgents: async () => undefined };
+}
 if (mode === "local") await updateTools(folder, 1, ["composio"]);
 if ((composioOff || microsoft365) && mode === "hosted" && !fresh) {
   // The Launchpad reads the root with the operator's git, from its PATH.
@@ -619,8 +661,9 @@ const app = await startLaunchpad(
   // The Environment browser's people's view (decision F39): a thread's tab
   // answers a synthetic target id; nothing is opened.
   { openWindow: async () => ({ targetId: "0".repeat(32) }) },
-  // The Environment vault: this process's.
-  undefined,
+  // The Environment vault: a hosted preview's own, otherwise this
+  // process's.
+  vaultHost,
   // Executor: the fake world in a Remote Environment, this computer's own on
   // a workstation (its second wave).
   executor?.host,
