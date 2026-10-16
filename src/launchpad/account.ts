@@ -3,17 +3,15 @@ import {
   accountReadMs,
   pageAccountJson,
 } from "../shell/account";
-import { parseShellAccount } from "../shell/contract";
 import { parseFavorites } from "./favorites";
 
 // The person's Lazurio account as Apps reads it (root decision 0185 S12 and
 // S18, F37's account namespace): `GET /.lazurio/account/environments` on this
 // Environment's own origin, which the Environment's gateway answers from the
 // Dashboard with the person's own token (`lazurio.account.v1`). Apps reads
-// where module apps open (`preferences.openApps`) and the
+// two things of it: where module apps open (`preferences.openApps`) and the
 // favourites of this Environment's Organization (`favourites`, keyed by the
-// Organization slug), and the validated operator for browser UI preferences.
-// Everything else in it (the spaces, the Environments,
+// Organization slug). Everything else in it (the spaces, the Environments,
 // the last one used) is the shell library's, which also makes the page's one
 // read cycle (`src/shell/account.ts`). Until the gateway relays the
 // namespace the read fails (404) and Apps keeps today's behaviour: favourites
@@ -28,8 +26,6 @@ export { accountDocumentPath, accountReadMs };
 export type OpenApps = "tab" | "same";
 
 export type Account = Readonly<{
-  /** Identified account, used only to scope browser UI preferences. */
-  login: string | null;
   openApps: OpenApps;
   /** Favourite keys (`m:<module id>`, `r:<repository slug>`) by the
    * Organization slug (lowercased), in the account's order. A missing slug
@@ -74,7 +70,6 @@ export function parseAccount(input: unknown): Account | null {
         favourites.set(key, Object.freeze(favouriteKeys(list)));
     }
   return Object.freeze({
-    login: parseShellAccount(input)?.operator.login ?? null,
     openApps: preferences.openApps === "same" ? "same" : "tab",
     favourites,
   });

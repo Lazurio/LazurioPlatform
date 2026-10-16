@@ -2651,5 +2651,9 @@ Organization's, and it gets none of it.
   1280, 1024 and 800 px, short windows, a classic scrollbar and a sweep of elements
   across five windows).
 
-The proposed [Workspace groups](workspace-groups.md) extension documents the
-Work / Administration tabs, browser preference ownership and isolated UI checks.
+An Organization's own tabs in Workspace (decision F32's addendum of 2026-10-16)
+are shaped in [Workspace tabs](workspace-tabs.md): one setting of the
+Organization, read with its catalog, arranged by its Owner in the Dashboard.
+Tests: `tests/workspace-tabs.test.ts` and the contract cases in
+`tests/organization-settings.test.ts`. Preview: `bun scripts/preview-launchpad.ts
+local cs 0 owner workspace-tabs`.

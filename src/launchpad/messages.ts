@@ -458,21 +458,6 @@ const en = {
   // The Apps home and its left column (decision F36).
   appsTitle: "Apps",
   appsAll: "All modules",
-  appsGroupWork: "Work",
-  appsGroupAdministration: "Administration",
-  appsGroupMoveWork: "Move to Work",
-  appsGroupMoveAdministration: "Move to Administration",
-  appsGroupMovedWork: "{name} moved to Work.",
-  appsGroupMovedAdministration: "{name} moved to Administration.",
-  appsGroupWorkEmpty:
-    "No modules in Work. You can move them here from Administration using their ⋯ menu.",
-  appsGroupAdministrationEmpty:
-    "No modules in Administration. Move occasional-use modules here using their ⋯ menu.",
-  appsGroupSaveFailed:
-    "The move could not be saved. The module stays in its current group.",
-  appsGroupsBrowser: "Your groups are saved only in this browser.",
-  appsGroupsTemporary:
-    "Your account is unavailable. Groups last only until you reload this page.",
   appsPersonal: "Personal",
   appsOrganizationDashboard: "Organization Dashboard",
   appsModulesOne: "{count} module",
@@ -539,6 +524,8 @@ const en = {
   appsFavoriteMark: "In favourites",
   appsFavoriteFailed: "The favourite could not be saved. Try again.",
   appsModuleAccess: "Module access",
+  appsMoveToTab: "Move to a tab",
+  appsTabsEdit: "Edit tabs",
   appsInfoModule: "Module information",
   appsInfoRepository: "Repository information",
   appsNewModule: "New module",
@@ -2087,21 +2074,6 @@ const cs: Record<MessageKey, string> = {
   // The Apps home and its left column (decision F36).
   appsTitle: "Apps",
   appsAll: "Všechny moduly",
-  appsGroupWork: "Práce",
-  appsGroupAdministration: "Správa",
-  appsGroupMoveWork: "Přesunout do Práce",
-  appsGroupMoveAdministration: "Přesunout do Správy",
-  appsGroupMovedWork: "{name} přesunuto do Práce.",
-  appsGroupMovedAdministration: "{name} přesunuto do Správy.",
-  appsGroupWorkEmpty:
-    "V Práci zatím nejsou žádné moduly. Ze Správy je sem přesunete přes jejich nabídku ⋯.",
-  appsGroupAdministrationEmpty:
-    "Ve Správě zatím nejsou žádné moduly. Přes nabídku ⋯ sem přesunete ty, které používáte jen občas.",
-  appsGroupSaveFailed:
-    "Přesun se nepodařilo uložit. Modul zůstává v původní skupině.",
-  appsGroupsBrowser: "Vaše rozdělení se ukládá jen v tomto prohlížeči.",
-  appsGroupsTemporary:
-    "Váš účet není dostupný. Rozdělení platí jen do obnovení stránky.",
   appsPersonal: "Osobní",
   appsOrganizationDashboard: "Přehled Organizace",
   appsModulesOne: "{count} modul",
@@ -2168,6 +2140,8 @@ const cs: Record<MessageKey, string> = {
   appsFavoriteMark: "V oblíbených",
   appsFavoriteFailed: "Oblíbené se nepodařilo uložit. Zkuste to znovu.",
   appsModuleAccess: "Přístup k modulu",
+  appsMoveToTab: "Přesunout do karty",
+  appsTabsEdit: "Upravit karty",
   appsInfoModule: "Informace o modulu",
   appsInfoRepository: "Informace o repozitáři",
   appsNewModule: "Nový modul",

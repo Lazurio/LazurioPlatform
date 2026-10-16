@@ -38,7 +38,6 @@ import {
 } from "../src/launchpad/favorites";
 import { type MessageKey, messages } from "../src/launchpad/messages";
 import { shellDocument } from "../src/launchpad/shell-document";
-import { workspaceGroupTiles } from "../src/launchpad/workspace-groups";
 import type {
   Catalog,
   CatalogModule,
@@ -1321,46 +1320,4 @@ test("the holder's login: the content routes' personalspace item only when it is
   expect(personalHolderOf(item("present", "a/b"))).toBeNull();
   expect(personalHolderOf({ allowed: false, items: [] })).toBeNull();
   expect(personalHolderOf(null)).toBeNull();
-});
-
-test("Workspace groups partition every module without changing actions, favorites or Productionspace", () => {
-  const group = appsScope(catalog, { view: "home" }, en);
-  if (!group) throw new Error("Expected fixture group");
-  const sections = appsSections(catalog, group, en, entry, [
-    "m:mission-control",
-  ]);
-  const workspace = sections.find((section) => section.kind === "workspace");
-  if (!workspace) throw new Error("Expected Workspace");
-  const assigned = [
-    "m:mission-control",
-    "m:website",
-    "m:notes",
-    "m:stale",
-    "r:firmware",
-  ];
-  const work = workspaceGroupTiles(workspace.tiles, assigned, "work");
-  const admin = workspaceGroupTiles(
-    workspace.tiles,
-    assigned,
-    "administration",
-  );
-  expect(work.map((tile) => tile.key)).toEqual(["m:knowledgebase", "m:deals"]);
-  expect(admin.map((tile) => tile.key)).toEqual([
-    "m:mission-control",
-    "m:website",
-    "m:notes",
-  ]);
-  expect(new Set([...work, ...admin]).size).toBe(workspace.tiles.length);
-  for (const tile of [...work, ...admin])
-    expect(workspace.tiles.includes(tile)).toBe(true);
-  expect(
-    favoriteTiles(catalog, group, en, entry, ["m:mission-control"]).map(
-      (tile) => tile.key,
-    ),
-  ).toEqual(["m:mission-control"]);
-  expect(
-    sections
-      .find((section) => section.kind === "productionspace")
-      ?.tiles.map((tile) => tile.key),
-  ).toEqual(["r:firmware"]);
 });

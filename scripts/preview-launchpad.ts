@@ -113,6 +113,10 @@ const mode =
 const fresh = process.argv[6] === "fresh";
 const composioOff = process.argv.slice(3).includes("composio-off");
 const microsoft365 = process.argv.slice(3).includes("microsoft365");
+// With `workspace-tabs` anywhere after the mode, the example Organization has
+// a dozen modules arranged into three tabs of its own (decision F32's
+// addendum of 2026-10-16), the setting `workspace.tabs` of its root.
+const tabbed = process.argv.slice(3).includes("workspace-tabs");
 const composioOrgMissing = process.argv
   .slice(3)
   .includes("composio-org-missing");
@@ -173,6 +177,19 @@ async function writeExample() {
       },
       { id: "website", broken: true },
       { id: "brainstorm", apps: false },
+      ...(tabbed
+        ? [
+            "orders",
+            "invoices",
+            "pricing",
+            "reports",
+            "stock",
+            "suppliers",
+          ].map((id) => ({
+            id,
+            slot: { git: { url: `https://github.com/example/${id}.git` } },
+          }))
+        : []),
     ],
     slots: [
       {
@@ -209,6 +226,40 @@ async function writeExample() {
       description: "Znalosti, rozhodnutí a dokumentace",
     },
     deals: { title: "Deals v2", tags: ["sales"] },
+    ...(tabbed
+      ? {
+          orders: {
+            title: "Objednávky",
+            description: "Objednávky zákazníků a jejich stav",
+            icon: "product",
+          },
+          invoices: {
+            title: "Faktury",
+            description: "Vydané a přijaté faktury",
+            icon: "invoice",
+          },
+          pricing: {
+            title: "Ceník",
+            description: "Ceny produktů a služeb",
+            icon: "pricebook",
+          },
+          reports: {
+            title: "Reporty",
+            description: "Tržby, marže a výsledky",
+            icon: "profitability",
+          },
+          stock: {
+            title: "Sklad",
+            description: "Zásoby, příjem a výdej zboží",
+            icon: "warehouse",
+          },
+          suppliers: {
+            title: "Dodavatelé",
+            description: "Dodavatelé a jejich podmínky",
+            icon: "datasheet",
+          },
+        }
+      : {}),
   };
   for (const [id, display] of Object.entries(declared)) {
     const file = join(
@@ -226,6 +277,33 @@ async function writeExample() {
       tags: display.tags ?? [],
     });
     await writeFile(file, JSON.stringify(pkg));
+  }
+  if (tabbed) {
+    const manifest = join(root, "lazurio.organization.json");
+    const document = JSON.parse(await readFile(manifest, "utf8"));
+    await writeFile(
+      manifest,
+      JSON.stringify({
+        ...document,
+        settings: {
+          workspace: {
+            tabs: [
+              {
+                name: "Každodenní práce",
+                modules: [
+                  "mission-control",
+                  "knowledgebase",
+                  "deals",
+                  "orders",
+                ],
+              },
+              { name: "Finance", modules: ["invoices", "pricing", "reports"] },
+              { name: "Sklad", modules: ["stock", "suppliers"] },
+            ],
+          },
+        },
+      }),
+    );
   }
   for (const path of ["infra/.git", "productionspace/firmware/.git"])
     await mkdir(join(root, path), { recursive: true });
@@ -538,6 +616,7 @@ if ((composioOff || microsoft365) && mode === "hosted" && !fresh) {
     JSON.stringify({
       ...document,
       settings: {
+        ...document.settings,
         integrations: {
           ...(composioOff ? { composio: { allowed: false } } : {}),
           ...(microsoft365
