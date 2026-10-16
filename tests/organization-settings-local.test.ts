@@ -162,3 +162,33 @@ test.skipIf(process.platform === "win32")(
     });
   },
 );
+
+// A Machine handover names its owner by the GitHub login its manifest binds,
+// which is not always the slug (slug `Example`, login `ExampleCo`). F45 and
+// Composio share one selection rule, so the login selects the same root here.
+test.skipIf(process.platform === "win32")(
+  "the handover's Organization by its GitHub login where the slug differs",
+  async () => {
+    const { folder, reader } = await environment();
+    const root = await writeOrganization(folder, "Corp_GEN3", {
+      slug: "ExampleCorp",
+      forge: "Corp",
+      state: "current",
+      modules: [],
+    });
+    await git(root, "init", "--quiet", "--initial-branch=main");
+    const manifest = join(root, "lazurio.organization.json");
+    const document = JSON.parse(await readFile(manifest, "utf8"));
+    await writeOwnedFixture(
+      manifest,
+      JSON.stringify({ ...document, settings: off }),
+    );
+    await git(root, "add", "--all");
+    await git(root, "commit", "--quiet", "-m", "settings");
+    const version = await git(root, "rev-parse", "HEAD");
+    expect(await readRepositorySettings(folder, "corp", reader)).toEqual({
+      kind: "settings",
+      settings: { organization: null, version, values: off, unsupported: [] },
+    });
+  },
+);

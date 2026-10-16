@@ -146,8 +146,10 @@ test("the rule: an Organization's Environment by its Organization's name, unveri
 // manifest keeps its capitals (a real Environment of rc.65: owner `example`,
 // slug and login `Example`). The owner is the Organization that Organization
 // settings select (F45, `selectCatalogOrganization`): by its slug whatever the
-// case, else by its directory; a GitHub login alone selects nothing (Pablo's
-// review of #398), and two slugs answering the owner select nothing either.
+// case, else by the GitHub login its manifest binds, else by its directory;
+// both read the one shared rule (Pablo's review of #398), so a login-only
+// owner (slug `Example`, login `ExampleCo`) names the same Organization in
+// both, and two slugs answering the owner select nothing.
 test("the rule takes the owning Organization that Organization settings select (F45), whatever the case", async () => {
   const owner = bindings.organization.owner;
   if (owner.kind !== "organization") throw new Error("organization binding");
@@ -171,8 +173,8 @@ test("the rule takes the owning Organization that Organization settings select (
   });
   expect(await agree(capitals)).toEqual({ kind: "named", name: "Example" });
 
-  // Only the GitHub login answers the owner: F45 reads no settings
-  // (organization-absent), so Composio counts nothing either.
+  // Only the GitHub login answers the owner: F45 and Composio both select
+  // the Organization by it and agree on its name.
   const byLogin = join(await parent(), "Lazurio");
   await mkdir(byLogin, { recursive: true, mode: 0o700 });
   await writeOrganization(byLogin, "Corp", {
@@ -182,7 +184,23 @@ test("the rule takes the owning Organization that Organization settings select (
     modules: [],
     displayName: "Example Corp",
   });
-  expect(await agree(byLogin)).toEqual({ kind: "unverified" });
+  expect(await agree(byLogin)).toEqual({
+    kind: "named",
+    name: "Example Corp",
+  });
+
+  // Two manifests binding the same login select nothing: neither is guessed.
+  const twinLogins = join(await parent(), "Lazurio");
+  await mkdir(twinLogins, { recursive: true, mode: 0o700 });
+  for (const directory of ["CorpA", "CorpB"] as const)
+    await writeOrganization(twinLogins, directory, {
+      slug: `${directory}Slug`,
+      forge: "Example",
+      state: "current",
+      modules: [],
+      displayName: directory,
+    });
+  expect(await agree(twinLogins)).toEqual({ kind: "unverified" });
 
   const twice = join(await parent(), "Lazurio");
   await mkdir(twice, { recursive: true, mode: 0o700 });

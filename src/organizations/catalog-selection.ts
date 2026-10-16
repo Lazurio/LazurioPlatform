@@ -26,10 +26,13 @@ export type CatalogOrganizationSelection =
 
 /** The Organization a name selects: its slug, compared case-insensitively as
  * GitHub does; a slug that more than one candidate declares, in the same case
- * or another, selects none of them. Only when no slug matches, the directory
- * name under `organizations/`, exactly. The Personalspace group takes part
- * under its name `personalspace`, so an Organization whose slug is
- * `personalspace` is ambiguous with it. */
+ * or another, selects none of them. Only when no slug matches, the GitHub
+ * login its manifest binds (`forgeLogin`), compared the same way and with the
+ * same refusal of a twin: a Machine handover names its owner by that login,
+ * which is not always the slug (slug `Example`, login `ExampleCo`). Only when
+ * neither matches, the directory name under `organizations/`, exactly. The
+ * Personalspace group takes part under its name `personalspace`, so an
+ * Organization whose slug is `personalspace` is ambiguous with it. */
 export function selectCatalogOrganization(
   catalog: Catalog,
   name: string,
@@ -41,6 +44,12 @@ export function selectCatalogOrganization(
   if (bySlug.length === 1)
     return { kind: "found", organization: bySlug[0] as CatalogOrganization };
   if (bySlug.length > 1) return { kind: "ambiguous", candidates: bySlug };
+  const byLogin = catalog.organizations.filter(
+    (entry) => entry.forgeLogin?.toLowerCase() === key,
+  );
+  if (byLogin.length === 1)
+    return { kind: "found", organization: byLogin[0] as CatalogOrganization };
+  if (byLogin.length > 1) return { kind: "ambiguous", candidates: byLogin };
   const byDirectory = catalog.organizations.find(
     (entry) => entry.directory === name,
   );
