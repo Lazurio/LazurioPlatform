@@ -2,11 +2,14 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { messages } from "../src/launchpad/messages";
 import {
+  bitwardenGuide,
+  bitwardenTarget,
   connectionFilled,
   connectionRefusalText,
   parseVaultMembership,
   parseVaultPage,
   type VaultPageModel,
+  type VaultPagePerson,
   vaultPageLinks,
   vaultPageView,
 } from "../src/launchpad/vault-page-view";
@@ -621,4 +624,246 @@ test("every text of the Trezor page's markup is a message of both languages", ()
         key,
         "string",
       ]);
+});
+
+// Bitwarden in Codex Desktop and the person's own browser (F53's addendum of
+// 2026-10-16, plan DEV-6665): the steps under "V Codex Desktopu a ve vašem
+// prohlížeči" on Nastavení → Trezor, for an Organization's Lazurio
+// Vaultwarden (root decision 0203 point 1) and a personal Environment's own
+// Bitwarden (point 7), and where there are none. Začínáme's row "Trezor v
+// Bitwardenu" follows `bitwardenTarget` (tests/start-view.test.ts).
+const work = (
+  status: VaultStatus = connected(),
+  fields: Partial<VaultPageModel> = {},
+) => model(status, { environment: "work", ...fields });
+const own = (region: "eu" | "us") =>
+  ({
+    ...connected(3),
+    vault: `https://vault.bitwarden.${region === "eu" ? "eu" : "com"}`,
+    account: "agents.example+lazurio@example.com",
+    name: "Osobní example",
+    organization: "Osobní example",
+    region,
+  }) as const;
+const known = (
+  state: "no-account" | "awaiting-password",
+  signIn: boolean,
+): VaultPagePerson => ({ kind: "known", state, signIn });
+
+test("an Organization's vault: the extension in Codex Desktop and the browser, the vault's address to copy, the Lazurio sign-in and the network", () => {
+  expect(bitwardenTarget(work())).toEqual({ kind: "server", server: vault });
+  expect(bitwardenGuide(work(), member, cs)).toEqual({
+    kind: "server",
+    first: null,
+    steps: [
+      {
+        text: "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do svého prohlížeče ho přidejte z obchodu s rozšířeními.",
+        value: null,
+      },
+      {
+        text: "V rozšíření zvolte „vlastní server“ a jako URL serveru zadejte:",
+        value: vault,
+      },
+      {
+        text: "Jako e-mailovou adresu zadejte své uživatelské jméno v Lazuriu s koncovkou @account.lazurio.ai a zvolte „Použít jednotné přihlášení“.",
+        value: null,
+      },
+      {
+        text: "Přihlaste se přes Lazurio a trezor odemkněte svým hlavním heslem.",
+        value: null,
+      },
+    ],
+    note: "Počítač musí být připojený k síti Organizace.",
+  });
+  expect(bitwardenGuide(work(), member, en)).toEqual({
+    kind: "server",
+    first: null,
+    steps: [
+      {
+        text: "In Codex Desktop, open Settings → Browser → Extensions and add Bitwarden. In your own browser, add it from its extension store.",
+        value: null,
+      },
+      {
+        text: "In the extension, choose “self-hosted” and enter this as the Server URL:",
+        value: vault,
+      },
+      {
+        text: "As the email address, enter your Lazurio username followed by @account.lazurio.ai and choose “Use single sign-on”.",
+        value: null,
+      },
+      {
+        text: "Sign in with Lazurio and unlock the vault with your master password.",
+        value: null,
+      },
+    ],
+    note: "The computer must be connected to the Organization's network.",
+  });
+  // The person's account is the network vault's, whatever state this
+  // Environment's own vault is in: the address is always the vault's own.
+  const {
+    organizationId: _,
+    collectionId: __,
+    organization: ___,
+    items: ____,
+    ...network
+  } = connected();
+  for (const status of [
+    { ...network, state: "not-set-up", next: "account" },
+    { ...network, state: "creating" },
+    { ...network, state: "not-allowed" },
+    { ...network, state: "revoked" },
+    { ...network, state: "unreachable", reason: "unreachable" },
+    {
+      ...network,
+      state: "failed",
+      stage: "vault",
+      reason: "organization-refused",
+      fallback: "agent",
+    },
+  ] as const) {
+    expect(bitwardenTarget(work(status))).toEqual({
+      kind: "server",
+      server: vault,
+    });
+    expect(bitwardenGuide(work(status), null, cs)?.steps[1]?.value).toBe(vault);
+  }
+  // While a setup runs, and on a personal Environment on the network's
+  // vault, or a 0197 pilot's, the same steps.
+  expect(bitwardenTarget(work(connected(), { setup: "sign-in" }))).toEqual({
+    kind: "server",
+    server: vault,
+  });
+  expect(bitwardenTarget(model(connected()))).toEqual({
+    kind: "server",
+    server: vault,
+  });
+  expect(
+    bitwardenTarget(work({ ...connected(), origin: "pilot-0197", name: null })),
+  ).toEqual({ kind: "server", server: vault });
+});
+
+test("a person without an account in the vault is first pointed to Vytvořit účet v trezoru, exactly where the page offers it", () => {
+  for (const state of ["no-account", "awaiting-password"] as const) {
+    const person = known(state, true);
+    const page = vaultPageView(work(), person, cs);
+    expect(page.actions.map((action) => action.control)).toEqual(["account"]);
+    const guide = bitwardenGuide(work(), person, cs, page);
+    expect(guide?.first).toBe(
+      "Účet v trezoru ještě nemáte: nejdřív si ho vytvořte tlačítkem „Vytvořit účet v trezoru“.",
+    );
+    // It names the page's own button.
+    expect(guide?.first).toContain(`„${cs.vaultPageCreateAccount}“`);
+    expect(
+      bitwardenGuide(work(), person, en, vaultPageView(work(), person, en))
+        ?.first,
+    ).toBe(
+      `You have no account in the vault yet: first create one with “${en.vaultPageCreateAccount}”.`,
+    );
+    // A vault that does not take the Lazurio sign-in offers no button: no
+    // line pointing to one.
+    const refused = known(state, false);
+    expect(
+      bitwardenGuide(work(), refused, cs, vaultPageView(work(), refused, cs))
+        ?.first,
+    ).toBeNull();
+  }
+  // A member, and a page that offers no button (a setup running).
+  expect(
+    bitwardenGuide(work(), member, cs, vaultPageView(work(), member, cs))
+      ?.first,
+  ).toBeNull();
+  const creating = work(connected(), { setup: "vault" });
+  const person = known("no-account", true);
+  expect(
+    bitwardenGuide(creating, person, cs, vaultPageView(creating, person, cs))
+      ?.first,
+  ).toBeNull();
+});
+
+test("a personal Environment's own Bitwarden: its service by the region, the person's own account, nothing to copy", () => {
+  for (const [region, service] of [
+    ["eu", "bitwarden.eu"],
+    ["us", "bitwarden.com"],
+  ] as const) {
+    const personal = model(own(region));
+    expect(bitwardenTarget(personal)).toEqual({ kind: "cloud", service });
+    expect(bitwardenGuide(personal, member, cs)).toEqual({
+      kind: "cloud",
+      first: null,
+      steps: [
+        {
+          text: "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do svého prohlížeče ho přidejte z obchodu s rozšířeními.",
+          value: null,
+        },
+        {
+          text: `V rozšíření zvolte ${service} a přihlaste se svým vlastním účtem Bitwardenu.`,
+          value: null,
+        },
+      ],
+      note: null,
+    });
+    expect(bitwardenGuide(personal, null, en)?.steps[1]).toEqual({
+      text: `In the extension, choose ${service} and sign in with your own Bitwarden account.`,
+      value: null,
+    });
+  }
+  // Whatever the vault's state and the person's: the account is theirs.
+  const invited = {
+    kind: "known",
+    state: "invitation-pending",
+    signIn: false,
+  } as const;
+  expect(bitwardenGuide(model(own("eu")), invited, cs)?.kind).toBe("cloud");
+  const { organizationId: _, collectionId: __, ...rest } = own("eu");
+  expect(
+    bitwardenTarget(
+      model({
+        ...rest,
+        state: "failed",
+        stage: "vault",
+        reason: "free-organization-limit",
+        fallback: "agent",
+      }),
+    ),
+  ).toEqual({ kind: "cloud", service: "bitwarden.eu" });
+});
+
+test("no steps where the person has no vault to add here: this computer, no vault yet, a personal Environment's Bitwarden not connected, a Team or Automated Environment, a vault only its agents use", () => {
+  expect(bitwardenTarget(null)).toBeNull();
+  expect(bitwardenGuide(null, null, cs)).toBeNull();
+  for (const status of [
+    { kind: "vault-status", state: "unsupported", reason: "workstation" },
+    { kind: "vault-status", state: "unsupported", reason: "no-vault" },
+    {
+      kind: "vault-status",
+      state: "unsupported",
+      reason: "connection-unreadable",
+    },
+    { kind: "vault-status", state: "needs-connection" },
+  ] as const) {
+    const page = model(status, {
+      environment: status.state === "needs-connection" ? "personal" : null,
+    });
+    expect(bitwardenTarget(page)).toBeNull();
+    expect(bitwardenGuide(page, null, cs)).toBeNull();
+  }
+  for (const environment of ["team", "automated"] as const) {
+    expect(bitwardenTarget(work(connected(), { environment }))).toBeNull();
+    expect(
+      bitwardenGuide(work(connected(), { environment }), member, cs),
+    ).toBeNull();
+  }
+  // Where the page says that only the agents use the vault, it gives no
+  // steps either.
+  for (const reason of ["not-managed", "sign-in-not-required"] as const)
+    expect(bitwardenGuide(work(), { kind: "unknown", reason }, cs)).toBeNull();
+  // Anyone else, also before the page knows the person: the steps.
+  for (const person of [
+    null,
+    { kind: "unknown", reason: "no-username" },
+    { kind: "unknown", reason: "no-identity" },
+    { kind: "unknown", reason: "busy" },
+    { kind: "known", state: "revoked", signIn: false },
+  ] as const)
+    expect(bitwardenGuide(work(), person, cs)?.kind).toBe("server");
 });

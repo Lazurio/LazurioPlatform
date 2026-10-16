@@ -13,6 +13,7 @@ import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import { messages } from "../src/launchpad/messages";
 import { startLaunchpad } from "../src/launchpad/server";
 import {
+  bitwardenGuide,
   parseVaultMembership,
   parseVaultPage,
   vaultPageLinks,
@@ -1127,6 +1128,65 @@ test.skipIf(!posix)(
       await app.close();
       await vault.stop();
       await rm(parent, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "Bitwarden in Codex Desktop: the steps carry the address of the vault the handover names, point to Vytvořit účet v trezoru while the person has no account, and are left out where only the agents use the vault",
+  async () => {
+    const cs = messages("cs");
+    const s = await hosted({ kind: "work" });
+    try {
+      const person = somebody();
+      s.admit("member", person);
+      const read = async () => {
+        const model = parseVaultPage((await s.page("member")).body);
+        const standing = parseVaultMembership(
+          (await s.membership("member")).body,
+        );
+        return bitwardenGuide(
+          model,
+          standing,
+          cs,
+          vaultPageView(model, standing, cs),
+        );
+      };
+      // No account in the network's vault yet: the address to copy is the
+      // handover's `vault.server_url`, and the guide points to the page's
+      // own button first.
+      const first = await read();
+      expect(s.state.handover.vault?.server_url).toBe(vaultOrigin);
+      expect(first?.kind).toBe("server");
+      expect(first?.steps.map((step) => step.value)).toEqual([
+        null,
+        vaultOrigin,
+        null,
+        null,
+      ]);
+      expect(first?.first).toBe(cs.vaultBitwardenAccount);
+      // With an account, the steps alone.
+      s.vault.person(personAddress(person.username), true);
+      const joined = await read();
+      expect(joined?.first).toBeNull();
+      expect(joined?.steps[1]?.value).toBe(vaultOrigin);
+    } finally {
+      await s.close();
+    }
+    // A Team Environment adds nobody: only its agents use the vault, so the
+    // page gives no steps.
+    const team = await hosted({ kind: "team" });
+    try {
+      team.admit("member", somebody());
+      const model = parseVaultPage((await team.page("member")).body);
+      const standing = parseVaultMembership(
+        (await team.membership("member")).body,
+      );
+      expect(model?.status.state).toBe("connected");
+      expect(bitwardenGuide(model, standing, cs)).toBeNull();
+    } finally {
+      await team.close();
     }
   },
   60_000,

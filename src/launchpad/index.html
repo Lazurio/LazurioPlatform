@@ -533,6 +533,19 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .vault-connect-field input { font-family: var(--font-mono); font-size: 13px; }
 .vault-disconnect { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
 .vault-disconnect[hidden] { display: none; }
+/* The vault in the Bitwarden extension of Codex Desktop and the person's
+   own browser (F53's addendum of 2026-10-16): numbered steps on one card, a
+   value in the monospace face with its Copy button under its step. */
+#vault-bitwarden { scroll-margin-top: 72px; }
+#vault-bitwarden[hidden] { display: none; }
+#vault-bitwarden-heading:focus { outline: none; }
+.vault-bitwarden-steps { counter-reset: bitwarden-step; }
+.vault-bitwarden-steps > li { counter-increment: bitwarden-step; display: grid; grid-template-columns: 24px minmax(0, 1fr); column-gap: 12px; padding: 14px 16px; color: var(--fg); font-size: 14px; line-height: 1.45; }
+.vault-bitwarden-steps > li::before { content: counter(bitwarden-step); grid-row: 1; display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid var(--lz-line); border-radius: 50%; color: var(--muted-fg); font-size: 12.5px; font-weight: var(--lz-weight-akce); }
+.vault-bitwarden-text, .vault-bitwarden-copy { grid-column: 2; min-width: 0; }
+.vault-bitwarden-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 8px; }
+.vault-bitwarden-value { padding: 0.2rem 0.45rem; border: 1px solid var(--border); border-radius: var(--lz-radius-xs); background: var(--muted); color: var(--fg); font-size: 13px; overflow-wrap: anywhere; user-select: all; }
+.vault-bitwarden-copy .row-status:empty { display: none; }
 
 /* Files (decision F35): the Documents folder as a list of rows, the path as
    links, the upload queue and the drop overlay. Below 36 rem of the list's
@@ -1296,6 +1309,16 @@ button:not(.primary) .provider-openai { color: #000000; }
 <div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" id="vault-page-name"></p><p class="row-status vault-page-state" id="vault-page-state" role="status" aria-live="polite"></p></div><div class="row-control" id="vault-page-actions"></div></div></div></div>
 <p class="group-note" id="vault-page-hint" hidden></p>
 <div class="vault-disconnect" id="vault-page-disconnect" hidden><p class="group-note" data-message="vaultDisconnectNote">Disconnecting removes the agents' account details from this Environment; the organization stays in Bitwarden.</p><button type="button" id="vault-disconnect" data-message="vaultDisconnect">Disconnect Bitwarden</button></div>
+</section>
+<!-- The vault in the Bitwarden extension of Codex Desktop and the person's
+     own browser (F53's addendum of 2026-10-16): the steps, a value with its
+     Copy button; drawn by vault-page-panel.ts, hidden where the person has
+     no vault to add here. Začínáme's "Návod" brings it into view. -->
+<section class="group" id="vault-bitwarden" aria-labelledby="vault-bitwarden-heading" hidden>
+<div class="group-head"><h2 id="vault-bitwarden-heading" tabindex="-1" data-message="vaultBitwardenTitle">In Codex Desktop and your browser</h2></div>
+<p class="group-note" id="vault-bitwarden-first" hidden></p>
+<ol class="card vault-bitwarden-steps" id="vault-bitwarden-steps"></ol>
+<p class="group-note" id="vault-bitwarden-note" hidden></p>
 </section>
 <!-- A personal Environment connects its person's own Bitwarden (root
      decision 0203 point 7, plan DEV-6631 task 775): the explanation, the

@@ -992,6 +992,11 @@ const en = {
   startNotSet: "Not set up",
   startGuide: "Guide",
   startCodexText: "Work with this Environment from the Codex app.",
+  // The Bitwarden extension in Codex Desktop and the person's own browser
+  // (F53's addendum of 2026-10-16): the row leads to Nastavení → Trezor.
+  startBitwardenTitle: "Vault in Bitwarden",
+  startBitwardenText:
+    "Your Environment vault's passwords in Codex Desktop and your browser too.",
   startTourGroup: "App tour",
   startTourTitle: "Apps, Chat and Automate",
   startToured: "Seen",
@@ -1181,6 +1186,26 @@ const en = {
   // username (root decision 0203 point 4): no address, so nobody is added.
   vaultPageNoUsername:
     "Your sign-in does not include your Lazurio username yet, so this Environment cannot add you to its vault. Please sign in again.",
+  // The vault in the Bitwarden extension of Codex Desktop and the person's
+  // own browser (F53's addendum of 2026-10-16). The extension's own labels
+  // are quoted as it shows them.
+  vaultBitwardenTitle: "In Codex Desktop and your browser",
+  vaultBitwardenAdd:
+    "In Codex Desktop, open Settings → Browser → Extensions and add Bitwarden. In your own browser, add it from its extension store.",
+  vaultBitwardenServer:
+    "In the extension, choose “self-hosted” and enter this as the Server URL:",
+  vaultBitwardenAddress:
+    "As the email address, enter your Lazurio username followed by @account.lazurio.ai and choose “Use single sign-on”.",
+  vaultBitwardenSignIn:
+    "Sign in with Lazurio and unlock the vault with your master password.",
+  vaultBitwardenAccount:
+    "You have no account in the vault yet: first create one with “Create an account in the vault”.",
+  vaultBitwardenNetwork:
+    "The computer must be connected to the Organization's network.",
+  vaultBitwardenCloud:
+    "In the extension, choose {service} and sign in with your own Bitwarden account.",
+  vaultBitwardenCopy: "Copy",
+  vaultBitwardenCopied: "Copied.",
   // An agent's secret request in Nastavení → Trezor (root decision 0198
   // point 9 (c), decision F54; the wireframe's screens/SecretRequest.tsx).
   vaultRequestsTitle: "Agents' requests",
@@ -2566,6 +2591,9 @@ const cs: Record<MessageKey, string> = {
   startNotSet: "Nenastaveno",
   startGuide: "Návod",
   startCodexText: "Pracujte s tímto Prostředím z aplikace Codex.",
+  startBitwardenTitle: "Trezor v Bitwardenu",
+  startBitwardenText:
+    "Hesla z Trezoru Prostředí i v Codex Desktopu a ve vašem prohlížeči.",
   startTourGroup: "Prohlídka aplikace",
   startTourTitle: "Apps, Chat a Automate",
   startToured: "Prohlédnuto",
@@ -2743,6 +2771,22 @@ const cs: Record<MessageKey, string> = {
   vaultPageCreateAccount: "Vytvořit účet v trezoru",
   vaultPageNoUsername:
     "Vaše přihlášení zatím neobsahuje uživatelské jméno v Lazuriu, proto vás toto Prostředí nemůže přidat do svého trezoru. Přihlaste se prosím znovu.",
+  vaultBitwardenTitle: "V Codex Desktopu a ve vašem prohlížeči",
+  vaultBitwardenAdd:
+    "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do svého prohlížeče ho přidejte z obchodu s rozšířeními.",
+  vaultBitwardenServer:
+    "V rozšíření zvolte „vlastní server“ a jako URL serveru zadejte:",
+  vaultBitwardenAddress:
+    "Jako e-mailovou adresu zadejte své uživatelské jméno v Lazuriu s koncovkou @account.lazurio.ai a zvolte „Použít jednotné přihlášení“.",
+  vaultBitwardenSignIn:
+    "Přihlaste se přes Lazurio a trezor odemkněte svým hlavním heslem.",
+  vaultBitwardenAccount:
+    "Účet v trezoru ještě nemáte: nejdřív si ho vytvořte tlačítkem „Vytvořit účet v trezoru“.",
+  vaultBitwardenNetwork: "Počítač musí být připojený k síti Organizace.",
+  vaultBitwardenCloud:
+    "V rozšíření zvolte {service} a přihlaste se svým vlastním účtem Bitwardenu.",
+  vaultBitwardenCopy: "Kopírovat",
+  vaultBitwardenCopied: "Zkopírováno.",
   vaultRequestsTitle: "Žádosti agentů",
   vaultRequestTitle: "Žádost agenta",
   vaultRequestAnswer: "Zadat",

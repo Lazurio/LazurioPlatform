@@ -39,6 +39,12 @@ export function createStartPanel(
     sshDevices: () => number | null;
     /** The vault's row as Nastavení → Trezor says it; null hides it. */
     vault: () => StartVaultRow | null;
+    /** Whether Nastavení → Trezor gives the steps for Bitwarden here
+     * (`bitwardenTarget`): the row "Trezor v Bitwardenu". */
+    bitwarden: () => boolean;
+    /** Brings a part of the page just opened into view: "Návod" of
+     * "Trezor v Bitwardenu" opens Nastavení → Trezor at its steps. */
+    reveal: (part: "bitwarden") => void;
     /** Whether the introduction was seen to its end. */
     toured: () => boolean | null;
     signInGithub: () => void;
@@ -307,6 +313,23 @@ export function createStartPanel(
         const link = element("a", "button", label);
         link.href = to;
         link.dataset.route = "";
+        // A part of the page: a plain click opens it there; the link itself
+        // (a new tab) opens the page.
+        const { part } = row.action;
+        if (part !== undefined)
+          link.addEventListener("click", (event) => {
+            if (
+              event.button !== 0 ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.altKey
+            )
+              return;
+            event.preventDefault();
+            options.navigate(to);
+            options.reveal(part);
+          });
         control.append(link);
       }
       main.append(control);
@@ -336,6 +359,7 @@ export function createStartPanel(
         preset: facts.preset,
         composio: options.composio(),
         sshDevices: options.sshDevices(),
+        bitwarden: options.bitwarden(),
       },
       copy,
     );

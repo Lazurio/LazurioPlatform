@@ -8,6 +8,11 @@ import {
   startCount,
   startView,
 } from "../src/launchpad/start-view";
+import {
+  bitwardenTarget,
+  type VaultPageModel,
+} from "../src/launchpad/vault-page-view";
+import type { VaultStatus } from "../src/vault/flow";
 
 // Nastavení → Začínáme (root decision 0201 points 1-3; the wireframe's
 // `screens/Start.tsx`, prototypes-lazurio 1eefc3d): the three basics checked
@@ -520,6 +525,7 @@ test("Volitelné: Composio where Tools offer it, SSH and Codex Desktop on a Remo
         preset: "hosted-organization-personal",
         composio: "missing",
         sshDevices: 0,
+        bitwarden: false,
       },
       cs,
     ),
@@ -547,7 +553,12 @@ test("Volitelné: Composio where Tools offer it, SSH and Codex Desktop on a Remo
     },
   ]);
   const connected = optionalRows(
-    { preset: "hosted-personal", composio: "connected", sshDevices: 2 },
+    {
+      preset: "hosted-personal",
+      composio: "connected",
+      sshDevices: 2,
+      bitwarden: false,
+    },
     cs,
   );
   expect(connected[0]).toMatchObject({ status: "Připojeno", action: null });
@@ -555,17 +566,30 @@ test("Volitelné: Composio where Tools offer it, SSH and Codex Desktop on a Remo
   // This computer: Composio only; nothing where Composio is not offered.
   expect(
     optionalRows(
-      { preset: "local", composio: "missing", sshDevices: null },
+      {
+        preset: "local",
+        composio: "missing",
+        sshDevices: null,
+        bitwarden: false,
+      },
       cs,
     ).map((row) => row.id),
   ).toEqual(["composio"]);
   expect(
-    optionalRows({ preset: "local", composio: "none", sshDevices: null }, cs),
+    optionalRows(
+      { preset: "local", composio: "none", sshDevices: null, bitwarden: false },
+      cs,
+    ),
   ).toEqual([]);
   // SSH not read: no state.
   expect(
     optionalRows(
-      { preset: "hosted-personal", composio: "none", sshDevices: null },
+      {
+        preset: "hosted-personal",
+        composio: "none",
+        sshDevices: null,
+        bitwarden: false,
+      },
       cs,
     )[0]?.status,
   ).toBeNull();
@@ -587,4 +611,125 @@ test("the content step waits for AI even with GitHub connected (Pablo's review o
       cs,
     )?.steps[2]?.mark,
   ).toBe("now");
+});
+
+// "Trezor v Bitwardenu" (the wireframe's row of prototypes-lazurio 1eefc3d,
+// F53's addendum of 2026-10-16, plan DEV-6665): where Nastavení → Trezor
+// gives the steps for Bitwarden in Codex Desktop and the person's browser,
+// its "Návod" leads there, to their section. No state: the extension is on
+// the person's computer, where the Environment cannot see it.
+test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose page gives the steps, leading to them", () => {
+  const remote = {
+    preset: "hosted-organization-personal",
+    composio: "none",
+    sshDevices: 0,
+    bitwarden: true,
+  } as const;
+  expect(optionalRows(remote, cs)).toEqual([
+    {
+      id: "ssh",
+      title: "SSH z vlastního počítače",
+      text: "Terminál a editor ve vašem počítači.",
+      status: "Nenastaveno",
+      action: { label: "Návod", to: "/settings/ssh" },
+    },
+    {
+      id: "bitwarden",
+      title: "Trezor v Bitwardenu",
+      text: "Hesla z Trezoru Prostředí i v Codex Desktopu a ve vašem prohlížeči.",
+      status: null,
+      action: { label: "Návod", to: "/settings/vault", part: "bitwarden" },
+    },
+    {
+      id: "codex",
+      title: "Codex Desktop",
+      text: "Pracujte s tímto Prostředím z aplikace Codex.",
+      status: null,
+      action: { label: "Návod", to: "/settings/ssh" },
+    },
+  ]);
+  expect(optionalRows(remote, en)[1]).toEqual({
+    id: "bitwarden",
+    title: "Vault in Bitwarden",
+    text: "Your Environment vault's passwords in Codex Desktop and your browser too.",
+    status: null,
+    action: { label: "Guide", to: "/settings/vault", part: "bitwarden" },
+  });
+  // The row follows the vault as Nastavení → Trezor reads it (`GET
+  // /api/vault`): shown with an Organization's vault or a personal
+  // Environment's own Bitwarden, hidden without one.
+  const vault = "https://vaultwarden.example.lazurio.io";
+  const facts = {
+    vault,
+    account:
+      "vaultwarden-q2wd5oyrbkmfx3czjh7tapi4ul@workspace.example.lazurio.io",
+    name: "Pracovní example",
+    team: false,
+    origin: "own",
+  } as const;
+  const page = (
+    status: VaultStatus,
+    environment: VaultPageModel["environment"],
+  ): VaultPageModel => ({ status, setup: null, environment });
+  const shown = (
+    status: VaultStatus,
+    environment: VaultPageModel["environment"],
+  ) =>
+    optionalRows(
+      {
+        ...remote,
+        preset:
+          environment === "personal"
+            ? "hosted-personal"
+            : "hosted-organization-personal",
+        bitwarden: bitwardenTarget(page(status, environment)) !== null,
+      },
+      cs,
+    ).some((row) => row.id === "bitwarden");
+  expect(
+    shown(
+      {
+        kind: "vault-status",
+        state: "connected",
+        ...facts,
+        organizationId: "0b9e2f3a-5c1d-4e8f-9a7b-1c2d3e4f5a6b",
+        collectionId: "6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d",
+        organization: facts.name,
+        items: 2,
+      },
+      "work",
+    ),
+  ).toBe(true);
+  expect(
+    shown({ kind: "vault-status", state: "not-allowed", ...facts }, "work"),
+  ).toBe(true);
+  expect(
+    shown(
+      {
+        kind: "vault-status",
+        state: "creating",
+        ...facts,
+        vault: "https://vault.bitwarden.eu",
+        name: "Osobní example",
+        region: "eu",
+      },
+      "personal",
+    ),
+  ).toBe(true);
+  expect(
+    shown({ kind: "vault-status", state: "needs-connection" }, "personal"),
+  ).toBe(false);
+  expect(
+    shown(
+      { kind: "vault-status", state: "unsupported", reason: "no-vault" },
+      null,
+    ),
+  ).toBe(false);
+  // This computer has no vault, so neither the row.
+  expect(
+    optionalRows(
+      { preset: "local", composio: "none", sshDevices: null, bitwarden: false },
+      cs,
+    ),
+  ).toEqual([]);
 });

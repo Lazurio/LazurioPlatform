@@ -69,7 +69,11 @@ import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
 import { fill, pillView, pillVisible } from "./update-view";
 import { createVaultPagePanel } from "./vault-page-panel";
-import { parseVaultPage, vaultPageView } from "./vault-page-view";
+import {
+  bitwardenTarget,
+  parseVaultPage,
+  vaultPageView,
+} from "./vault-page-view";
 import { createVaultRequestsPanel } from "./vault-requests-panel";
 import { type VoiceView, voicePanel } from "./voice-panel";
 
@@ -498,8 +502,11 @@ const tour = createTour({
 });
 // Nastavení → Začínáme (root decision 0201): the basics from the same facts,
 // the vault's state as Nastavení → Trezor reads it, the optional steps and
-// the tour. Its vault and SSH rows are read each time it is shown.
+// the tour. Its vault and SSH rows are read each time it is shown, and so is
+// whether Nastavení → Trezor gives the steps for Bitwarden ("Trezor v
+// Bitwardenu", F53's addendum of 2026-10-16).
 let vaultRow: StartVaultRow | null = null;
+let vaultBitwarden = false;
 let sshDevices: number | null = null;
 // "Přihlásit ChatGPT" and "Přihlásit Claude" (root decision 0201 points 3-6,
 // F19's addendum of 2026-10-15): the CLI's sign-in through the Launchpad; on
@@ -533,6 +540,8 @@ const startPanel = createStartPanel({
   composio: () => composioFact(toolsOverview),
   sshDevices: () => sshDevices,
   vault: () => vaultRow,
+  bitwarden: () => vaultBitwarden,
+  reveal: () => vaultPage.revealBitwarden(),
   toured: () => tour.toured(),
   signInGithub: () => {
     if (!tools.openSignIn("gh")) shell.navigate(settingsPath("tools"));
@@ -552,6 +561,7 @@ const startPanel = createStartPanel({
 async function readStartExtras() {
   if (profileState === null || profileState.preset === "local") {
     vaultRow = null;
+    vaultBitwarden = false;
     sshDevices = null;
     startPanel.render();
     return;
@@ -566,6 +576,7 @@ async function readStartExtras() {
     view?.row === null || view?.row === undefined || view.note !== null
       ? null
       : { line: view.row.line, tone: view.row.tone };
+  vaultBitwarden = bitwardenTarget(model) !== null;
   const overview = ssh?.ok ? parseSshOverview(ssh.value) : null;
   sshDevices =
     overview?.keys === null || overview?.keys === undefined
