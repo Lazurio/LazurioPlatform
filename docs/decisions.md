@@ -4859,7 +4859,8 @@ each of its origins.
    app shown disabled with the reason. `<lazurio-buddy>` is reserved in the contract
    (decision 0180) and not defined. No runtime dependency, no React. *(This point
    records the first build. The Organization-rail addendum of 2026-10-04 below
-   supersedes the folders, the gear in the rail and the accent fill.)*
+   supersedes the folders, the gear in the rail and the accent fill, and the addendum
+   of 2026-10-16 the labels' second line: a label is the item's name alone.)*
 2. **The contract** `lazurio.shell.v1` (`src/shell/contract.ts`, one parser shared by
    the producer, the page and the elements): `locale`, `current`, `operator` (initials,
    login), `environments` (id, label, kind `personal | work | team | automated |
@@ -6201,6 +6202,85 @@ Verified by unit and route tests: `tests/first-run.test.ts`, `tests/start-view.t
 the admission), `tests/content-view.test.ts`, `tests/content-routes.test.ts`
 (`root-access`), `tests/first-run-shell.test.ts` and `tests/shell-host.test.ts`; and in a
 browser (root decision 0178) on a local Launchpad in both languages.
+
+### F36 addendum of 2026-10-16: the shell and the Launchpad say only what a person needs
+
+**Asked for by Matěj (Organization Admin) on 2026-10-16 (plan DEV-6665).** Labels in the
+shell and in the Launchpad explained the product to the people who build it: how many
+Environments a space holds and which one was last, what a click does underneath, where a
+state is read, which wave or update brings a missing piece. In his words: these labels
+should not be visible to the user at all; they explain things to us developers, or to us
+who know what we plan or what should happen. The rule for every text a person reads:
+
+- **It goes** when it explains how the system works or where its data comes from,
+  describes what a click technically does, or talks about plans, internal states or
+  future work: a second wave, an update that will add something, "zatím" about Lazurio's
+  own plans, a decision, a release or the component behind an app.
+- **It stays** when it is a label or a name, an action, or an instruction the person needs
+  now: an error or a refusal that says what happened and what to do, the sentence before
+  the AI sign-in about the password and the phone, a privacy note ("the key stays only in
+  this Environment"). "Zatím" stays where it is the person's own progress ("Zatím žádné MCP
+  servery"): it invites them to add one. Detail stays where the person opens it on
+  purpose: "Technické podrobnosti", "Pro podporu", a tool's "Podrobnosti", the Recovery
+  page, whose evidence is the repair agent's.
+
+What this changes, in both languages:
+
+1. **The rail.** A label is the item's name alone, one line: no count of a space's
+   Environments, no "naposledy", no "otevře Přehled Organizace", no line under Přehled or
+   the account, no shortcut (⌘⇧E stays in the jump's own search field and in
+   `aria-keyshortcuts`). The view model loses `RailSpace.sub` and `SignedOutRailItem.sub`;
+   `lazurio.shell.v1` does not change. The same holds for the account where it opens a
+   menu. Automate's disabled tab says "Automate v tomto Prostředí neběží", not MausBot.
+2. **Začínáme.** "Hotovo {n} ze {m} kroků." without "Stav se ověřuje přímo v Prostředí."
+   Without the Environment browser the AI step says "Přihlášení tu teď nejde otevřít.",
+   not which update adds the browser; a finished sign-in says "Dokončuje se…", not that
+   Chat and Codex load it. The tour's missing Chat and Automate lose "zatím".
+3. **Obecné.** The preset's hint is "Druh tohoto Prostředí." (no Folder, presets or
+   handover); the line "odvozeno z handoveru" / "výslovná volba" and the status "Revize N
+   · os" are gone, and so is the sentence on what a preview writes into the Folder. The
+   language's hint is "Jazyk této stránky a agentů." The JSON stays under "Technické
+   podrobnosti".
+4. **Nástroje and Trezor.** Executor's description ends before "Instaluje ho a udržuje v
+   chodu Lazurio."; on this computer the executor and bitwarden rows say "V tomto
+   Prostředí není k dispozici", not "Brzy · druhá vlna"; a note's hint no longer names
+   the file agents read it in; a prompt goes "v Chatu do nového vlákna", not into T3 Code,
+   and the custom server's prompt no longer names Executor. The vault page says "Trezor
+   na tomto počítači není." and "Trezor tohoto Prostředí používají jen jeho agenti."
+5. **Apps.** The Marketplace says "Již brzy" and nothing about preparing it or where
+   modules come from until then. A module's overview drops its resolution state, and its
+   log line reads "Poslední řádky logu přečtete v příkazové řádce tohoto Prostředí:". The
+   Folder refresh line at the column's foot says that a refresh is needed and the command,
+   not which template revisions differ.
+6. **Integrace.** An Environment without Executor no longer says so; its cards take the
+   next way as before (F42 point 3). An app outside the catalog says "Z Composia." (F42's
+   addendum of 2026-10-14, point 5), an app with no way "Tady se připojit nedá.", and a
+   key "zůstane jen v tomto Prostředí" instead of naming Executor.
+7. **SSH ze zařízení.** The computer's settings no longer explain how a host key is
+   checked, and keys added outside Lazurio say only who removes them.
+
+Not changed: what any click does, the routes, `lazurio.shell.v1` and `lazurio.account.v1`,
+error and refusal texts, the update pill's line of the last verified check (by it a frozen
+update becomes visible, [update](update.md#never-silently-stale)), Nová karta (F47) and the
+CLI's words. The English copy still calls the product the Launchpad in places where the
+Czech says Lazurio; that naming is a separate pass.
+
+**Honest limits.** The Dashboard and the forks draw the shell from a release of this
+repository: their rails change when they take one with this addendum. A Folder refresh
+line that names only the command no longer tells an operator which revisions differ;
+`lazurio update status` still prints them.
+
+Verified by unit tests: the rail's spaces and the signed-out rail without a second line
+(`tests/shell.test.ts`, `tests/shell-account.test.ts`, `tests/shell-host.test.ts`,
+`tests/shell-signed-out.test.ts`), the switch and the personal space's links
+(`tests/apps-view.test.ts`), the module's facts (`tests/catalog-view.test.ts`), Začínáme
+and the tour (`tests/start-view.test.ts`, `tests/first-run.test.ts`), the rows of
+executor and bitwarden (`tests/executor-view.test.ts`, `tests/vault-view.test.ts`), the
+vault page (`tests/vault-page-view.test.ts`, `tests/launchpad-vault-page.test.ts`),
+Integrace's cards and notices (`tests/integrations-page.test.ts`) and the Folder refresh
+line (`tests/update-view.test.ts`); the Czech wording guard over every message
+(`tests/environment-wording.test.ts`); and in a browser (root decision 0178) on the hosted
+preview in both languages.
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
@@ -8443,7 +8523,8 @@ result here. The reference is
    know was already listed as an app of its own, but named by its slug (`wispr_flow`).
    It is now named from the slug alone (`toolkitName`: "Wispr Flow"), with nothing
    asked. Its card says "Z Composia, mimo katalog Lazuria." instead of repeating the
-   name, and it stands under Připojené once an account is active. Its id stays the
+   name, and it stands under Připojené once an account is active. *(Since F36's addendum
+   of 2026-10-16: "Z Composia.", without Lazurio's catalog.)* Its id stays the
    toolkit, so agents find it as before. `lazurio integrations list` prints
    `Wispr Flow (wispr_flow)` and, where `apps` is set, where the person connects an
    app the catalog does not list.
@@ -11893,7 +11974,8 @@ whoever has access to the Environment is a Správce, an Admin, of its vault.
    `GET /identity/sso/prevalidate` answers with a token (asked at most once a minute;
    the token is dropped unread); otherwise no account button. When nothing is known
    of the person, "Otevřít trezor". A 0197 pilot opens its collection; this computer
-   says "Trezor na tomto počítači zatím není."; an Environment whose handover names no
+   says "Trezor na tomto počítači není." (with "zatím" until F36's addendum of
+   2026-10-16); an Environment whose handover names no
    vault says so in one line; a Team or Automated Environment says that only its
    agents use the vault. The page never lists items or shows a value. A hidden slot
    above the row waits for the agents' secret requests (task 651).

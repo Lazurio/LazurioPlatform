@@ -97,7 +97,7 @@ fill in the Organization's colour. The rail is one step of the grid wide (64 px)
 item is 40 px around a 32 px mark with concentric corners, an item under the pointer
 brings the quiet surface and keeps its shape, and the personal space is a white monogram
 with a hairline, never an ink block (prototypes-lazurio #11). The tooltip shows the
-space's name, the number of its Environments and the last one used. Clicking an
+space's name alone, as every label of the rail (F36's addendum of 2026-10-16). Clicking an
 Organization returns to the Environment last used in it, in the same app (Chat stays
 Chat); without a remembered one it opens the Organization's first Environment, and with
 no Environment at all the Organization's Dashboard. The personal space opens the
@@ -481,8 +481,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     every Environment is named from its label or kind in the local language, and the
     structure (ids, apps, spaces, last Environments) stays. The operator
     becomes the person signed in at the browser. A space without an Environment (an
-    Organization from the person's memberships) keeps its avatar in the rail, says
-    "No Environment yet · opens its Dashboard", and leads to its Dashboard; ⌘⇧E lists
+    Organization from the person's memberships) keeps its avatar and its name in the
+    rail and leads to its Dashboard; ⌘⇧E lists
     it with its head and "You have no Environment here.", and the picker, which has no
     heads, leaves it out even widened. A click on another space leads to the account's
     last Environment there (`lastBySpace`), else this browser's memory, else its
@@ -1118,7 +1118,7 @@ the first run's line shows. An Organization never has it.
 **Routes.** `/` is the first Organization's Apps home; `/o/<org>` one Organization's
 Apps home, its sections Workspace and Productionspace (F36, F32's final addendum);
 `/o/<org>/<module>` one module (Organization, apps with the default marked,
-path, resolution state, whether it can run). No route shows Teams (F32). `<org>` is selected by the CLI's rule
+path, whether it can run; no resolution state since F36's addendum of 2026-10-16). No route shows Teams (F32). `<org>` is selected by the CLI's rule
 above and each segment is URL-encoded. A candidate's own route uses the name that
 selects exactly it: its slug, otherwise its directory name (an Organization that
 could not be read, or one of two candidates of a slug whose directory is not a slug);
@@ -2082,8 +2082,9 @@ odebrán" (a 0197 pilot's: "Přístup odebrán v trezoru"), "Trezor neodpovídá
 se nedokončilo", "Tento Environment zatím trezor nemá" (the handover names no vault),
 "Čeká na váš Bitwarden" (a personal Environment whose person has not connected their
 own Bitwarden yet, root decision 0203 point 7, with "Připojit", a link to the form of
-Nastavení → Trezor, and no setup) and "Brzy · druhá vlna" on this computer
-("Connected", "Not set up yet", …). Its
+Nastavení → Trezor, and no setup) and "V tomto Prostředí není k dispozici" on this
+computer, which says no plan (F36's addendum of 2026-10-16) ("Connected", "Not set up
+yet", …). Its
 controls are "Otevřít trezor" once connected, a link in a new tab to
 `<server_url>/#/vault?organizationId=<id>`, and one action only where a setup moves the
 vault on: "Nastavit" when nothing set it up yet and "Zkusit znovu" after a setup that
@@ -2120,10 +2121,10 @@ page (F53's addendum of 2026-10-14) holds `#vault-requests` above its vault and
 **Executor** (decision F44). The `executor` row reads its own state
 (`/api/tools/executor/status`, beside every read of the tools) and says it in plain
 words: "Běží", "Není nainstalovaný", "Čeká na aktualizaci", "Neběží", "Běží,
-nastavení není dokončené", "Koliduje s jinou instalací", and "Brzy · druhá vlna" on
-this computer ("Running", "Not installed", "Waiting for an update", "Not running",
-"Running, setup not finished", "Conflicts with another installation", "Soon · second
-wave"). Its one action is "Nainstalovat", "Aktualizovat" or "Opravit", which runs
+nastavení není dokončené", "Koliduje s jinou instalací", and "V tomto Prostředí není k
+dispozici" on this computer ("Running", "Not installed", "Waiting for an update", "Not
+running", "Running, setup not finished", "Conflicts with another installation", "Not
+available in this Environment"; F36's addendum of 2026-10-16). Its one action is "Nainstalovat", "Aktualizovat" or "Opravit", which runs
 `/api/tools/executor/setup` and asks again with its job while the line says the step
 ("Instaluje se…", "Spouští se…", "Připojují se agenti…"), or for a conflict "Vyřešit s
 pomocí agenta", which opens a prepared prompt (show the Operator what conflicts and
@@ -2467,8 +2468,8 @@ Organization's, and it gets none of it.
   - the content from the content routes (`content-client.ts`, `content-view.ts`).
 - **Nastavení → Začínáme** (`/settings/start`, first in the Settings column with the
   count "1/3" while a basic is missing; `start-view.ts`, `start-panel.ts`): "Hotovo
-  {n} ze 3 kroků. Stav se ověřuje přímo v Prostředí." (all there: "Prostředí je
-  připravené. Sem se můžete kdykoli vrátit."), then "Povinné kroky":
+  {n} ze 3 kroků." (all there: "Prostředí je připravené. Sem se můžete kdykoli
+  vrátit."), then "Povinné kroky":
   1. **Připojit AI** (`ai-sign-in.ts` holds the sign-in in the page): "Zajišťuje vaše
      Organizace." (done, nothing runs); "Agent vám pak pomůže s dalšími kroky." (or that
      it could not be checked) with "Přihlásit ChatGPT" and "Přihlásit Claude", and on a
@@ -2482,9 +2483,8 @@ Organization's, and it gets none of it.
      <e-mail>" with "Přihlásit jiný účet", which offers both again; a sign-in that did
      not finish ("Přihlášení se nepovedlo…", expired, the Environment browser did not
      open it) with "Zkusit znovu"; a T3 Code that did not turn the provider on, said
-     beside the account; and without the Environment browser "Přihlášení se otevírá v
-     prohlížeči Prostředí. Ten tu zatím není, doplní ho aktualizace Prostředí.",
-     nothing started. Signed in, the page reads `GET /api/ai?fresh=1` at once;
+     beside the account; and without the Environment browser "Přihlášení tu teď nejde
+     otevřít.", nothing started. Signed in, the page reads `GET /api/ai?fresh=1` at once;
   2. **GitHub**: "Připojeno jako @login", or "Připojit" (gh's own sign-in dialog of
      Nástroje), offered only once AI is there ("Nabídne se po připojení AI.");
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own

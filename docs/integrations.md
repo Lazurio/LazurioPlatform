@@ -589,8 +589,9 @@ them well. So the page leads there:
 - An account of a toolkit the catalog does not know is listed as an app of its own
   (`catalog: false`, its id the toolkit). It is named from the slug alone
   (`toolkitName`: words split at `_` and `-`, each capitalised, so `wispr_flow` is
-  "Wispr Flow"); nothing is asked for its name. Its card says "Z Composia, mimo
-  katalog Lazuria." and stands under Připojené once an account is active.
+  "Wispr Flow"); nothing is asked for its name. Its card says "Z Composia." (until
+  F36's addendum of 2026-10-16 also "mimo katalog Lazuria", a word of the people who
+  build it) and stands under Připojené once an account is active.
   `lazurio integrations list` names it as `Wispr Flow (wispr_flow)` and, where
   `composio.apps` is set, adds where the person connects an app the catalog does
   not list.
