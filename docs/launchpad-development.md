@@ -2228,6 +2228,20 @@ again while their invitation waits. Tested over HTTP in
 `tests/fixtures/fake-bitwarden-cloud.ts`, and the pure part in
 `tests/vault-page-view.test.ts`.
 
+**Bitwarden in Codex Desktop and the person's browser** ([F53's addendum of
+2026-10-16](decisions.md#f53-addendum-of-2026-10-16-bitwarden-in-codex-desktop-and-the-persons-browser)).
+Under the vault, "V Codex Desktopu a ve vašem prohlížeči" (`#vault-bitwarden`) gives the
+steps that add the vault to the Bitwarden extension in Codex Desktop (Nastavení →
+Prohlížeč → Rozšíření) and in the person's own browser: for an Organization's Lazurio
+Vaultwarden its address with a Copy button, the person's Lazurio address and single
+sign-on, a line pointing to "Vytvořit účet v trezoru" while the page offers it, and the
+network under the steps; for a personal Environment's own Bitwarden its region's service
+and the person's own account. `bitwardenTarget` and `bitwardenGuide` in
+`src/launchpad/vault-page-view.ts` decide it; Začínáme's "Trezor v Bitwardenu" shows where
+`bitwardenTarget` has a place, and its "Návod" brings the steps into view
+(`revealBitwarden`). A hosted preview (`scripts/preview-launchpad.ts hosted`) has the
+tests' fake vault, so both show there.
+
 ## Files page
 
 The page has a section "Files" / "Soubory" (decision
@@ -2508,7 +2522,9 @@ Organization's, and it gets none of it.
   it (`GET /api/vault`, `vaultPageView`; a Remote Environment with a vault only),
   "Volitelné" (Composio where Nástroje offer it, with its sign-in; on a Remote
   Environment SSH z vlastního počítače, "Nastaveno" once a device's key was added here,
-  and Codex Desktop, both leading to Settings → SSH) and "Prohlídka aplikace" ("Spustit
+  and Codex Desktop, both leading to Settings → SSH; between them "Trezor v Bitwardenu"
+  where Nastavení → Trezor gives the steps for Bitwarden, its "Návod" opening them) and
+  "Prohlídka aplikace" ("Spustit
   prohlídku" / "Spustit znovu" starts the introduction in Apps). A Team or Automated
   Environment's Začínáme says only "Tady není co nastavovat.".
 - **The line in Apps** (`appsSetupLine`): until the basics exist, one line under the

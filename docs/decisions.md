@@ -12343,6 +12343,75 @@ Checked in a browser against the fake cloud (root decision 0178): the form, a re
 master password, show and hide, connected, the invitation and its acceptance, the
 member's links into bitwarden.eu, disconnect and reconnect, the Tools row's link.
 
+### F53 addendum of 2026-10-16: Bitwarden in Codex Desktop and the person's browser
+
+**Asked for by Matěj (Organization Admin) on 2026-10-16 (plan DEV-6665); the row is the
+wireframe's (HumanAndMachine-ai/prototypes-lazurio 1eefc3d, `screens/Start.tsx`) without
+its state.** Codex Desktop's built-in browser takes extensions (its Nastavení → Prohlížeč →
+Rozšíření), so a person can use the Environment's vault in Bitwarden there, as in their
+own browser. The onboarding says so in two places, and the steps live in one.
+
+1. **Začínáme, "Volitelné": "Trezor v Bitwardenu"** ("Vault in Bitwarden"), between SSH
+   z vlastního počítače and Codex Desktop as in the wireframe: "Hesla z Trezoru Prostředí
+   i v Codex Desktopu a ve vašem prohlížeči." and "Návod". No state: the extension is on
+   the person's computer, which the Environment cannot see, so the wireframe's "Brzy, po
+   přihlášení účtem Lazuria" is left out. The row shows only where Nastavení → Trezor gives
+   the steps (`bitwardenTarget` in `src/launchpad/vault-page-view.ts`): a personal or work
+   Environment whose vault is its Organization's Lazurio Vaultwarden, in any state, since
+   the person's account there does not depend on this Environment's own vault, or a
+   personal Environment's own Bitwarden once connected. Never on this computer, without a
+   vault, while a personal Environment waits for its person's Bitwarden, or on a Team or
+   Automated Environment. "Návod" opens Nastavení → Trezor and brings the steps into view,
+   the focus on their heading; opened in a new tab, it is the Trezor page.
+2. **Nastavení → Trezor, "V Codex Desktopu a ve vašem prohlížeči"** ("In Codex Desktop and
+   your browser"), under the vault (`bitwardenGuide`). The extension's own labels are
+   quoted as it shows them in each language.
+   - *An Organization's Lazurio Vaultwarden* (root decision 0203 point 1): add Bitwarden in
+     Codex Desktop's Nastavení → Prohlížeč → Rozšíření, and in the person's own browser
+     from its extension store; choose „vlastní server“ and enter the vault's address, with
+     a Copy button (the handover's `vault.server_url`, as `GET /api/vault` reports it); as
+     the e-mail address the person's Lazurio username with `@account.lazurio.ai` and
+     „Použít jednotné přihlášení“; sign in with Lazurio and unlock the vault with the master
+     password. People enter a Lazurio Vaultwarden only through the Lazurio sign-in (0197
+     point 2, `SSO_ONLY`), so the extension's master-password sign-in alone is refused.
+     While the page offers "Vytvořit účet v trezoru", one line before the steps points to
+     it. Under the steps: the computer must be connected to the Organization's network,
+     the only place the vault answers.
+   - *A personal Environment's own Bitwarden* (0203 point 7): add the extension, choose the
+     region's service (bitwarden.eu or bitwarden.com) and sign in with the person's own
+     Bitwarden account.
+   - *None* where the page says that only the agents use the vault: a Team or Automated
+     Environment, or a network that does not require the Lazurio sign-in of people yet.
+3. **No Copy button for the person's address.** The page knows no username of the person:
+   the gateway's answer names it for the membership alone ([F11's amendments of
+   2026-10-14 and 2026-10-16](#f11--hosted-admission-is-not-identity)), and no answer
+   returns a person's address (the addendum of 2026-10-14, point 7). The step says how the
+   address is formed.
+4. **Začínáme opened directly reads its vault and SSH rows,** as a move to it does. A
+   direct load (the shell's "Dokončit nastavení" opens one) showed neither the vault's row
+   nor this one until the person moved away and back.
+
+Not changed: the vault, its setup, its routes, the hand-over and the membership. The
+Codex Desktop section of SSH ze zařízení does not point to the steps yet.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The steps in Začínáme itself | Začínáme knows neither the vault's address nor the person's membership; the Trezor page knows both, so the steps live there once |
+| A state on the row ("Nastaveno") | Nothing in the Environment can see the extension on the person's computer; left out |
+| The person's address from the shell's GitHub login | 0203 point 4: the username is never composed from GitHub; rejected |
+| The person's address in the membership's answer | A new contract and the first answer that names a person's address; not part of this change |
+| "Sign in with your address and master password" | Refused under `SSO_ONLY`; the Lazurio sign-in comes first |
+
+Verified by `tests/start-view.test.ts` (the row, its order, its link to the steps, and that
+it follows `bitwardenTarget`), `tests/vault-page-view.test.ts` (both kinds of vault in
+both languages, the value to copy, the line exactly where the page offers "Vytvořit účet v
+trezoru", none without a vault a person adds) and `tests/launchpad-vault-page.test.ts` over
+HTTP (the address is the handover's, the line for a person without an account, none on a
+Team Environment); and in a browser (root decision 0178) on the hosted preview in both
+languages, whose work Environment now has the tests' fake vault: the row, "Návod" into the
+steps with the focus on their heading below the page's head (on a short window too), Copy,
+and the Trezor page in a new tab.
+
 ## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
 
 > **Amended on 2026-10-16 by root decision 0203 point 7 ([F53 amendment of
