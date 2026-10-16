@@ -545,11 +545,15 @@ network's Lazurio Vaultwarden, created by its technical account, which is its on
 Owner, and remembered by ID (decision F53 supersedes F43's collection model; F43's
 pinned CLI, custody and one shared session stay). The account and the vault come from
 the handover's member `vault: {server_url, account, name}` (DEV-6631 contract C2),
-which Machines writes only for a Platform that reads it; without it the Environment
-has no vault yet (`unsupported`, `no-vault`). The catalog tool is `bitwarden` (command
-`bw`); it has its own flow instead of F19's install and sign-in, which refuse it as
-`setup-vault`. Remote Environments on Linux only; on this computer it is the second
-wave (`unsupported`, `workstation`).
+which Machines writes only for a Platform that reads it; without it a work, Team or
+Automated Environment has no vault yet (`unsupported`, `no-vault`). A personal
+Environment whose handover names no vault keeps its vault in its person's own
+Bitwarden instead (root decision 0203 point 7, [F53's amendment of
+2026-10-16](decisions.md#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden),
+below): until the person connects it, it is `needs-connection`. The catalog tool is
+`bitwarden` (command `bw`); it has its own flow instead of F19's install and sign-in,
+which refuse it as `setup-vault`. Remote Environments on Linux only; on this computer
+it is the second wave (`unsupported`, `workstation`).
 
 - **Facts** (`src/vault/context.ts`, read from the handover for every operation): the
   vault `vault.server_url`, the account `vault.account`
@@ -705,7 +709,9 @@ wave (`unsupported`, `workstation`).
   and the vault takes the Lazurio sign-in (`GET /identity/sso/prevalidate`). `GET
   /api/vault` is the page, `POST /api/vault/membership` `{}` adds the person the
   gateway admitted (whom its own answer names, F11's amendments) on a personal or
-  work Environment: `<username>@account.lazurio.ai`, the address of the Lazurio
+  work Environment whose handover names a vault (a personal Environment in its
+  person's own Bitwarden invites that person instead, below):
+  `<username>@account.lazurio.ai`, the address of the Lazurio
   username that answer carries (root decision 0203, F53's amendment of 2026-10-16),
   invited as an Admin through the vault's API and confirmed with bw once accepted,
   only where the network's vault refuses every password path of the address
@@ -740,11 +746,49 @@ wave (`unsupported`, `workstation`).
   shared session for agents and F46 from the collection it recorded, with F46's rule
   of 0197. It is never set up, connected, confirmed or disconnected; its directory is
   left untouched once the handover names the own vault, for DEV-6631 task 649 to move
-  its items. Its README names the condition of its deletion.
+  its items. Its README names the condition of its deletion. A personal Environment
+  whose pilot was never connected (`pilotConnected`) connects its own Bitwarden.
+- **A personal Environment's own Bitwarden** (root decision 0203 point 7, F53's
+  amendment of 2026-10-16, `src/vault/connection.ts`, `src/vault/invitee.ts`): the
+  vault is a free organization in the person's own Bitwarden, in the cloud's EU or US
+  region (`src/vault/endpoints.ts`, an allow-list: web `https://vault.bitwarden.eu`,
+  API `https://api.bitwarden.eu`, identity `https://identity.bitwarden.eu`, and the
+  same on `bitwarden.com`), owned by a separate agents' account, never the person's
+  main account. While nothing is connected the state is `needs-connection` and
+  nothing runs (no setup at the start, `env`, secrets, requests and the membership
+  `not-connected`, `vault setup` exit 2). The person creates the agents' account in
+  the same service and region as their own and its API key (Account settings →
+  Security → Keys → API key) and enters the region, `client_id`, `client_secret`, the
+  agents' master password and the e-mail of their own Bitwarden account once in
+  Settings → Vault (`POST /api/vault/connect`, exactly those keys, at most 16 KiB,
+  same origin). The Environment signs in with the API key at the region's identity
+  host (never the password grant: API-key sign-ins are exempt from new-device
+  verification), reads the agents' address from the profile, refuses the person's own
+  address (`same-account`) and an account that owns or administers another
+  organization (`owns-organization`), and opens its keys with the cloud's KDF,
+  PBKDF2-SHA256 or Argon2id (`wrong-password`, `unsupported-kdf`,
+  `unsupported-keys`). Only then does it write the account whole into its custody
+  (`<state>/lazurio/vault/vault.bitwarden.eu/<agents' address>/bw/lazurio-account.json`,
+  0600) and the connection (`<state>/lazurio/vault/personal/connection.json`, 0600:
+  region, agents' account, the person's address) and start the setup: the pinned
+  `bw` signed in with `bw config server <web vault>` and `bw login --apikey`, the
+  organization "Osobní <login>" with Agenti created on the cloud's API
+  (`useSecretsManager: false`; a second Free organization is
+  `free-organization-limit`), and the person invited as a User with Manage on Agenti,
+  never an Admin (the cloud allows one Free organization per Owner or Admin). The
+  cloud e-mails the invitation; once accepted, the next setup or look of the page
+  confirms the person with `bw confirm org-member` (`invitation-pending`,
+  `accepted`, `member`, `revoked`). "Odpojit Bitwarden" (`POST /api/vault/disconnect`)
+  signs bw out and removes the credentials, the session and bw's data, keeps the
+  record and the requests and never deletes the organization; the same account
+  connected again finds its vault. The journal says `operation: "connect"` or
+  `"disconnect"` with a fixed outcome and reason, never a value or an address.
 
 The agents' texts are the catalog entry's (`purpose` in `AGENTS.md`, `usage` in
 `manual/this-machine.md`) and the manual's Secrets (`manual/working-here.md`),
-template revision `base-instructions-50`: read `lazurio vault status` again before
+template revision `base-instructions-50` (since `base-instructions-55` they name a
+personal Environment's own Bitwarden and say that only its person connects it, and
+that an agent never asks for that account's credentials): read `lazurio vault status` again before
 saying anything about the vault, start with `eval "$(lazurio vault env)"`, never `bw
 login`, `unlock`, `lock`, `logout` or `bw config`, `bw sync` before reading, values
 straight into commands and never printed, nothing in the account's own vault, and an
@@ -1035,7 +1079,8 @@ package-manager matrix (`lazurio tools` runs one tool's official update path und
 Bitwarden CLI of decision F43; it is not a general updater or installer); the team
 case consumes the existing upstream broker rather than adding one. The Environment's
 own vault (F43, F53) keeps no secret in the Platform: the vault is the network's
-Vaultwarden, and the Environment account's credentials stay beside the Bitwarden
+Vaultwarden, or on a personal Environment its person's own Bitwarden (root decision
+0203 point 7), and the Environment account's credentials stay beside the Bitwarden
 CLI's own data directory. Unknown installation state receives a diagnosis
 and operator repair procedure, not an improvised privileged cleanup. Missing accounts
 remain an explicit pilot prerequisite, not something Machines or a profile can grant.

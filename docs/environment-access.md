@@ -89,7 +89,10 @@ editable ACL. The Environment's own vault adds the person its gateway admits
 as a Správce, named by the gateway's own answer to the admission and never by
 a header of the request, at the address of the Lazurio username that answer
 carries, and keeps no list of them (decision F11's amendments and F53's
-addendum of 2026-10-14, amended on 2026-10-16 by root decision 0203). The supported provider mechanism and revocation behavior must
+addendum of 2026-10-14, amended on 2026-10-16 by root decision 0203). A
+personal Environment's vault is in its person's own Bitwarden instead (root
+decision 0203 point 7): it invites only the person who connected it, at the
+address of their own Bitwarden account, as a User with Manage on Agenti. The supported provider mechanism and revocation behavior must
 be qualified before activation. Public account/enrollment endpoints do not
 expose work resources.
 

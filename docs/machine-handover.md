@@ -483,7 +483,10 @@ Machines writes the member only for a pinned Platform that reads it, as for
 `entry.environment_relay`: a Platform vendoring an earlier schema refuses the whole
 handover that carries it (`tests/vault-handover.test.ts` shows it). Absent, the
 Environment has no vault yet, or, where it was connected the 0197 way, keeps reading
-that collection (`src/vault/legacy-0197/`). The member is not part of the Machine's
+that collection (`src/vault/legacy-0197/`); a personal Environment then keeps its
+vault in its person's own Bitwarden, which the person connects in Settings → Vault
+(root decision 0203 point 7, [F53's amendment of
+2026-10-16](decisions.md#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden)). The member is not part of the Machine's
 identity and is not recorded in the Folder's binding: the vault reads the live
 handover at every operation. Recovery evidence withholds the account, the name and
 the vault's host (`<vault-account>`, `<vault-name>`, `<hostname-n>`).
