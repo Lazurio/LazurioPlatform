@@ -938,8 +938,8 @@ export function noticeHolds(
 }
 
 /** The line above the tools: when they were read. The Folder and its
- * revision are nothing a person needs here (Matěj 2026-10-09); Settings →
- * General shows the revision. */
+ * revision are nothing a person needs here (Matěj 2026-10-09), nor in
+ * Settings → General since F36's addendum of 2026-10-16. */
 export function checkedLine(at: Date, locale: "cs" | "en", copy: Copy): string {
   return fill(copy.toolsChecked, {
     time: at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),

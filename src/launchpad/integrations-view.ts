@@ -709,7 +709,9 @@ export function composioTrip(
 }
 
 /** One line per source that could not be read, so a missing source is
- * never taken for "nothing connected". */
+ * never taken for "nothing connected". An Environment without Executor
+ * (`absent`) says nothing about it: its cards take the next way (F36's
+ * addendum of 2026-10-16). */
 export function sourceLines(
   overview: IntegrationsOverview,
   copy: Copy,
@@ -718,7 +720,6 @@ export function sourceLines(
   const executor: SourceState = overview.sources.executor;
   if (executor === "unavailable")
     lines.push(copy.integrationsExecutorUnavailable);
-  if (executor === "absent") lines.push(copy.integrationsExecutorAbsent);
   if (executor === "unreadable")
     lines.push(copy.integrationsExecutorUnreadable);
   if (overview.sources.composio === "unreadable" && overview.composio.ready)

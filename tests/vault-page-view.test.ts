@@ -212,7 +212,7 @@ test("a person whose sign-in carried no Lazurio username: the vault opens, and o
   expect(
     vaultPageView(model(connected(), { environment: "team" }), unnamed, cs)
       .hint,
-  ).toBe("Trezor tohoto Prostředí zatím používají jen jeho agenti.");
+  ).toBe("Trezor tohoto Prostředí používají jen jeho agenti.");
 });
 
 test("the vault's state: the items in Czech plural, the creation, no answer, and the links kept while it does not answer", () => {
@@ -291,7 +291,7 @@ test("this computer and an Environment without a vault say so in one line; a 019
     ),
   ).toEqual({
     rule: false,
-    note: "Trezor na tomto počítači zatím není.",
+    note: "Trezor na tomto počítači není.",
     row: null,
     actions: [],
     hint: null,
@@ -338,7 +338,7 @@ test("this computer and an Environment without a vault say so in one line; a 019
     );
     expect(view.actions).toEqual([]);
     expect(view.hint).toBe(
-      "Trezor tohoto Prostředí zatím používají jen jeho agenti.",
+      "Trezor tohoto Prostředí používají jen jeho agenti.",
     );
   }
   // A network whose vault does not require the Lazurio sign-in of people
@@ -350,7 +350,7 @@ test("this computer and an Environment without a vault say so in one line; a 019
   );
   expect(ungated.actions).toEqual([]);
   expect(ungated.hint).toBe(
-    "Trezor tohoto Prostředí zatím používají jen jeho agenti.",
+    "Trezor tohoto Prostředí používají jen jeho agenti.",
   );
   expect(
     parseVaultMembership({

@@ -219,14 +219,14 @@ export function vaultRowLine(
     return { text: copy[phaseKeys[running]], state: "unknown" };
   if (status === null) return { text: copy.vaultRowChecking, state: "unknown" };
   switch (status.state) {
+    // On this computer the vault is not available: when it comes here is a
+    // plan, not its state (F36's addendum of 2026-10-16).
     case "unsupported":
       return {
         text:
-          status.reason === "workstation"
-            ? copy.vaultRowSecondWave
-            : status.reason === "no-vault"
-              ? copy.vaultRowNoVault
-              : copy.vaultRowUnavailable,
+          status.reason === "no-vault"
+            ? copy.vaultRowNoVault
+            : copy.vaultRowUnavailable,
         state: "unknown",
       };
     // A personal Environment's own Bitwarden waits for its person.

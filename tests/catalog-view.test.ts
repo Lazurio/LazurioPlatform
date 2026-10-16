@@ -453,15 +453,15 @@ test("no Team is drawn: no subheader, no badge, no Teams or Team membership on t
     for (const text of drawn)
       for (const word of teamWords)
         expect(String(text).toLowerCase()).not.toContain(word);
-    // The module page keeps what it had besides its Teams and their one
-    // issue code, teams-invalid.
+    // The module page keeps what it had besides its Teams, their one issue
+    // code, teams-invalid, and the resolution state (F36's addendum of
+    // 2026-10-16).
     const wiki = delta.modules[1];
     if (wiki === undefined) throw new Error("No module");
     expect(moduleFacts(delta, wiki, copy).map(([label]) => label)).toEqual([
       copy.catalogOrganization,
       copy.catalogApps,
       copy.catalogPath,
-      copy.catalogState,
     ]);
     expect(organizationFacts(delta, copy).map(([label]) => label)).toEqual([
       copy.catalogDirectory,

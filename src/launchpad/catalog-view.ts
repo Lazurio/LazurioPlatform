@@ -406,7 +406,8 @@ export function organizationFacts(
 
 /** What the module page says of it, its Teams not among them (F32), nor
  * the module's `issues`, whose one code is `teams-invalid`: a defect of the
- * Team membership the CLI's JSON still carries. */
+ * Team membership the CLI's JSON still carries, nor the catalog's resolution
+ * state, which tells a person nothing (F36's addendum of 2026-10-16). */
 export function moduleFacts(
   organization: CatalogOrganization,
   module: CatalogModule,
@@ -425,7 +426,6 @@ export function moduleFacts(
           ),
     ],
     [copy.catalogPath, module.path],
-    [copy.catalogState, module.state ?? copy.catalogNone],
   ];
 }
 

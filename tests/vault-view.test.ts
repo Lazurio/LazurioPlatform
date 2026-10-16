@@ -188,7 +188,7 @@ test("the row says the state in few words, formally in Czech, and the step of a 
     "signed-out: Trezor neodpovídá",
     "signed-out: Nastavení se nedokončilo",
     "unknown: Toto Prostředí zatím trezor nemá",
-    "unknown: Brzy · druhá vlna",
+    "unknown: V tomto Prostředí není k dispozici",
     "unknown: Připravuje se trezor…",
   ]);
   expect(lines(en)).toEqual([
@@ -202,7 +202,7 @@ test("the row says the state in few words, formally in Czech, and the step of a 
     "signed-out: The vault does not answer",
     "signed-out: The setup did not finish",
     "unknown: This Environment has no vault yet",
-    "unknown: Soon · second wave",
+    "unknown: Not available in this Environment",
     "unknown: Preparing the vault…",
   ]);
 });

@@ -152,14 +152,10 @@ test("a needed Folder refresh is one line with the exact command, in both langua
   };
   expect(
     pillView(status({ folderRefresh }), messages("en"), now).folderRefresh,
-  ).toBe(
-    "Folder refresh needed: this Folder was rendered by base-instructions-8, Lazurio renders base-instructions-9. Run: lazurio machine folder-refresh",
-  );
+  ).toBe("Folder refresh needed. Run: lazurio machine folder-refresh");
   expect(
     pillView(status({ folderRefresh }), messages("cs"), now).folderRefresh,
-  ).toBe(
-    "Folder je potřeba obnovit: vykreslila ho revize šablon base-instructions-8, Lazurio teď vykresluje base-instructions-9. Spusťte: lazurio machine folder-refresh",
-  );
+  ).toBe("Folder je potřeba obnovit. Spusťte: lazurio machine folder-refresh");
   expect(pillView(status(), messages("en"), now).folderRefresh).toBeNull();
 });
 

@@ -167,14 +167,10 @@ export function executorRowLine(
   if (status === null)
     return { text: copy.executorRowChecking, state: "unknown" };
   switch (status.state) {
+    // On this computer too: when Executor comes here is a plan, not its
+    // state (F36's addendum of 2026-10-16).
     case "unsupported":
-      return {
-        text:
-          status.reason === "workstation"
-            ? copy.executorRowSecondWave
-            : copy.executorRowUnavailable,
-        state: "unknown",
-      };
+      return { text: copy.executorRowUnavailable, state: "unknown" };
     case "running":
       return { text: copy.executorRowRunning, state: "signed-in" };
     case "not-installed":
