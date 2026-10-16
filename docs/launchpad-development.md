@@ -2079,8 +2079,11 @@ saying its step: "Instaluje se Bitwarden…", "Připravuje se účet trezoru…"
 "Připojeno", "Zatím nenastaveno", "Trezor se zakládá" (its creation not confirmed yet),
 "Síť zatím účet trezoru nepovolila", "Trezor byl
 odebrán" (a 0197 pilot's: "Přístup odebrán v trezoru"), "Trezor neodpovídá", "Nastavení
-se nedokončilo", "Tento Environment zatím trezor nemá" (the handover names no vault)
-and "Brzy · druhá vlna" on this computer ("Connected", "Not set up yet", …). Its
+se nedokončilo", "Tento Environment zatím trezor nemá" (the handover names no vault),
+"Čeká na váš Bitwarden" (a personal Environment whose person has not connected their
+own Bitwarden yet, root decision 0203 point 7, with "Připojit", a link to the form of
+Nastavení → Trezor, and no setup) and "Brzy · druhá vlna" on this computer
+("Connected", "Not set up yet", …). Its
 controls are "Otevřít trezor" once connected, a link in a new tab to
 `<server_url>/#/vault?organizationId=<id>`, and one action only where a setup moves the
 vault on: "Nastavit" when nothing set it up yet and "Zkusit znovu" after a setup that
@@ -2197,6 +2200,32 @@ to the request's admission named, by the subject and the Lazurio username
 nobody and has no vault. HTTP behaviour is tested in
 `tests/launchpad-vault-page.test.ts` behind a fake gateway with the fake Vaultwarden and
 the fake bw of `tests/fixtures/fake-vault.ts`.
+
+**A personal Environment's own Bitwarden** ([F53's amendment of
+2026-10-16](decisions.md#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden),
+root decision 0203 point 7). While the vault waits for its person
+(`needs-connection`), the page shows `#vault-connect` instead of the row: the title
+"Připojte svůj Bitwarden", a slot for its motion graphic (`#vault-connect-motion`,
+empty and collapsed until #452 fills it), a short explanation (a free organization
+for the person and a separate agents' account; agents never get the person's main
+account; the three steps to the API key) and one form: the region (EU or US), the
+agents' account `client_id` and `client_secret`, its master password and the e-mail of
+the person's own Bitwarden account. The secret inputs are password inputs with
+"Zobrazit"/"Skrýt" as on a secret request and `autocomplete="new-password"`; they are
+emptied as the request leaves, and the rest once connected; no value goes to browser
+storage or the address. "Připojit Bitwarden" sends `POST /api/vault/connect`
+(`src/launchpad/vault-connection-routes.ts`); a refusal says what to change in one line
+(`connectionRefusalText`), and the one setup it starts is followed by its job, as the
+Tools row follows it, so a failure it ends in stays on the page. Connected, the row is
+the organization's ("Osobní <login>") with its item count; one line says where the
+person stands (the invitation e-mailed, accepted and being confirmed, or removed in
+Bitwarden), a member gets "Přidat položku" and "Otevřít trezor" into the region's web
+vault, and "Odpojit Bitwarden" (`POST /api/vault/disconnect`) with its note shows
+whenever no setup runs. The page asks about the person again when its tab is shown
+again while their invitation waits. Tested over HTTP in
+`tests/launchpad-vault-connect.test.ts` with the fake Bitwarden cloud of
+`tests/fixtures/fake-bitwarden-cloud.ts`, and the pure part in
+`tests/vault-page-view.test.ts`.
 
 ## Files page
 

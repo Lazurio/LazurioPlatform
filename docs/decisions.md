@@ -11689,6 +11689,14 @@ the personal form.
 
 ## F53 — Every Environment owns its vault: its own organization in the network's Vaultwarden, created by its technical account
 
+> **Amended on 2026-10-16 by root decision 0203 point 7 ([F53 amendment of
+> 2026-10-16: a personal Environment's own
+> Bitwarden](#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden)).**
+> A personal Environment whose handover names no vault keeps its vault in its
+> person's own Bitwarden, which the person connects in Settings → Vault; until then
+> it is `needs-connection`, not `unsupported`, `no-vault`. Work, Team and Automated
+> Environments keep the vault their handover names, as below.
+
 **Decided by the Admin on 2026-10-12 and 2026-10-13 (root decision 0198 points 1, 2,
 4, 6 and 7, with 0197 points 3 and 7–9; plan DEV-6631 task 638 part A, contract C3;
 the wireframe of HumanAndMachine-ai/prototypes-lazurio#33); implemented in this
@@ -12050,7 +12058,154 @@ the username's address), `tests/vault-members.test.ts` (the address, and only a 
 person with a valid username has one) and `tests/vault-page-view.test.ts` (the line
 in both locales).
 
+### F53 amendment of 2026-10-16: a personal Environment's own Bitwarden
+
+**Decided by the Admin on 2026-10-15 (root decision 0203 point 7, text in
+HumanAndMachines/Lazurio#551; plan DEV-6631 task 775; task 949 makes the onboarding
+show a ready vault only after this connection); implemented in this revision for
+Remote Environments on Linux. Amends points 1, 2, 4, 5 and 8 and the addendum of
+2026-10-14 for personal Environments; F54 applies unchanged.** A personal
+Environment no longer uses a Lazurio Vaultwarden. Its person connects a Bitwarden of
+their choice, the Bitwarden cloud in the EU or the US, through a separate agents'
+account, never their main account, in the same service and region as their own
+account. The Environment's vault is a free Bitwarden organization for two: the
+agents' account, its Owner, and the person. The cloud verifies an e-mail at sign-up,
+so the person creates the agents' account and its API key and enters them once; from
+there the Environment works on its own.
+
+1. **Which Environments.** A personal Environment (preset `hosted-personal`) whose
+   handover names no `vault`. Work, Team and Automated Environments keep the
+   hand-over path of point 1 unchanged. A personal Environment connected the 0197 way
+   keeps working read only as before (point 6): the production composition looks at
+   its pilot's files first (`pilotConnected`), and only one never connected connects
+   its own Bitwarden.
+2. **Waiting for its person: `needs-connection`.** A new state instead of
+   `unsupported`, `no-vault`: nothing is installed, signed in or asked of any server;
+   the start never sets it up (`setUpAtStart`); `env`, runtime secrets, secret requests
+   and the membership answer `not-connected`; `lazurio vault setup` exits 2 (waiting for
+   a person) and says that only the person connects it, in Settings → Vault, and that
+   an agent never asks for that account's credentials. The Tools row says "Čeká na
+   váš Bitwarden" with "Připojit", a link to the form, and offers no setup.
+3. **The regions, an allow-list** (`src/vault/endpoints.ts`): EU, web
+   `https://vault.bitwarden.eu`, API `https://api.bitwarden.eu`, identity
+   `https://identity.bitwarden.eu`; US, the same on `bitwarden.com`. No other server is
+   accepted for now. The core's `/identity/…` and `/api/…` requests go to the region's
+   identity and API hosts (a Vaultwarden's stay under its own origin, exactly as
+   before); bw is given the web vault (`bw config server`).
+4. **Connecting** (`src/vault/connection.ts`; Settings → Vault, `POST
+   /api/vault/connect` with exactly `{region, clientId, clientSecret, masterPassword,
+   email}`, JSON of at most 16 KiB, same origin behind the admission of every write).
+   Nothing is written until everything is checked: the API key signs in at the
+   region's identity host (`client_credentials`, which the cloud exempts from
+   new-device verification; never the password grant); the profile names the agents'
+   account, which must not be the person's own address (`same-account`) and must not
+   own or administer an organization other than this Environment's recorded vault
+   (`owns-organization`: not a separate agents' account, and the cloud would refuse it
+   a second Free organization); the master password opens the account's user key and
+   private key with the KDF the token answer carries, or the prelogin's
+   (`POST <identity>/accounts/prelogin`): PBKDF2-SHA256, or Argon2id with the salt the
+   SHA-256 of the normalized e-mail, the memory in MiB as Bitwarden keeps it and 32
+   bytes (Bun's native `argon2`, asynchronous; Bitwarden's own vector in the tests);
+   a wrong password is `wrong-password`, keys of another form than the v1 account keys
+   (a v2 account cryptographic state) `unsupported-keys`. Then the account's
+   credentials are written whole (0600) into its custody of point 2, keyed by the
+   region's web host and the agents' address (`parseAccount` takes an entered
+   account's ordinary address and its person's master password on one line), and
+   the connection beside it, `<state>/lazurio/vault/personal/connection.json` (0600,
+   not secret: the region, the agents' account and the person's address to invite,
+   with the lock of connecting and disconnecting). The one setup of the Tools row then
+   starts; the route answers as it does.
+5. **The vault.** The setup of point 4 with the entered account, never registered
+   (a missing file is `account-missing`, which only the person resolves): the
+   organization "Osobní <login>" (the handover owner's GitHub login) with the
+   collection Agenti, created by `POST /organizations` on the cloud's API with
+   `useSecretsManager: false` and `planType: 0` (the Vaultwarden request stays the one
+   proven against its image), its key encrypted to the public key derived from the
+   account's own private key, recognized by its receipt and recorded by its ID as
+   before. A second Free organization the cloud still refuses is
+   `free-organization-limit`.
+6. **The person.** Invited by the vault's API as a User (type 2) with Manage on Agenti
+   (`accessSecretsManager: false`), never as an Admin: the cloud lets an account be
+   Owner or Admin of only one Free organization and checks it when an invitation is
+   accepted, a member confirmed or a role changed, so a person who owns a Free
+   organization could never join as an Admin. The cloud e-mails the invitation; once
+   the person accepts it, the Environment confirms them with `bw confirm org-member`,
+   with no fingerprint compared: the person chose this service and trusts it as every
+   Bitwarden client does. No SSO gate (point 5 of the addendum) applies: the cloud's
+   own sign-in protects the person's account, and the Environment confirms only the
+   address it invited, whoever the gateway admitted. Every setup that ends connected
+   and every look of the page moves it on (`src/vault/invitee.ts`); the page says
+   `invitation-pending`, `accepted` (the confirmation is tried again) or `revoked` in
+   one line, and a member gets "Přidat položku" and "Otevřít trezor" into the region's
+   web vault.
+7. **Disconnecting** (`POST /api/vault/disconnect`, "Odpojit Bitwarden"): bw signs out,
+   the account's credentials, its session and everything bw keeps in its data
+   directory are removed, then the connection; the record of the vault and the
+   agents' requests stay, and the organization is never deleted in Bitwarden. The same
+   account connected again finds its vault by the record; another account starts
+   afresh in a directory of its own.
+8. **Unchanged.** The pinned CLI, the one shared session, `lazurio vault env`, runtime
+   secrets (F46 as amended, a personal Environment's Personalspace modules), the
+   agents' secret requests (F54) and the agents' switch turned on once the vault is
+   ready. The agents' texts of the catalog entry `bitwarden` name both places and what
+   `needs-connection` means (template revision `base-instructions-55`).
+
+**Honest limits.** The Environment trusts the region's TLS and the public key the
+cloud hands out when it confirms the person. Agents with full access can read the
+agents' account's credentials on the Environment (F43 point 9), its master password
+included, which the person chose: it must be used for nothing else. An account whose
+custody is lost (the Environment rebuilt) owns an organization no record names and is
+refused (`owns-organization`); the person deletes that organization in Bitwarden or
+connects a fresh agents' account. Every connection attempt that signs in adds a
+device to the agents' account. A setup's failure shows on the page and the Tools row
+that followed it; read again, the page shows the local state. Argon2id may ask the
+Environment for up to 1 GiB while it unlocks. The connection, the vault, the
+invitation and the confirmation against the real bitwarden.eu need a real agents'
+account, which only a person can create: that end-to-end test is pending.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A Lazurio Vaultwarden for personal Environments | Replaced by root decision 0203 point 7 |
+| The person's main account for the agents | The agents would hold every password of the person; refused (`same-account`, and an account that owns or manages an organization is no separate agents' account) |
+| Invite the person as an Admin, as the Správci of the addendum | The cloud's one-Free-organization rule for Owners and Admins would keep out a person who owns one; a User with Manage on Agenti |
+| The password grant for the agents' account | Meets new-device verification by e-mail; the API key is exempt |
+| Any server the person names | Not now: an allow-list of the two cloud regions |
+| Adopt an organization the agents' account owns when no record names it | A role or a name is not an identity (point 3); refused |
+| Delete the organization on disconnect | Would destroy the person's items; never |
+| One custody directory for whichever account is connected | A record of one account would be taken for another's; keyed by the account, with the connection naming it |
+
+Verified by unit tests against a fake Bitwarden cloud with an identity and an API host
+of their own (`tests/fixtures/fake-bitwarden-cloud.ts`) and the fake bw:
+`tests/vault-connection.test.ts` (needs-connection running nothing; PBKDF2 and Argon2id
+accounts connected end to end with the exact organization request, the User and
+Manage invitation, its acceptance and confirmation; the refusals; the KDF from the
+prelogin; the Free limit before writing and at creation, and a person owning a Free
+organization joining as a User; an interrupted creation resumed by its receipt;
+disconnect and reconnect; a lost account file; no value in the journal, bw's
+arguments or the custody after disconnect), `tests/vault-register.test.ts` (Bitwarden's
+own Argon2id master-key vector, PBKDF2 and Argon2id unlock from a fixed password,
+e-mail and user key with `wrong-password` and `unsupported-keys`, the KDF bounds, the
+API-key answer's KDF, the region allow-list and its routing, the Free-limit reason),
+`tests/vault-host.test.ts` (the production composition: needs-connection, a connected
+pilot, a connection, an unreadable one), `tests/vault-store.test.ts`,
+`tests/vault-view.test.ts`, `tests/vault-cli.test.ts`, over HTTP
+`tests/launchpad-vault-connect.test.ts` (exact keys, content type, size, origin,
+admission, refusals, connect, invite, confirm, disconnect, no value in answers, logs,
+the journal or bw's arguments) and `tests/vault-page-view.test.ts` (the form, the
+person's states, the failures the person resolves, the way out, both languages).
+Checked in a browser against the fake cloud (root decision 0178): the form, a refused
+master password, show and hide, connected, the invitation and its acceptance, the
+member's links into bitwarden.eu, disconnect and reconnect, the Tools row's link.
+
 ## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
+
+> **Amended on 2026-10-16 by root decision 0203 point 7 ([F53 amendment of
+> 2026-10-16: a personal Environment's own
+> Bitwarden](#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden),
+> point 8).** On a personal Environment the Environment's own vault is in its
+> person's own Bitwarden: the requests and their Secure notes in Agenti work there
+> unchanged, and while the person has not connected it a request is refused as
+> `not-connected`.
 
 **Decided by the Admin on 2026-10-13 (root decision 0198 point 9; plan DEV-6631 tasks
 651 and 652; the wireframe of HumanAndMachine-ai/prototypes-lazurio#33:
