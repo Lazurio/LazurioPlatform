@@ -11995,6 +11995,11 @@ token on argv, in the journal or in an answer.
 > Point 3's address is now `<Lazurio username>@account.lazurio.ai`, built from the
 > username of the gateway's own answer; a person named without one is added nowhere
 > (`no-username`).
+>
+> **Point 7 amended on 2026-10-16 by the [F53 addendum of
+> 2026-10-16](#f53-addendum-of-2026-10-16-bitwarden-in-codex-desktop-and-the-persons-browser)**
+> (its point 3): the membership answer carries the admitted person's own address, to
+> them alone; nothing else returns an address, and nothing logs or journals one.
 
 **Decided by the Admin (root decision 0198 points 2, 3 and 5; DEV-6631 tasks 648 and
 638b, contract C4 as shaped on 2026-10-13; the wireframe of
@@ -12345,11 +12350,14 @@ member's links into bitwarden.eu, disconnect and reconnect, the Tools row's link
 
 ### F53 addendum of 2026-10-16: Bitwarden in Codex Desktop and the person's browser
 
-**Asked for by Matěj (Organization Admin) on 2026-10-16 (plan DEV-6665); the row is the
-wireframe's (HumanAndMachine-ai/prototypes-lazurio 1eefc3d, `screens/Start.tsx`) without
-its state.** Codex Desktop's built-in browser takes extensions (its Nastavení → Prohlížeč →
-Rozšíření), so a person can use the Environment's vault in Bitwarden there, as in their
-own browser. The onboarding says so in two places, and the steps live in one.
+**Asked for by Matěj (Organization Admin) on 2026-10-16 (plan DEV-6665) and reworked after
+his review of the preview the same day: a person finds their way without composing
+anything, in the extension's own words and screens. The row is the wireframe's
+(HumanAndMachine-ai/prototypes-lazurio 1eefc3d, `screens/Start.tsx`) without its state.
+Amends point 7 of the addendum of 2026-10-14.** Codex Desktop's built-in browser takes
+extensions (its Nastavení → Prohlížeč → Rozšíření), so a person can use the Environment's
+vault in Bitwarden there, as in their own browser. The onboarding says so in two places,
+and the steps live in one.
 
 1. **Začínáme, "Volitelné": "Trezor v Bitwardenu"** ("Vault in Bitwarden"), between SSH
    z vlastního počítače and Codex Desktop as in the wireframe: "Hesla z Trezoru Prostředí
@@ -12372,38 +12380,80 @@ own browser. The onboarding says so in two places, and the steps live in one.
    wait for the person's answer); not when the person moved the focus meanwhile, and not
    at all once the page is left. Opened in a new tab, it is the Trezor page.
 2. **Nastavení → Trezor, "V Codex Desktopu a ve vašem prohlížeči"** ("In Codex Desktop and
-   your browser"), under the vault (`bitwardenGuide`). The extension's own labels are
-   quoted as it shows them in each language.
-   - *An Organization's Lazurio Vaultwarden* (root decision 0203 point 1): add Bitwarden in
-     Codex Desktop's Nastavení → Prohlížeč → Rozšíření, and in the person's own browser
-     from its extension store; choose „vlastní server“ and enter the vault's address, with
-     a Copy button (the handover's `vault.server_url`, as `GET /api/vault` reports it); as
-     the e-mail address the person's Lazurio username with `@account.lazurio.ai` and
-     „Použít jednotné přihlášení“; sign in with Lazurio and unlock the vault with the master
-     password. People enter a Lazurio Vaultwarden only through the Lazurio sign-in (0197
-     point 2, `SSO_ONLY`), so the extension's master-password sign-in alone is refused.
+   your browser"), under the vault (`bitwardenGuide`). Each step names what to click in the
+   extension's own words, as the Bitwarden browser extension 2026.10.0 shows them in each
+   language (its shipped `_locales`, checked on its rendered screens).
+   - *An Organization's Lazurio Vaultwarden* (root decision 0203 point 1), in Czech:
+     1. "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden.
+        Do svého prohlížeče ho přidejte z Chrome Web Store.", with a link "Bitwarden v
+        Chrome Web Store" to the extension's page there (`bitwardenStoreUrl`, a new tab);
+     2. "Dole u „Přistupujete na“ zvolte „vlastní server“. Do pole „URL serveru“ vložte tuto
+        adresu a klikněte na „Uložit“:", the vault's address with a Copy button (the
+        handover's `vault.server_url`, as `GET /api/vault` reports it) and the picture of
+        that screen;
+     3. "Do pole „E-mailová adresa“ vložte svou adresu a klikněte na „Použít jednotné
+        přihlášení“:", the person's own address with a Copy button (point 3) and the
+        picture of that screen; without the address (nobody named, no username, the
+        answer not there yet) the step says how it is formed: "Do pole „E-mailová adresa“
+        zadejte své uživatelské jméno v Lazuriu s koncovkou @account.lazurio.ai…";
+     4. "Přihlaste se přes Lazurio a trezor odemkněte hlavním heslem." People enter a
+        Lazurio Vaultwarden only through the Lazurio sign-in (0197 point 2, `SSO_ONLY`), so
+        the extension's master-password sign-in alone is refused.
+
      While the page offers "Vytvořit účet v trezoru", one line before the steps points to
      it. Under the steps: the computer must be connected to the Organization's network,
      the only place the vault answers.
-   - *A personal Environment's own Bitwarden* (0203 point 7): add the extension, choose the
-     region's service (bitwarden.eu or bitwarden.com) and sign in with the person's own
-     Bitwarden account.
+   - *A personal Environment's own Bitwarden* (0203 point 7): the same first step, then
+     "Dole u „Přistupujete na“ zvolte „bitwarden.eu“ a přihlaste se svým vlastním účtem
+     Bitwardenu." (bitwarden.com in the US region). Nothing to copy, no picture.
    - *None* where the page says that only the agents use the vault: a Team or Automated
      Environment, or a network that does not require the Lazurio sign-in of people yet.
-3. **No Copy button for the person's address.** The page knows no username of the person:
-   the gateway's answer names it for the membership alone ([F11's amendments of
-   2026-10-14 and 2026-10-16](#f11--hosted-admission-is-not-identity)), and no answer
-   returns a person's address (the addendum of 2026-10-14, point 7). The step says how the
-   address is formed.
-4. **Začínáme opened directly reads its vault and SSH rows,** as a move to it does. A
+3. **The person's own address, to copy.** `POST /api/vault/membership` answers with an
+   optional `address`: the admitted person's own `<Lazurio username>@account.lazurio.ai`
+   (`personAddress`), built only from the username of the gateway's own answer to this
+   request's admission ([F11's amendments of 2026-10-14 and
+   2026-10-16](#f11--hosted-admission-is-not-identity)), never from GitHub, the shell's
+   account document or a header of the request (0203 point 4). It is there only where
+   that answer named the person with a Lazurio username and the Environment's vault is a
+   Lazurio Vaultwarden (its own one, or a 0197 pilot's network vault): never on a
+   personal Environment's own Bitwarden, where the person signs in with their own
+   account, never without a vault, and never where the answer named nobody or no
+   username. It goes to that person alone, in their own answer; nothing logs or
+   journals it. The page reads it only in its exact form (`parseVaultMembership`
+   refuses an answer whose address is not one). Point 7 of the addendum of 2026-10-14
+   now reads: nothing logs or journals a person's address, a member's id or a token,
+   and no answer returns them, except the person's own address in their own membership
+   answer.
+4. **Two pictures of the extension's own screens, per language**:
+   `src/launchpad/images/bitwarden-server-<cs|en>.webp` ("Přistupujete na" with „vlastní
+   server“ chosen, and the "URL serveru" field of the dialog it opens) and
+   `bitwarden-email-<cs|en>.webp` (the "E-mailová adresa" field and „Použít jednotné
+   přihlášení“). The place to fill in is ringed in the Lazurio blue (`--lz-blue-500`),
+   and the values are fictional (`https://vaultwarden.example.lazurio.io`,
+   `jana@account.lazurio.ai`). They are 2x WebP, 760 px wide and 21 to 43 KB each,
+   bundled with the page (`#vault-bitwarden-pictures`; Bun's HTML import, so the
+   compiled Launchpad carries them), loaded only when a step shows one, in the page's
+   language, with an alternative text that says what they show. Captured from
+   the Bitwarden browser extension 2026.10.0 (bitwarden/clients release
+   `browser-v2026.10.0`, `dist-chrome-2026.10.0.zip`, SHA-256
+   `7b9ec650b87dd8975e87a0e0bdd0c1f1a0fcf5b0a8da5ae759ec14cdffaad35d`) loaded unpacked
+   in Chrome for Testing 155's headless mode with Playwright, outside this repository.
+   When a release of the extension changes these screens or words, the steps and the
+   pictures are refreshed together. Three things a capture needs: a Chrome user agent
+   (under "HeadlessChrome" the extension takes the browser for Safari and loops on
+   native messaging), the extension's own `_locales/<lang>/messages.json` answering
+   `chrome.i18n` (the popup speaks the browser's interface language, which headless
+   Chrome on macOS does not take from `--lang`), and the knowledge that this version
+   titles the server dialog in English in every language.
+5. **Začínáme opened directly reads its vault and SSH rows,** as a move to it does. A
    direct load (the shell's "Dokončit nastavení" opens one) showed neither the vault's row
    nor this one until the person moved away and back.
 
-Not changed: the vault, its setup, its routes, the hand-over and the membership's rules.
-The membership answer is the Trezor page's own; since Začínáme asks it too, the
-Environment may add the person to its vault (the addendum of 2026-10-14, point 4) when
-they open Začínáme, as it does when they open Trezor. The Codex Desktop section of SSH ze
-zařízení does not point to the steps yet.
+Not changed: the vault, its setup, the hand-over and the membership's rules; the
+membership answer only gains the person's own address. The answer is the Trezor page's
+own; since Začínáme asks it too, the Environment may add the person to its vault (the
+addendum of 2026-10-14, point 4) when they open Začínáme, as it does when they open
+Trezor. The Codex Desktop section of SSH ze zařízení does not point to the steps yet.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -12411,22 +12461,35 @@ zařízení does not point to the steps yet.
 | The row from the vault alone (this change's first revision) | Promised steps the page hides where only the agents use the vault (Pablo's review of #465); the row asks the page's own answer |
 | A membership answer without its effect for the row | There is none; adding one would be a new contract for one row |
 | A state on the row ("Nastaveno") | Nothing in the Environment can see the extension on the person's computer; left out |
+| The step says how the address is formed (this change's second revision) | Matěj's review: a person should not have to compose their username with `@account.lazurio.ai`; kept only where the answer carries no address |
 | The person's address from the shell's GitHub login | 0203 point 4: the username is never composed from GitHub; rejected |
-| The person's address in the membership's answer | A new contract and the first answer that names a person's address; not part of this change |
+| The person's address from the shell's account document | Not the admission's answer, which alone carries the Lazurio username the vault uses; rejected for the membership answer |
+| The address in a new route of its own | One more route for what the membership answer already decides; the answer the page asks anyway carries it |
 | "Sign in with your address and master password" | Refused under `SSO_ONLY`; the Lazurio sign-in comes first |
+| Drawn lookalikes of the extension's screens | Drift from what the person sees; the real extension renders headless, so its own screens are used |
+| A video of the steps | Later (Matěj, 2026-10-16); the pictures first |
 
 Verified by `tests/start-view.test.ts` (the row, its order, its link to the steps, and that
 it shows exactly where the page gives them, for each membership answer),
-`tests/vault-page-view.test.ts` (both kinds of vault in both languages, the value to copy,
-the line exactly where the page offers "Vytvořit účet v trezoru", none without a vault a
-person adds or where only the agents use it, and a pending "Návod" waiting for the answer,
-revealing, forgotten when the steps will not show or the page is left) and
-`tests/launchpad-vault-page.test.ts` over HTTP (the address is the handover's, the line for
-a person without an account, none on a Team Environment or on a network without
-`SSO_ONLY`, row included); and in a browser (root decision 0178) on the hosted preview in both
-languages, whose work Environment now has the tests' fake vault: the row, "Návod" into the
-steps with the focus on their heading below the page's head (on a short window too), Copy,
-and the Trezor page in a new tab.
+`tests/vault-page-view.test.ts` (both kinds of vault in both languages word for word: the
+store link, the extension's labels, the values to copy, the pictures; the step without an
+address; no address offered on a personal Environment's own Bitwarden even when an answer
+carries one; the answer's address read only in its exact form; every picture a step names
+in the page once per language, a 2x WebP under 64 KB of its declared size; the line exactly
+where the page offers "Vytvořit účet v trezoru", none without a vault a person adds or
+where only the agents use it, and a pending "Návod" waiting for the answer, revealing,
+forgotten when the steps will not show or the page is left),
+`tests/launchpad-vault-page.test.ts` over HTTP (every membership answer of every case
+carries the address exactly where the gateway's answer named a Lazurio username, and the
+steps then offer it; the vault's address is the handover's, the line for a person without
+an account, none on a Team Environment or on a network without `SSO_ONLY`, row included)
+and `tests/launchpad-vault-connect.test.ts` (a personal Environment's own Bitwarden: no
+address in the answer although the gateway names a username); and in a browser (root
+decision 0178) on the hosted preview in both languages, whose work Environment has the
+tests' fake vault and whose gateway names the fictional person `jana`: the row, "Návod"
+into the steps with the focus on their heading below the page's head, the store link, both
+Copy fields with `jana@account.lazurio.ai`, both pictures in the page's language, and the
+Trezor page in a new tab.
 
 ## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
 
