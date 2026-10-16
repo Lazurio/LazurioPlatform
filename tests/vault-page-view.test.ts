@@ -651,7 +651,7 @@ test("a personal Environment waiting for its person shows the section with the v
 // The section's words (F53's amendment of 2026-10-16, (2), after the
 // Organization Admin's review: less text, pictures): a title, the picture
 // and one line, two steps with one line each, the fields and one button;
-// refusals of one sentence that say what to do next. Word for word in both
+// refusals that say what to do next (the next test). Word for word in both
 // languages.
 test("the connection's words: the title, the picture of the vault, one line, two steps, the fields and the button, in both languages", () => {
   const words = (copy: typeof cs) => [
@@ -790,7 +790,7 @@ test("the connection's words: the title, the picture of the vault, one line, two
     expect([word.source, word.test(section)]).toEqual([word.source, false]);
 });
 
-test("the connection's and the invitation's refusals: one sentence that says what to do next, in both languages; the form is sent only filled in", () => {
+test("the connection's and the invitation's refusals say what to do next in one sentence, a wrong master password also which values to paste again, in both languages; the form is sent only filled in", () => {
   const connecting = [
     [
       "client-id-invalid",
@@ -819,8 +819,8 @@ test("the connection's and the invitation's refusals: one sentence that says wha
     ],
     [
       "wrong-password",
-      "Toto není hlavní heslo účtu pro agenty, zkuste to znovu.",
-      "This is not the agents' account's master password; try again.",
+      "Toto není hlavní heslo účtu pro agenty. Vložte znovu client_secret a heslo.",
+      "That is not the agents' account master password. Paste the client_secret and the password again.",
     ],
     [
       "owns-organization",
@@ -914,13 +914,16 @@ test("the connection's and the invitation's refusals: one sentence that says wha
         reason,
         "string",
       ]);
-  // Every refusal is one sentence.
-  for (const [, czech, english] of [...connecting, ...inviting])
+  // Every refusal is one sentence, but a wrong master password: the form
+  // empties the client_secret and the password as they are sent, so its
+  // second sentence says to paste both again ("Připojit" waits for every
+  // field; the browser acceptance of #468).
+  for (const [reason, czech, english] of [...connecting, ...inviting])
     for (const text of [czech, english])
       expect([
         text,
         text.split(/[.?!](?:\s|$)/).filter(Boolean).length,
-      ]).toEqual([text, 1]);
+      ]).toEqual([text, reason === "wrong-password" ? 2 : 1]);
   for (const unknown of ["something-else", undefined, "region-invalid"]) {
     expect(connectionRefusalText(unknown, cs)).toBeNull();
     expect(inviteRefusalText(unknown, cs)).toBeNull();

@@ -1142,7 +1142,7 @@ const en = {
   vaultConnectAccountRefused:
     "Bitwarden did not accept this account; check it in Bitwarden.",
   vaultConnectWrongPassword:
-    "This is not the agents' account's master password; try again.",
+    "That is not the agents' account master password. Paste the client_secret and the password again.",
   vaultConnectOwnsOrganization:
     "This account is used elsewhere already; create a new one for your agents.",
   vaultConnectUnsupported:
@@ -2753,7 +2753,7 @@ const cs: Record<MessageKey, string> = {
   vaultConnectAccountRefused:
     "Bitwarden tento účet nepřijal, zkontrolujte ho v Bitwardenu.",
   vaultConnectWrongPassword:
-    "Toto není hlavní heslo účtu pro agenty, zkuste to znovu.",
+    "Toto není hlavní heslo účtu pro agenty. Vložte znovu client_secret a heslo.",
   vaultConnectOwnsOrganization:
     "Tento účet se už používá jinde, založte pro agenty nový.",
   vaultConnectUnsupported:

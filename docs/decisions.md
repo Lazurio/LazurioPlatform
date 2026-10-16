@@ -12713,12 +12713,17 @@ fields and one button.
      as they are sent and all of them once connected; "Připojit", and beside it the
      privacy note F36's addendum keeps, "Údaje zůstanou jen v tomto Prostředí.".
 
-   Every refusal is one sentence that says what to do next, without mechanics
-   (`connectionRefusalText`, `inviteRefusalText`). The codes stay those of the amendment
-   above, but for `region-invalid`, which can no longer happen, `email-invalid` and
-   `same-account`, which move to the invitation (point 3), the invitation's new
-   `invited`, and `account-refused` (point 2). The failures the person resolves, the disconnect's note and the person's
-   states are shortened the same way.
+   Every refusal says in one sentence what to do next, without mechanics
+   (`connectionRefusalText`, `inviteRefusalText`), but a wrong master password
+   (`wrong-password`), which needs a second: since the secret fields are emptied as they
+   are sent and "Připojit" waits for every field, it reads „Toto není hlavní heslo účtu
+   pro agenty. Vložte znovu client_secret a heslo." ("That is not the agents' account
+   master password. Paste the client_secret and the password again."; the browser
+   acceptance of #468 found a person retyping only the password). The codes stay those
+   of the amendment above, but for `region-invalid`, which can no longer happen,
+   `email-invalid` and `same-account`, which move to the invitation (point 3), the
+   invitation's new `invited`, and `account-refused` (point 2). The failures the person
+   resolves, the disconnect's note and the person's states are shortened the same way.
    Gone: the lead about a free organization and a separate agents' account, the three
    text steps, the region, the person's e-mail and its hint.
 2. **No region.** `POST /api/vault/connect` takes exactly `{clientId, clientSecret,

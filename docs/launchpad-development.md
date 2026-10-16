@@ -2234,7 +2234,9 @@ the key. The secret inputs are password inputs with "Zobrazit"/"Skrýt" as on a 
 request and `autocomplete="new-password"`; they are emptied as the request leaves, and
 the rest once connected; no value goes to browser storage or the address. "Připojit"
 sends `POST /api/vault/connect` (`src/launchpad/vault-connection-routes.ts`); a refusal
-says what to do in one sentence (`connectionRefusalText`), and the one setup it starts
+says what to do in one sentence (`connectionRefusalText`; a wrong master password adds
+that the `client_secret` and the password are pasted again, both emptied as they were
+sent), and the one setup it starts
 is followed by its job, as the Tools row follows it, so a failure it ends in stays on
 the page. The pictures are bundled with the page in `#vault-connect-pictures` and
 placed in a step only once the section shows, in the page's language. Connected, the

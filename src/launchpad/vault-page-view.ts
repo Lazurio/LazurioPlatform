@@ -768,7 +768,9 @@ export function bitwardenGuide(
 }
 
 /** Why a connection was refused, in the page's words: one sentence that
- * says what to do; null for none. */
+ * says what to do, and for a wrong master password a second one that names
+ * both values to paste again, since the form empties the secret ones as
+ * they are sent; null for none. */
 export function connectionRefusalText(
   reason: unknown,
   copy: Copy,
