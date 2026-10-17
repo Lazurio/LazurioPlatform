@@ -262,11 +262,16 @@ differences only (`scope.github` `anonymous` in `src/content/model.ts`):
   install names it, also on a case-sensitive filesystem. The occupied check covers that
   name in any letter case, also when an entry appears while the root is cloned.
   Children keep the paths their slots declare.
-- **root** and **modules** clone `https://github.com/<owner>/<repository>.git` with
-  git's empty `credential.helper`, which resets every helper the configuration names
-  (gh's included) and adds none, whatever URL git ends up asking about; a child is not
-  asked of GitHub before its clone, so one that anonymous Git cannot read (private or
-  absent) is reported `failed` (`clone-failed`), not `denied`.
+- **root** and **modules** clone exactly `https://github.com/<owner>/<repository>.git`
+  (anything else fails before any process) with an isolated git: the process gets only
+  PATH, a locale and an empty temporary home, with no system, global or XDG configuration
+  and nothing injected through the environment (`GIT_CONFIG_*`, `GIT_CONFIG_PARAMETERS`),
+  no credential, askpass or SSH helper and HTTPS the only protocol
+  (`anonymousGitEnvironment` in `src/content/git.ts`). So no `http.extraHeader`,
+  credential helper, `insteadOf` rewrite (to another host or to SSH) or `core.sshCommand`
+  of the operator, a visitor or this process reaches the clone (review of #472). A
+  child is not asked of GitHub before its clone, so one that anonymous Git cannot read
+  (private or absent) is reported `failed` (`clone-failed`), not `denied`.
 - Nothing is created, generated, granted, committed or pushed: the Personalspace is
   refused (`not-for-this-environment`), and the Organization path has no such step.
 

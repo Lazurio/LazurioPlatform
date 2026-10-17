@@ -60,7 +60,9 @@ export const contentHelp = `organization install <github-login> [--role builder|
   no GitHub identity: it installs its own Organization only, as a reader
   (--role reader; any other role fails role-unverified), reads nothing of
   GitHub's API and clones the root and every child over anonymous HTTPS with
-  no credential helper; its root is the one the Folder holds, --root or
+  an isolated git (none of the operator's Git configuration, credential, askpass
+  or SSH helpers, HTTPS only, exactly https://github.com/<owner>/<repository>.git);
+  its root is the one the Folder holds, --root or
   <login>/<login>_GEN3, verified in the clone, and a child anonymous Git
   cannot read is reported (clone-failed). One JSON line per step with --json,
   then the result.

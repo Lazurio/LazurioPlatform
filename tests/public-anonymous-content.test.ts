@@ -1,7 +1,13 @@
 import { afterEach, expect, test } from "bun:test";
 import { chmod, lstat, mkdir, readdir } from "node:fs/promises";
-import { join } from "node:path";
-import { type CloneRequest, processContentGit } from "../src/content/git";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import {
+  anonymousCloneTarget,
+  anonymousGitEnvironment,
+  type CloneRequest,
+  processContentGit,
+} from "../src/content/git";
 import { anonymousGitHub } from "../src/content/github";
 import { installContent, planContentInstall } from "../src/content/install";
 import { publishNewCheckout } from "../src/content/materialize";
@@ -32,6 +38,7 @@ import {
 } from "./fixtures/content-world";
 import { bindings } from "./fixtures/machine-bindings";
 import { writeOwnedFixture as writeFile } from "./fixtures/owned-files";
+import { runChild } from "./fixtures/run-child";
 
 // Decision F55's addendum of 2026-10-17 (root decision 0204 point 5, plan
 // DEV-6668): a public Environment has no GitHub identity at all, neither a
@@ -45,7 +52,11 @@ const supported = ["darwin", "linux"].includes(process.platform);
 const posixTest = test.skipIf(!supported);
 
 let world: World | undefined;
+// The local servers a test started (a stand-in for github.com, a hostile
+// host), stopped after it.
+const servers: { stop(closeActiveConnections?: boolean): void }[] = [];
 afterEach(async () => {
+  for (const server of servers.splice(0)) server.stop(true);
   await world?.close();
   world = undefined;
 });
@@ -76,20 +87,45 @@ function publicBinding(
   return { ...base, owner: { ...base.owner, organization } };
 }
 
-/** The world's git configuration, with github.com over HTTPS reaching the
- * same bare repositories as SSH does (`insteadOf`, as an operator may). */
-function httpsGitEnv(target: World): Record<string, string> {
-  const env: Record<string, string> = { ...target.gitEnv };
-  const index = Number(env.GIT_CONFIG_COUNT ?? "0");
-  env[`GIT_CONFIG_KEY_${index}`] = `url.${target.remotes}/.insteadOf`;
-  env[`GIT_CONFIG_VALUE_${index}`] = "https://github.com/";
-  env.GIT_CONFIG_COUNT = String(index + 1);
-  return env;
+/** github.com for an anonymous clone in a test: the world's bare
+ * repositories over Git's dumb HTTP from a local server (anything else
+ * answers 404, as GitHub does for a repository anonymous Git cannot read).
+ * Its origin is the git adapter's test seam `anonymousOrigin`. */
+async function githubStandIn(target: World): Promise<string> {
+  for (const owner of await readdir(target.remotes))
+    for (const name of await readdir(join(target.remotes, owner)))
+      if (name.endsWith(".git"))
+        await runChild(
+          [
+            "git",
+            "--git-dir",
+            join(target.remotes, owner, name),
+            "update-server-info",
+          ],
+          { env: { PATH: Bun.env.PATH ?? "/usr/bin:/bin" } },
+        );
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch: async (request) => {
+      const file = resolve(
+        target.remotes,
+        `.${decodeURIComponent(new URL(request.url).pathname)}`,
+      );
+      const body = Bun.file(file);
+      return file.startsWith(`${target.remotes}/`) && (await body.exists())
+        ? new Response(body)
+        : new Response("", { status: 404 });
+    },
+  });
+  servers.push(server);
+  return `http://127.0.0.1:${server.port}`;
 }
 
-/** The content host over the stub GitHub, with the product's own git
- * reaching the world over HTTPS too, and every clone request recorded. */
-function anonymousHost(
+/** The content host over the stub GitHub, with the product's own git (the
+ * world's operator configuration, which an anonymous clone ignores) reaching
+ * github.com's stand-in, and every clone request recorded. */
+async function anonymousHost(
   target: World,
   github: ReturnType<typeof stubGitHub>["github"],
   /** Runs after each clone, before the install goes on. */
@@ -101,7 +137,8 @@ function anonymousHost(
     home: target.home,
     platform: process.platform,
     run: runTool,
-    env: httpsGitEnv(target),
+    env: target.gitEnv,
+    anonymousOrigin: await githubStandIn(target),
   });
   const clones: CloneRequest[] = [];
   return {
@@ -169,7 +206,7 @@ posixTest(
     const { github, calls } = stubGitHub(world, {
       viewer: { kind: "signed-out" },
     });
-    const host = anonymousHost(world, github);
+    const host = await anonymousHost(world, github);
     expect(
       await planContentInstall(
         folder,
@@ -202,7 +239,7 @@ posixTest(
     const { github, calls, grants } = stubGitHub(world, {
       viewer: { kind: "signed-out" },
     });
-    const host = anonymousHost(world, github);
+    const host = await anonymousHost(world, github);
     const steps: ContentStep[] = [];
     // The CLI's `--role reader --root Alpha/alpha_GEN3`.
     const result = await installContent(
@@ -261,8 +298,8 @@ posixTest(
       expect(await exists(join(root, path, ".git"))).toBe(true);
     for (const path of ["workspace/docs", "workspace/secret", "infra"])
       expect(await exists(join(root, path))).toBe(false);
-    // Every clone: anonymous HTTPS of github.com and git's empty helper, which
-    // resets every configured one; never gh's `auth git-credential`.
+    // Every clone: anonymous HTTPS of github.com, the isolated transport;
+    // never gh's `auth git-credential`.
     expect(host.clones.map((clone) => clone.url).sort()).toEqual([
       "https://github.com/Alpha/alpha_GEN3.git",
       "https://github.com/Alpha/docs.git",
@@ -358,7 +395,7 @@ posixTest(
     const { github, calls } = stubGitHub(world, {
       viewer: { kind: "signed-out" },
     });
-    const host = anonymousHost(world, github);
+    const host = await anonymousHost(world, github);
     const steps: ContentStep[] = [];
     // No role and no root: what the Launchpad's button asks.
     const result = await installContent(
@@ -398,7 +435,7 @@ posixTest(
       const { github, calls } = stubGitHub(world, {
         viewer: { kind: "signed-out" },
       });
-      const host = anonymousHost(world, github);
+      const host = await anonymousHost(world, github);
       const steps: ContentStep[] = [];
       const result = await installContent(
         folder,
@@ -437,7 +474,7 @@ posixTest(
       const { github, calls } = stubGitHub(world, {
         viewer: { kind: "signed-out" },
       });
-      const host = anonymousHost(world, github);
+      const host = await anonymousHost(world, github);
       const steps: ContentStep[] = [];
       const result = await installContent(
         folder,
@@ -513,7 +550,7 @@ posixTest(
     const { github, calls } = stubGitHub(world, {
       viewer: { kind: "signed-out" },
     });
-    const host = anonymousHost(world, github);
+    const host = await anonymousHost(world, github);
     const steps: ContentStep[] = [];
     const result = await installContent(
       folder,
@@ -573,7 +610,7 @@ posixTest(
     const occupant = join(folder, "organizations", "gamma_GEN3");
     // While the root is cloned, someone makes the slug's directory: a
     // different path from the final name on a case-sensitive filesystem.
-    const host = anonymousHost(world, github, async (request) => {
+    const host = await anonymousHost(world, github, async (request) => {
       if (request.url.endsWith("/gamma_GEN3.git")) {
         await mkdir(occupant);
         await writeFile(join(occupant, "mine.txt"), "someone's work");
@@ -621,27 +658,35 @@ posixTest(
   30_000,
 );
 
-// ---- git: no credential helper answers an anonymous clone ---------------------
+// ---- git: the anonymous transport is isolated (review of #472) -------------
 
-test("git runs an anonymous clone with every credential helper reset and none added; gh's clone is as before", async () => {
-  const commands: (readonly string[])[] = [];
-  const run: ToolRunner = async (command) => {
-    commands.push(command);
+test("an anonymous clone runs git from an empty home with PATH and a locale only; the operator's clones are as before", async () => {
+  const calls: { command: readonly string[]; env: Record<string, string> }[] =
+    [];
+  const homes: string[] = [];
+  const run: ToolRunner = async (command, _timeout, env) => {
+    calls.push({ command, env: { ...env } });
+    if (env.HOME !== undefined) homes.push(env.HOME);
     return { exitCode: 1, stdout: "", stderr: "" };
   };
+  // An operator environment that carries everything an anonymous clone must
+  // not see.
+  const operator = {
+    GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: "http.extraHeader",
+    GIT_CONFIG_VALUE_0: "X-Probe: dummy",
+    GIT_CONFIG_PARAMETERS: "'http.extraheader'='X-Probe: dummy'",
+    GIT_SSH_COMMAND: "/bin/false",
+    SSH_AUTH_SOCK: "/tmp/agent.sock",
+    XDG_CONFIG_HOME: "/home/operator/.config",
+  };
   const git = processContentGit({
-    path: Bun.env.PATH,
+    path: "/usr/bin:/bin",
     home: "/home/operator",
     platform: process.platform,
     run,
-    env: {},
+    env: operator,
   });
-  // What the last clone was given before its subcommand.
-  const settings = () => {
-    const command = commands.at(-1) ?? [];
-    expect(command).toContain("clone");
-    return command.slice(1, command.indexOf("clone"));
-  };
   const remote = anonymousGitHub.remote("Alpha/web");
   expect(remote).toEqual({
     url: "https://github.com/Alpha/web.git",
@@ -653,7 +698,37 @@ test("git runs an anonymous clone with every credential helper reset and none ad
     branch: "main",
     credentialHelper: remote.credentialHelper,
   });
-  expect(settings()).toEqual(["-c", "credential.helper="]);
+  const anonymous = calls.at(-1);
+  const home = anonymous?.env.HOME as string;
+  expect(home.startsWith(join(tmpdir(), "lazurio-anonymous-git-"))).toBe(true);
+  expect(
+    anonymous?.command.slice(1, anonymous.command.indexOf("clone")),
+  ).toEqual(["-C", home, "-c", "credential.helper="]);
+  // Exactly the isolated environment: nothing of the operator's.
+  expect(anonymous?.env).toEqual(
+    anonymousGitEnvironment("/usr/bin:/bin", home),
+  );
+  expect(anonymous?.env).toEqual({
+    PATH: "/usr/bin:/bin",
+    HOME: home,
+    XDG_CONFIG_HOME: home,
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CEILING_DIRECTORIES: resolve(home, ".."),
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_ASKPASS: "",
+    SSH_ASKPASS: "",
+    GCM_INTERACTIVE: "never",
+    GIT_ALLOW_PROTOCOL: "https",
+    LC_ALL: "C",
+  });
+  // Its temporary home is gone after the clone.
+  expect(await exists(home)).toBe(false);
+  // gh's clone and a plain one keep the operator's configuration, as before.
+  const settings = () => {
+    const command = calls.at(-1)?.command ?? [];
+    return command.slice(1, command.indexOf("clone"));
+  };
   await git.clone({
     url: "https://github.com/Alpha/web.git",
     directory: "/tmp/x",
@@ -666,72 +741,204 @@ test("git runs an anonymous clone with every credential helper reset and none ad
     "-c",
     'credential.https://github.com.helper=!"/usr/bin/gh" auth git-credential',
   ]);
+  expect(calls.at(-1)?.env).toEqual({
+    ...operator,
+    HOME: "/home/operator",
+    PATH: "/usr/bin:/bin",
+    GIT_TERMINAL_PROMPT: "0",
+    GCM_INTERACTIVE: "never",
+    LC_ALL: "C",
+  });
   await git.clone({
     url: "git@github.com:Alpha/web.git",
     directory: "/tmp/x",
     branch: "main",
   });
   expect(settings()).toEqual([]);
+  expect(homes.filter((value) => value !== "/home/operator")).toEqual([home]);
   expect(() => anonymousGitHub.remote("not a repository")).toThrow();
 });
 
+test("an anonymous clone of anything but exactly https://github.com/<owner>/<repository>.git fails before any process", async () => {
+  let ran = 0;
+  const run: ToolRunner = async () => {
+    ran += 1;
+    return { exitCode: 0, stdout: "", stderr: "" };
+  };
+  const clone = (url: string, anonymousOrigin?: string) =>
+    processContentGit({
+      path: "/usr/bin:/bin",
+      home: "/home/operator",
+      platform: process.platform,
+      run,
+      env: {},
+      ...(anonymousOrigin === undefined ? {} : { anonymousOrigin }),
+    }).clone({
+      url,
+      directory: "/tmp/x",
+      branch: "main",
+      credentialHelper: "",
+    });
+  for (const url of [
+    "http://github.com/Alpha/web.git",
+    "https://github.com/Alpha/web",
+    "https://github.com/Alpha/web.git/",
+    "https://github.com/Alpha/web.git?x=1",
+    "https://github.com/Alpha/web.git#x",
+    "https://user@github.com/Alpha/web.git",
+    "https://github.com.example/Alpha/web.git",
+    "https://GITHUB.com/Alpha/web.git",
+    "https://github.com/Alpha/../web.git",
+    "https://github.com/Alpha/web/x.git",
+    "git@github.com:Alpha/web.git",
+    "ssh://git@github.com/Alpha/web.git",
+    "file:///tmp/Alpha/web.git",
+  ]) {
+    expect(anonymousCloneTarget(url)).toBeNull();
+    expect(await clone(url)).toBe("failed");
+  }
+  // Only a local server may stand in for github.com, and only in a test.
+  for (const origin of [
+    "http://localhost:1",
+    "https://127.0.0.1:1",
+    "http://127.0.0.1:1/",
+    "http://10.0.0.1:1",
+  ])
+    expect(await clone("https://github.com/Alpha/web.git", origin)).toBe(
+      "failed",
+    );
+  expect(ran).toBe(0);
+  expect(anonymousCloneTarget("https://github.com/Alpha/web.git")).toBe(
+    "Alpha/web",
+  );
+});
+
+/** A local server that answers every request 401, as GitHub answers a
+ * repository anonymous Git cannot read, and records what it was sent. */
+function recordingServer() {
+  const requests: { path: string; headers: Record<string, string> }[] = [];
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch: (request) => {
+      requests.push({
+        path: new URL(request.url).pathname,
+        headers: Object.fromEntries(request.headers),
+      });
+      return new Response("", {
+        status: 401,
+        headers: { "WWW-Authenticate": 'Basic realm="GitHub"' },
+      });
+    },
+  });
+  servers.push(server);
+  return { origin: `http://127.0.0.1:${server.port}`, requests };
+}
+
 posixTest(
-  "a credential helper the operator's configuration names never answers an anonymous clone, even behind a rewritten URL",
+  "an anonymous clone sends no configured header, asks no helper and is rewritten nowhere, while the same configuration leaks into an operator's clone",
   async () => {
     world = await createWorld();
-    const marker = join(world.root, "helper-asked");
+    const helperAsked = join(world.root, "helper-asked");
+    const sshRun = join(world.root, "ssh-run");
     const helper = join(world.root, "helper.sh");
-    await writeFile(helper, `#!/bin/sh\necho asked >> "${marker}"\n`);
+    const ssh = join(world.root, "ssh.sh");
+    await writeFile(helper, `#!/bin/sh\necho asked >> "${helperAsked}"\n`);
+    await writeFile(ssh, `#!/bin/sh\necho ran >> "${sshRun}"\nexit 1\n`);
     await chmod(helper, 0o700);
-    // GitHub as it answers a repository anonymous Git cannot read.
-    const server = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
-      fetch: () =>
-        new Response("", {
-          status: 401,
-          headers: { "WWW-Authenticate": 'Basic realm="GitHub"' },
-        }),
+    await chmod(ssh, 0o700);
+    // github.com's stand-in, and the host a hostile rewrite sends it to.
+    const github = recordingServer();
+    const elsewhere = recordingServer();
+    // Hostile configuration in every place a visitor of the shared account
+    // could leave it: the global and the XDG file, and the environment.
+    // Dummy values only, never a real token.
+    await writeFile(
+      join(world.home, ".gitconfig"),
+      [
+        "[http]",
+        "\textraHeader = X-Probe: dummy-global",
+        "[credential]",
+        `\thelper = ${helper}`,
+        `[url "${elsewhere.origin}/"]`,
+        "\tinsteadOf = https://github.com/",
+        '[url "ssh://git@127.0.0.1:9/"]',
+        "\tinsteadOf = https://github.com/Probe/",
+        "[core]",
+        `\tsshCommand = ${ssh}`,
+        "",
+      ].join("\n"),
+    );
+    const xdg = join(world.root, "xdg");
+    await mkdir(join(xdg, "git"), { recursive: true });
+    await writeFile(
+      join(xdg, "git", "config"),
+      "[http]\n\textraHeader = X-Probe: dummy-xdg\n",
+    );
+    const git = processContentGit({
+      path: Bun.env.PATH,
+      home: world.home,
+      platform: process.platform,
+      run: runTool,
+      env: {
+        XDG_CONFIG_HOME: xdg,
+        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_KEY_0: "http.extraHeader",
+        GIT_CONFIG_VALUE_0: "X-Probe: dummy-env",
+        GIT_CONFIG_PARAMETERS: "'http.extraheader'='X-Probe: dummy-parameters'",
+        GIT_SSH_COMMAND: ssh,
+      },
+      anonymousOrigin: github.origin,
     });
-    try {
-      const env = {
-        GIT_CONFIG_COUNT: "2",
-        GIT_CONFIG_KEY_0: "credential.helper",
-        GIT_CONFIG_VALUE_0: helper,
-        GIT_CONFIG_KEY_1: `url.http://127.0.0.1:${server.port}/.insteadOf`,
-        GIT_CONFIG_VALUE_1: "https://github.com/",
-      };
-      const git = processContentGit({
-        path: Bun.env.PATH,
-        home: world.home,
-        platform: process.platform,
-        run: runTool,
-        env,
+    const clone = (repository: string, anonymous: boolean) =>
+      git.clone({
+        url: `https://github.com/${repository}.git`,
+        directory: join(
+          world?.root as string,
+          `clone-${repository}-${anonymous}`,
+        ),
+        branch: "main",
+        ...(anonymous ? { credentialHelper: "" } : {}),
       });
-      const remote = anonymousGitHub.remote("Alpha/private");
-      expect(
-        await git.clone({
-          url: remote.url,
-          directory: join(world.root, "anonymous"),
-          branch: "main",
-          credentialHelper: remote.credentialHelper,
-        }),
-      ).toBe("failed");
-      expect(await exists(marker)).toBe(false);
-      // The control: without the reset the configured helper is asked.
-      expect(
-        await git.clone({
-          url: remote.url,
-          directory: join(world.root, "configured"),
-          branch: "main",
-        }),
-      ).toBe("failed");
-      expect(await exists(marker)).toBe(true);
-    } finally {
-      server.stop(true);
-    }
+    const probed = (requests: typeof github.requests) =>
+      requests.filter(
+        (request) =>
+          request.headers["x-probe"] !== undefined ||
+          request.headers.authorization !== undefined,
+      );
+
+    // Anonymous: the nominal URL, at github.com's stand-in, and nothing else.
+    expect(await clone("Alpha/web", true)).toBe("failed");
+    expect(await clone("Probe/x", true)).toBe("failed");
+    expect(github.requests.length).toBeGreaterThan(0);
+    expect(
+      [...new Set(github.requests.map((request) => request.path))].sort(),
+    ).toEqual(["/Alpha/web.git/info/refs", "/Probe/x.git/info/refs"]);
+    expect(probed(github.requests)).toEqual([]);
+    expect(elsewhere.requests).toEqual([]);
+    expect(await exists(helperAsked)).toBe(false);
+    expect(await exists(sshRun)).toBe(false);
+
+    // The control: the operator's clone of the same URLs gets all of it.
+    const anonymousRequests = github.requests.length;
+    expect(await clone("Alpha/web", false)).toBe("failed");
+    expect(await clone("Probe/x", false)).toBe("failed");
+    expect(github.requests.length).toBe(anonymousRequests);
+    expect(elsewhere.requests.length).toBeGreaterThan(0);
+    const leaked = probed(elsewhere.requests)
+      .map((request) => request.headers["x-probe"])
+      .join(", ");
+    for (const value of [
+      "dummy-global",
+      "dummy-xdg",
+      "dummy-env",
+      "dummy-parameters",
+    ])
+      expect(leaked).toContain(value);
+    expect(await exists(helperAsked)).toBe(true);
+    expect(await exists(sshRun)).toBe(true);
   },
-  30_000,
+  60_000,
 );
 
 // ---- The texts -------------------------------------------------------------------

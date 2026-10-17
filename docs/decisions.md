@@ -12931,10 +12931,15 @@ changes" no longer holds.
    `role-unverified`), takes the root the Folder holds, `--root` or
    `<login>/<login>_GEN3`, verified in the clone and published under the repository
    name that verified declaration spells (the handover knows only the lowercase slug;
-   members install `organizations/<Org>_GEN3`), and clones over
-   `https://github.com/…` with git's empty `credential.helper`, so no configured helper
-   answers. A child anonymous Git cannot read is `failed` (`clone-failed`). Nothing is
-   created, granted or pushed. Without the member the install is what it was.
+   members install `organizations/<Org>_GEN3`), and clones exactly
+   `https://github.com/<owner>/<repository>.git` with an isolated git: only PATH, a
+   locale and an empty temporary home, no system, global, XDG or injected configuration,
+   no credential, askpass or SSH helper, HTTPS only. Anonymous therefore means that no
+   header, helper or URL rewrite of the operator, a visitor or the process reaches the
+   clone (review of #472), not only that gh is not asked. A child anonymous Git cannot
+   read is `failed` (`clone-failed`). Nothing is created, granted or pushed. Without the
+   member the install is what it was; the operator's clones keep the operator's
+   configuration, unchanged.
 3. **The texts say it.** AGENTS.md and the manual say there is no GitHub identity, that
    the Organization's public repositories are read anonymously and that nothing is
    published from here, over every rule that asks for a pull request or an issue; the
@@ -12953,8 +12958,11 @@ changes" no longer holds.
 | A separate anonymous installer | A second copy of the materialization, verification and preparation. Rejected for the same steps with an anonymous remote |
 
 **Honest limits.** A visitor has the shared account's terminal and can still sign gh in
-or configure a credential helper; the empty helper keeps any of it out of the install's
-clones, and only the notice and the nightly return keep it out of the Environment. The
+or leave a credential helper, an extra header or a URL rewrite in the account's Git
+configuration; the isolated transport keeps all of it out of the install's clones, and
+only the notice and the nightly return keep it out of the Environment. An HTTPS proxy or
+a custom CA bundle given through the environment does not reach the clone either; a
+public Environment that needs one is a change to make in the isolated environment. The
 clone's `origin` keeps the request's lowercase spelling, which GitHub serves in any
 letter case. A private module and a network failure both read `clone-failed`; without a
 read of GitHub nothing tells them apart. Other generated texts of a public Environment
@@ -12968,8 +12976,13 @@ declared mixed-case name from a lowercase handover, an entry in another letter c
 appears during the clone left untouched, and a final name that differs beyond letter
 case refused; any other role refused before a
 clone; a root anonymous Git cannot read and one naming another root stopping at `root`
-with nothing left; the argv of the three clone forms; a configured helper never asked by
-an anonymous clone behind a rewritten URL, against a server that answers 401; the texts
+with nothing left; the argv and the whole environment of the three clone forms; an
+anonymous clone of anything but exactly `https://github.com/<owner>/<repository>.git`
+failing before any process; against local servers that answer 401 and record what they
+are sent, a hostile global, XDG and environment configuration (an extra header, a
+credential helper, a rewrite to another host and one to SSH, `core.sshCommand`) reaching
+none of the anonymous clones, which go to the nominal URL, while the same configuration
+leaks into the operator's clone of the same URLs; the texts
 in both languages), `tests/tools-team-github.test.ts` (the CLI's refusals and prompt on
 a public Team Environment) and `tests/public-environment.test.ts` (a refresh that
 records the member now changes the texts).
