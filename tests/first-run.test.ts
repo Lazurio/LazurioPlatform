@@ -331,9 +331,19 @@ test("the stops speak the wireframe's words", () => {
   const stop = (step: Parameters<typeof tourStop>[0], facts: TourFacts) =>
     tourStop(step, facts, apps, cs);
   const org = fresh("hosted-organization-personal");
-  expect(stop("gear", org)).toMatchObject({
+  // The gear's AI stop is its title alone in both languages, as Začínáme's
+  // AI step (Matěj 2026-10-16): no line under it.
+  expect(stop("gear", org)).toEqual({
+    target: "gear",
     title: "Nejdřív připojte AI",
-    text: "Agent vám pak pomůže s dalšími kroky.",
+    text: null,
+    next: null,
+    later: true,
+  });
+  expect(tourStop("gear", org, apps, en)).toEqual({
+    target: "gear",
+    title: "First connect AI",
+    text: null,
     next: null,
     later: true,
   });
