@@ -9,15 +9,19 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { acquireFileLock } from "../src/platform/flock";
 import {
   type ConnectionInput,
   type ConnectionRefusal,
   connectionValues,
   connectPersonalBitwarden,
   disconnectPersonalBitwarden,
+  inviteeValue,
+  invitePersonalBitwarden,
   readConnection,
 } from "../src/vault/connection";
 import { personalVaultName } from "../src/vault/context";
+import { bitwardenRegions } from "../src/vault/endpoints";
 import {
   setUpAtStart,
   type VaultHost,
@@ -69,12 +73,14 @@ import {
 
 // A personal Environment's own Bitwarden through the vault's one core (root
 // decision 0203 point 7, plan DEV-6631 task 775): the person connects a
-// separate agents' account of the Bitwarden cloud; the Environment checks
-// it, keeps it in its custody, creates its vault (a Free organization for
-// two) and invites the person as a User with Manage on Agenti, confirms them
-// once they accepted, and forgets the account when they disconnect. Against
-// the fake Bitwarden cloud (separate identity and API hosts) and the fake
-// bw; every name, address and value is invented.
+// separate agents' account of the Bitwarden cloud with its API key and
+// master password alone; the Environment finds the region that accepts the
+// key, checks the account, keeps it in its custody and creates its vault (a
+// Free organization for two). Once the person asks, it invites them as a
+// User with Manage on Agenti, confirms them once they accepted, and forgets
+// the account when they disconnect (F53's amendment of 2026-10-16, (2)).
+// Against the fake Bitwarden cloud (separate identity and API hosts per
+// region) and the fake bw; every name, address and value is invented.
 
 const posix = process.platform !== "win32";
 const agents = "agents.example+lazurio@example.com";
@@ -118,13 +124,15 @@ async function world() {
   };
 }
 
-/** The form's values of an agents' account of the fake cloud. */
+/** The form's values of an agents' account of the fake cloud: its API key
+ * as copied (white space around it) and its master password. */
 async function form(
   cloud: FakeBitwardenCloud,
   options: Readonly<{
     email?: string;
     kdf?: Parameters<FakeBitwardenCloud["account"]>[2];
     keys?: "v1" | "v2";
+    region?: "eu" | "us";
   }> = {},
 ): Promise<ConnectionInput> {
   const key = await cloud.account(
@@ -132,15 +140,31 @@ async function form(
     password,
     options.kdf,
     options.keys,
+    options.region,
   );
   return {
-    region: "eu",
     clientId: ` ${key.clientId} `,
     clientSecret: key.clientSecret,
     masterPassword: password,
-    email: ` ${person.toUpperCase()} `,
   };
 }
+
+/** An account's API key as the fake cloud keeps it. */
+async function readAccountOf(cloud: FakeBitwardenCloud, email: string) {
+  const account = cloud.accounts.get(email);
+  if (account === undefined) throw new Error("No such account");
+  return {
+    clientId: `user.${account.id}`,
+    clientSecret: account.clientSecret,
+  };
+}
+
+/** The person's own address as they type it, to be invited. */
+const invitation = { email: ` ${person.toUpperCase()} ` };
+
+/** What the core asked the cloud, as `<host> <region> <path>`. */
+const asked = (cloud: FakeBitwardenCloud) =>
+  cloud.requests.map((entry) => `${entry.host} ${entry.region} ${entry.path}`);
 
 const mode = async (path: string) => (await lstat(path)).mode & 0o777;
 
@@ -155,28 +179,21 @@ async function files(directory: string): Promise<string[]> {
   return found;
 }
 
-test("the form's values are taken only in their exact form", () => {
+test("the form's values and the invitation's address are taken only in their exact form", () => {
   const good = {
-    region: "us",
-    clientId: "user.6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d",
+    clientId: " USER.6A5F4E3D-2C1B-4A9F-8E7D-6C5B4A3F2E1D ",
     clientSecret: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
     masterPassword: " a password with spaces, kept as typed ",
-    email: "Person.Example+Bitwarden@Example.COM",
   };
   expect(connectionValues(good)).toEqual({
     ok: true,
     values: {
-      region: "us",
-      clientId: good.clientId,
+      clientId: "user.6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d",
       clientSecret: good.clientSecret,
       masterPassword: good.masterPassword,
-      email: "person.example+bitwarden@example.com",
     },
   });
   const refusals: [string, unknown, string][] = [
-    ["region", "de", "region-invalid"],
-    ["region", "https://vault.example.com", "region-invalid"],
-    ["region", null, "region-invalid"],
     [
       "clientId",
       "organization.6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d",
@@ -190,16 +207,26 @@ test("the form's values are taken only in their exact form", () => {
     ["masterPassword", "two\nlines", "password-invalid"],
     ["masterPassword", "x".repeat(1025), "password-invalid"],
     ["masterPassword", ["array"], "password-invalid"],
-    ["email", "no-at-sign", "email-invalid"],
-    ["email", "a/b@example.com", "email-invalid"],
-    ["email", "person@localhost", "email-invalid"],
-    ["email", ".dot@example.com", "email-invalid"],
   ];
   for (const [field, value, reason] of refusals)
     expect([
       field,
       connectionValues({ ...good, [field]: value }) as unknown,
     ]).toEqual([field, { ok: false, reason }]);
+  // The person's own address: trimmed and lowercased, as Bitwarden keeps it.
+  expect(
+    inviteeValue({ email: " Person.Example+Bitwarden@Example.COM " }),
+  ).toBe("person.example+bitwarden@example.com");
+  for (const email of [
+    "no-at-sign",
+    "a/b@example.com",
+    "person@localhost",
+    ".dot@example.com",
+    "",
+    7,
+    null,
+  ])
+    expect([email, inviteeValue({ email })]).toEqual([email, null]);
 });
 
 test.skipIf(!posix)(
@@ -257,7 +284,7 @@ for (const [label, kdf] of [
   ["Argon2id", argon2id],
 ] as const)
   test.skipIf(!posix)(
-    `an agents' account of ${label} connects: checked, kept whole in custody, its vault created as a Free organization, the person invited as a User with Manage on Agenti and confirmed once they accept`,
+    `an agents' account of ${label} connects by its API key and master password alone: found in the EU, checked, kept whole in custody, its vault created as a Free organization; the person, once they ask, invited as a User with Manage on Agenti and confirmed once they accept`,
     async () => {
       const w = await world();
       try {
@@ -265,14 +292,12 @@ for (const [label, kdf] of [
         expect(await connectPersonalBitwarden(w.host, values)).toEqual({
           kind: "vault-connected",
         });
-        // Checked at the identity and API hosts of the EU region, by the
-        // API key only; the web vault's host is never asked.
-        expect(
-          w.cloud.requests.map((entry) => `${entry.host} ${entry.path}`),
-        ).toEqual([
-          "identity /connect/token",
-          "api /accounts/profile",
-          ...(kdf === undefined ? [] : []),
+        // Checked at the identity and API hosts of the EU region, which
+        // accepted the key first, by the API key only; the US is never
+        // asked, nor the web vault's host.
+        expect(asked(w.cloud)).toEqual([
+          "identity eu /connect/token",
+          "api eu /accounts/profile",
         ]);
         expect(
           w.cloud.requests.every(
@@ -300,7 +325,7 @@ for (const [label, kdf] of [
         expect(await readConnection(w.host.connection)).toEqual({
           region: "eu",
           account: agents,
-          invitee: person,
+          invitee: null,
         });
         expect(await mode(join(w.host.connection, "connection.json"))).toBe(
           0o600,
@@ -403,8 +428,26 @@ for (const [label, kdf] of [
           (await readSession(paths)) ?? "?",
         ])
           expect(calls).not.toContain(secret);
-        // The person, invited once, by the cloud's e-mail: a User with
-        // Manage on Agenti, never an Admin.
+        // Nobody is invited until the person asks: the vault is the agents'
+        // alone, and the page offers the invitation.
+        expect(w.cloud.mails).toEqual([]);
+        expect(await w.cloud.members(organization.id)).toHaveLength(1);
+        expect(await vaultMembership(w.host, people.anonymous)).toEqual({
+          kind: "vault-member",
+          state: "not-invited",
+        });
+        // The person asks, with their own address as they type it: kept, and
+        // invited at once, by the cloud's e-mail, a User with Manage on
+        // Agenti, never an Admin.
+        expect(await invitePersonalBitwarden(w.host, invitation)).toEqual({
+          kind: "vault-member",
+          state: "invitation-pending",
+        });
+        expect(await readConnection(w.host.connection)).toEqual({
+          region: "eu",
+          account: agents,
+          invitee: person,
+        });
         expect(w.cloud.mails).toEqual([person]);
         const invited = (await w.cloud.members(organization.id)).find(
           (member) => member.email === person,
@@ -465,6 +508,10 @@ for (const [label, kdf] of [
         });
         expect(w.journal).toContainEqual({
           operation: "members",
+          outcome: "invitee-set",
+        });
+        expect(w.journal).toContainEqual({
+          operation: "members",
           outcome: "invited",
         });
         expect(w.journal).toContainEqual({
@@ -488,7 +535,7 @@ for (const [label, kdf] of [
   );
 
 test.skipIf(!posix)(
-  "an account the cloud refuses, a wrong master password, the person's own account or keys of another form connect nothing",
+  "an API key both regions refuse, a wrong master password or keys of another form connect nothing",
   async () => {
     const w = await world();
     try {
@@ -505,20 +552,11 @@ test.skipIf(!posix)(
       expect(await refused({ ...values, masterPassword: `${password}!` })).toBe(
         "wrong-password",
       );
-      expect(await refused({ ...values, email: agents.toUpperCase() })).toBe(
-        "same-account",
-      );
-      expect(await refused({ ...values, region: "us" })).toBe(
-        "invalid-credentials",
-      );
       const v2 = await form(w.cloud, {
         email: "agents.v2@example.com",
         keys: "v2",
       });
       expect(await refused(v2)).toBe("unsupported-keys");
-      expect(await refused({ ...values, email: "not an address" })).toBe(
-        "email-invalid",
-      );
       w.cloud.flags.rateLimit = true;
       expect(await refused(values)).toBe("rate-limited");
       w.cloud.flags.rateLimit = false;
@@ -543,8 +581,6 @@ test.skipIf(!posix)(
         [
           "invalid-credentials",
           "wrong-password",
-          "same-account",
-          "invalid-credentials",
           "unsupported-keys",
           "rate-limited",
           "unreachable",
@@ -554,6 +590,205 @@ test.skipIf(!posix)(
           reason,
         })),
       );
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+// The region is never asked for: the API key signs in at the EU's identity
+// host first and at the US's only where the EU's identity server answers that
+// it does not know the key, HTTP 400 invalid_client (F53's amendment of
+// 2026-10-16, (2); register.ts `unknownClientAnswer`). Any other refusal, a
+// rate limit, a 5xx or no answer stops there: the other region is never tried
+// in its place.
+test.skipIf(!posix)(
+  "an agents' account of bitwarden.com connects after the EU refuses its key: the US region is recorded, and the vault and the invitation are on the US hosts",
+  async () => {
+    const w = await world();
+    try {
+      const values = await form(w.cloud, { region: "us" });
+      expect(await connectPersonalBitwarden(w.host, values)).toEqual({
+        kind: "vault-connected",
+      });
+      expect(asked(w.cloud)).toEqual([
+        "identity eu /connect/token",
+        "identity us /connect/token",
+        "api us /accounts/profile",
+      ]);
+      expect(await readConnection(w.host.connection)).toEqual({
+        region: "us",
+        account: agents,
+        invitee: null,
+      });
+      // Kept in the custody of the US web vault's host.
+      const paths = vaultPaths(
+        stateDirectory(w.home, "vault.bitwarden.com", agents),
+      );
+      expect(await readAccount(paths)).toMatchObject({
+        email: agents,
+        server: "https://vault.bitwarden.com",
+      });
+      expect(await vaultStatus(w.host)).toMatchObject({
+        state: "not-set-up",
+        region: "us",
+        vault: "https://vault.bitwarden.com",
+      });
+      const before = w.cloud.requests.length;
+      expect(await vaultSetup(w.host)).toMatchObject({
+        state: "connected",
+        region: "us",
+      });
+      expect(await invitePersonalBitwarden(w.host, invitation)).toEqual({
+        kind: "vault-member",
+        state: "invitation-pending",
+      });
+      expect(w.cloud.mails).toEqual([person]);
+      // Everything after the connection asked the US hosts only.
+      expect(
+        w.cloud.requests
+          .slice(before)
+          .every((entry) => entry.region === "us" && entry.host !== "web"),
+      ).toBe(true);
+      expect(await w.cloud.calls()).toContain(
+        "config server https://vault.bitwarden.com --nointeraction",
+      );
+    } finally {
+      await w.close();
+    }
+  },
+  120_000,
+);
+
+test.skipIf(!posix)(
+  "only the EU's invalid_client sends the key on to the US: both unknown is invalid-credentials; another refusal, a rate limit, no answer or a 5xx at the EU stops there without asking the US",
+  async () => {
+    const w = await world();
+    try {
+      const values = await form(w.cloud);
+      // Every identity host the core asked, also where an answer below
+      // stands in for the fake cloud's.
+      let identity: string[] = [];
+      const identityOf = (url: string) =>
+        (["eu", "us"] as const).find(
+          (region) =>
+            new URL(url).host ===
+            new URL(bitwardenRegions[region].identity).host,
+        );
+      const via = (
+        answers: Partial<Record<"eu" | "us", () => Promise<Response>>>,
+      ): VaultHost => ({
+        ...w.host,
+        fetch: async (url, init) => {
+          const region = identityOf(url);
+          if (region !== undefined) {
+            identity.push(region);
+            const answer = answers[region];
+            if (answer !== undefined) return answer();
+          }
+          return w.cloud.fetch(url, init);
+        },
+      });
+      const answer = async (host: VaultHost, input = values) => {
+        identity = [];
+        const connected = await connectPersonalBitwarden(host, input);
+        return [
+          connected.kind === "vault-connection-refused"
+            ? connected.reason
+            : connected.kind,
+          identity,
+        ];
+      };
+      const json = (status: number, body: unknown) => async () =>
+        Response.json(body, { status });
+      // Neither region knows it: each answers 400 invalid_client, as the
+      // Bitwarden cloud's Identity does for an unknown key or secret.
+      expect(
+        await answer(via({}), { ...values, clientSecret: "wrongsecret1" }),
+      ).toEqual(["invalid-credentials", ["eu", "us"]]);
+      // Any other refusal of the EU stops there, and the US is never asked:
+      // a blocked account, a malformed request, a refused grant, an
+      // invalid_client that is not Bitwarden's 400, a page of a proxy.
+      for (const refusal of [
+        json(403, {
+          error: "access_denied",
+          error_description: "This account is blocked",
+        }),
+        json(400, { error: "invalid_request" }),
+        json(400, {
+          error: "invalid_grant",
+          error_description: "The account cannot sign in.",
+        }),
+        json(401, { error: "invalid_client" }),
+        async () => new Response("<html>Forbidden</html>", { status: 403 }),
+      ])
+        expect(await answer(via({ eu: refusal }))).toEqual([
+          "account-refused",
+          ["eu"],
+        ]);
+      // No answer, a 5xx or a rate limit at the EU: stopped, never the US.
+      expect(
+        await answer(
+          via({
+            eu: async () => {
+              throw new Error("connect ECONNREFUSED");
+            },
+          }),
+        ),
+      ).toEqual(["unreachable", ["eu"]]);
+      expect(
+        await answer(
+          via({ eu: async () => new Response("", { status: 502 }) }),
+        ),
+      ).toEqual(["unreachable", ["eu"]]);
+      expect(
+        await answer(via({ eu: json(429, { message: "Too many requests" }) })),
+      ).toEqual(["rate-limited", ["eu"]]);
+      // An account of bitwarden.com: the EU answers invalid_client, and the
+      // US's own answer decides; the cloud's rate limit at the EU stops it
+      // before the US.
+      const us = await form(w.cloud, {
+        email: "agents.us@example.com",
+        region: "us",
+      });
+      expect(
+        await answer(
+          via({
+            us: async () => {
+              throw new Error("connect ETIMEDOUT");
+            },
+          }),
+          us,
+        ),
+      ).toEqual(["unreachable", ["eu", "us"]]);
+      expect(
+        await answer(via({ us: json(403, { error: "access_denied" }) }), us),
+      ).toEqual(["account-refused", ["eu", "us"]]);
+      w.cloud.flags.rateLimit = true;
+      expect(await answer(via({}), us)).toEqual(["rate-limited", ["eu"]]);
+      w.cloud.flags.rateLimit = false;
+      // Nothing was written by any of them, and the journal says each by
+      // its fixed reason.
+      expect(await readConnection(w.host.connection)).toBeNull();
+      expect(await files(join(w.home, ".local"))).toEqual([]);
+      expect(w.journal.map((entry) => entry.reason)).toEqual([
+        "invalid-credentials",
+        ...Array(5).fill("account-refused"),
+        "unreachable",
+        "unreachable",
+        "rate-limited",
+        "unreachable",
+        "account-refused",
+        "rate-limited",
+      ]);
+      // The US's account connects in the US once the EU says it does not
+      // know the key.
+      expect(await answer(via({}), us)).toEqual([
+        "vault-connected",
+        ["eu", "us"],
+      ]);
+      expect((await readConnection(w.host.connection))?.region).toBe("us");
     } finally {
       await w.close();
     }
@@ -698,6 +933,10 @@ test.skipIf(!posix)(
       // them (the cloud's rule at acceptance).
       await w.cloud.account(person, "Their own password 1");
       await w.cloud.ownsFreeOrganization(person);
+      expect(await invitePersonalBitwarden(w.host, invitation)).toEqual({
+        kind: "vault-member",
+        state: "invitation-pending",
+      });
       expect(await w.cloud.accept(person)).toBe("accepted");
       expect(await vaultMembership(w.host, people.anonymous)).toEqual({
         kind: "vault-member",
@@ -711,7 +950,7 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "an interrupted creation resumes by its receipt: the lost answer is found, and one vault and one invitation exist",
+  "an interrupted creation resumes by its receipt: the lost answer is found, one vault exists, and nobody is invited until the person asks",
   async () => {
     const w = await world();
     try {
@@ -733,12 +972,161 @@ test.skipIf(!posix)(
       lose = false;
       expect(await vaultSetup(lossy)).toMatchObject({ state: "connected" });
       expect(await w.cloud.organizationsOf(agents)).toHaveLength(1);
-      expect(w.cloud.mails).toEqual([person]);
+      expect(w.cloud.mails).toEqual([]);
     } finally {
       await w.close();
     }
   },
   120_000,
+);
+
+// The invitation (F53's amendment of 2026-10-16, (2)): the person asks for it
+// on the page once the vault exists, with the address of their own
+// Bitwarden account; never the agents' account, one address per connection.
+test.skipIf(!posix)(
+  "the person asks to be invited once the vault exists: their own address only, one address, the same one again only looks again, and the lock or a missing vault refuse before anything is written",
+  async () => {
+    const w = await world();
+    try {
+      const refusal = async (input: { email: unknown }) => {
+        const answer = await invitePersonalBitwarden(w.host, input);
+        return answer.kind === "vault-connection-refused"
+          ? answer.reason
+          : answer.kind;
+      };
+      // Nothing connected: nobody to invite into anything.
+      expect(await refusal(invitation)).toBe("not-connected");
+      // Connected, but the setup has not created the vault yet.
+      expect(
+        await connectPersonalBitwarden(w.host, await form(w.cloud)),
+      ).toEqual({ kind: "vault-connected" });
+      expect(await refusal(invitation)).toBe("not-connected");
+      expect(await vaultMembership(w.host, people.anonymous)).toEqual({
+        kind: "vault-member-unknown",
+        reason: "not-connected",
+      });
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "connected" });
+      expect(await vaultMembership(w.host, people.anonymous)).toEqual({
+        kind: "vault-member",
+        state: "not-invited",
+      });
+      // Not an address, or the agents' own account (in any case).
+      expect(await refusal({ email: "not an address" })).toBe("email-invalid");
+      expect(await refusal({ email: 7 })).toBe("email-invalid");
+      expect(await refusal({ email: ` ${agents.toUpperCase()} ` })).toBe(
+        "same-account",
+      );
+      // Another request holds the connection's lock: busy.
+      const lock = await acquireFileLock(join(w.host.connection, "lock"), {
+        timeoutMs: 1_000,
+      });
+      try {
+        expect(await refusal(invitation)).toBe("busy");
+      } finally {
+        await lock.release();
+      }
+      // None of these wrote anything or asked the cloud to invite anyone.
+      expect((await readConnection(w.host.connection))?.invitee).toBeNull();
+      expect(w.cloud.mails).toEqual([]);
+      // The person's own address: kept and invited.
+      expect(await invitePersonalBitwarden(w.host, invitation)).toEqual({
+        kind: "vault-member",
+        state: "invitation-pending",
+      });
+      expect(w.cloud.mails).toEqual([person]);
+      // The same address again only looks again; another is refused.
+      expect(await invitePersonalBitwarden(w.host, { email: person })).toEqual({
+        kind: "vault-member",
+        state: "invitation-pending",
+      });
+      expect(await refusal({ email: "someone.else@example.com" })).toBe(
+        "invited",
+      );
+      expect(w.cloud.mails).toEqual([person]);
+      expect((await readConnection(w.host.connection))?.invitee).toBe(person);
+      // Accepted, then confirmed by the next look.
+      expect(await w.cloud.accept(person)).toBe("accepted");
+      expect(await vaultMembership(w.host, people.anonymous)).toEqual({
+        kind: "vault-member",
+        state: "member",
+      });
+      // Disconnected and connected again: nobody to invite until they ask
+      // again; the same address finds its membership.
+      expect(await disconnectPersonalBitwarden(w.host)).toEqual({
+        kind: "vault-disconnected",
+      });
+      expect(await refusal(invitation)).toBe("not-connected");
+      expect(
+        await connectPersonalBitwarden(w.host, {
+          clientId: (await readAccountOf(w.cloud, agents)).clientId,
+          clientSecret: (await readAccountOf(w.cloud, agents)).clientSecret,
+          masterPassword: password,
+        }),
+      ).toEqual({ kind: "vault-connected" });
+      expect(await vaultSetup(w.host)).toMatchObject({ state: "connected" });
+      expect(await vaultMembership(w.host, people.anonymous)).toEqual({
+        kind: "vault-member",
+        state: "not-invited",
+      });
+      expect(await invitePersonalBitwarden(w.host, invitation)).toEqual({
+        kind: "vault-member",
+        state: "member",
+      });
+      expect(w.cloud.mails).toEqual([person]);
+      // The journal: what happened, never the address.
+      expect(
+        w.journal.filter((entry) => entry.outcome === "invitee-set"),
+      ).toHaveLength(2);
+      expect(JSON.stringify(w.journal)).not.toContain(person);
+      expect(await w.cloud.calls()).not.toContain(person);
+    } finally {
+      await w.close();
+    }
+  },
+  120_000,
+);
+
+test.skipIf(!posix)(
+  "only a connected personal Environment's own Bitwarden takes an invitation",
+  async () => {
+    const w = await world();
+    const vault = await startFakeVault(join(w.parent, "vault-home"));
+    try {
+      const zip = zipOf("bw", fakeBw);
+      const pin = fakePin(zip);
+      for (const [context, reason] of [
+        [pilotContext(), "pilot-0197"],
+        [ownContext(), "not-offered"],
+        [ownContext(workHandover(), "work"), "not-offered"],
+        [{ kind: "unsupported", reason: "no-vault" } as const, "not-offered"],
+        [
+          { kind: "unsupported", reason: "connection-unreadable" } as const,
+          "not-connected",
+        ],
+        [
+          { kind: "needs-connection", name: "Osobní example" } as const,
+          "not-connected",
+        ],
+      ] as const) {
+        const other = fakeHost({
+          home: join(w.parent, "vault-home"),
+          vault,
+          pin,
+          download: fakeRelease(pin, zip).fetch,
+          context: async () => context,
+        });
+        expect(await invitePersonalBitwarden(other, invitation)).toEqual({
+          kind: "vault-connection-refused",
+          reason,
+        });
+      }
+      expect(w.cloud.requests).toHaveLength(0);
+    } finally {
+      vault.stop();
+      await w.close();
+    }
+  },
+  60_000,
 );
 
 test.skipIf(!posix)(

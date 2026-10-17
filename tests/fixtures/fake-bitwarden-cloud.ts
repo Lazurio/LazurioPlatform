@@ -6,6 +6,7 @@ import { readConnection } from "../../src/vault/connection";
 import {
   type BitwardenConnection,
   personalVaultContextOf,
+  personalVaultName,
 } from "../../src/vault/context";
 import { bitwardenRegions } from "../../src/vault/endpoints";
 import type { VaultHost, VaultJournalEntry } from "../../src/vault/flow";
@@ -700,7 +701,10 @@ export async function personalContext(connection: string) {
     });
   }
   if (recorded === null)
-    return Object.freeze({ kind: "needs-connection" as const });
+    return Object.freeze({
+      kind: "needs-connection" as const,
+      name: personalVaultName("example"),
+    });
   const context = personalVaultContextOf({
     handover: personalHandoverAt("example.lazurio.io", null),
     connection: recorded,

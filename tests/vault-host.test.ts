@@ -154,6 +154,7 @@ test.skipIf(!posix || uid === 0)(
       // person connects their own Bitwarden.
       expect(await read(vms.personalPilot)).toEqual({
         kind: "needs-connection",
+        name: "Osobní example",
       });
       // Connected the 0197 way: the pilot, read as before.
       const pilot = vms.personalPilot.directory(
@@ -203,6 +204,29 @@ test.skipIf(!posix || uid === 0)(
         organization: null,
         assignment: null,
         bitwarden: { region: "eu", invitee: "person@example.com" },
+      });
+      // Connected, and the person has not asked to be invited yet: nobody
+      // to invite (F53's amendment of 2026-10-16, (2)); a connection of the
+      // region that accepted the key in the US reads so.
+      await custody(connection, {
+        region: "us",
+        account: "agents.example+lazurio@example.com",
+        invitee: null,
+      });
+      expect(await read(vms.personalPilot)).toMatchObject({
+        kind: "own",
+        vault: "https://vault.bitwarden.com",
+        bitwarden: { region: "us", invitee: null },
+      });
+      // The agents' own address is never the person to invite.
+      await custody(connection, {
+        region: "eu",
+        account: "agents.example+lazurio@example.com",
+        invitee: "agents.example+lazurio@example.com",
+      });
+      expect(await read(vms.personalPilot)).toEqual({
+        kind: "unsupported",
+        reason: "connection-unreadable",
       });
       // A connection that does not read is never guessed.
       await writeFile(connection, '{"region":"eu"}');

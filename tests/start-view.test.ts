@@ -682,7 +682,7 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
   const page = (
     status: VaultStatus,
     environment: VaultPageModel["environment"],
-  ): VaultPageModel => ({ status, setup: null, environment });
+  ): VaultPageModel => ({ status, setup: null, environment, name: null });
   const shown = (
     status: VaultStatus,
     environment: VaultPageModel["environment"],

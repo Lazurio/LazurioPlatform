@@ -63,7 +63,8 @@ vault setup [--json]
   when the name changed), signs bw in with the account's API key, unlocks the
   one session and syncs. On a personal Environment whose person connected
   their own Bitwarden it does the same with the agents' account they
-  entered (never registered here) and invites them into the vault. Safe to
+  entered (never registered here), and invites them into the vault once
+  they asked for it in Settings → Vault. Safe to
   run again. Remote Environments on Linux only; this computer is the second
   wave. Exit status: 0 connected, 2 waiting for a person (no vault named,
   not allowed by the network, revoked, not connected by the person, not

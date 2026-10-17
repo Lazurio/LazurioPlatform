@@ -12284,6 +12284,12 @@ in both locales).
 
 ### F53 amendment of 2026-10-16: a personal Environment's own Bitwarden
 
+> **Points 4 and 6 amended the same day by [amendment
+> (2)](#f53-amendment-of-2026-10-16-2-a-personal-environments-own-bitwarden-shown-not-explained):**
+> connecting takes the API key and the master password alone, the region is the one
+> that accepts the key, and the person is invited only when they ask, on the page,
+> once the vault exists.
+
 **Decided by the Admin on 2026-10-15 (root decision 0203 point 7, text in
 HumanAndMachines/Lazurio#551; plan DEV-6631 task 775; task 949 makes the onboarding
 show a ready vault only after this connection); implemented in this revision for
@@ -12661,6 +12667,230 @@ current copy, the poster, 404 for anything else), `tests/vault-page-view.test.ts
 word for word) and `tests/update-compiled.test.ts` (a byte range of the video from the
 compiled executable); and in a browser (root decision 0178) on the hosted preview in both
 languages: the button plays the video in the page, seeking works, no page errors.
+
+### F53 amendment of 2026-10-16 (2): a personal Environment's own Bitwarden, shown, not explained
+
+**Asked for by Matěj (Organization Admin) on 2026-10-16 (plan DEV-6631 task 775), after
+he looked at Nastavení → Trezor's "Připojte svůj Bitwarden". Amends points 4 and 6 of
+the [amendment of 2026-10-16](#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden);
+root decision 0203 point 7 stays the contract.** In his words (translated): this is
+terribly complicated; a normal user has no chance to understand what we want from them
+when we tell them this about Bitwarden; less text is better; pictures, infographics and
+motion graphics are how we communicate the product; users will not understand a block of
+text, we have to show them. His reference for the balance is the F53
+[addendum of 2026-10-16 on Bitwarden in Codex Desktop](#f53-addendum-of-2026-10-16-bitwarden-in-codex-desktop-and-the-persons-browser): short numbered steps in the app's own words, Bitwarden's
+real screens with the place to fill in ringed. The section follows F36's addendum of
+2026-10-16 ("méně je více"): a title, a picture, one line, two steps of one line each, the
+fields and one button.
+
+1. **The section** (`#vault-connect`, `src/launchpad/vault-page-view.ts`, its panel and
+   `messages.ts`), while the vault waits for its person (`needs-connection`):
+   - the title "Hesla pro agenty ve vašem Bitwardenu" ("Your agents' passwords in your
+     Bitwarden");
+   - a small inline SVG of the vault between "Váš Bitwarden" and "Agenti v tomto
+     Prostředí": the page's own icons (`i-user`, `i-lock`, `i-bot`), a line
+     (`--lz-line`), the vault's tile in `--lz-blue-50` with its lock in `--lz-blue-500`,
+     no gradient, emoji or stock art. Its middle is the vault's real name, "Osobní
+     <login>", which `GET /api/vault` now answers as `name` while the vault waits for its
+     person (`VaultNeedsConnection.name`, `personalVaultName` of the handover owner's
+     login; null in every other state, where the status names the vault). The name
+     steps down to 10 px and is cut with an ellipsis only where it would run into its
+     neighbours; the picture's accessible name holds it whole;
+   - one line: "Agenti dostanou vlastní účet. Ten váš zůstane jen pro vás." ("Your agents
+     get their own account. Yours stays yours.");
+   - the slot of the guide's video (below);
+   - step 1, "Založte účet pro agenty. Jako e-mail použijte třeba ten svůj s +agenti:
+     jana+agenti@gmail.com" (English `+agents`), with "Otevřít bitwarden.eu ↗" to
+     `https://vault.bitwarden.eu/#/signup` (a new tab, `noopener noreferrer`) and
+     "Používáte bitwarden.com?", which switches it to `https://vault.bitwarden.com/#/signup`
+     (`signUpLinks`), and the picture of Bitwarden's account creation;
+   - step 2, "V novém účtu otevřete Nastavení → Zabezpečení → Klíče → Zobrazit klíč API a
+     oba údaje zkopírujte sem." (English "In the new account, open Settings → Security →
+     Keys → View API key and copy both values here."), in the words of Bitwarden's web
+     vault (point 5), the picture of its "Klíč API" window, and the fields `client_id`,
+     `client_secret` (as that window labels them) and "Hlavní heslo účtu pro agenty",
+     the two secret ones masked with "Zobrazit"/"Skrýt" as on a secret request, emptied
+     as they are sent and all of them once connected; "Připojit", and beside it the
+     privacy note F36's addendum keeps, "Údaje zůstanou jen v tomto Prostředí.".
+
+   Every refusal says in one sentence what to do next, without mechanics
+   (`connectionRefusalText`, `inviteRefusalText`), but a wrong master password
+   (`wrong-password`), which needs a second: since the secret fields are emptied as they
+   are sent and "Připojit" waits for every field, it reads „Toto není hlavní heslo účtu
+   pro agenty. Vložte znovu client_secret a heslo." ("That is not the agents' account
+   master password. Paste the client_secret and the password again."; the browser
+   acceptance of #468 found a person retyping only the password). The codes stay those
+   of the amendment above, but for `region-invalid`, which can no longer happen,
+   `email-invalid` and `same-account`, which move to the invitation (point 3), the
+   invitation's new `invited`, and `account-refused` (point 2). The failures the person
+   resolves, the disconnect's note and the person's states are shortened the same way.
+   After „Odpojit Bitwarden", when the section comes back, the page's status line says
+   „Trezor i hesla zůstaly ve vašem Bitwardenu." ("Your vault and its passwords stay in
+   your Bitwarden.") until the person connects again or the page is loaded anew
+   (`disconnectedLine`): the browser acceptance of #468 missed that reassurance right
+   after the disconnect, where it matters most; before it, the note beside the button
+   says the same.
+   Gone: the lead about a free organization and a separate agents' account, the three
+   text steps, the region, the person's e-mail and its hint.
+2. **No region.** `POST /api/vault/connect` takes exactly `{clientId, clientSecret,
+   masterPassword}`; a `region` or an `email` key is refused as any other key
+   (`invalid-request`). The API key signs in at the EU's identity host first, and at the
+   US's only where the EU's identity server answers that it does not know the key: HTTP
+   400 with the OAuth error `invalid_client`, exactly (`unknownClientAnswer` in
+   `src/vault/register.ts`). That is the Bitwarden cloud's answer to an unknown key or a
+   secret that does not match: its Identity project (bitwarden/server
+   `0d707bf6842c05e523bc5d802e6d46a8dd62fedc`, `src/Identity/IdentityServer/
+   DynamicClientStore.cs` and `ClientProviders/UserClientProvider.cs`) finds no client
+   for a `user.<id>` it does not know and gives a known one its API key as the only
+   secret, and Duende IdentityServer 7.4.6, which it pins (DuendeSoftware/products tag
+   `is-7.4.6`, `identity-server/src/IdentityServer/Validation/Default/
+   ClientSecretValidator.cs`), fails both with `invalid_client`, which its
+   `TokenEndpoint` writes as a `TokenErrorResult` with status 400
+   (`Endpoints/Results/TokenErrorResult.cs`). The region that accepted the key is the
+   connection's, as before. Both answering `invalid_client` is `invalid-credentials`
+   ("Bitwarden tento klíč API nepřijal, zkopírujte ho znovu."). Any other refusal of the
+   first region stops there, and so does such an answer of the US: `invalid_request`,
+   `invalid_grant`, an `access_denied` (a blocked account), another 4xx or a proxy's page
+   is `account-refused` ("Bitwarden tento účet nepřijal, zkontrolujte ho v Bitwardenu.");
+   a rate limit is `rate-limited`, and no answer or a 5xx `unreachable`. The other region
+   is never tried in its place, so a region is never guessed and a key the EU refuses for
+   any other reason never goes to the US (Henry's review of #468 at `5cc1756`). A key of
+   the US costs one refused sign-in at the EU.
+3. **The person joins when they ask** (amends point 6). Connecting no longer names the
+   person: `connection.json` keeps `invitee: null` (a connection of the amendment above,
+   with an address, reads as before), the setup creates the vault for the agents alone,
+   and the membership answers the new state `not-invited` without asking the cloud. The
+   page then says "Váš Bitwarden je připojený." and offers one card: "Chcete hesla agentů
+   vidět i ve svém Bitwardenu?" with one field, "Váš e-mail v Bitwardenu", and "Pozvat
+   mě". `POST /api/vault/invitee` (exactly `{email}`, JSON of at most 16 KiB, the same
+   origin, behind the admission of every write, as the connection) keeps the trimmed,
+   lowercased address in the connection under the connection's lock and runs the
+   membership look at once, which invites it as point 6 says (a User with Manage on
+   Agenti, never an Admin; confirmed only after the person accepted); its answer is the
+   membership answer (`invitation-pending`, then `member`). Refused before anything is
+   written: an address that is not one (`email-invalid`, 400), the agents' own account
+   (`same-account`), another address than the one already invited (`invited`: one per
+   connection; disconnecting and connecting again starts afresh), no connection or no
+   vault yet (`not-connected`), a setup that runs (`setting-up`), the lock held (`busy`,
+   503). The same address again only looks again. The address goes to the connection and
+   the cloud's invitation alone: never to an answer, the journal (`members`,
+   `invitee-set`) or a process's arguments.
+4. **Unchanged.** The allow-list of the two regions, the checks of point 4 before anything
+   is written (`owns-organization` with the receipt's one exemption, the KDF, the keys),
+   the custody, the vault and its creation, the User invitation and its confirmation,
+   disconnecting without deleting the organization, the agents' texts, and the Codex
+   Desktop and browser steps of the [addendum of 2026-10-16 on Bitwarden in Codex Desktop](#f53-addendum-of-2026-10-16-bitwarden-in-codex-desktop-and-the-persons-browser)
+   (they show for a connected personal Environment as before, without the video of the
+   [guide video's addendum](#f53-addendum-of-2026-10-16-the-guide-video-of-trezor-in-bitwarden),
+   which shows a Lazurio Vaultwarden's steps).
+5. **The pictures** of Bitwarden's own web vault, per language, the place to fill in ringed
+   in `--lz-blue-500` as in the Codex Desktop addendum, fictional values, 2x WebP shown at 380 px
+   and bundled with the page (`#vault-connect-pictures`), placed in a step only once the
+   section shows, in the page's language:
+   `src/launchpad/images/bitwarden-signup-<cs|en>.webp`, Bitwarden's own account creation
+   ("Vytvořit účet" / "Create account") with the field "E-mailová adresa" / "Email
+   address" ringed and the fictional `jana+agenti@gmail.com` / `jana+agents@gmail.com`
+   typed in (760×896 and 760×854, 32 and 29 KB), and `bitwarden-api-key-<cs|en>.webp`,
+   its "Klíč API" / "API Key" window in two stacked parts, the title row and the
+   "Klientské údaje OAuth 2.0" / "OAuth 2.0 Client Credentials" box with `client_id` and
+   `client_secret` ringed (760×554, 29 KB each).
+   - *The account creation* is the real public page `https://vault.bitwarden.eu/#/signup`,
+     web vault 2026.10.0 (its `version.json` SHA-256
+     `8513061a9364efd3fdbf3071f07ac08ad0a78df255a23cb81cdc3ec773c14b0d`), typed into and
+     never submitted.
+   - *The window* is the Bitwarden web vault that
+     `vaultwarden/server:1.37.4@sha256:efb3cde962015fcc036b2ea625242248611943b27212ebf4392841fb30fad055`
+     bundles, 2026.7.0 (`version.json` SHA-256
+     `789160484374af384b307856574eb712f8b6e305c880c9442e5b53868a76a012`), run on
+     127.0.0.1 behind a throwaway TLS certificate with a fictional account
+     (`jana+agents@example.com`): an account on bitwarden.eu is never created for a
+     picture. The Keys section and the window are the same code in both versions, and
+     every word the steps quote reads the same in their locale files (`settings`,
+     `security`, `keys`, `viewApiKey`, `apiKey`, `createAccount`, `emailAddress`,
+     `continue`). Before the shot the window's two values were replaced in the page by
+     fictional ones (`user.6a5f4e3d-2c1b-4a9f-8e7d-6c5b4a3f2e1d`,
+     `Xp4Rt9Lm2Qw7Zc5Vb8Nk3Hd6Jf1Gs0`) and its `scope` and `grant_type` entries hidden, so
+     the box ends at the ringed values; nothing else of either screen was changed.
+   - Captured in Chrome for Testing 155.0.8059.39's headless mode with playwright-core
+     1.62.1 at a 380 px viewport and a device scale of 2, locales cs-CZ and en-US; the
+     ring is an overlay in `--lz-blue-500` (3 px, a 10 px radius, a soft halo) as in the
+     Codex Desktop addendum, and the browser's own encoder writes the WebP (quality 0.86, the
+     extended format). SHA-256 of the files: signup cs
+     `439d21845596622c2e150789735b81cc272b448c9eed3b93a3b7c59889ba1d6b`, en
+     `34dfc2dede96b17758a4fc7e87cec0141eeca1fd32ad9a797684aeee9c65d4b9`; api-key cs
+     `4f52ed56a492a4a7ab03a30400775f183f46ae7991b667421448543ab314e0fd`, en
+     `741783e2b086aeac327d63d9833fff2ccd98ea46913196ae7d14c3e93356a593`.
+   - *To capture them again:* the same browser and viewport on the public account
+     creation (type the address, blur the field, crop from above the heading to just
+     below "Pokračovat" / "Continue"); and a throwaway Vaultwarden of the same image
+     (`SIGNUPS_ALLOWED=true`, HTTPS on 127.0.0.1) with a fictional account, its
+     Nastavení → Zabezpečení → Klíče → Zobrazit klíč API after the master password, the
+     values replaced and the two entries hidden, the title row and the box stacked with a
+     12 px white gap. When Bitwarden changes these screens or words, the steps and the
+     pictures are refreshed together.
+6. **The guide's video.** A clean place waits under the line, in the shape of the
+   [guide video's addendum](#f53-addendum-of-2026-10-16-the-guide-video-of-trezor-in-bitwarden):
+   `<div class="guide-video" id="vault-connect-video">`, empty and collapsed. Its video,
+   `vault-personal-bitwarden`, comes as that addendum's does
+   (docs/launchpad-development.md "Guide videos"): its files
+   `src/launchpad/videos/vault-personal-bitwarden-<cs|en>.mp4` and `.webp`, the name in
+   `guideVideoNames` and its imports in `guideVideoFilePaths`, and the panel mounting
+   `createGuideVideo(slot, { name, title, describedBy, copy, locale }).render()` there.
+   This change adds neither a video nor a mount, since the motion graphic does not exist
+   yet (Lazurio/LazurioPlatform#452).
+
+**Honest limits.** Without the person's address at connecting, `same-account` can be
+checked only when they ask to be invited: a person who connects their main account and
+never asks is guarded only by the step's words and by `owns-organization` (a main account
+that owns or administers an organization is refused). A typo in the invited address
+stays until the person disconnects and connects again; the cloud's invitation to the
+wrong address is never confirmed, since the Environment confirms only the address it
+keeps. The pictures and words go stale together when Bitwarden changes these screens.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the region field | A person does not know which region their account is in; the server finds it |
+| Try both regions at once | Twice the sign-ins for every key; the EU first, the US only after an unknown key |
+| Guess the other region when one does not answer | Could connect the wrong service; a host that does not answer stops it |
+| Any refusal of the EU sends the key to the US (this change's first revision) | A blocked account or a malformed request would be read as an unknown key and the key sent to another service (Henry's review of #468); only the identity server's own `invalid_client` does |
+| Keep the person's e-mail in the connection form | One more field and a decision before anything works; the invitation is optional, after |
+| Invite on connecting when an address is given | Two ways to the same state; one card after connecting |
+| A video now | Later, in the shared player (#452) |
+| Drawn lookalikes of Bitwarden's screens | Drift from what the person sees; its real web vault is used |
+
+Verified by `tests/vault-register.test.ts` (only HTTP 400 `invalid_client` of a token
+request is marked as an unknown key; `access_denied` 403, `invalid_request`,
+`invalid_grant`, `unauthorized_client`, a 401 `invalid_client`, a non-JSON or array body,
+a 429, a 5xx and no answer are not), `tests/vault-connection.test.ts` (the form's three
+values and the invitation's address in their exact form; PBKDF2 and Argon2id accounts
+found in the EU, a bitwarden.com account found after the EU answered `invalid_client`,
+recorded as `us` and set up on the US hosts; both answering `invalid_client` is
+`invalid-credentials`; an EU 403 `access_denied`, 400 `invalid_request`, 400
+`invalid_grant`, 401 `invalid_client` and a proxy's 403 page are `account-refused`, and
+an EU 5xx, no answer and a rate limit stop as before, each without one request to the
+US's identity host; a US refusal or no answer after the EU's `invalid_client` stops
+there; nobody invited until asked, `not-invited`, then the invitation at once, its
+acceptance and confirmation; `email-invalid`, `same-account`, `invited`, `busy`,
+`not-connected` before the vault exists, the same address again only looking; only a
+connected personal Environment's own Bitwarden taking an invitation; no address in the
+journal or bw's arguments), `tests/vault-host.test.ts` (a connection without an invitee,
+one in the US, the agents' own address as invitee refused), over HTTP
+`tests/launchpad-vault-connect.test.ts` (exact keys of both routes, no `region` or
+`email` accepted, content type, size, origin, admission, query and method of the
+invitation; its refusals and answers; no value or address in any answer, log, the
+journal or bw's arguments) and `tests/vault-page-view.test.ts` (the section, the
+invitation and the person's states word for word in both languages, every refusal one
+sentence but a wrong master password's two, the line after a disconnect only while the
+section shows, the sign-up links, the picture's words, no mechanics in the section's
+words, and each picture once per language, a 2x WebP under 64 KB of its declared size);
+and in a browser (root decision 0178) on the personal preview, which now runs the tests'
+fake Bitwarden cloud (`scripts/preview-launchpad.ts personal cs|en`), in both languages
+at 1440×900 and 390 px wide: the section with both pictures of the page's language only,
+bitwarden.com on request, a refused master password with the secret fields emptied and
+the words to paste both again, connecting, the invitation card, the agents' own address
+refused, the invitation, its pending line, the member's links after the acceptance, and
+"Odpojit Bitwarden": the section back with its line, gone once connected again and after
+a reload.
 
 ## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
 

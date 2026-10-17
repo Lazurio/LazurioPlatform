@@ -752,42 +752,52 @@ it is the second wave (`unsupported`, `workstation`).
   its items. Its README names the condition of its deletion. A personal Environment
   whose pilot was never connected (`pilotConnected`) connects its own Bitwarden.
 - **A personal Environment's own Bitwarden** (root decision 0203 point 7, F53's
-  amendment of 2026-10-16, `src/vault/connection.ts`, `src/vault/invitee.ts`): the
+  amendment of 2026-10-16 and its amendment (2), `src/vault/connection.ts`,
+  `src/vault/invitee.ts`): the
   vault is a free organization in the person's own Bitwarden, in the cloud's EU or US
   region (`src/vault/endpoints.ts`, an allow-list: web `https://vault.bitwarden.eu`,
   API `https://api.bitwarden.eu`, identity `https://identity.bitwarden.eu`, and the
   same on `bitwarden.com`), owned by a separate agents' account, never the person's
   main account. While nothing is connected the state is `needs-connection` and
   nothing runs (no setup at the start, `env`, secrets, requests and the membership
-  `not-connected`, `vault setup` exit 2). The person creates the agents' account in
-  the same service and region as their own and its API key (Account settings →
-  Security → Keys → API key) and enters the region, `client_id`, `client_secret`, the
-  agents' master password and the e-mail of their own Bitwarden account once in
+  `not-connected`, `vault setup` exit 2). The person creates the agents' account and
+  its API key (Settings → Security → Keys → View API key in Bitwarden's web vault)
+  and enters `client_id`, `client_secret` and the agents' master password once in
   Settings → Vault (`POST /api/vault/connect`, exactly those keys, at most 16 KiB,
-  same origin). The Environment signs in with the API key at the region's identity
-  host (never the password grant: API-key sign-ins are exempt from new-device
-  verification), reads the agents' address from the profile, refuses the person's own
-  address (`same-account`) and an account that owns or administers another
-  organization (`owns-organization`; while an earlier connection's creation receipt
+  same origin). The Environment signs in with the API key at the EU's identity host,
+  and at the US's only where the EU's identity server answers HTTP 400
+  `invalid_client`, its answer to an unknown key or a secret that does not match (both
+  answering so is `invalid-credentials`; any other refusal is `account-refused`, a rate
+  limit `rate-limited`, no answer or a 5xx `unreachable`, and the other region is never
+  tried in its place), and records the region that accepted it (never the
+  password grant: API-key sign-ins are exempt from new-device verification); it reads
+  the agents' address from the profile, refuses an account that owns or administers
+  another organization (`owns-organization`; while an earlier connection's creation receipt
   is unresolved, only the one organization whose public key the API shows as that
   receipt is exempt, and an unreadable key refuses), and opens its keys with the cloud's KDF,
   PBKDF2-SHA256 or Argon2id (`wrong-password`, `unsupported-kdf`,
   `unsupported-keys`). Only then does it write the account whole into its custody
   (`<state>/lazurio/vault/vault.bitwarden.eu/<agents' address>/bw/lazurio-account.json`,
   0600) and the connection (`<state>/lazurio/vault/personal/connection.json`, 0600:
-  region, agents' account, the person's address) and start the setup: the pinned
+  the region, the agents' account and the person's address, null until they ask to
+  be invited) and start the setup: the pinned
   `bw` signed in with `bw config server <web vault>` and `bw login --apikey`, the
   organization "Osobní <login>" with Agenti created on the cloud's API
   (`useSecretsManager: false`; a second Free organization is
-  `free-organization-limit`), and the person invited as a User with Manage on Agenti,
+  `free-organization-limit`). The person asks to be invited afterwards, with the
+  address of their own Bitwarden account (`POST /api/vault/invitee`, exactly
+  `{email}`, the same rules; never the agents' account, `same-account`; one address
+  per connection, `invited`; only once the vault exists, `not-connected`): the address
+  is kept in the connection and invited at once as a User with Manage on Agenti,
   never an Admin (the cloud allows one Free organization per Owner or Admin). The
   cloud e-mails the invitation; once accepted, the next setup or look of the page
-  confirms the person with `bw confirm org-member` (`invitation-pending`,
-  `accepted`, `member`, `revoked`). "Odpojit Bitwarden" (`POST /api/vault/disconnect`)
+  confirms the person with `bw confirm org-member` (`not-invited`,
+  `invitation-pending`, `accepted`, `member`, `revoked`). "Odpojit Bitwarden" (`POST /api/vault/disconnect`)
   signs bw out and removes the credentials, the session and bw's data, keeps the
   record and the requests and never deletes the organization; the same account
   connected again finds its vault, or, when the person deleted it in Bitwarden, the
-  record is forgotten on that connection and the setup creates a new one. The journal says `operation: "connect"` or
+  record is forgotten on that connection and the setup creates a new one. The journal
+  says `operation: "connect"`, `"members"` (`invitee-set`, `invited`, `confirmed`) or
   `"disconnect"` with a fixed outcome and reason, never a value or an address.
 
 The agents' texts are the catalog entry's (`purpose` in `AGENTS.md`, `usage` in

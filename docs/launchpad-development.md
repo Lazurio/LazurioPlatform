@@ -2212,29 +2212,54 @@ the fake bw of `tests/fixtures/fake-vault.ts`.
 
 **A personal Environment's own Bitwarden** ([F53's amendment of
 2026-10-16](decisions.md#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden),
-root decision 0203 point 7). While the vault waits for its person
-(`needs-connection`), the page shows `#vault-connect` instead of the row: the title
-"Připojte svůj Bitwarden", a slot for its motion graphic (`#vault-connect-motion`,
-empty and collapsed until #452 fills it), a short explanation (a free organization
-for the person and a separate agents' account; agents never get the person's main
-account; the three steps to the API key) and one form: the region (EU or US), the
-agents' account `client_id` and `client_secret`, its master password and the e-mail of
-the person's own Bitwarden account. The secret inputs are password inputs with
-"Zobrazit"/"Skrýt" as on a secret request and `autocomplete="new-password"`; they are
-emptied as the request leaves, and the rest once connected; no value goes to browser
-storage or the address. "Připojit Bitwarden" sends `POST /api/vault/connect`
-(`src/launchpad/vault-connection-routes.ts`); a refusal says what to change in one line
-(`connectionRefusalText`), and the one setup it starts is followed by its job, as the
-Tools row follows it, so a failure it ends in stays on the page. Connected, the row is
-the organization's ("Osobní <login>") with its item count; one line says where the
-person stands (the invitation e-mailed, accepted and being confirmed, or removed in
-Bitwarden), a member gets "Přidat položku" and "Otevřít trezor" into the region's web
-vault, and "Odpojit Bitwarden" (`POST /api/vault/disconnect`) with its note shows
-whenever no setup runs. The page asks about the person again when its tab is shown
-again while their invitation waits. Tested over HTTP in
-`tests/launchpad-vault-connect.test.ts` with the fake Bitwarden cloud of
-`tests/fixtures/fake-bitwarden-cloud.ts`, and the pure part in
-`tests/vault-page-view.test.ts`.
+root decision 0203 point 7, and its
+[amendment (2)](decisions.md#f53-amendment-of-2026-10-16-2-a-personal-environments-own-bitwarden-shown-not-explained)).
+While the vault waits for its person (`needs-connection`), the page shows
+`#vault-connect` instead of the row, in the spirit of F36's addendum of 2026-10-16
+(a title, a picture, one line, two steps of one line each, the fields and one button):
+the title "Hesla pro agenty ve vašem Bitwardenu"; a small inline SVG of the vault
+between "Váš Bitwarden" and "Agenti v tomto Prostředí", built from the design
+system's tokens and the page's own icons, whose middle is the name the vault gets
+(`GET /api/vault`'s `name`, "Osobní <login>", fitted to its column and whole in the
+picture's accessible name); one line ("Agenti dostanou vlastní účet. Ten váš zůstane
+jen pro vás."); the slot of the guide's video (`<div class="guide-video"
+id="vault-connect-video">`, empty and collapsed until its video
+`vault-personal-bitwarden` exists and the panel mounts `createGuideVideo` there, as
+[Guide videos](#guide-videos) says, #452); and two numbered steps in the look of
+`#vault-bitwarden`, each with one line and a picture of Bitwarden's own web vault, the
+place to fill in ringed. Step 1, "Založte účet pro agenty" with the tip of a
+`+agenti` address, opens bitwarden.eu's own sign-up in a new tab ("Otevřít
+bitwarden.eu ↗"), and "Používáte bitwarden.com?" switches it to bitwarden.com's
+(`signUpLinks`). Step 2 names the way to the API key in Bitwarden's own words and holds
+the three fields, `client_id`, `client_secret` and "Hlavní heslo účtu pro agenty", and
+"Připojit". There is no region and no e-mail: the server finds the region that accepts
+the key. The secret inputs are password inputs with "Zobrazit"/"Skrýt" as on a secret
+request and `autocomplete="new-password"`; they are emptied as the request leaves, and
+the rest once connected; no value goes to browser storage or the address. "Připojit"
+sends `POST /api/vault/connect` (`src/launchpad/vault-connection-routes.ts`); a refusal
+says what to do in one sentence (`connectionRefusalText`; a wrong master password adds
+that the `client_secret` and the password are pasted again, both emptied as they were
+sent), and the one setup it starts
+is followed by its job, as the Tools row follows it, so a failure it ends in stays on
+the page. The pictures are bundled with the page in `#vault-connect-pictures` and
+placed in a step only once the section shows, in the page's language. Connected, the
+row is the organization's ("Osobní <login>") with its item count; until the person
+asks to be invited (`not-invited`), one line says it is connected and the card
+"Chcete hesla agentů vidět i ve svém Bitwardenu?" (`#vault-invite`) takes their own
+Bitwarden address and sends `POST /api/vault/invitee` ("Pozvat mě"); its refusals are
+`inviteRefusalText`. Then one line says where the person stands (the invitation
+e-mailed, accepted and being confirmed, or removed in Bitwarden), a member gets
+"Přidat položku" and "Otevřít trezor" into the region's web vault, and "Odpojit
+Bitwarden" (`POST /api/vault/disconnect`) with its note shows whenever no setup runs.
+Once it succeeded, the section comes back and the page's status line says „Trezor i
+hesla zůstaly ve vašem Bitwardenu." until the person connects again or the page is
+loaded anew (`disconnectedLine`).
+The page asks about the person again when its tab is shown again while their
+invitation waits. Tested over HTTP in `tests/launchpad-vault-connect.test.ts` with the
+fake Bitwarden cloud of `tests/fixtures/fake-bitwarden-cloud.ts`, and the pure part in
+`tests/vault-page-view.test.ts`. `bun scripts/preview-launchpad.ts personal cs|en`
+shows it against the same fake cloud: its JSON line's `bitwarden` has a fictional
+agents' account to connect and a file whose creation accepts the invitation.
 
 **Bitwarden in Codex Desktop and the person's browser** ([F53's addendum of
 2026-10-16](decisions.md#f53-addendum-of-2026-10-16-bitwarden-in-codex-desktop-and-the-persons-browser)).
