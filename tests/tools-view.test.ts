@@ -3,6 +3,12 @@ import { messages } from "../src/launchpad/messages";
 import {
   answerWithin,
   checkedLine,
+  composioConnectedLine,
+  composioDialogView,
+  composioPollDelay,
+  composioPollMaxMs,
+  composioPollNext,
+  composioPollStartMs,
   connectionLine,
   curatedActions,
   currentNotes,
@@ -887,7 +893,7 @@ test("the steps say installing, waiting for you, linking the SSH key, signed in,
     mode: "install" | "login" | "ssh",
     phase: Parameters<typeof loginSteps>[1],
     at: "installing" | "waiting" | "linking" = "waiting",
-    tool = "composio",
+    tool = "wacli",
     refresh = false,
   ) =>
     loginSteps(loginStepOrder({ mode, tool, refresh }), phase, at, copy).map(
@@ -947,6 +953,151 @@ test("the steps say installing, waiting for you, linking the SSH key, signed in,
     "Linking the SSH key:done",
     "SSH key linked:done",
   ]);
+  // Composio's dialog draws no steps, while it installs, waits for the
+  // browser or is signed in (decision F42 addendum (2), note of 2026-10-17).
+  for (const phase of ["installing", "waiting", "signed-in", "failed"] as const)
+    expect(states("install", phase, "waiting", "composio")).toEqual([]);
+});
+
+// Composio's sign-in dialog after the sign-in (decision F42, addendum (2)
+// of 2026-10-13, note of 2026-10-17): one view per answer of
+// /api/tools/composio/organizations.
+test("Composio's dialog: create, rename, one sentence or connected, from the organizations' answer", () => {
+  const copy = messages("cs");
+  const named = (
+    state: string,
+    organizations = [
+      { id: "org_1", name: "jana_workspace", current: true },
+      { id: "org_2", name: "Acme", current: false },
+    ],
+  ) => ({
+    kind: "composio-organizations",
+    organizations,
+    organization: { name: "Lazurio Example Organization", state },
+  });
+  expect(
+    composioDialogView(named("missing"), "jana@example.com", copy),
+  ).toEqual({ kind: "create", name: "Lazurio Example Organization" });
+  expect(
+    composioDialogView(named("ambiguous"), "jana@example.com", copy),
+  ).toEqual({ kind: "rename", name: "Lazurio Example Organization" });
+  expect(
+    composioDialogView(named("elsewhere"), "jana@example.com", copy),
+  ).toEqual({
+    kind: "problem",
+    message:
+      "Composio se nepodařilo přepnout do vaší organizace „Lazurio Example Organization“.",
+  });
+  // The organization of the line is the one the answer marks current after
+  // the switch, as Composio names it, never the one the sign-in named.
+  const matched = composioDialogView(
+    named("matches", [
+      { id: "org_1", name: "jana_workspace", current: false },
+      { id: "org_2", name: "lazurio example organization", current: true },
+    ]),
+    "jana@example.com",
+    copy,
+  );
+  expect(matched).toEqual({
+    kind: "connected",
+    account: "jana@example.com",
+    organization: "lazurio example organization",
+    choices: null,
+  });
+  if (matched.kind !== "connected") throw new Error("not connected");
+  expect(composioConnectedLine(matched)).toBe(
+    "jana@example.com · lazurio example organization",
+  );
+  // Unverified keeps the refusal, in one sentence.
+  expect(
+    composioDialogView(
+      {
+        kind: "composio-organizations",
+        organizations: [],
+        organization: { name: null, state: "unverified" },
+      },
+      null,
+      copy,
+    ),
+  ).toEqual({ kind: "problem", message: copy.toolsComposioOrgUnverified });
+  // An answer that cannot be read is one sentence too.
+  for (const answer of [
+    null,
+    "<html>",
+    { kind: "composio-organizations-failed", reason: "unreadable" },
+  ])
+    expect(composioDialogView(answer, "jana@example.com", copy)).toEqual({
+      kind: "problem",
+      message: copy.toolsComposioOrgUnavailable,
+    });
+  // Where the person chooses: connected, the choice only among several.
+  const personal = (organizations: unknown[]) => ({
+    kind: "composio-organizations",
+    organizations,
+    organization: null,
+    personal: true,
+  });
+  expect(
+    composioDialogView(
+      personal([{ id: "org_1", name: "jana_workspace", current: true }]),
+      "jana@example.com",
+      copy,
+    ),
+  ).toEqual({
+    kind: "connected",
+    account: "jana@example.com",
+    organization: "jana_workspace",
+    choices: null,
+  });
+  const several = composioDialogView(
+    personal([
+      { id: "org_1", name: "jana_workspace", current: true },
+      { id: "org_2", name: "Northwind", current: false },
+    ]),
+    null,
+    copy,
+  );
+  expect(several).toEqual({
+    kind: "connected",
+    account: null,
+    organization: "jana_workspace",
+    choices: [
+      { id: "org_1", label: "jana_workspace", current: true },
+      { id: "org_2", label: "Northwind", current: false },
+    ],
+  });
+  if (several.kind !== "connected") throw new Error("not connected");
+  expect(composioConnectedLine(several)).toBe("jana_workspace");
+});
+
+test("Composio's dialog reads again calmly while the person works in Composio, and stops once connected, closed or hidden", () => {
+  expect(composioPollDelay(0)).toBe(composioPollStartMs);
+  expect(composioPollStartMs).toBe(4_000);
+  expect([1, 2, 3, 4].map(composioPollDelay)).toEqual([
+    6_000, 9_000, 13_500, 20_250,
+  ]);
+  expect(composioPollDelay(5)).toBe(composioPollMaxMs);
+  expect(composioPollDelay(50)).toBe(30_000);
+  const open = { open: true, hidden: false };
+  for (const view of [
+    { kind: "create", name: "Acme" },
+    { kind: "rename", name: "Acme" },
+    { kind: "problem", message: "x" },
+  ] as const) {
+    expect(composioPollNext(view, open)).toBe("read");
+    expect(composioPollNext(view, { open: true, hidden: true })).toBe("pause");
+    expect(composioPollNext(view, { open: false, hidden: false })).toBe("stop");
+  }
+  const connected = {
+    kind: "connected",
+    account: null,
+    organization: "Acme",
+    choices: null,
+  } as const;
+  expect(composioPollNext(connected, open)).toBe("stop");
+  expect(composioPollNext(connected, { open: true, hidden: true })).toBe(
+    "stop",
+  );
 });
 
 test("the Git identity of a gh sign-in is read only in its exact form and becomes one sentence for people", () => {
@@ -1264,33 +1415,24 @@ test("install, login end, organizations and logout answers become one sentence e
         .replace("{name}", "composio")
         .replace("{account}", "a@b.c (Org)"),
     );
+    // The select names the organizations; the current one is its value.
     expect(
-      organizationChoices(
-        {
-          kind: "composio-organizations",
-          organizations: [
-            { id: "org_1", name: "First", current: true },
-            { id: "org_2", name: "Second", current: false },
-          ],
-        },
-        copy,
-      ),
+      organizationChoices({
+        kind: "composio-organizations",
+        organizations: [
+          { id: "org_1", name: "First", current: true },
+          { id: "org_2", name: "Second", current: false },
+        ],
+      }),
     ).toEqual([
-      {
-        id: "org_1",
-        label: copy.toolsComposioOrgCurrent.replace("{name}", "First"),
-        current: true,
-      },
+      { id: "org_1", label: "First", current: true },
       { id: "org_2", label: "Second", current: false },
     ]);
     expect(
-      organizationChoices(
-        {
-          kind: "composio-organizations",
-          organizations: [{ id: "a b", name: "x", current: true }],
-        },
-        copy,
-      ),
+      organizationChoices({
+        kind: "composio-organizations",
+        organizations: [{ id: "a b", name: "x", current: true }],
+      }),
     ).toBeNull();
     expect(
       logoutOutcome(

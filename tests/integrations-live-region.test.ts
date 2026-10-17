@@ -157,15 +157,11 @@ test("Integrace has exactly one live region in its view, and its confirmation di
   ).toEqual(["integrations-confirm-status"]);
 });
 
-test("nothing the Integrace page draws is a live region of its own: no notice, update line, form status or model sets role or aria-live", async () => {
+test("nothing the Integrace page draws is a live region of its own: no notice, update line or form status sets role or aria-live", async () => {
   // The page draws its notices without a DOM in these tests; what it may
   // set on them is checked where it draws them (Pablo's review of #430:
   // the update line was a second live region).
-  for (const name of [
-    "integrations-panel.ts",
-    "composio-model.ts",
-    "custom-server-form.ts",
-  ]) {
+  for (const name of ["integrations-panel.ts", "custom-server-form.ts"]) {
     const text = await source(name);
     expect(text).not.toMatch(/setAttribute\(\s*"aria-live"/);
     expect(text).not.toMatch(/setAttribute\(\s*"role",\s*"(status|alert|log)"/);

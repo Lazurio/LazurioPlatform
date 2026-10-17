@@ -17,7 +17,12 @@ import {
   parseIntegrations,
 } from "../src/launchpad/integrations-view";
 import { messages } from "../src/launchpad/messages";
-import { organizationRule } from "../src/launchpad/tools-view";
+import {
+  type ComposioDialogView,
+  composioConnectedLine,
+  composioDialogView,
+  organizationRule,
+} from "../src/launchpad/tools-view";
 import { readFolderCatalog } from "../src/organizations/catalog";
 import { selectOwnerOrganization } from "../src/organizations/catalog-selection";
 import { embeddedIdentity } from "../src/update/identity";
@@ -592,7 +597,118 @@ test("an Organization's Environment by its Folder: the sign-in dialog makes the 
   }
 });
 
-test("a personal Environment's sign-in dialog leaves the choice to the person, with the advice", async () => {
+// The sign-in dialog after the sign-in (decision F42, addendum (2) of
+// 2026-10-13, note of 2026-10-17): the person signed in while Composio's CLI
+// had "First" selected. The dialog asks to create the organization, finds it
+// by itself on a later reading once the person created it, and then names
+// the account with the organization current after the reading switched,
+// never the one the sign-in named.
+test("the sign-in dialog asks to create a missing organization, finds it on a later reading, and names the one current after the switch", async () => {
+  const directory = await parent();
+  const world = await integrationsWorld(directory, {
+    composio: {
+      accounts: [gmail],
+      organization: "First",
+      organizations: [{ id: "org_1", name: "First" }],
+    },
+  });
+  cleanups.push(() => world.executor.stop());
+  const app = await worldLaunchpad(directory, world, {
+    tools: ["composio"],
+    handover: {
+      preset: "hosted-organization-personal",
+      machine: bindings.organization,
+      organization: { slug: "example", displayName: "Příklad" },
+    },
+  });
+  cleanups.push(() => app.close());
+  const copy = messages("cs");
+  const read = async () =>
+    composioDialogView(
+      await (await app.post("/api/tools/composio/organizations", {})).json(),
+      "op@example.com",
+      copy,
+    );
+  expect(await read()).toEqual({ kind: "create", name: "Příklad" });
+  // Nothing switched while it is missing: the person's current one works.
+  expect((await readComposioState(world.home)).organization).toBe("First");
+  // The person creates it in Composio's dashboard.
+  const state = await readComposioState(world.home);
+  await writeComposioState(world.home, {
+    ...state,
+    organizations: [
+      ...(state.organizations ?? []),
+      { id: "org_2", name: "priklad" },
+    ],
+  });
+  const connected = await read();
+  expect(connected).toEqual({
+    kind: "connected",
+    account: "op@example.com",
+    organization: "priklad",
+    choices: null,
+  });
+  if (connected.kind !== "connected") throw new Error("not connected");
+  expect(composioConnectedLine(connected)).toBe("op@example.com · priklad");
+  expect((await readComposioState(world.home)).organization).toBe("priklad");
+});
+
+test("the sign-in dialog says in one sentence when its organization is there twice or cannot be made current", async () => {
+  const copy = messages("cs");
+  const cases: [Partial<FakeComposioState>, ComposioDialogView][] = [
+    [
+      {
+        organization: "First",
+        organizations: [
+          { id: "org_1", name: "First" },
+          { id: "org_2", name: "priklad" },
+          { id: "org_3", name: "Příklad" },
+        ],
+      },
+      { kind: "rename", name: "Příklad" },
+    ],
+    [
+      {
+        organization: "First",
+        switchFails: true,
+        organizations: [
+          { id: "org_1", name: "First" },
+          { id: "org_2", name: "priklad" },
+        ],
+      },
+      {
+        kind: "problem",
+        message:
+          "Composio se nepodařilo přepnout do vaší organizace „Příklad“.",
+      },
+    ],
+  ];
+  for (const [composio, view] of cases) {
+    const directory = await parent();
+    const world = await integrationsWorld(directory, {
+      composio: { accounts: [gmail], ...composio },
+    });
+    cleanups.push(() => world.executor.stop());
+    const app = await worldLaunchpad(directory, world, {
+      tools: ["composio"],
+      handover: {
+        preset: "hosted-organization-personal",
+        machine: bindings.organization,
+        organization: { slug: "example", displayName: "Příklad" },
+      },
+    });
+    cleanups.push(() => app.close());
+    expect(
+      composioDialogView(
+        await (await app.post("/api/tools/composio/organizations", {})).json(),
+        "op@example.com",
+        copy,
+      ),
+    ).toEqual(view);
+  }
+});
+
+test("a personal Environment's sign-in dialog leaves the choice to the person", async () => {
   const directory = await parent();
   const world = await integrationsWorld(directory, {
     composio: {
@@ -622,6 +738,16 @@ test("a personal Environment's sign-in dialog leaves the choice to the person, w
     personal: true,
   });
   expect(organizationRule(answer)).toEqual({ kind: "chosen", personal: true });
+  // The dialog: connected in the current one, with the choice of the two.
+  expect(composioDialogView(answer, "op@example.com", messages("en"))).toEqual({
+    kind: "connected",
+    account: "op@example.com",
+    organization: "First",
+    choices: [
+      { id: "org_1", label: "First", current: true },
+      { id: "org_2", label: "Second", current: false },
+    ],
+  });
   expect((await readComposioState(world.home)).organization).toBe("First");
 });
 

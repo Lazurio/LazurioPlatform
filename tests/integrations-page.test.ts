@@ -1349,7 +1349,7 @@ test("Czech notices about an app hold for any app's name: no adjective that take
   // Czech page says "tento", never "tenhle".
   const integrace = Object.entries(cs).filter(
     ([key]) =>
-      key.startsWith("integrations") || key.startsWith("composioModel"),
+      key.startsWith("integrations") || key.startsWith("toolsComposio"),
   );
   for (const [key, text] of integrace) {
     expect([key, text]).not.toEqual([key, expect.stringMatching(/Launchpad/)]);
