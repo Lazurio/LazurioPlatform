@@ -276,6 +276,19 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .section-head { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--lz-blue-500); }
 .section-pill { padding: 5px 12px; border-radius: 7px 7px 0 0; background: var(--lz-blue-500); color: var(--lz-on-accent); font-size: 14px; font-weight: var(--lz-weight-akce); line-height: normal; }
 .section-count { color: var(--muted-fg); font-size: 13px; }
+/* An Organization's own Workspace tabs (decision F32's addendum of
+   2026-10-16): quiet words beside the section's pill, the shown one in full
+   ink on a hairline; they wrap on a narrow page. */
+.workspace-head { flex-wrap: wrap; row-gap: 4px; }
+.workspace-tabs { display: flex; flex-wrap: wrap; gap: 2px; }
+button.workspace-tab { height: auto; min-height: 32px; padding: 4px 10px; border: 0; border-radius: 7px 7px 0 0; background: transparent; box-shadow: none; color: var(--muted-fg); font-size: 14px; font-weight: 500; }
+button.workspace-tab:hover:not([aria-selected="true"]) { background: var(--lz-gray-50); color: var(--fg); }
+button.workspace-tab[aria-selected="true"] { color: var(--fg); font-weight: var(--lz-weight-akce); box-shadow: inset 0 -2px 0 var(--fg); }
+.workspace-tab:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.workspace-tabs-edit { margin-left: auto; color: var(--muted-fg); font-size: 13px; text-decoration: none; }
+.workspace-tabs-edit:hover { color: var(--fg); text-decoration: underline; }
+.workspace-tab-panel { min-width: 0; }
+.workspace-tab-panel:focus-visible { outline: 2px solid var(--fg); outline-offset: 4px; border-radius: 7px; }
 /* Three columns on a full page, fewer as the page narrows, beside the open
    right panel too: the grid counts its columns from its own width, as the
    shell wireframe does (prototypes-lazurio#10). */

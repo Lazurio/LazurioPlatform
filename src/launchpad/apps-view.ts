@@ -240,7 +240,13 @@ export type AppsSection = Readonly<{
   title: string;
   count: string;
   tiles: readonly AppsTile[];
+  /** Workspace's tabs, each with its tiles, favourites first (decision F32's
+   * addendum of 2026-10-16); null where the Organization shows none. */
+  tabs: readonly AppsTab[] | null;
 }>;
+
+/** One tab of an Organization's Workspace, as Apps draws it. */
+export type AppsTab = Readonly<{ name: string; tiles: readonly AppsTile[] }>;
 
 const countKeys = {
   modules: {
@@ -370,6 +376,7 @@ export function appsSections(
             title: copy.catalogSectionWorkspace,
             count: count(tiles.modules.length, "modules"),
             tiles: favoritesFirst(tiles.modules, favorites),
+            tabs: null,
           },
         ];
   const sections: readonly CatalogSection[] =
@@ -379,6 +386,7 @@ export function appsSections(
             kind: "workspace",
             title: copy.catalogSectionWorkspace,
             modules: [],
+            tabs: null,
           },
           ...group.sections,
         ]
@@ -391,12 +399,27 @@ export function appsSections(
             title: section.title,
             count: count(tiles.modules.length, "modules"),
             tiles: favoritesFirst(tiles.modules, favorites),
+            tabs:
+              section.tabs === null
+                ? null
+                : section.tabs.map((tab) => ({
+                    name: tab.name,
+                    tiles: favoritesFirst(
+                      tiles.modules.filter(
+                        (tile) =>
+                          tile.kind === "module" &&
+                          tab.modules.includes(tile.entry),
+                      ),
+                      favorites,
+                    ),
+                  })),
           }
         : {
             kind: section.kind,
             title: section.title,
             count: count(tiles.repositories.length, "repositories"),
             tiles: favoritesFirst(tiles.repositories, favorites),
+            tabs: null,
           },
   );
 }
@@ -628,6 +651,41 @@ export function moduleAccessUrl(
   url.pathname = `${url.pathname}/settings`;
   url.searchParams.set("tab", "modules");
   url.searchParams.set("module", module);
+  return url.href;
+}
+
+/** Where an Organization's Owner arranges its Workspace tabs (decision F32's
+ * addendum of 2026-10-16): its modules in the Organization's Dashboard,
+ * where the Dashboard writes the setting `workspace.tabs` with the Owner's
+ * own GitHub rights (root decision 0194 point 2). From a tile's menu
+ * ("Přesunout do karty") with that module, from the tabs ("Upravit karty")
+ * without one. Null for anyone but the Owner (GitHub's live answer, false
+ * until it comes), for the Personalspace group and a production repository,
+ * and where the shell document names no Dashboard page. Like "Přístup k
+ * modulu", it grants nothing: the Dashboard decides again. */
+export function workspaceTabsTarget(
+  tile: AppsTile | null,
+  group: CatalogGroupEntry,
+  dashboard: (slug: string) => string | null,
+  owner: boolean,
+): string | null {
+  const slug = group.organization.organization;
+  if (
+    !owner ||
+    group.sections === null ||
+    slug === null ||
+    group.organization.forgeLogin === undefined ||
+    (tile !== null && tile.kind !== "module")
+  )
+    return null;
+  const base = moduleAccessUrl(
+    dashboard(slug),
+    tile === null || tile.kind !== "module" ? "" : tile.entry.module.module,
+  );
+  if (base === null) return null;
+  const url = new URL(base);
+  if (tile === null) url.searchParams.delete("module");
+  url.searchParams.set("focus", "workspace-tabs");
   return url.href;
 }
 
