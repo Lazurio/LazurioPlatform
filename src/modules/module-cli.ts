@@ -43,7 +43,14 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   required_module_slots) must be declared by the Organization, active and
   checked out beside it, or nothing is installed or started
   (required-slot-undeclared, required-slot-planned, required-slot-missing,
-  with the slot); a required sibling module workspace/<slug> with an HTTP
+  with the slot). A module provides its own data first: each repository
+  database the Organization declares directly below it (a repository_db_mount
+  slot such as workspace/<module>/db) that is not there, or is an empty
+  directory, is cloned on its declared branch with this Environment's GitHub
+  sign-in; a checkout already there is used as it is, never fetched or
+  changed. When the clone cannot be done, nothing is installed or started
+  (data-mount-denied, data-mount-occupied, data-mount-unavailable,
+  data-mount-clone-failed, with the slot). A required sibling module workspace/<slug> with an HTTP
   default app is passed as LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN, its
   loopback address. Every secret the app declares (lazurio.runtime secrets
   and optional_secrets, names only) is read from this Environment's own
@@ -148,6 +155,14 @@ const explanations: Readonly<Record<string, string>> = {
     "The app requires this slot, which the Organization manifest declares as planned (planned_slot); it cannot start in this Environment until the slot is active.",
   "required-slot-missing":
     "The app requires this slot, which is not checked out in this Environment beside it; nothing was started. Synchronize the Organization (lazurio update) or ask for access to that repository, then start again.",
+  "data-mount-denied":
+    "The app's data repository (this slot, declared by the Organization as a repository_db_mount) is one the GitHub account gh is signed in with here cannot read; nothing was started. Ask the Organization's Admin for access, then start again.",
+  "data-mount-occupied":
+    "The place of the app's data repository (this slot) holds something that is not a checkout: a directory with files in it, a file or a link. It was left untouched and nothing was started; look at it and move it aside yourself.",
+  "data-mount-unavailable":
+    "The app's data repository (this slot) is not checked out, and GitHub did not answer or another content operation (an install, a module being created) holds this Folder's content lock; nothing was started. Start again; the clone is tried at every start.",
+  "data-mount-clone-failed":
+    "The app's data repository (this slot) could not be cloned on its declared branch: the repository may be empty or lack that branch, it may declare no GitHub remote, or git could not reach it. Lazurio never creates or initializes it, and nothing was started. Ask the Organization's Admin to check the data repository.",
   "runtime-secret-unavailable":
     "The app needs these secrets and the Environment's vault did not give them, so nothing was started. Each is the login password of the one item named exactly like it in this Environment's vault (lazurio vault status); add or fix the item and start again. Values are never shown.",
   "preparation-script-failed":

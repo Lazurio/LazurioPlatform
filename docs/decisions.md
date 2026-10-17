@@ -566,7 +566,7 @@ included. `docs/organization-contract.md` now says "never trusted by name" inste
 | The root only from an explicit name (no discovery) | The Launchpad could not install an Organization the Folder does not hold; superseded on 2026-10-05 by name candidate and scan, each verified |
 | Trust `<login>/<login>_GEN3` as the root by its name, as the resident does | A repository of that name that is not the root (a fork, a rename, a placeholder) would be installed as one; the name is only a candidate |
 | Fail the run when a module's preparation is refused | The content is in place and a start prepares again (F34); reported in the step instead |
-| Materialize `infra` and repository databases with the modules | F33 leaves them out of the composition; databases are the Organization's own bootstrap (B7) |
+| Materialize `infra` and repository databases with the modules | F33 leaves them out of the composition; databases were the Organization's own bootstrap (B7). Superseded for declared data mounts by the B7 amendment of 2026-10-17: a module's `repository_db_mount` is materialized with its module, on its declared branch |
 | Hold the Folder operation lock for the whole install | Every Folder read (status, preset) would wait behind a clone; a separate content lock instead |
 | No role: GitHub denies what the account cannot read anyway | An Admin-only slot readable by a Builder (a public or wider-granted repository) would land on a Builder's Environment; the role scope decides before any provider operation, as in the resident |
 | The resident's per-slot WRITE readiness gate for Builder and Steward | One unwritable module would block the whole install; the role is confirmed on the root and children are reported one by one (F9) |

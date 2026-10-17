@@ -420,6 +420,25 @@ only with `--slot <name>`. Repository-db mounts stay the Organization's own boot
 0188): the role is back, confirmed live on GitHub; restricted slots are in scope only
 for a verified Admin and `excluded_by_role_scope` for a Steward or Builder
 (`docs/content-sync.md`, Installation).*
+*Amended for repository-db mounts by the Owner's direction of 2026-10-17 (DEV-6641):
+a module provides its own declared data mount. A slot with `materialization:
+"repository_db_mount"` directly below a module (`workspace/<module>/db`,
+`mission-control/db`) is required for that module, and its preparation provides it
+before every start, `lazurio module prepare` and the Launchpad's Open: an absent mount,
+or an empty directory at its place, is cloned on its declared `git.branch` (often `v3`) with this Environment's GitHub
+sign-in, through the same verified temporary sibling and no-replace publish as
+installation (`src/content/provide.ts`, under the Folder's content lock). A checkout
+already at the place is used as it is, whatever its origin or branch: never fetched,
+pulled, reset or rewritten, and never a reason to refuse the start. Only providing an
+absent mount can fail, and that refuses the start with the slot: `data-mount-denied`
+(ask the Admin for access), `data-mount-occupied` (a non-empty directory that is no
+checkout, a file or a link at the place, left untouched), `data-mount-unavailable` (GitHub or the content lock did not answer;
+retried at the next start), `data-mount-clone-failed` (an empty remote, a missing
+branch or an unreachable one; never bootstrapped). Installation materializes the same
+mount, by the same function, when its module is materialized or present in the same
+install, and leaves it `excluded` otherwise. It is still never a background sync and
+never an update of an existing mount; creating a data repository stays with
+`lazurio module create --data` and repository-db itself.*
 Surface: "Synchronize" as the page action in the Organization view header, "Add
 Organization" at the bottom of the sidebar (T3's "Add project"). No state. On a Team
 Environment the identity is the broker's `gh` wrapper that Machines installs

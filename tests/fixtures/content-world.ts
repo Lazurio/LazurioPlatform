@@ -95,12 +95,14 @@ async function git(cwd: string, ...args: string[]) {
   if (code !== 0) throw new Error(`git ${args[0]} failed: ${error}`);
 }
 
-/** A bare repository `<owner>/<name>` whose `main` holds what `write` puts
- * in its working tree. Returns the bare repository's path. */
+/** A bare repository `<owner>/<name>` whose `branch` (`main` unless named,
+ * as a repository database's `v3`) holds what `write` puts in its working
+ * tree. Returns the bare repository's path. */
 export async function remoteRepository(
   world: World,
   fullName: string,
   write: (directory: string) => Promise<void>,
+  branch = "main",
 ): Promise<string> {
   const [owner, name] = fullName.split("/") as [string, string];
   const bare = join(world.remotes, owner, `${name}.git`);
@@ -111,7 +113,7 @@ export async function remoteRepository(
   await write(work);
   await git(work, "add", "--all");
   await git(work, "commit", "--quiet", "--allow-empty", "-m", "fixture");
-  await git(work, "push", "--quiet", bare, "HEAD:refs/heads/main");
+  await git(work, "push", "--quiet", bare, `HEAD:refs/heads/${branch}`);
   await rm(work, { recursive: true, force: true });
   return bare;
 }

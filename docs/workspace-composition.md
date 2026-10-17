@@ -268,9 +268,10 @@ and the declared Production Space slots (`productionspace/<repository>`), whose
 repository the Environment's **composition subject** can read. Production Space
 repositories are materialized and kept current like modules but never run or released;
 the Launchpad shows them read-only. Repository-database mounts (`mission-control/db`,
-`workspace/<module>/db`) stay the Organization's own bootstrap
-([B7](launchpad-parity.md#b7-organizations-synchronize-and-materialize)) and are not
-part of the composition. The subject is a
+`workspace/<module>/db`) are not part of the composition: each follows its module, which
+provides it at its own preparation and fresh install
+([B7](launchpad-parity.md#b7-organizations-synchronize-and-materialize), amended
+2026-10-17). The subject is a
 GitHub principal: a user (the Operator, the person at their workstation, a persona) or
 a GitHub Team (a Team Environment). Teams are not shown in the workspace; they only
 decide, inside GitHub, what the subject can read. Settings → Environment keeps showing

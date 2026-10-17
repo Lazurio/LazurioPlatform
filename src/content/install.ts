@@ -46,6 +46,7 @@ import {
   personalspaceOwnerOf,
   templateOwnerPlaceholder,
 } from "./personalspace-bootstrap";
+import { dataMountOf, provideRepository } from "./provide";
 import {
   classifySlotAccess,
   type OrganizationRole,
@@ -456,6 +457,10 @@ type Child = Readonly<{
   excluded?: "excluded" | "excluded_by_role_scope";
   /** A slot (or one above it) whose access declaration is malformed. */
   unclassified?: true;
+  /** A repository database mount (`repository_db_mount`): cloned on its
+   * declared branch, and only when its module (`parent`) is materialized or
+   * present in the same install. */
+  data?: Readonly<{ parent: string; branch: string }>;
 }>;
 
 const record = (value: unknown): Readonly<Record<string, unknown>> =>
@@ -465,10 +470,12 @@ const record = (value: unknown): Readonly<Record<string, unknown>> =>
 
 // The declared children content installation materializes (decision F33,
 // 1.1 point 4): workspace modules, the root-level applications
-// (`mission-control`, `design-system`) and the Production Space
-// repositories. `infra` and repository databases (`mission-control/db`,
-// `workspace/<module>/db`) are the Organization's own bootstrap (B7) and are
-// left out. The role scope comes first, as the resident applies it
+// (`mission-control`, `design-system`), the Production Space repositories
+// and the declared data mount of a module (`materialization:
+// "repository_db_mount"` at `mission-control/db` or `workspace/<module>/db`,
+// launchpad-parity B7), on its declared branch and only below a module that
+// is there after the same install. `infra` and a database slot declared
+// otherwise are left out. The role scope comes first, as the resident applies it
 // (`R:lazurio/runtime/lazurio-update-lib.mjs`, restricted slot policy): a
 // restricted (Admin-only) slot and every slot below one are in scope only for
 // a verified Admin, and are otherwise `excluded_by_role_scope`; a slot whose
@@ -519,6 +526,15 @@ function declaredChildren(
     const kind =
       slot.scope === "productionspace" ? "productionspace" : "module";
     const access = boundary(slot.path);
+    const mount = dataMountOf(declaration);
+    // Only the data mount of a module: a workspace module or a root-level
+    // application directly above it.
+    const data =
+      mount !== null &&
+      (rootApplicationPaths.has(mount.parent) ||
+        /^workspace\/[^/]+$/.test(mount.parent))
+        ? Object.freeze({ parent: mount.parent, branch: mount.branch })
+        : undefined;
     children.push(
       Object.freeze({
         path: slot.path,
@@ -529,9 +545,10 @@ function declaredChildren(
           ? { unclassified: true as const }
           : access === "restricted" && restricted === "exclude"
             ? { excluded: "excluded_by_role_scope" as const }
-            : !module && kind !== "productionspace"
+            : !module && kind !== "productionspace" && data === undefined
               ? { excluded: "excluded" as const }
               : {}),
+        ...(data === undefined ? {} : { data }),
       }),
     );
   }
@@ -547,6 +564,8 @@ async function materializeChild(
   root: string,
   child: Child,
   context: RunContext,
+  /** The slots this install found present or materialized so far. */
+  available: ReadonlySet<string>,
 ): Promise<RepositoryOutcome> {
   const where = {
     path: child.path,
@@ -559,55 +578,21 @@ async function materializeChild(
       reason: "access-classification-unknown",
     };
   if (child.excluded !== undefined) return { ...where, result: child.excluded };
+  // A data mount whose module is not here: its module provides it at its
+  // own preparation once it is (launchpad-parity B7).
+  if (child.data !== undefined && !available.has(child.data.parent))
+    return { ...where, result: "excluded" };
   if (child.repository === null) return { ...where, result: "no-repository" };
-  const parentSegments = child.segments.slice(0, -1);
-  const name = child.segments.at(-1) as string;
-  const destination = join(root, ...child.segments);
-  // A present destination is reported, never entered or changed.
-  const observed = await context.host.git.inspect(destination);
-  if (observed.kind === "checkout")
-    return sameRepository(observed.repository, child.repository)
-      ? { ...where, result: "present" }
-      : { ...where, result: "blocked", reason: "destination-occupied" };
-  // GitHub's spelling of it, as this identity reads it. A public Environment
-  // asks GitHub nothing first: anonymous Git reads a public repository, and
-  // the clone of one it cannot read fails and is reported (`clone-failed`).
-  let fullName = child.repository;
-  if (!context.anonymous) {
-    const [owner, repositoryName] = child.repository.split("/") as [
-      string,
-      string,
-    ];
-    const access = await context.host.github.repository(owner, repositoryName);
-    if (
-      access.kind === "missing" ||
-      (access.kind === "observed" && !access.repository.readable)
-    )
-      return { ...where, result: "denied", reason: "repository-denied" };
-    if (access.kind !== "observed")
-      return { ...where, result: "unavailable", reason: "github-unavailable" };
-    fullName = access.repository.fullName;
-  }
-  let parent: string;
-  try {
-    parent = await ensureCheckoutDirectories(root, parentSegments);
-  } catch {
-    return { ...where, result: "blocked", reason: "destination-invalid" };
-  }
-  const remote = await remoteOf(context, fullName);
-  const result = await materializeRepository({
-    parent,
-    name,
+  const outcome = await provideRepository({
+    root,
+    path: child.path,
     repository: child.repository,
-    url: remote.url,
-    credentialHelper: remote.credentialHelper,
+    branch: child.data?.branch,
+    fillEmptyDirectory: child.data !== undefined,
     git: context.host.git,
+    github: context.anonymous ? "anonymous" : context.host.github,
   });
-  if (result.kind === "materialized")
-    return { ...where, result: "materialized" };
-  if (result.kind === "occupied")
-    return { ...where, result: "blocked", reason: "destination-occupied" };
-  return { ...where, result: "failed", reason: result.code };
+  return { ...where, ...outcome };
 }
 
 function childrenSummary(outcomes: readonly RepositoryOutcome[]): string {
@@ -890,8 +875,18 @@ async function installOrganization(
     };
   }
   const repositories: RepositoryOutcome[] = [];
-  for (const child of declaredChildren(inventory, role.restricted))
-    repositories.push(await materializeChild(directory, child, context));
+  const available = new Set<string>();
+  for (const child of declaredChildren(inventory, role.restricted)) {
+    const outcome = await materializeChild(
+      directory,
+      child,
+      context,
+      available,
+    );
+    if (outcome.result === "materialized" || outcome.result === "present")
+      available.add(child.path);
+    repositories.push(outcome);
+  }
   steps.done("modules", childrenSummary(repositories));
   // preparation: the modules this run materialized, by the module core
   steps.running("preparation");

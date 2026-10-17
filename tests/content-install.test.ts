@@ -400,6 +400,69 @@ posixTest(
   90_000,
 );
 
+// A module's declared data mount (launchpad-parity B7, amended 2026-10-17):
+// installed with its module, on its declared branch, by the same function;
+// left out while its module is not there.
+posixTest(
+  "a declared data mount is materialized on its branch below a module that is there, and excluded below one that is not",
+  async () => {
+    world = await createWorld();
+    const dataSlot = (module: string): Slot => ({
+      path: `workspace/${module}/db`,
+      slug: `${module}-data`,
+      materialization: "repository_db_mount",
+      git: { url: `git@github.com:Alpha/${module}-data.git`, branch: "v3" },
+    });
+    await alphaRemotes(world, {
+      slots: [...alphaSlots, dataSlot("web"), dataSlot("docs")],
+    });
+    await remoteRepository(
+      world,
+      "Alpha/web-data",
+      (directory) => writeFile(join(directory, "README.md"), "web data"),
+      "v3",
+    );
+    const folder = await presetFolder(world, "local");
+    const { github, calls } = stubGitHub(world, {
+      repositories: {
+        ...alphaReadable,
+        "Alpha/web-data": {},
+        "Alpha/docs-data": {},
+      },
+    });
+    const first = await installAlpha(github, folder);
+    expect(first.result.kind === "content-install" && first.result.state).toBe(
+      "succeeded",
+    );
+    const installed = results(first.result);
+    expect(installed["workspace/web"]).toBe("materialized");
+    expect(installed["workspace/web/db"]).toBe("materialized");
+    // `docs` is denied, so its data mount waits for it, unasked.
+    expect(installed["workspace/docs"]).toBe("denied");
+    expect(installed["workspace/docs/db"]).toBe("excluded");
+    // A database slot without `repository_db_mount` stays out, as before.
+    expect(installed["mission-control/db"]).toBe("excluded");
+    expect(
+      calls.some(
+        (call) =>
+          call.kind === "repository" &&
+          call.args.join("/").toLowerCase() === "alpha/docs-data",
+      ),
+    ).toBe(false);
+    const db = join(folder, "organizations", "alpha_GEN3", "workspace/web/db");
+    const branch = await runChild(
+      ["git", "-C", db, "symbolic-ref", "--short", "HEAD"],
+      { env: { PATH: Bun.env.PATH ?? "/usr/bin:/bin", HOME: db } },
+    );
+    expect(branch.stdout.trim()).toBe("v3");
+    expect(await readFile(join(db, "README.md"), "utf8")).toBe("web data");
+    // A second install finds both present and changes nothing.
+    const second = await installAlpha(github, folder);
+    expect(results(second.result)["workspace/web/db"]).toBe("present");
+  },
+  60_000,
+);
+
 posixTest(
   "a role GitHub does not confirm fails closed before anything is cloned",
   async () => {

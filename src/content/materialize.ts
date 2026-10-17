@@ -9,8 +9,9 @@ import { sameRepository } from "./model";
 
 // Materialization of one ABSENT repository (docs/content-sync.md): clone into
 // a temporary sibling of the destination on the same filesystem, verify the
-// clone (remote identity, branch `main`, the inspected commit and, for an
-// Organization root, its declaration), then publish it with a no-replace
+// clone (remote identity, its branch, `main` unless a repository database
+// declares another, the inspected commit and, for an Organization root, its
+// declaration), then publish it with a no-replace
 // rename. An occupied destination is never touched. An interrupted run leaves
 // only its own temporary sibling, recognized by its exact name and marker and
 // removed only by this operation, under the content lock, the next time it
@@ -94,6 +95,9 @@ export type MaterializeRequest = Readonly<{
   repository: string;
   url: string;
   credentialHelper?: string | undefined;
+  /** The branch cloned and verified: a repository database's declared one
+   * (often `v3`). Absent: `main`. */
+  branch?: string | undefined;
   git: ContentGit;
   /** More verification of the clone before it is published (the
    * declaration of an Organization root): a failure code, or null. */
@@ -213,17 +217,18 @@ export async function materializeRepository(
     parent: request.parent,
     name: request.name,
     fill: async (checkout): Promise<FillOutcome<string>> => {
+      const branch = request.branch ?? "main";
       const cloned = await request.git.clone({
         url: request.url,
         directory: checkout,
-        branch: "main",
+        branch,
         credentialHelper: request.credentialHelper,
       });
       if (cloned !== "cloned") return { kind: "failed", code: "clone-failed" };
       const observed = await request.git.inspect(checkout);
       if (
         observed.kind !== "checkout" ||
-        observed.branch !== "main" ||
+        observed.branch !== branch ||
         !sameRepository(observed.repository, request.repository)
       )
         return { kind: "failed", code: "checkout-unexpected" };
