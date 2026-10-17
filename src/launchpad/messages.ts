@@ -428,10 +428,10 @@ const en = {
   toolsComposioCreateTitle: "One more step in Composio",
   toolsComposioCreateText: "Create an organization with this name in Composio.",
   toolsComposioCreateName: "Organization name",
-  toolsComposioCreateWait: "Once it exists, we continue on our own.",
+  toolsComposioCreateWait: "Once it exists, Lazurio continues on its own.",
   toolsComposioRenameText:
     "Composio has more than one organization named “{name}”; rename the extra one.",
-  toolsComposioRenameWait: "Once it is renamed, we continue on our own.",
+  toolsComposioRenameWait: "Once it is renamed, Lazurio continues on its own.",
   toolsComposioScene:
     "In Composio: 1. {forYou}, 2. {organization}, 3. {createOrg}, 4. the name {name} and {create}.",
   toolsComposioSceneYou: "You",
@@ -2052,10 +2052,10 @@ const cs: Record<MessageKey, string> = {
   toolsComposioCreateTitle: "Ještě jeden krok v Composiu",
   toolsComposioCreateText: "Založte v Composiu organizaci s tímto jménem.",
   toolsComposioCreateName: "Jméno organizace",
-  toolsComposioCreateWait: "Až ji založíte, pokračujeme samo.",
+  toolsComposioCreateWait: "Až ji založíte, Lazurio bude pokračovat samo.",
   toolsComposioRenameText:
     "V Composiu je víc organizací se jménem „{name}“; tu navíc přejmenujte.",
-  toolsComposioRenameWait: "Až ji přejmenujete, pokračujeme samo.",
+  toolsComposioRenameWait: "Až ji přejmenujete, Lazurio bude pokračovat samo.",
   toolsComposioScene:
     "V Composiu: 1. {forYou}, 2. {organization}, 3. {createOrg}, 4. jméno {name} a {create}.",
   toolsComposioSceneYou: "Vy",

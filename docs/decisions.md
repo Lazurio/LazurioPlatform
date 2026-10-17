@@ -8540,7 +8540,7 @@ note amends how points 5 and 6 reach the person.
   seconds; not while the page is hidden, at once when it shows again, never once
   connected or closed. Each reading is the one point 2 describes, so the
   organization becomes current as soon as it exists, and a quiet line says "Až ji
-  založíte, pokračujeme samo." Nothing blocks meanwhile: Composio works in the
+  založíte, Lazurio bude pokračovat samo." Nothing blocks meanwhile: Composio works in the
   person's current organization and agents keep their notice (point 3).
 - **Done.** "Composio je připojené", with the account and the organization current
   after that reading (the line used to name the organization the sign-in named,
