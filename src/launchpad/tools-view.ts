@@ -1667,7 +1667,8 @@ export function organizationChoices(
  * - `rename`: it has more than one; the person renames the extra one.
  * - `problem`: one sentence where nothing is the person's to do now (the
  *   organization could not be made current, the Organization's name or the
- *   organizations cannot be read).
+ *   organizations cannot be read, or no organization is current, as when
+ *   the list is empty); the dialog keeps reading.
  * - `connected`: the account and the organization current after the
  *   reading made the Organization's one current; `choices` where the person
  *   chooses among several (a personal Environment, a computer). */
@@ -1706,13 +1707,13 @@ export function composioDialogView(
         kind: "problem",
         message: fill(copy.toolsComposioOrgElsewhere, { name: rule.name }),
       };
-    return {
-      kind: "connected",
-      account,
-      organization: current ?? rule.name,
-      choices: null,
-    };
   }
+  // Connected only with an organization current: an empty list or one with
+  // none marked current is not connected, and the dialog reads again.
+  if (current === null)
+    return { kind: "problem", message: copy.toolsComposioOrgUnavailable };
+  if (rule.kind === "named")
+    return { kind: "connected", account, organization: current, choices: null };
   return {
     kind: "connected",
     account,

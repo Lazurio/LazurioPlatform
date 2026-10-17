@@ -8532,8 +8532,10 @@ note amends how points 5 and 6 reach the person.
   the drawing teaches the path inside it, and no deeper address
   (`/create-workspace`) could be verified signed in. Two of the name: one
   sentence, rename the extra one, and the same button. The organization not made
-  current, the Organization's name or the organizations unreadable: one sentence
-  each; `unverified` keeps its refusal.
+  current, the Organization's name or the organizations unreadable, or no
+  organization current (an empty list, or none marked current): one sentence
+  each, and the dialog keeps reading; it is never "connected" without an
+  organization current. `unverified` keeps its refusal.
 - **Found by itself.** "Zkontrolovat znovu" is gone: while the person works in
   Composio, the dialog reads `/api/tools/composio/organizations` again, first
   after 4 seconds and then each time half as long again, at most every 30

@@ -1068,6 +1068,28 @@ test("Composio's dialog: create, rename, one sentence or connected, from the org
   });
   if (several.kind !== "connected") throw new Error("not connected");
   expect(composioConnectedLine(several)).toBe("jana_workspace");
+  // No organization current is never connected: an empty list, or ones none
+  // of which is current, personal or named alike. The dialog keeps reading.
+  const none = {
+    kind: "problem" as const,
+    message: copy.toolsComposioOrgUnavailable,
+  };
+  for (const answer of [
+    personal([]),
+    personal([{ id: "org_1", name: "jana_workspace", current: false }]),
+    personal([
+      { id: "org_1", name: "jana_workspace", current: false },
+      { id: "org_2", name: "Northwind", current: false },
+    ]),
+    named("matches", []),
+    named("matches", [
+      { id: "org_2", name: "Lazurio Example Organization", current: false },
+    ]),
+  ]) {
+    const view = composioDialogView(answer, "bob@example.com", copy);
+    expect(view).toEqual(none);
+    expect(composioPollNext(view, { open: true, hidden: false })).toBe("read");
+  }
 });
 
 test("Composio's dialog reads again calmly while the person works in Composio, and stops once connected, closed or hidden", () => {
