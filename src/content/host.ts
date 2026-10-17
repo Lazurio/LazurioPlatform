@@ -8,7 +8,12 @@ import { type Catalog, readFolderCatalog } from "../organizations/catalog";
 import { type ToolsEnvironment, toolsEnvironmentOf } from "../tools/overview";
 import { runTool } from "../tools/status";
 import { resolveInstallBase } from "../update/base";
-import { type ContentGit, gitEnvironmentOf, processContentGit } from "./git";
+import {
+  type ContentGit,
+  gitEnvironmentOf,
+  processContentGit,
+  proxyEnvironmentOf,
+} from "./git";
 import { type ContentGitHub, ghContentGitHub } from "./github";
 import {
   type PersonalspaceBootstrap,
@@ -70,6 +75,7 @@ export function processGitHubHost(
       platform: tools.platform,
       run: tools.run,
       env: gitEnvironmentOf(input.env),
+      proxy: proxyEnvironmentOf(input.env),
     }),
   });
 }

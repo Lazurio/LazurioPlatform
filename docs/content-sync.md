@@ -264,9 +264,12 @@ differences only (`scope.github` `anonymous` in `src/content/model.ts`):
   Children keep the paths their slots declare.
 - **root** and **modules** clone exactly `https://github.com/<owner>/<repository>.git`
   (anything else fails before any process) with an isolated git: the process gets only
-  PATH, a locale and an empty temporary home, with no system, global or XDG configuration
-  and nothing injected through the environment (`GIT_CONFIG_*`, `GIT_CONFIG_PARAMETERS`),
-  no credential, askpass or SSH helper and HTTPS the only protocol
+  PATH, a locale, an empty temporary home and the Environment's HTTP(S) proxy (the
+  standard `http_proxy`, `https_proxy`, `all_proxy` and `no_proxy` in either case, which
+  a public Environment's guest needs to reach github.com at all; one whose URL carries
+  credentials is left out), with no system, global or XDG configuration and nothing
+  injected through the environment (`GIT_CONFIG_*`, `GIT_CONFIG_PARAMETERS`), no
+  credential, askpass or SSH helper and HTTPS the only protocol
   (`anonymousGitEnvironment` in `src/content/git.ts`). So no `http.extraHeader`,
   credential helper, `insteadOf` rewrite (to another host or to SSH) or `core.sshCommand`
   of the operator, a visitor or this process reaches the clone (review of #472). A

@@ -13163,7 +13163,8 @@ changes" no longer holds.
    name that verified declaration spells (the handover knows only the lowercase slug;
    members install `organizations/<Org>_GEN3`), and clones exactly
    `https://github.com/<owner>/<repository>.git` with an isolated git: only PATH, a
-   locale and an empty temporary home, no system, global, XDG or injected configuration,
+   locale, an empty temporary home and the Environment's HTTP(S) proxy variables
+   without credentials, no system, global, XDG or injected configuration,
    no credential, askpass or SSH helper, HTTPS only. Anonymous therefore means that no
    header, helper or URL rewrite of the operator, a visitor or the process reaches the
    clone (review of #472), not only that gh is not asked. A child anonymous Git cannot
@@ -13190,9 +13191,13 @@ changes" no longer holds.
 **Honest limits.** A visitor has the shared account's terminal and can still sign gh in
 or leave a credential helper, an extra header or a URL rewrite in the account's Git
 configuration; the isolated transport keeps all of it out of the install's clones, and
-only the notice and the nightly return keep it out of the Environment. An HTTPS proxy or
-a custom CA bundle given through the environment does not reach the clone either; a
-public Environment that needs one is a change to make in the isolated environment. The
+only the notice and the nightly return keep it out of the Environment. The standard
+proxy variables (`http_proxy`, `https_proxy`, `all_proxy`, `no_proxy`, either case) do
+reach the clone, because a public guest's firewall lets it out only through the edge
+proxy; they route the connection and name nobody, and one whose URL carries credentials
+is left out. Over HTTPS the proxy sees only the tunnel to github.com. A custom CA bundle
+given through the environment does not reach the clone; a public Environment that needs
+one is a change to make in the isolated environment. The
 clone's `origin` keeps the request's lowercase spelling, which GitHub serves in any
 letter case. A private module and a network failure both read `clone-failed`; without a
 read of GitHub nothing tells them apart. Other generated texts of a public Environment
@@ -13212,7 +13217,10 @@ failing before any process; against local servers that answer 401 and record wha
 are sent, a hostile global, XDG and environment configuration (an extra header, a
 credential helper, a rewrite to another host and one to SSH, `core.sshCommand`) reaching
 none of the anonymous clones, which go to the nominal URL, while the same configuration
-leaks into the operator's clone of the same URLs; the texts
+leaks into the operator's clone of the same URLs; the process's standard proxy variables
+reaching the anonymous clone through the product's host composition and nothing else of
+its environment, a clone through a local proxy reaching the repository behind a closed
+origin, and a proxy URL with credentials left out, so that clone goes past it; the texts
 in both languages), `tests/tools-team-github.test.ts` (the CLI's refusals and prompt on
 a public Team Environment) and `tests/public-environment.test.ts` (a refresh that
 records the member now changes the texts).
