@@ -239,13 +239,30 @@ lines into the artifact `qualification-<tag>` (kept 90 days, also when a journey
 failed) and fails unless every journey is `ok` exactly once on every target, for
 exactly the bytes and the commit of the candidate's published manifest.
 
-**2. Canary.** The qualified candidate is rolled by its exact tag to every hosted
-Machine of the pilot Organization — its work VMs and the personal VMs of its
-operators — through the path that pins each one's release (Machines' Plan, Permit
-and apply; outside this repository). The 8 hours start when the last of them runs
-the candidate; what is observed and what ends the stage early is
+**2. Canary.** The pilot Organization is LazurioExampleOrganization (GitHub id
+325048785), the public reference Organization with fictional data, and it is the
+first rollout ring of every release (root decision 0204 point 7,
+[HumanAndMachines/Lazurio `manual/decision-register.md`](https://github.com/HumanAndMachines/Lazurio/blob/main/manual/decision-register.md),
+row 0204). The qualified candidate is rolled by its exact tag to every one of its
+Environments, the stage's work VMs, and to at least one personal VM of an operator.
+That personal VM lies outside the Organization, which has none. Each is rolled
+through the path that pins its release (Machines' Plan, Permit and apply; outside
+this repository).
+
+- **No consent or window** in that Organization: rollouts, restarts, reinstalls and
+  redeploys there, candidates included, need neither the consent of the people who
+  use its Environments nor a window. The Agent runs them as part of the release, on
+  the instruction of its Operator, who holds the live Admin role there.
+- **What stays:** the Operator's instruction, source review, the Machines lifecycle
+  gates, release approval, no secrets in Git, the personal VM Owner's consent and
+  every other Organization's own consent.
+- **The next ring** (G.5) starts only after browser acceptance on that
+  Organization's Environments (root decision 0178).
+
+The 8 hours start when the last of them runs the candidate; what is observed and
+what ends the stage early is
 [recovery mode G.3](recovery-mode.md#g3-canary-stage-8-hours-on-every-machine-of-the-pilot-organization).
-When the stage passed, the pilot Organization's release reviewer adds
+When the stage passed, the release reviewer adds
 `qualification/canary/<candidate>.json` by a pull request to this repository:
 
 ```json

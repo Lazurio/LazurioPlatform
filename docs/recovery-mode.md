@@ -576,20 +576,26 @@ hours on one Environment.
 
 **What "every Machine of the pilot Organization" means for the release job.** After
 `qualify.yml` passed, the candidate is rolled by its exact tag to the stage's
-Machines. **Scope confirmed by Matěj on 2026-09-28:** the work VMs of the
-pilot Organization plus the personal VMs of its Operators. Each is rolled through
+Machines. **Scope confirmed on 2026-09-28, amended by root decision 0204 point 7
+on 2026-10-16:** the pilot Organization is LazurioExampleOrganization, the
+public reference Organization; the stage covers every one of its Environments as
+the work VMs, plus at least one personal VM of an operator, outside it because it
+has no personal Environment. Each is rolled through
 the path that pins its release: the Organization's owner overlay for work VMs, the
 personal lane's pin for personal VMs (Plan, Permit and apply per Machine, the existing
 path). Root decision 0166 point 6 requires both groups, so the rebuild of the
 operators' personal VMs on Ubuntu 24.04 (G.2, parity slice M6) comes BEFORE the first
-canary stage: the stage does not start until every in-scope Machine, work VMs and the
-operators' personal VMs alike, runs the candidate, and no final release passes with a
-personal VM missing from the count. A Machine that cannot take the candidate blocks
+canary stage: the stage does not start until every in-scope Machine runs the
+candidate, and no final release passes without a personal VM in the count. A
+Machine that cannot take the candidate blocks
 the stage. Narrowing the scope is Matěj's decision recorded in the
 register, never a line the `release` reviewer accepts. The 8 hours start when the
 last of these Machines runs the candidate, proven by its `lazurio update status
---json` (`active` equals the candidate) and a healthy Launchpad. The pilot Organization is
-Matěj's choice and is named only in private owner records, never here.
+--json` (`active` equals the candidate) and a healthy Launchpad. Which personal VM
+takes part is the reviewer's to state, by its opaque id only. Rollouts and restarts
+in the pilot Organization need no consent or window, and the next ring follows
+only after browser acceptance there
+([release cycle, Canary](release-cycle.md#qualification-and-the-canary)).
 
 **What is observed during the 8 hours**, on every Machine:
 
@@ -687,8 +693,8 @@ ring exists today.
 | Ring | Who | Enters when |
 |---|---|---|
 | 0 | The qualification ring: `qualify.yml` on runners, and a disposable local Ubuntu VM applied by the Machines playbook ([Launchpad parity](launchpad-parity.md), C.5) | A release candidate of either repository is published |
-| 1 | Every hosted Machine of the pilot Organization | Ring 0 passed; the 8 hours of G.3 |
-| 2 … n | The remaining Organizations in steps, for example one further Organization, then the rest | The previous ring's evidence is merged |
+| 1 | Every Environment of the pilot Organization, LazurioExampleOrganization, and at least one operator's personal VM (G.3; root decision 0204 point 7); the Machines, T3 Code and MausBot runbooks call it Ring 0 | Ring 0 passed; the 8 hours of G.3 |
+| 2 … n | The remaining Organizations in steps, for example one further Organization, then the rest | The previous ring's evidence is merged; after ring 1 also its browser acceptance (root decision 0178) |
 
 **What promotes a release from one ring to the next:** every apply in the ring
 `completed` with a green readback; no Machine of the ring in Recovery mode on that
