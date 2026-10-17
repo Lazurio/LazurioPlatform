@@ -96,6 +96,11 @@ nav { display: flex; height: 100%; flex-direction: column; align-items: center; 
    surface; its shape never changes. */
 .item { position: relative; display: grid; width: 40px; height: 40px; flex: none; place-items: center; padding: 0; border: 0; border-radius: var(--lz-radius-md); background: transparent; color: var(--shell-ink-muted); cursor: pointer; text-decoration: none; }
 .item:hover { background: var(--shell-hover); color: var(--shell-ink); }
+/* A round mark has a round surface (Anna 2026-10-11): the Lazurio disc and
+   your account's photo bring a 40 px circle under the pointer and when they
+   are the page you are on, concentric with the 32 px disc and the 28 px
+   photo, as a square mark has its rounded square. */
+.home, .account { border-radius: 50%; }
 /* The Lazurio logo sits on a white disc, so it reads the same in every
    app's colours (Matěj 2026-10-04); white whatever the roles say. */
 .home .disc { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: var(--lz-white); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08); }
