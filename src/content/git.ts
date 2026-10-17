@@ -85,6 +85,10 @@ export type GitEnvironment = Readonly<{
   platform: string;
   run: ToolRunner;
   env: Readonly<Record<string, string>>;
+  /** The HTTP(S) proxy of this process (`proxyEnvironmentOf`), which an
+   * anonymous clone is given besides PATH: a public Environment may reach
+   * github.com only through its proxy. */
+  proxy?: Readonly<Record<string, string>> | undefined;
   /** Test seam: the origin, exactly `http://127.0.0.1:<port>`, of a local
    * server that stands in for github.com for an anonymous clone, given to
    * that clone alone as one `url.<origin>/.insteadOf=https://github.com/`
@@ -107,19 +111,39 @@ export function anonymousCloneTarget(url: string): string | null {
     : null;
 }
 
+const proxyName = /^(http_proxy|https_proxy|all_proxy|no_proxy)$/i;
+
+/** The standard proxy variables of an environment (`http_proxy`,
+ * `https_proxy`, `all_proxy`, `no_proxy`, in either case), which route a
+ * connection and name nobody. One whose value has an `@`, a proxy URL with
+ * userinfo (its credentials), is left out, never carried. */
+export function proxyEnvironmentOf(
+  env: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
+  const value: Record<string, string> = {};
+  for (const [name, entry] of Object.entries(env))
+    if (proxyName.test(name) && entry && !entry.includes("@"))
+      value[name] = entry;
+  return value;
+}
+
 /** The whole environment of an anonymous clone (decision F55's addendum of
- * 2026-10-17, review of #472): only PATH, a locale and an empty temporary
- * home. No system, global or XDG configuration and nothing injected through
- * the environment (`GIT_CONFIG_*`, `GIT_CONFIG_PARAMETERS`), so no
- * `http.extraHeader`, credential helper, `insteadOf` rewrite or
+ * 2026-10-17, review of #472): only PATH, a locale, an empty temporary home
+ * and the Environment's HTTP(S) proxy without credentials
+ * (`proxyEnvironmentOf` of `proxy`), the only way a public Environment
+ * reaches github.com. No system, global or XDG configuration and nothing
+ * injected through the environment (`GIT_CONFIG_*`, `GIT_CONFIG_PARAMETERS`),
+ * so no `http.extraHeader`, credential helper, `insteadOf` rewrite or
  * `core.sshCommand` of anyone reaches it; no prompt, askpass or SSH helper;
  * HTTPS the only protocol. The process runs with exactly this environment
  * (the tool runner inherits nothing). */
 export function anonymousGitEnvironment(
   path: string | undefined,
   home: string,
+  proxy: Readonly<Record<string, string | undefined>> = {},
 ): Record<string, string> {
   return {
+    ...proxyEnvironmentOf(proxy),
     ...(path ? { PATH: path } : {}),
     HOME: home,
     XDG_CONFIG_HOME: home,
@@ -192,8 +216,9 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
         ];
   // A public Environment's anonymous clone: refused before any process for
   // anything but exactly `https://github.com/<owner>/<repository>.git`, then
-  // run from an empty temporary home with `anonymousGitEnvironment` and
-  // nothing else; the empty `credential.helper` stays as a second fence.
+  // run from an empty temporary home with `anonymousGitEnvironment`, the
+  // Environment's proxy included, and nothing else; the empty
+  // `credential.helper` stays as a second fence.
   const anonymousClone = async (
     executable: string,
     request: CloneRequest,
@@ -234,7 +259,7 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
         ],
         cloneTimeoutMs,
         {
-          ...anonymousGitEnvironment(environment.path, home),
+          ...anonymousGitEnvironment(environment.path, home, environment.proxy),
           ...(seam === undefined ? {} : { GIT_ALLOW_PROTOCOL: "https:http" }),
         },
       );

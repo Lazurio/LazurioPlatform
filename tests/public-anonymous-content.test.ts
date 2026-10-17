@@ -7,8 +7,10 @@ import {
   anonymousGitEnvironment,
   type CloneRequest,
   processContentGit,
+  proxyEnvironmentOf,
 } from "../src/content/git";
 import { anonymousGitHub } from "../src/content/github";
+import { processGitHubHost } from "../src/content/host";
 import { installContent, planContentInstall } from "../src/content/install";
 import { publishNewCheckout } from "../src/content/materialize";
 import { type ContentStep, contentScope } from "../src/content/model";
@@ -90,8 +92,13 @@ function publicBinding(
 /** github.com for an anonymous clone in a test: the world's bare
  * repositories over Git's dumb HTTP from a local server (anything else
  * answers 404, as GitHub does for a repository anonymous Git cannot read).
- * Its origin is the git adapter's test seam `anonymousOrigin`. */
-async function githubStandIn(target: World): Promise<string> {
+ * Its origin is the git adapter's test seam `anonymousOrigin`, or the HTTP
+ * proxy of a clone, which sends it the absolute URL whose path it serves;
+ * `seen` records every URL it is asked for. */
+async function githubStandIn(
+  target: World,
+  seen: string[] = [],
+): Promise<string> {
   for (const owner of await readdir(target.remotes))
     for (const name of await readdir(join(target.remotes, owner)))
       if (name.endsWith(".git"))
@@ -108,6 +115,7 @@ async function githubStandIn(target: World): Promise<string> {
     hostname: "127.0.0.1",
     port: 0,
     fetch: async (request) => {
+      seen.push(request.url);
       const file = resolve(
         target.remotes,
         `.${decodeURIComponent(new URL(request.url).pathname)}`,
@@ -937,6 +945,136 @@ posixTest(
       expect(leaked).toContain(value);
     expect(await exists(helperAsked)).toBe(true);
     expect(await exists(sshRun)).toBe(true);
+  },
+  60_000,
+);
+
+// ---- git: the anonymous clone takes the Environment's proxy (try-01) -------
+
+test("an anonymous clone reaches github.com through the Environment's HTTP(S) proxy: the standard proxy variables pass, one with credentials and everything else stays behind", async () => {
+  const calls: Record<string, string>[] = [];
+  const run: ToolRunner = async (_command, _timeout, env) => {
+    calls.push({ ...env });
+    return { exitCode: 1, stdout: "", stderr: "" };
+  };
+  // A public guest's route out (its firewall allows only the edge proxy).
+  const route = {
+    http_proxy: "http://10.0.0.1:3128",
+    https_proxy: "http://10.0.0.1:3128",
+    HTTP_PROXY: "http://10.0.0.1:3128",
+    HTTPS_PROXY: "http://10.0.0.1:3128",
+    no_proxy: "localhost,127.0.0.1,::1,10.0.0.0/24",
+    NO_PROXY: "localhost,127.0.0.1,::1,10.0.0.0/24",
+    all_proxy: "socks5h://10.0.0.1:1080",
+  };
+  // The process environment of the Launchpad: the route, and what must not
+  // reach the clone. Dummy values only.
+  const processEnv = {
+    ...route,
+    PATH: "/usr/bin:/bin",
+    HOME: "/home/operator",
+    ALL_PROXY: "http://visitor:dummy@10.0.0.1:3128",
+    ftp_proxy: "http://10.0.0.1:3128",
+    HTTPS_PROXY_USER: "visitor",
+    SSH_AUTH_SOCK: "/tmp/agent.sock",
+    GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: "http.proxy",
+    GIT_CONFIG_VALUE_0: "http://visitor:dummy@10.0.0.9:3128",
+  };
+  expect(proxyEnvironmentOf(processEnv)).toEqual(route);
+  // Through the product's own composition of the content host.
+  const { git } = processGitHubHost({
+    env: processEnv,
+    platform: process.platform,
+    tools: {
+      path: "/usr/bin:/bin",
+      home: "/home/operator",
+      platform: process.platform,
+      run,
+    },
+  });
+  await git.clone({
+    ...anonymousGitHub.remote("Alpha/web"),
+    directory: "/tmp/x",
+    branch: "main",
+  });
+  const anonymous = calls.at(-1) as Record<string, string>;
+  const home = anonymous.HOME as string;
+  expect(home.startsWith(join(tmpdir(), "lazurio-anonymous-git-"))).toBe(true);
+  // The isolated environment as before, plus the route and nothing else.
+  expect(anonymous).toEqual({
+    ...anonymousGitEnvironment("/usr/bin:/bin", home),
+    ...route,
+  });
+  // The proxy argument gives only proxy variables: the hardening stays.
+  expect(
+    anonymousGitEnvironment("/usr/bin:/bin", home, {
+      GIT_ALLOW_PROTOCOL: "ext:file:https",
+      GIT_CONFIG_GLOBAL: join(home, "hostile"),
+      HOME: "/home/operator",
+      https_proxy: "http://10.0.0.1:3128",
+    }),
+  ).toEqual({
+    ...anonymousGitEnvironment("/usr/bin:/bin", home),
+    https_proxy: "http://10.0.0.1:3128",
+  });
+});
+
+posixTest(
+  "an anonymous clone goes through the proxy it is given, and straight past one whose URL carries credentials",
+  async () => {
+    const target = await createWorld();
+    world = target;
+    await remoteRepository(target, "Alpha/web", async (directory) => {
+      await writeFile(join(directory, "README.md"), "web\n");
+    });
+    // github.com's stand-in, here the HTTP proxy.
+    const seen: string[] = [];
+    const proxy = await githubStandIn(target, seen);
+    // The origin the clone asks for: a local port where nothing listens, so
+    // only a clone through the proxy reaches the repository.
+    const closed = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch: () => new Response(""),
+    });
+    const origin = `http://127.0.0.1:${closed.port}`;
+    closed.stop(true);
+    const clone = (http_proxy: string, name: string) =>
+      processContentGit({
+        path: Bun.env.PATH,
+        home: target.home,
+        platform: process.platform,
+        run: runTool,
+        env: {},
+        proxy: { http_proxy },
+        anonymousOrigin: origin,
+      }).clone({
+        ...anonymousGitHub.remote("Alpha/web"),
+        directory: join(target.root, name),
+        branch: "main",
+      });
+
+    // Credentials in the proxy's URL: the proxy is left out, git connects
+    // straight to the closed port and the proxy is asked nothing.
+    expect(
+      await clone(
+        proxy.replace("http://", "http://visitor:dummy@"),
+        "with-credentials",
+      ),
+    ).toBe("failed");
+    expect(seen).toEqual([]);
+    expect(await exists(join(target.root, "with-credentials"))).toBe(false);
+
+    // The proxy: every request goes to it, for the nominal path.
+    expect(await clone(proxy, "through-proxy")).toBe("cloned");
+    expect(seen.length).toBeGreaterThan(0);
+    expect(
+      seen.every((url) => url.startsWith(`${origin}/Alpha/web.git/`)),
+    ).toBe(true);
+    expect(
+      await Bun.file(join(target.root, "through-proxy", "README.md")).text(),
+    ).toBe("web\n");
   },
   60_000,
 );
