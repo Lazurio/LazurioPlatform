@@ -100,6 +100,56 @@ test("the Trezor page holds the player's slot at the top of its Bitwarden sectio
   expect(html).not.toMatch(/\bautoplay\b/);
 });
 
+// Nastavení → Trezor of an Environment without a vault (DEV-6631, F53's
+// addendum of 2026-10-17): how a vault works, its video at the top of its
+// section and its sentences under it, which the video shows.
+test("an Environment without a vault: the explainer's player sits at the top of its section, above its sentences, in the page's language", async () => {
+  const html = await readFile(
+    join(import.meta.dir, "..", "src", "launchpad", "index.html"),
+    "utf8",
+  );
+  const section = html.slice(
+    html.indexOf('<section class="group" id="vault-explainer"'),
+    html.indexOf("</section>", html.indexOf('id="vault-explainer"')),
+  );
+  const order = [
+    'id="vault-explainer-heading"',
+    'id="vault-explainer-video"',
+    'id="vault-explainer-text"',
+  ].map((id) => section.indexOf(id));
+  expect(order.every((at) => at >= 0)).toBe(true);
+  expect([...order].sort((a, b) => a - b)).toEqual(order);
+  expect(guideVideoNames).toContain("vault-overview");
+  for (const [locale, copy] of [
+    ["cs", cs],
+    ["en", en],
+  ] as const)
+    expect(
+      guideVideoPlayer(
+        {
+          name: "vault-overview",
+          locale,
+          title: copy.vaultExplainerTitle,
+          describedBy: "vault-explainer-text",
+        },
+        copy,
+      ),
+    ).toEqual({
+      play: {
+        label: copy.guideVideoPlay,
+        name: `${copy.guideVideoPlay}: ${copy.vaultExplainerTitle}`,
+      },
+      video: {
+        src: `/videos/vault-overview-${locale}.mp4`,
+        type: "video/mp4",
+        poster: `/videos/vault-overview-${locale}.webp`,
+        name: copy.vaultExplainerTitle,
+        describedBy: "vault-explainer-text",
+        attributes: { controls: "", playsinline: "", preload: "none" },
+      },
+    });
+});
+
 /** The boxes of an MP4 (ISO BMFF) at one level: type, start and size. */
 function boxes(
   bytes: Uint8Array,

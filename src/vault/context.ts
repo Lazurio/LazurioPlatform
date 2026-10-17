@@ -121,6 +121,14 @@ export type VaultUnsupportedReason =
   /** The handover names no vault for this Environment (yet): Machines
    * writes the member only where the network pre-allowed its account. */
   | "no-vault"
+  /** The handover names neither a vault nor a tailnet: an Organization's
+   * Environment reached without a private network. Machines declares no
+   * `network` only for the work VMs of a public Organization (root decision
+   * 0204, its public-entry guests; every other work VM and every personal VM
+   * has one), and a Lazurio Vaultwarden answers only inside its network
+   * (root decision 0203), so this Environment has no vault by design, not
+   * yet (DEV-6631, F53's addendum of 2026-10-17). */
+  | "no-tailnet"
   /** A personal Environment's record of the Bitwarden its person connected
    * is there but cannot be read: nothing is guessed; disconnecting removes
    * it (root decision 0203 point 7). */
@@ -141,7 +149,10 @@ export function vaultContextOf(
 ): VaultContext | VaultUnsupported {
   const vault = input.handover.vault;
   if (vault === undefined)
-    return Object.freeze({ kind: "unsupported", reason: "no-vault" });
+    return Object.freeze({
+      kind: "unsupported",
+      reason: input.handover.network === undefined ? "no-tailnet" : "no-vault",
+    });
   const { owner } = input.handover;
   return Object.freeze({
     kind: "own",

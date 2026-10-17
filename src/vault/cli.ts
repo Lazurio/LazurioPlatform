@@ -115,6 +115,8 @@ const reasons: Readonly<Record<VaultUnsupportedReason, string>> = {
   "not-operator": "this account is not the Environment's declared operator",
   "no-vault":
     "this Environment has no vault yet: its Machine handover names none",
+  "no-tailnet":
+    "this Environment has no vault and gets none: it is reached without a private network (a public Organization's Environment), and a vault answers only inside one",
   "connection-unreadable":
     "the record of the Bitwarden this personal Environment's person connected cannot be read; they disconnect it in the Launchpad's Settings → Vault and connect it again",
 };

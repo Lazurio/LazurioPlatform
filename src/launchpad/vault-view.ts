@@ -31,6 +31,7 @@ const unsupportedReasons: readonly VaultUnsupportedReason[] = [
   "handover-unreadable",
   "not-operator",
   "no-vault",
+  "no-tailnet",
   "connection-unreadable",
 ];
 

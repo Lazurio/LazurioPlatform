@@ -546,7 +546,10 @@ Owner, and remembered by ID (decision F53 supersedes F43's collection model; F43
 pinned CLI, custody and one shared session stay). The account and the vault come from
 the handover's member `vault: {server_url, account, name}` (DEV-6631 contract C2),
 which Machines writes only for a Platform that reads it; without it a work, Team or
-Automated Environment has no vault yet (`unsupported`, `no-vault`). A personal
+Automated Environment has no vault yet (`unsupported`, `no-vault`), and one whose
+handover names no tailnet either, a public Organization's (root decision 0204), has
+none by design (`no-tailnet`): a Lazurio Vaultwarden answers only inside its network
+([F53's addendum of 2026-10-17](decisions.md#f53-addendum-of-2026-10-17-an-environment-without-a-vault-explains-the-vault)). A personal
 Environment whose handover names no vault keeps its vault in its person's own
 Bitwarden instead (root decision 0203 point 7, [F53's amendment of
 2026-10-16](decisions.md#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden),

@@ -12892,6 +12892,102 @@ refused, the invitation, its pending line, the member's links after the acceptan
 "Odpojit Bitwarden": the section back with its line, gone once connected again and after
 a reload.
 
+### F53 addendum of 2026-10-17: an Environment without a vault explains the vault
+
+**Asked for by Matěj (Organization Admin) on 2026-10-17 for plan DEV-6631, who approved
+the guide video's story the same day (the DEV-6631 lead's script: five scenes, silent,
+captions in Czech and English).** The Environments of the public
+reference Organization `LazurioExampleOrganization` stay without a vault (root decision
+0204): it is public and shared, and a Lazurio Vaultwarden answers only inside its
+Organization's tailnet (root decision 0203). Its Environments other than the visitors'
+(which have no Trezor at all, F55) showed Nastavení → Trezor with the one line "Toto
+Prostředí zatím trezor nemá.", which says neither how a vault works nor that there is
+deliberately none here. Matěj asked for the page to explain it properly, with a motion
+graphic of a real Organization, and for the reason to say that the demo has no vault on
+purpose.
+
+1. **Why there is none, from the handover.** The vault core tells two reasons apart.
+   Without the handover's `vault` member, an Organization's Environment whose handover
+   names no `network` (no tailnet) is `unsupported` / **`no-tailnet`**: Machines writes no
+   `network` exactly for the public-entry work VMs of a platform-public Organization
+   (root decision 0204; `workloads/shared/public-organizations.ts`, whose list holds
+   `LazurioExampleOrganization` by its GitHub id) and requires a Headscale selection of
+   every other work VM; a personal VM always has one. Any other Environment without the
+   member stays **`no-vault`** (not set up yet). Same code for every Organization: no
+   login is named. `lazurio vault status` says "this Environment has no vault and gets
+   none: it is reached without a private network (a public Organization's Environment),
+   and a vault answers only inside one"; the Tools row says "V tomto Prostředí není k
+   dispozici" rather than "zatím"; an agent's secret request is refused with the same
+   reason and its page says "Toto Prostředí trezor nemá."; runtime secrets are
+   `no-vault-identity` as before.
+2. **The page.** In place of the vault, the page's line says why, and under it the
+   group "Jak trezor funguje" ("How the vault works") shows the guide video and three
+   sentences (`vaultPageView`: `note`, `explainer`):
+   - `no-tailnet`: "Tato Organizace je veřejná ukázka a skutečná hesla do ní nepatří,
+     proto v ní trezor záměrně není. Všechno ostatní funguje jako ve skutečné
+     Organizaci." ("This Organization is a public demo and real passwords do not belong
+     in it, so it has no vault on purpose. Everything else works as in a real
+     Organization.")
+   - `no-vault`: "Trezor tohoto Prostředí není nastavený. Nastaví ho Admin Organizace a
+     pak ho najdete tady." ("This Environment's vault is not set up. The Organization's
+     Admin sets it up, and then you will find it here.")
+   - the sentences: "V Organizaci má každé Prostředí vlastní trezor. Lidé do něj
+     sdílejí hesla ze svého Bitwardenu a agenti v Prostředí je použijí bez ptaní.
+     Sdílení můžete kdykoli vzít zpět." ("In an Organization, every Environment has its
+     own vault. People share passwords with it from their own Bitwarden, and the
+     Environment's agents use them without asking. You can take the sharing back at any
+     time.")
+
+   This computer, an unreadable Folder or handover, another operator and a personal
+   Environment's unreadable connection keep their one line, without the explainer. A
+   public Environment (F55) still withholds Nastavení → Trezor and its routes.
+3. **The video `vault-overview`** (`src/launchpad/videos/vault-overview-<cs|en>.mp4` and
+   `.webp`; the design system's cuts `vault` and `vault-en`): 23.8 s, H.264 High,
+   1920×1080, 30 frames a second, no audio track, the index first, 1.2 MB a language,
+   and a WebP poster of 22 KB showing the Organization with its vault and each of its
+   Environments with its own. Its player is there from the start, paused at its poster
+   (`createGuideVideo`'s `open`): here the video is the section's content, not a
+   companion of steps under it, so the rejected alternative of the [guide video
+   addendum](#f53-addendum-of-2026-10-16-the-guide-video-of-trezor-in-bitwarden) (a large
+   frame above the steps on every visit) does not apply. It is mounted the first time
+   the section shows, so its poster loads nowhere else; nothing plays before the person
+   starts it, and the sentences under it are its text (`aria-describedby`).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The GitHub login `LazurioExampleOrganization` in the Platform | A second list of public Organizations beside Machines', and other code for the Example than for every Organization. Rejected |
+| `entry.audience: "public"` | Only the visitors' Environment carries it, and that one has no Trezor at all. Not applicable |
+| A new handover or Organization manifest member ("reference Organization") | A new declaration in Machines or the Organization's settings for what the handover already says: a public Organization's Environments have no tailnet, and without one no vault can answer. Not needed |
+| One sentence for both reasons | Says "zatím" (yet) where there will never be one, or "záměrně" where an Admin is to act. Rejected |
+| The player behind a "Přehrát video" button, as on the Bitwarden steps | The page would show a button and three sentences; showing is the point here (Matěj: pictures and motion graphics, not text) |
+
+**Honest limits.** That an Environment without a tailnet is a public Organization's
+holds while Machines writes `network` for every other work VM (it asserts a Headscale
+selection for each); a guest Machines ever declares without one for another reason would
+be told it is a public demo. A second public Organization needs its own root decision
+before Machines lists it; it would get the same words ("veřejná ukázka"), which that
+decision has to confirm or change. The poster (22 KB) loads with the section on such an
+Environment. The video runs 23.8 s rather than the script's about 22 s: each caption is
+readable for at least 1.5 s, as the design system's video standard asks.
+
+Verified by `tests/vault-context.test.ts` (a handover without `network` and without the
+member is `no-tailnet` on a work, Team and Automated Environment, with `network` it is
+`no-vault`, a member is the vault either way), `tests/vault-page-view.test.ts` (both
+reasons word for word in both languages with the explainer, the other reasons, a vault
+and a personal Environment waiting for its person without it, no Bitwarden steps for
+`no-tailnet`), `tests/launchpad-vault-page.test.ts` (`GET /api/vault` answers both
+reasons and the page explains them), `tests/launchpad-guide-video.test.ts` (the
+section's order, the player's files and names in both languages, every file's format),
+`tests/vault-view.test.ts`, `tests/vault-requests-view.test.ts` and
+`tests/vault-cli.test.ts` (the Tools row, the request's refusal and the CLI's words), and
+`tests/public-environment.test.ts` unchanged; and in headless Chrome (root decision 0178)
+on the hosted preview (`scripts/preview-launchpad.ts hosted cs|en … no-tailnet|no-vault`)
+in Czech and English: the line of each reason, "Jak trezor funguje" with the player at
+its poster and the sentences under it, no vault row and no Bitwarden steps, only the
+poster loaded before the video plays, then the video playing from its byte ranges and
+seeking, a 390 px wide screen, no page errors; and with `public` the visitors'
+Environment still without Trezor (its route shows Obecné).
+
 ## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
 
 > **Amended on 2026-10-16 by root decision 0203 point 7 ([F53 amendment of

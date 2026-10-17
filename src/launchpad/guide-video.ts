@@ -7,16 +7,21 @@ import { fill } from "./update-view";
 // the browser's own player in its place and plays it: never before the
 // person asks, never with sound (the files carry no audio track), loaded only
 // then (`preload="none"`), inline on a phone (`playsinline`), with the
-// browser's own controls for the keyboard and a screen reader. This module is
-// the page's side and builds only addresses; guide-video-files.ts embeds the
+// browser's own controls for the keyboard and a screen reader. Where the
+// video is its section's own content (Nastavení → Trezor without a vault),
+// the player shows from the start instead, paused at its poster, and plays
+// only when the person starts it (`open`). This module is the page's side
+// and builds only addresses; guide-video-files.ts embeds the
 // files in the executable and serves them, by byte range for Safari.
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
 /** The guide videos the Launchpad carries, each in both languages, as
  * `src/launchpad/videos/<name>-<cs|en>.mp4` (H.264, no audio track, the index
- * first) with its poster `<name>-<cs|en>.webp`. */
-export const guideVideoNames = ["vault-bitwarden"] as const;
+ * first) with its poster `<name>-<cs|en>.webp`: `vault-bitwarden`, the vault
+ * in the Bitwarden extension; `vault-overview`, how an Environment's vault
+ * works in an Organization (DEV-6631). */
+export const guideVideoNames = ["vault-bitwarden", "vault-overview"] as const;
 export type GuideVideoName = (typeof guideVideoNames)[number];
 export const guideVideoLocales = ["cs", "en"] as const;
 export type GuideVideoLocale = (typeof guideVideoLocales)[number];
@@ -85,9 +90,10 @@ export function guideVideoPlayer(
 }
 
 /** The player in `slot`: the button, until the person presses it; then the
- * video in its place, focused and playing. `render` follows the page's
- * language: the button's words, or, once open, a video in the new language,
- * paused at its poster. */
+ * video in its place, focused and playing. With `open`, the video is there
+ * from the start instead, paused at its poster, until the person plays it.
+ * `render` follows the page's language: the button's words, or, once open, a
+ * video in the new language, paused at its poster. */
 export function createGuideVideo(
   slot: HTMLElement,
   options: Readonly<{
@@ -96,6 +102,9 @@ export function createGuideVideo(
     describedBy?: string;
     copy: () => Copy;
     locale: () => GuideVideoLocale;
+    /** The player from the start, where the video is its section's own
+     * content; nothing of it loads but its poster until it plays. */
+    open?: boolean;
   }>,
 ): Readonly<{ render(): void }> {
   const player = () =>
@@ -170,6 +179,12 @@ export function createGuideVideo(
     open = { video, src: shown.video.src };
   }
 
+  if (options.open === true) {
+    const shown = player();
+    const video = videoOf(shown);
+    slot.replaceChildren(video);
+    open = { video, src: shown.video.src };
+  }
   render();
   return Object.freeze({ render });
 }
