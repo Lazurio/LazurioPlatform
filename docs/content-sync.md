@@ -255,7 +255,13 @@ differences only (`scope.github` `anonymous` in `src/content/model.ts`):
   there is no scan, which would read the Organization's listing and one declaration
   per repository through GitHub's unauthenticated API (60 requests an hour per
   address, shared by every visitor of that address). The candidate is verified in the
-  clone, as every source is (`root-declaration-mismatch`).
+  clone, as every source is (`root-declaration-mismatch`). The handover names the
+  Organization by its lowercase slug, so the root is published under the repository
+  name its own verified declaration spells (`root_repository.locator`, which may differ
+  from the request by letter case only): `organizations/<Org>_GEN3` as every member's
+  install names it, also on a case-sensitive filesystem. The occupied check covers that
+  name in any letter case, also when an entry appears while the root is cloned.
+  Children keep the paths their slots declare.
 - **root** and **modules** clone `https://github.com/<owner>/<repository>.git` with
   git's empty `credential.helper`, which resets every helper the configuration names
   (gh's included) and adds none, whatever URL git ends up asking about; a child is not
