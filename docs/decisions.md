@@ -12929,7 +12929,9 @@ changes" no longer holds.
    no longer `prepared-by-hosting`. The install asks GitHub nothing (no gh account, no
    REST read, no scan), installs as a Reader (any other asked role fails
    `role-unverified`), takes the root the Folder holds, `--root` or
-   `<login>/<login>_GEN3`, verified in the clone, and clones over
+   `<login>/<login>_GEN3`, verified in the clone and published under the repository
+   name that verified declaration spells (the handover knows only the lowercase slug;
+   members install `organizations/<Org>_GEN3`), and clones over
    `https://github.com/…` with git's empty `credential.helper`, so no configured helper
    answers. A child anonymous Git cannot read is `failed` (`clone-failed`). Nothing is
    created, granted or pushed. Without the member the install is what it was.
@@ -12953,15 +12955,18 @@ changes" no longer holds.
 **Honest limits.** A visitor has the shared account's terminal and can still sign gh in
 or configure a credential helper; the empty helper keeps any of it out of the install's
 clones, and only the notice and the nightly return keep it out of the Environment. The
-root's directory takes the login's spelling from the handover (a lowercase slug), not
-GitHub's. A private module and a network failure both read `clone-failed`; without a
+clone's `origin` keeps the request's lowercase spelling, which GitHub serves in any
+letter case. A private module and a network failure both read `clone-failed`; without a
 read of GitHub nothing tells them apart. Other generated texts of a public Environment
 (its zone, its Launchpad's Tools and Integrations addresses) are left for a later slice.
 
 Verified by `tests/public-anonymous-content.test.ts` (the scope on both presets and
 without the member; a public Team Environment's install of the root and its public
 modules over anonymous HTTPS with every clone's empty helper, no question to GitHub, the
-Reader's scope and a second run; the name candidate; any other role refused before a
+Reader's scope and a second run; the name candidate; the root published under its
+declared mixed-case name from a lowercase handover, an entry in another letter case that
+appears during the clone left untouched, and a final name that differs beyond letter
+case refused; any other role refused before a
 clone; a root anonymous Git cannot read and one naming another root stopping at `root`
 with nothing left; the argv of the three clone forms; a configured helper never asked by
 an anonymous clone behind a rewritten URL, against a server that answers 401; the texts

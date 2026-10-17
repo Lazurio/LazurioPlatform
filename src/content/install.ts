@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { catalogChecks } from "../doctor/doctor";
 import { inspectCanonicalInventory } from "../organizations/canonical-inventory";
 import { locatePersonalspace } from "../organizations/personalspace";
@@ -358,50 +358,78 @@ const relative = (folder: string, path: string) =>
 
 // ---- Organization ----------------------------------------------------------
 
+/** An Organization root's own declaration in the clone: canonical documents
+ * that resolve, an Organization (not a template) bound to `login`, and a
+ * declared `root_repository` naming exactly the cloned repository; the
+ * `root` it declares, as it spells it, or why not. */
+async function readRootDeclaration(
+  login: string,
+  repository: string,
+  checkout: string,
+): Promise<Readonly<{ refused: string }> | Readonly<{ root: string }>> {
+  const refused = (code: string) => ({ refused: code });
+  const documents = await readOrganizationDocuments(checkout);
+  if (documents.kind !== "documents-observed")
+    return refused("root-declaration-invalid");
+  const resolution = resolveOrganizationRootDocuments(documents);
+  if (
+    ["missing", "legacy", "conflict"].includes(resolution.state) ||
+    documents.canonical.kind !== "present" ||
+    documents.modules.kind !== "present"
+  )
+    return refused("root-declaration-invalid");
+  let inventory: ReturnType<typeof inspectCanonicalInventory>;
+  try {
+    inventory = inspectCanonicalInventory(
+      documents.canonical.value,
+      documents.modules.value,
+    );
+  } catch {
+    return refused("root-declaration-invalid");
+  }
+  const canonical = inventory.canonical as Readonly<Record<string, unknown>>;
+  if (canonical.kind !== "organization")
+    return refused("organization-template");
+  const organization = canonical.organization as Readonly<
+    Record<string, Readonly<Record<string, unknown>>>
+  >;
+  const owner = organization.forge_binding?.locator;
+  const root = (
+    canonical.root_repository as Readonly<Record<string, unknown>> | null
+  )?.locator;
+  // The same criterion as discovery (`declaresRoot`): a commit that does
+  // not name this repository its root is never published (review of #183).
+  if (
+    typeof owner !== "string" ||
+    owner.toLowerCase() !== login.toLowerCase() ||
+    typeof root !== "string" ||
+    !sameRepository(root, repository)
+  )
+    return refused("root-declaration-mismatch");
+  return { root };
+}
+
 /** Verifies an Organization root's own declaration in the clone before it
- * is published: canonical documents that resolve, an Organization (not a
- * template) bound to `login`, and a declared `root_repository`, when there
- * is one, naming exactly the cloned repository. */
+ * is published (`readRootDeclaration`): a failure code, or null. */
 function rootDeclaration(login: string, repository: string) {
   return async (checkout: string): Promise<string | null> => {
-    const documents = await readOrganizationDocuments(checkout);
-    if (documents.kind !== "documents-observed")
-      return "root-declaration-invalid";
-    const resolution = resolveOrganizationRootDocuments(documents);
-    if (
-      ["missing", "legacy", "conflict"].includes(resolution.state) ||
-      documents.canonical.kind !== "present" ||
-      documents.modules.kind !== "present"
-    )
-      return "root-declaration-invalid";
-    let inventory: ReturnType<typeof inspectCanonicalInventory>;
-    try {
-      inventory = inspectCanonicalInventory(
-        documents.canonical.value,
-        documents.modules.value,
-      );
-    } catch {
-      return "root-declaration-invalid";
-    }
-    const canonical = inventory.canonical as Readonly<Record<string, unknown>>;
-    if (canonical.kind !== "organization") return "organization-template";
-    const organization = canonical.organization as Readonly<
-      Record<string, Readonly<Record<string, unknown>>>
-    >;
-    const owner = organization.forge_binding?.locator;
-    const root = (
-      canonical.root_repository as Readonly<Record<string, unknown>> | null
-    )?.locator;
-    // The same criterion as discovery (`declaresRoot`): a commit that does
-    // not name this repository its root is never published (review of #183).
-    if (
-      typeof owner !== "string" ||
-      owner.toLowerCase() !== login.toLowerCase() ||
-      typeof root !== "string" ||
-      !sameRepository(root, repository)
-    )
-      return "root-declaration-mismatch";
-    return null;
+    const declared = await readRootDeclaration(login, repository, checkout);
+    return "refused" in declared ? declared.refused : null;
+  };
+}
+
+/** The name a public Environment publishes its root under: the repository
+ * name its verified declaration spells (decision F55's addendum of
+ * 2026-10-17), as GitHub spells it for every member's install, not the
+ * handover's lowercase slug the request was named by. Asked only after
+ * `rootDeclaration` verified the same clone; it differs from the requested
+ * name by letter case only (`sameRepository`). */
+function declaredRootName(login: string, repository: string) {
+  return async (checkout: string): Promise<string> => {
+    const declared = await readRootDeclaration(login, repository, checkout);
+    if ("refused" in declared)
+      throw new Error("The root's declaration changed after its verification");
+    return declared.root.split("/")[1] as string;
   };
 }
 
@@ -807,6 +835,9 @@ async function installOrganization(
       credentialHelper: remote.credentialHelper,
       git: host.git,
       verify: rootDeclaration(login, repository),
+      ...(context.anonymous
+        ? { finalName: declaredRootName(login, repository) }
+        : {}),
     });
     if (result.kind === "occupied")
       return steps.fail(
@@ -823,7 +854,7 @@ async function installOrganization(
     directory = result.directory;
     steps.done(
       "root",
-      `materialized organizations/${name} at ${result.commit.slice(0, 12)}`,
+      `materialized organizations/${basename(directory)} at ${result.commit.slice(0, 12)}`,
     );
   }
   const base = {

@@ -1,9 +1,10 @@
 import { afterEach, expect, test } from "bun:test";
-import { chmod, lstat, readdir } from "node:fs/promises";
+import { chmod, lstat, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { type CloneRequest, processContentGit } from "../src/content/git";
 import { anonymousGitHub } from "../src/content/github";
 import { installContent, planContentInstall } from "../src/content/install";
+import { publishNewCheckout } from "../src/content/materialize";
 import { type ContentStep, contentScope } from "../src/content/model";
 import { contentStatus } from "../src/content/status";
 import type { MachineBinding } from "../src/folder/machine-binding";
@@ -91,6 +92,8 @@ function httpsGitEnv(target: World): Record<string, string> {
 function anonymousHost(
   target: World,
   github: ReturnType<typeof stubGitHub>["github"],
+  /** Runs after each clone, before the install goes on. */
+  afterClone: (request: CloneRequest) => Promise<void> = async () => {},
 ) {
   const host = contentHost(target, github);
   const git = processContentGit({
@@ -105,9 +108,11 @@ function anonymousHost(
     ...host,
     git: {
       ...git,
-      clone: (request: CloneRequest) => {
+      clone: async (request: CloneRequest) => {
         clones.push(request);
-        return git.clone(request);
+        const answer = await git.clone(request);
+        await afterClone(request);
+        return answer;
       },
     },
     clones,
@@ -458,6 +463,162 @@ posixTest(
     }
   },
   60_000,
+);
+
+// ---- The root's name: as its own declaration spells it -----------------------
+
+/** An Organization whose handover names it by the lowercase slug `gamma`
+ * while GitHub, and its own declaration, spell it `Gamma`: the root
+ * `Gamma/Gamma_GEN3` (reached at the lowercase URL, as GitHub serves any
+ * letter case), one module and one Production Space repository whose slot
+ * path keeps a capital letter. */
+async function mixedCaseOrganization(target: World) {
+  await remoteRepository(target, "gamma/gamma_GEN3", (directory) =>
+    writeOrganizationRoot(directory, {
+      slug: "gamma",
+      forge: "Gamma",
+      root: "Gamma/Gamma_GEN3",
+      slots: [
+        {
+          path: "workspace/web",
+          slug: "web",
+          git: { url: "git@github.com:Gamma/web.git", branch: "main" },
+        },
+        {
+          path: "productionspace/Firmware",
+          slug: "firmware",
+          git: { url: "git@github.com:Gamma/Firmware.git", branch: "main" },
+        },
+      ],
+    }),
+  );
+  await remoteRepository(target, "Gamma/web", (directory) =>
+    writeModule(directory, "gamma", { id: "web" }),
+  );
+  await remoteRepository(target, "Gamma/Firmware", (directory) =>
+    writeFile(join(directory, "README.md"), "firmware"),
+  );
+}
+
+posixTest(
+  "a public Environment publishes its root under the name its own declaration spells, not the handover's lowercase slug; children keep their declared paths",
+  async () => {
+    world = await createWorld();
+    await mixedCaseOrganization(world);
+    const folder = await presetFolder(
+      world,
+      "hosted-organization-team",
+      publicBinding("gamma"),
+    );
+    const { github, calls } = stubGitHub(world, {
+      viewer: { kind: "signed-out" },
+    });
+    const host = anonymousHost(world, github);
+    const steps: ContentStep[] = [];
+    const result = await installContent(
+      folder,
+      {},
+      (step) => steps.push(step),
+      host,
+    );
+    expect(result.kind === "content-install" && result.state).toBe("succeeded");
+    // The request knows only the slug; the published directory is the
+    // declaration's spelling, as every member's install names it.
+    expect(
+      steps.find((step) => step.key === "access" && step.state === "done")
+        ?.detail,
+    ).toBe(
+      "anonymously (reader, restricted slots excluded); root gamma/gamma_GEN3 (by name)",
+    );
+    expect(
+      steps.find((step) => step.key === "root" && step.state === "done")
+        ?.detail,
+    ).toMatch(/^materialized organizations\/Gamma_GEN3 at [0-9a-f]{12}$/);
+    expect(await readdir(join(folder, "organizations"))).toEqual([
+      "Gamma_GEN3",
+    ]);
+    expect(
+      result.kind === "content-install" && result.items[0]?.directory,
+    ).toBe("organizations/Gamma_GEN3");
+    // The children come from the manifest's slot paths, as declared.
+    const root = join(folder, "organizations", "Gamma_GEN3");
+    expect(await readdir(join(root, "productionspace"))).toEqual(["Firmware"]);
+    expect(await exists(join(root, "workspace", "web", ".git"))).toBe(true);
+    expect(calls).toEqual([]);
+    // A second install finds the root the Folder holds, under that name.
+    const again: ContentStep[] = [];
+    await installContent(folder, {}, (step) => again.push(step), host);
+    expect(
+      again.find((step) => step.key === "root" && step.state === "done")
+        ?.detail,
+    ).toBe("present at organizations/Gamma_GEN3");
+    expect(await readdir(join(folder, "organizations"))).toEqual([
+      "Gamma_GEN3",
+    ]);
+  },
+  60_000,
+);
+
+posixTest(
+  "an entry in another letter case that appears during the root's clone stays untouched, and nothing is published beside it",
+  async () => {
+    world = await createWorld();
+    await mixedCaseOrganization(world);
+    const folder = await presetFolder(
+      world,
+      "hosted-organization-team",
+      publicBinding("gamma"),
+    );
+    const { github } = stubGitHub(world, { viewer: { kind: "signed-out" } });
+    const occupant = join(folder, "organizations", "gamma_GEN3");
+    // While the root is cloned, someone makes the slug's directory: a
+    // different path from the final name on a case-sensitive filesystem.
+    const host = anonymousHost(world, github, async (request) => {
+      if (request.url.endsWith("/gamma_GEN3.git")) {
+        await mkdir(occupant);
+        await writeFile(join(occupant, "mine.txt"), "someone's work");
+      }
+    });
+    const steps: ContentStep[] = [];
+    const result = await installContent(
+      folder,
+      {},
+      (step) => steps.push(step),
+      host,
+    );
+    expect(summary(steps)).toEqual([
+      "access:done",
+      "root:failed:destination-occupied",
+    ]);
+    expect(result.kind === "content-install" && result.state).toBe("failed");
+    expect(await readdir(join(folder, "organizations"))).toEqual([
+      "gamma_GEN3",
+    ]);
+    expect(await readdir(occupant)).toEqual(["mine.txt"]);
+  },
+  60_000,
+);
+
+posixTest(
+  "a final name differs from the requested one by letter case only, or nothing is published",
+  async () => {
+    world = await createWorld();
+    const parent = join(world.root, "parent");
+    await mkdir(parent);
+    for (const name of ["other_GEN3", "gamma_GEN3/x", ".Gamma_GEN3"]) {
+      const result = await publishNewCheckout({
+        parent,
+        name: "gamma_GEN3",
+        fill: async (checkout) => {
+          await mkdir(checkout);
+          return { kind: "ready", value: null, name };
+        },
+      });
+      expect(result).toEqual({ kind: "failed", code: "destination-invalid" });
+      expect(await readdir(parent)).toEqual([]);
+    }
+  },
+  30_000,
 );
 
 // ---- git: no credential helper answers an anonymous clone ---------------------
