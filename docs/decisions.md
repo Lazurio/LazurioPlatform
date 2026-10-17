@@ -5266,7 +5266,10 @@ the colours of the app it sits in.
    on its edge toward the app. A host that maps `--lazurio-surface` to its sidebar's
    colour and draws no border on that side meets the rail without a seam. The Launchpad
    page's own hairline at the rail's edge belongs to the page, not to the rail; the
-   wireframe keeps it for Apps, and this addendum leaves it as it is.
+   wireframe keeps it for Apps, and this addendum leaves it as it is. *(Amended by
+   [the addendum of 2026-10-17](#f36-addendum-of-2026-10-17-the-rails-edge-toward-the-app):
+   the rail draws one hairline in the host's `--lazurio-line` on that edge, and no host
+   draws a line of its own there.)*
 5. **Each app picks its own theme, for now.** T3 Code from its themes (its sidebar's
    tokens), MausBot from its skins, the Launchpad and Apps from the design system. A
    later mechanism will unify the theme across the apps as the Environment's theme; it
@@ -5531,6 +5534,9 @@ prototypes-lazurio `1acd615` (`app/v1/src/Rail.tsx`, `Switcher.tsx`, `EnvPicker.
    colour with a hairline, never an ink block; the glyph of your personal Environment in
    the picker is the same monogram. Without roles the rail stands on paper (`--lz-paper`)
    like the app's column (was `gray-50`), and it still draws no edge toward the app.
+   *(Since [the addendum of
+   2026-10-17](#f36-addendum-of-2026-10-17-the-rails-edge-toward-the-app)
+   it draws one hairline there, in the host's `--lazurio-line`.)*
 2. **Three radii.** Every corner of the elements but the round logo disc and photo is
    `radius-xs` (the key label in the ⌘⇧E field), `radius-sm` (controls and marks: a row
    of the list, an Organization's head in the jump, "Všechny Organizace", the gear, the
@@ -6418,6 +6424,49 @@ bundle, so its rail changes only when it vendors a release with this addendum.
 
 Verified by unit tests: `tests/shell.test.ts`, `tests/shell-account.test.ts` (an account
 without a personal Environment, the same account with one, the jump's sections).
+
+### F36 addendum of 2026-10-17: the rail's edge toward the app
+
+**Decided by Matěj (Organization Admin) on 2026-10-17 (plan DEV-6639, "Design máme
+hotový"), after the shell wireframe at `HumanAndMachine-ai/prototypes-lazurio` #61 (a
+finished column head).** It amends point 4 of the addendum of 2026-10-04, evening (no
+line between the rail and the app), this repository's side of root decision 0187 point
+2. The amendment of 0187 itself belongs to the root decision register, outside this
+repository.
+
+1. **The rail's edge.** `<lazurio-rail>` draws one hairline on its edge toward the app,
+   in the host's `--lazurio-line`, the design system's line where a host sets no roles.
+   The hosts already map that role from their own theme: T3 Code from its sidebar's
+   border, MausBot from its skin's hairline, the Dashboard and the Launchpad page from the
+   design system. So the line is back in Chat, Automate, Apps, Settings and the Dashboard
+   and follows light, dark and every theme with no change of a fork. It lies inside the
+   rail's 64 px, an inset line (`src/shell/styles.ts`), so `--lazurio-rail-width` and
+   every host's layout stay as they are. It is never a border: T3 Code's sidebar scope,
+   which the rail joins, sets a border colour on it, which would win over the role. No
+   name of interface v1 changes; `--lazurio-line` colours one more thing.
+2. **One line, never two.** A host draws no line of its own on the rail's side. The
+   Launchpad page drops `.app { border-left }` (its stand-in for the rail before the
+   script defines it draws the same edge), and the right panel, when it takes all of the
+   room with the column hidden, lets its own hairline give way where it meets the rail.
+   The Dashboard vendors the shell from a pinned release and still draws
+   `.surface { border-left: 1px solid var(--lz-line) }`: it drops that line in the change
+   that vendors a release with this addendum, or it shows a 2 px line.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A new property for the rail's line (`--shell-rail-line`, as the wireframe names it) | The wireframe sets it to the same value as `--lazurio-line` in every theme; a new name would need every fork to set it, and the decision asks for no fork change |
+| The line on the app's side (a border on each host, or a shadow past the rail) | Every host would draw its own, or the rail would paint over the first pixel of every app; inside the rail's width nothing of a host moves or is covered |
+
+**Honest limits.** The Dashboard keeps its own line until it vendors a release with this
+addendum (point 2); the forks need nothing.
+
+Verified by a unit test (`tests/shell-interface.test.ts`: the rail's edge, resolved from
+its stylesheet, comes to a host's `--lazurio-line` and to the design system's line
+without roles, and is never a border) and in headless Chrome against the hosted preview
+in Czech at 1440 × 900 (root decision 0178): one line between the rail and the column on
+the Apps home and Settings → Obecné, and between the rail and the page with the column
+hidden, and none doubled where the panel takes all of the room with the column hidden.
+These are no rendered-page CI gates.
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 

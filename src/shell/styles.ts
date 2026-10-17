@@ -17,10 +17,10 @@ import { identityCss } from "./identity-styles";
 // flow of the page has one. Nothing here reaches the host page, and the host
 // page's styles do not reach in.
 
-/** The width the rail takes, one step of the design system's grid
- * (`--lz-grid-step`, `lz-rail`); the host lays its content beside it with
- * `padding-left: var(--lazurio-rail-width, 0px)`. 72 px until F36's addendum
- * of 2026-10-06. */
+/** The width the rail takes, its edge toward the app included, one step of
+ * the design system's grid (`--lz-grid-step`, `lz-rail`); the host lays its
+ * content beside it with `padding-left: var(--lazurio-rail-width, 0px)`.
+ * 72 px until F36's addendum of 2026-10-06. */
 export const railWidth = "64px";
 
 /** The list of Environments: under the picker (one space) and as the ⌘⇧E
@@ -83,12 +83,20 @@ export const railCss = `${hostTokens}
 ${baseCss}
 ${switcherCss}
 /* The rail is the host's surface, paper without roles like the app's column
-   (design-system-lazurio#59), and draws no edge toward the app beside it
-   (Matěj 2026-10-04): no border, no shadow, no line. */
+   (design-system-lazurio#59). On its edge toward the app it draws one
+   hairline in the host's line (Matěj 2026-10-17, amending root decision 0187
+   point 2, by which it drew none since 2026-10-04): the role every app maps
+   from its own theme, T3 Code from its sidebar's border and MausBot from its
+   skin's hairline, the design system's line where a host sets no roles. So
+   the line follows light, dark and every theme in every app, and
+   a host draws none of its own on that side. It lies inside the rail's own
+   width, so the app beside it keeps its place, and it is an inset line, not
+   a border: a host's border colour on the rail (T3 Code's sidebar scope,
+   which the rail joins, sets one) never reaches it. */
 :host {
   --shell-surface: var(--lazurio-surface, var(--lz-paper));
 }
-:host { position: fixed; inset: 0 auto 0 0; z-index: 40; display: block; width: ${railWidth}; background: var(--shell-surface); }
+:host { position: fixed; inset: 0 auto 0 0; z-index: 40; display: block; width: ${railWidth}; background: var(--shell-surface); box-shadow: inset -1px 0 0 var(--shell-line); }
 nav { display: flex; height: 100%; flex-direction: column; align-items: center; gap: 4px; padding: 12px 0; }
 /* One corner family (prototypes-lazurio#11): every item is 40 px with
    radius-md around a 32 px mark with radius-sm, so the corners are

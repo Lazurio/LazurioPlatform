@@ -75,7 +75,9 @@ Nothing in this section is executable evidence.
 
 **Layout.** There is no top bar. Level 1 is a rail of spaces on the far left (the
 personal space and one per Organization), and the app's left column runs full height
-next to it. At the top of the left column sits the column head: the Environment picker
+next to it, the rail's hairline between them ([F36's addendum of
+2026-10-17](decisions.md#f36-addendum-of-2026-10-17-the-rails-edge-toward-the-app)).
+At the top of the left column sits the column head: the Environment picker
 with the Settings gear beside it, and under them the app switch **Chat · Apps ·
 Automate**. Chat is T3 Code (`t3code.…`), Apps is this Launchpad (`launchpad.…`) and
 Automate is MausBot (`mausbot.…`). Each is its own origin of the Environment, so the
@@ -669,7 +671,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   | `--lazurio-surface` | the rail, the column behind the head | its sidebar's background |
   | `--lazurio-ink` | names, icons on hover | its sidebar's text |
   | `--lazurio-ink-muted` | who an Environment is for, icons, meta | its sidebar's muted text |
-  | `--lazurio-line` | hairlines and borders, the active tab's edge | its sidebar's border |
+  | `--lazurio-line` | hairlines and borders, the active tab's edge, the rail's edge toward the app | its sidebar's border |
   | `--lazurio-line-strong` | the hairline around the active space in the rail (and the logo on the personal Dashboard) | the border of its selected row; the design system's `gray-300` |
   | `--lazurio-hover` | a row or a rail item under the pointer | its row hover |
   | `--lazurio-selected` | the selected row, the open picker | its selected row |
@@ -694,9 +696,17 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
 
   The shapes, type and selection rule stay the design system's. The list of
   Environments mixes its lines, hover and selection from the overlay and its ink. The
-  Lazurio logo sits on a white disc in every theme, and the rail draws no line on its
-  edge toward the app: map `--lazurio-surface` to the colour of the sidebar beside it
-  and draw no border on that side. Each app picks its own theme for now (since root
+  Lazurio logo sits on a white disc in every theme. On its edge toward the app the rail
+  draws one hairline in `--lazurio-line`, the design system's line without roles, 1 px
+  inside its own 64 px ([F36's addendum of
+  2026-10-17](decisions.md#f36-addendum-of-2026-10-17-the-rails-edge-toward-the-app),
+  amending root decision 0187 point 2; from 2026-10-04 it drew none). Map
+  `--lazurio-surface` to the colour of the sidebar beside it and `--lazurio-line` to the
+  border that sidebar draws on its other side, and draw no line of your own on the
+  rail's side, or there are two: the Launchpad page dropped its `.app { border-left }`,
+  and the Dashboard drops its `.surface` line when it vendors a release with the edge.
+  The line is an inset shadow of the element, not a border, so a border colour a host's
+  own rules give the rail never recolours it. Each app picks its own theme for now (since root
   decision 0200, T3 Code's standard light look on an Environment is the design
   system's, through the tokens below); one theme across the apps (the Environment's) is
   a later mechanism.
@@ -2514,7 +2524,9 @@ the Launchpad builds no viewer of its own.
   now. The shell's column head stays as it is: it offers no slot for a host's control.
   Its right edge is a divider like the panel's, 208–480 px and never leaving the page
   less than 400 px, double-click for 264 px. Below 768 px it stays the sheet opened by
-  the button at the top of the page.
+  the button at the top of the page. With the column hidden and the panel over all of
+  the room, the panel's own hairline gives way where it meets the rail, whose edge is
+  the line between them.
 - **Remembered in this browser**: the panel's width or all of the room, the column's
   width and whether it is hidden, as one `localStorage` entry, `lazurio.layout`, read
   field by field; a field that is not what it should be is its default alone. As the

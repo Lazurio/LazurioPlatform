@@ -121,9 +121,9 @@ html:not([data-section="vault"]) [data-section-action="vault"],
 html:not([data-section="ssh"]) [data-section-action="ssh"],
 html:not([data-section="recovery"]) [data-section-action="recovery"] { display: none !important; }
 /* The places of the shell elements before their script defines them: the
-   rail's 64 px on its surface, the column head's height, so nothing moves
-   when they draw. */
-lazurio-rail:not(:defined) { position: fixed; inset: 0 auto 0 0; width: var(--lazurio-rail-width, 64px); background: var(--lz-paper); }
+   rail's 64 px on its surface with its edge toward the app, the column
+   head's height, so nothing moves when they draw. */
+lazurio-rail:not(:defined) { position: fixed; inset: 0 auto 0 0; width: var(--lazurio-rail-width, 64px); background: var(--lz-paper); box-shadow: inset -1px 0 0 var(--lz-line); }
 lazurio-column-head:not(:defined) { display: block; min-height: 109px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 a { color: var(--link); text-underline-offset: 0.2em; }
@@ -134,10 +134,13 @@ h1, h2, h3, h4 { margin: 0; font-size: 14px; }
 .icon { width: 16px; height: 16px; flex: none; }
 
 /* The frame: the rail is fixed on the left and sets --lazurio-rail-width;
-   the app sits beside it on the white surface, as a fork's root does. It
-   clips what slides past its right edge (the right panel coming and going),
-   without becoming a scroller, so the column and the panel still stick. */
-.app { display: flex; min-height: 100vh; margin-left: var(--lazurio-rail-width, 64px); background: var(--bg); border-left: 1px solid var(--lz-line); overflow-x: clip; }
+   the app sits beside it on the white surface, as a fork's root does. The
+   hairline between them is the rail's own edge (src/shell/styles.ts, Matěj
+   2026-10-17), so the app draws none on that side and there is never a
+   second line. It clips what slides past its right edge (the right panel
+   coming and going), without becoming a scroller, so the column and the
+   panel still stick. */
+.app { display: flex; min-height: 100vh; margin-left: var(--lazurio-rail-width, 64px); background: var(--bg); overflow-x: clip; }
 .column { position: sticky; top: 0; z-index: 20; display: flex; flex: none; flex-direction: column; gap: 10px; width: var(--column-width); height: 100vh; padding: 16px 10px 10px; background: var(--lz-gray-25); border-right: 1px solid var(--lz-line-faint); }
 .column-apps, .column-settings { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 10px; }
 .column-scroll { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 14px; overflow-y: auto; }
@@ -431,7 +434,7 @@ pre.ssh-block { max-height: none; color: var(--fg); font-size: 12.5px; line-heig
 .ssh-fact { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
 .ssh-missing { margin: 0.4rem 0 0; padding-left: 1.1rem; }
 html[data-mode="recovery"] lazurio-rail, html[data-mode="recovery"] .column, html[data-mode="recovery"] .nav-toggle, html[data-mode="recovery"] .column-toggle, html[data-mode="recovery"] #crumb-parent, html[data-mode="recovery"] .browser-toggle, html[data-mode="recovery"] .browser-panel { display: none !important; }
-html[data-mode="recovery"] .app { margin-left: 0; border-left: 0; }
+html[data-mode="recovery"] .app { margin-left: 0; }
 
 /* Controls: black buttons, quiet outline, the design system's radius. */
 button, .button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: var(--card); color: var(--fg); font: var(--lz-weight-akce) 13px/1 var(--font-sans); white-space: nowrap; cursor: pointer; text-decoration: none; }
@@ -808,7 +811,10 @@ button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); co
 .browser-divider:focus-visible { outline: none; }
 html.is-resizing, html.is-resizing * { cursor: col-resize !important; user-select: none; }
 html.is-resizing iframe, html.is-resizing lazurio-new-tab { pointer-events: none; }
-@media (min-width: 1100px) { .app[data-browser="wide"] .page { display: none; } }
+/* With the column hidden too, the panel stands right beside the rail, whose
+   own edge is the line between them: the panel's hairline gives way there,
+   keeping its place, so the two never draw a double line. */
+@media (min-width: 1100px) { .app[data-browser="wide"] .page { display: none; } .app[data-browser="wide"][data-column="hidden"] .browser-panel { border-left-color: transparent; } }
 /* The strip (decision F47 point 9, the wireframe's BrowserPanel): the tabs
    the Launchpad holds and its Nová karta entries, then "+", and the panel's
    own actions. Every entry is the same full tab with its × (Matěj

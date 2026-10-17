@@ -239,6 +239,86 @@ test("an unset colour role leaves the design system's colour", () => {
   }
 });
 
+/** What `property` of an element's host comes to: its stylesheet's plain
+ * `:host` rules, the last declaration winning, with every `var()` resolved
+ * as the browser resolves it there: a custom property the host declares,
+ * else the host page's own (`page`, inherited into the shadow root), else the
+ * fallback. Undefined when the host declares no such property. */
+function onHost(
+  css: string,
+  property: string,
+  page: Readonly<Record<string, string>>,
+): string | undefined {
+  const declared = new Map<string, string>();
+  // Each `}` closes a rule; only the rules whose selector is exactly `:host`
+  // are read (the rail's stylesheet has no at-rule around one).
+  for (const rule of css.replace(/\/\*[\s\S]*?\*\//g, "").split("}")) {
+    const open = rule.indexOf("{");
+    if (open < 0 || rule.slice(0, open).trim() !== ":host") continue;
+    for (const declaration of rule.slice(open + 1).split(";")) {
+      const colon = declaration.indexOf(":");
+      if (colon > 0)
+        declared.set(
+          declaration.slice(0, colon).trim(),
+          declaration.slice(colon + 1).trim(),
+        );
+    }
+  }
+  const resolve = (value: string, depth: number): string => {
+    const start = value.indexOf("var(");
+    if (start < 0 || depth > 32) return value;
+    let level = 0;
+    let end = start + 3;
+    for (; end < value.length; end += 1) {
+      if (value[end] === "(") level += 1;
+      else if (value[end] === ")" && --level === 0) break;
+    }
+    const inner = value.slice(start + 4, end);
+    const comma = inner.indexOf(",");
+    const name = (comma < 0 ? inner : inner.slice(0, comma)).trim();
+    const found =
+      declared.get(name) ??
+      page[name] ??
+      (comma < 0 ? "" : inner.slice(comma + 1).trim());
+    return resolve(
+      `${value.slice(0, start)}${resolve(found, depth + 1)}${value.slice(end + 1)}`,
+      depth + 1,
+    );
+  };
+  const value = declared.get(property);
+  return value === undefined ? undefined : resolve(value, 0);
+}
+
+// The rail's edge toward the app (Matěj 2026-10-17, amending root decision
+// 0187 point 2): one hairline in the host's line role, which T3 Code maps
+// from its sidebar's border and MausBot from its skin's hairline, so the line
+// follows every theme of every app with no change of a fork; the design
+// system's line where a host sets no roles (the Launchpad page). Inside the
+// rail's own width, so the app beside it keeps its place, and never a border:
+// a host's border colour on the rail (T3 Code's sidebar scope, which the rail
+// joins, sets one) would win over the role.
+test("the rail draws its edge toward the app in the host's line, inside its own width", () => {
+  const themed = "oklch(0.86 0.01 256)";
+  expect(onHost(railCss, "box-shadow", { "--lazurio-line": themed })).toBe(
+    `inset -1px 0 0 ${themed}`,
+  );
+  const line = onHost(railCss, "--lz-line", {});
+  expect(line).toMatch(/^#[0-9a-f]{6}$/i);
+  expect(onHost(railCss, "box-shadow", {})).toBe(`inset -1px 0 0 ${line}`);
+  // Only the line role reaches it: another role leaves the design system's.
+  expect(
+    onHost(railCss, "box-shadow", { "--lazurio-line-strong": themed }),
+  ).toBe(`inset -1px 0 0 ${line}`);
+  for (const border of [
+    "border",
+    "border-right",
+    "border-inline-end",
+    "border-color",
+    "border-width",
+  ])
+    expect(onHost(railCss, border, {})).toBeUndefined();
+});
+
 test("the Launchpad serves the promised script", async () => {
   const page = await readFile("src/launchpad/page.ts", "utf8");
   expect(page).toContain(`"${shellElementInterface.script}":`);
