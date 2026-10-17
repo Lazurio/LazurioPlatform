@@ -2643,10 +2643,10 @@ Organization's, and it gets none of it.
 - **The tour** (`tour.ts` over the rules of `first-run.ts`): a ring around a real
   element and a bubble beside it with at most a dozen words; the layer lets every click
   through, so the person does each step. While a basic is missing: the gear ("Nejdřív
-  připojte AI" · "Agent vám pak pomůže s dalšími kroky.", "Připojte GitHub", "Ještě
-  stáhněte <Organizace>", "Příprava se nepovedla"), Začínáme in the Settings column
-  ("Všechny kroky na jednom místě."), then on Začínáme the missing step itself
-  (`data-tour` `start-ai`, `start-github`, `prepare`). Then the introduction: Apps,
+  připojte AI", its title alone with no line under it, as Začínáme's AI step; "Připojte
+  GitHub", "Ještě stáhněte <Organizace>", "Příprava se nepovedla"), Začínáme in the
+  Settings column ("Všechny kroky na jednom místě."), then on Začínáme the missing step
+  itself (`data-tour` `start-ai`, `start-github`, `prepare`). Then the introduction: Apps,
   Chat, Automate and the gear ("Nastavení" · "Začínáme tu najdete kdykoli."). Every
   bubble but the last offers **"Dokončím později"**, which puts it away for the current
   view only: until the basics exist the tour is back on the next page load, and Začínáme
