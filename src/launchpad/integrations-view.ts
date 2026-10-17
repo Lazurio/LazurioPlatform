@@ -1,4 +1,5 @@
 import type { CatalogApp } from "../integrations/catalog-schema";
+import { composioOrganizationName } from "../integrations/composio-organization-name";
 import { composioDashboard } from "../integrations/composio-source";
 import type {
   CustomServer,
@@ -734,14 +735,21 @@ export function sourceLines(
  * 2026-10-13): missing or there more than once, while Composio works in the
  * person's current organization; not made current, or the Organization's
  * name unreadable, while nothing of it counts. Null where nothing is to
- * say. */
+ * say. The organization is named as Composio accepts the name (note of
+ * 2026-10-17), the Organization as it names itself. */
 export function composioOrganizationLine(
   overview: IntegrationsOverview,
   copy: Copy,
 ): string | null {
   const target = overview.composio.organization;
   if (target === null || target.state === "matches") return null;
-  if (target.state === "unverified" || target.name === null)
+  const composio =
+    target.name === null ? null : composioOrganizationName(target.name);
+  if (
+    target.state === "unverified" ||
+    target.name === null ||
+    composio === null
+  )
     return copy.integrationsComposioOrganizationUnverified;
   const key =
     target.state === "missing"
@@ -749,7 +757,7 @@ export function composioOrganizationLine(
       : target.state === "ambiguous"
         ? "integrationsComposioOrganizationAmbiguous"
         : "integrationsComposioOrganizationElsewhere";
-  return fill(copy[key], { name: target.name });
+  return fill(copy[key], { name: target.name, composio });
 }
 
 /** The tone of a notice on the page, as the callout draws it: `info`

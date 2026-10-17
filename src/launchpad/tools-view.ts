@@ -1,3 +1,4 @@
+import { composioOrganizationName } from "../integrations/composio-organization-name";
 import {
   type OrganizationSettingsStatus,
   parseSettingsStatus,
@@ -1661,7 +1662,9 @@ export function organizationChoices(
 
 /** What Composio's sign-in dialog shows once the person is signed in
  * (decision F42, addendum (2) of 2026-10-13, note of 2026-10-17): only what
- * the person still has to do, else that it is connected.
+ * the person still has to do, else that it is connected. `name` is the
+ * Organization's name as Composio accepts it (`composioOrganizationName`),
+ * the one the person types and reads in Composio.
  * - `create`: the account has no organization of the Organization's name;
  *   the person creates it in Composio's dashboard.
  * - `rename`: it has more than one; the person renames the extra one.
@@ -1700,12 +1703,16 @@ export function composioDialogView(
     return { kind: "problem", message: copy.toolsComposioOrgUnverified };
   const current = choices.find((choice) => choice.current)?.label ?? null;
   if (rule.kind === "named") {
-    if (rule.state === "missing") return { kind: "create", name: rule.name };
-    if (rule.state === "ambiguous") return { kind: "rename", name: rule.name };
+    // What the person sees in Composio: never a name it refuses.
+    const name = composioOrganizationName(rule.name);
+    if (name === null)
+      return { kind: "problem", message: copy.toolsComposioOrgUnverified };
+    if (rule.state === "missing") return { kind: "create", name };
+    if (rule.state === "ambiguous") return { kind: "rename", name };
     if (rule.state === "elsewhere")
       return {
         kind: "problem",
-        message: fill(copy.toolsComposioOrgElsewhere, { name: rule.name }),
+        message: fill(copy.toolsComposioOrgElsewhere, { name }),
       };
   }
   // Connected only with an organization current: an empty list or one with

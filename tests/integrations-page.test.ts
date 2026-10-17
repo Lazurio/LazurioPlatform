@@ -958,9 +958,10 @@ test("Odpojit: the row says Odpojuji… from the confirmation until the reading 
       cs,
     ),
   ).toBe(
+    // Named as Composio accepts the name (note of 2026-10-17).
     cs.integrationsComposioOrganizationElsewhere.replace(
-      "{name}",
-      "Example Company",
+      "{composio}",
+      "ExampleCompany",
     ),
   );
   for (const answer of [null, "nope", { error: "operation-failed" }, {}])

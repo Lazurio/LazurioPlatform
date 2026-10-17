@@ -875,7 +875,8 @@ export function createToolsPanel(
     return line;
   }
 
-  /** The Organization's name, to copy into Composio's field. */
+  /** The Organization's name as Composio accepts it, to copy into Composio's
+   * field. */
   function composioName(name: string): HTMLElement {
     const copy = options.copy();
     const box = element("div", "composio-name");

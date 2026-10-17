@@ -1366,11 +1366,11 @@ const en = {
   integrationsComposioUnreadable:
     "The connections through Composio could not be read.",
   integrationsComposioOrganizationMissing:
-    "Your Composio account has no organization named “{name}”. This Environment belongs to the Organization {name} and should connect through Composio in your own organization of the same name; until you create it, it connects in the organization you have selected. Create it in Composio, then click Check connections.",
+    "Your Composio account has no organization named “{composio}”. This Environment belongs to the Organization {name} and should connect through Composio in your own organization of that name; until you create it, it connects in the organization you have selected. Create it in Composio, then click Check connections.",
   integrationsComposioOrganizationAmbiguous:
-    "Your Composio account has more than one organization named “{name}”. Until only one is left, this Environment connects in the organization you have selected. Keep one, then click Check connections.",
+    "Your Composio account has more than one organization named “{composio}”. Until only one is left, this Environment connects in the organization you have selected. Keep one, then click Check connections.",
   integrationsComposioOrganizationElsewhere:
-    "Composio could not be switched to your organization “{name}”, so nothing connects through it now. Click Check connections to try again.",
+    "Composio could not be switched to your organization “{composio}”, so nothing connects through it now. Click Check connections to try again.",
   integrationsComposioOrganizationUnverified:
     "The name of this Environment's Organization cannot be read, so its Composio organization cannot be checked and nothing connects through Composio now. Click Check connections; if that does not help, ask the agent in Chat to check this Environment's Folder.",
   integrationsComposioOpen: "Open Composio",
@@ -2960,11 +2960,11 @@ const cs: Record<MessageKey, string> = {
   integrationsComposioUnreadable:
     "Připojení přes Composio se nepodařilo načíst.",
   integrationsComposioOrganizationMissing:
-    "Ve vašem účtu Composia chybí organizace „{name}“. Toto Prostředí patří Organizaci {name} a má se přes Composio připojovat ve vaší vlastní organizaci stejného jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
+    "Ve vašem účtu Composia chybí organizace „{composio}“. Toto Prostředí patří Organizaci {name} a má se přes Composio připojovat ve vaší vlastní organizaci tohoto jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
   integrationsComposioOrganizationAmbiguous:
-    "Ve vašem účtu Composia je víc organizací se jménem „{name}“. Dokud nezůstane jen jedna, připojuje se toto Prostředí v organizaci, kterou máte vybranou. Nechte jen jednu a klikněte na Zkontrolovat připojení.",
+    "Ve vašem účtu Composia je víc organizací se jménem „{composio}“. Dokud nezůstane jen jedna, připojuje se toto Prostředí v organizaci, kterou máte vybranou. Nechte jen jednu a klikněte na Zkontrolovat připojení.",
   integrationsComposioOrganizationElsewhere:
-    "Composio se nepodařilo přepnout do vaší organizace „{name}“, a tak se přes něj teď nic nepřipojí. Klikněte na Zkontrolovat připojení a zkuste to znovu.",
+    "Composio se nepodařilo přepnout do vaší organizace „{composio}“, a tak se přes něj teď nic nepřipojí. Klikněte na Zkontrolovat připojení a zkuste to znovu.",
   integrationsComposioOrganizationUnverified:
     "Jméno Organizace tohoto Prostředí se nepodařilo přečíst, a tak nejde ověřit jeho organizaci v Composiu a přes Composio se teď nic nepřipojí. Klikněte na Zkontrolovat připojení; když to nepomůže, požádejte agenta v Chatu, ať zkontroluje Folder tohoto Prostředí.",
   integrationsComposioOpen: "Otevřít Composio",

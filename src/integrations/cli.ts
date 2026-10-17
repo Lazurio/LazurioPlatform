@@ -6,6 +6,7 @@ import { runTool } from "../tools/status";
 import type { CliContext, CommandOutput } from "../update/cli";
 import { operatorFolder } from "../update/cli";
 import { exitFailure, exitOk, exitUsage } from "../update/errors";
+import { composioOrganizationName } from "./composio-organization-name";
 import {
   type ExecutorEndpoint,
   processExecutorEndpoint,
@@ -98,17 +99,22 @@ export function integrationsText(overview: IntegrationsOverview): string {
     `Sources: tools ${overview.sources.tools} · Executor ${overview.sources.executor} · Composio ${overview.sources.composio}.`,
   );
   // Composio not in the organization of this Environment's Organization's
-  // name (decision F42, addendum (2) of 2026-10-13): the person sees to it.
+  // name (decision F42, addendum (2) of 2026-10-13): the person sees to it,
+  // under the name Composio accepts (note of 2026-10-17).
   const target = overview.composio.organization;
+  const composio =
+    target?.name == null
+      ? null
+      : (composioOrganizationName(target.name) ?? target.name);
   if (target !== null && target.state !== "matches")
     lines.push(
       target.state === "unverified" || target.name === null
         ? "Composio: the name of this Environment's Organization cannot be read, so its Composio organization cannot be checked; nothing of Composio counts and nothing connects through it now. Check this Environment's Folder (lazurio doctor)."
         : target.state === "missing"
-          ? `Composio: the person's account has no organization named "${target.name}" (this Environment's Organization), so Composio works in the person's current organization meanwhile. Send them to Apps → Integrations to create it.`
+          ? `Composio: the person's account has no organization named "${composio}" (this Environment's Organization "${target.name}", named as Composio accepts it), so Composio works in the person's current organization meanwhile. Send them to Apps → Integrations to create it.`
           : target.state === "ambiguous"
-            ? `Composio: the person's account has more than one organization named "${target.name}", so Composio works in the person's current organization meanwhile. Send them to Apps → Integrations to keep one.`
-            : `Composio: it could not be switched to the organization "${target.name}"; nothing of Composio counts now, and "Check connections" in Apps → Integrations tries again.`,
+            ? `Composio: the person's account has more than one organization named "${composio}", so Composio works in the person's current organization meanwhile. Send them to Apps → Integrations to keep one.`
+            : `Composio: it could not be switched to the organization "${composio}"; nothing of Composio counts now, and "Check connections" in Apps → Integrations tries again.`,
     );
   // Composio not the build Lazurio pins (decision F42, addendum (b) of
   // 2026-10-14): the person updates it; an agent only on their instruction.

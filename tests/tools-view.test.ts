@@ -975,19 +975,34 @@ test("Composio's dialog: create, rename, one sentence or connected, from the org
     organizations,
     organization: { name: "Lazurio Example Organization", state },
   });
+  // The name as Composio accepts it (note of 2026-10-17: "Only letters,
+  // numbers, and underscores allowed."): the one the person types there and
+  // reads in Composio, never "Lazurio Example Organization".
   expect(
     composioDialogView(named("missing"), "jana@example.com", copy),
-  ).toEqual({ kind: "create", name: "Lazurio Example Organization" });
+  ).toEqual({ kind: "create", name: "LazurioExampleOrganization" });
   expect(
     composioDialogView(named("ambiguous"), "jana@example.com", copy),
-  ).toEqual({ kind: "rename", name: "Lazurio Example Organization" });
+  ).toEqual({ kind: "rename", name: "LazurioExampleOrganization" });
   expect(
     composioDialogView(named("elsewhere"), "jana@example.com", copy),
   ).toEqual({
     kind: "problem",
     message:
-      "Composio se nepodařilo přepnout do vaší organizace „Lazurio Example Organization“.",
+      "Composio se nepodařilo přepnout do vaší organizace „LazurioExampleOrganization“.",
   });
+  // A name with nothing Composio accepts is never asked for.
+  expect(
+    composioDialogView(
+      {
+        kind: "composio-organizations",
+        organizations: [{ id: "org_1", name: "jana_workspace", current: true }],
+        organization: { name: "Пример", state: "missing" },
+      },
+      "jana@example.com",
+      copy,
+    ),
+  ).toEqual({ kind: "problem", message: copy.toolsComposioOrgUnverified });
   // The organization of the line is the one the answer marks current after
   // the switch, as Composio names it, never the one the sign-in named.
   const matched = composioDialogView(
