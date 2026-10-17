@@ -45,6 +45,10 @@ export type ProvideRequest = Readonly<{
    * a caller that does not hold it already. Null: another content operation
    * holds it (`unavailable`, `content-busy`). */
   lock?: (() => Promise<FileLock | null>) | undefined;
+  /** Any checkout at the place counts as present, whatever its origin (a
+   * module's own data mount, which never refuses a checkout that is there).
+   * Otherwise only one of `repository` does, and another is occupied. */
+  anyCheckoutPresent?: boolean | undefined;
 }>;
 
 export type ProvideOutcome =
@@ -89,12 +93,20 @@ export async function provideRepository(
   const destination = join(request.root, ...segments);
   if (request.branch !== undefined && !isBranchName(request.branch))
     return { result: "failed", reason: "branch-invalid" };
-  // A present destination is reported, never entered or changed.
-  const observed = await request.git.inspect(destination);
-  if (observed.kind === "checkout")
-    return sameRepository(observed.repository, request.repository)
+  // A present destination is reported, never entered or changed. Asked
+  // again whenever the place may have been filled meanwhile, by another
+  // start or an install: after the lock, when it is busy, and when the
+  // publish finds the place occupied.
+  const checkout = async (): Promise<ProvideOutcome | null> => {
+    const observed = await request.git.inspect(destination);
+    if (observed.kind !== "checkout") return null;
+    return request.anyCheckoutPresent === true ||
+      sameRepository(observed.repository, request.repository)
       ? { result: "present" }
       : { result: "blocked", reason: "destination-occupied" };
+  };
+  const present = await checkout();
+  if (present !== null) return present;
   // Anything else there (a directory that is no checkout, a file, a link)
   // stays as it is, and GitHub is not asked; for a data mount an empty
   // directory is filled.
@@ -129,8 +141,16 @@ export async function provideRepository(
     fullName = access.repository.fullName;
   }
   const lock = request.lock === undefined ? undefined : await request.lock();
-  if (lock === null) return { result: "unavailable", reason: "content-busy" };
+  if (lock === null)
+    return (
+      (await checkout()) ?? {
+        result: "unavailable",
+        reason: "content-busy",
+      }
+    );
   try {
+    const filled = await checkout();
+    if (filled !== null) return filled;
     let parent: string;
     try {
       parent = await ensureCheckoutDirectories(
@@ -163,7 +183,12 @@ export async function provideRepository(
     });
     if (result.kind === "materialized") return { result: "materialized" };
     if (result.kind === "occupied")
-      return { result: "blocked", reason: "destination-occupied" };
+      return (
+        (await checkout()) ?? {
+          result: "blocked",
+          reason: "destination-occupied",
+        }
+      );
     return { result: "failed", reason: result.code };
   } finally {
     await lock?.release();

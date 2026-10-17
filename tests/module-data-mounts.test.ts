@@ -223,6 +223,46 @@ posixTest(
 );
 
 posixTest(
+  "a checkout another start or install publishes while this one asks GitHub, or holds the content lock, starts as it is (review of #476)",
+  async () => {
+    const context = await setup();
+    const db = join(context.organization, "workspace", "orders", "db");
+    // GitHub answers only after someone else published the mount: the
+    // declared repository, then another one; neither refuses the start.
+    for (const [origin, lockHeld] of [
+      ["example-org/orders-data", false],
+      ["example-org/other-data", false],
+      ["example-org/orders-data", true],
+    ] as const) {
+      const { github } = stubGitHub(context.world, {
+        repositories: { "example-org/orders-data": {} },
+      });
+      const racing: ContentGitHub = {
+        ...github,
+        repository: async (owner, name) => {
+          await checkoutWithOrigin(db, origin);
+          return github.repository(owner, name);
+        },
+      };
+      const lock = lockHeld
+        ? await tryContentLock(context.world.lockDirectory, context.folder)
+        : null;
+      try {
+        expect(await refusal(provide(context, racing))).toBeNull();
+      } finally {
+        await lock?.release();
+      }
+      expect(await git(db, "remote", "get-url", "origin")).toBe(
+        `git@github.com:${origin}.git`,
+      );
+      expect(await git(db, "log", "--format=%s")).toBe("fixture");
+      await rm(db, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
+
+posixTest(
   "an empty directory at the place is filled; a directory with files, a file or a link is never touched",
   async () => {
     const context = await setup();

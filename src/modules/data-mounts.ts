@@ -92,6 +92,7 @@ export async function provideDataMounts(input: {
       repository: mount.repository,
       branch: mount.branch,
       fillEmptyDirectory: true,
+      anyCheckoutPresent: true,
       git: input.host.git,
       github: anonymous ? "anonymous" : input.host.github,
       lock: () => tryContentLock(input.host.lockDirectory, input.folder),
