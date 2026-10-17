@@ -89,14 +89,10 @@ export async function provideRepository(
   request: ProvideRequest,
 ): Promise<ProvideOutcome> {
   const segments = request.path.split("/");
-  const name = segments.at(-1) as string;
   const destination = join(request.root, ...segments);
   if (request.branch !== undefined && !isBranchName(request.branch))
     return { result: "failed", reason: "branch-invalid" };
-  // A present destination is reported, never entered or changed. Asked
-  // again whenever the place may have been filled meanwhile, by another
-  // start or an install: after the lock, when it is busy, and when the
-  // publish finds the place occupied.
+  // A present destination is reported, never entered or changed.
   const checkout = async (): Promise<ProvideOutcome | null> => {
     const observed = await request.git.inspect(destination);
     if (observed.kind !== "checkout") return null;
@@ -107,6 +103,24 @@ export async function provideRepository(
   };
   const present = await checkout();
   if (present !== null) return present;
+  // Every refusal after this first look is checked against the place once
+  // more: another start or an install may have published the checkout
+  // meanwhile (while GitHub answered, the lock was held, or the clone ran),
+  // and a checkout that is there now is present by the same rule.
+  const outcome = await provideAbsent(request, segments, destination);
+  return outcome.result === "materialized" || outcome.result === "present"
+    ? outcome
+    : ((await checkout()) ?? outcome);
+}
+
+/** `provideRepository` for a destination that was no checkout at its first
+ * look. */
+async function provideAbsent(
+  request: ProvideRequest,
+  segments: readonly string[],
+  destination: string,
+): Promise<ProvideOutcome> {
+  const name = segments.at(-1) as string;
   // Anything else there (a directory that is no checkout, a file, a link)
   // stays as it is, and GitHub is not asked; for a data mount an empty
   // directory is filled.
@@ -141,16 +155,8 @@ export async function provideRepository(
     fullName = access.repository.fullName;
   }
   const lock = request.lock === undefined ? undefined : await request.lock();
-  if (lock === null)
-    return (
-      (await checkout()) ?? {
-        result: "unavailable",
-        reason: "content-busy",
-      }
-    );
+  if (lock === null) return { result: "unavailable", reason: "content-busy" };
   try {
-    const filled = await checkout();
-    if (filled !== null) return filled;
     let parent: string;
     try {
       parent = await ensureCheckoutDirectories(
@@ -183,12 +189,7 @@ export async function provideRepository(
     });
     if (result.kind === "materialized") return { result: "materialized" };
     if (result.kind === "occupied")
-      return (
-        (await checkout()) ?? {
-          result: "blocked",
-          reason: "destination-occupied",
-        }
-      );
+      return { result: "blocked", reason: "destination-occupied" };
     return { result: "failed", reason: result.code };
   } finally {
     await lock?.release();

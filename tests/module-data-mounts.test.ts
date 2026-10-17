@@ -223,19 +223,29 @@ posixTest(
 );
 
 posixTest(
-  "a checkout another start or install publishes while this one asks GitHub, or holds the content lock, starts as it is (review of #476)",
+  "a checkout another start or install publishes while this one asks GitHub starts as it is, whatever GitHub then answers and with the content lock held (review of #476)",
   async () => {
     const context = await setup();
     const db = join(context.organization, "workspace", "orders", "db");
-    // GitHub answers only after someone else published the mount: the
-    // declared repository, then another one; neither refuses the start.
-    for (const [origin, lockHeld] of [
-      ["example-org/orders-data", false],
-      ["example-org/other-data", false],
-      ["example-org/orders-data", true],
+    // GitHub answers only after someone else published the mount: readable,
+    // denied or not answering, for the declared repository or another one,
+    // with the lock free or held; none of them refuses the start.
+    const answers = {
+      readable: { "example-org/orders-data": {} },
+      denied: {},
+      unavailable: { "example-org/orders-data": "unavailable" },
+    } as const;
+    for (const [origin, answer, lockHeld] of [
+      ["example-org/orders-data", "readable", false],
+      ["example-org/other-data", "readable", false],
+      ["example-org/orders-data", "readable", true],
+      ["example-org/orders-data", "denied", false],
+      ["example-org/other-data", "denied", false],
+      ["example-org/orders-data", "unavailable", false],
+      ["example-org/other-data", "unavailable", false],
     ] as const) {
       const { github } = stubGitHub(context.world, {
-        repositories: { "example-org/orders-data": {} },
+        repositories: answers[answer],
       });
       const racing: ContentGitHub = {
         ...github,
