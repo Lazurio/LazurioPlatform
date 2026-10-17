@@ -8415,7 +8415,9 @@ reference is [integrations](integrations.md#the-composio-organization-of-an-envi
 1. **The Organization's name is the rule.** An Environment whose Machine binding
    names an owning Organization works in the Composio organization of that
    Organization's display name, matched whatever the case, the spaces and the
-   diacritics ("Human and Machine" is `humanandmachine`); punctuation counts. No
+   diacritics ("Human and Machine" is `humanandmachine`); punctuation counts
+   *(withdrawn on 2026-10-17, evening: only letters and digits count, see the
+   note of 2026-10-17)*. No
    setting holds the name: the Organization's own name is it. Where an
    Organization owns the Environment but its name cannot be read (its root is
    missing from the Folder, its manifest unreadable), the rule is `unverified`:
@@ -8503,6 +8505,119 @@ Environment's organization again, switched back first, and in the person's
 current one where it is gone since; `lazurio integrations list` journaling its
 switch on stderr without a name or an id (the same file); the sign-in dialog's
 answer naming no rule on a computer (`tests/launchpad-curated.test.ts`).
+
+*Note of 2026-10-17, asked for by the Organization Admin after walking through the
+onboarding of a work Environment (root decision 0162, addendum of 2026-10-17,
+HumanAndMachines/Lazurio#564; plan DEV-6626, task `task-2026-10-17-986`,
+HumanAndMachine-ai/mission-control-data#391): the sign-in dialog asks only for what
+the person still has to do.* He signed in to Composio without trouble and then got
+lost in the dialog: a step strip of three "done" chips, "Connected as" naming the
+account's default organization (the one Composio makes at the sign-up, current
+because the Organization's one did not exist yet), a paragraph about the missing
+organization, four buttons and the figure. Points 3, 4 and 7 are unchanged; this
+note amends how points 5 and 6 reach the person.
+
+- **One step, one button.** Composio's dialog draws no steps. Where the account has
+  no organization of the Organization's name, it says "Ještě jeden krok v Composiu"
+  and one line, "Založte v Composiu organizaci s tímto jménem.", the Organization's
+  exact name in a read-only box with "Kopírovat", and a drawing of Composio's
+  dashboard (DOM and CSS, the design system's guide pattern): the cursor "Vy" on the
+  "FOR YOU" chip at the top of the sidebar (1), on the organization card at its
+  bottom (2), on "Create Org" in the list that opens (3), then the name typed in and
+  the confirm button (4), the places numbered in `--lz-blue-500`, the name box
+  numbered 4 as the field it belongs in; under `prefers-reduced-motion` the open
+  list with "Create Org" ringed. Composio's labels are drawn in English as its
+  dashboard writes them, from one constants block matched to the Organization
+  Admin's screenshot of 2026-10-17; the create step has no screenshot yet, so its
+  two labels are placeholders. The drawn organizations are fictional. One primary
+  button, "Otevřít Composio", opens the dashboard's root in the person's own tab:
+  the drawing teaches the path inside it, and no deeper address
+  (`/create-workspace`) could be verified signed in. Two of the name: one
+  sentence, rename the extra one, and the same button. The organization not made
+  current, the Organization's name or the organizations unreadable, or no
+  organization current (an empty list, or none marked current): one sentence
+  each, and the dialog keeps reading; it is never "connected" without an
+  organization current. `unverified` keeps its refusal.
+- **Found by itself.** "Zkontrolovat znovu" is gone: while the person works in
+  Composio, the dialog reads `/api/tools/composio/organizations` again, first
+  after 4 seconds and then each time half as long again, at most every 30
+  seconds; not while the page is hidden, at once when it shows again, never once
+  connected or closed. Each reading is the one point 2 describes, so the
+  organization becomes current as soon as it exists, and a quiet line says "Až ji
+  založíte, Lazurio bude pokračovat samo." Nothing blocks meanwhile: Composio works in the
+  person's current organization and agents keep their notice (point 3).
+- **Done.** "Composio je připojené", with the account and the organization current
+  after that reading (the line used to name the organization the sign-in named,
+  before the switch), and one primary button, "Vybrat aplikace", to Apps →
+  Integrace. Where the person chooses among several organizations, one native
+  select "Organizace v Composiu" stands under it, without the advice.
+- **No figure.** The figure of point 6 is removed from the dialog and from Apps →
+  Integrace, and no text replaces it: the model is explained in the documentation
+  ([integrations](integrations.md#the-composio-organization-of-an-environment)).
+  Apps → Integrace keeps its one line and "Otevřít Composio".
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Create the organization from the Launchpad | One click; but Composio's API and CLI cannot create or rename an organization (only its dashboard can, under the person's own sign-in); still not possible |
+| Link to `/create-workspace` | One step shorter; but the route could not be verified signed in, and a wrong deep link strands the person; the dashboard's root with the drawn path instead |
+| Keep "Zkontrolovat znovu" beside the reading | A way to hurry it; but a second action, and the reading at the page's return finds it at once; rejected |
+| Keep the figure, folded | The model at hand; but it explains how it works instead of showing what to do; rejected: the documentation |
+
+Verified by tests: Composio's dialog draws no steps; each answer of the
+organizations' reading as create, rename, one sentence or connected, the connected
+line naming the organization the answer marks current, and the pace of the
+readings with when they stop and pause (`tests/tools-view.test.ts`); on the
+Launchpad with the fake Composio, missing first, the organization created
+afterwards found by the next reading, switched and named, two of the name and a
+failed switch in one sentence, a personal Environment connected with its choice
+(`tests/integrations-composio-organization.test.ts`). The dialog's states were
+rendered in Chromium in Czech and English at desktop and phone widths.
+
+*Addition of 2026-10-17 (evening), after the Organization Admin's screenshot of
+Composio's create screen:* "Create Org" opens a page of its own,
+`/create-workspace`: a card under the heading "Composio", "Create Organization",
+"Set up a new workspace for your team", the field "Organization name" with the
+placeholder `my_organization`, the hint "Must start with a letter. Only letters,
+numbers, and underscores allowed.", a full-width "Create organization" and
+"← Back". Composio so refuses the very name the dialog asked for ("Lazurio Example
+Organization"), which amends point 1 and this note.
+
+- **The name the person creates** is the Organization's display name as Composio
+  accepts it (`composioOrganizationName`): its words without diacritics, each with
+  only its letters and digits, joined in CamelCase with its other capitals kept
+  ("Lazurio Example Organization" is `LazurioExampleOrganization`, "Rozjedeme.ai"
+  `RozjedemeAi`, "Šťastná Firma" `StastnaFirma`), with `Org` before a name that
+  would not start with a letter ("3M Česko" is `Org3MCesko`). The dialog shows it
+  in the name box with "Kopírovat", types it in the drawing and names it in its
+  two-of-the-name and not-switched sentences; Apps → Integrace and the agents'
+  text name the organization so too, the Organization by its own name.
+- **The rule compares letters and digits alone** (`organizationKey`): diacritics,
+  case, spaces, punctuation and underscores do not count, so every name Composio
+  allows for the Organization matches it (`LazurioExampleOrganization`,
+  `lazurio_example_organization` and `lazurioexampleorganization` all match
+  "Lazurio Example Organization"), and the existing `humanandmachine`, `spectoda`
+  and `lumbio` keep matching. "Punctuation counts" of point 1 is withdrawn: no
+  organization in Composio can hold it. A name that had to start with `Org` is
+  also compared in that form, and the two forms together are two of the name. A
+  display name with no letter or digit Composio could write is `unverified`, as an
+  unreadable one is.
+- **The drawing's step 4 is that page**, drawn light: after "Create Org" the
+  dashboard slides away and the page fades in, the name is typed into the field
+  (4) and the cursor clicks "Create organization"; the loop is 15 seconds. Under
+  `prefers-reduced-motion` the frame stays the open list with "Create Org" ringed
+  and the places 1 to 3: the page itself says what to do, and the dialog's own name
+  box numbered 4 gives the name, while the path to "Create Org" is what the person
+  could not find alone. The labels are in `composioScreen`, matched to the
+  screenshot; no placeholder is left.
+
+Verified by tests: the Composio name of each kind of display name and the names
+that give none; each Composio-allowed form matching the Organization, its own
+Composio name included, the `Org` form in both spellings and the two together
+ambiguous (`tests/integrations-composio-organization.test.ts`); the dialog's
+create, rename and not-switched views carrying `LazurioExampleOrganization`, and a
+name with nothing Composio accepts never asked for (`tests/tools-view.test.ts`).
+The dialog, its drawing frame by frame and under reduced motion, and Apps →
+Integrace were rendered headless in Chromium in Czech and English.
 
 **Addendum 2026-10-13 (3), decided by the Operator: Lazurio installs its own build of
 Composio's CLI until Composio's own has what Integrace needs.** Composio's stable CLI

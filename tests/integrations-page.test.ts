@@ -958,9 +958,10 @@ test("Odpojit: the row says Odpojuji… from the confirmation until the reading 
       cs,
     ),
   ).toBe(
+    // Named as Composio accepts the name (note of 2026-10-17).
     cs.integrationsComposioOrganizationElsewhere.replace(
-      "{name}",
-      "Example Company",
+      "{composio}",
+      "ExampleCompany",
     ),
   );
   for (const answer of [null, "nope", { error: "operation-failed" }, {}])
@@ -1349,7 +1350,7 @@ test("Czech notices about an app hold for any app's name: no adjective that take
   // Czech page says "tento", never "tenhle".
   const integrace = Object.entries(cs).filter(
     ([key]) =>
-      key.startsWith("integrations") || key.startsWith("composioModel"),
+      key.startsWith("integrations") || key.startsWith("toolsComposio"),
   );
   for (const [key, text] of integrace) {
     expect([key, text]).not.toEqual([key, expect.stringMatching(/Launchpad/)]);

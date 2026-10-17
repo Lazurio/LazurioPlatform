@@ -9,15 +9,23 @@ import {
 import {
   composioOrganizationRule,
   composioOrganizationVerdict,
-  organizationKey,
 } from "../src/integrations/composio-organization";
+import {
+  composioOrganizationName,
+  organizationKey,
+} from "../src/integrations/composio-organization-name";
 import type { IntegrationsOverview } from "../src/integrations/model";
 import {
   composioOrganizationLine,
   parseIntegrations,
 } from "../src/launchpad/integrations-view";
 import { messages } from "../src/launchpad/messages";
-import { organizationRule } from "../src/launchpad/tools-view";
+import {
+  type ComposioDialogView,
+  composioConnectedLine,
+  composioDialogView,
+  organizationRule,
+} from "../src/launchpad/tools-view";
 import { readFolderCatalog } from "../src/organizations/catalog";
 import { selectOwnerOrganization } from "../src/organizations/catalog-selection";
 import { embeddedIdentity } from "../src/update/identity";
@@ -37,10 +45,12 @@ import { bindings } from "./fixtures/machine-bindings";
 // 2026-10-13): each person has one Composio account and in it one
 // organization of their own for each Lazurio Organization, named as the
 // Organization is. An Organization's Environment works in the organization
-// of its Organization's name, matched whatever the case, the spaces and the
-// diacritics, made current by the Launchpad; where the account has none, or
-// more than one, nothing of Composio counts and nothing connects through it.
-// A personal Environment and a computer work in the one the person chose.
+// of its Organization's name, matched by its letters and digits alone (note
+// of 2026-10-17: Composio allows only letters, digits and underscores, so the
+// person creates "LazurioExampleOrganization"), made current by the
+// Launchpad; where the account has none, or more than one, nothing of
+// Composio counts and nothing connects through it. A personal Environment
+// and a computer work in the one the person chose.
 
 const cleanups: (() => Promise<unknown>)[] = [];
 afterEach(async () => {
@@ -62,13 +72,91 @@ const listed = (current: string, ...names: string[]) =>
     current: name === current,
   }));
 
-test("a name is one whatever its case, spaces and diacritics", () => {
+test("a name is one whatever its case, diacritics, spaces, punctuation and underscores", () => {
   expect(organizationKey("Human and Machine")).toBe("humanandmachine");
   expect(organizationKey(" Příklad  ")).toBe(organizationKey("PRIKLAD"));
-  // Punctuation is part of the name.
+  for (const name of ["Rozjedeme.ai", "rozjedeme_ai", "RozjedemeAi"])
+    expect(organizationKey(name)).toBe("rozjedemeai");
+  // Only letters and digits count, and every one of them does.
+  expect(organizationKey("Příklad s.r.o.")).toBe("prikladsro");
   expect(organizationKey("Příklad s.r.o.")).not.toBe(
     organizationKey("Příklad"),
   );
+  expect(organizationKey("Studio 2")).not.toBe(organizationKey("Studio"));
+});
+
+// Composio's create screen (the Organization Admin's screenshot of
+// 2026-10-17): "Must start with a letter. Only letters, numbers, and
+// underscores allowed."
+test("the name the person creates in Composio: the Organization's words in CamelCase, only letters and digits, starting with a letter", () => {
+  for (const [display, composio] of [
+    ["Lazurio Example Organization", "LazurioExampleOrganization"],
+    ["Human and Machine", "HumanAndMachine"],
+    ["Rozjedeme.ai", "RozjedemeAi"],
+    ["Šťastná Firma", "StastnaFirma"],
+    ["Příklad s.r.o.", "PrikladSRO"],
+    ["lazurio_example_organization", "LazurioExampleOrganization"],
+    ["LazurioExampleOrganization", "LazurioExampleOrganization"],
+    ["Spectoda", "Spectoda"],
+    ["iOS Studio", "IOSStudio"],
+    ["3M Česko", "Org3MCesko"],
+    ["  Acme -- Corp!  ", "AcmeCorp"],
+  ] as const) {
+    expect(composioOrganizationName(display)).toBe(composio);
+    expect(composio).toMatch(/^[A-Za-z][A-Za-z0-9_]*$/);
+  }
+  // Nothing of the name left: no name.
+  for (const display of ["", "   ", "!!!", "Пример"])
+    expect(composioOrganizationName(display)).toBeNull();
+});
+
+test("every name Composio allows for the Organization matches it, the one the dialog asks for included", () => {
+  const verdict = (display: string, name: string, current = true) =>
+    composioOrganizationVerdict({ kind: "named", name: display }, [
+      { id: "org_1", name: "jana_workspace", current: !current },
+      { id: "org_2", name, current },
+    ]).kind;
+  for (const name of [
+    "LazurioExampleOrganization",
+    "lazurio_example_organization",
+    "lazurioexampleorganization",
+  ]) {
+    expect(verdict("Lazurio Example Organization", name)).toBe("matches");
+    expect(verdict("Lazurio Example Organization", name, false)).toBe(
+      "elsewhere",
+    );
+  }
+  // The real organizations keep matching.
+  for (const [display, name] of [
+    ["Human and Machine", "humanandmachine"],
+    ["Spectoda", "spectoda"],
+    ["Lumbio", "lumbio"],
+  ] as const)
+    expect(verdict(display, name)).toBe("matches");
+  // Each Organization's own Composio name matches it.
+  for (const display of [
+    "Lazurio Example Organization",
+    "Šťastná Firma",
+    "Příklad s.r.o.",
+    "Rozjedeme.ai",
+    "3M Česko",
+  ])
+    expect(verdict(display, composioOrganizationName(display) ?? "")).toBe(
+      "matches",
+    );
+  expect(verdict("Lazurio Example Organization", "LazurioExample")).toBe(
+    "missing",
+  );
+  // A name Composio had to start with "Org" matches in both forms; the two
+  // together are two of the name.
+  expect(verdict("3M Česko", "Org3MCesko")).toBe("matches");
+  expect(verdict("3M Česko", "3m_cesko")).toBe("matches");
+  expect(
+    composioOrganizationVerdict({ kind: "named", name: "3M Česko" }, [
+      { id: "org_1", name: "Org3MCesko", current: true },
+      { id: "org_2", name: "3mcesko", current: false },
+    ]).kind,
+  ).toBe("ambiguous");
 });
 
 test("the verdict over the account's organizations", () => {
@@ -372,7 +460,7 @@ test("an account without the organization: Composio works in the person's curren
     "jana_workspace",
   );
   expect(integrationsText(overview)).toContain(
-    "Composio: the person's account has no organization named \"Příklad\" (this Environment's Organization), so Composio works in the person's current organization meanwhile.",
+    'Composio: the person\'s account has no organization named "Priklad" (this Environment\'s Organization "Příklad", named as Composio accepts it), so Composio works in the person\'s current organization meanwhile.',
   );
   // Agents learn where the person connects an app the catalog does not list.
   expect(integrationsText(overview)).toContain(
@@ -592,7 +680,119 @@ test("an Organization's Environment by its Folder: the sign-in dialog makes the 
   }
 });
 
-test("a personal Environment's sign-in dialog leaves the choice to the person, with the advice", async () => {
+// The sign-in dialog after the sign-in (decision F42, addendum (2) of
+// 2026-10-13, note of 2026-10-17): the person signed in while Composio's CLI
+// had "First" selected. The dialog asks to create the organization, finds it
+// by itself on a later reading once the person created it, and then names
+// the account with the organization current after the reading switched,
+// never the one the sign-in named.
+test("the sign-in dialog asks to create a missing organization, finds it on a later reading, and names the one current after the switch", async () => {
+  const directory = await parent();
+  const world = await integrationsWorld(directory, {
+    composio: {
+      accounts: [gmail],
+      organization: "First",
+      organizations: [{ id: "org_1", name: "First" }],
+    },
+  });
+  cleanups.push(() => world.executor.stop());
+  const app = await worldLaunchpad(directory, world, {
+    tools: ["composio"],
+    handover: {
+      preset: "hosted-organization-personal",
+      machine: bindings.organization,
+      organization: { slug: "example", displayName: "Příklad" },
+    },
+  });
+  cleanups.push(() => app.close());
+  const copy = messages("cs");
+  const read = async () =>
+    composioDialogView(
+      await (await app.post("/api/tools/composio/organizations", {})).json(),
+      "op@example.com",
+      copy,
+    );
+  // The name Composio accepts, the one the person types there.
+  expect(await read()).toEqual({ kind: "create", name: "Priklad" });
+  // Nothing switched while it is missing: the person's current one works.
+  expect((await readComposioState(world.home)).organization).toBe("First");
+  // The person creates it in Composio's dashboard.
+  const state = await readComposioState(world.home);
+  await writeComposioState(world.home, {
+    ...state,
+    organizations: [
+      ...(state.organizations ?? []),
+      { id: "org_2", name: "priklad" },
+    ],
+  });
+  const connected = await read();
+  expect(connected).toEqual({
+    kind: "connected",
+    account: "op@example.com",
+    organization: "priklad",
+    choices: null,
+  });
+  if (connected.kind !== "connected") throw new Error("not connected");
+  expect(composioConnectedLine(connected)).toBe("op@example.com · priklad");
+  expect((await readComposioState(world.home)).organization).toBe("priklad");
+});
+
+test("the sign-in dialog says in one sentence when its organization is there twice or cannot be made current", async () => {
+  const copy = messages("cs");
+  const cases: [Partial<FakeComposioState>, ComposioDialogView][] = [
+    [
+      {
+        organization: "First",
+        organizations: [
+          { id: "org_1", name: "First" },
+          { id: "org_2", name: "priklad" },
+          { id: "org_3", name: "Příklad" },
+        ],
+      },
+      { kind: "rename", name: "Priklad" },
+    ],
+    [
+      {
+        organization: "First",
+        switchFails: true,
+        organizations: [
+          { id: "org_1", name: "First" },
+          { id: "org_2", name: "priklad" },
+        ],
+      },
+      {
+        kind: "problem",
+        message:
+          "Composio se nepodařilo přepnout do vaší organizace „Priklad“.",
+      },
+    ],
+  ];
+  for (const [composio, view] of cases) {
+    const directory = await parent();
+    const world = await integrationsWorld(directory, {
+      composio: { accounts: [gmail], ...composio },
+    });
+    cleanups.push(() => world.executor.stop());
+    const app = await worldLaunchpad(directory, world, {
+      tools: ["composio"],
+      handover: {
+        preset: "hosted-organization-personal",
+        machine: bindings.organization,
+        organization: { slug: "example", displayName: "Příklad" },
+      },
+    });
+    cleanups.push(() => app.close());
+    expect(
+      composioDialogView(
+        await (await app.post("/api/tools/composio/organizations", {})).json(),
+        "op@example.com",
+        copy,
+      ),
+    ).toEqual(view);
+  }
+});
+
+test("a personal Environment's sign-in dialog leaves the choice to the person", async () => {
   const directory = await parent();
   const world = await integrationsWorld(directory, {
     composio: {
@@ -622,6 +822,16 @@ test("a personal Environment's sign-in dialog leaves the choice to the person, w
     personal: true,
   });
   expect(organizationRule(answer)).toEqual({ kind: "chosen", personal: true });
+  // The dialog: connected in the current one, with the choice of the two.
+  expect(composioDialogView(answer, "op@example.com", messages("en"))).toEqual({
+    kind: "connected",
+    account: "op@example.com",
+    organization: "First",
+    choices: [
+      { id: "org_1", label: "First", current: true },
+      { id: "org_2", label: "Second", current: false },
+    ],
+  });
   expect((await readComposioState(world.home)).organization).toBe("First");
 });
 
@@ -643,14 +853,14 @@ test("the page's words for each state of the organization", () => {
     }) as unknown as IntegrationsOverview;
   expect(composioOrganizationLine(overview("matches", "ok"), copy)).toBeNull();
   expect(composioOrganizationLine(overview("missing", "ok"), copy)).toBe(
-    "Ve vašem účtu Composia chybí organizace „Human and Machine“. Toto Prostředí patří Organizaci Human and Machine a má se přes Composio připojovat ve vaší vlastní organizaci stejného jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
+    "Ve vašem účtu Composia chybí organizace „HumanAndMachine“. Toto Prostředí patří Organizaci Human and Machine a má se přes Composio připojovat ve vaší vlastní organizaci tohoto jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
   );
   expect(composioOrganizationLine(overview("ambiguous", "ok"), copy)).toContain(
-    "víc organizací se jménem „Human and Machine“. Dokud nezůstane jen jedna",
+    "víc organizací se jménem „HumanAndMachine“. Dokud nezůstane jen jedna",
   );
   expect(
     composioOrganizationLine(overview("elsewhere", "organization"), copy),
-  ).toContain("nepodařilo přepnout do vaší organizace „Human and Machine“");
+  ).toContain("nepodařilo přepnout do vaší organizace „HumanAndMachine“");
   expect(
     composioOrganizationLine(
       {

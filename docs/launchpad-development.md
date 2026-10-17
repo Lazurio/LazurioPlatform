@@ -2000,8 +2000,8 @@ A `launchpad` tool shows "Install and sign in" when it is missing, "Sign in" whe
 is installed and not known to be signed in, and "Sign out" when it is signed in; an
 `agent` tool shows none of them. The first two open a second dialog: its title names
 the tool, a list of plain steps ("Installing", "Waiting for you", "Signed in", each
-marked done, in progress, next or did not finish) and a status line with
-`aria-live`; focus moves to the title. On a shared Environment the shared sign-ins
+marked done, in progress, next or did not finish; none for composio) and a status
+line with `aria-live`; focus moves to the title. On a shared Environment the shared sign-ins
 warning and "Continue" come first. The dialog then installs (`/api/tools/install`) when
 needed and starts the login (`/api/tools/login/start`), and polls
 `/api/tools/login/poll` every 2 seconds with the session handle while it is open;
@@ -2018,10 +2018,21 @@ card's state is read again. What it shows:
 - gh: the sentence that the code is entered on any device, the code in large
   selectable characters (with a spelled-out accessible name) and a link to
   `https://github.com/login/device` in a new tab;
-- composio: a link to the sign-in page in a new tab; after the sign-in a select of the
-  account's organizations with the current one marked "(current)", which switches on
-  change, and the hint that the apps connected in Composio belong to that account and
-  organization, the account of the Environment;
+- composio: a link to the sign-in page in a new tab; after the sign-in (decision F42,
+  addendum (2), note of 2026-10-17) only what is left to do, read from
+  `/api/tools/composio/organizations` (`composioDialogView` in `tools-view.ts`).
+  The organization of the Organization's name missing: the title "Ještě jeden krok
+  v Composiu", one line, the name in a read-only box with "Kopírovat", the drawing
+  of Composio's dashboard (`composio-scene.ts`; its CSS in `index.html`, the
+  finished frame under `prefers-reduced-motion`), "Otevřít Composio" to the
+  dashboard's root and a quiet waiting line; two of the name: one sentence and the
+  same button; nothing to do there: one sentence. Meanwhile the dialog reads again
+  after 4 s, growing to every 30 s, paused while the page is hidden and at once when
+  it shows again, until it is connected or closed (`composioPollDelay`,
+  `composioPollNext`). Connected: "Composio je připojené" with the account and the
+  organization the reading marks current, a native select where the person
+  chooses among several (it switches on change), and "Vybrat aplikace" to Apps →
+  Integrace in place of "Done";
 - wacli: the path in WhatsApp in words, the QR code as an image of the server's SVG
   (280 CSS px, white, quiet zone, `image-rendering: pixelated`, a text alternative that
   says what to do), replaced in place when the code rotates, and "Pair with a phone

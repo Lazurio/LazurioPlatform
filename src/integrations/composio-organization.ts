@@ -8,6 +8,10 @@ import {
   type ComposioOrganization,
   parseComposioOrganizations,
 } from "../tools/login";
+import {
+  organizationKey,
+  organizationKeys,
+} from "./composio-organization-name";
 import { type ComposioEnvironment, runComposio } from "./composio-source";
 
 // The Composio organization of an Environment (decision F42, addendum of
@@ -15,14 +19,16 @@ import { type ComposioEnvironment, runComposio } from "./composio-source";
 // one Composio account and in it one organization of their own for each
 // Lazurio Organization, named as the Organization is, with nobody else in
 // it. An Organization's Environment works in the organization of its
-// Organization's name, matched whatever the case, the spaces and the
-// diacritics; a personal Environment and a computer work in the one the
-// person chose (by advice the account's default, the one Composio made when
-// they signed up). The CLI's `orgs list` prints `[{id, name,
-// is_selected_global_org}]` and `orgs switch --org-id <id>` makes one
-// current; Composio has no way to create an organization outside its
-// dashboard (its API lists them only), so a missing one is created there by
-// the person. Server only: the page draws what the reading says.
+// Organization's name, matched by its letters and digits alone
+// (`organizationKey`, note of 2026-10-17), which the person creates under the
+// name Composio accepts (`composioOrganizationName`); a personal Environment
+// and a computer work in the one the person chose (by advice the account's
+// default, the one Composio made when they signed up). The CLI's `orgs list`
+// prints `[{id, name, is_selected_global_org}]` and `orgs switch --org-id
+// <id>` makes one current; Composio has no way to create an organization
+// outside its dashboard (its API lists them only), so a missing one is
+// created there by the person. Server only: the page draws what the reading
+// says.
 
 /** What decides an Environment's Composio organization: the name of its
  * Organization, or the person's own choice where it has none. An
@@ -59,17 +65,8 @@ export type NamedVerdict = Exclude<
   { kind: "chosen" }
 >;
 
-/** A name as the rule compares it: without diacritics, case and spaces
- * ("Human and Machine" and "humanandmachine" are one name). */
-export function organizationKey(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .replace(/\s+/gu, "");
-}
-
-/** The verdict of the rule over the account's organizations. */
+/** The verdict of the rule over the account's organizations: those whose
+ * name has a key of the Organization's (`organizationKeys`). */
 export function composioOrganizationVerdict(
   rule: NamedRule,
   organizations: readonly ComposioOrganization[],
@@ -85,9 +82,9 @@ export function composioOrganizationVerdict(
   const current =
     organizations.find((organization) => organization.current)?.name ?? null;
   if (rule.kind === "chosen") return { kind: "chosen", current };
-  const key = organizationKey(rule.name);
-  const named = organizations.filter(
-    (organization) => organizationKey(organization.name) === key,
+  const keys = organizationKeys(rule.name);
+  const named = organizations.filter((organization) =>
+    keys.includes(organizationKey(organization.name)),
   );
   if (named.length === 0) return { kind: "missing", name: rule.name, current };
   if (named.length > 1) return { kind: "ambiguous", name: rule.name, current };
@@ -100,7 +97,8 @@ export function composioOrganizationVerdict(
 /** The rule of an Environment: the name of the Organization that owns it
  * (its Machine binding's Organization, named as the Organization's manifest
  * names it); `unverified` where an Organization owns it but its name cannot
- * be read; the person's choice where no Organization owns it.
+ * be read, or has no letter or digit Composio could name an organization
+ * with; the person's choice where no Organization owns it.
  *
  * The owning Organization is the one Organization settings select (F45):
  * `selectOwnerOrganization` with the handover's owner, a GitHub login,
