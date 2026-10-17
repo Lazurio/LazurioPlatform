@@ -2210,6 +2210,19 @@ nobody and has no vault. HTTP behaviour is tested in
 `tests/launchpad-vault-page.test.ts` behind a fake gateway with the fake Vaultwarden and
 the fake bw of `tests/fixtures/fake-vault.ts`.
 
+**An Environment without a vault** ([F53's addendum of
+2026-10-17](decisions.md#f53-addendum-of-2026-10-17-an-environment-without-a-vault-explains-the-vault))
+says why in the page's line and explains the vault under it: the group "Jak trezor
+funguje" (`#vault-explainer`) with the guide video `vault-overview`, its player there from
+the start at its poster, and three sentences on how a vault works in an Organization.
+The line depends on the vault's reason (`vaultPageView`'s `note` and `explainer`): a
+public Organization's Environment, whose handover names no tailnet (`no-tailnet`), has
+none on purpose, since the Organization is a public demo; any other (`no-vault`) is not
+set up yet, and the Organization's Admin sets it up. A public Environment (F55) still has
+no Trezor at all. `bun scripts/preview-launchpad.ts hosted cs|en <port> owner
+no-tailnet|no-vault` shows either: the preview's work Environment then has no vault, for
+that reason.
+
 **A personal Environment's own Bitwarden** ([F53's amendment of
 2026-10-16](decisions.md#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden),
 root decision 0203 point 7, and its
@@ -2308,7 +2321,10 @@ language's, paused. The pure part, `guideVideoPlayer`, decides the markup and th
 (`tests/launchpad-guide-video.test.ts`). Nastavení → Trezor mounts it in
 `#vault-bitwarden-video` at the top of "V Codex Desktopu a ve vašem prohlížeči"
 (`vault-page-panel.ts`, hidden for a personal Environment's own Bitwarden, whose steps
-differ).
+differ). Nastavení → Trezor of an Environment without a vault mounts `vault-overview`
+in `#vault-explainer-video` with `open`: there the video is the section's own content, so
+its player is there from the start, paused at its poster (nothing else of it loads before
+it plays), mounted the first time the section shows.
 
 The files are `src/launchpad/videos/<name>-<cs|en>.mp4` and their posters
 `<name>-<cs|en>.webp`, embedded in the executable with `{ type: "file" }` like the shell's

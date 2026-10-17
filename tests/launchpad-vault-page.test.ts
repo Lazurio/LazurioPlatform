@@ -1170,6 +1170,103 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
+  "an Environment without a vault: the page's answer says why, and the page explains the vault, none on purpose in a public Organization (DEV-6631)",
+  async () => {
+    const parent = await realpath(
+      await mkdtemp(join(tmpdir(), "launchpad-vault-page-none-")),
+    );
+    const folder = join(parent, "Lazurio");
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "cs",
+      detail: "concise",
+      coordination: "direct",
+    });
+    const home = join(parent, "home");
+    const vault = await startFakeVault(home);
+    const zip = zipOf("bw", fakeBw);
+    const pin = fakePin(zip);
+    let reason: "no-tailnet" | "no-vault" = "no-tailnet";
+    const app = await startLaunchpad(
+      folder,
+      undefined,
+      undefined,
+      undefined,
+      {},
+      {
+        path: "/usr/bin:/bin",
+        home,
+        xdg: {},
+        platform: process.platform,
+        run: runTool,
+      },
+      {},
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fakeHost({
+        home,
+        vault,
+        pin,
+        download: fakeRelease(pin, zip).fetch,
+        context: async () => ({ kind: "unsupported", reason }),
+      }),
+    );
+    try {
+      const url = new URL(app.url);
+      const token = url.hash.slice(1);
+      const read = async () =>
+        parseVaultPage(
+          await (
+            await fetch(new URL("/api/vault", url.origin), {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+          ).json(),
+        );
+      for (const [why, note] of [
+        [
+          "no-tailnet",
+          "Tato Organizace je veřejná ukázka a skutečná hesla do ní nepatří, proto v ní trezor záměrně není. Všechno ostatní funguje jako ve skutečné Organizaci.",
+        ],
+        [
+          "no-vault",
+          "Trezor tohoto Prostředí není nastavený. Nastaví ho Admin Organizace a pak ho najdete tady.",
+        ],
+      ] as const) {
+        reason = why;
+        const model = await read();
+        expect(model).toEqual({
+          status: { kind: "vault-status", state: "unsupported", reason: why },
+          setup: null,
+          environment: null,
+          name: null,
+        });
+        expect(vaultPageView(model, null, messages("cs"))).toMatchObject({
+          rule: false,
+          note,
+          row: null,
+          actions: [],
+          explainer: true,
+        });
+        expect(bitwardenGuide(model, null, messages("cs"))).toBeNull();
+      }
+      // Nothing was asked of the vault.
+      expect(vault.requests).toHaveLength(0);
+    } finally {
+      await app.close();
+      await vault.stop();
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
   "Bitwarden in Codex Desktop: the steps carry the address of the vault the handover names, point to Vytvořit účet v trezoru while the person has no account, and are left out, with Začínáme's row, where only the agents use the vault",
   async () => {
     const cs = messages("cs");

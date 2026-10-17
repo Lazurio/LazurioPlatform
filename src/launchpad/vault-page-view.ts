@@ -219,7 +219,8 @@ type RowState = Readonly<{
 export type VaultPageView = Readonly<{
   /** The rule above the vault. */
   rule: boolean;
-  /** One short line instead of the vault (this computer, no vault yet). */
+  /** One short line instead of the vault: this computer, or why this
+   * Environment has no vault. */
   note: string | null;
   /** The vault's row: its name and its state. */
   row: (RowState & Readonly<{ title: string }>) | null;
@@ -243,6 +244,10 @@ export type VaultPageView = Readonly<{
   /** "Odpojit Bitwarden": a personal Environment's own Bitwarden, once
    * connected (or its record unreadable), while no setup runs. */
   disconnect: boolean;
+  /** "Jak trezor funguje": how a vault works in an Organization, with its
+   * guide video, where this Environment has no vault (DEV-6631, F53's
+   * addendum of 2026-10-17); `note` says why it has none. */
+  explainer: boolean;
 }>;
 
 /** The vault's state in a few words: the items, the creation, no answer. */
@@ -302,7 +307,11 @@ function rowLine(
  * than the state recorded here; while the vault does not answer, its links
  * still come from the recorded state:
  *
- * - this computer, or an Environment without a vault: one short line;
+ * - this computer: one short line;
+ * - an Environment without a vault: why, in place of the vault, and how a
+ *   vault works in an Organization (`explainer`). A public Organization's
+ *   Environment (`no-tailnet`) has none on purpose; any other's (`no-vault`)
+ *   is not set up yet, and its Organization's Admin sets it up;
  * - otherwise the rule and the vault's row: its name and the item count,
  *   "Zakládání trezoru…" while a setup runs, "Neodpovídá" when the vault
  *   does not answer;
@@ -332,6 +341,7 @@ export function vaultPageView(
     connect: null,
     invite: false,
     disconnect: false,
+    explainer: false,
     ...fields,
   });
   if (model === null) return view({});
@@ -348,16 +358,23 @@ export function vaultPageView(
       note: copy.vaultPageConnectionUnreadable,
       disconnect: setup === null,
     });
-  if (status.state === "unsupported")
+  if (status.state === "unsupported") {
+    const why =
+      status.reason === "no-tailnet"
+        ? copy.vaultPagePublic
+        : status.reason === "no-vault"
+          ? copy.vaultPageNoVault
+          : null;
     return view({
       rule: false,
       note:
-        status.reason === "workstation"
+        why ??
+        (status.reason === "workstation"
           ? copy.vaultPageWorkstation
-          : status.reason === "no-vault"
-            ? copy.vaultPageNoVault
-            : copy.vaultRowUnavailable,
+          : copy.vaultRowUnavailable),
+      explainer: why !== null,
     });
+  }
   // A personal Environment whose person has not connected their own
   // Bitwarden yet: the section that connects it, with the vault it gets.
   if (status.state === "needs-connection")
