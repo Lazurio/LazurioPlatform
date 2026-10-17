@@ -95,8 +95,11 @@ materialized or inspected for cleanliness by this operation:
 Installation (below) is a different operation with its own rules: since decision F33
 (1.1 point 4) it materializes absent Production Space repositories, and since the F9
 addendum of 2026-10-04 it materializes the Personalspace on the two kinds of
-Environment that hold one. Neither is ever fetched, fast-forwarded or prepared by it,
-and repository databases and worktrees stay outside it too.
+Environment that hold one. Neither is ever fetched, fast-forwarded or prepared by it.
+Since the B7 amendment of 2026-10-17 it also materializes the declared data mount
+(`repository_db_mount`) of a module that is there after the same install, on its
+declared branch, and never fetches or changes one that exists; worktrees stay outside
+it.
 
 ## Identity and rights
 
@@ -210,9 +213,13 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
 3. **modules** — the children are re-read from the root as it now is: the workspace
    modules, the root-level applications (`mission-control`, `design-system`) and the
    Production Space repositories (decision F33, 1.1 point 4), each with a GitHub
-   remote in its slot. `infra` and repository databases (`mission-control/db`,
-   `workspace/<module>/db`) are the Organization's own bootstrap (B7) and are left out
-   (`excluded`). The role scope comes first: a restricted (Admin-only,
+   remote in its slot. A declared data mount (`materialization:
+   "repository_db_mount"` at `mission-control/db` or `workspace/<module>/db`) follows
+   its module (B7, amended 2026-10-17): materialized on its declared `git.branch`
+   (often `v3`) by the same function as the modules when the module is materialized or
+   present in this install, `excluded` when it is not; a present one is `present` only
+   on its declared branch, otherwise `blocked` (`checkout-branch-unexpected`). `infra`
+   and a database slot declared otherwise are left out (`excluded`). The role scope comes first: a restricted (Admin-only,
    `default_access` `restricted` or `private`) slot and every slot below it are in
    scope only for a verified Admin; for a Steward, Builder or Reader they are
    `excluded_by_role_scope` without any provider operation. A slot whose access
