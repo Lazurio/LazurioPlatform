@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { processContentGit } from "../src/content/git";
 import {
   initializeFolder,
   initializeHandoverFolder,
@@ -17,8 +18,14 @@ import {
 } from "../src/modules/module-operations";
 import { readModuleApplication } from "../src/modules/read-application";
 import { createSessionRunner } from "../src/modules/session-runner";
+import { runTool } from "../src/tools/status";
 import type { CliContext } from "../src/update/cli";
 import { writeOrganization } from "./fixtures/catalog-folder";
+import {
+  createWorld,
+  remoteRepository,
+  stubGitHub,
+} from "./fixtures/content-world";
 import { createFakeServiceManager } from "./fixtures/fake-service-manager";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
 import {
@@ -1084,6 +1091,118 @@ posixTest(
       ).text,
     ).toContain("required-slot-missing (workspace/prices)");
     await rm(parent, { recursive: true, force: true });
+  },
+  60_000,
+);
+
+posixTest(
+  "a module provides its own data mount before its start: refused with the slot while GitHub denies it, prepared and started on its declared branch once readable (launchpad-parity B7)",
+  async () => {
+    const parent = await realpath(await mkdtemp(join(root, "data-mount-")));
+    const { folder, home } = await fixtureFolder(parent, "local");
+    const world = await createWorld();
+    try {
+      const organization = await writeOrganization(folder, "example-org", {
+        slug: "example-org",
+        state: "current",
+        modules: [{ id: "orders" }],
+        slots: [
+          {
+            path: "workspace/orders/db",
+            slug: "orders-data",
+            materialization: "repository_db_mount",
+            git: {
+              url: "git@github.com:example-org/orders-data.git",
+              branch: "v3",
+            },
+          },
+        ],
+      });
+      const module = join(organization, "workspace", "orders");
+      await runnableModule(module, home);
+      const port = await moveLease(module, await freePort());
+      await remoteRepository(
+        world,
+        "example-org/orders-data",
+        (directory) => writeFile(join(directory, "README.md"), "orders data"),
+        "v3",
+      );
+      const manager = createFakeServiceManager({
+        runtimeDirectory: join(parent, "runtime"),
+      });
+      await mkdir(manager.runtimeDirectory);
+      const hostWith = (
+        repositories: Parameters<typeof stubGitHub>[1],
+      ): ModuleHost => ({
+        ...linuxHost(manager, home, port, binary),
+        dataMounts: {
+          github: stubGitHub(world, repositories).github,
+          git: processContentGit({
+            path: Bun.env.PATH,
+            home: world.home,
+            platform: process.platform,
+            run: runTool,
+            env: world.gitEnv,
+          }),
+          lockDirectory: world.lockDirectory,
+        },
+      });
+      const run = async (host: ModuleHost, ...args: string[]) =>
+        (
+          await runModuleCommand(
+            ["module", ...args, "--folder", folder, "--json"],
+            cliContext(home),
+            host,
+          )
+        ).result;
+      const denied = hostWith({});
+      const refused = {
+        kind: "blocked",
+        reason: "data-mount-denied",
+        organization: "example-org",
+        module: "orders",
+        app: "app/package.json",
+        file: "workspace/orders/db",
+      } as const;
+      const units = manager.commands("systemd-run").length;
+      expect(await run(denied, "start", "example-org/orders")).toEqual({
+        ...refused,
+        operation: "start",
+      });
+      expect(await run(denied, "prepare", "example-org/orders")).toEqual({
+        ...refused,
+        operation: "prepare",
+      });
+      expect(manager.commands("systemd-run")).toHaveLength(units);
+      expect(
+        (
+          await runModuleCommand(
+            ["module", "start", "example-org/orders", "--folder", folder],
+            cliContext(home),
+            denied,
+          )
+        ).text,
+      ).toContain("data-mount-denied (workspace/orders/db)");
+      const db = join(module, "db");
+      expect(await Bun.file(join(db, "README.md")).exists()).toBe(false);
+      // Readable now: the start clones it on `v3` and starts the app.
+      const readable = hostWith({
+        repositories: { "example-org/orders-data": {} },
+      });
+      expect(await run(readable, "start", "example-org/orders")).toMatchObject({
+        outcome: "started",
+      });
+      expect(await readFile(join(db, "README.md"), "utf8")).toBe("orders data");
+      expect(await readFile(join(db, ".git", "HEAD"), "utf8")).toBe(
+        "ref: refs/heads/v3\n",
+      );
+      expect(await run(readable, "stop", "example-org/orders")).toMatchObject({
+        outcome: "group-stopped",
+      });
+    } finally {
+      await world.close();
+      await rm(parent, { recursive: true, force: true });
+    }
   },
   60_000,
 );

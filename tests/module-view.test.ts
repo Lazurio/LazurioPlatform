@@ -243,6 +243,12 @@ test("the sentence after Start or Stop names what happened or why not", () => {
     ["required-slot-undeclared", "workspace/prices"],
     ["required-slot-planned", "workspace/prices"],
     ["required-slot-missing", "workspace/prices"],
+    // A module's own data mount it could not provide (launchpad-parity B7)
+    // names its slot too.
+    ["data-mount-denied", "workspace/orders/db"],
+    ["data-mount-occupied", "workspace/orders/db"],
+    ["data-mount-unavailable", "workspace/orders/db"],
+    ["data-mount-clone-failed", "workspace/orders/db"],
   ] as const)
     for (const copy of [en, cs]) {
       const sentence = moduleResultMessage({ ...refusal(reason), file }, copy);

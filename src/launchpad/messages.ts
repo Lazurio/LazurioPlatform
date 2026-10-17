@@ -660,6 +660,14 @@ const en = {
     "The app requires {file}, which the Organization manifest declares as planned, so it cannot start in this Environment yet.",
   moduleReasonRequiredSlotMissing:
     "The app requires {file}, which is not in this Environment beside it, so it was not started. Synchronize the Organization, or ask for access to that module, and start again.",
+  moduleReasonDataMountDenied:
+    "The app was not started: its data ({file}) are in a repository your GitHub account cannot read. Ask the Organization's Admin for access and start it again.",
+  moduleReasonDataMountOccupied:
+    "The app was not started: the place for its data ({file}) holds something else, and Lazurio does not touch it. Ask an agent in Chat to look at it.",
+  moduleReasonDataMountUnavailable:
+    "The app was not started: its data ({file}) could not be downloaded, because GitHub did not answer or another download is running. Start it again in a moment.",
+  moduleReasonDataMountCloneFailed:
+    "The app was not started: its data ({file}) could not be downloaded. The data repository may be empty or lack its branch; Lazurio does not create it. Ask the Organization's Admin to check the data repository.",
   moduleReasonRuntimeSecretUnavailable:
     "The app was not started: it needs secrets that this Environment's vault did not give it. {secrets}. Values are never shown; add or fix the item named exactly like the secret in the Environment's vault and start again.",
   moduleSecretsNotProvided:
@@ -2298,6 +2306,14 @@ const cs: Record<MessageKey, string> = {
     "Aplikace potřebuje {file}, který manifest Organizace vede jako plánovaný, proto v tomto Prostředí zatím spustit nejde.",
   moduleReasonRequiredSlotMissing:
     "Aplikace potřebuje {file}, který v tomto Prostředí vedle ní není, proto nebyla spuštěna. Synchronizujte Organizaci nebo si požádejte o přístup k tomu modulu a spusťte ji znovu.",
+  moduleReasonDataMountDenied:
+    "Aplikace nebyla spuštěna: její data ({file}) jsou v repozitáři, který váš účet na GitHubu nemůže číst. Požádejte Admina Organizace o přístup a spusťte ji znovu.",
+  moduleReasonDataMountOccupied:
+    "Aplikace nebyla spuštěna: na místě pro její data ({file}) je něco jiného a Lazurio na to nesahá. Požádejte agenta v Chatu, ať se na to podívá.",
+  moduleReasonDataMountUnavailable:
+    "Aplikace nebyla spuštěna: její data ({file}) se nepodařilo stáhnout, protože GitHub neodpověděl nebo právě běží jiné stahování. Spusťte ji za chvíli znovu.",
+  moduleReasonDataMountCloneFailed:
+    "Aplikace nebyla spuštěna: její data ({file}) se nepodařilo stáhnout. Repozitář dat je možná prázdný nebo nemá svou větev; Lazurio ho nezakládá. Požádejte Admina Organizace, ať repozitář dat zkontroluje.",
   moduleReasonRuntimeSecretUnavailable:
     "Aplikace nebyla spuštěna: potřebuje tajné údaje, které jí trezor tohoto Prostředí nedal. {secrets}. Hodnoty se nikdy nezobrazují; v trezoru Prostředí přidejte nebo opravte položku pojmenovanou přesně jako ten údaj a spusťte ji znovu.",
   moduleSecretsNotProvided:

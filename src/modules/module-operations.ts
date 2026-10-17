@@ -1,6 +1,12 @@
 import { constants } from "node:fs";
 import { access, stat } from "node:fs/promises";
 import { join } from "node:path";
+import {
+  contentLockDirectory,
+  processGitHubHost,
+  readFolderKind,
+} from "../content/host";
+import { contentScope } from "../content/model";
 import { withFolderReadLock } from "../folder/lock";
 import { canonicalCheckoutDirectory } from "../folder/owned-directory";
 import { readFolderState } from "../folder/read-state";
@@ -24,7 +30,9 @@ import {
   unverifiedPersonalspace,
 } from "../organizations/personalspace";
 import { checkoutRefusal } from "../providers/checkout-custody";
+import { toolsEnvironmentOf } from "../tools/overview";
 import { runTool } from "../tools/status";
+import { resolveInstallBase } from "../update/base";
 import { processVaultHost } from "../vault/host";
 import { createApplicationCoordination } from "./application-coordination";
 import {
@@ -32,6 +40,7 @@ import {
   type RunnerKind,
   selectApplicationRunnerKind,
 } from "./application-runner";
+import { type DataMountHost, provideDataMounts } from "./data-mounts";
 import { createApplicationLifecycle } from "./lifecycle";
 import { localApplicationAdapters } from "./local-application-adapters";
 import { preparationRefusal } from "./preparation-refusal";
@@ -111,6 +120,10 @@ export type ModuleHost = Readonly<{
    * (decision F46): the Environment vault of this process. None: an app
    * that requires a secret does not start (`no-vault-identity`). */
   runtimeSecrets?: ((folder: string) => RuntimeSecretSource) | undefined;
+  /** Where a module's own data mounts are provided from at its preparation
+   * (launchpad-parity B7): this Environment's gh and git and the install
+   * base's content locks. None: no module provides its data here. */
+  dataMounts?: DataMountHost | undefined;
 }>;
 
 /** The standard Bun of the operator's account (B2): one rule for the CLI, the
@@ -139,6 +152,15 @@ export function processModuleHost(
     .filter((entry, index, all) => all.indexOf(entry) === index)
     .join(":");
   let kind: Promise<RunnerKind> | undefined;
+  // The same gh, git and per-user install base as content installation
+  // (`processContentHost`), so a data mount a start clones and one an install
+  // clones share one content lock.
+  const tools = toolsEnvironmentOf(env, platform, runTool);
+  const base = resolveInstallBase({
+    platform,
+    env: { XDG_DATA_HOME: tools.xdg?.XDG_DATA_HOME },
+    homedir: tools.home,
+  });
   return Object.freeze({
     platform,
     home,
@@ -169,6 +191,14 @@ export function processModuleHost(
         unit,
         lines,
       ),
+    ...(base === undefined
+      ? {}
+      : {
+          dataMounts: Object.freeze({
+            ...processGitHubHost({ env, platform, tools }),
+            lockDirectory: contentLockDirectory(base),
+          }),
+        }),
     // The vault of the Environment this process serves, read anew at each
     // start from its handover and Folder (decision F43).
     runtimeSecrets: (folder: string) =>
@@ -729,6 +759,27 @@ export function createModuleOperations(input: {
     });
   }
 
+  // A module's own data mounts, as this Folder's Environment reads GitHub:
+  // anonymously on a public Environment (decision F55's addendum of
+  // 2026-10-17), otherwise through its gh.
+  function provideModuleData(
+    dataMounts: DataMountHost,
+    organizationDirectory: string,
+    moduleDirectory: string,
+  ) {
+    return provideDataMounts({
+      folder,
+      organizationDirectory,
+      moduleDirectory,
+      host: dataMounts,
+      anonymous: async () => {
+        const recorded = await readFolderKind(folder);
+        const scope = contentScope(recorded.preset, recorded.machine);
+        return scope.allowed && scope.github === "anonymous";
+      },
+    });
+  }
+
   function lifecycleFor(kind: RunnerKind, target: Target) {
     const { organizationDirectory } = target;
     const runner = host.createRunner(kind, organizationDirectory);
@@ -754,6 +805,16 @@ export function createModuleOperations(input: {
           : { organizationRoot: organizationDirectory }),
         externalOrigin: (module) => launchOrigin(folder, module),
         secretSource: host.runtimeSecrets?.(folder),
+        ...(target.personalspace || host.dataMounts === undefined
+          ? {}
+          : {
+              provideData: (moduleDirectory: string) =>
+                provideModuleData(
+                  host.dataMounts as DataMountHost,
+                  organizationDirectory,
+                  moduleDirectory,
+                ),
+            }),
         ...(kind === "systemd-user"
           ? {
               coordination: createApplicationCoordination({

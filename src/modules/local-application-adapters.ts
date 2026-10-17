@@ -61,6 +61,12 @@ export function localApplicationAdapters(input: {
   // not start (`no-vault-identity`).
   secretSource?: RuntimeSecretSource | undefined;
   personalspace?: boolean;
+  // The module's own data mounts (launchpad-parity B7), provided before its
+  // preparation and start: given the module's directory, it clones an absent
+  // declared data repository, verifies a present one, and throws
+  // `RequiredSlotRefused` otherwise. None: nothing is provided (a
+  // Personalspace module, a composition without GitHub).
+  provideData?: (moduleDirectory: string) => Promise<void>;
 }): Adapters {
   // The one environment of every process started for a module here: the
   // preparation's install and scripts, the toolchain probe and the
@@ -123,6 +129,10 @@ export function localApplicationAdapters(input: {
       );
       if (dirname(join(module.moduleDirectory, plan.package)) !== cwd)
         throw new Error("Application scope changed");
+      // The module's data before anything else of its preparation: a start
+      // or a preparation without it installs nothing.
+      if (input.organizationRoot !== undefined)
+        await input.provideData?.(module.moduleDirectory);
       // A start whose required slot is not there installs nothing, nor one
       // whose required secret the vault cannot give it, as far as is known
       // without reading it (decision F46).
