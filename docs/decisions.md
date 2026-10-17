@@ -6468,6 +6468,59 @@ the Apps home and Settings → Obecné, and between the rail and the page with t
 hidden, and none doubled where the panel takes all of the room with the column hidden.
 These are no rendered-page CI gates.
 
+### F36 addendum of 2026-10-17 (2): the band on top of the Launchpad's column
+
+**Decided by Matěj (Organization Admin) on 2026-10-17 (plan DEV-6639), after the shell
+wireframe at `HumanAndMachine-ai/prototypes-lazurio` #56 (an app band with the column's
+toggle on top of every column) and #61 (a finished column head).** It moves the column's
+toggle of F47's "The heads' controls in the page's corners (2026-10-12, evening)", which
+stood under `<lazurio-column-head>` in a row of its own.
+
+1. **The band.** Apps and Settings (one page) start their left column with a band as
+   tall as Settings' header, 52 px: the column's toggle, "Skrýt levý panel" / "Hide left
+   panel" (Iconoir's sidebar-collapse, 16 px in a 30 px ghost button with the controls'
+   radius), then the app's name, the design system's approved lockup as one whole asset
+   at its smallest size, 18 px tall (`content/brand/logo/logo.md`; vendored byte for byte
+   from the pinned commit, `src/shell/vendor/README.md`), never the symbol beside a word.
+   The toggle's centre stands over the picker's mark and the lockup starts where the
+   Environment's name does, so the toggle is 19 px from the column's edge and 11 px from
+   its top. `<lazurio-column-head>` follows right under the band, unchanged: the picker
+   with the gear, the switch, the setup prompt. The toggle's own row under the switch is
+   gone. Hidden, the column leaves the rail and "Zobrazit levý panel" / "Show left panel"
+   (sidebar-expand) at the page's top left, in the same spot; heads step aside as before
+   and the content does not move. The choice stays in this browser (`lazurio.layout`),
+   the keys and the focus behave as before, and below 768 px the column stays the sheet,
+   its band showing the lockup alone. The column's divider and the sheet's button name
+   the same panel ("Šířka levého panelu", "Zobrazit levý panel").
+2. **The band is the Launchpad's, not the shell's.** Every app draws its own band with
+   its own name: Chat T3 Code's wordmark with the Lazurio badge (the T3 Code fork's
+   `SidebarChromeHeader`), Automate MausBot's (the MausBot fork), the Dashboard the
+   Lazurio lockup from its own vendored design system. The toggle drives the host's own
+   column, which the shell does not own, so a shell element would carry only markup and
+   styles while every behaviour stayed the host's, and it would be one more promise of
+   interface v1 that only two hosts use. The forks keep their band and place
+   `<lazurio-column-head>` under it.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The band as a shell element | The behaviour stays each host's and the forks keep their own band, while an element of interface v1 can never be removed (point 2) |
+| The toggle at 16 px from the column's edge, as #56 first drew it | #61 centres it over the picker's mark (19 px), with the corner's toggle moved to the same spot |
+
+**Honest limits.** In the wireframe the band's toggle also closes the narrow sheet; the
+Launchpad keeps its sheet as it was (opened by the page's button, closed by the backdrop,
+Escape or a move), so below 768 px the band draws no toggle.
+
+Verified by unit tests (`tests/launchpad-page-corners.test.ts`: the band first in the
+column with the toggle and the vendored lockup, the column head right after it, the three
+toggles; `tests/apps-view.test.ts`: the lockup's pinned hash) and in headless Chrome
+against the hosted preview in Czech at 1440 × 900 and 700 × 900 (root decision 0178): the
+Apps home and Settings → Obecné with the column shown and hidden, the band's toggle and
+the corner's in the same spot, the toggle's centre over the picker's mark, the lockup
+where the Environment's name starts, the band as tall as Settings' header, hiding by
+keyboard with the focus moving to the corner's toggle, the choice kept across a reload,
+showing it again from the corner, the sheet, and the tour's ring on the gear. These are
+no rendered-page CI gates.
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction
@@ -10574,7 +10627,12 @@ the toggle that stays pressed while the panel is open included.
   moves for it: only a title row it would reach steps aside (Matěj, 2026-10-13). While the
   page also steps aside for the panel, the panel strip's stands in for it. The shell's column head is unchanged: it offers no slot for a host's control; beside it
   the head would narrow (at the column's narrowest, 208 px, it would draw only its glyphs),
-  and above it the head would no longer stand where Chat and Automate draw it.
+  and above it the head would no longer stand where Chat and Automate draw it. *(Since
+  [F36's addendum of
+  2026-10-17 (2)](#f36-addendum-of-2026-10-17-2-the-band-on-top-of-the-launchpads-column)
+  the toggle stands in the band on top of the column, above `<lazurio-column-head>`, as
+  every app now draws its own band above the same head; the corner's toggle stands in
+  the band toggle's spot.)*
 - **Where it is.** `index.html` (the markup and the stylesheet) and `layout.ts` (the column's
   toggles, the corner's width as `--page-corner`), pinned by
   `tests/launchpad-page-corners.test.ts`. How it looks is checked in a browser (root decision

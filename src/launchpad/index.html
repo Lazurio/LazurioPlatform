@@ -139,9 +139,22 @@ h1, h2, h3, h4 { margin: 0; font-size: 14px; }
    2026-10-17), so the app draws none on that side and there is never a
    second line. It clips what slides past its right edge (the right panel
    coming and going), without becoming a scroller, so the column and the
-   panel still stick. */
+   panel still stick. The column starts with its band, from its top edge. */
 .app { display: flex; min-height: 100vh; margin-left: var(--lazurio-rail-width, 64px); background: var(--bg); overflow-x: clip; }
-.column { position: sticky; top: 0; z-index: 20; display: flex; flex: none; flex-direction: column; gap: 10px; width: var(--column-width); height: 100vh; padding: 16px 10px 10px; background: var(--lz-gray-25); border-right: 1px solid var(--lz-line-faint); }
+.column { position: sticky; top: 0; z-index: 20; display: flex; flex: none; flex-direction: column; gap: 10px; width: var(--column-width); height: 100vh; padding: 0 10px 10px; background: var(--lz-gray-25); border-right: 1px solid var(--lz-line-faint); }
+/* The column's band (Matěj 2026-10-17, the wireframe's AppBand,
+   prototypes-lazurio #56 and #61): as tall as Settings' header, 52 px, it
+   holds the column's toggle and then the app's name, the design system's
+   approved lockup, whole, at its smallest size (18 px tall,
+   content/brand/logo/logo.md), never the symbol beside a word. The toggle's
+   centre stands over the picker's mark and the lockup starts where the
+   Environment's name does, 52 px into the head (the picker's 8 px, its
+   32 px mark and 12 px), so the toggle stands 19 px from the column's edge
+   and 11 px from its top. The column head follows right under the band,
+   without the column's gap. Below 768 px, where the column is the sheet,
+   the toggle is not drawn and the lockup starts the band. */
+.column-band { display: flex; flex: none; align-items: center; gap: 13px; height: 52px; margin-bottom: -10px; padding-left: 9px; }
+.column-lockup { display: block; flex: none; width: auto; height: 18px; }
 .column-apps, .column-settings { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 10px; }
 .column-scroll { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 14px; overflow-y: auto; }
 .column-title { padding: 0 8px; font-size: 18px; font-weight: var(--lz-weight-title); letter-spacing: var(--lz-track-title); }
@@ -193,16 +206,18 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
    apps-corner): controls over the page, always in the same place on every
    page, as ChatGPT and Codex Desktop keep theirs, centred in the band of
    Settings' and Files' header. Top left, the column's toggle while the
-   column is hidden; top right, the page's help link (Guide on the Apps
-   home, "Jak to funguje" on Integrace) and the Browser toggle. They stay in
-   view as the page scrolls, on the page's own surface, so what scrolls by
-   passes beneath them and never through their words; no bar, no line, no
-   shadow. Page heads hold only their titles and leave the corners free: the
-   right one by its width, `--page-corner` (layout.ts, the wireframe's
+   column is hidden, in the very spot of the band's toggle it stands in for
+   (19 px in: the column's 10 px and the band's 9 px; the wireframe's
+   column-corner); top right, the page's help link (Guide on the Apps home,
+   "Jak to funguje" on Integrace) and the Browser toggle. They stay in view
+   as the page scrolls, on the page's own surface, so what scrolls by passes
+   beneath them and never through their words; no bar, no line, no shadow.
+   Page heads hold only their titles and leave the corners free: the right
+   one by its width, `--page-corner` (layout.ts, the wireframe's
    --apps-corner), the left one while the column is hidden. */
 .page-top { position: sticky; top: 0; z-index: 3; height: 0; }
 .page-corner { position: absolute; top: 11px; display: flex; align-items: center; gap: 14px; min-height: 30px; border-radius: var(--radius-control); background: var(--bg); }
-.page-corner-start { left: 16px; }
+.page-corner-start { left: 19px; }
 .page-corner-end { right: 16px; }
 #catalog-head, .market-head { padding-right: var(--page-corner, 0px); }
 .topbar { padding-right: calc(24px + var(--page-corner, 0px)); }
@@ -210,16 +225,17 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
    catalog-panel.ts hides, has none (the wireframe's corner on the home). */
 #page:has(#catalog-head[hidden]) #catalog-guide { display: none; }
 /* The left column on a wide screen (Matěj's tuning of 2026-10-12, as T3
-   Code's sidebar; layout.ts). Its toggle sits in the column's head, under
-   <lazurio-column-head>, where Chat keeps T3 Code's toggle under the same
-   head, and hides the column, the rail staying. While the column is hidden
-   the toggle at the page's top left shows it again; while the page also
+   Code's sidebar; layout.ts). Its toggle sits first in the column's band, on
+   top of the column above <lazurio-column-head> (Matěj 2026-10-17; Chat and
+   Automate keep theirs in their own band above the same head), and hides
+   the column, the rail staying. While the column is hidden the toggle at
+   the page's top left shows it again, in the same spot; while the page also
    steps aside for the right panel, the one in the panel's strip stands in
    for it. One of them is in view at a time. The column's right edge drags
    it 208–480 px wide, as the panel's divider does. Below 768 px the column
    is the sheet #nav-toggle opens, and none of this shows.
-   The toggle at the page's top left takes 62 px (16 px, its 30 px and
-   16 px). The page's content never moves for it: only a title row it would
+   The toggle at the page's top left takes 62 px (19 px, its 30 px and
+   13 px). The page's content never moves for it: only a title row it would
    reach steps aside (Matěj 2026-10-13). Settings' and Files' header always;
    the first row of the Apps home, Integrace and a module's page, whose wide
    column starts 32 px from the page's edge, by 30 px; the Marketplace's
@@ -231,7 +247,6 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
   button.ghost.column-toggle { display: inline-flex; flex: none; width: 30px; height: 30px; padding: 0; border-radius: var(--radius-control); }
   button.ghost.column-toggle:hover { background: var(--hover); }
   .column-toggle[aria-expanded="true"] .column-toggle-show, .column-toggle[aria-expanded="false"] .column-toggle-hide { display: none; }
-  .column > .column-toggle { align-self: flex-start; }
   .app:not([data-column="hidden"]) .page-corner-start .column-toggle, .browser-strip button.ghost.column-toggle { display: none; }
   .app[data-column="hidden"] .column { display: none; }
   .app[data-column="hidden"] .topbar { padding-left: 62px; }
@@ -1212,14 +1227,19 @@ button:not(.primary) .provider-openai { color: #000000; }
 <lazurio-rail id="rail" app="apps"></lazurio-rail>
 <div class="app" id="app">
 <aside class="column" id="sidebar">
+<!-- The column's band on its top (Matěj 2026-10-17): the column's toggle
+     (layout.ts) and the app's name, the design system's approved lockup.
+     It is the Launchpad's own, not the shell's: every app draws its own band
+     with its own name (Chat T3 Code's, Automate MausBot's), and the shell's
+     column head below it takes nothing of the host. -->
+<div class="column-band">
+<button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button>
+<img class="column-lockup" src="../shell/vendor/lazurio/lockup-color.svg" alt="Lazurio" height="18">
+</div>
 <!-- The head of the column: the Environment picker with the gear of this
      Environment's Settings beside it, then the switch Chat · Apps ·
      Automate. -->
 <lazurio-column-head id="column-head" active="apps" settings="/settings/general"></lazurio-column-head>
-<!-- The column's toggle in its head, under the shared column head, where
-     Chat keeps T3 Code's under the same head (layout.ts); the column head
-     itself is the shell's and takes nothing of the host. -->
-<button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button>
 <!-- Apps: all modules, Files (decision F35) and the favourites; no module
      list and no search. The Marketplace stands at the foot. -->
 <div class="column-apps" data-view="catalog files integrations marketplace">
@@ -1269,7 +1289,7 @@ button:not(.primary) .provider-openai { color: #000000; }
 <div class="column-divider" id="column-divider" role="separator" aria-orientation="vertical" aria-controls="sidebar" tabindex="0"></div>
 </aside>
 <div class="backdrop" id="backdrop"></div>
-<button type="button" class="nav-toggle" id="nav-toggle" aria-controls="sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-panel"/></svg><span class="sr-only" data-message="navigationOpen">Open navigation</span></button>
+<button type="button" class="nav-toggle" id="nav-toggle" aria-controls="sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-panel"/></svg><span class="sr-only" data-message="navigationOpen">Show left panel</span></button>
 <div class="page" id="page">
 <!-- The page's top corners (Matěj 2026-10-12, evening; the wireframe's
      apps-corner), the same on every page: top left the column's toggle

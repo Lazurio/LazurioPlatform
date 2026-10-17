@@ -748,7 +748,7 @@ test("every vendored file has the hash its README records", async () => {
   const rows = [
     ...readme.matchAll(/\| `([^`]+)` \|(?: `[^`]+` \|)? `([0-9a-f]{64})` \|/g),
   ];
-  expect(rows.length).toBe(22);
+  expect(rows.length).toBe(23);
   for (const [, file, hash] of rows) {
     const bytes = await readFile(join(directory, file ?? ""));
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(hash ?? "");
