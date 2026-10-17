@@ -3,9 +3,10 @@ import { basename } from "node:path";
 
 /** The canary record of a release candidate (docs/release-cycle.md
  * "Qualification and the canary"; root decision 0166 point 6): the candidate
- * ran for 8 hours on every hosted Machine of the pilot Organization, its work
- * VMs and its operators' personal VMs. The pilot Organization's release
- * reviewer adds `qualification/canary/<candidate>.json` by a pull request;
+ * ran for 8 hours on every Environment of the pilot Organization (the public
+ * reference Organization, root decision 0204 point 7), its work VMs, and on at
+ * least one operator's personal VM outside it. The release reviewer adds
+ * `qualification/canary/<candidate>.json` by a pull request;
  * the release job of the final tag runs this check on it:
  *
  *   bun run scripts/qualify/check-canary.ts [--provenance] qualification/canary/<candidate>.json
@@ -45,7 +46,7 @@ export type CanaryRecord = Readonly<{
   start: string;
   end: string;
   machines: readonly CanaryMachine[];
-  /** GitHub login of the pilot Organization's release reviewer. */
+  /** GitHub login of the release reviewer. */
   reviewer: string;
   /** The pull request that added the record. */
   pullRequest: string;
