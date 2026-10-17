@@ -71,7 +71,8 @@ import {
 // `github` anonymous, decision F55's addendum of 2026-10-17) the same steps
 // run without any GitHub identity: no gh account, no read of GitHub's API,
 // the reader's scope, and every clone over anonymous HTTPS with no
-// credential helper; nothing is created, granted or pushed there.
+// credential helper, in an isolated git (`anonymousGitEnvironment`); nothing
+// is created, granted or pushed there.
 
 export type InstallRequest = Readonly<{
   /** Absent: everything this Environment holds. */

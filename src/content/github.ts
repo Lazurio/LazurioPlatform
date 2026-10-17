@@ -134,11 +134,12 @@ export type ContentGitHub = Readonly<{
 /** GitHub on a public Environment (root decision 0204 point 5, decision F55's
  * addendum of 2026-10-17), which has no identity at all: no gh account, no
  * App, no token. Reader-only by its shape: its one capability is where a
- * public repository is read, Git over HTTPS with git's empty credential
- * helper, which resets every helper the operator's configuration names (gh's
- * included), so a clone carries no credential and GitHub answers it as it
- * answers anyone. It reads nothing of GitHub's API and has nothing that
- * creates, grants or pushes. */
+ * public repository is read, `https://github.com/<owner>/<repository>.git`
+ * with the empty credential helper, which makes the git adapter clone it
+ * isolated from every configuration, credential and helper
+ * (`anonymousGitEnvironment`), so a clone carries nothing of anyone and
+ * GitHub answers it as it answers anyone. It reads nothing of GitHub's API
+ * and has nothing that creates, grants or pushes. */
 export const anonymousGitHub = Object.freeze({
   remote(fullName: string): Readonly<{ url: string; credentialHelper: "" }> {
     if (!repositoryPattern.test(fullName))

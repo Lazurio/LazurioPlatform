@@ -1,23 +1,30 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { inspectGitCheckout } from "../providers/git-checkout";
 import type { ToolRunner } from "../tools/status";
 import { resolveOnPath } from "../tools/status";
 import { type CommitIdentity, identitySettings } from "./commit-identity";
+import { repositoryPattern } from "./model";
 
 // Git for content installation: the operator's own `git` from the
 // operator's PATH, with the operator's home and Git configuration, because a
 // clone is the operator's act under the operator's sign-in (SSH key or gh as
-// credential helper), or on a public Environment under none (no helper at
-// all). Only the clone runs here; the verification reads the
+// credential helper). A public Environment's anonymous clone is the one
+// exception: it runs the same git with none of that (`anonymousGitEnvironment`).
+// Only the clone runs here; the verification reads the
 // result through the existing read-only checkout inspection.
 
 export type CloneRequest = Readonly<{
   url: string;
   directory: string;
   branch: "main";
-  /** Git's `credential.helper` for github.com over HTTPS: gh's, or `""`,
-   * git's empty helper, for none at all (a public Environment's anonymous
-   * read): every helper the configuration names is reset and none added.
-   * Absent: the operator's configuration as it is. */
+  /** Git's `credential.helper` for github.com over HTTPS: gh's; or `""` for
+   * an anonymous clone (a public Environment's read, `anonymousGitHub`),
+   * which runs isolated from every configuration, credential and helper of
+   * the operator and of this process, and only for exactly
+   * `https://github.com/<owner>/<repository>.git`. Absent: the operator's
+   * configuration as it is. */
   credentialHelper?: string | undefined;
 }>;
 
@@ -78,7 +85,57 @@ export type GitEnvironment = Readonly<{
   platform: string;
   run: ToolRunner;
   env: Readonly<Record<string, string>>;
+  /** Test seam: the origin, exactly `http://127.0.0.1:<port>`, of a local
+   * server that stands in for github.com for an anonymous clone, given to
+   * that clone alone as one `url.<origin>/.insteadOf=https://github.com/`
+   * with HTTP allowed. The product never sets it. */
+  anonymousOrigin?: string | undefined;
 }>;
+
+/** The repository of exactly `https://github.com/<owner>/<repository>.git`,
+ * the one URL an anonymous clone may have, or null for anything else (another
+ * scheme or host, credentials, a query, a fragment, a missing `.git`). */
+export function anonymousCloneTarget(url: string): string | null {
+  const match = /^https:\/\/github\.com\/([^/?#@\s]+\/[^/?#@\s]+)\.git$/.exec(
+    url,
+  );
+  const repository = match?.[1];
+  return repository !== undefined &&
+    repositoryPattern.test(repository) &&
+    !/\/\.{1,2}$/.test(repository)
+    ? repository
+    : null;
+}
+
+/** The whole environment of an anonymous clone (decision F55's addendum of
+ * 2026-10-17, review of #472): only PATH, a locale and an empty temporary
+ * home. No system, global or XDG configuration and nothing injected through
+ * the environment (`GIT_CONFIG_*`, `GIT_CONFIG_PARAMETERS`), so no
+ * `http.extraHeader`, credential helper, `insteadOf` rewrite or
+ * `core.sshCommand` of anyone reaches it; no prompt, askpass or SSH helper;
+ * HTTPS the only protocol. The process runs with exactly this environment
+ * (the tool runner inherits nothing). */
+export function anonymousGitEnvironment(
+  path: string | undefined,
+  home: string,
+): Record<string, string> {
+  return {
+    ...(path ? { PATH: path } : {}),
+    HOME: home,
+    XDG_CONFIG_HOME: home,
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CEILING_DIRECTORIES: dirname(home),
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_ASKPASS: "",
+    SSH_ASKPASS: "",
+    GCM_INTERACTIVE: "never",
+    GIT_ALLOW_PROTOCOL: "https",
+    LC_ALL: "C",
+  };
+}
+
+const testOrigin = /^http:\/\/127\.0\.0\.1:[0-9]{1,5}$/;
 
 const passed =
   /^(SSH_AUTH_SOCK|GIT_SSH|GIT_SSH_COMMAND|GIT_CONFIG_GLOBAL|GIT_CONFIG_NOSYSTEM|GIT_CONFIG_COUNT|GIT_CONFIG_KEY_[0-9]+|GIT_CONFIG_VALUE_[0-9]+|XDG_CONFIG_HOME)$/;
@@ -123,22 +180,73 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
       ? result.stdout.replace(/\n$/, "")
       : null;
   };
-  // Only for github.com over HTTPS: reset the list, then gh. The empty
-  // helper (an anonymous read) resets the general list instead and adds
-  // nothing: git's empty value clears every helper configured before it, the
-  // general ones and every URL's, and holds for whatever URL git ends up
-  // asking about (an `insteadOf` rewrite included), so none answers.
+  // Only for github.com over HTTPS: reset the list, then gh.
   const helperOf = (credentialHelper: string | undefined) =>
     credentialHelper === undefined
       ? []
-      : credentialHelper === ""
-        ? ["-c", "credential.helper="]
-        : [
-            "-c",
-            "credential.https://github.com.helper=",
-            "-c",
-            `credential.https://github.com.helper=${credentialHelper}`,
-          ];
+      : [
+          "-c",
+          "credential.https://github.com.helper=",
+          "-c",
+          `credential.https://github.com.helper=${credentialHelper}`,
+        ];
+  // A public Environment's anonymous clone: refused before any process for
+  // anything but exactly `https://github.com/<owner>/<repository>.git`, then
+  // run from an empty temporary home with `anonymousGitEnvironment` and
+  // nothing else; the empty `credential.helper` stays as a second fence.
+  const anonymousClone = async (
+    executable: string,
+    request: CloneRequest,
+  ): Promise<"cloned" | "failed"> => {
+    const seam = environment.anonymousOrigin;
+    if (
+      anonymousCloneTarget(request.url) === null ||
+      (seam !== undefined && !testOrigin.test(seam))
+    )
+      return "failed";
+    let home: string;
+    try {
+      home = await mkdtemp(join(tmpdir(), "lazurio-anonymous-git-"));
+    } catch {
+      return "failed";
+    }
+    try {
+      const result = await environment.run(
+        [
+          executable,
+          "-C",
+          home,
+          "-c",
+          "credential.helper=",
+          ...(seam === undefined
+            ? []
+            : ["-c", `url.${seam}/.insteadOf=https://github.com/`]),
+          "clone",
+          "--quiet",
+          "--no-recurse-submodules",
+          "--origin",
+          "origin",
+          "--branch",
+          request.branch,
+          "--",
+          request.url,
+          request.directory,
+        ],
+        cloneTimeoutMs,
+        {
+          ...anonymousGitEnvironment(environment.path, home),
+          ...(seam === undefined ? {} : { GIT_ALLOW_PROTOCOL: "https:http" }),
+        },
+      );
+      return result !== "timeout" && result.exitCode === 0
+        ? "cloned"
+        : "failed";
+    } catch {
+      return "failed";
+    } finally {
+      await rm(home, { recursive: true, force: true }).catch(() => {});
+    }
+  };
   // One write of the operator's git; its last error line when it fails.
   const write = async (
     directory: string,
@@ -186,6 +294,8 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
   return Object.freeze({
     async clone(request) {
       const executable = await git();
+      if (executable !== undefined && request.credentialHelper === "")
+        return anonymousClone(executable, request);
       if (executable === undefined || !environment.home) return "failed";
       const helper = helperOf(request.credentialHelper);
       try {
