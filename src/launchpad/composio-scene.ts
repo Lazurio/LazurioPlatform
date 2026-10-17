@@ -9,16 +9,18 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // guide pattern draws a step (a drawing of the real screen, the cursor
 // "Vy"/"You" going through it, the places numbered in `--lz-blue-500`, the
 // finished state under `prefers-reduced-motion`). Plain elements placed in
-// `em` on a stage that scales with its width; the motion is CSS
-// (index.html, `.composio-scene`), so it ends with the dialog. A simplified,
-// light sidebar, never a copy of Composio's screen or its logo.
+// units on a stage that scales with its width; the motion is CSS
+// (index.html, `.composio-scene`), so it ends with the dialog. Two light
+// screens, never a copy of Composio's screens or its logo: a simplified
+// sidebar with its list of organizations, then the page "Create Org" opens
+// (`/create-workspace`), a card centred under the heading "Composio".
 
 /** Composio's own words on the screens the drawing shows, in English as its
  * dashboard writes them whatever the page's language: the one place to match
- * against the real screen (the Organization Admin's screenshot of
- * 2026-10-17). The step after "Create Org" has no screenshot yet, so its
- * labels are placeholders until one is matched. The organizations of the
- * drawn account are fictional; the current one is last. */
+ * against the real screens (the Organization Admin's screenshots of
+ * 2026-10-17: the sidebar's list, and the page "Create Org" opens). The
+ * organizations of the drawn account are fictional; the current one is
+ * last. */
 export const composioScreen = {
   forYou: "FOR YOU",
   switch: "Switch",
@@ -26,10 +28,15 @@ export const composioScreen = {
   findOrg: "Find Org...",
   createOrg: "Create Org",
   createOrgNote: "Collaborate with others in a shared workspace",
-  /** Placeholder: no screenshot of the create step yet. */
+  heading: "Composio",
+  createTitle: "Create Organization",
+  createSubtitle: "Set up a new workspace for your team",
   nameLabel: "Organization name",
-  /** Placeholder: no screenshot of the create step yet. */
-  create: "Create",
+  namePlaceholder: "my_organization",
+  nameHint:
+    "Must start with a letter. Only letters, numbers, and underscores allowed.",
+  create: "Create organization",
+  back: "← Back",
   organizations: ["Acme", "Northwind", "jana_workspace"],
 } as const;
 
@@ -102,8 +109,10 @@ function marker(step: number): HTMLElement {
   return node;
 }
 
-/** The drawing; `name` is the name of this Environment's Organization, the
- * only value in it that is not Composio's or fictional, set as text. */
+/** The drawing; `name` is the name of this Environment's Organization as
+ * Composio accepts it (`composioOrganizationName`), the one typed into the
+ * field and the only value in it that is not Composio's or fictional, set as
+ * text. */
 export function composioScene(copy: Copy, name: string): HTMLElement {
   const scene = element("div", "composio-scene");
   scene.setAttribute("role", "img");
@@ -176,28 +185,34 @@ export function composioScene(copy: Copy, name: string): HTMLElement {
   );
   popover.append(find, list, element("span", "cs-divider"), create);
 
-  const modal = element("div", "cs-modal");
+  // The dashboard with the places 1 to 3; "Create Org" opens a page of its
+  // own, which takes its place: the card with the field (4) and its button.
+  const dashboard = element("div", "cs-dash");
+  dashboard.append(side, main, popover, marker(1), marker(2), marker(3));
+
+  const page = element("div", "cs-page");
+  const card = element("div", "cs-card");
   const field = element("div", "cs-field");
-  field.append(element("span", "cs-typed", name));
-  modal.append(
-    element("span", "cs-small", composioScreen.nameLabel),
+  field.append(
+    element("span", "cs-placeholder", composioScreen.namePlaceholder),
+    element("span", "cs-typed", name),
+  );
+  card.append(
+    element("span", "cs-card-title", composioScreen.createTitle),
+    element("span", "cs-small cs-card-note", composioScreen.createSubtitle),
+    element("span", "cs-label", composioScreen.nameLabel),
     field,
+    element("span", "cs-small cs-hint", composioScreen.nameHint),
     element("span", "cs-confirm", composioScreen.create),
+    element("span", "cs-small cs-back", composioScreen.back),
+  );
+  page.append(
+    element("span", "cs-heading", composioScreen.heading),
+    card,
+    marker(4),
   );
 
-  // The places 1 to 3 stay under the create step's dimming; 4 is on it.
-  stage.append(
-    side,
-    main,
-    popover,
-    marker(1),
-    marker(2),
-    marker(3),
-    element("div", "cs-scrim"),
-    modal,
-    marker(4),
-    cursor(copy),
-  );
+  stage.append(dashboard, page, cursor(copy));
   scene.append(stage);
   return scene;
 }

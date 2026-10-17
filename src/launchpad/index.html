@@ -954,9 +954,12 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
 #tools-login .composio-choice label { margin: 0; font-size: 13px; font-weight: var(--lz-weight-akce); }
 #tools-login .composio-choice select { width: min(18rem, 100%); }
 /* The drawing: a stage of 30 × 21 units that scales with its width (one
-   unit is a thirtieth of it), so it reads the same on a phone. Its plain
-   styles are the finished frame, shown under prefers-reduced-motion: the
-   organizations open with "Create Org" ringed and the places 1 to 3. */
+   unit is a thirtieth of it), so it reads the same on a phone. Two light
+   screens: the dashboard with its sidebar (1 to 3), then the page "Create
+   Org" opens, a card centred under "Composio" (4). Its plain styles are the
+   frame shown under prefers-reduced-motion: the organizations open with
+   "Create Org" ringed and the places 1 to 3, the path the person could not
+   find alone; the dialog's own name box above it is the place 4. */
 .composio-scene { --u: calc(100cqw / 30); container-type: inline-size; width: min(100%, 420px); }
 .cs-stage { position: relative; width: calc(30 * var(--u)); height: calc(21 * var(--u)); overflow: hidden; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-gray-25); color: var(--lz-ink); font-family: var(--font-sans); line-height: 1.2; letter-spacing: 0; }
 .cs-stage * { box-sizing: border-box; }
@@ -992,68 +995,87 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
 .cs-create { display: grid; gap: calc(0.15 * var(--u)); padding: calc(0.4 * var(--u)) calc(0.45 * var(--u)); border-radius: calc(0.4 * var(--u)); box-shadow: 0 0 0 calc(0.14 * var(--u)) var(--lz-blue-500); }
 .cs-create-title { display: flex; align-items: center; gap: calc(0.35 * var(--u)); font-size: calc(0.74 * var(--u)); font-weight: 600; }
 .cs-create-title .cs-glyph { color: var(--lz-ink); }
-.cs-scrim { position: absolute; inset: 0; background: rgb(9 9 9 / 18%); opacity: 0; visibility: hidden; }
-.cs-modal { position: absolute; top: calc(5.6 * var(--u)); left: calc(6.5 * var(--u)); width: calc(17 * var(--u)); height: calc(9.2 * var(--u)); border: 1px solid var(--lz-line); border-radius: calc(0.6 * var(--u)); background: var(--lz-white); box-shadow: var(--lz-shadow-float); opacity: 0; visibility: hidden; }
-.cs-modal > .cs-small { position: absolute; top: calc(1 * var(--u)); left: calc(1 * var(--u)); font-size: calc(0.66 * var(--u)); font-weight: 600; color: var(--lz-ink); }
-.cs-field { position: absolute; top: calc(2.1 * var(--u)); left: calc(1 * var(--u)); right: calc(1 * var(--u)); display: flex; align-items: center; height: calc(2.1 * var(--u)); padding: 0 calc(0.6 * var(--u)); border: 1px solid var(--lz-line); border-radius: calc(0.3 * var(--u)); }
-.cs-typed { overflow: hidden; font-size: calc(0.76 * var(--u)); white-space: nowrap; text-overflow: ellipsis; }
-.cs-confirm { position: absolute; right: calc(1 * var(--u)); bottom: calc(1 * var(--u)); display: grid; place-items: center; height: calc(1.9 * var(--u)); padding: 0 calc(1.1 * var(--u)); border-radius: calc(0.35 * var(--u)); background: var(--lz-ink); color: var(--lz-white); font-size: calc(0.7 * var(--u)); font-weight: 600; }
+.cs-dash { position: absolute; inset: 0; }
+/* The page "Create Org" opens: its proportions are the real screen's, drawn
+   light. */
+.cs-page { position: absolute; inset: 0; background: var(--lz-gray-25); opacity: 0; visibility: hidden; }
+.cs-heading { position: absolute; top: calc(2.05 * var(--u)); left: 0; right: 0; font-size: calc(1.07 * var(--u)); font-weight: 700; text-align: center; }
+.cs-card { position: absolute; top: calc(4.9 * var(--u)); left: calc(7 * var(--u)); width: calc(16 * var(--u)); height: calc(13.6 * var(--u)); border: 1px solid var(--lz-line); border-radius: calc(0.2 * var(--u)); background: var(--lz-white); }
+.cs-card > * { position: absolute; left: calc(1.1 * var(--u)); right: calc(1.1 * var(--u)); }
+.cs-card-title { top: calc(1.22 * var(--u)); font-size: calc(0.84 * var(--u)); font-weight: 600; text-align: center; }
+.cs-card-note { top: calc(2.47 * var(--u)); text-align: center; }
+.cs-label { top: calc(4.36 * var(--u)); font-size: calc(0.6 * var(--u)); font-weight: 600; }
+.cs-field { top: calc(5.41 * var(--u)); display: flex; align-items: center; height: calc(1.64 * var(--u)); padding: 0 calc(0.6 * var(--u)); border: 1px solid var(--lz-line); border-radius: calc(0.15 * var(--u)); }
+.cs-placeholder, .cs-typed { overflow: hidden; font-size: calc(0.64 * var(--u)); white-space: nowrap; text-overflow: ellipsis; }
+.cs-placeholder { position: absolute; left: calc(0.6 * var(--u)); color: var(--lz-ink-muted); opacity: 0; }
+.cs-hint { top: calc(7.1 * var(--u)); font-size: calc(0.52 * var(--u)); line-height: 1.35; }
+.cs-confirm { top: calc(9.6 * var(--u)); display: grid; place-items: center; height: calc(1.64 * var(--u)); border-radius: calc(0.15 * var(--u)); background: var(--lz-ink); color: var(--lz-white); font-size: calc(0.62 * var(--u)); font-weight: 600; }
+.cs-back { top: calc(11.7 * var(--u)); text-align: center; }
 .cs-marker { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--lz-blue-500); color: var(--lz-white); font: 700 11px/1 var(--font-sans); }
 .cs-stage .cs-marker { position: absolute; width: calc(1.25 * var(--u)); height: calc(1.25 * var(--u)); font-size: calc(0.66 * var(--u)); }
 .cs-stage .cs-marker[data-step="1"] { left: calc(6.1 * var(--u)); top: calc(0.25 * var(--u)); }
 .cs-stage .cs-marker[data-step="2"] { left: calc(12 * var(--u)); top: calc(16.55 * var(--u)); }
 .cs-stage .cs-marker[data-step="3"] { left: calc(15.2 * var(--u)); top: calc(13.3 * var(--u)); }
-.cs-stage .cs-marker[data-step="4"] { left: calc(5.9 * var(--u)); top: calc(7.1 * var(--u)); opacity: 0; }
+.cs-stage .cs-marker[data-step="4"] { left: calc(5.5 * var(--u)); top: calc(10.5 * var(--u)); }
 .cs-marker-inline { flex: none; }
 .cs-cursor { position: absolute; top: 0; left: 0; transform: translate(calc(9.6 * var(--u)), calc(13.7 * var(--u))); }
 .cs-arrow { display: block; width: calc(1.45 * var(--u)); height: calc(1.55 * var(--u)); overflow: visible; fill: var(--lz-expressive-orchid); stroke: var(--lz-white); stroke-width: 1.6; stroke-linejoin: round; }
 .cs-you { position: absolute; top: calc(1.3 * var(--u)); left: calc(1.05 * var(--u)); padding: calc(0.12 * var(--u)) calc(0.45 * var(--u)); border-radius: 999px; background: var(--lz-expressive-orchid); color: var(--lz-ink); font-size: calc(0.6 * var(--u)); font-weight: 600; white-space: nowrap; }
-/* The motion: 13 s, then again. FOR YOU (1), the organization at the bottom
-   left (2), Create Org (3), the name typed in and Create (4). */
+/* The motion: 15 s, then again. FOR YOU (1), the organization at the bottom
+   left (2), Create Org (3); the dashboard gives way to the page it opens,
+   where the name is typed into the field (4) and the button is clicked. */
 @media (prefers-reduced-motion: no-preference) {
   .composio-wait-dot { animation: composio-pulse 1.6s ease-in-out infinite; }
-  .cs-cursor { animation: cs-cursor 13s infinite; }
-  .cs-chip { animation: cs-chip 13s infinite; }
-  .cs-pop { animation: cs-pop 13s infinite; }
-  .cs-create { animation: cs-create 13s infinite; }
-  .cs-scrim, .cs-modal { animation: cs-modal 13s infinite; }
-  .cs-field { animation: cs-field 13s infinite; }
-  .cs-typed { animation: cs-typed 13s infinite; }
-  .cs-confirm { animation: cs-confirm 13s infinite; }
-  .cs-stage .cs-marker[data-step="1"] { animation: cs-marker-1 13s infinite; }
-  .cs-stage .cs-marker[data-step="2"] { animation: cs-marker-2 13s infinite; }
-  .cs-stage .cs-marker[data-step="3"] { animation: cs-marker-3 13s infinite; }
-  .cs-stage .cs-marker[data-step="4"] { animation: cs-marker-4 13s infinite; }
+  .cs-cursor { animation: cs-cursor 15s infinite; }
+  .cs-dash { animation: cs-dash 15s infinite; }
+  .cs-chip { animation: cs-chip 15s infinite; }
+  .cs-pop { animation: cs-pop 15s infinite; }
+  .cs-create { animation: cs-create 15s infinite; }
+  .cs-page { animation: cs-page 15s infinite; }
+  .cs-field { animation: cs-field 15s infinite; }
+  .cs-placeholder { animation: cs-placeholder 15s infinite; }
+  .cs-typed { animation: cs-typed 15s infinite; }
+  .cs-confirm { animation: cs-confirm 15s infinite; }
+  .cs-stage .cs-marker[data-step="1"] { animation: cs-marker-1 15s infinite; }
+  .cs-stage .cs-marker[data-step="2"] { animation: cs-marker-2 15s infinite; }
+  .cs-stage .cs-marker[data-step="3"] { animation: cs-marker-3 15s infinite; }
+  .cs-stage .cs-marker[data-step="4"] { animation: cs-marker-4 15s infinite; }
 }
 @keyframes composio-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.75); } }
 @keyframes cs-cursor {
-  0%, 5% { opacity: 1; transform: translate(calc(24 * var(--u)), calc(17 * var(--u))); animation-timing-function: ease-in-out; }
-  13%, 22% { transform: translate(calc(4.9 * var(--u)), calc(2.2 * var(--u))); animation-timing-function: ease-in-out; }
-  31% { transform: translate(calc(7.4 * var(--u)), calc(18.8 * var(--u))); }
-  32.5% { transform: translate(calc(7.4 * var(--u)), calc(18.8 * var(--u))) scale(0.85); }
-  34% { transform: translate(calc(7.4 * var(--u)), calc(18.8 * var(--u))); animation-timing-function: ease-in-out; }
-  43% { transform: translate(calc(9.6 * var(--u)), calc(13.7 * var(--u))); }
-  44.5% { transform: translate(calc(9.6 * var(--u)), calc(13.7 * var(--u))) scale(0.85); }
-  46%, 48% { transform: translate(calc(9.6 * var(--u)), calc(13.7 * var(--u))); animation-timing-function: ease-in-out; }
-  55%, 74% { transform: translate(calc(19.2 * var(--u)), calc(9.2 * var(--u))); animation-timing-function: ease-in-out; }
-  81% { transform: translate(calc(20.4 * var(--u)), calc(13 * var(--u))); }
-  82.5% { transform: translate(calc(20.4 * var(--u)), calc(13 * var(--u))) scale(0.85); }
-  84%, 94% { opacity: 1; transform: translate(calc(20.4 * var(--u)), calc(13 * var(--u))); }
-  97% { opacity: 0; transform: translate(calc(20.4 * var(--u)), calc(13 * var(--u))); }
-  98% { opacity: 0; transform: translate(calc(24 * var(--u)), calc(17 * var(--u))); }
+  0%, 4% { opacity: 1; transform: translate(calc(24 * var(--u)), calc(17 * var(--u))); animation-timing-function: ease-in-out; }
+  11%, 18% { transform: translate(calc(4.9 * var(--u)), calc(2.2 * var(--u))); animation-timing-function: ease-in-out; }
+  26% { transform: translate(calc(7.4 * var(--u)), calc(18.8 * var(--u))); }
+  27% { transform: translate(calc(7.4 * var(--u)), calc(18.8 * var(--u))) scale(0.85); }
+  28% { transform: translate(calc(7.4 * var(--u)), calc(18.8 * var(--u))); animation-timing-function: ease-in-out; }
+  35% { transform: translate(calc(9.6 * var(--u)), calc(13.7 * var(--u))); }
+  36% { transform: translate(calc(9.6 * var(--u)), calc(13.7 * var(--u))) scale(0.85); }
+  37%, 44% { transform: translate(calc(9.6 * var(--u)), calc(13.7 * var(--u))); animation-timing-function: ease-in-out; }
+  50% { transform: translate(calc(21.3 * var(--u)), calc(10.7 * var(--u))); }
+  51% { transform: translate(calc(21.3 * var(--u)), calc(10.7 * var(--u))) scale(0.85); }
+  52%, 68% { transform: translate(calc(21.3 * var(--u)), calc(10.7 * var(--u))); animation-timing-function: ease-in-out; }
+  75% { transform: translate(calc(19.4 * var(--u)), calc(15.2 * var(--u))); }
+  76% { transform: translate(calc(19.4 * var(--u)), calc(15.2 * var(--u))) scale(0.85); }
+  77%, 92% { opacity: 1; transform: translate(calc(19.4 * var(--u)), calc(15.2 * var(--u))); }
+  95% { opacity: 0; transform: translate(calc(19.4 * var(--u)), calc(15.2 * var(--u))); }
+  96% { opacity: 0; transform: translate(calc(24 * var(--u)), calc(17 * var(--u))); }
   100% { opacity: 1; transform: translate(calc(24 * var(--u)), calc(17 * var(--u))); }
 }
-@keyframes cs-chip { 0%, 12.5%, 97.5%, 100% { box-shadow: none; } 13.5%, 96% { box-shadow: 0 0 0 calc(0.14 * var(--u)) var(--lz-blue-500); } }
-@keyframes cs-pop { 0%, 33%, 48%, 100% { opacity: 0; visibility: hidden; } 34%, 47% { opacity: 1; visibility: visible; } }
-@keyframes cs-create { 0%, 43%, 100% { box-shadow: 0 0 0 0 transparent; } 44%, 99% { box-shadow: 0 0 0 calc(0.14 * var(--u)) var(--lz-blue-500); } }
-@keyframes cs-modal { 0%, 47.5%, 97.5%, 100% { opacity: 0; visibility: hidden; } 49%, 96% { opacity: 1; visibility: visible; } }
-@keyframes cs-field { 0%, 55%, 100% { border-color: var(--lz-line); } 56%, 96% { border-color: var(--lz-blue-500); } }
-@keyframes cs-typed { 0%, 57%, 98%, 100% { clip-path: inset(0 100% 0 0); } 73%, 96% { clip-path: inset(0 0 0 0); } }
-@keyframes cs-confirm { 0%, 82%, 86%, 100% { transform: none; background: var(--lz-ink); } 82.5%, 85% { transform: scale(0.95); background: var(--lz-gray-700); } }
-@keyframes cs-marker-1 { 0%, 12%, 97.5%, 100% { opacity: 0; } 13.5%, 96% { opacity: 1; } }
-@keyframes cs-marker-2 { 0%, 30.5%, 97.5%, 100% { opacity: 0; } 32%, 96% { opacity: 1; } }
-@keyframes cs-marker-3 { 0%, 43%, 48%, 100% { opacity: 0; } 44%, 47% { opacity: 1; } }
-@keyframes cs-marker-4 { 0%, 49%, 97.5%, 100% { opacity: 0; } 50.5%, 96% { opacity: 1; } }
+/* "Create Org" opens another page: the dashboard slides away and fades, the
+   page fades in from the other side. */
+@keyframes cs-dash { 0%, 41% { opacity: 1; transform: none; } 44.5%, 97% { opacity: 0; transform: translateX(calc(-1.5 * var(--u))); } 99%, 100% { opacity: 1; transform: none; } }
+@keyframes cs-page { 0%, 42% { opacity: 0; visibility: hidden; transform: translateX(calc(1.5 * var(--u))); } 45.5%, 95% { opacity: 1; visibility: visible; transform: none; } 97%, 100% { opacity: 0; visibility: hidden; transform: none; } }
+@keyframes cs-chip { 0%, 11%, 46%, 100% { box-shadow: none; } 11.5%, 45% { box-shadow: 0 0 0 calc(0.14 * var(--u)) var(--lz-blue-500); } }
+@keyframes cs-pop { 0%, 27.5%, 46%, 100% { opacity: 0; visibility: hidden; } 28.5%, 45% { opacity: 1; visibility: visible; } }
+@keyframes cs-create { 0%, 35.5%, 46%, 100% { box-shadow: 0 0 0 0 transparent; } 36%, 45% { box-shadow: 0 0 0 calc(0.14 * var(--u)) var(--lz-blue-500); } }
+@keyframes cs-field { 0%, 50.5%, 97%, 100% { border-color: var(--lz-line); } 51%, 96% { border-color: var(--lz-blue-500); } }
+@keyframes cs-placeholder { 0%, 52.5%, 97.5%, 100% { opacity: 1; } 53%, 97% { opacity: 0; } }
+@keyframes cs-typed { 0%, 53%, 97.5%, 100% { clip-path: inset(0 100% 0 0); } 65%, 97% { clip-path: inset(0 0 0 0); } }
+@keyframes cs-confirm { 0%, 75.5%, 77%, 100% { transform: none; background: var(--lz-ink); } 76%, 76.5% { transform: scale(0.97); background: var(--lz-gray-700); } }
+@keyframes cs-marker-1 { 0%, 11%, 46%, 100% { opacity: 0; } 11.5%, 45% { opacity: 1; } }
+@keyframes cs-marker-2 { 0%, 26.5%, 46%, 100% { opacity: 0; } 27%, 45% { opacity: 1; } }
+@keyframes cs-marker-3 { 0%, 35.5%, 46%, 100% { opacity: 0; } 36%, 45% { opacity: 1; } }
+@keyframes cs-marker-4 { 0%, 46.5%, 97%, 100% { opacity: 0; } 47.5%, 96% { opacity: 1; } }
 .tour { position: fixed; inset: 0; z-index: 80; pointer-events: none; }
 .tour-ring { position: fixed; border-radius: var(--lz-radius-md); box-shadow: 0 0 0 2px var(--lz-accent), 0 0 0 6px color-mix(in oklab, var(--lz-accent) 25%, transparent), 0 0 0 9999px rgb(0 0 0 / 0.18); transition: left 160ms ease, top 160ms ease, width 160ms ease, height 160ms ease; }
 .tour-bubble { position: fixed; display: flex; flex-direction: column; gap: 8px; width: 300px; max-width: calc(100vw - 24px); padding: 16px 18px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); box-shadow: 0 12px 32px rgb(0 0 0 / 0.16); color: var(--lz-ink); pointer-events: auto; }
