@@ -588,6 +588,7 @@ async function materializeChild(
     path: child.path,
     repository: child.repository,
     branch: child.data?.branch,
+    fillEmptyDirectory: child.data !== undefined,
     git: context.host.git,
     github: context.anonymous ? "anonymous" : context.host.github,
   });

@@ -14,15 +14,17 @@ import { RequiredSlotRefused } from "./sibling-origins";
 // required for it, as a slot of `required_module_slots` is. An absent one is
 // cloned on its declared branch by the same function as content
 // installation (`provideRepository`), as this Environment's own GitHub
-// identity reads it, under the Folder's content lock. A present one is only
-// looked at: its origin and branch must be the declared ones, and it is never
-// fetched, pulled, reset or rewritten. Nothing runs in the background, and an
-// empty remote or a missing branch is never bootstrapped. Each failure
-// refuses the start with its slot (`RequiredSlotRefused`): no access
-// (`data-mount-denied`), something else at the place, which stays untouched
-// (`data-mount-occupied`), GitHub or the lock not answering now, retried at
-// the next start (`data-mount-unavailable`), or a clone that failed
-// (`data-mount-clone-failed`).
+// identity reads it, under the Folder's content lock; an empty directory at
+// its place counts as absent. Any checkout already there is used as it is,
+// whatever its origin or branch: it is never fetched, pulled, reset or
+// rewritten, and never refuses the start. Nothing runs in the background, and
+// an empty remote or a missing branch is never bootstrapped. Providing an
+// absent one can fail, which refuses the start with its slot
+// (`RequiredSlotRefused`): no access (`data-mount-denied`), something that is
+// no checkout at the place (a non-empty directory, a file, a link), which
+// stays untouched (`data-mount-occupied`), GitHub or the lock not answering
+// now, retried at the next start (`data-mount-unavailable`), or a clone that
+// failed (`data-mount-clone-failed`).
 
 const present = (path: string) =>
   lstat(path).then(
@@ -45,7 +47,7 @@ export async function provideDataMounts(input: {
   moduleDirectory: string;
   host: DataMountHost;
   /** Whether this is a public Environment, where GitHub is not asked and a
-   * clone is anonymous; read only for a module that declares a data mount. */
+   * clone is anonymous; read only when a data mount is to be cloned. */
   anonymous: () => Promise<boolean>;
 }): Promise<void> {
   const module = relative(input.organizationDirectory, input.moduleDirectory)
@@ -63,10 +65,19 @@ export async function provideDataMounts(input: {
   const mounts = (Array.isArray(slots) ? slots : [])
     .map(dataMountOf)
     .filter((mount) => mount !== null && mount.parent === module);
-  if (mounts.length === 0) return;
-  const anonymous = await input.anonymous();
+  // Asked only when a mount is to be cloned.
+  let anonymous: boolean | undefined;
   for (const mount of mounts) {
     if (mount === null) continue;
+    // A checkout there, of any repository on any branch, starts as before.
+    if (
+      (
+        await input.host.git.inspect(
+          join(input.organizationDirectory, mount.path),
+        )
+      ).kind === "checkout"
+    )
+      continue;
     // A declared mount without a GitHub remote has nothing to clone from:
     // one that is there is left as it is, an absent one refuses the start.
     if (mount.repository === null) {
@@ -74,11 +85,13 @@ export async function provideDataMounts(input: {
         continue;
       throw new RequiredSlotRefused("data-mount-clone-failed", mount.path);
     }
+    anonymous ??= await input.anonymous();
     const outcome = await provideRepository({
       root: input.organizationDirectory,
       path: mount.path,
       repository: mount.repository,
       branch: mount.branch,
+      fillEmptyDirectory: true,
       git: input.host.git,
       github: anonymous ? "anonymous" : input.host.github,
       lock: () => tryContentLock(input.host.lockDirectory, input.folder),

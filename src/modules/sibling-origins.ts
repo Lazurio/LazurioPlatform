@@ -11,7 +11,8 @@ import { readModuleApplication } from "./read-application";
 // doctor follow there. A module's own data mount is required as well, and
 // provided by its preparation (`provideDataMounts`, launchpad-parity B7):
 // GitHub refuses this identity the repository (`data-mount-denied`),
-// something else is at its place and stays untouched (`data-mount-occupied`),
+// something that is no checkout is at its place and stays untouched
+// (`data-mount-occupied`),
 // GitHub or the Folder's content lock does not answer now
 // (`data-mount-unavailable`), or the clone failed: an empty repository, a
 // missing branch, the network (`data-mount-clone-failed`).

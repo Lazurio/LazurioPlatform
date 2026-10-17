@@ -1,5 +1,6 @@
-import { lstat } from "node:fs/promises";
+import { lstat, readdir, rmdir } from "node:fs/promises";
 import { join } from "node:path";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { classifyRepositorySlotPath } from "../organizations/repository-slots";
 import type { FileLock } from "../platform/flock";
 import { githubRemoteCoordinate } from "../providers/git-checkout";
@@ -17,8 +18,10 @@ import { sameRepository } from "./model";
 // checkout is only looked at: never fetched, switched, reset or rewritten. An
 // absent one is asked of GitHub as this Environment's identity reads it, then
 // cloned on its branch and published by `materializeRepository`, which never
-// replaces anything. A remote that is empty or lacks the branch fails the
-// clone; nothing here creates, initializes or pushes a repository.
+// replaces anything; for a data mount an empty directory counts as absent and
+// is removed (`rmdir`, which refuses anything not empty) just before the
+// publish. A remote that is empty or lacks the branch fails the clone;
+// nothing here creates, initializes or pushes a repository.
 
 export type ProvideRequest = Readonly<{
   /** The Organization root. */
@@ -27,10 +30,13 @@ export type ProvideRequest = Readonly<{
   path: string;
   /** The expected `<owner>/<name>`. */
   repository: string;
-  /** A repository database's declared branch: cloned, and required of a
-   * present checkout. Absent: an absent repository is cloned on `main`, and
-   * a present checkout's branch is not asked (a module may be on any). */
+  /** The branch an absent repository is cloned on: a repository database's
+   * declared one. Absent: `main`. A present checkout's branch is never asked
+   * (a person may be on any). */
   branch?: string | undefined;
+  /** An empty directory at the place counts as absent (a data mount whose
+   * directory was left empty); otherwise it is occupied. */
+  fillEmptyDirectory?: boolean | undefined;
   git: ContentGit;
   /** This Environment's GitHub, or `anonymous` on a public Environment,
    * which asks GitHub nothing first and clones over anonymous HTTPS. */
@@ -50,10 +56,7 @@ export type ProvideOutcome =
     }>
   | Readonly<{
       result: "blocked";
-      reason:
-        | "destination-occupied"
-        | "destination-invalid"
-        | "checkout-branch-unexpected";
+      reason: "destination-occupied" | "destination-invalid";
     }>
   | Readonly<{ result: "failed"; reason: string }>;
 
@@ -66,6 +69,17 @@ const exists = (path: string) =>
     },
   );
 
+/** Whether `path` is an empty real directory of the operator: no entries at
+ * all, not a link, not another account's. */
+async function emptyDirectory(path: string): Promise<boolean> {
+  try {
+    await inspectCheckoutDirectory(path);
+    return (await readdir(path)).length === 0;
+  } catch {
+    return false;
+  }
+}
+
 /** Makes the declared repository present at `path`; see the module comment. */
 export async function provideRepository(
   request: ProvideRequest,
@@ -77,18 +91,21 @@ export async function provideRepository(
     return { result: "failed", reason: "branch-invalid" };
   // A present destination is reported, never entered or changed.
   const observed = await request.git.inspect(destination);
-  if (observed.kind === "checkout") {
-    if (!sameRepository(observed.repository, request.repository))
-      return { result: "blocked", reason: "destination-occupied" };
-    return request.branch === undefined || observed.branch === request.branch
+  if (observed.kind === "checkout")
+    return sameRepository(observed.repository, request.repository)
       ? { result: "present" }
-      : { result: "blocked", reason: "checkout-branch-unexpected" };
-  }
+      : { result: "blocked", reason: "destination-occupied" };
   // Anything else there (a directory that is no checkout, a file, a link)
-  // stays as it is, and GitHub is not asked.
+  // stays as it is, and GitHub is not asked; for a data mount an empty
+  // directory is filled.
+  let empty = false;
   try {
-    if (await exists(destination))
-      return { result: "blocked", reason: "destination-occupied" };
+    if (await exists(destination)) {
+      empty =
+        request.fillEmptyDirectory === true &&
+        (await emptyDirectory(destination));
+      if (!empty) return { result: "blocked", reason: "destination-occupied" };
+    }
   } catch {
     return { result: "blocked", reason: "destination-invalid" };
   }
@@ -123,6 +140,14 @@ export async function provideRepository(
     } catch {
       return { result: "blocked", reason: "destination-invalid" };
     }
+    if (empty)
+      try {
+        // Fails on anything that is not an empty directory by now.
+        await rmdir(destination);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException)?.code !== "ENOENT")
+          return { result: "blocked", reason: "destination-occupied" };
+      }
     const remote =
       request.github === "anonymous"
         ? anonymousGitHub.remote(fullName)

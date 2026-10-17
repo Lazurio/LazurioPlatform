@@ -217,9 +217,10 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    "repository_db_mount"` at `mission-control/db` or `workspace/<module>/db`) follows
    its module (B7, amended 2026-10-17): materialized on its declared `git.branch`
    (often `v3`) by the same function as the modules when the module is materialized or
-   present in this install, `excluded` when it is not; a present one is `present` only
-   on its declared branch, otherwise `blocked` (`checkout-branch-unexpected`). `infra`
-   and a database slot declared otherwise are left out (`excluded`). The role scope comes first: a restricted (Admin-only,
+   present in this install, `excluded` when it is not; an empty directory at its place
+   counts as absent. A present checkout is reported as for any child (`present`, or
+   `blocked` for another repository) and never changed. `infra` and a database slot
+   declared otherwise are left out (`excluded`). The role scope comes first: a restricted (Admin-only,
    `default_access` `restricted` or `private`) slot and every slot below it are in
    scope only for a verified Admin; for a Steward, Builder or Reader they are
    `excluded_by_role_scope` without any provider operation. A slot whose access

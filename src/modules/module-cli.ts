@@ -45,12 +45,12 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   (required-slot-undeclared, required-slot-planned, required-slot-missing,
   with the slot). A module provides its own data first: each repository
   database the Organization declares directly below it (a repository_db_mount
-  slot such as workspace/<module>/db) that is not checked out is cloned on its
-  declared branch with this Environment's GitHub sign-in, and one that is
-  checked out is only verified (origin and branch), never fetched or changed;
-  otherwise nothing is installed or started (data-mount-denied,
-  data-mount-occupied, data-mount-unavailable, data-mount-clone-failed, with
-  the slot). A required sibling module workspace/<slug> with an HTTP
+  slot such as workspace/<module>/db) that is not there, or is an empty
+  directory, is cloned on its declared branch with this Environment's GitHub
+  sign-in; a checkout already there is used as it is, never fetched or
+  changed. When the clone cannot be done, nothing is installed or started
+  (data-mount-denied, data-mount-occupied, data-mount-unavailable,
+  data-mount-clone-failed, with the slot). A required sibling module workspace/<slug> with an HTTP
   default app is passed as LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN, its
   loopback address. Every secret the app declares (lazurio.runtime secrets
   and optional_secrets, names only) is read from this Environment's own
@@ -158,7 +158,7 @@ const explanations: Readonly<Record<string, string>> = {
   "data-mount-denied":
     "The app's data repository (this slot, declared by the Organization as a repository_db_mount) is one the GitHub account gh is signed in with here cannot read; nothing was started. Ask the Organization's Admin for access, then start again.",
   "data-mount-occupied":
-    "The place of the app's data repository (this slot) holds something else: a directory that is not a checkout, a checkout of another repository, or one on another branch than the declared one. It was left untouched and nothing was started; look at it and move it aside yourself.",
+    "The place of the app's data repository (this slot) holds something that is not a checkout: a directory with files in it, a file or a link. It was left untouched and nothing was started; look at it and move it aside yourself.",
   "data-mount-unavailable":
     "The app's data repository (this slot) is not checked out, and GitHub did not answer or another content operation (an install, a module being created) holds this Folder's content lock; nothing was started. Start again; the clone is tried at every start.",
   "data-mount-clone-failed":

@@ -424,14 +424,15 @@ for a verified Admin and `excluded_by_role_scope` for a Steward or Builder
 a module provides its own declared data mount. A slot with `materialization:
 "repository_db_mount"` directly below a module (`workspace/<module>/db`,
 `mission-control/db`) is required for that module, and its preparation provides it
-before every start, `lazurio module prepare` and the Launchpad's Open: an absent mount
-is cloned on its declared `git.branch` (often `v3`) with this Environment's GitHub
+before every start, `lazurio module prepare` and the Launchpad's Open: an absent mount,
+or an empty directory at its place, is cloned on its declared `git.branch` (often `v3`) with this Environment's GitHub
 sign-in, through the same verified temporary sibling and no-replace publish as
-installation (`src/content/provide.ts`, under the Folder's content lock); a present one
-is only verified (origin and branch) and never fetched, pulled, reset or rewritten. A
-failure refuses the start with the slot: `data-mount-denied` (ask the Admin for
-access), `data-mount-occupied` (another directory or checkout at the place, left
-untouched), `data-mount-unavailable` (GitHub or the content lock did not answer;
+installation (`src/content/provide.ts`, under the Folder's content lock). A checkout
+already at the place is used as it is, whatever its origin or branch: never fetched,
+pulled, reset or rewritten, and never a reason to refuse the start. Only providing an
+absent mount can fail, and that refuses the start with the slot: `data-mount-denied`
+(ask the Admin for access), `data-mount-occupied` (a non-empty directory that is no
+checkout, a file or a link at the place, left untouched), `data-mount-unavailable` (GitHub or the content lock did not answer;
 retried at the next start), `data-mount-clone-failed` (an empty remote, a missing
 branch or an unreachable one; never bootstrapped). Installation materializes the same
 mount, by the same function, when its module is materialized or present in the same
