@@ -417,29 +417,26 @@ const en = {
   toolsSshRemovalFailed:
     "The SSH key of this Environment may still be registered on your GitHub account: gh could not remove it. Remove it under GitHub Settings, SSH and GPG keys (github.com/settings/keys), if this Environment must lose access.",
   toolsComposioOrgLabel: "Organization in Composio",
-  toolsComposioOrgCurrent: "{name} (current)",
-  toolsComposioOrgHint:
-    "Apps you connect in Composio belong to this account and organization: the account of the Environment, which its agents use.",
-  toolsComposioOrgSaved:
-    "The Composio organization of this Environment is now {name}.",
-  toolsComposioOrgFailed:
-    "The organization could not be changed. You can change it later with lazurio tools composio-org.",
+  toolsComposioOrgFailed: "The organization could not be changed.",
   toolsComposioOrgLoading: "Reading your Composio organizations…",
   toolsComposioOrgUnavailable:
-    "The organizations could not be read. You can choose one later with lazurio tools composio-org.",
-  toolsComposioOrgMatches:
-    "This Environment uses your Composio organization “{name}”, named as its Organization is.",
-  toolsComposioOrgMissing:
-    "Your Composio account has no organization named “{name}”, as this Environment's Organization is. Until you create it, this Environment connects in the organization you have selected. Create it in Composio, for yourself alone, then click Check again.",
-  toolsComposioOrgAmbiguous:
-    "Your Composio account has more than one organization named “{name}”. Until only one is left, this Environment connects in the organization you have selected. Keep one, then click Check again.",
+    "Your Composio organizations could not be read just now.",
   toolsComposioOrgElsewhere:
-    "Composio could not be switched to your organization “{name}”. Click Check again.",
-  toolsComposioOrgCheckAgain: "Check again",
+    "Composio could not be switched to your organization “{name}”.",
   toolsComposioOrgUnverified:
-    "The name of this Environment's Organization cannot be read, so its Composio organization cannot be checked. Click Check again; if that does not help, ask the agent in Chat to check this Environment's Folder.",
-  toolsComposioOrgPersonal:
-    "On a personal Environment, choose your default organization, the one Composio made when you signed up.",
+    "The name of this Environment's Organization cannot be read, so nothing connects through Composio now; ask the agent in Chat to check it.",
+  toolsComposioCreateTitle: "One more step in Composio",
+  toolsComposioCreateText: "Create an organization with this name in Composio.",
+  toolsComposioCreateName: "Organization name",
+  toolsComposioCreateWait: "Once it exists, we continue on our own.",
+  toolsComposioRenameText:
+    "Composio has more than one organization named “{name}”; rename the extra one.",
+  toolsComposioRenameWait: "Once it is renamed, we continue on our own.",
+  toolsComposioScene:
+    "In Composio: 1. {forYou}, 2. {organization}, 3. {createOrg}, 4. the name {name} and {create}.",
+  toolsComposioSceneYou: "You",
+  toolsComposioConnected: "Composio is connected",
+  toolsComposioChooseApps: "Choose apps",
   toolsPromptTitle: "Connect {name} with an agent",
   toolsPromptHint:
     "Copy this prompt and paste it into a new thread in Chat. The agent installs the tool and guides you through the sign-in in your browser. You never copy an API key.",
@@ -1383,17 +1380,6 @@ const en = {
   integrationsOutsideCatalog: "From Composio.",
   integrationsComposioOrganizationChanged:
     "Composio does not work in this Environment's organization now. Click Check connections.",
-  composioModelTitle: "How this Environment uses Composio",
-  composioModelAccount: "Your Composio account",
-  composioModelAccountNote: "signed in with GitHub",
-  composioModelOrganization: "organization “{name}”",
-  composioModelOthers: "an organization for each of your other Organizations",
-  composioModelDefault: "your default organization",
-  composioModelEnvironments: "Environments of {name}",
-  composioModelOtherEnvironments: "their Environments",
-  composioModelPersonal: "your personal Environment",
-  composioModelCaption:
-    "You invite nobody to your organizations and share no key.",
   integrationsToolsUnreadable: "The tools could not be read.",
   integrationsRetry: "Try again",
   integrationsConnect: "Connect",
@@ -2055,29 +2041,26 @@ const cs: Record<MessageKey, string> = {
   toolsSshRemovalFailed:
     "SSH klíč tohoto Prostředí může být u vašeho účtu GitHubu pořád registrovaný: gh ho nedokázal odebrat. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má toto Prostředí přístup ztratit.",
   toolsComposioOrgLabel: "Organizace v Composiu",
-  toolsComposioOrgCurrent: "{name} (aktuální)",
-  toolsComposioOrgHint:
-    "Aplikace, které v Composiu napojíte, patří tomuto účtu a organizaci: účtu, který používají agenti tohoto Prostředí.",
-  toolsComposioOrgSaved:
-    "Organizace Composia pro toto Prostředí je teď {name}.",
-  toolsComposioOrgFailed:
-    "Organizaci se nepodařilo změnit. Změnit ji můžete později příkazem lazurio tools composio-org.",
+  toolsComposioOrgFailed: "Organizaci se nepodařilo změnit.",
   toolsComposioOrgLoading: "Načítají se vaše organizace v Composiu…",
   toolsComposioOrgUnavailable:
-    "Organizace se nepodařilo načíst. Vybrat ji můžete později příkazem lazurio tools composio-org.",
-  toolsComposioOrgMatches:
-    "Toto Prostředí používá vaši organizaci v Composiu „{name}“, pojmenovanou stejně jako jeho Organizace.",
-  toolsComposioOrgMissing:
-    "Ve vašem účtu Composia chybí organizace „{name}“, pojmenovaná jako Organizace tohoto Prostředí. Dokud ji nezaložíte, připojuje se toto Prostředí v organizaci, kterou máte vybranou. Založte ji v Composiu jen pro sebe a klikněte na Zkontrolovat znovu.",
-  toolsComposioOrgAmbiguous:
-    "Ve vašem účtu Composia je víc organizací se jménem „{name}“. Dokud nezůstane jen jedna, připojuje se toto Prostředí v organizaci, kterou máte vybranou. Nechte jen jednu a klikněte na Zkontrolovat znovu.",
+    "Vaše organizace v Composiu se teď nepodařilo načíst.",
   toolsComposioOrgElsewhere:
-    "Composio se nepodařilo přepnout do vaší organizace „{name}“. Klikněte na Zkontrolovat znovu.",
-  toolsComposioOrgCheckAgain: "Zkontrolovat znovu",
+    "Composio se nepodařilo přepnout do vaší organizace „{name}“.",
   toolsComposioOrgUnverified:
-    "Jméno Organizace tohoto Prostředí se nepodařilo přečíst, a tak nejde ověřit jeho organizaci v Composiu. Klikněte na Zkontrolovat znovu; když to nepomůže, požádejte agenta v Chatu, ať zkontroluje Folder tohoto Prostředí.",
-  toolsComposioOrgPersonal:
-    "V Osobním Prostředí vyberte svou výchozí organizaci, tu, kterou Composio založilo při vaší registraci.",
+    "Jméno Organizace tohoto Prostředí nejde přečíst, takže přes Composio teď nic nepřipojíte; požádejte o kontrolu agenta v Chatu.",
+  toolsComposioCreateTitle: "Ještě jeden krok v Composiu",
+  toolsComposioCreateText: "Založte v Composiu organizaci s tímto jménem.",
+  toolsComposioCreateName: "Jméno organizace",
+  toolsComposioCreateWait: "Až ji založíte, pokračujeme samo.",
+  toolsComposioRenameText:
+    "V Composiu je víc organizací se jménem „{name}“; tu navíc přejmenujte.",
+  toolsComposioRenameWait: "Až ji přejmenujete, pokračujeme samo.",
+  toolsComposioScene:
+    "V Composiu: 1. {forYou}, 2. {organization}, 3. {createOrg}, 4. jméno {name} a {create}.",
+  toolsComposioSceneYou: "Vy",
+  toolsComposioConnected: "Composio je připojené",
+  toolsComposioChooseApps: "Vybrat aplikace",
   toolsPromptTitle: "Připojit {name} s pomocí agenta",
   toolsPromptHint:
     "Zkopírujte tento prompt a vložte ho v Chatu do nového vlákna. Agent nástroj nainstaluje a provede vás přihlášením v prohlížeči. Žádný API klíč nikdy nekopírujete.",
@@ -2991,17 +2974,6 @@ const cs: Record<MessageKey, string> = {
   integrationsOutsideCatalog: "Z Composia.",
   integrationsComposioOrganizationChanged:
     "Composio teď nepracuje v organizaci tohoto Prostředí. Klikněte na Zkontrolovat připojení.",
-  composioModelTitle: "Jak toto Prostředí používá Composio",
-  composioModelAccount: "Váš účet Composia",
-  composioModelAccountNote: "přihlášení přes GitHub",
-  composioModelOrganization: "organizace „{name}“",
-  composioModelOthers: "organizace pro každou vaši další Organizaci",
-  composioModelDefault: "vaše výchozí organizace",
-  composioModelEnvironments: "Prostředí Organizace {name}",
-  composioModelOtherEnvironments: "jejich Prostředí",
-  composioModelPersonal: "vaše Osobní Prostředí",
-  composioModelCaption:
-    "Do svých organizací nikoho nezvete a žádný klíč nesdílíte.",
   integrationsToolsUnreadable: "Nástroje se nepodařilo načíst.",
   integrationsRetry: "Zkusit znovu",
   integrationsConnect: "Připojit",

@@ -2,13 +2,19 @@ import { composioDashboard } from "../integrations/composio-source";
 import { executorToolName, vaultToolName } from "../tools/catalog";
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
 import type { ToolSignIn } from "../tools/status";
-import { composioModel } from "./composio-model";
+import { composioScene, composioStepMarker } from "./composio-scene";
 import { createExecutorPanel } from "./executor-panel";
 import type { MessageKey } from "./messages";
+import { integrationsPath } from "./routes";
 import {
   answerWithin,
   autoEnable,
+  type ComposioDialogView,
   checkedLine,
+  composioConnectedLine,
+  composioDialogView,
+  composioPollDelay,
+  composioPollNext,
   connectionLine,
   curatedActions,
   currentNotes,
@@ -28,9 +34,7 @@ import {
   nextSelection,
   noteDraftView,
   noticeHolds,
-  organizationChoices,
   organizationDetails,
-  organizationRule,
   organizationView,
   parseLoginState,
   parseToolsOverview,
@@ -264,6 +268,17 @@ export function createToolsPanel(
     turn: number;
     challenge: string | null;
     qr: HTMLImageElement | null;
+    /** Composio after its sign-in: what its organizations say, read again
+     * while the person has something to do in Composio. */
+    composio?: ComposioWatch;
+  };
+  type ComposioWatch = {
+    account: string | null;
+    /** Readings since the view last changed (the wait grows with them). */
+    attempt: number;
+    reading: boolean;
+    view: ComposioDialogView | null;
+    key: string | null;
   };
   let flow: Flow | null = null;
   let loginOpener: { name: string; control: string } | null = null;
@@ -304,6 +319,7 @@ export function createToolsPanel(
     if (flow === null) return;
     flow.phase = next;
     renderSteps();
+    loginStatus.classList.remove("is-connected");
     if (loginStatus.textContent !== status) loginStatus.textContent = status;
   }
   function stopPolling() {
@@ -710,6 +726,27 @@ export function createToolsPanel(
       afterSignIn(current.tool.name, state);
       return;
     }
+    if (current.tool.name === "composio") {
+      // No "Connected as …" here: the organization the sign-in named may
+      // not be the one the reading makes current (decision F42, addendum
+      // (2) of 2026-10-13, note of 2026-10-17). The organizations decide
+      // what the dialog shows.
+      phase("signed-in", copy.toolsComposioOrgLoading);
+      loginBody.replaceChildren();
+      current.composio = {
+        account:
+          state.kind === "signed-in" && state.account !== undefined
+            ? state.account
+            : null,
+        attempt: 0,
+        reading: false,
+        view: null,
+        key: null,
+      };
+      void readComposio(current);
+      afterSignIn(current.tool.name, state);
+      return;
+    }
     const message = signedInMessage(state, copy);
     phase("signed-in", message);
     // The status line above already says it; the body adds what follows.
@@ -720,108 +757,204 @@ export function createToolsPanel(
         : []),
       doneRow(),
     );
-    if (current.tool.name === "composio") void organizations();
     // The card's sign-in line follows.
     afterSignIn(current.tool.name, state);
   }
 
-  async function organizations() {
-    const current = flow;
-    if (current === null) return;
-    const copy = options.copy();
-    const box = element("div", "tools-orgs");
-    const status = element("p", "tools-muted", copy.toolsComposioOrgLoading);
-    status.setAttribute("aria-live", "polite");
-    box.append(status);
-    loginBody.insertBefore(box, loginBody.querySelector(".tools-login-done"));
-    let value: unknown = null;
-    try {
-      ({ value } = await options.post("/api/tools/composio/organizations", {}));
-    } catch {}
+  // Composio after its sign-in (decision F42, addendum (2) of 2026-10-13,
+  // note of 2026-10-17): the dialog asks only for what the person still has
+  // to do in Composio, with one button there, and reads the organizations
+  // again by itself until it is done: the reading makes the organization of
+  // the Organization's name current as soon as it exists. It reads at a calm
+  // pace that grows while nothing changes, not while the page is hidden, at
+  // once when the page shows again, and never once connected or closed.
+  async function readComposio(current: Flow) {
+    const watch = current.composio;
+    if (watch === undefined || watch.reading) return;
+    watch.reading = true;
+    if (current.timer) clearTimeout(current.timer);
+    current.timer = null;
+    const answer = await answerWithin(
+      options.post("/api/tools/composio/organizations", {}),
+      loginAnswerMs,
+    );
+    watch.reading = false;
     if (flow !== current) return;
-    // An Organization's Environment works in the Composio organization of
-    // its Organization's name, which the Launchpad made current; the person
-    // chooses elsewhere (decision F42, addendum of 2026-10-13).
-    const rule = organizationRule(value);
-    if (rule.kind === "unverified") {
-      const again = element("button", "", copy.toolsComposioOrgCheckAgain);
-      again.type = "button";
-      again.addEventListener("click", () => {
-        box.remove();
-        void organizations();
-      });
-      const actions = element("p", "tool-actions");
-      actions.append(again);
-      box.replaceChildren(
-        element("p", "", copy.toolsComposioOrgUnverified),
-        actions,
+    const view = composioDialogView(
+      answer.answered ? answer.value : null,
+      watch.account,
+      options.copy(),
+    );
+    const key = JSON.stringify(view);
+    if (key === watch.key) watch.attempt += 1;
+    else {
+      watch.attempt = 0;
+      watch.key = key;
+      watch.view = view;
+      drawComposio(view);
+      // The card names the organization it works in now.
+      if (view.kind === "connected") void refresh({ signIn: true });
+    }
+    scheduleComposio(current);
+  }
+
+  function scheduleComposio(current: Flow) {
+    const view = current.composio?.view;
+    if (view == null || current.composio === undefined) return;
+    const next = composioPollNext(view, {
+      open: flow === current,
+      hidden: document.hidden,
+    });
+    if (next !== "read") return;
+    const attempt = current.composio.attempt;
+    current.timer = setTimeout(
+      () => void readComposio(current),
+      composioPollDelay(attempt),
+    );
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    const current = flow;
+    const view = current?.composio?.view;
+    if (current === null || view == null || current.composio === undefined)
+      return;
+    if (current.timer) clearTimeout(current.timer);
+    current.timer = null;
+    if (
+      composioPollNext(view, { open: true, hidden: document.hidden }) !== "read"
+    )
+      return;
+    // Back from Composio's tab: read at once.
+    current.composio.attempt = 0;
+    void readComposio(current);
+  });
+
+  /** The dialog's status line as the view says it; connected, with its
+   * check. */
+  function composioStatus(text: string, connected = false) {
+    loginStatus.classList.toggle("is-connected", connected);
+    if (!connected) {
+      if (loginStatus.textContent !== text) loginStatus.textContent = text;
+      return;
+    }
+    const mark = icon("i-check");
+    loginStatus.replaceChildren(mark, element("span", "", text));
+  }
+
+  function icon(name: string): SVGSVGElement {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "icon");
+    svg.setAttribute("aria-hidden", "true");
+    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    use.setAttribute("href", `#${name}`);
+    svg.append(use);
+    return svg;
+  }
+
+  /** "Otevřít Composio": Composio's dashboard in the person's own tab. */
+  function composioOpen(): HTMLElement {
+    const open = element(
+      "a",
+      "button primary tools-open",
+      options.copy().toolsLoginComposioLink,
+    );
+    open.href = composioDashboard;
+    open.target = "_blank";
+    open.rel = "noopener noreferrer";
+    const row = element("p", "tool-actions");
+    row.append(open);
+    return row;
+  }
+
+  /** The quiet line under the button while the dialog waits for Composio. */
+  function composioWait(text: string): HTMLElement {
+    const line = element("p", "composio-wait");
+    const dot = element("span", "composio-wait-dot");
+    dot.setAttribute("aria-hidden", "true");
+    line.append(dot, element("span", "", text));
+    return line;
+  }
+
+  /** The Organization's name, to copy into Composio's field. */
+  function composioName(name: string): HTMLElement {
+    const copy = options.copy();
+    const box = element("div", "composio-name");
+    const value = element("input", "");
+    value.readOnly = true;
+    value.value = name;
+    value.spellcheck = false;
+    value.setAttribute("aria-label", copy.toolsComposioCreateName);
+    const copyName = element("button", "", copy.toolsLoginCopyCode);
+    copyName.type = "button";
+    copyName.addEventListener("click", () => {
+      void navigator.clipboard.writeText(name).then(
+        () => {
+          copyName.textContent = options.copy().toolsLoginCodeCopied;
+        },
+        () => {
+          value.focus();
+          value.select();
+        },
       );
-      return;
-    }
-    if (rule.kind === "named") {
-      const parts: HTMLElement[] = [
-        element(
-          "p",
-          "",
-          fill(
-            copy[
-              rule.state === "matches"
-                ? "toolsComposioOrgMatches"
-                : rule.state === "missing"
-                  ? "toolsComposioOrgMissing"
-                  : rule.state === "ambiguous"
-                    ? "toolsComposioOrgAmbiguous"
-                    : "toolsComposioOrgElsewhere"
-            ],
-            { name: rule.name },
-          ),
-        ),
-      ];
-      if (rule.state !== "matches") {
-        const open = element("a", "button", copy.integrationsComposioOpen);
-        open.href = composioDashboard;
-        open.target = "_blank";
-        open.rel = "noopener noreferrer";
-        const again = element("button", "", copy.toolsComposioOrgCheckAgain);
-        again.type = "button";
-        again.addEventListener("click", () => {
-          box.remove();
-          void organizations();
-        });
-        const actions = element("p", "tool-actions");
-        actions.append(open, again);
-        parts.push(actions);
-      }
-      parts.push(composioModel(copy, rule.name));
-      box.replaceChildren(...parts);
-      // The card names the organization it now works in.
-      if (rule.state === "matches") void refresh({ signIn: true });
-      return;
-    }
-    const choices = organizationChoices(value, copy);
-    if (choices === null || choices.length === 0) {
-      status.textContent = copy.toolsComposioOrgUnavailable;
-      return;
-    }
+    });
+    box.append(composioStepMarker(4), value, copyName);
+    return box;
+  }
+
+  /** "Vybrat aplikace": Apps → Integrace, where the apps are connected. */
+  function composioApps(): HTMLElement {
+    const apps = element(
+      "a",
+      "button primary tools-open",
+      options.copy().toolsComposioChooseApps,
+    );
+    apps.href = integrationsPath();
+    apps.dataset.route = "";
+    // A plain click moves within the page (shell.ts) and ends the dialog.
+    apps.addEventListener("click", (event) => {
+      if (
+        event.button === 0 &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.shiftKey &&
+        !event.altKey
+      )
+        loginDialog.close();
+    });
+    const row = element("p", "tool-actions");
+    row.append(apps);
+    return row;
+  }
+
+  /** The person's choice where several organizations are theirs to choose
+   * from (a personal Environment, a computer). */
+  function composioChoice(
+    view: Extract<ComposioDialogView, { kind: "connected" }>,
+    line: HTMLElement,
+  ): HTMLElement[] {
+    const choices = view.choices;
+    if (choices === null) return [];
+    const copy = options.copy();
     const select = element("select", "");
     select.id = "tools-login-org";
     const label = element("label", "", copy.toolsComposioOrgLabel);
     label.htmlFor = select.id;
     for (const choice of choices)
       select.append(new Option(choice.label, choice.id, false, choice.current));
-    const hint = element("p", "tools-muted", copy.toolsComposioOrgHint);
-    hint.id = "tools-login-org-hint";
-    select.setAttribute("aria-describedby", hint.id);
-    status.textContent = "";
+    const problem = element("p", "tool-note-problem");
+    problem.setAttribute("aria-live", "polite");
+    let chosen = select.value;
     select.addEventListener("change", async () => {
-      const chosen = choices.find((choice) => choice.id === select.value);
-      if (chosen === undefined) return;
+      const current = flow;
+      const next = choices.find((choice) => choice.id === select.value);
+      if (next === undefined) return;
       select.disabled = true;
+      problem.textContent = "";
       let answer: unknown = null;
       try {
         ({ value: answer } = await options.post(
           "/api/tools/composio/organization",
-          { id: chosen.id },
+          { id: next.id },
         ));
       } catch {}
       if (flow !== current) return;
@@ -831,25 +964,65 @@ export function createToolsPanel(
         typeof answer === "object" &&
         (answer as { kind?: unknown }).kind ===
           "composio-organization-selected";
-      status.textContent = selected
-        ? fill(copy.toolsComposioOrgSaved, {
-            name: chosen.label.replace(/ \(.*\)$/, ""),
-          })
-        : copy.toolsComposioOrgFailed;
-      if (selected) void refresh({ signIn: true });
+      if (!selected) {
+        select.value = chosen;
+        problem.textContent = options.copy().toolsComposioOrgFailed;
+        return;
+      }
+      chosen = next.id;
+      line.textContent = composioConnectedLine({
+        ...view,
+        organization: next.label,
+      });
+      void refresh({ signIn: true });
     });
-    box.replaceChildren(
-      label,
-      select,
-      hint,
-      ...(rule.personal
-        ? [
-            element("p", "tools-muted", copy.toolsComposioOrgPersonal),
-            composioModel(copy, null),
-          ]
-        : []),
-      status,
-    );
+    return [label, select, problem];
+  }
+
+  function drawComposio(view: ComposioDialogView) {
+    const current = flow;
+    if (current === null) return;
+    const copy = options.copy();
+    // A view drawn over the focused control moves the focus to its button.
+    const focused = loginBody.contains(document.activeElement);
+    loginHeading.textContent =
+      view.kind === "create" || view.kind === "rename"
+        ? copy.toolsComposioCreateTitle
+        : loginTitle(current.tool.name, current.mode, copy);
+    if (view.kind === "create") {
+      composioStatus(copy.toolsComposioCreateText);
+      loginBody.replaceChildren(
+        composioName(view.name),
+        composioScene(copy, view.name),
+        composioOpen(),
+        composioWait(copy.toolsComposioCreateWait),
+      );
+    } else if (view.kind === "rename") {
+      composioStatus(fill(copy.toolsComposioRenameText, { name: view.name }));
+      loginBody.replaceChildren(
+        composioOpen(),
+        composioWait(copy.toolsComposioRenameWait),
+      );
+    } else if (view.kind === "problem") {
+      composioStatus(view.message);
+      loginBody.replaceChildren();
+    } else {
+      composioStatus(copy.toolsComposioConnected, true);
+      const line = element(
+        "p",
+        "composio-account",
+        composioConnectedLine(view),
+      );
+      loginBody.replaceChildren(
+        line,
+        ...composioChoice(view, line),
+        composioApps(),
+      );
+    }
+    if (focused || document.activeElement === document.body)
+      (
+        loginBody.querySelector<HTMLElement>(".primary") ?? loginHeading
+      ).focus();
   }
 
   function loginFailed(message: string, agent: boolean, detail?: string) {
@@ -916,6 +1089,7 @@ export function createToolsPanel(
     // No code, link or QR stays in the page.
     loginBody.replaceChildren();
     loginStepList.replaceChildren();
+    loginStatus.classList.remove("is-connected");
     loginStatus.textContent = "";
     const target = loginOpener;
     loginOpener = null;

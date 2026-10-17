@@ -8,7 +8,6 @@ import type {
   IntegrationApp,
   IntegrationsOverview,
 } from "../integrations/model";
-import { composioModel } from "./composio-model";
 import {
   addRow,
   type CustomForm,
@@ -1779,21 +1778,16 @@ export function createIntegrationsPanel(
     for (const line of sourceLines(overview, copy))
       problems.push(notice("warning", line));
     // Composio in no organization of this Environment's Organization's
-    // name: what to do in Composio, and the model drawn (decision F42,
-    // addendum of 2026-10-13).
+    // name: what to do in Composio (decision F42, addendum of 2026-10-13;
+    // the figure that explained the model is gone since its note of
+    // 2026-10-17, the explanation is in the documentation).
     const organizationLine = composioOrganizationLine(overview, copy);
     if (organizationLine !== null && overview.composio.organization !== null) {
       const open = element("a", "button", copy.integrationsComposioOpen);
       open.href = composioDashboard;
       open.target = "_blank";
       open.rel = "noopener noreferrer";
-      const box = element("div", "callout composio-organization");
-      box.dataset.kind = "warning";
-      box.append(
-        notice("warning", organizationLine, [open], { bare: true }),
-        composioModel(copy, overview.composio.organization.name),
-      );
-      problems.push(box);
+      problems.push(notice("warning", organizationLine, [open]));
     }
     // Composio not the build Lazurio pins: one line and its update, above
     // the apps (decision F42, addendum (b) of 2026-10-14).
