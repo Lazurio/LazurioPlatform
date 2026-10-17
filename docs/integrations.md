@@ -444,7 +444,7 @@ step left to do):
 
 | In the person's Composio account | Used by |
 | --- | --- |
-| the organization named as the Organization "Example Company" is | that Organization's Environments |
+| `ExampleCompany`, the Organization "Example Company" named as Composio accepts it | that Organization's Environments |
 | one organization for each other Organization, named as it is | that Organization's Environments |
 | the default organization (`<login>_workspace`, made at the sign-up) | the person's personal Environment |
 
@@ -467,9 +467,17 @@ right organization.
   Organization with capitals in its slug `unverified`). Any other Environment, a personal one or a computer, works in
   the organization the person chose; by advice (this page) a personal
   Environment's is the default one, and the sign-in dialog offers the choice where
-  the account has several. A name matches whatever its case, its
-  spaces and its diacritics (`organizationKey`: "Human and Machine" is
-  `humanandmachine`); punctuation counts.
+  the account has several. A name matches by its letters and digits alone
+  (`organizationKey`, note of 2026-10-17, evening): its case, diacritics,
+  spaces, punctuation and underscores do not count, so every name Composio
+  allows for the Organization matches it ("Human and Machine",
+  `HumanAndMachine`, `human_and_machine` and `humanandmachine` are one name).
+  The person creates it as Composio accepts names, only letters, digits and
+  underscores, starting with a letter: the display name's words in CamelCase
+  without diacritics (`composioOrganizationName`: "Lazurio Example
+  Organization" is `LazurioExampleOrganization`), with `Org` before one that
+  would start with a digit, which is then compared in that form too. A
+  display name that gives no such name is `unverified`.
 - **The verdict** (`composioOrganizationVerdict`), over `orgs list`: `matches`
   where the one organization of that name is current; `elsewhere` where it
   exists and another is current; `missing` where the account has none;
@@ -501,12 +509,14 @@ right organization.
   by name afterwards.
 - **The sign-in dialog** of Settings → Tools (note of 2026-10-17) shows, after the
   sign-in, only what is left: where the organization is missing, the
-  Organization's exact name with "Kopírovat", a drawing of the path in Composio's
-  dashboard ("FOR YOU", the organization card at the bottom of the sidebar,
-  "Create Org", the name and the confirm button; `composioScreen` in
-  `src/launchpad/composio-scene.ts` holds Composio's labels, the create step's two
-  as placeholders until matched to a screenshot) and "Otevřít Composio" to the
-  dashboard's root; where there are two of the name, rename the extra one. It
+  Organization's name as Composio accepts it with "Kopírovat", a drawing of the
+  path in Composio's dashboard ("FOR YOU", the organization card at the bottom of
+  the sidebar, "Create Org", then the page it opens, where the name is typed into
+  "Organization name" and "Create organization" clicked; `composioScreen` in
+  `src/launchpad/composio-scene.ts` holds Composio's labels, matched to the
+  Organization Admin's screenshots) and "Otevřít Composio" to the dashboard's
+  root; where there are two of the name, rename the extra one. Apps → Integrace
+  and `lazurio integrations list` name the organization in the same form. It
   reads the organizations again by itself (after 4 s, growing to every 30 s,
   paused while the page is hidden and at once when it shows again) until it is
   connected, then says "Composio je připojené" with the account and the

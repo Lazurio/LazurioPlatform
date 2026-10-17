@@ -8415,7 +8415,9 @@ reference is [integrations](integrations.md#the-composio-organization-of-an-envi
 1. **The Organization's name is the rule.** An Environment whose Machine binding
    names an owning Organization works in the Composio organization of that
    Organization's display name, matched whatever the case, the spaces and the
-   diacritics ("Human and Machine" is `humanandmachine`); punctuation counts. No
+   diacritics ("Human and Machine" is `humanandmachine`); punctuation counts
+   *(withdrawn on 2026-10-17, evening: only letters and digits count, see the
+   note of 2026-10-17)*. No
    setting holds the name: the Organization's own name is it. Where an
    Organization owns the Environment but its name cannot be read (its root is
    missing from the Folder, its manifest unreadable), the rule is `unverified`:
@@ -8570,6 +8572,52 @@ afterwards found by the next reading, switched and named, two of the name and a
 failed switch in one sentence, a personal Environment connected with its choice
 (`tests/integrations-composio-organization.test.ts`). The dialog's states were
 rendered in Chromium in Czech and English at desktop and phone widths.
+
+*Addition of 2026-10-17 (evening), after the Organization Admin's screenshot of
+Composio's create screen:* "Create Org" opens a page of its own,
+`/create-workspace`: a card under the heading "Composio", "Create Organization",
+"Set up a new workspace for your team", the field "Organization name" with the
+placeholder `my_organization`, the hint "Must start with a letter. Only letters,
+numbers, and underscores allowed.", a full-width "Create organization" and
+"← Back". Composio so refuses the very name the dialog asked for ("Lazurio Example
+Organization"), which amends point 1 and this note.
+
+- **The name the person creates** is the Organization's display name as Composio
+  accepts it (`composioOrganizationName`): its words without diacritics, each with
+  only its letters and digits, joined in CamelCase with its other capitals kept
+  ("Lazurio Example Organization" is `LazurioExampleOrganization`, "Rozjedeme.ai"
+  `RozjedemeAi`, "Šťastná Firma" `StastnaFirma`), with `Org` before a name that
+  would not start with a letter ("3M Česko" is `Org3MCesko`). The dialog shows it
+  in the name box with "Kopírovat", types it in the drawing and names it in its
+  two-of-the-name and not-switched sentences; Apps → Integrace and the agents'
+  text name the organization so too, the Organization by its own name.
+- **The rule compares letters and digits alone** (`organizationKey`): diacritics,
+  case, spaces, punctuation and underscores do not count, so every name Composio
+  allows for the Organization matches it (`LazurioExampleOrganization`,
+  `lazurio_example_organization` and `lazurioexampleorganization` all match
+  "Lazurio Example Organization"), and the existing `humanandmachine`, `spectoda`
+  and `lumbio` keep matching. "Punctuation counts" of point 1 is withdrawn: no
+  organization in Composio can hold it. A name that had to start with `Org` is
+  also compared in that form, and the two forms together are two of the name. A
+  display name with no letter or digit Composio could write is `unverified`, as an
+  unreadable one is.
+- **The drawing's step 4 is that page**, drawn light: after "Create Org" the
+  dashboard slides away and the page fades in, the name is typed into the field
+  (4) and the cursor clicks "Create organization"; the loop is 15 seconds. Under
+  `prefers-reduced-motion` the frame stays the open list with "Create Org" ringed
+  and the places 1 to 3: the page itself says what to do, and the dialog's own name
+  box numbered 4 gives the name, while the path to "Create Org" is what the person
+  could not find alone. The labels are in `composioScreen`, matched to the
+  screenshot; no placeholder is left.
+
+Verified by tests: the Composio name of each kind of display name and the names
+that give none; each Composio-allowed form matching the Organization, its own
+Composio name included, the `Org` form in both spellings and the two together
+ambiguous (`tests/integrations-composio-organization.test.ts`); the dialog's
+create, rename and not-switched views carrying `LazurioExampleOrganization`, and a
+name with nothing Composio accepts never asked for (`tests/tools-view.test.ts`).
+The dialog, its drawing frame by frame and under reduced motion, and Apps →
+Integrace were rendered headless in Chromium in Czech and English.
 
 **Addendum 2026-10-13 (3), decided by the Operator: Lazurio installs its own build of
 Composio's CLI until Composio's own has what Integrace needs.** Composio's stable CLI
