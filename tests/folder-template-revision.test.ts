@@ -21,8 +21,8 @@ import { bindings } from "./fixtures/machine-bindings";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-55",
-  digest: "bbdbd528553374a1a463f2d2597937d46d14a61e72d03ff16de0f745f6b87312",
+  revision: "base-instructions-56",
+  digest: "b8e442f18a734c51be4912bfc625fea97fe3d965ddc73bdac70dcc6531278e20",
 } as const;
 
 const optionalTools = activatableTools()
@@ -86,6 +86,18 @@ const environments = [
     os: "linux",
   },
   { preset: "hosted-personal", machine: bindings.personalBrowser, os: "linux" },
+  // A public Environment (root decision 0204, F55's addendum of 2026-10-17):
+  // no GitHub identity, on a Team Environment and on one of one operator.
+  {
+    preset: "hosted-organization-team",
+    machine: bindings.teamPublic,
+    os: "linux",
+  },
+  {
+    preset: "hosted-organization-personal",
+    machine: bindings.organizationPublic,
+    os: "linux",
+  },
   // With the Organization's settings (root decision 0194, F45): a tool it does
   // not allow is left out, with the line that says why, on a work Environment
   // that has the Environment's relay and on a Team Environment.

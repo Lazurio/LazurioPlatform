@@ -55,8 +55,15 @@ export const contentHelp = `organization install <github-login> [--role builder|
   (role-unverified). Only
   on a workstation (local) and a work Environment
   (hosted-organization-personal or hosted-organization-steward, its own
-  Organization only). The Automated preset grants no GitHub role. One JSON line
-  per step with --json, then the result.
+  Organization only). The Automated preset grants no GitHub role. A public
+  Environment (its handover's entry.audience public, whatever its preset) has
+  no GitHub identity: it installs its own Organization only, as a reader
+  (--role reader; any other role fails role-unverified), reads nothing of
+  GitHub's API and clones the root and every child over anonymous HTTPS with
+  no credential helper; its root is the one the Folder holds, --root or
+  <login>/<login>_GEN3, verified in the clone, and a child anonymous Git
+  cannot read is reported (clone-failed). One JSON line per step with --json,
+  then the result.
 personalspace install [--folder <absolute Folder>] [--json]
   Installs the person's Personalspace into personalspace/<login>_GEN3: when
   <login>/<login>_GEN3 exists on GitHub (private, the person's own), it is
@@ -80,7 +87,7 @@ personalspace install [--folder <absolute Folder>] [--json]
   (warning personalspace-placeholders) with the next step, the bootstrap in a
   task worktree and a pull request.
 Neither runs on a Team Environment, whose content the hosting
-prepares (prepared-by-hosting). One content operation runs at a time per
+prepares (prepared-by-hosting), unless it is public. One content operation runs at a time per
 Folder (content-busy). The Folder is found as for organization list.
 Exit status: 0 installed, 1 failed (the step and its code are printed), 2
 usage or not allowed on this Environment.`;

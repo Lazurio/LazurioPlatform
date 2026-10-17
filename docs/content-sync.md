@@ -149,6 +149,7 @@ The content follows the Environment's kind, which is the Folder's recorded prese
 | Personal Remote Environment | `hosted-personal` | Only the person's Personalspace, never an Organization repository; gh must work as the handover's owner (`github-identity-mismatch`) |
 | Work Environment of one operator, Automated Environment | `hosted-organization-personal`, `hosted-organization-steward` | Only the Organization of its handover (`owner.organization`), never a Personalspace |
 | Team Environment | `hosted-organization-team` | Prepared by the hosting (Machines); the operation answers `prepared-by-hosting` and does nothing |
+| Public Environment (`entry.audience` `public`) | any | Only the Organization of its handover, read anonymously as a reader ([below](#a-public-environment-anonymous-reading)); never a Personalspace |
 
 The Automated Environment uses the ordinary explicit installation under its
 signed-in persona account (F9 amendment of 2026-10-12). Its preset describes the
@@ -235,6 +236,36 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
 5. **check** — the doctor's checks of this Organization in the catalog
    (`catalogChecks`): the Organization must be executable; modules with a reason are
    counted in the detail.
+
+### A public Environment: anonymous reading
+
+A public Environment (root decision 0204, [F55's addendum of
+2026-10-17](decisions.md#addendum-of-2026-10-17-a-public-environment-has-no-github-identity))
+has no GitHub identity at all: no broker, no App installation token and no person's
+sign-in; `gh` is signed out. The recorded entry decides it (`githubIdentity`, the
+same rule as the generated texts), whatever the preset, so a Team Environment with the
+member is no longer `prepared-by-hosting`. The same five steps run, with these
+differences only (`scope.github` `anonymous` in `src/content/model.ts`):
+
+- **access** asks GitHub nothing: no gh account, no repository, membership or
+  declaration read. The role is the Reader's (restricted slots and what is below them
+  `excluded_by_role_scope`); only the Reader's role may be asked for, any other one
+  fails closed (`role-unverified`), the CLI's bare Admin form included. The root is the
+  one the Folder holds, the named `--root`, or the name candidate `<login>/<login>_GEN3`;
+  there is no scan, which would read the Organization's listing and one declaration
+  per repository through GitHub's unauthenticated API (60 requests an hour per
+  address, shared by every visitor of that address). The candidate is verified in the
+  clone, as every source is (`root-declaration-mismatch`).
+- **root** and **modules** clone `https://github.com/<owner>/<repository>.git` with
+  git's empty `credential.helper`, which resets every helper the configuration names
+  (gh's included) and adds none, whatever URL git ends up asking about; a child is not
+  asked of GitHub before its clone, so one that anonymous Git cannot read (private or
+  absent) is reported `failed` (`clone-failed`), not `denied`.
+- Nothing is created, generated, granted, committed or pushed: the Personalspace is
+  refused (`not-for-this-environment`), and the Organization path has no such step.
+
+Everything else, the temporary sibling, the verification, the no-replace publish,
+the preparation and the check, is the same code. Without the member nothing changes.
 
 ### The Personalspace
 
