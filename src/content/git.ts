@@ -18,7 +18,9 @@ import { repositoryPattern } from "./model";
 export type CloneRequest = Readonly<{
   url: string;
   directory: string;
-  branch: "main";
+  /** The branch to check out: `main`, or a repository database's declared
+   * branch (`isBranchName`). */
+  branch: string;
   /** Git's `credential.helper` for github.com over HTTPS: gh's; or `""` for
    * an anonymous clone (a public Environment's read, `anonymousGitHub`),
    * which runs isolated from every configuration, credential and helper of
@@ -91,6 +93,16 @@ export type GitEnvironment = Readonly<{
    * with HTTP allowed. The product never sets it. */
   anonymousOrigin?: string | undefined;
 }>;
+
+/** A branch name a clone may be asked for: a declared branch such as `main`
+ * or `v3`, never an option, a range or a path that climbs. */
+export const isBranchName = (branch: string) =>
+  /^[A-Za-z0-9_][A-Za-z0-9._/-]{0,99}$/.test(branch) &&
+  !branch.includes("..") &&
+  !branch.includes("//") &&
+  !branch.endsWith("/") &&
+  !branch.endsWith(".") &&
+  !branch.endsWith(".lock");
 
 /** The repository of exactly `https://github.com/<owner>/<repository>.git`,
  * the one URL an anonymous clone may have, or null for anything else (another
@@ -293,6 +305,7 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
   };
   return Object.freeze({
     async clone(request) {
+      if (!isBranchName(request.branch)) return "failed";
       const executable = await git();
       if (executable !== undefined && request.credentialHelper === "")
         return anonymousClone(executable, request);
