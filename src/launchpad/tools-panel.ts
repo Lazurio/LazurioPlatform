@@ -976,7 +976,9 @@ export function createToolsPanel(
       });
       void refresh({ signIn: true });
     });
-    return [label, select, problem];
+    const box = element("div", "composio-choice");
+    box.append(label, select, problem);
+    return [box];
   }
 
   function drawComposio(view: ComposioDialogView) {
