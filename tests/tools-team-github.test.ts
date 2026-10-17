@@ -21,6 +21,7 @@ import {
   withFolderOperationLock,
   withFolderReadLock,
 } from "../src/folder/lock";
+import type { MachineBinding } from "../src/folder/machine-binding";
 import { executionOs } from "../src/folder/platform";
 import {
   type PresetName,
@@ -53,6 +54,8 @@ import { runTool, type ToolSignIn } from "../src/tools/status";
 import {
   ghIdentity,
   githubActionRefused,
+  publicGithubLogoutText,
+  publicGithubText,
   teamGithubLogoutText,
   teamGithubText,
 } from "../src/tools/team-github";
@@ -282,10 +285,12 @@ test("the Launchpad's Team gh row offers Sign out exactly for a person's account
   });
 });
 
-// A Folder of one preset and a private home with fake gh and composio.
+// A Folder of one preset and a private home with fake gh and composio;
+// `machine` replaces the preset's fixture binding.
 async function environment(
   preset: PresetName,
   tools: Parameters<typeof fakeLoginTools>[1] = ["gh", "composio"],
+  machine?: MachineBinding,
 ) {
   const parent = await realpath(
     await mkdtemp(join(tmpdir(), "lazurio-team-github-")),
@@ -310,11 +315,12 @@ async function environment(
     await initializeHandoverFolder(folder, {
       preset,
       machine:
-        preset === "hosted-personal"
+        machine ??
+        (preset === "hosted-personal"
           ? bindings.personal
           : preset === "hosted-organization-personal"
             ? bindings.organization
-            : bindings.team,
+            : bindings.team),
       profile: presetProfile(preset, os),
     });
   }
@@ -389,6 +395,65 @@ test.skipIf(!posix)(
       expect(await team.ghCalls()).toBe("");
     } finally {
       await team.close();
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "on a public Team Environment gh is refused as on any Team, and the CLI says there is no GitHub identity",
+  async () => {
+    // Decision F55's addendum of 2026-10-17: the Team rule stays (P4), its
+    // wording says what a public Environment is.
+    const visitors = await environment(
+      "hosted-organization-team",
+      undefined,
+      bindings.teamPublic,
+    );
+    try {
+      const refused = await runToolsCommand(
+        ["login", "gh", "--json"],
+        visitors.context(),
+      );
+      expect(refused.code).toBe(2);
+      expect(refused.result).toEqual({
+        kind: "blocked",
+        reason: "team-environment",
+        tool: "gh",
+        action: "login",
+      });
+      const text = await runToolsCommand(["login", "gh"], visitors.context());
+      expect(text.code).toBe(2);
+      expect(text.text).toBe(publicGithubText.en);
+      expect(await visitors.ghCalls()).toBe("");
+      const key = await runToolsCommand(
+        ["login", "gh", "--ssh-key"],
+        visitors.context(),
+      );
+      expect(key.text).toBe(publicGithubText.en);
+      // Not signed in: nothing personal to sign out.
+      const logout = await runToolsCommand(
+        ["logout", "gh"],
+        visitors.context(),
+      );
+      expect(logout.code).toBe(2);
+      expect(logout.text).toBe(
+        `${publicGithubText.en} ${publicGithubLogoutText.en}`,
+      );
+      for (const locale of ["en", "cs"] as const) {
+        const prompt = await runToolsCommand(
+          ["prompt", "gh", "--locale", locale],
+          visitors.context(),
+        );
+        expect(prompt.text).toBe(
+          toolPrompt("gh", locale, {
+            team: true,
+            audience: "public",
+          }) as string,
+        );
+        expect(prompt.text).not.toContain("Lazurio for GitHub");
+      }
+    } finally {
+      await visitors.close();
     }
   },
 );

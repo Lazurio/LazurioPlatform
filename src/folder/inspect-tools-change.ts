@@ -6,6 +6,7 @@ import { inspectOutput } from "./inventory";
 import { withFolderOperationLock, withFolderReadLock } from "./lock";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
+import { githubIdentity } from "./presets";
 import { readFolderState } from "./read-state";
 import { sharedEnvironment, toolEnvironmentOf } from "./render";
 import { enabledTools, folderOrganizationSettings, toolNotes } from "./state";
@@ -73,6 +74,11 @@ export async function readFolderTools(folder: string) {
       revision: preferences.revision,
       // Sign-ins are shared by every operator of this Environment.
       sharedEnvironment: sharedEnvironment(preferences.preset.name),
+      // A public Environment, which has no GitHub identity (decision F55).
+      ...(githubIdentity(preferences.preset.name, preferences.machine) ===
+      "none"
+        ? { audience: "public" as const }
+        : {}),
       enabled: enabledTools(preferences),
       notes: toolNotes(preferences),
       tools: toolSelection(enabledTools(preferences)).map((selection) => ({

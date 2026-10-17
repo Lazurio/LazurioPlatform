@@ -31,7 +31,7 @@ import {
 } from "./login";
 import { qrMatrix, qrTerminal } from "./qr";
 import type { SshKeyRemoval, SshLink, SshLinkFailure } from "./ssh-key";
-import { teamGithubText } from "./team-github";
+import { githubRuleText, teamGithubText } from "./team-github";
 
 /** The terminal adapter of the curated flows (decision F19): `tools install`,
  * `tools login`, `tools logout` and `tools composio-org`. The same core the
@@ -211,7 +211,12 @@ const stageText: Record<string, string> = {
   verify: "when the installed tool was checked",
 };
 
-export function installText(result: InstallResult, team = false): string {
+export function installText(
+  result: InstallResult,
+  team = false,
+  /** A public Environment, which has no GitHub identity (decision F55). */
+  isPublic = false,
+): string {
   switch (result.kind) {
     case "installed":
       return [
@@ -226,7 +231,7 @@ export function installText(result: InstallResult, team = false): string {
             ]),
         // A Team Environment's gh is not signed in (Matěj 2026-09-28).
         team && result.tool === "gh"
-          ? teamGithubText.en
+          ? githubRuleText(isPublic).en
           : `Next: lazurio tools login ${result.tool}`,
       ].join("\n");
     case "already-installed":
@@ -268,6 +273,8 @@ export async function runInstall(
           result,
           context.environment?.kind === "hosted" &&
             sharedEnvironment(context.environment.preset),
+          context.environment?.kind === "hosted" &&
+            context.environment.audience === "public",
         ),
   };
 }
@@ -652,6 +659,8 @@ export async function runLogin(
   // way. Refused before anything runs. (Another tool on an unreadable
   // Environment runs as before: the Team rule is gh's only.)
   const preset = environment.kind === "hosted" ? environment.preset : undefined;
+  const audience =
+    environment.kind === "hosted" ? environment.audience : undefined;
   const refusal = await githubRefusal(
     preset,
     name,
@@ -663,7 +672,9 @@ export async function runLogin(
     return {
       code: 2,
       result: refusal,
-      text: json ? JSON.stringify(refusal) : githubRefusalText(refusal, "en"),
+      text: json
+        ? JSON.stringify(refusal)
+        : githubRefusalText(refusal, "en", audience),
     };
   }
   if (!json && preset !== undefined && sharedEnvironment(preset))
@@ -776,7 +787,13 @@ export async function runLogout(
       return {
         code: 2,
         result: refusal,
-        text: json ? JSON.stringify(refusal) : githubRefusalText(refusal, "en"),
+        text: json
+          ? JSON.stringify(refusal)
+          : githubRefusalText(
+              refusal,
+              "en",
+              environment.kind === "hosted" ? environment.audience : undefined,
+            ),
       };
     result = await sessions.logout(name);
   } finally {

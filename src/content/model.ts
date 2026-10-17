@@ -1,5 +1,5 @@
 import type { MachineBinding } from "../folder/machine-binding";
-import type { PresetName } from "../folder/presets";
+import { githubIdentity, type PresetName } from "../folder/presets";
 
 // Content installation (decision F9, addendum of 2026-10-04; root decision
 // 0188): the explicit operation that puts an Environment's content into its
@@ -13,6 +13,10 @@ import type { PresetName } from "../folder/presets";
 //   the Organization of the handover, never a Personalspace;
 // - `hosted-organization-team`: content the
 //   hosting prepares; this operation reports them and does nothing there.
+// A public Environment (root decision 0204, decision F55's addendum of
+// 2026-10-17), whatever its preset, has no GitHub identity: it holds only the
+// Organization of its handover, read anonymously as a reader, never a
+// Personalspace.
 // Nothing here grants access: GitHub decides at every operation boundary.
 
 /** What one install request names. */
@@ -169,6 +173,11 @@ export type ContentScope =
       /** The person a personal Remote Environment belongs to: its
        * Personalspace must be theirs. */
       personalOwner: Readonly<{ githubId: number }> | null;
+      /** `anonymous` only on a public Environment (`githubIdentity` none):
+       * no gh account, no role GitHub confirms and no read of GitHub's API;
+       * the Organization is cloned over anonymous HTTPS without any
+       * credential helper, as a reader. Absent everywhere else. */
+      github?: "anonymous";
     }>;
 
 /** The scope of an Environment from its recorded preset and Machine binding
@@ -177,6 +186,19 @@ export function contentScope(
   preset: PresetName,
   machine: MachineBinding | null,
 ): ContentScope {
+  // A public Environment, by the entry its binding records: its own
+  // Organization only, anonymously; nothing of a person.
+  if (githubIdentity(preset, machine) === "none")
+    return Object.freeze({
+      allowed: true,
+      organizations:
+        machine?.owner.kind === "organization"
+          ? Object.freeze({ only: machine.owner.organization })
+          : "none",
+      personalspace: false,
+      personalOwner: null,
+      github: "anonymous",
+    });
   switch (preset) {
     case "local":
       return Object.freeze({

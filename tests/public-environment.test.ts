@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -169,7 +168,7 @@ for (const [name, audience] of Object.entries({
   });
 
 posixTest(
-  "a refresh records the audience the handover gained, though no generated text changes",
+  "a refresh records the audience the handover gained, and the generated texts then say there is no GitHub identity",
   async () => {
     const parent = await realpath(
       await mkdtemp(join(tmpdir(), "public-handover-")),
@@ -199,10 +198,19 @@ posixTest(
         await readFile(join(folder, ".lazurio", "preferences.json"), "utf8"),
       );
       expect(preferences.machine.entry.audience).toBe("public");
+      // Decision F55's addendum of 2026-10-17: a public Environment has no
+      // GitHub identity, and its agents' texts say so instead of the
+      // Operator's own sign-in.
       const after = await readFile(join(folder, "AGENTS.md"), "utf8");
-      expect(createHash("sha256").update(after).digest("hex")).toBe(
-        createHash("sha256").update(before).digest("hex"),
+      expect(before).toContain(
+        "- Identity: the Operator's own sign-ins; GitHub is the only access authority.",
       );
+      expect(after).not.toContain("the Operator's own sign-ins");
+      expect(after).toContain("- Identity: no GitHub identity.");
+      expect(after).toContain(
+        "- GitHub: this Environment has no GitHub identity.",
+      );
+      expect(after).not.toContain("gh auth status");
       expect(await refreshFolder(folder, gained)).toEqual({
         kind: "unchanged",
       });

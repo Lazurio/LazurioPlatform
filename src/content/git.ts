@@ -6,13 +6,18 @@ import { type CommitIdentity, identitySettings } from "./commit-identity";
 // Git for content installation: the operator's own `git` from the
 // operator's PATH, with the operator's home and Git configuration, because a
 // clone is the operator's act under the operator's sign-in (SSH key or gh as
-// credential helper). Only the clone runs here; the verification reads the
+// credential helper), or on a public Environment under none (no helper at
+// all). Only the clone runs here; the verification reads the
 // result through the existing read-only checkout inspection.
 
 export type CloneRequest = Readonly<{
   url: string;
   directory: string;
   branch: "main";
+  /** Git's `credential.helper` for github.com over HTTPS: gh's, or `""`,
+   * git's empty helper, for none at all (a public Environment's anonymous
+   * read): every helper the configuration names is reset and none added.
+   * Absent: the operator's configuration as it is. */
   credentialHelper?: string | undefined;
 }>;
 
@@ -118,16 +123,22 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
       ? result.stdout.replace(/\n$/, "")
       : null;
   };
-  // Only for github.com over HTTPS: reset the list, then gh.
+  // Only for github.com over HTTPS: reset the list, then gh. The empty
+  // helper (an anonymous read) resets the general list instead and adds
+  // nothing: git's empty value clears every helper configured before it, the
+  // general ones and every URL's, and holds for whatever URL git ends up
+  // asking about (an `insteadOf` rewrite included), so none answers.
   const helperOf = (credentialHelper: string | undefined) =>
     credentialHelper === undefined
       ? []
-      : [
-          "-c",
-          "credential.https://github.com.helper=",
-          "-c",
-          `credential.https://github.com.helper=${credentialHelper}`,
-        ];
+      : credentialHelper === ""
+        ? ["-c", "credential.helper="]
+        : [
+            "-c",
+            "credential.https://github.com.helper=",
+            "-c",
+            `credential.https://github.com.helper=${credentialHelper}`,
+          ];
   // One write of the operator's git; its last error line when it fails.
   const write = async (
     directory: string,

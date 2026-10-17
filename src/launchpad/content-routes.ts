@@ -41,7 +41,9 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 // not carry: the core resolves it live from GitHub through gh (an Owner's
 // membership, `maintain` or `write` on the root repository, or `read` on it
 // with an active membership: a Reader) and fails closed with
-// `role-unverified` when GitHub confirms none.
+// `role-unverified` when GitHub confirms none. A public Environment has no
+// GitHub identity: it installs as a Reader without asking GitHub (decision
+// F55's addendum of 2026-10-17).
 
 const jobRoute = /^\/api\/content\/jobs\/([0-9a-f]{32})$/;
 

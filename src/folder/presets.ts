@@ -1,3 +1,4 @@
+import { isPublicEnvironment } from "../launchpad/public-environment";
 import type { MachineBinding } from "./machine-binding";
 import type { FolderProfile } from "./profile";
 import { stateFields } from "./state-fields";
@@ -174,6 +175,23 @@ export function parsePresetName(input: unknown): PresetName {
 
 export function workspacePreset(name: PresetName): WorkspacePreset {
   return presets[parsePresetName(name)];
+}
+
+/** The GitHub identity an Environment has: its preset's `providerIdentity`,
+ * or `none` on a public Environment (root decision 0204 point 5, decision
+ * F55's addendum of 2026-10-17), whatever its preset: no broker, no App and
+ * no person's sign-in. Its Organization's public repositories are read
+ * anonymously and nothing is published from it. The one rule for the content
+ * install's scope, the generated texts and the wording of the tools. */
+export type GithubIdentity = WorkspacePreset["providerIdentity"] | "none";
+
+export function githubIdentity(
+  preset: PresetName,
+  machine: Readonly<{ entry?: MachineBinding["entry"] }> | null | undefined,
+): GithubIdentity {
+  return isPublicEnvironment(machine?.entry)
+    ? "none"
+    : workspacePreset(preset).providerIdentity;
 }
 
 export function parsePresetReference(input: unknown): PresetReference {

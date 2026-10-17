@@ -86,6 +86,10 @@ export type ToolActivation = Readonly<{
   /** The target state on a Team Environment (`hosted-organization-team`),
    * where it replaces `installation` and the prompt guides no sign-in. */
   team?: ToolText;
+  /** The target state on a public Environment (decision F55's addendum of
+   * 2026-10-17), whatever its preset: it replaces `installation` and `team`,
+   * since such an Environment has no GitHub identity at all. */
+  public?: ToolText;
   /** The prompt's task and its first step, for a tool whose setup is not
    * an installation and a person's sign-in (the Environment vault, decision
    * F43): it replaces the two generic paragraphs. */
@@ -214,6 +218,12 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
       team: installation(
         "Cílový stav v tomto Týmovém Prostředí (hosted-organization-team): na PATH Operátora je funkční `gh`. Obvykle ho dodává hosting jako brokerovaný `gh` Organizace; funkční `gh` kdekoli na PATH zůstává, jak je, a jen se nahlásí. Jen když žádný nefunguje, nainstaluje se `gh` do standardní cesty `~/.local/bin/gh` z oficiálního zdroje https://github.com/cli/cli#installation. gh nepřihlašuj a klíč nepropojuj: Prostředí pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace. Důkaz: `gh --version` odpoví.",
         "Target state on this Team Environment (hosted-organization-team): a working `gh` is on the Operator's PATH. The hosting normally delivers it as the Organization's brokered `gh`; a working `gh` anywhere on PATH stays as it is and is only reported. Only when none works is `gh` installed in the standard path `~/.local/bin/gh` from the official source https://github.com/cli/cli#installation. Do not sign in gh or link a key: the Environment works in GitHub through Lazurio for GitHub, set up by the Organization. Proof: `gh --version` answers.",
+      ),
+      // A public Environment has no GitHub identity at all (root decision
+      // 0204, decision F55's addendum of 2026-10-17): gh stays signed out.
+      public: installation(
+        "Cílový stav v tomto veřejném Prostředí: na PATH Operátora je funkční `gh` a není přihlášený. Toto Prostředí nemá žádnou identitu GitHubu: veřejné repozitáře Organizace čte anonymně a nic se odsud nepublikuje. Funkční `gh` kdekoli na PATH zůstává, jak je, a jen se nahlásí; jen když žádný nefunguje, nainstaluje se `gh` do standardní cesty `~/.local/bin/gh` z oficiálního zdroje https://github.com/cli/cli#installation. gh nepřihlašuj a klíč nepropojuj. Důkaz: `gh --version` odpoví.",
+        "Target state on this public Environment: a working `gh` is on the Operator's PATH and is not signed in. This Environment has no GitHub identity: it reads the Organization's public repositories anonymously and nothing is published from here. A working `gh` anywhere on PATH stays as it is and is only reported; only when none works is `gh` installed in the standard path `~/.local/bin/gh` from the official source https://github.com/cli/cli#installation. Do not sign in gh or link a key. Proof: `gh --version` answers.",
       ),
       purpose: {
         cs: "GitHub CLI pro práci s repozitáři, pull requesty, issues a review.",
@@ -647,13 +657,16 @@ export function toolPrompt(
   name: string,
   locale: "cs" | "en",
   /** `team`: the Environment is a Team Environment; a tool with a Team
-   * target state (gh) is then set up without any sign-in. */
-  options: Readonly<{ team?: boolean }> = {},
+   * target state (gh) is then set up without any sign-in. `audience`: a
+   * public Environment, whose own target state (gh's) comes first. */
+  options: Readonly<{ team?: boolean; audience?: "public" }> = {},
 ): string | undefined {
   const entry = activatableTools().find((tool) => tool.name === name);
   if (!entry) return undefined;
   const { activation, command } = entry;
-  const team = options.team === true ? activation.team : undefined;
+  const team =
+    (options.audience === "public" ? activation.public : undefined) ??
+    (options.team === true ? activation.team : undefined);
   const enable =
     activation.tier === "required"
       ? {

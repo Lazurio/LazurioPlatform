@@ -40,6 +40,7 @@ import {
 } from "./status";
 import {
   githubActionRefused,
+  publicGithubPhrase,
   teamGithubPhrase,
   teamGithubWorksAs,
 } from "./team-github";
@@ -272,6 +273,9 @@ export async function runToolsCommand(
     const prompt = toolPrompt(name, locale, {
       team:
         environment.kind === "hosted" && sharedEnvironment(environment.preset),
+      ...(environment.kind === "hosted" && environment.audience === "public"
+        ? { audience: "public" as const }
+        : {}),
     });
     const entry = activatableTools().find((tool) => tool.name === name);
     if (prompt === undefined || entry === undefined) {
@@ -467,12 +471,17 @@ type ToolsOptions = {
 
 // On a Team Environment gh's line names the way the Environment works in
 // GitHub instead of inviting a person to link their SSH key, and points to
-// the sign-out of a person's account left there (Matěj 2026-09-28).
-const sshText = (signIn: ToolSignIn, team: boolean): string =>
+// the sign-out of a person's account left there (Matěj 2026-09-28); on a
+// public one, that it has no GitHub identity.
+const sshText = (
+  signIn: ToolSignIn,
+  team: boolean,
+  isPublic: boolean,
+): string =>
   signIn.ssh === undefined
     ? ""
-    : team
-      ? `, ${teamGithubPhrase.en}${
+    : team || isPublic
+      ? `, ${(isPublic ? publicGithubPhrase : teamGithubPhrase).en}${
           githubActionRefused({
             brokered: true,
             tool: "gh",
@@ -488,7 +497,11 @@ const sshText = (signIn: ToolSignIn, team: boolean): string =>
           ? ", SSH key not linked: lazurio tools login gh --ssh-key"
           : ", SSH key not verified";
 
-const signInText = (signIn: ToolSignIn, team: boolean): string =>
+const signInText = (
+  signIn: ToolSignIn,
+  team: boolean,
+  isPublic = false,
+): string =>
   signIn.state === "signed-in"
     ? `${
         signIn.account === undefined
@@ -500,7 +513,7 @@ const signInText = (signIn: ToolSignIn, team: boolean): string =>
                   ? ""
                   : ` (${signIn.organization})`
               }`
-      }${sshText(signIn, team)}`
+      }${sshText(signIn, team, isPublic)}`
     : signIn.state === "signed-out"
       ? "not signed in"
       : "sign-in unknown";
@@ -599,7 +612,11 @@ async function runFolderToolsCommand(
           }${tool.offered ? "" : "  (not offered here)"}${
             tool.signIn === undefined
               ? ""
-              : `  (${signInText(tool.signIn, recorded.sharedEnvironment)})`
+              : `  (${signInText(
+                  tool.signIn,
+                  recorded.sharedEnvironment,
+                  recorded.audience === "public",
+                )})`
           }`,
           ...(tool.note === undefined
             ? []
