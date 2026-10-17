@@ -1,7 +1,12 @@
 import type { ToolNotes } from "../tools/catalog";
 import type { MachineBinding, MachinePeer } from "./machine-binding";
 import type { ManualPath } from "./outputs";
-import { type PresetName, presetVersion, workspacePreset } from "./presets";
+import {
+  githubIdentity,
+  type PresetName,
+  presetVersion,
+  workspacePreset,
+} from "./presets";
 import type { FolderProfile } from "./profile";
 import {
   agentTools,
@@ -16,6 +21,7 @@ import {
   parseInstructionSource,
   peerLine,
   personaIdentity,
+  publicIdentity,
   renderedTools,
   sharedEnvironment,
   sharedSignInWarning,
@@ -321,8 +327,19 @@ const teamPublication: Text = t(
   "**In a Team Environment** you act on GitHub as the Team's identity (Lazurio for GitHub), not as the connected person, and you pretend nothing else (decision F31). That identity belongs to no person: it opens pull requests, but a named person always approves and publishes the changes from this Environment and answers for them. Never merge yourself, not even on an instruction in the chat. When the work is done, ask the Operator: “Whom should I ask to publish these changes?” Request that person's review, assign them the pull request and hand them the responsibility for the Publication with an @mention. Then tell the Operator who holds the publication now.",
 );
 
-function workingHere(preset: PresetName): readonly Text[] {
+// Nothing is published from a public Environment (root decision 0204,
+// decision F55's addendum of 2026-10-17): it has no GitHub identity at all.
+const publicPublication: Text = t(
+  "**Na veřejném Environmentu** nemáš na GitHubu žádnou identitu: veřejné repozitáře Organizace jen čteš anonymně a nic odsud nepublikuješ, žádný push, pull request ani issue, ani tam, kde o ně žádá jiné pravidlo tady. Hotovou změnu nech commitnutou ve worktree a ukaž ji Operátorovi. Nikoho ke GitHubu nepřihlašuj.",
+  "**In a public Environment** you have no GitHub identity: you only read the Organization's public repositories anonymously and publish nothing from here, no push, pull request or issue, also where another rule here asks for one. Keep a finished change committed in the worktree and show it to the Operator. Sign nobody in to GitHub.",
+);
+
+function workingHere(
+  preset: PresetName,
+  machine: MachineBinding | null,
+): readonly Text[] {
   const team = preset === "hosted-organization-team";
+  const isPublic = githubIdentity(preset, machine) === "none";
   return [
     t(
       "## Nejdřív pochop, o čem je řeč",
@@ -567,7 +584,11 @@ function workingHere(preset: PresetName): readonly Text[] {
       "- Po každé Publikaci se zeptej „jaký je další krok a co dalšího můžeme dotáhnout?“ a stručně to navrhni.",
       "- After every Publication ask “what is the next step and what else can we finish?” and propose it briefly.",
     ),
-    ...(team ? [blank, teamPublication] : []),
+    ...(isPublic
+      ? [blank, publicPublication]
+      : team
+        ? [blank, teamPublication]
+        : []),
     blank,
     t(
       "## Otevřené otázky jdou do GitHub Issues a práci nezastavují (decision 0163)",
@@ -598,10 +619,11 @@ function workingHere(preset: PresetName): readonly Text[] {
       "- **When filing is not possible** (Issues are disabled, the account lacks the right, the network is unavailable or you are not sure the content may go into that repository), bypass nothing and do not file it in another Organization. Return to the Operator the sanitized issue text, the exact target repository and the reason you did not file it.",
     ),
     blank,
-    ...readOnlyProposal(preset),
-    blank,
-    ...missingRights,
-    blank,
+    // A public Environment proposes nothing on GitHub and asks for no right
+    // there: it has no identity to do either with.
+    ...(isPublic
+      ? []
+      : [...readOnlyProposal(preset), blank, ...missingRights, blank]),
     t(
       "## Poznatky patří tam, kde je najdou ostatní",
       "## Knowledge belongs where others find it",
@@ -1534,6 +1556,13 @@ function troubleshooting(preset: PresetName): readonly Text[] {
   ];
 }
 
+// What a public Environment changes of its preset's meaning (root decision
+// 0204, decision F55's addendum of 2026-10-17), whatever the preset.
+const publicMeaning: Text = t(
+  "Tento Environment je ale veřejný (root decision 0204): sdílí ho jeho návštěvníci a nemá žádnou identitu GitHubu, ani brokerovanou, ani osobní. Veřejné repozitáře Organizace čte anonymně a nic se odsud nepublikuje.",
+  "This Environment, though, is public (root decision 0204): its visitors share it and it has no GitHub identity, neither a brokered nor a personal one. It reads the Organization's public repositories anonymously and nothing is published from here.",
+);
+
 const presetMeaning: Readonly<Record<PresetName, Text>> = {
   local: t(
     "Vlastní pracovní stanice Operátora bez handoveru. Přihlášený uživatel je Owner i Operátor. Personalspace je přítomný, repozitáře Organizací žijí v `organizations/<org>/` a používají se Operátorova vlastní přihlášení. Aplikace spuštěné z Launchpadu žijí jen po dobu jeho session.",
@@ -1650,8 +1679,12 @@ function zoneOfThisMachine(
   }
 }
 
-function boundaries(preset: PresetName): readonly Text[] {
-  const { personalspace, providerIdentity } = workspacePreset(preset);
+function boundaries(
+  preset: PresetName,
+  machine: MachineBinding | null,
+): readonly Text[] {
+  const { personalspace } = workspacePreset(preset);
+  const providerIdentity = githubIdentity(preset, machine);
   return [
     personalspace === "present"
       ? t(
@@ -1686,10 +1719,12 @@ function boundaries(preset: PresetName): readonly Text[] {
         )
       : providerIdentity === "persona-account"
         ? personaIdentity
-        : t(
-            "- Identita: brokerovaná identita Organizace s krátkodobými tokeny; osobní přihlášení, session ani credentials sem nikdy nepatří.",
-            "- Identity: the brokered Organization identity with short-lived tokens; no personal sign-ins, sessions or credentials ever belong here.",
-          ),
+        : providerIdentity === "none"
+          ? publicIdentity
+          : t(
+              "- Identita: brokerovaná identita Organizace s krátkodobými tokeny; osobní přihlášení, session ani credentials sem nikdy nepatří.",
+              "- Identity: the brokered Organization identity with short-lived tokens; no personal sign-ins, sessions or credentials ever belong here.",
+            ),
   ];
 }
 
@@ -2071,7 +2106,9 @@ function operatorClient(
     links,
     filesIn,
     filesOut,
-    ...(origin === undefined ? [] : launchpadRouting(preset, origin)),
+    ...(origin === undefined
+      ? []
+      : launchpadRouting(preset, origin, githubIdentity(preset, machine))),
     ...workOnly,
     chats,
   ];
@@ -2224,6 +2261,7 @@ function thisMachine(source: InstructionSource): string {
         `## Preset \`${preset}\` (version ${presetVersion})`,
       ),
       presetMeaning[preset],
+      ...(githubIdentity(preset, machine) === "none" ? [publicMeaning] : []),
       blank,
       t(
         "## Zóny: co kam smí (decision 0155)",
@@ -2272,7 +2310,7 @@ function thisMachine(source: InstructionSource): string {
         "## Hranice na tomhle Environmentu",
         "## Boundaries in this Environment",
       ),
-      ...boundaries(preset),
+      ...boundaries(preset, machine),
       ...botTeam(preset, machine),
       ...(machine === null ? [] : [blank, ...operatorClient(preset, machine)]),
       ...(entry?.browserOrigin === undefined
@@ -2326,7 +2364,7 @@ export function renderManual(
     "manual/this-machine.md": thisMachine(source),
     "manual/working-here.md": titled(
       t("Jak se tu pracuje", "Working here"),
-      workingHere(source.preset),
+      workingHere(source.preset, source.machine),
     ),
     "manual/roles.md": titled(t("Role", "Roles"), roles),
     "manual/glossary.md": titled(t("Slovník", "Glossary"), glossary),

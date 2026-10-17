@@ -56,6 +56,7 @@ import { createIntegrationsPanel } from "./integrations-panel";
 import { createColumn, keepCornerFree } from "./layout";
 import { environmentFacts, type Fact, type MachineView } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
+import { isPublicEnvironment, publicRoute } from "./public-environment";
 import { createRecoveryPanel } from "./recovery-panel";
 import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
 import { routeFrame, settingsPath } from "./routes";
@@ -63,7 +64,7 @@ import { createShell } from "./shell";
 import { createSshPanel } from "./ssh-panel";
 import { keyGroups, parseSshOverview } from "./ssh-view";
 import { createStartPanel, type StartVaultRow } from "./start-panel";
-import { startCount } from "./start-view";
+import { demoModule, demoStartView, startCount } from "./start-view";
 import { createToolsPanel } from "./tools-panel";
 import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
@@ -239,6 +240,8 @@ const catalog = createCatalogPanel({
   loaded: () => {
     shell.relabel();
     drawMachine();
+    // A public Environment's Začínáme names the module to try.
+    startPanel.render();
     showWhenDrawn();
   },
   entry: () => entry,
@@ -326,6 +329,8 @@ function firstRunFacts(): TourFacts | null {
   if (profileState === null) return null;
   return {
     preset: profileState.preset,
+    // A public Environment's demo onboarding (decision F55), by the entry.
+    ...(isPublicEnvironment(entry) ? { audience: "public" as const } : {}),
     ai: aiFact(),
     github: githubFact(toolsOverview, profileState.revision),
     content: content.fact(),
@@ -354,6 +359,7 @@ function resolveKind() {
     ai: aiFact(),
     code,
     rootAccess: rootAccess?.login === login ? rootAccess.write : null,
+    ...(isPublicEnvironment(entry) ? { audience: "public" as const } : {}),
   });
 }
 function unpreparedCode(code: string): boolean {
@@ -544,6 +550,14 @@ const startPanel = createStartPanel({
           list: content.list(),
         };
   },
+  // A public Environment's Začínáme (decision F55): Apps, a module and Chat.
+  demo: () =>
+    isPublicEnvironment(entry)
+      ? demoStartView(
+          { chat: chatHref(entry), module: demoModule(catalog.current()) },
+          copy,
+        )
+      : null,
   composio: () => composioFact(toolsOverview),
   sshDevices: () => sshDevices,
   vault: () => vaultRow,
@@ -566,7 +580,13 @@ const startPanel = createStartPanel({
 /** Reads what only Začínáme shows: the vault's state and the devices with
  * SSH, where the Environment has them (not this computer). */
 async function readStartExtras() {
-  if (profileState === null || profileState.preset === "local") {
+  // A public Environment's Začínáme shows neither (decision F55), and it has
+  // no vault to read.
+  if (
+    profileState === null ||
+    profileState.preset === "local" ||
+    isPublicEnvironment(entry)
+  ) {
     vaultRow = null;
     vaultBitwarden = false;
     sshDevices = null;
@@ -617,6 +637,17 @@ function openAiStep() {
     shell.navigate(settingsPath("start"));
   startPanel.focusAi();
 }
+// What a public Environment does not have (decision F55): the page's
+// stylesheet hides Integrace in the Apps column, Trezor and Nástroje in the
+// settings navigation and Začínáme's "Zkontrolovat znovu" while `<html
+// data-audience="public">` says so; the router shows Apps and Settings in
+// place of the first three.
+function drawAudience() {
+  if (isPublicEnvironment(entry))
+    document.documentElement.dataset.audience = "public";
+  else delete document.documentElement.dataset.audience;
+}
+drawAudience();
 const startNav = document.querySelector<HTMLElement>("#start-nav");
 const startCountNode = document.querySelector<HTMLElement>("#start-count");
 // The shell document the elements were last given, with the page's own
@@ -635,7 +666,9 @@ function firstRun() {
   if (line !== lineDrawn) catalog.render();
   if (startNav !== null)
     startNav.hidden =
-      profileState !== null && !signsInAsPerson(profileState.preset);
+      profileState !== null &&
+      !signsInAsPerson(profileState.preset) &&
+      !isPublicEnvironment(entry);
   const count = facts === null ? null : startCount(facts);
   if (startCountNode !== null) {
     startCountNode.hidden = count === null;
@@ -655,6 +688,7 @@ function provideOwnSetup(facts: TourFacts | null) {
   if (facts.github === "unknown") return;
   const setup = shellSetup({
     preset: profileState.preset,
+    audience: facts.audience,
     ai: facts.ai,
     github: facts.github,
     list: content.list(),
@@ -909,6 +943,8 @@ let framed = false;
 const shell = createShell({
   copy: () => copy,
   displayName: (organization) => catalog.displayName(organization),
+  // A public Environment has no Integrace and no Trezor (decision F55).
+  place: (route) => (isPublicEnvironment(entry) ? publicRoute(route) : route),
   onRoute: (route) => {
     // The switch marks Apps, the gear Settings (the Organization rail).
     columnHead?.setAttribute(
@@ -1196,7 +1232,11 @@ const tools = createToolsPanel({
       overview?.tools.map((tool) => [tool.name, tool.signIn?.state ?? null]) ??
         null,
     );
-    if (toolSignIns !== null && toolSignIns !== signIns)
+    if (
+      toolSignIns !== null &&
+      toolSignIns !== signIns &&
+      !isPublicEnvironment(entry)
+    )
       void integrations.refresh();
     toolSignIns = signIns;
     toolsOverview = overview;
@@ -1221,6 +1261,8 @@ const tools = createToolsPanel({
     controls.apply.disabled = true;
     await load();
   },
+  // A public Environment has no Nástroje (decision F55): nothing to read.
+  absent: () => isPublicEnvironment(entry),
 });
 const voice = voicePanel({
   post,
@@ -1444,6 +1486,10 @@ async function readEntry() {
     recovery.render();
     catalog.render();
     browser.render();
+    // Whether it is a public Environment, which the page may learn only now.
+    drawAudience();
+    shell.replace();
+    firstRun();
   }
   await handoff;
 }

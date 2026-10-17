@@ -920,6 +920,23 @@ export function columnSetupPrompt(
   };
 }
 
+/** The quiet notice of the column head on a public Environment (root
+ * decision 0204 point 4, decision F55): in Apps, Chat and Automate and in its
+ * Settings alike, as long as the person is there. Its words are the whole
+ * notice; it leads nowhere. */
+export type ColumnNotice = Readonly<{ text: string }>;
+
+/** The notice where the current Environment is public; null elsewhere and
+ * on a page that is no Environment's. */
+export function columnNotice(
+  shell: Shell,
+  copy: ShellCopy,
+): ColumnNotice | null {
+  if (shell.audience !== "public" || currentEnvironment(shell) === null)
+    return null;
+  return { text: copy.publicNotice };
+}
+
 /** The Settings of an Environment, the gear's address beside its picker:
  * `/settings` of its Launchpad (Apps), a path when Apps is this origin's. */
 export function environmentSettingsHref(environment: ShellEnvironment): string {
@@ -956,6 +973,9 @@ export type ColumnHead = Readonly<{
   /** The switch; null on an Organization's Dashboard, which has none. */
   tabs: readonly SwitchTab[] | null;
   setup: ColumnSetupPrompt | null;
+  /** On a public Environment, that it is public and shared; absent
+   * elsewhere, so every other head is what it was. */
+  notice?: ColumnNotice;
 }>;
 
 /** What the column head shows, from the host's attributes (`space`,
@@ -1005,6 +1025,7 @@ export function columnHead(
     };
   }
   const { environment, space } = page;
+  const notice = columnNotice(shell, copy);
   const app = (shellApps as readonly (string | null)[]).includes(options.active)
     ? (options.active as ShellApp)
     : null;
@@ -1018,5 +1039,6 @@ export function columnHead(
     },
     tabs: switchTabs(shell, copy, app),
     setup: columnSetupPrompt(shell, copy, app),
+    ...(notice === null ? {} : { notice }),
   };
 }

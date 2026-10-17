@@ -1,25 +1,43 @@
 import { join } from "node:path";
 import { withFolderReadLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
-import { type PresetName, workspacePreset } from "../folder/presets";
+import {
+  githubIdentity,
+  type PresetName,
+  workspacePreset,
+} from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
+import type { EntryAudience } from "../launchpad/public-environment";
 import type { LoginSessions } from "./login";
 import {
   type GithubAction,
   githubActionRefused,
+  githubRuleText,
+  publicGithubLogoutText,
   teamGithubLogoutText,
-  teamGithubText,
 } from "./team-github";
 
-/** The recorded preset of one Folder, read under the common lock: what the
- * Launchpad serving that Folder decides the kind of Environment by. */
-export async function folderPreset(folder: string): Promise<PresetName> {
+/** The recorded preset of one Folder and, where its recorded entry says so,
+ * that it is a public Environment (decision F55), read under the common
+ * lock. */
+async function folderEnvironment(
+  folder: string,
+): Promise<Readonly<{ preset: PresetName; audience?: EntryAudience }>> {
   await inspectOwnedDirectory(folder);
   const stateDirectory = join(folder, ".lazurio");
   return withFolderReadLock(stateDirectory, async () => {
     const { preferences } = await readFolderState(stateDirectory);
-    return preferences.preset.name;
+    const preset = preferences.preset.name;
+    return githubIdentity(preset, preferences.machine) === "none"
+      ? { preset, audience: "public" }
+      : { preset };
   });
+}
+
+/** The recorded preset of one Folder, read under the common lock: what the
+ * Launchpad serving that Folder decides the kind of Environment by. */
+export async function folderPreset(folder: string): Promise<PresetName> {
+  return (await folderEnvironment(folder)).preset;
 }
 
 /** A hosted context that is there but cannot be read: the handover or the
@@ -46,6 +64,13 @@ export class HostedEnvironmentUnreadable extends Error {
 export async function hostedEnvironmentPreset(
   hostedFolder: (() => Promise<string | undefined>) | undefined,
 ): Promise<PresetName | undefined> {
+  return (await hostedFolderEnvironment(hostedFolder))?.preset;
+}
+
+/** `hostedEnvironmentPreset` with the audience of the recorded entry. */
+async function hostedFolderEnvironment(
+  hostedFolder: (() => Promise<string | undefined>) | undefined,
+): Promise<Awaited<ReturnType<typeof folderEnvironment>> | undefined> {
   let folder: string | undefined;
   try {
     folder = await hostedFolder?.();
@@ -54,16 +79,17 @@ export async function hostedEnvironmentPreset(
   }
   if (folder === undefined) return undefined;
   try {
-    return await folderPreset(folder);
+    return await folderEnvironment(folder);
   } catch {
     throw new HostedEnvironmentUnreadable("folder");
   }
 }
 
-/** The kind of Environment as one command sees it, read again on request. */
+/** The kind of Environment as one command sees it, read again on request;
+ * `audience` only on a public Environment, which says so in its wording. */
 export type HostedEnvironment =
   | Readonly<{ kind: "none" }>
-  | Readonly<{ kind: "hosted"; preset: PresetName }>
+  | Readonly<{ kind: "hosted"; preset: PresetName; audience?: EntryAudience }>
   | Readonly<{
       kind: "unreadable";
       source: HostedEnvironmentUnreadable["source"];
@@ -79,10 +105,10 @@ export function hostedEnvironmentReader(
   let hosted = false;
   return async () => {
     try {
-      const preset = await hostedEnvironmentPreset(hostedFolder);
-      if (preset !== undefined) {
+      const found = await hostedFolderEnvironment(hostedFolder);
+      if (found !== undefined) {
         hosted = true;
-        return Object.freeze({ kind: "hosted" as const, preset });
+        return Object.freeze({ kind: "hosted" as const, ...found });
       }
       return hosted
         ? Object.freeze({
@@ -147,12 +173,16 @@ export function githubLoginRefused(
   );
 }
 
-/** What a person reads about a refusal. */
+/** What a person reads about a refusal; on a public Environment it says
+ * that there is no GitHub identity rather than Lazurio for GitHub. */
 export function githubRefusalText(
   refusal: GithubRefusal,
   locale: "cs" | "en",
+  audience?: EntryAudience,
 ): string {
+  const isPublic = audience === "public";
+  const rule = githubRuleText(isPublic)[locale];
   return refusal.action === "logout"
-    ? `${teamGithubText[locale]} ${teamGithubLogoutText[locale]}`
-    : teamGithubText[locale];
+    ? `${rule} ${(isPublic ? publicGithubLogoutText : teamGithubLogoutText)[locale]}`
+    : rule;
 }

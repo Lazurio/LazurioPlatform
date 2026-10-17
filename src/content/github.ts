@@ -8,7 +8,8 @@ import type { MembershipAnswer, RepositoryPermission } from "./role";
 // with the operator's home, exactly as the Launchpad's other GitHub reads run
 // it (`askGitHub`). An injectable interface, so the core is tested without a
 // network. No token is read, printed or passed anywhere: gh holds it, and git
-// gets gh as its credential helper only for an HTTPS remote.
+// gets gh as its credential helper only for an HTTPS remote. A public
+// Environment has none of it (`anonymousGitHub`).
 
 export type GitHubViewer = Readonly<{
   login: string;
@@ -129,6 +130,26 @@ export type ContentGitHub = Readonly<{
     }>
   >;
 }>;
+
+/** GitHub on a public Environment (root decision 0204 point 5, decision F55's
+ * addendum of 2026-10-17), which has no identity at all: no gh account, no
+ * App, no token. Reader-only by its shape: its one capability is where a
+ * public repository is read, `https://github.com/<owner>/<repository>.git`
+ * with the empty credential helper, which makes the git adapter clone it
+ * isolated from every configuration, credential and helper
+ * (`anonymousGitEnvironment`), so a clone carries nothing of anyone and
+ * GitHub answers it as it answers anyone. It reads nothing of GitHub's API
+ * and has nothing that creates, grants or pushes. */
+export const anonymousGitHub = Object.freeze({
+  remote(fullName: string): Readonly<{ url: string; credentialHelper: "" }> {
+    if (!repositoryPattern.test(fullName))
+      throw new Error("Invalid repository coordinate");
+    return Object.freeze({
+      url: `https://github.com/${fullName}.git`,
+      credentialHelper: "",
+    });
+  },
+});
 
 const timeoutMs = 20_000;
 

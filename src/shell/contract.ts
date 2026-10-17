@@ -164,6 +164,12 @@ export type Shell = Readonly<{
   /** Where an Organization is added (the "+" under the Organizations); null
    * hides it. */
   addOrganization: string | null;
+  /** `public` where the current Environment is public and shared by its
+   * visitors (root decision 0204, decision F55, additive in v1): the column
+   * head says so in Apps, Chat and Automate. Absent otherwise, and always
+   * absent on a page that belongs to no Environment. It grants nothing: the
+   * Environment's gateway decides who enters. */
+  audience?: "public";
   /** Where the person signs out in this browser (F36's addendum of
    * 2026-10-16, additive in v1): an https URL, or a path on the page's own
    * origin as the Dashboard's addresses. On an Environment's page it is the
@@ -460,7 +466,8 @@ export function parseShellSetup(
  * `offlineGuide` (decision F41): absent, false or true beside a current
  * Environment, kept only when true. The optional `signOut` (F36's addendum
  * of 2026-10-16) is absent, null or an address as the Dashboard's; kept only
- * when it is one. */
+ * when it is one. The optional `audience` (decision F55) is absent, null or
+ * `public` beside a current Environment, kept only when `public`. */
 export function parseShell(input: unknown): Shell | null {
   if (!isRecord(input) || input.schema !== shellSchema) return null;
   if (!isPageUrl(input.dashboard) || !isPageUrl(input.account)) return null;
@@ -488,6 +495,13 @@ export function parseShell(input: unknown): Shell | null {
     (current === null && offlineGuide !== undefined)
   )
     return null;
+  // A public Environment's audience describes the current Environment too.
+  const audience = input.audience;
+  if (
+    !(audience === undefined || audience === null || audience === "public") ||
+    (current === null && audience !== undefined)
+  )
+    return null;
   return Object.freeze({
     schema: shellSchema,
     locale: shared.locale,
@@ -501,6 +515,7 @@ export function parseShell(input: unknown): Shell | null {
     account: input.account,
     addOrganization: input.addOrganization as string | null,
     ...(typeof signOut === "string" ? { signOut } : {}),
+    ...(audience === "public" ? { audience } : {}),
   });
 }
 

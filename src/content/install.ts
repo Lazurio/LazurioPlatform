@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { catalogChecks } from "../doctor/doctor";
 import { inspectCanonicalInventory } from "../organizations/canonical-inventory";
 import { locatePersonalspace } from "../organizations/personalspace";
@@ -7,7 +7,12 @@ import { rootApplicationPaths } from "../organizations/repository-slots";
 import { resolveOrganizationRootDocuments } from "../organizations/root-resolution";
 import { githubRemoteCoordinate } from "../providers/git-checkout";
 import { githubCommitIdentity } from "./commit-identity";
-import type { ContentGitHub, GitHubViewer, ViewerAnswer } from "./github";
+import {
+  anonymousGitHub,
+  type ContentGitHub,
+  type GitHubViewer,
+  type ViewerAnswer,
+} from "./github";
 import { type ContentHost, catalogOf, readFolderKind } from "./host";
 import { tryContentLock } from "./lock";
 import {
@@ -28,7 +33,11 @@ import {
   sameRepository,
   scopeAdmits,
 } from "./model";
-import { resolveOrganizationRootRepository } from "./organization-root";
+import {
+  type RootResolution,
+  resolveAnonymousRoot,
+  resolveOrganizationRootRepository,
+} from "./organization-root";
 import {
   gbrainCommitMessage,
   isTemplateCheckout,
@@ -41,6 +50,7 @@ import {
   classifySlotAccess,
   type OrganizationRole,
   type RepositoryPermission,
+  type RoleVerification,
   verifyOrganizationRole,
 } from "./role";
 import {
@@ -57,7 +67,12 @@ import {
 // no start, health check, status read or product update triggers it, and it
 // never changes the installed product. Existing repositories are never
 // fetched, switched or reset here; that is synchronization, a separate
-// operation (docs/content-sync.md).
+// operation (docs/content-sync.md). On a public Environment (the scope's
+// `github` anonymous, decision F55's addendum of 2026-10-17) the same steps
+// run without any GitHub identity: no gh account, no read of GitHub's API,
+// the reader's scope, and every clone over anonymous HTTPS with no
+// credential helper, in an isolated git (`anonymousGitEnvironment`); nothing
+// is created, granted or pushed there.
 
 export type InstallRequest = Readonly<{
   /** Absent: everything this Environment holds. */
@@ -225,6 +240,7 @@ export async function runContentInstall(
       viewer ??= host.github.viewer();
       return viewer;
     },
+    anonymous: plan.scope.github === "anonymous",
   };
   const outcomes: ItemOutcome[] = [];
   let failure: ContentFailure | undefined;
@@ -268,7 +284,17 @@ type RunContext = Readonly<{
   roots: Readonly<Record<string, string>>;
   roles: Readonly<Record<string, OrganizationRole>>;
   viewer: () => Promise<ViewerAnswer>;
+  /** A public Environment's run (`scope.github` anonymous): `host.github` is
+   * never asked; every clone goes through `anonymousGitHub`. */
+  anonymous: boolean;
 }>;
+
+/** The Git remote of a repository for this run: this Environment's sign-in,
+ * or on a public Environment anonymous HTTPS without any credential helper. */
+const remoteOf = async (context: RunContext, fullName: string) =>
+  context.anonymous
+    ? anonymousGitHub.remote(fullName)
+    : await context.host.github.remote(fullName);
 
 type Stepper = ReturnType<typeof stepper>;
 
@@ -333,50 +359,78 @@ const relative = (folder: string, path: string) =>
 
 // ---- Organization ----------------------------------------------------------
 
+/** An Organization root's own declaration in the clone: canonical documents
+ * that resolve, an Organization (not a template) bound to `login`, and a
+ * declared `root_repository` naming exactly the cloned repository; the
+ * `root` it declares, as it spells it, or why not. */
+async function readRootDeclaration(
+  login: string,
+  repository: string,
+  checkout: string,
+): Promise<Readonly<{ refused: string }> | Readonly<{ root: string }>> {
+  const refused = (code: string) => ({ refused: code });
+  const documents = await readOrganizationDocuments(checkout);
+  if (documents.kind !== "documents-observed")
+    return refused("root-declaration-invalid");
+  const resolution = resolveOrganizationRootDocuments(documents);
+  if (
+    ["missing", "legacy", "conflict"].includes(resolution.state) ||
+    documents.canonical.kind !== "present" ||
+    documents.modules.kind !== "present"
+  )
+    return refused("root-declaration-invalid");
+  let inventory: ReturnType<typeof inspectCanonicalInventory>;
+  try {
+    inventory = inspectCanonicalInventory(
+      documents.canonical.value,
+      documents.modules.value,
+    );
+  } catch {
+    return refused("root-declaration-invalid");
+  }
+  const canonical = inventory.canonical as Readonly<Record<string, unknown>>;
+  if (canonical.kind !== "organization")
+    return refused("organization-template");
+  const organization = canonical.organization as Readonly<
+    Record<string, Readonly<Record<string, unknown>>>
+  >;
+  const owner = organization.forge_binding?.locator;
+  const root = (
+    canonical.root_repository as Readonly<Record<string, unknown>> | null
+  )?.locator;
+  // The same criterion as discovery (`declaresRoot`): a commit that does
+  // not name this repository its root is never published (review of #183).
+  if (
+    typeof owner !== "string" ||
+    owner.toLowerCase() !== login.toLowerCase() ||
+    typeof root !== "string" ||
+    !sameRepository(root, repository)
+  )
+    return refused("root-declaration-mismatch");
+  return { root };
+}
+
 /** Verifies an Organization root's own declaration in the clone before it
- * is published: canonical documents that resolve, an Organization (not a
- * template) bound to `login`, and a declared `root_repository`, when there
- * is one, naming exactly the cloned repository. */
+ * is published (`readRootDeclaration`): a failure code, or null. */
 function rootDeclaration(login: string, repository: string) {
   return async (checkout: string): Promise<string | null> => {
-    const documents = await readOrganizationDocuments(checkout);
-    if (documents.kind !== "documents-observed")
-      return "root-declaration-invalid";
-    const resolution = resolveOrganizationRootDocuments(documents);
-    if (
-      ["missing", "legacy", "conflict"].includes(resolution.state) ||
-      documents.canonical.kind !== "present" ||
-      documents.modules.kind !== "present"
-    )
-      return "root-declaration-invalid";
-    let inventory: ReturnType<typeof inspectCanonicalInventory>;
-    try {
-      inventory = inspectCanonicalInventory(
-        documents.canonical.value,
-        documents.modules.value,
-      );
-    } catch {
-      return "root-declaration-invalid";
-    }
-    const canonical = inventory.canonical as Readonly<Record<string, unknown>>;
-    if (canonical.kind !== "organization") return "organization-template";
-    const organization = canonical.organization as Readonly<
-      Record<string, Readonly<Record<string, unknown>>>
-    >;
-    const owner = organization.forge_binding?.locator;
-    const root = (
-      canonical.root_repository as Readonly<Record<string, unknown>> | null
-    )?.locator;
-    // The same criterion as discovery (`declaresRoot`): a commit that does
-    // not name this repository its root is never published (review of #183).
-    if (
-      typeof owner !== "string" ||
-      owner.toLowerCase() !== login.toLowerCase() ||
-      typeof root !== "string" ||
-      !sameRepository(root, repository)
-    )
-      return "root-declaration-mismatch";
-    return null;
+    const declared = await readRootDeclaration(login, repository, checkout);
+    return "refused" in declared ? declared.refused : null;
+  };
+}
+
+/** The name a public Environment publishes its root under: the repository
+ * name its verified declaration spells (decision F55's addendum of
+ * 2026-10-17), as GitHub spells it for every member's install, not the
+ * handover's lowercase slug the request was named by. Asked only after
+ * `rootDeclaration` verified the same clone; it differs from the requested
+ * name by letter case only (`sameRepository`). */
+function declaredRootName(login: string, repository: string) {
+  return async (checkout: string): Promise<string> => {
+    const declared = await readRootDeclaration(login, repository, checkout);
+    if ("refused" in declared)
+      throw new Error("The root's declaration changed after its verification");
+    return declared.root.split("/")[1] as string;
   };
 }
 
@@ -515,25 +569,32 @@ async function materializeChild(
     return sameRepository(observed.repository, child.repository)
       ? { ...where, result: "present" }
       : { ...where, result: "blocked", reason: "destination-occupied" };
-  const [owner, repositoryName] = child.repository.split("/") as [
-    string,
-    string,
-  ];
-  const access = await context.host.github.repository(owner, repositoryName);
-  if (
-    access.kind === "missing" ||
-    (access.kind === "observed" && !access.repository.readable)
-  )
-    return { ...where, result: "denied", reason: "repository-denied" };
-  if (access.kind !== "observed")
-    return { ...where, result: "unavailable", reason: "github-unavailable" };
+  // GitHub's spelling of it, as this identity reads it. A public Environment
+  // asks GitHub nothing first: anonymous Git reads a public repository, and
+  // the clone of one it cannot read fails and is reported (`clone-failed`).
+  let fullName = child.repository;
+  if (!context.anonymous) {
+    const [owner, repositoryName] = child.repository.split("/") as [
+      string,
+      string,
+    ];
+    const access = await context.host.github.repository(owner, repositoryName);
+    if (
+      access.kind === "missing" ||
+      (access.kind === "observed" && !access.repository.readable)
+    )
+      return { ...where, result: "denied", reason: "repository-denied" };
+    if (access.kind !== "observed")
+      return { ...where, result: "unavailable", reason: "github-unavailable" };
+    fullName = access.repository.fullName;
+  }
   let parent: string;
   try {
     parent = await ensureCheckoutDirectories(root, parentSegments);
   } catch {
     return { ...where, result: "blocked", reason: "destination-invalid" };
   }
-  const remote = await context.host.github.remote(access.repository.fullName);
+  const remote = await remoteOf(context, fullName);
   const result = await materializeRepository({
     parent,
     name,
@@ -579,15 +640,87 @@ function childrenSummary(outcomes: readonly RepositoryOutcome[]): string {
     .join("; ");
 }
 
-async function installOrganization(
-  item: Extract<ContentItemRef, { kind: "organization" }>,
+/** What the access step established: where the root is, and the role that
+ * scopes the install. */
+type Access = Readonly<{
+  resolution: Extract<RootResolution, { kind: "present" | "resolved" }>;
+  /** The root repository, or null for a root present without an origin. */
+  rootRepository: string | null;
+  role: Extract<RoleVerification, { kind: "verified" }>;
+}>;
+
+/** The failure of a root resolution that names no root to install. */
+function unusableRoot(
+  login: string,
+  resolution: Extract<
+    RootResolution,
+    { kind: "ambiguous-in-folder" | "failed" }
+  >,
+  steps: Stepper,
+): ItemOutcome {
+  return resolution.kind === "ambiguous-in-folder"
+    ? steps.fail(
+        "access",
+        "organization-ambiguous",
+        `more than one directory in organizations/ binds ${login}: ${resolution.directories.join(", ")}`,
+      )
+    : steps.fail("access", resolution.code, resolution.detail);
+}
+
+/** How the root was found, for the access step's line. */
+const foundBy = (resolution: Access["resolution"]) =>
+  resolution.kind === "resolved"
+    ? ` (${resolution.source === "explicit" ? "named" : resolution.source === "name-candidate" ? "by name" : resolution.source === "scan" ? "by scan" : "from the Dashboard"})`
+    : "";
+
+/** The access of a public Environment (root decision 0204 point 5, decision
+ * F55's addendum of 2026-10-17): no GitHub identity, so no account, no read
+ * of GitHub's API and no role GitHub confirms. The Organization is read
+ * anonymously as a reader: restricted slots are excluded as for every
+ * Reader. Only the reader's role is asked for; any other one cannot be
+ * confirmed here and fails closed. */
+async function anonymousAccess(
+  login: string,
   context: RunContext,
   steps: Stepper,
-): Promise<ItemOutcome> {
+): Promise<Access | ItemOutcome> {
   const { folder, host } = context;
-  const login = item.login;
-  // access
-  steps.running("access");
+  const requested = context.roles[login.toLowerCase()] ?? null;
+  if (requested !== null && requested !== "reader")
+    return steps.fail(
+      "access",
+      "role-unverified",
+      `the role ${requested} in ${login} could not be verified: this public Environment has no GitHub identity and installs only as a reader${requested === "admin" ? "; name it with --role reader" : ""}`,
+    );
+  const resolution = await resolveAnonymousRoot({
+    folder,
+    login,
+    catalog: await catalogOf(host, folder),
+    git: host.git,
+    root: context.roots[login.toLowerCase()],
+  });
+  if (resolution.kind === "ambiguous-in-folder" || resolution.kind === "failed")
+    return unusableRoot(login, resolution, steps);
+  const rootRepository = resolution.repository;
+  steps.done(
+    "access",
+    `anonymously (reader, restricted slots excluded); root ${rootRepository ?? "present in this Folder"}${foundBy(resolution)}`,
+  );
+  return {
+    resolution,
+    rootRepository,
+    role: { kind: "verified", role: "reader", restricted: "exclude" },
+  };
+}
+
+/** The access through this Environment's gh account: the account, the root
+ * GitHub answers for, and the person's live role GitHub confirms. */
+async function accountAccess(
+  login: string,
+  context: RunContext,
+  steps: Stepper,
+): Promise<Access | ItemOutcome> {
+  const { folder, host } = context;
   const viewer = await signedIn(context, steps, "access");
   if (isOutcome(viewer)) return viewer;
   const resolution = await resolveOrganizationRootRepository({
@@ -598,14 +731,8 @@ async function installOrganization(
     github: host.github,
     root: context.roots[login.toLowerCase()],
   });
-  if (resolution.kind === "ambiguous-in-folder")
-    return steps.fail(
-      "access",
-      "organization-ambiguous",
-      `more than one directory in organizations/ binds ${login}: ${resolution.directories.join(", ")}`,
-    );
-  if (resolution.kind === "failed")
-    return steps.fail("access", resolution.code, resolution.detail);
+  if (resolution.kind === "ambiguous-in-folder" || resolution.kind === "failed")
+    return unusableRoot(login, resolution, steps);
   let rootRepository = resolution.repository;
   let rootPermission: RepositoryPermission | null = null;
   if (rootRepository !== null) {
@@ -654,14 +781,27 @@ async function installOrganization(
       "role-unverified",
       `${requested === null ? "no Organization role" : `the role ${requested}`} of ${viewer.login} in ${login} could not be verified: ${role.detail}${requested === "admin" ? "; without --role this is the Admin installation: name the role GitHub confirms with --role steward, --role builder or --role reader" : ""}`,
     );
-  const found =
-    resolution.kind === "resolved"
-      ? ` (${resolution.source === "explicit" ? "named" : resolution.source === "name-candidate" ? "by name" : resolution.source === "scan" ? "by scan" : "from the Dashboard"})`
-      : "";
   steps.done(
     "access",
-    `as ${viewer.login} (${role.role}${role.restricted === "exclude" ? ", restricted slots excluded" : ""}); root ${rootRepository ?? "present in this Folder"}${found}`,
+    `as ${viewer.login} (${role.role}${role.restricted === "exclude" ? ", restricted slots excluded" : ""}); root ${rootRepository ?? "present in this Folder"}${foundBy(resolution)}`,
   );
+  return { resolution, rootRepository, role };
+}
+
+async function installOrganization(
+  item: Extract<ContentItemRef, { kind: "organization" }>,
+  context: RunContext,
+  steps: Stepper,
+): Promise<ItemOutcome> {
+  const { folder, host } = context;
+  const login = item.login;
+  // access
+  steps.running("access");
+  const access = context.anonymous
+    ? await anonymousAccess(login, context, steps)
+    : await accountAccess(login, context, steps);
+  if (isOutcome(access)) return access;
+  const { resolution, rootRepository, role } = access;
   // root
   steps.running("root");
   let directory: string;
@@ -687,7 +827,7 @@ async function installOrganization(
         "organizations/ is not a directory of this Folder",
       );
     }
-    const remote = await host.github.remote(repository);
+    const remote = await remoteOf(context, repository);
     const result = await materializeRepository({
       parent,
       name,
@@ -696,6 +836,9 @@ async function installOrganization(
       credentialHelper: remote.credentialHelper,
       git: host.git,
       verify: rootDeclaration(login, repository),
+      ...(context.anonymous
+        ? { finalName: declaredRootName(login, repository) }
+        : {}),
     });
     if (result.kind === "occupied")
       return steps.fail(
@@ -712,7 +855,7 @@ async function installOrganization(
     directory = result.directory;
     steps.done(
       "root",
-      `materialized organizations/${name} at ${result.commit.slice(0, 12)}`,
+      `materialized organizations/${basename(directory)} at ${result.commit.slice(0, 12)}`,
     );
   }
   const base = {

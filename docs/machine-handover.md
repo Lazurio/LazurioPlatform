@@ -11,11 +11,15 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
-from the merge of Machines pull request **#543** into `main` (commit
-`de024c2735bb07b51ffb9bcb9e845e564bc1d2e9`, SHA-256
-`16ddb29441af003a31615674bfff539b193cb891c4b21f49235da1afc1acd7ec`), which adds only
-the optional `entry.sign_out` ([below](#the-hosted-entry-decision-f16), Machines#358)
-and changes nothing else. Before it, the pin was Machines **v0.12.159** (tag
+from the merge of Machines pull request **#560** into `main` (commit
+`a1cee4eea554348c5a51e4a71c4fa9325dfa8bfc`, SHA-256
+`f6bb3b3d53273184714ca1fd9d5b6412c9f5e1e07002a0cd5d47b1cd1ccf60c4`), which adds only
+the optional `entry.audience` ([below](#the-hosted-entry-decision-f16), root decision
+0204, decision F55) and changes nothing else. Before it, the merge of Machines pull
+request **#543** into `main` (commit `de024c2735bb07b51ffb9bcb9e845e564bc1d2e9`,
+SHA-256 `16ddb29441af003a31615674bfff539b193cb891c4b21f49235da1afc1acd7ec`), which
+added only the optional `entry.sign_out` (Machines#358); before that, the pin was
+Machines **v0.12.159** (tag
 commit `8b66889bf4e00b111027f9b280423f4b9cdfcf4e`, the merge of pull request **#500**;
 SHA-256 `76a058045be25b718caed8a04e533d67fa8666945bfa4fa0153d618bc4d78957`), which
 added only the optional top-level member `vault`
@@ -362,7 +366,8 @@ reads it: a Platform vendoring the earlier schema refuses the whole handover.
   "browser":   { "external_origin": "https://browser.<vm>.<org>.lazurio.io",
                  "listen_port": 4848 },
   "environment_relay": { "socket": "/run/lazurio-environment/relay.sock" },
-  "sign_out":  { "path": "/.lazurio/sign-out" }
+  "sign_out":  { "path": "/.lazurio/sign-out" },
+  "audience":  "public"
 }
 ```
 
@@ -400,6 +405,17 @@ too. Machines writes it only for a pinned Platform at least its
 `PLATFORM_ENTRY_SIGN_OUT_MINIMUM`, the first release that reads it. Absent, the
 shell offers no sign-out.
 
+`audience` is optional and present only on a work VM whose gateway admits any Lazurio
+account (root decision 0204, Machines' `public-account` admission, which only the
+platform's allowlist of public Organizations gets): exactly `"public"`. Its Environment
+is public and shared by its visitors, so the Launchpad runs a demo onboarding instead of
+Začínáme's sign-ins, the shell document says `audience: "public"` and its column head a
+quiet notice, and Integrace, Nastavení → Trezor and Nastavení → Nástroje answer as absent
+([F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-nothing-to-sign-in-to)).
+It grants nothing; the gateway's admission decides who enters. Machines writes it only
+for a pinned Platform at least its `PLATFORM_ENTRY_AUDIENCE_MINIMUM`, the first release
+that reads it. Absent, the Environment is not public.
+
 On a personal VM the Machine hostname has no Organization label
 (`https://launchpad.<login>.lazurio.io`, `https://{module}.<login>.lazurio.io`).
 
@@ -419,10 +435,13 @@ The binding records it one member to one, as `entry` next to the relationships:
 | `browser.listen_port` | `browserListenPort` (optional) | as `listenPort` |
 | `environment_relay.socket` | `environmentRelaySocket` (optional) | `/run/<directory>/<name>.sock`, lowercase letters, digits and `-`, at most 100 characters |
 | `sign_out.path` | `signOutPath` (optional) | exactly `/.lazurio/sign-out` |
+| `audience` | `audience` (optional) | exactly `public` |
 
 The relay's socket and the sign-out's path are recorded only when the handover
 carries them; neither is rendered into the Folder or part of the Launchpad's public
-entry. The two MausBot fields, like the two browser fields, are recorded both or neither, and absent (never `null`) when the
+entry. The audience is recorded only when the handover carries it, is not rendered into
+the Folder either, and is part of the Launchpad's public entry, from which the page
+learns that the Environment is public. The two MausBot fields, like the two browser fields, are recorded both or neither, and absent (never `null`) when the
 handover has no `mausbot`, so an entry recorded from an older handover is unchanged
 byte for byte. A present but invalid `mausbot` refuses the whole handover
 (`machine-context-invalid`), as every other entry value does.

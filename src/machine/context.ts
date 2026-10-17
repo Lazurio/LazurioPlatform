@@ -59,6 +59,8 @@ export type OrganizationAssignment =
 // asks the Dashboard as this Environment. `sign_out` (Machines#358, F36's
 // addendum of 2026-10-16) only behind the Platform Launchpad: the path of the
 // person's sign-out, which the gateway serves on the shell's origins.
+// `audience` (root decision 0204, Machines #560, decision F55) only on a work
+// VM whose gateway admits any Lazurio account: its Environment is public.
 export type MachineEntry = Readonly<{
   launchpad: Readonly<{
     external_origin: string;
@@ -72,6 +74,7 @@ export type MachineEntry = Readonly<{
   browser?: Readonly<{ external_origin: string; listen_port: number }>;
   environment_relay?: Readonly<{ socket: string }>;
   sign_out?: Readonly<{ path: string }>;
+  audience?: "public";
 }>;
 // This Environment's own vault (root decision 0198 point 1, DEV-6631 contract
 // C2): the network's Lazurio Vaultwarden, the technical account the network

@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { withFolderReadLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { githubIdentity } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import {
   hostedEnvironment,
@@ -106,6 +107,9 @@ export type ToolsOverview = Readonly<{
   revision: number;
   locale: "cs" | "en";
   sharedEnvironment: boolean;
+  /** Only on a public Environment, which has no GitHub identity (decision
+   * F55's addendum of 2026-10-17); absent everywhere else. */
+  audience?: "public";
   /** A hosted Machine (every preset but `local`): only there is a tool
    * outside `~/.local/bin` something to look at (decision 0161). */
   hosted: boolean;
@@ -139,6 +143,8 @@ export async function toolsOverview(
       revision: preferences.revision,
       locale: preferences.profile.locale,
       sharedEnvironment: sharedEnvironment(preferences.preset.name),
+      isPublic:
+        githubIdentity(preferences.preset.name, preferences.machine) === "none",
       hosted: hostedEnvironment(preferences.preset.name),
       offeredIn: toolEnvironmentOf(
         preferences.preset.name,
@@ -175,6 +181,7 @@ export async function toolsOverview(
     revision: recorded.revision,
     locale,
     sharedEnvironment: recorded.sharedEnvironment,
+    ...(recorded.isPublic ? { audience: "public" as const } : {}),
     hosted: recorded.hosted,
     tools: catalog.map((entry, index) => {
       const live = status.tools[index];
@@ -215,10 +222,12 @@ export async function toolsOverview(
         ...(pinned === undefined ? {} : { pinned }),
         ...(signIn === undefined ? {} : { signIn }),
         ...(note === undefined ? {} : { note }),
-        // On a Team Environment gh's prompt signs nobody in.
+        // On a Team Environment gh's prompt signs nobody in, and on a public
+        // one it says there is no GitHub identity.
         prompt:
           toolPrompt(entry.name, locale, {
             team: recorded.sharedEnvironment,
+            ...(recorded.isPublic ? { audience: "public" as const } : {}),
           }) ?? "",
       };
     }),
