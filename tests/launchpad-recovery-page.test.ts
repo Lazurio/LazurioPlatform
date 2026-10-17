@@ -333,6 +333,19 @@ test.skipIf(process.platform === "win32")(
         503,
         "recovery-mode",
       ]);
+      // Nor does T3 Code's own fetch for its pairing get one: Recovery mode
+      // changes nothing, and answers it with its plain page.
+      const selfPairing = await fetch(`${base}/.lazurio/chat/pairing`, {
+        headers: {
+          ...valid,
+          "sec-fetch-site": "same-origin",
+          "sec-fetch-mode": "cors",
+        },
+      });
+      expect([selfPairing.status, await selfPairing.text()]).toEqual([
+        503,
+        "Lazurio Launchpad: Recovery mode\ncheck: start-refused\nreason: folder-transaction-pending\n",
+      ]);
     } finally {
       await app.close();
     }

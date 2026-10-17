@@ -1350,6 +1350,10 @@ controls.apply.addEventListener("click", async () => {
 // (`R:launchpad/public/app.js:2257-2281`); when there is none (no T3
 // launcher, a failed call) it follows the plain origin, where the app itself
 // asks an unpaired browser to pair. Apps on this origin moves within the page.
+// Since the decision of 2026-10-17 T3 Code pairs an unpaired browser itself
+// (`GET /.lazurio/chat/pairing`); Chat's click still pairs on the way, which
+// is harmless and what older T3 Code builds need. It can go once every
+// Environment's T3 Code pairs itself.
 const pairing: Readonly<
   Record<
     string,

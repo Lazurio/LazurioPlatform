@@ -41,17 +41,22 @@ afterEach(async () => {
   root = undefined;
 });
 
-// A fake `t3 auth pairing create --json`, or a failing call whose stderr
-// holds the credential.
+// A fake T3 launcher: `t3 lazurio capabilities` without the operator
+// pairing, and `t3 auth pairing create --json`, or a failing call whose
+// stderr holds the credential.
 async function fakeLauncher(bin: string, mode: "ok" | "fail") {
   const script = join(bin, "t3");
   await writeFile(
     script,
     `#!/bin/sh
+if [ "$1 $2" = "lazurio capabilities" ]; then
+  echo '{"version":1,"managedFolder":true,"modelRecommendation":true,"providerRefresh":true}'
+  exit 0
+fi
 printf '%s\\n' "$@" > "${join(bin, "t3.calls")}"
 ${
   mode === "ok"
-    ? `echo '{"credential":"${credential}","label":"launchpad-chat"}'`
+    ? `echo '{"id":"pairing-1","credential":"${credential}","label":"Lazurio","expiresAt":"2026-10-17T12:01:00.000Z"}'`
     : `echo 'could not pair ${credential}' >&2; exit 3`
 }
 `,
@@ -140,8 +145,10 @@ test.skipIf(process.platform === "win32")(
       pairing: true,
     });
     expect(json.stderr).toBeUndefined();
-    // The same call as POST /api/chat/pair: the launcher on PATH with the
-    // resident's exact arguments.
+    // The same calls as POST /api/chat/pair: the launcher on PATH asked for
+    // its capabilities, then, without the operator pairing, the resident's
+    // call, labelled for nobody (a terminal names no person).
+    const capabilities = [join(bin, "t3"), "lazurio", "capabilities"];
     const call = [
       join(bin, "t3"),
       "auth",
@@ -152,10 +159,10 @@ test.skipIf(process.platform === "win32")(
       "--ttl",
       chatPairing.ttl,
       "--label",
-      chatPairing.label,
+      "Lazurio",
       "--json",
     ];
-    expect(runs).toEqual([call, call]);
+    expect(runs).toEqual([capabilities, call, capabilities, call]);
     expect(await tree(home)).toEqual(before);
   },
 );
@@ -211,7 +218,8 @@ test.skipIf(process.platform === "win32")(
     // The call's output held the credential: it is in neither stream.
     for (const output of [failed, failedHuman])
       expect(JSON.stringify(output)).not.toContain(credential);
-    expect(runs.length).toBe(2);
+    // Each asked for the capabilities, then failed to pair.
+    expect(runs.length).toBe(4);
 
     // --plain asks for the plain link: nothing is run.
     await fakeLauncher(bin, "ok");
@@ -233,7 +241,7 @@ test.skipIf(process.platform === "win32")(
       },
     ]);
     expect([plainHuman.code, plainHuman.stdout]).toEqual([0, t3codeOrigin]);
-    expect(runs.length).toBe(2);
+    expect(runs.length).toBe(4);
   },
 );
 

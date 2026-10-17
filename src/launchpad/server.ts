@@ -105,7 +105,14 @@ import type { VaultHost } from "../vault/flow";
 import { enableVaultForAgents, processVaultHost } from "../vault/host";
 import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, withBoot } from "./boot-document";
-import { createChatPromptCheck, issueChatLink, publicEntry } from "./chat";
+import {
+  chatPairingPath,
+  createChatPromptCheck,
+  isChatPairingFetch,
+  issueChatLink,
+  mintChatPairing,
+  publicEntry,
+} from "./chat";
 import { createContentRoutes } from "./content-routes";
 import { prepareContext } from "./content-view";
 import { createExecutorRoutes, isExecutorJob } from "./executor-routes";
@@ -368,6 +375,7 @@ const isLazurioDocument = (path: string) =>
   path === offlineWorkerPath ||
   path === browserViewDocumentPath ||
   path === browserViewPath ||
+  path === chatPairingPath ||
   promptRoute.test(path);
 
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
@@ -1253,6 +1261,34 @@ export async function startLaunchpad(
           return notFound();
         }
       }
+      if (url.pathname === chatPairingPath) {
+        // The Environment pairs its own browser (decision of 2026-10-17):
+        // T3 Code's web client, without a session, asks here on its own
+        // origin, which the gateway forwards behind the same admission. Only
+        // a page's own fetch (chat.ts), only where Chat is T3 Code behind
+        // this Launchpad, minted for the admitted person exactly as
+        // `POST /api/chat/pair` mints. A HEAD mints nothing.
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        if (entry === null) return response({ error: "not-found" }, 404);
+        if ([...url.searchParams.keys()].length > 0)
+          return response({ error: "invalid-request" }, 400);
+        if (!isChatPairingFetch(request.headers))
+          return response({ error: "not-allowed" }, 403);
+        // `t3 lazurio capabilities`, then the pairing call: 15 s each.
+        server.timeout(request, 45);
+        try {
+          const pairing = await mintChatPairing(
+            entry,
+            toolsEnvironment,
+            person,
+          );
+          return response(pairing, pairing.kind === "blocked" ? 409 : 200);
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
       if (
         url.pathname === browserViewDocumentPath ||
         url.pathname === browserViewPath
@@ -1639,12 +1675,14 @@ export async function startLaunchpad(
         }
         if (url.pathname === "/api/chat/pair") {
           // Chat (launchpad-parity B8): a one-time T3 Code pairing link for
-          // this admitted browser, minted by T3's own CLI. Only behind a
-          // gateway: a workstation's T3 Code is wherever the operator runs it.
+          // this admitted browser, minted by T3's own CLI for its person.
+          // Only behind a gateway: a workstation's T3 Code is wherever the
+          // operator runs it. Kept although T3 Code now pairs itself
+          // (`GET /.lazurio/chat/pairing`): older T3 Code builds need it.
           stateFields(input, []);
           if (entry === null) return response({ error: "not-found" }, 404);
-          server.timeout(request, 30);
-          const result = await issueChatLink(entry, toolsEnvironment);
+          server.timeout(request, 45);
+          const result = await issueChatLink(entry, toolsEnvironment, person);
           return response(result, result.kind === "blocked" ? 409 : 200);
         }
         if (url.pathname === "/api/mausbot/pair") {
