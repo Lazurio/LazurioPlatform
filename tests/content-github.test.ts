@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { chmod, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { gitEnvironmentOf } from "../src/content/git";
 import {
   brokeredRefusalDenies,
@@ -395,6 +395,41 @@ posixTest(
       ["gh: Bad credentials (HTTP 401)\n", false],
     ] as const)
       expect(brokeredRefusalDenies(stderr)).toBe(denies);
+  },
+);
+
+posixTest(
+  "a repository that answered is never denied because the identity probe did not answer (Pablo's review of #491)",
+  async () => {
+    const { gh } = await fakeGh(`
+case "$*" in
+  "api repos/Example/data") echo '{"full_name":"Example/data","private":true,"archived":false,"owner":{"login":"Example","id":7,"type":"Organization"},"permissions":{"admin":false,"maintain":false,"push":false,"triage":false,"pull":false}}' ;;
+  *) exit 1 ;;
+esac`);
+    // The read succeeds with an App token's all-false permissions, then the
+    // sign-in probe times out: GitHub not answering now, not "no access".
+    let probe: "timeout" | "answer" = "timeout";
+    const github = ghContentGitHub(
+      {
+        path: dirname(gh),
+        home: join(parent, "home"),
+        platform: process.platform,
+        run: async (command, ms, env, options) =>
+          command[1] === "auth" && probe === "timeout"
+            ? "timeout"
+            : runTool(command, ms, env, options),
+      },
+      { sleep: async () => {} },
+    );
+    expect(await github.repository("Example", "data")).toEqual({
+      kind: "unavailable",
+    });
+    // Once the probe answers (here: no App identity), the answer stands.
+    probe = "answer";
+    expect(await github.repository("Example", "data")).toMatchObject({
+      kind: "observed",
+      repository: { fullName: "Example/data", readable: false },
+    });
   },
 );
 

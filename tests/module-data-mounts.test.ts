@@ -485,7 +485,7 @@ posixTest(
     const calls = await broker.calls();
     // The readability check names the repository and runs outside any
     // checkout; only the one `gh auth` command the adapter answers is used,
-    // never `gh auth git-credential`.
+    // once (its answer is kept for the clone), never `gh auth git-credential`.
     expect(calls).toContain(
       "/\texample-org/orders-data\tapi repos/example-org/orders-data",
     );
@@ -494,7 +494,7 @@ posixTest(
       calls
         .map((call) => call.split("\t")[2] as string)
         .filter((args) => args.startsWith("auth")),
-    ).toEqual(["auth status --json hosts", "auth status --json hosts"]);
+    ).toEqual(["auth status --json hosts"]);
     // git asked its configured helper for exactly this repository.
     expect(
       (await broker.helperCalls()).filter((call) => call.startsWith("get")),

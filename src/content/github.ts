@@ -423,18 +423,32 @@ export function ghContentGitHub(
   };
   // Whether gh works here as a GitHub App's identity (Lazurio for GitHub
   // through the Organization's broker), as its sign-in probe reads it: the
-  // one `gh auth` command the brokered gh answers.
-  const appIdentity = async () => {
+  // one `gh auth` command the brokered gh answers. `unknown` when the probe
+  // did not answer (a timeout, gh not runnable), never taken for "not the
+  // App"; a definite answer is kept for this instance.
+  let identity: "app" | "other" | undefined;
+  const appIdentity = async (): Promise<"app" | "other" | "unknown"> => {
+    if (identity !== undefined) return identity;
     const executable = await gh();
     const home = environment.home;
-    if (executable === undefined || !home) return false;
+    if (executable === undefined || !home) return "unknown";
     const status = await ghStatus(
       (command, ms) =>
         environment.run(command, ms, env(), { cwd: outside(home) }),
       executable,
       timeoutMs,
     );
-    return status.signIn.identity === "app";
+    if (status.signIn.state === "unknown") return "unknown";
+    if (
+      status.signIn.state === "signed-in" &&
+      status.signIn.identity === "unknown"
+    )
+      return "unknown";
+    identity =
+      status.signIn.state === "signed-in" && status.signIn.identity === "app"
+        ? "app"
+        : "other";
+    return identity;
   };
   const repositoryPath = (owner: string, name: string) => {
     const fullName = `${owner}/${name}`;
@@ -472,12 +486,17 @@ export function ghContentGitHub(
         // them all false even with write, and GitHub answers a repository
         // at all only to an identity that may read it (404 otherwise): for
         // the App identity the answer is the read.
-        return repository.readable || !(await appIdentity())
-          ? { kind: "observed", repository }
-          : {
+        // An identity the probe could not tell is GitHub not answering
+        // now, never a refusal.
+        if (repository.readable) return { kind: "observed", repository };
+        const who = await appIdentity();
+        if (who === "unknown") return { kind: "unavailable" };
+        return who === "app"
+          ? {
               kind: "observed",
               repository: Object.freeze({ ...repository, readable: true }),
-            };
+            }
+          : { kind: "observed", repository };
       }
       if (
         answer.kind === "error" &&
@@ -691,7 +710,9 @@ export function ghContentGitHub(
       // which the hosting points at the broker for exactly this repository
       // (`useHttpPath`); gh's would be refused, and resetting the list would
       // drop the broker's.
-      if (await appIdentity()) return { url };
+      // An unknown identity keeps gh's helper, as before; the read before
+      // a clone has usually settled it already.
+      if ((await appIdentity()) === "app") return { url };
       const executable = await gh();
       return {
         url,
