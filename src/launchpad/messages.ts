@@ -840,10 +840,14 @@ const en = {
   loadFailed:
     "Cannot read profile. Open the session link from CLI; pending state may require CLI recovery.",
   filesTitle: "Files",
-  filesIntro:
-    "The Documents folder of {this}. Agents save finished files here; download them, or upload files for the agents.",
-  filesShared:
-    "This Team Environment is shared: the whole Team sees and changes the same folder.",
+  // The guide of the Files page (decision F56): the "?" beside its heading
+  // and, in a Team Environment, its explanation, which took the page's
+  // explaining sentences (the shell's principle "files" explains it
+  // elsewhere). At most four steps of at most nine words, no full stop.
+  pageHelp: "How does it work?",
+  guideFilesTeamDrag: "Drag a file into the chat",
+  guideFilesTeamShow: "Files show what agents work with",
+  guideFilesTeamShared: "The whole Team can read and change them",
   filesRoot: "Documents",
   filesPath: "Folder path",
   filesUpload: "Upload files",
@@ -854,8 +858,7 @@ const en = {
   filesUnavailable:
     "The Documents folder of {this} cannot be used: it is not a folder, or it is a link to the home folder or the Lazurio Folder. An agent can fix it on request.",
   filesEmpty: "This folder is empty.",
-  filesEmptyRoot:
-    "This is the Documents folder of {this}. Agents save finished files here, and the files you upload land here too. Nothing is here yet.",
+  filesEmptyRoot: "No files yet.",
   filesNotFound: "This folder or file does not exist.",
   filesOpenRoot: "Open Documents",
   filesIsFile: "{name} is a file.",
@@ -2480,10 +2483,10 @@ const cs: Record<MessageKey, string> = {
   loadFailed:
     "Profil nelze načíst. Otevřete odkaz relace z CLI; rozpracovaný stav může vyžadovat obnovu přes CLI.",
   filesTitle: "Soubory",
-  filesIntro:
-    "Složka Dokumenty {tohoto}. Agenti sem ukládají hotové soubory; stáhněte si je, nebo sem nahrajte soubory pro agenty.",
-  filesShared:
-    "Toto Týmové Prostředí je sdílené: celý Team vidí a mění stejnou složku.",
+  pageHelp: "Jak to funguje?",
+  guideFilesTeamDrag: "Soubor přetáhněte do chatu",
+  guideFilesTeamShow: "Soubory ukazují, s čím agenti pracují",
+  guideFilesTeamShared: "Číst a měnit je může celý Team",
   filesRoot: "Dokumenty",
   filesPath: "Cesta ke složce",
   filesUpload: "Nahrát soubory",
@@ -2494,8 +2497,7 @@ const cs: Record<MessageKey, string> = {
   filesUnavailable:
     "Složku Dokumenty {tohoto} nejde použít: není to složka, nebo je to link na domovskou složku či Lazurio Folder. Na požádání to opraví agent.",
   filesEmpty: "Tato složka je prázdná.",
-  filesEmptyRoot:
-    "Toto je složka Dokumenty {tohoto}. Agenti sem ukládají hotové soubory a dorazí sem i soubory, které nahrajete. Zatím tu nic není.",
+  filesEmptyRoot: "Zatím žádné soubory.",
   filesNotFound: "Tato složka nebo soubor neexistuje.",
   filesOpenRoot: "Otevřít Dokumenty",
   filesIsFile: "{name} je soubor.",
