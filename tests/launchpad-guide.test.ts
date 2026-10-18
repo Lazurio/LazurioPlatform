@@ -13,6 +13,7 @@ import {
 import { integrationsHelp } from "../src/launchpad/integrations-view";
 import { messages } from "../src/launchpad/messages";
 import { type PageRoute, routeFrame } from "../src/launchpad/routes";
+import { escapeLeavesSettings } from "../src/launchpad/shell";
 import type { VaultPagePerson } from "../src/launchpad/vault-page-view";
 import {
   type ShellEnvironmentKind,
@@ -736,4 +737,21 @@ test('the "?" of Trezor waits until the vault\'s state is read, in a Personal En
     plays: "vault-agents",
     controls: null,
   });
+});
+
+test("Escape on Settings while the guide explains closes the explanation, not Settings", () => {
+  const settings = {
+    view: "settings",
+    guiding: false,
+    dialog: false,
+    typing: false,
+  } as const;
+  expect(escapeLeavesSettings(settings)).toBe(true);
+  // The guide's listener is added when an explanation opens, after the
+  // shell's: the shell asks the guide first.
+  expect(escapeLeavesSettings({ ...settings, guiding: true })).toBe(false);
+  expect(escapeLeavesSettings({ ...settings, dialog: true })).toBe(false);
+  expect(escapeLeavesSettings({ ...settings, typing: true })).toBe(false);
+  for (const view of ["home", "files", "vault", "integrations"] as const)
+    expect(escapeLeavesSettings({ ...settings, view })).toBe(false);
 });

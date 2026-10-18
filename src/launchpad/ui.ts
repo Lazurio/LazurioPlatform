@@ -1090,6 +1090,9 @@ const shell = createShell({
   displayName: (organization) => catalog.displayName(organization),
   // A public Environment has no Integrace and no Trezor (decision F55).
   place: (route) => (isPublicEnvironment(entry) ? publicRoute(route) : route),
+  // Escape is the guide's while it explains a page (decision F56): it
+  // closes the explanation and the page stays.
+  guiding: () => guideAttention.playing() !== null,
   onRoute: (route) => {
     // The switch marks Apps, the gear Settings (the Organization rail).
     columnHead?.setAttribute(
