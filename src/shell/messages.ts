@@ -1,11 +1,15 @@
-import type { ShellEnvironmentKind } from "./contract";
+import { type ShellEnvironmentKind, shellEnvironmentKinds } from "./contract";
+import { type KindLocale, kindLabel, kindName, kindShort } from "./kind-name";
 
 // The words of the shell elements, in the two languages of the Launchpad, in
 // its tone (decision F16 naming: Environment, never Machine or VM). The
 // elements live in other apps too (the forks), so they carry their own words
 // rather than the Launchpad's catalogue. A label of the rail is the item's
 // name alone (F36's addendum of 2026-10-16): no line about how many
-// Environments a space has, which one was last, or what a click does.
+// Environments a space has, which one was last, or what a click does. The
+// kinds are three, and your own computer has none (decision F28's addendum of
+// 2026-10-18, kind-name.ts); a text about the Environment the page is in
+// names its kind through the tokens of `inKind` ({tomto}, {this}).
 
 export type ShellCopy = Readonly<{
   rail: string;
@@ -18,18 +22,22 @@ export type ShellCopy = Readonly<{
    * sign-out (F36's addendum of 2026-10-16). */
   accountSettings: string;
   signOut: string;
-  /** The name of an Environment without its own name, by kind. */
+  /** The name of an Environment without its own name, by kind: an
+   * automated one is Pracovní, your own computer Váš počítač. */
   names: Readonly<Record<ShellEnvironmentKind, string>>;
   /** The kind on an Environment's second line, left out where the name
    * already says it (root decision 0170 addendum 2026-10-15; the brand
-   * voice, "Druh Prostředí stačí"). */
+   * voice, "Druh Prostředí stačí"): Osobní, Pracovní or Týmové, and on your
+   * own computer, which has no kind, Váš počítač. */
   kinds: Readonly<Record<ShellEnvironmentKind, string>>;
   /** A work Environment assigned to someone other than the viewer. */
   assignedTo: string;
   /** An Environment known not to run. */
   offline: string;
   pick: string;
-  settings: string;
+  /** The gear beside the picker, by the kind it opens the Settings of
+   * ("Nastavení Týmového Prostředí", the prototype's `SettingsGear`). */
+  settings: Readonly<Record<ShellEnvironmentKind, string>>;
   /** The gear on an Organization's Dashboard (F36's addendum of
    * 2026-10-05). */
   organizationSettings: string;
@@ -44,23 +52,35 @@ export type ShellCopy = Readonly<{
   choose: string;
   go: string;
   close: string;
+  /** The switch's name, with a token of `inKind`. */
   switchLabel: string;
   chat: string;
   apps: string;
   automate: string;
+  /** A missing app's title, with a token of `inKind`. */
   chatMissing: string;
   automateMissing: string;
   /** The quiet prompt under the switch while the Environment lacks a basic
    * (root decision 0201 point 2): "{done}" of "{total}" done. */
   setupPrompt: string;
   /** The quiet notice of the column head on a public Environment (root
-   * decision 0204 point 4, decision F55): one or two sentences. */
+   * decision 0204 point 4, decision F55): one or two sentences, with a token
+   * of `inKind`. */
   publicNotice: string;
   /** The rail on a host's page with nobody signed in (F36's addendum of
    * 2026-10-06): its accessible name, and the key's name and label. */
   signedOutRail: string;
   signIn: string;
 }>;
+
+/** One word per kind of `lazurio.shell.v1`. */
+function byKind(
+  word: (kind: ShellEnvironmentKind) => string,
+): Readonly<Record<ShellEnvironmentKind, string>> {
+  return Object.freeze(
+    Object.fromEntries(shellEnvironmentKinds.map((kind) => [kind, word(kind)])),
+  ) as Readonly<Record<ShellEnvironmentKind, string>>;
+}
 
 const en: ShellCopy = {
   rail: "Organizations",
@@ -71,24 +91,16 @@ const en: ShellCopy = {
   account: "Lazurio account",
   accountSettings: "Account settings",
   signOut: "Sign out",
-  names: {
-    personal: "Personal",
-    work: "Work",
-    team: "Team",
-    automated: "Automated",
-    workstation: "This computer",
-  },
-  kinds: {
-    personal: "Personal",
-    work: "Work",
-    team: "Team",
-    automated: "Automated",
-    workstation: "Local",
-  },
+  names: byKind((kind) => kindShort(kind, "en")),
+  kinds: byKind((kind) => kindShort(kind, "en")),
   assignedTo: "assigned to {login}",
   offline: "offline",
   pick: "{name}, switch Environment",
-  settings: "Environment Settings",
+  settings: byKind((kind) =>
+    kind === "workstation"
+      ? "Settings of your computer"
+      : `${kindLabel(kind, "en")} Settings`,
+  ),
   organizationSettings: "Organization Settings",
   switcher: "Go to an Environment",
   searchIn: "Search in {name}…",
@@ -101,15 +113,15 @@ const en: ShellCopy = {
   choose: "choose",
   go: "go",
   close: "close",
-  switchLabel: "Apps of this Environment",
+  switchLabel: "Apps of {this}",
   chat: "Chat",
   apps: "Apps",
   automate: "Automate",
-  chatMissing: "Chat does not run on this Environment",
-  automateMissing: "Automate does not run on this Environment",
+  chatMissing: "Chat does not run {in this}",
+  automateMissing: "Automate does not run {in this}",
   setupPrompt: "Finish setting up ({done} of {total})",
   publicNotice:
-    "This Environment is public and shared and is wiped every night. Do not enter personal data or sign in to your own accounts.",
+    "{This} is public and shared and is wiped every night. Do not enter personal data or sign in to your own accounts.",
   signedOutRail: "Lazurio",
   signIn: "Sign in with your Lazurio account",
 };
@@ -123,24 +135,12 @@ const cs: ShellCopy = {
   account: "Lazurio účet",
   accountSettings: "Nastavení účtu",
   signOut: "Odhlásit",
-  names: {
-    personal: "Osobní",
-    work: "Pracovní",
-    team: "Týmové",
-    automated: "Automatizované",
-    workstation: "Tento počítač",
-  },
-  kinds: {
-    personal: "Osobní",
-    work: "Pracovní",
-    team: "Týmové",
-    automated: "Automatizované",
-    workstation: "Místní",
-  },
+  names: byKind((kind) => kindShort(kind, "cs")),
+  kinds: byKind((kind) => kindShort(kind, "cs")),
   assignedTo: "přiřazeno {login}",
   offline: "offline",
   pick: "{name}, přepnout Prostředí",
-  settings: "Nastavení Prostředí",
+  settings: byKind((kind) => `Nastavení ${kindName(kind, { case: "gen" })}`),
   organizationSettings: "Nastavení Organizace",
   switcher: "Přejít na Prostředí",
   searchIn: "Hledat v {name}…",
@@ -153,20 +153,20 @@ const cs: ShellCopy = {
   choose: "vybrat",
   go: "přejít",
   close: "zavřít",
-  switchLabel: "Aplikace Prostředí",
+  switchLabel: "Aplikace {tohoto}",
   chat: "Chat",
   apps: "Apps",
   automate: "Automate",
-  chatMissing: "Chat v tomto Prostředí neběží",
-  automateMissing: "Automate v tomto Prostředí neběží",
+  chatMissing: "Chat {v tomto} neběží",
+  automateMissing: "Automate {v tomto} neběží",
   setupPrompt: "Dokončit nastavení ({done} ze {total})",
   publicNotice:
-    "Toto Prostředí je veřejné a sdílené a každou noc se smaže. Nezadávejte sem osobní údaje a nepřihlašujte se ke svým účtům.",
+    "{Toto} je veřejné a sdílené a každou noc se smaže. Nezadávejte sem osobní údaje a nepřihlašujte se ke svým účtům.",
   signedOutRail: "Lazurio",
   signIn: "Přihlásit Lazurio účtem",
 };
 
-export const shellMessages = (locale: "cs" | "en"): ShellCopy =>
+export const shellMessages = (locale: KindLocale): ShellCopy =>
   locale === "cs" ? cs : en;
 
 /** `{name}` style placeholders filled with plain text. */

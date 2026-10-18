@@ -1,5 +1,6 @@
 import { pageAccountJson } from "./account";
 import {
+  currentEnvironment,
   parseShell,
   type Shell,
   type ShellAccount,
@@ -14,6 +15,7 @@ import {
   organizationMark,
 } from "./identity-element";
 import { createIdentityResponder } from "./identity-protocol";
+import { inKind } from "./kind-name";
 import { appOf, keptVisit, reportLast } from "./last";
 import { fillShell, type ShellCopy, shellMessages } from "./messages";
 import { newTabElement } from "./new-tab-element";
@@ -942,7 +944,13 @@ export class LazurioColumnHead extends ShellElement {
     const head = element("div", "head");
     head.append(row);
     // No switch on an Organization's Dashboard.
-    if (model.tabs !== null) head.append(this.appSwitch(model.tabs, copy));
+    if (model.tabs !== null)
+      head.append(
+        this.appSwitch(
+          model.tabs,
+          inKind(copy.switchLabel, currentEnvironment(shell)?.kind ?? null),
+        ),
+      );
     if (model.setup !== null) head.append(this.setupPrompt(model.setup));
     if (model.notice !== undefined)
       head.append(this.publicNotice(model.notice));
@@ -979,9 +987,9 @@ export class LazurioColumnHead extends ShellElement {
   }
 
   /** The switch Chat · Apps · Automate. */
-  private appSwitch(tabs: readonly SwitchTab[], copy: ShellCopy): HTMLElement {
+  private appSwitch(tabs: readonly SwitchTab[], label: string): HTMLElement {
     const nav = element("nav", "switch");
-    nav.setAttribute("aria-label", copy.switchLabel);
+    nav.setAttribute("aria-label", label);
     nav.append(
       ...tabs.map((tab) => {
         const glyph = icon(tab.app, 16);

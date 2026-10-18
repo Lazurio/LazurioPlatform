@@ -323,11 +323,18 @@ test("a start refused for its runtime secrets names each one and why, and a star
     parseModuleResult({ ...refused, secrets: [{ name: "EXTERNAL_API_KEY" }] }),
   ).toBeNull();
   expect(moduleResultMessage(refused, en)).toBe(
-    "The app was not started: it needs secrets that this Environment's vault did not give it. EXTERNAL_API_KEY, SECOND_KEY: no item of this name in the Environment's vault; THIRD_KEY: more than one item of this name in the Environment's vault. Values are never shown; add or fix the item named exactly like the secret in the Environment's vault and start again.",
+    "The app was not started: it needs secrets that this Environment's vault did not give it. EXTERNAL_API_KEY, SECOND_KEY: no item of this name in this Environment's vault; THIRD_KEY: more than one item of this name in this Environment's vault. Values are never shown; add or fix the item named exactly like the secret in this Environment's vault and start again.",
   );
   const czech = moduleResultMessage(refused, cs);
   expect(czech).toContain("EXTERNAL_API_KEY, SECOND_KEY: v trezoru");
-  expect(czech).toContain("THIRD_KEY: v trezoru Prostředí je víc položek");
+  expect(czech).toContain(
+    "THIRD_KEY: v trezoru tohoto Prostředí je víc položek",
+  );
+  // In the Environment it is shown in, the vault is that kind's (F28's
+  // addendum of 2026-10-18).
+  expect(moduleResultMessage(refused, messages("cs", "team"))).toContain(
+    "THIRD_KEY: v trezoru tohoto Týmového Prostředí je víc položek",
+  );
   expect(moduleStatusView(refused, cs).code).toBe("runtime-secret-unavailable");
   for (const copy of [en, cs])
     for (const reason of [

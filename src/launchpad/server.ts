@@ -36,9 +36,13 @@ import {
 import { withFolderReadLock } from "../folder/lock";
 import type { MachineEntry } from "../folder/machine-binding";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
-import { selectablePresets } from "../folder/presets";
+import { type PresetName, selectablePresets } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
-import { enabledTools, stateFields } from "../folder/state";
+import {
+  enabledTools,
+  type FolderPreferences,
+  stateFields,
+} from "../folder/state";
 import { ownDataValue } from "../folder/state-fields";
 import { updateProfile, updateTools } from "../folder/update-profile";
 import { resolvedVoice } from "../folder/voice";
@@ -177,7 +181,7 @@ import {
   createSetupCache,
   readContent,
 } from "./setup-state";
-import { readShellInputs, shellDocument } from "./shell-document";
+import { presetKinds, readShellInputs, shellDocument } from "./shell-document";
 import { createSshRoutes } from "./ssh-routes";
 import {
   checkBundledPage,
@@ -361,6 +365,19 @@ const maintainRoute =
 /** A prepared prompt for Chat (`GET /.lazurio/prompts/<id>?org=<login>`,
  * Lazurio/t3code#35), in the gateway's segment grammar. */
 const promptRoute = /^\/\.lazurio\/prompts\/([A-Za-z0-9._-]+)$/;
+
+/** The catalog of a prompt document in the Folder's language, naming this
+ * Environment's kind as the page does (decision F28's addendum of
+ * 2026-10-18); a preset this release does not know names none. */
+const folderMessages = (
+  preferences: Pick<FolderPreferences, "preset" | "profile">,
+) =>
+  messages(
+    preferences.profile.locale === "cs" ? "cs" : "en",
+    Object.hasOwn(presetKinds, preferences.preset.name)
+      ? presetKinds[preferences.preset.name as PresetName]
+      : null,
+  );
 
 // The Environment browser's view (decision F38): the JSON answer the panels
 // of the Launchpad and of T3 Code read (`browserViewDocumentPath`), and the
@@ -1190,9 +1207,7 @@ export async function startLaunchpad(
               folder,
               holder,
               login,
-              messages(
-                current.preferences.profile.locale === "cs" ? "cs" : "en",
-              ),
+              folderMessages(current.preferences),
             );
             return document === null ? notFound() : response(document);
           } catch {
@@ -1212,9 +1227,7 @@ export async function startLaunchpad(
             );
             if (!signsInAsPerson(current.preferences.preset.name))
               return notFound();
-            const copy = messages(
-              current.preferences.profile.locale === "cs" ? "cs" : "en",
-            );
+            const copy = folderMessages(current.preferences);
             const read = await readContent(contentState);
             const context = prepareContext(read.list, read.job, copy);
             if (
@@ -1252,9 +1265,7 @@ export async function startLaunchpad(
               id,
               folder,
               organization,
-              messages(
-                current.preferences.profile.locale === "cs" ? "cs" : "en",
-              ),
+              folderMessages(current.preferences),
             ),
           );
         } catch {

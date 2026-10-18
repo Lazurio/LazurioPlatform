@@ -347,6 +347,11 @@ posixTest(
       expect(html).toContain(`data-message="appsAll">${cs.appsAll}<`);
       expect(html).toContain(`data-message="toolsTitle">${cs.toolsTitle}<`);
       expect(html).toContain(`data-message="settingsBack">${cs.settingsBack}<`);
+      // The first paint names this work Environment's kind, as the page
+      // script does (F28's addendum of 2026-10-18).
+      expect(html).toContain(
+        'data-message="machineTitle">Toto Pracovní Prostředí<',
+      );
       expect(html).toContain(
         `aria-live="polite">${cs.catalogLoading}</p>\n<div id="catalog-body"`,
       );
