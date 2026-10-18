@@ -83,6 +83,9 @@ export function peerText(peer: MachinePeer, copy: FactsCopy): string {
   return `${peer.name} (${who}): ${ssh}; ${https}`;
 }
 
+// One of the three kinds, or your computer, which has none (decision F28's
+// addendum of 2026-10-18): an automated Environment is a work one and says
+// its automations here. A preset this release does not know names no kind.
 const kindLabels: Readonly<Record<string, MessageKey>> = {
   local: "machineKindWorkstation",
   "hosted-personal": "machineKindPersonal",
@@ -91,7 +94,7 @@ const kindLabels: Readonly<Record<string, MessageKey>> = {
   "hosted-organization-steward": "machineKindAutomated",
 };
 
-/** Settings → Tento Environment (root decision 0188; the wireframe's
+/** Settings → Toto Prostředí (root decision 0188; the wireframe's
  * `ThisEnvironment`, Matěj 2026-10-04: no technical filler): what a person
  * needs, in its words (what kind of Environment it is, whom it belongs to,
  * who works in it), and folded under "Pro podporu" the recorded technical
@@ -109,7 +112,7 @@ export function environmentFacts(
   }>,
   copy: FactsCopy,
 ): Readonly<{ facts: readonly Fact[]; support: readonly Fact[] }> {
-  const kind = copy[kindLabels[input.preset] ?? "machineKindWorkstation"];
+  const kind = copy[kindLabels[input.preset] ?? "machineKindUnknown"];
   const binding = input.machine;
   if (binding === null || input.preset === "local")
     return {

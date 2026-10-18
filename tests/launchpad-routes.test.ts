@@ -116,6 +116,29 @@ test("the heading and document title follow the route in both languages", () => 
     heading: "Toto Prostředí",
     document: "Toto Prostředí · Nastavení — Lazurio",
   });
+  // In the Environment it is shown in, Toto Prostředí names its kind, and on
+  // your own computer it is Tento počítač (F28's addendum of 2026-10-18).
+  for (const [kind, czech, english] of [
+    ["personal", "Toto Osobní Prostředí", "This Personal Environment"],
+    ["work", "Toto Pracovní Prostředí", "This Work Environment"],
+    ["team", "Toto Týmové Prostředí", "This Team Environment"],
+    ["automated", "Toto Pracovní Prostředí", "This Work Environment"],
+    ["workstation", "Tento počítač", "This computer"],
+  ] as const) {
+    expect(
+      routeTitle(
+        { view: "settings", section: "machine" },
+        messages("cs", kind),
+      ),
+    ).toEqual({
+      heading: czech,
+      document: `${czech} · Nastavení — Lazurio`,
+    });
+    expect(
+      routeTitle({ view: "settings", section: "machine" }, messages("en", kind))
+        .heading,
+    ).toBe(english);
+  }
   // SSH from your devices (decision F49).
   expect(pageRoute("/settings/ssh")).toEqual({
     view: "settings",

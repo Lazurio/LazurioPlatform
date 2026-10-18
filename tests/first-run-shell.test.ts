@@ -568,8 +568,10 @@ posixTest(
       expect(document.id).toBe("prepare-content");
       // The Lazurio Folder's root: the Organization is not here yet.
       expect(document.cwd).toBe(folder);
+      // It names the kind of this Environment, as the page does (F28's
+      // addendum of 2026-10-18).
       expect(document.text?.split("\n").slice(0, 2)).toEqual([
-        "Příprava Organizace Example (GitHub example-org) v tomto Prostředí se zastavila u kroku „Stahuji Organizaci“:",
+        "Příprava Organizace Example (GitHub example-org) v tomto Pracovním Prostředí se zastavila u kroku „Stahuji Organizaci“:",
         "git clone failed: Permission denied (publickey)",
       ]);
       expect(document.text).toContain(
