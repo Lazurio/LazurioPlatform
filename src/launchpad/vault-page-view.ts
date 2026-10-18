@@ -1,6 +1,9 @@
-import type { VaultEnvironmentKind } from "../vault/context";
+import type {
+  VaultEnvironmentKind,
+  VaultUnsupportedReason,
+} from "../vault/context";
 import type { BitwardenRegion } from "../vault/endpoints";
-import type { VaultPhase, VaultStatus } from "../vault/flow";
+import type { VaultPhase, VaultStatus, vaultAnswer } from "../vault/flow";
 import type { VaultMemberState, VaultMemberUnknown } from "../vault/members";
 import { pluralKey } from "./apps-view";
 import type { MessageKey } from "./messages";
@@ -18,14 +21,42 @@ import { parseVaultStatus } from "./vault-view";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
-/** Whether the Apps column lists Trezor, by the Environment's preset: not on
- * this computer (`local`), which has no vault yet (the second wave of root
- * decision 0193), as the wireframe leaves it out there; everywhere else,
- * also while the preset is not known. Its address still answers there,
- * saying so ("Trezor na tomto počítači není."). A public Environment's rule
- * (decision F55) is the page's stylesheet's. */
-export const vaultInApps = (preset: string | null): boolean =>
-  preset !== "local";
+/** Why an Environment has no vault, as the vault core answers it, on which
+ * the Apps column does not list Trezor: it has none by design (a public
+ * Organization's, `no-tailnet`) or not yet (`no-vault`), or it is this
+ * computer (`workstation`, the second wave of root decision 0193). Every
+ * other reason is a fault the page says, so it stays listed. */
+const unlisted: readonly VaultUnsupportedReason[] = [
+  "workstation",
+  "no-vault",
+  "no-tailnet",
+];
+
+/** Whether the Apps column lists Trezor (root decision 0185's addendum of
+ * 2026-10-18; F53's addendum of 2026-10-18 (3)), by the vault
+ * core's answer for this Environment as `lazurio vault status` resolves it
+ * (`vaultAnswer`, read by `vaultInAppsOf` in boot-document.ts): where the
+ * Environment has a vault, also a personal Environment's that waits for its
+ * person and a connected 0197 pilot's, and where the core could not read why
+ * it has none; not where it has none, nor on this computer. Its address
+ * answers either way. */
+export const vaultListed = (
+  answer: Awaited<ReturnType<typeof vaultAnswer>>,
+): boolean =>
+  answer.kind !== "unsupported" || !unlisted.includes(answer.reason);
+
+/** Whether the page lists Trezor in its Apps column: as the server decided
+ * for its first paint (`vaultListed`, carried by the boot document); a page
+ * that carries no decision, a workstation's, which is served without one,
+ * or a hosted page whose boot document was late, by its preset: not on this
+ * computer (`local`, whose answer is `workstation`), listed elsewhere, also
+ * while the preset is not known, so that a Remote Environment never shows
+ * it late. A public Environment's rule (decision F55) is the page's
+ * stylesheet's. */
+export const vaultInApps = (
+  carried: boolean | null,
+  preset: string | null,
+): boolean => carried ?? preset !== "local";
 
 const kinds: readonly VaultEnvironmentKind[] = [
   "personal",

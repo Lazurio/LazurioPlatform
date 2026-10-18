@@ -236,6 +236,7 @@ test("the entry's answer and the boot document carry the audience only as public
     shell: null,
     catalog: null,
     entry,
+    vaultInApps: null,
   };
   expect(parseBoot(bootJson(boot))?.entry).toEqual(entry);
   // Without the member: not public, and nothing in the answer says so.

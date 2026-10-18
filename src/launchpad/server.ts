@@ -115,7 +115,7 @@ import { runProcess } from "../update/self-check";
 import type { VaultHost } from "../vault/flow";
 import { enableVaultForAgents, processVaultHost } from "../vault/host";
 import type { LaunchpadBoot } from "./boot";
-import { launchpadBoot, withBoot } from "./boot-document";
+import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
 import {
   chatPairingPath,
   createChatPromptCheck,
@@ -973,12 +973,14 @@ export async function startLaunchpad(
   });
   // The boot document of the page (F36's addendum of 2026-10-08, boot.ts):
   // what this Launchpad knows from the Folder alone, under one short read of
-  // its state. None when that fails or takes longer than a moment: the page
-  // then reads it all itself, as before.
+  // its state, and whether the Apps column lists Trezor from the vault's
+  // local facts (F53's addendum of 2026-10-18 (3), never failing). None when
+  // that fails or takes longer than a moment: the page then reads it all
+  // itself, as before.
   async function pageBoot(): Promise<LaunchpadBoot | null> {
     let late: ReturnType<typeof setTimeout> | undefined;
     const read = (async () => {
-      const [inputs, tailnet, theme] = await Promise.all([
+      const [inputs, tailnet, theme, vaultInApps] = await Promise.all([
         readShellInputs(folder, {
           ownerKey: hostedOptions.ownerKey,
           lockWaitMs: bootLockWaitMs,
@@ -986,12 +988,14 @@ export async function startLaunchpad(
         }),
         (hostedOptions.offlineTailnet ?? machineTailnet)(),
         themeStore.read(),
+        vaultInAppsOf(vaultHostOf()),
       ]);
       return launchpadBoot({
         ...inputs,
         entry,
         tailnet,
         theme: shellThemeOf(theme),
+        vaultInApps,
       });
     })().catch(() => null);
     try {

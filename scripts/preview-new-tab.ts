@@ -140,7 +140,13 @@ const entry: PublicEntry = {
   moduleOriginTemplate: `https://{module}.${base}`,
   browserOrigin: viewOrigin,
 };
-const boot: LaunchpadBoot = { locale, shell, catalog, entry };
+const boot: LaunchpadBoot = {
+  locale,
+  shell,
+  catalog,
+  entry,
+  vaultInApps: null,
+};
 
 // ---- The fake hub: the view's four loopback requests (F47 point 6) ----------
 
