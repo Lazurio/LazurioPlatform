@@ -974,12 +974,16 @@ test.skipIf(!posix)(
       },
     });
     try {
-      await until(async () =>
-        (await s.members()).every((member) => member.type !== 1),
+      // The look ends with its journal: the vault lists the Správci gone
+      // before the last removal is journaled.
+      const removed = () =>
+        s.journal.filter((entry) => entry.outcome === "removed");
+      await until(
+        async () =>
+          removed().length >= 2 &&
+          (await s.members()).every((member) => member.type !== 1),
       );
-      expect(
-        s.journal.filter((entry) => entry.outcome === "removed"),
-      ).toHaveLength(2);
+      expect(removed()).toHaveLength(2);
       expect(await s.members()).toEqual([
         expect.objectContaining({ email: workAccount, type: 0 }),
       ]);
