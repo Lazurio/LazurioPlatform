@@ -184,6 +184,129 @@ export const vaultAgentsGuide = (copy: Copy): PageGuideInput => ({
   ],
 });
 
+/** Settings → Začínáme where it has the basics (`firstRun`'s person
+ * presets, not a public Environment): the steps that prepare the
+ * Environment, the AI first, GitHub, the optional ones. */
+export const startGuide = (copy: Copy): PageGuideInput => ({
+  id: "settings-start",
+  title: copy.startTitle,
+  steps: [
+    { text: copy.guideStartSteps, at: "start-steps" },
+    { text: copy.guideStartAi, at: "start-ai" },
+    { text: copy.guideStartGithub, at: "start-github" },
+    { text: copy.guideStartOptional, at: "start-optional" },
+  ],
+});
+
+/** Settings → Obecné: the language, how agents explain and coordinate,
+ * and the preview before a change. */
+export const generalGuide = (copy: Copy): PageGuideInput => ({
+  id: "settings-general",
+  title: copy.settingsGeneral,
+  steps: [
+    { text: copy.guideGeneralLanguage, at: "general-language" },
+    { text: copy.guideGeneralDetail, at: "general-detail" },
+    {
+      text: copy.guideGeneralCoordination,
+      sub: copy.guideGeneralCoordinationSub,
+      at: "general-coordination",
+    },
+    { text: copy.guideGeneralApply, at: "general-apply" },
+  ],
+});
+
+/** Settings → Komunikace agentů; in a Team Environment its one voice for
+ * everyone. */
+export const voiceGuide = (copy: Copy, team: boolean): PageGuideInput => ({
+  id: team ? "settings-communication-team" : "settings-communication",
+  title: copy.voiceTitle,
+  steps: [
+    {
+      text: copy.guideVoiceHow,
+      ...(team ? { sub: copy.guideVoiceTeam } : {}),
+      at: "voice-text",
+    },
+    { text: copy.guideVoiceWhere, at: "voice-text" },
+    { text: copy.guideVoiceNew, at: "voice-save" },
+  ],
+});
+
+/** Settings → Toto <kind> Prostředí: what it is, whose it is, the details
+ * for support; on your computer its own words, never the agents' virtual
+ * computer. */
+export const machineGuide = (
+  copy: Copy,
+  computer: boolean,
+): PageGuideInput => ({
+  id: "settings-machine",
+  title: copy.machineTitle,
+  steps: [
+    {
+      text: computer ? copy.guideMachineComputer : copy.guideMachineWhat,
+      at: "machine-facts",
+    },
+    {
+      text: computer ? copy.guideMachineWhoComputer : copy.guideMachineWho,
+      at: "machine-facts",
+    },
+    { text: copy.guideMachineSupport, at: "machine-support" },
+  ],
+});
+
+/** Settings → Nástroje; in a Team Environment its team accounts, which the
+ * whole Team uses. */
+export const toolsGuide = (copy: Copy, team: boolean): PageGuideInput => ({
+  id: team ? "settings-tools-team" : "settings-tools",
+  title: copy.toolsTitle,
+  steps: team
+    ? [
+        { text: copy.guideToolsTeamShared, at: "tools" },
+        { text: copy.guideToolsTeamAccounts, at: "tool-connect" },
+        { text: copy.guideToolsTeamUse, at: "tool-connect" },
+        { text: copy.guideToolsSwitch, at: "tool-agents" },
+      ]
+    : [
+        { text: copy.guideToolsWhich, at: "tools" },
+        { text: copy.guideToolsConnect, at: "tool-connect" },
+        { text: copy.guideToolsReach, at: "tool-connect" },
+        { text: copy.guideToolsSwitch, at: "tool-agents" },
+      ],
+});
+
+/** Settings → the devices that connect from a terminal: the prompt for the
+ * person's own agent, a key per device, removed here; in a Team
+ * Environment the whole Team's devices. Its words never name the protocol
+ * or the network (the rules of a text). */
+export const devicesGuide = (copy: Copy, team: boolean): PageGuideInput => ({
+  id: team ? "settings-ssh-team" : "settings-ssh",
+  title: copy.sshDevicesTitle,
+  steps: [
+    { text: copy.guideDevicesPrompt, at: "ssh-prompt" },
+    { text: copy.guideDevicesSignIn, at: "ssh-prompt" },
+    { text: copy.guideDevicesKey, at: "ssh-devices" },
+    {
+      text: team ? copy.guideDevicesTeam : copy.guideDevicesRemove,
+      at: "ssh-devices",
+    },
+  ],
+});
+
+/** Settings → Obnova: Lazurio checks itself, what fails shows, an agent
+ * repairs it. */
+export const recoveryGuide = (copy: Copy): PageGuideInput => ({
+  id: "settings-recovery",
+  title: copy.recoveryTitle,
+  steps: [
+    { text: copy.guideRecoveryChecks, at: "recovery-result" },
+    { text: copy.guideRecoveryFails, at: "recovery-checks" },
+    {
+      text: copy.guideRecoveryRepair,
+      sub: copy.guideRecoveryRepairSub,
+      at: "recovery-checks",
+    },
+  ],
+});
+
 /** The "?" of a route's page, by its id in index.html: right after the
  * heading in the header (Settings, Soubory, Trezor), in the Apps home's
  * head (catalog-panel.ts keeps it beside the heading it draws) and in
@@ -212,13 +335,22 @@ export function pageHelpOf(route: PageRoute): PageHelpId | null {
 
 /** The marks a step may name that a panel draws once its data is read, not
  * the page as served: Integrace's first connected app and first Connect
- * (integrations-panel.ts), and Vlastní's list and its way to add one. A
- * mark that is not there points at nothing: the card stands in the middle. */
+ * (integrations-panel.ts), and Vlastní's list and its way to add one;
+ * Začínáme's AI and GitHub steps (start-panel.ts); the first sign-in and
+ * the first "Používají agenti" of Nástroje (tools-panel.ts); Obnova's result and its
+ * checks (recovery-panel.ts). A mark that is not there points at nothing:
+ * the card stands in the middle. */
 export const drawnMarks = Object.freeze([
   "integration-on",
   "integration-connect",
   "mcp-list",
   "mcp-add",
+  "start-ai",
+  "start-github",
+  "tool-connect",
+  "tool-agents",
+  "recovery-result",
+  "recovery-checks",
 ] as const);
 
 /** What the page knows that a variant may be chosen by. */
@@ -231,6 +363,11 @@ export type PageGuideFacts = Readonly<{
    * until read. */
   composio: boolean | null;
   vault: VaultGuideFacts;
+  /** What Settings → Začínáme shows here: the basics (`basics`, where the
+   * Environment signs in as its person), the public demo (`demo`, F55), or
+   * nothing to set up (`none`, a Team or Automated Environment); null until
+   * the profile is read. Only the basics have something to explain. */
+  start: "basics" | "demo" | "none" | null;
 }>;
 
 const none: PageGuide = Object.freeze({ help: null, video: null, guides: [] });
@@ -271,6 +408,36 @@ export function pageGuide(
         return { help: null, video: "vault-overview", guides: [] };
       if (help === "vault-agents") return plays(help, [vaultAgentsGuide(copy)]);
       return help === null ? none : plays(help);
+    }
+    case "settings": {
+      const team = facts.kind === "team";
+      switch (route.section) {
+        case "start":
+          return facts.start === "basics"
+            ? plays("settings-start", [startGuide(copy)])
+            : none;
+        case "general":
+          return plays("settings-general", [generalGuide(copy)]);
+        case "communication": {
+          const guide = voiceGuide(copy, team);
+          return plays(guide.id, [guide]);
+        }
+        case "machine":
+          return plays("settings-machine", [
+            machineGuide(copy, facts.kind === "workstation"),
+          ]);
+        case "tools": {
+          const guide = toolsGuide(copy, team);
+          return plays(guide.id, [guide]);
+        }
+        case "ssh": {
+          const guide = devicesGuide(copy, team);
+          return plays(guide.id, [guide]);
+        }
+        case "recovery":
+          return plays("settings-recovery", [recoveryGuide(copy)]);
+      }
+      return none;
     }
     default:
       return none;

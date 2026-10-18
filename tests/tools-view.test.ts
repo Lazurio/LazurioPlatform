@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { messages } from "../src/launchpad/messages";
 import {
   answerWithin,
-  checkedLine,
   composioConnectedLine,
   composioDialogView,
   composioPollDelay,
@@ -149,7 +148,10 @@ test("three groups in the order Required, Recommended, Optional, in both languag
     expect(
       groups.map((group) => group.tools.map((entry) => entry.name)),
     ).toEqual([["gh"], ["composio"], ["neon", "gogcli", "wacli"]]);
-    for (const group of groups) expect(group.note.length).toBeGreaterThan(0);
+    // Each tier's heading alone: what the tiers mean is the "?"'s
+    // (decision F56's addendum of 2026-10-18).
+    for (const group of groups)
+      expect(Object.hasOwn(group, "note")).toBe(false);
   }
   // A tier without a tool has no heading.
   expect(
@@ -670,19 +672,13 @@ test("the main view of Nástroje says nothing technical; what support needs stay
         copy,
       ),
     ];
-    const header = checkedLine(new Date(2026, 9, 9, 14, 5), locale, copy);
-    expect(
-      header.startsWith(locale === "cs" ? "Zjištěno v" : "Checked at"),
-    ).toBe(true);
     // A switched-on tool that is not installed says when agents start
     // using it, in plain words.
     expect(connectionLine(tool({ enabled: true }), copy).text).toBe(
       copy.toolsEnabledNotInstalled.replace("{name}", "composio"),
     );
     for (const said of [
-      header,
       copy.toolsLoadFailed,
-      copy.toolsMcpText,
       connectionLine(tool({ enabled: true }), copy).text,
       ...outcomes.map((outcome) => outcome.message),
     ]) {

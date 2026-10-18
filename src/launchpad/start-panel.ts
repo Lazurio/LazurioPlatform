@@ -126,6 +126,10 @@ export function createStartPanel(
     node.dataset.mark = step.mark;
     node.dataset.step = step.basic;
     if (step.basic === "ai") node.dataset.tour = "start-ai";
+    // What the guide of the page's "?" points at (decision F56's addendum of
+    // 2026-10-18): the AI step and GitHub's.
+    if (step.basic === "ai" || step.basic === "github")
+      node.dataset.guide = `start-${step.basic}`;
     const mark = element("span", "start-mark");
     mark.setAttribute("aria-hidden", "true");
     if (step.mark === "done") mark.append(svg("check"));
@@ -302,10 +306,8 @@ export function createStartPanel(
     node.dataset.optional = row.id;
     const main = element("div", "row-main");
     const copyBox = element("div", "row-copy");
-    copyBox.append(
-      element("p", "row-title", row.title),
-      element("p", "row-desc", row.text),
-    );
+    copyBox.append(element("p", "row-title", row.title));
+    if (row.text !== null) copyBox.append(element("p", "row-desc", row.text));
     if (row.status !== null)
       copyBox.append(element("p", "row-status", row.status));
     main.append(copyBox);

@@ -302,7 +302,9 @@ function githubStep(facts: StartFacts, copy: Copy): [StartStep, GithubAction] {
     {
       ...base,
       mark: ready ? "now" : "later",
-      status: copy.startGithubMissing,
+      // What GitHub opens is the "?"'s (decision F56's addendum of
+      // 2026-10-18); the step says its state.
+      status: copy.startNotConnected,
     },
     { enabled: ready },
   ];
@@ -374,7 +376,9 @@ export function startCount(facts: TourFacts): string | null {
 export type OptionalRow = Readonly<{
   id: "composio" | "ssh" | "bitwarden" | "codex";
   title: string;
-  text: string;
+  /** What it is, where its title does not say it (SSH, Codex); none where
+   * the "?" of Začínáme says it (decision F56's addendum of 2026-10-18). */
+  text: string | null;
   status: string | null;
   /** None once it is done (Composio connected). */
   action: Readonly<{
@@ -408,7 +412,7 @@ export function optionalRows(
     rows.push({
       id: "composio",
       title: "Composio",
-      text: copy.startComposioText,
+      text: null,
       status:
         input.composio === "connected"
           ? copy.startConnected
@@ -436,7 +440,7 @@ export function optionalRows(
     rows.push({
       id: "bitwarden",
       title: copy.startBitwardenTitle,
-      text: copy.startBitwardenText,
+      text: null,
       status: null,
       action: {
         label: copy.startGuide,

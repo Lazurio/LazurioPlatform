@@ -297,7 +297,6 @@ export function organizationDetails(
 export type ToolGroup = Readonly<{
   tier: Tier;
   title: string;
-  note: string;
   tools: readonly ToolOverview[];
 }>;
 
@@ -313,16 +312,17 @@ export function toolGroups(
   tools: readonly ToolOverview[],
   copy: Copy,
 ): readonly ToolGroup[] {
-  const headings: Record<Tier, readonly [MessageKey, MessageKey]> = {
-    required: ["toolsTierRequired", "toolsTierRequiredNote"],
-    recommended: ["toolsTierRecommended", "toolsTierRecommendedNote"],
-    optional: ["toolsTierOptional", "toolsTierOptionalNote"],
+  // Each tier's heading alone: what the tiers mean is the "?"'s (decision
+  // F56's addendum of 2026-10-18).
+  const headings: Record<Tier, MessageKey> = {
+    required: "toolsTierRequired",
+    recommended: "toolsTierRecommended",
+    optional: "toolsTierOptional",
   };
   return tiers
     .map((tier) => ({
       tier,
-      title: copy[headings[tier][0]],
-      note: copy[headings[tier][1]],
+      title: copy[headings[tier]],
       tools: tools.filter(
         (tool) =>
           tool.tier === tier &&
@@ -936,15 +936,6 @@ export function noticeHolds(
     notice.revision === overview.revision &&
     overview.tools.some((tool) => tool.name === notice.name)
   );
-}
-
-/** The line above the tools: when they were read. The Folder and its
- * revision are nothing a person needs here (Matěj 2026-10-09), nor in
- * Settings → General since F36's addendum of 2026-10-16. */
-export function checkedLine(at: Date, locale: "cs" | "en", copy: Copy): string {
-  return fill(copy.toolsChecked, {
-    time: at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
-  });
 }
 
 /** Only an https address of the catalog becomes a link. */

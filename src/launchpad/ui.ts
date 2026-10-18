@@ -212,6 +212,14 @@ function drawGuide(route: PageRoute) {
       locale,
       composio: integrations.composio(),
       vault: vaultPage.facts,
+      // What Začínáme shows here, as its navigation decides (`firstRun`).
+      start: isPublicEnvironment(entry)
+        ? "demo"
+        : profileState === null
+          ? null
+          : signsInAsPerson(profileState.preset)
+            ? "basics"
+            : "none",
     },
     copy,
   );
@@ -791,6 +799,8 @@ function firstRun() {
   }
   startPanel.render();
   provideOwnSetup(facts);
+  // What Začínáme's "?" plays follows the profile and the entry.
+  drawGuide(shell.route());
   tour.update();
   takeStart();
 }
@@ -1089,6 +1099,9 @@ const shell = createShell({
   displayName: (organization) => catalog.displayName(organization),
   // A public Environment has no Integrace and no Trezor (decision F55).
   place: (route) => (isPublicEnvironment(entry) ? publicRoute(route) : route),
+  // Escape is the guide's while it explains a page (decision F56): it
+  // closes the explanation and stays on the page.
+  guiding: () => guideAttention.playing() !== null,
   onRoute: (route) => {
     // The switch marks Apps, the gear Settings (the Organization rail).
     columnHead?.setAttribute(
@@ -1305,9 +1318,6 @@ async function load() {
   // content operation as a person's work Environment.
   if (!first) void content.refresh();
   renderUpdate();
-  // A Team Environment's devices that sign in to it are the whole Team's
-  // (its folder too, which the "?" of Soubory explains, decision F56).
-  ssh.shared(current.preset.name === "hosted-organization-team");
   if (relabelled) {
     relabel();
     catalog.render();
@@ -1702,10 +1712,6 @@ if (boot === null) {
   else void readPromptHandoff();
   if (shellDocument === null) void readShell();
   if (boot.catalog === null) void catalog.refresh();
-  ssh.shared(
-    shellDocument !== null &&
-      currentEnvironment(shellDocument)?.kind === "team",
-  );
   relabel();
   browser.render();
 }

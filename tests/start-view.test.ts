@@ -70,7 +70,7 @@ test("a new work Environment: AI now, GitHub after it, the content after GitHub"
         basic: "github",
         mark: "later",
         title: "GitHub",
-        status: "Zpřístupní vaše repozitáře a moduly.",
+        status: "Nepřipojeno",
       },
       {
         basic: "content",
@@ -423,7 +423,7 @@ test("GitHub once AI is there, then the content, then all done", () => {
     basic: "github",
     mark: "now",
     title: "GitHub",
-    status: "Zpřístupní vaše repozitáře a moduly.",
+    status: "Nepřipojeno",
   });
   expect(withAi?.github).toEqual({ enabled: true });
   expect(withAi?.intro).toBe("Hotovo 1 ze 3 kroků.");
@@ -536,7 +536,7 @@ test("Volitelné: Composio where Tools offer it, SSH and Codex Desktop on a Remo
     {
       id: "composio",
       title: "Composio",
-      text: "Pošta, kalendář a další aplikace pro agenty.",
+      text: null,
       status: "Nepřipojeno",
       action: { label: "Připojit", to: "composio" },
     },
@@ -640,7 +640,7 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
     {
       id: "bitwarden",
       title: "Trezor v Bitwardenu",
-      text: "Hesla z Trezoru Prostředí i v Codex Desktopu a ve vašem prohlížeči.",
+      text: null,
       status: null,
       action: { label: "Návod", to: "/vault", part: "bitwarden" },
     },
@@ -655,7 +655,7 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
   expect(optionalRows(remote, en)[1]).toEqual({
     id: "bitwarden",
     title: "Vault in Bitwarden",
-    text: "Your Environment vault's passwords in Codex Desktop and your browser too.",
+    text: null,
     status: null,
     action: { label: "Guide", to: "/vault", part: "bitwarden" },
   });

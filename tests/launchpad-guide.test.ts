@@ -11,7 +11,11 @@ import {
 } from "../src/launchpad/guides";
 import { integrationsHelp } from "../src/launchpad/integrations-view";
 import { messages } from "../src/launchpad/messages";
-import { type PageRoute, routeFrame } from "../src/launchpad/routes";
+import {
+  type PageRoute,
+  routeFrame,
+  settingsSections,
+} from "../src/launchpad/routes";
 import type { VaultPagePerson } from "../src/launchpad/vault-page-view";
 import {
   type ShellEnvironmentKind,
@@ -31,7 +35,8 @@ import { guideTextFindings } from "./fixtures/guide-text";
 
 // The Launchpad as the host of the shell's guide (decision F56 and its
 // addendum of 2026-10-18, plan DEV-6612 PRs 4 and 5): every page of the Apps
-// column has its "?" right after its heading, and exactly one. It plays a
+// column and every section of Settings has its "?" right after its heading,
+// and exactly one. It plays a
 // principle of the shell or an explanation the Launchpad hands over, chosen
 // only from facts the page knows (the kind of Environment, whether Composio
 // is allowed, the vault core's answer and the person's place in the vault),
@@ -127,6 +132,10 @@ const pages: readonly (readonly [string, PageRoute])[] = [
     { view: "integrations", tab: "custom", form: { server: null } },
   ],
   ["Trezor", { view: "vault" }],
+  ...settingsSections.map(
+    (section) =>
+      [`Nastavení ${section}`, { view: "settings", section }] as const,
+  ),
 ];
 
 // --- The vault's facts (#499) -------------------------------------------
@@ -195,7 +204,9 @@ function* everyFacts(): Generator<PageGuideFacts> {
   for (const kind of kinds)
     for (const locale of locales)
       for (const composio of [null, false, true])
-        for (const vault of vaultFacts) yield { kind, locale, composio, vault };
+        for (const vault of vaultFacts)
+          for (const start of ["basics", "demo", "none", null] as const)
+            yield { kind, locale, composio, vault, start };
 }
 
 /** What a "?" plays: the shell's principle, or one the Launchpad hands
@@ -287,9 +298,17 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
         continue;
       }
       if (guide.help === null) {
-        // Only Trezor waits, while its vault's state is not read.
-        expect({ name, waits: facts.vault.vault === null }).toEqual({
-          name: "Trezor",
+        // Only Trezor waits, while its vault's state is not read, and
+        // Začínáme, where it has no basics to explain (a public demo, a Team
+        // or Automated Environment) or the profile is not read.
+        expect({
+          name,
+          waits:
+            name === "Trezor"
+              ? facts.vault.vault === null
+              : facts.start !== "basics",
+        }).toEqual({
+          name: name === "Trezor" ? "Trezor" : "Nastavení start",
           waits: true,
         });
         continue;
@@ -307,6 +326,7 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
     locale: "cs",
     composio: null,
     vault: { vault: null, person: null },
+    start: "basics",
     ...fields,
   });
   const help = (route: PageRoute, fields: Partial<PageGuideFacts> = {}) =>
@@ -332,6 +352,49 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
     expect(help(route)).toBe("integrations-custom");
     expect(help(route, { composio: true })).toBe("integrations-custom");
   }
+  // Settings: each section its own, a Team Environment's where it differs.
+  const section = (name: (typeof settingsSections)[number]) =>
+    ({ view: "settings", section: name }) as const;
+  expect(
+    settingsSections.map((name) => help(section(name), { kind: "work" })),
+  ).toEqual([
+    "settings-start",
+    "settings-general",
+    "settings-communication",
+    "settings-machine",
+    "settings-tools",
+    "settings-ssh",
+    "settings-recovery",
+  ]);
+  expect(
+    settingsSections.map((name) => help(section(name), { kind: "team" })),
+  ).toEqual([
+    "settings-start",
+    "settings-general",
+    "settings-communication-team",
+    "settings-machine",
+    "settings-tools-team",
+    "settings-ssh-team",
+    "settings-recovery",
+  ]);
+  // Začínáme only where it has the basics.
+  for (const start of ["demo", "none", null] as const)
+    expect(help(section("start"), { start })).toBeNull();
+  // Your computer is not the agents' virtual computer.
+  const steps = (kind: ShellEnvironmentKind) =>
+    pageGuide(
+      section("machine"),
+      facts({ kind }),
+      messages("cs", kind),
+    ).guides[0]?.steps.map((step) => step.text);
+  expect(steps("workstation")).toEqual([
+    "Váš počítač, na kterém pracují i agenti",
+    "Komu patří a kdo na něm pracuje",
+    "Technické údaje pro podporu",
+  ]);
+  expect(steps("team")?.[0]).toBe(
+    "Toto Týmové Prostředí je virtuální počítač vašich agentů",
+  );
 });
 
 test("every mark a step points at is on the served page, drawn by a panel once read, or the shell's own", () => {
@@ -414,6 +477,16 @@ test("the Launchpad's explanations keep the guide's rules in both languages and 
     "files-team",
     "integrations-composio",
     "integrations-custom",
+    "settings-communication",
+    "settings-communication-team",
+    "settings-general",
+    "settings-machine",
+    "settings-recovery",
+    "settings-ssh",
+    "settings-ssh-team",
+    "settings-start",
+    "settings-tools",
+    "settings-tools-team",
     "vault-agents",
   ]);
   expect(messages("en").pageHelp).toBe("How does it work?");
@@ -435,6 +508,7 @@ test("Integrace's 'Jak to funguje' is the guide's card's now: each of its explan
             locale,
             composio,
             vault: { vault: null, person: null },
+            start: "basics",
           },
           copy,
         );
@@ -549,6 +623,7 @@ test("Trezor's '?' is chosen from the kind, the vault core's answer and the pers
         locale,
         composio: null,
         vault: read(connected, "team", unknownPerson("not-managed")),
+        start: "none",
       },
       messages(locale, "team"),
     );
@@ -580,6 +655,7 @@ test("Trezor's '?' is chosen from the kind, the vault core's answer and the pers
       locale: "cs",
       composio: null,
       vault: read(connected, "work", known("member")),
+      start: "basics",
     },
     messages("cs", "work"),
   );
@@ -607,6 +683,54 @@ const removed = [
   "Whoever has access to the Environment has all of its passwords.",
   "V Organizaci má každé Prostředí vlastní trezor.",
   "In an Organization, every Environment has its own vault.",
+  // Settings (the prototype's list for Nastavení Prostředí as the Launchpad
+  // wrote it, and its own sentences that said the same).
+  "Zpřístupní vaše repozitáře a moduly.",
+  "Opens your repositories and modules.",
+  "Pošta, kalendář a další aplikace pro agenty.",
+  "Mail, calendar and other apps for agents.",
+  "Hesla z Trezoru Prostředí i v Codex Desktopu",
+  "passwords in Codex Desktop and your browser too",
+  "Druh tohoto Prostředí.",
+  "The kind of this Environment.",
+  "Jazyk této stránky a agentů.",
+  "The language of this page and of the agents.",
+  "Jak agenti vysvětlují svou práci",
+  "How agents explain their work",
+  "Zda agenti pracují přímo, nebo delegují",
+  "Whether agents work directly, or delegate",
+  "Nastavte, jak mají agenti",
+  "Set how agents communicate",
+  "jeden společný tón pro všechny",
+  "uses the same voice",
+  "Text si můžete upravit.",
+  "Edit the text to suit you.",
+  "Zjištěno v",
+  "Checked at",
+  "Bez nich tu nic nefunguje.",
+  "Nothing works here without them.",
+  "Hodí se skoro každému.",
+  "Useful to almost everyone.",
+  "Zapněte jen to, co používáte.",
+  "Turn on only what you use.",
+  "Vlastní MCP servery přidáte v Apps",
+  "You add custom MCP servers in Apps",
+  "přes SSH z terminálu na svém počítači",
+  "over SSH from a terminal on your own computer",
+  "zařízení přidané tady se přihlašuje do účtu Teamu",
+  "a device added here signs in to the Team's account",
+  "Otevře si tuto stránku ve svém panelu prohlížeče",
+  "It opens this page in its browser panel",
+  "Váš agent je zapíše do vašeho počítače.",
+  "Your agent writes these on your computer.",
+  "Agent opraví Lazurio směrem dopředu",
+  "The agent repairs forward",
+  "Jen sanitizovaná strukturovaná pole",
+  "Sanitized structured fields only",
+  "Opravný agent ho založí",
+  "The repair agent files it",
+  "Tato stránka issue jen připraví",
+  "This page only prepares the issue",
 ];
 
 test("the sentences the '?' replaced are gone from the page and its words", () => {
@@ -628,6 +752,15 @@ test("the sentences the '?' replaced are gone from the page and its words", () =
     "integrations-help",
     "vault-page-rule",
     "vault-explainer",
+    "preset-hint",
+    "locale-hint",
+    "detail-hint",
+    "coordination-hint",
+    "voice-shared",
+    "voice-hint",
+    "tools-shared",
+    "tools-checked",
+    "ssh-shared",
   ])
     expect({
       id,
@@ -639,6 +772,26 @@ test("the sentences the '?' replaced are gone from the page and its words", () =
     "integrationsSubtitle",
     "vaultPageRule",
     "vaultExplainerText",
+    "startGithubMissing",
+    "startComposioText",
+    "startBitwardenText",
+    "presetHint",
+    "localeHint",
+    "detailHint",
+    "coordinationHint",
+    "voiceIntro",
+    "voiceShared",
+    "voiceHint",
+    "toolsChecked",
+    "toolsTierRequiredNote",
+    "toolsTierRecommendedNote",
+    "toolsTierOptionalNote",
+    "toolsMcpText",
+    "sshIntro",
+    "sshShared",
+    "sshPromptNote",
+    "sshComputerNote",
+    "recoveryEvidenceText",
   ])
     for (const locale of locales)
       expect({ key, here: Object.hasOwn(messages(locale), key) }).toEqual({

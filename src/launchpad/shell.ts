@@ -28,6 +28,9 @@ export function createShell(
      * Integrace and Trezor show Apps in their place, Nastavení → Nástroje
      * Settings (decision F55). Absent: every route is itself. */
     place?: (route: PageRoute) => PageRoute;
+    /** Whether the shell's guide explains the page now (decision F56):
+     * Escape then closes the explanation, not Settings. */
+    guiding?: () => boolean;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -223,7 +226,8 @@ export function createShell(
   );
 
   // Escape leaves Settings (T3 Code's useEscapeToGoBack) unless something
-  // else already took it: an open dialog, the open sheet, a form field.
+  // else already took it: an open dialog, the open sheet, a form field, or
+  // the guide explaining the page (decision F56's addendum of 2026-10-18).
   document.addEventListener("keydown", (event) => {
     if (
       event.key !== "Escape" ||
@@ -240,6 +244,7 @@ export function createShell(
     const target = event.target;
     if (
       route.view !== "settings" ||
+      options.guiding?.() === true ||
       document.querySelector("dialog[open]") !== null ||
       (target instanceof HTMLElement &&
         (target.isContentEditable ||

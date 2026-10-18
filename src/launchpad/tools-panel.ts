@@ -10,7 +10,6 @@ import {
   answerWithin,
   autoEnable,
   type ComposioDialogView,
-  checkedLine,
   composioConnectedLine,
   composioDialogView,
   composioPollDelay,
@@ -91,8 +90,6 @@ export function createToolsPanel(
     return element;
   };
   const groups = find<HTMLDivElement>("#tools-groups");
-  const shared = find<HTMLParagraphElement>("#tools-shared");
-  const checked = find<HTMLSpanElement>("#tools-checked");
   const announce = find<HTMLParagraphElement>("#tools-announce");
   const refreshButton = find<HTMLButtonElement>("#tools-refresh");
   const mcpButton = find<HTMLButtonElement>("#tools-mcp");
@@ -1350,26 +1347,29 @@ export function createToolsPanel(
         : { primary: null, logout: false, linkSsh: false };
     const primary = curated.primary;
     if (vaultRow !== null) controls.append(...vaultRow.controls);
-    if (primary !== null)
-      controls.append(
-        button(
-          primary.label,
-          tool.name,
-          "curated",
-          () =>
-            primary.mode === "install-only"
-              ? void installOnly(tool)
-              : openLogin(tool, primary.mode),
-          fill(
-            primary.mode === "install"
-              ? copy.toolsInstallActionNamed
-              : primary.mode === "install-only"
-                ? copy.toolsInstallOnlyNamed
-                : copy.toolsSignInActionNamed,
-            { name: tool.name },
-          ),
+    if (primary !== null) {
+      const action = button(
+        primary.label,
+        tool.name,
+        "curated",
+        () =>
+          primary.mode === "install-only"
+            ? void installOnly(tool)
+            : openLogin(tool, primary.mode),
+        fill(
+          primary.mode === "install"
+            ? copy.toolsInstallActionNamed
+            : primary.mode === "install-only"
+              ? copy.toolsInstallOnlyNamed
+              : copy.toolsSignInActionNamed,
+          { name: tool.name },
         ),
       );
+      // A connection (a sign-in, or adding and connecting), which the guide
+      // of the page's "?" points at; installing alone connects nothing.
+      if (primary.mode !== "install-only") action.dataset.signIn = "";
+      controls.append(action);
+    }
     // Not the build Lazurio pins for the tool (composio, decision F42
     // addendum (3)): "Update" installs exactly that build in place, keeping
     // the sign-in.
@@ -1617,7 +1617,6 @@ export function createToolsPanel(
     const copy = options.copy();
     refreshButton.disabled = busy;
     mcpButton.disabled = overview === null;
-    shared.hidden = overview?.sharedEnvironment !== true;
     if (overview === null) {
       groups.replaceChildren(
         element(
@@ -1635,7 +1634,7 @@ export function createToolsPanel(
         heading.id = `tools-group-${group.tier}`;
         section.setAttribute("aria-labelledby", heading.id);
         const head = element("div", "group-head");
-        head.append(heading, element("p", "group-note", group.note));
+        head.append(heading);
         const list = element("ul", "card tools-list");
         list.setAttribute("aria-labelledby", heading.id);
         list.replaceChildren(...group.tools.map((tool) => card(tool, copy)));
@@ -1643,6 +1642,14 @@ export function createToolsPanel(
         return section;
       }),
     );
+    // What the guide of the page's "?" points at (decision F56's addendum
+    // of 2026-10-18): the first sign-in, and the first "Používají agenti".
+    groups
+      .querySelector("button[data-sign-in]")
+      ?.setAttribute("data-guide", "tool-connect");
+    groups
+      .querySelector('button[role="switch"]')
+      ?.setAttribute("data-guide", "tool-agents");
     // A control is disabled while the panel is busy and cannot take the
     // focus then; the render after the read places it.
     if (focus !== null && !busy) {
@@ -1710,16 +1717,10 @@ export function createToolsPanel(
       // another one means the Folder changed since, elsewhere, and its Undo
       // would be refused.
       if (notice !== null && !noticeHolds(notice, overview)) notice = null;
-      checked.textContent = checkedLine(
-        new Date(),
-        parsed.locale,
-        options.copy(),
-      );
     } catch {
       if (turn !== sequence) return;
       overview = null;
       failed = true;
-      checked.textContent = "";
       say(copy.toolsLoadFailed);
     } finally {
       if (turn === sequence) {
