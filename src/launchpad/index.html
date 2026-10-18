@@ -125,12 +125,13 @@ html, body { margin: 0; }
 body { background: var(--lz-gray-50); color: var(--fg); font: 15px/1.45 var(--font-sans); letter-spacing: var(--lz-track-body); -webkit-font-smoothing: antialiased; }
 [hidden] { display: none !important; }
 /* A public Environment (decision F55, ui.ts `drawAudience`): no Integrace,
-   no Trezor, no Nástroje, nothing for Začínáme to check again and no choice
-   of the theme, which is fixed there (root decision 0208 point 6). */
+   no Trezor, no Nástroje and nothing for Začínáme to check again. */
 html[data-audience="public"] li:has(> #integrations-open),
 html[data-audience="public"] li:has(> #vault-open),
 html[data-audience="public"] #settings-nav li:has(> a[data-section="tools"]),
-html[data-audience="public"] #start-refresh,
+html[data-audience="public"] #start-refresh { display: none !important; }
+/* Nor a choice of the theme, which is fixed there (root decision 0208 point
+   6): from the first paint, before theme-panel.ts knows. */
 html[data-audience="public"] #theme-group { display: none !important; }
 /* The first paint is the final page (F36's addendum of 2026-10-08). Only the
    frame and the Settings section the inline script above names are shown

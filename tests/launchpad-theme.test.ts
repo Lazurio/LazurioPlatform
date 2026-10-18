@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
@@ -375,6 +375,38 @@ test("the theme's note names the kind of Environment it is in, and a computer as
   expect(messages("cs", null).themeNote).toBe(
     "Barvy Chatu, Apps a Automate v tomto Prostředí.",
   );
+});
+
+// The page hides the theme's group on a public Environment from its first
+// paint, in a rule of its own beside the one that hides Integrace, Trezor
+// and Nástroje there (decision F55), which this keeps exactly as it is.
+test("a public Environment's stylesheet hides the theme's group in a rule of its own", async () => {
+  const page = await readFile(
+    join(import.meta.dir, "..", "src", "launchpad", "index.html"),
+    "utf8",
+  );
+  const rules = [...page.matchAll(/<style>([\s\S]*?)<\/style>/g)]
+    .map((match) => match[1] ?? "")
+    .join("\n")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .matchAll(/([^{}]+)\{([^{}]*)\}/g);
+  const hiding = [...rules]
+    .map((match) => ({
+      selectors: (match[1] ?? "")
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean),
+      body: (match[2] ?? "").trim(),
+    }))
+    .filter((rule) =>
+      rule.selectors.includes('html[data-audience="public"] #theme-group'),
+    );
+  expect(hiding).toEqual([
+    {
+      selectors: ['html[data-audience="public"] #theme-group'],
+      body: "display: none !important;",
+    },
+  ]);
 });
 
 test("the page's view of the answer: every choice a theme, the record's among them", () => {
