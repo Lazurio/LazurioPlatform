@@ -499,11 +499,16 @@ test("accounts: one line when they need the person or are spare, and what discon
     disconnectText(
       notion,
       account("connected", "composio"),
-      "op@example.test",
+      "LazurioExampleOrganization",
       cs,
     ),
   ).toBe(
-    "Odpojí se z účtu Composia op@example.test, takže ve všech Prostředích, které ho používají.",
+    "Odpojí se z organizace LazurioExampleOrganization v Composiu, takže ve všech Prostředích, která ji používají.",
+  );
+  expect(
+    disconnectText(notion, account("connected", "composio"), null, cs),
+  ).toBe(
+    "Odpojí se z vaší organizace v Composiu, takže ve všech Prostředích, která ji používají.",
   );
   expect(disconnectText(notion, account("pending"), null, en)).toBe(
     "Only this account is withdrawn; the other accounts of Notion stay connected.",

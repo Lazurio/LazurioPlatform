@@ -39,6 +39,7 @@ import {
   type ComposioTrip,
   type ComposioUpdate,
   cardView,
+  composioDisconnectOrganization,
   composioOrganizationLine,
   composioTrip,
   composioUpdated,
@@ -539,7 +540,12 @@ export function createIntegrationsPanel(
     const name = account.label ?? copy.integrationsAccountUnnamed;
     openConfirm(
       fill(copy.integrationsDisconnectTitle, { account: name, app: app.name }),
-      disconnectText(app, account, null, copy),
+      disconnectText(
+        app,
+        account,
+        overview === null ? null : composioDisconnectOrganization(overview),
+        copy,
+      ),
       copy.integrationsDisconnect,
       { kind: "start", run: () => void remove(app, account) },
     );
