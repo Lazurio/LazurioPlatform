@@ -56,7 +56,6 @@ export function voicePanel(options: {
   const refresh = element<HTMLButtonElement>("voice-refresh");
   const status = element<HTMLParagraphElement>("voice-status");
   const meta = element<HTMLSpanElement>("voice-meta");
-  const shared = element<HTMLParagraphElement>("voice-shared");
   const drafts: Partial<Record<VoiceLocale, VoiceDraft>> = {};
   let current: ProfileView | null = null;
   let active: VoiceDraft | null = null;
@@ -82,7 +81,6 @@ export function voicePanel(options: {
         : "";
     refresh.hidden = !needsRefresh;
     refresh.disabled = busy;
-    shared.hidden = current.preset.name !== "hosted-organization-team";
   }
   text.addEventListener("input", () => {
     if (!active) return;

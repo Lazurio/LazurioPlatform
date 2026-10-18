@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { messages } from "../src/launchpad/messages";
 import {
   answerWithin,
-  checkedLine,
   composioConnectedLine,
   composioDialogView,
   composioPollDelay,
@@ -38,6 +37,7 @@ import {
   teamInstallOutcome,
   toolChangeOutcome,
   toolGroups,
+  toolGuideTargets,
   toolNoticeView,
   toolStatusView,
   updateAction,
@@ -149,7 +149,10 @@ test("three groups in the order Required, Recommended, Optional, in both languag
     expect(
       groups.map((group) => group.tools.map((entry) => entry.name)),
     ).toEqual([["gh"], ["composio"], ["neon", "gogcli", "wacli"]]);
-    for (const group of groups) expect(group.note.length).toBeGreaterThan(0);
+    // Each tier's heading alone: what the tiers mean is the "?"'s
+    // (decision F56's addendum of 2026-10-18).
+    for (const group of groups)
+      expect(Object.hasOwn(group, "note")).toBe(false);
   }
   // A tier without a tool has no heading.
   expect(
@@ -670,19 +673,13 @@ test("the main view of Nástroje says nothing technical; what support needs stay
         copy,
       ),
     ];
-    const header = checkedLine(new Date(2026, 9, 9, 14, 5), locale, copy);
-    expect(
-      header.startsWith(locale === "cs" ? "Zjištěno v" : "Checked at"),
-    ).toBe(true);
     // A switched-on tool that is not installed says when agents start
     // using it, in plain words.
     expect(connectionLine(tool({ enabled: true }), copy).text).toBe(
       copy.toolsEnabledNotInstalled.replace("{name}", "composio"),
     );
     for (const said of [
-      header,
       copy.toolsLoadFailed,
-      copy.toolsMcpText,
       connectionLine(tool({ enabled: true }), copy).text,
       ...outcomes.map((outcome) => outcome.message),
     ]) {
@@ -1721,4 +1718,74 @@ test("a tool signed in before the sign-in says so, in both languages", () => {
     ).toBe(copy.toolsLoginAlreadySignedIn.replace("{name}", "wacli"));
     expect(copy.toolsLoginAlreadySignedIn).not.toBe(copy.toolsLoginSignedIn);
   }
+});
+
+// What the guide of Nástroje's "?" can point at (decision F56's addendum (2)
+// of 2026-10-18; Pablo's review of #503): a sign-in or a connection someone
+// made, and a switch the person can move; nothing where there is none, so
+// the guide leaves those steps out.
+test("the guide's targets on connecting and on the switch are only what a person can use there", () => {
+  const en = messages("en");
+  const signedIn = {
+    installed: true,
+    signIn: { state: "signed-in", account: "a@example.com" },
+  } as const;
+  const gh = tool({ name: "gh", command: "gh", tier: "required", ...signedIn });
+  const targets = (tools: readonly ToolOverview[], brokered = false) =>
+    toolGuideTargets(toolGroups(tools, en), en, brokered);
+  // A sign-in to make: its button, and the first switch.
+  expect(
+    targets([
+      gh,
+      tool({ installed: true }),
+      tool({ name: "wacli", command: "wacli", tier: "optional" }),
+    ]),
+  ).toEqual({
+    connect: { tool: "composio", part: "action" },
+    agents: { tool: "composio" },
+  });
+  // Adding and connecting counts too.
+  expect(targets([tool()]).connect).toEqual({
+    tool: "composio",
+    part: "action",
+  });
+  // Everything connected: the first connection made, as its line says it.
+  expect(
+    targets([
+      gh,
+      tool(signedIn),
+      tool({ name: "wacli", command: "wacli", tier: "optional", ...signedIn }),
+    ]),
+  ).toEqual({
+    connect: { tool: "gh", part: "state" },
+    agents: { tool: "composio" },
+  });
+  // A Team Environment: gh works as the Organization's identity and signs
+  // nobody in; a team account connected here is the connection.
+  expect(targets([gh, tool(signedIn)], true)).toEqual({
+    connect: { tool: "composio", part: "state" },
+    agents: { tool: "composio" },
+  });
+  // A Team Environment with gh alone: nothing to connect, no switch.
+  expect(targets([gh], true)).toEqual({ connect: null, agents: null });
+  // gh missing on a Team Environment is installed only, never signed in.
+  expect(
+    targets([tool({ name: "gh", command: "gh", tier: "required" })], true),
+  ).toEqual({ connect: null, agents: null });
+  // A tool the Organization does not allow: neither connected nor switched
+  // here.
+  expect(
+    targets([tool({ ...signedIn, organization: { allowed: false } })]),
+  ).toEqual({ connect: null, agents: null });
+  // The vault's and Executor's rows, an agent's tool and a tool not offered
+  // here are none of a person's sign-ins.
+  expect(
+    targets([
+      tool({ name: "bitwarden", command: "bw", installed: true }),
+      tool({ name: "executor", command: "executor", tier: "required" }),
+      tool({ name: "neon", command: "neon", setup: "agent" }),
+      tool({ name: "wacli", command: "wacli", offered: false }),
+    ]).connect,
+  ).toBeNull();
+  expect(targets([])).toEqual({ connect: null, agents: null });
 });

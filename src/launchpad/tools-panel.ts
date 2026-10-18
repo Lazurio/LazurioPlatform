@@ -10,7 +10,6 @@ import {
   answerWithin,
   autoEnable,
   type ComposioDialogView,
-  checkedLine,
   composioConnectedLine,
   composioDialogView,
   composioPollDelay,
@@ -43,12 +42,14 @@ import {
   sourceLink,
   sshOutcome,
   type ToolChange,
+  type ToolGuideTargets,
   type ToolNotice,
   takesNote,
   teamInstallOutcome,
   toolChangeOutcome,
   toolDescription,
   toolGroups,
+  toolGuideTargets,
   toolNoticeView,
   toolStatusView,
   updateAction,
@@ -77,6 +78,10 @@ export function createToolsPanel(
     copy: () => Copy;
     /** Share the same observation with Apps, including failed reads. */
     observed: (overview: ToolsOverview | null) => void;
+    /** Called after the tools are drawn, with what the guide of the page's
+     * "?" can point at now (`toolGuideTargets`), null while the tools are
+     * not read (decision F56's addendum (2) of 2026-10-18). */
+    drawn?: (targets: ToolGuideTargets | null) => void;
     /** The Folder changed through this panel: the rest of the page reloads,
      * and that reload refreshes this panel too. */
     changed: () => Promise<void>;
@@ -91,8 +96,6 @@ export function createToolsPanel(
     return element;
   };
   const groups = find<HTMLDivElement>("#tools-groups");
-  const shared = find<HTMLParagraphElement>("#tools-shared");
-  const checked = find<HTMLSpanElement>("#tools-checked");
   const announce = find<HTMLParagraphElement>("#tools-announce");
   const refreshButton = find<HTMLButtonElement>("#tools-refresh");
   const mcpButton = find<HTMLButtonElement>("#tools-mcp");
@@ -1350,26 +1353,26 @@ export function createToolsPanel(
         : { primary: null, logout: false, linkSsh: false };
     const primary = curated.primary;
     if (vaultRow !== null) controls.append(...vaultRow.controls);
-    if (primary !== null)
-      controls.append(
-        button(
-          primary.label,
-          tool.name,
-          "curated",
-          () =>
-            primary.mode === "install-only"
-              ? void installOnly(tool)
-              : openLogin(tool, primary.mode),
-          fill(
-            primary.mode === "install"
-              ? copy.toolsInstallActionNamed
-              : primary.mode === "install-only"
-                ? copy.toolsInstallOnlyNamed
-                : copy.toolsSignInActionNamed,
-            { name: tool.name },
-          ),
+    if (primary !== null) {
+      const action = button(
+        primary.label,
+        tool.name,
+        "curated",
+        () =>
+          primary.mode === "install-only"
+            ? void installOnly(tool)
+            : openLogin(tool, primary.mode),
+        fill(
+          primary.mode === "install"
+            ? copy.toolsInstallActionNamed
+            : primary.mode === "install-only"
+              ? copy.toolsInstallOnlyNamed
+              : copy.toolsSignInActionNamed,
+          { name: tool.name },
         ),
       );
+      controls.append(action);
+    }
     // Not the build Lazurio pins for the tool (composio, decision F42
     // addendum (3)): "Update" installs exactly that build in place, keeping
     // the sign-in.
@@ -1613,11 +1616,18 @@ export function createToolsPanel(
     return item;
   }
 
+  // What the guide can point at, as last drawn; null while not read.
+  let guideTargets: ToolGuideTargets | null = null;
   function render() {
+    guideTargets = null;
+    draw();
+    options.drawn?.(guideTargets);
+  }
+
+  function draw() {
     const copy = options.copy();
     refreshButton.disabled = busy;
     mcpButton.disabled = overview === null;
-    shared.hidden = overview?.sharedEnvironment !== true;
     if (overview === null) {
       groups.replaceChildren(
         element(
@@ -1628,14 +1638,15 @@ export function createToolsPanel(
       );
       return;
     }
+    const shownGroups = toolGroups(overview.tools, copy);
     groups.replaceChildren(
-      ...toolGroups(overview.tools, copy).map((group) => {
+      ...shownGroups.map((group) => {
         const section = element("section", "group");
         const heading = element("h2", "", group.title);
         heading.id = `tools-group-${group.tier}`;
         section.setAttribute("aria-labelledby", heading.id);
         const head = element("div", "group-head");
-        head.append(heading, element("p", "group-note", group.note));
+        head.append(heading);
         const list = element("ul", "card tools-list");
         list.setAttribute("aria-labelledby", heading.id);
         list.replaceChildren(...group.tools.map((tool) => card(tool, copy)));
@@ -1643,6 +1654,31 @@ export function createToolsPanel(
         return section;
       }),
     );
+    // What the guide of the page's "?" points at (decision F56's addendum
+    // (2) of 2026-10-18, `toolGuideTargets`): connecting and the switch,
+    // where the page draws them; the guide's steps follow (`drawn`).
+    const targets = toolGuideTargets(
+      shownGroups,
+      copy,
+      overview.sharedEnvironment === true,
+    );
+    guideTargets = targets;
+    const row = (name: string) =>
+      [...groups.querySelectorAll<HTMLElement>("li[data-tool]")].find(
+        (item) => item.dataset.tool === name,
+      );
+    if (targets.connect !== null)
+      row(targets.connect.tool)
+        ?.querySelector(
+          targets.connect.part === "action"
+            ? 'button[data-control="curated"]'
+            : ".row-status",
+        )
+        ?.setAttribute("data-guide", "tool-connect");
+    if (targets.agents !== null)
+      row(targets.agents.tool)
+        ?.querySelector(".switch-field")
+        ?.setAttribute("data-guide", "tool-agents");
     // A control is disabled while the panel is busy and cannot take the
     // focus then; the render after the read places it.
     if (focus !== null && !busy) {
@@ -1710,16 +1746,10 @@ export function createToolsPanel(
       // another one means the Folder changed since, elsewhere, and its Undo
       // would be refused.
       if (notice !== null && !noticeHolds(notice, overview)) notice = null;
-      checked.textContent = checkedLine(
-        new Date(),
-        parsed.locale,
-        options.copy(),
-      );
     } catch {
       if (turn !== sequence) return;
       overview = null;
       failed = true;
-      checked.textContent = "";
       say(copy.toolsLoadFailed);
     } finally {
       if (turn === sequence) {

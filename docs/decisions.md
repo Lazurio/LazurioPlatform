@@ -14614,3 +14614,102 @@ kept only as an https address), `tests/vault-page-view.test.ts`,
 and `tests/launchpad-page-corners.test.ts` (the corner without "Jak to funguje", the heads
 with their "?"), and in headless Chrome against the hosted and personal previews (root
 decision 0178).
+
+### F56 addendum (2) of 2026-10-18: every section of Settings has its "?" and loses its explaining sentences
+
+**Decided with the addendum above (the lane's shaping section 3(c) and section 7 item 5;
+the wireframe's `settings-*` explanations and its REMOVED list).** The rest of the
+Launchpad's pages: every section of Settings has the header's "?" right after its
+heading (`#page-help`, `pageHelpOf`), plays an explanation the Launchpad hands over, and
+loses the sentences it replaces in the same change, in both languages.
+
+1. **What each section plays** (`pageGuide` in `src/launchpad/guides.ts`; ids are the
+   wireframe's where it has the section):
+   - **Začínáme** `settings-start`: the steps that prepare the Environment, the AI first,
+     the modules after GitHub, the optional steps at any time. Only where it has the
+     basics (`firstRun`'s person presets, `PageGuideFacts.start`): a public
+     Environment's demo (F55) and an Environment with nothing to set up have no "?",
+     since nothing on them explains. Removed: GitHub's line while it is not connected
+     ("Zpřístupní vaše repozitáře a moduly.", now the state "Nepřipojeno"). Kept: every
+     optional row's line (Composio "Pošta, kalendář a další aplikace pro agenty.",
+     Trezor v Bitwardenu "Hesla z Trezoru Prostředí i v Codex Desktopu a ve vašem
+     prohlížeči.", SSH and Codex Desktop), which says what the row gives where its title
+     does not and no step of the four says it (Pablo's review of #503 for the first
+     two; the rules forbid naming SSH); "Agent vám pak pomůže s dalšími kroky." is
+     #475's tour's and untouched.
+   - **Obecné** `settings-general`: the language, how fully agents explain, whether they
+     work alone or delegate, the preview first. Removed: the rows' descriptions of the
+     language, the detail and the coordination. Kept: the preset's "Druh tohoto
+     Prostředí.", which no step names (Pablo's review of #503), the theme's note and
+     its Team line (root decision 0208, newer than the wireframe; what the theme changes
+     across Chat, Apps and Automate is no step's, and the Team line is the consequence
+     where the choice is made).
+   - **Komunikace agentů** `settings-communication`, in a Team Environment
+     `settings-communication-team` (one voice for everyone): how agents write here, in
+     e-mails, on WhatsApp and to other agents, a change for new conversations. Removed:
+     the introduction, the Team line and the hint under the text.
+   - **Toto <kind> Prostředí** `settings-machine`: the agents' virtual computer, whose it
+     is and who works in it, the details for support; on your computer "Váš počítač, na
+     kterém pracují i agenti" (a laptop is not the agents' computer). Nothing removed:
+     the section had no explaining sentence.
+   - **Nástroje** `settings-tools`, in a Team Environment `settings-tools-team` (the
+     whole Team shares it, team accounts, everyone uses what is signed in): the tools,
+     connected with one's own account, where they are connected agents can go, the
+     switch. Its steps follow what the page can show (`PageGuideFacts.tools`, the
+     panel's `toolGuideTargets` through its `drawn` hook; Pablo's review of #503), as
+     Trezor's follow the vault: the two on connecting only where a person can connect a
+     tool or someone did, the switch only where there is one to move, and always what
+     the page is (in a Team Environment, that the Team shares it). A Team Environment
+     with gh alone, working as the Organization's identity, so hears one step. Until the
+     tools are read the "?" waits. Removed: "Zjištěno v …", the tiers' notes, the Team note above the tools and
+     the line of "Vlastní MCP server". Kept: each tool's one line on what it is (the
+     wireframe keeps them), and the Team warning in the confirmation of an enable, where
+     the choice is made.
+   - **The devices section** (`ssh`, "SSH ze zařízení") `settings-ssh`, in a Team
+     Environment `settings-ssh-team`, titled "Vaše zařízení" since a text of the guide
+     never names the protocol: the prompt for the agent on one's computer, sign in and
+     it sets up the rest, a key per device, removed here at any time (in a Team
+     Environment the whole Team sees and removes them). Removed: the introduction, the
+     Team note, the prompt's note and "Váš agent je zapíše do vašeho počítače.". Kept:
+     the add form's hint (what to paste, never the private key), the device name's
+     example, the network note (a key alone gives no network access, and what to do
+     when it fails, which the guide cannot say), the note on keys added outside and
+     the line where the section is not available.
+   - **Obnova** `settings-recovery`: Lazurio checks itself, what fails shows in the
+     checks, an agent repairs it or records the fault on GitHub. Removed: the second
+     sentence of the repair agent's text, the issue's "Opravný agent ho založí…" and
+     "Tato stránka issue jen připraví…". Kept: the prompt's
+     instruction, the issue's repository, the evidence's note "Jen sanitizovaná
+     strukturovaná pole, přesně jak je nese připravené issue." (a person decides there
+     whether to file it to the public repository; Pablo's review of #503), "Nic nebylo
+     odesláno." and the journal's note (it stays here). Recovery mode has no "?".
+2. **Marks.** On the served page: `start-steps`, `start-optional`, `general-language`,
+   `general-detail`, `general-coordination`, `general-apply`, `voice-text`, `voice-save`,
+   `machine-facts`, `machine-support`, `tools`, `ssh-prompt`, `ssh-devices`. Drawn once
+   read (`drawnMarks`): `start-ai` and `start-github` (start-panel.ts), `tool-connect`
+   and `tool-agents` (tools-panel.ts), `recovery-result` and `recovery-checks`
+   (recovery-panel.ts). The two marks of Nástroje are what a person can use there
+   (`toolGuideTargets` in tools-view.ts): the first sign-in (or adding and
+   connecting), else the first connection someone made (its line "Připojeno jako
+   …"), and the first switch "Používají agenti" that moves; never a vault's or
+   Executor's row, a tool not offered or not allowed here, or gh of a Team
+   Environment, which works as the Organization's identity and signs nobody in.
+   Where there is none, the mark is not set and the steps at it are left out (Pablo's
+   review of #503).
+3. **Escape belongs to the guide while it explains** (the addendum above, point 8):
+   with the sections' "?" an explanation is now often out on Settings, and Escape
+   closes it and the section stays.
+
+**Honest limits.** The section of Settings named "SSH ze zařízení" plays an
+explanation titled "Vaše zařízení": the guide's words keep the rule against naming the
+protocol, and the section's own title still says it. The Toto Prostředí explanation's
+"Komu patří a kdo v něm pracuje" points at the facts' card, whatever it lists. The
+English words are the agent's, for Matěj's review.
+
+Verified by `tests/launchpad-guide.test.ts` (one "?" right after the heading of every
+section, Začínáme's only with the basics, each section's explanation in a Work and a
+Team Environment, your computer's words, every mark, the rules in both languages, the
+removed sentences, ids and keys gone), `tests/start-view.test.ts`,
+`tests/tools-view.test.ts`, `tests/recovery-view.test.ts`,
+`tests/environment-wording.test.ts`, and in headless Chrome against the hosted and
+personal previews (root decision 0178).

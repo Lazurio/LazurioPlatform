@@ -1580,7 +1580,7 @@ button:not(.primary) .provider-openai { color: #000000; }
 </div>
 <section class="group" data-start aria-labelledby="start-required-heading" hidden>
 <div class="group-head"><h2 id="start-required-heading" data-message="startRequired">Required steps</h2></div>
-<ol class="card start-steps" id="start-steps"></ol>
+<ol class="card start-steps" id="start-steps" data-guide="start-steps"></ol>
 <div id="start-content"></div>
 </section>
 <section class="group" id="start-vault-group" aria-labelledby="start-vault-heading" hidden>
@@ -1589,7 +1589,7 @@ button:not(.primary) .provider-openai { color: #000000; }
 </section>
 <section class="group" id="start-optional-group" data-start aria-labelledby="start-optional-heading" hidden>
 <div class="group-head"><h2 id="start-optional-heading" data-message="startOptional">Optional</h2></div>
-<div class="card" id="start-optional"></div>
+<div class="card" id="start-optional" data-guide="start-optional"></div>
 </section>
 <section class="group" id="start-demo-group" aria-labelledby="start-demo-heading" hidden>
 <div class="group-head"><h2 id="start-demo-heading" data-message="startDemoGroup">Try it</h2></div>
@@ -1607,10 +1607,10 @@ button:not(.primary) .provider-openai { color: #000000; }
 <legend><h2 id="legend" data-message="legend">Environment profile</h2></legend>
 <div class="card">
 <div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="preset" data-message="preset">Workspace preset</label><p class="row-desc" id="preset-hint" data-message="presetHint">The kind of this Environment.</p></div><div class="row-control"><select name="preset" id="preset" aria-describedby="preset-hint"></select></div></div></div>
-<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="locale" data-message="locale">Language</label><p class="row-desc" id="locale-hint" data-message="localeHint">The language of this page and of the agents.</p></div><div class="row-control"><select name="locale" id="locale" aria-describedby="locale-hint"><option value="en">English</option><option value="cs">Čeština</option></select></div></div></div>
-<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="detail" data-message="detail">Detail</label><p class="row-desc" id="detail-hint" data-message="detailHint">How agents explain their work: briefly, or with technical explanation and evidence.</p></div><div class="row-control"><select name="detail" id="detail" aria-describedby="detail-hint"><option value="concise" data-message="concise">Concise</option><option value="technical" data-message="technical">Technical</option></select></div></div></div>
-<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="coordination" data-message="coordination">Coordination</label><p class="row-desc" id="coordination-hint" data-message="coordinationHint">Whether agents work directly, or delegate within the task and verify the results.</p></div><div class="row-control"><select name="coordination" id="coordination" aria-describedby="coordination-hint"><option value="direct" data-message="direct">Direct</option><option value="coordinator" data-message="coordinator">Coordinator</option></select></div></div></div>
-<div class="row"><div class="row-main"><div class="row-copy"><p id="status" class="row-status" role="status">Loading…</p></div><div class="row-control"><button type="submit" data-message="preview">Preview</button><button type="button" id="apply" class="primary" data-message="apply" disabled>Apply previewed change</button></div></div></div>
+<div class="row" data-guide="general-language"><div class="row-main"><div class="row-copy"><label class="row-title" for="locale" data-message="locale">Language</label></div><div class="row-control"><select name="locale" id="locale"><option value="en">English</option><option value="cs">Čeština</option></select></div></div></div>
+<div class="row" data-guide="general-detail"><div class="row-main"><div class="row-copy"><label class="row-title" for="detail" data-message="detail">Detail</label></div><div class="row-control"><select name="detail" id="detail"><option value="concise" data-message="concise">Concise</option><option value="technical" data-message="technical">Technical</option></select></div></div></div>
+<div class="row" data-guide="general-coordination"><div class="row-main"><div class="row-copy"><label class="row-title" for="coordination" data-message="coordination">Coordination</label></div><div class="row-control"><select name="coordination" id="coordination"><option value="direct" data-message="direct">Direct</option><option value="coordinator" data-message="coordinator">Coordinator</option></select></div></div></div>
+<div class="row" data-guide="general-apply"><div class="row-main"><div class="row-copy"><p id="status" class="row-status" role="status">Loading…</p></div><div class="row-control"><button type="submit" data-message="preview">Preview</button><button type="button" id="apply" class="primary" data-message="apply" disabled>Apply previewed change</button></div></div></div>
 </div>
 </fieldset>
 </form>
@@ -1627,18 +1627,15 @@ button:not(.primary) .provider-openai { color: #000000; }
 </section>
 
 <section id="section-communication" data-section="communication" aria-labelledby="page-heading">
-<p class="intro" data-message="voiceIntro">Set how agents communicate in this Environment, including emails, WhatsApp messages and instructions for other agents.</p>
-<p id="voice-shared" class="row-desc" hidden data-message="voiceShared">Everyone in this team Environment uses the same voice.</p>
 <form id="voice-form" class="group">
 <fieldset id="voice-fields" disabled class="group">
 <legend><h2 data-message="voiceEditor">Tone of Voice for agents</h2></legend>
 <div class="card voice-card">
 <div class="voice-meta"><span id="voice-meta"></span><a href="/settings/general" data-route data-message="voiceLanguageLink">Change language in General</a></div>
 <label for="voice-text" class="sr-only" data-message="voiceEditor">Tone of Voice for agents</label>
-<textarea id="voice-text" rows="16" aria-describedby="voice-hint voice-status"></textarea>
-<p id="voice-hint" class="row-desc" data-message="voiceHint">Edit the text to suit you. Saved changes apply to new conversations.</p>
+<textarea id="voice-text" rows="16" aria-describedby="voice-status" data-guide="voice-text"></textarea>
 </div>
-<div class="voice-actions"><button type="submit" class="primary" id="voice-save" data-message="voiceSave">Save</button><button type="button" id="voice-cancel" data-message="voiceCancel">Cancel changes</button><button type="button" class="ghost" id="voice-default" data-message="voiceRestore">Restore default</button></div>
+<div class="voice-actions" data-guide="voice-save"><button type="submit" class="primary" id="voice-save" data-message="voiceSave">Save</button><button type="button" id="voice-cancel" data-message="voiceCancel">Cancel changes</button><button type="button" class="ghost" id="voice-default" data-message="voiceRestore">Restore default</button></div>
 </fieldset>
 <p id="voice-status" class="row-status" role="status" aria-live="polite"></p>
 <button type="button" id="voice-refresh" hidden data-message="voiceRefresh">Load current settings</button>
@@ -1652,20 +1649,16 @@ button:not(.primary) .provider-openai { color: #000000; }
 <div class="group-head"><h2 id="content-heading" data-message="contentTitle">Content of this Environment</h2></div>
 <div class="card" id="content-list"></div>
 </section>
-<dl id="machine" class="card"></dl>
-<details class="technical" id="machine-support" hidden><summary data-message="machineSupport">For support</summary><dl id="machine-support-list" class="card"></dl></details>
+<dl id="machine" class="card" data-guide="machine-facts"></dl>
+<details class="technical" id="machine-support" data-guide="machine-support" hidden><summary data-message="machineSupport">For support</summary><dl id="machine-support-list" class="card"></dl></details>
 </section>
 
 <section id="tools" data-section="tools" aria-labelledby="page-heading">
-<div class="section-head-text">
-<p id="tools-shared" class="tools-warning" role="note" hidden data-message="toolsShared">This is the whole Team's shared Environment. Sign in here with team accounts, such as a shared mailbox or calendar. Whatever you sign in here, anyone in the Team can use. Connect your personal accounts in your own Environment.</p>
-<p class="toolbar"><span id="tools-checked"></span></p>
 <p id="tools-announce" class="sr-only" role="status" aria-live="polite"></p>
-</div>
-<div id="tools-groups" class="stack"></div>
+<div id="tools-groups" class="stack" data-guide="tools"></div>
 <section class="group" aria-labelledby="tools-mcp-heading">
 <div class="group-head"><h2 id="tools-mcp-heading" data-message="toolsMcpTitle">A custom MCP server</h2></div>
-<div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-desc" data-message="toolsMcpText">You add custom MCP servers in Apps → Integrations → Custom; an agent adds one on your explicit request.</p></div><div class="row-control"><button type="button" id="tools-mcp" data-message="toolsMcpAction" disabled>Add one with an agent</button></div></div></div></div>
+<div class="card"><div class="row"><div class="row-main"><div class="row-control"><button type="button" id="tools-mcp" data-message="toolsMcpAction" disabled>Add one with an agent</button></div></div></div></div>
 </section>
 </section>
 
@@ -1677,14 +1670,12 @@ button:not(.primary) .provider-openai { color: #000000; }
      exactly what is written. -->
 <section id="section-ssh" data-section="ssh" aria-labelledby="page-heading">
 <div class="section-head-text">
-<p class="intro" data-message="sshIntro">Connect to this Environment over SSH from a terminal on your own computer. Each computer has its own key, which you can remove here at any time.</p>
-<p id="ssh-shared" class="tools-warning" role="note" hidden data-message="sshShared">This is the whole Team's shared Environment: a device added here signs in to the Team's account, and everyone in the Team sees it and can remove it.</p>
 <p id="ssh-unsupported" class="callout" role="note" hidden data-message="sshUnsupported">SSH from your devices is available in Environments on Linux and macOS.</p>
 </div>
 <p id="ssh-status" class="row-status" role="status" aria-live="polite"></p>
 <section class="group" aria-labelledby="ssh-prompt-heading">
-<div class="group-head"><h2 id="ssh-prompt-heading" data-message="sshPromptTitle">Prompt for your agent</h2><p class="group-note" data-message="sshPromptNote">Give it to the agent on your computer, for example Codex. It opens this page in its browser panel, where you only sign in; it sets up the rest itself.</p></div>
-<div class="card"><div class="row ssh-block-row">
+<div class="group-head"><h2 id="ssh-prompt-heading" data-message="sshPromptTitle">Prompt for your agent</h2></div>
+<div class="card" data-guide="ssh-prompt"><div class="row ssh-block-row">
 <pre id="ssh-prompt" class="ssh-block" data-ssh-block="prompt" hidden></pre>
 <p id="ssh-prompt-missing" class="row-desc" hidden></p>
 <div class="ssh-block-actions"><span class="row-status" data-copy-status role="status" aria-live="polite"></span><button type="button" class="primary" id="ssh-prompt-copy" data-copy="ssh-prompt" hidden><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span data-message="sshPromptCopy">Copy prompt</span></button></div>
@@ -1693,7 +1684,7 @@ button:not(.primary) .provider-openai { color: #000000; }
 <section class="group" aria-labelledby="ssh-devices-heading">
 <div class="group-head"><h2 id="ssh-devices-heading" data-message="sshDevicesTitle">Your devices</h2></div>
 <p id="ssh-problem" class="callout" data-kind="warning" role="alert" hidden></p>
-<ul class="card" id="ssh-devices"></ul>
+<ul class="card" id="ssh-devices" data-guide="ssh-devices"></ul>
 </section>
 <section class="group" aria-labelledby="ssh-add-heading">
 <div class="group-head"><h2 id="ssh-add-heading" data-message="sshAddTitle">Add a device</h2><p class="group-note" data-message="sshAddNote">Its name and its public key: one line from the .pub file that starts with ssh-ed25519. Never the private key.</p></div>
@@ -1704,7 +1695,7 @@ button:not(.primary) .provider-openai { color: #000000; }
 </form>
 </section>
 <section class="group" id="ssh-computer" aria-labelledby="ssh-computer-heading">
-<div class="group-head"><h2 id="ssh-computer-heading" data-message="sshComputerTitle">Settings for your computer</h2><p class="group-note" data-message="sshComputerNote">Your agent writes these on your computer.</p></div>
+<div class="group-head"><h2 id="ssh-computer-heading" data-message="sshComputerTitle">Settings for your computer</h2></div>
 <p id="ssh-added" class="callout" role="status" aria-live="polite" hidden></p>
 <div class="card" id="ssh-computer-ready" hidden>
 <div class="row"><div><a id="ssh-codex" data-message="sshCodexLink" hidden>Add Environment to Codex</a><p id="ssh-project-path" class="row-desc"></p></div></div>

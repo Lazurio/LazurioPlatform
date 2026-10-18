@@ -70,7 +70,7 @@ test("a new work Environment: AI now, GitHub after it, the content after GitHub"
         basic: "github",
         mark: "later",
         title: "GitHub",
-        status: "Zpřístupní vaše repozitáře a moduly.",
+        status: "Nepřipojeno",
       },
       {
         basic: "content",
@@ -423,7 +423,7 @@ test("GitHub once AI is there, then the content, then all done", () => {
     basic: "github",
     mark: "now",
     title: "GitHub",
-    status: "Zpřístupní vaše repozitáře a moduly.",
+    status: "Nepřipojeno",
   });
   expect(withAi?.github).toEqual({ enabled: true });
   expect(withAi?.intro).toBe("Hotovo 1 ze 3 kroků.");

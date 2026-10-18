@@ -302,7 +302,9 @@ function githubStep(facts: StartFacts, copy: Copy): [StartStep, GithubAction] {
     {
       ...base,
       mark: ready ? "now" : "later",
-      status: copy.startGithubMissing,
+      // What GitHub opens is the "?"'s (decision F56's addendum of
+      // 2026-10-18); the step says its state.
+      status: copy.startNotConnected,
     },
     { enabled: ready },
   ];
@@ -374,6 +376,7 @@ export function startCount(facts: TourFacts): string | null {
 export type OptionalRow = Readonly<{
   id: "composio" | "ssh" | "bitwarden" | "codex";
   title: string;
+  /** What it gives, at the choice: no step of Začínáme's "?" says it. */
   text: string;
   status: string | null;
   /** None once it is done (Composio connected). */

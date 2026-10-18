@@ -187,7 +187,7 @@ test("broken: the evidence without the journal, the prompt and the issue to copy
   expect(view.prompt).toBe(broken.prompt);
   expect(view.issue).toEqual({
     kind: "prepared",
-    text: "For the public repository Lazurio/LazurioPlatform. The repair agent files it after a search for a duplicate.",
+    text: "For the public repository Lazurio/LazurioPlatform.",
     title: broken.issue?.kind === "prepared" ? broken.issue.title : "",
     body: "`lazurio recover` found the check …",
     command:
@@ -195,9 +195,9 @@ test("broken: the evidence without the journal, the prompt and the issue to copy
     link: "https://github.com/Lazurio/LazurioPlatform/issues/new?title=Recovery",
     linkLabel: "Open the prefilled issue in the browser",
   });
-  expect(view.nothingFiled).toBe(
-    "Nothing was filed. This page only prepares the issue; nothing leaves this Environment automatically.",
-  );
+  // What the page does with the issue is the "?"'s (decision F56's
+  // addendum of 2026-10-18); the line says only that nothing was filed.
+  expect(view.nothingFiled).toBe("Nothing was filed.");
 
   const shown = recoveryView(broken, copy, { journal: true });
   expect(shown.journal).toBe(journal);

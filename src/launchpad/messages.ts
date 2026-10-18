@@ -16,12 +16,7 @@ const en = {
     "The combined agent instructions are too long. Shorten this voice or your tool notes, then load current settings and try again.",
   voiceTitle: "Agent communication",
   voiceEditor: "Tone of Voice for agents",
-  voiceIntro:
-    "Set how agents communicate {in this}, including emails, WhatsApp messages and instructions for other agents.",
-  voiceShared: "Everyone in this team Environment uses the same voice.",
   voiceLanguageLink: "Change language in General",
-  voiceHint:
-    "Edit the text to suit you. Saved changes apply to new conversations.",
   voiceSave: "Save",
   voiceCancel: "Cancel changes",
   voiceRestore: "Restore default",
@@ -133,13 +128,9 @@ const en = {
   toolsLoading: "Reading tools…",
   toolsLoadFailed:
     "The tools could not be read. Try Refresh status; if that does not help, ask an agent for help.",
-  toolsChecked: "Checked at {time}",
   toolsTierRequired: "Required",
-  toolsTierRequiredNote: "Nothing works here without them.",
   toolsTierRecommended: "Recommended",
-  toolsTierRecommendedNote: "Useful to almost everyone.",
   toolsTierOptional: "Optional",
-  toolsTierOptionalNote: "Turn on only what you use.",
   toolsInstalled: "Installed, version {version}",
   toolsInstalledNoVersion: "Installed, version unknown",
   toolsNotInstalled: "Not installed",
@@ -453,8 +444,6 @@ const en = {
     "Copying is not available here. The text is selected; copy it with the keyboard.",
   toolsClose: "Close",
   toolsMcpTitle: "A custom MCP server",
-  toolsMcpText:
-    "You add custom MCP servers in Apps → Integrations → Custom; an agent adds one on your explicit request.",
   toolsMcpAction: "Add one with an agent",
   toolsMcpPromptHint:
     "Copy this prompt and paste it into a new thread in Chat. The agent asks which server you want and adds it; a key you enter yourself in Integrations.",
@@ -765,6 +754,8 @@ const en = {
   recoveryOutcomeFailed: "failed",
   recoveryOutcomeSkipped: "skipped",
   recoveryEvidenceTitle: "Evidence",
+  // What the evidence carries, where a person decides whether to file it to
+  // the public repository (kept by Pablo's review of #503).
   recoveryEvidenceText:
     "Sanitized structured fields only, exactly as the prepared issue carries them.",
   recoveryJournalShow: "Show journal (stays {in this})",
@@ -773,31 +764,23 @@ const en = {
     "The sanitized tail of the Launchpad's journal. It never leaves {this} automatically.",
   recoveryPromptTitle: "Repair agent",
   recoveryPromptText:
-    "Copy the prompt and paste it into a new chat of your agent app {in this} (T3 Code in a Remote Environment). The agent repairs forward, or records the fault on GitHub.",
+    "Copy the prompt and paste it into a new chat of your agent app {in this} (T3 Code in a Remote Environment).",
   recoveryPromptCopy: "Copy the prompt",
   recoveryPromptOpenT3: "Open T3 Code",
   recoveryIssueTitle: "Prepared issue",
-  recoveryIssueText:
-    "For the public repository {repository}. The repair agent files it after a search for a duplicate.",
+  recoveryIssueText: "For the public repository {repository}.",
   recoveryIssueCopy: "Copy the gh command",
   recoveryIssueLink: "Open the prefilled issue in the browser",
   recoveryIssueLinkPaste: "Open the issue form in the browser (paste the body)",
   recoveryIssueRefused:
     "No issue body was prepared: after sanitization it still contained {kinds}. Nothing may leave {this} automatically.",
-  recoveryNothingFiled:
-    "Nothing was filed. This page only prepares the issue; nothing leaves {this} automatically.",
+  recoveryNothingFiled: "Nothing was filed.",
   settingsTitle: "Settings",
   settingsGeneral: "General",
   settingsBack: "Back",
   settingsBreadcrumb: "Where you are in Settings",
   navigationOpen: "Show left panel",
   technicalDetails: "Technical details",
-  presetHint: "The kind of this Environment.",
-  localeHint: "The language of this page and of the agents.",
-  detailHint:
-    "How agents explain their work: briefly, or with technical explanation and evidence.",
-  coordinationHint:
-    "Whether agents work directly, or delegate within the task and verify the results.",
   toolsDetails: "Details",
   toolsDetailsNamed: "Details of {name}",
   toolsPathLabel: "Found at",
@@ -819,6 +802,9 @@ const en = {
   machineNoHttps: "no HTTPS",
   machineNone: "not recorded",
   preset: "Workspace preset",
+  // What the preset is, beside the choice no step of Obecné's "?" names
+  // (kept by Pablo's review of #503).
+  presetHint: "The kind of this Environment.",
   presetLocal: kindDetail("workstation", "en"),
   presetHostedPersonal: kindDetail("personal", "en"),
   presetHostedOrganizationPersonal: kindDetail("work", "en"),
@@ -872,6 +858,43 @@ const en = {
   guideVaultAgentsOwn: "{This} has its own vault",
   guideVaultAgentsUse: "Agents take passwords from it without asking",
   guideVaultAgentsSee: "Everyone {in this} sees its passwords",
+  // The guide of every Settings section (decision F56's addendum of
+  // 2026-10-18, guides.ts): their explanations, which took the sections'
+  // explaining sentences. The same rules.
+  guideStartSteps: "Steps that get {this} ready for work",
+  guideStartAi: "First connect your AI account",
+  guideStartGithub: "After GitHub the modules download themselves",
+  guideStartOptional: "Add the optional steps at any time",
+  guideGeneralLanguage: "The language of the page and the agents",
+  guideGeneralDetail: "How fully agents explain their work",
+  guideGeneralCoordination: "Whether agents work alone or delegate",
+  guideGeneralCoordinationSub: "and then check the result",
+  guideGeneralApply: "Preview a change first",
+  guideVoiceHow: "How agents write {in this}",
+  guideVoiceTeam: "One voice for everyone in a Team Environment",
+  guideVoiceWhere: "In e-mails, on WhatsApp and to other agents",
+  guideVoiceNew: "A change applies to new conversations",
+  guideMachineWhat: "{This} is your agents' virtual computer",
+  guideMachineComputer: "Your computer, where agents work too",
+  guideMachineWho: "Whom it belongs to and who works in it",
+  guideMachineWhoComputer: "Whom it belongs to and who works on it",
+  guideMachineSupport: "Technical details for support",
+  guideToolsWhich: "The tools agents use {in this}",
+  guideToolsConnect: "You connect them with your account",
+  guideToolsReach: "Where you connect them, agents can go",
+  guideToolsSwitch: "The switch decides whether agents use it",
+  guideToolsTeamShared: "The whole Team shares {this}",
+  guideToolsTeamAccounts: "Sign in here with team accounts",
+  guideToolsTeamUse: "The whole Team can use what you sign in",
+  guideDevicesPrompt: "Give the prompt to the agent on your computer",
+  guideDevicesSignIn: "You only sign in, it sets up the rest",
+  guideDevicesKey: "Every device has its own key",
+  guideDevicesRemove: "You can remove a key here at any time",
+  guideDevicesTeam: "The whole Team sees and removes devices here",
+  guideRecoveryChecks: "Lazurio checks itself {in this}",
+  guideRecoveryFails: "What fails shows in Checks",
+  guideRecoveryRepair: "An agent repairs it with the prepared prompt",
+  guideRecoveryRepairSub: "or records the fault on GitHub",
   filesRoot: "Documents",
   filesPath: "Folder path",
   filesUpload: "Upload files",
@@ -1021,7 +1044,6 @@ const en = {
   startGithubTitle: "GitHub",
   startGithubConnected: "Connected as @{login}",
   startGithubConnectedPlain: "Connected",
-  startGithubMissing: "Opens your repositories and modules.",
   startConnect: "Connect",
   startContentOrganization: "Download {name}",
   startContentPersonal: "Prepare your personal space",
@@ -1044,6 +1066,9 @@ const en = {
   // The Bitwarden extension in Codex Desktop and the person's own browser
   // (F53's addendum of 2026-10-16): the row leads to Apps → Trezor.
   startBitwardenTitle: "Vault in Bitwarden",
+  // What the optional rows Composio and Trezor v Bitwardenu give, at the
+  // choice (kept by Pablo's review of #503: no step of Začínáme's "?" says
+  // it).
   startBitwardenText:
     "Your Environment vault's passwords in Codex Desktop and your browser too.",
   startTourGroup: "App tour",
@@ -1591,18 +1616,12 @@ const en = {
   integrationsToolsMany: "{count} tools",
   // Settings → SSH from your devices (decision F49).
   sshTitle: "SSH from your devices",
-  sshIntro:
-    "Connect to {this} over SSH from a terminal on your own computer. Each computer has its own key, which you can remove here at any time.",
-  sshShared:
-    "This is the whole Team's shared Environment: a device added here signs in to the Team's account, and everyone in the Team sees it and can remove it.",
   sshUnsupported:
     "SSH from your devices is available in Environments on Linux and macOS.",
   sshRefresh: "Refresh",
   sshLoading: "Reading SSH access…",
   sshLoadFailed: "SSH access could not be read. Try Refresh.",
   sshPromptTitle: "Prompt for your agent",
-  sshPromptNote:
-    "Give it to the agent on your computer, for example Codex. It opens this page in its browser panel, where you only sign in; it sets up the rest itself.",
   sshPromptCopy: "Copy prompt",
   sshPromptUnavailable:
     "The prompt appears once the settings for your computer are known (below).",
@@ -1672,7 +1691,6 @@ const en = {
     "The signed-in account could not be recorded. Reload the page and try again.",
   sshCodexLink: "Add {this} to Codex",
   sshComputerTitle: "Settings for your computer",
-  sshComputerNote: "Your agent writes these on your computer.",
   sshConfigLabel: "SSH config",
   sshConfigNote: "Add to ~/.ssh/config",
   sshKnownHostsLabel: "known_hosts",
@@ -1696,12 +1714,7 @@ const cs: Record<MessageKey, string> = {
     "Celé instrukce pro agenty jsou příliš dlouhé. Zkraťte tón nebo vlastní poznámky k nástrojům, pak načtěte aktuální nastavení a zkuste uložení znovu.",
   voiceTitle: "Komunikace agentů",
   voiceEditor: "Tone of Voice pro agenty",
-  voiceIntro:
-    "Nastavte, jak mají agenti {v tomto} komunikovat — včetně e-mailů, zpráv na WhatsAppu a instrukcí pro další agenty.",
-  voiceShared: "Toto Týmové Prostředí používá jeden společný tón pro všechny.",
   voiceLanguageLink: "Změnit jazyk v Obecném nastavení",
-  voiceHint:
-    "Text si můžete upravit. Uložené změny se projeví v nových konverzacích.",
   voiceSave: "Uložit",
   voiceCancel: "Zrušit úpravy",
   voiceRestore: "Obnovit výchozí tón",
@@ -1811,13 +1824,9 @@ const cs: Record<MessageKey, string> = {
   toolsLoading: "Načítají se nástroje…",
   toolsLoadFailed:
     "Nástroje se nepodařilo načíst. Zkuste Obnovit stav; když to nepomůže, požádejte o pomoc agenta.",
-  toolsChecked: "Zjištěno v {time}",
   toolsTierRequired: "Povinné",
-  toolsTierRequiredNote: "Bez nich tu nic nefunguje.",
   toolsTierRecommended: "Doporučené",
-  toolsTierRecommendedNote: "Hodí se skoro každému.",
   toolsTierOptional: "Volitelné",
-  toolsTierOptionalNote: "Zapněte jen to, co používáte.",
   toolsInstalled: "Nainstalováno, verze {version}",
   toolsInstalledNoVersion: "Nainstalováno, verze neznámá",
   toolsNotInstalled: "Není nainstalováno",
@@ -2121,8 +2130,6 @@ const cs: Record<MessageKey, string> = {
     "Kopírování tady není dostupné. Text je označený; zkopírujte ho klávesnicí.",
   toolsClose: "Zavřít",
   toolsMcpTitle: "Vlastní MCP server",
-  toolsMcpText:
-    "Vlastní MCP servery přidáte v Apps → Integrace → Vlastní; agent ho přidá na váš výslovný pokyn.",
   toolsMcpAction: "Přidat s agentem",
   toolsMcpPromptHint:
     "Zkopírujte tento prompt a vložte ho v Chatu do nového vlákna. Agent se zeptá, který server chcete, a přidá ho; klíč pak zadáte v Integracích.",
@@ -2438,32 +2445,24 @@ const cs: Record<MessageKey, string> = {
     "Sanitizovaný konec journalu Lazuria. Nikdy automaticky neopouští {toto}.",
   recoveryPromptTitle: "Opravný agent",
   recoveryPromptText:
-    "Zkopírujte prompt a vložte ho do nového chatu své agentní aplikace {v tomto} (v Prostředí na serveru do T3 Code). Agent opraví Lazurio směrem dopředu, nebo závadu zapíše na GitHub.",
+    "Zkopírujte prompt a vložte ho do nového chatu své agentní aplikace {v tomto} (v Prostředí na serveru do T3 Code).",
   recoveryPromptCopy: "Zkopírovat prompt",
   recoveryPromptOpenT3: "Otevřít T3 Code",
   recoveryIssueTitle: "Připravené issue",
-  recoveryIssueText:
-    "Pro veřejný repozitář {repository}. Opravný agent ho založí, až ověří, že neexistuje duplicita.",
+  recoveryIssueText: "Pro veřejný repozitář {repository}.",
   recoveryIssueCopy: "Zkopírovat příkaz gh",
   recoveryIssueLink: "Otevřít předvyplněné issue v prohlížeči",
   recoveryIssueLinkPaste:
     "Otevřít formulář issue v prohlížeči (tělo do něj vložte)",
   recoveryIssueRefused:
     "Tělo issue se nepřipravilo: po sanitizaci v něm zůstalo {kinds}. Nic nesmí {toto} opustit automaticky.",
-  recoveryNothingFiled:
-    "Nic nebylo odesláno. Tato stránka issue jen připraví; nic automaticky neopouští {toto}.",
+  recoveryNothingFiled: "Nic nebylo odesláno.",
   settingsTitle: "Nastavení",
   settingsGeneral: "Obecné",
   settingsBack: "Zpět",
   settingsBreadcrumb: "Kde v nastavení jste",
   navigationOpen: "Zobrazit levý panel",
   technicalDetails: "Technické podrobnosti",
-  presetHint: "Druh tohoto Prostředí.",
-  localeHint: "Jazyk této stránky a agentů.",
-  detailHint:
-    "Jak agenti vysvětlují svou práci: stručně, nebo s technickým vysvětlením a důkazy.",
-  coordinationHint:
-    "Zda agenti pracují přímo, nebo delegují v rozsahu zadání a výsledek ověří.",
   toolsDetails: "Podrobnosti",
   toolsDetailsNamed: "Podrobnosti o {name}",
   toolsPathLabel: "Umístění",
@@ -2485,6 +2484,7 @@ const cs: Record<MessageKey, string> = {
   machineNoHttps: "bez HTTPS",
   machineNone: "nezaznamenáno",
   preset: "Preset pracovního prostředí",
+  presetHint: "Druh tohoto Prostředí.",
   presetLocal: kindDetail("workstation", "cs"),
   presetHostedPersonal: kindDetail("personal", "cs"),
   presetHostedOrganizationPersonal: kindDetail("work", "cs"),
@@ -2529,6 +2529,40 @@ const cs: Record<MessageKey, string> = {
   guideVaultAgentsOwn: "{Toto} má vlastní trezor",
   guideVaultAgentsUse: "Agenti z něj berou hesla bez ptaní",
   guideVaultAgentsSee: "Hesla vidí každý {v tomto}",
+  guideStartSteps: "Kroky, které připraví {toto} k práci",
+  guideStartAi: "Nejdřív připojte svůj účet AI",
+  guideStartGithub: "Po GitHubu se moduly stáhnou samy",
+  guideStartOptional: "Volitelné kroky přidáte kdykoli",
+  guideGeneralLanguage: "Jazyk stránky i agentů",
+  guideGeneralDetail: "Jak podrobně agenti vysvětlují svou práci",
+  guideGeneralCoordination: "Jestli agenti pracují sami, nebo delegují",
+  guideGeneralCoordinationSub: "a výsledek pak ověří",
+  guideGeneralApply: "Změnu nejdřív zobrazte v náhledu",
+  guideVoiceHow: "Jak agenti {v tomto} píšou",
+  guideVoiceTeam: "V Týmovém Prostředí jeden tón pro všechny",
+  guideVoiceWhere: "V e-mailech, na WhatsAppu i dalším agentům",
+  guideVoiceNew: "Změna platí pro nové konverzace",
+  guideMachineWhat: "{Toto} je virtuální počítač vašich agentů",
+  guideMachineComputer: "Váš počítač, na kterém pracují i agenti",
+  guideMachineWho: "Komu patří a kdo v něm pracuje",
+  guideMachineWhoComputer: "Komu patří a kdo na něm pracuje",
+  guideMachineSupport: "Technické údaje pro podporu",
+  guideToolsWhich: "Nástroje, které agenti {v tomto} používají",
+  guideToolsConnect: "Připojíte je svým účtem",
+  guideToolsReach: "Kam je připojíte, tam agenti můžou",
+  guideToolsSwitch: "Přepínač určí, jestli ho agenti používají",
+  guideToolsTeamShared: "{Toto} sdílí celý Team",
+  guideToolsTeamAccounts: "Přihlašujte se tu týmovými účty",
+  guideToolsTeamUse: "Co přihlásíte, může používat každý z Teamu",
+  guideDevicesPrompt: "Prompt předejte agentovi na svém počítači",
+  guideDevicesSignIn: "Vy se jen přihlásíte, zbytek nastaví sám",
+  guideDevicesKey: "Každé zařízení má vlastní klíč",
+  guideDevicesRemove: "Klíč tu můžete kdykoli odebrat",
+  guideDevicesTeam: "Zařízení tu vidí a odebírá celý Team",
+  guideRecoveryChecks: "Lazurio {v tomto} kontroluje samo sebe",
+  guideRecoveryFails: "Co selže, uvidíte v Kontrolách",
+  guideRecoveryRepair: "Opravu udělá agent podle připraveného promptu",
+  guideRecoveryRepairSub: "nebo závadu zapíše na GitHub",
   filesRoot: "Dokumenty",
   filesPath: "Cesta ke složce",
   filesUpload: "Nahrát soubory",
@@ -2673,7 +2707,6 @@ const cs: Record<MessageKey, string> = {
   startGithubTitle: "GitHub",
   startGithubConnected: "Připojeno jako @{login}",
   startGithubConnectedPlain: "Připojeno",
-  startGithubMissing: "Zpřístupní vaše repozitáře a moduly.",
   startConnect: "Připojit",
   startContentOrganization: "Stáhnout {name}",
   startContentPersonal: "Připravit osobní prostor",
@@ -3212,18 +3245,12 @@ const cs: Record<MessageKey, string> = {
   integrationsToolsMany: "{count} nástrojů",
   // Settings → SSH from your devices (decision F49).
   sshTitle: "SSH ze zařízení",
-  sshIntro:
-    "Připojte se do {tohoto} přes SSH z terminálu na svém počítači. Každý počítač má vlastní klíč a tady ho můžete kdykoli odebrat.",
-  sshShared:
-    "Toto je společné Prostředí celého Teamu: zařízení přidané tady se přihlašuje do účtu Teamu a každý z Teamu ho vidí a může odebrat.",
   sshUnsupported:
     "SSH ze zařízení je dostupné v Prostředích s Linuxem a macOS.",
   sshRefresh: "Obnovit",
   sshLoading: "Načítá se přístup přes SSH…",
   sshLoadFailed: "Přístup přes SSH se nepodařilo načíst. Zkuste Obnovit.",
   sshPromptTitle: "Prompt pro vašeho agenta",
-  sshPromptNote:
-    "Předejte ho agentovi na svém počítači, třeba Codexu. Otevře si tuto stránku ve svém panelu prohlížeče, kde se jen přihlásíte; zbytek nastaví sám.",
   sshPromptCopy: "Zkopírovat prompt",
   sshPromptUnavailable:
     "Prompt se objeví, jakmile budou známá nastavení pro váš počítač (níže).",
@@ -3292,7 +3319,6 @@ const cs: Record<MessageKey, string> = {
     "Přihlášený účet se nepodařilo zaznamenat. Načtěte stránku znovu a zkuste to ještě jednou.",
   sshCodexLink: "Přidat {toto} do Codexu",
   sshComputerTitle: "Nastavení pro váš počítač",
-  sshComputerNote: "Váš agent je zapíše do vašeho počítače.",
   sshConfigLabel: "SSH config",
   sshConfigNote: "Přidejte do ~/.ssh/config",
   sshKnownHostsLabel: "known_hosts",
