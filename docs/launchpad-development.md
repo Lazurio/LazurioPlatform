@@ -311,7 +311,8 @@ the Buddy bubble, and knows nothing of Lazurio's data:
   the document names it, the account),
   `<lazurio-column-head>` (the Environment picker with the Settings gear, over the app
   switch, in place of the fork's logo at the top of its sidebar) and `<lazurio-buddy>`
-  (the bubble).
+  (the bubble; since [F56](decisions.md#f56--průvodce-buddy-nebo-průvodce-lazuria-vysvětlí-stránku-na-místě-kreslí-shell-hostitele-rám-buddyho-smí-jen-požádat-id)
+  the place where the guide draws, [below](#the-guide-decision-f56)).
 - The patch in each fork is about 20 lines in about three files: the
   `<script type="module" src="/.lazurio/shell.js">` in `index.html`, the three elements,
   and a fixed rail with `#root { box-sizing: border-box; padding-left:
@@ -371,7 +372,9 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   them, its memory on the origin and its announcement, below),
   `kind-name.ts` (the words of the three kinds and of your computer, and the tokens a
   text writes for the Environment it is in: {tomto}, {this}; F28's addendum of
-  2026-10-18), `stones.ts`, `fonts.ts`, `last.ts` (the report of the last Environment used,
+  2026-10-18), `guide.ts`, `guide-layer.ts`, `guide-styles.ts`, `guide-content.ts`,
+  `guide-placement.ts` and `guide-protocol.ts` (the guide, [below](#the-guide-decision-f56)),
+  `stones.ts`, `fonts.ts`, `last.ts` (the report of the last Environment used,
   below), `account.ts` and `merge.ts` (the person's account and its merge into the
   rail, below), `state.ts` (what the elements draw, shared by the page's elements and
   free of the DOM: the page's document, the person's account, the merge, and who
@@ -381,7 +384,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `tests/shell-host.test.ts`, `tests/shell-signed-out.test.ts`,
   `tests/shell-picker.test.ts`, `tests/shell-interface.test.ts`,
   `tests/shell-identity.test.ts`, `tests/shell-tokens.test.ts`,
-  `tests/shell-theme.test.ts`, `tests/launchpad-shell-routes.test.ts`,
+  `tests/shell-theme.test.ts`, `tests/shell-guide.test.ts`,
+  `tests/shell-guide-protocol.test.ts`, `tests/launchpad-shell-routes.test.ts`,
   `tests/apps-view.test.ts`, `tests/account.test.ts`, `tests/app-opening.test.ts`,
   `tests/organization-owner.test.ts`, `tests/module-maintainer.test.ts`.
 - **Identity of an Environment entry** ([F37's addendum of
@@ -565,9 +569,11 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   needs, by the addendum of 2026-10-06 with `parseShellSignedOut`, by the addendum
   of 2026-10-13 with what the script declares in the app's document, `declares`, and by
   the addendum of 2026-10-18 with the Environment theme: `declares.environmentTheme`,
-  the host's `data-lazurio-appearance` and the event `lazurio-theme`);
-  `tests/shell-interface.test.ts` keeps every promised name, the token names a fork may
-  rely on among them.
+  the host's `data-lazurio-appearance` and the event `lazurio-theme`, and by decision
+  F56 with the guide: `<lazurio-buddy lang>`, the page's `marks` `data-guide` and
+  `data-guide-help`, the event `lazurio-guide` and the export `provideGuides`, [the
+  guide](#the-guide-decision-f56)); `tests/shell-interface.test.ts` keeps every
+  promised name, the token names a fork may rely on among them.
 - **A host page that is no Environment's** ([F36's addendum of
   2026-10-05](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
   the Dashboard). Such a host provides both documents itself and draws the same rail
@@ -910,6 +916,50 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   with `no-store`, GitHub asked for the bound login, 405 for POST, the same 404 for
   another id, Organization, query or a non-Owner, the hand-off answer from the
   Environment's `t3`; locally only with the token, and no hand-off without a Chat origin.
+
+### The guide (decision F56)
+
+A "?" right after a page's heading makes Buddy, or without him the neutral guide of
+Lazurio, explain the page in place
+([F56](decisions.md#f56--průvodce-buddy-nebo-průvodce-lazuria-vysvětlí-stránku-na-místě-kreslí-shell-hostitele-rám-buddyho-smí-jen-požádat-id),
+root decision 0180's addendum of 2026-10-18): a ring around the real element, the
+guide's mark and a card beside it, and the layer lets every click through.
+
+- **In the shell.** `src/shell/guide.ts` decides what plays and when, over seams, so its
+  rules are tested without a DOM; `guide-layer.ts` draws in `<lazurio-buddy>`'s own
+  shadow root, made only when the guide first shows; `guide-content.ts` holds the six
+  principles in both languages and parses what a host hands over;
+  `guide-placement.ts` is where a bubble at a ringed element stands, for the tour too;
+  `guide-protocol.ts` is the pure protocol of Buddy's frame, with its vectors in
+  `guide-vectors/v1/`. `elements.ts` defines `<lazurio-buddy>` and exports
+  `provideGuides` (interface v1), and for the Launchpad alone `guideAttention`, the
+  arbiter with its tour.
+- **A host takes part by asking.** It places `<lazurio-buddy lang>`, hands over the
+  explanations of the page it shows with `provideGuides([...])` on every move (null to
+  withdraw), marks its elements with `data-guide` and its "?" with
+  `data-guide-help="<id>"`. A "?" may name a principle (`environment`, `buddy`,
+  `reach`, `files`, `integrations`, `vault`) or one of the page's explanations. Without
+  that, the element draws and listens to nothing, as on the forks.
+- **The Launchpad** (`src/launchpad/guides.ts`, wired in `ui.ts`): on Soubory the "?"
+  (`#page-help`, in the breadcrumb after `#page-heading`) plays the principle `files`,
+  in a Team Environment the Launchpad's `files-team`; its words are in `messages.ts`
+  (`pageHelp`, `guideFilesTeam*`), its marks `nav-files` and `files-list`. Recovery mode
+  withdraws the guide. The tour (`tour.ts`) tells the guide whether it wants attention,
+  hides while the guide is out, and nudges its bubble when a "?" asks meanwhile; the
+  guide then draws nothing and only says "Nejdřív dokončete Začínáme" to assistive
+  technology.
+- **Rules of a text** (`tests/fixtures/guide-text.ts`): at most four steps of at most
+  nine words, no full stop, never Launchpad, Dashboard, Mašina or VM, three kinds of
+  Environment, never "jen vám/váš/vaše/pro vás", no sameness, nothing that forbids. A
+  variant is chosen only by facts the page knows, never by an Organization's name
+  (#499).
+- **Check it in a browser** (root decision 0178): `bun scripts/preview-launchpad.ts
+  hosted cs|en <port> owner [team]`, then Soubory at 1440 and 700 px, with and without
+  `prefers-reduced-motion`: the ring on the Chat tab and the Files item (in a Team
+  Environment the list), the steps, Escape returning the focus to the "?", and a page
+  with the shell and `<lazurio-buddy>` but no `provideGuides` drawing nothing. Tests:
+  `tests/shell-guide.test.ts`, `tests/shell-guide-protocol.test.ts`,
+  `tests/launchpad-guide.test.ts`.
 
 ### The offline guide (decision F41)
 
@@ -2590,8 +2640,9 @@ navigations; on the Files page the sidebar keeps the catalog's Organizations
 (`data-view="catalog files"`), and the header's page action is "Refresh". The view
 shows:
 
-- the introduction (what the folder is) and, on a Team Environment, the note that the
-  whole Team sees and changes the same folder;
+- no sentence that explains the page: the "?" beside its heading does ([the
+  guide](#the-guide-decision-f56)), on a Team Environment with the line that the whole
+  Team reads and changes the folder;
 - the path as links, "Documents" / "Dokumenty" first, the current folder last
   (`aria-current="page"`);
 - "Upload files" (a file picker, several at once) and "Download folder (ZIP)";
@@ -2600,7 +2651,7 @@ shows:
   modification time in the reader's language and time zone, and "Download" (named
   "Download <name>" for assistive technology). Below 36 rem of the list's width a row
   stacks its size and date under its name and the column names are hidden;
-- an empty folder says so; the empty Documents folder says what it is for; a missing or
+- an empty folder says so, the empty Documents folder that there are no files yet; a missing or
   refused path says the folder or file does not exist and links to Documents; a file
   path (locally) says it is a file, with Download and a link to its folder.
 
@@ -2905,7 +2956,8 @@ Organization's, and it gets none of it.
   view only: until the basics exist the tour is back on the next page load, and Začínáme
   never goes away. It steps aside while a dialog or the Environment browser is open and
   waits while its element is not on the page (a preparation that runs).
-- **Where the bubble stands** (`tour-placement.ts`, Lazurio/LazurioPlatform#461): one
+- **Where the bubble stands** (`src/shell/guide-placement.ts`, which the guide shares
+  since F56; Lazurio/LazurioPlatform#461): one
   rule for every stop. Beside the ringed element when there is room, else under it,
   above it or on its left; along that side it starts where the ring starts, or ends
   where the ring ends when starting there would leave the window, so the bubble at
