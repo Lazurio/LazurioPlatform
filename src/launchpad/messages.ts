@@ -38,8 +38,8 @@ const en = {
   voiceRefresh: "Load current settings",
 
   themeGroup: "Environment theme",
-  themeNote: "The colours of Chat, Apps and Automate in this Environment.",
-  themeShared: "Everyone in this team Environment sees the same theme.",
+  themeNote: "The colours of Chat, Apps and Automate in {this}.",
+  themeShared: "Everyone in this Team Environment sees the same theme.",
   themeFailed: "Could not change the theme. Try again.",
   themeStale:
     "The theme was changed elsewhere meanwhile. The selected one is the current theme.",
@@ -1691,7 +1691,7 @@ const cs: Record<MessageKey, string> = {
   voiceRefresh: "Načíst aktuální nastavení",
 
   themeGroup: "Téma Prostředí",
-  themeNote: "Barvy Chatu, Apps a Automate v tomto Prostředí.",
+  themeNote: "Barvy Chatu, Apps a Automate v {tomto}.",
   themeShared: "Toto Týmové Prostředí má jedno téma pro všechny.",
   themeFailed: "Téma se nepodařilo změnit. Zkuste to znovu.",
   themeStale: "Téma se mezitím změnilo jinde. Vybrané je teď to aktuální.",
