@@ -6,7 +6,12 @@ import {
   type Shell,
   type ShellEnvironmentKind,
 } from "../shell/contract";
-import { defineShellElements, provideShell } from "../shell/elements";
+import {
+  defineShellElements,
+  guideAttention,
+  provideGuides,
+  provideShell,
+} from "../shell/elements";
 import { shellMessages } from "../shell/messages";
 import { environmentName, switchTabs } from "../shell/view";
 import { type AiReading, parseAiAnswer } from "../tools/ai";
@@ -53,6 +58,7 @@ import {
   startSection,
   type TourFacts,
 } from "./first-run";
+import { pageGuide } from "./guides";
 import { createIntegrationsPanel } from "./integrations-panel";
 import { createColumn, keepCornerFree } from "./layout";
 import { environmentFacts, type Fact, type MachineView } from "./machine-view";
@@ -61,7 +67,7 @@ import { moduleCopy } from "./module-view";
 import { isPublicEnvironment, publicRoute } from "./public-environment";
 import { createRecoveryPanel } from "./recovery-panel";
 import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
-import { routeFrame, settingsPath } from "./routes";
+import { type PageRoute, routeFrame, settingsPath } from "./routes";
 import { createShell } from "./shell";
 import { createSshPanel } from "./ssh-panel";
 import { keyGroups, parseSshOverview } from "./ssh-view";
@@ -180,6 +186,23 @@ if (shellDocument !== null) provideShell(withAppsTheme(shellDocument));
 defineShellElements();
 const columnHead = document.querySelector<HTMLElement>("#column-head");
 const rail = document.querySelector<HTMLElement>("#rail");
+// The shell's guide (decision F56, guides.ts): the "?" beside the page's
+// heading and the explanations of the page shown, in the page's language
+// and for the Environment's kind; none in Recovery mode.
+const pageHelp = document.querySelector<HTMLButtonElement>("#page-help");
+const buddy = document.querySelector<HTMLElement>("#buddy");
+// Recovery mode ends the guide for the page's life (`enterRecovery`).
+let guideOff = false;
+function drawGuide(route: PageRoute) {
+  const guide = pageGuide(route, kindOf(shellDocument), copy);
+  provideGuides(guideOff ? null : guide.guides);
+  buddy?.setAttribute("lang", locale);
+  if (pageHelp === null) return;
+  pageHelp.hidden = guide.help === null || guideOff;
+  if (guide.help !== null) pageHelp.dataset.guideHelp = guide.help;
+  pageHelp.setAttribute("aria-label", copy.pageHelp);
+  pageHelp.title = copy.pageHelp;
+}
 // The documentation of the Launchpad's "Guide" (the root Launchpad's
 // `guideDocumentationUrl`), in the page's language.
 const guide = document.querySelector<HTMLAnchorElement>("#catalog-guide");
@@ -243,6 +266,8 @@ async function readShell() {
     // The rail stays empty; the page itself works without it.
   } finally {
     shellRead = true;
+    // The kind the explanations are chosen by may be known only now.
+    if (framed) drawGuide(shell.route());
     drawMachine();
     firstRun();
     showWhenDrawn();
@@ -544,6 +569,9 @@ const tour = createTour({
   // Recovery mode has no tour, and it steps aside while the person looks at
   // the Environment browser in the right panel.
   off: () => recoveryMode !== null || browser.isOpen(),
+  // Never two tours at once (decision F56): the guide hears whether the
+  // tour wants attention, and the tour waits while the guide is out.
+  attention: guideAttention,
 });
 // Nastavení → Začínáme (root decision 0201): the basics from the same facts,
 // the vault's state as Apps → Trezor reads it, the optional steps and the
@@ -1007,6 +1035,7 @@ const shell = createShell({
     if (framed && (route.view === "home" || route.view === "organization"))
       void catalog.refresh();
     files.show(route);
+    drawGuide(route);
     integrations.show(route);
     if (
       route.view === "settings" &&
@@ -1128,6 +1157,7 @@ function enterRecovery(mode: RecoveryMode) {
     copy = messages(locale, kindOf(shellDocument));
   }
   document.documentElement.dataset.mode = "recovery";
+  guideOff = true;
   relabel();
   shell.pin({ view: "settings", section: "recovery" });
   recovery.enter(mode);
@@ -1148,6 +1178,7 @@ function relabel() {
   if (guide !== null)
     guide.href = `https://documentation.lazurio.ai/${locale === "en" ? "en" : "cs"}/guide/?utm_source=launchpad&utm_medium=product&utm_campaign=guide`;
   shell.relabel();
+  if (framed) drawGuide(shell.route());
   recovery.render();
   ssh.render();
   theme.render();
@@ -1207,9 +1238,8 @@ async function load() {
   // content operation as a person's work Environment.
   if (!first) void content.refresh();
   renderUpdate();
-  // A Team Environment's folder is the whole Team's, and so are the devices
-  // that sign in to it.
-  files.shared(current.preset.name === "hosted-organization-team");
+  // A Team Environment's devices that sign in to it are the whole Team's
+  // (its folder too, which the "?" of Soubory explains, decision F56).
   ssh.shared(current.preset.name === "hosted-organization-team");
   if (relabelled) {
     relabel();
@@ -1605,10 +1635,6 @@ if (boot === null) {
   else void readPromptHandoff();
   if (shellDocument === null) void readShell();
   if (boot.catalog === null) void catalog.refresh();
-  files.shared(
-    shellDocument !== null &&
-      currentEnvironment(shellDocument)?.kind === "team",
-  );
   ssh.shared(
     shellDocument !== null &&
       currentEnvironment(shellDocument)?.kind === "team",

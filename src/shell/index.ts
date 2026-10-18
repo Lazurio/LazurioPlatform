@@ -12,13 +12,14 @@ import { defineShellElements } from "./elements";
 // 2026-10-05 `<html data-lazurio-account="host">`) parses them with the same
 // parsers and hands them over; with nobody signed in it hands over the
 // signed-out document (`parseShellSignedOut`, F36's addendum of 2026-10-06)
-// with the same `provideShell`. These five exports are part of interface v1
-// (`interface.ts`).
+// with the same `provideShell`. A page that takes part in the guide hands
+// over its explanations with `provideGuides` (decision F56). These six
+// exports are part of interface v1 (`interface.ts`).
 export {
   parseShell,
   parseShellAccount,
   parseShellSignedOut,
 } from "./contract";
-export { provideAccount, provideShell } from "./elements";
+export { provideAccount, provideGuides, provideShell } from "./elements";
 
 defineShellElements();

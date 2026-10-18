@@ -14282,3 +14282,191 @@ leaks into the operator's clone of the same URLs; the texts
 in both languages), `tests/tools-team-github.test.ts` (the CLI's refusals and prompt on
 a public Team Environment) and `tests/public-environment.test.ts` (a refresh that
 records the member now changes the texts).
+
+## F56 — Průvodce: Buddy nebo průvodce Lazuria vysvětlí stránku na místě, kreslí shell hostitele, rám Buddyho smí jen požádat id
+
+**Decided by Matěj (Organization Admin) on 2026-10-18: root decision 0180's addendum of
+2026-10-18 (the host's shell draws the guide, Buddy's frame may only ask by id, without
+Buddy a neutral guide of Lazurio explains), plan DEV-6612 M3 (the lane's shaping, section
+3(c), slice 4) and Lazurio/LazurioPlatform#499 (a variant only from facts the host
+knows).** People who arrive in Lazurio are confused until they get a handful of
+principles, and the pages carry sentences that explain instead of letting the person
+act. The approved wireframe (prototypes-lazurio bebea85, `docs/buddy-guide.md`) removes
+those sentences and puts a "?" right after each page's heading: Buddy jumps out of his
+bubble, rings the real element and says a few words beside it, and the layer lets every
+click through, as the first-run tour does. Buddy's bubble is a frame served by the
+person's Personal Environment (0180): it cannot draw outside its box or see the host's
+page. So the host's shell draws the guide, and the frame may only ask for an
+explanation by its id; without Buddy, the neutral guide of Lazurio explains the same
+way. The Launchpad already had three ways to explain (the first-run tour, the guide
+videos of Trezor and the Composio scene); the guide joins the tour's placement and
+never runs at the same time as it.
+
+1. **The engine lives in the shell** (variant C2 of the shaping). Every app that loads
+   `/.lazurio/shell.js` gets one engine and one check of who may ask: the Launchpad
+   (which bundles the shell), the Dashboard by its pin, the T3 Code and MausBot forks.
+   `src/shell/guide.ts` decides what plays and when; `guide-layer.ts` draws it in
+   `<lazurio-buddy>`'s own shadow root (the ring, the guide's mark, the card, placement,
+   motion, Escape and focus); `guide-styles.ts` is its stylesheet; `guide-content.ts`
+   holds what it says. The pure rule of where a bubble at a ringed element stands moves
+   from `src/launchpad/tour-placement.ts` to `src/shell/guide-placement.ts`, unchanged,
+   and both the Launchpad's tour and the guide use it there; the guide adds only that
+   its card stands in the middle without an element and is a sheet at the window's foot
+   below 768 px.
+2. **The principles are the shell's, a page's explanations its host's.** The six
+   principles of the tour of Lazurio are the shell's, in Czech and English, with the
+   wireframe's ids, which Buddy's frame asks for: `environment` (Prostředí), `buddy`
+   (Osobní Prostředí), `reach` (kam smějí agenti), `files` (Soubory), `integrations`
+   (Integrace) and `vault` (Trezor, the five lines of its approved video). An
+   explanation of a page points at the host's own elements and changes with its page,
+   so the host owns it and hands it over at runtime (`provideGuides`). Variant C3, every
+   explanation in the shell as in the wireframe, would bind the shell to the DOM of
+   every host and make each page change wait for a shell release.
+   - **Rules of every text** (held by tests for the principles and for each host's
+     explanations): at most four steps, Trezor's five lines excepted; at most nine words
+     a step and no full stop, the brand's video titles; never Launchpad, Dashboard,
+     Mašina or VM, SSH or a tailnet; three kinds of Environment; never "jen vám", "jen
+     váš", "jen vaše" or "jen pro vás"; no "=" and no words of sameness (a laptop is not
+     the agents' computer, Lazurio is a window into that computer); nothing that forbids
+     (where nothing is signed in, agents simply do not reach).
+   - **Variants only from the host's facts** (#499). A text about the Environment it
+     plays in names its kind through the tokens of `inKind` ({Toto}, {tohoto}, {this}),
+     filled from the kind of the shell document's current Environment, an automated
+     Environment counting as work. On your computer the first step of `environment`
+     says that agents work on your computer too; in a Personal Environment `vault`
+     plays its adaptation (the agents' own account in the person's Bitwarden). Never an
+     Organization's name or slug, and no code for one Organization. Later variants (how
+     the vault is reached, whether the person has an account in it) come from facts the
+     same way.
+3. **Interface v1 grows by five names, the fewest the guide needs** (they are permanent,
+   F36's addendum of 2026-10-04):
+   - `<lazurio-buddy>` with the attribute `lang`: the guide's place on the page and its
+     language (else the shell document's). The forks already place it, undefined.
+   - The marks a host sets on elements of its page (`marks`): `data-guide`, the element
+     a step points at, and `data-guide-help`, the "?" whose click plays the explanation
+     it names. Marks, not selectors, so an explanation never names the page's structure.
+   - The event `lazurio-guide` on `<lazurio-buddy>` (`detail`: `{type: "started" |
+     "done" | "closed", explainer}`), so a host can follow the guide.
+   - The export `provideGuides`: the explanations of the page shown (`{id, title, steps:
+     [{text, sub?, at?}]}`, at most four steps, ids `^[a-z][a-z0-9-]{0,63}$`, never a
+     principle's id), null to withdraw. A host that hands over nothing takes no part.
+
+   **Without explanations handed over and without Buddy's origin, `<lazurio-buddy>`
+   draws nothing, listens to nothing and keeps nothing of the page**: no shadow root,
+   no listener, no subscription. The forks, which place the element and call nothing,
+   are unchanged after the rollout that defines it. Not promised: the principles' ids,
+   texts and the marks they look for, the shell's own marks a step may name (the column
+   head's `gear`, `picker`, `switch`, `tab-apps`, `tab-chat`, `tab-automate`, the rail's
+   `rail`, `rail-personal`, `rail-organizations`), and the arbiter the Launchpad's tour
+   uses (`guideAttention`, not exported by `shell.js`); a mark that is gone points at
+   nothing.
+4. **The protocol `lazurio.guide.*` v1** (`src/shell/guide-protocol.ts`, pure):
+   - frame → host: `{type: "lazurio.guide.play", v: 1, explainer: "<id>"}`;
+   - the host takes it only when all hold: its source is the window of the bubble's
+     frame on this page; its origin is exactly Buddy's origin as the shell's document
+     names it (https, an exact origin, never taken from the message); its keys are
+     exactly `type`, `v` and `explainer`, an added member refusing the whole message;
+     `v` is 1; `explainer` is an id the host knows now (a principle, or an explanation
+     of the page it shows); and nothing plays and the onboarding tour does not want
+     attention, else the answer is `busy` and nothing plays. Only the id is copied: no
+     HTML, text, selector or target crosses. Anything refused is dropped without an
+     answer;
+   - host → frame: `{type: "lazurio.guide.started" | "lazurio.guide.done" |
+     "lazurio.guide.closed" | "lazurio.guide.busy", v: 1, explainer, kind?}`, posted to
+     exactly Buddy's origin, never `*`; `kind` is `personal`, `work`, `team` or
+     `workstation`, an automated Environment answering `work`, and absent where unknown;
+   - its executable vectors, `src/shell/guide-vectors/v1/guide-protocol.json` (schema
+     `lazurio.guide-vectors.v1`), in the format and with the runner of
+     [F50](#f50--the-environment-browsers-contract-one-module-executable-vectors-and-an-attested-artifact-for-the-forks),
+     so Buddy's web builds its sender against the same file; within v1 they only gain
+     cases (F50 point 3).
+
+   A "?" plays directly, without a message. **Until Buddy has an origin no listener is
+   registered at all**: the module, its receiver (`createGuideReceiver`) and the vectors
+   ship now, and slice 7 of the lane (after milestone M7) adds Buddy's origin as an
+   additive member of `lazurio.shell.v1` and `lazurio.account.v1` and wires the
+   receiver only where it is present.
+5. **Never two tours at once.** The Launchpad's tour tells the guide whether it wants the
+   person's attention, and waits while the guide is out (`guideAttention`, internal).
+   While Začínáme wants attention, a "?" plays nothing and draws nothing beside the
+   tour's bubble: the tour's bubble nudges (its outline only, with less motion), and a
+   status only assistive technology hears says "Nejdřív dokončete Začínáme" ("Finish
+   Getting started first"). The wireframe answers in Buddy's thread; without a thread on
+   the page, a second card next to the tour's bubble would be two tours at once. Buddy's
+   frame gets `busy`.
+6. **How it behaves.** The neutral guide's mark (the Lazurio symbol on a white disc;
+   Buddy's character comes with his bubble) travels from the bubble's corner at the
+   bottom right to the card; a step rings every visible element with its mark and dims
+   the page around it, as the tour's ring does; the card says the explanation's title,
+   the step and its quieter line, with the steps as dots, "Ukončit" and "Další", at the
+   end "Rozumím". The focus moves to the card's button and returns to the "?" on
+   Escape, "Ukončit" or "Rozumím". An explanation of a page never leaves its page; when
+   the page's address changes, or the host stops handing that explanation over, it
+   closes. With `prefers-reduced-motion` nothing travels, hops or fades: each step is a
+   still frame. A missing or hidden element puts the card in the middle (below 768 px
+   it is always the sheet).
+7. **The Launchpad: Soubory first.** The "?" stands right after the page's heading in
+   the breadcrumb (`#page-help`, shown on Files only in this slice). It plays the
+   principle `files`; in a Team Environment the Launchpad's own `files-team` (the folder
+   is the Team's), chosen by the kind alone (`src/launchpad/guides.ts`). The Files
+   column item carries `nav-files` and the list `files-list`. The page's explaining
+   sentences go in the same change, so the explanation is never missing: the
+   introduction ("Složka Dokumenty tohoto Prostředí. Agenti sem ukládají…"), the Team
+   note ("Toto Týmové Prostředí je sdílené…"), and the empty Documents folder now says
+   only "Zatím žádné soubory." Every other page gets its "?" in slice 5 of the lane,
+   the principles' motion in slice 6.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| C1 The guide in the Launchpad only (`src/launchpad/guide-*.ts`) | Fastest, but the Dashboard and the forks would get the "?" only after a move: two engines and the work twice. Rejected |
+| **C2 The engine and the principles in the shell, a page's explanations in its host** | Chosen. It adds permanent names to interface v1, so as few as the guide needs |
+| C3 Every explanation in the shell (the wireframe) | The shell would know the DOM of the Dashboard and the Launchpad, and every page change would wait for a shell release. Rejected |
+| Steps that name selectors of the host's page | Ties an explanation to the page's structure and lets content cross as code. Rejected for `data-guide` marks |
+| Register the message listener now, behind a flag | A listener with no origin to accept is surface without use, and the origin's member is not designed yet. Rejected: the protocol and its vectors ship, the wiring comes with the origin |
+| While Začínáme comes first, a card at the "?" saying so | Drawn beside the tour's bubble, it is two tours at once (seen in the browser check). Rejected for a nudge of the tour's bubble and a line for assistive technology |
+| Define `<lazurio-buddy>` with a shadow root and a listener from the start | Every fork's page would change at the next rollout. Rejected: nothing until a page takes part |
+
+**Honest limits.** No Buddy origin exists yet, so nobody sees Buddy: the neutral guide
+explains everywhere, and the explanations about Buddy end with "Založte si Buddyho",
+which leads to the Dashboard's home until Buddy's sign-up has its own page. Only Soubory
+has a "?"; the principles other than `files` are not reachable from the Launchpad
+before slice 5, and the marks they look for on a host's page (`browser`,
+`nav-integrations`, `nav-vault`, `integration-on`, `integration-connect`, `vault-row`,
+`vault-open`) come with it. The principles' English words are the agent's, for Matěj's
+review. Below 768 px the Files steps point into the folded column, so they show as a
+sheet without a ring. The shell's own marks are found by selectors inside the rail and
+the column head, internal to the shell. The Dashboard gets the guide only with its next
+shell pin (task 994), and the vectors are not in the attested shell artifact yet: Buddy's
+web reads them from this repository until slice 7 decides. Motion, placement and focus
+are checked in a browser, not in CI (root decision 0178).
+
+Verified by `tests/shell-guide-protocol.test.ts` (every vector of
+`guide-protocol.json` through F50's runner: each acceptance and refusal rule, `busy`
+while another explanation plays and while Začínáme wants attention, the kinds, the
+answers; every export with a case; only the id copied; answers with exactly their
+members; the receiver posting every answer to exactly Buddy's origin and nothing to a
+refused request, another frame, a frame not loaded yet or an origin that is no https
+origin; no message listener of the guide in the shell's sources),
+`tests/shell-guide.test.ts` (the six principles in both languages and every kind under
+the rules, Czech and English at the same marks, every mark known, the kind filled and an
+automated Environment as work, your computer's words, Trezor's five lines and its
+Personal adaptation, a host's explanations parsed and refused, the engine over a faked
+page: nothing drawn, listened to, followed or announced for a page that hands over
+nothing, a principle played step by step in the element's language, Escape and
+"Ukončit", a second "?" waiting, the arbiter with Začínáme, a page's explanation with its
+kind and ending when the page moves on, withdrawal and removal letting go of the page,
+the invitation, and the card's placement), `tests/launchpad-guide.test.ts` (one "?"
+right after the heading of Soubory, `<lazurio-buddy>` outside every view, the played
+explanation known in every kind and language and chosen by the kind alone, every mark on
+the served page or the shell's own, the Launchpad's texts under the rules, no "?"
+elsewhere yet, and the replaced sentences gone from the page and the catalog),
+`tests/shell-interface.test.ts` (interface v1 with the five names, the element's
+`lang`, the marks read), `tests/launchpad-shell-routes.test.ts` (the served script
+defines `<lazurio-buddy>` and exports `provideGuides`) and `tests/tour-placement.test.ts`
+(the tour's placement, unchanged, from its new place), and in headless Chromium (root
+decision 0178) against the hosted preview, Czech and English, a Work and a Team
+Environment, at 1440 and 700 px: the "?" opens the neutral guide, the ring sits on the
+Chat tab, the Files item and the list, the steps advance, Escape closes and the focus
+returns to the "?", `prefers-reduced-motion` shows still frames, a "?" while Začínáme
+comes first nudges the tour's bubble and draws nothing else, and a fork-like page with
+the shell, `<lazurio-buddy>` and a "?" but no `provideGuides` draws nothing.

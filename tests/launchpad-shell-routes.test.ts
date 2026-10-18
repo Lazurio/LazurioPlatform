@@ -29,8 +29,10 @@ test("the shell script defines the elements and nothing of a Folder", () => {
   expect(shellSource).toContain('customElements.define("lazurio-rail"');
   expect(shellSource).toContain("lazurio-column-head");
   expect(shellSource).toContain("/.lazurio/shell.json");
-  // No `<lazurio-buddy>` yet: reserved in the contract, not defined.
-  expect(shellSource).not.toContain('define("lazurio-buddy"');
+  // `<lazurio-buddy>` since decision F56: where the guide draws, which it
+  // does only on a page that hands over its explanations (`provideGuides`).
+  expect(shellSource).toContain('customElements.define("lazurio-buddy"');
+  expect(shellSource).toContain("provideGuides");
 });
 
 posixTest(

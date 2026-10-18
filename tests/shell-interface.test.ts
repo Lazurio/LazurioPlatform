@@ -36,6 +36,9 @@ const themeValues = Object.fromEntries(
 // 0208) added the Environment theme: `declares.environmentTheme` (its two
 // marks, `--lazurio-color-scheme` and the class `dark`), the host's
 // `data-lazurio-appearance` and the event `lazurio-theme`, and removed
+// nothing; decision F56 (2026-10-18) added the guide: `<lazurio-buddy>`'s
+// attribute `lang`, the page's `marks` `data-guide` and `data-guide-help`,
+// the event `lazurio-guide` and the export `provideGuides`, and removed
 // nothing.
 
 test("the promised interface v1 is exactly this", () => {
@@ -45,7 +48,7 @@ test("the promised interface v1 is exactly this", () => {
     elements: {
       "lazurio-rail": ["lang", "app", "space"],
       "lazurio-column-head": ["active", "lang", "settings", "space"],
-      "lazurio-buddy": [],
+      "lazurio-buddy": ["lang"],
       "lazurio-new-tab": ["strip", "tools", "focus-address", "lang"],
       "lazurio-environment": ["environment", "lang", "space"],
     },
@@ -55,12 +58,14 @@ test("the promised interface v1 is exactly this", () => {
       "lazurio-app",
       "lazurio-new-tab",
       "lazurio-theme",
+      "lazurio-guide",
     ],
     document: {
       "data-lazurio-shell": ["host"],
       "data-lazurio-account": ["host"],
       "data-lazurio-appearance": ["device", "light", "dark"],
     },
+    marks: ["data-guide", "data-guide-help"],
     declares: {
       fonts: ["Inter Tight Variable", "Geist Mono"],
       tokens: [
@@ -101,6 +106,7 @@ test("the promised interface v1 is exactly this", () => {
       "parseShell",
       "parseShellAccount",
       "parseShellSignedOut",
+      "provideGuides",
     ],
     properties: [
       "--lazurio-rail-width",
@@ -143,11 +149,14 @@ test("the elements keep every promised name", async () => {
     expect(observed("LazurioNewTab", newTab)).toContain(attribute);
   for (const attribute of shellElementInterface.elements["lazurio-environment"])
     expect(observed("LazurioEnvironment", environment)).toContain(attribute);
+  for (const attribute of shellElementInterface.elements["lazurio-buddy"])
+    expect(observed("LazurioBuddy")).toContain(attribute);
   for (const name of [
     "lazurio-rail",
     "lazurio-column-head",
     "lazurio-new-tab",
     "lazurio-environment",
+    "lazurio-buddy",
   ])
     expect(source).toMatch(
       new RegExp(`customElements\\.define\\(\\s*"${name}",`),
@@ -258,6 +267,20 @@ test("a host's document attributes and the script's exports are kept", async () 
   );
   for (const name of shellElementInterface.exports)
     expect(entry.exports).toContain(name);
+});
+
+test("the guide reads the page's marks it promises (decision F56)", async () => {
+  // `data-guide-help` on the "?" a click plays (elements.ts listens for
+  // it), `data-guide` on the element a step points at (guide-layer.ts finds
+  // it on the page).
+  const source = await readFile("src/shell/elements.ts", "utf8");
+  const layer = await readFile("src/shell/guide-layer.ts", "utf8");
+  expect(shellElementInterface.marks).toEqual([
+    "data-guide",
+    "data-guide-help",
+  ]);
+  expect(source).toContain("dataset.guideHelp");
+  expect(layer).toContain("[data-guide=");
 });
 
 test("the script declares in the document what `declares` promises", async () => {
