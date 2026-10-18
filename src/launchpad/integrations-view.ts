@@ -674,34 +674,19 @@ export function composioUpdated(answer: unknown): boolean {
 
 /** The one consequence the disconnect dialog names. A Composio connection
  * lives in one organization of the person's Composio account (root decision
- * 0162, addenda of 2026-10-13 and 2026-10-17), so the dialog names that
- * organization, never the whole account (#484). */
+ * 0162, addenda of 2026-10-13 and 2026-10-17), so the dialog speaks of that
+ * organization, never the whole account (#484). It does not name it: the
+ * removal re-reads the organization when confirmed, so a name from the
+ * page's earlier reading could promise a different one. */
 export function disconnectText(
   app: IntegrationApp,
   account: IntegrationAccount,
-  composioOrganization: string | null,
   copy: Copy,
 ): string {
   if (account.state === "pending")
     return fill(copy.integrationsDisconnectPending, { app: app.name });
   if (account.path === "direct") return copy.integrationsDisconnectDirect;
-  return composioOrganization === null
-    ? copy.integrationsDisconnectComposioAny
-    : fill(copy.integrationsDisconnectComposio, {
-        organization: composioOrganization,
-      });
-}
-
-/** The Composio organization a disconnect leaves, as Composio names it: the
- * Organization's own one once it is current, else null (a personal
- * Environment's chosen organization, or one not made current yet). */
-export function composioDisconnectOrganization(
-  overview: IntegrationsOverview,
-): string | null {
-  const target = overview.composio.organization;
-  if (target === null || target.state !== "matches" || target.name === null)
-    return null;
-  return composioOrganizationName(target.name);
+  return copy.integrationsDisconnectComposio;
 }
 
 /** The way to Composio's Apps and back (decision F42, addendum of

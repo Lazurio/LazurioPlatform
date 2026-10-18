@@ -1450,8 +1450,6 @@ const en = {
   integrationsDisconnectTitle: "Disconnect {account} from {app}?",
   integrationsDisconnectDirect: "It disconnects in this Environment only.",
   integrationsDisconnectComposio:
-    "It disconnects from the Composio organization {organization}, so in every Environment that uses it.",
-  integrationsDisconnectComposioAny:
     "It disconnects from your Composio organization, so in every Environment that uses it.",
   integrationsDisconnectPending:
     "Only this account is withdrawn; the other accounts of {app} stay connected.",
@@ -3059,8 +3057,6 @@ const cs: Record<MessageKey, string> = {
   integrationsDisconnectTitle: "Odpojit {account} od aplikace {app}?",
   integrationsDisconnectDirect: "Odpojí se jen v tomto Prostředí.",
   integrationsDisconnectComposio:
-    "Odpojí se z organizace {organization} v Composiu, takže ve všech Prostředích, která ji používají.",
-  integrationsDisconnectComposioAny:
     "Odpojí se z vaší organizace v Composiu, takže ve všech Prostředích, která ji používají.",
   integrationsDisconnectPending:
     "Odvolá se jen tento účet; ostatní účty aplikace {app} zůstanou připojené.",

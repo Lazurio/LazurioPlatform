@@ -16,7 +16,6 @@ import {
 } from "../src/integrations/composio-organization-name";
 import type { IntegrationsOverview } from "../src/integrations/model";
 import {
-  composioDisconnectOrganization,
   composioOrganizationLine,
   parseIntegrations,
 } from "../src/launchpad/integrations-view";
@@ -853,13 +852,6 @@ test("the page's words for each state of the organization", () => {
       },
     }) as unknown as IntegrationsOverview;
   expect(composioOrganizationLine(overview("matches", "ok"), copy)).toBeNull();
-  // A disconnect names the organization it leaves as Composio writes it, and
-  // only once it is the current one (#484); otherwise the general sentence.
-  expect(composioDisconnectOrganization(overview("matches", "ok"))).toBe(
-    "HumanAndMachine",
-  );
-  for (const state of ["missing", "ambiguous", "elsewhere"] as const)
-    expect(composioDisconnectOrganization(overview(state, "ok"))).toBeNull();
   expect(composioOrganizationLine(overview("missing", "ok"), copy)).toBe(
     "Ve vašem účtu Composia chybí organizace „HumanAndMachine“. Toto Prostředí patří Organizaci Human and Machine a má se přes Composio připojovat ve vaší vlastní organizaci tohoto jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
   );

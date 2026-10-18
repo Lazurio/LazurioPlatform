@@ -492,25 +492,18 @@ test("accounts: one line when they need the person or are spare, and what discon
     line: "Navíc přes Composio, nepoužívá se",
     retry: null,
   });
-  expect(disconnectText(notion, account("connected"), null, cs)).toBe(
+  expect(disconnectText(notion, account("connected"), cs)).toBe(
     "Odpojí se jen v tomto Prostředí.",
   );
-  expect(
-    disconnectText(
-      notion,
-      account("connected", "composio"),
-      "LazurioExampleOrganization",
-      cs,
-    ),
-  ).toBe(
-    "Odpojí se z organizace LazurioExampleOrganization v Composiu, takže ve všech Prostředích, která ji používají.",
-  );
-  expect(
-    disconnectText(notion, account("connected", "composio"), null, cs),
-  ).toBe(
+  // A Composio disconnect speaks of the organization, not the whole account,
+  // and names none: the removal re-reads it when confirmed (#484).
+  expect(disconnectText(notion, account("connected", "composio"), cs)).toBe(
     "Odpojí se z vaší organizace v Composiu, takže ve všech Prostředích, která ji používají.",
   );
-  expect(disconnectText(notion, account("pending"), null, en)).toBe(
+  expect(disconnectText(notion, account("connected", "composio"), en)).toBe(
+    "It disconnects from your Composio organization, so in every Environment that uses it.",
+  );
+  expect(disconnectText(notion, account("pending"), en)).toBe(
     "Only this account is withdrawn; the other accounts of Notion stay connected.",
   );
 });
