@@ -48,6 +48,7 @@ import {
   toolChangeOutcome,
   toolDescription,
   toolGroups,
+  toolGuideTargets,
   toolNoticeView,
   toolStatusView,
   updateAction,
@@ -1365,9 +1366,6 @@ export function createToolsPanel(
           { name: tool.name },
         ),
       );
-      // A connection (a sign-in, or adding and connecting), which the guide
-      // of the page's "?" points at; installing alone connects nothing.
-      if (primary.mode !== "install-only") action.dataset.signIn = "";
       controls.append(action);
     }
     // Not the build Lazurio pins for the tool (composio, decision F42
@@ -1627,8 +1625,9 @@ export function createToolsPanel(
       );
       return;
     }
+    const shownGroups = toolGroups(overview.tools, copy);
     groups.replaceChildren(
-      ...toolGroups(overview.tools, copy).map((group) => {
+      ...shownGroups.map((group) => {
         const section = element("section", "group");
         const heading = element("h2", "", group.title);
         heading.id = `tools-group-${group.tier}`;
@@ -1643,13 +1642,31 @@ export function createToolsPanel(
       }),
     );
     // What the guide of the page's "?" points at (decision F56's addendum
-    // of 2026-10-18): the first sign-in, and the first "Používají agenti".
-    groups
-      .querySelector("button[data-sign-in]")
-      ?.setAttribute("data-guide", "tool-connect");
-    groups
-      .querySelector('button[role="switch"]')
-      ?.setAttribute("data-guide", "tool-agents");
+    // (2) of 2026-10-18, `toolGuideTargets`): connecting and the switch,
+    // each on something the page draws now.
+    const targets = toolGuideTargets(
+      shownGroups,
+      copy,
+      overview.sharedEnvironment === true,
+    );
+    const row = (name: string) =>
+      [...groups.querySelectorAll<HTMLElement>("li[data-tool]")].find(
+        (item) => item.dataset.tool === name,
+      );
+    if (targets.connect !== null)
+      row(targets.connect.tool)
+        ?.querySelector(
+          targets.connect.part === "action"
+            ? 'button[data-control="curated"]'
+            : ".row-status",
+        )
+        ?.setAttribute("data-guide", "tool-connect");
+    if (targets.agents !== null)
+      row(targets.agents.tool)
+        ?.querySelector(
+          targets.agents.part === "switch" ? ".switch-field" : ".always-on",
+        )
+        ?.setAttribute("data-guide", "tool-agents");
     // A control is disabled while the panel is busy and cannot take the
     // focus then; the render after the read places it.
     if (focus !== null && !busy) {

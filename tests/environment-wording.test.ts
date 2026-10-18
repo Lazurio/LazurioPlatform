@@ -579,10 +579,10 @@ test("the English that people read says no old kind", () => {
 });
 
 // Only these texts keep the plain words for this Environment: they speak of
-// its kind itself, which naming would contradict (a kind that could not be
-// read). Obecné's hint beside the kind is gone: its "?" explains the section
-// (decision F56's addendum of 2026-10-18).
+// its kind itself, which naming would repeat (Obecné's hint beside the kind
+// it describes) or contradict (a kind that could not be read).
 const aboutTheKind: ReadonlySet<string> = new Set([
+  "presetHint",
   "toolsLoginFailureEnvironment",
 ]);
 const plainThis = {

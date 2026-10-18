@@ -682,6 +682,67 @@ export function curatedActions(
   };
 }
 
+/** Where the guide of Nástroje's "?" points (decision F56's addendum (2)
+ * of 2026-10-18): `connect`, the steps on connecting with one's own account
+ * (in a Team Environment, its team accounts), and `agents`, the step on the
+ * switch "Používají agenti". Chosen from what the page draws, in its order,
+ * so that each always names something there: the first sign-in (or adding
+ * and connecting), else the first connection already made (its line "Připojeno
+ * jako …"), else the first line of a tool one signs in to; the first switch,
+ * else a required tool's "Vždy zapnuto". Never a vault's or Executor's row
+ * (their own steps, not a person's sign-in), nor a tool not offered here;
+ * gh of a Team Environment, working as the Organization's identity, offers
+ * no sign-in (`curatedActions`). Null where nothing fits. */
+export type ToolGuideTargets = Readonly<{
+  connect: Readonly<{ tool: string; part: "action" | "state" }> | null;
+  agents: Readonly<{ tool: string; part: "switch" | "always" }> | null;
+}>;
+
+export function toolGuideTargets(
+  groups: readonly ToolGroup[],
+  copy: Copy,
+  brokered: boolean,
+): ToolGuideTargets {
+  const shown = groups.flatMap((group) => group.tools);
+  const personal = shown.filter(
+    (tool) =>
+      tool.offered &&
+      tool.setup === "launchpad" &&
+      !ownRows.includes(tool.name),
+  );
+  const action = personal.find((tool) => {
+    const primary = curatedActions(tool, copy, brokered).primary;
+    return primary !== null && primary.mode !== "install-only";
+  });
+  // A connection someone made: never gh of a Team Environment, which works
+  // as the Organization's identity.
+  const connected = personal.find(
+    (tool) =>
+      tool.signIn?.state === "signed-in" &&
+      !githubActionRefused({ brokered, tool: tool.name, action: "login" }),
+  );
+  const connectTool = action ?? connected ?? personal[0];
+  const switched = shown.find(
+    (tool) => tool.tier !== "required" && (tool.offered || tool.enabled),
+  );
+  const always = shown.find((tool) => tool.tier === "required" && tool.offered);
+  return {
+    connect:
+      connectTool === undefined
+        ? null
+        : {
+            tool: connectTool.name,
+            part: connectTool === action ? "action" : "state",
+          },
+    agents:
+      switched !== undefined
+        ? { tool: switched.name, part: "switch" }
+        : always !== undefined
+          ? { tool: always.name, part: "always" }
+          : null,
+  };
+}
+
 /** The full next selection a request carries: the enabled tools that are not
  * required, with one of them switched, sorted and unique. A tool the
  * Organization decides is carried as the person chose it (decision F45). */
