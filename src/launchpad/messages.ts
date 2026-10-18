@@ -37,6 +37,13 @@ const en = {
     "Settings changed elsewhere. Your draft is kept. Load current settings, check your text and save again.",
   voiceRefresh: "Load current settings",
 
+  themeGroup: "Environment theme",
+  themeNote: "The colours of Chat, Apps and Automate in this Environment.",
+  themeShared: "Everyone in this team Environment sees the same theme.",
+  themeFailed: "Could not change the theme. Try again.",
+  themeStale:
+    "The theme was changed elsewhere meanwhile. The selected one is the current theme.",
+
   appPrepare: "Prepare dependencies",
   appCleanPrepare: "Reinstall dependencies (remove node_modules)",
   appPrepared:
@@ -1682,6 +1689,12 @@ const cs: Record<MessageKey, string> = {
   voiceStale:
     "Nastavení se mezitím změnilo. Rozepsaný text zůstává. Načtěte aktuální nastavení, zkontrolujte text a uložte ho znovu.",
   voiceRefresh: "Načíst aktuální nastavení",
+
+  themeGroup: "Téma Prostředí",
+  themeNote: "Barvy Chatu, Apps a Automate v tomto Prostředí.",
+  themeShared: "Toto Týmové Prostředí má jedno téma pro všechny.",
+  themeFailed: "Téma se nepodařilo změnit. Zkuste to znovu.",
+  themeStale: "Téma se mezitím změnilo jinde. Vybrané je teď to aktuální.",
 
   appPrepare: "Připravit závislosti",
   appCleanPrepare: "Přeinstalovat závislosti (odstranit node_modules)",

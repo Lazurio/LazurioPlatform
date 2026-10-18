@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-lazurio-shell="host">
+<html lang="en" data-lazurio-shell="host" data-lazurio-appearance="device">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Lazurio Launchpad</title>
 <!-- The first paint (F36's addendum of 2026-10-08): before anything else is
      parsed, the frame of the path (`data-frame`) and in Settings its section
@@ -48,15 +48,27 @@
    rows) in the Lazurio design-system look: every colour, type and radius
    below comes from its vendored tokens (src/shell/vendor/lazurio/tokens.css);
    the aliases keep the names the panels use. Plain CSS, no framework. Light
-   only: the design system has no dark mode yet. */
+   only: the design system has no dark mode yet.
+   The Environment's theme (root decision 0208, F36's addendum of
+   2026-10-18) gives the colour names interface v1 promises other values:
+   the shell writes them into `style[data-lazurio-environment-theme]`, which
+   the server puts at the end of <head> and ui.ts places there on a
+   workstation, after the bundled tokens. So the page's colours come from
+   those names wherever the design system's own value is the same (`--card`
+   is `--lz-surface`, a faint line is `--lz-gray-100`, the blue is
+   `--lz-accent`): the default theme, Lazurio, looks exactly as before, and
+   another one reaches every surface, line, button and signal. Apps takes
+   only the light values (theme-view.ts, `appsTheme`); its
+   `data-lazurio-appearance="device"` says how it would show dark ones. */
 :root {
   color-scheme: light;
+  --lazurio-color-scheme: light;
   --bg: var(--lz-surface);
   --fg: var(--lz-ink);
-  --card: var(--lz-white);
+  --card: var(--lz-surface);
   --border: var(--lz-line);
   --input: var(--lz-line);
-  --muted: var(--lz-gray-25);
+  --muted: var(--lz-paper);
   --muted-fg: var(--lz-ink-muted);
   --hover: var(--lz-gray-100);
   --link: var(--lz-accent);
@@ -73,6 +85,11 @@
   --success-fg: var(--lz-success);
   --success-bg: var(--lz-success-bg);
   --success-border: var(--lz-success-border);
+  /* The design system's names no theme gives a value: what stands for them
+     under another theme is below. */
+  --info-border: var(--lz-info-border);
+  --badge-ink: var(--lz-accent-strong);
+  --line-strong: var(--lz-gray-300);
   --radius-control: var(--lz-radius-sm);
   --radius-card: var(--lz-radius-md);
   --font-sans: var(--lz-font-sans);
@@ -80,16 +97,41 @@
   --column-width: 264px;
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
+/* Under an Environment theme other than Lazurio (the shell's mark on <html>):
+   the borders of the info notice, the badge's ink and the strong line come
+   from the theme's own names, and the shell's elements take the page's
+   colours through the twelve roles (root decision 0187), so the rail, the
+   column head and their lists follow the theme. Lazurio sets none of them:
+   the elements already draw the design system's own look. */
+:root[data-lazurio-environment-theme]:not([data-lazurio-environment-theme="lazurio"]) {
+  --info-border: color-mix(in oklab, var(--lz-info) 28%, var(--lz-info-bg));
+  --badge-ink: var(--lz-info);
+  --line-strong: color-mix(in oklab, var(--lz-line), var(--lz-ink) 12%);
+  --lazurio-surface: var(--lz-paper);
+  --lazurio-ink: var(--fg);
+  --lazurio-ink-muted: var(--muted-fg);
+  --lazurio-line: var(--border);
+  --lazurio-line-strong: var(--line-strong);
+  --lazurio-hover: var(--hover);
+  --lazurio-selected: var(--hover);
+  --lazurio-control: var(--hover);
+  --lazurio-raised: var(--card);
+  --lazurio-overlay: var(--card);
+  --lazurio-overlay-ink: var(--fg);
+  --lazurio-focus: var(--link);
+}
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; }
 body { background: var(--lz-gray-50); color: var(--fg); font: 15px/1.45 var(--font-sans); letter-spacing: var(--lz-track-body); -webkit-font-smoothing: antialiased; }
 [hidden] { display: none !important; }
 /* A public Environment (decision F55, ui.ts `drawAudience`): no Integrace,
-   no Trezor, no Nástroje and nothing for Začínáme to check again. */
+   no Trezor, no Nástroje, nothing for Začínáme to check again and no choice
+   of the theme, which is fixed there (root decision 0208 point 6). */
 html[data-audience="public"] li:has(> #integrations-open),
 html[data-audience="public"] li:has(> #vault-open),
 html[data-audience="public"] #settings-nav li:has(> a[data-section="tools"]),
-html[data-audience="public"] #start-refresh { display: none !important; }
+html[data-audience="public"] #start-refresh,
+html[data-audience="public"] #theme-group { display: none !important; }
 /* The first paint is the final page (F36's addendum of 2026-10-08). Only the
    frame and the Settings section the inline script above names are shown
    (shell.ts keeps them as the page moves), and nothing at all until the
@@ -141,7 +183,7 @@ h1, h2, h3, h4 { margin: 0; font-size: 14px; }
    coming and going), without becoming a scroller, so the column and the
    panel still stick. The column starts with its band, from its top edge. */
 .app { display: flex; min-height: 100vh; margin-left: var(--lazurio-rail-width, 64px); background: var(--bg); overflow-x: clip; }
-.column { position: sticky; top: 0; z-index: 20; display: flex; flex: none; flex-direction: column; gap: 10px; width: var(--column-width); height: 100vh; padding: 0 10px 10px; background: var(--lz-gray-25); border-right: 1px solid var(--lz-line-faint); }
+.column { position: sticky; top: 0; z-index: 20; display: flex; flex: none; flex-direction: column; gap: 10px; width: var(--column-width); height: 100vh; padding: 0 10px 10px; background: var(--lz-paper); border-right: 1px solid var(--lz-gray-100); }
 /* The column's band (Matěj 2026-10-17, the wireframe's AppBand,
    prototypes-lazurio #56 and #61): as tall as Settings' header, 52 px, it
    holds the column's toggle and then the app's name, the design system's
@@ -159,9 +201,9 @@ h1, h2, h3, h4 { margin: 0; font-size: 14px; }
 .column-scroll { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 14px; overflow-y: auto; }
 .column-title { padding: 0 8px; font-size: 18px; font-weight: var(--lz-weight-title); letter-spacing: var(--lz-track-title); }
 .column-label { padding: 4px 10px 6px; color: var(--muted-fg); font-size: 13px; }
-.column-favorites { display: grid; gap: 1px; padding-bottom: 8px; border-bottom: 1px solid var(--lz-line-faint); }
+.column-favorites { display: grid; gap: 1px; padding-bottom: 8px; border-bottom: 1px solid var(--lz-gray-100); }
 .column-hint { padding: 2px 10px 4px; color: var(--muted-fg); font-size: 13px; }
-.column-foot { display: grid; gap: 8px; padding-top: 8px; border-top: 1px solid var(--lz-line-faint); }
+.column-foot { display: grid; gap: 8px; padding-top: 8px; border-top: 1px solid var(--lz-gray-100); }
 .column-foot:not(:has(> :not([hidden]))) { display: none; }
 .menu { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
 .menu-item { display: flex; align-items: center; gap: 10px; min-width: 0; height: 34px; padding: 0 10px; border-radius: var(--lz-radius-sm); color: var(--fg); font-size: 14px; text-decoration: none; }
@@ -190,7 +232,7 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
    past its edge or under the page's corner when the page is too narrow for
    it (#365): the breadcrumb first, then its action on the next row, at the
    right; a long breadcrumb wraps at its slash. */
-.topbar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0.75rem; min-height: 52px; padding: 11px 24px; background: var(--bg); border-bottom: 1px solid var(--lz-line-faint); }
+.topbar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0.75rem; min-height: 52px; padding: 11px 24px; background: var(--bg); border-bottom: 1px solid var(--lz-gray-100); }
 .crumbs { display: flex; align-items: center; min-width: 0; min-height: 30px; }
 .crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
 .crumbs li { display: flex; align-items: center; min-width: 0; }
@@ -255,7 +297,7 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
   .app[data-column="hidden"] .market-head { padding-left: clamp(0px, calc(38px - (100cqw - 56rem) / 2), 38px); }
   .column-divider { display: block; position: absolute; z-index: 1; top: 0; right: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; }
   .column-divider::after { content: ""; position: absolute; top: 0; right: -1px; bottom: 0; width: 2px; background: transparent; transition: background-color 120ms; }
-  .column-divider:hover::after, .column-divider:focus-visible::after, .column-divider.is-dragging::after { background: var(--lz-blue-500); }
+  .column-divider:hover::after, .column-divider:focus-visible::after, .column-divider.is-dragging::after { background: var(--lz-accent); }
   .column-divider:focus-visible { outline: none; }
 }
 @media (min-width: 1100px) { .app[data-browser="wide"][data-column="hidden"] .browser-strip button.ghost.column-toggle { display: inline-flex; } }
@@ -268,6 +310,35 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .voice-meta { justify-content: space-between; color: var(--muted-fg); font-size: 14px; }
 #voice-text { width: 100%; resize: vertical; min-height: 320px; font: inherit; line-height: 1.65; padding: 14px; }
 .section-head-text { display: grid; gap: 0.75rem; }
+/* Settings → Obecné → Vzhled (root decision 0208, theme-panel.ts): a card
+   per theme the Environment may take, on the design system's tile (a
+   hairline, radius-md, the ink's edge once chosen, never a shadow). Each
+   shows its light and its dark look as two small windows of the app in its
+   own colours (theme-view.ts, `previewColours`), Lazurio its light one
+   alone; below, the name and the check of the chosen one. A native radio
+   group: the arrows move between the cards, a choice applies at once. */
+.theme-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); gap: 12px; margin: 0; padding: 0; border: 0; }
+.theme-card { position: relative; display: grid; gap: 10px; padding: 10px; border: 1px solid var(--lz-gray-100); border-radius: var(--lz-radius-md); background: var(--card); color: var(--fg); cursor: pointer; }
+.theme-card:hover { border-color: var(--line-strong); }
+.theme-card:has(input:checked) { border-color: var(--lz-ink); box-shadow: inset 0 0 0 1px var(--lz-ink); }
+.theme-card:has(input:focus-visible) { outline: 2px solid var(--lz-accent); outline-offset: 2px; }
+.theme-card input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.theme-previews { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.theme-previews[data-light-only] { grid-template-columns: 1fr; }
+.theme-preview { display: grid; grid-template-columns: 30% 1fr; height: 60px; overflow: hidden; border: 1px solid var(--preview-line); border-radius: var(--lz-radius-sm); background: var(--preview-surface); }
+.theme-preview-side { display: grid; align-content: start; gap: 4px; padding: 7px 5px; border-right: 1px solid var(--preview-line); background: var(--preview-paper); }
+.theme-preview-side > span { height: 4px; border-radius: 2px; background: var(--preview-muted); opacity: 0.5; }
+.theme-preview-side > span:first-child { height: 7px; background: var(--preview-selected); opacity: 1; }
+.theme-preview-main { display: grid; align-content: start; gap: 5px; padding: 8px; }
+.theme-preview-title { width: 72%; height: 5px; border-radius: 3px; background: var(--preview-ink); }
+.theme-preview-text { width: 92%; height: 4px; border-radius: 2px; background: var(--preview-muted); }
+.theme-preview-actions { display: flex; align-items: center; gap: 5px; margin-top: 4px; }
+.theme-preview-button { width: 28px; height: 10px; border-radius: 3px; background: var(--preview-button); }
+.theme-preview-accent { width: 10px; height: 10px; border-radius: 50%; background: var(--preview-accent); }
+.theme-card-name { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px; font-size: 14px; font-weight: var(--lz-weight-akce); }
+.theme-card-name .icon { visibility: hidden; }
+.theme-card:has(input:checked) .theme-card-name .icon { visibility: visible; }
+#theme-status:empty { display: none; }
 
 /* The Apps home (decision F36): the Organization on top, then the two
    sections Workspace (every module) and Productionspace (production
@@ -287,19 +358,19 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .apps-title-link:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
 .apps-guide { display: inline-flex; align-items: center; gap: 6px; color: var(--muted-fg); font-size: 14px; font-weight: var(--lz-weight-akce); text-decoration: none; }
 .apps-guide:hover { color: var(--fg); }
-.org-mark { display: grid; flex: none; width: 32px; height: 32px; place-items: center; overflow: hidden; border-radius: var(--lz-radius-sm); background: var(--lz-white); box-shadow: inset 0 0 0 1px var(--lz-line); color: var(--fg); font-size: 12px; font-weight: var(--lz-weight-akce); letter-spacing: 0.02em; }
-.org-mark[data-personal] { border-radius: 50%; background: var(--lz-ink); color: var(--lz-white); box-shadow: none; }
+.org-mark { display: grid; flex: none; width: 32px; height: 32px; place-items: center; overflow: hidden; border-radius: var(--lz-radius-sm); background: var(--lz-surface); box-shadow: inset 0 0 0 1px var(--lz-line); color: var(--fg); font-size: 12px; font-weight: var(--lz-weight-akce); letter-spacing: 0.02em; }
+.org-mark[data-personal] { border-radius: 50%; background: var(--lz-ink); color: var(--lz-surface); box-shadow: none; }
 .org-mark img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .apps-section { display: grid; gap: 16px; min-width: 0; }
-.section-head { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--lz-blue-500); }
-.section-pill { padding: 5px 12px; border-radius: 7px 7px 0 0; background: var(--lz-blue-500); color: var(--lz-on-accent); font-size: 14px; font-weight: var(--lz-weight-akce); line-height: normal; }
+.section-head { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--lz-accent); }
+.section-pill { padding: 5px 12px; border-radius: 7px 7px 0 0; background: var(--lz-accent); color: var(--lz-on-accent); font-size: 14px; font-weight: var(--lz-weight-akce); line-height: normal; }
 .section-count { color: var(--muted-fg); font-size: 13px; }
 /* Three columns on a full page, fewer as the page narrows, beside the open
    right panel too: the grid counts its columns from its own width, as the
    shell wireframe does (prototypes-lazurio#10). */
 .tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px; }
 .tile-wrap { position: relative; display: grid; min-width: 0; }
-.tile { position: relative; display: flex; align-items: center; gap: 16px; width: 100%; min-width: 0; min-height: 88px; padding: 16px 18px; border: 1px solid var(--lz-line-faint); border-radius: var(--lz-radius-md); background: var(--card); color: var(--fg); font: inherit; text-align: left; text-decoration: none; cursor: pointer; transition: border-color 120ms ease, box-shadow 120ms ease; }
+.tile { position: relative; display: flex; align-items: center; gap: 16px; width: 100%; min-width: 0; min-height: 88px; padding: 16px 18px; border: 1px solid var(--lz-gray-100); border-radius: var(--lz-radius-md); background: var(--card); color: var(--fg); font: inherit; text-align: left; text-decoration: none; cursor: pointer; transition: border-color 120ms ease, box-shadow 120ms ease; }
 button.tile { height: auto; justify-content: flex-start; white-space: normal; box-shadow: none; }
 .tile:hover, .tile:focus-visible { border-color: var(--lz-ink); background: var(--card); box-shadow: none; }
 .tile--new { border-style: dashed; border-color: var(--lz-line); }
@@ -322,21 +393,21 @@ button.tile { height: auto; justify-content: flex-start; white-space: normal; bo
 .tile-mark--app { border-radius: var(--lz-radius-sm); background: var(--lz-gray-50); }
 .apps-starts .tile-desc { white-space: normal; }
 .tile--off { cursor: not-allowed; opacity: 0.4; }
-.tile--off:hover { border-color: var(--lz-line-faint); }
+.tile--off:hover { border-color: var(--lz-gray-100); }
 /* The "⋯" menu at a tile's top right, always visible but quiet; it lists
    the star and the way to the module's overview (design system lz-menu,
    selection variant A). */
 .tile-menu { position: absolute; top: 6px; right: 6px; }
-.tile-menu-button { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: var(--lz-radius-sm); background: transparent; box-shadow: none; color: var(--lz-gray-300); }
+.tile-menu-button { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: var(--lz-radius-sm); background: transparent; box-shadow: none; color: var(--line-strong); }
 .tile-wrap:hover .tile-menu-button { color: var(--muted-fg); }
 .tile-menu-button:hover, .tile-menu.is-open .tile-menu-button { background: var(--lz-gray-100); color: var(--fg); }
 .tile-menu-button .icon { width: 18px; height: 18px; }
-.tile-menu-list { position: absolute; z-index: 30; top: 34px; right: 0; display: grid; min-width: 250px; padding: 6px; border: 1px solid var(--lz-gray-300); border-radius: var(--lz-radius-md); background: var(--lz-white); }
+.tile-menu-list { position: absolute; z-index: 30; top: 34px; right: 0; display: grid; min-width: 250px; padding: 6px; border: 1px solid var(--line-strong); border-radius: var(--lz-radius-md); background: var(--lz-surface); }
 .tile-menu-item { display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; height: 33px; padding: 0 10px; border: 0; border-radius: var(--lz-radius-sm); background: transparent; box-shadow: none; color: var(--fg); font: 400 14px/1 var(--font-sans); text-align: left; text-decoration: none; cursor: pointer; }
 .tile-menu-item:hover, .tile-menu-item:focus-visible { background: var(--lz-paper); }
 /* A short message at the foot of the page (the wireframe's toast). */
 .toast-region { position: fixed; z-index: 60; bottom: 28px; left: 50%; transform: translateX(-50%); }
-.toast { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border: 1px solid var(--lz-gray-300); border-radius: var(--lz-radius-md); background: var(--lz-white); color: var(--fg); font-size: 14px; white-space: nowrap; }
+.toast { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border: 1px solid var(--line-strong); border-radius: var(--lz-radius-md); background: var(--lz-surface); color: var(--fg); font-size: 14px; white-space: nowrap; }
 .market-head { display: flex; align-items: center; gap: 14px; }
 .market-icon { display: grid; width: 52px; height: 52px; place-items: center; border-radius: var(--lz-radius-md); background: var(--lz-gray-100); color: var(--fg); }
 .market-icon .icon { width: 26px; height: 26px; }
@@ -350,7 +421,7 @@ button.tile { height: auto; justify-content: flex-start; white-space: normal; bo
 .module-head-text { display: grid; gap: 2px; min-width: 0; }
 .module-meta { color: var(--muted-fg); font-size: 14px; }
 .module-open { margin-left: auto; height: 30px; padding: 0 12px; }
-.command { display: block; margin-top: 8px; padding: 8px 10px; border-radius: var(--radius-control); background: var(--lz-gray-950); color: var(--lz-gray-25); font-size: 12.5px; user-select: all; overflow-wrap: anywhere; }
+.command { display: block; margin-top: 8px; padding: 8px 10px; border-radius: var(--radius-control); background: var(--lz-ink); color: var(--lz-paper); font-size: 12.5px; user-select: all; overflow-wrap: anywhere; }
 
 /* Sections, cards and rows (T3 Code settingsLayout.tsx, Lazurio look). */
 .intro { max-width: 44rem; color: var(--muted-fg); font-size: 14px; line-height: 1.5; }
@@ -361,7 +432,7 @@ button.tile { height: auto; justify-content: flex-start; white-space: normal; bo
 .group > legend + * { clear: both; }
 .group-note { color: var(--muted-fg); font-size: 13px; }
 .card { margin: 0; padding: 0; list-style: none; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--card); }
-.card > * + * { border-top: 1px solid var(--lz-line-faint); }
+.card > * + * { border-top: 1px solid var(--lz-gray-100); }
 .row { container-type: inline-size; padding: 14px 16px; }
 .row-main { display: flex; flex-direction: column; gap: 0.75rem; }
 @container (min-width: 32rem) {
@@ -379,7 +450,7 @@ dl.card dt { color: var(--fg); font-size: 15px; font-weight: var(--lz-weight-akc
 dl.card dd { margin: 0; color: var(--muted-fg); font-size: 14px; overflow-wrap: anywhere; }
 @container (min-width: 32rem) { dl.card dd { text-align: right; } }
 dl.card ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.25rem; }
-.callout { padding: 10px 14px; border: 1px solid var(--lz-info-border); border-radius: var(--radius-control); background: var(--lz-info-bg); color: var(--fg); font-size: 14px; }
+.callout { padding: 10px 14px; border: 1px solid var(--info-border); border-radius: var(--radius-control); background: var(--lz-info-bg); color: var(--fg); font-size: 14px; }
 .callout[data-kind="warning"], .tools-warning { border: 1px solid var(--warning-border); border-radius: var(--radius-control); background: var(--warning-bg); color: var(--fg); padding: 10px 14px; font-size: 14px; }
 .callout[data-kind="warning"] strong { color: var(--warning-fg); }
 /* The callout's other tones and its row: one notice for every message of a
@@ -414,7 +485,7 @@ pre:empty { display: none; }
 /* Status: a dot, always with a word next to it (the design system's rule:
    colour never carries a state alone). */
 .dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--success); }
-.dot[data-state="blocked"], .dot[data-state="stopped"], .dot[data-state="unknown"] { background: var(--lz-gray-300); }
+.dot[data-state="blocked"], .dot[data-state="stopped"], .dot[data-state="unknown"] { background: var(--line-strong); }
 .dot[data-state="starting"] { background: var(--lz-warning); }
 .dot[data-state="failed"] { background: var(--lz-red-500); }
 .module-status[data-state="running"] { color: var(--success-fg); }
@@ -462,12 +533,12 @@ button.destructive:hover { border-color: var(--destructive-border); background: 
 button.ghost { height: auto; padding: 4px 6px; border-color: transparent; background: transparent; color: var(--muted-fg); font-weight: 400; font-size: 14px; }
 button.ghost:hover { background: transparent; color: var(--fg); }
 button:focus-visible, .button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, .menu-item:focus-visible, summary:focus-visible, .tile:focus-visible, .back:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px var(--lz-accent); }
-.switch { position: relative; width: 34px; height: 20px; padding: 2px; border: 0; border-radius: 999px; background: var(--lz-gray-200); justify-content: flex-start; }
-.switch::after { content: ""; width: 16px; height: 16px; border-radius: 999px; background: var(--lz-white); box-shadow: 0 1px 2px rgb(0 0 0 / 20%); transition: transform 0.15s; }
-.switch[aria-checked="true"] { background: var(--lz-ink); }
+.switch { position: relative; width: 34px; height: 20px; padding: 2px; border: 0; border-radius: 999px; background: var(--lz-line); justify-content: flex-start; }
+.switch::after { content: ""; width: 16px; height: 16px; border-radius: 999px; background: var(--lz-surface); box-shadow: 0 1px 2px rgb(0 0 0 / 20%); transition: transform 0.15s; }
+.switch[aria-checked="true"] { background: var(--lz-accent-button); }
 .switch[aria-checked="true"]::after { transform: translateX(14px); }
-.switch:hover { background: var(--lz-gray-300); }
-.switch[aria-checked="true"]:hover { background: var(--lz-gray-800); }
+.switch:hover { background: var(--line-strong); }
+.switch[aria-checked="true"]:hover { background: var(--lz-accent-button-hover); }
 select, input, textarea { border: 1px solid var(--input); border-radius: var(--radius-control); background: var(--card); color: var(--fg); font: 13px/1.4 var(--font-sans); }
 select { height: 32px; width: 14rem; max-width: 100%; padding: 0 1.75rem 0 10px; appearance: none; background: var(--card) var(--chevron) right 0.5rem center / 1rem no-repeat; cursor: pointer; }
 /* Obecné's kinds, the longest "Pracovní Prostředí s automatizacemi" (F28's
@@ -476,7 +547,7 @@ select { height: 32px; width: 14rem; max-width: 100%; padding: 0 1.75rem 0 10px;
 select:disabled, input:disabled, textarea:disabled { opacity: 0.6; }
 input { height: 32px; padding: 0 10px; width: 14rem; max-width: 100%; }
 textarea { display: block; width: 100%; padding: 0.4rem 0.5rem; resize: vertical; }
-.badge { display: inline-flex; align-items: center; height: 1.25rem; padding: 0 0.4rem; border-radius: var(--lz-radius-xs); background: var(--lz-accent-soft); color: var(--lz-accent-strong); font-size: 11.5px; font-weight: var(--lz-weight-akce); white-space: nowrap; }
+.badge { display: inline-flex; align-items: center; height: 1.25rem; padding: 0 0.4rem; border-radius: var(--lz-radius-xs); background: var(--lz-info-bg); color: var(--badge-ink); font-size: 11.5px; font-weight: var(--lz-weight-akce); white-space: nowrap; }
 fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 
 /* Tools. */
@@ -487,7 +558,7 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .tool-signin[data-state="signed-out"], .tool-ssh[data-state="not-linked"] { color: var(--warning-fg); }
 .tools-muted { color: var(--muted-fg); font-size: 12.5px; }
 .row-details { margin-top: 0.5rem; }
-.row-details[open] > .details-body { display: grid; gap: 0.75rem; margin-top: 0.625rem; padding: 0.75rem; border-radius: var(--radius-control); background: var(--muted); border: 1px solid var(--lz-line-faint); }
+.row-details[open] > .details-body { display: grid; gap: 0.75rem; margin-top: 0.625rem; padding: 0.75rem; border-radius: var(--radius-control); background: var(--muted); border: 1px solid var(--lz-gray-100); }
 .details-body h4 { color: var(--fg); font-size: 12.5px; font-weight: var(--lz-weight-akce); }
 .details-body section { display: grid; gap: 0.25rem; }
 .details-body .tool-path { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; color: var(--fg); }
@@ -560,9 +631,9 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .vault-connect-picture { display: block; width: min(100%, 340px); height: auto; overflow: visible; }
 .vault-connect-picture .vault-connect-link { stroke: var(--lz-line); stroke-width: 1.25; }
 .vault-connect-picture .vault-connect-node { fill: var(--card); stroke: var(--lz-line); stroke-width: 1; }
-.vault-connect-picture .vault-connect-vault { fill: var(--lz-blue-50); }
+.vault-connect-picture .vault-connect-vault { fill: var(--lz-info-bg); }
 .vault-connect-picture .vault-connect-side { color: var(--fg); }
-.vault-connect-picture .vault-connect-lock { color: var(--lz-blue-500); }
+.vault-connect-picture .vault-connect-lock { color: var(--lz-accent); }
 .vault-connect-picture text { fill: var(--fg); font: var(--lz-weight-akce) 13px var(--font-sans); text-anchor: middle; }
 .vault-connect-picture text.vault-connect-where { fill: var(--muted-fg); font-weight: 400; font-size: 12px; }
 #vault-connect-video:empty { display: none; }
@@ -629,7 +700,7 @@ a.files-name:hover { text-decoration: underline; }
   .files-size { grid-area: size; text-align: right; white-space: nowrap; }
   .files-modified { grid-area: modified; white-space: nowrap; }
   .files-head { display: block; padding-top: 0.5rem; padding-bottom: 0.5rem; background: var(--muted); }
-  .card > .files-head + .files-row { border-top: 1px solid var(--lz-line-faint); }
+  .card > .files-head + .files-row { border-top: 1px solid var(--lz-gray-100); }
   .files-head .files-name { color: var(--muted-fg); font-size: 12.5px; font-weight: 500; }
 }
 .files-callout { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
@@ -665,7 +736,7 @@ a.files-name:hover { text-decoration: underline; }
    corner). */
 .integrations-head .apps-title { padding-right: var(--page-corner, 0px); }
 .integrations-titles { display: grid; gap: 4px; min-width: 0; }
-.integrations-bar { display: flex; flex-wrap: wrap-reverse; align-items: flex-start; gap: 8px 16px; margin-top: -12px; border-bottom: 1px solid var(--lz-line-faint); }
+.integrations-bar { display: flex; flex-wrap: wrap-reverse; align-items: flex-start; gap: 8px 16px; margin-top: -12px; border-bottom: 1px solid var(--lz-gray-100); }
 .integrations-tools { display: flex; align-items: center; gap: 8px; margin: 0 0 4px auto; }
 .integrations-search { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid var(--input); border-radius: var(--radius-control); background: var(--card); color: var(--muted-fg); }
 .integrations-search input { width: 200px; height: 30px; padding: 0; border: 0; background: transparent; box-shadow: none; }
@@ -688,9 +759,9 @@ a.files-name:hover { text-decoration: underline; }
 .integration-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--card); }
 .integration-card.is-focused { border-color: var(--lz-accent); box-shadow: 0 0 0 1px var(--lz-accent); }
 .integration-top { display: flex; gap: 12px; min-width: 0; }
-.integration-mark { display: grid; flex: none; width: 40px; height: 40px; place-items: center; border: 1px solid var(--lz-line-faint); border-radius: var(--lz-radius-sm); background: var(--lz-white); }
+.integration-mark { display: grid; flex: none; width: 40px; height: 40px; place-items: center; border: 1px solid var(--lz-gray-100); border-radius: var(--lz-radius-sm); background: var(--lz-surface); }
 .integration-mark svg { width: 24px; height: 24px; }
-.integration-mark-letter { color: var(--muted-fg); font-weight: var(--lz-weight-akce); font-size: 17px; background: var(--lz-gray-25); }
+.integration-mark-letter { color: var(--muted-fg); font-weight: var(--lz-weight-akce); font-size: 17px; background: var(--lz-paper); }
 /* The name on one line and the sentence on two, both whole on hover
    (title): every card's foot, and so its button, stands at the same height
    in a row, whatever its accounts below it. */
@@ -713,7 +784,7 @@ a.files-name:hover { text-decoration: underline; }
 .integration-form-note { flex-basis: 100%; color: var(--muted-fg); font-size: 13px; }
 .integration-form-field { flex: 1 1 140px; }
 .integration-form-field input { width: 100%; }
-.integration-accounts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--lz-line-faint); list-style: none; }
+.integration-accounts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--lz-gray-100); list-style: none; }
 .integration-account { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; min-height: 20px; font-size: 13px; }
 .integration-account-text { display: grid; flex: 1; gap: 2px; min-width: 0; }
 /* A long name or address on one line, whole on hover (title) and while
@@ -778,7 +849,7 @@ input.mcp-input[aria-invalid="true"] { border-color: var(--destructive-border); 
 .mcp-segments { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--lz-radius-md); background: var(--lz-gray-100); }
 button.mcp-segment { height: 30px; padding: 0 14px; border: 0; border-radius: calc(var(--lz-radius-md) - 3px); background: transparent; color: var(--muted-fg); font-size: 14px; }
 button.mcp-segment:hover { background: transparent; color: var(--fg); }
-button.mcp-segment[aria-checked="true"] { background: var(--lz-white); box-shadow: inset 0 0 0 1px var(--lz-line); color: var(--fg); }
+button.mcp-segment[aria-checked="true"] { background: var(--lz-surface); box-shadow: inset 0 0 0 1px var(--lz-line); color: var(--fg); }
 .mcp-rows { display: grid; gap: 8px; }
 .mcp-rows:empty { display: none; }
 .mcp-row { display: grid; grid-template-columns: minmax(0, 1fr) 36px; align-items: center; gap: 8px; }
@@ -809,7 +880,7 @@ button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); co
    while the panel keeps its width and what it shows does not reflow; as a
    sheet it comes in from the right. 200 ms, the length browser-panel.ts
    waits before it hides the panel; none with reduced motion. */
-.browser-panel { --browser-panel-width: clamp(360px, calc((100vw - var(--lazurio-rail-width, 64px) - var(--column-width)) / 2), 960px); position: sticky; top: 0; z-index: 3; display: flex; flex: none; flex-direction: column; width: var(--browser-panel-width); height: 100vh; background: var(--card); border-left: 1px solid var(--lz-line-faint); animation: browser-panel-in 200ms ease-out; }
+.browser-panel { --browser-panel-width: clamp(360px, calc((100vw - var(--lazurio-rail-width, 64px) - var(--column-width)) / 2), 960px); position: sticky; top: 0; z-index: 3; display: flex; flex: none; flex-direction: column; width: var(--browser-panel-width); height: 100vh; background: var(--card); border-left: 1px solid var(--lz-gray-100); animation: browser-panel-in 200ms ease-out; }
 .browser-panel.is-leaving { animation: browser-panel-out 200ms ease-in forwards; }
 @keyframes browser-panel-in { from { margin-right: calc(-1 * var(--browser-panel-width)); } }
 @keyframes browser-panel-out { to { margin-right: calc(-1 * var(--browser-panel-width)); } }
@@ -826,7 +897,7 @@ button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); co
    selected. The sheet below 1100 px has none. */
 .browser-divider { position: absolute; z-index: 7; top: 0; bottom: 0; left: 0; width: 7px; cursor: col-resize; touch-action: none; }
 .browser-divider::after { content: ""; position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: transparent; transition: background-color 120ms; }
-.browser-divider:hover::after, .browser-divider:focus-visible::after, .browser-divider.is-dragging::after { background: var(--lz-blue-500); }
+.browser-divider:hover::after, .browser-divider:focus-visible::after, .browser-divider.is-dragging::after { background: var(--lz-accent); }
 .browser-divider:focus-visible { outline: none; }
 html.is-resizing, html.is-resizing * { cursor: col-resize !important; user-select: none; }
 html.is-resizing iframe, html.is-resizing lazurio-new-tab { pointer-events: none; }
@@ -840,13 +911,13 @@ html.is-resizing iframe, html.is-resizing lazurio-new-tab { pointer-events: none
    2026-10-12): its own width, not its title's, decides its size, as in
    Chrome. Tabs narrow to 92 px first, then the list scrolls sideways and the
    shown tab stays in view. */
-.browser-strip { display: flex; flex: none; align-items: center; gap: 8px; height: 46px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--lz-line-faint); background: var(--lz-paper); }
+.browser-strip { display: flex; flex: none; align-items: center; gap: 8px; height: 46px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--lz-gray-100); background: var(--lz-paper); }
 .browser-tabs { display: flex; flex: 1; align-items: center; gap: 4px; min-width: 0; }
 .browser-tablist { display: flex; flex: 0 1 auto; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .browser-tablist::-webkit-scrollbar { display: none; }
 .browser-tab { display: flex; flex: 0 1 auto; align-items: center; width: 220px; height: 32px; min-width: 92px; border: 1px solid transparent; border-radius: var(--lz-radius-sm); color: var(--lz-ink-muted); }
 .browser-tab:hover { background: var(--lz-gray-50); }
-.browser-tab.is-active { border-color: var(--lz-line); background: var(--lz-white); color: var(--lz-ink); }
+.browser-tab.is-active { border-color: var(--lz-line); background: var(--lz-surface); color: var(--lz-ink); }
 button.browser-tab-main { flex: 1; justify-content: flex-start; gap: 8px; height: 100%; min-width: 0; padding: 0 2px 0 10px; border: 0; border-radius: var(--lz-radius-sm); background: transparent; color: inherit; font-weight: 400; text-align: left; }
 button.browser-tab-main:hover { background: transparent; }
 .browser-tab-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -858,9 +929,9 @@ button.browser-tab-close:hover { background: var(--lz-gray-100); color: var(--lz
 .browser-favicon img { display: block; width: 16px; height: 16px; border-radius: var(--lz-radius-xs); }
 .browser-favicon .icon { width: 15px; height: 15px; }
 /* An agent in the tab: a blue dot on its icon, whose ring breathes. */
-.browser-agent { position: absolute; right: -4px; bottom: -4px; width: 10px; height: 10px; border: 2px solid var(--lz-paper); border-radius: 50%; background: var(--lz-blue-500); animation: browser-agent 1.6s ease-in-out infinite; }
-.browser-tab.is-active .browser-agent { border-color: var(--lz-white); }
-@keyframes browser-agent { 50% { box-shadow: 0 0 0 3px rgb(13 18 219 / 22%); } }
+.browser-agent { position: absolute; right: -4px; bottom: -4px; width: 10px; height: 10px; border: 2px solid var(--lz-paper); border-radius: 50%; background: var(--lz-accent); animation: browser-agent 1.6s ease-in-out infinite; }
+.browser-tab.is-active .browser-agent { border-color: var(--lz-surface); }
+@keyframes browser-agent { 50% { box-shadow: 0 0 0 3px color-mix(in oklab, var(--lz-accent) 22%, transparent); } }
 .browser-actions { display: flex; flex: none; align-items: center; gap: 2px; }
 .browser-action { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 8px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted-fg); font: 400 13px/1 var(--font-sans); text-decoration: none; white-space: nowrap; cursor: pointer; }
 .browser-action:hover { background: var(--hover); color: var(--fg); }
@@ -872,13 +943,13 @@ button.browser-action { flex: none; width: 30px; padding: 0; }
    the panel and inside the window (browser-panel.ts places it). Its
    commands in groups with a line between them; one with nothing to do is
    greyed. */
-.browser-menu { position: fixed; z-index: 8; display: grid; width: 220px; padding: 6px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); box-shadow: var(--lz-shadow-float); color: var(--fg); }
+.browser-menu { position: fixed; z-index: 8; display: grid; width: 220px; padding: 6px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-surface); box-shadow: var(--lz-shadow-float); color: var(--fg); }
 .browser-menu:focus { outline: none; }
 button.browser-menu-item { justify-content: flex-start; width: 100%; height: auto; min-height: 32px; padding: 7px 10px; border: 0; border-radius: var(--lz-radius-sm); background: transparent; color: inherit; font: 400 13.5px/1.25 var(--font-sans); text-align: left; white-space: normal; }
 button.browser-menu-item:hover, button.browser-menu-item:focus-visible { background: var(--lz-gray-50); }
 button.browser-menu-item:disabled { opacity: 1; color: var(--lz-ink-faint); }
-.browser-menu-line { height: 1px; margin: 4px 6px; background: var(--lz-line-faint); }
-.browser-body { position: relative; display: flex; flex: 1; min-height: 0; background: var(--lz-gray-25); }
+.browser-menu-line { height: 1px; margin: 4px 6px; background: var(--lz-gray-100); }
+.browser-body { position: relative; display: flex; flex: 1; min-height: 0; background: var(--lz-paper); }
 .browser-frame { display: block; flex: 1; width: 100%; height: 100%; border: 0; background: var(--lz-white); }
 .browser-new-tab { display: block; flex: 1; width: 100%; height: 100%; background: var(--lz-white); }
 .browser-message { margin: auto; max-width: 30rem; padding: 24px; color: var(--muted-fg); font-size: 14px; line-height: 1.5; text-align: center; }
@@ -887,7 +958,7 @@ button.browser-menu-item:disabled { opacity: 1; color: var(--lz-ink-faint); }
    reachable (the wireframe's PendingClose). */
 .browser-toast-slot { position: absolute; z-index: 6; right: 16px; bottom: 18px; left: 16px; display: grid; justify-items: center; pointer-events: none; }
 .browser-toast-region { position: fixed; z-index: 61; right: 16px; bottom: 28px; left: 16px; display: grid; justify-items: center; pointer-events: none; }
-.browser-toast { display: grid; gap: 6px; max-width: 100%; padding: 8px 8px 8px 16px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); box-shadow: var(--lz-shadow-float); color: var(--fg); font-size: 13.5px; pointer-events: auto; }
+.browser-toast { display: grid; gap: 6px; max-width: 100%; padding: 8px 8px 8px 16px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-surface); box-shadow: var(--lz-shadow-float); color: var(--fg); font-size: 13.5px; pointer-events: auto; }
 /* One line per action: a message with Zkusit znovu above the line of the
    tab taken away with Vrátit; a line without a button keeps its right edge. */
 .browser-toast-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; }
@@ -934,7 +1005,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
    prototypes-lazurio 45c92830): the line under the Apps head until the
    Environment is usable, "Obsah Prostředí" in Toto Prostředí, and the
    tour's ring and bubble over the real interface. */
-.setup-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; max-width: 900px; padding: 12px 16px; border: 1px solid var(--lz-info-border); border-radius: var(--radius-card); background: var(--lz-info-bg); color: var(--fg); font-size: 14px; }
+.setup-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; max-width: 900px; padding: 12px 16px; border: 1px solid var(--info-border); border-radius: var(--radius-card); background: var(--lz-info-bg); color: var(--fg); font-size: 14px; }
 .setup-line[data-tone="failed"] { border-color: var(--destructive-border); background: var(--destructive-bg); }
 .setup-line-text { flex: 1; min-width: 220px; }
 .setup-line-actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -973,7 +1044,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
 #tools-login .composio-name { display: flex; align-items: center; gap: 8px; }
 #tools-login .composio-name input { flex: 1 1 auto; width: auto; min-width: 0; max-width: 22rem; border-radius: var(--lz-radius-xs); font-size: 14px; font-weight: var(--lz-weight-akce); }
 #tools-login .composio-wait { display: flex; align-items: center; gap: 8px; color: var(--muted-fg); font-size: 13px; }
-.composio-wait-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--lz-blue-500); }
+.composio-wait-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--lz-accent); }
 #tools-login .tool-note-problem:empty { display: none; }
 #tools-login .composio-choice { display: grid; justify-items: start; gap: 6px; }
 #tools-login .composio-choice label { margin: 0; font-size: 13px; font-weight: var(--lz-weight-akce); }
@@ -1103,8 +1174,8 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
 @keyframes cs-marker-4 { 0%, 46.5%, 97%, 100% { opacity: 0; } 47.5%, 96% { opacity: 1; } }
 .tour { position: fixed; inset: 0; z-index: 80; pointer-events: none; }
 .tour-ring { position: fixed; border-radius: var(--lz-radius-md); box-shadow: 0 0 0 2px var(--lz-accent), 0 0 0 6px color-mix(in oklab, var(--lz-accent) 25%, transparent), 0 0 0 9999px rgb(0 0 0 / 0.18); transition: left 160ms ease, top 160ms ease, width 160ms ease, height 160ms ease; }
-.tour-bubble { position: fixed; display: flex; flex-direction: column; gap: 8px; width: 300px; max-width: calc(100vw - 24px); padding: 16px 18px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); box-shadow: 0 12px 32px rgb(0 0 0 / 0.16); color: var(--lz-ink); pointer-events: auto; }
-.tour-bubble[data-side]::before { position: absolute; width: 10px; height: 10px; border-bottom: 1px solid var(--lz-line); border-left: 1px solid var(--lz-line); background: var(--lz-white); content: ""; }
+.tour-bubble { position: fixed; display: flex; flex-direction: column; gap: 8px; width: 300px; max-width: calc(100vw - 24px); padding: 16px 18px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-surface); box-shadow: 0 12px 32px rgb(0 0 0 / 0.16); color: var(--lz-ink); pointer-events: auto; }
+.tour-bubble[data-side]::before { position: absolute; width: 10px; height: 10px; border-bottom: 1px solid var(--lz-line); border-left: 1px solid var(--lz-line); background: var(--lz-surface); content: ""; }
 .tour-bubble[data-side="right"]::before { top: calc(var(--tour-arrow, 23px) - 5px); left: -6px; transform: rotate(45deg); }
 .tour-bubble[data-side="left"]::before { top: calc(var(--tour-arrow, 23px) - 5px); right: -6px; transform: rotate(-135deg); }
 .tour-bubble[data-side="below"]::before { top: -6px; left: calc(var(--tour-arrow, 23px) - 5px); transform: rotate(135deg); }
@@ -1529,6 +1600,15 @@ button:not(.primary) .provider-openai { color: #000000; }
 </fieldset>
 </form>
 <details class="technical"><summary data-message="technicalDetails">Technical details</summary><pre id="result"></pre></details>
+<!-- The Environment's theme (root decision 0208): a card per theme, drawn by
+     theme-panel.ts once `GET /api/theme` answered; never on a public
+     Environment, whose theme is fixed. -->
+<section class="group" id="theme-group" aria-labelledby="theme-heading" hidden>
+<div class="group-head"><h2 id="theme-heading" data-message="themeGroup">Environment theme</h2><p class="group-note" id="theme-note" data-message="themeNote">The colours of Chat, Apps and Automate in this Environment.</p></div>
+<div class="theme-choices" id="theme-choices" role="radiogroup" aria-labelledby="theme-heading" aria-describedby="theme-note"></div>
+<p id="theme-shared" class="row-desc" hidden data-message="themeShared">Everyone in this Team Environment sees the same theme.</p>
+<p id="theme-status" class="row-status" role="status" aria-live="polite"></p>
+</section>
 </section>
 
 <section id="section-communication" data-section="communication" aria-labelledby="page-heading">

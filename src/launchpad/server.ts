@@ -72,6 +72,12 @@ import { readOrganizationApplications } from "../organizations/read-applications
 import type { RecoveryResult } from "../recover/recover";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
+import { shellThemeOf } from "../theme/palettes";
+import {
+  fileThemeStore,
+  memoryThemeStore,
+  type ThemeStore,
+} from "../theme/record";
 import { isAiProvider } from "../tools/ai";
 import { type AiProbe, createAiProbe } from "../tools/ai-probe";
 import { reloadAiServices } from "../tools/ai-services";
@@ -188,6 +194,7 @@ import {
   LaunchpadStartRefused,
   readStartState,
 } from "./start-check";
+import { createThemeRoutes } from "./theme-routes";
 import type { UpdatePill } from "./update-pill";
 import { createVaultConnectionRoutes } from "./vault-connection-routes";
 import { createVaultPageRoutes } from "./vault-page-routes";
@@ -895,6 +902,22 @@ export async function startLaunchpad(
     headers,
     journal: (line) => console.log(JSON.stringify(line)),
   });
+  // The Environment's theme (root decision 0208): one record of this Folder
+  // in the install base, which `lazurio theme` changes too; a development run
+  // without a base keeps it in memory (src/theme/record.ts). Read by
+  // `/.lazurio/shell.json` and the page's boot document, changed by
+  // Settings → Obecné; fixed on a public Environment, by the entry recorded
+  // at start, the one rule that withholds Nástroje and Trezor there.
+  const themeStore: ThemeStore =
+    installed?.base === undefined
+      ? memoryThemeStore()
+      : fileThemeStore(installed.base, folder);
+  const themes = createThemeRoutes({
+    store: themeStore,
+    headers,
+    fixed: () => publicEnvironment,
+    journal: (line) => console.log(JSON.stringify(line)),
+  });
   const newTab = createNewTabRoutes({
     browser,
     holder,
@@ -950,15 +973,21 @@ export async function startLaunchpad(
   async function pageBoot(): Promise<LaunchpadBoot | null> {
     let late: ReturnType<typeof setTimeout> | undefined;
     const read = (async () => {
-      const [inputs, tailnet] = await Promise.all([
+      const [inputs, tailnet, theme] = await Promise.all([
         readShellInputs(folder, {
           ownerKey: hostedOptions.ownerKey,
           lockWaitMs: bootLockWaitMs,
           personalspace: personalspace.peek,
         }),
         (hostedOptions.offlineTailnet ?? machineTailnet)(),
+        themeStore.read(),
       ]);
-      return launchpadBoot({ ...inputs, entry, tailnet });
+      return launchpadBoot({
+        ...inputs,
+        entry,
+        tailnet,
+        theme: shellThemeOf(theme),
+      });
     })().catch(() => null);
     try {
       return await Promise.race([
@@ -1111,9 +1140,10 @@ export async function startLaunchpad(
           return response({ error: "method-not-allowed" }, 405);
         if (closing) return response({ error: "closing" }, 503);
         try {
-          const [inputs, tailnet] = await Promise.all([
+          const [inputs, tailnet, theme] = await Promise.all([
             readShellInputs(folder, { ownerKey: hostedOptions.ownerKey }),
             (hostedOptions.offlineTailnet ?? machineTailnet)(),
+            themeStore.read(),
           ]);
           // GitHub and the content only where the Environment signs in as
           // its person (setup-state.ts).
@@ -1121,12 +1151,14 @@ export async function startLaunchpad(
             ? setup.peek()
             : undefined;
           // Whether the elements register the offline guide's worker
-          // (decision F41): only where the worker's address serves it.
+          // (decision F41): only where the worker's address serves it. The
+          // Environment's theme always (root decision 0208).
           return response(
             withOfflineGuide(
               shellDocument({
                 ...inputs,
                 ...(known === undefined ? {} : { setup: known }),
+                theme: shellThemeOf(theme),
               }),
               tailnet,
             ),
@@ -1573,6 +1605,16 @@ export async function startLaunchpad(
           vaultConnection.handles(url.pathname))
       )
         return response({ error: "not-found" }, 404);
+      // The theme reads everywhere; on a public Environment its change is
+      // refused (theme-routes.ts, root decision 0208 point 6).
+      if (themes.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        try {
+          return await themes.handle(request, url);
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
       if (content.handles(url.pathname)) {
         if (closing) return response({ error: "closing" }, 503);
         try {

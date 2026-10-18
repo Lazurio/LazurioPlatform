@@ -1,12 +1,18 @@
 import type { MachineBinding, MachineEntry } from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
 import type { Catalog } from "../organizations/catalog";
-import { currentEnvironment, type Shell } from "../shell/contract";
+import {
+  currentEnvironment,
+  type Shell,
+  type ShellTheme,
+} from "../shell/contract";
+import { environmentTheme, environmentThemeCss } from "../shell/theme";
 import { bootElementId, bootJson, type LaunchpadBoot } from "./boot";
 import { publicEntry } from "./chat";
 import { type MessageKey, messages } from "./messages";
 import { withOfflineGuide } from "./offline-guide";
 import { shellDocument } from "./shell-document";
+import { appsTheme } from "./theme-view";
 
 // The producer of the page's boot document (boot.ts, F36's addendum of
 // 2026-10-08) and its place in the page a hosted Launchpad serves after the
@@ -34,6 +40,9 @@ export function launchpadBoot(
     /** The owning Organization's own slug the handover names, when it does
      * (shell-document.ts). */
     ownerKey?: string | null;
+    /** The Environment's theme (root decision 0208), as the shell document
+     * carries it. */
+    theme?: ShellTheme;
   }>,
 ): LaunchpadBoot {
   let shell: Shell | null = null;
@@ -46,6 +55,7 @@ export function launchpadBoot(
         catalog: input.catalog,
         ...(input.computer === undefined ? {} : { computer: input.computer }),
         ownerKey: input.ownerKey ?? null,
+        ...(input.theme === undefined ? {} : { theme: input.theme }),
       }),
       input.tailnet,
     );
@@ -66,16 +76,26 @@ export function launchpadBoot(
  * first status line) in that language from the same messages as the page
  * script's: the first paint is in the Folder's language and names this
  * Environment's kind as the script does (decision F28's addendum of
- * 2026-10-18). */
+ * 2026-10-18). With the shell document's theme (root decision 0208), also
+ * the Environment's theme as Apps shows it (`appsTheme`, light only): its
+ * values in `<style data-lazurio-environment-theme>` at the end of `<head>`,
+ * after the page's own tokens (the bundler links them there), and its mark
+ * on `<html>`, as the shell would declare them, so the first paint already
+ * wears it. The style's text is the shell's own (`environmentThemeCss`), of
+ * validated `#rrggbb` values only. */
 export function withBoot(page: Response, boot: LaunchpadBoot): Response {
   const copy = messages(
     boot.locale,
     boot.shell === null ? null : (currentEnvironment(boot.shell)?.kind ?? null),
   );
+  const theme =
+    boot.shell?.theme === undefined ? null : appsTheme(boot.shell.theme);
   return new HTMLRewriter()
     .on("html", {
       element(element) {
         element.setAttribute("lang", boot.locale);
+        if (theme !== null)
+          element.setAttribute(environmentTheme.attribute, theme.id);
       },
     })
     .on("[data-message]", {
@@ -92,6 +112,11 @@ export function withBoot(page: Response, boot: LaunchpadBoot): Response {
     })
     .on("head", {
       element(element) {
+        if (theme !== null)
+          element.append(
+            `<style ${environmentTheme.attribute}>\n${environmentThemeCss(theme)}</style>`,
+            { html: true },
+          );
         element.append(
           `<script type="application/json" id="${bootElementId}">${bootJson(boot)}</script>`,
           { html: true },
