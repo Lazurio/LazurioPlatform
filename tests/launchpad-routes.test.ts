@@ -1,15 +1,19 @@
 import { expect, test } from "bun:test";
 import { messages } from "../src/launchpad/messages";
 import {
+  legacyVaultPaths,
   modulePath,
   organizationPath,
+  pageFrame,
   pagePaths,
   pageRoute,
   routeFrame,
   routePath,
   routeTitle,
   settingsSections,
+  vaultPath,
 } from "../src/launchpad/routes";
+import { secretRequestPath } from "../src/vault/request-id";
 
 test("a path names the view and the settings section; the canonical path is one", () => {
   expect(pageRoute("/")).toEqual({ view: "home" });
@@ -52,6 +56,9 @@ test("a path names the view and the settings section; the canonical path is one"
     "/files/*",
     "/integrations",
     "/integrations/*",
+    // Trezor, a page of the Apps column (F53's addendum of 2026-10-18).
+    "/vault",
+    "/vault/requests/:id",
     "/marketplace",
     "/settings",
     // Začínáme, first in Settings (root decision 0201).
@@ -60,42 +67,103 @@ test("a path names the view and the settings section; the canonical path is one"
     "/settings/communication",
     "/settings/machine",
     "/settings/tools",
-    "/settings/vault",
     "/settings/ssh",
     "/settings/recovery",
+    // Trezor's old addresses, answered for good (F54 as amended).
+    "/settings/vault",
+    "/settings/vault/requests/:id",
+  ]);
+  expect(legacyVaultPaths).toEqual([
+    "/settings/vault",
     "/settings/vault/requests/:id",
   ]);
 });
 
-test("an agent's secret request has its page in Trezor; any other path below it opens Trezor", () => {
+// Trezor is a page of the Apps column (F53's addendum of 2026-10-18), and an
+// agent's secret request its own page below it (decision F54 as amended).
+test("Trezor is a page of the Apps column, an agent's secret request has its page below it, and any other path below it opens Trezor", () => {
   const id = "abcdefghijklmnopqrstuvwx";
-  const route = { view: "settings", section: "vault", request: id } as const;
-  expect(pageRoute(`/settings/vault/requests/${id}`)).toEqual(route);
-  expect(pageRoute(`/settings/vault/requests/${id}/`)).toEqual(route);
-  expect(routePath(route)).toBe(`/settings/vault/requests/${id}`);
-  expect(routeFrame(route)).toBe("settings");
+  const request = { view: "vault", request: id } as const;
+  expect(vaultPath).toBe("/vault");
+  for (const path of ["/vault", "/vault/"])
+    expect([path, pageRoute(path)]).toEqual([path, { view: "vault" }]);
+  expect(routePath({ view: "vault" })).toBe("/vault");
+  expect(routeFrame({ view: "vault" })).toBe("vault");
+  expect(pageFrame("/vault")).toEqual({ frame: "vault", section: null });
+  expect(pageRoute(`/vault/requests/${id}`)).toEqual(request);
+  expect(pageRoute(`/vault/requests/${id}/`)).toEqual(request);
+  expect(routePath(request)).toBe(`/vault/requests/${id}`);
+  // The link `lazurio vault request` prints is the request's route.
+  expect(secretRequestPath(id)).toBe(`/vault/requests/${id}`);
+  expect(pageRoute(secretRequestPath(id))).toEqual(request);
+  expect(routeFrame(request)).toBe("vault");
   for (const path of [
-    "/settings/vault",
-    "/settings/vault/requests",
-    "/settings/vault/requests/",
-    "/settings/vault/requests/x",
-    "/settings/vault/requests/ABCDEFGHIJKLMNOPQRSTUVWX",
-    `/settings/vault/requests/${id}/extra`,
-    `/settings/vault/requests/${id.slice(0, 23)}%2F`,
+    "/vault/requests",
+    "/vault/requests/",
+    "/vault/requests/x",
+    "/vault/requests/ABCDEFGHIJKLMNOPQRSTUVWX",
+    `/vault/requests/${id}/extra`,
+    `/vault/requests/${id.slice(0, 23)}%2F`,
+    "/vault/elsewhere",
   ])
-    expect([path, pageRoute(path)]).toEqual([
-      path,
-      { view: "settings", section: "vault" },
-    ]);
-  expect(routeTitle(route, messages("cs"))).toEqual({
+    expect([path, pageRoute(path)]).toEqual([path, { view: "vault" }]);
+  // Not Trezor: a path that only starts like it.
+  expect(pageRoute("/vaultx")).toEqual({ view: "home" });
+  // No Settings section: Trezor is not in Settings any more.
+  expect((settingsSections as readonly string[]).includes("vault")).toBe(false);
+  // Its title is its own, never under Settings.
+  expect(routeTitle({ view: "vault" }, messages("cs"))).toEqual({
     heading: "Trezor",
-    document: "Žádost agenta · Trezor · Nastavení — Lazurio",
+    document: "Trezor — Lazurio",
   });
-  expect(
-    routeTitle({ view: "settings", section: "vault" }, messages("en")),
-  ).toEqual({
+  expect(routeTitle({ view: "vault" }, messages("en"))).toEqual({
     heading: "Vault",
-    document: "Vault · Settings — Lazurio Launchpad",
+    document: "Vault — Lazurio Launchpad",
+  });
+  expect(routeTitle(request, messages("cs"))).toEqual({
+    heading: "Trezor",
+    document: "Žádost agenta · Trezor — Lazurio",
+  });
+  expect(routeTitle(request, messages("en"))).toEqual({
+    heading: "Vault",
+    document: "Agent's request · Vault — Lazurio Launchpad",
+  });
+});
+
+// Trezor's old addresses in Settings stay for good (F54 as amended on
+// 2026-10-18): `lazurio vault request` printed them into agents' threads,
+// which keep them. Each opens the same route as its new address, whose
+// canonical path the page then writes into the address bar.
+test("Trezor's old addresses in Settings open the same page, an agent's old request link the same request, under the new path", () => {
+  const id = "abcdefghijklmnopqrstuvwx";
+  for (const [old, now] of [
+    ["/settings/vault", "/vault"],
+    ["/settings/vault/", "/vault"],
+    ["/settings/vault/requests", "/vault"],
+    ["/settings/vault/requests/", "/vault"],
+    [`/settings/vault/requests/${id}`, `/vault/requests/${id}`],
+    [`/settings/vault/requests/${id}/`, `/vault/requests/${id}`],
+    // An unknown or malformed id opens Trezor itself, as before.
+    ["/settings/vault/requests/x", "/vault"],
+    ["/settings/vault/requests/ABCDEFGHIJKLMNOPQRSTUVWX", "/vault"],
+    [`/settings/vault/requests/${id}/extra`, "/vault"],
+    [`/settings/vault/requests/${id.slice(0, 23)}%2F`, "/vault"],
+  ] as const) {
+    expect([old, pageRoute(old)]).toEqual([old, pageRoute(now)]);
+    expect([old, routePath(pageRoute(old))]).toEqual([old, now]);
+    expect([old, pageFrame(old)]).toEqual([
+      old,
+      { frame: "vault", section: null },
+    ]);
+  }
+  // Anything else below it was never Trezor's and stays a Settings path.
+  expect(pageRoute("/settings/vault/x")).toEqual({
+    view: "settings",
+    section: "general",
+  });
+  expect(pageRoute("/settings/vaultx")).toEqual({
+    view: "settings",
+    section: "general",
   });
 });
 
@@ -130,23 +198,16 @@ test("the heading and document title follow the route in both languages", () => 
   expect(
     routeTitle({ view: "settings", section: "ssh" }, messages("cs")).heading,
   ).toBe("SSH ze zařízení");
-  // Nastavení → Trezor (root decision 0198 point 5), right after the tools.
-  expect(pageRoute("/settings/vault")).toEqual({
-    view: "settings",
-    section: "vault",
-  });
-  expect(
-    settingsSections.indexOf("vault") - settingsSections.indexOf("tools"),
-  ).toBe(1);
-  expect(
-    routeTitle({ view: "settings", section: "vault" }, messages("cs")),
-  ).toEqual({
-    heading: "Trezor",
-    document: "Trezor · Nastavení — Lazurio",
-  });
-  expect(
-    routeTitle({ view: "settings", section: "vault" }, messages("en")).heading,
-  ).toBe("Vault");
+  // Settings keep their order without Trezor: SSH follows the tools.
+  expect(settingsSections).toEqual([
+    "start",
+    "general",
+    "communication",
+    "machine",
+    "tools",
+    "ssh",
+    "recovery",
+  ]);
 });
 
 test("the catalog routes: an Organization and a module, deep-linkable, one canonical path", () => {

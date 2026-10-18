@@ -15,13 +15,13 @@ import {
 type Copy = Readonly<Record<MessageKey, string>>;
 type Answer = Promise<{ value: unknown; ok: boolean }>;
 
-// The agents' secret requests in Nastavení → Trezor (root decision 0198
-// point 9 (c), decision F54; the wireframe's screens/SecretRequest.tsx and
-// the section of EnvVault.tsx):
+// The agents' secret requests in Apps → Trezor (root decision 0198 point 9
+// (c), decision F54; the wireframe's screens/SecretRequest.tsx and the
+// section of EnvVault.tsx):
 //
 // - "Žádosti agentů" (`#vault-requests`): what the agents wait for, each
 //   with "Zadat", which opens its page; nothing when nothing waits;
-// - a request's own page (`#vault-request`, `/settings/vault/requests/<id>`):
+// - a request's own page (`#vault-request`, `/vault/requests/<id>`):
 //   what the agent needs as its title, why and where, one input per field
 //   (a password input for a secret one), "Uložit do trezoru" and
 //   "Odmítnout".
@@ -61,10 +61,7 @@ export function createVaultRequestsPanel(
   };
 
   const showing = () =>
-    route !== null &&
-    route.view === "settings" &&
-    route.section === "vault" &&
-    route.request !== undefined
+    route !== null && route.view === "vault" && route.request !== undefined
       ? route.request
       : null;
 
@@ -303,8 +300,7 @@ export function createVaultRequestsPanel(
   function render(kept?: HTMLFormElement) {
     const section = slot("vault-requests");
     const page = slot("vault-request");
-    const onVault =
-      route !== null && route.view === "settings" && route.section === "vault";
+    const onVault = route !== null && route.view === "vault";
     const id = showing();
     if (section !== null) {
       const list = onVault && id === null ? (waiting ?? []) : [];
@@ -315,7 +311,7 @@ export function createVaultRequestsPanel(
     if (page === null) return;
     page.hidden = id === null;
     // On a request's page it alone shows of the Trezor section.
-    const trezor = page.closest<HTMLElement>('[data-section="vault"]');
+    const trezor = page.closest<HTMLElement>("#section-vault");
     if (trezor !== null) trezor.toggleAttribute("data-request", id !== null);
     if (kept !== undefined && id !== null && page.contains(kept)) {
       const save = kept.querySelector<HTMLButtonElement>("button[type=submit]");
@@ -348,7 +344,7 @@ export function createVaultRequestsPanel(
      * that request; anything else leaves both empty. */
     show(next: PageRoute) {
       route = next;
-      if (next.view !== "settings" || next.section !== "vault") {
+      if (next.view !== "vault") {
         reading++;
         request = null;
         problem = null;

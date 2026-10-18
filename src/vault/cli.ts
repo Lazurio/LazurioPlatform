@@ -47,7 +47,7 @@ vault status [--json]
   (no network): connected (its organization and how many items it holds),
   not set up yet (and the next step), needs-connection (a personal
   Environment whose person has not connected their own Bitwarden yet: only
-  they do it, in the Launchpad's Settings → Vault; never ask for or enter
+  they do it, in the Launchpad's Apps → Vault; never ask for or enter
   that account's credentials), or why this Environment has no vault here.
   The one source of truth: read it before saying anything about the vault.
 vault refresh [--json]
@@ -64,7 +64,7 @@ vault setup [--json]
   one session and syncs. On a personal Environment whose person connected
   their own Bitwarden it does the same with the agents' account they
   entered (never registered here), and invites them into the vault once
-  they asked for it in Settings → Vault. Safe to
+  they asked for it in Apps → Vault. Safe to
   run again. Remote Environments on Linux only; this computer is the second
   wave. Exit status: 0 connected, 2 waiting for a person (no vault named,
   not allowed by the network, revoked, not connected by the person, not
@@ -73,8 +73,8 @@ vault request --item <name> --need <text> --why <text> --where <text>
     --field <Name>[:secret] [--field ...] [--json]
   Asks a person for a secret you cannot get any other way (root decision
   0198 point 9 (c)): never in chat. The person opens the printed link, the
-  request's page in this Environment's Launchpad (Nastavení → Trezor lists
-  it too), fills in the fields and saves them, or declines. Anyone admitted
+  request's page in this Environment's Launchpad (Apps → Trezor lists it
+  too), fills in the fields and saves them, or declines. Anyone admitted
   to the Environment can answer; no account in the vault is needed. The
   Environment saves the values as one Secure note named <name> in its own
   vault, in the collection Agenti: one custom field per --field, hidden for
@@ -118,7 +118,7 @@ const reasons: Readonly<Record<VaultUnsupportedReason, string>> = {
   "no-tailnet":
     "this Environment has no vault and gets none: it is reached without a private network (a public Organization's Environment), and a vault answers only inside one",
   "connection-unreadable":
-    "the record of the Bitwarden this personal Environment's person connected cannot be read; they disconnect it in the Launchpad's Settings → Vault and connect it again",
+    "the record of the Bitwarden this personal Environment's person connected cannot be read; they disconnect it in the Launchpad's Apps → Vault and connect it again",
 };
 
 const notSetUp =
@@ -172,7 +172,7 @@ export function statusText(status: VaultStatus): string {
   if (status.state === "unsupported")
     return `Not available: ${reasons[status.reason]}.`;
   if (status.state === "needs-connection")
-    return "Not connected yet: this personal Environment keeps its vault in its person's own Bitwarden (bitwarden.eu or bitwarden.com), which they connect in the Launchpad's Settings → Vault with a separate agents' account. Only they do it there: never ask for that account's credentials or enter them yourself.";
+    return "Not connected yet: this personal Environment keeps its vault in its person's own Bitwarden (bitwarden.eu or bitwarden.com), which they connect in the Launchpad's Apps → Vault with a separate agents' account. Only they do it there: never ask for that account's credentials or enter them yourself.";
   const where = `${status.account} in ${status.vault}`;
   const pilot = status.origin === "pilot-0197";
   switch (status.state) {
@@ -204,7 +204,7 @@ export function statusText(status: VaultStatus): string {
     case "failed":
       return status.region === undefined
         ? `Failed at ${status.stage}: ${status.reason}. An agent can finish it with lazurio tools prompt bitwarden.`
-        : `Failed at ${status.stage}: ${status.reason}. ${personalFailures[status.reason] ?? "The person sees it in the Launchpad's Settings → Vault; lazurio vault setup tries again."}`;
+        : `Failed at ${status.stage}: ${status.reason}. ${personalFailures[status.reason] ?? "The person sees it in the Launchpad's Apps → Vault; lazurio vault setup tries again."}`;
   }
 }
 
@@ -212,9 +212,9 @@ export function statusText(status: VaultStatus): string {
  * Bitwarden (root decision 0203 point 7). */
 const personalFailures: Readonly<Record<string, string>> = {
   "free-organization-limit":
-    "The agents' account owns or administers another free Bitwarden organization already, and Bitwarden allows one; the person disconnects it in the Launchpad's Settings → Vault and connects a new agents' account.",
+    "The agents' account owns or administers another free Bitwarden organization already, and Bitwarden allows one; the person disconnects it in the Launchpad's Apps → Vault and connects a new agents' account.",
   "account-missing":
-    "The agents' account is no longer on this Environment; the person disconnects it in the Launchpad's Settings → Vault and connects it again.",
+    "The agents' account is no longer on this Environment; the person disconnects it in the Launchpad's Apps → Vault and connects it again.",
 };
 
 const phaseText: Readonly<Record<VaultPhase, string>> = {
@@ -390,7 +390,7 @@ const requestJson = (request: SecretRequest, origin: string | null) =>
 
 const whereToAnswer = (request: SecretRequest, origin: string | null) =>
   secretRequestLink(origin, request.id) ??
-  `Nastavení → Trezor in this Environment's Launchpad (${secretRequestPath(request.id)})`;
+  `Apps → Trezor in this Environment's Launchpad (${secretRequestPath(request.id)})`;
 
 /** The state of a request in one line. */
 export function secretRequestText(

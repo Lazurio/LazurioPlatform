@@ -437,15 +437,18 @@ test("without the member Začínáme, the count, the line and the tour are what 
   expect(tourStep(team, freshTourProgress, null)).toBeNull();
 });
 
-// --- Integrace and Nastavení → Trezor -----------------------------------
+// --- Integrace, Trezor and Nastavení → Nástroje ---------------------------
 
-test("a public Environment withholds Integrace, Nastavení → Trezor and Nastavení → Nástroje, and shows Apps and Settings in their place", () => {
+test("a public Environment withholds Integrace, Trezor and Nastavení → Nástroje, and shows Apps and Settings in their place", () => {
   for (const path of [
     "/integrations",
     "/integrations/connected",
     "/integrations/custom",
     "/integrations/custom/new",
     "/integrations/app/gmail",
+    "/vault",
+    "/vault/requests/abcdefghijklmnopqrstuvwx",
+    // Trezor's old addresses in Settings (F54 as amended on 2026-10-18).
     "/settings/vault",
     "/settings/vault/requests/abcdefghijklmnopqrstuvwx",
     "/settings/tools",
@@ -464,14 +467,22 @@ test("a public Environment withholds Integrace, Nastavení → Trezor and Nastav
     "/settings/ssh",
   ])
     expect([path, withheldInPublic(pageRoute(path))]).toEqual([path, false]);
-  expect(publicRoute(pageRoute("/integrations/connected"))).toEqual({
-    view: "home",
+  // The pages of the Apps column it withholds leave the Apps home in their
+  // place, Nástroje the default Settings section.
+  for (const path of [
+    "/integrations/connected",
+    "/vault",
+    "/vault/requests/abcdefghijklmnopqrstuvwx",
+    "/settings/vault",
+  ])
+    expect([path, publicRoute(pageRoute(path))]).toEqual([
+      path,
+      { view: "home" },
+    ]);
+  expect(publicRoute(pageRoute("/settings/tools"))).toEqual({
+    view: "settings",
+    section: "general",
   });
-  for (const path of ["/settings/vault", "/settings/tools"])
-    expect(publicRoute(pageRoute(path))).toEqual({
-      view: "settings",
-      section: "general",
-    });
   for (const path of ["/", "/settings/start", "/o/example/deals"])
     expect(publicRoute(pageRoute(path))).toEqual(pageRoute(path));
 });
@@ -721,6 +732,8 @@ const withheldPages = [
   "/integrations",
   "/integrations/connected",
   "/integrations/app/gmail",
+  "/vault",
+  "/vault/requests/abcdefghijklmnopqrstuvwx",
   "/settings/vault",
   "/settings/vault/requests/abcdefghijklmnopqrstuvwx",
   "/settings/tools",

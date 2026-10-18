@@ -22,6 +22,7 @@ import {
   type TourFacts,
 } from "./first-run";
 import type { MessageKey } from "./messages";
+import { vaultPath } from "./routes";
 import { fill } from "./update-view";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -368,7 +369,8 @@ export function startCount(facts: TourFacts): string | null {
 }
 
 /** One optional row: its title, one sentence, its state in a word, and
- * where its button leads (a Settings path) or what it opens. */
+ * where its button leads (a Settings path, or Trezor in Apps) or what it
+ * opens. */
 export type OptionalRow = Readonly<{
   id: "composio" | "ssh" | "bitwarden" | "codex";
   title: string;
@@ -377,9 +379,9 @@ export type OptionalRow = Readonly<{
   /** None once it is done (Composio connected). */
   action: Readonly<{
     label: string;
-    to: "composio" | `/settings/${string}`;
-    /** The part of that page the button brings into view: Nastavení →
-     * Trezor's steps for Bitwarden. */
+    to: "composio" | `/settings/${string}` | typeof vaultPath;
+    /** The part of that page the button brings into view: Apps → Trezor's
+     * steps for Bitwarden. */
     part?: "bitwarden";
   }> | null;
 }>;
@@ -388,7 +390,7 @@ export type OptionalRow = Readonly<{
  * from the person's own computer (`sshDevices`: how many devices have a
  * key, null when not known) and Codex Desktop, which works over that SSH
  * (its state is the person's computer's, so it has none here). Between them
- * "Trezor v Bitwardenu" where Nastavení → Trezor gives the steps that add the
+ * "Trezor v Bitwardenu" where Apps → Trezor gives the steps that add the
  * Environment's vault to Bitwarden in Codex Desktop and the person's browser
  * (`bitwarden`, `offersBitwarden`; F53's addendum of 2026-10-16): no state
  * either, since the extension is on the person's computer. */
@@ -438,7 +440,7 @@ export function optionalRows(
       status: null,
       action: {
         label: copy.startGuide,
-        to: "/settings/vault",
+        to: vaultPath,
         part: "bitwarden",
       },
     });

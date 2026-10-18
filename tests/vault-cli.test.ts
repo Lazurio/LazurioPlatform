@@ -273,7 +273,7 @@ test("the status in words names what is missing and never a secret", () => {
     kind: "vault-status",
     state: "needs-connection",
   });
-  expect(waiting).toContain("Settings → Vault");
+  expect(waiting).toContain("Apps → Vault");
   expect(waiting).toContain("never ask for that account's credentials");
   const personal = {
     ...facts,

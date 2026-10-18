@@ -1011,7 +1011,7 @@ const en = {
   startGuide: "Guide",
   startCodexText: "Work with this Environment from the Codex app.",
   // The Bitwarden extension in Codex Desktop and the person's own browser
-  // (F53's addendum of 2026-10-16): the row leads to Nastavení → Trezor.
+  // (F53's addendum of 2026-10-16): the row leads to Apps → Trezor.
   startBitwardenTitle: "Vault in Bitwarden",
   startBitwardenText:
     "Your Environment vault's passwords in Codex Desktop and your browser too.",
@@ -1115,8 +1115,8 @@ const en = {
   vaultActionNamed: "{action}: bitwarden",
   vaultOpen: "Open the vault",
   vaultLoadFailed: "The vault's state could not be read.",
-  // Settings → Vault (root decision 0198 point 5, the wireframe's
-  // Nastavení → Trezor): the rule, the vault and the way into it.
+  // Apps → Vault (root decision 0198 point 5, the wireframe's Apps →
+  // Trezor): the rule, the vault and the way into it.
   vaultPageTitle: "Vault",
   vaultPageRule:
     "Whoever has access to the Environment has all of its passwords.",
@@ -1259,7 +1259,7 @@ const en = {
     "At the bottom, next to “Accessing”, choose “{service}” and log in with your own Bitwarden account.",
   vaultBitwardenCopy: "Copy",
   vaultBitwardenCopied: "Copied.",
-  // An agent's secret request in Nastavení → Trezor (root decision 0198
+  // An agent's secret request in Apps → Trezor (root decision 0198
   // point 9 (c), decision F54; the wireframe's screens/SecretRequest.tsx).
   vaultRequestsTitle: "Agents' requests",
   vaultRequestTitle: "Agent's request",

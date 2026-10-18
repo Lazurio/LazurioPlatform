@@ -6521,6 +6521,51 @@ keyboard with the focus moving to the corner's toggle, the choice kept across a 
 showing it again from the corner, the sheet, and the tour's ring on the gear. These are
 no rendered-page CI gates.
 
+### F36 addendum of 2026-10-18: the Apps column holds Trezor
+
+**Decided by Matěj (Organization Admin) on 2026-10-17 in the wireframe
+(`HumanAndMachine-ai/prototypes-lazurio` `main` affc81e, its `Sidebar.tsx`: "Trezor under
+Integrace"), plan DEV-6612 (M3).** The page of the vault is [F53's addendum of
+2026-10-18 (2)](#f53-addendum-of-2026-10-18-2-trezor-is-a-page-of-the-apps-column);
+this addendum says what it does to the Launchpad's frame. The record of the same
+decision in the root decision register (root decision 0185's point 5) belongs outside
+this repository.
+
+1. **The column.** Under the column head the Apps column holds Všechny moduly, Soubory,
+   Integrace and Trezor (`#i-lock`, "Vault" in English), in this order, then Oblíbené,
+   and the Marketplace at its foot. Trezor is marked while its page shows. On this
+   computer (the `local` preset) the column has no Trezor (`vaultInApps`), as the
+   wireframe leaves it out; a public Environment's stylesheet hides it as it hid the
+   item in Settings (decision F55).
+2. **A frame of its own.** Trezor's page is the frame `vault` beside the Apps column,
+   as Files and Integrace are: `pageFrame` and the inline script of the first paint
+   (the addendum of 2026-10-08) name it for `/vault` and for its old addresses in
+   Settings, with no Settings section, so the first paint of an old bookmark is
+   already Trezor. Its header is Files': the page's title alone, no crumb to Settings,
+   and "Obnovit stav" as its action. The switch marks Apps there, and Escape, which
+   leaves Settings, no longer leaves Trezor.
+3. **Nothing of the shell changes.** The column and its items are the Launchpad's own
+   (point 2 of the addendum of 2026-10-17 (2)): no name of interface v1 and nothing of
+   `lazurio.shell.v1` changes, and Chat, Automate and the Dashboard, which never linked
+   to Trezor, need nothing.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Trezor as the section it was, only listed in the Apps column too | The column would lead into Settings, whose navigation would take its place, and the same page would have two places; rejected |
+| A shell element or a `lazurio.shell.v1` member for the column's items | The column is the host's; a promise of interface v1 that only the Launchpad would use. Not needed |
+
+**Honest limits.** The column hides Trezor on this computer only once the profile says
+`local`; until the profile is read a workstation's page is not shown (the addendum of
+2026-10-08), so nothing appears and then disappears.
+
+Verified by unit tests (`tests/launchpad-apps-vault.test.ts`: the column's four items in
+their order with their links, Trezor's own item, the column beside Trezor, no Trezor in
+the settings navigation, its page a view of its own under Files' header without the
+crumb, every frame's rule of the first paint and the refresh in its frame, the public
+rule; `tests/launchpad-first-paint.test.ts`: the inline script and `pageFrame` agree on
+`/vault`, below it and on the old addresses) and in headless Chrome (root decision 0178;
+see the F53 addendum). Against the page before, every one of them fails.
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction
@@ -12305,6 +12350,11 @@ token on argv, in the journal or in an answer.
 
 ### F53 addendum of 2026-10-14: Nastavení → Trezor and the Správci
 
+> **Point 1's place amended on 2026-10-18 ([F53 addendum of
+> 2026-10-18 (2)](#f53-addendum-of-2026-10-18-2-trezor-is-a-page-of-the-apps-column)).**
+> The page is Apps → Trezor, `/vault`, under Integrace; `/settings/vault` leads to it
+> for good.
+>
 > **Amended on 2026-10-16 by root decision 0203 ([F53 amendment of
 > 2026-10-16](#f53-amendment-of-2026-10-16-the-address-of-the-lazurio-username)).**
 > Point 3's address is now `<Lazurio username>@account.lazurio.ai`, built from the
@@ -13284,6 +13334,81 @@ reason. Against the text before, all four tests fail.
 `tests/folder-template-revision.test.ts` pins `base-instructions-57`; the snapshots
 change only in their revision line.
 
+### F53 addendum of 2026-10-18 (2): Trezor is a page of the Apps column
+
+**Decided by Matěj (Organization Admin) on 2026-10-17 in the wireframe
+(`HumanAndMachine-ai/prototypes-lazurio` `main` affc81e: Trezor under Integrace in the
+Apps column, its old addresses in Settings redirected), plan DEV-6612 (M3).** It moves
+the page of the [addendum of
+2026-10-14](#f53-addendum-of-2026-10-14-nastavení--trezor-and-the-správci) (point 1)
+from Settings into the Apps column; what the page holds, its routes and its rules do
+not change. The note in the root decision register that the way into the vault is Apps
+→ Trezor (root decision 0198's point 5) belongs outside this repository.
+
+1. **The page.** Trezor ("Vault" in English) is `/vault`, a page of the Apps column
+   right under Integrace ([F36's addendum of
+   2026-10-18](#f36-addendum-of-2026-10-18-the-apps-column-holds-trezor)). Settings no
+   longer list it, and their other sections keep their order. The page is the one of
+   Settings → Trezor, unchanged: the rule, the agents' requests, the vault's row with
+   its actions, the invitation and the disconnection of a personal Environment's own
+   Bitwarden, its connection, the steps for Bitwarden in Codex Desktop and the
+   person's browser, and, where there is no vault, how a vault works with its guide
+   video. Its header has the title alone, "Trezor", and "Obnovit stav"; the document
+   title is "Trezor — Lazurio" ("Vault — Lazurio Launchpad"), an agent's request
+   "Žádost agenta · Trezor — Lazurio".
+2. **Not on this computer.** The column lists Trezor everywhere but where the preset is
+   `local` (`vaultInApps` in `vault-page-view.ts`), which has no vault yet (the second
+   wave of root decision 0193); its address still answers there with "Trezor na tomto
+   počítači není.". An Organization's Environment without a vault lists it too: its
+   page explains the vault ([the addendum of
+   2026-10-17](#f53-addendum-of-2026-10-17-an-environment-without-a-vault-explains-the-vault)).
+3. **A public Environment** (decision F55) still has no Trezor: its stylesheet hides the
+   column's item (`li:has(> #vault-open)` in place of the settings navigation's), its
+   server answers `/vault`, `/vault/requests/<id>` and the old addresses as absent, and
+   the page shows the Apps home in their place, as it does for Integrace beside it,
+   rather than Settings → Obecné, since Trezor is no longer in Settings. The rules
+   themselves are unchanged until DEV-6668 revisits them.
+4. **Its links.** Začínáme's "Otevřít" of the vault and "Návod" of "Trezor v
+   Bitwardenu", and the Tools row's "Připojit" of a personal Environment's own
+   Bitwarden lead to `/vault`. What agents read names the new place: the help and the
+   answers of `lazurio vault` ("the Launchpad's Apps → Vault") and the setup prompt of
+   `bitwarden` (`lazurio tools prompt bitwarden`, "Apps → Trezor"), neither part of the
+   Folder, whose generated text names no path of the vault (its template revision is
+   unchanged). The request's link is [F54's amendment of
+   2026-10-18](#f54-amendment-of-2026-10-18-the-requests-page-under-trezor-the-old-addresses-kept-for-good).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| `/apps/vault` or a Czech `/trezor` | The pages beside the Apps column are `/files`, `/integrations` and `/marketplace`; one more English word, `/vault`, as the API already says (`/api/vault`) |
+| Keep `/settings/vault` as Trezor's address and move only the item | An Apps page would say Settings in the address bar, and an agent's link would lead into Settings; rejected |
+| List Trezor only where there is a vault (the wireframe: a personal Environment or one with a vault) | The column would wait for a live answer of the vault and hide the page that explains a vault where there is none (the addendum of 2026-10-17); listed everywhere but this computer |
+| On a public Environment, show Settings → Obecné in Trezor's place, as before | Trezor is no longer in Settings; its neighbour Integrace's place, the Apps home, taken |
+
+**Honest limits.** One deviation from the wireframe: Trezor is listed on an AI pool's
+and on an Organization's Environment without a vault too (point 2). The wireframe's own
+documentation (its `docs/fork-integration.md`) still names Settings →
+Trezor; it lives outside this repository. Only the Launchpad links to Trezor: Machines,
+T3 Code, MausBot and the Dashboard know only `/settings/start`, so nothing outside the
+Platform follows the move.
+
+Verified by unit tests (`tests/launchpad-routes.test.ts`: `/vault`, below it and its
+title, no Settings section; `tests/launchpad-apps-vault.test.ts`; `tests/start-view.test.ts`:
+"Návod" of "Trezor v Bitwardenu" leads to Trezor's page; `tests/public-environment.test.ts`:
+every Trezor path withheld on a public Environment, served on the same Environment
+otherwise, the Apps home in its place; `tests/vault-cli.test.ts`: "Apps → Vault") and in
+headless Chrome (Playwright, the installed Chrome; root decision 0178) against
+`scripts/preview-launchpad.ts` at 1440 × 900: on a work Environment in Czech and English,
+a Team Environment (the preview's new `team`) and a personal Environment with its own
+Bitwarden, the column's Všechny moduly, Soubory, Integrace and Trezor, Trezor marked on
+its page, its header with "Trezor" and "Obnovit stav" and no crumb, the page as before
+(the agents' requests, the vault's row, the Bitwarden steps; "Trezor tohoto Prostředí
+používají jen jeho agenti." on the Team Environment; the connection of the person's own
+Bitwarden), Začínáme's "Otevřít" landing on it and the settings navigation without it;
+on this computer the column without Trezor and `/vault` saying "Trezor na tomto počítači
+není."; on a public Environment the column without Integrace and Trezor and `/vault` and
+`/settings/vault` answered 404 and shown as the Apps home; and at 700 × 900 the page and
+the sheet with Trezor. No page errors. These are no rendered-page CI gates.
+
 ## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
 
 > **Amended on 2026-10-16 by root decision 0203 point 7 ([F53 amendment of
@@ -13293,6 +13418,11 @@ change only in their revision line.
 > person's own Bitwarden: the requests and their Secure notes in Agenti work there
 > unchanged, and while the person has not connected it a request is refused as
 > `not-connected`.
+>
+> **Points 1 and 5 amended on 2026-10-18 ([F54 amendment of
+> 2026-10-18](#f54-amendment-of-2026-10-18-the-requests-page-under-trezor-the-old-addresses-kept-for-good)).**
+> A request's page is `/vault/requests/<id>` in Apps → Trezor; its old address under
+> `/settings/vault` leads to it for good.
 
 **Decided by the Admin on 2026-10-13 (root decision 0198 point 9; plan DEV-6631 tasks
 651 and 652; the wireframe of HumanAndMachine-ai/prototypes-lazurio#33:
@@ -13414,6 +13544,63 @@ and the first paint (`tests/launchpad-routes.test.ts`,
 languages (`tests/folder-manual.test.ts`). Checked in a browser with the fake vault
 (root decision 0178): the section, filling in, show and hide, save, decline, an
 unreachable vault and the retry, a narrow screen.
+
+### F54 amendment of 2026-10-18: the request's page under Trezor, the old addresses kept for good
+
+**Decided by Matěj (Organization Admin) on 2026-10-17 in the wireframe
+(`HumanAndMachine-ai/prototypes-lazurio` `main` affc81e, its `route.ts`: the old
+addresses of Trezor and of a request lead to the new ones), plan DEV-6612 (M3), with
+[F53's addendum of
+2026-10-18 (2)](#f53-addendum-of-2026-10-18-2-trezor-is-a-page-of-the-apps-column).** It
+amends point 1 (the link) and point 5 (the page) above.
+
+1. **The link.** A request's page is `/vault/requests/<id>` (`secretRequestPath`).
+   `lazurio vault request` prints `<the Folder's recorded external origin>/vault/requests/<id>`,
+   `--json` carries it as `link`, and `request status <id>` says it while the request
+   waits; where no entry is recorded it names "Apps → Trezor in this Environment's
+   Launchpad (/vault/requests/<id>)". The help says that Apps → Trezor lists the
+   request too.
+2. **The page.** The request's page is a sub-route of Trezor's page in the Apps column,
+   as Integrace has its forms: `#vault-request` alone shows of `#section-vault` on it,
+   drawn by `vault-requests-panel.ts` as before; anything else below `/vault` opens
+   Trezor itself.
+3. **The old addresses stay for good.** `lazurio vault request` printed
+   `…/settings/vault/requests/<id>` into agents' threads, which keep it, and a person may
+   open such a link any time later; so may a bookmark of `/settings/vault`. The server
+   answers both for good (`legacyVaultPaths` in `pagePaths`), and the page opens the
+   same route there as at the new address: Trezor, and the same request where the id is
+   one (an unknown or malformed id opens Trezor itself, as before). It writes the new
+   address into the address bar (`routePath`, replacing the old one, as for an unknown
+   section of Settings), and its first paint is already Trezor's frame. The page's own
+   router does it, the one that decides every route, rather than a redirect of the
+   server: a hosted page's admission and a workstation's fragment token stay as they
+   are, and the server keeps one rule of what it serves. Nothing else of F54 changes:
+   the store, the routes of `/api/vault/requests`, the values' one way into the vault.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A redirect of the server (308 to the new path) | A second router beside the page's, in the server and behind the gateway; the page's own canonical address already does it |
+| Drop the old addresses after a while | Links in agents' threads stay; a page that once answered would answer 404. Rejected, kept for good |
+| Keep printing the old link | Every new request would lead through Settings to a page that is not there; rejected |
+
+**Honest limits.** The CLI and the Launchpad of an Environment are one release, so a link
+the CLI prints is always served there; a link printed by this release and opened after
+the Environment went back to an older one (F21's recovery) leads nowhere until it is
+updated again. `/settings/vault/requests` itself, without an id, was never served and is
+not now.
+
+Verified by tests against the real consumers (`tests/vault-requests.test.ts`: the link
+`lazurio vault request` prints and `status` repeats is `<origin>/vault/requests/<id>`, the
+words without a recorded entry, and the Launchpad serves that link, `/vault` and the
+old `/settings/vault/requests/<id>` and `/settings/vault` with the request's places, the
+old link opening the same route as the printed one; `tests/launchpad-routes.test.ts`:
+every old address, with a valid, unknown and malformed id, opens the new route and
+rewrites to its canonical path; `tests/launchpad-first-paint.test.ts`;
+`tests/vault-requests-view.test.ts`: "Zadat" leads to the new path) and in headless
+Chrome (see F53's addendum of 2026-10-18 (2)): a waiting request's page opened from its
+new link and from the old one, the address bar showing `/vault/requests/<id>`, back to
+Trezor with the request listed, and in English an unknown id saying the request does not
+exist.
 
 ## F55 — A public Environment: a demo onboarding, a quiet notice that it is public, nothing to sign in to
 

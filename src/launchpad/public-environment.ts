@@ -11,8 +11,8 @@ import {
 // never the Organization's own settings. Its visitors share the Environment,
 // so no one signs in to anything here: the Launchpad runs a demo onboarding
 // instead of Začínáme's sign-ins, the shell's column head says the
-// Environment is public and shared, and there is no Integrace, no Nastavení →
-// Trezor and no Nastavení → Nástroje, whose rows sign in gh, Codex, Claude,
+// Environment is public and shared, and there is no Integrace, no Trezor and
+// no Nastavení → Nástroje, whose rows sign in gh, Codex, Claude,
 // Composio, Bitwarden and the other tools. Nothing here grants or refuses
 // entry: the gateway's admission does. Pure and free of Node, so the page and
 // the server share it.
@@ -31,19 +31,20 @@ export function isPublicEnvironment(
   return entry?.audience === "public";
 }
 
-/** The Settings sections a public Environment does not have: Trezor (0204
- * point 4: no vault for its visitors) and Nástroje, every row of which
- * offers a sign-in, an installation or a setup a visitor must not start. */
-const withheldSections: readonly SettingsSection[] = ["tools", "vault"];
+/** The Settings sections a public Environment does not have: Nástroje,
+ * every row of which offers a sign-in, an installation or a setup a visitor
+ * must not start. */
+const withheldSections: readonly SettingsSection[] = ["tools"];
 
 /** What a public Environment does not have (0204 point 4: no sign-in, no
  * vault and no Integrace for its visitors): every route of Integrace, of
- * Nastavení → Trezor (an agent's secret request included) and of Nastavení
- * → Nástroje. The server answers them as absent and the page shows
- * `publicRoute` in their place. */
+ * Trezor (an agent's secret request and the old addresses in Settings
+ * included) and of Nastavení → Nástroje. The server answers them as absent
+ * and the page shows `publicRoute` in their place. */
 export function withheldInPublic(route: PageRoute): boolean {
   return (
     route.view === "integrations" ||
+    route.view === "vault" ||
     (route.view === "settings" && withheldSections.includes(route.section))
   );
 }
@@ -55,11 +56,13 @@ export function withheldInPublic(route: PageRoute): boolean {
 export const isToolsApiPath = (path: string): boolean =>
   path === "/api/tools" || path.startsWith("/api/tools/");
 
-/** The route a public Environment shows for `route`: Integrace's place is the
- * Apps home, Trezor's and Nástroje's the default Settings section; every
- * other route is itself. */
+/** The route a public Environment shows for `route`: the place of Integrace
+ * and of Trezor, the pages of the Apps column it withholds, is the Apps
+ * home, Nástroje's the default Settings section; every other route is
+ * itself. */
 export function publicRoute(route: PageRoute): PageRoute {
-  if (route.view === "integrations") return { view: "home" };
+  if (route.view === "integrations" || route.view === "vault")
+    return { view: "home" };
   if (route.view === "settings" && withheldSections.includes(route.section))
     return { view: "settings", section: defaultSettingsSection };
   return route;

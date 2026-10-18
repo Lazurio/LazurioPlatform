@@ -17,6 +17,7 @@ import {
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
+import { pageRoute } from "../src/launchpad/routes";
 import { startLaunchpad } from "../src/launchpad/server";
 import { runTool } from "../src/tools/status";
 import { embeddedIdentity } from "../src/update/identity";
@@ -247,7 +248,8 @@ test.skipIf(!posix)(
       const match = /^Request ([a-z2-7]{24}): (\S+)$/.exec(first ?? "");
       expect(match).not.toBeNull();
       const id = match?.[1] as string;
-      expect(match?.[2]).toBe(`${origin}/settings/vault/requests/${id}`);
+      // Its page in Apps → Trezor (F54 as amended on 2026-10-18).
+      expect(match?.[2]).toBe(`${origin}/vault/requests/${id}`);
       expect(next).toBe(
         `Give the person this link and go on with other work; lazurio vault request status ${id} says when it is answered.`,
       );
@@ -269,7 +271,7 @@ test.skipIf(!posix)(
         createdAt: expect.stringMatching(/Z$/),
         state: "pending",
         answeredAt: null,
-        link: `${origin}/settings/vault/requests/${second.id}`,
+        link: `${origin}/vault/requests/${second.id}`,
       });
       expect(second.id).not.toBe(id);
 
@@ -298,7 +300,7 @@ test.skipIf(!posix)(
 
       expect(await w.cli(["request", "status", id])).toEqual({
         code: 0,
-        stdout: `Pending: request ${id} waits for a person: ${origin}/settings/vault/requests/${id}`,
+        stdout: `Pending: request ${id} waits for a person: ${origin}/vault/requests/${id}`,
       });
       expect(
         JSON.parse(
@@ -309,7 +311,7 @@ test.skipIf(!posix)(
       // Without a recorded entry the page is named, not linked.
       w.noOrigin();
       expect((await w.cli(["request", "status", id])).stdout).toBe(
-        `Pending: request ${id} waits for a person: Nastavení → Trezor in this Environment's Launchpad (/settings/vault/requests/${id})`,
+        `Pending: request ${id} waits for a person: Apps → Trezor in this Environment's Launchpad (/vault/requests/${id})`,
       );
       expect(
         JSON.parse(
@@ -840,8 +842,20 @@ test.skipIf(!posix)(
       expect(await page.get(`/api/vault/requests/${id}`)).toMatchObject({
         body: { state: "pending" },
       });
-      // The page itself serves the request's route and Trezor's.
+      // The page itself serves the request's route and Trezor's, the link
+      // the CLI prints now and the old one an agent's thread keeps (F54 as
+      // amended on 2026-10-18), and both name this request's page.
+      const printed = new URL(
+        (
+          JSON.parse(
+            (await w.cli(["request", "status", id, "--json"])).stdout ?? "",
+          ) as { link: string }
+        ).link,
+      ).pathname;
+      expect(printed).toBe(`/vault/requests/${id}`);
       for (const route of [
+        printed,
+        "/vault",
         `/settings/vault/requests/${id}`,
         "/settings/vault",
       ]) {
@@ -851,6 +865,10 @@ test.skipIf(!posix)(
         expect(html).toContain('id="vault-request"');
         expect(html).toContain('id="vault-requests"');
       }
+      expect(pageRoute(`/settings/vault/requests/${id}`)).toEqual(
+        pageRoute(printed),
+      );
+      expect(pageRoute(printed)).toEqual({ view: "vault", request: id });
     } finally {
       await page.close();
       await w.close();
