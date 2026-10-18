@@ -59,6 +59,7 @@ test("the boot document reads back as written, and nothing in it ends its script
       t3codeOrigin: "https://t3code.workspace.example.lazurio.io",
       moduleOriginTemplate: "https://{module}.workspace.example.lazurio.io",
     },
+    vaultInApps: false,
   };
   const named = {
     ...boot,
@@ -96,6 +97,7 @@ test("the boot document reads back as written, and nothing in it ends its script
       shell: { schema: "other" },
       catalog: { kind: "other" },
       entry: { launchpadOrigin: "http://insecure.example" },
+      vaultInApps: "false",
     }),
   );
   expect(broken).toEqual({
@@ -103,7 +105,12 @@ test("the boot document reads back as written, and nothing in it ends its script
     shell: null,
     catalog: null,
     entry: null,
+    vaultInApps: null,
   });
+  // A document without the member (an older Launchpad's) leaves Trezor to
+  // the page's preset.
+  const { vaultInApps: _, ...older } = JSON.parse(bootJson(boot));
+  expect(parseBoot(JSON.stringify(older))?.vaultInApps).toBeNull();
 });
 
 test("the boot document carries the shell document without setup, the catalog and only the entry's public parts", async () => {

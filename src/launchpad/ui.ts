@@ -671,10 +671,21 @@ function drawAudience() {
 drawAudience();
 const startNav = document.querySelector<HTMLElement>("#start-nav");
 const startCountNode = document.querySelector<HTMLElement>("#start-count");
-// Trezor in the Apps column (F53's addendum of 2026-10-18): not on this
-// computer, marked while its page shows.
+// Trezor in the Apps column (F53's addendum of 2026-10-18): only where this
+// Environment has a vault, as the server read it for the first paint (the
+// boot document's `vaultInApps`, F53's addendum of 2026-10-18 (3)), which
+// the served page already shows; a page that carries none by its preset,
+// never on this computer. Marked while its page shows.
 const vaultNav = document.querySelector<HTMLElement>("#vault-nav");
 const vaultOpen = document.querySelector<HTMLAnchorElement>("#vault-open");
+function drawVaultNav() {
+  if (vaultNav !== null)
+    vaultNav.hidden = !vaultInApps(
+      boot?.vaultInApps ?? null,
+      profileState?.preset ?? null,
+    );
+}
+drawVaultNav();
 // The shell document the elements were last given, with the page's own
 // `setup`.
 let shellProvided: string | null = null;
@@ -694,8 +705,7 @@ function firstRun() {
       profileState !== null &&
       !signsInAsPerson(profileState.preset) &&
       !isPublicEnvironment(entry);
-  if (vaultNav !== null)
-    vaultNav.hidden = !vaultInApps(profileState?.preset ?? null);
+  drawVaultNav();
   const count = facts === null ? null : startCount(facts);
   if (startCountNode !== null) {
     startCountNode.hidden = count === null;

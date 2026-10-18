@@ -5833,7 +5833,9 @@ layout: its language, its section, the rail and the column head.
    `{schema: "lazurio.launchpad-boot.v1", locale, shell, catalog, entry}`: the Folder's
    language, the `lazurio.shell.v1` document of `/.lazurio/shell.json` without `setup`,
    the catalog of `POST /api/catalog` and the public parts of `GET /api/entry`
-   (`boot.ts`, `boot-document.ts`). It writes `<html lang>` and every `data-message`
+   (`boot.ts`, `boot-document.ts`); since 2026-10-18 also `vaultInApps`, whether the
+   Apps column lists Trezor ([F53's addendum of
+   2026-10-18 (3)](#f53-addendum-of-2026-10-18-3-trezor-only-where-the-environment-has-a-vault)). It writes `<html lang>` and every `data-message`
    text in that language from the page's own messages (Bun's `HTMLRewriter`). It is read
    from the Folder alone, under one short read of its state (at most 250 ms for the
    lock, 500 ms in all): nothing from GitHub or the network, no tool output, never the
@@ -6632,6 +6634,12 @@ showing it again from the corner, the sheet, and the tour's ring on the gear. Th
 no rendered-page CI gates.
 
 ### F36 addendum of 2026-10-18: the Apps column holds Trezor
+
+> **Point 1's Trezor and the honest limit amended on 2026-10-18 ([F53 addendum of
+> 2026-10-18 (3)](#f53-addendum-of-2026-10-18-3-trezor-only-where-the-environment-has-a-vault)).**
+> The column lists Trezor only where the Environment has a vault; a hosted page is
+> served with the item hidden where it has none, and a workstation's still hides it
+> once the profile says `local`.
 
 **Decided by Matěj (Organization Admin) on 2026-10-17 in the wireframe
 (`HumanAndMachine-ai/prototypes-lazurio` `main` affc81e, its `Sidebar.tsx`: "Trezor under
@@ -13459,6 +13467,12 @@ change only in their revision line.
 
 ### F53 addendum of 2026-10-18 (2): Trezor is a page of the Apps column
 
+> **Point 2, the third alternative and the honest limit on the wireframe replaced on
+> 2026-10-18 ([F53 addendum of
+> 2026-10-18 (3)](#f53-addendum-of-2026-10-18-3-trezor-only-where-the-environment-has-a-vault)).**
+> The column lists Trezor only where the Environment has a vault, as the vault core
+> answers, decided by the server for the first paint; its addresses still answer.
+
 **Decided by Matěj (Organization Admin) on 2026-10-17 in the wireframe
 (`HumanAndMachine-ai/prototypes-lazurio` `main` affc81e: Trezor under Integrace in the
 Apps column, its old addresses in Settings redirected), plan DEV-6612 (M3).** It moves
@@ -13531,6 +13545,108 @@ on this computer the column without Trezor and `/vault` saying "Trezor na tomto 
 není."; on a public Environment the column without Integrace and Trezor and `/vault` and
 `/settings/vault` answered 404 and shown as the Apps home; and at 700 × 900 the page and
 the sheet with Trezor. No page errors. These are no rendered-page CI gates.
+
+### F53 addendum of 2026-10-18 (3): Trezor only where the Environment has a vault
+
+**Decided by Matěj (Organization Admin) on 2026-10-18, plan DEV-6612; the vault's rules
+from DEV-6631.** It replaces point 2 of the [addendum of
+2026-10-18 (2)](#f53-addendum-of-2026-10-18-2-trezor-is-a-page-of-the-apps-column), and
+with it that addendum's third alternative and its one deviation from the wireframe: the
+Apps column lists Trezor only in an Environment that has a vault. The note in the root
+decision register (an addendum to root decision 0185, HumanAndMachines/Lazurio#577, open
+when this was written) belongs outside this repository.
+
+1. **Where.** The column lists Trezor in a personal Environment, whether its person has
+   connected their own Bitwarden or not (the page is also where they connect it, root
+   decision 0203 point 7), and in an Organization's work, Team or Automated Environment
+   whose handover names its vault. It does not list it in an Organization's Environment
+   without a vault, a public Organization's among them, which has none on purpose, nor
+   on this computer.
+2. **The vault core decides.** The rule is `vaultListed` (`vault-page-view.ts`) over the
+   answer the vault core gives for this Environment as `lazurio vault status` starts
+   from it: `VaultHost.context()`, which is `readVaultContext` (`src/vault/host.ts`) in
+   production. No handover is parsed for it and nothing is keyed on an Organization's
+   name or slug (Lazurio/LazurioPlatform#499).
+
+   | The core's answer | Trezor in the column |
+   | --- | --- |
+   | `own` (the handover's vault, or a personal Environment's own Bitwarden connected) | listed |
+   | `needs-connection` (a personal Environment whose person has not connected it yet) | listed |
+   | `pilot`, its account connected the 0197 way | listed |
+   | `pilot`, never connected | not listed (its status is `no-vault`) |
+   | `unsupported`: `no-vault`, `no-tailnet`, `workstation` | not listed |
+   | `unsupported`: `folder-unreadable`, `handover-missing`, `handover-unreadable`, `not-operator`, `connection-unreadable` | listed |
+   | The core cannot be read at all | listed |
+
+   A 0197 pilot is resolved as its status resolves it (`pilotStatus` answers `no-vault`
+   while `pilotOf` finds no account): the context derives where a pilot's account would
+   be for every Organization's Environment on a network whose control server is
+   `https://headscale.<zone>`, whether one was ever connected or not, so the context
+   alone would list Trezor in nearly every Organization's Environment without a vault.
+   `vaultInAppsOf` (`boot-document.ts`) asks `pilotConnected`, the core's own check
+   that `readVaultContext` already makes for a personal Environment. A fault keeps the
+   item: the page then says it ("V tomto Prostředí není k dispozici"), and a personal
+   Environment whose record of its own Bitwarden does not read finds its way out there
+   ("Odpojit").
+3. **Decided for the first paint.** A hosted page's boot document ([F36's addendum of
+   2026-10-08](#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
+   point 2) carries `vaultInApps`, and the page is served with `hidden` on Trezor's
+   item (`#vault-nav`) where it is false. The page's script draws the item from the
+   same member before it shows and keeps it, so nothing appears and then disappears.
+   The answer is read beside the Folder's state within the boot document's moment, from
+   local files only (the Folder, the handover, the vault's custody): neither bw nor the
+   vault is asked. A page that carries no answer follows its preset, the rule of the
+   addendum (2): a workstation's page, which carries no boot document, has no Trezor
+   (`local`, whose answer is `workstation`), and a hosted page whose boot document was
+   late lists it.
+4. **The page stays.** `/vault`, `/vault/requests/<id>` and the old `/settings/vault`
+   and `/settings/vault/requests/<id>` are served where the column does not list
+   Trezor, with the same page, so a link an agent printed and a bookmark still reach
+   it. What the page says, an Environment without a vault's explanation among it ([the
+   addendum of
+   2026-10-17](#f53-addendum-of-2026-10-17-an-environment-without-a-vault-explains-the-vault)),
+   does not change.
+5. **A public Environment** (decision F55) is unchanged: its stylesheet hides the item
+   and its server answers Trezor's addresses as absent. Its handover names no network
+   today, so the rule above does not list Trezor there either, and F55's selector of
+   the item (`li:has(> #vault-open)`) is redundant where the boot document arrives. It
+   stays: it covers a page served without one, and a public Organization's Team
+   Environment that gets a vault of its own (root decision 0204's addendum of
+   2026-10-18, #499) will be listed by the rule above while F55 still withholds Trezor
+   there, until DEV-6668 revisits it.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The context alone, a `pilot` always listed | Lists Trezor on every Organization's Environment on a `headscale.<zone>` network without a vault, the case the decision is about; resolved as its status resolves it |
+| The page asks `GET /api/vault` and hides the item then | After the first paint, and the status asks bw; the item would flash. Decided by the server |
+| The full `vaultStatus` on the page's path | Runs bw for every page; only the context and the pilot's account file are read |
+| Hide it also on a fault | Would hide the page that says the fault, and a personal Environment's way out of a broken connection; listed |
+| By the handover's members or the Organization (a public one by its slug) | A second rule beside the core's, and a rule by name (#499); rejected |
+
+**Honest limits.** The answer is read once per page load: an Environment that gains or
+loses its vault while its page is open shows it at the next load. A hosted page served
+without its boot document (its Folder held by another operation, or slower than a
+moment) lists Trezor until it is loaded again. `vaultInAppsOf` is one more consumer of
+the frozen `src/vault/legacy-0197/` (its README's deletion condition names it). The
+column now follows the wireframe here (a personal Environment, or one with a vault).
+
+Verified by unit tests (`tests/launchpad-apps-vault.test.ts`: `vaultListed` for every
+answer and every reason, a new reason failing to compile; the page's rule with and
+without a carried answer; over HTTP, a hosted Launchpad whose vault is read by the
+production composition `processVaultHost` with only the handover's place, the
+operator's record and the state root the test's: a personal Environment waiting for its
+person, one connected and one whose connection does not read, a work and a Team
+Environment with a vault, a work Environment without one as a pilot never connected
+and as a network no pilot derives from, one connected the 0197 way, a public one without
+a network, a hosted Folder read off Linux and one whose handover is missing, each served
+with the item listed or `hidden` and the same answer in its boot document, the
+addresses old and new served where it is hidden and absent on the public one; a
+workstation's page without a boot document; a core that throws;
+`tests/launchpad-boot.test.ts`: the member read back, a malformed or missing one left to
+the preset). Against the code before, the four that hide it and the never-connected
+pilot fail. In headless Chrome (playwright-core, the installed Chrome; root decision
+0178) against `scripts/preview-launchpad.ts`: see the pull request. These are no
+rendered-page CI gates.
 
 ## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
 

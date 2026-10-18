@@ -2,24 +2,50 @@ import type { MachineBinding, MachineEntry } from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
 import type { Catalog } from "../organizations/catalog";
 import { currentEnvironment, type Shell } from "../shell/contract";
+import type { VaultHost } from "../vault/flow";
+import { pilotConnected } from "../vault/legacy-0197/pilot";
 import { bootElementId, bootJson, type LaunchpadBoot } from "./boot";
 import { publicEntry } from "./chat";
 import { type MessageKey, messages } from "./messages";
 import { withOfflineGuide } from "./offline-guide";
 import { shellDocument } from "./shell-document";
+import { vaultListed } from "./vault-page-view";
 
 // The producer of the page's boot document (boot.ts, F36's addendum of
 // 2026-10-08) and its place in the page a hosted Launchpad serves after the
 // gateway's admission. Everything in it is what the page's first reads
-// would answer the same admitted browser, computed from the Folder alone:
-// no GitHub, no network, no tool. Never the Machine binding, the gateway's
+// would answer the same admitted browser, computed from the Folder alone
+// (and, for Trezor in the Apps column, from the vault's local facts): no
+// GitHub, no network, no tool. Never the Machine binding, the gateway's
 // auth endpoint or cookie name, the person's account or a tool's output; a
 // workstation's page, served without its token, gets none.
 
+/** Whether the Apps column lists Trezor in this Environment (root decision
+ * 0185's addendum of 2026-10-18; F53's addendum of 2026-10-18 (3)):
+ * the vault core's answer, read as `lazurio vault status` starts
+ * (`host.context()`, `readVaultContext`), on the rule `vaultListed`. A 0197
+ * pilot is resolved as its status resolves it (`pilotStatus`): one whose
+ * account was connected has a vault, one never connected answers `no-vault`
+ * (the context derives where a pilot would be for any Organization's
+ * Environment on a network, whether it was connected or not). Only local
+ * files: neither bw nor the vault is asked. Listed where it cannot be read
+ * at all, so that a fault never hides the page that says it. */
+export async function vaultInAppsOf(host: VaultHost): Promise<boolean> {
+  try {
+    const answer = await host.context();
+    if (answer.kind === "pilot")
+      return await pilotConnected(host.directory, answer);
+    return vaultListed(answer);
+  } catch {
+    return true;
+  }
+}
+
 /** The boot document of this Environment's page: the shell document as
  * `/.lazurio/shell.json` answers it, without `setup` (null where the
- * producer refuses this Environment, as the route then does), the catalog
- * and the recorded entry's public parts. */
+ * producer refuses this Environment, as the route then does), the catalog,
+ * the recorded entry's public parts and whether the Apps column lists
+ * Trezor (`vaultInAppsOf`; not said where it was not read). */
 export function launchpadBoot(
   input: Readonly<{
     preset: PresetName;
@@ -34,6 +60,8 @@ export function launchpadBoot(
     /** The owning Organization's own slug the handover names, when it does
      * (shell-document.ts). */
     ownerKey?: string | null;
+    /** Whether the Apps column lists Trezor (`vaultInAppsOf`). */
+    vaultInApps?: boolean | undefined;
   }>,
 ): LaunchpadBoot {
   let shell: Shell | null = null;
@@ -58,6 +86,7 @@ export function launchpadBoot(
     shell,
     catalog: input.catalog,
     entry: publicEntry(input.entry),
+    vaultInApps: input.vaultInApps ?? null,
   });
 }
 
@@ -66,7 +95,9 @@ export function launchpadBoot(
  * first status line) in that language from the same messages as the page
  * script's: the first paint is in the Folder's language and names this
  * Environment's kind as the script does (decision F28's addendum of
- * 2026-10-18). */
+ * 2026-10-18). Where the Environment has no vault, Trezor's item in the
+ * Apps column is hidden in it, as the page's script keeps it from the same
+ * member (F53's addendum of 2026-10-18 (3)). */
 export function withBoot(page: Response, boot: LaunchpadBoot): Response {
   const copy = messages(
     boot.locale,
@@ -88,6 +119,11 @@ export function withBoot(page: Response, boot: LaunchpadBoot): Response {
     .on("#catalog-status", {
       element(element) {
         element.setInnerContent(copy.catalogLoading);
+      },
+    })
+    .on("#vault-nav", {
+      element(element) {
+        if (boot.vaultInApps === false) element.setAttribute("hidden", "");
       },
     })
     .on("head", {

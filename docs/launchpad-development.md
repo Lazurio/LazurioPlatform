@@ -208,9 +208,9 @@ information page is reached only from its tile's menu.
   own.
 - **Column.** Under the column head the Apps column holds only Všechny moduly (all
   modules), Soubory (Files, decision F35), Integrace (decision F42), Trezor (the vault,
-  [below](#vault-apps--trezor); not on this computer), Oblíbené (the favourites,
-  pinned) and, at its bottom, the Marketplace. There is no module list (its rows led to
-  technical details and confused people) and no search.
+  [below](#vault-apps--trezor); only where the Environment has a vault), Oblíbené (the
+  favourites, pinned) and, at its bottom, the Marketplace. There is no module list (its
+  rows led to technical details and confused people) and no search.
 - **Marketplace.** The entry is in the Apps column of every Environment. For now it
   says "již brzy" (coming soon) and opens a placeholder page; it is not the
   [future marketplace](marketplace.md).
@@ -2304,8 +2304,10 @@ Apps → Vault, Czech "Trezor" ([F53's addendum of
 root decision 0198 point 5, the wireframe's `EnvVault` of prototypes-lazurio#33), a page
 of the Apps column under Integrace since [F53's addendum of
 2026-10-18 (2)](decisions.md#f53-addendum-of-2026-10-18-2-trezor-is-a-page-of-the-apps-column)
-(`/vault`, the frame `vault`, Files' header with the title alone and "Obnovit stav"; not
-listed on this computer, `vaultInApps`), is the way into the Environment's own vault, which is Lazurio Vaultwarden's web vault on its own
+(`/vault`, the frame `vault`, Files' header with the title alone and "Obnovit stav"; listed
+only where the Environment has a vault, [F53's addendum of
+2026-10-18 (3)](decisions.md#f53-addendum-of-2026-10-18-3-trezor-only-where-the-environment-has-a-vault)),
+is the way into the Environment's own vault, which is Lazurio Vaultwarden's web vault on its own
 address: the rule, one row with the vault's name and state, and the actions the person's
 membership decides ("Přidat položku" and "Otevřít trezor", or "Vytvořit účet v trezoru").
 The Launchpad never lists items or shows a value. The routes are
@@ -2336,7 +2338,26 @@ none on purpose, since the Organization is a public demo; any other (`no-vault`)
 set up yet, and the Organization's Admin sets it up. A public Environment (F55) still has
 no Trezor at all. `bun scripts/preview-launchpad.ts hosted cs|en <port> owner
 no-tailnet|no-vault` shows either: the preview's work Environment then has no vault, for
-that reason.
+that reason, and its Apps column no Trezor; `/vault` opens the page.
+
+**Where the column lists Trezor** ([F53's addendum of
+2026-10-18 (3)](decisions.md#f53-addendum-of-2026-10-18-3-trezor-only-where-the-environment-has-a-vault),
+root decision 0185's addendum, HumanAndMachines/Lazurio#577). Only where the Environment
+has a vault, as the vault core answers for it (`VaultHost.context()`, the answer
+`lazurio vault status` starts from; `vaultListed` in `vault-page-view.ts`): listed for
+`own`, `needs-connection`, a 0197 pilot whose account was connected and the faults
+(`folder-unreadable`, `handover-missing`, `handover-unreadable`, `not-operator`,
+`connection-unreadable`, a core that throws), so the page can say them; not listed for
+`no-vault`, `no-tailnet`, `workstation` and a pilot never connected, whose status is
+`no-vault`. The server decides it for the first paint: `vaultInAppsOf`
+(`boot-document.ts`) reads it beside the Folder's state, from local files only, the boot
+document carries it as `vaultInApps`, and the page is served with `hidden` on
+`#vault-nav` where it is false; `ui.ts` draws the item from the same member. A page
+without a boot document follows its preset (`vaultInApps`): not on this computer.
+Trezor's addresses, `/vault` and the old `/settings/vault` with their requests, answer
+either way. Tested over HTTP in `tests/launchpad-apps-vault.test.ts` with the production
+composition of the vault's facts (`processVaultHost`), the handover's place, the
+operator's record and the state root the test's.
 
 **A personal Environment's own Bitwarden** ([F53's amendment of
 2026-10-16](decisions.md#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden),

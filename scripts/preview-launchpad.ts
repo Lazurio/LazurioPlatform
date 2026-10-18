@@ -68,8 +68,9 @@
 // Apps → Trezor and Nastavení → Nástroje answer as absent. With
 // `no-vault` or `no-tailnet` anywhere after the mode, a hosted preview's work
 // Environment has no vault, for that reason (F53's addendum of 2026-10-17):
-// nothing is set up, and Apps → Trezor says why and explains the vault
-// with its guide video. With `team` or `automated` anywhere after the mode, a
+// nothing is set up, the Apps column does not list Trezor (F53's addendum of
+// 2026-10-18 (3)), and `/vault` says why and explains the vault with its
+// guide video. With `team` or `automated` anywhere after the mode, a
 // hosted preview's work Environment is the example Organization's Team
 // Environment or a persona's Automated Environment instead (its handover's
 // assignment `team` or `automation`), to see how a page names each kind
