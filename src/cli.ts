@@ -93,6 +93,7 @@ import {
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
 import { recoverHelp, recoverySource, runRecoverCommand } from "./recover/cli";
+import { runThemeCommand, themeHelp } from "./theme/cli";
 import { runToolsCommand, ToolsUsageError, toolsHelp } from "./tools/cli";
 import { openedView } from "./tools/sign-in-page";
 import {
@@ -316,6 +317,9 @@ async function runOtherCommand(args: string[]): Promise<number> {
   // The link alone on stdout; the notice follows on stderr.
   if (args[0] === "chat")
     return emit(await runChatCommand(args.slice(1), processContext()));
+  // The Environment's theme (root decision 0208): its JSON on stdout.
+  if (args[0] === "theme")
+    return emit(await runThemeCommand(args.slice(1), processContext()));
   // The Environment browser's people's view (decision F39): the service the
   // view unit runs until it is stopped.
   if (args[0] === "browser" && args[1] === "serve")
@@ -644,6 +648,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(recoverHelp);
     console.log(doctorHelp);
     console.log(chatHelp);
+    console.log(themeHelp);
     console.log(browserHelp);
     console.log(filesHelp);
     console.log(integrationsHelp);

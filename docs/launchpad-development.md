@@ -367,7 +367,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   fallbacks), `identity-styles.ts` (an identity's drawing), `styles.ts` (the rail, the
   picker and the switch, the design system's selection rule), `design-tokens.ts` (the
   vendored `tokens.css` as text, once in the script), `tokens.ts` (the design system's
-  tokens on the app document's root, below),
+  tokens on the app document's root, below), `theme.ts` (the Environment's theme over
+  them, its memory on the origin and its announcement, below),
   `kind-name.ts` (the words of the three kinds and of your computer, and the tokens a
   text writes for the Environment it is in: {tomto}, {this}; F28's addendum of
   2026-10-18), `stones.ts`, `fonts.ts`, `last.ts` (the report of the last Environment used,
@@ -380,7 +381,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `tests/shell-host.test.ts`, `tests/shell-signed-out.test.ts`,
   `tests/shell-picker.test.ts`, `tests/shell-interface.test.ts`,
   `tests/shell-identity.test.ts`, `tests/shell-tokens.test.ts`,
-  `tests/launchpad-shell-routes.test.ts`,
+  `tests/shell-theme.test.ts`, `tests/launchpad-shell-routes.test.ts`,
   `tests/apps-view.test.ts`, `tests/account.test.ts`, `tests/app-opening.test.ts`,
   `tests/organization-owner.test.ts`, `tests/module-maintainer.test.ts`.
 - **Identity of an Environment entry** ([F37's addendum of
@@ -561,8 +562,10 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   name in the Apps head links to its Dashboard (`appsHeading` in `apps-view.ts`).
 - **The interface the forks build on** is `src/shell/interface.ts` (version 1, F36
   addendum of 2026-10-04, grown by the addendum of 2026-10-05 with what a host page
-  needs, by the addendum of 2026-10-06 with `parseShellSignedOut` and by the addendum
-  of 2026-10-13 with what the script declares in the app's document, `declares`);
+  needs, by the addendum of 2026-10-06 with `parseShellSignedOut`, by the addendum
+  of 2026-10-13 with what the script declares in the app's document, `declares`, and by
+  the addendum of 2026-10-18 with the Environment theme: `declares.environmentTheme`,
+  the host's `data-lazurio-appearance` and the event `lazurio-theme`);
   `tests/shell-interface.test.ts` keeps every promised name, the token names a fork may
   rely on among them.
 - **A host page that is no Environment's** ([F36's addendum of
@@ -718,10 +721,12 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   rail's side, or there are two: the Launchpad page dropped its `.app { border-left }`,
   and the Dashboard drops its `.surface` line when it vendors a release with the edge.
   The line is an inset shadow of the element, not a border, so a border colour a host's
-  own rules give the rail never recolours it. Each app picks its own theme for now (since root
-  decision 0200, T3 Code's standard light look on an Environment is the design
-  system's, through the tokens below); one theme across the apps (the Environment's) is
-  a later mechanism.
+  own rules give the rail never recolours it. Since root decision 0208 the apps' standard
+  looks follow one theme of the Environment, through the token names below ([the
+  Environment's theme](#the-shell-as-built-decision-f36)); a person's own pick in T3
+  Code or MausBot stays theirs, and the roles follow whatever the app shows. The
+  Launchpad page sets the roles only under a theme other than Lazurio, so under Lazurio
+  the elements draw the design system's look exactly as before.
 - **The design system's tokens in the app's document** ([F36's addendum of
   2026-10-13](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
   root decision 0200). When `/.lazurio/shell.js` loads, `defineShellElements` puts the
@@ -751,7 +756,89 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   the type and the radii) and on the faces of Inter Tight Variable and Geist Mono from
   `/.lazurio/fonts/`; never on the values, or on any other `--lz-*` name the shell
   happens to declare, which the design system may change or drop. MausBot gets the same
-  tokens and mark and reads neither, so it looks as before.
+  tokens and mark and reads neither, so it looks as before. Since the addendum of
+  2026-10-18 the tokens' style ends with `:root { --lazurio-color-scheme: light; }`:
+  the scheme of their values, from the moment the script evaluates.
+- **The Environment's theme** ([F36's addendum of
+  2026-10-18](decisions.md#f36-addendum-of-2026-10-18-the-environment-theme-root-decision-0208),
+  root decision 0208). One theme per Environment that Chat, Apps and Automate take
+  through the shell; a person's own pick inside T3 Code or MausBot stays theirs.
+  - **The record** (`src/theme/record.ts`): `{theme, revision, setAt}` in the install
+    base, `<base>/theme/<Folder digest>.json`, never in the Folder's `.lazurio/` and
+    never in the profile; Lazurio at revision 0 while there is none or it cannot be
+    read. Every change is compare and set on `revision` under a per-Folder `flock`
+    (`theme-changed`, `theme-busy`, `unchanged`); a Launchpad without a base keeps it in
+    memory.
+  - **The themes** (`src/theme/palettes.ts`): `lazurio` (the vendored tokens' own
+    values, light only, the default), then T3 Code's built-ins `grove`, `ocean`,
+    `ember` and `iris` (`src/theme/vendor/`, MIT, re-vendored at each rebuild of the T3
+    Code fork), projected onto `shellThemeColors` (the promised colours) as literal
+    `#rrggbb`, light and dark. The projection table is in the addendum; the contrast of
+    every theme and appearance is `tests/theme-palettes.test.ts`.
+  - **The API** (`src/launchpad/theme-routes.ts`): `GET /api/theme` answers `{kind:
+    "theme", theme, label, revision, setAt, choices}` (every theme with its values);
+    `POST /api/theme/set` takes exactly `{theme, revision}` and answers the same with
+    `outcome` (`set`, `unchanged`), 409 `{kind: "blocked", reason: "theme-changed",
+    current}` or `theme-busy`, 400 for anything else. On a public Environment every
+    read is the default Lazurio, whatever the record says (`fixedThemeReads`), and the
+    change is 403 `public-environment`, before its body is read: a guardrail of these
+    interfaces, not a security boundary (root decision 0172).
+  - **The CLI** (`src/theme/cli.ts`): `lazurio theme show` and `lazurio theme set <id>
+    [--expected-revision <n>]`, JSON on stdout, over the same record; on a public
+    Environment `show` answers the default and `set` is refused with the reason on
+    stderr. Never `t3 theme set`.
+  - **In the shell document**: `theme: {id, label, revision, light, dark?}` beside a
+    current Environment (`parseShellTheme`), always in `/.lazurio/shell.json` and the
+    boot document (`shellThemeOf`).
+  - **In the app's document** (`src/shell/theme.ts`): the shell writes one
+    `<style data-lazurio-environment-theme>` right after the tokens it installed, or
+    fills a host's own (the Launchpad's), with the light values on `:root` and, where
+    the theme has them, the dark values where the host shows dark; it marks the root
+    where the values hold and declares, as the script evaluates, the theme this origin
+    remembers (`localStorage` `lazurio.shell.theme`) before the app's own module runs.
+    It reads `/.lazurio/shell.json` again when the page is shown again (visibility,
+    focus) and follows another tab's newer theme at once (`storage`); every change is
+    `lazurio-theme` on the document. For Ocean the style is:
+
+    ```css
+    :root {
+      --lz-surface: #f5f7f8;
+      /* … the other 19 promised colours … */
+      --lazurio-color-scheme: light;
+    }
+    :root:is(.dark, [data-lazurio-appearance="dark"]) {
+      --lz-surface: #17212b;
+      /* … */
+      --lazurio-color-scheme: dark;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root[data-lazurio-appearance="device"] {
+        --lz-surface: #17212b;
+        /* … */
+        --lazurio-color-scheme: dark;
+      }
+    }
+    ```
+
+    and the root `<html data-lazurio-theme="light" data-lazurio-environment-theme="ocean"
+    data-lazurio-theme-dark>`. A host says how it shows dark: `class="dark"` (T3 Code),
+    or `data-lazurio-appearance="device"` (follow the device), `"dark"` or `"light"`. A
+    fork maps the promised names as before; T3 Code's gate takes the dark values too with
+    `:root[data-lazurio-theme="light"]:not([data-theme-id]):is(:not(.dark),
+    [data-lazurio-theme-dark])`, and MausBot's "Environment" skin keys its code palette on
+    `--lazurio-color-scheme`. The Platform release ships before either fork's.
+  - **Apps** (`src/launchpad/theme-view.ts`, `index.html`): the page takes its colours
+    from the promised names where the design system's value is the same, so Lazurio
+    looks as before; under another theme it also sets the twelve colour roles, so the
+    rail follows. It stays light: it hands the shell the theme without its dark values
+    (`appsTheme`), with `data-lazurio-appearance="device"` on `<html>` for when Apps gets
+    a dark look. A hosted page carries the style filled at the end of `<head>`, after the
+    bundled tokens; a workstation's script adds the empty place there.
+  - **Settings → Obecné → Téma Prostředí** (`src/launchpad/theme-panel.ts`): a card per
+    theme with its light and dark miniatures, a native radio group whose choice applies
+    at once (compare and set at the revision shown; the current theme when it moved
+    meanwhile), for whoever can open Settings, a Team's every member; no group on a public
+    Environment.
 
 ### Prompt hand-off to Chat
 
@@ -939,7 +1026,8 @@ not built: the page has three sections and no defaults to reset to. Its sidebar 
 and resizable sidebar are built for the left column since 2026-10-12
 ([the right panel](#the-right-panel-the-environment-browser)).
 The General settings keep the explicit Preview → Apply of a Folder change instead of
-T3 Code's immediate apply. Icons are Iconoir (MIT), the design system's interface set, inlined as SVG symbols (Lucide before decision F36's addendum of 2026-10-04).
+T3 Code's immediate apply; the Environment's theme in the same section (root decision
+0208) applies at once, because it changes nothing of the Folder. Icons are Iconoir (MIT), the design system's interface set, inlined as SVG symbols (Lucide before decision F36's addendum of 2026-10-04).
 
 ## Launchpad home: the catalog
 

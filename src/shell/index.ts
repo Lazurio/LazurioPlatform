@@ -3,7 +3,9 @@ import { defineShellElements } from "./elements";
 // The entry of `/.lazurio/shell.js` (decision F36): the script an app of the
 // Environment loads to get the Lazurio rail and app switch. It defines the
 // elements and declares in the app's document only the brand fonts and the
-// design system's tokens with their mark (F36's addendum of 2026-10-13);
+// design system's tokens with their mark (F36's addendum of 2026-10-13) and
+// the Environment's theme over them (F36's addendum of 2026-10-18), the
+// tokens and the theme this origin remembers synchronously as it evaluates;
 // without it the elements stay undefined and the app is unchanged. A host
 // that provides the documents itself
 // (`<html data-lazurio-shell="host">`, and since F36's addendum of

@@ -67,6 +67,8 @@ import { createSshPanel } from "./ssh-panel";
 import { keyGroups, parseSshOverview } from "./ssh-view";
 import { createStartPanel, type StartVaultRow } from "./start-panel";
 import { demoModule, demoStartView, startCount } from "./start-view";
+import { createThemePanel } from "./theme-panel";
+import { withAppsTheme } from "./theme-view";
 import { createToolsPanel } from "./tools-panel";
 import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
@@ -162,9 +164,19 @@ let chatTakesPrompts = false;
 // this Environment's `/.lazurio/shell.json`, which the page reads with its
 // own credential and hands over (the forks let the elements read it). The
 // boot document's is handed over before the elements are defined, so they
-// draw with the page's first paint.
+// draw with the page's first paint. It is handed over with the
+// Environment's theme as Apps shows it, light only (root decision 0208,
+// theme-view.ts), into its place after the page's own tokens: the bundler
+// links them at the end of <head>, so the place is there too. A hosted page
+// carries it filled (boot-document.ts); a workstation's gets it here, empty,
+// before the shell declares anything.
 let shellDocument: Shell | null = boot?.shell ?? null;
-if (shellDocument !== null) provideShell(shellDocument);
+if (document.querySelector("style[data-lazurio-environment-theme]") === null) {
+  const place = document.createElement("style");
+  place.dataset.lazurioEnvironmentTheme = "";
+  document.head.append(place);
+}
+if (shellDocument !== null) provideShell(withAppsTheme(shellDocument));
 defineShellElements();
 const columnHead = document.querySelector<HTMLElement>("#column-head");
 const rail = document.querySelector<HTMLElement>("#rail");
@@ -215,7 +227,7 @@ async function readShell() {
       JSON.stringify(parsed) === JSON.stringify(shellDocument);
     shellDocument = parsed;
     if (same) return;
-    provideShell(parsed);
+    provideShell(withAppsTheme(parsed));
     // A kind known only now (a workstation reads its document) names itself
     // in the page's words once they were written.
     const named = messages(locale, kindOf(parsed));
@@ -224,6 +236,9 @@ async function readShell() {
       if (labelled) relabel();
     }
     catalog.render();
+    // A theme changed elsewhere (`lazurio theme`, another tab) is shown in
+    // Settings too.
+    theme.follow(parsed.theme);
   } catch {
     // The rail stays empty; the page itself works without it.
   } finally {
@@ -736,7 +751,7 @@ function provideOwnSetup(facts: TourFacts | null) {
   const drawn = JSON.stringify(next);
   if (drawn === shellProvided) return;
   shellProvided = drawn;
-  provideShell(next);
+  provideShell(withAppsTheme(next));
 }
 // A start request (`#lazurio-start=…`, or a button of the line) runs once
 // the page is in its Settings section and knows enough: gh's sign-in opens
@@ -1135,6 +1150,7 @@ function relabel() {
   shell.relabel();
   recovery.render();
   ssh.render();
+  theme.render();
   vaultPage.render();
   vaultRequests.relabel();
   files.relabel();
@@ -1305,6 +1321,47 @@ const voice = voicePanel({
     controls.apply.disabled = true;
     await load();
   },
+});
+// The Environment's theme (root decision 0208): Settings → Obecné → Téma
+// Prostředí. A choice is declared in this page at once and kept in the page's
+// shell document, so the next reading of it changes nothing.
+const theme = createThemePanel({
+  get,
+  post,
+  copy: () => copy,
+  apply: (chosen) => {
+    if (shellDocument === null) return;
+    shellDocument = { ...shellDocument, theme: chosen };
+    provideShell(withAppsTheme(shellDocument));
+  },
+  // A public Environment's theme is fixed (decision F55): no group.
+  fixed: () => isPublicEnvironment(entry),
+  shared: () =>
+    shellDocument !== null &&
+    currentEnvironment(shellDocument)?.kind === "team",
+});
+// The page shown again (another tab, another app, `lazurio theme` meanwhile):
+// the shell document read again, at most once a second, never by a timer.
+let shellRereadAt = Number.NEGATIVE_INFINITY;
+function rereadShell() {
+  if (document.hidden || recoveryMode !== null) return;
+  const now = Date.now();
+  if (now - shellRereadAt < 1000) return;
+  shellRereadAt = now;
+  void readShell();
+}
+document.addEventListener("visibilitychange", rereadShell);
+window.addEventListener("focus", rereadShell);
+// Another tab of this origin chose a theme (the shell followed it at once):
+// this page's document and Settings follow too.
+document.addEventListener("lazurio-theme", (event) => {
+  const change = (event as CustomEvent<{ revision?: unknown } | null>).detail;
+  if (
+    change !== null &&
+    typeof change?.revision === "number" &&
+    change.revision !== shellDocument?.theme?.revision
+  )
+    rereadShell();
 });
 // Začínáme's "Zkontrolovat znovu": every fact asked again now, the CLIs and
 // gh's sign-in included.
@@ -1559,6 +1616,8 @@ if (boot === null) {
   relabel();
   browser.render();
 }
+// The themes for Settings → Obecné; nothing to read on a public Environment.
+void theme.load();
 load().catch(() => {
   loadFailed = true;
   controls.status.textContent = copy.loadFailed;
