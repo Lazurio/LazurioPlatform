@@ -14655,7 +14655,13 @@ loses the sentences it replaces in the same change, in both languages.
    - **Nástroje** `settings-tools`, in a Team Environment `settings-tools-team` (the
      whole Team shares it, team accounts, everyone uses what is signed in): the tools,
      connected with one's own account, where they are connected agents can go, the
-     switch. Removed: "Zjištěno v …", the tiers' notes, the Team note above the tools and
+     switch. Its steps follow what the page can show (`PageGuideFacts.tools`, the
+     panel's `toolGuideTargets` through its `drawn` hook; Pablo's review of #503), as
+     Trezor's follow the vault: the two on connecting only where a person can connect a
+     tool or someone did, the switch only where there is one to move, and always what
+     the page is (in a Team Environment, that the Team shares it). A Team Environment
+     with gh alone, working as the Organization's identity, so hears one step. Until the
+     tools are read the "?" waits. Removed: "Zjištěno v …", the tiers' notes, the Team note above the tools and
      the line of "Vlastní MCP server". Kept: each tool's one line on what it is (the
      wireframe keeps them), and the Team warning in the confirmation of an enable, where
      the choice is made.
@@ -14682,13 +14688,14 @@ loses the sentences it replaces in the same change, in both languages.
    `machine-facts`, `machine-support`, `tools`, `ssh-prompt`, `ssh-devices`. Drawn once
    read (`drawnMarks`): `start-ai` and `start-github` (start-panel.ts), `tool-connect`
    and `tool-agents` (tools-panel.ts), `recovery-result` and `recovery-checks`
-   (recovery-panel.ts). The two marks of Nástroje are chosen from what the page draws
-   (`toolGuideTargets` in tools-view.ts), so each always names something there: the
-   first sign-in (or adding and connecting), else the first connection already made
-   (its line "Připojeno jako …"; never gh of a Team Environment, which works as the
-   Organization's identity and has no sign-in), else a tool's line; the first switch
-   "Používají agenti", else a required tool's "Vždy zapnuto" (Pablo's review of
-   #503).
+   (recovery-panel.ts). The two marks of Nástroje are what a person can use there
+   (`toolGuideTargets` in tools-view.ts): the first sign-in (or adding and
+   connecting), else the first connection someone made (its line "Připojeno jako
+   …"), and the first switch "Používají agenti" that moves; never a vault's or
+   Executor's row, a tool not offered or not allowed here, or gh of a Team
+   Environment, which works as the Organization's identity and signs nobody in.
+   Where there is none, the mark is not set and the steps at it are left out (Pablo's
+   review of #503).
 3. **Escape belongs to the guide while it explains** (the addendum above, point 8):
    with the sections' "?" an explanation is now often out on Settings, and Escape
    closes it and the section stays.

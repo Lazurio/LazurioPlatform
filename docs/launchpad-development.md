@@ -951,8 +951,9 @@ guide's mark and a card beside it, and the layer lets every click through.
   beside Integrace's title; every section of Settings uses the header's. Each starts hidden and shows once the page knows what it
   plays; a module's overview and the Marketplace have none. `pageGuide(route, facts,
   copy)` chooses from what the page knows (`PageGuideFacts`: the kind of the shell's
-  current Environment, whether Composio is allowed as Integrace read it, and the vault's
-  facts as Trezor read them), never an Organization's name (#499):
+  current Environment, whether Composio is allowed as Integrace read it, the vault's
+  facts as Trezor read them, what Začínáme shows here and what Nástroje can point at),
+  never an Organization's name (#499):
   - Apps home and an Organization's Apps: the principle `environment`;
   - Soubory: the principle `files`, in a Team Environment the Launchpad's `files-team`;
   - Integrace: the principle `integrations`, where Composio is allowed the Launchpad's
@@ -980,8 +981,8 @@ guide's mark and a card beside it, and the layer lets every click through.
     `settings-recovery` (none in Recovery mode). Escape closes an explanation there and
     stays on the page (`createShell`'s `guiding`).
 
-  The panels report what the choice reads (`integrations.composio()` and
-  `vaultPage.facts`, each with a `drawn` hook), and `pageHelpStates` says what each
+  The panels report what the choice reads (`integrations.composio()`,
+  `vaultPage.facts` and the tools panel's targets, each with a `drawn` hook), and `pageHelpStates` says what each
   "?" shows, which ui.ts sets on the buttons. Escape leaves Settings only while the
   guide explains nothing (`escapeLeavesSettings` in shell.ts, `guiding`): the shell's
   listener comes before the guide's. The marks are `nav-files`,
@@ -994,10 +995,11 @@ guide's mark and a card beside it, and the layer lets every click through.
   `ssh-devices`, and those a panel draws once read (`drawnMarks`): `integration-on` and
   `integration-connect` (the first connected app, the first Connect),
   `mcp-list` and `mcp-add` (Vlastní), `start-ai` and `start-github` (Začínáme),
-  `tool-connect` and `tool-agents` (Nástroje, chosen by `toolGuideTargets` from what the
-  page draws: the first sign-in, else the first connection made, else a tool's line;
-  the first switch, else "Vždy zapnuto"), `recovery-result` and `recovery-checks`
-  (Obnova). Words are in
+  `tool-connect` and `tool-agents` (Nástroje, chosen by `toolGuideTargets`: the first
+  sign-in or connection someone made, the first switch that moves; never gh of a Team
+  Environment; where there is none, the steps at it are left out and Nástroje's "?"
+  says what the page is and, in a Team Environment, that the Team shares it; it waits
+  until the tools are read), `recovery-result` and `recovery-checks` (Obnova). Words are in
   `messages.ts` (`pageHelp`, `guideFilesTeam*`, `guideComposio*`, `guideCustom*`,
   `guideVaultAgents*`, `vaultVideoLine`, `guideStart*`, `guideGeneral*`, `guideVoice*`,
   `guideMachine*`, `guideTools*`, `guideDevices*`, `guideRecovery*`). Recovery mode withdraws the guide. The tour (`tour.ts`) tells the
