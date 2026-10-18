@@ -235,6 +235,11 @@ export function createCatalogPanel(
     // once it can take it again (it is disabled while the request runs).
     focus: boolean;
   } | null = null;
+  // Why a tile's Open was refused (a start answered `blocked`), for the
+  // overview it then shows: its lifecycle starts with that sentence, as after
+  // Start there, so "its overview says why" holds. Keyed like the lifecycle,
+  // taken once.
+  let refusedOpen: { key: string; message: string } | null = null;
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -387,13 +392,22 @@ export function createCatalogPanel(
   // --- Opening a module's app -------------------------------------------
 
   // Starts a workstation's app through the lifecycle: the link it reports
-  // once healthy, or null.
+  // once healthy, or null. A refused start (`blocked`, such as a data mount
+  // that could not be provided) ends at once, its reason kept for the
+  // overview.
   async function started(
     target: Extract<TileTarget, { kind: "start" }>,
   ): Promise<string | null> {
     let result = parseModuleResult(
       (await options.post(target.start, {})).value,
     );
+    if (result?.kind === "blocked") {
+      refusedOpen = {
+        key: target.status,
+        message: moduleResultMessage(result, options.copy()),
+      };
+      return null;
+    }
     for (let attempt = 0; attempt < 30; attempt++) {
       if (result?.kind === "module" && result.healthy)
         return moduleLink(result.runtime?.url);
@@ -422,6 +436,7 @@ export function createCatalogPanel(
     const copy = options.copy();
     const mode = openMode();
     notice = copy.appsStarting.replace("{name}", name);
+    refusedOpen = null;
     render();
     const opened = await startThenOpen(mode, () => started(target), {
       open: () => {
@@ -1238,10 +1253,12 @@ export function createCatalogPanel(
     const copy = options.copy();
     const key = lifecycleKey(organization, module);
     if (lifecycle?.key !== key) {
+      const refused = refusedOpen?.key === key ? refusedOpen.message : null;
+      refusedOpen = null;
       lifecycle = {
         key,
         status: null,
-        message: null,
+        message: refused,
         busy: false,
         focus: false,
       };
