@@ -13,6 +13,7 @@
     "tests/candidate-target.test.ts": 100,
     "tests/canonical-inventory.test.ts": 100,
     "tests/canonical-organization.test.ts": 100,
+    "tests/catalog-panel-lifecycle.test.ts": 100,
     "tests/catalog-view.test.ts": 100,
     "tests/chat-link-cli.test.ts": 2600,
     "tests/checkout-alignment.test.ts": 400,
