@@ -811,10 +811,12 @@ that an agent never asks for that account's credentials). Since `base-instructio
 they claim no state of the vault ([F53's addendum of
 2026-10-18](decisions.md#f53-addendum-of-2026-10-18-the-agents-text-follows-lazurio-vault-status),
 issue #470): only `lazurio vault status` says whether there is one and in which
-state, `connected` is the vault its agents use on their own, `unsupported` is none here
-(`no-vault`: the handover names none yet; `no-tailnet`: a public Organization's
-Environment, which has none on purpose), any other state waits for a person or does
-not work now, and until the vault is connected secrets go where the Operator says.
+state, `connected` is the vault its agents use on their own, only `unsupported` with
+`no-vault` (the handover names none yet) or `no-tailnet` (a public Organization's
+Environment, which has none on purpose) is none here, any other answer, `unsupported`
+for another reason too, proves no absence and the agent follows what the status
+says, its reason included, and until the vault is connected secrets go where the
+Operator says.
 Then: read `lazurio vault status` again before saying anything about the vault, with
 any answer but `connected` use neither `bw` nor `lazurio vault env`, with a connected
 vault start with `eval "$(lazurio vault env)"` and run it again when `bw` reports the

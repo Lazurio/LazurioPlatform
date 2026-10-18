@@ -49,7 +49,10 @@ import personal from "./fixtures/machine-context-personal.json";
 // manual/this-machine.md with the answer of the real `lazurio vault status`
 // for the same handover: no vault (`no-vault`, and `no-tailnet` of a public
 // Organization's Environment), waiting for a person, connected and locked.
-// Invented hosts and names only.
+// Only those two reasons say there is no vault: `unsupported` for another
+// one (an unreadable handover or connection record, review of #492) proves
+// no absence, and the line sends the agent to the status's reason. Invented
+// hosts and names only.
 
 const posix = process.platform !== "win32";
 const uid = process.getuid?.() ?? -1;
@@ -62,14 +65,15 @@ const words = {
       "Jestli tu trezor je a v jakém je stavu, řekne jen `lazurio vault status`.",
     connected:
       "Hlásí-li `connected`, trezor patří Prostředí a jeho agenti ho používají sami: co v něm je, smějí použít bez ptaní.",
-    unsupported: "Hlásí-li `unsupported`, trezor tu není:",
-    reasons: {
+    // The only absence: `unsupported` with exactly these reasons.
+    absent: {
       "no-vault":
-        "handover tohoto Prostředí zatím žádný nejmenuje (`no-vault`)",
+        "Hlásí-li `unsupported` s důvodem `no-vault`, trezor tu zatím není, protože ho handover tohoto Prostředí nejmenuje;",
       "no-tailnet":
-        "jde o Prostředí veřejné Organizace, které ho záměrně nemá (`no-tailnet`)",
+        "s důvodem `no-tailnet` tu záměrně není, protože jde o Prostředí veřejné Organizace.",
     },
-    other: "Jiný stav znamená, že trezor čeká na člověka nebo teď nefunguje.",
+    other:
+      "Z jiné odpovědi, ani z `unsupported` s jiným důvodem, neusuzuj, že tu trezor není: může čekat na člověka nebo teď nefungovat; řiď se tím, co `lazurio vault status` hlásí, včetně důvodu.",
     operator:
       "Dokud trezor připojený není, patří tajemství tam, kam řekne Operátor.",
     withoutVault:
@@ -85,14 +89,14 @@ const words = {
       "Only `lazurio vault status` says whether there is a vault here and in which state.",
     connected:
       "When it reports `connected`, the vault belongs to the Environment and its agents use it on their own: what you find in it you may use without asking.",
-    unsupported: "When it reports `unsupported`, there is no vault here:",
-    reasons: {
-      "no-vault": "this Environment's handover names none yet (`no-vault`)",
+    absent: {
+      "no-vault":
+        "When it reports `unsupported` with the reason `no-vault`, there is no vault here yet, because this Environment's handover names none;",
       "no-tailnet":
-        "this is a public Organization's Environment, which has none on purpose (`no-tailnet`)",
+        "with `no-tailnet` there is none on purpose, because this is a public Organization's Environment.",
     },
     other:
-      "Any other state means the vault waits for a person or does not work now.",
+      "From any other answer, `unsupported` with another reason too, do not conclude that there is no vault: it may wait for a person or not work now; follow what `lazurio vault status` says, its reason included.",
     operator:
       "Until the vault is connected, secrets go where the Operator says.",
     withoutVault:
@@ -125,27 +129,35 @@ function clausesFor(answer: Answer, locale: Locale) {
       ],
     };
   }
-  if (answer.state === "unsupported") {
-    const reason =
-      answer.reason === "no-vault" || answer.reason === "no-tailnet"
-        ? w.reasons[answer.reason]
-        : null;
-    if (reason === null) throw new Error(`No clause for ${answer.reason}`);
-    expect(w.unsupported).toContain("`unsupported`");
-    expect(reason).toContain(`\`${answer.reason}\``);
-    const said = [w.source, w.unsupported, reason, w.operator];
+  // No vault only where `unsupported` names `no-vault` or `no-tailnet`.
+  if (
+    answer.state === "unsupported" &&
+    (answer.reason === "no-vault" || answer.reason === "no-tailnet")
+  ) {
+    const absent = w.absent[answer.reason];
+    expect(absent).toContain(`\`${answer.reason}\``);
+    const said = [w.source, absent, w.operator];
     return { agents: said, manual: [...said, w.withoutVault] };
   }
+  // Any other answer, `unsupported` for another reason too: no absence,
+  // the status's reason is what the agent follows.
+  if (answer.state === "unsupported")
+    expect(w.other).toContain("`unsupported`");
   const said = [w.source, w.other, w.operator];
   return { agents: said, manual: [...said, w.withoutVault] };
 }
+
+/** How often a line names `unsupported`. */
+const mentions = (line: string) => line.split("`unsupported`").length - 1;
 
 /** The `bitwarden` line of a generated file. */
 const toolLines = (text: string) =>
   text.split("\n").filter((line) => line.startsWith("- `bitwarden` ("));
 
 /** The generated Folder's line follows the answer: once in each file, no
- * claimed state, every clause that answers it. */
+ * claimed state, every clause that answers it, and `unsupported` named only
+ * in the absence tied to `no-vault` and in the rule for any other reason, so
+ * no reason but those two reads as "no vault". */
 function expectLineFollows(
   label: string,
   outputs: ReturnType<typeof renderOutputs>,
@@ -169,6 +181,14 @@ function expectLineFollows(
       file,
       files[file].includes(words[locale].claimed),
     ]).toEqual([label, locale, file, false]);
+    expect([
+      label,
+      locale,
+      file,
+      mentions(files[file]),
+      files[file].includes(words[locale].absent["no-vault"]),
+      files[file].includes(words[locale].other),
+    ]).toEqual([label, locale, file, 2, true, true]);
     for (const clause of expected[file])
       expect([
         label,
@@ -272,11 +292,12 @@ async function remoteEnvironment(of: keyof typeof withoutVault) {
     machine: binding(document),
     profile: presetProfile(preset, executionOs(process.platform)),
   });
+  const state = join(parent, "state");
   const host = processVaultHost({
     folder: async () => folder,
     env: {
       HOME: "/home/operator",
-      XDG_STATE_HOME: join(parent, "state"),
+      XDG_STATE_HOME: state,
       PATH: "/usr/bin:/bin",
     },
     platform: "linux",
@@ -296,6 +317,11 @@ async function remoteEnvironment(of: keyof typeof withoutVault) {
     preset,
     document,
     context: cli(host),
+    /** The root-issued handover file. */
+    handover: file,
+    /** Where a personal Environment records the Bitwarden its person
+     * connected (`connectionDirectory`). */
+    connection: join(state, "lazurio", "vault", "personal"),
     close: () => rm(parent, { recursive: true, force: true }),
   };
 }
@@ -353,6 +379,80 @@ test.skipIf(!posix || uid === 0)(
             answered.answer,
             locale,
           );
+    } finally {
+      for (const environment of Object.values(environments))
+        await environment.close();
+    }
+  },
+  30_000,
+);
+
+test.skipIf(!posix || uid === 0)(
+  "unsupported for another reason, an unreadable handover or connection record, proves no absence: the line sends the agent to the status's reason",
+  async () => {
+    const environments = {
+      work: await remoteEnvironment("work"),
+      personal: await remoteEnvironment("personal"),
+    };
+    try {
+      // The handover the Folder was adopted from no longer reads: it says
+      // nothing about a vault either way.
+      await writeFile(environments.work.handover, "{}", { mode: 0o644 });
+      const unreadable = await vaultAnswer(environments.work.context);
+      expect(unreadable.answer).toEqual({
+        kind: "vault-status",
+        state: "unsupported",
+        reason: "handover-unreadable",
+      } as Answer);
+      expect(unreadable.text).toBe(
+        "Not available: the Machine handover cannot be read.",
+      );
+      // A personal Environment whose person connected their own Bitwarden,
+      // and whose record of it no longer reads: the vault is there.
+      await mkdir(environments.personal.connection, {
+        recursive: true,
+        mode: 0o700,
+      });
+      await writeFile(
+        join(environments.personal.connection, "connection.json"),
+        '{"region":"eu"}',
+        { mode: 0o600 },
+      );
+      const record = await vaultAnswer(environments.personal.context);
+      expect(record.answer).toEqual({
+        kind: "vault-status",
+        state: "unsupported",
+        reason: "connection-unreadable",
+      } as Answer);
+      expect(record.text).toStartWith(
+        "Not available: the record of the Bitwarden this personal Environment's person connected cannot be read;",
+      );
+      for (const answered of [unreadable, record]) {
+        // Neither answer says there is no vault, and neither hands out a
+        // session.
+        expect(answered.text).not.toContain("no vault");
+        expect(answered.env).toBe(2);
+      }
+      for (const [label, environment, answered] of [
+        ["handover-unreadable", environments.work, unreadable],
+        ["connection-unreadable", environments.personal, record],
+      ] as const)
+        for (const locale of ["cs", "en"] as const) {
+          expectLineFollows(
+            label,
+            folderOf(environment.preset, environment.document, locale),
+            answered.answer,
+            locale,
+          );
+          // The absence names its own two reasons, never this one, and the
+          // rule for it is the status's reason.
+          const w = words[locale];
+          for (const absent of Object.values(w.absent))
+            expect(absent).not.toContain(`\`${answered.answer.reason}\``);
+          expect(w.other).toContain(
+            locale === "cs" ? "včetně důvodu" : "its reason included",
+          );
+        }
     } finally {
       for (const environment of Object.values(environments))
         await environment.close();
@@ -455,7 +555,7 @@ test.skipIf(!posix)(
   60_000,
 );
 
-test("no generated Folder of a Remote Environment claims the vault is signed in, in either language", () => {
+test("no generated Folder of a Remote Environment claims the vault is signed in or absent but for no-vault and no-tailnet, in either language", () => {
   for (const [name, machine] of Object.entries(bindings)) {
     // A Team named without an assignment derives none; it is a Team's here.
     const preset = derivePreset(machine) ?? "hosted-organization-team";
@@ -487,6 +587,16 @@ test("no generated Folder of a Remote Environment claims the vault is signed in,
           path,
           line.includes(words[locale].claimed),
         ]).toEqual([name, locale, path, false]);
+        // No vault only for `no-vault` and `no-tailnet`, nowhere else.
+        expect([
+          name,
+          locale,
+          path,
+          mentions(line),
+          line.includes(words[locale].absent["no-vault"]),
+          line.includes(words[locale].absent["no-tailnet"]),
+          line.includes(words[locale].other),
+        ]).toEqual([name, locale, path, 2, true, true, true]);
       }
     }
   }

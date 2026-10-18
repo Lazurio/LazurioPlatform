@@ -13118,11 +13118,15 @@ state.
    no longer says that the CLI is signed in. It says what the tool is for, that only
    `lazurio vault status` says whether there is a vault here and in which state, and
    what each answer means, by the codes the status reports: `connected`, the
-   Environment's vault, which its agents use on their own; `unsupported`, no vault here,
-   because the handover names none yet (`no-vault`) or because it is a public
-   Organization's Environment, which has none on purpose (`no-tailnet`, the addendum of
-   2026-10-17); any other state, the vault waits for a person or does not work now.
-   Until the vault is connected, secrets go where the Operator says.
+   Environment's vault, which its agents use on their own; no vault here only for
+   `unsupported` with the reason `no-vault` (not yet: the handover names none) or
+   `no-tailnet` (on purpose: a public Organization's Environment, the addendum of
+   2026-10-17); any other answer, `unsupported` for another reason too, proves no
+   absence: the vault may wait for a person or not work now, and the agent follows what
+   the status says, its reason included (review of #492: an unreadable handover says
+   nothing about a vault either way, and a personal Environment whose record of the
+   Bitwarden its person connected cannot be read has a vault). Until the vault is
+   connected, secrets go where the Operator says.
 2. **The steps follow the answer.** The `usage` (`manual/this-machine.md`) starts work
    with `eval "$(lazurio vault env)"` only with a connected vault; with any other answer
    an agent uses neither `bw` nor `lazurio vault env` and, when it needs a secret, tells
@@ -13149,10 +13153,11 @@ state.
 answer means, and an agent learns which one holds only from `lazurio vault status`, as
 the text tells it to. `connected`, `unsupported`, `no-vault`, `no-tailnet` and `locked`
 are the codes `--json` prints; the plain answer says "Connected", "Not available" and
-"(locked: …)". `unsupported` for another reason (an unreadable handover or Folder,
-another operator) reads the same, no vault here, and the status says why. The setup
-prompt of `bitwarden` (`lazurio tools prompt bitwarden`) is not part of the Folder and
-is unchanged.
+"(locked: …)". `unsupported` for another reason (an unreadable handover, Folder or
+connection record, another operator) is not read as "no vault": the line sends the
+agent to the status's reason, which for a missing handover or this computer says
+itself that there is none. The setup prompt of `bitwarden` (`lazurio tools prompt
+bitwarden`) is not part of the Folder and is unchanged.
 
 Verified by `tests/folder-vault-line.test.ts`: on real files, the production
 composition of `lazurio vault` answers `unsupported` / `no-vault` for a work Environment
@@ -13160,12 +13165,17 @@ on a tailnet whose handover names no vault (issue #470's), `no-tailnet` for a pu
 Organization's Environment and `needs-connection` for a personal Environment waiting for
 its person, `lazurio vault env` refuses each, and the generated `AGENTS.md` and
 `manual/this-machine.md` of the same handover say, in Czech and English, what that
-answer means and no longer that the vault is signed in; over the fake vault, the line
-follows `not-set-up`, `not-allowed`, `connected` (`lazurio vault env` hands out the
-session) and `connected` with `locked` (`lazurio vault env` unlocks it again); and no
-fixture's Folder claims a signed-in vault. Against the text before, all three tests
-fail. `tests/folder-template-revision.test.ts` pins `base-instructions-57`; the
-snapshots change only in their revision line.
+answer means and no longer that the vault is signed in; the same composition answers
+`handover-unreadable` once the handover no longer reads and `connection-unreadable` for
+a personal Environment whose connection record does not read, neither says "no
+vault", and the line names `unsupported` only in the absence tied to `no-vault` and
+`no-tailnet` and in the rule that sends any other reason to the status; over the fake
+vault, the line follows `not-set-up`, `not-allowed`, `connected` (`lazurio vault env`
+hands out the session) and `connected` with `locked` (`lazurio vault env` unlocks it
+again); and no fixture's Folder claims a signed-in vault or an absence for another
+reason. Against the text before, all four tests fail.
+`tests/folder-template-revision.test.ts` pins `base-instructions-57`; the snapshots
+change only in their revision line.
 
 ## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
 
