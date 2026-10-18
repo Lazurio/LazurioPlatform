@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { messages } from "../src/launchpad/messages";
 import {
+  moduleCopy,
   moduleLink,
   moduleResultMessage,
   moduleSettling,
@@ -261,6 +262,38 @@ test("the sentence after Start or Stop names what happened or why not", () => {
     "Refused: something-new.",
   );
   expect(moduleResultMessage(null, en)).toBe(en.appResultUnknown);
+});
+
+test("on a Team Environment a data mount GitHub refuses names the Team's access, never a person's account (#488)", () => {
+  const denied = {
+    ...refusal("data-mount-denied"),
+    file: "workspace/orders/db",
+  };
+  for (const copy of [en, cs]) {
+    const team = moduleResultMessage(denied, moduleCopy(copy, true));
+    const own = moduleResultMessage(denied, moduleCopy(copy, false));
+    expect(team).toContain("workspace/orders/db");
+    expect(team).not.toBe(own);
+    expect(own).toBe(moduleResultMessage(denied, copy));
+    // Every other refusal reads the same on both.
+    const unavailable = {
+      ...refusal("data-mount-unavailable"),
+      file: "workspace/orders/db",
+    };
+    expect(moduleResultMessage(unavailable, moduleCopy(copy, true))).toBe(
+      moduleResultMessage(unavailable, copy),
+    );
+  }
+  expect(moduleResultMessage(denied, moduleCopy(en, true))).not.toContain(
+    "your GitHub account",
+  );
+  expect(moduleResultMessage(denied, moduleCopy(en, true))).toContain("Team");
+  expect(moduleResultMessage(denied, moduleCopy(cs, true))).not.toContain(
+    "váš účet",
+  );
+  expect(moduleResultMessage(denied, moduleCopy(cs, true))).toContain(
+    "Týmové Prostředí",
+  );
 });
 
 test("the page keeps reading the status only while a started app settles", () => {

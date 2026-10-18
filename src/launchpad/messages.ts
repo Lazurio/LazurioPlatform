@@ -659,6 +659,10 @@ const en = {
     "The app requires {file}, which is not in this Environment beside it, so it was not started. Synchronize the Organization, or ask for access to that module, and start again.",
   moduleReasonDataMountDenied:
     "The app was not started: its data ({file}) are in a repository your GitHub account cannot read. Ask the Organization's Admin for access and start it again.",
+  // A Team Environment has no person's account: it reads GitHub as the
+  // Team, through Lazurio for GitHub (#488).
+  moduleReasonDataMountDeniedTeam:
+    "The app was not started: its data ({file}) are in a repository this Team Environment cannot reach. Ask the Organization's Admin to give the Team access to it on GitHub and start it again.",
   moduleReasonDataMountOccupied:
     "The app was not started: the place for its data ({file}) holds something else, and Lazurio does not touch it. Ask an agent in Chat to look at it.",
   moduleReasonDataMountUnavailable:
@@ -2302,6 +2306,8 @@ const cs: Record<MessageKey, string> = {
     "Aplikace potřebuje {file}, který v tomto Prostředí vedle ní není, proto nebyla spuštěna. Synchronizujte Organizaci nebo si požádejte o přístup k tomu modulu a spusťte ji znovu.",
   moduleReasonDataMountDenied:
     "Aplikace nebyla spuštěna: její data ({file}) jsou v repozitáři, který váš účet na GitHubu nemůže číst. Požádejte Admina Organizace o přístup a spusťte ji znovu.",
+  moduleReasonDataMountDeniedTeam:
+    "Aplikace nebyla spuštěna: její data ({file}) jsou v repozitáři, ke kterému se toto Týmové Prostředí nedostane. Požádejte Admina Organizace, ať k němu Teamu dá na GitHubu přístup, a spusťte ji znovu.",
   moduleReasonDataMountOccupied:
     "Aplikace nebyla spuštěna: na místě pro její data ({file}) je něco jiného a Lazurio na to nesahá. Požádejte agenta v Chatu, ať se na to podívá.",
   moduleReasonDataMountUnavailable:

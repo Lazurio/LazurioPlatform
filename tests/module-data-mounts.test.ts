@@ -7,13 +7,14 @@ import {
   rm,
   symlink,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { processContentGit } from "../src/content/git";
-import type { ContentGitHub } from "../src/content/github";
+import { type ContentGitHub, ghContentGitHub } from "../src/content/github";
 import { tryContentLock } from "../src/content/lock";
 import { provideDataMounts } from "../src/modules/data-mounts";
 import { RequiredSlotRefused } from "../src/modules/sibling-origins";
 import { runTool } from "../src/tools/status";
+import { type BrokeredGh, brokeredGh } from "./fixtures/brokered-gh";
 import { type Slot, writeOrganization } from "./fixtures/catalog-folder";
 import {
   checkoutWithOrigin,
@@ -40,7 +41,10 @@ import { runChild } from "./fixtures/run-child";
 const posixTest = test.skipIf(!["darwin", "linux"].includes(process.platform));
 
 let world: World | undefined;
+// The local servers a test started (a stand-in for github.com).
+const servers: { stop(closeActiveConnections?: boolean): void }[] = [];
 afterEach(async () => {
+  for (const server of servers.splice(0)) server.stop(true);
   await world?.close();
   world = undefined;
 });
@@ -103,6 +107,7 @@ function provide(
   context: Awaited<ReturnType<typeof setup>>,
   github: ContentGitHub,
   module = "orders",
+  gitEnv: Readonly<Record<string, string>> = context.world.gitEnv,
 ) {
   return provideDataMounts({
     folder: context.folder,
@@ -115,12 +120,82 @@ function provide(
         home: context.world.home,
         platform: process.platform,
         run: runTool,
-        env: context.world.gitEnv,
+        env: gitEnv,
       }),
       lockDirectory: context.world.lockDirectory,
     },
     anonymous: async () => false,
   });
+}
+
+/** github.com for a Team Environment's clone in a test: the world's bare
+ * repositories over Git's dumb HTTP from a local server that answers 401 to
+ * any request without the credential `broker` gives for exactly that
+ * repository, as GitHub answers a private repository. */
+async function privateGitHub(target: World, broker: BrokeredGh) {
+  for (const owner of await readdir(target.remotes))
+    for (const name of await readdir(join(target.remotes, owner)))
+      if (name.endsWith(".git"))
+        await runChild(
+          [
+            "git",
+            "--git-dir",
+            join(target.remotes, owner, name),
+            "update-server-info",
+          ],
+          { env: childEnv() },
+        );
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch: async (request) => {
+      const path = decodeURIComponent(new URL(request.url).pathname);
+      const repository = /^\/([^/]+\/[^/]+)\.git\//.exec(path)?.[1];
+      const { user, password } = broker.credential(repository ?? "");
+      if (
+        repository === undefined ||
+        request.headers.get("authorization") !==
+          `Basic ${btoa(`${user}:${password}`)}`
+      )
+        return new Response("", {
+          status: 401,
+          headers: { "WWW-Authenticate": 'Basic realm="GitHub"' },
+        });
+      const file = resolve(target.remotes, `.${path}`);
+      const body = Bun.file(file);
+      return file.startsWith(`${target.remotes}/`) && (await body.exists())
+        ? new Response(body)
+        : new Response("", { status: 404 });
+    },
+  });
+  servers.push(server);
+  return `http://127.0.0.1:${server.port}`;
+}
+
+/** A Team Environment as Machines sets it up (#488): the brokered gh first
+ * on the PATH, and git's own configuration, a system one there, with the
+ * broker's credential helper and `useHttpPath`; here github.com is the
+ * local stand-in. Nothing else of the test's Machine reaches git. */
+async function teamEnvironment(context: Awaited<ReturnType<typeof setup>>) {
+  const broker = await brokeredGh(context.world.root);
+  const origin = await privateGitHub(context.world, broker);
+  const github = ghContentGitHub({
+    path: `${broker.bin}:${Bun.env.PATH ?? "/usr/bin:/bin"}`,
+    home: context.world.home,
+    platform: process.platform,
+    run: runTool,
+  });
+  const gitEnv = {
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_COUNT: "3",
+    GIT_CONFIG_KEY_0: "credential.helper",
+    GIT_CONFIG_VALUE_0: broker.helper,
+    GIT_CONFIG_KEY_1: "credential.useHttpPath",
+    GIT_CONFIG_VALUE_1: "true",
+    GIT_CONFIG_KEY_2: `url.${origin}/.insteadOf`,
+    GIT_CONFIG_VALUE_2: "https://github.com/",
+  };
+  return { broker, github, gitEnv };
 }
 
 async function refusal(promise: Promise<void>) {
@@ -388,6 +463,73 @@ posixTest(
       env: childEnv(),
     });
     expect(refs.stdout.trim()).toBe("");
+  },
+  60_000,
+);
+
+posixTest(
+  "a Team Environment provides an absent private data mount through its brokered gh: the repository named to gh, git's configured helper answering for exactly it (#488)",
+  async () => {
+    const context = await setup();
+    const { broker, github, gitEnv } = await teamEnvironment(context);
+    await broker.grant("example-org/orders-data");
+    expect(
+      await refusal(provide(context, github, "orders", gitEnv)),
+    ).toBeNull();
+    const db = join(context.organization, "workspace", "orders", "db");
+    expect(await git(db, "symbolic-ref", "--short", "HEAD")).toBe("v3");
+    expect(await readFile(join(db, "README.md"), "utf8")).toBe("orders data");
+    expect(await git(db, "remote", "get-url", "origin")).toBe(
+      "https://github.com/example-org/orders-data.git",
+    );
+    const calls = await broker.calls();
+    // The readability check names the repository and runs outside any
+    // checkout; only the one `gh auth` command the adapter answers is used,
+    // never `gh auth git-credential`.
+    expect(calls).toContain(
+      "/\texample-org/orders-data\tapi repos/example-org/orders-data",
+    );
+    expect(calls.every((call) => call.startsWith("/\t"))).toBe(true);
+    expect(
+      calls
+        .map((call) => call.split("\t")[2] as string)
+        .filter((args) => args.startsWith("auth")),
+    ).toEqual(["auth status --json hosts", "auth status --json hosts"]);
+    // git asked its configured helper for exactly this repository.
+    expect(
+      (await broker.helperCalls()).filter((call) => call.startsWith("get")),
+    ).toEqual(["get\texample-org/orders-data.git"]);
+  },
+  60_000,
+);
+
+posixTest(
+  "on a Team Environment a data repository the Team has no grant on is data-mount-denied, and a broker that does not answer is data-mount-unavailable; nothing is cloned (#488)",
+  async () => {
+    const context = await setup();
+    const { broker, github, gitEnv } = await teamEnvironment(context);
+    const db = join(context.organization, "workspace", "orders", "db");
+    // The broker refuses a repository of no grant of the Team.
+    await broker.grant("example-org/stock-data");
+    expect(await refusal(provide(context, github, "orders", gitEnv))).toEqual({
+      reason: "data-mount-denied",
+      slot: "workspace/orders/db",
+    });
+    // The broker not reachable is GitHub not answering now.
+    await broker.grant("example-org/orders-data");
+    await broker.broker("down");
+    expect(await refusal(provide(context, github, "orders", gitEnv))).toEqual({
+      reason: "data-mount-unavailable",
+      slot: "workspace/orders/db",
+    });
+    expect(await exists(db)).toBe(false);
+    expect(await broker.helperCalls()).toEqual([]);
+    // Once it answers, the next start provides it.
+    await broker.broker("up");
+    expect(
+      await refusal(provide(context, github, "orders", gitEnv)),
+    ).toBeNull();
+    expect(await git(db, "symbolic-ref", "--short", "HEAD")).toBe("v3");
   },
   60_000,
 );

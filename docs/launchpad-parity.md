@@ -439,6 +439,27 @@ mount, by the same function, when its module is materialized or present in the s
 install, and leaves it `excluded` otherwise. It is still never a background sync and
 never an update of an existing mount; creating a data repository stays with
 `lazurio module create --data` and repository-db itself.*
+*Amended for a Team Environment on 2026-10-18 (#488, the Owner's direction recorded
+there): a data mount has this one path on every kind of Environment, and on a Team
+Environment the Platform speaks the contract of the brokered `gh` Machines installs
+(Lazurio/github-app `adapter/brokered-gh.mjs`, "Brokered GitHub identity on a Team
+VM"), not a hosting preparation of its own. Every `gh` call runs outside any checkout
+(the filesystem root), so no checkout's origin chooses the repository; the
+readability check names the repository in `GH_REPO`; an answer to the App identity
+(Lazurio for GitHub, whose `permissions` are all false even with write) is the read.
+The adapter's refusals carry no API status and are read by their words: the broker
+refusing the repository (no grant of the Team) or no repository named is
+`data-mount-denied`; the broker not reachable or answering invalidly is
+`data-mount-unavailable`. The clone keeps git's configured credential helper wherever
+gh is a GitHub App's identity (by gh's own sign-in probe, `gh auth status --json
+hosts`, the one `gh auth` command the adapter answers): no reset of the helper list
+and no `gh auth git-credential`, so the broker's helper with `useHttpPath` answers for
+exactly that repository. A person's gh keeps gh as the helper of an HTTPS clone. On a
+Team Environment `data-mount-denied` says the Team cannot reach the repository and
+asks the Admin to give the Team access on GitHub, never "your GitHub account". The
+broker mints only for repositories of its Organization the Team holds a grant on
+(push or more from a broker before github-app 0.11.0, read too from 0.11.0); everything else stays
+denied.*
 Surface: "Synchronize" as the page action in the Organization view header, "Add
 Organization" at the bottom of the sidebar (T3's "Add project"). No state. On a Team
 Environment the identity is the broker's `gh` wrapper that Machines installs
