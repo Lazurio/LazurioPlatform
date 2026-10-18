@@ -249,6 +249,8 @@ button.page-help { width: 24px; height: 24px; margin-left: 6px; padding: 0; bord
 button.page-help:hover { background: var(--hover); color: var(--fg); }
 button.page-help:focus-visible { outline: 2px solid var(--lz-accent); outline-offset: 2px; }
 button.page-help .icon { width: 18px; height: 18px; }
+/* The Apps home's heading and its "?" (catalog-panel.ts). */
+.apps-title-row { display: flex; align-items: center; min-width: 0; }
 .topbar-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
 .nav-toggle { display: none; }
 /* The page's two top corners (Matěj 2026-10-12, evening; the wireframe's
@@ -674,6 +676,10 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .vault-bitwarden-value { padding: 0.2rem 0.45rem; border: 1px solid var(--border); border-radius: var(--lz-radius-xs); background: var(--muted); color: var(--fg); font-size: 13px; overflow-wrap: anywhere; user-select: all; }
 .vault-bitwarden-copy .row-status:empty { display: none; }
 .guide-video { margin: 0 0 12px; }
+/* Trezor's video, opened in place by the page's "?" (decision F56's
+   addendum of 2026-10-18), and the one line under it. */
+.vault-video { margin: 0 0 20px; }
+.vault-video .guide-video { margin-bottom: 6px; }
 #vault-explainer[hidden] { display: none; }
 .guide-video-play .icon { width: 14px; height: 14px; }
 .guide-video-player { display: block; width: 100%; max-width: 720px; height: auto; aspect-ratio: 16 / 9; border: 1px solid var(--border); border-radius: 12px; background: var(--muted); }
@@ -738,11 +744,10 @@ a.files-name:hover { text-decoration: underline; }
    controls in the title row); short of room they go above the tabs, at the
    right, so the tabs keep their place on the hairline. */
 .integrations-head { align-items: flex-start; }
-/* Only the title shares its line with the page's corner: the sentence
-   under it has the page's width (below 768 px the head starts under the
-   corner). */
-.integrations-head .apps-title { padding-right: var(--page-corner, 0px); }
-.integrations-titles { display: grid; gap: 4px; min-width: 0; }
+/* The title and its "?" share their line with the page's corner (below
+   768 px the head starts under the corner). */
+.integrations-head .integrations-titles { padding-right: var(--page-corner, 0px); }
+.integrations-titles { display: flex; align-items: center; min-width: 0; }
 .integrations-bar { display: flex; flex-wrap: wrap-reverse; align-items: flex-start; gap: 8px 16px; margin-top: -12px; border-bottom: 1px solid var(--lz-gray-100); }
 .integrations-tools { display: flex; align-items: center; gap: 8px; margin: 0 0 4px auto; }
 .integrations-search { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid var(--input); border-radius: var(--radius-control); background: var(--card); color: var(--muted-fg); }
@@ -977,7 +982,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
   .browser-panel.is-leaving { animation-name: browser-sheet-out; }
   .browser-divider { display: none; }
 }
-@media (max-width: 767px) { .browser-toggle-text, .integrations-composio-text, .integrations-help-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
+@media (max-width: 767px) { .browser-toggle-text, .integrations-composio-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
 
 /* Narrow viewport: the column is an off-canvas sheet beside the rail,
    opened from a button at the top of the page (T3 Code ui/sidebar.tsx below
@@ -995,7 +1000,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
   /* The page's 14 px here are less than the corner's 16 px from the edge:
      the heads leave it a few pixels more. */
   #catalog-head, .market-head { padding-right: calc(var(--page-corner, 0px) + 8px); }
-  .integrations-head .apps-title { padding-right: 0; }
+  .integrations-head .integrations-titles { padding-right: 0; }
   .container, .container.wide { padding: 20px 14px 48px; }
   /* Settings and Files start under the header; every page without it
      starts its head below #nav-toggle, as the Apps home does (#366). */
@@ -1338,8 +1343,8 @@ button:not(.primary) .provider-openai { color: #000000; }
 <ul class="menu column-top">
 <li><a class="menu-item" href="/" id="catalog-home" data-route><svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg><span class="menu-name" data-message="appsAll">All modules</span></a></li>
 <li><a class="menu-item" href="/files" id="files-open" data-route data-guide="nav-files"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><span class="menu-name" data-message="filesTitle">Files</span></a></li>
-<li><a class="menu-item" href="/integrations" id="integrations-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-integrations"/></svg><span class="menu-name" data-message="integrationsTitle">Integrations</span><span class="menu-count" id="integrations-attention" hidden></span></a></li>
-<li id="vault-nav"><a class="menu-item" href="/vault" id="vault-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span class="menu-name" data-message="vaultPageTitle">Vault</span></a></li>
+<li><a class="menu-item" href="/integrations" id="integrations-open" data-route data-guide="nav-integrations"><svg class="icon" aria-hidden="true"><use href="#i-integrations"/></svg><span class="menu-name" data-message="integrationsTitle">Integrations</span><span class="menu-count" id="integrations-attention" hidden></span></a></li>
+<li id="vault-nav"><a class="menu-item" href="/vault" id="vault-open" data-route data-guide="nav-vault"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span class="menu-name" data-message="vaultPageTitle">Vault</span></a></li>
 </ul>
 <div class="column-favorites" id="catalog-favorites"></div>
 </nav>
@@ -1389,7 +1394,7 @@ button:not(.primary) .provider-openai { color: #000000; }
      offered and which stays, pressed, while the panel is open. -->
 <div class="page-top">
 <div class="page-corner page-corner-start"><button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button></div>
-<div class="page-corner page-corner-end" id="page-corner"><a class="apps-guide" id="catalog-guide" data-view="catalog" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a><a class="apps-guide" id="integrations-composio" data-view="integrations" target="_blank" rel="noopener noreferrer" hidden><svg class="icon" aria-hidden="true"><use href="#i-external"/></svg><span class="integrations-composio-text" data-message="integrationsComposioApps">Apps in Composio</span></a><a class="apps-guide" id="integrations-help" data-view="integrations" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span class="integrations-help-text" data-message="integrationsHelp">How it works</span></a><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></div>
+<div class="page-corner page-corner-end" id="page-corner"><a class="apps-guide" id="catalog-guide" data-view="catalog" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a><a class="apps-guide" id="integrations-composio" data-view="integrations" data-guide="composio-apps" target="_blank" rel="noopener noreferrer" hidden><svg class="icon" aria-hidden="true"><use href="#i-external"/></svg><span class="integrations-composio-text" data-message="integrationsComposioApps">Apps in Composio</span></a><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" data-guide="browser" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></div>
 </div>
 <!-- Settings, Files and Trezor: a 52 px header with the breadcrumb and the
      page actions (T3 Code); Files and Trezor have their title alone in it.
@@ -1397,7 +1402,7 @@ button:not(.primary) .provider-openai { color: #000000; }
 <header class="topbar" data-view="settings files vault">
 <nav class="crumbs" id="crumbs" aria-labelledby="crumbs-label">
 <span class="sr-only" id="crumbs-label" data-message="settingsBreadcrumb">Where you are in Settings</span>
-<ol><li id="crumb-parent" data-view="settings"><a href="/settings/general" id="crumb-settings" data-message="settingsTitle" data-route>Settings</a></li><li id="crumb-organization" hidden><a href="/" id="crumb-org" data-route></a></li><li aria-current="page"><h1 id="page-heading" tabindex="-1">Launchpad</h1><button type="button" class="page-help" id="page-help" data-view="files" data-guide-help="files"><svg class="icon" aria-hidden="true"><use href="#i-help"/></svg></button></li></ol>
+<ol><li id="crumb-parent" data-view="settings"><a href="/settings/general" id="crumb-settings" data-message="settingsTitle" data-route>Settings</a></li><li id="crumb-organization" hidden><a href="/" id="crumb-org" data-route></a></li><li aria-current="page"><h1 id="page-heading" tabindex="-1">Launchpad</h1><button type="button" class="page-help" id="page-help" hidden><svg class="icon" aria-hidden="true"><use href="#i-help"/></svg></button></li></ol>
 </nav>
 <div class="topbar-actions">
 <button type="button" class="ghost" id="files-refresh" data-section-action="files"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="filesRefresh">Refresh</span></button>
@@ -1416,7 +1421,7 @@ button:not(.primary) .provider-openai { color: #000000; }
      module's overview `/o/<org>/<module>` from a tile's menu; drawn by
      catalog-panel.ts. -->
 <main id="view-catalog" class="container wide" data-view="catalog">
-<header class="apps-head" id="catalog-head"><div class="apps-head-name" id="catalog-head-name"></div></header>
+<header class="apps-head" id="catalog-head"><div class="apps-head-name" id="catalog-head-name"><button type="button" class="page-help" id="catalog-help" hidden><svg class="icon" aria-hidden="true"><use href="#i-help"/></svg></button></div></header>
 <p id="catalog-status" class="row-status" role="status" aria-live="polite">Reading Organizations…</p>
 <div id="catalog-body" class="stack"></div>
 </main>
@@ -1434,7 +1439,7 @@ button:not(.primary) .provider-openai { color: #000000; }
      The head holds the title; the search and Zkontrolovat připojení stand at
      the right end of the tabs' row, outside their navigation. -->
 <main id="view-integrations" class="container wide" data-view="integrations">
-<header class="apps-head integrations-head"><div class="integrations-titles"><h1 class="apps-title" data-page-heading tabindex="-1" data-message="integrationsTitle">Integrations</h1><p class="module-meta" data-message="integrationsSubtitle">Connected apps every agent and bot of this Environment uses.</p></div></header>
+<header class="apps-head integrations-head"><div class="integrations-titles"><h1 class="apps-title" data-page-heading tabindex="-1" data-message="integrationsTitle">Integrations</h1><button type="button" class="page-help" id="integrations-page-help" hidden><svg class="icon" aria-hidden="true"><use href="#i-help"/></svg></button></div></header>
 <div class="integrations-bar">
 <nav class="integrations-tabs" id="integrations-tabs" aria-labelledby="integrations-tabs-label"><span class="sr-only" id="integrations-tabs-label" data-message="integrationsTabsLabel">Show</span><a class="integrations-tab" href="/integrations" data-tab="all" data-route>All</a><a class="integrations-tab" href="/integrations/connected" data-tab="connected" data-route>Connected</a><a class="integrations-tab" href="/integrations/custom" data-tab="custom" data-route>Custom</a></nav>
 <div class="integrations-tools"><label class="integrations-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only" data-message="integrationsSearch">Search apps</span><input type="search" id="integrations-search" autocomplete="off" spellcheck="false"></label><button type="button" class="ghost integrations-refresh" id="integrations-refresh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span class="sr-only" data-message="integrationsRefresh">Check connections</span></button></div>
@@ -1473,28 +1478,28 @@ button:not(.primary) .provider-openai { color: #000000; }
      The Launchpad never lists items or shows a value. -->
 <main id="view-vault" class="container" data-view="vault">
 <section id="section-vault" aria-labelledby="page-heading">
+<!-- How a vault works in an Organization (DEV-6631, design-system-lazurio#93):
+     the approved guide video `vault-overview`, which the "?" beside the
+     page's heading opens in place and plays where its words are true, with
+     the one line it does not say under it (decision F56's addendum of
+     2026-10-18, page-help.ts); hidden until then. The page itself keeps no
+     sentence that explains the vault. -->
+<div class="vault-video" id="vault-video" hidden>
+<div class="guide-video" id="vault-video-player"></div>
+<p class="group-note" id="vault-video-line" data-message="vaultVideoLine">Whoever can enter the Environment has its passwords too</p>
+</div>
 <div class="section-head-text">
-<p class="intro" id="vault-page-rule" data-message="vaultPageRule">Whoever has access to the Environment has all of its passwords.</p>
 <p class="intro" id="vault-page-note" hidden></p>
 <p class="intro vault-page-guide" id="vault-page-guide" hidden></p>
 <p id="vault-page-status" class="row-status" role="status" aria-live="polite"></p>
 </div>
-<!-- How a vault works, on an Environment without a vault (DEV-6631, F53's
-     addendum of 2026-10-17): the guide video `vault-overview`, its player
-     there from the start at its poster, and the sentences it shows; drawn by
-     vault-page-panel.ts. The line above says why this Environment has none. -->
-<section class="group" id="vault-explainer" aria-labelledby="vault-explainer-heading" hidden>
-<div class="group-head"><h2 id="vault-explainer-heading" data-message="vaultExplainerTitle">How the vault works</h2></div>
-<div class="guide-video" id="vault-explainer-video"></div>
-<p class="intro" id="vault-explainer-text" data-message="vaultExplainerText">In an Organization, every Environment has its own vault. People share passwords with it from their own Bitwarden, and the Environment's agents use them without asking. You can take the sharing back at any time.</p>
-</section>
 <!-- Žádosti agentů (root decision 0198 point 9 (c), decision F54): the
      agents' secret requests wait here, above the vault, each opening its
      request's page; drawn by vault-requests-panel.ts, hidden while none
      waits. -->
 <section class="group" id="vault-requests" hidden></section>
 <section class="group" id="vault-page-group" hidden>
-<div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" id="vault-page-name"></p><p class="row-status vault-page-state" id="vault-page-state" role="status" aria-live="polite"></p></div><div class="row-control" id="vault-page-actions"></div></div></div></div>
+<div class="card" data-guide="vault-row"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" id="vault-page-name"></p><p class="row-status vault-page-state" id="vault-page-state" role="status" aria-live="polite"></p></div><div class="row-control" id="vault-page-actions" data-guide="vault-open"></div></div></div></div>
 <p class="group-note" id="vault-page-hint" hidden></p>
 <!-- The invitation a personal Environment's person may ask for once their
      own Bitwarden is connected (F53's amendment of 2026-10-16, (2)): one
@@ -1529,7 +1534,7 @@ button:not(.primary) .provider-openai { color: #000000; }
      request and nowhere else. -->
 <section class="group" id="vault-connect" aria-labelledby="vault-connect-heading" hidden>
 <div class="group-head"><h2 id="vault-connect-heading" data-message="vaultConnectTitle">Your agents' passwords in your Bitwarden</h2></div>
-<svg class="vault-connect-picture" id="vault-connect-picture" viewBox="0 0 340 108" width="340" height="108" role="img" aria-labelledby="vault-connect-picture-label"><title id="vault-connect-picture-label"></title><line class="vault-connect-link" x1="79" y1="30" x2="146" y2="30"/><line class="vault-connect-link" x1="194" y1="30" x2="261" y2="30"/><rect class="vault-connect-node" x="31.5" y="6.5" width="47" height="47" rx="10"/><rect class="vault-connect-node" x="261.5" y="6.5" width="47" height="47" rx="10"/><use class="vault-connect-side" href="#i-user" x="43" y="18" width="24" height="24"/><rect class="vault-connect-vault" x="146" y="6" width="48" height="48" rx="10"/><use class="vault-connect-lock" href="#i-lock" x="156" y="16" width="28" height="28"/><use class="vault-connect-side" href="#i-bot" x="273" y="18" width="24" height="24"/><text x="55" y="78" data-message="vaultConnectYours">Your Bitwarden</text><text x="170" y="78" id="vault-connect-picture-vault"></text><text x="285" y="78" data-message="vaultConnectAgents">Agents</text><text class="vault-connect-where" x="285" y="96" data-message="vaultConnectAgentsWhere">in this Environment</text></svg>
+<svg class="vault-connect-picture" id="vault-connect-picture" data-guide="vault-row" viewBox="0 0 340 108" width="340" height="108" role="img" aria-labelledby="vault-connect-picture-label"><title id="vault-connect-picture-label"></title><line class="vault-connect-link" x1="79" y1="30" x2="146" y2="30"/><line class="vault-connect-link" x1="194" y1="30" x2="261" y2="30"/><rect class="vault-connect-node" x="31.5" y="6.5" width="47" height="47" rx="10"/><rect class="vault-connect-node" x="261.5" y="6.5" width="47" height="47" rx="10"/><use class="vault-connect-side" href="#i-user" x="43" y="18" width="24" height="24"/><rect class="vault-connect-vault" x="146" y="6" width="48" height="48" rx="10"/><use class="vault-connect-lock" href="#i-lock" x="156" y="16" width="28" height="28"/><use class="vault-connect-side" href="#i-bot" x="273" y="18" width="24" height="24"/><text x="55" y="78" data-message="vaultConnectYours">Your Bitwarden</text><text x="170" y="78" id="vault-connect-picture-vault"></text><text x="285" y="78" data-message="vaultConnectAgents">Agents</text><text class="vault-connect-where" x="285" y="96" data-message="vaultConnectAgentsWhere">in this Environment</text></svg>
 <p class="intro" data-message="vaultConnectLead">Your agents get their own account. Yours stays yours.</p>
 <!-- The guide's video (guide-video.ts, as #vault-bitwarden-video): the
      panel mounts createGuideVideo here with the name

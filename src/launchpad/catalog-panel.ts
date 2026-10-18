@@ -184,6 +184,10 @@ export function createCatalogPanel(
   const favoritesBox = find<HTMLDivElement>("#catalog-favorites");
   const head = find<HTMLElement>("#catalog-head");
   const headName = find<HTMLDivElement>("#catalog-head-name");
+  // The "?" right after the heading (decision F56's addendum of
+  // 2026-10-18): ui.ts says what it plays and whether it shows; the head
+  // keeps it beside the heading it draws.
+  const help = document.querySelector<HTMLButtonElement>("#catalog-help");
   const body = find<HTMLDivElement>("#catalog-body");
   const status = find<HTMLParagraphElement>("#catalog-status");
   const toastRegion = find<HTMLDivElement>("#toast");
@@ -879,7 +883,9 @@ export function createCatalogPanel(
     heading.tabIndex = -1;
     heading.dataset.pageHeading = "";
     const where = element("div", "apps-where");
-    where.append(heading);
+    const title = element("div", "apps-title-row");
+    title.append(heading, ...(help === null ? [] : [help]));
+    where.append(title);
     const environment = options.environment();
     if (environment !== null) {
       const line = element("span", "apps-environment");

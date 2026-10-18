@@ -101,26 +101,35 @@ test("the Trezor page holds the player's slot at the top of its Bitwarden sectio
   expect(html).not.toMatch(/\bautoplay\b/);
 });
 
-// Nastavení → Trezor of an Environment without a vault (DEV-6631, F53's
-// addendum of 2026-10-17): how a vault works, its video at the top of its
-// section and its sentences under it, which the video shows.
-test("an Environment without a vault: the explainer's player sits at the top of its section, above its sentences, in the page's language", async () => {
+// How a vault works in an Organization (DEV-6631, design-system-lazurio#93):
+// the approved video `vault-overview`, which Trezor's "?" opens in place
+// where its words are true (decision F56's addendum of 2026-10-18,
+// page-help.ts; which variant plays is tests/launchpad-guide.test.ts's), at
+// the top of the page, its player first and under it the one line it does
+// not say; hidden until the "?" opens it.
+test("Trezor's video: hidden until its '?' opens it, at the top of the page, its player above the line it does not say, in the page's language", async () => {
   const html = await readFile(
     join(import.meta.dir, "..", "src", "launchpad", "index.html"),
     "utf8",
   );
-  const section = html.slice(
-    html.indexOf('<section class="group" id="vault-explainer"'),
-    html.indexOf("</section>", html.indexOf('id="vault-explainer"')),
+  const section = html.slice(html.indexOf('<section id="section-vault"'));
+  const box = section.slice(
+    section.indexOf('<div class="vault-video" id="vault-video" hidden>'),
+    section.indexOf('<div class="section-head-text">'),
   );
-  const order = [
-    'id="vault-explainer-heading"',
-    'id="vault-explainer-video"',
-    'id="vault-explainer-text"',
-  ].map((id) => section.indexOf(id));
+  expect(box.length).toBeGreaterThan(0);
+  const order = ['id="vault-video-player"', 'id="vault-video-line"'].map((id) =>
+    box.indexOf(id),
+  );
   expect(order.every((at) => at >= 0)).toBe(true);
   expect([...order].sort((a, b) => a - b)).toEqual(order);
+  // The old section of an Environment without a vault is gone.
+  expect(html).not.toContain('id="vault-explainer"');
   expect(guideVideoNames).toContain("vault-overview");
+  expect([cs.vaultVideoLine, en.vaultVideoLine]).toEqual([
+    "Kdo má přístup do Prostředí, má i jeho hesla",
+    "Whoever can enter the Environment has its passwords too",
+  ]);
   for (const [locale, copy] of [
     ["cs", cs],
     ["en", en],
@@ -131,23 +140,17 @@ test("an Environment without a vault: the explainer's player sits at the top of 
           name: "vault-overview",
           locale,
           title: copy.vaultExplainerTitle,
-          describedBy: "vault-explainer-text",
+          describedBy: "vault-video-line",
         },
         copy,
-      ),
+      ).video,
     ).toEqual({
-      play: {
-        label: copy.guideVideoPlay,
-        name: `${copy.guideVideoPlay}: ${copy.vaultExplainerTitle}`,
-      },
-      video: {
-        src: `/videos/vault-overview-${locale}.mp4`,
-        type: "video/mp4",
-        poster: `/videos/vault-overview-${locale}.webp`,
-        name: copy.vaultExplainerTitle,
-        describedBy: "vault-explainer-text",
-        attributes: { controls: "", playsinline: "", preload: "none" },
-      },
+      src: `/videos/vault-overview-${locale}.mp4`,
+      type: "video/mp4",
+      poster: `/videos/vault-overview-${locale}.webp`,
+      name: copy.vaultExplainerTitle,
+      describedBy: "vault-video-line",
+      attributes: { controls: "", playsinline: "", preload: "none" },
     });
 });
 

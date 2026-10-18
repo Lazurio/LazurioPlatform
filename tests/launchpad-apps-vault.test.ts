@@ -236,12 +236,13 @@ test("Trezor's page is a view of its own with Files' header: its title alone, no
   expect(inside(section, byId("view-settings"))).toBe(false);
   expect(section.attributes.get("aria-labelledby")).toBe("page-heading");
   // What the panels draw into stays in it: the agents' requests, one
-  // request's page, the vault and how it works without one.
+  // request's page, the vault, and the video its "?" opens (decision F56's
+  // addendum of 2026-10-18).
   for (const id of [
     "vault-requests",
     "vault-request",
     "vault-page-group",
-    "vault-explainer",
+    "vault-video",
     "vault-connect",
     "vault-bitwarden",
   ])

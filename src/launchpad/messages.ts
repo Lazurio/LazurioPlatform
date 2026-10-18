@@ -848,6 +848,30 @@ const en = {
   guideFilesTeamDrag: "Drag a file into the chat",
   guideFilesTeamShow: "Files show what agents work with",
   guideFilesTeamShared: "The whole Team can read and change them",
+  // The guide of Integrace where Composio is allowed and of Vlastní, and of
+  // Trezor where nobody who enters is added to the vault (decision F56's
+  // addendum of 2026-10-18, guides.ts): their explanations, which took the
+  // pages' explaining sentences. The same rules.
+  guideComposioTitle: "Composio",
+  guideComposioAccount: "Sign in to Composio with your own account",
+  guideComposioAccountSub: "The Organization has no shared Composio",
+  guideComposioOrganization: "One organization in it for each Organization",
+  guideComposioOrganizationSub: "Invite nobody else into it",
+  guideComposioAgents:
+    "Agents of the Organization's Environment use what you connect",
+  guideComposioAgentsSub:
+    "A Personal Environment uses the account's default organization",
+  guideComposioOther:
+    "Other accounts in another Environment need another Composio account",
+  guideComposioOtherSub:
+    "Three Environments with other accounts, three Composio accounts",
+  guideCustomTitle: "Custom MCP servers",
+  guideCustomWho: "Custom MCP servers for advanced users",
+  guideCustomHow: "A command {in this}, or a URL",
+  guideCustomUse: "Every agent and bot uses them",
+  guideVaultAgentsOwn: "{This} has its own vault",
+  guideVaultAgentsUse: "Agents take passwords from it without asking",
+  guideVaultAgentsSee: "Everyone {in this} sees its passwords",
   filesRoot: "Documents",
   filesPath: "Folder path",
   filesUpload: "Upload files",
@@ -1123,22 +1147,22 @@ const en = {
   vaultOpen: "Open the vault",
   vaultLoadFailed: "The vault's state could not be read.",
   // Apps → Vault (root decision 0198 point 5, the wireframe's Apps →
-  // Trezor): the rule, the vault and the way into it.
+  // Trezor): the vault and the way into it; its "?" says the rule (decision
+  // F56's addendum of 2026-10-18).
   vaultPageTitle: "Vault",
-  vaultPageRule:
-    "Whoever has access to the Environment has all of its passwords.",
   vaultPageWorkstation: "There is no vault on this computer.",
   // An Environment without a vault (DEV-6631, F53's addendum of
-  // 2026-10-17): why it has none, in place of the vault, and how a vault
-  // works in an Organization, with the guide video `vault-overview` (its
-  // title is the section's heading).
+  // 2026-10-17): why it has none, in place of the vault. How a vault works
+  // in an Organization is the guide video `vault-overview`, which the page's
+  // "?" plays in place (decision F56's addendum of 2026-10-18): its title,
+  // its accessible name, and the line under it, which the video does not
+  // say.
   vaultPageNoVault:
     "{This}'s vault is not set up. The Organization's Admin sets it up, and then you will find it here.",
   vaultPagePublic:
     "This Organization is a public demo and real passwords do not belong in it, so it has no vault on purpose. Everything else works as in a real Organization.",
   vaultExplainerTitle: "How the vault works",
-  vaultExplainerText:
-    "In an Organization, every Environment has its own vault. People share passwords with it from their own Bitwarden, and the Environment's agents use them without asking. You can take the sharing back at any time.",
+  vaultVideoLine: "Whoever can enter the Environment has its passwords too",
   // A personal Environment connects its person's own Bitwarden (root
   // decision 0203 point 7; F53's amendment of 2026-10-16, (2)): the title,
   // the picture of the vault between the person's Bitwarden and the agents,
@@ -1367,7 +1391,6 @@ const en = {
   columnShow: "Show left panel",
   columnWidth: "Left panel width",
   integrationsTitle: "Integrations",
-  integrationsSubtitle: "Connected apps every agent and bot of {this} uses.",
   integrationsHelp: "How it works",
   integrationsSearch: "Search apps",
   integrationsRefresh: "Check connections",
@@ -2487,6 +2510,24 @@ const cs: Record<MessageKey, string> = {
   guideFilesTeamDrag: "Soubor přetáhněte do chatu",
   guideFilesTeamShow: "Soubory ukazují, s čím agenti pracují",
   guideFilesTeamShared: "Číst a měnit je může celý Team",
+  guideComposioTitle: "Composio",
+  guideComposioAccount: "Composio přihlásíte svým vlastním účtem",
+  guideComposioAccountSub: "Organizace společné Composio nemá",
+  guideComposioOrganization: "Pro každou Organizaci v něm jedna organizace",
+  guideComposioOrganizationSub: "Nikoho dalšího do ní nezvěte",
+  guideComposioAgents:
+    "Co v ní připojíte, používají agenti v Prostředí Organizace",
+  guideComposioAgentsSub: "Osobní Prostředí používá výchozí organizaci účtu",
+  guideComposioOther:
+    "Jiné účty v dalším Prostředí potřebují další účet Composia",
+  guideComposioOtherSub: "Tři Prostředí s jinými účty, tři účty Composia",
+  guideCustomTitle: "Vlastní MCP servery",
+  guideCustomWho: "Vlastní MCP servery pro pokročilé",
+  guideCustomHow: "Příkazem {v tomto}, nebo adresou URL",
+  guideCustomUse: "Používají je všichni agenti a boti",
+  guideVaultAgentsOwn: "{Toto} má vlastní trezor",
+  guideVaultAgentsUse: "Agenti z něj berou hesla bez ptaní",
+  guideVaultAgentsSee: "Hesla vidí každý {v tomto}",
   filesRoot: "Dokumenty",
   filesPath: "Cesta ke složce",
   filesUpload: "Nahrát soubory",
@@ -2755,15 +2796,13 @@ const cs: Record<MessageKey, string> = {
   vaultOpen: "Otevřít trezor",
   vaultLoadFailed: "Stav trezoru se nepodařilo přečíst.",
   vaultPageTitle: "Trezor",
-  vaultPageRule: "Kdo má přístup do Prostředí, má všechna jeho hesla.",
   vaultPageWorkstation: "Trezor na tomto počítači není.",
   vaultPageNoVault:
     "Trezor {tohoto} není nastavený. Nastaví ho Admin Organizace a pak ho najdete tady.",
   vaultPagePublic:
     "Tato Organizace je veřejná ukázka a skutečná hesla do ní nepatří, proto v ní trezor záměrně není. Všechno ostatní funguje jako ve skutečné Organizaci.",
   vaultExplainerTitle: "Jak trezor funguje",
-  vaultExplainerText:
-    "V Organizaci má každé Prostředí vlastní trezor. Lidé do něj sdílejí hesla ze svého Bitwardenu a agenti v Prostředí je použijí bez ptaní. Sdílení můžete kdykoli vzít zpět.",
+  vaultVideoLine: "Kdo má přístup do Prostředí, má i jeho hesla",
   vaultConnectTitle: "Hesla pro agenty ve vašem Bitwardenu",
   vaultConnectLead:
     "Agenti dostanou vlastní účet. Ten váš zůstane jen pro vás.",
@@ -2974,8 +3013,6 @@ const cs: Record<MessageKey, string> = {
   columnShow: "Zobrazit levý panel",
   columnWidth: "Šířka levého panelu",
   integrationsTitle: "Integrace",
-  integrationsSubtitle:
-    "Připojené aplikace, které používají všichni agenti a boti {tohoto}.",
   integrationsHelp: "Jak to funguje",
   integrationsSearch: "Hledat aplikace",
   integrationsRefresh: "Zkontrolovat připojení",

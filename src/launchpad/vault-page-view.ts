@@ -256,10 +256,10 @@ type RowState = Readonly<{
   tone: "ok" | "busy" | "warn" | "quiet";
 }>;
 
-/** What the page shows. */
+/** What the page shows. The rule ("Kdo má přístup do Prostředí, má i jeho
+ * hesla") and how a vault works in an Organization are its "?"'s (decision
+ * F56's addendum of 2026-10-18, guides.ts), not the page's. */
 export type VaultPageView = Readonly<{
-  /** The rule above the vault. */
-  rule: boolean;
   /** One short line instead of the vault: this computer, or why this
    * Environment has no vault. */
   note: string | null;
@@ -285,10 +285,6 @@ export type VaultPageView = Readonly<{
   /** "Odpojit Bitwarden": a personal Environment's own Bitwarden, once
    * connected (or its record unreadable), while no setup runs. */
   disconnect: boolean;
-  /** "Jak trezor funguje": how a vault works in an Organization, with its
-   * guide video, where this Environment has no vault (DEV-6631, F53's
-   * addendum of 2026-10-17); `note` says why it has none. */
-  explainer: boolean;
 }>;
 
 /** The vault's state in a few words: the items, the creation, no answer. */
@@ -349,11 +345,11 @@ function rowLine(
  * still come from the recorded state:
  *
  * - this computer: one short line;
- * - an Environment without a vault: why, in place of the vault, and how a
- *   vault works in an Organization (`explainer`). A public Organization's
+ * - an Environment without a vault: why, in place of the vault (how a vault
+ *   works in an Organization is the "?"'s video). A public Organization's
  *   Environment (`no-tailnet`) has none on purpose; any other's (`no-vault`)
  *   is not set up yet, and its Organization's Admin sets it up;
- * - otherwise the rule and the vault's row: its name and the item count,
+ * - otherwise the vault's row: its name and the item count,
  *   "Zakládání trezoru…" while a setup runs, "Neodpovídá" when the vault
  *   does not answer;
  * - the actions follow the person: with an account in the network's vault
@@ -373,7 +369,6 @@ export function vaultPageView(
   fresh: VaultStatus | null = null,
 ): VaultPageView {
   const view = (fields: Partial<VaultPageView>): VaultPageView => ({
-    rule: true,
     note: null,
     row: null,
     actions: [],
@@ -382,7 +377,6 @@ export function vaultPageView(
     connect: null,
     invite: false,
     disconnect: false,
-    explainer: false,
     ...fields,
   });
   if (model === null) return view({});
@@ -395,7 +389,6 @@ export function vaultPageView(
     status.reason === "connection-unreadable"
   )
     return view({
-      rule: false,
       note: copy.vaultPageConnectionUnreadable,
       disconnect: setup === null,
     });
@@ -407,20 +400,17 @@ export function vaultPageView(
           ? copy.vaultPageNoVault
           : null;
     return view({
-      rule: false,
       note:
         why ??
         (status.reason === "workstation"
           ? copy.vaultPageWorkstation
           : copy.vaultRowUnavailable),
-      explainer: why !== null,
     });
   }
   // A personal Environment whose person has not connected their own
   // Bitwarden yet: the section that connects it, with the vault it gets.
   if (status.state === "needs-connection")
     return view({
-      rule: false,
       connect: { vault: model.name ?? copy.vaultPageTitle },
     });
   // The vault's name; a 0197 pilot has none: the organization bw names.
