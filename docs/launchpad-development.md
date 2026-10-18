@@ -960,12 +960,14 @@ guide's mark and a card beside it, and the layer lets every click through.
     Organization, what the agents use, another account for other accounts), on Vlastní
     and its form `integrations-custom`; the Launchpad's explanations carry the page's
     documentation (`integrationsHelp`), which left the page's corner;
-  - Trezor (`vaultHelp`): in a Personal Environment, or wherever the vault is the
+  - Trezor (`vaultHelp`), only once the page read the vault's state: in a Personal
+    Environment, or wherever the vault is the
     person's own Bitwarden, the principle `vault` (its Personal adaptation); where
     nobody who enters is added to the vault (membership `not-managed` or
-    `sign-in-not-required`, so a Team or Automated Environment), and while that is not
+    `sign-in-not-required`, so a Team or Automated Environment), where the person is no
+    member (no account or no master password yet, removed), and while that is not
     known, the Launchpad's `vault-agents`, which promises no Bitwarden of one's own; where
-    the person is in the vault, or the Environment has no vault, the approved video
+    the person is a member of the vault, or the Environment has no vault, the approved video
     `vault-overview`, which the "?" opens in place (`page-help.ts`, `#vault-video`) with
     the one line it does not say; nothing until the page read the vault's state. One
     agent's request has no "?";
@@ -979,7 +981,10 @@ guide's mark and a card beside it, and the layer lets every click through.
     stays on the page (`createShell`'s `guiding`).
 
   The panels report what the choice reads (`integrations.composio()` and
-  `vaultPage.facts`, each with a `drawn` hook). The marks are `nav-files`,
+  `vaultPage.facts`, each with a `drawn` hook), and `pageHelpStates` says what each
+  "?" shows, which ui.ts sets on the buttons. Escape leaves Settings only while the
+  guide explains nothing (`escapeLeavesSettings` in shell.ts, `guiding`): the shell's
+  listener comes before the guide's. The marks are `nav-files`,
   `nav-integrations`, `nav-vault` (the column), `browser` (the corner's toggle),
   `files-list`, `composio-apps` (the corner's Composio link), `vault-row` (the vault's
   row, and the picture of a Personal Environment's connection), `vault-open` (the row's

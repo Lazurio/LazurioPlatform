@@ -17,6 +17,26 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // with the breadcrumb on Settings, Files and Trezor only, and one view shown
 // at a time. The route is the path; the page never reloads to change it, so the
 // credential held in page memory stays (docs/launchpad-development.md).
+/** Whether Escape leaves Settings for the Apps home: only on a Settings
+ * route, and not while something else has it: the shell's guide explaining
+ * the page (decision F56's addendum of 2026-10-18; Escape closes the
+ * explanation instead), an open dialog, or a field being typed in. */
+export function escapeLeavesSettings(
+  input: Readonly<{
+    view: PageRoute["view"];
+    guiding: boolean;
+    dialog: boolean;
+    typing: boolean;
+  }>,
+): boolean {
+  return (
+    input.view === "settings" &&
+    !input.guiding &&
+    !input.dialog &&
+    !input.typing
+  );
+}
+
 export function createShell(
   options: Readonly<{
     copy: () => Copy;
@@ -29,7 +49,7 @@ export function createShell(
      * Settings (decision F55). Absent: every route is itself. */
     place?: (route: PageRoute) => PageRoute;
     /** Whether the shell's guide explains the page now (decision F56):
-     * Escape then closes the explanation, not Settings. */
+     * Escape then closes the explanation and the page stays. */
     guiding?: () => boolean;
   }>,
 ) {
@@ -226,8 +246,9 @@ export function createShell(
   );
 
   // Escape leaves Settings (T3 Code's useEscapeToGoBack) unless something
-  // else already took it: an open dialog, the open sheet, a form field, or
-  // the guide explaining the page (decision F56's addendum of 2026-10-18).
+  // else already took it (`escapeLeavesSettings`). The guide's own listener
+  // comes after this one (it is added when an explanation opens), so the
+  // guide is asked here.
   document.addEventListener("keydown", (event) => {
     if (
       event.key !== "Escape" ||
@@ -243,12 +264,15 @@ export function createShell(
     }
     const target = event.target;
     if (
-      route.view !== "settings" ||
-      options.guiding?.() === true ||
-      document.querySelector("dialog[open]") !== null ||
-      (target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)))
+      !escapeLeavesSettings({
+        view: route.view,
+        guiding: options.guiding?.() === true,
+        dialog: document.querySelector("dialog[open]") !== null,
+        typing:
+          target instanceof HTMLElement &&
+          (target.isContentEditable ||
+            ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)),
+      })
     )
       return;
     event.preventDefault();

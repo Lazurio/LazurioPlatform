@@ -6,6 +6,7 @@ import {
   type PageGuideFacts,
   pageGuide,
   pageHelpOf,
+  pageHelpStates,
   type VaultGuideFacts,
   vaultHelp,
 } from "../src/launchpad/guides";
@@ -16,6 +17,7 @@ import {
   routeFrame,
   settingsSections,
 } from "../src/launchpad/routes";
+import { escapeLeavesSettings } from "../src/launchpad/shell";
 import type { VaultPagePerson } from "../src/launchpad/vault-page-view";
 import {
   type ShellEnvironmentKind,
@@ -528,9 +530,11 @@ test("Integrace's 'Jak to funguje' is the guide's card's now: each of its explan
 
 test("Trezor's '?' is chosen from the kind, the vault core's answer and the person's place in the vault (#499)", () => {
   // A Personal Environment: its own Bitwarden, the agents' own account in
-  // it, whatever is read yet.
+  // it, once the vault's state is read; nothing before.
   for (const facts of vaultFacts)
-    expect(vaultHelp("personal", facts)).toBe("vault");
+    expect(vaultHelp("personal", facts)).toBe(
+      facts.vault === null ? null : "vault",
+    );
   expect(
     principleIn("vault", "cs", "personal")?.steps.map((step) => step.text),
   ).toEqual([
@@ -547,13 +551,42 @@ test("Trezor's '?' is chosen from the kind, the vault core's answer and the pers
   ])[] = [
     ["not read yet", "work", { vault: null, person: null }, null],
     ["a member", "work", read(connected, "work", known("member")), "video"],
+    // Only a member shares into the vault: no account or no master password
+    // yet, and removed in the vault, are no members (Pablo's review of
+    // #502).
     [
       "no account yet",
       "work",
       read(connected, "work", known("no-account")),
-      "video",
+      "vault-agents",
     ],
-    ["removed", "work", read(connected, "work", known("revoked")), "video"],
+    [
+      "no master password yet",
+      "work",
+      read(connected, "work", known("awaiting-password")),
+      "vault-agents",
+    ],
+    [
+      "removed",
+      "work",
+      read(connected, "work", known("revoked")),
+      "vault-agents",
+    ],
+    ...(["not-invited", "invitation-pending", "accepted"] as const).map(
+      (state) =>
+        [
+          `a ${state} person of a Work Environment's vault`,
+          "work",
+          read(connected, "work", known(state)),
+          "vault-agents",
+        ] as const,
+    ),
+    [
+      "not read yet in a Personal Environment",
+      "personal",
+      { vault: null, person: null },
+      null,
+    ],
     [
       "a vault that takes no Lazurio sign-in yet",
       "work",
@@ -800,4 +833,79 @@ test("the sentences the '?' replaced are gone from the page and its words", () =
       });
   expect(messages("cs").filesEmptyRoot).toBe("Zatím žádné soubory.");
   expect(messages("en").filesEmptyRoot).toBe("No files yet.");
+});
+
+test('the "?" of Trezor waits until the vault\'s state is read, in a Personal Environment too, and then shows what it plays', () => {
+  const trezor = { view: "vault" } as const;
+  const facts = (vault: VaultGuideFacts): PageGuideFacts => ({
+    kind: "personal",
+    locale: "cs",
+    composio: null,
+    vault,
+    start: "basics",
+  });
+  const states = (vault: VaultGuideFacts, off = false) =>
+    pageHelpStates(
+      trezor,
+      pageGuide(trezor, facts(vault), messages("cs", "personal")),
+      off,
+    );
+  // The page as it loads: every "?" hidden, nothing to play.
+  const hidden = { hidden: true, plays: null, controls: null };
+  expect(states({ vault: null, person: null })).toEqual({
+    "page-help": hidden,
+    "catalog-help": hidden,
+    "integrations-page-help": hidden,
+  });
+  // `GET /api/vault` answered: the header's "?" plays the principle.
+  const waiting = read(
+    { kind: "vault-status", state: "needs-connection" },
+    "personal",
+  );
+  expect(states(waiting)).toEqual({
+    "page-help": { hidden: false, plays: "vault", controls: null },
+    "catalog-help": hidden,
+    "integrations-page-help": hidden,
+  });
+  // Recovery mode: none.
+  expect(states(waiting, true)["page-help"]).toEqual(hidden);
+  // A Work Environment's member: the video in place, no explanation played.
+  const member = pageGuide(
+    trezor,
+    { ...facts(read(connected, "work", known("member"))), kind: "work" },
+    messages("cs", "work"),
+  );
+  expect(pageHelpStates(trezor, member, false)["page-help"]).toEqual({
+    hidden: false,
+    plays: null,
+    controls: "vault-video",
+  });
+  // A removed person sees the words without the sharing.
+  const removed = pageGuide(
+    trezor,
+    { ...facts(read(connected, "work", known("revoked"))), kind: "work" },
+    messages("cs", "work"),
+  );
+  expect(pageHelpStates(trezor, removed, false)["page-help"]).toEqual({
+    hidden: false,
+    plays: "vault-agents",
+    controls: null,
+  });
+});
+
+test("Escape on Settings while the guide explains closes the explanation, not Settings", () => {
+  const settings = {
+    view: "settings",
+    guiding: false,
+    dialog: false,
+    typing: false,
+  } as const;
+  expect(escapeLeavesSettings(settings)).toBe(true);
+  // The guide's listener is added when an explanation opens, after the
+  // shell's: the shell asks the guide first.
+  expect(escapeLeavesSettings({ ...settings, guiding: true })).toBe(false);
+  expect(escapeLeavesSettings({ ...settings, dialog: true })).toBe(false);
+  expect(escapeLeavesSettings({ ...settings, typing: true })).toBe(false);
+  for (const view of ["home", "files", "vault", "integrations"] as const)
+    expect(escapeLeavesSettings({ ...settings, view })).toBe(false);
 });

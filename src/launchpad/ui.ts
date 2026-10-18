@@ -58,7 +58,7 @@ import {
   startSection,
   type TourFacts,
 } from "./first-run";
-import { type PageHelpId, pageGuide, pageHelpOf } from "./guides";
+import { type PageHelpId, pageGuide, pageHelpStates } from "./guides";
 import { createIntegrationsPanel } from "./integrations-panel";
 import { createColumn, keepCornerFree } from "./layout";
 import { environmentFacts, type Fact, type MachineView } from "./machine-view";
@@ -225,18 +225,18 @@ function drawGuide(route: PageRoute) {
   );
   provideGuides(guideOff ? null : guide.guides);
   buddy?.setAttribute("lang", locale);
-  const id = pageHelpOf(route);
-  const mine = id === null ? null : pageHelps[id];
-  videoHelp = guide.video !== null && !guideOff ? mine : null;
-  if (videoHelp === null) vaultVideo.close();
-  for (const help of Object.values(pageHelps)) {
+  const states = pageHelpStates(route, guide, guideOff);
+  videoHelp = null;
+  for (const id of Object.keys(pageHelps) as PageHelpId[]) {
+    const help = pageHelps[id];
     if (help === null) continue;
-    const plays = help === mine && !guideOff;
-    help.hidden = !plays || (guide.help === null && guide.video === null);
-    if (plays && guide.help !== null) help.dataset.guideHelp = guide.help;
+    const state = states[id];
+    help.hidden = state.hidden;
+    if (state.plays !== null) help.dataset.guideHelp = state.plays;
     else delete help.dataset.guideHelp;
-    if (help === videoHelp) {
-      help.setAttribute("aria-controls", "vault-video");
+    if (state.controls !== null) {
+      videoHelp = help;
+      help.setAttribute("aria-controls", state.controls);
       help.setAttribute("aria-expanded", String(vaultVideo.open));
     } else {
       help.removeAttribute("aria-controls");
@@ -245,6 +245,7 @@ function drawGuide(route: PageRoute) {
     help.setAttribute("aria-label", copy.pageHelp);
     help.title = copy.pageHelp;
   }
+  if (videoHelp === null) vaultVideo.close();
 }
 // The documentation of the Launchpad's "Guide" (the root Launchpad's
 // `guideDocumentationUrl`), in the page's language.
@@ -1100,7 +1101,7 @@ const shell = createShell({
   // A public Environment has no Integrace and no Trezor (decision F55).
   place: (route) => (isPublicEnvironment(entry) ? publicRoute(route) : route),
   // Escape is the guide's while it explains a page (decision F56): it
-  // closes the explanation and stays on the page.
+  // closes the explanation and the page stays.
   guiding: () => guideAttention.playing() !== null,
   onRoute: (route) => {
     // The switch marks Apps, the gear Settings (the Organization rail).
