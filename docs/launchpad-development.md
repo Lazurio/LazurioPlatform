@@ -948,7 +948,7 @@ guide's mark and a card beside it, and the layer lets every click through.
   right after its heading (`pageHelpOf`): the header's `#page-help` after
   `#page-heading` on Soubory and Trezor, `#catalog-help` beside the Apps home's heading
   (catalog-panel.ts keeps it there as it draws the head) and `#integrations-page-help`
-  beside Integrace's title. Each starts hidden and shows once the page knows what it
+  beside Integrace's title; every section of Settings uses the header's. Each starts hidden and shows once the page knows what it
   plays; a module's overview and the Marketplace have none. `pageGuide(route, facts,
   copy)` chooses from what the page knows (`PageGuideFacts`: the kind of the shell's
   current Environment, whether Composio is allowed as Integrace read it, and the vault's
@@ -968,18 +968,32 @@ guide's mark and a card beside it, and the layer lets every click through.
     the person is in the vault, or the Environment has no vault, the approved video
     `vault-overview`, which the "?" opens in place (`page-help.ts`, `#vault-video`) with
     the one line it does not say; nothing until the page read the vault's state. One
-    agent's request has no "?".
+    agent's request has no "?";
+  - Settings ([F56's addendum (2) of 2026-10-18](decisions.md#f56-addendum-2-of-2026-10-18-every-section-of-settings-has-its--and-loses-its-explaining-sentences)): Začínáme
+    `settings-start` (only where it has the basics: not on a public Environment's demo
+    nor where it has nothing to set up), Obecné `settings-general`, Komunikace agentů
+    `settings-communication` (`-team`), Toto <kind> Prostředí `settings-machine` (on
+    your computer its own words), Nástroje `settings-tools` (`-team`), the devices
+    section `settings-ssh` (`-team`; its words never name the protocol), Obnova
+    `settings-recovery` (none in Recovery mode). Escape closes an explanation there and
+    stays on the page (`createShell`'s `guiding`).
 
   The panels report what the choice reads (`integrations.composio()` and
   `vaultPage.facts`, each with a `drawn` hook). The marks are `nav-files`,
   `nav-integrations`, `nav-vault` (the column), `browser` (the corner's toggle),
   `files-list`, `composio-apps` (the corner's Composio link), `vault-row` (the vault's
   row, and the picture of a Personal Environment's connection), `vault-open` (the row's
-  actions), and those a panel draws once read (`drawnMarks`): `integration-on` and
+  actions), Settings' `start-steps`, `start-optional`, `general-language`,
+  `general-detail`, `general-coordination`, `general-apply`, `voice-text`,
+  `voice-save`, `machine-facts`, `machine-support`, `tools`, `ssh-prompt`,
+  `ssh-devices`, and those a panel draws once read (`drawnMarks`): `integration-on` and
   `integration-connect` (the first connected app, the first Connect),
-  `mcp-list` and `mcp-add` (Vlastní). Words are in `messages.ts` (`pageHelp`,
-  `guideFilesTeam*`, `guideComposio*`, `guideCustom*`, `guideVaultAgents*`,
-  `vaultVideoLine`). Recovery mode withdraws the guide. The tour (`tour.ts`) tells the
+  `mcp-list` and `mcp-add` (Vlastní), `start-ai` and `start-github` (Začínáme),
+  `tool-connect` and `tool-agents` (the first sign-in and "Používají agenti" of
+  Nástroje), `recovery-result` and `recovery-checks` (Obnova). Words are in
+  `messages.ts` (`pageHelp`, `guideFilesTeam*`, `guideComposio*`, `guideCustom*`,
+  `guideVaultAgents*`, `vaultVideoLine`, `guideStart*`, `guideGeneral*`, `guideVoice*`,
+  `guideMachine*`, `guideTools*`, `guideDevices*`, `guideRecovery*`). Recovery mode withdraws the guide. The tour (`tour.ts`) tells the
   guide whether it wants attention, hides while the guide is out, and nudges its bubble
   when a "?" asks meanwhile; the guide then draws nothing and only says "Nejdřív
   dokončete Začínáme" to assistive technology.
@@ -2167,10 +2181,11 @@ change (without them; the last known sign-ins stay on the cards) and on "Refresh
 status" (with them again), and shows:
 
 - no introduction (root decision 0188, Matěj 2026-10-04: no paragraph that only
-  restates the page); each tier's note is one short line: "Bez nich tu nic nefunguje.",
-  "Hodí se skoro každému.", "Zapni jen to, co používáš.";
-- on a shared Environment (the Team preset) the warning that signed-in accounts are
-  shared by all operators; it is repeated in the confirmation of an enable;
+  restates the page), no tier notes, no "Zjištěno v …" and no note on a shared (Team)
+  Environment: the "?" beside the heading explains the section, in a Team Environment
+  that its accounts are the whole Team's ([the guide](#the-guide-decision-f56), F56's
+  addendum (2) of 2026-10-18); the warning stays in the confirmation of an enable on a
+  shared Environment;
 - three groups, **Required**, **Recommended** and **Optional**, in catalog order, each
   a settings group of rows. A row carries on the left the tool's real name (gh,
   composio, bitwarden, wacli, gogcli, neon: what an agent says and what is searched for), one
@@ -2941,7 +2956,7 @@ Organization's, and it gets none of it.
      open it) with "Zkusit znovu"; a T3 Code that did not turn the provider on, said
      beside the account; and without the Environment browser "Přihlášení tu teď nejde
      otevřít.", nothing started. Signed in, the page reads `GET /api/ai?fresh=1` at once;
-  2. **GitHub**: "Připojeno jako @login", or "Zpřístupní vaše repozitáře a moduly." with
+  2. **GitHub**: "Připojeno jako @login", or "Nepřipojeno" with
      "Připojit" (gh's own sign-in dialog of Nástroje), enabled only once AI is there;
      before, the step waits under its number;
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
