@@ -3,6 +3,7 @@
   "files": {
     "includes": [
       "src/**/*.ts",
+      "!src/theme/vendor",
       "proof/**/*.ts",
       "scripts/**/*.ts",
       "tests/**/*.ts",

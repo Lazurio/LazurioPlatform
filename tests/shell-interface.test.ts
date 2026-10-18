@@ -1,12 +1,22 @@
 import { expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
-import { parseShell } from "../src/shell/contract";
+import {
+  parseShell,
+  type ShellThemeValues,
+  shellThemeColors,
+} from "../src/shell/contract";
 import { environmentCss } from "../src/shell/identity-styles";
 import { shellElementInterface } from "../src/shell/interface";
 import { shellMessages } from "../src/shell/messages";
 import { accountSourceOf } from "../src/shell/state";
 import { columnHeadCss, railCss } from "../src/shell/styles";
+import { environmentThemeCss } from "../src/shell/theme";
 import { columnHead, shellApps } from "../src/shell/view";
+
+/** One appearance of a theme: every promised colour name, one colour. */
+const themeValues = Object.fromEntries(
+  shellThemeColors.map((name) => [name, "#f0f0f0"]),
+) as ShellThemeValues;
 
 // Decision F36, addendum of 2026-10-04: the forks (T3 Code, MausBot) and the
 // Dashboard build on the elements' interface v1. A Launchpad release may add
@@ -22,7 +32,11 @@ import { columnHead, shellApps } from "../src/shell/view";
 // attributes `environment` and `lang`, and removed nothing; F36's addendum
 // of 2026-10-13 added what the script declares in the app's document
 // (`declares`: the fonts, the token names a fork may rely on and their
-// mark), and removed nothing.
+// mark), and removed nothing; F36's addendum of 2026-10-18 (root decision
+// 0208) added the Environment theme: `declares.environmentTheme` (its two
+// marks, `--lazurio-color-scheme` and the class `dark`), the host's
+// `data-lazurio-appearance` and the event `lazurio-theme`, and removed
+// nothing.
 
 test("the promised interface v1 is exactly this", () => {
   expect(JSON.parse(JSON.stringify(shellElementInterface))).toEqual({
@@ -36,10 +50,16 @@ test("the promised interface v1 is exactly this", () => {
       "lazurio-environment": ["environment", "lang", "space"],
     },
     active: ["chat", "apps", "automate", "settings"],
-    events: ["lazurio-navigate", "lazurio-app", "lazurio-new-tab"],
+    events: [
+      "lazurio-navigate",
+      "lazurio-app",
+      "lazurio-new-tab",
+      "lazurio-theme",
+    ],
     document: {
       "data-lazurio-shell": ["host"],
       "data-lazurio-account": ["host"],
+      "data-lazurio-appearance": ["device", "light", "dark"],
     },
     declares: {
       fonts: ["Inter Tight Variable", "Geist Mono"],
@@ -69,6 +89,11 @@ test("the promised interface v1 is exactly this", () => {
         "--lz-radius-sm",
       ],
       theme: { "data-lazurio-theme": ["light"] },
+      environmentTheme: {
+        marks: ["data-lazurio-environment-theme", "data-lazurio-theme-dark"],
+        properties: ["--lazurio-color-scheme"],
+        darkClass: "dark",
+      },
     },
     exports: [
       "provideShell",
@@ -188,14 +213,40 @@ test("the elements keep every promised name", async () => {
 });
 
 test("a host's document attributes and the script's exports are kept", async () => {
-  // The elements read each document attribute (`<html data-lazurio-…>`).
+  // The elements read each document attribute (`<html data-lazurio-…>`),
+  // but for the host's dark switch, which the theme's style reads.
   const source = await readFile("src/shell/elements.ts", "utf8");
   for (const attribute of Object.keys(shellElementInterface.document)) {
+    if (attribute === "data-lazurio-appearance") continue;
     const key = attribute
       .replace(/^data-/, "")
       .replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase());
     expect(source).toContain(`documentElement.dataset.${key}`);
   }
+  // The Environment theme's dark values hold where the host shows dark:
+  // `dark` always, `device` with the device, `light` never; and with the
+  // class `darkClass` (F36's addendum of 2026-10-18).
+  const dark = { ...themeValues, "--lz-surface": "#101010" };
+  const css = environmentThemeCss({
+    id: "example",
+    label: "Example",
+    revision: 1,
+    light: themeValues,
+    dark,
+  });
+  const { darkClass } = shellElementInterface.declares.environmentTheme;
+  expect(css).toContain(
+    `:root:is(.${darkClass}, [data-lazurio-appearance="dark"]) {`,
+  );
+  expect(css).toContain(
+    '@media (prefers-color-scheme: dark) {\n  :root[data-lazurio-appearance="device"] {',
+  );
+  expect(css).not.toContain('"light"]');
+  expect(shellElementInterface.document["data-lazurio-appearance"]).toEqual([
+    "device",
+    "light",
+    "dark",
+  ]);
   expect(shellElementInterface.document["data-lazurio-account"]).toEqual([
     "host",
   ]);
@@ -222,6 +273,20 @@ test("the script declares in the document what `declares` promises", async () =>
   expect(define).toContain("installShellTokens(document);");
   expect(await readFile("src/shell/index.ts", "utf8")).toContain(
     "\ndefineShellElements();",
+  );
+  // The Environment theme this origin remembers (F36's addendum of
+  // 2026-10-18), right after the tokens and before any element is defined,
+  // in the same synchronous call the script makes as it evaluates: a
+  // deferred module runs before the app's own later module, so the theme is
+  // there before the app's code. tests/shell-theme.test.ts holds what is
+  // declared.
+  const body = define.slice(0, define.indexOf("\n}\n"));
+  expect(body).not.toContain("await");
+  expect(body.indexOf("installShellTokens(document);")).toBeLessThan(
+    body.indexOf("theme.start();"),
+  );
+  expect(body.indexOf("theme.start();")).toBeLessThan(
+    body.indexOf("customElements.define"),
   );
 });
 

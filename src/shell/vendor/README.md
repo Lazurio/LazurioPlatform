@@ -54,7 +54,12 @@ and `tests/shell-tokens.test.ts` fails when a copy is anything but one `:root`
 rule of `--lz-*` custom properties, or lacks a promised name (dropping or
 renaming one is an interface change, decided and announced first, not a
 re-vendor). A changed value, a new name, or a change to a name nobody is
-promised needs no other edit.
+promised needs no other edit. Since F36's addendum of 2026-10-18 (root decision
+0208) the shell ends that text with one rule of its own, `:root {
+--lazurio-color-scheme: light; }`, the scheme of the values, and the
+Environment's theme gives the promised colour names other values over them; the
+theme Lazurio is this file's own values (`src/theme/palettes.ts`), so a new copy
+reaches it too.
 
 ## Module stones
 
