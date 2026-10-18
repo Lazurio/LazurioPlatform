@@ -478,7 +478,18 @@ posixTest(
         body: { reason: "module-unknown" },
       });
       expect((await local("notes", { host: loopback }, "POST")).code).toBe(405);
-      // A navigation (passed on, or no mode at all) is an Open.
+      // No mode at all, or an empty one, is no browser's navigation: it
+      // only reports, never an Open.
+      for (const headers of [
+        { host: loopback },
+        { host: loopback, "x-lazurio-fetch-mode": "" },
+      ])
+        expect(
+          await local("notes", headers),
+          JSON.stringify(headers),
+        ).toMatchObject({ code: 503, body: { state: "stopped" } });
+      expect(manager.commands("systemd-run")).toEqual([]);
+      // A navigation passed on is an Open; once running, every call is 204.
       expect(
         await local("notes", {
           host: loopback,
@@ -490,6 +501,109 @@ posixTest(
         code: 204,
         body: null,
       });
+      expect(manager.commands("systemd-run")).toHaveLength(1);
+    } finally {
+      expect(await app.close()).toEqual({ kind: "closed" });
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
+
+// Machines#633 (head 1c3b4e54), the local entry's twin of `lazurio_module`:
+// the request the Launchpad receives, header for header. Caddy's
+// `reverse_proxy 127.0.0.1:<port>` from loopback, `method GET`, `rewrite
+// /api/internal/hosted/modules/{args[2]}/ensure?`, `header_up Host
+// 127.0.0.1:<port>`, `-Origin`, `-Sec-Fetch-*`, `-Cookie`, `-Authorization`,
+// `-DPoP`, `-Connection`, `-Upgrade`, `-Sec-WebSocket-*`; the browser's other
+// headers pass (User-Agent, Accept, Client Hints, Caddy's X-Forwarded-*), and
+// `X-Lazurio-Fetch-Mode` carries the browser's Sec-Fetch-Mode only when it
+// sent one. Nothing of the browser's session or Fetch Metadata reaches it.
+function machines633(
+  entry: Entry,
+  mode: string | null,
+  extra: Record<string, string> = {},
+) {
+  const headers: Record<string, string> = {
+    host: `127.0.0.1:${entry.listenPort}`,
+    "user-agent":
+      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+    accept:
+      "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "accept-language": "cs-CZ,cs;q=0.9",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "sec-ch-ua": '"Chromium";v="155", "Not.A/Brand";v="99"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Linux"',
+    "upgrade-insecure-requests": "1",
+    priority: "u=0, i",
+    "x-forwarded-for": "127.0.0.1",
+    "x-forwarded-host": "notes.workspace.example.lazurio.io",
+    "x-forwarded-proto": "https",
+    ...(mode === null ? {} : { "x-lazurio-fetch-mode": mode }),
+    ...extra,
+  };
+  return fetch(
+    `http://127.0.0.1:${entry.listenPort}/api/internal/hosted/modules/notes/ensure?`,
+    { method: "GET", headers },
+  );
+}
+
+posixTest(
+  "Machines#633's exact readiness request: a navigation starts the module; no mode, a background mode or a socket only report; anything a browser adds is refused",
+  async () => {
+    const parent = await realpath(await mkdtemp(join(root, "m633-")));
+    const { folder, entry } = await hostedFolder(parent);
+    const port = await runnable(folder, "gamma", "notes");
+    const home = join(parent, "home");
+    await mkdir(home);
+    const manager = createFakeServiceManager({
+      runtimeDirectory: join(parent, "runtime"),
+    });
+    await mkdir(manager.runtimeDirectory);
+    const host = linuxHost(manager, home, port, binary);
+    const app = await startLaunchpad(
+      folder,
+      undefined,
+      undefined,
+      undefined,
+      { fetcher, ensureWaitMs: 10_000 },
+      undefined,
+      {},
+      undefined,
+      host,
+    );
+    const status = async (response: Promise<Response>) => {
+      const answer = await response;
+      await answer.body?.cancel();
+      return answer.status;
+    };
+    try {
+      // Without the browser's mode (curl in the Environment), with a
+      // background fetch, a WebSocket's mode or a module's subresource: 503,
+      // nothing starts.
+      for (const mode of [null, "cors", "no-cors", "same-origin", "websocket"])
+        expect(await status(machines633(entry, mode)), String(mode)).toBe(503);
+      expect(manager.commands("systemd-run")).toEqual([]);
+      // What the twin removes, if it ever arrived, sends the request through
+      // the admission, which it does not pass.
+      for (const extra of [
+        { origin: "https://notes.workspace.example.lazurio.io" },
+        { "sec-fetch-site": "same-origin" },
+        { "sec-fetch-mode": "navigate" },
+        { "sec-fetch-dest": "document" },
+      ])
+        expect(
+          await status(machines633(entry, "navigate", extra)),
+          JSON.stringify(extra),
+        ).toBe(401);
+      expect(manager.commands("systemd-run")).toEqual([]);
+      // The browser's top-level navigation: the module starts, 204.
+      expect(await status(machines633(entry, "navigate"))).toBe(204);
+      expect(manager.commands("systemd-run")).toHaveLength(1);
+      // Running: every call continues, nothing starts again.
+      for (const mode of [null, "cors", "navigate"])
+        expect(await status(machines633(entry, mode)), String(mode)).toBe(204);
       expect(manager.commands("systemd-run")).toHaveLength(1);
     } finally {
       expect(await app.close()).toEqual({ kind: "closed" });
@@ -831,7 +945,8 @@ test("a local ensure is only a loopback peer with a loopback Host of this listen
   // The browser's mode, passed on: only a navigation, or none, may start.
   const may = (headers: Record<string, string>) =>
     localEnsureMayStart(new Headers(headers));
-  expect(may({})).toBe(true);
+  expect(may({})).toBe(false);
+  expect(may({ [localEnsureModeHeader]: "" })).toBe(false);
   expect(may({ [localEnsureModeHeader]: "navigate" })).toBe(true);
   expect(may({ [localEnsureModeHeader]: "cors" })).toBe(false);
   expect(may({ [localEnsureModeHeader]: "websocket" })).toBe(false);

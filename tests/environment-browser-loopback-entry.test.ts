@@ -10,6 +10,8 @@ import {
   renderBrowserUnits,
 } from "../src/browser/units";
 import { parseMachineContext } from "../src/machine/context";
+import schema from "../src/machine/lazurio-machine.v1.schema.json";
+import provenance from "../src/machine/schema-provenance.json";
 import { handoverEntry, withBrowser } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 
@@ -143,4 +145,33 @@ test("the handover's local_port is the loopback entry; absent or out of range, n
       ),
     ),
   ).toBeUndefined();
+});
+
+test("the vendored schema is Machines #633's head: local_port, optional, a port of the entry's range", () => {
+  expect(provenance.source_pull_request).toBe(
+    "https://github.com/HumanAndMachine-ai/Machines/pull/633",
+  );
+  expect(provenance.source_commit).toBe(
+    "1c3b4e541ef4f85143306ce7567d9d22844c81a1",
+  );
+  const browser = (
+    schema as unknown as {
+      $defs: {
+        entry: {
+          properties: {
+            browser: {
+              required: string[];
+              properties: Record<string, Record<string, unknown>>;
+            };
+          };
+        };
+      };
+    }
+  ).$defs.entry.properties.browser;
+  expect(browser.required).toEqual(["external_origin", "listen_port"]);
+  expect(browser.properties.local_port).toMatchObject({
+    type: "integer",
+    minimum: 1024,
+    maximum: 65535,
+  });
 });

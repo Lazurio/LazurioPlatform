@@ -469,13 +469,15 @@ export function isLocalEnsure(
   return true;
 }
 
-/** Whether a local `ensure` may start a stopped app: as `ensureMayStart`,
- * with the browser's mode as the loopback entry passes it on
- * (`localEnsureModeHeader`). */
+/** Whether a local `ensure` may start a stopped app: only a navigation, as
+ * the loopback entry passes the browser's mode on (`localEnsureModeHeader`,
+ * Machines#633 sends it only when the browser sent `Sec-Fetch-Mode`). The
+ * Environment browser sends that with every request, so a call without it
+ * (or with an empty one) comes from no browser's navigation and only
+ * reports: unlike through the gateway, an absent mode is never an Open. */
 export function localEnsureMayStart(headers: Headers): boolean {
   if (headers.has("sec-websocket-key")) return false;
-  const mode = headers.get(localEnsureModeHeader);
-  return mode === null || mode === "navigate";
+  return headers.get(localEnsureModeHeader) === "navigate";
 }
 
 /** The status of an `ensure` answer, the only part of it the gateway reads

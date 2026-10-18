@@ -8335,10 +8335,11 @@ account open in the person's own browser. Sign-ins to other services stay as roo
    always sends Fetch Metadata, and the gateway sends the Launchpad's external Host, so neither a
    page in the Environment browser nor anything through the gateway is ever such a request.
    Everything else goes through the admission as before. The entry passes the browser's
-   `Sec-Fetch-Mode` on in `X-Lazurio-Fetch-Mode`, so a background request to a stopped module
-   only reports, as through the gateway; without it a request counts as a navigation, and a
-   WebSocket key never starts anything (`isLocalEnsure`, `localEnsureMayStart` in
-   `src/launchpad/server.ts`).
+   `Sec-Fetch-Mode` on in `X-Lazurio-Fetch-Mode`, only when the browser sent one
+   (Machines#633). Only `navigate` starts a stopped module. A background mode, an empty one,
+   none at all (a request no browser navigation made, such as `curl` inside the Environment)
+   and a WebSocket key only report: unlike through the gateway, an absent mode is never an
+   Open (`isLocalEnsure`, `localEnsureMayStart` in `src/launchpad/server.ts`).
 3. **Lazurio account pages are handed off to the person's own browser.** A Chrome policy that
    Machines manages blocks the pages that carry the person's account: `auth.lazurio.ai`,
    `dashboard.lazurio.ai`, the other Environments under `lazurio.io`, and this Environment's own
@@ -8372,13 +8373,15 @@ account open in the person's own browser. Sign-ins to other services stay as roo
    account (root decision 0178) in a Chrome of their own with its own temporary profile, never
    in the Environment browser (template revision `base-instructions-58`).
 
-**Waits on Machines.** Points 1 and 2 take effect where Machines runs the loopback entry and
-writes `entry.browser.local_port`; point 3 where it delivers the policy. Until then nothing
-changes for the browser's flags or the Launchpad's admission, and the sweep alone already keeps
-Lazurio sessions out of the profile: a person who signs in to Lazurio inside loses that session
-at the next view start. The vendored handover schema carries the member as a draft, marked
-pending in `schema-provenance.json` until the Machines pull request publishes it; it is replaced
-byte for byte before merge.
+**Waits on Machines.** Machines#633 builds the loopback entry (IPv4 `127.0.0.1:4443` only), its
+readiness call, the hand-off page on the bare host and `/oauth2/*`, and the managed policy in
+`/etc/opt/chrome_for_testing/policies/managed`. It writes `entry.browser.local_port` and the
+policy only for a Platform at least `PLATFORM_ENTRY_BROWSER_LOCAL_MINIMUM`, bound to the
+release that ships this addendum. Until then nothing changes for the browser's flags or the
+Launchpad's admission, and the sweep alone already keeps Lazurio sessions out of the profile:
+a person who signs in to Lazurio inside loses that session at the next view start. The vendored
+handover schema is byte for byte the head of Machines#633 (`1c3b4e54`), which adds only that
+member to #560's; it is re-pinned to #633's merge once it merges.
 
 | Failure | What happens |
 | --- | --- |
@@ -8395,9 +8398,9 @@ Lazurio sessions from being made; a public Environment is also wiped at least ni
 hand-off of a blocked page inside a subframe.
 
 Tests: `tests/environment-browser-loopback-entry.test.ts` (the name from the module origins, the
-rule, the unit with and without it, the handover member and its range);
-`tests/launchpad-ensure.test.ts` (the readiness call both ways through a real Launchpad, and the
-rule itself); `tests/environment-browser-view.test.ts` (the hand-off against the scripted
+rule, the unit with and without it, the handover member, its range and the #633 pin);
+`tests/launchpad-ensure.test.ts` (the readiness call both ways through a real Launchpad,
+Machines#633's exact request replayed header for header, and the rule itself); `tests/environment-browser-view.test.ts` (the hand-off against the scripted
 DevTools peer: only the policy's error, only the main frame, the loader's pairing, no
 navigation, the Network domain only while viewed; the sweep at every connection and the health
 answer); `tests/environment-browser-view-client.test.ts` (the notice in both languages and the
