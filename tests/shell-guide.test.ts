@@ -175,6 +175,7 @@ test("a host's explanations: kept as given, every refused entry left out, anythi
       id: "files-team",
       title: "Soubory",
       aboutBuddy: false,
+      docs: null,
       steps: [
         { text: "Soubor přetáhněte do chatu", sub: null, at: "tab-chat" },
         { text: "Číst a měnit je může celý Team", sub: "x", at: "files-list" },
@@ -205,6 +206,44 @@ test("a host's explanations: kept as given, every refused entry left out, anythi
   for (const withdrawn of [null, undefined, {}, "x", 1])
     expect(parseGuides(withdrawn)).toBeNull();
   expect(parseGuides([])).toEqual([]);
+});
+
+test("an explanation's documentation: Integrace's principle carries it in each language, a host's only as an https address", () => {
+  // The page's "Jak to funguje" moved into the card (F56's addendum of
+  // 2026-10-18): the principle "integrations" links its documentation.
+  for (const locale of locales) {
+    const docs = principleIn("integrations", locale, "work")?.docs ?? "";
+    expect(docs).toStartWith(
+      `https://documentation.lazurio.ai/${locale}/environment-app-connections/`,
+    );
+    expect(new URL(docs).protocol).toBe("https:");
+  }
+  // The other principles have none.
+  expect(
+    principleIds.filter((id) => principleIn(id, "cs", null)?.docs !== null),
+  ).toEqual(["integrations"]);
+  const own = {
+    id: "integrations-custom",
+    title: "Vlastní MCP servery",
+    steps: [{ text: "Krok", at: "mcp-list" }],
+    docs: "https://documentation.lazurio.ai/cs/environment-app-connections/?utm_source=launchpad",
+  };
+  expect(parseGuides([own])?.[0]?.docs).toBe(own.docs);
+  expect(parseGuides([{ ...own, docs: undefined }])?.[0]?.docs).toBeNull();
+  for (const docs of [
+    "http://documentation.lazurio.ai/cs/",
+    "javascript:alert(1)",
+    "https://user:secret@documentation.lazurio.ai/",
+    "/cs/environment-app-connections/",
+    "https://documentation.lazurio.ai/a b",
+    `https://documentation.lazurio.ai/${"a".repeat(2048)}`,
+    1,
+    "",
+  ])
+    expect({ docs, kept: parseGuides([{ ...own, docs }]) }).toEqual({
+      docs,
+      kept: [],
+    });
 });
 
 /** A shell document whose current Environment is of `kind`. */
@@ -521,6 +560,7 @@ test("the rules catch what they forbid", () => {
     id: "bad",
     title: "Launchpad",
     aboutBuddy: false,
+    docs: null,
     steps: [
       step("Toto je jen vaše Prostředí"),
       step("Váš laptop = jejich počítač"),
@@ -547,6 +587,7 @@ test("the rules catch what they forbid", () => {
       id: "kinds",
       title: "Automatizované Prostředí",
       aboutBuddy: false,
+      docs: null,
       steps: [step("Toto Prostředí Buddy", "Nesmíte {toto}")],
     }).map((line) => line.split(": ")[1]),
   ).toEqual([

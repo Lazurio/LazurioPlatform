@@ -35,6 +35,8 @@ const guideCss = `
 .quit { padding: 0; border: 0; background: transparent; color: var(--lz-ink-muted); font-size: 13px; cursor: pointer; }
 .quit:hover { color: var(--lz-ink); }
 .invite { color: var(--lz-ink); font-size: 13px; font-weight: var(--lz-weight-akce); }
+.docs { color: var(--lz-ink-muted); font-size: 13px; }
+.docs:hover { color: var(--lz-ink); }
 .primary { min-height: 32px; padding: 0 14px; border: 0; border-radius: var(--lz-radius-sm); background: var(--lz-accent-button); color: var(--lz-on-accent); font-size: 13px; font-weight: var(--lz-weight-akce); cursor: pointer; }
 .primary:hover { background: var(--lz-accent-button-hover); }
 @keyframes guide-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

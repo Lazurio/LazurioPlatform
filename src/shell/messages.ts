@@ -74,13 +74,16 @@ export type ShellCopy = Readonly<{
   /** The guide's card (decision F56): the step on, the last step, the way
    * out, the answer while Začínáme wants attention, the invitation at the
    * end of an explanation about Buddy for a person without one, and the
-   * neutral guide's name for assistive technology. */
+   * neutral guide's name for assistive technology; the link to an
+   * explanation's documentation at its last step (F56's addendum of
+   * 2026-10-18). */
   guideNext: string;
   guideDone: string;
   guideClose: string;
   guideBusy: string;
   guideInvite: string;
   guideName: string;
+  guideDocs: string;
 }>;
 
 /** One word per kind of `lazurio.shell.v1`. */
@@ -140,6 +143,7 @@ const en: ShellCopy = {
   guideBusy: "Finish Getting started first",
   guideInvite: "Get your Buddy",
   guideName: "Lazurio guide",
+  guideDocs: "Documentation",
 };
 
 const cs: ShellCopy = {
@@ -186,6 +190,7 @@ const cs: ShellCopy = {
   guideBusy: "Nejdřív dokončete Začínáme",
   guideInvite: "Založte si Buddyho",
   guideName: "Průvodce Lazuriem",
+  guideDocs: "Dokumentace",
 };
 
 export const shellMessages = (locale: KindLocale): ShellCopy =>

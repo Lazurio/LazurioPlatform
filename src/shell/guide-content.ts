@@ -38,6 +38,11 @@ export type GuideExplanation = Readonly<{
   /** It explains Buddy: a person without Buddy is invited to get one at its
    * last step. */
   aboutBuddy: boolean;
+  /** The documentation behind it, an https address: a quiet link in the
+   * card at its last step (the prototype's `docs`; decision F56's addendum
+   * of 2026-10-18), where a page's link to its documentation went; null for
+   * none. */
+  docs: string | null;
 }>;
 
 /** The marks the shell's own elements carry, which a step may name as it
@@ -91,7 +96,16 @@ type Principle = Readonly<{
   steps: readonly PrincipleStep[];
   /** The steps in a Personal Environment, where they differ. */
   personal?: readonly PrincipleStep[];
+  /** Its documentation in each language (`GuideExplanation.docs`). */
+  docs?: Words;
 }>;
+
+/** A page of Lazurio's documentation in each language, as the guide links
+ * it from any app (`utm_source=guide`). */
+const documentation = (page: string, campaign: string): Words => ({
+  cs: `https://documentation.lazurio.ai/cs/${page}/?utm_source=guide&utm_medium=product&utm_campaign=${campaign}`,
+  en: `https://documentation.lazurio.ai/en/${page}/?utm_source=guide&utm_medium=product&utm_campaign=${campaign}`,
+});
 
 const sharingBack: PrincipleStep = {
   text: {
@@ -239,6 +253,9 @@ const principles: readonly Principle[] = [
   {
     id: "integrations",
     title: { cs: "Integrace", en: "Integrations" },
+    // How Integrace work, the page's "Jak to funguje" before (F56's addendum
+    // of 2026-10-18): the card's documentation link.
+    docs: documentation("environment-app-connections", "app-connections"),
     steps: [
       {
         text: {
@@ -366,6 +383,7 @@ export function principleIn(
     id: principle.id,
     title: inKind(principle.title[locale], kind),
     aboutBuddy: principle.aboutBuddy === true,
+    docs: principle.docs?.[locale] ?? null,
     steps: Object.freeze(
       steps.map((step) =>
         Object.freeze({
@@ -414,12 +432,31 @@ function parseStep(value: unknown): GuideStep | null {
   return Object.freeze({ text: value.text, sub, at });
 }
 
+/** A documentation address a host hands over: an https URL with a host and
+ * no credentials, at most 2048 characters; the card opens it in a new tab. */
+function isDocs(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 2048) return false;
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      url.hostname !== "" &&
+      url.username === "" &&
+      url.password === "" &&
+      url.href === value
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** The explanations a host hands over for the page it shows
- * (`provideGuides`): a list of `{id, title, steps: [{text, sub?, at?}]}`.
- * An entry whose id is no id, names a principle or repeats an earlier one,
- * whose title is no display text, or whose steps are not 1 to four valid
- * steps is left out; members a later version may add are ignored. Null for
- * anything but a list: the host withdraws, and the guide is off. */
+ * (`provideGuides`): a list of `{id, title, steps: [{text, sub?, at?}],
+ * docs?}`. An entry whose id is no id, names a principle or repeats an
+ * earlier one, whose title is no display text, whose steps are not 1 to
+ * four valid steps, or whose `docs` is no https address is left out;
+ * members a later version may add are ignored. Null for anything but a
+ * list: the host withdraws, and the guide is off. */
 export function parseGuides(
   value: unknown,
 ): readonly GuideExplanation[] | null {
@@ -435,6 +472,8 @@ export function parseGuides(
       continue;
     const steps = entry.steps.map(parseStep);
     if (steps.some((step) => step === null)) continue;
+    const docs = entry.docs ?? null;
+    if (docs !== null && !isDocs(docs)) continue;
     seen.add(entry.id);
     kept.push(
       Object.freeze({
@@ -442,6 +481,7 @@ export function parseGuides(
         title: entry.title,
         steps: Object.freeze(steps as GuideStep[]),
         aboutBuddy: false,
+        docs,
       }),
     );
   }

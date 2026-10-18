@@ -938,26 +938,71 @@ guide's mark and a card beside it, and the layer lets every click through.
   explanations of the page it shows with `provideGuides([...])` on every move (null to
   withdraw), marks its elements with `data-guide` and its "?" with
   `data-guide-help="<id>"`. A "?" may name a principle (`environment`, `buddy`,
-  `reach`, `files`, `integrations`, `vault`) or one of the page's explanations. Without
-  that, the element draws and listens to nothing, as on the forks.
-- **The Launchpad** (`src/launchpad/guides.ts`, wired in `ui.ts`): on Soubory the "?"
-  (`#page-help`, in the breadcrumb after `#page-heading`) plays the principle `files`,
-  in a Team Environment the Launchpad's `files-team`; its words are in `messages.ts`
-  (`pageHelp`, `guideFilesTeam*`), its marks `nav-files` and `files-list`. Recovery mode
-  withdraws the guide. The tour (`tour.ts`) tells the guide whether it wants attention,
-  hides while the guide is out, and nudges its bubble when a "?" asks meanwhile; the
-  guide then draws nothing and only says "Nejdřív dokončete Začínáme" to assistive
-  technology.
+  `reach`, `files`, `integrations`, `vault`) or one of the page's explanations. An
+  explanation may carry `docs`, an https address the card links at its last step
+  ("Dokumentace", [F56's addendum of 2026-10-18](decisions.md#f56-addendum-of-2026-10-18-every-page-of-the-apps-column-has-its--and-loses-its-explaining-sentences)); the
+  principle `integrations` carries the documentation of Integrace. Without that, the
+  element draws and listens to nothing, as on the forks.
+- **The Launchpad** (`src/launchpad/guides.ts`, wired in `ui.ts`; [F56's addendum of
+  2026-10-18](decisions.md#f56-addendum-of-2026-10-18-every-page-of-the-apps-column-has-its--and-loses-its-explaining-sentences)): every page of the Apps column has its "?"
+  right after its heading (`pageHelpOf`): the header's `#page-help` after
+  `#page-heading` on Soubory and Trezor, `#catalog-help` beside the Apps home's heading
+  (catalog-panel.ts keeps it there as it draws the head) and `#integrations-page-help`
+  beside Integrace's title. Each starts hidden and shows once the page knows what it
+  plays; a module's overview and the Marketplace have none. `pageGuide(route, facts,
+  copy)` chooses from what the page knows (`PageGuideFacts`: the kind of the shell's
+  current Environment, whether Composio is allowed as Integrace read it, and the vault's
+  facts as Trezor read them), never an Organization's name (#499):
+  - Apps home and an Organization's Apps: the principle `environment`;
+  - Soubory: the principle `files`, in a Team Environment the Launchpad's `files-team`;
+  - Integrace: the principle `integrations`, where Composio is allowed the Launchpad's
+    `integrations-composio` (the person's own account, one Composio organization per
+    Organization, what the agents use, another account for other accounts), on Vlastní
+    and its form `integrations-custom`; the Launchpad's explanations carry the page's
+    documentation (`integrationsHelp`), which left the page's corner;
+  - Trezor (`vaultHelp`), only once the page read the vault's state: in a Personal
+    Environment, or wherever the vault is the
+    person's own Bitwarden, the principle `vault` (its Personal adaptation); where
+    nobody who enters is added to the vault (membership `not-managed` or
+    `sign-in-not-required`, so a Team or Automated Environment), where the person is no
+    member (no account or no master password yet, removed), and while that is not
+    known, the Launchpad's `vault-agents`, which promises no Bitwarden of one's own; where
+    the person is a member of the vault, or the Environment has no vault, the approved video
+    `vault-overview`, which the "?" opens in place (`page-help.ts`, `#vault-video`) with
+    the one line it does not say; nothing until the page read the vault's state. One
+    agent's request has no "?".
+
+  The panels report what the choice reads (`integrations.composio()` and
+  `vaultPage.facts`, each with a `drawn` hook), and `pageHelpStates` says what each
+  "?" shows, which ui.ts sets on the buttons. Escape leaves Settings only while the
+  guide explains nothing (`escapeLeavesSettings` in shell.ts, `guiding`): the shell's
+  listener comes before the guide's. The marks are `nav-files`,
+  `nav-integrations`, `nav-vault` (the column), `browser` (the corner's toggle),
+  `files-list`, `composio-apps` (the corner's Composio link), `vault-row` (the vault's
+  row, and the picture of a Personal Environment's connection), `vault-open` (the row's
+  actions), and those a panel draws once read (`drawnMarks`): `integration-on` and
+  `integration-connect` (the first connected app, the first Connect),
+  `mcp-list` and `mcp-add` (Vlastní). Words are in `messages.ts` (`pageHelp`,
+  `guideFilesTeam*`, `guideComposio*`, `guideCustom*`, `guideVaultAgents*`,
+  `vaultVideoLine`). Recovery mode withdraws the guide. The tour (`tour.ts`) tells the
+  guide whether it wants attention, hides while the guide is out, and nudges its bubble
+  when a "?" asks meanwhile; the guide then draws nothing and only says "Nejdřív
+  dokončete Začínáme" to assistive technology.
 - **Rules of a text** (`tests/fixtures/guide-text.ts`): at most four steps of at most
-  nine words, no full stop, never Launchpad, Dashboard, Mašina or VM, three kinds of
+  nine words, no full stop, never Launchpad, Dashboard, Mašina or VM, SSH, a tailnet or a
+  server (an MCP server is the name of a thing and passes), three kinds of
   Environment, never "jen vám/váš/vaše/pro vás", no sameness, nothing that forbids. A
   variant is chosen only by facts the page knows, never by an Organization's name
   (#499).
 - **Check it in a browser** (root decision 0178): `bun scripts/preview-launchpad.ts
-  hosted cs|en <port> owner [team]`, then Soubory at 1440 and 700 px, with and without
-  `prefers-reduced-motion`: the ring on the Chat tab and the Files item (in a Team
-  Environment the list), the steps, Escape returning the focus to the "?", and a page
-  with the shell and `<lazurio-buddy>` but no `provideGuides` drawing nothing. Tests:
+  hosted|personal cs|en <port> owner [team|automated|no-vault|composio-off]`, then every
+  page with its "?" at 1440 and 700 px, with and without `prefers-reduced-motion`: one
+  "?" right after the heading, the ring on each step's element (or the card in the
+  middle where it is not on the page), "Dokumentace" at the last step of Integrace,
+  Trezor's variant in a Work (the video, playing, with its line), Team and Automated
+  (`vault-agents`) and Personal (`vault`) Environment and without a vault (the video),
+  Escape returning the focus to the "?", the removed sentences absent, and a page with
+  the shell and `<lazurio-buddy>` but no `provideGuides` drawing nothing. Tests:
   `tests/shell-guide.test.ts`, `tests/shell-guide-protocol.test.ts`,
   `tests/launchpad-guide.test.ts`.
 
@@ -2446,8 +2491,11 @@ of the Apps column under Integrace since [F53's addendum of
 only where the Environment has a vault, [F53's addendum of
 2026-10-18 (3)](decisions.md#f53-addendum-of-2026-10-18-3-trezor-only-where-the-environment-has-a-vault)),
 is the way into the Environment's own vault, which is Lazurio Vaultwarden's web vault on its own
-address: the rule, one row with the vault's name and state, and the actions the person's
+address: one row with the vault's name and state, and the actions the person's
 membership decides ("Přidat položku" and "Otevřít trezor", or "Vytvořit účet v trezoru").
+The rule ("Kdo má přístup do Prostředí, má i jeho hesla") and how the vault works are
+the "?" beside its heading ([the guide](#the-guide-decision-f56), F56's addendum of
+2026-10-18), which plays what is true of this Environment's vault.
 The Launchpad never lists items or shows a value. The routes are
 `src/launchpad/vault-page-routes.ts` (`GET /api/vault`, `POST /api/vault/membership`),
 over the vault's core (`src/vault/flow.ts`, `src/vault/members.ts`); the page's pure part
@@ -2467,10 +2515,10 @@ the fake bw of `tests/fixtures/fake-vault.ts`.
 
 **An Environment without a vault** ([F53's addendum of
 2026-10-17](decisions.md#f53-addendum-of-2026-10-17-an-environment-without-a-vault-explains-the-vault))
-says why in the page's line and explains the vault under it: the group "Jak trezor
-funguje" (`#vault-explainer`) with the guide video `vault-overview`, its player there from
-the start at its poster, and three sentences on how a vault works in an Organization.
-The line depends on the vault's reason (`vaultPageView`'s `note` and `explainer`): a
+says why in the page's line; how a vault works in an Organization is the guide video
+`vault-overview`, which the "?" beside the heading opens in place (since F56's addendum of
+2026-10-18 the page no longer has the group "Jak trezor funguje").
+The line depends on the vault's reason (`vaultPageView`'s `note`): a
 public Organization's Environment, whose handover names no tailnet (`no-tailnet`), has
 none on purpose, since the Organization is a public demo; any other (`no-vault`) is not
 set up yet, and the Organization's Admin sets it up. A public Environment (F55) still has
@@ -2595,10 +2643,13 @@ language's, paused. The pure part, `guideVideoPlayer`, decides the markup and th
 (`tests/launchpad-guide-video.test.ts`). Apps → Trezor mounts it in
 `#vault-bitwarden-video` at the top of "V Codex Desktopu a ve vašem prohlížeči"
 (`vault-page-panel.ts`, hidden for a personal Environment's own Bitwarden, whose steps
-differ). Apps → Trezor of an Environment without a vault mounts `vault-overview`
-in `#vault-explainer-video` with `open`: there the video is the section's own content, so
-its player is there from the start, paused at its poster (nothing else of it loads before
-it plays), mounted the first time the section shows.
+differ). Trezor's "?", where its words are true of the Environment's vault (an Organization's
+vault the person is in, or no vault here; [the guide](#the-guide-decision-f56)), mounts
+`vault-overview` in `#vault-video-player` with `open` the first time it is pressed
+(`src/launchpad/page-help.ts`): the box `#vault-video` opens under the page's heading, the
+press plays the video (with less motion it waits at its poster), the line under it
+(`vaultVideoLine`) says what the video does not, and the "?" again, Escape or the page
+moving on closes it, the focus back on the "?".
 
 The files are `src/launchpad/videos/<name>-<cs|en>.mp4` and their posters
 `<name>-<cs|en>.webp`, embedded in the executable with `{ type: "file" }` like the shell's
@@ -2705,8 +2756,8 @@ the Launchpad builds no viewer of its own.
   right corner, the wireframe's `apps-corner` ([F47's addendum of 2026-10-12,
   evening](decisions.md#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview)):
   one toggle in the same place on every page, Settings, Files and a module's information
-  page included, after the page's help link (the Guide on the Apps home, "Jak to
-  funguje" on Integrace, none elsewhere); only its icon below 768 px. Pressed, it takes
+  page included, after the Guide on the Apps home (Integrace's "Jak to funguje" is the
+  guide's card's since F56's addendum of 2026-10-18); only its icon below 768 px. Pressed, it takes
   the quiet surface, and it stays in the corner while the panel is open (the wireframe
   hid it then; Matěj's call of 2026-10-12); a click on it closes the panel. The corner is
   the page's, left of the panel, so the panel beside the page never covers it; when the
@@ -2828,9 +2879,9 @@ the Launchpad builds no viewer of its own.
   widths, the step aside and back, the keys, the stored layout); how it looks and moves
   belongs to a check in a browser. The controls in the page's corners (2026-10-12,
   evening) are pinned by `tests/launchpad-page-corners.test.ts` (the one Browser toggle
-  in the corner after the page's help link, outside every view and head; the column's
+  in the corner after the Apps home's Guide, outside every view and head; the column's
   toggle in the band on top of the column with the vendored lockup, above the column
-  head, at the page's top left and in the strip; heads with their titles only;
+  head, at the page's top left and in the strip; heads with their titles and their "?" only;
   Integrace's search and refresh with the tabs) and were checked in
   Chrome against the hosted preview in Czech and English at 1440×900, 900×900 and
   390×844: the Apps home, Integrace, the Marketplace, every section of Settings, Files

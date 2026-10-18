@@ -6,13 +6,15 @@ import { join } from "node:path";
 // 2026-10-12, evening; the wireframe's apps-corner). One Browser toggle,
 // which browser-panel.ts collects once by its class as it starts, shows
 // where the panel is offered and presses while the panel is open, stands in
-// the top right corner after the page's help link. The corner is the page's,
+// the top right corner after the Apps home's Guide. The corner is the page's,
 // left of the panel, outside every view and head, so the toggle is drawn
 // wherever the page is, stays in view beside the open panel, and the focus
 // can always come back to it. The column's toggle stands in the band on top
 // of the column with the Lazurio lockup (Matěj 2026-10-17), one at the page's
 // top left while the column is hidden, and the panel strip's while the page
-// steps aside. Page heads hold only their titles, and
+// steps aside. Page heads hold only their titles and the "?" right after
+// them (decision F56, tests/launchpad-guide.test.ts): Integrace's "Jak to
+// funguje" moved into the guide's card (its addendum of 2026-10-18), and
 // Integrace keep their search and refresh with the tabs. How it looks and
 // moves, and the focus, are checked in a browser, not here (root decision
 // 0178).
@@ -117,18 +119,16 @@ test("one Browser toggle, in the page's top right corner, as browser-panel.ts fi
   }
 });
 
-test("the corner holds the page's help link by its frame: the Guide on the Apps home and Jak to funguje on Integrace, then the toggle", () => {
+test("the corner holds the Guide on the Apps home and Integrace's Composio link, then the toggle; Jak to funguje is the guide's card's now", () => {
   const corner = byId("page-corner");
   expect(
     childrenOf(corner).map(
       (node) => node.attributes.get("id") ?? classes(node).join(" "),
     ),
-  ).toEqual([
-    "catalog-guide",
-    "integrations-composio",
-    "integrations-help",
-    "ghost browser-toggle",
-  ]);
+  ).toEqual(["catalog-guide", "integrations-composio", "ghost browser-toggle"]);
+  expect(
+    elements.some((node) => node.attributes.get("id") === "integrations-help"),
+  ).toBe(false);
   // "Aplikace v Composiu" beside Jak to funguje (decision F42, addendum of
   // 2026-10-14): Integrace only, a new tab of the person's browser, hidden
   // until the reading carries Composio's Apps (integrations-panel.ts render).
@@ -142,7 +142,6 @@ test("the corner holds the page's help link by its frame: the Guide on the Apps 
   expect(says(composio, "integrationsComposioApps")).toBe(true);
   for (const [id, frame, word] of [
     ["catalog-guide", "catalog", "appsGuide"],
-    ["integrations-help", "integrations", "integrationsHelp"],
   ] as const) {
     const link = byId(id);
     expect(link.tag).toBe("a");
@@ -153,7 +152,7 @@ test("the corner holds the page's help link by its frame: the Guide on the Apps 
   }
 });
 
-test("page heads hold only their titles: no toggle, help link, search or refresh in the head of any page", () => {
+test("page heads hold only their titles and their '?': no toggle, help link, search or refresh in the head of any page", () => {
   const heads = [
     byId("catalog-head"),
     only("market-head"),
@@ -164,14 +163,11 @@ test("page heads hold only their titles: no toggle, help link, search or refresh
     (node) =>
       classes(node).includes("column-toggle") ||
       classes(node).includes("browser-toggle") ||
-      [
-        "catalog-guide",
-        "integrations-help",
-        "integrations-search",
-        "integrations-refresh",
-      ].includes(node.attributes.get("id") ?? ""),
+      ["catalog-guide", "integrations-search", "integrations-refresh"].includes(
+        node.attributes.get("id") ?? "",
+      ),
   );
-  expect(controls).toHaveLength(8);
+  expect(controls).toHaveLength(7);
   for (const head of heads)
     for (const control of controls) expect(inside(control, head)).toBe(false);
 });

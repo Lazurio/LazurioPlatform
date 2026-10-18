@@ -58,12 +58,13 @@ import {
   startSection,
   type TourFacts,
 } from "./first-run";
-import { pageGuide } from "./guides";
+import { type PageHelpId, pageGuide, pageHelpStates } from "./guides";
 import { createIntegrationsPanel } from "./integrations-panel";
 import { createColumn, keepCornerFree } from "./layout";
 import { environmentFacts, type Fact, type MachineView } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
 import { moduleCopy } from "./module-view";
+import { createHelpVideo } from "./page-help";
 import { isPublicEnvironment, publicRoute } from "./public-environment";
 import { createRecoveryPanel } from "./recovery-panel";
 import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
@@ -186,22 +187,57 @@ if (shellDocument !== null) provideShell(withAppsTheme(shellDocument));
 defineShellElements();
 const columnHead = document.querySelector<HTMLElement>("#column-head");
 const rail = document.querySelector<HTMLElement>("#rail");
-// The shell's guide (decision F56, guides.ts): the "?" beside the page's
-// heading and the explanations of the page shown, in the page's language
-// and for the Environment's kind; none in Recovery mode.
-const pageHelp = document.querySelector<HTMLButtonElement>("#page-help");
+// The shell's guide (decision F56 and its addendum of 2026-10-18,
+// guides.ts): the "?" right after the page's heading (the header's on
+// Settings, Soubory and Trezor; the Apps home's and Integrace's in their own
+// heads) and the explanations of the page shown, in the page's language and
+// chosen by what the page knows; none in Recovery mode. Where Trezor's "?"
+// opens the approved video instead, the page plays it in place
+// (page-help.ts).
+const pageHelps = Object.fromEntries(
+  (["page-help", "catalog-help", "integrations-page-help"] as const).map(
+    (id) => [id, document.querySelector<HTMLButtonElement>(`#${id}`)],
+  ),
+) as Readonly<Record<PageHelpId, HTMLButtonElement | null>>;
 const buddy = document.querySelector<HTMLElement>("#buddy");
 // Recovery mode ends the guide for the page's life (`enterRecovery`).
 let guideOff = false;
+/** The "?" of the page now shown when it opens a video (Trezor's). */
+let videoHelp: HTMLButtonElement | null = null;
 function drawGuide(route: PageRoute) {
-  const guide = pageGuide(route, kindOf(shellDocument), copy);
+  const guide = pageGuide(
+    route,
+    {
+      kind: kindOf(shellDocument),
+      locale,
+      composio: integrations.composio(),
+      vault: vaultPage.facts,
+    },
+    copy,
+  );
   provideGuides(guideOff ? null : guide.guides);
   buddy?.setAttribute("lang", locale);
-  if (pageHelp === null) return;
-  pageHelp.hidden = guide.help === null || guideOff;
-  if (guide.help !== null) pageHelp.dataset.guideHelp = guide.help;
-  pageHelp.setAttribute("aria-label", copy.pageHelp);
-  pageHelp.title = copy.pageHelp;
+  const states = pageHelpStates(route, guide, guideOff);
+  videoHelp = null;
+  for (const id of Object.keys(pageHelps) as PageHelpId[]) {
+    const help = pageHelps[id];
+    if (help === null) continue;
+    const state = states[id];
+    help.hidden = state.hidden;
+    if (state.plays !== null) help.dataset.guideHelp = state.plays;
+    else delete help.dataset.guideHelp;
+    if (state.controls !== null) {
+      videoHelp = help;
+      help.setAttribute("aria-controls", state.controls);
+      help.setAttribute("aria-expanded", String(vaultVideo.open));
+    } else {
+      help.removeAttribute("aria-controls");
+      help.removeAttribute("aria-expanded");
+    }
+    help.setAttribute("aria-label", copy.pageHelp);
+    help.title = copy.pageHelp;
+  }
+  if (videoHelp === null) vaultVideo.close();
 }
 // The documentation of the Launchpad's "Guide" (the root Launchpad's
 // `guideDocumentationUrl`), in the page's language.
@@ -922,6 +958,10 @@ const integrations = createIntegrationsPanel({
     shellDocument !== null && shellDocument.organizations.length === 1
       ? (shellDocument.organizations[0]?.dashboard ?? null)
       : null,
+  // Whether Composio is allowed chooses what Integrace's "?" plays.
+  drawn: () => {
+    if (framed) drawGuide(shell.route());
+  },
 });
 // Settings → Recovery, and in Recovery mode the whole page
 // (docs/recovery.md "The Recovery page"): read on first view, never written.
@@ -969,7 +1009,34 @@ const vaultPage = createVaultPagePanel({
   copy: () => copy,
   chat: () => chatHref(entry),
   shown: () => (framed ? shell.route().view === "vault" : false),
+  // What it read chooses what Trezor's "?" plays (#499).
+  drawn: () => {
+    if (framed) drawGuide(shell.route());
+  },
 });
+// Trezor's "?" where the approved video of how a vault works is true of
+// this Environment (guides.ts `vaultHelp`): the video in place, under the
+// page's heading (page-help.ts).
+const vaultVideoBox = document.querySelector<HTMLElement>("#vault-video");
+const vaultVideoSlot = document.querySelector<HTMLElement>(
+  "#vault-video-player",
+);
+const vaultVideo =
+  vaultVideoBox === null || vaultVideoSlot === null
+    ? { toggle() {}, close() {}, open: false, render() {} }
+    : createHelpVideo({
+        box: vaultVideoBox,
+        slot: vaultVideoSlot,
+        line: "vault-video-line",
+        name: "vault-overview",
+        title: () => copy.vaultExplainerTitle,
+        copy: () => copy,
+        locale: () => locale,
+      });
+for (const help of Object.values(pageHelps))
+  help?.addEventListener("click", () => {
+    if (help === videoHelp) vaultVideo.toggle(help);
+  });
 // Apps → Trezor: the agents' secret requests (decision F54), the section of
 // those that wait and one request's page; read when shown.
 const vaultRequests = createVaultRequestsPanel({
@@ -1023,6 +1090,9 @@ const shell = createShell({
   displayName: (organization) => catalog.displayName(organization),
   // A public Environment has no Integrace and no Trezor (decision F55).
   place: (route) => (isPublicEnvironment(entry) ? publicRoute(route) : route),
+  // Escape is the guide's while it explains a page (decision F56): it
+  // closes the explanation and the page stays.
+  guiding: () => guideAttention.playing() !== null,
   onRoute: (route) => {
     // The switch marks Apps, the gear Settings (the Organization rail).
     columnHead?.setAttribute(
@@ -1183,6 +1253,7 @@ function relabel() {
   ssh.render();
   theme.render();
   vaultPage.render();
+  vaultVideo.render();
   vaultRequests.relabel();
   files.relabel();
   integrations.relabel();

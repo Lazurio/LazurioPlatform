@@ -172,7 +172,6 @@ test("the links lead into the network's vault by the vault's exact ids, and nowh
 test("a member adds and opens; without an account only the sign-in, and only where the vault takes it", () => {
   const view = vaultPageView(model(connected()), member, cs);
   expect(view).toMatchObject({
-    rule: true,
     note: null,
     row: { title: facts.name, line: "12 položek", tone: "ok" },
     hint: null,
@@ -321,7 +320,6 @@ test("this computer says so in one line; a 0197 pilot opens its collection; a Te
       cs,
     ),
   ).toEqual({
-    rule: false,
     note: "Trezor na tomto počítači není.",
     row: null,
     actions: [],
@@ -330,7 +328,6 @@ test("this computer says so in one line; a 0197 pilot opens its collection; a Te
     connect: null,
     invite: false,
     disconnect: false,
-    explainer: false,
   });
   const pilot = vaultPageView(
     model({
@@ -381,13 +378,10 @@ test("this computer says so in one line; a 0197 pilot opens its collection; a Te
       reason: "sign-in-not-required",
     }),
   ).toEqual({ kind: "unknown", reason: "sign-in-not-required" });
-  // The rule, in both languages.
-  expect(cs.vaultPageRule).toBe(
-    "Kdo má přístup do Prostředí, má všechna jeho hesla.",
-  );
-  expect(en.vaultPageRule).toBe(
-    "Whoever has access to the Environment has all of its passwords.",
-  );
+  // The rule is the "?"'s now (decision F56's addendum of 2026-10-18,
+  // tests/launchpad-guide.test.ts), not a sentence of the page.
+  expect(Object.hasOwn(cs, "vaultPageRule")).toBe(false);
+  expect(Object.hasOwn(en, "vaultPageRule")).toBe(false);
 });
 
 test("a ready own vault says how it is used: tell the agent in Chat, the value is asked for here; a pilot, a vault not ready and a page not read yet do not", () => {
@@ -471,7 +465,6 @@ test("a personal Environment waiting for its person shows the section with the v
     cs,
   );
   expect(waiting).toMatchObject({
-    rule: false,
     note: null,
     row: null,
     actions: [],
@@ -505,7 +498,6 @@ test("a personal Environment waiting for its person shows the section with the v
   ) => vaultPageView(model(status), person, copy);
   // Connected, nobody invited yet: one line, and the invitation.
   expect(view(known("not-invited"))).toEqual({
-    rule: true,
     note: null,
     row: { title: "Osobní example", line: "3 položky", tone: "ok" },
     actions: [],
@@ -514,7 +506,6 @@ test("a personal Environment waiting for its person shows the section with the v
     connect: null,
     invite: true,
     disconnect: true,
-    explainer: false,
   });
   expect(view(known("not-invited"), bitwarden, en).hint).toBe(
     "Your Bitwarden is connected.",
@@ -627,7 +618,6 @@ test("a personal Environment waiting for its person shows the section with the v
       en,
     ),
   ).toMatchObject({
-    rule: false,
     note: "Your Bitwarden's connection cannot be read; disconnect it and connect it again.",
     disconnect: true,
     connect: null,
@@ -704,7 +694,7 @@ test("the connection's words: the title, the picture of the vault, one line, two
   ];
   expect(words(cs)).toEqual([
     "Hesla pro agenty ve vašem Bitwardenu",
-    "Agenti dostanou vlastní účet. Ten váš zůstane jen pro vás.",
+    "Agenti dostanou vlastní účet a do toho vašeho nevidí.",
     "Váš Bitwarden",
     "Agenti",
     "v tomto Prostředí",
@@ -719,7 +709,7 @@ test("the connection's words: the title, the picture of the vault, one line, two
   ]);
   expect(words(en)).toEqual([
     "Your agents' passwords in your Bitwarden",
-    "Your agents get their own account. Yours stays yours.",
+    "Your agents get their own account and can't see into yours.",
     "Your Bitwarden",
     "Agents",
     "in this Environment",
@@ -1545,13 +1535,14 @@ test("no step asks the person to compose their address, whatever the answer", ()
   expect(checked).toBeGreaterThan(100);
 });
 
-// Nastavení → Trezor of an Environment without a vault (DEV-6631, F53's
-// addendum of 2026-10-17): in place of the vault, why this Environment has
-// none, and how a vault works in an Organization, with its guide video. A
-// public Organization's Environment has none on purpose (`no-tailnet`); any
-// other's is not set up yet and its Organization's Admin sets it up
-// (`no-vault`).
-test("an Environment without a vault explains the vault: none on purpose in a public Organization, set up by the Organization's Admin anywhere else", () => {
+// An Environment without a vault (DEV-6631, F53's addendum of 2026-10-17):
+// one line says why it has none, in place of the vault. A public
+// Organization's Environment has none on purpose (`no-tailnet`); any other's
+// is not set up yet and its Organization's Admin sets it up (`no-vault`).
+// How a vault works in an Organization is the approved video the page's "?"
+// plays in place (decision F56's addendum of 2026-10-18,
+// tests/launchpad-guide.test.ts), no longer a section of the page.
+test("an Environment without a vault says why: none on purpose in a public Organization, set up by the Organization's Admin anywhere else", () => {
   const unsupported = (
     reason: Extract<VaultStatus, { state: "unsupported" }>["reason"],
   ) =>
@@ -1560,7 +1551,6 @@ test("an Environment without a vault explains the vault: none on purpose in a pu
       { environment: null },
     );
   const nothingElse = {
-    rule: false,
     row: null,
     actions: [],
     hint: null,
@@ -1568,7 +1558,6 @@ test("an Environment without a vault explains the vault: none on purpose in a pu
     connect: null,
     invite: false,
     disconnect: false,
-    explainer: true,
   };
   for (const [copy, none, notSetUp] of [
     [
@@ -1591,37 +1580,13 @@ test("an Environment without a vault explains the vault: none on purpose in a pu
       note: notSetUp,
     });
   }
-  // How a vault works: the section's heading, which is also its video's
-  // title, and its sentences, in both languages.
-  expect([cs.vaultExplainerTitle, cs.vaultExplainerText]).toEqual([
+  // The video's title, its accessible name, in both languages; its
+  // sentences are gone from the page and the words.
+  expect([cs.vaultExplainerTitle, en.vaultExplainerTitle]).toEqual([
     "Jak trezor funguje",
-    "V Organizaci má každé Prostředí vlastní trezor. Lidé do něj sdílejí hesla ze svého Bitwardenu a agenti v Prostředí je použijí bez ptaní. Sdílení můžete kdykoli vzít zpět.",
-  ]);
-  expect([en.vaultExplainerTitle, en.vaultExplainerText]).toEqual([
     "How the vault works",
-    "In an Organization, every Environment has its own vault. People share passwords with it from their own Bitwarden, and the Environment's agents use them without asking. You can take the sharing back at any time.",
   ]);
-  // Nothing to explain while the page is read, where the Environment has a
-  // vault or waits for its person's Bitwarden, on this computer, or where
-  // its own state cannot be read.
-  expect(vaultPageView(null, null, cs).explainer).toBe(false);
-  for (const reason of [
-    "workstation",
-    "folder-unreadable",
-    "handover-missing",
-    "handover-unreadable",
-    "not-operator",
-    "connection-unreadable",
-  ] as const)
-    expect(vaultPageView(unsupported(reason), null, cs).explainer).toBe(false);
-  expect(vaultPageView(model(connected()), member, cs).explainer).toBe(false);
-  expect(
-    vaultPageView(
-      model({ kind: "vault-status", state: "needs-connection" }),
-      null,
-      cs,
-    ).explainer,
-  ).toBe(false);
+  expect(Object.hasOwn(cs, "vaultExplainerText")).toBe(false);
 });
 
 test("no steps where the person has no vault to add here: this computer, no vault yet, a personal Environment's Bitwarden not connected, a Team or Automated Environment, a vault only its agents use", () => {
