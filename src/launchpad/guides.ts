@@ -56,14 +56,16 @@ export type PageGuide = Readonly<{
 
 /** What Trezor's "?" plays (#499): the shell's principle `vault`, which a
  * Personal Environment hears as its own Bitwarden with the agents' own
- * account in it; the Launchpad's `vault-agents`, where nobody who enters is
- * added to the vault and so nobody shares into it from their own Bitwarden
- * (a Team or Automated Environment, a network whose vault takes no Lazurio
- * sign-in yet), and while that is not known; or the approved video of how a
- * vault works in an Organization (`video`), where the person is added to
- * the vault and can share into it, or where this Environment has no vault
- * (and where the core answers a fault: the video is true there too). Null
- * until the page read the vault's state: the "?" waits. */
+ * account in it; the approved video of how a vault works in an Organization
+ * (`video`), where the person is a member of the vault and so shares into
+ * it from their own Bitwarden, or where this Environment has no vault (and
+ * where the core answers a fault: the video is true there too); and the
+ * Launchpad's `vault-agents` everywhere else that has a vault: where nobody
+ * who enters is added (a Team or Automated Environment, a network whose
+ * vault takes no Lazurio sign-in yet), where the person is no member (no
+ * account or no master password yet, removed in the vault), and while that
+ * is not known. Null until the page read the vault's state, in every kind
+ * of Environment: the "?" waits. */
 export type VaultHelp = "vault" | "vault-agents" | "video" | null;
 
 /** The facts Trezor's variant is chosen from, as Apps → Trezor reads them:
@@ -83,13 +85,15 @@ export function vaultHelp(
   kind: ShellEnvironmentKind | null,
   facts: VaultGuideFacts,
 ): VaultHelp {
-  // A Personal Environment: the person's own Bitwarden, the agents' own
-  // account in it (the shell plays the principle's adaptation by the kind).
-  if (kind === "personal") return "vault";
+  // Nothing before the page read the vault's state, a Personal
+  // Environment's too.
   const read = facts.vault;
   if (read === null) return null;
   const { status, environment } = read;
+  // A Personal Environment: the person's own Bitwarden, the agents' own
+  // account in it (the shell plays the principle's adaptation by the kind).
   if (
+    kind === "personal" ||
     environment === "personal" ||
     status.state === "needs-connection" ||
     (status.state === "unsupported" &&
@@ -100,11 +104,13 @@ export function vaultHelp(
   // No vault here (none yet, none by design, this computer): how a vault
   // works in an Organization.
   if (status.state === "unsupported") return "video";
-  // The vault adds the people who enter: they share into it from their own
-  // Bitwarden.
-  if (facts.person?.kind === "known") return "video";
-  // Nobody is added (a Team or Automated Environment, a vault that takes no
-  // Lazurio sign-in yet), or that is not known yet: only what is true
+  // A member of the vault: people share into it from their own Bitwarden,
+  // and this person does.
+  if (facts.person?.kind === "known" && facts.person.state === "member")
+    return "video";
+  // No member (no account or no master password yet, removed in the
+  // vault), nobody added (a Team or Automated Environment, a vault that
+  // takes no Lazurio sign-in yet), or not known yet: only what is true
   // without it.
   return "vault-agents";
 }
@@ -209,6 +215,38 @@ export function pageHelpOf(route: PageRoute): PageHelpId | null {
     default:
       return null;
   }
+}
+
+/** What each "?" of the page shows for a route (ui.ts sets it on the
+ * buttons): hidden unless it is the route's and the page knows what it
+ * plays; the explanation its click plays in the guide (`data-guide-help`),
+ * or the video it opens in place (`aria-controls`). In Recovery mode
+ * (`off`) none shows. */
+export type PageHelpState = Readonly<{
+  hidden: boolean;
+  plays: string | null;
+  controls: "vault-video" | null;
+}>;
+
+export function pageHelpStates(
+  route: PageRoute,
+  guide: PageGuide,
+  off: boolean,
+): Readonly<Record<PageHelpId, PageHelpState>> {
+  const mine = off ? null : pageHelpOf(route);
+  const state = (id: PageHelpId): PageHelpState =>
+    id !== mine || (guide.help === null && guide.video === null)
+      ? { hidden: true, plays: null, controls: null }
+      : {
+          hidden: false,
+          plays: guide.help,
+          controls: guide.video === null ? null : "vault-video",
+        };
+  return {
+    "page-help": state("page-help"),
+    "catalog-help": state("catalog-help"),
+    "integrations-page-help": state("integrations-page-help"),
+  };
 }
 
 /** The marks a step may name that a panel draws once its data is read, not
