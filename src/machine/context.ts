@@ -61,6 +61,9 @@ export type OrganizationAssignment =
 // person's sign-out, which the gateway serves on the shell's origins.
 // `audience` (root decision 0204, Machines #560, decision F55) only on a work
 // VM whose gateway admits any Lazurio account: its Environment is public.
+// `browser.local_port` (LazurioPlatform#504, F39's addendum of 2026-10-18)
+// only where the gateway runs its loopback entry for the Environment browser,
+// which serves the Environment's own apps without a sign-in.
 export type MachineEntry = Readonly<{
   launchpad: Readonly<{
     external_origin: string;
@@ -71,7 +74,11 @@ export type MachineEntry = Readonly<{
   t3code: Readonly<{ external_origin: string }>;
   modules: Readonly<{ origin_template: string }>;
   mausbot?: Readonly<{ external_origin: string; listen_port: number }>;
-  browser?: Readonly<{ external_origin: string; listen_port: number }>;
+  browser?: Readonly<{
+    external_origin: string;
+    listen_port: number;
+    local_port?: number;
+  }>;
   environment_relay?: Readonly<{ socket: string }>;
   sign_out?: Readonly<{ path: string }>;
   audience?: "public";

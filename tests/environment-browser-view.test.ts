@@ -29,6 +29,7 @@ import {
 } from "../src/browser/people/extension";
 import {
   BrowserHub,
+  type HubSeams,
   jpegSize,
   pictureFrames,
   screencastFor,
@@ -326,6 +327,8 @@ async function serve(
     holds?: () => Promise<Holds>;
     /** How the shell names the Environment, for the page. */
     identity?: (() => Promise<EnvironmentIdentity | null>) | undefined;
+    /** The cookie sweep at each connection (#504). */
+    sweepCookies?: HubSeams["sweepCookies"];
   } = {},
 ) {
   root = await realpath(await mkdtemp(join(tmpdir(), "people-view-")));
@@ -344,6 +347,9 @@ async function serve(
     identity: options.identity,
     hub: {
       connect: browser.connect,
+      ...(options.sweepCookies === undefined
+        ? {}
+        : { sweepCookies: options.sweepCookies }),
       holds:
         options.holds ??
         (async () => {
@@ -836,7 +842,11 @@ test("the service refuses another host and a socket from another origin end to e
     "frame-ancestors",
   );
   const health = await fetch(`${base}/.lazurio/health`);
-  expect(await health.json()).toEqual({ ok: true, browser: "connected" });
+  expect(await health.json()).toEqual({
+    ok: true,
+    browser: "connected",
+    github: null,
+  });
   await expect(
     person(base, id(1), {
       Host: host,
@@ -1177,6 +1187,145 @@ test("a page that can reach its opener is a pop-up; one that cannot is a new tab
     { t: "new-tab", id: id(3), url: "https://example.com/doc" },
   ]);
   view.socket.close();
+});
+
+// ---- The hand-off to the person's own browser (#504) --------------------------
+
+// F39's addendum of 2026-10-18: the browser's policy (Machines) blocks the
+// pages of a person's Lazurio account, and Chrome commits an error page that
+// names the failed navigation's loader. Only that failure, by its DevTools
+// error text, is offered to the viewer's own browser; the view never opens it
+// inside. The event shapes are Chrome 155's (scripts/proof-browser-loopback-entry.ts).
+test("a navigation the browser's policy blocks is offered to the viewer's own browser, never opened inside; other failures are not", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { base } = await serve(browser);
+  const session = `S-${id(1)}`;
+  // Nobody views the tab: the Network domain stays off.
+  await until(() => browser.called("Page.enable").length > 0);
+  expect(browser.called("Network.enable")).toEqual([]);
+  const view = await person(base, id(1));
+  await until(() => browser.called("Network.enable").length > 0);
+  // Nothing of the pages' bodies is kept for it.
+  expect(browser.called("Network.enable")).toEqual([
+    {
+      method: "Network.enable",
+      params: {
+        maxTotalBufferSize: 0,
+        maxResourceBufferSize: 0,
+        maxPostDataSize: 0,
+      },
+      sessionId: session,
+    },
+  ]);
+  const failAndCommit = (loader: string, url: string, errorText: string) => {
+    browser.emit(
+      "Network.loadingFailed",
+      { requestId: loader, type: "Document", errorText, canceled: false },
+      session,
+    );
+    browser.emit(
+      "Page.frameNavigated",
+      {
+        frame: {
+          id: `F-${session}`,
+          loaderId: loader,
+          url: "chrome-error://chromewebdata/",
+          unreachableUrl: url,
+        },
+        type: "Navigation",
+      },
+      session,
+    );
+  };
+  // A refused connection, a blocked image and a blocked subframe: nothing.
+  failAndCommit("L1", "https://example.com/", "net::ERR_CONNECTION_REFUSED");
+  browser.emit(
+    "Network.loadingFailed",
+    {
+      requestId: "R2",
+      type: "Image",
+      errorText: "net::ERR_BLOCKED_BY_ADMINISTRATOR",
+    },
+    session,
+  );
+  browser.emit(
+    "Page.frameNavigated",
+    {
+      frame: {
+        id: "child",
+        parentId: `F-${session}`,
+        loaderId: "R2",
+        url: "chrome-error://chromewebdata/",
+        unreachableUrl: "https://dashboard.lazurio.ai/embed",
+      },
+    },
+    session,
+  );
+  // An error page whose loader no blocked request names: nothing.
+  browser.emit(
+    "Page.frameNavigated",
+    {
+      frame: {
+        id: `F-${session}`,
+        loaderId: "L9",
+        url: "chrome-error://chromewebdata/",
+        unreachableUrl: "https://auth.lazurio.ai/",
+      },
+    },
+    session,
+  );
+  // The sign-in service, blocked: handed off, exactly once.
+  failAndCommit(
+    "L3",
+    "https://auth.lazurio.ai/realms/lazurio/account",
+    "net::ERR_BLOCKED_BY_ADMINISTRATOR",
+  );
+  await until(() => view.of("hand-off").length > 0);
+  await settle();
+  expect(view.of("hand-off")).toEqual([
+    { t: "hand-off", url: "https://auth.lazurio.ai/realms/lazurio/account" },
+  ]);
+  // The hub navigated nowhere for it.
+  expect(browser.called("Page.navigate")).toEqual([]);
+  expect(browser.called("Target.createTarget")).toEqual([]);
+  // Once nobody views the tab, the Network domain goes off again.
+  view.socket.close();
+  await until(() => browser.called("Network.disable").length > 0);
+});
+
+// #504: the view sweeps the browser's cookies each time it reaches it, before
+// it is ready, and its health says whom the kept GitHub sign-in names. A
+// sweep that fails is logged and the view still serves.
+test("the view sweeps Lazurio sessions at every connection to the browser and says whom GitHub's sign-in names", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const sweeps: number[] = [];
+  let fail = false;
+  const { base, logs } = await serve(browser, {
+    reconnectMs: 10,
+    sweepCookies: async (cdp) => {
+      sweeps.push(browser.connections);
+      if (fail) throw new Error("Storage.getCookies: timed out");
+      await cdp.send("Storage.getCookies", {});
+      return { removed: 2, remaining: 0, github: "octocat" };
+    },
+  });
+  expect(sweeps).toEqual([1]);
+  expect(browser.called("Storage.getCookies")).toHaveLength(1);
+  expect(logs).toContain(
+    "removed 2 Lazurio session cookie(s) from the browser",
+  );
+  const health = await loopback(base, "/.lazurio/health");
+  expect(health).toEqual({
+    status: 200,
+    body: { ok: true, browser: "connected", github: "octocat" },
+  });
+  // A restarted browser is swept again; a failed sweep is a log line.
+  fail = true;
+  browser.drop();
+  await until(() => sweeps.length === 2 && service?.hub.ready === true);
+  expect(logs.some((line) => line.startsWith("cookie sweep failed:"))).toBe(
+    true,
+  );
 });
 
 // ---- Nothing outside the page blocks the view (F39 point 7) ------------------

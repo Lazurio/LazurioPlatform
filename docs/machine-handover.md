@@ -381,7 +381,14 @@ Environment browser's view (root decision 0191, [F38](decisions.md#f38--the-envi
 the view's origin and the loopback port the people's view service listens on (F39).
 It is also the
 signal the installer converges the browser's units on. Absent, the Environment has no
-Environment browser.
+Environment browser. Its optional `local_port` (LazurioPlatform#504, F39's addendum of
+2026-10-18) is the port of the gateway's loopback entry for the Environment browser
+itself, which serves this Environment's own apps without a sign-in; with it the browser
+resolves `*.<base>` and `<base>` (from `modules.origin_template`) to that port. It is
+drafted in the vendored schema and marked pending in `schema-provenance.json` until the
+Machines pull request that adds the entry publishes it; a Machines release must write it
+only for a Platform that vendors it, since an earlier reader refuses the whole document.
+Absent, the browser's flags are as before.
 
 `environment_relay` is optional and present only on an Organization work VM that
 declares its own identity at the Lazurio issuer (root decision 0194, Machines

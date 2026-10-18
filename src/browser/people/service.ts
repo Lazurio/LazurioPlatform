@@ -244,10 +244,13 @@ export function startViewService(options: ViewServiceOptions): ViewService {
         case "refused":
           return json({ error: decision.error }, decision.status);
         case "health":
+          // `github`: whom the browser's github.com sign-in names, a public
+          // login or null (#504); `lazurio doctor` says it.
           return json(
             {
               ok: hub.connected,
               browser: hub.connected ? "connected" : "unreachable",
+              github: hub.githubLogin,
             },
             hub.connected ? 200 : 503,
           );

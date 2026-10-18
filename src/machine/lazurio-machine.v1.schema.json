@@ -268,7 +268,8 @@
           "required": ["external_origin", "listen_port"],
           "properties": {
             "external_origin": { "description": "Origin of the Environment browser view on the gateway.", "$ref": "#/$defs/https_origin" },
-            "listen_port": { "description": "Loopback port the Environment browser view listens on, the one the gateway proxies to.", "type": "integer", "minimum": 1024, "maximum": 65535 }
+            "listen_port": { "description": "Loopback port the Environment browser view listens on, the one the gateway proxies to.", "type": "integer", "minimum": 1024, "maximum": 65535 },
+            "local_port": { "description": "Loopback port of the gateway's entry for the Environment browser itself (LazurioPlatform#504): it serves this Environment's own applications and modules without a sign-in and answers the bare Machine hostname with the hand-off to the person's own browser. Present only where the gateway runs it; the browser then resolves the Environment's own names to it.", "type": "integer", "minimum": 1024, "maximum": 65535 }
           }
         },
         "environment_relay": {
