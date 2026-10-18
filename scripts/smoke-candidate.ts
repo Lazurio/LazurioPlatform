@@ -66,17 +66,19 @@ try {
     "--coordination",
     "coordinator",
   ];
-  assert.deepEqual(
-    await cli([
-      "folder-init",
-      "--folder",
-      folder,
-      ...choices,
-      "--locale",
-      "cs",
-    ]),
-    { kind: "initialized", revision: 1 },
-  );
+  // A new Folder states the workspace preset it was initialized with
+  // (docs/workspace-presets.md); a workstation Folder gets the local one.
+  const initialized = await cli([
+    "folder-init",
+    "--folder",
+    folder,
+    ...choices,
+    "--locale",
+    "cs",
+  ]);
+  assert.equal(initialized.kind, "initialized");
+  assert.equal(initialized.revision, 1);
+  assert.equal(typeof initialized.preset?.name, "string");
   assert.deepEqual(
     await cli([
       "profile-update",
