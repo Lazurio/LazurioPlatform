@@ -190,6 +190,22 @@ export function organizationWithRelay(
     entry: withEnvironmentRelay(handoverEntry(host, listenPort)),
   });
 }
+// A Team Environment of the example Organization (the handover's owner
+// names its Team) with its entry on `port`, for the Machine hostname `host`;
+// `browser` and `signOut` as for organizationWithEntry.
+export function teamWithEntry(
+  listenPort = 20000,
+  host = "workspace.example.lazurio.io",
+  browser = false,
+  signOut = false,
+) {
+  const entry = handoverEntry(host, listenPort);
+  const routed = browser ? withBrowser(entry, host) : entry;
+  return binding({
+    ...organization,
+    entry: signOut ? withSignOut(routed) : routed,
+  });
+}
 // A personal VM of `example` with its entry on `port`, with `browser` the
 // Environment browser's view and with `signOut` the person's sign-out.
 export function personalWithEntry(
