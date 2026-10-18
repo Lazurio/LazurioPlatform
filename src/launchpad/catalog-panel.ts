@@ -87,6 +87,56 @@ export type HomeEnvironment = Readonly<{
   icon: "laptop" | "user" | "users" | "bot";
 }>;
 
+// The lifecycle of the module the page shows: its last status, the sentence
+// after the last action, and whether a request is under way. Nothing of it is
+// kept beyond the page; the service manager is the truth.
+export type LifecycleState = {
+  key: string;
+  status: ModuleAnswer | ModuleBlocked | null;
+  message: string | null;
+  busy: boolean;
+  // After Start or Stop the keyboard focus returns to the primary action once
+  // it can take it again (it is disabled while the request runs).
+  focus: boolean;
+};
+
+// Why an Open was refused (a start answered `blocked`), keyed like the
+// lifecycle.
+export type RefusedOpen = { key: string; message: string };
+
+// The lifecycle an overview renders with. Another module's overview starts a
+// fresh one; a refused Open of this module puts its reason into it, whether
+// the Open came from a tile on the way here or from this very overview (its
+// Open button or its favourite), so "its overview says why" always holds.
+// The refusal is taken once; one of another module stays for that module.
+export function lifecycleShown(
+  lifecycle: LifecycleState | null,
+  refusedOpen: RefusedOpen | null,
+  key: string,
+): {
+  lifecycle: LifecycleState;
+  refusedOpen: RefusedOpen | null;
+  fresh: boolean;
+} {
+  const ours = refusedOpen?.key === key ? refusedOpen : null;
+  const kept = ours === null ? refusedOpen : null;
+  if (lifecycle?.key === key) {
+    if (ours !== null) lifecycle.message = ours.message;
+    return { lifecycle, refusedOpen: kept, fresh: false };
+  }
+  return {
+    lifecycle: {
+      key,
+      status: null,
+      message: ours?.message ?? null,
+      busy: false,
+      focus: false,
+    },
+    refusedOpen: kept,
+    fresh: true,
+  };
+}
+
 // The Apps home of the Lazurio shell (decision F36 and its addendum of
 // 2026-10-04): the left column holds "Všechny moduly", "Soubory", your
 // favourite modules and, at its foot, the Marketplace; no module list and no
@@ -223,23 +273,10 @@ export function createCatalogPanel(
     })
     .finally(() => render());
   const openMode = (): OpenApps => account?.openApps ?? "tab";
-  // The lifecycle of the module the page shows: its last status, the
-  // sentence after the last action, and whether a request is under way.
-  // Nothing of it is kept beyond the page; the service manager is the truth.
-  let lifecycle: {
-    key: string;
-    status: ModuleAnswer | ModuleBlocked | null;
-    message: string | null;
-    busy: boolean;
-    // After Start or Stop the keyboard focus returns to the primary action
-    // once it can take it again (it is disabled while the request runs).
-    focus: boolean;
-  } | null = null;
-  // Why a tile's Open was refused (a start answered `blocked`), for the
-  // overview it then shows: its lifecycle starts with that sentence, as after
-  // Start there, so "its overview says why" holds. Keyed like the lifecycle,
-  // taken once.
-  let refusedOpen: { key: string; message: string } | null = null;
+  let lifecycle: LifecycleState | null = null;
+  // Why a tile's Open was refused, for the overview it then shows; taken once
+  // (lifecycleShown).
+  let refusedOpen: RefusedOpen | null = null;
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -1252,19 +1289,11 @@ export function createCatalogPanel(
   ): HTMLElement {
     const copy = options.copy();
     const key = lifecycleKey(organization, module);
-    if (lifecycle?.key !== key) {
-      const refused = refusedOpen?.key === key ? refusedOpen.message : null;
-      refusedOpen = null;
-      lifecycle = {
-        key,
-        status: null,
-        message: refused,
-        busy: false,
-        focus: false,
-      };
-      void readStatus(organization, module);
-    }
-    const current = lifecycle;
+    const shown = lifecycleShown(lifecycle, refusedOpen, key);
+    refusedOpen = shown.refusedOpen;
+    lifecycle = shown.lifecycle;
+    if (shown.fresh) void readStatus(organization, module);
+    const current = shown.lifecycle;
     const view = moduleStatusView(current.status, copy);
     const card = element("div", "card module-lifecycle");
     const item = element("div", "row");
