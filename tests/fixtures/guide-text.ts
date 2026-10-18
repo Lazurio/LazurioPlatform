@@ -22,7 +22,9 @@ export function guideTextFindings(item: GuideExplanation): string[] {
     const say = (rule: string) => found.push(`${item.id}: ${rule}: ${text}`);
     if (/Launchpad|Dashboard|[Mm]ašin|\bVMs?\b/.test(text))
       say("Launchpad, Dashboard, Mašina or VM");
-    if (/SSH|tailnet|Tailscale|\bserver/i.test(text))
+    // "MCP server" is the precise name of a thing, not where an
+    // Environment runs (root AGENTS.md, "Prostředí").
+    if (/SSH|tailnet|Tailscale|(?<!MCP\s)\bserver/i.test(text))
       say("SSH, tailnet or a server");
     if (/(?<!\p{L})jen\s+(?:vám|váš|vaš\p{L}*|pro\s+vás)(?!\p{L})/iu.test(text))
       say("jen vám, váš, vaše or pro vás");

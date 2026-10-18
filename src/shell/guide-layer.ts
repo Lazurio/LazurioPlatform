@@ -161,12 +161,17 @@ export function createGuideLayer(host: HTMLElement, logo: string): GuideLayer {
     const line = make("p", "line");
     const foot = make("div", "foot");
     const dots = make("span", "dots");
+    // The documentation behind the explanation (`docs`), at its last step,
+    // in a new tab: a quiet link, as the prototype's card has it.
+    const docs = make("a", "docs");
+    docs.target = "_blank";
+    docs.rel = "noopener noreferrer";
     const invite = make("a", "invite");
     const quit = make("button", "quit");
     quit.type = "button";
     const primary = make("button", "primary");
     primary.type = "button";
-    foot.append(dots, invite, quit, primary);
+    foot.append(dots, docs, invite, quit, primary);
     card.append(title, line, foot);
     layer.append(ring, card, mark);
     // What only assistive technology hears (`say`).
@@ -188,6 +193,7 @@ export function createGuideLayer(host: HTMLElement, logo: string): GuideLayer {
       title,
       line,
       dots,
+      docs,
       invite,
       quit,
       primary,
@@ -255,7 +261,7 @@ export function createGuideLayer(host: HTMLElement, logo: string): GuideLayer {
 
   function fill(): boolean {
     if (parts === null || view === null) return false;
-    const { card, title, line, dots, invite, quit, primary } = parts;
+    const { card, title, line, dots, docs, invite, quit, primary } = parts;
     const { explanation, stop, words } = view;
     const key = `${explanation.id}:${stop}:${explanation.steps.length}`;
     const moved = key !== drawnKey;
@@ -285,14 +291,19 @@ export function createGuideLayer(host: HTMLElement, logo: string): GuideLayer {
         }),
       );
     }
+    const last = stop >= explanation.steps.length - 1;
+    docs.hidden = !last || explanation.docs === null;
+    if (last && explanation.docs !== null) {
+      docs.href = explanation.docs;
+      docs.textContent = words.guideDocs;
+    } else docs.removeAttribute("href");
     invite.hidden = view.invite === null;
     if (view.invite !== null) {
       invite.href = view.invite;
       invite.textContent = words.guideInvite;
     }
     quit.textContent = words.guideClose;
-    primary.textContent =
-      stop >= explanation.steps.length - 1 ? words.guideDone : words.guideNext;
+    primary.textContent = last ? words.guideDone : words.guideNext;
     return moved;
   }
 
