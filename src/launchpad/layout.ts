@@ -123,13 +123,14 @@ const drawn = (element: HTMLElement) => element.getClientRects().length > 0;
 
 /** The left column on a screen 768 px wide or wider (Matěj's tuning of
  * 2026-10-12, as T3 Code's sidebar): its toggle (`.column-toggle`) in the
- * column's head hides it, the rail staying, and the one at the page's top
- * left shows it again (Matěj 2026-10-12, evening; while the page steps aside
- * for the right panel, the one in the panel's strip stands in for it). The
- * stylesheet shows one of them at a time, so the focus moves on to the one
- * now in view. The column's right edge drags it wider or narrower. Both stay
- * in this browser. Below 768 px the column is the sheet of shell.ts and none
- * of this shows. The right panel follows the room it leaves. */
+ * band on top of the column (Matěj 2026-10-17) hides it, the rail staying,
+ * and the one at the page's top left, in the same spot, shows it again
+ * (Matěj 2026-10-12, evening; while the page steps aside for the right
+ * panel, the one in the panel's strip stands in for it). The stylesheet
+ * shows one of them at a time, so the focus moves on to the one now in
+ * view. The column's right edge drags it wider or narrower. Both stay in
+ * this browser. Below 768 px the column is the sheet of shell.ts and none of
+ * this shows. The right panel follows the room it leaves. */
 export function createColumn(options: Readonly<{ copy: () => Copy }>) {
   const find = <T extends HTMLElement>(selector: string): T => {
     const element = document.querySelector<T>(selector);

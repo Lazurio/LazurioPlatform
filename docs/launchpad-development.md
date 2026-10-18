@@ -75,7 +75,14 @@ Nothing in this section is executable evidence.
 
 **Layout.** There is no top bar. Level 1 is a rail of spaces on the far left (the
 personal space and one per Organization), and the app's left column runs full height
-next to it. At the top of the left column sits the column head: the Environment picker
+next to it, the rail's hairline between them ([F36's addendum of
+2026-10-17](decisions.md#f36-addendum-of-2026-10-17-the-rails-edge-toward-the-app)). At the very
+top of the left column is the app's band, as tall as a page's header (52 px): the toggle
+that hides the column, then the app's name, which each app draws itself (Apps, Settings
+and the Dashboard the Lazurio lockup, Chat T3 Code with the Lazurio badge, Automate
+MausBot; [F36's addendum of 2026-10-17
+(2)](decisions.md#f36-addendum-of-2026-10-17-2-the-band-on-top-of-the-launchpads-column)).
+Under it sits the column head: the Environment picker
 with the Settings gear beside it, and under them the app switch **Chat · Apps ·
 Automate**. Chat is T3 Code (`t3code.…`), Apps is this Launchpad (`launchpad.…`) and
 Automate is MausBot (`mausbot.…`). Each is its own origin of the Environment, so the
@@ -669,7 +676,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   | `--lazurio-surface` | the rail, the column behind the head | its sidebar's background |
   | `--lazurio-ink` | names, icons on hover | its sidebar's text |
   | `--lazurio-ink-muted` | who an Environment is for, icons, meta | its sidebar's muted text |
-  | `--lazurio-line` | hairlines and borders, the active tab's edge | its sidebar's border |
+  | `--lazurio-line` | hairlines and borders, the active tab's edge, the rail's edge toward the app | its sidebar's border |
   | `--lazurio-line-strong` | the hairline around the active space in the rail (and the logo on the personal Dashboard) | the border of its selected row; the design system's `gray-300` |
   | `--lazurio-hover` | a row or a rail item under the pointer | its row hover |
   | `--lazurio-selected` | the selected row, the open picker | its selected row |
@@ -694,9 +701,17 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
 
   The shapes, type and selection rule stay the design system's. The list of
   Environments mixes its lines, hover and selection from the overlay and its ink. The
-  Lazurio logo sits on a white disc in every theme, and the rail draws no line on its
-  edge toward the app: map `--lazurio-surface` to the colour of the sidebar beside it
-  and draw no border on that side. Each app picks its own theme for now (since root
+  Lazurio logo sits on a white disc in every theme. On its edge toward the app the rail
+  draws one hairline in `--lazurio-line`, the design system's line without roles, 1 px
+  inside its own 64 px ([F36's addendum of
+  2026-10-17](decisions.md#f36-addendum-of-2026-10-17-the-rails-edge-toward-the-app),
+  amending root decision 0187 point 2; from 2026-10-04 it drew none). Map
+  `--lazurio-surface` to the colour of the sidebar beside it and `--lazurio-line` to the
+  border that sidebar draws on its other side, and draw no line of your own on the
+  rail's side, or there are two: the Launchpad page dropped its `.app { border-left }`,
+  and the Dashboard drops its `.surface` line when it vendors a release with the edge.
+  The line is an inset shadow of the element, not a border, so a border colour a host's
+  own rules give the rail never recolours it. Each app picks its own theme for now (since root
   decision 0200, T3 Code's standard light look on an Environment is the design
   system's, through the tokens below); one theme across the apps (the Environment's) is
   a later mechanism.
@@ -2517,10 +2532,18 @@ the Launchpad builds no viewer of its own.
   which a frame cannot. The view's address carries no token (F39 point 8).
 - **The left column** on a screen 768 px wide or wider (Matěj 2026-10-12, as T3 Code's
   sidebar; `layout.ts`): T3 Code's sidebar toggle (Iconoir's sidebar-collapse and
-  sidebar-expand) stands in the column's head, right under `<lazurio-column-head>`,
-  where Chat keeps T3 Code's toggle under the same head, and hides the column, the rail
-  staying. While the column is hidden, one toggle at the page's top left, where ChatGPT
-  and Codex keep theirs, shows it again. The page's content never moves for it: only a
+  sidebar-expand), "Skrýt levý panel" / "Hide left panel", stands first in the band on
+  top of the column (Matěj 2026-10-17, [F36's addendum of
+  2026-10-17 (2)](decisions.md#f36-addendum-of-2026-10-17-2-the-band-on-top-of-the-launchpads-column)):
+  a 52 px band, as tall as Settings' header, with the toggle 19 px from the column's edge
+  and 11 px from its top, its centre over the picker's mark, then the design system's
+  approved lockup, 18 px tall and starting where the Environment's name starts. The band
+  is the page's own markup (`.column-band` in `index.html`), above
+  `<lazurio-column-head>`, which follows right under it; the toggle's row under the
+  switch is gone. The toggle hides the column, the rail staying. While the column is
+  hidden, one toggle, "Zobrazit levý panel" / "Show left panel", at the page's top left
+  in the same spot, where ChatGPT and Codex keep theirs, shows it again. The page's
+  content never moves for it: only a
   title row it would reach steps aside (Matěj 2026-10-13), that is Settings' and Files'
   header, the first row of the Apps home, Integrace and a module's page, and the
   Marketplace's head only while its centred column comes that close (a container query
@@ -2530,7 +2553,9 @@ the Launchpad builds no viewer of its own.
   now. The shell's column head stays as it is: it offers no slot for a host's control.
   Its right edge is a divider like the panel's, 208–480 px and never leaving the page
   less than 400 px, double-click for 264 px. Below 768 px it stays the sheet opened by
-  the button at the top of the page.
+  the button at the top of the page, its band showing the lockup alone. With the column
+  hidden and the panel over all of the room, the panel's own hairline gives way where it
+  meets the rail, whose edge is the line between them.
 - **Remembered in this browser**: the panel's width or all of the room, the column's
   width and whether it is hidden, as one `localStorage` entry, `lazurio.layout`, read
   field by field; a field that is not what it should be is its default alone. As the
@@ -2555,8 +2580,9 @@ the Launchpad builds no viewer of its own.
   belongs to a check in a browser. The controls in the page's corners (2026-10-12,
   evening) are pinned by `tests/launchpad-page-corners.test.ts` (the one Browser toggle
   in the corner after the page's help link, outside every view and head; the column's
-  toggle under the column head, at the page's top left and in the strip; heads with
-  their titles only; Integrace's search and refresh with the tabs) and were checked in
+  toggle in the band on top of the column with the vendored lockup, above the column
+  head, at the page's top left and in the strip; heads with their titles only;
+  Integrace's search and refresh with the tabs) and were checked in
   Chrome against the hosted preview in Czech and English at 1440×900, 900×900 and
   390×844: the Apps home, Integrace, the Marketplace, every section of Settings, Files
   and a module's page with the column shown and hidden, at the two wider sizes with the
@@ -2565,7 +2591,9 @@ the Launchpad builds no viewer of its own.
   page and size the page's content where it is for the hidden column's toggle, and
   Settings' and Files' header within its edge, every control in it in reach and nothing
   under a corner; the focus back on the toggle after Close and after Escape, and moving
-  by keyboard between the column's toggles.
+  by keyboard between the column's toggles. The band of 2026-10-17 was checked in
+  headless Chrome against the hosted preview in Czech at 1440×900 and 700×900, as its
+  addendum records.
 
 ## First run of an Environment
 
