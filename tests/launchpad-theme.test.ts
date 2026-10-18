@@ -19,11 +19,12 @@ import {
 import { parseShell } from "../src/shell/contract";
 import { environmentThemeCss } from "../src/shell/theme";
 import {
+  type EnvironmentThemeId,
   environmentThemeChoice,
   environmentThemeChoices,
   shellThemeOf,
 } from "../src/theme/palettes";
-import { defaultThemeRecord } from "../src/theme/record";
+import { defaultThemeRecord, fileThemeStore } from "../src/theme/record";
 import type { ToolRunner } from "../src/tools/status";
 import { writeOrganization } from "./fixtures/catalog-folder";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
@@ -49,8 +50,11 @@ const freePort = () => {
 };
 
 // A hosted work Environment, public with `audience`, behind a stand-in
-// gateway admission; no install base, so its theme is kept in memory.
-async function hosted(audience = false) {
+// gateway admission. Without `kept` there is no install base, so its theme
+// is kept in memory; with it, an install base whose record already holds
+// that theme when the Launchpad starts (chosen before the Environment
+// became public, root decision 0208 point 6).
+async function hosted(audience = false, kept?: EnvironmentThemeId) {
   const parent = await realpath(
     await mkdtemp(join(tmpdir(), "launchpad-theme-")),
   );
@@ -86,6 +90,13 @@ async function hosted(audience = false) {
       locale: "cs",
     }),
   });
+  // Short, as the installed Launchpad's health socket lives in it.
+  const installBase =
+    kept === undefined ? undefined : await mkdtemp("/tmp/lt-");
+  if (installBase !== undefined && kept !== undefined) {
+    await mkdir(join(installBase, "update"), { mode: 0o700 });
+    await fileThemeStore(installBase, folder).change(kept, null);
+  }
   const fetcher: AuthFetcher = async (_url, init) =>
     new Headers(init.headers).get("cookie") ===
     "__Secure-lazurio-workspace=valid"
@@ -100,7 +111,9 @@ async function hosted(audience = false) {
     folder,
     undefined,
     undefined,
-    undefined,
+    installBase === undefined
+      ? undefined
+      : { base: installBase, version: "0.1.9-test" },
     { fetcher },
     { path: bin, home, platform: process.platform, run },
     {},
@@ -129,6 +142,8 @@ async function hosted(audience = false) {
     async close() {
       await app.close();
       await rm(parent, { recursive: true, force: true });
+      if (installBase !== undefined)
+        await rm(installBase, { recursive: true, force: true });
     },
   };
 }
@@ -297,6 +312,42 @@ posixTest(
       expect(shell?.theme).toEqual(
         shellThemeOf({ theme: "lazurio", revision: 0 }),
       );
+    } finally {
+      await app.close();
+    }
+  },
+  30_000,
+);
+
+posixTest(
+  "a theme chosen before an Environment became public never reaches its visitors: they get Lazurio",
+  async () => {
+    // The control: the same kept record on an Environment that is not public.
+    const work = await hosted(false, "ocean");
+    try {
+      expect((await (await work.get("/api/theme")).json()).theme).toBe("ocean");
+    } finally {
+      await work.close();
+    }
+    const app = await hosted(true, "ocean");
+    try {
+      const read = await app.get("/api/theme");
+      expect(read.status).toBe(200);
+      expect(await read.json()).toEqual(
+        JSON.parse(JSON.stringify(themeAnswer(defaultThemeRecord))),
+      );
+      const shell = parseShell(
+        await (await app.get("/.lazurio/shell.json")).json(),
+      );
+      expect(shell?.theme).toEqual(shellThemeOf(defaultThemeRecord));
+      const html = await (await app.get("/settings/general")).text();
+      expect(html).not.toContain('data-lazurio-environment-theme="ocean"');
+      expect(themeStyleOf(html) ?? "").not.toContain("#e4ecf2");
+      const refused = await app.post("/api/theme/set", {
+        theme: "lazurio",
+        revision: 0,
+      });
+      expect(refused.status).toBe(403);
     } finally {
       await app.close();
     }

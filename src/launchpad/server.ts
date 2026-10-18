@@ -75,6 +75,7 @@ import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
 import { shellThemeOf } from "../theme/palettes";
 import {
   fileThemeStore,
+  fixedThemeReads,
   memoryThemeStore,
   type ThemeStore,
 } from "../theme/record";
@@ -907,11 +908,15 @@ export async function startLaunchpad(
   // without a base keeps it in memory (src/theme/record.ts). Read by
   // `/.lazurio/shell.json` and the page's boot document, changed by
   // Settings → Obecné; fixed on a public Environment, by the entry recorded
-  // at start, the one rule that withholds Nástroje and Trezor there.
-  const themeStore: ThemeStore =
+  // at start, the one rule that withholds Nástroje and Trezor there: every
+  // read there is the default Lazurio, whatever the record kept from before
+  // says (root decision 0208 point 6), and every change is refused.
+  const themeStore: ThemeStore = fixedThemeReads(
     installed?.base === undefined
       ? memoryThemeStore()
-      : fileThemeStore(installed.base, folder);
+      : fileThemeStore(installed.base, folder),
+    () => publicEnvironment,
+  );
   const themes = createThemeRoutes({
     store: themeStore,
     headers,

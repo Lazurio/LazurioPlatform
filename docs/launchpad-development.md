@@ -779,12 +779,14 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     "theme", theme, label, revision, setAt, choices}` (every theme with its values);
     `POST /api/theme/set` takes exactly `{theme, revision}` and answers the same with
     `outcome` (`set`, `unchanged`), 409 `{kind: "blocked", reason: "theme-changed",
-    current}` or `theme-busy`, 400 for anything else. On a public Environment the read
-    answers and the change is 403 `public-environment`, before its body is read: a
-    guardrail of these interfaces, not a security boundary (root decision 0172).
+    current}` or `theme-busy`, 400 for anything else. On a public Environment every
+    read is the default Lazurio, whatever the record says (`fixedThemeReads`), and the
+    change is 403 `public-environment`, before its body is read: a guardrail of these
+    interfaces, not a security boundary (root decision 0172).
   - **The CLI** (`src/theme/cli.ts`): `lazurio theme show` and `lazurio theme set <id>
-    [--expected-revision <n>]`, JSON on stdout, over the same record; `set` is refused
-    on a public Environment with the reason on stderr. Never `t3 theme set`.
+    [--expected-revision <n>]`, JSON on stdout, over the same record; on a public
+    Environment `show` answers the default and `set` is refused with the reason on
+    stderr. Never `t3 theme set`.
   - **In the shell document**: `theme: {id, label, revision, light, dark?}` beside a
     current Environment (`parseShellTheme`), always in `/.lazurio/shell.json` and the
     boot document (`shellThemeOf`).

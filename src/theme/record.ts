@@ -74,6 +74,23 @@ export type ThemeStore = Readonly<{
   ): Promise<ThemeChange>;
 }>;
 
+/** The store as an Environment whose theme is fixed reads it (root decision
+ * 0208 point 6): while `fixed()`, every read is the default Lazurio record,
+ * whatever the record says, so neither a theme chosen before the
+ * Environment became public nor a record written past the Launchpad reaches
+ * its visitors. Changes go to `store`; on such an Environment the routes and
+ * `lazurio theme set` refuse them before they get here. */
+export function fixedThemeReads(
+  store: ThemeStore,
+  fixed: () => boolean,
+): ThemeStore {
+  return Object.freeze({
+    read: () => (fixed() ? Promise.resolve(defaultThemeRecord) : store.read()),
+    change: (theme: EnvironmentThemeId, expected: number | null) =>
+      store.change(theme, expected),
+  });
+}
+
 const schemaVersion = 1;
 const bytesMax = 4 * 1024;
 const keys = ["schemaVersion", "theme", "revision", "setAt"];

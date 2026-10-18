@@ -17,6 +17,7 @@ import {
   changeRecord,
   defaultThemeRecord,
   fileThemeStore,
+  fixedThemeReads,
   memoryThemeStore,
   parseThemeRecord,
   themeRecordFile,
@@ -102,6 +103,25 @@ test("in memory: the same change and the same answers, kept in the process", asy
     reason: "theme-changed",
     record: await store.read(),
   });
+});
+
+// Root decision 0208 point 6: on a public Environment every read is the
+// default Lazurio, also when the record kept a theme chosen before the
+// Environment became public; the record itself is left as it is.
+test("while the theme is fixed every read is the default, whatever the record keeps", async () => {
+  const kept = memoryThemeStore(undefined, at("2026-10-18T10:00:00.000Z"));
+  await kept.change("ocean", 0);
+  let fixed = true;
+  const store = fixedThemeReads(kept, () => fixed);
+  expect(await store.read()).toEqual(defaultThemeRecord);
+  expect((await kept.read()).theme).toBe("ocean");
+  // Not fixed (any more): the record again.
+  fixed = false;
+  expect(await store.read()).toMatchObject({ theme: "ocean", revision: 1 });
+  // A change goes to the record (the routes and the CLI refuse it first
+  // while the theme is fixed).
+  expect((await store.change("iris", 1)).kind).toBe("set");
+  expect((await kept.read()).theme).toBe("iris");
 });
 
 async function base(run: (base: string, folder: string) => Promise<void>) {

@@ -6861,12 +6861,15 @@ every client would adopt that one theme once and lose the person's own pick.
    share it with the same access (root decision 0204), so none of them changes the one
    record for the others: Settings shows no group, `POST /api/theme/set` answers 403
    `{kind: "blocked", reason: "public-environment"}` before reading its body, and
-   `lazurio theme set` exits 1 with the same JSON and the reason on stderr. Reads stay:
-   `GET /api/theme`, `lazurio theme show` and the shell document's `theme`. "Public" is
-   the one rule that withholds Nástroje and Trezor there (`isPublicEnvironment` of the
-   recorded entry). It is a guardrail of the Launchpad's own interfaces, not a security
-   boundary: the Environment is that (root decision 0172), and an agent running there
-   could write the record file directly.
+   `lazurio theme set` exits 1 with the same JSON and the reason on stderr. Reads stay,
+   and each of them is the default Lazurio whatever the record says: `GET /api/theme`,
+   `lazurio theme show`, the shell document's `theme` and the page's boot document
+   (`fixedThemeReads`, src/theme/record.ts). So a theme chosen before the Environment
+   became public, or a record written past the Launchpad, never reaches its visitors,
+   and the record itself is left as it is. "Public" is the one rule that withholds
+   Nástroje and Trezor there (`isPublicEnvironment` of the recorded entry). It is a
+   guardrail of the Launchpad's own interfaces, not a security boundary: the
+   Environment is that (root decision 0172).
 10. **`lazurio theme show|set`** (`src/theme/cli.ts`), for agents, built as `lazurio chat
     defaults` is: JSON on stdout, the Folder found as for `lazurio doctor`, the same
     record and change as Settings. `show` prints the record, its name and the themes;

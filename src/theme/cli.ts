@@ -18,6 +18,7 @@ import {
 import {
   type EnvironmentThemeRecord,
   fileThemeStore,
+  fixedThemeReads,
   type ThemeStore,
 } from "./record";
 
@@ -163,6 +164,9 @@ export async function runThemeCommand(
       }
       store = fileThemeStore(base, folder);
     }
+    // A public Environment shows the default theme, whatever its record
+    // says (root decision 0208 point 6), as its Launchpad does.
+    store = fixedThemeReads(store, () => isPublicEnvironment(entry));
     if (wanted === null)
       return answer(exitOk, {
         kind: "theme",

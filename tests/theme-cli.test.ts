@@ -21,7 +21,8 @@ import { commitOf, target } from "./fixtures/update-world";
 // `lazurio theme show|set` (root decision 0208 point 1): the Environment's
 // theme for its agents, over the same record and change as Settings →
 // Obecné. JSON on stdout; on a public Environment the theme is fixed, so
-// `set` is refused there with the reason on stderr and `show` still answers.
+// `set` is refused there with the reason on stderr and `show` answers the
+// default, whatever the record keeps.
 
 const posixTest = test.skipIf(process.platform === "win32");
 
@@ -155,11 +156,17 @@ posixTest(
 
 for (const locale of ["en", "cs"] as const)
   posixTest(
-    `a public Environment's theme is fixed: set refused with the reason (${locale}), show still answers`,
+    `a public Environment's theme is fixed: set refused with the reason (${locale}), show answers the default whatever the record keeps`,
     async () => {
       const { folder, context } = await world("public", locale);
       let changes = 0;
-      const store = memoryThemeStore();
+      // A theme chosen before the Environment became public (root decision
+      // 0208 point 6): its visitors still get the default.
+      const store = memoryThemeStore({
+        theme: "ocean",
+        revision: 1,
+        setAt: "2026-10-18T10:00:00.000Z",
+      });
       const watched: ThemeStore = {
         read: store.read,
         change: async (...asked) => {
@@ -186,6 +193,8 @@ for (const locale of ["en", "cs"] as const)
       const shown = await runThemeCommand(["show", "--folder", folder], stores);
       expect(shown.code).toBe(0);
       expect(json(shown)).toMatchObject({ theme: "lazurio", revision: 0 });
+      // The record itself is left as it is.
+      expect((await store.read()).theme).toBe("ocean");
     },
   );
 
