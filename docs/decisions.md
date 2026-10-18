@@ -14523,20 +14523,23 @@ Trezor (Settings follow).
      which the shell plays as its Personal adaptation (the agents' own account in the
      person's Bitwarden, sharing into it, the agents use the passwords, sharing taken
      back).
-   - **The person is in the vault** (the membership is `known`: a member, or with an
-     account to create), so people share into it from their own Bitwarden: the approved
-     video `vault-overview` (DEV-6631, design-system-lazurio#93), whose five captions
-     are the principle's five lines.
+   - **The person is a member of the vault** (the membership is `known` and
+     `member`), so they share into it from their own Bitwarden: the approved video
+     `vault-overview` (DEV-6631, design-system-lazurio#93), whose five captions are the
+     principle's five lines. A person who is no member (no account or no master
+     password yet, removed in the vault) cannot share into it and hears `vault-agents`
+     (Pablo's review of #502).
    - **No vault here** (`unsupported`: none yet, none by design, this computer): the
      same video, how a vault works in an Organization, as the removed section showed.
    - **Nobody who enters is added** (`not-managed`, a Team or Automated Environment;
-     `sign-in-not-required`, a vault that takes no Lazurio sign-in yet), and while the
-     membership is not known: the Launchpad's `vault-agents`, "{Toto} má vlastní trezor
+     `sign-in-not-required`, a vault that takes no Lazurio sign-in yet), the person is
+     no member, or the membership is not known yet: the Launchpad's `vault-agents`, "{Toto} má vlastní trezor
      · Agenti z něj berou hesla bez ptaní · Hesla vidí každý {v tomto}". It promises no
      Bitwarden of one's own and asks nobody to store a password, so it is true for a
      visitor of the reference Organization's shared Team Environment, who has no account
      in its vault (#499).
-   - **Not read yet:** the "?" waits, hidden.
+   - **Not read yet:** the "?" waits, hidden, in a Personal Environment too: the
+     unread state is checked before the kind (Pablo's review of #502).
 4. **Trezor plays the approved video in place, not in the guide's card.** The shell's
    guide draws rings and cards, and a new scene was not to be made. Where the video's
    words are true, Trezor's "?" carries no `data-guide-help`; the Launchpad opens the
@@ -14567,6 +14570,14 @@ Trezor (Settings follow).
 7. **The rules of a text** keep "MCP server", the precise name of a thing, out of the
    rule against "server" (root AGENTS.md: such precise terms are not an Environment's
    name).
+8. **Escape belongs to the guide while it explains.** Escape leaves Settings
+   (`createShell`), and its listener comes before the guide's, which is added when an
+   explanation opens; so the shell asks the guide first (`escapeLeavesSettings`,
+   `guiding`, the arbiter's `playing`), and Escape closes the explanation and the page
+   stays (Pablo's review of #502).
+9. **What each "?" shows is pure** (`pageHelpStates`): hidden unless it is the route's
+   and the page knows what it plays, then the explanation it plays or the video it
+   opens; ui.ts sets it on the buttons.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
