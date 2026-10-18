@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   type LifecycleState,
   lifecycleShown,
-} from "../src/launchpad/catalog-panel";
+} from "../src/launchpad/module-lifecycle-state";
 
 const state = (key: string, message: string | null = null): LifecycleState => ({
   key,
