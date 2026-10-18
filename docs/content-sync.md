@@ -108,7 +108,11 @@ meant to use, as selected by its [workspace preset](workspace-presets.md):
 
 - private workspace or local Machine: the Operator's own provider sign-in;
 - team workspace: the brokered Organization identity, one short-lived
-  repository-scoped token per operation.
+  repository-scoped token per operation. Content installation itself is the hosting's
+  there (`prepared-by-hosting`); a module's own data mount is provided at its start
+  through the brokered `gh` with the repository named in `GH_REPO`, and cloned with
+  git's configured credential helper, which the hosting points at the same broker
+  (B7 amendment of 2026-10-18, #488).
 
 Denied, revoked or unavailable access stops that repository's operation and preserves
 local content. Synchronization never substitutes another identity, reuses a peer's

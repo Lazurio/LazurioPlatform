@@ -47,7 +47,9 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   database the Organization declares directly below it (a repository_db_mount
   slot such as workspace/<module>/db) that is not there, or is an empty
   directory, is cloned on its declared branch with this Environment's GitHub
-  sign-in; a checkout already there is used as it is, never fetched or
+  identity (gh's sign-in; on a Team Environment the Team's Lazurio for GitHub
+  through its brokered gh and git's configured credential helper); a
+  checkout already there is used as it is, never fetched or
   changed. When the clone cannot be done, nothing is installed or started
   (data-mount-denied, data-mount-occupied, data-mount-unavailable,
   data-mount-clone-failed, with the slot). A required sibling module workspace/<slug> with an HTTP
@@ -156,7 +158,7 @@ const explanations: Readonly<Record<string, string>> = {
   "required-slot-missing":
     "The app requires this slot, which is not checked out in this Environment beside it; nothing was started. Synchronize the Organization (lazurio update) or ask for access to that repository, then start again.",
   "data-mount-denied":
-    "The app's data repository (this slot, declared by the Organization as a repository_db_mount) is one the GitHub account gh is signed in with here cannot read; nothing was started. Ask the Organization's Admin for access, then start again.",
+    "The app's data repository (this slot, declared by the Organization as a repository_db_mount) is one this Environment's GitHub identity cannot read: the account gh is signed in with here, or on a Team Environment the Team through Lazurio for GitHub. Nothing was started. Ask the Organization's Admin for access (on a Team Environment: for the Team, on GitHub), then start again.",
   "data-mount-occupied":
     "The place of the app's data repository (this slot) holds something that is not a checkout: a directory with files in it, a file or a link. It was left untouched and nothing was started; look at it and move it aside yourself.",
   "data-mount-unavailable":

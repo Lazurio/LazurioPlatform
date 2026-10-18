@@ -56,6 +56,7 @@ import { createIntegrationsPanel } from "./integrations-panel";
 import { createColumn, keepCornerFree } from "./layout";
 import { environmentFacts, type Fact, type MachineView } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
+import { moduleCopy } from "./module-view";
 import { isPublicEnvironment, publicRoute } from "./public-environment";
 import { createRecoveryPanel } from "./recovery-panel";
 import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
@@ -234,7 +235,13 @@ const catalog = createCatalogPanel({
   setupAction: (action) => setupAction(action),
   post: (path, body) => post(path, body),
   get: (path) => get(path),
-  copy: () => copy,
+  // A Team Environment's refusals name the Team's access, not a person's.
+  copy: () =>
+    moduleCopy(
+      copy,
+      shellDocument !== null &&
+        currentEnvironment(shellDocument)?.kind === "team",
+    ),
   route: () => shell.route(),
   navigate: (path) => shell.navigate(path),
   loaded: () => {

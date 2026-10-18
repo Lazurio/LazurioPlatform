@@ -1,15 +1,17 @@
 import { afterEach, expect, test } from "bun:test";
 import { chmod, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { gitEnvironmentOf } from "../src/content/git";
 import {
+  brokeredRefusalDenies,
   ghContentGitHub,
   parseMembership,
   parseRepository,
   parseViewer,
 } from "../src/content/github";
 import { runTool } from "../src/tools/status";
+import { brokeredGh } from "./fixtures/brokered-gh";
 import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
@@ -325,6 +327,125 @@ esac`);
       "api --method POST orgs/Acme/repos --raw-field name=portal --raw-field description=Modul Lazuria. --field private=true --field auto_init=false",
     );
     expect(sent.some((line) => line.includes("-bad"))).toBe(false);
+  },
+);
+
+posixTest(
+  "a Team Environment's brokered gh: the repository named in GH_REPO outside any checkout, its refusals read by their words, and git's configured helper for a clone (#488)",
+  async () => {
+    parent = await realpath(await mkdtemp(join(tmpdir(), "content-gh-")));
+    const home = join(parent, "home");
+    await mkdir(home);
+    const broker = await brokeredGh(parent);
+    const github = ghContentGitHub({
+      path: `${broker.bin}:${Bun.env.PATH ?? "/usr/bin:/bin"}`,
+      home,
+      platform: process.platform,
+      run: runTool,
+    });
+    await broker.grant("Example/data");
+    // Readable: the App's token answers every permission false, and the
+    // answer itself is the read.
+    expect(await github.repository("Example", "data")).toMatchObject({
+      kind: "observed",
+      repository: { fullName: "Example/data", readable: true },
+    });
+    // No grant of the Team: the broker refuses, which is no access.
+    expect(await github.repository("Example", "other")).toEqual({
+      kind: "missing",
+    });
+    // The broker not answering is GitHub not answering now.
+    await broker.broker("down");
+    expect(await github.repository("Example", "data")).toEqual({
+      kind: "unavailable",
+    });
+    await broker.broker("up");
+    // HTTPS (its `config` is refused) with git's own helper: never gh's,
+    // whose `auth git-credential` the adapter refuses.
+    expect(await github.remote("Example/data")).toEqual({
+      url: "https://github.com/Example/data.git",
+    });
+    const calls = await broker.calls();
+    expect(calls.every((call) => call.startsWith("/\t"))).toBe(true);
+    expect(calls.slice(0, 3)).toEqual([
+      "/\tExample/data\tapi repos/Example/data",
+      "/\t\tauth status --json hosts",
+      "/\tExample/other\tapi repos/Example/other",
+    ]);
+    expect(calls.some((call) => call.includes("git-credential"))).toBe(false);
+    // The adapter's words: no grant and no repository are no access;
+    // anything else is not answering.
+    for (const [stderr, denies] of [
+      [
+        "Brokered gh failed closed: GitHub token broker refused the request\n",
+        true,
+      ],
+      [
+        "Brokered gh failed closed: run gh inside a Team repository checkout or pass --repo OWNER/REPO\n",
+        true,
+      ],
+      [
+        "Brokered gh failed closed: GitHub token broker is unavailable\n",
+        false,
+      ],
+      [
+        "Brokered gh failed closed: GitHub token broker returned an invalid scoped response\n",
+        false,
+      ],
+      ["gh: Bad credentials (HTTP 401)\n", false],
+    ] as const)
+      expect(brokeredRefusalDenies(stderr)).toBe(denies);
+  },
+);
+
+posixTest(
+  "a repository that answered is never denied because the identity probe did not answer (Pablo's review of #491)",
+  async () => {
+    const { gh } = await fakeGh(`
+case "$*" in
+  "api repos/Example/data") echo '{"full_name":"Example/data","private":true,"archived":false,"owner":{"login":"Example","id":7,"type":"Organization"},"permissions":{"admin":false,"maintain":false,"push":false,"triage":false,"pull":false}}' ;;
+  *) exit 1 ;;
+esac`);
+    // The read succeeds with an App token's all-false permissions, then the
+    // sign-in probe times out: GitHub not answering now, not "no access".
+    let probe: "timeout" | "answer" = "timeout";
+    const github = ghContentGitHub(
+      {
+        path: dirname(gh),
+        home: join(parent, "home"),
+        platform: process.platform,
+        run: async (command, ms, env, options) =>
+          command[1] === "auth" && probe === "timeout"
+            ? "timeout"
+            : runTool(command, ms, env, options),
+      },
+      { sleep: async () => {} },
+    );
+    expect(await github.repository("Example", "data")).toEqual({
+      kind: "unavailable",
+    });
+    // Once the probe answers (here: no App identity), the answer stands.
+    probe = "answer";
+    expect(await github.repository("Example", "data")).toMatchObject({
+      kind: "observed",
+      repository: { fullName: "Example/data", readable: false },
+    });
+  },
+);
+
+posixTest(
+  "a person's gh over HTTPS keeps gh as git's credential helper",
+  async () => {
+    const { github, gh } = await fakeGh(`
+case "$*" in
+  "auth status --json hosts") echo '{"hosts":{"github.com":[{"state":"success","active":true,"host":"github.com","login":"example","tokenSource":"keyring","scopes":"repo","gitProtocol":"https"}]}}' ;;
+  "config get git_protocol --host github.com") echo https ;;
+  *) exit 1 ;;
+esac`);
+    expect(await github.remote("Example/repo")).toEqual({
+      url: "https://github.com/Example/repo.git",
+      credentialHelper: `!${JSON.stringify(gh)} auth git-credential`,
+    });
   },
 );
 
