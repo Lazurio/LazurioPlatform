@@ -94,6 +94,7 @@
     "tests/module-checkout-custody.test.ts": 43100,
     "tests/module-declared-preparation.test.ts": 88500,
     "tests/module-default-preparation.test.ts": 19400,
+    "tests/module-lifecycle-state.test.ts": 100,
     "tests/module-lifecycle.test.ts": 22400,
     "tests/module-maintainer.test.ts": 100,
     "tests/module-manifest.test.ts": 100,
