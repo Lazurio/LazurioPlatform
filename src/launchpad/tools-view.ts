@@ -704,11 +704,14 @@ export function toolGuideTargets(
   brokered: boolean,
 ): ToolGuideTargets {
   const shown = groups.flatMap((group) => group.tools);
-  const personal = shown.filter(
+  // The rows either step may point at: offered here, and not the vault's
+  // or Executor's own row.
+  const eligible = shown.filter(
+    (tool) => tool.offered && !ownRows.includes(tool.name),
+  );
+  const personal = eligible.filter(
     (tool) =>
-      tool.offered &&
       tool.setup === "launchpad" &&
-      !ownRows.includes(tool.name) &&
       !githubActionRefused({ brokered, tool: tool.name, action: "login" }),
   );
   const action = personal.find((tool) => {
@@ -720,11 +723,8 @@ export function toolGuideTargets(
       tool.signIn?.state === "signed-in" &&
       tool.organization?.allowed !== false,
   );
-  const switched = shown.find(
-    (tool) =>
-      tool.tier !== "required" &&
-      (tool.offered || tool.enabled) &&
-      !organizationView(tool, copy).locked,
+  const switched = eligible.find(
+    (tool) => tool.tier !== "required" && !organizationView(tool, copy).locked,
   );
   return {
     connect:

@@ -1138,6 +1138,44 @@ test("Nástroje's '?' says only what its page can show: no steps on connecting w
   expect(drawn("work", [gh, tool({ signIn: signedIn })]).steps[1]?.[2]).toEqual(
     { tool: "gh", part: "state" },
   );
+  // The vault's own row and a tool not offered here are no targets of
+  // either step (Pablo's review of #503): a Team Environment with gh and
+  // Trezor v Bitwardenu alone, and one with a switched-on tool it does not
+  // offer (listed only so that it can be switched off), say only what the
+  // page is.
+  const vaultRow = tool({ name: "bitwarden", command: "bw" });
+  const unoffered = tool({
+    name: "wacli",
+    command: "wacli",
+    enabled: true,
+    offered: false,
+  });
+  for (const tools of [
+    [gh, vaultRow],
+    [gh, unoffered],
+    [gh, vaultRow, unoffered],
+  ]) {
+    const copy = messages("cs", "team");
+    expect(toolGuideTargets(toolGroups(tools, copy), copy, true)).toEqual({
+      connect: null,
+      agents: null,
+    });
+    expect(drawn("team", tools)).toEqual({
+      help: "settings-tools-team",
+      steps: [["Toto Týmové Prostředí sdílí celý Team", "tools", "tools"]],
+    });
+  }
+  // Beside them, an offered tool still takes both steps.
+  expect(
+    drawn("work", [gh, vaultRow, unoffered, tool({})]).steps.map(
+      (step) => step[2],
+    ),
+  ).toEqual([
+    "tools",
+    { tool: "composio", part: "action" },
+    { tool: "composio", part: "action" },
+    { tool: "composio", part: "switch" },
+  ]);
   // Before the tools are read the "?" waits.
   const unread = pageGuide(
     { view: "settings", section: "tools" },
