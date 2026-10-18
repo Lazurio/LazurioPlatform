@@ -8,7 +8,7 @@ import { resolveOnPath } from "../tools/status";
 export const recommendedChatModel = Object.freeze({
   instanceId: "codex",
   model: "gpt-6.1-sol",
-  options: [{ id: "reasoningEffort", value: "high" }],
+  options: [{ id: "reasoningEffort", value: "medium" }],
 });
 
 type Selection = Readonly<{
