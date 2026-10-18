@@ -79,6 +79,9 @@ export function createPersonalspaceHolder(
   // before it). `known` holds only decisions made wholly after the last
   // forget, so `peek` never shows a stale one either.
   let generation = 0;
+  // The peeks still reading the layout: the decision a peek starts is not
+  // in `asking` before that (`settled`).
+  const peeking = new Set<Promise<PersonalspaceHolder>>();
 
   function ask(folder: string, layout: Owner): Promise<PersonalspaceHolder> {
     const key = keyOf(layout);
@@ -143,17 +146,25 @@ export function createPersonalspaceHolder(
      * is made. A tile drawn from it cannot be operated into a wrong state:
      * every operation decides again. */
     async peek(folder: string): Promise<PersonalspaceHolder> {
-      const layout = await personalspaceLayout(folder);
-      if (layout.kind === "decided") return layout.holder;
-      const entry = remembered(folder, layout);
-      if (
-        entry === undefined ||
-        now() - entry.at >= ttl ||
-        (entry.holder.kind === "blocked" &&
-          entry.holder.reason === "github-unavailable")
-      )
-        void ask(folder, layout);
-      return entry?.holder ?? unverified;
+      const peeked = (async () => {
+        const layout = await personalspaceLayout(folder);
+        if (layout.kind === "decided") return layout.holder;
+        const entry = remembered(folder, layout);
+        if (
+          entry === undefined ||
+          now() - entry.at >= ttl ||
+          (entry.holder.kind === "blocked" &&
+            entry.holder.reason === "github-unavailable")
+        )
+          void ask(folder, layout);
+        return entry?.holder ?? unverified;
+      })();
+      peeking.add(peeked);
+      try {
+        return await peeked;
+      } finally {
+        peeking.delete(peeked);
+      }
     },
     /** gh's account or the content changed (a sign-in or sign-out through
      * the Launchpad, a Tools reading that says so, an installation): decide
@@ -163,8 +174,10 @@ export function createPersonalspaceHolder(
       known.clear();
     },
     /** Resolves when the decisions being made now have ended, stale ones
-     * included; it answers no decision. */
+     * included, and those a peek running now starts once it has read the
+     * layout; it answers no decision. */
     async settled(): Promise<void> {
+      await Promise.allSettled([...peeking]);
       await Promise.all([...asking.values()].map((entry) => entry.done));
     },
   });

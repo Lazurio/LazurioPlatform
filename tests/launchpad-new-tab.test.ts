@@ -76,6 +76,7 @@ import {
 } from "./fixtures/catalog-folder";
 import { binding, entries, withBrowser } from "./fixtures/machine-bindings";
 import organizationContext from "./fixtures/machine-context.json";
+import { freePort } from "./fixtures/ports";
 
 // Nová karta on the Launchpad (decision F47 step 2): the loopback client to
 // the view's hub, the Launchpad's holder file and its reconciliation with the
@@ -1731,18 +1732,6 @@ test("the overview says the Launchpad's hold as the Launchpad last wrote it, bef
 });
 
 // ---- In the Launchpad ---------------------------------------------------------
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  if (port === undefined) throw new Error("The probe listens on a port");
-  return port;
-};
 
 const { team: _team, ...withoutTeamOwner } = organizationContext.owner;
 

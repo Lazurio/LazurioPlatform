@@ -34,9 +34,11 @@ test("a started Launchpad: the outcome is detected, its stderr is printed only r
   const executable = await fake(
     "serving",
     [
+      // The trap first: the start line lets launchpadOnce stop it at once,
+      // and a TERM before the trap ends the shell with 143.
+      "trap 'exit 0' TERM",
       stderrLines,
       `echo '{"url":"http://127.0.0.1:${page.port}/#${fragment}","scope":"local-development-profile-panel"}'`,
-      "trap 'exit 0' TERM",
       "while :; do sleep 0.1; done",
     ].join("\n"),
   );

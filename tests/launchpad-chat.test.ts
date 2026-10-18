@@ -47,6 +47,7 @@ import {
   organizationWithEntry,
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
+import { freePort } from "./fixtures/ports";
 
 // Chat into T3 Code (launchpad-parity B8, slice P7): the resident's behaviour
 // (`R:launchpad/src/t3-chat-lib.mjs`, `R:launchpad/public/app.js:2257-2281`)
@@ -54,17 +55,6 @@ import organization from "./fixtures/machine-context.json";
 // the Environment pairs its own browser: T3 Code's web client asks
 // `GET /.lazurio/chat/pairing` on its own origin, minted by the same code as
 // the Launchpad's click, with T3's operator pairing where T3 Code offers it.
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  return port;
-};
 
 const credential = "Pairing_Token-0123456789abcdef";
 const expiresAt = "2026-10-17T12:01:00.000Z";

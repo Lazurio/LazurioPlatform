@@ -21,6 +21,7 @@ import {
   withBrowser,
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
+import { freePort } from "./fixtures/ports";
 
 // F39's addendum of 2026-10-12: unframed (a bare tab, the panel's pop-out, a
 // phone), the Environment browser's view names its Environment by the
@@ -98,9 +99,7 @@ posixTest(
     await mkdir(folder, { mode: 0o700 });
     await mkdir(join(folder, "organizations"), { mode: 0o755 });
     await mkdir(join(folder, "personalspace"), { mode: 0o700 });
-    const probe = Bun.serve({ port: 0, fetch: () => new Response("") });
-    const port = probe.port ?? 0;
-    probe.stop(true);
+    const port = freePort();
     const preset = "hosted-organization-personal";
     const host = "workspace.example.lazurio.io";
     await initializeHandoverFolder(folder, {

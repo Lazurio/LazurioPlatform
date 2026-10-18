@@ -50,6 +50,7 @@ import {
   organizationWithEntry,
   personalWithEntry,
 } from "./fixtures/machine-bindings";
+import { freePort } from "./fixtures/ports";
 
 // "+ Nový modul" opens Chat with a prepared prompt (Lazurio/t3code#35): the
 // Launchpad serves `GET /.lazurio/prompts/<id>?org=<login>` only to whom the
@@ -290,17 +291,6 @@ posixTest(
     );
   },
 );
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port ?? 0;
-  probe.stop(true);
-  return port;
-};
 
 // A hosted Launchpad of a personal work Environment whose Folder holds the
 // Organization `example` bound to the GitHub login `Example-Org`. Its `gh`
@@ -603,6 +593,7 @@ async function personalLaunchpad(
     const headers = { Authorization: `Bearer ${session.hash.slice(1)}` };
     return {
       folder,
+      settled: () => app.settled(),
       get: (path: string, authorized = true) =>
         fetch(new URL(path, session), authorized ? { headers } : {}),
     };
@@ -610,6 +601,7 @@ async function personalLaunchpad(
   const host = new URL(entry.externalOrigin).host;
   return {
     folder,
+    settled: () => app.settled(),
     get: (path: string, authorized = true) =>
       fetch(`http://127.0.0.1:${entry.listenPort}${path}`, {
         headers: authorized
@@ -635,11 +627,15 @@ posixTest(
       "example_GEN3",
       "example/example_GEN3",
     ]);
-    // Behind the gateway's admission, before anything is asked.
+    // Behind the gateway's admission, before anything is asked. The start
+    // decides whose Personalspace this is in the background (issue #413):
+    // what the request asks is what it adds after that.
+    await held.settled();
+    const asked = own.calls.length;
     expect(
       (await held.get(`${personalPrompt}?org=example`, false)).status,
     ).toBe(401);
-    expect(own.calls).toEqual([]);
+    expect(own.calls.slice(asked)).toEqual([]);
     for (const login of ["example", "Example"]) {
       const answer = await held.get(`${personalPrompt}?org=${login}`);
       expect(answer.status).toBe(200);
@@ -770,6 +766,8 @@ posixTest(
       404,
       { error: "not-found" },
     ]);
+    // Neither the request nor the start's own background reads.
+    await work.settled();
     expect(asked.calls.filter((call) => call.kind !== "membership")).toEqual(
       [],
     );

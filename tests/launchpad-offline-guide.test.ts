@@ -21,6 +21,7 @@ import {
   OFFLINE_WORKER_PATH,
 } from "../src/shell/offline-policy";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
+import { freePort } from "./fixtures/ports";
 
 // Decision F41: the Launchpad of an Environment that is a node of a tailnet
 // answers the offline guide's page and worker under `/.lazurio/`, only after
@@ -46,9 +47,7 @@ async function hostedLaunchpad(
   await mkdir(folder, { mode: 0o700 });
   await mkdir(join(folder, "organizations"), { mode: 0o755 });
   await mkdir(join(folder, "personalspace"), { mode: 0o700 });
-  const probe = Bun.serve({ port: 0, fetch: () => new Response("") });
-  const port = probe.port ?? 0;
-  probe.stop(true);
+  const port = freePort();
   const preset = "hosted-organization-personal";
   await initializeHandoverFolder(folder, {
     preset,

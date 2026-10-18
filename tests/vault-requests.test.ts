@@ -42,6 +42,7 @@ import {
   zipOf,
 } from "./fixtures/fake-vault";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
+import { freePort } from "./fixtures/ports";
 
 // An agent's secret request (root decision 0198 point 9 (c), decision F54)
 // over its real consumers: `lazurio vault request` creates it and reads its
@@ -858,17 +859,6 @@ test.skipIf(!posix)(
   },
   60_000,
 );
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  return port;
-};
 
 test.skipIf(!posix)(
   "behind the gateway a save must be same-origin from the entry and admitted",

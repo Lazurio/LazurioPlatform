@@ -28,6 +28,7 @@ import { messages } from "../src/launchpad/messages";
 import { startLaunchpad } from "../src/launchpad/server";
 import { folderFixture } from "./fixtures/catalog-folder";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
+import { freePort } from "./fixtures/ports";
 
 // Guide videos (docs/launchpad-development.md "Guide videos"; F53's addendum
 // of 2026-10-16 on the guide video): the player the page draws, the files
@@ -387,9 +388,7 @@ posixTest(
     await mkdir(folder, { mode: 0o700 });
     await mkdir(join(folder, "organizations"), { mode: 0o755 });
     await mkdir(join(folder, "personalspace"), { mode: 0o700 });
-    const probe = Bun.serve({ port: 0, fetch: () => new Response("") });
-    const port = probe.port ?? 0;
-    probe.stop(true);
+    const port = freePort();
     const preset = "hosted-organization-personal";
     await initializeHandoverFolder(folder, {
       preset,

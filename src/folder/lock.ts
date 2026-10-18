@@ -17,6 +17,19 @@ const marker = "lazurio-directory-flock-v1\n";
 // One persistent inode per explicit owner. Never unlink it: a waiter may still
 // reference it, producing two lock domains. Unmarked old locks stay refused.
 export async function acquireFolderOperationLock(stateDirectory: string) {
+  return acquireLock(stateDirectory, undefined);
+}
+
+/** `ownRead`, the key of this process's short read, counts the lock as such
+ * a read from the moment the kernel grants it until it is released, in the
+ * same synchronous step as the grant and the release: a mutation of this
+ * process that finds the lock busy then always knows whether its own read
+ * holds it, also while the read still verifies and syncs the lock (#272's
+ * wait, issue #413). */
+async function acquireLock(
+  stateDirectory: string,
+  ownRead: string | undefined,
+) {
   const cloexec = closeOnExecFlag();
   const parent = await inspectOwnedDirectory(stateDirectory);
   // Qualification: ext4 by its stable magic number; APFS by name, because the
@@ -51,6 +64,19 @@ export async function acquireFolderOperationLock(stateDirectory: string) {
     constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW | cloexec,
   );
   let released = false;
+  let countedRead = false;
+  // The descriptor's close releases the kernel lock; only then does this
+  // process's read stop counting.
+  const close = async () => {
+    const counted = countedRead;
+    countedRead = false;
+    released = true;
+    try {
+      await handle.close();
+    } finally {
+      if (counted && ownRead !== undefined) uncountOwnRead(ownRead);
+    }
+  };
   try {
     const opened = await handle.stat();
     const assertIdentity = async () => {
@@ -70,6 +96,10 @@ export async function acquireFolderOperationLock(stateDirectory: string) {
     };
     await assertIdentity();
     lockDirectoryDescriptor(handle.fd);
+    if (ownRead !== undefined) {
+      countOwnRead(ownRead);
+      countedRead = true;
+    }
     if (created) {
       // Interrupted initialization stays unrecognized, never adopted on retry.
       await assertIdentity();
@@ -143,24 +173,35 @@ export async function acquireFolderOperationLock(stateDirectory: string) {
         try {
           await assertHeld();
         } finally {
-          released = true;
-          await handle.close();
+          await close();
         }
       },
     });
   } catch (error) {
-    released = true;
-    await handle.close();
+    await close();
     throw error;
   }
 }
 
-/** This process's short reads that hold the lock now, by state directory.
- * A mutation of this process waits a bounded moment for them (issue #272):
- * the shell setup cache starts its background read right after a profile
- * change, and the person's next change must not fail as busy because of the
- * Launchpad's own read. It never waits for another process. */
-const ownReads = new Map<string, number>();
+/** This process's short reads that hold the lock now, by state directory,
+ * and how many of them have ended. A mutation of this process waits a
+ * bounded moment for them (issue #272): the shell setup cache starts its
+ * background read right after a profile change, and the person's next change
+ * must not fail as busy because of the Launchpad's own read. It never waits
+ * for another process. A read counts from the kernel's grant to its release
+ * (`acquireLock`); one that ended while a refused mutation was on its way is
+ * waited for too, because it may have been what refused it. */
+const ownReads = new Map<string, Readonly<{ held: number; ended: number }>>();
+
+function countOwnRead(key: string) {
+  const reads = ownReads.get(key) ?? { held: 0, ended: 0 };
+  ownReads.set(key, { held: reads.held + 1, ended: reads.ended });
+}
+
+function uncountOwnRead(key: string) {
+  const reads = ownReads.get(key) ?? { held: 1, ended: 0 };
+  ownReads.set(key, { held: reads.held - 1, ended: reads.ended + 1 });
+}
 
 /** How long a mutation of this process waits for its own short reads. */
 export const ownReadWaitMs = 3_000;
@@ -173,15 +214,20 @@ export async function withFolderOperationLock<T>(
   operation: (assertHeld: () => Promise<void>) => Promise<T>,
   waitForOwnReadsMs = ownReadWaitMs,
 ): Promise<T> {
+  const key = resolve(stateDirectory);
   const deadline = Date.now() + waitForOwnReadsMs;
   for (let attempt = 1; ; attempt += 1) {
+    const endedBefore = ownReads.get(key)?.ended ?? 0;
     let lock: Awaited<ReturnType<typeof acquireFolderOperationLock>>;
     try {
       lock = await acquireFolderOperationLock(stateDirectory);
     } catch (error) {
+      const reads = ownReads.get(key);
+      const ownRead =
+        reads !== undefined && (reads.held > 0 || reads.ended !== endedBefore);
       if (
         !(error instanceof FolderOperationBusyError) ||
-        (ownReads.get(resolve(stateDirectory)) ?? 0) === 0 ||
+        !ownRead ||
         Date.now() >= deadline
       )
         throw error;
@@ -196,26 +242,18 @@ export async function withFolderOperationLock<T>(
   }
 }
 
-/** Holds the lock for one short read, counted as this process's own until
- * the lock is released: a mutation that finds the lock busy meanwhile knows
+/** Holds the lock for one short read, counted as this process's own while
+ * the kernel grants it: a mutation that finds the lock busy meanwhile knows
  * whom it waits for. */
 async function ownRead<T>(
   stateDirectory: string,
   operation: (assertHeld: () => Promise<void>) => Promise<T>,
 ): Promise<T> {
-  const lock = await acquireFolderOperationLock(stateDirectory);
-  const key = resolve(stateDirectory);
-  ownReads.set(key, (ownReads.get(key) ?? 0) + 1);
+  const lock = await acquireLock(stateDirectory, resolve(stateDirectory));
   try {
     return await operation(lock.assertHeld);
   } finally {
-    try {
-      await lock.release();
-    } finally {
-      const left = (ownReads.get(key) ?? 1) - 1;
-      if (left > 0) ownReads.set(key, left);
-      else ownReads.delete(key);
-    }
+    await lock.release();
   }
 }
 
