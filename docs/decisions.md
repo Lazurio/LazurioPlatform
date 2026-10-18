@@ -13105,7 +13105,7 @@ Environment still without Trezor (its route shows Obecné).
 
 ### F53 addendum of 2026-10-18: the agents' text follows `lazurio vault status`
 
-**Asked for in issue #470 on 2026-10-18, for plan DEV-6631.** On an Organization's
+**Asked for in issue #470 (opened 2026-10-16), for plan DEV-6631.** On an Organization's
 work Environment whose Machine handover names no vault (its network has no Lazurio
 Vaultwarden yet), `lazurio vault status` answers "Not available: this Environment has
 no vault yet: its Machine handover names none." and `lazurio vault env` refuses, while
