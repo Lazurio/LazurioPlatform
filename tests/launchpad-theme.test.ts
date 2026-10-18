@@ -7,6 +7,7 @@ import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import { bootElementId, parseBoot } from "../src/launchpad/boot";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
+import { messages } from "../src/launchpad/messages";
 import { startLaunchpad } from "../src/launchpad/server";
 import { themeAnswer } from "../src/launchpad/theme-routes";
 import {
@@ -354,6 +355,27 @@ posixTest(
   },
   30_000,
 );
+
+// The theme's note names the place it is about the way #497's words do: the
+// kind of Environment with its own preposition, and your computer, which has
+// no kind, as a computer (F28's addendum of 2026-10-18).
+test("the theme's note names the kind of Environment it is in, and a computer as a computer", () => {
+  expect(messages("cs", "workstation").themeNote).toBe(
+    "Barvy Chatu, Apps a Automate na tomto počítači.",
+  );
+  expect(messages("en", "workstation").themeNote).toBe(
+    "The colours of Chat, Apps and Automate on this computer.",
+  );
+  expect(messages("cs", "work").themeNote).toBe(
+    "Barvy Chatu, Apps a Automate v tomto Pracovním Prostředí.",
+  );
+  expect(messages("en", "team").themeNote).toBe(
+    "The colours of Chat, Apps and Automate in this Team Environment.",
+  );
+  expect(messages("cs", null).themeNote).toBe(
+    "Barvy Chatu, Apps a Automate v tomto Prostředí.",
+  );
+});
 
 test("the page's view of the answer: every choice a theme, the record's among them", () => {
   const answer = JSON.parse(
