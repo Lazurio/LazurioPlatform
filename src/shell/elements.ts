@@ -1,4 +1,4 @@
-import { pageAccountJson } from "./account";
+import { browserStore, pageAccountJson } from "./account";
 import {
   currentEnvironment,
   parseShell,
@@ -23,6 +23,11 @@ import { registerGuide } from "./offline-guide";
 import { accountSourceOf, createShellState } from "./state";
 import { columnHeadCss, railCss, railWidth } from "./styles";
 import { applyTabIcon } from "./tab-icon";
+import {
+  createEnvironmentTheme,
+  environmentTheme,
+  type ThemeDocument,
+} from "./theme";
 import { installShellTokens } from "./tokens";
 import { vendorText } from "./vendor-text" with { type: "macro" };
 import {
@@ -103,9 +108,25 @@ import {
 // promises there (F36's addendum of 2026-10-13): the brand fonts' faces
 // (fonts.ts) and the design system's tokens on the root with the mark
 // `data-lazurio-theme="light"` (tokens.ts), each once, and neither where the
-// document has them already.
+// document has them already; and since F36's addendum of 2026-10-18 (root
+// decision 0208) the Environment's theme over them (theme.ts): the one this
+// origin remembers as the script evaluates, then the document's.
 
 const logo = vendorText("symbol-color.svg");
+
+// The Environment theme of this page (theme.ts): declared in its document,
+// remembered on its origin, announced as `lazurio-theme`.
+const theme = createEnvironmentTheme({
+  document:
+    typeof document === "undefined"
+      ? null
+      : (document as unknown as ThemeDocument),
+  store: browserStore(),
+  announce: (change) =>
+    document.dispatchEvent(
+      new CustomEvent("lazurio-theme", { detail: change }),
+    ),
+});
 
 // The page's document, the person's account and the two merged (what the
 // elements draw), shared by every element of the page.
@@ -116,6 +137,7 @@ const state = createShellState({
   report: reportLast,
   guide: registerGuide,
   tabIcon: applyTabIcon,
+  theme: (shell) => theme.provide(shell.theme ?? null),
 });
 let requested = false;
 
@@ -161,6 +183,61 @@ function requestDocument(): void {
       if (shell !== null) provideShell(shell);
     })
     .catch(() => undefined);
+}
+
+// The page's document again when the page is shown again (F36's addendum of
+// 2026-10-18): on `visibilitychange` to visible and on `focus`, never by a
+// timer, so a change of the Environment's theme (or of what it lacks)
+// reaches a page without a reload. Only where the elements read the
+// document themselves and after their first read; one read at a time, and
+// none within `rereadGapMs` of the last, since both events come together.
+const rereadGapMs = 1_000;
+let rereading = false;
+let rereadAt = Number.NEGATIVE_INFINITY;
+function rereadDocument(): void {
+  if (
+    !requested ||
+    rereading ||
+    document.documentElement.dataset.lazurioShell === "host"
+  )
+    return;
+  const now = Date.now();
+  if (now - rereadAt < rereadGapMs) return;
+  rereading = true;
+  rereadAt = now;
+  fetch("/.lazurio/shell.json", {
+    credentials: "same-origin",
+    cache: "no-store",
+  })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((value: unknown) => {
+      const shell = parseShell(value);
+      // Drawn again only when it says something else.
+      if (
+        shell !== null &&
+        JSON.stringify(shell) !== JSON.stringify(state.local())
+      )
+        provideShell(shell);
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      rereading = false;
+    });
+}
+
+// The page's events that bring the theme (and the document) again: the
+// storage of another tab of this origin, and the page shown again.
+let watching = false;
+function watchEnvironmentTheme(): void {
+  if (watching) return;
+  watching = true;
+  window.addEventListener("storage", (event) => {
+    if (event.key === environmentTheme.cacheKey) theme.stored(event.newValue);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) rereadDocument();
+  });
+  window.addEventListener("focus", () => rereadDocument());
 }
 
 // Where you last were in each space, in this browser: a click on a space in
@@ -1084,12 +1161,19 @@ function answerFramedViews(): void {
   state.listen(() => responder.changed());
 }
 
-/** Defines the elements (once), declares the brand fonts and the design
- * system's tokens in the document and answers framed views of the
- * Environment browser. */
+/** Defines the elements (once), declares the brand fonts, the design
+ * system's tokens and the Environment theme in the document and answers
+ * framed views of the Environment browser. The tokens, their mark and the
+ * theme this origin remembers are declared synchronously, before anything
+ * waits: `/.lazurio/shell.js` calls this as it evaluates, before the app's
+ * own module runs (F36's addendum of 2026-10-18). */
 export function defineShellElements(): void {
   installShellFonts(document);
   installShellTokens(document);
+  theme.start();
+  watchEnvironmentTheme();
+  // The document's theme even on a page that places no element.
+  requestDocument();
   if (!customElements.get("lazurio-rail"))
     customElements.define("lazurio-rail", LazurioRail);
   if (!customElements.get("lazurio-column-head"))

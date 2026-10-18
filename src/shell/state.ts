@@ -68,6 +68,9 @@ export type ShellStateOptions = Readonly<{
   /** The browser tab's icon (F36's addendum of 2026-10-08, `applyTabIcon`),
    * asked with every person's document. */
   tabIcon?: (shell: Shell) => void;
+  /** The Environment theme in the page's document (F36's addendum of
+   * 2026-10-18, theme.ts), asked with every person's document. */
+  theme?: (shell: Shell) => void;
   log?: (message: string) => void;
 }>;
 
@@ -175,6 +178,7 @@ export function createShellState(options: ShellStateOptions) {
         local = shell;
         options.guide?.(shell);
         options.tabIcon?.(shell);
+        options.theme?.(shell);
       }
       redraw();
     },

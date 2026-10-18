@@ -22,7 +22,14 @@
 // with the mark `data-lazurio-theme="light"`, onto which the T3 Code fork maps
 // its own tokens. Of the tokens, only the names `declares.tokens` lists are
 // promised; adding one is an addition, removing or renaming one a new
-// version.
+// version. F36's addendum of 2026-10-18 (root decision 0208) added, in
+// version 1, the Environment theme: what the script declares for it
+// (`declares.environmentTheme`: its marks on `<html>`, the custom property
+// `--lazurio-color-scheme`, declared with the tokens as `light` and by a
+// theme's dark values as `dark`, and the class `dark` a host shows dark
+// with), the host's attribute `data-lazurio-appearance` and the event
+// `lazurio-theme`. The values a theme gives the promised names are never
+// promised, only the names.
 export const shellElementInterface = Object.freeze({
   version: 1,
   /** The script an app loads, on its own origin. */
@@ -56,14 +63,27 @@ export const shellElementInterface = Object.freeze({
   active: Object.freeze(["chat", "apps", "automate", "settings"]),
   /** Composed events: the first two are cancelable and a host may take them
    * over; `lazurio-new-tab` says what Nová karta became (`detail`:
-   * `{kind: "page" | "tab", tab, view}` or `{kind: "tool", id}`). */
-  events: Object.freeze(["lazurio-navigate", "lazurio-app", "lazurio-new-tab"]),
+   * `{kind: "page" | "tab", tab, view}` or `{kind: "tool", id}`).
+   * `lazurio-theme`, on the document, follows every change of the
+   * Environment theme the script declared (`detail`: `{id, revision, dark}`
+   * of the theme now declared, or null for none). */
+  events: Object.freeze([
+    "lazurio-navigate",
+    "lazurio-app",
+    "lazurio-new-tab",
+    "lazurio-theme",
+  ]),
   /** Attributes a host sets on its document (`<html>`) and their values:
    * `host` says the page provides that document itself (`provideShell`,
-   * `provideAccount`) and the elements read nothing of it. */
+   * `provideAccount`) and the elements read nothing of it;
+   * `data-lazurio-appearance` says how the host shows an Environment
+   * theme's dark values, besides the class `dark`: `device` with the
+   * device's `prefers-color-scheme`, `dark` always, `light` never, as
+   * without it. */
   document: Object.freeze({
     "data-lazurio-shell": Object.freeze(["host"]),
     "data-lazurio-account": Object.freeze(["host"]),
+    "data-lazurio-appearance": Object.freeze(["device", "light", "dark"]),
   }),
   /** What the script declares in the document it is loaded into, once, and
    * not at all where the document has it already (F36's addendum of
@@ -104,6 +124,22 @@ export const shellElementInterface = Object.freeze({
       "--lz-radius-sm",
     ]),
     theme: Object.freeze({ "data-lazurio-theme": Object.freeze(["light"]) }),
+    /** The Environment theme (F36's addendum of 2026-10-18, root decision
+     * 0208): the values of `lazurio.shell.v1`'s `theme` for the promised
+     * colour names, light on the root, dark where the host shows dark
+     * (`darkClass` on `<html>`, or `data-lazurio-appearance` of `document`);
+     * where they hold, `marks` on `<html>`: the theme's id, and
+     * `data-lazurio-theme-dark` (empty) where it has dark values. Of
+     * `properties`, `--lazurio-color-scheme` is declared with the tokens as
+     * `light` from the start and `dark` by dark values. */
+    environmentTheme: Object.freeze({
+      marks: Object.freeze([
+        "data-lazurio-environment-theme",
+        "data-lazurio-theme-dark",
+      ]),
+      properties: Object.freeze(["--lazurio-color-scheme"]),
+      darkClass: "dark",
+    }),
   }),
   /** What the script exports to a host. */
   exports: Object.freeze([
