@@ -33,8 +33,12 @@ export const contentHelp = `organization install <github-login> [--role builder|
   repositories that this Environment's GitHub sign-in (gh's) can read, then
   the declared preparation of each module it cloned, then the doctor's check
   of the Organization. A child repository it cannot read is reported and the
-  others continue; infra, repository databases and restricted slots are left
-  out. An existing repository is never fetched, switched or reset, and an
+  others continue; infra and restricted slots are left out. A module's
+  declared data mount (a repository_db_mount slot such as
+  workspace/<module>/db or mission-control/db) follows its module: cloned on
+  its declared branch when the module is there after this install, excluded
+  while it is not; any other database slot is left out. An existing
+  repository is never fetched, switched or reset, and an
   occupied destination is never touched. The root of an Organization the
   Folder already holds is that checkout. Otherwise a name is only a
   candidate: --root <owner>/<repository> when named, else
