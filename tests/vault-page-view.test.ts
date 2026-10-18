@@ -694,7 +694,7 @@ test("the connection's words: the title, the picture of the vault, one line, two
   ];
   expect(words(cs)).toEqual([
     "Hesla pro agenty ve vašem Bitwardenu",
-    "Agenti dostanou vlastní účet. Ten váš zůstane jen pro vás.",
+    "Agenti dostanou vlastní účet a do toho vašeho nevidí.",
     "Váš Bitwarden",
     "Agenti",
     "v tomto Prostředí",
@@ -709,7 +709,7 @@ test("the connection's words: the title, the picture of the vault, one line, two
   ]);
   expect(words(en)).toEqual([
     "Your agents' passwords in your Bitwarden",
-    "Your agents get their own account. Yours stays yours.",
+    "Your agents get their own account and can't see into yours.",
     "Your Bitwarden",
     "Agents",
     "in this Environment",

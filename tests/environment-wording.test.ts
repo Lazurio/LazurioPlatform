@@ -187,12 +187,13 @@ const czechForbidden: readonly [string, RegExp][] = [
   // The kind is enough (the brand voice, "Druh Prostředí stačí"; Matěj
   // 2026-10-14): never a label "jen vaše" or "sdílené Teamem". Stems, not
   // listed endings, so every case of váš and tvůj is caught ("jen vaší",
-  // "jen tvou", "jen tvojí"); "jen vám" is another word and stays allowed.
-  // A sentence may still say in full words that a Team Prostředí is shared
-  // ("sdílené celým Teamem").
+  // "jen tvou", "jen tvojí"). Since Matěj's review of 2026-10-17 "jen vám"
+  // and "jen pro vás" go too: unnatural Czech, said normally instead ("Toto
+  // je vaše Prostředí."). A sentence may still say in full words that a
+  // Team Prostředí is shared ("sdílené celým Teamem").
   [
     "jen vaše (any form)",
-    /(?<!\p{L})jen\s+(?:váš|vaš\p{L}*|tv\p{L}+)(?!\p{L})/iu,
+    /(?<!\p{L})jen\s+(?:váš|vaš\p{L}*|tv\p{L}+|vám|pro\s+vás)(?!\p{L})/iu,
   ],
   ["sdílené Teamem", /sdílen\p{L}* Teamem/u],
   // Prostředí is neuter. No neuter form ends in -ý, so a word in -ý before
@@ -439,6 +440,9 @@ test.each([
   "jen tvou Organizaci",
   "jen vaší Organizaci",
   "jen tvojí Organizaci",
+  // and, since 2026-10-17, "jen vám" and "jen pro vás".
+  "Pracuje jen vám.",
+  "Ten váš zůstane jen pro vás.",
   "jen vašimi",
   // Masculine agreement with the neuter term.
   "Týmový Prostředí",
@@ -469,7 +473,6 @@ test.each([
   "firemní",
   "firmware",
   "productionspace/firmware",
-  "jen vám",
   "tato Prostředí",
   "Prostředí, které",
   "CRM: kontakty, firmy, obchody a marketing.",
@@ -484,7 +487,6 @@ test.each([
   "v tomto Prostředí",
   "s jedním Prostředím",
   "proměnné prostředí",
-  "Pracuje jen vám.",
 ])("the Czech guard lets through %p", (text) => {
   expect(czechFindings("t", text)).toEqual([]);
   expect(

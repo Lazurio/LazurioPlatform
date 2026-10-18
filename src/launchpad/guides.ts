@@ -61,8 +61,9 @@ export type PageGuide = Readonly<{
  * (a Team or Automated Environment, a network whose vault takes no Lazurio
  * sign-in yet), and while that is not known; or the approved video of how a
  * vault works in an Organization (`video`), where the person is added to
- * the vault and can share into it, or where this Environment has no vault.
- * Null until the page read the vault's state: the "?" waits. */
+ * the vault and can share into it, or where this Environment has no vault
+ * (and where the core answers a fault: the video is true there too). Null
+ * until the page read the vault's state: the "?" waits. */
 export type VaultHelp = "vault" | "vault-agents" | "video" | null;
 
 /** The facts Trezor's variant is chosen from, as Apps → Trezor reads them:

@@ -1182,7 +1182,8 @@ const en = {
   // button; then the invitation the person may ask for. Bitwarden's own
   // words are quoted as its web vault shows them.
   vaultConnectTitle: "Your agents' passwords in your Bitwarden",
-  vaultConnectLead: "Your agents get their own account. Yours stays yours.",
+  vaultConnectLead:
+    "Your agents get their own account and can't see into yours.",
   vaultConnectYours: "Your Bitwarden",
   vaultConnectAgents: "Agents",
   vaultConnectAgentsWhere: "{in this}",
@@ -2818,8 +2819,7 @@ const cs: Record<MessageKey, string> = {
   vaultExplainerTitle: "Jak trezor funguje",
   vaultVideoLine: "Kdo má přístup do Prostředí, má i jeho hesla",
   vaultConnectTitle: "Hesla pro agenty ve vašem Bitwardenu",
-  vaultConnectLead:
-    "Agenti dostanou vlastní účet. Ten váš zůstane jen pro vás.",
+  vaultConnectLead: "Agenti dostanou vlastní účet a do toho vašeho nevidí.",
   vaultConnectYours: "Váš Bitwarden",
   vaultConnectAgents: "Agenti",
   vaultConnectAgentsWhere: "{v tomto}",
