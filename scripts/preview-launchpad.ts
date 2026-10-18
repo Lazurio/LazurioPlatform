@@ -69,7 +69,12 @@
 // `no-vault` or `no-tailnet` anywhere after the mode, a hosted preview's work
 // Environment has no vault, for that reason (F53's addendum of 2026-10-17):
 // nothing is set up, and Nastavení → Trezor says why and explains the vault
-// with its guide video. Synthetic names only; stop it with Ctrl-C.
+// with its guide video. With `team` or `automated` anywhere after the mode, a
+// hosted preview's work Environment is the example Organization's Team
+// Environment or a persona's Automated Environment instead (its handover's
+// assignment `team` or `automation`), to see how a page names each kind
+// (decision F28's addendum of 2026-10-18). Synthetic names only; stop it
+// with Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -147,6 +152,14 @@ const noVault =
       (value): value is "no-vault" | "no-tailnet" =>
         value === "no-vault" || value === "no-tailnet",
     ) ?? null;
+const assignment =
+  mode !== "hosted"
+    ? null
+    : process.argv.slice(3).includes("team")
+      ? "team"
+      : process.argv.slice(3).includes("automated")
+        ? "automation"
+        : null;
 const locale = process.argv[3] === "en" ? "en" : "cs";
 const listenPort = Number(process.argv[4] ?? 24611);
 const role =
@@ -175,7 +188,13 @@ else {
   await mkdir(join(folder, "organizations"), { mode: 0o755 });
   await mkdir(join(folder, "personalspace"), { mode: 0o700 });
   const preset =
-    mode === "personal" ? "hosted-personal" : "hosted-organization-personal";
+    mode === "personal"
+      ? "hosted-personal"
+      : assignment === "team"
+        ? "hosted-organization-team"
+        : assignment === "automation"
+          ? "hosted-organization-steward"
+          : "hosted-organization-personal";
   await initializeHandoverFolder(folder, {
     preset,
     // A Remote Environment as the gateway serves it: the Environment
@@ -190,6 +209,7 @@ else {
             true,
             true,
             publicEnvironment,
+            assignment,
           ),
     profile: presetProfile(preset, os, { locale }),
   });

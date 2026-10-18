@@ -4027,6 +4027,116 @@ wording itself is held by the brand voice page of design-system-lazurio
 (`content/brand/hlas/hlas.md`, sections „Produktové texty“ and „Prostředí a Připojené
 aplikace“).
 
+### F28 addendum of 2026-10-18: three kinds of Environment, and your computer without a kind
+
+**Decided by Matěj (Organization Admin) on 2026-10-18 (root decision 0207, its addendum of
+2026-10-18; plan DEV-6612, after the Lazurio prototype at
+`HumanAndMachine-ai/prototypes-lazurio` #65).** People are shown three kinds of
+Environment only: **Osobní, Pracovní and Týmové Prostředí**, in English **Personal, Work
+and Team Environment**. An automated Environment is no kind of its own: to people it is a
+work Environment with automations set up. The person's own computer with a local Lazurio
+has no kind: it is **váš počítač**, "your computer". A text about a specific Environment
+names its kind ("toto Pracovní Prostředí", "ve vašem Osobním Prostředí") rather than a
+bare "Prostředí"; the plain word stays where a text is about Environments in general or
+lists them. This replaces the kinds of the addendum of 2026-10-15 above (Místní,
+Automatizované) and the English "Personal Remote Environment" of the Launchpad; Remote
+Environment stays the general term for a hosted one (point 1 of this record).
+
+1. **One helper.** `src/shell/kind-name.ts` is a port of the prototype's `kindName`,
+   `kindShort` and `kindDetail` (prototypes-lazurio affc81e, `app/v1/src/data.ts`), with
+   English added: `kindName(kind, {case, determiner, locale})` says a kind in each of the
+   six Czech cases, bare, after "toto" or after "vaše" ("tomto Týmovém Prostředí",
+   "vašeho Osobního Prostředí"; "tento počítač", "vašeho počítače"), and in English
+   ("this Team Environment", "your computer"). `kindShort` is the one word beside a name
+   (Osobní, Pracovní, Týmové, Váš počítač), `kindDetail` the kind where a choice must
+   tell an automated Environment apart ("Pracovní Prostředí s automatizacemi", "Work
+   Environment with automations"), and `shownKind` counts an automated Environment as a
+   work one. Everything that names a kind takes its words from it.
+2. **The shell.** The picker's line beside a name says Osobní, Pracovní or Týmové, an
+   automated Environment Pracovní; a computer is named "Váš počítač" where it has no name
+   of its own, and beside its computer's name the line says "Váš počítač" (the
+   prototype's `envWho`), never "Místní". The gear beside the picker is the Settings of
+   that kind: "Nastavení Týmového Prostředí", on a computer "Nastavení vašeho počítače"
+   (the prototype's `SettingsGear`), in English "Team Environment Settings" and "Settings
+   of your computer". A missing app says where it does not run ("Chat v tomto Pracovním
+   Prostředí neběží", "Chat na tomto počítači neběží"), and so do the switch's name and a
+   public Environment's notice.
+3. **The Launchpad.** Obecné's preset choice names the kinds as `kindDetail` does: Váš
+   počítač, Osobní, Pracovní, Týmové Prostředí and Pracovní Prostředí s automatizacemi,
+   so the choice never shows two equal entries; its field is wide enough for the
+   longest of them. Toto Prostředí's "Druh" says the same, and its support line for an
+   automated assignment reads "Automatizace persony Organizace" instead of
+   "Automatizované Prostředí persony". The section is named by its kind, in the
+   navigation, the heading and the document title alike: "Toto Týmové Prostředí",
+   "This Team Environment", on a computer "Tento počítač". A preset this release does
+   not know names no kind: "Prostředí", "Environment", never a wrong one.
+4. **Texts about this Environment.** The catalog writes the Environment the page is in
+   as a token: Czech {toto}, {tohoto}, {tomuto}, {tomto} and {tímto} ({Toto} to start a
+   sentence; {toto} stands for the accusative too), English {this} and {This}, and with
+   the preposition {v tomto} and {in this}, because a computer is "na" and "on" it ("na
+   tomto počítači", "on this computer"). The tokens are the prototype's for its
+   explainers (`inKind` in `guide.ts`), so the page explainers to come write the same.
+   `messages(locale, kind)` fills them for the kind of this Environment, once per
+   language and kind; the page takes the kind from this Environment's shell document,
+   the server's first paint and its prepared prompts from the same document or the
+   Folder's preset. Without a kind the plain words stay ("toto Prostředí", "this
+   Environment"). About a hundred sentences in each language say it this way now
+   ("Trezor tohoto Týmového Prostředí používají jen jeho agenti.", "Lazurio v tomto
+   Osobním Prostředí je v pořádku."), and the vault's lines that said "trezor
+   Prostředí" of this one say "trezor tohoto … Prostředí". Two texts keep the plain
+   words because they speak of the kind itself: Obecné's hint "Druh tohoto
+   Prostředí." beside the kind it describes, and a sign-in's refusal that the kind
+   could not be read. Names of things keep theirs: Prohlížeč Prostředí, Trezor
+   Prostředí in Začínáme, Obsah Prostředí, Prohlídka Prostředí.
+5. **The guard.** `tests/environment-wording.test.ts` fails Czech that people read on
+   Automatizované or Místní Prostředí in any case, Prostředí Buddy, "Lokální pracovní
+   stanice" and "Pracovní týmové", English on Automated, Local workstation, a Personal,
+   Work or Team Remote Environment and "Work, Team", in the catalog filled for every kind
+   and in the shell's words; and it fails a catalog filled for a kind on any plain "toto
+   Prostředí" or "this Environment" outside the two texts of point 4, and any token left
+   unfilled.
+
+Not changed: `lazurio.shell.v1` and its kinds (`automated`, `workstation`), the preset
+names, the catalog's keys, routes and every click, the technical facts under "Pro
+podporu" (the technical kind `hosted-organization-steward`), the CLI, and the agents'
+rules in the Folder, which keep the technical term "Automated Environment" as the root
+addendum allows. The forks take the shell's words with `shell.js` and need no release of
+their own; the T3 Code rebuild, which draws the column head, consumes them as they are.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep Automatizované as a fourth kind and Místní for the computer | Overruled by root decision 0207's addendum of 2026-10-18 |
+| Rewrite every "toto Prostředí" of the catalog at run time by a pattern | Nothing to edit, but implicit: a text whose subject is the kind itself could not keep the plain words, and the source would not show which words change; rejected for explicit tokens, which the prototype already uses |
+| A text per kind for every message | Five catalogs to keep in parity for one change of words; rejected |
+| Leave the line beside a computer's own name empty | A computer named by its host name would say nothing of what it is; the prototype says "Váš počítač" there |
+| Tokens of one helper, filled once per language and kind (selected) | One truth for every kind's words; a text names its kind or explicitly keeps the plain words, checked by the guard |
+
+**Honest limits.** A Czech predicate that agrees with "Prostředí" would not agree with
+"počítač": "Prostředí je připravené." in Začínáme keeps the plain word for that reason,
+and the public notice keeps it if a document ever called a computer public, which no
+public Environment is (F55); a later pass can reword them. Nová karta's words, the
+Environment browser's words, the CLI's human output and the Folder's generated rule and
+manual for agents (`environmentWording` still lists the old kinds as adjectives) keep
+their wording until a separate change; the rule's change re-renders every Folder and
+gets its own template revision. On a computer the page knows its kind only once it has
+read its own shell document, before it shows. The Dashboard takes the shell's words with
+its next pin of the shell.
+
+Verified by unit tests: every kind's words in every case and determiner and the tokens
+for every kind and none (`tests/kind-name.test.ts`), the picker's names and lines, the
+gear and a missing app for each kind in both languages (`tests/shell-picker.test.ts`,
+`tests/shell.test.ts`, `tests/shell-identity.test.ts`, `tests/apps-view.test.ts`), the
+kind of each preset and of an unknown one and the assignment line
+(`tests/machine-view.test.ts`), Toto Prostředí's title per kind
+(`tests/launchpad-routes.test.ts`), the vault request's line
+(`tests/vault-requests-view.test.ts`, `tests/module-view.test.ts`), the prepared prompt
+of a stopped preparation (`tests/first-run-shell.test.ts`), the server's first paint
+(`tests/launchpad-boot.test.ts`) and the guard (`tests/environment-wording.test.ts`);
+and in headless Chrome (root decision 0178) against the preview, which takes `team` or
+`automated` after its mode for a Team or an Automated Environment, in both languages:
+the picker, Obecné and Toto Prostředí on a work, a Team, an Automated and a personal
+Environment and on a computer. These are no rendered-page CI gates.
+
 ## F29 — Entry units of a Remote Environment: the Launchpad, T3 Code and the operator's Codex app-server
 
 **Decided by Matěj 2026-09-30 (plan DEV-6635); implemented in this revision.**
@@ -6520,6 +6630,19 @@ where the Environment's name starts, the band as tall as Settings' header, hidin
 keyboard with the focus moving to the corner's toggle, the choice kept across a reload,
 showing it again from the corner, the sheet, and the tour's ring on the gear. These are
 no rendered-page CI gates.
+
+### F36 addendum of 2026-10-18: the shell's words name three kinds
+
+**Decided by Matěj (Organization Admin) on 2026-10-18 (root decision 0207, its addendum of
+2026-10-18).** The words of the shell's elements follow [F28's addendum of the same
+day](#f28-addendum-of-2026-10-18-three-kinds-of-environment-and-your-computer-without-a-kind):
+the line beside a name says Osobní, Pracovní or Týmové (an automated Environment
+Pracovní) and on a computer "Váš počítač", the gear says the Settings of that kind
+("Nastavení Týmového Prostředí"), and a missing app, the switch's name and a public
+Environment's notice name the kind of the Environment they are in, from
+`src/shell/kind-name.ts`. No name of interface v1 and nothing of `lazurio.shell.v1`
+changes; the forks take the words with `shell.js`, and the column head's layout and its
+setup prompt are drawn as before.
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
