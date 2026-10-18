@@ -5,6 +5,7 @@ import type { GuideVideoName } from "./guide-video";
 import { integrationsHelp } from "./integrations-view";
 import type { MessageKey } from "./messages";
 import type { PageRoute } from "./routes";
+import type { ToolGuideTargets } from "./tools-view";
 import type { VaultPagePerson } from "./vault-page-view";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -261,23 +262,40 @@ export const machineGuide = (
 });
 
 /** Settings → Nástroje; in a Team Environment its team accounts, which the
- * whole Team uses. */
-export const toolsGuide = (copy: Copy, team: boolean): PageGuideInput => ({
+ * whole Team uses. Its steps follow what the page can point at
+ * (`toolGuideTargets`, Pablo's review of #503), as Trezor's follow the
+ * vault: the two on connecting only where something can be connected or
+ * was (a sign-in, a connection made; never gh of a Team Environment, which
+ * works as the Organization's identity), the switch only where there is one
+ * to move; what the page is (and in a Team Environment that the Team shares
+ * it) always. */
+export const toolsGuide = (
+  copy: Copy,
+  team: boolean,
+  targets: ToolGuideTargets,
+): PageGuideInput => ({
   id: team ? "settings-tools-team" : "settings-tools",
   title: copy.toolsTitle,
-  steps: team
-    ? [
-        { text: copy.guideToolsTeamShared, at: "tools" },
-        { text: copy.guideToolsTeamAccounts, at: "tool-connect" },
-        { text: copy.guideToolsTeamUse, at: "tool-connect" },
-        { text: copy.guideToolsSwitch, at: "tool-agents" },
-      ]
-    : [
-        { text: copy.guideToolsWhich, at: "tools" },
-        { text: copy.guideToolsConnect, at: "tool-connect" },
-        { text: copy.guideToolsReach, at: "tool-connect" },
-        { text: copy.guideToolsSwitch, at: "tool-agents" },
-      ],
+  steps: [
+    {
+      text: team ? copy.guideToolsTeamShared : copy.guideToolsWhich,
+      at: "tools",
+    },
+    ...(targets.connect === null
+      ? []
+      : team
+        ? [
+            { text: copy.guideToolsTeamAccounts, at: "tool-connect" },
+            { text: copy.guideToolsTeamUse, at: "tool-connect" },
+          ]
+        : [
+            { text: copy.guideToolsConnect, at: "tool-connect" },
+            { text: copy.guideToolsReach, at: "tool-connect" },
+          ]),
+    ...(targets.agents === null
+      ? []
+      : [{ text: copy.guideToolsSwitch, at: "tool-agents" }]),
+  ],
 });
 
 /** Settings → the devices that connect from a terminal: the prompt for the
@@ -407,6 +425,9 @@ export type PageGuideFacts = Readonly<{
    * nothing to set up (`none`, a Team or Automated Environment); null until
    * the profile is read. Only the basics have something to explain. */
   start: "basics" | "demo" | "none" | null;
+  /** What Settings → Nástroje can point at, as its panel last drew it
+   * (`toolGuideTargets`); null until the tools are read: its "?" waits. */
+  tools: ToolGuideTargets | null;
 }>;
 
 const none: PageGuide = Object.freeze({ help: null, video: null, guides: [] });
@@ -466,7 +487,8 @@ export function pageGuide(
             machineGuide(copy, facts.kind === "workstation"),
           ]);
         case "tools": {
-          const guide = toolsGuide(copy, team);
+          if (facts.tools === null) return none;
+          const guide = toolsGuide(copy, team, facts.tools);
           return plays(guide.id, [guide]);
         }
         case "ssh": {

@@ -42,6 +42,7 @@ import {
   sourceLink,
   sshOutcome,
   type ToolChange,
+  type ToolGuideTargets,
   type ToolNotice,
   takesNote,
   teamInstallOutcome,
@@ -77,6 +78,10 @@ export function createToolsPanel(
     copy: () => Copy;
     /** Share the same observation with Apps, including failed reads. */
     observed: (overview: ToolsOverview | null) => void;
+    /** Called after the tools are drawn, with what the guide of the page's
+     * "?" can point at now (`toolGuideTargets`), null while the tools are
+     * not read (decision F56's addendum (2) of 2026-10-18). */
+    drawn?: (targets: ToolGuideTargets | null) => void;
     /** The Folder changed through this panel: the rest of the page reloads,
      * and that reload refreshes this panel too. */
     changed: () => Promise<void>;
@@ -1611,7 +1616,15 @@ export function createToolsPanel(
     return item;
   }
 
+  // What the guide can point at, as last drawn; null while not read.
+  let guideTargets: ToolGuideTargets | null = null;
   function render() {
+    guideTargets = null;
+    draw();
+    options.drawn?.(guideTargets);
+  }
+
+  function draw() {
     const copy = options.copy();
     refreshButton.disabled = busy;
     mcpButton.disabled = overview === null;
@@ -1643,12 +1656,13 @@ export function createToolsPanel(
     );
     // What the guide of the page's "?" points at (decision F56's addendum
     // (2) of 2026-10-18, `toolGuideTargets`): connecting and the switch,
-    // each on something the page draws now.
+    // where the page draws them; the guide's steps follow (`drawn`).
     const targets = toolGuideTargets(
       shownGroups,
       copy,
       overview.sharedEnvironment === true,
     );
+    guideTargets = targets;
     const row = (name: string) =>
       [...groups.querySelectorAll<HTMLElement>("li[data-tool]")].find(
         (item) => item.dataset.tool === name,
@@ -1663,9 +1677,7 @@ export function createToolsPanel(
         ?.setAttribute("data-guide", "tool-connect");
     if (targets.agents !== null)
       row(targets.agents.tool)
-        ?.querySelector(
-          targets.agents.part === "switch" ? ".switch-field" : ".always-on",
-        )
+        ?.querySelector(".switch-field")
         ?.setAttribute("data-guide", "tool-agents");
     // A control is disabled while the panel is busy and cannot take the
     // focus then; the render after the read places it.

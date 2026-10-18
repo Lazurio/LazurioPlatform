@@ -19,6 +19,11 @@ import {
 } from "../src/launchpad/routes";
 import { escapeLeavesSettings } from "../src/launchpad/shell";
 import { optionalRows } from "../src/launchpad/start-view";
+import {
+  type ToolGuideTargets,
+  toolGroups,
+  toolGuideTargets,
+} from "../src/launchpad/tools-view";
 import type { VaultPagePerson } from "../src/launchpad/vault-page-view";
 import {
   type ShellEnvironmentKind,
@@ -33,6 +38,7 @@ import {
   principleMarks,
   shellMarks,
 } from "../src/shell/guide-content";
+import type { ToolOverview } from "../src/tools/overview";
 import type { VaultStatus } from "../src/vault/flow";
 import { guideTextFindings } from "./fixtures/guide-text";
 
@@ -202,14 +208,40 @@ const vaultFacts: readonly VaultGuideFacts[] = [
   read(unsupported("handover-missing"), null),
 ];
 
-/** Every combination of what the page knows. */
+/** What Nástroje's panel can report (`toolGuideTargets`): not read yet,
+ * a sign-in to make and a switch, a connection made and no switch, a
+ * switch and nothing to connect, nothing at all. */
+const toolFacts: readonly (ToolGuideTargets | null)[] = [
+  null,
+  {
+    connect: { tool: "composio", part: "action" },
+    agents: { tool: "composio" },
+  },
+  { connect: { tool: "composio", part: "state" }, agents: null },
+  { connect: null, agents: { tool: "wacli" } },
+  { connect: null, agents: null },
+];
+
+/** What the page knows, in every kind and language: each fact in each of
+ * its values, the others as on a page that read everything (each page reads
+ * one of them). */
 function* everyFacts(): Generator<PageGuideFacts> {
   for (const kind of kinds)
-    for (const locale of locales)
-      for (const composio of [null, false, true])
-        for (const vault of vaultFacts)
-          for (const start of ["basics", "demo", "none", null] as const)
-            yield { kind, locale, composio, vault, start };
+    for (const locale of locales) {
+      const base: PageGuideFacts = {
+        kind,
+        locale,
+        composio: null,
+        vault: read(connected, "work", known("member")),
+        start: "basics",
+        tools: toolFacts[1] ?? null,
+      };
+      for (const composio of [null, false, true]) yield { ...base, composio };
+      for (const vault of vaultFacts) yield { ...base, vault };
+      for (const start of ["basics", "demo", "none", null] as const)
+        yield { ...base, start };
+      for (const tools of toolFacts) yield { ...base, tools };
+    }
 }
 
 /** What a "?" plays: the shell's principle, or one the Launchpad hands
@@ -301,17 +333,17 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
         continue;
       }
       if (guide.help === null) {
-        // Only Trezor waits, while its vault's state is not read, and
-        // Začínáme, where it has no basics to explain (a public demo, a Team
-        // or Automated Environment) or the profile is not read.
-        expect({
+        // Only Trezor waits, while its vault's state is not read;
+        // Nástroje, while its tools are not read; and Začínáme, where it has
+        // no basics to explain (a public demo, a Team or Automated
+        // Environment) or the profile is not read.
+        const waiting: Readonly<Record<string, boolean>> = {
+          Trezor: facts.vault.vault === null,
+          "Nastavení tools": facts.tools === null,
+          "Nastavení start": facts.start !== "basics",
+        };
+        expect({ name, waits: waiting[name] ?? false }).toEqual({
           name,
-          waits:
-            name === "Trezor"
-              ? facts.vault.vault === null
-              : facts.start !== "basics",
-        }).toEqual({
-          name: name === "Trezor" ? "Trezor" : "Nastavení start",
           waits: true,
         });
         continue;
@@ -330,6 +362,7 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
     composio: null,
     vault: { vault: null, person: null },
     start: "basics",
+    tools: toolFacts[1] ?? null,
     ...fields,
   });
   const help = (route: PageRoute, fields: Partial<PageGuideFacts> = {}) =>
@@ -456,6 +489,7 @@ test("every mark a step points at is on the served page, drawn by a panel once r
 test("the Launchpad's explanations keep the guide's rules in both languages and every kind, at the same marks", () => {
   const found: string[] = [];
   const atMarks = new Map<string, string>();
+  const ids = new Set<string>();
   for (const facts of everyFacts()) {
     const copy = messages(facts.locale, facts.kind);
     for (const [, route] of pages)
@@ -470,13 +504,16 @@ test("the Launchpad's explanations keep the guide's rules in both languages and 
         const where = JSON.stringify(
           filled.steps.map((step) => [step.at, step.sub === null]),
         );
-        expect(atMarks.get(own.id) ?? where).toBe(where);
-        atMarks.set(own.id, where);
+        // Czech and English at the same marks, for the same facts.
+        const key = JSON.stringify([own.id, { ...facts, locale: null }]);
+        expect(atMarks.get(key) ?? where).toBe(where);
+        atMarks.set(key, where);
+        ids.add(own.id);
         expect(own.id).not.toBeOneOf([...principleIds]);
       }
   }
   expect(found).toEqual([]);
-  expect([...atMarks.keys()].sort()).toEqual([
+  expect([...ids].sort()).toEqual([
     "files-team",
     "integrations-composio",
     "integrations-custom",
@@ -512,6 +549,7 @@ test("Integrace's 'Jak to funguje' is the guide's card's now: each of its explan
             composio,
             vault: { vault: null, person: null },
             start: "basics",
+            tools: null,
           },
           copy,
         );
@@ -658,6 +696,7 @@ test("Trezor's '?' is chosen from the kind, the vault core's answer and the pers
         composio: null,
         vault: read(connected, "team", unknownPerson("not-managed")),
         start: "none",
+        tools: null,
       },
       messages(locale, "team"),
     );
@@ -690,6 +729,7 @@ test("Trezor's '?' is chosen from the kind, the vault core's answer and the pers
       composio: null,
       vault: read(connected, "work", known("member")),
       start: "basics",
+      tools: null,
     },
     messages("cs", "work"),
   );
@@ -831,6 +871,7 @@ test('the "?" of Trezor waits until the vault\'s state is read, in a Personal En
     composio: null,
     vault,
     start: "basics",
+    tools: null,
   });
   const states = (vault: VaultGuideFacts, off = false) =>
     pageHelpStates(
@@ -944,10 +985,175 @@ test("what no step says stays beside its choice: the preset, Composio, Trezor v 
       composio: null,
       vault: { vault: null, person: null },
       start: "basics",
+      tools: null,
     },
     messages("cs", "work"),
   );
   expect(
     general.guides[0]?.steps.some((step) => /předvolb|druh/i.test(step.text)),
   ).toBe(false);
+});
+
+// Nástroje's steps follow what its page draws (Pablo's review of #503), as
+// Trezor's follow the vault: the tools as the panel lays them out
+// (`toolGroups`), what it marks (`toolGuideTargets`), and the steps the "?"
+// plays at those marks.
+test("Nástroje's '?' says only what its page can show: no steps on connecting where nothing can be connected, as in a Team Environment with gh alone", () => {
+  const tool = (fields: Partial<ToolOverview>): ToolOverview => ({
+    name: "composio",
+    command: "composio",
+    tier: "recommended",
+    setup: "launchpad",
+    enabled: false,
+    offered: true,
+    purpose: "Purpose.",
+    usage: "Usage.",
+    source: "https://docs.composio.dev/docs/cli",
+    installed: true,
+    prompt: "Task.",
+    ...fields,
+  });
+  const signedIn = { state: "signed-in", account: "a@example.com" } as const;
+  const gh = tool({
+    name: "gh",
+    command: "gh",
+    tier: "required",
+    enabled: true,
+    signIn: signedIn,
+  });
+  /** The page as drawn for `tools`: each step's words, its mark, and what
+   * that mark is on (the tool and its part), in Czech. */
+  const drawn = (
+    kind: ShellEnvironmentKind,
+    tools: readonly ToolOverview[],
+  ) => {
+    const copy = messages("cs", kind);
+    const targets = toolGuideTargets(
+      toolGroups(tools, copy),
+      copy,
+      kind === "team",
+    );
+    const guide = pageGuide(
+      { view: "settings", section: "tools" },
+      {
+        kind,
+        locale: "cs",
+        composio: null,
+        vault: { vault: null, person: null },
+        start: "basics",
+        tools: targets,
+      },
+      copy,
+    );
+    const on = (at: string) =>
+      at === "tool-connect"
+        ? targets.connect
+        : at === "tool-agents"
+          ? targets.agents && { ...targets.agents, part: "switch" }
+          : "tools";
+    return {
+      help: guide.help,
+      steps: (guide.guides[0]?.steps ?? []).map((step) => [
+        step.text,
+        step.at,
+        on(step.at),
+      ]),
+    };
+  };
+  // A Team Environment with gh alone, working as the Organization's
+  // identity: nothing to connect and no switch to move. What the page is,
+  // and that the Team shares it.
+  expect(drawn("team", [gh])).toEqual({
+    help: "settings-tools-team",
+    steps: [["Toto Týmové Prostředí sdílí celý Team", "tools", "tools"]],
+  });
+  // A team account connected here, beside gh: the steps on team accounts
+  // point at its line, the switch at its switch.
+  expect(drawn("team", [gh, tool({ signIn: signedIn })])).toEqual({
+    help: "settings-tools-team",
+    steps: [
+      ["Toto Týmové Prostředí sdílí celý Team", "tools", "tools"],
+      [
+        "Přihlašujte se tu týmovými účty",
+        "tool-connect",
+        { tool: "composio", part: "state" },
+      ],
+      [
+        "Co přihlásíte, může používat každý z Teamu",
+        "tool-connect",
+        { tool: "composio", part: "state" },
+      ],
+      [
+        "Přepínač určí, jestli ho agenti používají",
+        "tool-agents",
+        { tool: "composio", part: "switch" },
+      ],
+    ],
+  });
+  // A team account still to connect: its sign-in.
+  expect(drawn("team", [gh, tool({})]).steps[1]?.[2]).toEqual({
+    tool: "composio",
+    part: "action",
+  });
+  // A Work Environment with a sign-in to make: the four steps.
+  expect(drawn("work", [gh, tool({})])).toEqual({
+    help: "settings-tools",
+    steps: [
+      [
+        "Nástroje, které agenti v tomto Pracovním Prostředí používají",
+        "tools",
+        "tools",
+      ],
+      [
+        "Připojíte je svým účtem",
+        "tool-connect",
+        { tool: "composio", part: "action" },
+      ],
+      [
+        "Kam je připojíte, tam agenti můžou",
+        "tool-connect",
+        { tool: "composio", part: "action" },
+      ],
+      [
+        "Přepínač určí, jestli ho agenti používají",
+        "tool-agents",
+        { tool: "composio", part: "switch" },
+      ],
+    ],
+  });
+  // A Work Environment whose only tool the Organization does not allow:
+  // nothing to connect, and its switch does not move.
+  expect(drawn("work", [tool({ organization: { allowed: false } })])).toEqual({
+    help: "settings-tools",
+    steps: [
+      [
+        "Nástroje, které agenti v tomto Pracovním Prostředí používají",
+        "tools",
+        "tools",
+      ],
+    ],
+  });
+  // Everything connected in a Work Environment: gh's own line is a
+  // connection the person made.
+  expect(drawn("work", [gh, tool({ signIn: signedIn })]).steps[1]?.[2]).toEqual(
+    { tool: "gh", part: "state" },
+  );
+  // Before the tools are read the "?" waits.
+  const unread = pageGuide(
+    { view: "settings", section: "tools" },
+    {
+      kind: "team",
+      locale: "cs",
+      composio: null,
+      vault: { vault: null, person: null },
+      start: "basics",
+      tools: null,
+    },
+    messages("cs", "team"),
+  );
+  expect(
+    pageHelpStates({ view: "settings", section: "tools" }, unread, false)[
+      "page-help"
+    ],
+  ).toEqual({ hidden: true, plays: null, controls: null });
 });

@@ -77,6 +77,7 @@ import { demoModule, demoStartView, startCount } from "./start-view";
 import { createThemePanel } from "./theme-panel";
 import { withAppsTheme } from "./theme-view";
 import { createToolsPanel } from "./tools-panel";
+import type { ToolGuideTargets } from "./tools-view";
 import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
 import { fill, pillView, pillVisible } from "./update-view";
@@ -202,6 +203,9 @@ const pageHelps = Object.fromEntries(
 const buddy = document.querySelector<HTMLElement>("#buddy");
 // Recovery mode ends the guide for the page's life (`enterRecovery`).
 let guideOff = false;
+/** What Settings → Nástroje's "?" can point at, as the tools panel last
+ * drew it; null until the tools are read (`tools`'s `drawn`). */
+let toolTargets: ToolGuideTargets | null = null;
 /** The "?" of the page now shown when it opens a video (Trezor's). */
 let videoHelp: HTMLButtonElement | null = null;
 function drawGuide(route: PageRoute) {
@@ -220,6 +224,7 @@ function drawGuide(route: PageRoute) {
           : signsInAsPerson(profileState.preset)
             ? "basics"
             : "none",
+      tools: toolTargets,
     },
     copy,
   );
@@ -1383,6 +1388,11 @@ function whenIdle(task: () => void) {
 // The tools section (decision F18). A change recorded there moves the Folder
 // revision, so a profile preview made before it is no longer valid.
 const tools = createToolsPanel({
+  // What Nástroje's "?" can point at chooses its steps.
+  drawn: (targets) => {
+    toolTargets = targets;
+    if (framed) drawGuide(shell.route());
+  },
   observed: (overview) => {
     // A tool's sign-in changes which apps it connects: Integrace read again.
     const signIns = JSON.stringify(

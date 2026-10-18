@@ -1720,28 +1720,29 @@ test("a tool signed in before the sign-in says so, in both languages", () => {
   }
 });
 
-// Where the guide of Nástroje's "?" points (decision F56's addendum (2) of
-// 2026-10-18; Pablo's review of #503): each step on something the page
-// draws, also where everything is connected already and on a Team
-// Environment, whose gh works as the Organization's identity.
-test("the guide's steps on connecting and on the switch always name something the page draws", () => {
+// What the guide of Nástroje's "?" can point at (decision F56's addendum (2)
+// of 2026-10-18; Pablo's review of #503): a sign-in or a connection someone
+// made, and a switch the person can move; nothing where there is none, so
+// the guide leaves those steps out.
+test("the guide's targets on connecting and on the switch are only what a person can use there", () => {
   const en = messages("en");
   const signedIn = {
     installed: true,
     signIn: { state: "signed-in", account: "a@example.com" },
   } as const;
+  const gh = tool({ name: "gh", command: "gh", tier: "required", ...signedIn });
   const targets = (tools: readonly ToolOverview[], brokered = false) =>
     toolGuideTargets(toolGroups(tools, en), en, brokered);
   // A sign-in to make: its button, and the first switch.
   expect(
     targets([
-      tool({ name: "gh", command: "gh", tier: "required", ...signedIn }),
+      gh,
       tool({ installed: true }),
       tool({ name: "wacli", command: "wacli", tier: "optional" }),
     ]),
   ).toEqual({
     connect: { tool: "composio", part: "action" },
-    agents: { tool: "composio", part: "switch" },
+    agents: { tool: "composio" },
   });
   // Adding and connecting counts too.
   expect(targets([tool()]).connect).toEqual({
@@ -1751,38 +1752,31 @@ test("the guide's steps on connecting and on the switch always name something th
   // Everything connected: the first connection made, as its line says it.
   expect(
     targets([
-      tool({ name: "gh", command: "gh", tier: "required", ...signedIn }),
+      gh,
       tool(signedIn),
       tool({ name: "wacli", command: "wacli", tier: "optional", ...signedIn }),
     ]),
   ).toEqual({
     connect: { tool: "gh", part: "state" },
-    agents: { tool: "composio", part: "switch" },
+    agents: { tool: "composio" },
   });
-  // A Team Environment: gh works as the Organization's identity and offers
-  // no sign-in; the steps go to the team account connected here.
-  expect(
-    targets(
-      [
-        tool({ name: "gh", command: "gh", tier: "required", ...signedIn }),
-        tool(signedIn),
-      ],
-      true,
-    ),
-  ).toEqual({
+  // A Team Environment: gh works as the Organization's identity and signs
+  // nobody in; a team account connected here is the connection.
+  expect(targets([gh, tool(signedIn)], true)).toEqual({
     connect: { tool: "composio", part: "state" },
-    agents: { tool: "composio", part: "switch" },
+    agents: { tool: "composio" },
   });
-  // A Team Environment with gh alone: its line is all there is.
+  // A Team Environment with gh alone: nothing to connect, no switch.
+  expect(targets([gh], true)).toEqual({ connect: null, agents: null });
+  // gh missing on a Team Environment is installed only, never signed in.
   expect(
-    targets(
-      [tool({ name: "gh", command: "gh", tier: "required", ...signedIn })],
-      true,
-    ),
-  ).toEqual({
-    connect: { tool: "gh", part: "state" },
-    agents: { tool: "gh", part: "always" },
-  });
+    targets([tool({ name: "gh", command: "gh", tier: "required" })], true),
+  ).toEqual({ connect: null, agents: null });
+  // A tool the Organization does not allow: neither connected nor switched
+  // here.
+  expect(
+    targets([tool({ ...signedIn, organization: { allowed: false } })]),
+  ).toEqual({ connect: null, agents: null });
   // The vault's and Executor's rows, an agent's tool and a tool not offered
   // here are none of a person's sign-ins.
   expect(
