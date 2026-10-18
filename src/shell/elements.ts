@@ -8,6 +8,8 @@ import {
   shellSchema,
 } from "./contract";
 import { installShellFonts } from "./fonts";
+import { createGuide, type GuideElement } from "./guide";
+import { createGuideLayer } from "./guide-layer";
 import { icon } from "./icons";
 import {
   drawIdentity,
@@ -62,8 +64,12 @@ import {
 // switch Chat · Apps · Automate).
 // Each draws into its own shadow root, so neither the host's styles nor these
 // leak across. The panel below the head stays the app's own.
-// `<lazurio-buddy>` is reserved for Buddy's bubble (decision 0180) and not
-// defined here.
+// `<lazurio-buddy>` (decision F56, guide.ts) is where the guide draws: a
+// "?" of the page (`data-guide-help`) makes Buddy, or without him the
+// neutral guide of Lazurio, explain the page in place. It draws nothing and
+// listens to nothing until the page hands over its explanations
+// (`provideGuides`); the forks, which place it and hand over nothing, are
+// unchanged. Buddy's bubble itself (root decision 0180) comes later.
 //
 // Data: the `lazurio.shell.v1` document. A host that has it calls
 // `provideShell`; otherwise the elements read `/.lazurio/shell.json` on
@@ -157,6 +163,65 @@ export function provideShell(shell: Shell | ShellSignedOut): void {
 export function provideAccount(account: ShellAccount | null): void {
   state.provideAccount(account);
 }
+
+// The guide of this page (guide.ts): what it plays and when, drawn by
+// guide-layer.ts in each `<lazurio-buddy>`'s own shadow root.
+const guideLayers = new WeakMap<
+  GuideElement,
+  ReturnType<typeof createGuideLayer>
+>();
+const guide = createGuide({
+  shell: () => state.drawn(),
+  copy: shellMessages,
+  follow: (changed) => state.listen(changed),
+  listenHelp: (play) => {
+    // A plain click of a "?" (`data-guide-help`), the keyboard's included:
+    // a button fires `click` for Enter and Space.
+    const click = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      const help = event
+        .composedPath()
+        .find(
+          (node): node is HTMLElement =>
+            node instanceof HTMLElement && node.dataset.guideHelp !== undefined,
+        );
+      if (help === undefined) return;
+      if (play(help.dataset.guideHelp ?? "", help)) event.preventDefault();
+    };
+    document.addEventListener("click", click);
+    return () => document.removeEventListener("click", click);
+  },
+  layer: (element) => {
+    let layer = guideLayers.get(element);
+    if (layer === undefined) {
+      layer = createGuideLayer(element as LazurioBuddy, logo);
+      guideLayers.set(element, layer);
+    }
+    return layer;
+  },
+  announce: (element, event) =>
+    (element as LazurioBuddy).dispatchEvent(
+      new CustomEvent("lazurio-guide", {
+        detail: event,
+        bubbles: true,
+        composed: true,
+      }),
+    ),
+});
+
+/** Hands over the explanations of the page the host shows now (decision
+ * F56), replacing those before: a list of `{id, title, steps: [{text, sub?,
+ * at?}]}`, each step pointing at a `data-guide` mark of the page; null
+ * withdraws. Once a page hands them over and places `<lazurio-buddy>`, a "?"
+ * (`data-guide-help="<id>"`) plays the explanation it names: one of these,
+ * or one of the shell's principles. */
+export function provideGuides(guides: unknown): void {
+  guide.provide(guides);
+}
+
+/** The arbiter between the guide and a host's own onboarding tour: never
+ * two at once. Not part of interface v1; the Launchpad's tour uses it. */
+export const guideAttention = guide.attention;
 
 function requestShell(): void {
   state.requestAccount();
@@ -1105,6 +1170,23 @@ export class LazurioColumnHead extends ShellElement {
   }
 }
 
+/** `<lazurio-buddy>`: the guide's place on the page (decision F56). Its
+ * `lang` picks the guide's language, else the shell document's. It makes
+ * no shadow root and adds no listener of its own: the guide draws in it only
+ * once the page takes part. */
+export class LazurioBuddy extends HTMLElement implements GuideElement {
+  static observedAttributes = ["lang"];
+  connectedCallback() {
+    guide.attach(this);
+  }
+  disconnectedCallback() {
+    guide.detach(this);
+  }
+  attributeChangedCallback() {
+    if (this.isConnected) guide.changed();
+  }
+}
+
 /** Whether the nearest ancestor with an opaque background is dark (its
  * relative luminance below 0.4); none found is light. */
 export function hostIsDark(start: Element): boolean {
@@ -1187,6 +1269,8 @@ export function defineShellElements(): void {
         request: requestDocument,
       }),
     );
+  if (!customElements.get("lazurio-buddy"))
+    customElements.define("lazurio-buddy", LazurioBuddy);
   if (!customElements.get("lazurio-environment"))
     customElements.define(
       "lazurio-environment",

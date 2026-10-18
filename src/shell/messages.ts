@@ -71,6 +71,16 @@ export type ShellCopy = Readonly<{
    * 2026-10-06): its accessible name, and the key's name and label. */
   signedOutRail: string;
   signIn: string;
+  /** The guide's card (decision F56): the step on, the last step, the way
+   * out, the answer while Začínáme wants attention, the invitation at the
+   * end of an explanation about Buddy for a person without one, and the
+   * neutral guide's name for assistive technology. */
+  guideNext: string;
+  guideDone: string;
+  guideClose: string;
+  guideBusy: string;
+  guideInvite: string;
+  guideName: string;
 }>;
 
 /** One word per kind of `lazurio.shell.v1`. */
@@ -124,6 +134,12 @@ const en: ShellCopy = {
     "{This} is public and shared and is wiped every night. Do not enter personal data or sign in to your own accounts.",
   signedOutRail: "Lazurio",
   signIn: "Sign in with your Lazurio account",
+  guideNext: "Next",
+  guideDone: "Got it",
+  guideClose: "Close",
+  guideBusy: "Finish Getting started first",
+  guideInvite: "Get your Buddy",
+  guideName: "Lazurio guide",
 };
 
 const cs: ShellCopy = {
@@ -164,6 +180,12 @@ const cs: ShellCopy = {
     "{Toto} je veřejné a sdílené a každou noc se smaže. Nezadávejte sem osobní údaje a nepřihlašujte se ke svým účtům.",
   signedOutRail: "Lazurio",
   signIn: "Přihlásit Lazurio účtem",
+  guideNext: "Další",
+  guideDone: "Rozumím",
+  guideClose: "Ukončit",
+  guideBusy: "Nejdřív dokončete Začínáme",
+  guideInvite: "Založte si Buddyho",
+  guideName: "Průvodce Lazuriem",
 };
 
 export const shellMessages = (locale: KindLocale): ShellCopy =>

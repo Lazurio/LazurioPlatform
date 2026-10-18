@@ -1,3 +1,4 @@
+import { tourPlacement, tourWidth } from "../shell/guide-placement";
 import {
   finishedTourProgress,
   firstProgress,
@@ -13,7 +14,6 @@ import {
 } from "./first-run";
 import type { MessageKey } from "./messages";
 import type { PageRoute } from "./routes";
-import { tourPlacement, tourWidth } from "./tour-placement";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
@@ -28,8 +28,12 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // exist it is back on the next page load, and Začínáme starts the
 // introduction again. This browser keeps only where the introduction
 // points, per Environment (first-run.ts). The rules are pure in
-// first-run.ts, where the bubble stands in tour-placement.ts
-// (Lazurio/LazurioPlatform#461); this module only draws them.
+// first-run.ts, where the bubble stands in the shell's guide-placement.ts
+// (Lazurio/LazurioPlatform#461), which the shell's guide follows too; this
+// module only draws them. Never two tours at once (decision F56): it tells
+// the shell's guide whether it wants attention, and a "?" asked meanwhile
+// nudges its bubble instead of opening a second one; it waits while the
+// guide explains a page.
 
 export function createTour(
   options: Readonly<{
@@ -45,6 +49,15 @@ export function createTour(
     columnHead: () => HTMLElement | null;
     /** Recovery mode: no tour. */
     off: () => boolean;
+    /** The shell's guide (decision F56): told whether the tour wants
+     * attention, asked whether it is out, heard when it ends, and when a
+     * "?" asked while the tour comes first. */
+    attention?: Readonly<{
+      tour(wants: boolean): void;
+      playing(): string | null;
+      listen(listener: () => void): () => void;
+      asked(listener: () => void): () => void;
+    }>;
   }>,
 ) {
   const layer = document.createElement("div");
@@ -204,11 +217,16 @@ export function createTour(
       environment === null ||
       // A sign-in, a prompt: the tour steps aside while a dialog is open.
       document.querySelector("dialog[open]") !== null
-    )
+    ) {
+      options.attention?.tour(false);
       return hide();
+    }
     const value = read(environment, facts);
     const next = tourStep(facts, value, settingsOf(options.route()));
+    options.attention?.tour(next !== null);
     if (next === null) return hide();
+    // The guide is out: the tour waits and comes back as it ends.
+    if (options.attention?.playing() != null) return hide();
     const copy = options.copy();
     const stop = tourStop(next, facts, options.apps(), copy);
     // The buttons are drawn again only for another stop or language, so the
@@ -280,6 +298,17 @@ export function createTour(
   }
 
   window.addEventListener("resize", () => place());
+  options.attention?.listen(() => update());
+  // A "?" asked while the tour comes first: its bubble says where to go.
+  let nudged: ReturnType<typeof setTimeout> | undefined;
+  options.attention?.asked(() => {
+    if (layer.hidden) return;
+    clearTimeout(nudged);
+    delete bubble.dataset.nudge;
+    void bubble.offsetWidth;
+    bubble.dataset.nudge = "";
+    nudged = setTimeout(() => delete bubble.dataset.nudge, 700);
+  });
   // A dialog opening or closing (a sign-in) moves the tour aside or back at
   // once.
   new MutationObserver(() => update()).observe(document.body, {

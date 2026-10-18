@@ -29,7 +29,16 @@
 // theme's dark values as `dark`, and the class `dark` a host shows dark
 // with), the host's attribute `data-lazurio-appearance` and the event
 // `lazurio-theme`. The values a theme gives the promised names are never
-// promised, only the names.
+// promised, only the names. Decision F56 (2026-10-18) added, in version 1,
+// the guide: `<lazurio-buddy>` with its attribute `lang`, the attributes a
+// host sets on elements of its page (`marks`: `data-guide`, the element a
+// step points at, and `data-guide-help`, the "?" that plays the explanation
+// it names), the event `lazurio-guide` and the export `provideGuides`.
+// Without explanations handed over and without Buddy's origin the element
+// draws nothing and listens to nothing. The ids, the marks and the texts of
+// the shell's own explanations are not promised; the message protocol
+// between Buddy's frame and the host is versioned on its own
+// (guide-protocol.ts).
 export const shellElementInterface = Object.freeze({
   version: 1,
   /** The script an app loads, on its own origin. */
@@ -43,8 +52,9 @@ export const shellElementInterface = Object.freeze({
       "settings",
       "space",
     ]),
-    // Reserved for Buddy's bubble (root decision 0180); not defined yet.
-    "lazurio-buddy": Object.freeze([] as string[]),
+    // Where the guide draws (decision F56; the bubble of root decision 0180
+    // comes later): the language of the guide.
+    "lazurio-buddy": Object.freeze(["lang"]),
     // Nová karta (decision F47 point 2): the strip the tab is for, the app's
     // tools as JSON (`[{id, label, key?, icon?}]`), whether the address bar
     // takes the keys, and the language.
@@ -66,12 +76,15 @@ export const shellElementInterface = Object.freeze({
    * `{kind: "page" | "tab", tab, view}` or `{kind: "tool", id}`).
    * `lazurio-theme`, on the document, follows every change of the
    * Environment theme the script declared (`detail`: `{id, revision, dark}`
-   * of the theme now declared, or null for none). */
+   * of the theme now declared, or null for none). `lazurio-guide`, on
+   * `<lazurio-buddy>`, says an explanation started, was done or was closed
+   * (`detail`: `{type: "started" | "done" | "closed", explainer}`). */
   events: Object.freeze([
     "lazurio-navigate",
     "lazurio-app",
     "lazurio-new-tab",
     "lazurio-theme",
+    "lazurio-guide",
   ]),
   /** Attributes a host sets on its document (`<html>`) and their values:
    * `host` says the page provides that document itself (`provideShell`,
@@ -85,6 +98,12 @@ export const shellElementInterface = Object.freeze({
     "data-lazurio-account": Object.freeze(["host"]),
     "data-lazurio-appearance": Object.freeze(["device", "light", "dark"]),
   }),
+  /** Attributes a host sets on elements of its page for the guide (decision
+   * F56): `data-guide` names an element a step of an explanation points at;
+   * `data-guide-help`, on the "?" beside a page's heading, names the
+   * explanation its click plays. Their values are the host's (or the
+   * principles' ids of the shell), never promised. */
+  marks: Object.freeze(["data-guide", "data-guide-help"]),
   /** What the script declares in the document it is loaded into, once, and
    * not at all where the document has it already (F36's addendum of
    * 2026-10-13): the faces of the font families `fonts`, served at
@@ -148,6 +167,7 @@ export const shellElementInterface = Object.freeze({
     "parseShell",
     "parseShellAccount",
     "parseShellSignedOut",
+    "provideGuides",
   ]),
   /** Custom properties: the rail sets the first on the document; a host may
    * set the second to override the detected tone. The rest are the colour
