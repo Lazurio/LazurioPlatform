@@ -376,9 +376,8 @@ export function startCount(facts: TourFacts): string | null {
 export type OptionalRow = Readonly<{
   id: "composio" | "ssh" | "bitwarden" | "codex";
   title: string;
-  /** What it is, where its title does not say it (SSH, Codex); none where
-   * the "?" of Začínáme says it (decision F56's addendum of 2026-10-18). */
-  text: string | null;
+  /** What it gives, at the choice: no step of Začínáme's "?" says it. */
+  text: string;
   status: string | null;
   /** None once it is done (Composio connected). */
   action: Readonly<{
@@ -412,7 +411,7 @@ export function optionalRows(
     rows.push({
       id: "composio",
       title: "Composio",
-      text: null,
+      text: copy.startComposioText,
       status:
         input.composio === "connected"
           ? copy.startConnected
@@ -440,7 +439,7 @@ export function optionalRows(
     rows.push({
       id: "bitwarden",
       title: copy.startBitwardenTitle,
-      text: null,
+      text: copy.startBitwardenText,
       status: null,
       action: {
         label: copy.startGuide,

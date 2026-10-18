@@ -536,7 +536,7 @@ test("Volitelné: Composio where Tools offer it, SSH and Codex Desktop on a Remo
     {
       id: "composio",
       title: "Composio",
-      text: null,
+      text: "Pošta, kalendář a další aplikace pro agenty.",
       status: "Nepřipojeno",
       action: { label: "Připojit", to: "composio" },
     },
@@ -640,7 +640,7 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
     {
       id: "bitwarden",
       title: "Trezor v Bitwardenu",
-      text: null,
+      text: "Hesla z Trezoru Prostředí i v Codex Desktopu a ve vašem prohlížeči.",
       status: null,
       action: { label: "Návod", to: "/vault", part: "bitwarden" },
     },
@@ -655,7 +655,7 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
   expect(optionalRows(remote, en)[1]).toEqual({
     id: "bitwarden",
     title: "Vault in Bitwarden",
-    text: null,
+    text: "Your Environment vault's passwords in Codex Desktop and your browser too.",
     status: null,
     action: { label: "Guide", to: "/vault", part: "bitwarden" },
   });

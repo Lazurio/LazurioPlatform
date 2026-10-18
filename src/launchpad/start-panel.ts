@@ -306,8 +306,10 @@ export function createStartPanel(
     node.dataset.optional = row.id;
     const main = element("div", "row-main");
     const copyBox = element("div", "row-copy");
-    copyBox.append(element("p", "row-title", row.title));
-    if (row.text !== null) copyBox.append(element("p", "row-desc", row.text));
+    copyBox.append(
+      element("p", "row-title", row.title),
+      element("p", "row-desc", row.text),
+    );
     if (row.status !== null)
       copyBox.append(element("p", "row-status", row.status));
     main.append(copyBox);

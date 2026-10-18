@@ -18,6 +18,7 @@ import {
   settingsSections,
 } from "../src/launchpad/routes";
 import { escapeLeavesSettings } from "../src/launchpad/shell";
+import { optionalRows } from "../src/launchpad/start-view";
 import type { VaultPagePerson } from "../src/launchpad/vault-page-view";
 import {
   type ShellEnvironmentKind,
@@ -720,12 +721,6 @@ const removed = [
   // wrote it, and its own sentences that said the same).
   "Zpřístupní vaše repozitáře a moduly.",
   "Opens your repositories and modules.",
-  "Pošta, kalendář a další aplikace pro agenty.",
-  "Mail, calendar and other apps for agents.",
-  "Hesla z Trezoru Prostředí i v Codex Desktopu",
-  "passwords in Codex Desktop and your browser too",
-  "Druh tohoto Prostředí.",
-  "The kind of this Environment.",
   "Jazyk této stránky a agentů.",
   "The language of this page and of the agents.",
   "Jak agenti vysvětlují svou práci",
@@ -758,8 +753,6 @@ const removed = [
   "Your agent writes these on your computer.",
   "Agent opraví Lazurio směrem dopředu",
   "The agent repairs forward",
-  "Jen sanitizovaná strukturovaná pole",
-  "Sanitized structured fields only",
   "Opravný agent ho založí",
   "The repair agent files it",
   "Tato stránka issue jen připraví",
@@ -785,7 +778,6 @@ test("the sentences the '?' replaced are gone from the page and its words", () =
     "integrations-help",
     "vault-page-rule",
     "vault-explainer",
-    "preset-hint",
     "locale-hint",
     "detail-hint",
     "coordination-hint",
@@ -806,9 +798,6 @@ test("the sentences the '?' replaced are gone from the page and its words", () =
     "vaultPageRule",
     "vaultExplainerText",
     "startGithubMissing",
-    "startComposioText",
-    "startBitwardenText",
-    "presetHint",
     "localeHint",
     "detailHint",
     "coordinationHint",
@@ -824,7 +813,6 @@ test("the sentences the '?' replaced are gone from the page and its words", () =
     "sshShared",
     "sshPromptNote",
     "sshComputerNote",
-    "recoveryEvidenceText",
   ])
     for (const locale of locales)
       expect({ key, here: Object.hasOwn(messages(locale), key) }).toEqual({
@@ -908,4 +896,58 @@ test("Escape on Settings while the guide explains closes the explanation, not Se
   expect(escapeLeavesSettings({ ...settings, typing: true })).toBe(false);
   for (const view of ["home", "files", "vault", "integrations"] as const)
     expect(escapeLeavesSettings({ ...settings, view })).toBe(false);
+});
+
+// What a removed sentence said that no step of its section's "?" says stays
+// beside its choice (Pablo's review of #503): what the preset is, what the
+// optional rows Composio and Trezor v Bitwardenu give, and what the evidence
+// of a recovery carries before a person files it to the public repository.
+test("what no step says stays beside its choice: the preset, Composio, Trezor v Bitwardenu, the evidence", () => {
+  const hint = byId("preset-hint");
+  expect(hint.attributes.get("data-message")).toBe("presetHint");
+  expect(byId("preset").attributes.get("aria-describedby")).toBe("preset-hint");
+  for (const locale of locales) {
+    const copy = messages(locale);
+    for (const key of [
+      "presetHint",
+      "startComposioText",
+      "startBitwardenText",
+      "recoveryEvidenceText",
+    ] as const)
+      expect({ locale, key, said: copy[key].length > 0 }).toEqual({
+        locale,
+        key,
+        said: true,
+      });
+    const rows = optionalRows(
+      {
+        preset: "hosted-organization-personal",
+        composio: "missing",
+        sshDevices: 0,
+        bitwarden: true,
+      },
+      copy,
+    );
+    expect(
+      Object.fromEntries(rows.map((row) => [row.id, row.text])),
+    ).toMatchObject({
+      composio: copy.startComposioText,
+      bitwarden: copy.startBitwardenText,
+    });
+  }
+  // The steps of Obecné do not name the preset; its hint does.
+  const general = pageGuide(
+    { view: "settings", section: "general" },
+    {
+      kind: "work",
+      locale: "cs",
+      composio: null,
+      vault: { vault: null, person: null },
+      start: "basics",
+    },
+    messages("cs", "work"),
+  );
+  expect(
+    general.guides[0]?.steps.some((step) => /předvolb|druh/i.test(step.text)),
+  ).toBe(false);
 });

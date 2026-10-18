@@ -754,6 +754,10 @@ const en = {
   recoveryOutcomeFailed: "failed",
   recoveryOutcomeSkipped: "skipped",
   recoveryEvidenceTitle: "Evidence",
+  // What the evidence carries, where a person decides whether to file it to
+  // the public repository (kept by Pablo's review of #503).
+  recoveryEvidenceText:
+    "Sanitized structured fields only, exactly as the prepared issue carries them.",
   recoveryJournalShow: "Show journal (stays {in this})",
   recoveryJournalHide: "Hide journal",
   recoveryJournalText:
@@ -798,6 +802,9 @@ const en = {
   machineNoHttps: "no HTTPS",
   machineNone: "not recorded",
   preset: "Workspace preset",
+  // What the preset is, beside the choice no step of Obecné's "?" names
+  // (kept by Pablo's review of #503).
+  presetHint: "The kind of this Environment.",
   presetLocal: kindDetail("workstation", "en"),
   presetHostedPersonal: kindDetail("personal", "en"),
   presetHostedOrganizationPersonal: kindDetail("work", "en"),
@@ -1047,6 +1054,7 @@ const en = {
   startVaultTitle: "Environment vault",
   startOpen: "Open",
   startOptional: "Optional",
+  startComposioText: "Mail, calendar and other apps for agents.",
   startConnected: "Connected",
   startNotConnected: "Not connected",
   startSshTitle: "SSH from your own computer",
@@ -1058,6 +1066,11 @@ const en = {
   // The Bitwarden extension in Codex Desktop and the person's own browser
   // (F53's addendum of 2026-10-16): the row leads to Apps → Trezor.
   startBitwardenTitle: "Vault in Bitwarden",
+  // What the optional rows Composio and Trezor v Bitwardenu give, at the
+  // choice (kept by Pablo's review of #503: no step of Začínáme's "?" says
+  // it).
+  startBitwardenText:
+    "Your Environment vault's passwords in Codex Desktop and your browser too.",
   startTourGroup: "App tour",
   startTourTitle: "Apps, Chat and Automate",
   startToured: "Seen",
@@ -2424,6 +2437,8 @@ const cs: Record<MessageKey, string> = {
   recoveryOutcomeFailed: "selhala",
   recoveryOutcomeSkipped: "přeskočena",
   recoveryEvidenceTitle: "Důkazy",
+  recoveryEvidenceText:
+    "Jen sanitizovaná strukturovaná pole, přesně jak je nese připravené issue.",
   recoveryJournalShow: "Zobrazit journal (zůstává {v tomto})",
   recoveryJournalHide: "Skrýt journal",
   recoveryJournalText:
@@ -2469,6 +2484,7 @@ const cs: Record<MessageKey, string> = {
   machineNoHttps: "bez HTTPS",
   machineNone: "nezaznamenáno",
   preset: "Preset pracovního prostředí",
+  presetHint: "Druh tohoto Prostředí.",
   presetLocal: kindDetail("workstation", "cs"),
   presetHostedPersonal: kindDetail("personal", "cs"),
   presetHostedOrganizationPersonal: kindDetail("work", "cs"),
@@ -2701,6 +2717,7 @@ const cs: Record<MessageKey, string> = {
   startVaultTitle: "Trezor Prostředí",
   startOpen: "Otevřít",
   startOptional: "Volitelné",
+  startComposioText: "Pošta, kalendář a další aplikace pro agenty.",
   startConnected: "Připojeno",
   startNotConnected: "Nepřipojeno",
   startSshTitle: "SSH z vlastního počítače",
@@ -2710,6 +2727,8 @@ const cs: Record<MessageKey, string> = {
   startGuide: "Návod",
   startCodexText: "Pracujte s {tímto} z aplikace Codex.",
   startBitwardenTitle: "Trezor v Bitwardenu",
+  startBitwardenText:
+    "Hesla z Trezoru Prostředí i v Codex Desktopu a ve vašem prohlížeči.",
   startTourGroup: "Prohlídka aplikace",
   startTourTitle: "Apps, Chat a Automate",
   startToured: "Prohlédnuto",

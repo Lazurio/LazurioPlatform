@@ -241,7 +241,15 @@ export function createRecoveryPanel(
             element("pre", "", view.journal),
           );
       }
-      blocks.push(group(copy.recoveryEvidenceTitle, null, ...content));
+      // What the evidence carries stays beside it: the person decides here
+      // whether to file it to the public repository.
+      blocks.push(
+        group(
+          copy.recoveryEvidenceTitle,
+          copy.recoveryEvidenceText,
+          ...content,
+        ),
+      );
     }
 
     if (view.nothingFiled !== null)
