@@ -20,6 +20,7 @@ import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
 } from "./fixtures/owned-files";
+import { freePort } from "./fixtures/ports";
 
 // The gateway's `ensure` (launchpad-parity B5, slice P6): a browser opens a
 // module's hostname, the Machines gateway asks the Launchpad to make the
@@ -40,17 +41,6 @@ beforeAll(async () => {
 afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  return port;
-};
 
 const cookieName = "__Secure-lazurio-workspace";
 const fetcher: AuthFetcher = async (_url, init) =>

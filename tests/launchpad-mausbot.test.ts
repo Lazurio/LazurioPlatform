@@ -35,6 +35,7 @@ import {
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
+import { freePort } from "./fixtures/ports";
 
 // Lazurio MausBot from the Platform Launchpad (DEV-6632): the handover's
 // optional `entry.mausbot`, its binding projection, the pairing call against
@@ -275,18 +276,6 @@ test("a refused, malformed or slow pairing answers one reason, never the code", 
     reason: "mausbot-pairing-failed",
   });
 });
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  if (port === undefined) throw new Error("The probe listens on a port");
-  return port;
-};
 
 async function hostedLaunchpad(mausbotPort: number | null) {
   const parent = await realpath(

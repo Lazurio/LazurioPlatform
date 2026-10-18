@@ -19,17 +19,7 @@ import {
   withBrowser,
 } from "./fixtures/machine-bindings";
 import organizationContext from "./fixtures/machine-context.json";
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  return port;
-};
+import { freePort } from "./fixtures/ports";
 
 test.skipIf(process.platform === "win32")(
   "a Folder with a recorded entry serves on the gateway's loopback port behind the gateway's admission, with no fragment token",

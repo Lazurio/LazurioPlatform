@@ -38,6 +38,7 @@ import type { ToolOverview } from "../src/tools/overview";
 import type { ToolRunner } from "../src/tools/status";
 import { writeOrganization } from "./fixtures/catalog-folder";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
+import { freePort } from "./fixtures/ports";
 
 // The first run (root decisions 0188 and 0201) beyond the page: the shell
 // document's optional `setup` with the Environment's AI, the column head's
@@ -397,17 +398,6 @@ test("prepare-content: a Folder prompt for the Environment's operator, opened in
   );
   expect(document.text).toContain("`lazurio personalspace install`");
 });
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port ?? 0;
-  probe.stop(true);
-  return port;
-};
 
 // A hosted work Environment whose gh is signed out. With `content`, what
 // lives here and the last installation are stubbed; without it, the

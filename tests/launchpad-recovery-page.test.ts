@@ -20,6 +20,7 @@ import {
 import type { RecoveryResult } from "../src/recover/recover";
 import { performInstall } from "../src/update/install";
 import { type ProcessRunner, runProcess } from "../src/update/self-check";
+import { freePort } from "./fixtures/ports";
 import { commitOf, executable, target } from "./fixtures/update-world";
 
 // The Recovery page (docs/recovery.md "The Recovery page"): `GET
@@ -241,13 +242,7 @@ test.skipIf(process.platform === "win32")(
 test.skipIf(process.platform === "win32")(
   "hosted: the Recovery page and its evidence sit behind the gateway's admission",
   async () => {
-    const probe = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
-      fetch: () => new Response(""),
-    });
-    const listenPort = probe.port;
-    probe.stop(true);
+    const listenPort = freePort();
     const entry = parseMachineEntry({
       externalOrigin: "https://launchpad.workspace.example.lazurio.io",
       authCheckUrl: "https://workspace.example.lazurio.io/oauth2/auth",

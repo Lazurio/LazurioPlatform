@@ -60,6 +60,7 @@ import {
   personalWithEntry,
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
+import { freePort } from "./fixtures/ports";
 
 // Settings → Vault, Nastavení → Trezor, over HTTP (root decision 0198 points
 // 2, 3 and 5; DEV-6631 tasks 648, 638b and 774; decision F53's addendum and
@@ -75,17 +76,6 @@ import organization from "./fixtures/machine-context.json";
 
 const posix = process.platform !== "win32";
 type Json = Record<string, unknown>;
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  return port;
-};
 
 /** Polls until `read` answers something, for at most `ms`. */
 async function until<T>(

@@ -50,6 +50,7 @@ import {
   organizationWithEntry,
   personalWithEntry,
 } from "./fixtures/machine-bindings";
+import { freePort } from "./fixtures/ports";
 
 // "+ Nový modul" opens Chat with a prepared prompt (Lazurio/t3code#35): the
 // Launchpad serves `GET /.lazurio/prompts/<id>?org=<login>` only to whom the
@@ -290,17 +291,6 @@ posixTest(
     );
   },
 );
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port ?? 0;
-  probe.stop(true);
-  return port;
-};
 
 // A hosted Launchpad of a personal work Environment whose Folder holds the
 // Organization `example` bound to the GitHub login `Example-Org`. Its `gh`
