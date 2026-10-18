@@ -14630,15 +14630,17 @@ loses the sentences it replaces in the same change, in both languages.
      basics (`firstRun`'s person presets, `PageGuideFacts.start`): a public
      Environment's demo (F55) and an Environment with nothing to set up have no "?",
      since nothing on them explains. Removed: GitHub's line while it is not connected
-     ("Zpřístupní vaše repozitáře a moduly.", now the state "Nepřipojeno") and the lines
-     of the optional rows Composio ("Pošta, kalendář a další aplikace pro agenty.") and
-     Trezor v Bitwardenu ("Hesla z Trezoru Prostředí i v Codex Desktopu a ve vašem
-     prohlížeči."). Kept: the SSH and Codex Desktop rows' lines, which say what the row
-     gives where its title does not and no step can (the rules forbid naming SSH);
-     "Agent vám pak pomůže s dalšími kroky." is #475's tour's and untouched.
+     ("Zpřístupní vaše repozitáře a moduly.", now the state "Nepřipojeno"). Kept: every
+     optional row's line (Composio "Pošta, kalendář a další aplikace pro agenty.",
+     Trezor v Bitwardenu "Hesla z Trezoru Prostředí i v Codex Desktopu a ve vašem
+     prohlížeči.", SSH and Codex Desktop), which says what the row gives where its title
+     does not and no step of the four says it (Pablo's review of #503 for the first
+     two; the rules forbid naming SSH); "Agent vám pak pomůže s dalšími kroky." is
+     #475's tour's and untouched.
    - **Obecné** `settings-general`: the language, how fully agents explain, whether they
      work alone or delegate, the preview first. Removed: the rows' descriptions of the
-     preset, the language, the detail and the coordination. Kept: the theme's note and
+     language, the detail and the coordination. Kept: the preset's "Druh tohoto
+     Prostředí.", which no step names (Pablo's review of #503), the theme's note and
      its Team line (root decision 0208, newer than the wireframe; what the theme changes
      across Chat, Apps and Automate is no step's, and the Team line is the consequence
      where the choice is made).
@@ -14669,19 +14671,27 @@ loses the sentences it replaces in the same change, in both languages.
      the line where the section is not available.
    - **Obnova** `settings-recovery`: Lazurio checks itself, what fails shows in the
      checks, an agent repairs it or records the fault on GitHub. Removed: the second
-     sentence of the repair agent's text, the evidence's note, the issue's "Opravný
-     agent ho založí…" and "Tato stránka issue jen připraví…". Kept: the prompt's
-     instruction, the issue's repository, "Nic nebylo odesláno." and the journal's note
-     (it stays here). Recovery mode has no "?".
+     sentence of the repair agent's text, the issue's "Opravný agent ho založí…" and
+     "Tato stránka issue jen připraví…". Kept: the prompt's
+     instruction, the issue's repository, the evidence's note "Jen sanitizovaná
+     strukturovaná pole, přesně jak je nese připravené issue." (a person decides there
+     whether to file it to the public repository; Pablo's review of #503), "Nic nebylo
+     odesláno." and the journal's note (it stays here). Recovery mode has no "?".
 2. **Marks.** On the served page: `start-steps`, `start-optional`, `general-language`,
    `general-detail`, `general-coordination`, `general-apply`, `voice-text`, `voice-save`,
    `machine-facts`, `machine-support`, `tools`, `ssh-prompt`, `ssh-devices`. Drawn once
    read (`drawnMarks`): `start-ai` and `start-github` (start-panel.ts), `tool-connect`
-   and `tool-agents` (the first sign-in and the first "Používají agenti",
-   tools-panel.ts), `recovery-result` and `recovery-checks` (recovery-panel.ts).
-3. **Escape belongs to the guide while it explains.** Escape leaves Settings
-   (`createShell`); while an explanation is out it now closes the explanation and stays
-   on the section (`guiding`, the arbiter's `playing`), as on every other page.
+   and `tool-agents` (tools-panel.ts), `recovery-result` and `recovery-checks`
+   (recovery-panel.ts). The two marks of Nástroje are chosen from what the page draws
+   (`toolGuideTargets` in tools-view.ts), so each always names something there: the
+   first sign-in (or adding and connecting), else the first connection already made
+   (its line "Připojeno jako …"; never gh of a Team Environment, which works as the
+   Organization's identity and has no sign-in), else a tool's line; the first switch
+   "Používají agenti", else a required tool's "Vždy zapnuto" (Pablo's review of
+   #503).
+3. **Escape belongs to the guide while it explains** (the addendum above, point 8):
+   with the sections' "?" an explanation is now often out on Settings, and Escape
+   closes it and the section stays.
 
 **Honest limits.** The section of Settings named "SSH ze zařízení" plays an
 explanation titled "Vaše zařízení": the guide's words keep the rule against naming the

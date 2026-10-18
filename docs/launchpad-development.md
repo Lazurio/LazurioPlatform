@@ -994,8 +994,10 @@ guide's mark and a card beside it, and the layer lets every click through.
   `ssh-devices`, and those a panel draws once read (`drawnMarks`): `integration-on` and
   `integration-connect` (the first connected app, the first Connect),
   `mcp-list` and `mcp-add` (Vlastní), `start-ai` and `start-github` (Začínáme),
-  `tool-connect` and `tool-agents` (the first sign-in and "Používají agenti" of
-  Nástroje), `recovery-result` and `recovery-checks` (Obnova). Words are in
+  `tool-connect` and `tool-agents` (Nástroje, chosen by `toolGuideTargets` from what the
+  page draws: the first sign-in, else the first connection made, else a tool's line;
+  the first switch, else "Vždy zapnuto"), `recovery-result` and `recovery-checks`
+  (Obnova). Words are in
   `messages.ts` (`pageHelp`, `guideFilesTeam*`, `guideComposio*`, `guideCustom*`,
   `guideVaultAgents*`, `vaultVideoLine`, `guideStart*`, `guideGeneral*`, `guideVoice*`,
   `guideMachine*`, `guideTools*`, `guideDevices*`, `guideRecovery*`). Recovery mode withdraws the guide. The tour (`tour.ts`) tells the
