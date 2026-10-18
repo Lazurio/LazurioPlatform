@@ -2247,6 +2247,15 @@ export async function startLaunchpad(
         ? `${server.url.href}#${token}`
         : `${entry.externalOrigin}/`,
     hosted: entry !== null,
+    /** Resolves when the reads this Launchpad began on its own in the
+     * background have ended: whose Personalspace this is, decided at its
+     * start, and the shell's setup, read again after a change. No answer
+     * waits for them (none waits for GitHub); what observes what the
+     * Launchpad asks GitHub or its Folder waits here first, so that it
+     * observes the request it makes and not the start's own work. */
+    async settled(): Promise<void> {
+      await Promise.all([personalspace.settled(), setup.settled()]);
+    },
     close() {
       closing = true;
       clearInterval(audienceTimer);
