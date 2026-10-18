@@ -807,8 +807,18 @@ The agents' texts are the catalog entry's (`purpose` in `AGENTS.md`, `usage` in
 `manual/this-machine.md`) and the manual's Secrets (`manual/working-here.md`),
 template revision `base-instructions-50` (since `base-instructions-55` they name a
 personal Environment's own Bitwarden and say that only its person connects it, and
-that an agent never asks for that account's credentials): read `lazurio vault status` again before
-saying anything about the vault, start with `eval "$(lazurio vault env)"`, never `bw
+that an agent never asks for that account's credentials). Since `base-instructions-57`
+they claim no state of the vault ([F53's addendum of
+2026-10-18](decisions.md#f53-addendum-of-2026-10-18-the-agents-text-follows-lazurio-vault-status),
+issue #470): only `lazurio vault status` says whether there is one and in which
+state, `connected` is the vault its agents use on their own, `unsupported` is none here
+(`no-vault`: the handover names none yet; `no-tailnet`: a public Organization's
+Environment, which has none on purpose), any other state waits for a person or does
+not work now, and until the vault is connected secrets go where the Operator says.
+Then: read `lazurio vault status` again before saying anything about the vault, with
+any answer but `connected` use neither `bw` nor `lazurio vault env`, with a connected
+vault start with `eval "$(lazurio vault env)"` and run it again when `bw` reports the
+vault locked (`connected` with `locked`), never `bw
 login`, `unlock`, `lock`, `logout` or `bw config`, `bw sync` before reading, values
 straight into commands and never printed, nothing in the account's own vault, and an
 externally visible write a Publication. A secret is never asked for in chat or taken
