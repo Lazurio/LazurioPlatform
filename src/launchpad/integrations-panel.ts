@@ -539,7 +539,7 @@ export function createIntegrationsPanel(
     const name = account.label ?? copy.integrationsAccountUnnamed;
     openConfirm(
       fill(copy.integrationsDisconnectTitle, { account: name, app: app.name }),
-      disconnectText(app, account, null, copy),
+      disconnectText(app, account, copy),
       copy.integrationsDisconnect,
       { kind: "start", run: () => void remove(app, account) },
     );
