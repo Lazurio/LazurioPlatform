@@ -7,6 +7,7 @@ import {
   type ShellOrganization,
   type ShellSignedOut,
 } from "./contract";
+import { inKind } from "./kind-name";
 import { fillShell, type ShellCopy, shellMessages } from "./messages";
 
 // Pure presentation of the shell document (decision F36, addendum of
@@ -845,10 +846,12 @@ export function switchTabs(
     apps: apps.apps,
     automate: apps.automate,
   };
+  // "Chat v tomto Týmovém Prostředí neběží" (decision F28's addendum of
+  // 2026-10-18).
   const missing: Readonly<Record<ShellApp, string | null>> = {
-    chat: copy.chatMissing,
+    chat: inKind(copy.chatMissing, environment.kind),
     apps: null,
-    automate: copy.automateMissing,
+    automate: inKind(copy.automateMissing, environment.kind),
   };
   return shellApps.map((app) =>
     Object.freeze({
@@ -932,9 +935,14 @@ export function columnNotice(
   shell: Shell,
   copy: ShellCopy,
 ): ColumnNotice | null {
-  if (shell.audience !== "public" || currentEnvironment(shell) === null)
-    return null;
-  return { text: copy.publicNotice };
+  const environment = currentEnvironment(shell);
+  if (shell.audience !== "public" || environment === null) return null;
+  // Its kind, "Toto Pracovní Prostředí je veřejné…" (decision F28's addendum
+  // of 2026-10-18). A public Environment is a hosted one (F55); a document
+  // that calls a computer public keeps the plain words, which agree with
+  // "veřejné", as "Tento počítač" would not.
+  const kind = environment.kind === "workstation" ? null : environment.kind;
+  return { text: inKind(copy.publicNotice, kind) };
 }
 
 /** The Settings of an Environment, the gear's address beside its picker:
@@ -1034,7 +1042,8 @@ export function columnHead(
     picker: identityOf(shell, environment, copy, space),
     gear: {
       href: own ?? environmentSettingsHref(environment),
-      label: copy.settings,
+      // "Nastavení Týmového Prostředí": the Settings of the kind it names.
+      label: copy.settings[environment.kind],
       current: inSettings,
     },
     tabs: switchTabs(shell, copy, app),

@@ -4,6 +4,7 @@ import {
   parseShell,
   parseShellAccount,
   type Shell,
+  type ShellEnvironmentKind,
 } from "../shell/contract";
 import { defineShellElements, provideShell } from "../shell/elements";
 import { shellMessages } from "../shell/messages";
@@ -143,7 +144,12 @@ const controls = {
 // none of them again; a workstation's page carries none and reads them.
 const boot = parseBoot(document.getElementById(bootElementId)?.textContent);
 let locale: "cs" | "en" = boot?.locale ?? "en";
-let copy = messages(locale);
+// The catalog names the kind of this Environment wherever a text is about it
+// (decision F28's addendum of 2026-10-18): the kind its shell document names,
+// none until that is known.
+const kindOf = (document: Shell | null): ShellEnvironmentKind | null =>
+  document === null ? null : (currentEnvironment(document)?.kind ?? null);
+let copy = messages(locale, kindOf(boot?.shell ?? null));
 // The recorded entry's public parts (`GET /api/entry`); null on a workstation
 // and until read. The pairing of Chat and Automate, the tiles' module
 // origins and the Recovery page's T3 Code link.
@@ -210,6 +216,13 @@ async function readShell() {
     shellDocument = parsed;
     if (same) return;
     provideShell(parsed);
+    // A kind known only now (a workstation reads its document) names itself
+    // in the page's words once they were written.
+    const named = messages(locale, kindOf(parsed));
+    if (named !== copy) {
+      copy = named;
+      if (labelled) relabel();
+    }
     catalog.render();
   } catch {
     // The rail stays empty; the page itself works without it.
@@ -1087,7 +1100,7 @@ function enterRecovery(mode: RecoveryMode) {
   // Nothing of the Folder can be read, its language neither: the browser's.
   if (!loaded) {
     locale = navigator.language.startsWith("cs") ? "cs" : "en";
-    copy = messages(locale);
+    copy = messages(locale, kindOf(shellDocument));
   }
   document.documentElement.dataset.mode = "recovery";
   relabel();
@@ -1154,10 +1167,11 @@ async function load() {
   const first = !loaded;
   loaded = true;
   const read = current.profile.locale === "cs" ? "cs" : "en";
-  // The words are written again only in another language.
-  const relabelled = !labelled || read !== locale;
+  // The words are written again only in another language or kind.
+  const before = copy;
   locale = read;
-  copy = messages(locale);
+  copy = messages(locale, kindOf(shellDocument));
+  const relabelled = !labelled || copy !== before;
   profileState = {
     preset: current.preset.name,
     revision: current.revision,

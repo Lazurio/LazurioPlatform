@@ -20,6 +20,7 @@ import { startLaunchpad } from "../src/launchpad/server";
 import type { SshAccessHost, TailnetName } from "../src/ssh-access/host";
 import { runTool } from "../src/tools/status";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
+import { freePort } from "./fixtures/ports";
 
 // Settings → SSH from your devices over HTTP (decision F49): the three routes
 // behind the admission of every route (locally the token and same origin,
@@ -61,17 +62,6 @@ async function sshHost(parent: string): Promise<SshAccessHost> {
     tailnet: async () => tailnet,
   };
 }
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  return port;
-};
 
 async function local() {
   const parent = await realpath(

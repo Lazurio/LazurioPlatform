@@ -32,6 +32,7 @@ import { parseShell, type ShellSetup } from "../src/shell/contract";
 import type { ToolRunner } from "../src/tools/status";
 import { folderFixture, writeOrganization } from "./fixtures/catalog-folder";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
+import { freePort } from "./fixtures/ports";
 
 // The hosted page's first paint (F36's addendum of 2026-10-08): a hosted
 // Launchpad serves its page, after admission only, with its boot document
@@ -40,17 +41,6 @@ import { organizationWithEntry } from "./fixtures/machine-bindings";
 // gateway; and `/.lazurio/shell.json` never waits for GitHub.
 
 const posixTest = test.skipIf(process.platform === "win32");
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port ?? 0;
-  probe.stop(true);
-  return port;
-};
 
 test("the boot document reads back as written, and nothing in it ends its script", () => {
   const hostile = "Ex </script><script>alert(1)</script> <!-- \u2028\u2029";
@@ -357,6 +347,11 @@ posixTest(
       expect(html).toContain(`data-message="appsAll">${cs.appsAll}<`);
       expect(html).toContain(`data-message="toolsTitle">${cs.toolsTitle}<`);
       expect(html).toContain(`data-message="settingsBack">${cs.settingsBack}<`);
+      // The first paint names this work Environment's kind, as the page
+      // script does (F28's addendum of 2026-10-18).
+      expect(html).toContain(
+        'data-message="machineTitle">Toto Pracovní Prostředí<',
+      );
       expect(html).toContain(
         `aria-live="polite">${cs.catalogLoading}</p>\n<div id="catalog-body"`,
       );

@@ -70,6 +70,7 @@ import {
   withBrowser,
 } from "./fixtures/machine-bindings";
 import organizationContext from "./fixtures/machine-context.json";
+import { freePort } from "./fixtures/ports";
 import { commitOf, target } from "./fixtures/update-world";
 
 // The Environment browser (root decision 0191, decisions F38 and F39): its
@@ -1852,18 +1853,6 @@ test("lazurio browser exits as the rest of the CLI does", () => {
 });
 
 // ---- The Launchpad's routes --------------------------------------------------
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  if (port === undefined) throw new Error("The probe listens on a port");
-  return port;
-};
 
 async function hostedLaunchpad(withView: boolean) {
   const parent = await temporary("launchpad-browser-");

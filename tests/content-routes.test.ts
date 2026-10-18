@@ -86,6 +86,7 @@ async function launchpad(
     Authorization: `Bearer ${url.hash.slice(1)}`,
   };
   return {
+    settled: () => app.settled(),
     get: (path: string) => fetch(new URL(path, url), { headers }),
     post: (path: string, body: unknown, extra: Record<string, string> = {}) =>
       fetch(new URL(path, url), {
@@ -992,7 +993,10 @@ posixTest(
     // An active Owner (the stub's default membership).
     const stub = stubGitHub(world);
     const app = await launchpad(folder, contentHost(world, stub.github));
+    // What a request asks is what it adds once the start's own background
+    // reads (whose Personalspace this is) have ended (issue #413).
     const access = async (org: string) => {
+      await app.settled();
       const before = stub.calls.length;
       const answer = await app.get(`/api/content/root-access?org=${org}`);
       expect(answer.status).toBe(200);
@@ -1011,6 +1015,7 @@ posixTest(
     closing = undefined;
     const stopped = await unprepared(await presetFolder(world, "local"), stub);
     const ask = async (org: string) => {
+      await stopped.settled();
       const before = stub.calls.length;
       const answer = await stopped.get(`/api/content/root-access?org=${org}`);
       expect(answer.status).toBe(200);
@@ -1095,6 +1100,7 @@ posixTest(
       failure?: { code: string };
     };
     expect(ended.failure?.code).toBe("github-signed-out");
+    await app.settled();
     const before = signedOut.calls.length;
     const answer = await app.get("/api/content/root-access?org=Alpha");
     expect(await answer.json()).toEqual({ kind: "root-access", write: false });

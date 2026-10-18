@@ -72,6 +72,7 @@ import {
   withAudience,
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
+import { freePort } from "./fixtures/ports";
 
 // Root decision 0204 points 3, 4 and 6 and its line on 0201: a public
 // Environment of the public reference Organization, which every Lazurio
@@ -624,17 +625,6 @@ test("the column head says it in Apps, Chat and Automate in two short sentences:
 });
 
 // --- Over HTTP, behind the gateway ------------------------------------
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port ?? 0;
-  probe.stop(true);
-  return port;
-};
 
 // A hosted work Environment in Czech with one Organization, gh signed out,
 // behind a fake gateway that admits the cookie `valid`; `audience` makes it

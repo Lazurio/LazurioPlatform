@@ -368,7 +368,9 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   picker and the switch, the design system's selection rule), `design-tokens.ts` (the
   vendored `tokens.css` as text, once in the script), `tokens.ts` (the design system's
   tokens on the app document's root, below),
-  `stones.ts`, `fonts.ts`, `last.ts` (the report of the last Environment used,
+  `kind-name.ts` (the words of the three kinds and of your computer, and the tokens a
+  text writes for the Environment it is in: {tomto}, {this}; F28's addendum of
+  2026-10-18), `stones.ts`, `fonts.ts`, `last.ts` (the report of the last Environment used,
   below), `account.ts` and `merge.ts` (the person's account and its merge into the
   rail, below), `state.ts` (what the elements draw, shared by the page's elements and
   free of the DOM: the page's document, the person's account, the merge, and who
@@ -540,8 +542,9 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `public` after the mode, the hosted entry also carries `audience: "public"`: a public
   Environment's demo onboarding, its notice in the column head and no Integrace,
   Trezor or Nástroje ([F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-nothing-to-sign-in-to)).
-  With `team` after the mode, the hosted preview is the example Organization's Team
-  Environment (`hosted-organization-team`), whose vault only its agents use.
+  With `team` or `automated` after the mode, the hosted work Environment is the example
+  Organization's Team Environment or a persona's Automated Environment instead, to see
+  how the page names each kind.
   Screenshots come from Chrome through playwright-core.
 - **A fork's snippet** is in decision F36 point 5 and in the target shell's "The forks
   and `/.lazurio/`": the rail, and the column head at the top of the fork's sidebar.
@@ -2832,7 +2835,10 @@ Organization's, and it gets none of it.
   `machine-view.ts`, the wireframe's `ThisEnvironment`): "Druh", "Patří" and "Pracuje v
   něm"; the technical name and kind, the owner and assignment as recorded, the tailnet
   node, the host and the relationships are folded under "Pro podporu". A workstation
-  says only "Váš počítač". No introduction.
+  says only "Váš počítač". No introduction. The section is named by its kind ("Toto
+  Týmové Prostředí", on a computer "Tento počítač") and "Druh" is one of the three kinds,
+  an automated Environment "Pracovní Prostředí s automatizacemi"
+  ([F28's addendum of 2026-10-18](decisions.md#f28-addendum-of-2026-10-18-three-kinds-of-environment-and-your-computer-without-a-kind)).
 - **Obsah Prostředí** (`content-panel.ts`) in Settings → Toto Prostředí, above
   those facts, and in Začínáme's third step: a row per item of `GET /api/content` (the
   personal Environment holds the Personalspace, a work one its Organization, a

@@ -67,6 +67,7 @@ import {
   addTaskWorktree,
   writePersonalspaceCheckout,
 } from "./fixtures/personalspace-template";
+import { freePort } from "./fixtures/ports";
 
 // The Personalspace's workspace modules (launchpad-parity B11): one more
 // catalog group `personalspace` on the presets that have a Personalspace,
@@ -1242,16 +1243,6 @@ posixTest(
   60_000,
 );
 
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  return port;
-};
 const cookieName = "__Secure-lazurio-workspace";
 const fetcher: AuthFetcher = async (_url, init) =>
   new Headers(init.headers).get("cookie") === `${cookieName}=valid`

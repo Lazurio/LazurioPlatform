@@ -35,6 +35,7 @@ import {
   zipOf,
 } from "./fixtures/fake-vault";
 import { personalWithEntry } from "./fixtures/machine-bindings";
+import { freePort } from "./fixtures/ports";
 
 // Settings → Vault on a personal Environment over HTTP (root decision 0203
 // point 7, plan DEV-6631 task 775; F53's amendment of 2026-10-16, (2)): the
@@ -54,17 +55,6 @@ const cookieName = "__Secure-lazurio-workspace";
 const agents = "agents.example+lazurio@example.com";
 const person = "person.example@example.com";
 const password = "Correct horse battery staple 7";
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  return port;
-};
 
 /** A hosted personal Environment whose handover names no vault, behind a
  * fake gateway that admits the session `owner`. */

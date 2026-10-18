@@ -1,7 +1,7 @@
 import type { MachineBinding, MachineEntry } from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
 import type { Catalog } from "../organizations/catalog";
-import type { Shell } from "../shell/contract";
+import { currentEnvironment, type Shell } from "../shell/contract";
 import { bootElementId, bootJson, type LaunchpadBoot } from "./boot";
 import { publicEntry } from "./chat";
 import { type MessageKey, messages } from "./messages";
@@ -64,9 +64,14 @@ export function launchpadBoot(
 /** The page with its boot document at the end of `<head>`, its language on
  * `<html lang>`, and its words (every `data-message` element, the catalog's
  * first status line) in that language from the same messages as the page
- * script's: the first paint is in the Folder's language. */
+ * script's: the first paint is in the Folder's language and names this
+ * Environment's kind as the script does (decision F28's addendum of
+ * 2026-10-18). */
 export function withBoot(page: Response, boot: LaunchpadBoot): Response {
-  const copy = messages(boot.locale);
+  const copy = messages(
+    boot.locale,
+    boot.shell === null ? null : (currentEnvironment(boot.shell)?.kind ?? null),
+  );
   return new HTMLRewriter()
     .on("html", {
       element(element) {

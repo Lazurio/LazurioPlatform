@@ -196,8 +196,10 @@ describe("one identity names an Environment", () => {
     });
     expect(environmentIdentity(shell, "vm-03.acme", en)).toEqual({
       id: "vm-03.acme",
+      // An automated Environment is a work one (F28's addendum of
+      // 2026-10-18).
       name: "Steward",
-      who: "Automated",
+      who: "Work",
       glyph: acmeMark,
     });
   });
@@ -220,8 +222,9 @@ describe("one identity names an Environment", () => {
     );
     expect(environmentIdentity(shell, "local", cs)).toEqual({
       id: "local",
+      // Your own computer has no kind: it is your computer.
       name: "Studio",
-      who: "Místní",
+      who: "Váš počítač",
       glyph: { kind: "icon", icon: "laptop" },
     });
     // Opened for one Organization (`space`), its mark.
