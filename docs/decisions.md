@@ -14470,3 +14470,136 @@ Chat tab, the Files item and the list, the steps advance, Escape closes and the 
 returns to the "?", `prefers-reduced-motion` shows still frames, a "?" while Začínáme
 comes first nudges the tour's bubble and draws nothing else, and a fork-like page with
 the shell, `<lazurio-buddy>` and a "?" but no `provideGuides` draws nothing.
+
+### F56 addendum of 2026-10-18: every page of the Apps column has its "?" and loses its explaining sentences
+
+**Decided by Matěj (Organization Admin) with F56 on 2026-10-18 (root decision 0180's
+addendum of 2026-10-18; plan DEV-6612 M3, the lane's shaping section 3(c) "Chování na
+stránkách Launchpadu" and section 7 item 5; Lazurio/LazurioPlatform#499, binding); the
+DEV-6631 vault thread agreed that Trezor's "?" takes over the section F53's addendum of
+2026-10-17 put on the page of an Environment without a vault.** F56 gave Soubory the
+first "?". The approved wireframe (prototypes-lazurio bebea85, `guide-pages.ts`,
+`page-guide.test.tsx`, `docs/buddy-guide.md`) gives one to every page and removes the
+sentences it replaces, in the same change, so a page is never without its explanation.
+This addendum does it for the rest of the Apps column: the Apps home, Integrace and
+Trezor (Settings follow).
+
+1. **One "?" right after each page's heading** (`pageHelpOf` in
+   `src/launchpad/guides.ts`): the header's `#page-help` on Soubory and Trezor, the Apps
+   home's `#catalog-help` (catalog-panel.ts keeps it beside the heading it draws) and
+   Integrace's `#integrations-page-help`. Each is hidden until the page knows what it
+   plays; a module's overview, the Marketplace ("Brzy" only) and one agent's request
+   have nothing to take over and no "?". What it plays (`pageGuide`):
+   - **Apps:** the principle `environment`. Nothing was removed: the page had no
+     sentence that only explained it (its starts and its empty line are actions and
+     states), and "Guide" (the external documentation) stays in the corner.
+   - **Integrace:** the principle `integrations`; where Composio is allowed (Integrace's
+     own reading, `composio.allowed`) the Launchpad's `integrations-composio`, the model
+     of root decision 0162's addenda of 2026-10-13 and 2026-10-17 in four steps; on
+     Vlastní and its form `integrations-custom`. The line under the title ("Připojené
+     aplikace, které používají všichni agenti a boti tohoto Prostředí.") is gone, and
+     "Jak to funguje" left the page's corner for the card (point 2). "Aplikace v
+     Composiu" stays in the corner.
+   - **Trezor:** what is true of this Environment's vault (point 3). The rule ("Kdo má
+     přístup do Prostředí, má všechna jeho hesla.") and the group "Jak trezor funguje"
+     of an Environment without a vault are gone; the explanations say both.
+2. **The card links an explanation's documentation** (`docs`). The prototype's card
+   has "Dokumentace" at an explanation's last step; F56's engine had no place for it.
+   An explanation now carries `docs: string | null`: the principle `integrations` has
+   the documentation of Integrace in each language (`utm_source=guide`, the shell being
+   in any app), and a host may hand one over with an explanation, an https address with
+   a host and no credentials, else the explanation is left out. The layer draws it as a
+   quiet link at the last step, in a new tab. This grows `provideGuides`' explanation by
+   one optional member (`{id, title, steps, docs?}`), additive within interface v1; the
+   shell's word is `guideDocs` ("Dokumentace" / "Documentation").
+3. **Trezor's variant comes from facts the page knows, never from an Organization's name
+   or slug, and no code is for one Organization** (#499; `vaultHelp`). The facts are
+   the kind of the shell's current Environment, the vault core's answer as `GET
+   /api/vault` carries it (`vaultAnswer` through the status, and the kind of Environment
+   it names) and where the person stands in the vault (`POST /api/vault/membership`),
+   which the vault page already reads (`vaultPage.facts`):
+   - **A Personal Environment**, or wherever the vault is the person's own Bitwarden
+     (`needs-connection`, a `region`, an unreadable connection): the principle `vault`,
+     which the shell plays as its Personal adaptation (the agents' own account in the
+     person's Bitwarden, sharing into it, the agents use the passwords, sharing taken
+     back).
+   - **The person is in the vault** (the membership is `known`: a member, or with an
+     account to create), so people share into it from their own Bitwarden: the approved
+     video `vault-overview` (DEV-6631, design-system-lazurio#93), whose five captions
+     are the principle's five lines.
+   - **No vault here** (`unsupported`: none yet, none by design, this computer): the
+     same video, how a vault works in an Organization, as the removed section showed.
+   - **Nobody who enters is added** (`not-managed`, a Team or Automated Environment;
+     `sign-in-not-required`, a vault that takes no Lazurio sign-in yet), and while the
+     membership is not known: the Launchpad's `vault-agents`, "{Toto} má vlastní trezor
+     · Agenti z něj berou hesla bez ptaní · Hesla vidí každý {v tomto}". It promises no
+     Bitwarden of one's own and asks nobody to store a password, so it is true for a
+     visitor of the reference Organization's shared Team Environment, who has no account
+     in its vault (#499).
+   - **Not read yet:** the "?" waits, hidden.
+4. **Trezor plays the approved video in place, not in the guide's card.** The shell's
+   guide draws rings and cards, and a new scene was not to be made. Where the video's
+   words are true, Trezor's "?" carries no `data-guide-help`; the Launchpad opens the
+   box `#vault-video` under the heading (`src/launchpad/page-help.ts`) with
+   guide-video.ts's player of `vault-overview` and the one line the video does not say,
+   the principle's quieter line "Kdo má přístup do Prostředí, má i jeho hesla"
+   (`vaultVideoLine`). The person's press plays it; with `prefers-reduced-motion` it
+   waits at its poster. The "?" again (`aria-expanded`), Escape, or the page moving on
+   closes it, the focus back on the "?". The video's title "Jak trezor funguje" stays
+   as its accessible name.
+5. **The vault page keeps its content and flows** (the DEV-6631 thread owns them). What
+   changed there: the rule and the section `#vault-explainer` (its heading, its video
+   slot and its three sentences) left the page and the words (`vaultPageRule`,
+   `vaultExplainerText`); `vaultPageView` lost the two members that drew them (`rule`,
+   `explainer`); the panel reports what it read (`facts`, `drawn`); and three marks
+   were added: `vault-row` on the vault's row and on the picture of a Personal
+   Environment's connection, `vault-open` on the row's actions. The line of an
+   Environment without a vault, the row, the agents' requests, the connection of a
+   Personal Environment's Bitwarden, the invitation, the Bitwarden steps and their
+   video, "Potřebuje agent heslo nebo klíč?…" and "Trezor tohoto Prostředí používají
+   jen jeho agenti." are unchanged.
+6. **Every mark the principles look for is on the page** (F56's honest limits):
+   `browser` (the corner's toggle), `nav-files`, `nav-integrations`, `nav-vault` (the
+   column), `vault-row`, `vault-open`, and `integration-on` and `integration-connect`,
+   which Integrace draws once read (the first connected app, the first Connect). The
+   Launchpad's own: `files-list`, `composio-apps` (the corner's Composio link),
+   `mcp-list` and `mcp-add` (Vlastní, drawn once read).
+7. **The rules of a text** keep "MCP server", the precise name of a thing, out of the
+   rule against "server" (root AGENTS.md: such precise terms are not an Environment's
+   name).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The video in the guide's card | Needs media in the shell's layer, the video's address from the host and its own motion rules: the motion of slice 6 of the lane. Rejected for now |
+| The video beside the card while the five lines walk | Two things move at once, and the card covers the video (seen at 1440 px: the card at Trezor's column item and in the middle without a row). Rejected |
+| Only the five lines in the card, no video | Loses the approved video on the page it was made for. Rejected |
+| The video for every Organization's Environment | Says that people share from their own Bitwarden where nobody is added, which a visitor of a shared Team Environment cannot do (#499). Rejected for `vault-agents` |
+| Choosing by the Organization (the reference Organization's slug) | Forbidden by #499 and root decision 0204's parity. Rejected |
+| "Jak to funguje" kept in the corner beside the "?" | Two ways to one explanation, and the prototype moved it into the card. Rejected |
+
+**Honest limits.** How the vault is reached, the tailnet or a Lazurio sign-in (HumanAndMachines/Lazurio#575),
+is not a fact the page has: `GET /api/vault` does not carry the handover's `network`. The
+variant does not need it today (a Team Environment adds nobody, so `vault-agents`), but a
+Work Environment reached by a Lazurio sign-in whose vault adds people would play the
+video. While the membership is asked (a few seconds on the first look) Trezor's "?"
+plays `vault-agents`, which is true without it, and then the video where the person is
+in the vault. The video opens in the page, not in the guide's layer, so it does not wait
+for Začínáme the way a card does. The Composio link `composio-apps` shows only where
+Integrace's reading carries Composio's Apps; elsewhere its two steps stand in the middle.
+The principles' English words and the new explanations' English words are the agent's,
+for Matěj's review.
+
+Verified by `tests/launchpad-guide.test.ts` (one "?" right after the heading of every
+page and no other in its frame, none on a module's overview, the Marketplace and an
+agent's request; what each "?" plays known in every kind, language, Composio and vault
+fact; every mark a step names on the served page, drawn by a panel or the shell's own,
+and every principle's mark the Launchpad's; the Launchpad's explanations under the
+rules in both languages and every kind at the same marks; Integrace's explanations with
+the documentation; Trezor's variant per fact, the words of `vault-agents` in a Team
+Environment in both languages; the removed sentences gone from the page and the
+words), `tests/shell-guide.test.ts` (the principle's documentation, a host's `docs`
+kept only as an https address), `tests/vault-page-view.test.ts`,
+`tests/launchpad-guide-video.test.ts` (the video's box), `tests/launchpad-apps-vault.test.ts`
+and `tests/launchpad-page-corners.test.ts` (the corner without "Jak to funguje", the heads
+with their "?"), and in headless Chrome against the hosted and personal previews (root
+decision 0178).
