@@ -435,6 +435,29 @@ test("withdrawing or removing <lazurio-buddy> ends the guide and lets go of the 
   expect(guide.active()).toBe(false);
 });
 
+test("a <lazurio-buddy> detached while it explains clears its layer, so reattached it starts afresh", () => {
+  const { guide, log, element, click } = fakePage();
+  const buddy = element();
+  guide.attach(buddy);
+  guide.provide([]);
+  click("files");
+  expect(log.drawn.map(({ view }) => view !== null)).toEqual([true]);
+  guide.detach(buddy);
+  // The layer draws nothing: its listeners and timer stop with it.
+  expect(log.drawn.map(({ view }) => view !== null)).toEqual([true, false]);
+  expect(log.events.at(-1)).toEqual({ type: "closed", explainer: "files" });
+  expect(guide.attention.playing()).toBeNull();
+  guide.attach(buddy);
+  expect(click("files")).toBe(true);
+  // A first show again, after the layer was cleared.
+  expect(log.drawn.map(({ view }) => view !== null)).toEqual([
+    true,
+    false,
+    true,
+  ]);
+  expect(log.events.at(-1)).toEqual({ type: "started", explainer: "files" });
+});
+
 test("at the end of an explanation about Buddy a person without one is asked to get one, where the account lives", () => {
   const { guide, element, last, click } = fakePage();
   guide.attach(element());

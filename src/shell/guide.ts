@@ -259,16 +259,14 @@ export function createGuide(seams: GuideSeams) {
       if (!elements.includes(element)) elements.push(element);
       settle();
     },
-    /** A `<lazurio-buddy>` disconnected. */
+    /** A `<lazurio-buddy>` disconnected. An explanation it draws ends as
+     * any other does (`end`): its layer is told to draw nothing, so the
+     * layer's listeners and timer stop and a reattached element starts a
+     * guide afresh. */
     detach(element: GuideElement): void {
       const at = elements.indexOf(element);
       if (at >= 0) elements.splice(at, 1);
-      if (playing?.element === element) {
-        const id = playing.id;
-        playing = null;
-        seams.announce(element, { type: "closed", explainer: id });
-        for (const listener of attentionListeners) listener();
-      }
+      if (playing?.element === element) end("closed");
       settle();
     },
     /** An element's `lang` changed. */
