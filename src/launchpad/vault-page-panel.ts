@@ -53,7 +53,9 @@ type Answer = Promise<{ value: unknown; ok: boolean }>;
 // page in the Chrome Web Store, the values to paste with their Copy buttons
 // (the server, and the person's own address where the membership answer
 // carries it) and the extension's own screens; Začínáme's "Návod" brings
-// them into view (`revealBitwarden`).
+// them into view (`revealBitwarden`). An Environment without a vault says
+// why in the page's line and shows how a vault works in an Organization,
+// with its guide video at its poster (`#vault-explainer`, DEV-6631).
 export function createVaultPagePanel(
   options: Readonly<{
     get: (path: string) => Answer;
@@ -128,6 +130,13 @@ export function createVaultPagePanel(
     copy: options.copy,
     locale: () => (document.documentElement.lang === "cs" ? "cs" : "en"),
   });
+  // How a vault works, where this Environment has none (DEV-6631): the guide
+  // video `vault-overview`, its player there from the start at its poster
+  // (guide-video.ts `open`), mounted the first time the section shows, so
+  // that not even its poster loads anywhere else.
+  const explainer = find<HTMLElement>("#vault-explainer");
+  const explainerVideoSlot = find<HTMLDivElement>("#vault-explainer-video");
+  let explainerVideo: Readonly<{ render(): void }> | null = null;
   // The extension's screens, one per picture and language, bundled with the
   // page; a step shows a copy of the one in the page's language.
   const pictures = [
@@ -309,6 +318,17 @@ export function createVaultPagePanel(
     rule.hidden = !view.rule;
     note.hidden = view.note === null;
     note.textContent = view.note ?? "";
+    explainer.hidden = !view.explainer;
+    if (view.explainer && explainerVideo === null)
+      explainerVideo = createGuideVideo(explainerVideoSlot, {
+        name: "vault-overview",
+        title: () => options.copy().vaultExplainerTitle,
+        describedBy: "vault-explainer-text",
+        copy: options.copy,
+        locale: () => (document.documentElement.lang === "cs" ? "cs" : "en"),
+        open: true,
+      });
+    explainerVideo?.render();
     group.hidden = view.row === null;
     name.textContent = view.row?.title ?? "";
     state.textContent = view.row?.line ?? "";

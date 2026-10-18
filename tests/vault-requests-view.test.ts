@@ -127,6 +127,8 @@ test("a refusal says what the person can do; an answered request is read again",
     "Trezor Prostředí zatím není připravený.",
   );
   expect(refusalText("no-vault", cs)).toBe("Toto Prostředí zatím trezor nemá.");
+  // A public Organization's Environment: none, not "yet" (DEV-6631).
+  expect(refusalText("no-tailnet", cs)).toBe("Toto Prostředí trezor nemá.");
   expect(refusalText("not-found", cs)).toBe("Žádost neexistuje.");
   expect(refusalText("vault-failed", cs)).toBe(
     "Uložení se nepodařilo. Zkuste to znovu.",

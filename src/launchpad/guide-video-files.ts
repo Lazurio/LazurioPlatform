@@ -13,6 +13,18 @@ import vaultBitwardenEn from "./videos/vault-bitwarden-en.mp4" with {
 import vaultBitwardenEnPoster from "./videos/vault-bitwarden-en.webp" with {
   type: "file",
 };
+import vaultOverviewCs from "./videos/vault-overview-cs.mp4" with {
+  type: "file",
+};
+import vaultOverviewCsPoster from "./videos/vault-overview-cs.webp" with {
+  type: "file",
+};
+import vaultOverviewEn from "./videos/vault-overview-en.mp4" with {
+  type: "file",
+};
+import vaultOverviewEnPoster from "./videos/vault-overview-en.webp" with {
+  type: "file",
+};
 
 // The server's side of the guide videos (guide-video.ts): each file embedded
 // in the compiled executable like the shell's fonts, by its file name, and
@@ -30,6 +42,10 @@ export const guideVideoFilePaths: Readonly<Record<string, string>> = {
   "vault-bitwarden-cs.webp": vaultBitwardenCsPoster,
   "vault-bitwarden-en.mp4": vaultBitwardenEn,
   "vault-bitwarden-en.webp": vaultBitwardenEnPoster,
+  "vault-overview-cs.mp4": vaultOverviewCs,
+  "vault-overview-cs.webp": vaultOverviewCsPoster,
+  "vault-overview-en.mp4": vaultOverviewEn,
+  "vault-overview-en.webp": vaultOverviewEnPoster,
 };
 
 const contentTypes: Readonly<Record<string, string>> = {

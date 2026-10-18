@@ -1117,7 +1117,17 @@ const en = {
   vaultPageRule:
     "Whoever has access to the Environment has all of its passwords.",
   vaultPageWorkstation: "There is no vault on this computer.",
-  vaultPageNoVault: "This Environment has no vault yet.",
+  // An Environment without a vault (DEV-6631, F53's addendum of
+  // 2026-10-17): why it has none, in place of the vault, and how a vault
+  // works in an Organization, with the guide video `vault-overview` (its
+  // title is the section's heading).
+  vaultPageNoVault:
+    "This Environment's vault is not set up. The Organization's Admin sets it up, and then you will find it here.",
+  vaultPagePublic:
+    "This Organization is a public demo and real passwords do not belong in it, so it has no vault on purpose. Everything else works as in a real Organization.",
+  vaultExplainerTitle: "How the vault works",
+  vaultExplainerText:
+    "In an Organization, every Environment has its own vault. People share passwords with it from their own Bitwarden, and the Environment's agents use them without asking. You can take the sharing back at any time.",
   // A personal Environment connects its person's own Bitwarden (root
   // decision 0203 point 7; F53's amendment of 2026-10-16, (2)): the title,
   // the picture of the vault between the person's Bitwarden and the agents,
@@ -1262,6 +1272,7 @@ const en = {
   vaultRequestDeclined: "Declined.",
   vaultRequestMissing: "This request does not exist.",
   vaultRequestNoVault: "This Environment has no vault yet.",
+  vaultRequestNone: "This Environment has no vault.",
   vaultRequestNotReady: "The Environment's vault is not ready yet.",
   vaultRequestFill: "Fill in every field.",
   vaultRequestBusy: "The vault is not responding. Try again in a moment.",
@@ -2739,7 +2750,13 @@ const cs: Record<MessageKey, string> = {
   vaultPageTitle: "Trezor",
   vaultPageRule: "Kdo má přístup do Prostředí, má všechna jeho hesla.",
   vaultPageWorkstation: "Trezor na tomto počítači není.",
-  vaultPageNoVault: "Toto Prostředí zatím trezor nemá.",
+  vaultPageNoVault:
+    "Trezor tohoto Prostředí není nastavený. Nastaví ho Admin Organizace a pak ho najdete tady.",
+  vaultPagePublic:
+    "Tato Organizace je veřejná ukázka a skutečná hesla do ní nepatří, proto v ní trezor záměrně není. Všechno ostatní funguje jako ve skutečné Organizaci.",
+  vaultExplainerTitle: "Jak trezor funguje",
+  vaultExplainerText:
+    "V Organizaci má každé Prostředí vlastní trezor. Lidé do něj sdílejí hesla ze svého Bitwardenu a agenti v Prostředí je použijí bez ptaní. Sdílení můžete kdykoli vzít zpět.",
   vaultConnectTitle: "Hesla pro agenty ve vašem Bitwardenu",
   vaultConnectLead:
     "Agenti dostanou vlastní účet. Ten váš zůstane jen pro vás.",
@@ -2864,6 +2881,7 @@ const cs: Record<MessageKey, string> = {
   vaultRequestDeclined: "Odmítnuto.",
   vaultRequestMissing: "Žádost neexistuje.",
   vaultRequestNoVault: "Toto Prostředí zatím trezor nemá.",
+  vaultRequestNone: "Toto Prostředí trezor nemá.",
   vaultRequestNotReady: "Trezor Prostředí zatím není připravený.",
   vaultRequestFill: "Vyplňte všechna pole.",
   vaultRequestBusy: "Trezor teď neodpovídá. Zkuste to prosím za chvíli.",

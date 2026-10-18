@@ -123,6 +123,40 @@ test("without the member the Environment has no vault yet, whatever else the han
   ).toMatchObject({ kind: "own", account: ownAccount });
 });
 
+// An Organization's Environment reached without a private network: Machines
+// writes no `network` for the work VMs of a public Organization (root
+// decision 0204, its public-entry guests) and for no other, and a Lazurio
+// Vaultwarden answers only inside its network (root decision 0203), so such
+// an Environment has no vault by design, not yet (DEV-6631, F53's addendum
+// of 2026-10-17).
+test("an Organization's Environment without a tailnet has no vault by design; with one and no member, none yet", () => {
+  const { network: _network, ...withoutNetwork } = organization;
+  const publicVm = (vault: unknown = null) =>
+    handover({
+      ...withoutNetwork,
+      owner: { ...withoutTeam, assignment: assignments.operator },
+      entry: handoverEntry("workspace.example.lazurio.io"),
+      ...(vault === null ? {} : { vault }),
+    });
+  for (const environment of ["work", "team", "automated"] as const) {
+    expect(vaultContextOf({ handover: publicVm(), environment })).toEqual({
+      kind: "unsupported",
+      reason: "no-tailnet",
+    });
+    expect(vaultContextOf({ handover: workVm(null), environment })).toEqual({
+      kind: "unsupported",
+      reason: "no-vault",
+    });
+  }
+  // A vault the handover names is the vault, tailnet or not.
+  expect(
+    vaultContextOf({
+      handover: publicVm(vaultMember(workAccount, "Example work")),
+      environment: "work",
+    }),
+  ).toMatchObject({ kind: "own", account: workAccount });
+});
+
 test("the pilot's vault is vaultwarden.<zone> of its headscale.<zone>, nothing else", () => {
   expect(pilotVaultOf("https://headscale.example.lazurio.io")).toBe(
     "https://vaultwarden.example.lazurio.io",

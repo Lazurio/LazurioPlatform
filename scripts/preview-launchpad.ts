@@ -65,8 +65,11 @@
 // Environment (root decision 0204, decision F55): its entry carries
 // `audience: "public"`, so the Launchpad runs the demo onboarding, the
 // column head says the Environment is public and shared, and Integrace,
-// Nastavení → Trezor and Nastavení → Nástroje answer as absent. Synthetic
-// names only; stop it with Ctrl-C.
+// Nastavení → Trezor and Nastavení → Nástroje answer as absent. With
+// `no-vault` or `no-tailnet` anywhere after the mode, a hosted preview's work
+// Environment has no vault, for that reason (F53's addendum of 2026-10-17):
+// nothing is set up, and Nastavení → Trezor says why and explains the vault
+// with its guide video. Synthetic names only; stop it with Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -137,6 +140,13 @@ const composioOrgMissing = process.argv
   .slice(3)
   .includes("composio-org-missing");
 const bitwardenUs = process.argv.slice(3).includes("bitwarden-us");
+const noVault =
+  process.argv
+    .slice(3)
+    .find(
+      (value): value is "no-vault" | "no-tailnet" =>
+        value === "no-vault" || value === "no-tailnet",
+    ) ?? null;
 const locale = process.argv[3] === "en" ? "en" : "cs";
 const listenPort = Number(process.argv[4] ?? 24611);
 const role =
@@ -579,6 +589,18 @@ async function previewVault() {
   vault.allow(workAccount);
   const zip = zipOf("bw", fakeBw);
   const pin = fakePin(zip);
+  // No vault, for the reason asked for: nothing to set up.
+  if (noVault !== null)
+    return {
+      ...fakeHost({
+        home,
+        vault,
+        pin,
+        download: fakeRelease(pin, zip).fetch,
+        context: async () => ({ kind: "unsupported", reason: noVault }),
+      }),
+      enableForAgents: async () => undefined,
+    };
   const host = fakeHost({
     home,
     vault,

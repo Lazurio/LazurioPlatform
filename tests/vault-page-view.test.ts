@@ -310,7 +310,7 @@ test("the vault's state: the items in Czech plural, the creation, no answer, and
   expect(gone.actions).toEqual([]);
 });
 
-test("this computer and an Environment without a vault say so in one line; a 0197 pilot opens its collection; a Team or Automated Environment only its agents use", () => {
+test("this computer says so in one line; a 0197 pilot opens its collection; a Team or Automated Environment only its agents use", () => {
   expect(
     vaultPageView(
       model(
@@ -330,17 +330,8 @@ test("this computer and an Environment without a vault say so in one line; a 019
     connect: null,
     invite: false,
     disconnect: false,
+    explainer: false,
   });
-  expect(
-    vaultPageView(
-      model(
-        { kind: "vault-status", state: "unsupported", reason: "no-vault" },
-        { environment: null },
-      ),
-      null,
-      cs,
-    ).note,
-  ).toBe("Toto Prostředí zatím trezor nemá.");
   const pilot = vaultPageView(
     model({
       ...connected(4),
@@ -523,6 +514,7 @@ test("a personal Environment waiting for its person shows the section with the v
     connect: null,
     invite: true,
     disconnect: true,
+    explainer: false,
   });
   expect(view(known("not-invited"), bitwarden, en).hint).toBe(
     "Your Bitwarden is connected.",
@@ -1553,12 +1545,92 @@ test("no step asks the person to compose their address, whatever the answer", ()
   expect(checked).toBeGreaterThan(100);
 });
 
+// Nastavení → Trezor of an Environment without a vault (DEV-6631, F53's
+// addendum of 2026-10-17): in place of the vault, why this Environment has
+// none, and how a vault works in an Organization, with its guide video. A
+// public Organization's Environment has none on purpose (`no-tailnet`); any
+// other's is not set up yet and its Organization's Admin sets it up
+// (`no-vault`).
+test("an Environment without a vault explains the vault: none on purpose in a public Organization, set up by the Organization's Admin anywhere else", () => {
+  const unsupported = (
+    reason: Extract<VaultStatus, { state: "unsupported" }>["reason"],
+  ) =>
+    model(
+      { kind: "vault-status", state: "unsupported", reason },
+      { environment: null },
+    );
+  const nothingElse = {
+    rule: false,
+    row: null,
+    actions: [],
+    hint: null,
+    guide: false,
+    connect: null,
+    invite: false,
+    disconnect: false,
+    explainer: true,
+  };
+  for (const [copy, none, notSetUp] of [
+    [
+      cs,
+      "Tato Organizace je veřejná ukázka a skutečná hesla do ní nepatří, proto v ní trezor záměrně není. Všechno ostatní funguje jako ve skutečné Organizaci.",
+      "Trezor tohoto Prostředí není nastavený. Nastaví ho Admin Organizace a pak ho najdete tady.",
+    ],
+    [
+      en,
+      "This Organization is a public demo and real passwords do not belong in it, so it has no vault on purpose. Everything else works as in a real Organization.",
+      "This Environment's vault is not set up. The Organization's Admin sets it up, and then you will find it here.",
+    ],
+  ] as const) {
+    expect(vaultPageView(unsupported("no-tailnet"), null, copy)).toEqual({
+      ...nothingElse,
+      note: none,
+    });
+    expect(vaultPageView(unsupported("no-vault"), null, copy)).toEqual({
+      ...nothingElse,
+      note: notSetUp,
+    });
+  }
+  // How a vault works: the section's heading, which is also its video's
+  // title, and its sentences, in both languages.
+  expect([cs.vaultExplainerTitle, cs.vaultExplainerText]).toEqual([
+    "Jak trezor funguje",
+    "V Organizaci má každé Prostředí vlastní trezor. Lidé do něj sdílejí hesla ze svého Bitwardenu a agenti v Prostředí je použijí bez ptaní. Sdílení můžete kdykoli vzít zpět.",
+  ]);
+  expect([en.vaultExplainerTitle, en.vaultExplainerText]).toEqual([
+    "How the vault works",
+    "In an Organization, every Environment has its own vault. People share passwords with it from their own Bitwarden, and the Environment's agents use them without asking. You can take the sharing back at any time.",
+  ]);
+  // Nothing to explain while the page is read, where the Environment has a
+  // vault or waits for its person's Bitwarden, on this computer, or where
+  // its own state cannot be read.
+  expect(vaultPageView(null, null, cs).explainer).toBe(false);
+  for (const reason of [
+    "workstation",
+    "folder-unreadable",
+    "handover-missing",
+    "handover-unreadable",
+    "not-operator",
+    "connection-unreadable",
+  ] as const)
+    expect(vaultPageView(unsupported(reason), null, cs).explainer).toBe(false);
+  expect(vaultPageView(model(connected()), member, cs).explainer).toBe(false);
+  expect(
+    vaultPageView(
+      model({ kind: "vault-status", state: "needs-connection" }),
+      null,
+      cs,
+    ).explainer,
+  ).toBe(false);
+});
+
 test("no steps where the person has no vault to add here: this computer, no vault yet, a personal Environment's Bitwarden not connected, a Team or Automated Environment, a vault only its agents use", () => {
   expect(bitwardenTarget(null)).toBeNull();
   expect(bitwardenGuide(null, null, cs)).toBeNull();
   for (const status of [
     { kind: "vault-status", state: "unsupported", reason: "workstation" },
     { kind: "vault-status", state: "unsupported", reason: "no-vault" },
+    { kind: "vault-status", state: "unsupported", reason: "no-tailnet" },
     {
       kind: "vault-status",
       state: "unsupported",

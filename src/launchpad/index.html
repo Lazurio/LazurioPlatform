@@ -575,6 +575,7 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .vault-bitwarden-value { padding: 0.2rem 0.45rem; border: 1px solid var(--border); border-radius: var(--lz-radius-xs); background: var(--muted); color: var(--fg); font-size: 13px; overflow-wrap: anywhere; user-select: all; }
 .vault-bitwarden-copy .row-status:empty { display: none; }
 .guide-video { margin: 0 0 12px; }
+#vault-explainer[hidden] { display: none; }
 .guide-video-play .icon { width: 14px; height: 14px; }
 .guide-video-player { display: block; width: 100%; max-width: 720px; height: auto; aspect-ratio: 16 / 9; border: 1px solid var(--border); border-radius: 12px; background: var(--muted); }
 .guide-video-player:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px var(--lz-accent); }
@@ -1456,6 +1457,15 @@ button:not(.primary) .provider-openai { color: #000000; }
 <p class="intro vault-page-guide" id="vault-page-guide" hidden></p>
 <p id="vault-page-status" class="row-status" role="status" aria-live="polite"></p>
 </div>
+<!-- How a vault works, on an Environment without a vault (DEV-6631, F53's
+     addendum of 2026-10-17): the guide video `vault-overview`, its player
+     there from the start at its poster, and the sentences it shows; drawn by
+     vault-page-panel.ts. The line above says why this Environment has none. -->
+<section class="group" id="vault-explainer" aria-labelledby="vault-explainer-heading" hidden>
+<div class="group-head"><h2 id="vault-explainer-heading" data-message="vaultExplainerTitle">How the vault works</h2></div>
+<div class="guide-video" id="vault-explainer-video"></div>
+<p class="intro" id="vault-explainer-text" data-message="vaultExplainerText">In an Organization, every Environment has its own vault. People share passwords with it from their own Bitwarden, and the Environment's agents use them without asking. You can take the sharing back at any time.</p>
+</section>
 <!-- Žádosti agentů (root decision 0198 point 9 (c), decision F54): the
      agents' secret requests wait here, above the vault, each opening its
      request's page; drawn by vault-requests-panel.ts, hidden while none
