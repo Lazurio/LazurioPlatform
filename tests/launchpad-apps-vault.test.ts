@@ -31,6 +31,7 @@ import { machineContextPath } from "../src/machine/context";
 import type { HostedOperatorSources } from "../src/machine/operator";
 import type { ToolRunner } from "../src/tools/status";
 import type { VaultUnsupportedReason } from "../src/vault/context";
+import { vaultStatus } from "../src/vault/flow";
 import { processVaultHost } from "../src/vault/host";
 import { folderFixture } from "./fixtures/catalog-folder";
 import { ownContext, vaultMember, workAccount } from "./fixtures/fake-vault";
@@ -649,6 +650,7 @@ async function served(environment: Environment) {
   };
   return {
     context: () => vaultHost.context(),
+    status: () => vaultStatus(vaultHost),
     async page(path: string) {
       const answer = await fetch(`http://127.0.0.1:${port}${path}`, {
         headers,
@@ -709,6 +711,14 @@ for (const environment of environments)
           listed: environment.listed,
           carried: environment.listed,
         });
+        // `lazurio vault status` reads the same answer (`vaultAnswer`): it
+        // says the Environment has no vault exactly where the column does
+        // not list Trezor.
+        const status = await app.status();
+        expect(
+          status.state === "unsupported" &&
+            ["workstation", "no-vault", "no-tailnet"].includes(status.reason),
+        ).toBe(!environment.listed);
         // Its addresses still answer where it is not listed, old links
         // among them, with the same page; a public Environment answers
         // them as absent, as before (decision F55).

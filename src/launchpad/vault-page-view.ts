@@ -1,12 +1,9 @@
 import type {
-  VaultContext,
   VaultEnvironmentKind,
-  VaultNeedsConnection,
-  VaultUnsupported,
   VaultUnsupportedReason,
 } from "../vault/context";
 import type { BitwardenRegion } from "../vault/endpoints";
-import type { VaultPhase, VaultStatus } from "../vault/flow";
+import type { VaultPhase, VaultStatus, vaultAnswer } from "../vault/flow";
 import type { VaultMemberState, VaultMemberUnknown } from "../vault/members";
 import { pluralKey } from "./apps-view";
 import type { MessageKey } from "./messages";
@@ -37,14 +34,14 @@ const unlisted: readonly VaultUnsupportedReason[] = [
 
 /** Whether the Apps column lists Trezor (root decision 0185's addendum of
  * 2026-10-18; F53's addendum of 2026-10-18 (3)), by the vault
- * core's answer for this Environment as `lazurio vault status` starts from
- * it (`VaultHost.context`, a 0197 pilot's resolved as its status resolves
- * it: `vaultInAppsOf` in boot-document.ts): where the Environment has a
- * vault, also a personal Environment's that waits for its person, and where
- * the core could not read why it has none; not where it has none, nor on
- * this computer. Its address answers either way. */
+ * core's answer for this Environment as `lazurio vault status` resolves it
+ * (`vaultAnswer`, read by `vaultInAppsOf` in boot-document.ts): where the
+ * Environment has a vault, also a personal Environment's that waits for its
+ * person and a connected 0197 pilot's, and where the core could not read why
+ * it has none; not where it has none, nor on this computer. Its address
+ * answers either way. */
 export const vaultListed = (
-  answer: VaultContext | VaultNeedsConnection | VaultUnsupported,
+  answer: Awaited<ReturnType<typeof vaultAnswer>>,
 ): boolean =>
   answer.kind !== "unsupported" || !unlisted.includes(answer.reason);
 

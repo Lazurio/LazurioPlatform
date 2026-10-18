@@ -13583,8 +13583,11 @@ when this was written) belongs outside this repository.
    be for every Organization's Environment on a network whose control server is
    `https://headscale.<zone>`, whether one was ever connected or not, so the context
    alone would list Trezor in nearly every Organization's Environment without a vault.
-   `vaultInAppsOf` (`boot-document.ts`) asks `pilotConnected`, the core's own check
-   that `readVaultContext` already makes for a personal Environment. A fault keeps the
+   The vault core resolves it once for both readers: `vaultAnswer` (`src/vault/flow.ts`)
+   is the host's context with a pilot never connected (`pilotConnected`) answered as
+   `no-vault`, and both `vaultStatus` (`lazurio vault status`) and `vaultInAppsOf`
+   (`boot-document.ts`) read it, so the status and the column never disagree and the
+   Launchpad imports nothing from `src/vault/legacy-0197/`. A fault keeps the
    item: the page then says it ("V tomto Prostředí není k dispozici"), and a personal
    Environment whose record of its own Bitwarden does not read finds its way out there
    ("Odpojit").
@@ -13618,6 +13621,7 @@ when this was written) belongs outside this repository.
 | Alternative | Trade-off / disposition |
 | --- | --- |
 | The context alone, a `pilot` always listed | Lists Trezor on every Organization's Environment on a `headscale.<zone>` network without a vault, the case the decision is about; resolved as its status resolves it |
+| The Launchpad resolves a pilot itself (`pilotConnected` in `boot-document.ts`) | A second resolution beside the status's and a `legacy-0197` import in the Launchpad; one core function (`vaultAnswer`) read by both instead (DEV-6631 review) |
 | The page asks `GET /api/vault` and hides the item then | After the first paint, and the status asks bw; the item would flash. Decided by the server |
 | The full `vaultStatus` on the page's path | Runs bw for every page; only the context and the pilot's account file are read |
 | Hide it also on a fault | Would hide the page that says the fault, and a personal Environment's way out of a broken connection; listed |
@@ -13626,8 +13630,8 @@ when this was written) belongs outside this repository.
 **Honest limits.** The answer is read once per page load: an Environment that gains or
 loses its vault while its page is open shows it at the next load. A hosted page served
 without its boot document (its Folder held by another operation, or slower than a
-moment) lists Trezor until it is loaded again. `vaultInAppsOf` is one more consumer of
-the frozen `src/vault/legacy-0197/` (its README's deletion condition names it). The
+moment) lists Trezor until it is loaded again. The pilot's branch of `vaultAnswer` goes
+with the frozen `src/vault/legacy-0197/` (its README's deletion condition names it). The
 column now follows the wireframe here (a personal Environment, or one with a vault).
 
 Verified by unit tests (`tests/launchpad-apps-vault.test.ts`: `vaultListed` for every

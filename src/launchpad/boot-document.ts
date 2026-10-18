@@ -2,8 +2,7 @@ import type { MachineBinding, MachineEntry } from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
 import type { Catalog } from "../organizations/catalog";
 import { currentEnvironment, type Shell } from "../shell/contract";
-import type { VaultHost } from "../vault/flow";
-import { pilotConnected } from "../vault/legacy-0197/pilot";
+import { type VaultHost, vaultAnswer } from "../vault/flow";
 import { bootElementId, bootJson, type LaunchpadBoot } from "./boot";
 import { publicEntry } from "./chat";
 import { type MessageKey, messages } from "./messages";
@@ -21,21 +20,14 @@ import { vaultListed } from "./vault-page-view";
 // workstation's page, served without its token, gets none.
 
 /** Whether the Apps column lists Trezor in this Environment (root decision
- * 0185's addendum of 2026-10-18; F53's addendum of 2026-10-18 (3)):
- * the vault core's answer, read as `lazurio vault status` starts
- * (`host.context()`, `readVaultContext`), on the rule `vaultListed`. A 0197
- * pilot is resolved as its status resolves it (`pilotStatus`): one whose
- * account was connected has a vault, one never connected answers `no-vault`
- * (the context derives where a pilot would be for any Organization's
- * Environment on a network, whether it was connected or not). Only local
- * files: neither bw nor the vault is asked. Listed where it cannot be read
- * at all, so that a fault never hides the page that says it. */
+ * 0185's addendum of 2026-10-18; F53's addendum of 2026-10-18 (3)): the
+ * vault core's answer as `lazurio vault status` resolves it (`vaultAnswer`),
+ * on the rule `vaultListed`. Only local files: neither bw nor the vault is
+ * asked. Listed where it cannot be read at all, so that a fault never hides
+ * the page that says it. */
 export async function vaultInAppsOf(host: VaultHost): Promise<boolean> {
   try {
-    const answer = await host.context();
-    if (answer.kind === "pilot")
-      return await pilotConnected(host.directory, answer);
-    return vaultListed(answer);
+    return vaultListed(await vaultAnswer(host));
   } catch {
     return true;
   }

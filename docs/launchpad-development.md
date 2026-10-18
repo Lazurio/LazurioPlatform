@@ -2343,8 +2343,8 @@ that reason, and its Apps column no Trezor; `/vault` opens the page.
 **Where the column lists Trezor** ([F53's addendum of
 2026-10-18 (3)](decisions.md#f53-addendum-of-2026-10-18-3-trezor-only-where-the-environment-has-a-vault),
 root decision 0185's addendum, HumanAndMachines/Lazurio#577). Only where the Environment
-has a vault, as the vault core answers for it (`VaultHost.context()`, the answer
-`lazurio vault status` starts from; `vaultListed` in `vault-page-view.ts`): listed for
+has a vault, as the vault core answers for it (`vaultAnswer` in `src/vault/flow.ts`, the
+answer `lazurio vault status` reads; `vaultListed` in `vault-page-view.ts`): listed for
 `own`, `needs-connection`, a 0197 pilot whose account was connected and the faults
 (`folder-unreadable`, `handover-missing`, `handover-unreadable`, `not-operator`,
 `connection-unreadable`, a core that throws), so the page can say them; not listed for
