@@ -677,7 +677,9 @@ it is the second wave (`unsupported`, `workstation`).
   is the one source of truth for agents and the Launchpad. `request --item <name>
   --need <what> --why <why> --where <where in the service> --field <Name>[:secret]
   ... [--json]` asks a person for a secret (decision F54) and prints the request's id
-  and its page `<external origin>/settings/vault/requests/<id>`; `request status <id>`
+  and its page `<external origin>/vault/requests/<id>` (Apps → Trezor; the old
+  `…/settings/vault/requests/<id>` it printed before still opens it, F54's amendment of
+  2026-10-18); `request status <id>`
   answers `pending`, `saved` (with the item's name) or `declined`, `request list`
   every request (exit 0, 2 refused, 1 a failure).
 - **Launchpad**: `POST /api/tools/bitwarden/status|refresh` with `{}`, and `POST
@@ -698,15 +700,17 @@ it is the second wave (`unsupported`, `workstation`).
   never the setup's. The journal of the unit gets
   `{"scope":"tools-vault","operation":"setup|refresh|unlock|vault|secrets|request","outcome":…,"reason":…}`
   (with `"trigger":"start"` for the start's setup) only. An agent's secret request
-  (decision F54) is answered on Nastavení → Trezor (`/settings/vault`, "Žádosti
-  agentů") and its own page `/settings/vault/requests/<id>` over `GET
+  (decision F54) is answered on Apps → Trezor (`/vault`, "Žádosti agentů") and its
+  own page `/vault/requests/<id>` (the old `/settings/vault…` addresses open the same
+  for good) over `GET
   /api/vault/requests`, `GET /api/vault/requests/<id>`, `POST
   /api/vault/requests/<id>/save {values}` and `POST /api/vault/requests/<id>/decline
   {}`, behind the same admission (same origin for a write); any admitted person
   answers, without an account in the vault, and a save writes exactly one Secure note
   into Agenti.
 - **The vault page and its Správci** (F53's addendum of 2026-10-14,
-  `src/vault/members.ts`): Settings → Vault (`/settings/vault`, "Trezor") shows the
+  `src/vault/members.ts`): Apps → Vault (`/vault`, "Trezor"; Settings → Vault before
+  F53's addendum of 2026-10-18 (2), whose `/settings/vault` still leads there) shows the
   rule, the vault's name and state, and "Přidat položku" and "Otevřít trezor", or
   "Vytvořit účet v trezoru" while the person has no account in the network's vault
   and the vault takes the Lazurio sign-in (`GET /identity/sso/prevalidate`). `GET
@@ -766,7 +770,7 @@ it is the second wave (`unsupported`, `workstation`).
   `not-connected`, `vault setup` exit 2). The person creates the agents' account and
   its API key (Settings → Security → Keys → View API key in Bitwarden's web vault)
   and enters `client_id`, `client_secret` and the agents' master password once in
-  Settings → Vault (`POST /api/vault/connect`, exactly those keys, at most 16 KiB,
+  Apps → Vault (`POST /api/vault/connect`, exactly those keys, at most 16 KiB,
   same origin). The Environment signs in with the API key at the EU's identity host,
   and at the US's only where the EU's identity server answers HTTP 400
   `invalid_client`, its answer to an unknown key or a secret that does not match (both

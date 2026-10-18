@@ -410,7 +410,7 @@ account (root decision 0204, Machines' `public-account` admission, which only th
 platform's allowlist of public Organizations gets): exactly `"public"`. Its Environment
 is public and shared by its visitors, so the Launchpad runs a demo onboarding instead of
 Začínáme's sign-ins, the shell document says `audience: "public"` and its column head a
-quiet notice, and Integrace, Nastavení → Trezor and Nastavení → Nástroje answer as absent
+quiet notice, and Integrace, Trezor and Nastavení → Nástroje answer as absent
 ([F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-nothing-to-sign-in-to)).
 It grants nothing; the gateway's admission decides who enters. Machines writes it only
 for a pinned Platform at least its `PLATFORM_ENTRY_AUDIENCE_MINIMUM`, the first release
@@ -523,7 +523,7 @@ Machines writes the member only for a pinned Platform that reads it, as for
 handover that carries it (`tests/vault-handover.test.ts` shows it). Absent, the
 Environment has no vault yet, or, where it was connected the 0197 way, keeps reading
 that collection (`src/vault/legacy-0197/`); a personal Environment then keeps its
-vault in its person's own Bitwarden, which the person connects in Settings → Vault
+vault in its person's own Bitwarden, which the person connects in Apps → Vault
 (root decision 0203 point 7, [F53's amendment of
 2026-10-16](decisions.md#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden)). The member is not part of the Machine's
 identity and is not recorded in the Folder's binding: the vault reads the live

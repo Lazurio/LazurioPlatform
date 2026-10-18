@@ -104,7 +104,7 @@ test("the agent's words read as the person reads them, in both languages", () =>
   expect(itemLine(request, messages("en", "work"))).toBe(
     "It is saved in this Work Environment's vault as the item Fakturace API klient.",
   );
-  expect(requestHref(request)).toBe(`/settings/vault/requests/${id}`);
+  expect(requestHref(request)).toBe(`/vault/requests/${id}`);
   // Saved only with every field filled, white space alone is not a value.
   const filled = new Map([
     ["Client ID", "fake-id"],

@@ -207,9 +207,10 @@ information page is reached only from its tile's menu.
   rail or the column head's picker, so the home needs no Organization picker of its
   own.
 - **Column.** Under the column head the Apps column holds only Všechny moduly (all
-  modules), Soubory (Files, decision F35), Oblíbené (the favourites, pinned) and, at
-  its bottom, the Marketplace. There is no module list (its rows led to technical
-  details and confused people) and no search.
+  modules), Soubory (Files, decision F35), Integrace (decision F42), Trezor (the vault,
+  [below](#vault-apps--trezor); not on this computer), Oblíbené (the favourites,
+  pinned) and, at its bottom, the Marketplace. There is no module list (its rows led to
+  technical details and confused people) and no search.
 - **Marketplace.** The entry is in the Apps column of every Environment. For now it
   says "již brzy" (coming soon) and opens a placeholder page; it is not the
   [future marketplace](marketplace.md).
@@ -423,7 +424,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   same origin, which the Environment's gateway relays to the person's account (F37 and
   its addendum); the Launchpad does not answer it.
 - **Page.** `index.html` is rail | column | main. The Apps column (all modules, Files,
-  favourites, Marketplace) and home are `catalog-panel.ts` over `apps-view.ts` and
+  Integrace, Trezor, favourites, Marketplace) and home are `catalog-panel.ts` over `apps-view.ts` and
   `favorites.ts`, the frame is `shell.ts`, and the switch's pairing and the new
   module's hand-over to Chat are in `ui.ts`. A module's name, line and stone come from
   its default app's declaration (title, description, `icon`, tags), carried by the
@@ -858,11 +859,13 @@ iteration, 2026-10-04; the first target had the gear in the rail).
 
 **Routes.** `/settings/start` ([Začínáme](#first-run-of-an-environment), first where
 the Environment has it), `/settings/general`, `/settings/machine`, `/settings/tools`,
-`/settings/vault` ([Vault, Nastavení → Trezor](#vault-nastavení--trezor)),
 `/settings/ssh` ([SSH from your devices](#ssh-from-your-devices)) and
 `/settings/recovery` (the read-only [Recovery page](recovery.md#the-recovery-page)); `/settings`
 and an unknown section open General and the address bar is rewritten to the canonical
-path. The paths live in `src/launchpad/routes.ts` (pure, tested in
+path. Trezor is no section of Settings any more: it is the page `/vault` of the Apps
+column ([Vault, Apps → Trezor](#vault-apps--trezor)), and its old `/settings/vault` and
+`/settings/vault/requests/<id>` are served for good and open it, the address bar
+rewritten to `/vault…` (`legacyVaultPaths`). The paths live in `src/launchpad/routes.ts` (pure, tested in
 `tests/launchpad-routes.test.ts`); the server serves the same bundled page under
 exactly these paths (`pagePaths`) and nothing else, locally and through the hosted
 shell listener after admission. A path never carries the credential: locally the
@@ -2196,7 +2199,7 @@ odebrán" (a 0197 pilot's: "Přístup odebrán v trezoru"), "Trezor neodpovídá
 se nedokončilo", "Tento Environment zatím trezor nemá" (the handover names no vault),
 "Čeká na váš Bitwarden" (a personal Environment whose person has not connected their
 own Bitwarden yet, root decision 0203 point 7, with "Připojit", a link to the form of
-Nastavení → Trezor, and no setup) and "V tomto Prostředí není k dispozici" on this
+Apps → Trezor, and no setup) and "V tomto Prostředí není k dispozici" on this
 computer, which says no plan (F36's addendum of 2026-10-16) ("Connected", "Not set up
 yet", …). Its
 controls are "Otevřít trezor" once connected, a link in a new tab to
@@ -2212,10 +2215,13 @@ the Folder again to show it. The state is accepted only in its exact form
 `src/launchpad/vault-panel.ts`.
 
 **An agent's secret request** (decision F54, root decision 0198 point 9 (c); the
-wireframe's `screens/SecretRequest.tsx` and the section of `EnvVault.tsx`). Settings
-have the section `vault` (Nastavení → Trezor, `/settings/vault`) and below it the page
-of one request, `/settings/vault/requests/<id>`, a sub-route as Integrace has its
-forms (`pageRoute`; the first-paint script agrees, `tests/launchpad-first-paint.test.ts`).
+wireframe's `screens/SecretRequest.tsx` and the section of `EnvVault.tsx`). Trezor's
+page in the Apps column (`/vault`) has below it the page of one request,
+`/vault/requests/<id>`, a sub-route as Integrace has its forms (`pageRoute`; the
+first-paint script agrees, `tests/launchpad-first-paint.test.ts`). The link
+`lazurio vault request` printed before, `/settings/vault/requests/<id>`, opens the same
+request for good ([F54's amendment of
+2026-10-18](decisions.md#f54-amendment-of-2026-10-18-the-requests-page-under-trezor-the-old-addresses-kept-for-good)).
 `src/launchpad/vault-requests-panel.ts` draws two places the Trezor page holds:
 `#vault-requests`, "Žádosti agentů" with the count and one row per waiting request
 (what the agent needs, its fields, "Zadat" to its page), shown only while one waits;
@@ -2291,12 +2297,15 @@ two-step Remove, a key added outside Launchpad shown without Remove, a 390 px wi
 screen, and Czech, without page errors. A real Remote Environment, its network grant and
 `ssh <alias> true` from a device are not part of that check.
 
-## Vault (Nastavení → Trezor)
+## Vault (Apps → Trezor)
 
-Settings → Vault ([F53's addendum of
+Apps → Vault, Czech "Trezor" ([F53's addendum of
 2026-10-14](decisions.md#f53-addendum-of-2026-10-14-nastavení--trezor-and-the-správci),
-root decision 0198 point 5, the wireframe's `EnvVault` of prototypes-lazurio#33) is the
-way into the Environment's own vault, which is Lazurio Vaultwarden's web vault on its own
+root decision 0198 point 5, the wireframe's `EnvVault` of prototypes-lazurio#33), a page
+of the Apps column under Integrace since [F53's addendum of
+2026-10-18 (2)](decisions.md#f53-addendum-of-2026-10-18-2-trezor-is-a-page-of-the-apps-column)
+(`/vault`, the frame `vault`, Files' header with the title alone and "Obnovit stav"; not
+listed on this computer, `vaultInApps`), is the way into the Environment's own vault, which is Lazurio Vaultwarden's web vault on its own
 address: the rule, one row with the vault's name and state, and the actions the person's
 membership decides ("Přidat položku" and "Otevřít trezor", or "Vytvořit účet v trezoru").
 The Launchpad never lists items or shows a value. The routes are
@@ -2424,10 +2433,10 @@ in the page's language, focuses it and plays it. Never `autoplay`, `muted` or `l
 files carry no audio track; nothing of the video loads before the press. `render()`
 follows the page's language: the button's words, or an open video replaced by the new
 language's, paused. The pure part, `guideVideoPlayer`, decides the markup and the names
-(`tests/launchpad-guide-video.test.ts`). Nastavení → Trezor mounts it in
+(`tests/launchpad-guide-video.test.ts`). Apps → Trezor mounts it in
 `#vault-bitwarden-video` at the top of "V Codex Desktopu a ve vašem prohlížeči"
 (`vault-page-panel.ts`, hidden for a personal Environment's own Bitwarden, whose steps
-differ). Nastavení → Trezor of an Environment without a vault mounts `vault-overview`
+differ). Apps → Trezor of an Environment without a vault mounts `vault-overview`
 in `#vault-explainer-video` with `open`: there the video is the section's own content, so
 its player is there from the start, paused at its poster (nothing else of it loads before
 it plays), mounted the first time the section shows.
@@ -2743,12 +2752,12 @@ Organization's, and it gets none of it.
      `"reason": "ai-missing"` while the AI is provably missing. An AI that could not be
      checked holds nothing back.
 
-  Then "Hesla pro agenty" with Trezor Prostředí and its state as Nastavení → Trezor reads
+  Then "Hesla pro agenty" with Trezor Prostředí and its state as Apps → Trezor reads
   it (`GET /api/vault`, `vaultPageView`; a Remote Environment with a vault only),
   "Volitelné" (Composio where Nástroje offer it, with its sign-in; on a Remote
   Environment SSH z vlastního počítače, "Nastaveno" once a device's key was added here,
   and Codex Desktop, both leading to Settings → SSH; between them "Trezor v Bitwardenu"
-  where Nastavení → Trezor gives the steps for Bitwarden, its "Návod" opening them) and
+  where Apps → Trezor gives the steps for Bitwarden, its "Návod" opening them) and
   "Prohlídka aplikace" ("Spustit
   prohlídku" / "Spustit znovu" starts the introduction in Apps). A Team or Automated
   Environment's Začínáme says only "Tady není co nastavovat.".

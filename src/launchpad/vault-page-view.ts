@@ -7,15 +7,25 @@ import type { MessageKey } from "./messages";
 import { fill } from "./update-view";
 import { parseVaultStatus } from "./vault-view";
 
-// Settings → Vault, Nastavení → Trezor (root decision 0198 point 5, the
-// wireframe's EnvVault of prototypes-lazurio#33): the page's pure part. What
-// the server's answers say, in the page's words, and where each action
-// leads. The vault itself is Lazurio Vaultwarden's web vault on its own
-// address; the Launchpad never lists items or shows a value. Every server
-// value is accepted only in its exact form, and everything returned is text
-// for `textContent` or an https link into the network's vault.
+// Apps → Vault, Apps → Trezor (root decision 0198 point 5, the wireframe's
+// EnvVault of prototypes-lazurio#33; a page of the Apps column since F53's
+// addendum of 2026-10-18): the page's pure part. What the server's answers
+// say, in the page's words, and where each action leads. The vault itself is
+// Lazurio Vaultwarden's web vault on its own address; the Launchpad never
+// lists items or shows a value. Every server value is accepted only in its
+// exact form, and everything returned is text for `textContent` or an https
+// link into the network's vault.
 
 type Copy = Readonly<Record<MessageKey, string>>;
+
+/** Whether the Apps column lists Trezor, by the Environment's preset: not on
+ * this computer (`local`), which has no vault yet (the second wave of root
+ * decision 0193), as the wireframe leaves it out there; everywhere else,
+ * also while the preset is not known. Its address still answers there,
+ * saying so ("Trezor na tomto počítači není."). A public Environment's rule
+ * (decision F55) is the page's stylesheet's. */
+export const vaultInApps = (preset: string | null): boolean =>
+  preset !== "local";
 
 const kinds: readonly VaultEnvironmentKind[] = [
   "personal",

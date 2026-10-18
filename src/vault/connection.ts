@@ -49,7 +49,7 @@ import {
 // Bitwarden cloud in the EU or the US, through a separate agents' account,
 // never their main account. The cloud verifies e-mail on sign-up, so the
 // person creates the agents' account and its API key and enters them once,
-// with the account's master password, in Settings → Vault; which region it
+// with the account's master password, in Apps → Vault; which region it
 // is in, the Environment finds itself (F53's amendment of 2026-10-16, (2)).
 // From then on the Environment works on its own (flow.ts): it creates its
 // vault, a Free organization for the agents' account (Owner). The person

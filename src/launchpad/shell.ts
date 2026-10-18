@@ -11,11 +11,11 @@ import {
 type Copy = Readonly<Record<MessageKey, string>>;
 
 // The frame of the page in the Lazurio shell (decision F36): beside the rail,
-// one left column that holds the Apps column (search, all modules, Files and
-// one Organization's modules) on the Apps home and the Files page and the
+// one left column that holds the Apps column (all modules, Files, Integrace,
+// Trezor and the favourites) on the Apps home and the pages beside it and the
 // settings navigation on a settings route with "Back" at its foot, a header
-// with the breadcrumb on Settings and Files only, and one view shown at a
-// time. The route is the path; the page never reloads to change it, so the
+// with the breadcrumb on Settings, Files and Trezor only, and one view shown
+// at a time. The route is the path; the page never reloads to change it, so the
 // credential held in page memory stays (docs/launchpad-development.md).
 export function createShell(
   options: Readonly<{
@@ -25,8 +25,8 @@ export function createShell(
     /** Called after every move, with the route now shown. */
     onRoute?: (route: PageRoute) => void;
     /** The route shown for a route asked for: on a public Environment
-     * Integrace and Nastavení → Trezor show Apps and Settings in their place
-     * (decision F55). Absent: every route is itself. */
+     * Integrace and Trezor show Apps in their place, Nastavení → Nástroje
+     * Settings (decision F55). Absent: every route is itself. */
     place?: (route: PageRoute) => PageRoute;
   }>,
 ) {

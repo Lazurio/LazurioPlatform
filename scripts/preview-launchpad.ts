@@ -50,14 +50,14 @@
 // app's integration already and finishes a sign-in only when it returns. A
 // hosted preview's work Environment has its own vault (decision F53) in the
 // tests' fake Vaultwarden at the example Organization's address, set up
-// before the start, so Začínáme and Nastavení → Trezor show it with the
+// before the start, so Začínáme and Apps → Trezor show it with the
 // steps for Bitwarden in Codex Desktop (F53's addendum of 2026-10-16); the
 // fake bw keeps everything under the synthetic home, and the gateway names a
 // fictional person, jana, whose own address the steps offer. A personal
 // preview's vault is its person's own Bitwarden (root decision 0203 point 7)
 // in the tests' fake Bitwarden cloud, waiting for its person: the JSON line's
 // `bitwarden` has a fictional agents' account's `client_id`, `client_secret`
-// and master password to connect with on Nastavení → Trezor (the account is
+// and master password to connect with on Apps → Trezor (the account is
 // in the cloud's EU region, or in the US with `bitwarden-us` anywhere after
 // the mode), and `accept`, a file whose creation makes the person accept the
 // invitation the page asked for, as Bitwarden's e-mail would. With `public`
@@ -65,10 +65,10 @@
 // Environment (root decision 0204, decision F55): its entry carries
 // `audience: "public"`, so the Launchpad runs the demo onboarding, the
 // column head says the Environment is public and shared, and Integrace,
-// Nastavení → Trezor and Nastavení → Nástroje answer as absent. With
+// Apps → Trezor and Nastavení → Nástroje answer as absent. With
 // `no-vault` or `no-tailnet` anywhere after the mode, a hosted preview's work
 // Environment has no vault, for that reason (F53's addendum of 2026-10-17):
-// nothing is set up, and Nastavení → Trezor says why and explains the vault
+// nothing is set up, and Apps → Trezor says why and explains the vault
 // with its guide video. With `team` or `automated` anywhere after the mode, a
 // hosted preview's work Environment is the example Organization's Team
 // Environment or a persona's Automated Environment instead (its handover's
@@ -141,6 +141,8 @@ const composioOff = process.argv.slice(3).includes("composio-off");
 const publicEnvironment =
   process.argv[2] === "hosted" && process.argv.slice(3).includes("public");
 const microsoft365 = process.argv.slice(3).includes("microsoft365");
+const team =
+  process.argv[2] === "hosted" && process.argv.slice(3).includes("team");
 const composioOrgMissing = process.argv
   .slice(3)
   .includes("composio-org-missing");
@@ -629,7 +631,7 @@ async function previewVault() {
     context: async () =>
       ownContext(
         workHandover(vaultMember(workAccount, "Pracovní example")),
-        "work",
+        team ? "team" : "work",
       ),
   });
   const setUp = await vaultSetup(host);
@@ -703,7 +705,7 @@ const app = await startLaunchpad(
     ? {}
     : {
         // A hosted preview's gateway names a fictional person with a Lazurio
-        // username, as Lazurio Auth's answer does, so Nastavení → Trezor
+        // username, as Lazurio Auth's answer does, so Apps → Trezor
         // offers her own address (F53's addendum of 2026-10-16).
         fetcher: async () =>
           new Response("ok", {

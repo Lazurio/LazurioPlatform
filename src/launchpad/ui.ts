@@ -78,6 +78,7 @@ import {
   parseVaultMembership,
   parseVaultPage,
   type VaultPagePerson,
+  vaultInApps,
   vaultPageView,
 } from "./vault-page-view";
 import { createVaultRequestsPanel } from "./vault-requests-panel";
@@ -530,9 +531,9 @@ const tour = createTour({
   off: () => recoveryMode !== null || browser.isOpen(),
 });
 // Nastavení → Začínáme (root decision 0201): the basics from the same facts,
-// the vault's state as Nastavení → Trezor reads it, the optional steps and
-// the tour. Its vault and SSH rows are read each time it is shown, and so is
-// whether Nastavení → Trezor gives the steps for Bitwarden ("Trezor v
+// the vault's state as Apps → Trezor reads it, the optional steps and the
+// tour. Its vault and SSH rows are read each time it is shown, and so is
+// whether Apps → Trezor gives the steps for Bitwarden ("Trezor v
 // Bitwardenu", F53's addendum of 2026-10-16). Where the vault is a Lazurio
 // Vaultwarden, that follows the person's membership answer, which the Trezor
 // page asks too: asked here once per page, again only after an answer that
@@ -640,7 +641,7 @@ async function readStartExtras() {
   vaultBitwarden = offersBitwarden(model, person);
   startPanel.render();
 }
-/** Where the person stands in the vault, as Nastavení → Trezor asks it
+/** Where the person stands in the vault, as Apps → Trezor asks it
  * (`POST /api/vault/membership`); "failed" without an answer, as there. */
 async function readVaultPerson(): Promise<VaultPagePerson> {
   try {
@@ -658,7 +659,7 @@ function openAiStep() {
   startPanel.focusAi();
 }
 // What a public Environment does not have (decision F55): the page's
-// stylesheet hides Integrace in the Apps column, Trezor and Nástroje in the
+// stylesheet hides Integrace and Trezor in the Apps column, Nástroje in the
 // settings navigation and Začínáme's "Zkontrolovat znovu" while `<html
 // data-audience="public">` says so; the router shows Apps and Settings in
 // place of the first three.
@@ -670,6 +671,10 @@ function drawAudience() {
 drawAudience();
 const startNav = document.querySelector<HTMLElement>("#start-nav");
 const startCountNode = document.querySelector<HTMLElement>("#start-count");
+// Trezor in the Apps column (F53's addendum of 2026-10-18): not on this
+// computer, marked while its page shows.
+const vaultNav = document.querySelector<HTMLElement>("#vault-nav");
+const vaultOpen = document.querySelector<HTMLAnchorElement>("#vault-open");
 // The shell document the elements were last given, with the page's own
 // `setup`.
 let shellProvided: string | null = null;
@@ -689,6 +694,8 @@ function firstRun() {
       profileState !== null &&
       !signsInAsPerson(profileState.preset) &&
       !isPublicEnvironment(entry);
+  if (vaultNav !== null)
+    vaultNav.hidden = !vaultInApps(profileState?.preset ?? null);
   const count = facts === null ? null : startCount(facts);
   if (startCountNode !== null) {
     startCountNode.hidden = count === null;
@@ -900,20 +907,18 @@ const ssh = createSshPanel({
   },
   origin: () => location.origin,
 });
-// Settings → Vault, Nastavení → Trezor (root decision 0198 point 5): read on
-// first view; the server adds the person the gateway admitted to the vault.
+// Apps → Vault, Apps → Trezor (root decision 0198 point 5, F53's addendum of
+// 2026-10-18): read on first view; the server adds the person the gateway
+// admitted to the vault.
 const vaultPage = createVaultPagePanel({
   get: (path) => get(path),
   post: (path, body) => post(path, body),
   copy: () => copy,
   chat: () => chatHref(entry),
-  shown: () => {
-    const route = framed ? shell.route() : null;
-    return route?.view === "settings" && route.section === "vault";
-  },
+  shown: () => (framed ? shell.route().view === "vault" : false),
 });
-// Nastavení → Trezor: the agents' secret requests (decision F54), the
-// section of those that wait and one request's page; read when shown.
+// Apps → Trezor: the agents' secret requests (decision F54), the section of
+// those that wait and one request's page; read when shown.
 const vaultRequests = createVaultRequestsPanel({
   get: (path) => get(path),
   post: (path, body) => post(path, body),
@@ -986,13 +991,10 @@ const shell = createShell({
       void recovery.refresh();
     if (route.view === "settings" && route.section === "ssh" && !ssh.loaded)
       void ssh.refresh();
-    if (
-      route.view === "settings" &&
-      route.section === "vault" &&
-      !vaultPage.loaded
-    )
-      void vaultPage.refresh();
+    if (route.view === "vault" && !vaultPage.loaded) void vaultPage.refresh();
     vaultRequests.show(route);
+    if (route.view === "vault") vaultOpen?.setAttribute("aria-current", "page");
+    else vaultOpen?.removeAttribute("aria-current");
     if (framed && route.view === "settings") {
       // Settings read what only they show the first time they are shown;
       // back in Tento Environment or Začínáme the content is read again, and

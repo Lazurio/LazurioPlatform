@@ -196,7 +196,7 @@ const creating = (facts: VaultFacts): VaultStatus => ({
 
 /** The agents' account a personal Environment's person connected, without
  * its file: never registered here; the person disconnects and connects it
- * again in Settings → Vault. */
+ * again in Apps → Vault. */
 const enteredAccountMissing = (facts: VaultFacts): VaultStatus =>
   failedStatus(facts, "account", "account-missing");
 
