@@ -534,11 +534,15 @@ right organization.
 - **The sign-in dialog** of Settings → Tools (note of 2026-10-17) shows, after the
   sign-in, only what is left: where the organization is missing, the
   Organization's name as Composio accepts it with "Kopírovat", a drawing of the
-  path in Composio's dashboard ("FOR YOU", the organization card at the bottom of
-  the sidebar, "Create Org", then the page it opens, where the name is typed into
-  "Organization name" and "Create organization" clicked; `composioScreen` in
-  `src/launchpad/composio-scene.ts` holds Composio's labels, matched to the
-  Organization Admin's screenshots) and "Otevřít Composio" to the dashboard's
+  path in Composio's dashboard ("FOR YOU" (1), the person's own card at the
+  bottom of the sidebar, their name and current organization (2), "Organization"
+  on top of the menu it opens (3), "Create Org" in the list that row opens (4),
+  then the page it opens, where the name is typed into "Organization name" and
+  "Create organization" clicked (5, the number the dialog's name box carries); a
+  loop of 16.5 s; under reduced motion the menu and the list open with places 1
+  to 4; `composioScreen` in `src/launchpad/composio-scene.ts` holds Composio's
+  labels, matched to the Organization Admin's screenshots and, for the menu, to
+  the end-to-end test's of 2026-10-19) and "Otevřít Composio" to the dashboard's
   root; where there are two of the name, rename the extra one. Apps → Integrace
   and `lazurio integrations list` name the organization in the same form. It
   reads the organizations again by itself (after 4 s, growing to every 30 s,

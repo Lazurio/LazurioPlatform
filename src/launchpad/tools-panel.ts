@@ -2,7 +2,11 @@ import { composioDashboard } from "../integrations/composio-source";
 import { executorToolName, vaultToolName } from "../tools/catalog";
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
 import type { ToolSignIn } from "../tools/status";
-import { composioScene, composioStepMarker } from "./composio-scene";
+import {
+  composioNameStep,
+  composioScene,
+  composioStepMarker,
+} from "./composio-scene";
 import { createExecutorPanel } from "./executor-panel";
 import type { MessageKey } from "./messages";
 import { integrationsPath } from "./routes";
@@ -906,7 +910,7 @@ export function createToolsPanel(
         },
       );
     });
-    box.append(composioStepMarker(4), value, copyName);
+    box.append(composioStepMarker(composioNameStep), value, copyName);
     return box;
   }
 

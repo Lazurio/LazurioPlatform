@@ -1,4 +1,9 @@
 import { expect, test } from "bun:test";
+import {
+  composioNameStep,
+  composioSceneLabel,
+  composioScreen,
+} from "../src/launchpad/composio-scene";
 import { messages } from "../src/launchpad/messages";
 import {
   answerWithin,
@@ -1132,6 +1137,34 @@ test("Composio's dialog reads again calmly while the person works in Composio, a
   expect(composioPollNext(connected, { open: true, hidden: true })).toBe(
     "stop",
   );
+});
+
+// The drawing of Composio's dashboard (decision F42, note of 2026-10-17),
+// matched again to the dashboard on 2026-10-19: the card at the bottom left
+// is the person's own (their name and current organization), and it opens a
+// menu whose top row, "Organization" with the current one, opens the list
+// with "Create Org". The drawing went from a card straight to the list; it
+// now draws the menu as its own step, so the name is the fifth.
+test("the drawing goes through the person's menu: FOR YOU, the account, Organization, Create Org, then the name", () => {
+  expect(composioSceneLabel(messages("cs"), "LazurioExampleOrganization")).toBe(
+    "V Composiu: 1. FOR YOU, 2. váš účet vlevo dole, 3. Organization, 4. Create Org, 5. jméno LazurioExampleOrganization a Create organization.",
+  );
+  expect(composioSceneLabel(messages("en"), "LazurioExampleOrganization")).toBe(
+    "In Composio: 1. FOR YOU, 2. your account at the bottom left, 3. Organization, 4. Create Org, 5. the name LazurioExampleOrganization and Create organization.",
+  );
+  // The dialog's name box carries the number of the step it belongs to.
+  expect(composioNameStep).toBe(5);
+  // Composio's own words, as its dashboard writes them; the person and the
+  // organizations are fictional, the current one last.
+  expect(composioScreen).toMatchObject({
+    forYou: "FOR YOU",
+    organization: "Organization",
+    logOut: "Log out",
+    findOrg: "Find Org...",
+    createOrg: "Create Org",
+    person: "Jana",
+    organizations: ["Acme", "Northwind", "jana_workspace"],
+  });
 });
 
 test("the Git identity of a gh sign-in is read only in its exact form and becomes one sentence for people", () => {

@@ -430,7 +430,7 @@ const en = {
     "Composio has more than one organization named “{name}”; rename the extra one.",
   toolsComposioRenameWait: "Once it is renamed, Lazurio continues on its own.",
   toolsComposioScene:
-    "In Composio: 1. {forYou}, 2. {organization}, 3. {createOrg}, 4. the name {name} and {create}.",
+    "In Composio: 1. {forYou}, 2. your account at the bottom left, 3. {organization}, 4. {createOrg}, 5. the name {name} and {create}.",
   toolsComposioSceneYou: "You",
   toolsComposioConnected: "Composio is connected",
   toolsComposioChooseApps: "Choose apps",
@@ -2117,7 +2117,7 @@ const cs: Record<MessageKey, string> = {
     "V Composiu je víc organizací se jménem „{name}“; tu navíc přejmenujte.",
   toolsComposioRenameWait: "Až ji přejmenujete, Lazurio bude pokračovat samo.",
   toolsComposioScene:
-    "V Composiu: 1. {forYou}, 2. {organization}, 3. {createOrg}, 4. jméno {name} a {create}.",
+    "V Composiu: 1. {forYou}, 2. váš účet vlevo dole, 3. {organization}, 4. {createOrg}, 5. jméno {name} a {create}.",
   toolsComposioSceneYou: "Vy",
   toolsComposioConnected: "Composio je připojené",
   toolsComposioChooseApps: "Vybrat aplikace",
