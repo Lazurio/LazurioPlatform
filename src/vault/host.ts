@@ -34,13 +34,15 @@ import {
 import type { VaultHost, VaultJournalEntry } from "./flow";
 import { type PilotContext, pilotContextOf } from "./legacy-0197/context";
 import { pilotConnected } from "./legacy-0197/pilot";
+import { workstationVaultContext } from "./workstation";
 
 // The production composition of the Environment vault (decisions F43, F53):
 // the facts of this Remote Environment from its root-issued handover, read
 // anew for every operation, and the kind of the Environment from its Folder.
 // Only the handover's declared operator, in a hosted Folder on Linux, has a
-// vault; everything else is a workstation of the second wave or a handover
-// that cannot be trusted, and refuses before anything runs. A handover that
+// vault. On macOS, a local Folder instead selects an explicitly connected
+// Organization account (workstation.ts), never a fabricated handover.
+// Missing or unreadable identity refuses before anything runs. A handover that
 // names no vault yet may still be a 0197 pilot's (legacy-0197/). A personal
 // Environment whose handover names no vault and that is no connected pilot
 // keeps its vault in its person's own Bitwarden (root decision 0203 point
@@ -64,11 +66,15 @@ export async function readVaultContext(
     /** Where a personal Environment records the Bitwarden its person
      * connected (`VaultHost.connection`). */
     connection: string;
+    organization?: string | undefined;
   }>,
 ): Promise<
   VaultContext | PilotContext | VaultUnsupported | VaultNeedsConnection
 > {
-  if (input.platform !== "linux" || input.folder === undefined)
+  if (
+    !["linux", "darwin"].includes(input.platform) ||
+    input.folder === undefined
+  )
     return unsupported("workstation");
   const folder = input.folder;
   let preset: keyof typeof presetKinds;
@@ -83,7 +89,21 @@ export async function readVaultContext(
     return unsupported("folder-unreadable");
   }
   const kind = presetKinds[preset];
-  if (kind === "workstation") return unsupported("workstation");
+  if (kind === "workstation") {
+    if (input.platform !== "darwin" || input.organization === undefined)
+      return unsupported("workstation");
+    try {
+      return (
+        (await workstationVaultContext(
+          join(input.connection, "..", "workstation"),
+          input.organization,
+        )) ?? unsupported("workstation")
+      );
+    } catch {
+      return unsupported("connection-unreadable");
+    }
+  }
+  if (input.platform !== "linux") return unsupported("workstation");
   const sources = input.sources ?? {
     handover: productionMachineContextSource,
     operator: readLinuxOperator,
@@ -177,6 +197,7 @@ export function processVaultHost(
     env: Readonly<Record<string, string | undefined>>;
     platform: string;
     arch?: string | undefined;
+    organization?: string | undefined;
     run: ToolRunner;
     journal?: ((entry: VaultJournalEntry) => void) | undefined;
     sources?: HostedOperatorSources | undefined;
@@ -198,7 +219,7 @@ export function processVaultHost(
     vaultStateDirectory(host, key, home ?? "/nonexistent", input.env);
   const connection = connectionDirectory(home ?? "/nonexistent", input.env);
   return Object.freeze({
-    async context() {
+    async context(application) {
       if (home === undefined || base === undefined)
         return unsupported("workstation");
       let folder: string | undefined;
@@ -214,6 +235,9 @@ export function processVaultHost(
         sources: input.sources,
         directory,
         connection,
+        organization: application?.personalspace
+          ? undefined
+          : (application?.company ?? input.organization),
       });
     },
     directory,

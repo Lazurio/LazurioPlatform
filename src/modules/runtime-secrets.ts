@@ -237,10 +237,14 @@ export async function declaredSecretsFinding(
   const required = runtime.secrets;
   const optional = runtime.optional_secrets;
   if (required.length === 0 && optional.length === 0) return {};
+  // Workstation Organization bindings are selected dynamically by the vault
+  // at start. The catalog cannot infer their absence from a local preset.
   const place = await environment();
   const reason: RuntimeSecretReason | null =
     place.kind === "workstation"
-      ? "workstation"
+      ? personalspace
+        ? "workstation"
+        : null
       : place.kind === "unknown"
         ? null
         : place.organization === null

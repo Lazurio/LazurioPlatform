@@ -113,7 +113,9 @@ export type VaultHost = Readonly<{
   /** The Environment's vault, a 0197 pilot's, a personal Environment's that
    * needs its person's connection, or why it has none here; read at the
    * start of every operation. */
-  context: () => Promise<
+  context: (
+    application?: SecretApplication,
+  ) => Promise<
     VaultContext | PilotContext | VaultUnsupported | VaultNeedsConnection
   >;
   /** The state directory of one account: the vault's host and the key (the
@@ -954,7 +956,7 @@ export async function vaultSecretsAdmission(
   host: VaultHost,
   application: SecretApplication,
 ): Promise<VaultSecretsRefusal | null> {
-  const context = await host.context();
+  const context = await host.context(application);
   if (context.kind === "unsupported") return unsupportedRefusal(context.reason);
   if (context.kind === "needs-connection") return "not-connected";
   if (context.kind === "pilot")
@@ -990,7 +992,7 @@ async function readVaultSecrets(
     kind: "vault-secrets-refused",
     reason,
   });
-  const context = await host.context();
+  const context = await host.context(input);
   if (context.kind === "unsupported")
     return refuse(unsupportedRefusal(context.reason));
   if (context.kind === "needs-connection") return refuse("not-connected");
