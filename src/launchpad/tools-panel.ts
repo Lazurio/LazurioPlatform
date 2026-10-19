@@ -18,6 +18,7 @@ import {
   composioDialogView,
   composioPollDelay,
   composioPollNext,
+  composioSignInText,
   connectionLine,
   curatedActions,
   currentNotes,
@@ -591,7 +592,11 @@ export function createToolsPanel(
     if (challenge.kind === "url") {
       const url = loginLink(challenge.url, "dashboard.composio.dev");
       loginBody.replaceChildren(
-        element("p", "", copy.toolsLoginComposioText),
+        element(
+          "p",
+          "",
+          composioSignInText(copy, overview?.sharedEnvironment === true),
+        ),
         ...(url === null ? [] : [link(url, copy.toolsLoginComposioLink)]),
       );
       return;
@@ -1268,17 +1273,16 @@ export function createToolsPanel(
     const title = element("h3", "row-title", tool.name);
     if (tool.command !== tool.name)
       title.append(element("code", "", tool.command));
-    text.append(title, element("p", "row-desc", toolDescription(tool, copy)));
-
-    const view = toolStatusView(
-      tool,
-      copy,
-      overview?.hosted === true,
-      overview?.sharedEnvironment === true,
-    );
     // On a Team Environment gh working as the Organization's App identity
-    // reads "Works as lazurio-for-github[bot]".
+    // reads "Works as lazurio-for-github[bot]", and Composio's sentence
+    // names the Team's Composio account.
     const team = overview?.sharedEnvironment === true;
+    text.append(
+      title,
+      element("p", "row-desc", toolDescription(tool, copy, team)),
+    );
+
+    const view = toolStatusView(tool, copy, overview?.hosted === true, team);
     const line = connectionLine(tool, copy, team);
     // The last act on this row, said from the tool as it is now (Matěj
     // 2026-10-09): it never contradicts the line above.

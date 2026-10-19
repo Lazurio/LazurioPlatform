@@ -346,15 +346,27 @@ const descriptionKeys: Readonly<Record<string, MessageKey>> = {
   neon: "toolsDescriptionNeon",
 };
 
+// A Team Environment's own sentence, where it differs: Composio is signed in
+// there with the Team's Composio account, not anyone's personal one
+// (decision F42, note of 2026-10-19).
+const teamDescriptionKeys: Readonly<Record<string, MessageKey>> = {
+  composio: "toolsDescriptionComposioTeam",
+};
+
 /** The one sentence under a tool's name: what it is for, in plain words;
- * the catalog's purpose for a tool this page has no sentence for. */
+ * the catalog's purpose for a tool this page has no sentence for. In a
+ * Team Environment (the reading's `sharedEnvironment`) its own sentence
+ * where it has one. */
 export function toolDescription(
   tool: Pick<ToolOverview, "name" | "purpose">,
   copy: Copy,
+  shared = false,
 ): string {
-  const key = Object.hasOwn(descriptionKeys, tool.name)
-    ? descriptionKeys[tool.name]
-    : undefined;
+  const keys =
+    shared && Object.hasOwn(teamDescriptionKeys, tool.name)
+      ? teamDescriptionKeys
+      : descriptionKeys;
+  const key = Object.hasOwn(keys, tool.name) ? keys[tool.name] : undefined;
   return key === undefined ? tool.purpose : copy[key];
 }
 
@@ -425,6 +437,14 @@ export function autoEnable(
     // The Organization decides a tool it does not allow (decision F45).
     tool.organization?.allowed !== false
   );
+}
+
+/** What Composio's sign-in dialog says beside "Otevřít Composio", before
+ * the person signs in there: in a Team Environment (the reading's
+ * `sharedEnvironment`) with the Team's Composio account, not a personal one
+ * (decision F42, note of 2026-10-19). */
+export function composioSignInText(copy: Copy, shared: boolean): string {
+  return shared ? copy.toolsLoginComposioTextTeam : copy.toolsLoginComposioText;
 }
 
 /** The title of a tool's sign-in dialog: "Připojit GitHub", "Připojit

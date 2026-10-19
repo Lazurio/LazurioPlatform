@@ -13,6 +13,7 @@ import {
   composioPollMaxMs,
   composioPollNext,
   composioPollStartMs,
+  composioSignInText,
   connectionLine,
   curatedActions,
   currentNotes,
@@ -41,6 +42,7 @@ import {
   takesNote,
   teamInstallOutcome,
   toolChangeOutcome,
+  toolDescription,
   toolGroups,
   toolGuideTargets,
   toolNoticeView,
@@ -1107,6 +1109,39 @@ test("Composio's dialog: create, rename, one sentence or connected, from the org
     expect(view).toEqual(none);
     expect(composioPollNext(view, { open: true, hidden: false })).toBe("read");
   }
+});
+
+test("in a Team Environment Nástroje names the Team's Composio account, elsewhere the person's own (decision F42, note of 2026-10-19)", () => {
+  const cs = messages("cs");
+  const en = messages("en");
+  // The row's sentence: the reading's `sharedEnvironment` chooses it.
+  expect(toolDescription(tool(), cs, true)).toBe(
+    "Snadná cesta k mnoha aplikacím přes Composio, s týmovým účtem Composia. Aplikace připojíte v Apps → Integrace.",
+  );
+  expect(toolDescription(tool(), en, true)).toBe(
+    "An easy way to many apps through Composio, with the Team's Composio account. You connect the apps in Apps → Integrations.",
+  );
+  for (const shared of [false, undefined])
+    expect(toolDescription(tool(), cs, shared)).toBe(
+      "Snadná cesta k mnoha aplikacím přes Composio, s vaším vlastním účtem. Aplikace připojíte v Apps → Integrace.",
+    );
+  // Only Composio's sentence differs; gh's stays the same in either.
+  expect(toolDescription(tool({ name: "gh" }), cs, true)).toBe(
+    toolDescription(tool({ name: "gh" }), cs, false),
+  );
+  // The sign-in dialog's line before the person signs in to Composio.
+  expect(composioSignInText(cs, true)).toBe(
+    "Přihlaste se do Composia v prohlížeči týmovým účtem Composia, ne osobním.",
+  );
+  expect(composioSignInText(en, true)).toBe(
+    "Sign in to Composio in your browser with the Team's Composio account, not a personal one.",
+  );
+  expect(composioSignInText(cs, false)).toBe(
+    "Přihlaste se do Composia v prohlížeči.",
+  );
+  expect(composioSignInText(en, false)).toBe(
+    "Sign in to Composio in your browser.",
+  );
 });
 
 test("Composio's dialog reads again calmly while the person works in Composio, and stops once connected, closed or hidden", () => {

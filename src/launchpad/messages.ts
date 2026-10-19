@@ -298,6 +298,8 @@ const en = {
   toolsLoginGhLink: "Open GitHub",
   toolsLoginCodeLabel: "One-time code",
   toolsLoginComposioText: "Sign in to Composio in your browser.",
+  toolsLoginComposioTextTeam:
+    "Sign in to Composio in your browser with the Team's Composio account, not a personal one.",
   toolsLoginComposioLink: "Open Composio",
   toolsLoginQrText:
     "On your phone open WhatsApp, then Settings, Linked devices, Link a device, and point the camera at this code. It changes every few seconds; the newest one is always shown here.",
@@ -1141,6 +1143,10 @@ const en = {
     "The connection to GitHub, where your modules are kept. Nothing works here without it.",
   toolsDescriptionComposio:
     "An easy way to many apps through Composio, with your own account. You connect the apps in Apps → Integrations.",
+  // In a Team Environment Composio is signed in with the Team's Composio
+  // account, not anyone's personal one (decision F42, note of 2026-10-19).
+  toolsDescriptionComposioTeam:
+    "An easy way to many apps through Composio, with the Team's Composio account. You connect the apps in Apps → Integrations.",
   toolsDescriptionWacli:
     "The connection to WhatsApp: agents read and send your messages.",
   toolsDescriptionGogcli:
@@ -1985,6 +1991,8 @@ const cs: Record<MessageKey, string> = {
   toolsLoginGhLink: "Otevřít GitHub",
   toolsLoginCodeLabel: "Jednorázový kód",
   toolsLoginComposioText: "Přihlaste se do Composia v prohlížeči.",
+  toolsLoginComposioTextTeam:
+    "Přihlaste se do Composia v prohlížeči týmovým účtem Composia, ne osobním.",
   toolsLoginComposioLink: "Otevřít Composio",
   toolsLoginQrText:
     "V telefonu otevřete WhatsApp, pak Nastavení, Propojená zařízení, Propojit zařízení, a namiřte fotoaparát na tento kód. Kód se každých pár sekund mění; tady je vždy ten nejnovější.",
@@ -2799,6 +2807,8 @@ const cs: Record<MessageKey, string> = {
     "Připojení na GitHub, kde jsou uložené vaše moduly. Bez něj tu nic nefunguje.",
   toolsDescriptionComposio:
     "Snadná cesta k mnoha aplikacím přes Composio, s vaším vlastním účtem. Aplikace připojíte v Apps → Integrace.",
+  toolsDescriptionComposioTeam:
+    "Snadná cesta k mnoha aplikacím přes Composio, s týmovým účtem Composia. Aplikace připojíte v Apps → Integrace.",
   toolsDescriptionWacli:
     "Připojení na WhatsApp: agenti čtou a posílají vaše zprávy.",
   toolsDescriptionGogcli:
