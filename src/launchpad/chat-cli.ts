@@ -41,8 +41,11 @@ export const chatHelp = `chat link [--folder <absolute Folder>] [--plain] [--jso
 chat defaults [--apply] [--folder <absolute Folder>] [--json]
   Read the native T3 default without writing. --apply reconciles the Platform
   recommendation through the running T3 service, preserving a personal choice.
-  T3 must support the managed Folder contract; no offline write or settings-file
-  patch is attempted. Exit: 0 managed/custom, 10 outdated/not hosted, 1 unavailable.`;
+  The recommended model is the one this Environment's Codex configuration pins,
+  as Codex's own config/read answers; without one, or without an answer, the
+  Platform's own. T3 must support the managed Folder contract; no offline write
+  or settings-file patch is attempted. Exit: 0 managed/custom, 10 outdated/not
+  hosted, 1 unavailable.`;
 
 export const exitNotHosted = exitUpdateAvailable;
 
