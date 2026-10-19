@@ -211,14 +211,28 @@ Running.
   - **Sign-out.** Sign-out and sign-in again on `f1040cafc798ecf0`, at 19:15:48–19:16:06Z and
     19:19:20–19:19:42Z.
 
-  The G.3 item itself, a Folder refresh and a deliberate Launchpad restart, follows inside the
-  stage.
+- **Folder refresh and Launchpad restart (G.3), inside the stage.** On work VM `f1040cafc798ecf0`
+  at 20:00:12Z and on work VM `146fb920b36d943c` at 20:02:24Z:
+  - `lazurio machine folder-refresh` as the Machine's user: `unchanged`, exit 0;
+  - then a deliberate `systemctl --user restart lazurio-launchpad.service`, exit 0;
+  - the units came back active at 20:00:13Z and 20:02:25Z with `NRestarts` 0, and
+    `lazurio recover --json` answered `healthy` on 0.1.10-rc.1;
+  - a probe of the three work VMs right after each run (20:00:32Z and 20:02:40Z) found all of them
+    on the candidate and healthy, with `NRestarts` 0.
+
+  The verdict on the first probe was computed afterwards, from the data the probe had collected.
+  The operator's probe wrapper, outside this repository, dropped an empty argument, so its own
+  verdict step stopped with an error.
+  - The wrapper was fixed before the second run, and that probe's verdict came from the fixed
+    wrapper.
+  - The 30-minute rounds run their checks without that wrapper, so no round was affected.
 - **Other changes on the same Machines during the stage, so far:**
 
   | When (UTC) | Machines | What | Platform |
   |---|---|---|---|
   | 2026-10-19 19:15:43–19:15:53Z | work VM `f1040cafc798ecf0` | T3 Code 0.1.0-lazurio.3 → 0.1.0-preview.20261019.2. Only the T3 Code service restarted. | unchanged |
-  | 2026-10-19, within 19:31–19:43Z | work VM `f1040cafc798ecf0` | A read-only check from a Chat thread's terminal (the environment, `xdg-open`), which opens one tab in the Environment Browser. Its exact times follow. | unchanged |
+  | 2026-10-19 19:27:56–19:28:04Z and 19:38:57–19:40:52Z | work VM `f1040cafc798ecf0` | Read-only checks of Chat as the Owner: a new-chat page, one existing thread and the command palette. A thread's terminal drawer was opened and closed twice; no command ran in it. Three read-only file checks inside the guest (19:39:18, 19:40:11 and 19:40:54Z). No tab was added in the Environment Browser. | unchanged |
+  | 2026-10-19, within 20:31–20:43Z (planned) | work VM `f1040cafc798ecf0` | From that thread's terminal: a read-only look at its browser session variable, and one `xdg-open https://example.com`, which leaves one tab open in the Environment Browser. Its exact times follow. | |
 
 When it has ended:
 - its record replaces the one in this pull request;
