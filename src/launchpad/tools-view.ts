@@ -464,13 +464,14 @@ export function composioSignInText(copy: Copy, shared: boolean): string {
 }
 
 /** The title of a tool's sign-in dialog: "Připojit GitHub", "Připojit
- * aplikace" (Composio), otherwise "Připojit <tool>". */
+ * aplikace" (Composio), otherwise "Připojit <tool>". gh keeps its title when
+ * it only links the SSH key (`ssh`, which only gh has): "Připojit znovu" on
+ * Začínáme opens it, and the person never sees "gh" there (#515). */
 export function loginTitle(
   name: string,
   mode: "install" | "login" | "ssh",
   copy: Copy,
 ): string {
-  if (mode === "ssh") return fill(copy.toolsLoginTitleSsh, { name });
   if (name === "gh") return copy.toolsLoginTitleGh;
   if (name === "composio") return copy.toolsLoginTitleComposio;
   return fill(

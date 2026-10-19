@@ -2410,9 +2410,10 @@ says, in one sentence each, that gh is signed in but git over SSH does not work 
 why (a passphrase on the existing key, the key in use by another account, a differing
 github.com host key, a failing proof, …), with "Finish with an agent" and "Try again",
 which links the key only. A signed-in gh whose key is not linked or not verified shows
-"Link SSH key" on its card: the same dialog with the steps "Linking the SSH key" and
-"SSH key linked", and "Waiting for you" first with a device code only when the gh
-sign-in may not manage SSH keys yet (the code widens the sign-in, the text says so).
+"Link SSH key" on its card: the same dialog, under gh's own title "Connect GitHub", with
+the steps "Linking the SSH key" and "SSH key linked", and "Waiting for you" first with a
+device code only when the gh sign-in may not manage SSH keys yet (the code widens the
+sign-in, the text says so).
 "Sign out" of gh also says what happened to the key on the account: removed, kept
 because Lazurio did not register it, or possibly still registered with where to remove
 it.
@@ -3039,9 +3040,9 @@ Organization's, and it gets none of it.
      "Připojit" (gh's own sign-in dialog of Nástroje), enabled only once AI is there;
      before, the step waits under its number. Connected badly (signed in, SSH not
      working): "Připojení nefunguje." with the warning mark and "Připojit znovu", which
-     opens "Link SSH key". A sign-in the page runs, its window closed or open: "Čeká na
-     vaše potvrzení." or "Dokončuje se připojení…" with the waiting mark and "Otevřít",
-     which shows it again (F19's addendum of 2026-10-19);
+     opens "Link SSH key" under the title "Připojit GitHub". A sign-in the page runs, its
+     window closed or open: "Čeká na vaše potvrzení." or "Dokončuje se připojení…" with
+     the waiting mark and "Otevřít", which shows it again (F19's addendum of 2026-10-19);
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
      rows inside the step (the same `content-panel.ts` as Toto Prostředí draws).
      Once this view saw GitHub or the AI arrive (from missing to there; what was there

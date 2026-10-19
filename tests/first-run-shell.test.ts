@@ -696,6 +696,10 @@ test("Nástroje: one plain sentence per tool, connected or not, the version in i
   // A key that could not be verified is named too (#515).
   expect(gh("unknown").ssh).toBe("SSH klíč neověřený");
   expect(loginTitle("gh", "login", cs)).toBe("Připojit GitHub");
+  // Linking gh's SSH key ("Připojit znovu" on Začínáme) keeps gh's title,
+  // never the tool's name (#515).
+  expect(loginTitle("gh", "ssh", cs)).toBe("Připojit GitHub");
+  expect(loginTitle("gh", "ssh", messages("en"))).toBe("Connect GitHub");
   expect(loginTitle("composio", "install", cs)).toBe("Připojit aplikace");
   expect(loginTitle("wacli", "login", cs)).toBe("Připojit wacli");
   expect(cs.toolsSignInAction).toBe("Připojit");

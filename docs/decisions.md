@@ -3220,9 +3220,10 @@ must say that GitHub is connected badly and must be connected again.
    working, which counts as missing (signed in with an SSH state that could not be read is
    `unknown`). Začínáme's GitHub step then says "Připojení nefunguje." with the warning
    mark and one action, "Připojit znovu", which opens the existing "Link SSH key" flow
-   (`signInMode`); the count, the next basic, the line in Apps ("Připojení GitHubu
-   nefunguje." with "Připojit znovu"), the tour and the shell's column prompt count it
-   missing (`lazurio.shell.v1`'s `setup.github` stays `connected | missing`). Its
+   (`signInMode`) under gh's own title, "Připojit GitHub" (Začínáme never names "gh");
+   the count, the next basic, the line in Apps ("Připojení GitHubu nefunguje." with
+   "Připojit znovu"), the tour and the shell's column prompt count it missing
+   (`lazurio.shell.v1`'s `setup.github` stays `connected | missing`). Its
    `contentBlockedBy` is `github`: the content's download, "Zkusit znovu", a start request
    and the start by itself wait, and the start by itself comes once the link works, as when
    GitHub arrives. `startDecision` and `openSignIn("gh")` open the SSH link where that is
