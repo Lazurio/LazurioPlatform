@@ -44,6 +44,7 @@ import {
   autoStartStep,
   composioFact,
   contentBlockedBy,
+  createComposioOrganizationReader,
   githubAccount,
   githubFact,
   idleAutoStart,
@@ -79,7 +80,6 @@ import { createThemePanel } from "./theme-panel";
 import { withAppsTheme } from "./theme-view";
 import { createToolsPanel } from "./tools-panel";
 import {
-  type OrganizationRuleView,
   organizationChoices,
   organizationRule,
   type ToolGuideTargets,
@@ -641,15 +641,9 @@ let vaultBitwarden = false;
 let vaultPerson: VaultPagePerson | null = null;
 let sshDevices: number | null = null;
 // Composio's organization as Začínáme last read it (decision F42, note of
-// 2026-10-19): the rule `/api/tools/composio/organizations` answered for the
-// Composio sign-in it was read with, so that Composio signed in but not in
-// the organization of the Organization's name is not "Připojeno" there. Read
-// each time Začínáme is shown, and when that sign-in changes while it is.
-let composioOrganization: Readonly<{
-  signIn: string;
-  rule: OrganizationRuleView;
-}> | null = null;
-let composioOrganizationReading = false;
+// 2026-10-19), so that Composio signed in but not in the organization of the
+// Organization's name is not "Připojeno" there. Read each time Začínáme is
+// shown, and when the sign-in changes while it is.
 /** Composio's sign-in as the tools' reading names it; null signed out. */
 function composioSignIn(): string | null {
   const composio = toolsOverview?.tools.find(
@@ -662,25 +656,16 @@ function composioSignIn(): string | null {
       ])
     : null;
 }
-async function readComposioOrganization(again: boolean) {
-  const signIn = composioSignIn();
-  if (
-    signIn === null ||
-    composioOrganizationReading ||
-    (!again && composioOrganization?.signIn === signIn)
-  )
-    return;
-  composioOrganizationReading = true;
-  let rule: OrganizationRuleView | null = null;
-  try {
+const composioOrganization = createComposioOrganizationReader({
+  signIn: composioSignIn,
+  read: async () => {
     const { value, ok } = await post("/api/tools/composio/organizations", {});
-    if (ok && organizationChoices(value) !== null)
-      rule = organizationRule(value);
-  } catch {}
-  composioOrganizationReading = false;
-  composioOrganization = rule === null ? null : { signIn, rule };
-  startPanel.render();
-}
+    return ok && organizationChoices(value) !== null
+      ? organizationRule(value)
+      : null;
+  },
+  changed: () => startPanel.render(),
+});
 // "Přihlásit ChatGPT" and "Přihlásit Claude" (root decision 0201 points 3-6,
 // F19's addendum of 2026-10-15): the CLI's sign-in through the Launchpad; on
 // a Remote Environment its page opens in the Environment browser, and the
@@ -718,14 +703,7 @@ const startPanel = createStartPanel({
           copy,
         )
       : null,
-  composio: () =>
-    composioFact(
-      toolsOverview,
-      composioOrganization !== null &&
-        composioOrganization.signIn === composioSignIn()
-        ? composioOrganization.rule
-        : null,
-    ),
+  composio: () => composioFact(toolsOverview, composioOrganization.rule()),
   sshDevices: () => sshDevices,
   vault: () => vaultRow,
   bitwarden: () => vaultBitwarden,
@@ -762,7 +740,7 @@ async function readStartExtras() {
     startPanel.render();
     return;
   }
-  void readComposioOrganization(true);
+  void composioOrganization.read(true);
   const [vault, ssh] = await Promise.all([
     get("/api/vault").catch(() => null),
     get("/api/ssh").catch(() => null),
@@ -1465,7 +1443,7 @@ const tools = createToolsPanel({
     // Začínáme shown: Composio's organization for its sign-in as it is now.
     const route = shell.route();
     if (route.view === "settings" && route.section === "start")
-      void readComposioOrganization(false);
+      void composioOrganization.read(false);
     // Once GitHub is connected the content routes may answer otherwise; a
     // sign-in this view saw starts the content once its turn has come (0201
     // point 3).

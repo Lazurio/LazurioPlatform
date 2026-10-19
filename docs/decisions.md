@@ -9299,8 +9299,10 @@ verdict. The reference is
   It now reads the same verdict when it is shown; signed in but not in the
   organization of the Organization's name (missing, twice, not made current, or
   the name unreadable), the row says "Nedokončeno" with "Dokončit", which opens
-  the dialog at the step left in Composio. Nástroje keeps "Připojeno jako …": the
-  sign-in itself is done.
+  the dialog at the step left in Composio. An answer counts only for the sign-in
+  it was read with, and when the sign-in changes while a read runs, Začínáme
+  reads again for the new one (`createComposioOrganizationReader`). Nástroje
+  keeps "Připojeno jako …": the sign-in itself is done.
 - **The drawing has the person's menu.** In Composio's dashboard the card at the
   bottom left is the person's own (their name and current organization) and opens
   a menu whose top row, "Organization", opens the list with "Create Org". The

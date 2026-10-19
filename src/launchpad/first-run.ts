@@ -117,6 +117,51 @@ export function composioFact(
     : "unfinished";
 }
 
+/** Začínáme's reading of Composio's organizations for the sign-in of the
+ * moment (decision F42, note of 2026-10-19). One read runs at a time; an
+ * answer counts only for the sign-in it was read with, and when the sign-in
+ * changed while it ran, the reader reads again for the new one, so a sign-in
+ * that changes mid-read never keeps "Připojeno" (Pablo's review of #510).
+ * `again` reads even when the sign-in already has an answer (Začínáme shown
+ * again). */
+export function createComposioOrganizationReader(
+  options: Readonly<{
+    /** Composio's sign-in as the tools' reading names it; null signed out. */
+    signIn: () => string | null;
+    /** One answer of `/api/tools/composio/organizations`; null unreadable. */
+    read: () => Promise<OrganizationRuleView | null>;
+    /** An answer was kept: Začínáme draws again. */
+    changed: () => void;
+  }>,
+): Readonly<{
+  read: (again: boolean) => Promise<void>;
+  rule: () => OrganizationRuleView | null;
+}> {
+  let last: Readonly<{ signIn: string; rule: OrganizationRuleView }> | null =
+    null;
+  let reading = false;
+  async function read(again: boolean): Promise<void> {
+    const signIn = options.signIn();
+    if (signIn === null || reading || (!again && last?.signIn === signIn))
+      return;
+    reading = true;
+    let rule: OrganizationRuleView | null = null;
+    try {
+      rule = await options.read();
+    } catch {}
+    reading = false;
+    last = rule === null ? null : { signIn, rule };
+    options.changed();
+    // The sign-in changed while this read ran: read for the one of now.
+    if (options.signIn() !== signIn) await read(false);
+  }
+  return {
+    read,
+    rule: () =>
+      last !== null && last.signIn === options.signIn() ? last.rule : null,
+  };
+}
+
 /** The Environment's AI as the page knows it (`GET /api/ai`, tools/ai.ts):
  * `loading` until the first answer. */
 export type AiFact = AiState | "loading";

@@ -7,6 +7,7 @@ import {
   basicsDone,
   composioFact,
   contentBlockedBy,
+  createComposioOrganizationReader,
   finishedTourProgress,
   firstProgress,
   freshTourProgress,
@@ -889,4 +890,56 @@ test("the start by itself never comes after a stop, never during a run, never be
         contentBlockedBy(facts) === null,
       ]);
     }
+});
+
+test("Začínáme's organizations reading follows a Composio sign-in that changes mid-read (Pablo's review of #510)", async () => {
+  // Sign-in A's read is in flight when the tools report sign-in B: B's
+  // request is not dropped. A's answer never counts for B, and once A's
+  // read settles the reader reads again for B.
+  const missing = { kind: "named", name: "Example", state: "missing" } as const;
+  const matches = { kind: "named", name: "Example", state: "matches" } as const;
+  let signIn: string | null = "A";
+  const pending: ((rule: typeof missing | typeof matches) => void)[] = [];
+  const asked: (string | null)[] = [];
+  let drawn = 0;
+  const reader = createComposioOrganizationReader({
+    signIn: () => signIn,
+    read: () =>
+      new Promise((resolve) => {
+        asked.push(signIn);
+        pending.push(resolve);
+      }),
+    changed: () => {
+      drawn += 1;
+    },
+  });
+  const first = reader.read(true);
+  signIn = "B";
+  // The tools' reading for B arrives while A's read runs.
+  await reader.read(false);
+  expect(asked).toEqual(["A"]);
+  pending.shift()?.(matches);
+  await Promise.resolve();
+  await Promise.resolve();
+  // A's answer is A's: B has no answer yet, and B is being read.
+  expect(reader.rule()).toBeNull();
+  expect(asked).toEqual(["A", "B"]);
+  pending.shift()?.(missing);
+  await first;
+  expect(reader.rule()).toEqual(missing);
+  expect(drawn).toBe(2);
+  // Unchanged sign-in, no new read unless asked again.
+  await reader.read(false);
+  expect(asked).toEqual(["A", "B"]);
+  // A failed read keeps nothing.
+  const again = reader.read(true);
+  pending.shift()?.(Promise.reject(new Error("down")) as never);
+  await again;
+  expect(asked).toEqual(["A", "B", "B"]);
+  expect(reader.rule()).toBeNull();
+  // Signed out: nothing is read and nothing counts.
+  signIn = null;
+  await reader.read(true);
+  expect(asked).toEqual(["A", "B", "B"]);
+  expect(reader.rule()).toBeNull();
 });
