@@ -19,7 +19,9 @@
 //   (not in Composio's CLI as of 0.4.3, in Lazurio's build; Lazurio removes
 //   only where it is);
 // - `--version` prints the state's `version`, else the build's as Lazurio's
-//   build, else 0.4.1.
+//   build, else 0.4.1;
+// - `login --no-wait` prints its link and `login --poll` completes it on the
+//   CLI's own backing-off schedule once the person approved it.
 // A test may hold the next `link <toolkit> --list` (`hold-<toolkit>` in the
 // state's directory) until it releases it (`release-<toolkit>`): that call
 // answers what the state said when it started, as a slow CLI would.
@@ -50,9 +52,9 @@ const state = JSON.parse(
   readFileSync(join(directory, "state.json"), "utf8"),
 ) as FakeComposioState;
 
-function save() {
+function save(value: FakeComposioState = state) {
   const temporary = join(directory, `state.${process.pid}.json`);
-  writeFileSync(temporary, JSON.stringify(state), { mode: 0o600 });
+  writeFileSync(temporary, JSON.stringify(value), { mode: 0o600 });
   renameSync(temporary, join(directory, "state.json"));
 }
 const print = (value: unknown) =>
@@ -126,6 +128,71 @@ if (command === "--version") {
     state.version ?? (state.lazurioBuild ? composioBuild.version : "0.4.1"),
   );
   end(0);
+}
+
+// `login --no-wait` keeps a pending sign-in and prints its link (the CLI's
+// `pending-login-session.json` and its instructions); `login --poll` checks
+// it on the CLI's own schedule, at most every 5 s and then backing off
+// (`Schedule.max([exponential('0.3 seconds'), spaced('5 seconds')])`, 120
+// times: checks at about 0, 5, 10, 15, 20, 25, 35, 54, 92 and 169 s), and
+// signs in once the person approved it in Composio (`approve` in the
+// state's directory, holding its key). `pollScale` shortens that schedule
+// for a test.
+if (command === "login" && args.includes("--no-wait")) {
+  if (state.signedIn) {
+    log("You're already logged in!");
+    end(0);
+  }
+  state.pendingLogin = `PENDING${String(state.next++).padStart(6, "0")}`;
+  save();
+  const url = `https://dashboard.composio.dev/?cliKey=${state.pendingLogin}`;
+  console.log(
+    `Open this URL in your browser to log in:\n\n  ${url}\n\nThen run this command to complete login:\n\n  composio login --poll\n`,
+  );
+  end(0);
+}
+
+// The person approved this sign-in in Composio: `approve` names its key (a
+// sign-in started later is not approved by it).
+function approved(key: string): boolean {
+  try {
+    return readFileSync(join(directory, "approve"), "utf8").trim() === key;
+  } catch {
+    return false;
+  }
+}
+
+if (command === "login" && args.includes("--poll")) {
+  const key = state.pendingLogin;
+  if (key === undefined) {
+    log("No pending login found. Run `composio login < /dev/null` first.");
+    end(1);
+  }
+  const scale = state.pollScale ?? 1;
+  for (let attempt = 0; attempt <= 120; attempt++) {
+    if (attempt > 0)
+      Bun.sleepSync(Math.max(300 * 2 ** (attempt - 1), 5_000) * scale);
+    const now = JSON.parse(
+      readFileSync(join(directory, "state.json"), "utf8"),
+    ) as FakeComposioState;
+    // Another sign-in replaced this one: its key is no longer pending.
+    if (now.pendingLogin !== key) break;
+    if (approved(key)) {
+      now.signedIn = true;
+      delete now.pendingLogin;
+      save(now);
+      console.log(
+        JSON.stringify({
+          email: "op@example.com",
+          current_org: { id: "org_1", name: now.organization ?? "First" },
+          organizations: [],
+        }),
+      );
+      end(0);
+    }
+  }
+  log("Login timed out. Please try again.");
+  end(1);
 }
 
 if (command === "whoami") {
