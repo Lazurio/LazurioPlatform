@@ -47,7 +47,9 @@ the sign-in is the person's consent, so they send the link to its card.
 `choosePath` is the wireframe's rule, with a test for every branch
 (`tests/integrations-path.test.ts`):
 
-1. A connected tool made for the app wins; its card offers nothing else.
+1. A connected tool made for the app wins; its card offers nothing else. An
+   account of the app left directly or through Composio is spare beside it, as
+   in point 2 (until 2026-10-19 such an account was drawn as if it were used).
 2. One app, one path: an app already connected keeps its way, přímo before an
    older Composio one. An account left on the other way is marked spare
    ("nepoužívá se") and may be disconnected.
@@ -477,7 +479,12 @@ right organization.
   without diacritics (`composioOrganizationName`: "Lazurio Example
   Organization" is `LazurioExampleOrganization`), with `Org` before one that
   would start with a digit, which is then compared in that form too. A
-  display name that gives no such name is `unverified`.
+  display name that gives no such name is `unverified`. Composio stores the
+  name in lower case: its create form says "Will be created as
+  lazurioexampleorganization", and its dashboard, addresses and `orgs list`
+  name the organization so (the end-to-end test of 2026-10-19). The dialog
+  offers the readable CamelCase form, which Composio accepts and lowercases;
+  the match ignores case, so both are the Organization's.
 - **The verdict** (`composioOrganizationVerdict`), over `orgs list`: `matches`
   where the one organization of that name is current; `elsewhere` where it
   exists and another is current; `missing` where the account has none;
@@ -496,7 +503,16 @@ right organization.
   Composio works in the person's current organization, its accounts count and
   links and removals go there; Apps → Integrace says what to do with a link to
   Composio's dashboard, and `lazurio integrations list` tells agents. The next
-  reading after the person created it makes it current.
+  reading after the person created it makes it current. Meanwhile Apps →
+  Integrace waits as the sign-in dialog does (F42's note of 2026-10-19,
+  `composioOrganizationWaits`): while it is shown it reads
+  `/api/tools/composio/organizations` again at the dialog's pace
+  (`composioPollDelay`, `composioPollNext`: after 4 s, then half as long again,
+  at most every 30 s, not while the page is hidden, at once when it shows
+  again), and the Integrace (`?refresh=1`) once the verdict changed
+  (`composioOrganizationChanged`). Its line ends as the dialog's waiting line,
+  "Až ji založíte, Lazurio bude pokračovat samo." ("Až ji přejmenujete, …"
+  where there are two), and names no button.
 - **Where its organization cannot be told** (`unverified`, or an `elsewhere`
   organization that could not be made current), the Composio source reads
   `organization`: none of its accounts is listed, and a link or a removal is
@@ -505,22 +521,43 @@ right organization.
   (the name null where it is `unverified`), null elsewhere.
 - **Creating one** is the person's, in Composio's dashboard: neither its CLI nor
   its documented API creates or renames an organization (the API lists them, the
-  CLI lists and switches). On Apps → Integrace, "Zkontrolovat připojení" finds it
-  by name afterwards.
+  CLI lists and switches). The sign-in dialog and Apps → Integrace find it by
+  name by themselves afterwards.
+- **No stale verdict** (the end-to-end test of 2026-10-19): an answer of
+  `/api/tools/composio/organizations` that finds the organization or makes it
+  current, and a choice of the person's (`/api/tools/composio/organization`),
+  drop the reading the Launchpad keeps for a minute, so the next one reads
+  again; and the page reads the Integrace again whenever a tool's sign-in
+  changes, Composio's organization included (`toolSignInsKey`). Before, the
+  dialog said "Composio je připojené" while Apps → Integrace, read before, still
+  said the organization was missing.
 - **The sign-in dialog** of Settings → Tools (note of 2026-10-17) shows, after the
   sign-in, only what is left: where the organization is missing, the
   Organization's name as Composio accepts it with "Kopírovat", a drawing of the
-  path in Composio's dashboard ("FOR YOU", the organization card at the bottom of
-  the sidebar, "Create Org", then the page it opens, where the name is typed into
-  "Organization name" and "Create organization" clicked; `composioScreen` in
-  `src/launchpad/composio-scene.ts` holds Composio's labels, matched to the
-  Organization Admin's screenshots) and "Otevřít Composio" to the dashboard's
+  path in Composio's dashboard ("FOR YOU" (1), the person's own card at the
+  bottom of the sidebar, their name and current organization (2), "Organization"
+  on top of the menu it opens (3), "Create Org" in the list that row opens (4),
+  then the page it opens, where the name is typed into "Organization name" and
+  "Create organization" clicked (5, the number the dialog's name box carries); a
+  loop of 16.5 s; under reduced motion the menu and the list open with places 1
+  to 4; `composioScreen` in `src/launchpad/composio-scene.ts` holds Composio's
+  labels, matched to the Organization Admin's screenshots and, for the menu, to
+  the end-to-end test's of 2026-10-19) and "Otevřít Composio" to the dashboard's
   root; where there are two of the name, rename the extra one. Apps → Integrace
   and `lazurio integrations list` name the organization in the same form. It
   reads the organizations again by itself (after 4 s, growing to every 30 s,
   paused while the page is hidden and at once when it shows again) until it is
   connected, then says "Composio je připojené" with the account and the
   organization current after the switch, and "Vybrat aplikace" to Apps → Integrace.
+- **Začínáme** (F42's note of 2026-10-19): its Composio row reads
+  `/api/tools/composio/organizations` each time it is shown, and again when
+  Composio's sign-in changes meanwhile (`composioFact`). Signed in, but with the
+  organization missing, there twice, not made current or the Organization's name
+  unreadable, the row says "Nedokončeno" with "Dokončit", which opens the sign-in
+  dialog at the step left in Composio (`openComposioOrganization`); until the
+  first answer, and where the person chooses, the sign-in says it ("Připojeno").
+  Settings → Tools keeps "Připojeno jako <account> (<current organization>)":
+  the sign-in itself is done.
 
 ### Account names and Composio's dashboard
 

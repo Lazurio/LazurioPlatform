@@ -39,7 +39,9 @@ import {
   type ComposioTrip,
   type ComposioUpdate,
   cardView,
+  composioOrganizationChanged,
   composioOrganizationLine,
+  composioOrganizationWaits,
   composioTrip,
   composioUpdated,
   composioUpdateLine,
@@ -72,6 +74,11 @@ import {
   type PageRoute,
   settingsPath,
 } from "./routes";
+import {
+  composioDialogView,
+  composioPollDelay,
+  composioPollNext,
+} from "./tools-view";
 import { fill } from "./update-view";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -93,7 +100,10 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // 2026-10-14). "Odpojit" closes its confirmation at once and the account's
 // row says "Odpojuji…" until the reading after it; where Composio is not the
 // build Lazurio pins, one line offers its update (decision F42, addendum (b)
-// of 2026-10-14).
+// of 2026-10-14). Where the organization of the Organization's name is
+// missing in Composio or there twice, the page reads its verdict again by
+// itself, at the pace of Composio's sign-in dialog, and the Integrace once
+// it changed (decision F42, note of 2026-10-19).
 
 type Session = Readonly<{
   id: string;
@@ -207,6 +217,15 @@ export function createIntegrationsPanel(
   let updating: ComposioUpdate = "idle";
   /** The way to Composio's Apps and back (`composioTrip`). */
   let trip: ComposioTrip = "idle";
+  /** The organizations' verdict read again while the page waits for the
+   * person in Composio (`composioOrganizationWaits`): the next reading, the
+   * readings without a change so far, and the last one's view. */
+  const waiting: {
+    timer: ReturnType<typeof setTimeout> | null;
+    attempt: number;
+    key: string | null;
+    reading: boolean;
+  } = { timer: null, attempt: 0, key: null, reading: false };
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -337,6 +356,7 @@ export function createIntegrationsPanel(
         drawAttention();
         if (deepLink !== null) openLinked(deepLink);
         render();
+        waitForComposio();
         if (!adminAsked && overview?.scope === "organization") {
           adminAsked = true;
           void options.admin().then((answer) => {
@@ -346,6 +366,61 @@ export function createIntegrationsPanel(
         }
       }
     }
+  }
+
+  /** Reads the organizations' verdict again while the page waits for the
+   * person in Composio and is shown: after the dialog's pace, or `now` (the
+   * page shown again); never while hidden or once it no longer waits. */
+  function waitForComposio(now = false) {
+    if (waiting.timer !== null) clearTimeout(waiting.timer);
+    waiting.timer = null;
+    if (
+      waiting.reading ||
+      document.hidden ||
+      !active() ||
+      !composioOrganizationWaits(overview)
+    )
+      return;
+    if (now) waiting.attempt = 0;
+    waiting.timer = setTimeout(
+      () => void readComposioOrganization(),
+      now ? 0 : composioPollDelay(waiting.attempt),
+    );
+  }
+
+  async function readComposioOrganization() {
+    waiting.timer = null;
+    waiting.reading = true;
+    let answer: unknown = null;
+    try {
+      const { value, ok } = await options.post(
+        "/api/tools/composio/organizations",
+        {},
+      );
+      if (ok) answer = value;
+    } catch {}
+    waiting.reading = false;
+    if (!active() || !composioOrganizationWaits(overview)) return;
+    // Found, or otherwise changed: the Integrace say what it is now. The
+    // pace keeps growing, so a reading that would still disagree never
+    // makes the page read faster.
+    if (composioOrganizationChanged(overview, answer)) {
+      waiting.attempt += 1;
+      waiting.key = null;
+      void load(true);
+      return;
+    }
+    const view = composioDialogView(answer, null, options.copy());
+    const key = JSON.stringify(view);
+    if (key === waiting.key) waiting.attempt += 1;
+    else {
+      waiting.attempt = 0;
+      waiting.key = key;
+    }
+    if (
+      composioPollNext(view, { open: true, hidden: document.hidden }) === "read"
+    )
+      waitForComposio();
   }
 
   /** An agent's link to an app's card: the card with its form, unless the
@@ -1871,9 +1946,11 @@ export function createIntegrationsPanel(
       void load(true);
     }
   };
-  document.addEventListener("visibilitychange", () =>
-    step(document.visibilityState === "hidden" ? "left" : "back"),
-  );
+  document.addEventListener("visibilitychange", () => {
+    step(document.visibilityState === "hidden" ? "left" : "back");
+    // Back from Composio's tab: the organization read at once.
+    waitForComposio(!document.hidden);
+  });
   window.addEventListener("blur", () => step("left"));
   window.addEventListener("focus", () => step("back"));
   refreshButton.addEventListener("click", () => {
@@ -1890,9 +1967,11 @@ export function createIntegrationsPanel(
         custom = null;
         drawCustom();
         render();
+        waitForComposio();
         return;
       }
       const first = route === null && overview === null;
+      const again = route === null && overview !== null;
       route = {
         tab: next.tab,
         ...(next.app === undefined ? {} : { app: next.app }),
@@ -1910,7 +1989,11 @@ export function createIntegrationsPanel(
         if (overview !== null) openLinked(next.app);
       }
       if (first) queueMicrotask(() => void load());
-      else render();
+      else {
+        render();
+        // Shown again while it waits: the organization read at once.
+        if (again) waitForComposio(true);
+      }
     },
     relabel,
     /** Reads again: after a tool's sign-in, or on request. */

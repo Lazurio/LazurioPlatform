@@ -1810,7 +1810,9 @@ export function composioPollNext(
 }
 
 /** One sentence for what a logout did; the key's fingerprint and the reason
- * of a failure are for the Details (Matěj 2026-10-09). */
+ * of a failure are for the Details (Matěj 2026-10-09). It stands on the
+ * tool's own card, so it names no tool id ("composio: odhlášeno…" until the
+ * end-to-end test of 2026-10-19). */
 export function logoutOutcome(
   input: unknown,
   name: string,

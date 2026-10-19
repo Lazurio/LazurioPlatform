@@ -10,6 +10,9 @@ import {
   accountView,
   attentionCount,
   cardView,
+  composioOrganizationChanged,
+  composioOrganizationLine,
+  composioOrganizationWaits,
   composioTrip,
   composioUpdated,
   composioUpdateLine,
@@ -28,6 +31,7 @@ import {
   serverLine,
   sourceLines,
   tabLabels,
+  toolSignInsKey,
   visibleApps,
 } from "../src/launchpad/integrations-view";
 import { messages } from "../src/launchpad/messages";
@@ -38,6 +42,11 @@ import {
   routePath,
   routeTitle,
 } from "../src/launchpad/routes";
+import {
+  composioDialogView,
+  composioPollDelay,
+  composioPollNext,
+} from "../src/launchpad/tools-view";
 
 // Apps → Integrace (decision F42), the page as the approved wireframe draws
 // it: its routes, the tabs Vše · Připojené (N) · Vlastní, one path label per
@@ -668,6 +677,115 @@ test("Aplikace v Composiu: only a link to Composio's dashboard, none where Compo
   expect(
     `${en.integrationsComposioMissing} ${en.integrationsComposioConnectThere}`,
   ).toBe("Can't find an app here? Connect it in Composio");
+});
+
+// The end-to-end test of 2026-10-19: the sign-in dialog made the
+// Organization's organization current and said "Composio je připojené", and
+// Apps → Integrace, read while it was missing, kept saying so. A tool's
+// sign-in already read the Integrace again; Composio's organization is part
+// of its sign-in, so its change reads them again too.
+test("Integrace reads again when a tool's sign-in changes, Composio's organization included", () => {
+  const tools = (organization: string, account = "bob@lazurio.ai") => ({
+    tools: [
+      { name: "gh", signIn: { state: "signed-in" as const, account: "bob" } },
+      {
+        name: "composio",
+        signIn: { state: "signed-in" as const, account, organization },
+      },
+      { name: "wacli" },
+    ],
+  });
+  expect(toolSignInsKey(tools("bob_workspace"))).toBe(
+    toolSignInsKey(tools("bob_workspace")),
+  );
+  expect(toolSignInsKey(tools("bob_workspace"))).not.toBe(
+    toolSignInsKey(tools("lazurioexampleorganization")),
+  );
+  expect(toolSignInsKey(tools("x", "bob@lazurio.ai"))).not.toBe(
+    toolSignInsKey(tools("x", "alena@lazurio.ai")),
+  );
+  expect(toolSignInsKey(null)).not.toBe(toolSignInsKey(tools("x")));
+});
+
+// Apps → Integrace while it says the Composio organization is missing or
+// there twice (the end-to-end test of 2026-10-19): its line named
+// "Zkontrolovat připojení", an icon without a label. It now waits as the
+// sign-in dialog does: the organizations' verdict read again at the dialog's
+// pace, the Integrace once it changed, and the line ends as the dialog's.
+test("Integrace waits for the Composio organization the person creates or renames, at the dialog's pace", () => {
+  const cs = messages("cs");
+  const overview = (
+    state: "matches" | "missing" | "ambiguous" | "elsewhere" | "unverified",
+  ) =>
+    ({
+      composio: {
+        organization: {
+          name: state === "unverified" ? null : "Lazurio Example Organization",
+          state,
+        },
+      },
+    }) as unknown as IntegrationsOverview;
+  const answer = (
+    state: string,
+    name: string | null = "Lazurio Example Organization",
+  ) => ({
+    kind: "composio-organizations",
+    organizations: [
+      { id: "org_1", name: "bob_workspace", current: state !== "matches" },
+      ...(state === "matches"
+        ? [{ id: "org_2", name: "lazurioexampleorganization", current: true }]
+        : []),
+    ],
+    organization: { name, state },
+  });
+  // It waits only where the person has something to do in Composio.
+  expect(composioOrganizationWaits(overview("missing"))).toBe(true);
+  expect(composioOrganizationWaits(overview("ambiguous"))).toBe(true);
+  for (const state of ["matches", "elsewhere", "unverified"] as const)
+    expect(composioOrganizationWaits(overview(state))).toBe(false);
+  expect(composioOrganizationWaits(null)).toBe(false);
+  // The same verdict, or an answer that failed, changes nothing.
+  const missing = overview("missing");
+  expect(composioOrganizationChanged(missing, answer("missing"))).toBe(false);
+  expect(composioOrganizationChanged(missing, null)).toBe(false);
+  expect(
+    composioOrganizationChanged(missing, {
+      kind: "composio-organizations-failed",
+      reason: "unreadable",
+    }),
+  ).toBe(false);
+  // Found, there twice now, or the name unreadable: the Integrace again.
+  expect(composioOrganizationChanged(missing, answer("matches"))).toBe(true);
+  expect(composioOrganizationChanged(missing, answer("ambiguous"))).toBe(true);
+  expect(composioOrganizationChanged(missing, answer("unverified", null))).toBe(
+    true,
+  );
+  // The dialog's pace and pause, its helpers reused: read after 4 s, then
+  // half as long again, at most every 30 s, not while the page is hidden.
+  const waiting = composioDialogView(answer("missing"), null, cs);
+  expect(waiting.kind).toBe("create");
+  expect(composioPollNext(waiting, { open: true, hidden: false })).toBe("read");
+  expect(composioPollNext(waiting, { open: true, hidden: true })).toBe("pause");
+  expect(composioPollNext(waiting, { open: false, hidden: false })).toBe(
+    "stop",
+  );
+  expect([0, 1, 10].map(composioPollDelay)).toEqual([4_000, 6_000, 30_000]);
+  // The line ends as the dialog's waiting line, never naming a button.
+  for (const copy of [cs, messages("en")]) {
+    const full = (state: "missing" | "ambiguous") =>
+      ({
+        sources: { tools: "ok", executor: "ok", composio: "ok" },
+        composio: {
+          organization: { name: "Lazurio Example Organization", state },
+        },
+      }) as unknown as IntegrationsOverview;
+    const line = composioOrganizationLine(full("missing"), copy) ?? "";
+    expect(line.endsWith(copy.toolsComposioCreateWait)).toBe(true);
+    expect(line).not.toContain(copy.integrationsRefresh);
+    const twice = composioOrganizationLine(full("ambiguous"), copy) ?? "";
+    expect(twice.endsWith(copy.toolsComposioRenameWait)).toBe(true);
+    expect(twice).not.toContain(copy.integrationsRefresh);
+  }
 });
 
 test("coming back from Composio's Apps reads the Integrace once, only after the page lost the person", () => {

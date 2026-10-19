@@ -251,11 +251,11 @@ const en = {
   toolsSignOutAction: "Disconnect",
   toolsSignOutNamed: "Disconnect {name}",
   toolsSignedOutLocal:
-    "{name}: signed out {in this}. The provider still lists this sign-in until you revoke it in your account settings there.",
+    "Disconnected {in this}. Your account with the provider keeps the access allowed until you remove it there.",
   toolsSignedOutRemote:
-    "{name}: signed out; the linked device was removed from your account.",
+    "Disconnected; the linked device was removed from your account.",
   toolsSignOutFailed:
-    "{name}: signing out did not finish. Refresh the status to see where it stands.",
+    "Disconnecting did not finish. Refresh the status to see where it stands.",
   toolsSignOutFailedDetail: "Reason: {reason}.",
   toolsLoginTitleInstall: "Connect {name}",
   toolsLoginTitle: "Connect {name}",
@@ -430,7 +430,7 @@ const en = {
     "Composio has more than one organization named “{name}”; rename the extra one.",
   toolsComposioRenameWait: "Once it is renamed, Lazurio continues on its own.",
   toolsComposioScene:
-    "In Composio: 1. {forYou}, 2. {organization}, 3. {createOrg}, 4. the name {name} and {create}.",
+    "In Composio: 1. {forYou}, 2. your account at the bottom left, 3. {organization}, 4. {createOrg}, 5. the name {name} and {create}.",
   toolsComposioSceneYou: "You",
   toolsComposioConnected: "Composio is connected",
   toolsComposioChooseApps: "Choose apps",
@@ -1056,6 +1056,8 @@ const en = {
   startComposioText: "Mail, calendar and other apps for agents.",
   startConnected: "Connected",
   startNotConnected: "Not connected",
+  startUnfinished: "Not finished",
+  startFinish: "Finish",
   startSshTitle: "SSH from your own computer",
   startSshText: "A terminal and an editor on your computer.",
   startSet: "Set up",
@@ -1442,9 +1444,9 @@ const en = {
   integrationsComposioUnreadable:
     "The connections through Composio could not be read.",
   integrationsComposioOrganizationMissing:
-    "Your Composio account has no organization named “{composio}”. {This} belongs to the Organization {name} and should connect through Composio in your own organization of that name; until you create it, it connects in the organization you have selected. Create it in Composio, then click Check connections.",
+    "Your Composio account has no organization named “{composio}”. {This} belongs to the Organization {name} and should connect through Composio in your own organization of that name; until you create it, it connects in the organization you have selected. Create it in Composio.",
   integrationsComposioOrganizationAmbiguous:
-    "Your Composio account has more than one organization named “{composio}”. Until only one is left, {this} connects in the organization you have selected. Keep one, then click Check connections.",
+    "Your Composio account has more than one organization named “{composio}”. Until only one is left, {this} connects in the organization you have selected. Rename the extra one in Composio.",
   integrationsComposioOrganizationElsewhere:
     "Composio could not be switched to your organization “{composio}”, so nothing connects through it now. Click Check connections to try again.",
   integrationsComposioOrganizationUnverified:
@@ -1938,11 +1940,10 @@ const cs: Record<MessageKey, string> = {
   toolsSignOutAction: "Odpojit",
   toolsSignOutNamed: "Odpojit {name}",
   toolsSignedOutLocal:
-    "{name}: odhlášeno {v tomto}. Poskytovatel přihlášení eviduje, dokud ho nezrušíte v nastavení účtu u něj.",
+    "Odpojeno {v tomto}. Ve vašem účtu u poskytovatele zůstane přístup povolený, dokud ho tam nezrušíte.",
   toolsSignedOutRemote:
-    "{name}: odhlášeno; propojené zařízení bylo z účtu odebráno.",
-  toolsSignOutFailed:
-    "{name}: odhlášení nedoběhlo. Obnovte stav a uvidíte, jak to je.",
+    "Odpojeno; propojené zařízení bylo z vašeho účtu odebráno.",
+  toolsSignOutFailed: "Odpojení nedoběhlo. Obnovte stav a uvidíte, jak to je.",
   toolsSignOutFailedDetail: "Důvod: {reason}.",
   toolsLoginTitleInstall: "Připojit {name}",
   toolsLoginTitle: "Připojit {name}",
@@ -2115,7 +2116,7 @@ const cs: Record<MessageKey, string> = {
     "V Composiu je víc organizací se jménem „{name}“; tu navíc přejmenujte.",
   toolsComposioRenameWait: "Až ji přejmenujete, Lazurio bude pokračovat samo.",
   toolsComposioScene:
-    "V Composiu: 1. {forYou}, 2. {organization}, 3. {createOrg}, 4. jméno {name} a {create}.",
+    "V Composiu: 1. {forYou}, 2. váš účet vlevo dole, 3. {organization}, 4. {createOrg}, 5. jméno {name} a {create}.",
   toolsComposioSceneYou: "Vy",
   toolsComposioConnected: "Composio je připojené",
   toolsComposioChooseApps: "Vybrat aplikace",
@@ -2718,6 +2719,8 @@ const cs: Record<MessageKey, string> = {
   startComposioText: "Pošta, kalendář a další aplikace pro agenty.",
   startConnected: "Připojeno",
   startNotConnected: "Nepřipojeno",
+  startUnfinished: "Nedokončeno",
+  startFinish: "Dokončit",
   startSshTitle: "SSH z vlastního počítače",
   startSshText: "Terminál a editor ve vašem počítači.",
   startSet: "Nastaveno",
@@ -3070,9 +3073,9 @@ const cs: Record<MessageKey, string> = {
   integrationsComposioUnreadable:
     "Připojení přes Composio se nepodařilo načíst.",
   integrationsComposioOrganizationMissing:
-    "Ve vašem účtu Composia chybí organizace „{composio}“. {Toto} patří Organizaci {name} a má se přes Composio připojovat ve vaší vlastní organizaci tohoto jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
+    "Ve vašem účtu Composia chybí organizace „{composio}“. {Toto} patří Organizaci {name} a má se přes Composio připojovat ve vaší vlastní organizaci tohoto jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu.",
   integrationsComposioOrganizationAmbiguous:
-    "Ve vašem účtu Composia je víc organizací se jménem „{composio}“. Dokud nezůstane jen jedna, připojuje se {toto} v organizaci, kterou máte vybranou. Nechte jen jednu a klikněte na Zkontrolovat připojení.",
+    "Ve vašem účtu Composia je víc organizací se jménem „{composio}“. Dokud nezůstane jen jedna, připojuje se {toto} v organizaci, kterou máte vybranou. Tu navíc v Composiu přejmenujte.",
   integrationsComposioOrganizationElsewhere:
     "Composio se nepodařilo přepnout do vaší organizace „{composio}“, a tak se přes něj teď nic nepřipojí. Klikněte na Zkontrolovat připojení a zkuste to znovu.",
   integrationsComposioOrganizationUnverified:

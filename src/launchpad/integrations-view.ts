@@ -18,6 +18,7 @@ import {
 import { pluralKey } from "./apps-view";
 import type { MessageKey } from "./messages";
 import type { IntegrationsTab } from "./routes";
+import { organizationChoices, organizationRule } from "./tools-view";
 import { fill } from "./update-view";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -711,6 +712,61 @@ export function composioTrip(
     : { trip, refresh: false };
 }
 
+/** What of the tools' reading the Integrace depend on: which tool is
+ * signed in, as whom and, for Composio, in which organization. When it
+ * changes, the page reads the Integrace again: a tool's sign-in changes
+ * which apps it connects, and Composio's organization which accounts count
+ * (the end-to-end test of 2026-10-19: the sign-in dialog made the
+ * Organization's organization current, and Integrace kept saying it was
+ * missing). */
+export function toolSignInsKey(
+  overview: Readonly<{
+    tools: readonly Readonly<{
+      name: string;
+      signIn?: Readonly<{
+        state: string;
+        account?: string;
+        organization?: string;
+      }>;
+    }>[];
+  }> | null,
+): string {
+  return JSON.stringify(
+    overview?.tools.map((tool) => [
+      tool.name,
+      tool.signIn?.state ?? null,
+      tool.signIn?.account ?? null,
+      tool.signIn?.organization ?? null,
+    ]) ?? null,
+  );
+}
+
+/** Whether the page waits for the person in Composio (decision F42, note of
+ * 2026-10-19): the organization of this Environment's Organization's name is
+ * missing or there more than once, which only the person changes, in
+ * Composio's dashboard. Meanwhile the page reads the organizations' verdict
+ * again by itself, at the sign-in dialog's pace (`composioPollDelay`,
+ * `composioPollNext`), as the dialog's waiting line says. */
+export function composioOrganizationWaits(
+  overview: IntegrationsOverview | null,
+): boolean {
+  const state = overview?.composio.organization?.state;
+  return state === "missing" || state === "ambiguous";
+}
+
+/** Whether an answer of `/api/tools/composio/organizations` says another
+ * verdict than the page's reading, so the page reads the Integrace again;
+ * an answer that failed or cannot be read changes nothing. */
+export function composioOrganizationChanged(
+  overview: IntegrationsOverview | null,
+  answer: unknown,
+): boolean {
+  const shown = overview?.composio.organization ?? null;
+  if (shown === null || organizationChoices(answer) === null) return false;
+  const rule = organizationRule(answer);
+  return rule.kind !== "named" || rule.state !== shown.state;
+}
+
 /** One line per source that could not be read, so a missing source is
  * never taken for "nothing connected". An Environment without Executor
  * (`absent`) says nothing about it: its cards take the next way (F36's
@@ -738,7 +794,9 @@ export function sourceLines(
  * person's current organization; not made current, or the Organization's
  * name unreadable, while nothing of it counts. Null where nothing is to
  * say. The organization is named as Composio accepts the name (note of
- * 2026-10-17), the Organization as it names itself. */
+ * 2026-10-17), the Organization as it names itself. Missing or there twice,
+ * the page waits for it by itself (`composioOrganizationWaits`), so the line
+ * ends with the sign-in dialog's own waiting line (note of 2026-10-19). */
 export function composioOrganizationLine(
   overview: IntegrationsOverview,
   copy: Copy,
@@ -753,13 +811,12 @@ export function composioOrganizationLine(
     composio === null
   )
     return copy.integrationsComposioOrganizationUnverified;
-  const key =
-    target.state === "missing"
-      ? "integrationsComposioOrganizationMissing"
-      : target.state === "ambiguous"
-        ? "integrationsComposioOrganizationAmbiguous"
-        : "integrationsComposioOrganizationElsewhere";
-  return fill(copy[key], { name: target.name, composio });
+  const names = { name: target.name, composio };
+  if (target.state === "missing")
+    return `${fill(copy.integrationsComposioOrganizationMissing, names)} ${copy.toolsComposioCreateWait}`;
+  if (target.state === "ambiguous")
+    return `${fill(copy.integrationsComposioOrganizationAmbiguous, names)} ${copy.toolsComposioRenameWait}`;
+  return fill(copy.integrationsComposioOrganizationElsewhere, names);
 }
 
 /** The tone of a notice on the page, as the callout draws it: `info`

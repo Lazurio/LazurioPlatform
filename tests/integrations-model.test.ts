@@ -342,6 +342,45 @@ test("one app, one path: an older Composio account next to a direct one is spare
   ).toEqual({ path: "composio", signIn: false });
 });
 
+// The end-to-end test of 2026-10-19: GitHub connected through gh, and a
+// Composio account of GitHub left beside it. The tool is the app's one path,
+// so that account is not used: marked spare like one beside a direct path,
+// never asking to sign in again or counted as needing the person, and the
+// card stays connected through its tool.
+test("an account beside the app's tool is spare: the tool connects it, the account is not used", () => {
+  const github = find(
+    {
+      tools: { state: "ok", connected: ["gh"] },
+      composio: {
+        state: "ok",
+        accounts: [
+          {
+            toolkit: "github",
+            state: "connected",
+            alias: "lazurio-bob",
+            wordId: "castle",
+          },
+          {
+            toolkit: "github",
+            state: "expired",
+            alias: "old",
+            wordId: "river",
+          },
+        ],
+      },
+    },
+    "github",
+  );
+  expect(github?.path).toEqual({ path: "tool", tool: "gh" });
+  expect(github?.connected).toBe(true);
+  expect(
+    github?.accounts.map((account) => [account.label, account.spare]),
+  ).toEqual([
+    ["lazurio-bob", true],
+    ["old", true],
+  ]);
+});
+
 test("Composio not allowed: its accounts do not count, the source says why, and Composio-only apps say what is missing", () => {
   const overview = mergeIntegrations({
     ...base,

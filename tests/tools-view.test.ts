@@ -1,4 +1,9 @@
 import { expect, test } from "bun:test";
+import {
+  composioNameStep,
+  composioSceneLabel,
+  composioScreen,
+} from "../src/launchpad/composio-scene";
 import { messages } from "../src/launchpad/messages";
 import {
   answerWithin,
@@ -1134,6 +1139,34 @@ test("Composio's dialog reads again calmly while the person works in Composio, a
   );
 });
 
+// The drawing of Composio's dashboard (decision F42, note of 2026-10-17),
+// matched again to the dashboard on 2026-10-19: the card at the bottom left
+// is the person's own (their name and current organization), and it opens a
+// menu whose top row, "Organization" with the current one, opens the list
+// with "Create Org". The drawing went from a card straight to the list; it
+// now draws the menu as its own step, so the name is the fifth.
+test("the drawing goes through the person's menu: FOR YOU, the account, Organization, Create Org, then the name", () => {
+  expect(composioSceneLabel(messages("cs"), "LazurioExampleOrganization")).toBe(
+    "V Composiu: 1. FOR YOU, 2. váš účet vlevo dole, 3. Organization, 4. Create Org, 5. jméno LazurioExampleOrganization a Create organization.",
+  );
+  expect(composioSceneLabel(messages("en"), "LazurioExampleOrganization")).toBe(
+    "In Composio: 1. FOR YOU, 2. your account at the bottom left, 3. Organization, 4. Create Org, 5. the name LazurioExampleOrganization and Create organization.",
+  );
+  // The dialog's name box carries the number of the step it belongs to.
+  expect(composioNameStep).toBe(5);
+  // Composio's own words, as its dashboard writes them; the person and the
+  // organizations are fictional, the current one last.
+  expect(composioScreen).toMatchObject({
+    forYou: "FOR YOU",
+    organization: "Organization",
+    logOut: "Log out",
+    findOrg: "Find Org...",
+    createOrg: "Create Org",
+    person: "Jana",
+    organizations: ["Acme", "Northwind", "jana_workspace"],
+  });
+});
+
 test("the Git identity of a gh sign-in is read only in its exact form and becomes one sentence for people", () => {
   const signedIn = (gitIdentity: unknown) =>
     parseLoginState({
@@ -1488,6 +1521,46 @@ test("install, login end, organizations and logout answers become one sentence e
       detail: copy.toolsSignOutFailedDetail.replace("{reason}", "tool-exit"),
     });
   }
+});
+
+// The end-to-end test of 2026-10-19: "Odpojit" on Composio's card said
+// "composio: odhlášeno v tomto Prostředí. Poskytovatel přihlášení eviduje…".
+// The sentence stands on the tool's own card, so it names no tool id, and
+// it says in plain words what happened, for every tool alike.
+test("a sign-out says what happened in the person's words, without the tool's id", () => {
+  const answers = [
+    [{ kind: "logged-out", revocation: "local-only" }, "composio"],
+    [{ kind: "logged-out", revocation: "local-only" }, "gh"],
+    [{ kind: "logged-out", revocation: "remote" }, "wacli"],
+    [{ kind: "logout-failed", reason: "tool-exit" }, "gh"],
+  ] as const;
+  for (const locale of ["cs", "en"] as const) {
+    const copy = messages(locale);
+    for (const [answer, name] of answers) {
+      const { message } = logoutOutcome(answer, name, copy);
+      expect(message).not.toContain(name);
+      expect(message).not.toContain("{");
+      expect(message.charAt(0)).toBe(message.charAt(0).toUpperCase());
+    }
+  }
+  expect(
+    logoutOutcome(
+      { kind: "logged-out", revocation: "local-only" },
+      "composio",
+      messages("cs"),
+    ).message,
+  ).toBe(
+    "Odpojeno v tomto Prostředí. Ve vašem účtu u poskytovatele zůstane přístup povolený, dokud ho tam nezrušíte.",
+  );
+  expect(
+    logoutOutcome(
+      { kind: "logged-out", revocation: "local-only" },
+      "composio",
+      messages("en"),
+    ).message,
+  ).toBe(
+    "Disconnected in this Environment. Your account with the provider keeps the access allowed until you remove it there.",
+  );
 });
 
 test("a note request carries the full next set of notes, sorted; a draft is checked like the Folder state", () => {

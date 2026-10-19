@@ -9271,6 +9271,70 @@ name with nothing Composio accepts never asked for (`tests/tools-view.test.ts`).
 The dialog, its drawing frame by frame and under reduced motion, and Apps →
 Integrace were rendered headless in Chromium in Czech and English.
 
+*Note of 2026-10-19, after the end-to-end test as Bob, the Owner of the public
+reference Organization LazurioExampleOrganization, in his Work Environment on
+Platform 0.1.9-rc.6 (plan DEV-6626):* the path from the sign-in to a connected
+Composio works; what the person saw on the way did not always agree. Points 1 to
+7 and the notes above are unchanged; this note amends how the pages follow the
+verdict. The reference is
+[integrations](integrations.md#the-composio-organization-of-an-environment).
+
+- **No stale verdict.** The dialog said "Composio je připojené", and "Vybrat
+  aplikace" opened Apps → Integrace, which still said the organization was
+  missing: the page kept the reading it made when the sign-in ended, and the
+  Launchpad keeps a reading for a minute. An answer of the organizations' reading
+  that finds the organization or makes it current, and a person's choice of
+  organization, now drop the Launchpad's reading; the page reads the Integrace
+  again when a tool's sign-in changes, Composio's account and organization
+  included.
+- **Integrace waits as the dialog does.** Its line asked to click "Zkontrolovat
+  připojení", an unlabelled icon. Where the organization is missing or there
+  twice, the page now reads the organizations' verdict again while it is shown,
+  with the dialog's own pace (after 4 s, then half as long again, at most every
+  30 s, not while hidden, at once when shown again), reads the Integrace once the
+  verdict changed, and its line ends with the dialog's waiting line ("Až ji
+  založíte, Lazurio bude pokračovat samo."). The lines of an organization that
+  could not be made current, and of an unreadable name, keep naming the check.
+- **Začínáme agrees.** Its Composio row said "Připojeno" from the sign-in alone.
+  It now reads the same verdict when it is shown; signed in but not in the
+  organization of the Organization's name (missing, twice, not made current, or
+  the name unreadable), the row says "Nedokončeno" with "Dokončit", which opens
+  the dialog at the step left in Composio. An answer counts only for the sign-in
+  it was read with, and when the sign-in changes while a read runs, Začínáme
+  reads again for the new one (`createComposioOrganizationReader`). Nástroje
+  keeps "Připojeno jako …": the sign-in itself is done.
+- **The drawing has the person's menu.** In Composio's dashboard the card at the
+  bottom left is the person's own (their name and current organization) and opens
+  a menu whose top row, "Organization", opens the list with "Create Org". The
+  drawing now shows that menu as its own place: five places, the dialog's name box
+  numbered 5, a loop of 16.5 s; under reduced motion the menu and the list stand
+  open.
+- **Composio stores the name in lower case** ("Will be created as
+  lazurioexampleorganization"). The match already ignores case; the dialog keeps
+  offering the readable CamelCase form. Nothing else changes.
+- **Beside F42.** An account of an app connected through its own tool (GitHub
+  through gh) is spare too, "Navíc přes Composio, nepoužívá se"; the rule exempted
+  the tool path, which no decision asked for. A sign-out in Nástroje says what
+  happened without the tool's id ("Odpojeno v tomto Prostředí. …"), for every
+  tool; it still asks nothing first, as no action in Nástroje does.
+- **Not ours.** The dialog waited 60 to 70 s after "Authorize" because Composio's
+  CLI polls the pending login with a growing interval (`login --poll`: the larger
+  of 5 s and 0.3 s doubling per attempt, so checks at about 0, 5, 10, 15, 20, 25,
+  35, 54, 92 and 169 s); the Launchpad asks its session every 2 s.
+
+Verified by tests: an account beside the app's tool spare
+(`tests/integrations-model.test.ts`); the reading without a refresh saying
+"matches" once the dialog found the organization, and a personal Environment's
+choice moving the links at once (`tests/integrations-composio-organization.test.ts`);
+the sign-ins' key with Composio's organization, what the page waits for, when an
+answer changes it and its line (`tests/integrations-page.test.ts`); Začínáme's
+Composio fact and row (`tests/first-run.test.ts`, `tests/start-view.test.ts`); the
+drawing's places and words, and a sign-out's sentence without the tool's id
+(`tests/tools-view.test.ts`). Začínáme, the dialog connecting and "Vybrat
+aplikace", Apps → Integrace waiting and finding the organization by itself, and the
+drawing frame by frame and under reduced motion were rendered headless in Chromium
+in Czech and English on the preview with the fake Composio.
+
 **Addendum 2026-10-13 (3), decided by the Operator: Lazurio installs its own build of
 Composio's CLI until Composio's own has what Integrace needs.** Composio's stable CLI
 (0.4.2, 0.4.3) removes an account only after a prompt, so the "⋯" menu of a Composio
