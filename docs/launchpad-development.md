@@ -1843,7 +1843,7 @@ characters escaped), Czech or English by the Folder's locale.
 | product | `template-revision` | `observeFolder` facts | `warn folder-newer` (a newer product rendered it), `warn revision-unknown`; an older one is `folder-refresh` |
 | Folder | `folder-state` | `collectRecovery` Folder state; preset and Machine kind from `observeFolder` | `fail folder-state-pending`, `-absent`, `-unrecognized`, `-unreadable` |
 | Folder | `machine-binding` | recorded `preferences.machine` vs `machineBinding` of the live handover | `warn machine-identity-changed`, `warn handover-changed` (digest; `machine folder-refresh`), `warn binding-absent`, `warn handover-unreadable`; `skipped not-hosted` |
-| tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `skipped not-offered` for a missing tool Lazurio does not offer in this Environment (`toolOffered`: bitwarden outside a Remote Environment on Linux, decisions F43 and F53; gogcli in a work Environment, F44); Executor is not a tool row but its own check; `signIn`/`ssh` ids with `--sign-in` |
+| tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `skipped not-offered` for a missing tool Lazurio does not offer in this Environment (`toolOffered`: bitwarden outside a Remote Environment on Linux, decisions F43 and F53; gogcli in a work Environment, F44); Executor is not a tool row but its own check; `signIn`/`ssh` ids with `--sign-in`, and with it `warn ssh-not-linked` for a signed-in gh whose SSH proof failed where the Environment signs in as its person (F19's addendum of 2026-10-19) |
 | tools | `executor` | `executorStatus` ([F44](decisions.md#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio)): the entry and its marker, `systemctl --user show` of `sh.executor.daemon.service` and its drop-in, `GET 127.0.0.1:4789/api/health`, `codex mcp get executor --json` and `~/.claude.json`; never `fail`, never in `recover` | `ok` running with the installed agents connected (context `toolVersion`, `executorService`, `codexMcp`, `claudeMcp`); `warn executor-not-installed`, `executor-outdated`, `executor-conflict`, `executor-not-running`, `executor-incomplete` (the next step is `lazurio executor setup`, or Settings → Tools → executor); `skipped not-offered` (a computer, not the operator), `skipped handover-unreadable` |
 | organizations | `catalog` | `readFolderCatalog` | counts of the Organizations and their modules only: the Personalspace group is never counted or named; `warn catalog-unreadable` |
 | organizations | `organization` | catalog entry | `warn` with the Organization reason; a template `skipped template-not-runtime` |
@@ -2237,8 +2237,11 @@ status" (with them again and `fresh: true`, read anew), and shows:
   nainstaluje, agenti ho začnou používat." when its switch is on, Matěj 2026-10-09:
   said only while it is true, from the live state). The installed
   version, a failed version check, a PATH outside the standard and whether gh's SSH key
-  is linked are in its Details; only a key that is not linked stays on the line, in
-  the warning colour. On the right the one action ("Připojit" / "Connect"; "Přidat a
+  is linked are in its Details; a key that is not linked (in the warning colour) or not
+  verified stays on the line, and gh's account is then not in the success colour, which
+  only a working link gets (F19's addendum of 2026-10-19, #515). A sign-in the page runs
+  of the tool, its window closed or open, says "Čekám na přihlášení…" or "Dokončuji
+  připojení…" there with the waiting mark (#516). On the right the one action ("Připojit" / "Connect"; "Přidat a
   připojit" / "Add and connect" when it is not installed yet; "Link SSH key" before
   "Odpojit" / "Disconnect"; or, for a tool an agent sets up, "Připojit s pomocí agenta" /
   "Connect with an agent") and the switch with its visible label
@@ -2334,13 +2337,20 @@ marked done, in progress, next or did not finish; none for composio) and a statu
 line with `aria-live`; focus moves to the title. On a shared Environment the shared sign-ins
 warning and "Continue" come first. The dialog then installs (`/api/tools/install`) when
 needed and starts the login (`/api/tools/login/start`), and polls
-`/api/tools/login/poll` every 2 seconds with the session handle while it is open;
-closing it sends `/api/tools/login/cancel`, clears the code, link or QR from the page
-and returns focus to the card. Until the tool shows something to act on, the status
+`/api/tools/login/poll` every 2 seconds with the session handle, one poll loop per
+sign-in (`createLoginPoll`). Its × in the corner and Escape close the window and never
+end a sign-in that starts or runs (`loginCloseAction`, F19's addendum of 2026-10-19,
+#516): the page keeps its handle and polls on, its end runs as with the window open, and
+opening the same tool's sign-in again (its row, Začínáme, the line in Apps) shows it
+instead of starting another. Only "Zrušit" in the dialog's foot sends
+`/api/tools/login/cancel`, offered only while a code, link or QR code waits
+(`loginCancelOffered`). Closing clears the code, link or QR from the page and returns
+focus to the card. Until the tool shows something to act on, the status
 line says "Starting the sign-in…" and the body, never the same sentence, says that
-Lazurio waits for the tool's first step and for at most a minute (#98). A request that
+Lazurio waits for the tool's first step and for at most a minute (#98). A start that
 gets no answer within 45 seconds ends the dialog with "The Launchpad did not answer in
-time", and a sign-in that ends as `not-installed`, `spawn-failed`, `tool-exit`,
+time"; a poll without an answer ends nothing and is asked again, until a minute after
+the session's own end (`loginPollGivenUp`); and a sign-in that ends as `not-installed`, `spawn-failed`, `tool-exit`,
 `not-confirmed` or `no-challenge` shows a sentence that says what to do. A tool that was signed in
 before (`signed-in` with `already: true`) is reported as "already signed in" and the
 card's state is read again. What it shows:
@@ -2390,8 +2400,9 @@ finish, with why under "What happened" in Details) and the tools are read again.
 
 **gh and its SSH key** (F19 addendum 2026-09-28). The gh dialog has a third step,
 "Linking the SSH key", between "Waiting for you" and "Signed in": after the code is
-entered, the status line says that Lazurio links the SSH key of this Machine and checks
-git over SSH. A linked key ends the dialog with "The SSH key of this Machine is linked:
+entered, the status line says "Dokončuji připojení…" with the waiting mark and "Okno
+můžete zavřít, Lazurio připojení dokončí samo." (F19's addendum of 2026-10-19; never
+"connected" before the proof), and offers no "Zrušit". A linked key ends the dialog with "The SSH key of this Machine is linked:
 git clone git@github.com:… works as <account>" and whether the key was created now
 (without a passphrase, so agents can use it) or an existing one is used unchanged, with
 its path and fingerprint. A key that is not linked marks the step "did not finish" and
@@ -2998,7 +3009,10 @@ Organization's, and it gets none of it.
     (`lazurio tools login codex|claude`, F19's addendum of 2026-10-15) only makes this
     reading change: when one ends, the server drops the answer it keeps;
   - GitHub from Settings → Nástroje's own reading of the profile shown (`githubFact`: an
-    unknown, unprobed, stale or Team reading says nothing; gh not installed is missing);
+    unknown, unprobed, stale or Team reading says nothing; gh not installed is missing;
+    connected only when gh is signed in and this Environment reaches GitHub over SSH as
+    that account, `incomplete` when it does not, which counts as missing, F19's addendum
+    of 2026-10-19);
   - the content from the content routes (`content-client.ts`, `content-view.ts`).
 - **Nastavení → Začínáme** (`/settings/start`, first in the Settings column with the
   count "1/3" while a basic is missing; `start-view.ts`, `start-panel.ts`): "Hotovo
@@ -3023,7 +3037,11 @@ Organization's, and it gets none of it.
      otevřít.", nothing started. Signed in, the page reads `GET /api/ai?fresh=1` at once;
   2. **GitHub**: "Připojeno jako @login", or "Nepřipojeno" with
      "Připojit" (gh's own sign-in dialog of Nástroje), enabled only once AI is there;
-     before, the step waits under its number;
+     before, the step waits under its number. Connected badly (signed in, SSH not
+     working): "Připojení nefunguje." with the warning mark and "Připojit znovu", which
+     opens "Link SSH key". A sign-in the page runs, its window closed or open: "Čeká na
+     vaše potvrzení." or "Dokončuje se připojení…" with the waiting mark and "Otevřít",
+     which shows it again (F19's addendum of 2026-10-19);
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
      rows inside the step (the same `content-panel.ts` as Toto Prostředí draws).
      Once this view saw GitHub or the AI arrive (from missing to there; what was there

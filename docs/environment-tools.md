@@ -254,13 +254,21 @@ account (#98: the probe read these fields at the top level before and so reporte
 paired wacli as not signed in)), `unknown` for a tool not installed, a timeout or unreadable output.
 `account` and `organization` (composio's current organization) are the only things
 taken from the output, as plain text of at most 120 characters; the output itself is
-never returned or logged. A signed-in gh also carries `ssh` ([F19 addendum
-2026-09-28](decisions.md#f19--curated-installation-and-login-of-catalog-tools)):
-`{ state: "linked" | "not-linked" | "unknown", reason?, fingerprint? }`, from the
-`.pub` of this Machine's default key and one call of `gh api "user/keys?per_page=100"`
-(`not-linked` with `no-key` or `not-registered`; `unknown` with `scope-missing` when
-the token cannot read keys, or `unreadable`). The private key is not read and nothing
-connects over SSH on a status call. gh's JSON status is asked for exactly one field,
+never returned or logged. A signed-in gh also carries `ssh` ([F19 addenda
+2026-09-28 and 2026-10-19](decisions.md#f19--curated-installation-and-login-of-catalog-tools)):
+`{ state: "linked" | "not-linked" | "unknown", reason?, fingerprint? }`, whether this
+Environment reaches GitHub over SSH as the signed-in account. It reads the `.pub` of this
+Environment's default key, the account's keys (`gh api "user/keys?per_page=100"`, where
+the token's scopes allow it) and, where the key is listed or the list cannot be read,
+runs the sign-in's own proof (`proveSsh`): every github.com entry of `~/.ssh/known_hosts`
+is one of GitHub's published host keys (`gh api meta`), and `ssh -T -o BatchMode=yes -o
+StrictHostKeyChecking=yes -o ConnectTimeout=15 git@github.com` greets the login, each
+step bounded by 20 s. `linked` only when it passed; `not-linked` with `no-key`,
+`not-registered`, `proof-failed` or `other-account`; `unknown` with `unreadable` only
+when GitHub could not be reached or read. The Launchpad keeps a passing proof per key
+fingerprint and login for 5 minutes and a failure for 20 s (`createSshProofs`); a gh
+sign-in or link of the Launchpad keeps what it proved, and one that starts, or a
+sign-out, forgets them. The private key is never read, and nothing is written. gh's JSON status is asked for exactly one field,
 `hosts`, and never with `--show-token`, so gh leaves the token out; only the active
 github.com entry's `state`, `login`, `tokenSource` and `scopes` are read (with `--json`
 gh always exits 0 and `state` says `success`, `error` or `timeout`). A signed-in gh
