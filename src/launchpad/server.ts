@@ -189,7 +189,12 @@ import {
   createSetupCache,
   readContent,
 } from "./setup-state";
-import { presetKinds, readShellInputs, shellDocument } from "./shell-document";
+import {
+  environmentKind,
+  presetKinds,
+  readShellInputs,
+  shellDocument,
+} from "./shell-document";
 import { createSshRoutes } from "./ssh-routes";
 import {
   checkBundledPage,
@@ -377,14 +382,18 @@ const promptRoute = /^\/\.lazurio\/prompts\/([A-Za-z0-9._-]+)$/;
 
 /** The catalog of a prompt document in the Folder's language, naming this
  * Environment's kind as the page does (decision F28's addendum of
- * 2026-10-18); a preset this release does not know names none. */
+ * 2026-10-18; Služby serveru are a work Environment, root decision 0209); a
+ * preset this release does not know names none. */
 const folderMessages = (
-  preferences: Pick<FolderPreferences, "preset" | "profile">,
+  preferences: Pick<FolderPreferences, "preset" | "profile" | "machine">,
 ) =>
   messages(
     preferences.profile.locale === "cs" ? "cs" : "en",
     Object.hasOwn(presetKinds, preferences.preset.name)
-      ? presetKinds[preferences.preset.name as PresetName]
+      ? environmentKind(
+          preferences.preset.name as PresetName,
+          preferences.machine,
+        )
       : null,
   );
 
