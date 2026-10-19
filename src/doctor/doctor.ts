@@ -1,4 +1,3 @@
-import { isGithubLogin } from "../browser/people/cookies";
 import {
   browserUnits,
   environmentBrowserReasons,
@@ -295,9 +294,6 @@ export const doctorContextRules: Readonly<
   cliVersion: isCodexVersion,
   // Which of the Environment browser's units a finding is about (F38).
   unit: oneOf(browserUnits),
-  // Whom the Environment browser's github.com sign-in names (#504): a
-  // GitHub login, a public name, never a cookie's value.
-  github: isGithubLogin,
   // Executor's service and the agents' MCP server `executor` (F44).
   executorService: oneOf([
     "running",

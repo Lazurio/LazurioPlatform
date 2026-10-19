@@ -207,10 +207,9 @@ information page is reached only from its tile's menu.
   rail or the column head's picker, so the home needs no Organization picker of its
   own.
 - **Column.** Under the column head the Apps column holds only Všechny moduly (all
-  modules), Soubory (Files, decision F35), Integrace (decision F42), Trezor (the vault,
-  [below](#vault-apps--trezor); only where the Environment has a vault), Oblíbené (the
-  favourites, pinned) and, at its bottom, the Marketplace. There is no module list (its
-  rows led to technical details and confused people) and no search.
+  modules), Soubory (Files, decision F35), Oblíbené (the favourites, pinned) and, at
+  its bottom, the Marketplace. There is no module list (its rows led to technical
+  details and confused people) and no search.
 - **Marketplace.** The entry is in the Apps column of every Environment. For now it
   says "již brzy" (coming soon) and opens a placeholder page; it is not the
   [future marketplace](marketplace.md).
@@ -311,8 +310,7 @@ the Buddy bubble, and knows nothing of Lazurio's data:
   the document names it, the account),
   `<lazurio-column-head>` (the Environment picker with the Settings gear, over the app
   switch, in place of the fork's logo at the top of its sidebar) and `<lazurio-buddy>`
-  (the bubble; since [F56](decisions.md#f56--průvodce-buddy-nebo-průvodce-lazuria-vysvětlí-stránku-na-místě-kreslí-shell-hostitele-rám-buddyho-smí-jen-požádat-id)
-  the place where the guide draws, [below](#the-guide-decision-f56)).
+  (the bubble).
 - The patch in each fork is about 20 lines in about three files: the
   `<script type="module" src="/.lazurio/shell.js">` in `index.html`, the three elements,
   and a fixed rail with `#root { box-sizing: border-box; padding-left:
@@ -368,12 +366,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   fallbacks), `identity-styles.ts` (an identity's drawing), `styles.ts` (the rail, the
   picker and the switch, the design system's selection rule), `design-tokens.ts` (the
   vendored `tokens.css` as text, once in the script), `tokens.ts` (the design system's
-  tokens on the app document's root, below), `theme.ts` (the Environment's theme over
-  them, its memory on the origin and its announcement, below),
-  `kind-name.ts` (the words of the three kinds and of your computer, and the tokens a
-  text writes for the Environment it is in: {tomto}, {this}; F28's addendum of
-  2026-10-18), `guide.ts`, `guide-layer.ts`, `guide-styles.ts`, `guide-content.ts`,
-  `guide-placement.ts` and `guide-protocol.ts` (the guide, [below](#the-guide-decision-f56)),
+  tokens on the app document's root, below),
   `stones.ts`, `fonts.ts`, `last.ts` (the report of the last Environment used,
   below), `account.ts` and `merge.ts` (the person's account and its merge into the
   rail, below), `state.ts` (what the elements draw, shared by the page's elements and
@@ -384,8 +377,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `tests/shell-host.test.ts`, `tests/shell-signed-out.test.ts`,
   `tests/shell-picker.test.ts`, `tests/shell-interface.test.ts`,
   `tests/shell-identity.test.ts`, `tests/shell-tokens.test.ts`,
-  `tests/shell-theme.test.ts`, `tests/shell-guide.test.ts`,
-  `tests/shell-guide-protocol.test.ts`, `tests/launchpad-shell-routes.test.ts`,
+  `tests/launchpad-shell-routes.test.ts`,
   `tests/apps-view.test.ts`, `tests/account.test.ts`, `tests/app-opening.test.ts`,
   `tests/organization-owner.test.ts`, `tests/module-maintainer.test.ts`.
 - **Identity of an Environment entry** ([F37's addendum of
@@ -429,7 +421,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   same origin, which the Environment's gateway relays to the person's account (F37 and
   its addendum); the Launchpad does not answer it.
 - **Page.** `index.html` is rail | column | main. The Apps column (all modules, Files,
-  Integrace, Trezor, favourites, Marketplace) and home are `catalog-panel.ts` over `apps-view.ts` and
+  favourites, Marketplace) and home are `catalog-panel.ts` over `apps-view.ts` and
   `favorites.ts`, the frame is `shell.ts`, and the switch's pairing and the new
   module's hand-over to Chat are in `ui.ts`. A module's name, line and stone come from
   its default app's declaration (title, description, `icon`, tags), carried by the
@@ -547,9 +539,6 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `public` after the mode, the hosted entry also carries `audience: "public"`: a public
   Environment's demo onboarding, its notice in the column head and no Integrace,
   Trezor or Nástroje ([F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-nothing-to-sign-in-to)).
-  With `team` or `automated` after the mode, the hosted work Environment is the example
-  Organization's Team Environment or a persona's Automated Environment instead, to see
-  how the page names each kind.
   Screenshots come from Chrome through playwright-core.
 - **A fork's snippet** is in decision F36 point 5 and in the target shell's "The forks
   and `/.lazurio/`": the rail, and the column head at the top of the fork's sidebar.
@@ -566,14 +555,10 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   name in the Apps head links to its Dashboard (`appsHeading` in `apps-view.ts`).
 - **The interface the forks build on** is `src/shell/interface.ts` (version 1, F36
   addendum of 2026-10-04, grown by the addendum of 2026-10-05 with what a host page
-  needs, by the addendum of 2026-10-06 with `parseShellSignedOut`, by the addendum
-  of 2026-10-13 with what the script declares in the app's document, `declares`, and by
-  the addendum of 2026-10-18 with the Environment theme: `declares.environmentTheme`,
-  the host's `data-lazurio-appearance` and the event `lazurio-theme`, and by decision
-  F56 with the guide: `<lazurio-buddy lang>`, the page's `marks` `data-guide` and
-  `data-guide-help`, the event `lazurio-guide` and the export `provideGuides`, [the
-  guide](#the-guide-decision-f56)); `tests/shell-interface.test.ts` keeps every
-  promised name, the token names a fork may rely on among them.
+  needs, by the addendum of 2026-10-06 with `parseShellSignedOut` and by the addendum
+  of 2026-10-13 with what the script declares in the app's document, `declares`);
+  `tests/shell-interface.test.ts` keeps every promised name, the token names a fork may
+  rely on among them.
 - **A host page that is no Environment's** ([F36's addendum of
   2026-10-05](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
   the Dashboard). Such a host provides both documents itself and draws the same rail
@@ -727,12 +712,10 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   rail's side, or there are two: the Launchpad page dropped its `.app { border-left }`,
   and the Dashboard drops its `.surface` line when it vendors a release with the edge.
   The line is an inset shadow of the element, not a border, so a border colour a host's
-  own rules give the rail never recolours it. Since root decision 0208 the apps' standard
-  looks follow one theme of the Environment, through the token names below ([the
-  Environment's theme](#the-shell-as-built-decision-f36)); a person's own pick in T3
-  Code or MausBot stays theirs, and the roles follow whatever the app shows. The
-  Launchpad page sets the roles only under a theme other than Lazurio, so under Lazurio
-  the elements draw the design system's look exactly as before.
+  own rules give the rail never recolours it. Each app picks its own theme for now (since root
+  decision 0200, T3 Code's standard light look on an Environment is the design
+  system's, through the tokens below); one theme across the apps (the Environment's) is
+  a later mechanism.
 - **The design system's tokens in the app's document** ([F36's addendum of
   2026-10-13](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
   root decision 0200). When `/.lazurio/shell.js` loads, `defineShellElements` puts the
@@ -762,89 +745,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   the type and the radii) and on the faces of Inter Tight Variable and Geist Mono from
   `/.lazurio/fonts/`; never on the values, or on any other `--lz-*` name the shell
   happens to declare, which the design system may change or drop. MausBot gets the same
-  tokens and mark and reads neither, so it looks as before. Since the addendum of
-  2026-10-18 the tokens' style ends with `:root { --lazurio-color-scheme: light; }`:
-  the scheme of their values, from the moment the script evaluates.
-- **The Environment's theme** ([F36's addendum of
-  2026-10-18](decisions.md#f36-addendum-of-2026-10-18-the-environment-theme-root-decision-0208),
-  root decision 0208). One theme per Environment that Chat, Apps and Automate take
-  through the shell; a person's own pick inside T3 Code or MausBot stays theirs.
-  - **The record** (`src/theme/record.ts`): `{theme, revision, setAt}` in the install
-    base, `<base>/theme/<Folder digest>.json`, never in the Folder's `.lazurio/` and
-    never in the profile; Lazurio at revision 0 while there is none or it cannot be
-    read. Every change is compare and set on `revision` under a per-Folder `flock`
-    (`theme-changed`, `theme-busy`, `unchanged`); a Launchpad without a base keeps it in
-    memory.
-  - **The themes** (`src/theme/palettes.ts`): `lazurio` (the vendored tokens' own
-    values, light only, the default), then T3 Code's built-ins `grove`, `ocean`,
-    `ember` and `iris` (`src/theme/vendor/`, MIT, re-vendored at each rebuild of the T3
-    Code fork), projected onto `shellThemeColors` (the promised colours) as literal
-    `#rrggbb`, light and dark. The projection table is in the addendum; the contrast of
-    every theme and appearance is `tests/theme-palettes.test.ts`.
-  - **The API** (`src/launchpad/theme-routes.ts`): `GET /api/theme` answers `{kind:
-    "theme", theme, label, revision, setAt, choices}` (every theme with its values);
-    `POST /api/theme/set` takes exactly `{theme, revision}` and answers the same with
-    `outcome` (`set`, `unchanged`), 409 `{kind: "blocked", reason: "theme-changed",
-    current}` or `theme-busy`, 400 for anything else. On a public Environment every
-    read is the default Lazurio, whatever the record says (`fixedThemeReads`), and the
-    change is 403 `public-environment`, before its body is read: a guardrail of these
-    interfaces, not a security boundary (root decision 0172).
-  - **The CLI** (`src/theme/cli.ts`): `lazurio theme show` and `lazurio theme set <id>
-    [--expected-revision <n>]`, JSON on stdout, over the same record; on a public
-    Environment `show` answers the default and `set` is refused with the reason on
-    stderr. Never `t3 theme set`.
-  - **In the shell document**: `theme: {id, label, revision, light, dark?}` beside a
-    current Environment (`parseShellTheme`), always in `/.lazurio/shell.json` and the
-    boot document (`shellThemeOf`).
-  - **In the app's document** (`src/shell/theme.ts`): the shell writes one
-    `<style data-lazurio-environment-theme>` right after the tokens it installed, or
-    fills a host's own (the Launchpad's), with the light values on `:root` and, where
-    the theme has them, the dark values where the host shows dark; it marks the root
-    where the values hold and declares, as the script evaluates, the theme this origin
-    remembers (`localStorage` `lazurio.shell.theme`) before the app's own module runs.
-    It reads `/.lazurio/shell.json` again when the page is shown again (visibility,
-    focus) and follows another tab's newer theme at once (`storage`); every change is
-    `lazurio-theme` on the document. For Ocean the style is:
-
-    ```css
-    :root {
-      --lz-surface: #f5f7f8;
-      /* … the other 19 promised colours … */
-      --lazurio-color-scheme: light;
-    }
-    :root:is(.dark, [data-lazurio-appearance="dark"]) {
-      --lz-surface: #17212b;
-      /* … */
-      --lazurio-color-scheme: dark;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root[data-lazurio-appearance="device"] {
-        --lz-surface: #17212b;
-        /* … */
-        --lazurio-color-scheme: dark;
-      }
-    }
-    ```
-
-    and the root `<html data-lazurio-theme="light" data-lazurio-environment-theme="ocean"
-    data-lazurio-theme-dark>`. A host says how it shows dark: `class="dark"` (T3 Code),
-    or `data-lazurio-appearance="device"` (follow the device), `"dark"` or `"light"`. A
-    fork maps the promised names as before; T3 Code's gate takes the dark values too with
-    `:root[data-lazurio-theme="light"]:not([data-theme-id]):is(:not(.dark),
-    [data-lazurio-theme-dark])`, and MausBot's "Environment" skin keys its code palette on
-    `--lazurio-color-scheme`. The Platform release ships before either fork's.
-  - **Apps** (`src/launchpad/theme-view.ts`, `index.html`): the page takes its colours
-    from the promised names where the design system's value is the same, so Lazurio
-    looks as before; under another theme it also sets the twelve colour roles, so the
-    rail follows. It stays light: it hands the shell the theme without its dark values
-    (`appsTheme`), with `data-lazurio-appearance="device"` on `<html>` for when Apps gets
-    a dark look. A hosted page carries the style filled at the end of `<head>`, after the
-    bundled tokens; a workstation's script adds the empty place there.
-  - **Settings → Obecné → Téma Prostředí** (`src/launchpad/theme-panel.ts`): a card per
-    theme with its light and dark miniatures, a native radio group whose choice applies
-    at once (compare and set at the revision shown; the current theme when it moved
-    meanwhile), for whoever can open Settings, a Team's every member; no group on a public
-    Environment.
+  tokens and mark and reads neither, so it looks as before.
 
 ### Prompt hand-off to Chat
 
@@ -917,113 +818,6 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   another id, Organization, query or a non-Owner, the hand-off answer from the
   Environment's `t3`; locally only with the token, and no hand-off without a Chat origin.
 
-### The guide (decision F56)
-
-A "?" right after a page's heading makes Buddy, or without him the neutral guide of
-Lazurio, explain the page in place
-([F56](decisions.md#f56--průvodce-buddy-nebo-průvodce-lazuria-vysvětlí-stránku-na-místě-kreslí-shell-hostitele-rám-buddyho-smí-jen-požádat-id),
-root decision 0180's addendum of 2026-10-18): a ring around the real element, the
-guide's mark and a card beside it, and the layer lets every click through.
-
-- **In the shell.** `src/shell/guide.ts` decides what plays and when, over seams, so its
-  rules are tested without a DOM; `guide-layer.ts` draws in `<lazurio-buddy>`'s own
-  shadow root, made only when the guide first shows; `guide-content.ts` holds the six
-  principles in both languages and parses what a host hands over;
-  `guide-placement.ts` is where a bubble at a ringed element stands, for the tour too;
-  `guide-protocol.ts` is the pure protocol of Buddy's frame, with its vectors in
-  `guide-vectors/v1/`. `elements.ts` defines `<lazurio-buddy>` and exports
-  `provideGuides` (interface v1), and for the Launchpad alone `guideAttention`, the
-  arbiter with its tour.
-- **A host takes part by asking.** It places `<lazurio-buddy lang>`, hands over the
-  explanations of the page it shows with `provideGuides([...])` on every move (null to
-  withdraw), marks its elements with `data-guide` and its "?" with
-  `data-guide-help="<id>"`. A "?" may name a principle (`environment`, `buddy`,
-  `reach`, `files`, `integrations`, `vault`) or one of the page's explanations. An
-  explanation may carry `docs`, an https address the card links at its last step
-  ("Dokumentace", [F56's addendum of 2026-10-18](decisions.md#f56-addendum-of-2026-10-18-every-page-of-the-apps-column-has-its--and-loses-its-explaining-sentences)); the
-  principle `integrations` carries the documentation of Integrace. Without that, the
-  element draws and listens to nothing, as on the forks.
-- **The Launchpad** (`src/launchpad/guides.ts`, wired in `ui.ts`; [F56's addendum of
-  2026-10-18](decisions.md#f56-addendum-of-2026-10-18-every-page-of-the-apps-column-has-its--and-loses-its-explaining-sentences)): every page of the Apps column has its "?"
-  right after its heading (`pageHelpOf`): the header's `#page-help` after
-  `#page-heading` on Soubory and Trezor, `#catalog-help` beside the Apps home's heading
-  (catalog-panel.ts keeps it there as it draws the head) and `#integrations-page-help`
-  beside Integrace's title; every section of Settings uses the header's. Each starts hidden and shows once the page knows what it
-  plays; a module's overview and the Marketplace have none. `pageGuide(route, facts,
-  copy)` chooses from what the page knows (`PageGuideFacts`: the kind of the shell's
-  current Environment, whether Composio is allowed as Integrace read it, the vault's
-  facts as Trezor read them, what Začínáme shows here and what Nástroje can point at),
-  never an Organization's name (#499):
-  - Apps home and an Organization's Apps: the principle `environment`;
-  - Soubory: the principle `files`, in a Team Environment the Launchpad's `files-team`;
-  - Integrace: the principle `integrations`, where Composio is allowed the Launchpad's
-    `integrations-composio` (the person's own account, one Composio organization per
-    Organization, what the agents use, another account for other accounts), on Vlastní
-    and its form `integrations-custom`; the Launchpad's explanations carry the page's
-    documentation (`integrationsHelp`), which left the page's corner;
-  - Trezor (`vaultHelp`), only once the page read the vault's state: in a Personal
-    Environment, or wherever the vault is the
-    person's own Bitwarden, the principle `vault` (its Personal adaptation); where
-    nobody who enters is added to the vault (membership `not-managed` or
-    `sign-in-not-required`, so a Team or Automated Environment), where the person is no
-    member (no account or no master password yet, removed), and while that is not
-    known, the Launchpad's `vault-agents`, which promises no Bitwarden of one's own; where
-    the person is a member of the vault, or the Environment has no vault, the approved video
-    `vault-overview`, which the "?" opens in place (`page-help.ts`, `#vault-video`) with
-    the one line it does not say; nothing until the page read the vault's state. One
-    agent's request has no "?";
-  - Settings ([F56's addendum (2) of 2026-10-18](decisions.md#f56-addendum-2-of-2026-10-18-every-section-of-settings-has-its--and-loses-its-explaining-sentences)): Začínáme
-    `settings-start` (only where it has the basics: not on a public Environment's demo
-    nor where it has nothing to set up), Obecné `settings-general`, Komunikace agentů
-    `settings-communication` (`-team`), Toto <kind> Prostředí `settings-machine` (on
-    your computer its own words), Nástroje `settings-tools` (`-team`), the devices
-    section `settings-ssh` (`-team`; its words never name the protocol), Obnova
-    `settings-recovery` (none in Recovery mode). Escape closes an explanation there and
-    stays on the page (`createShell`'s `guiding`).
-
-  The panels report what the choice reads (`integrations.composio()`,
-  `vaultPage.facts` and the tools panel's targets, each with a `drawn` hook), and `pageHelpStates` says what each
-  "?" shows, which ui.ts sets on the buttons. Escape leaves Settings only while the
-  guide explains nothing (`escapeLeavesSettings` in shell.ts, `guiding`): the shell's
-  listener comes before the guide's. The marks are `nav-files`,
-  `nav-integrations`, `nav-vault` (the column), `browser` (the corner's toggle),
-  `files-list`, `composio-apps` (the corner's Composio link), `vault-row` (the vault's
-  row, and the picture of a Personal Environment's connection), `vault-open` (the row's
-  actions), Settings' `start-steps`, `start-optional`, `general-language`,
-  `general-detail`, `general-coordination`, `general-apply`, `voice-text`,
-  `voice-save`, `machine-facts`, `machine-support`, `tools`, `ssh-prompt`,
-  `ssh-devices`, and those a panel draws once read (`drawnMarks`): `integration-on` and
-  `integration-connect` (the first connected app, the first Connect),
-  `mcp-list` and `mcp-add` (Vlastní), `start-ai` and `start-github` (Začínáme),
-  `tool-connect` and `tool-agents` (Nástroje, chosen by `toolGuideTargets`: the first
-  sign-in or connection someone made, the first switch that moves; never gh of a Team
-  Environment; where there is none, the steps at it are left out and Nástroje's "?"
-  says what the page is and, in a Team Environment, that the Team shares it; it waits
-  until the tools are read), `recovery-result` and `recovery-checks` (Obnova). Words are in
-  `messages.ts` (`pageHelp`, `guideFilesTeam*`, `guideComposio*`, `guideCustom*`,
-  `guideVaultAgents*`, `vaultVideoLine`, `guideStart*`, `guideGeneral*`, `guideVoice*`,
-  `guideMachine*`, `guideTools*`, `guideDevices*`, `guideRecovery*`). Recovery mode withdraws the guide. The tour (`tour.ts`) tells the
-  guide whether it wants attention, hides while the guide is out, and nudges its bubble
-  when a "?" asks meanwhile; the guide then draws nothing and only says "Nejdřív
-  dokončete Začínáme" to assistive technology.
-- **Rules of a text** (`tests/fixtures/guide-text.ts`): at most four steps of at most
-  nine words, no full stop, never Launchpad, Dashboard, Mašina or VM, SSH, a tailnet or a
-  server (an MCP server is the name of a thing and passes), three kinds of
-  Environment, never "jen vám/váš/vaše/pro vás", no sameness, nothing that forbids. A
-  variant is chosen only by facts the page knows, never by an Organization's name
-  (#499).
-- **Check it in a browser** (root decision 0178): `bun scripts/preview-launchpad.ts
-  hosted|personal cs|en <port> owner [team|automated|no-vault|composio-off]`, then every
-  page with its "?" at 1440 and 700 px, with and without `prefers-reduced-motion`: one
-  "?" right after the heading, the ring on each step's element (or the card in the
-  middle where it is not on the page), "Dokumentace" at the last step of Integrace,
-  Trezor's variant in a Work (the video, playing, with its line), Team and Automated
-  (`vault-agents`) and Personal (`vault`) Environment and without a vault (the video),
-  Escape returning the focus to the "?", the removed sentences absent, and a page with
-  the shell and `<lazurio-buddy>` but no `provideGuides` drawing nothing. Tests:
-  `tests/shell-guide.test.ts`, `tests/shell-guide-protocol.test.ts`,
-  `tests/launchpad-guide.test.ts`.
-
 ### The offline guide (decision F41)
 
 On an Environment that is a node of a tailnet, the Launchpad answers
@@ -1059,13 +853,11 @@ iteration, 2026-10-04; the first target had the gear in the rail).
 
 **Routes.** `/settings/start` ([Začínáme](#first-run-of-an-environment), first where
 the Environment has it), `/settings/general`, `/settings/machine`, `/settings/tools`,
+`/settings/vault` ([Vault, Nastavení → Trezor](#vault-nastavení--trezor)),
 `/settings/ssh` ([SSH from your devices](#ssh-from-your-devices)) and
 `/settings/recovery` (the read-only [Recovery page](recovery.md#the-recovery-page)); `/settings`
 and an unknown section open General and the address bar is rewritten to the canonical
-path. Trezor is no section of Settings any more: it is the page `/vault` of the Apps
-column ([Vault, Apps → Trezor](#vault-apps--trezor)), and its old `/settings/vault` and
-`/settings/vault/requests/<id>` are served for good and open it, the address bar
-rewritten to `/vault…` (`legacyVaultPaths`). The paths live in `src/launchpad/routes.ts` (pure, tested in
+path. The paths live in `src/launchpad/routes.ts` (pure, tested in
 `tests/launchpad-routes.test.ts`); the server serves the same bundled page under
 exactly these paths (`pagePaths`) and nothing else, locally and through the hosted
 shell listener after admission. A path never carries the credential: locally the
@@ -1139,8 +931,7 @@ not built: the page has three sections and no defaults to reset to. Its sidebar 
 and resizable sidebar are built for the left column since 2026-10-12
 ([the right panel](#the-right-panel-the-environment-browser)).
 The General settings keep the explicit Preview → Apply of a Folder change instead of
-T3 Code's immediate apply; the Environment's theme in the same section (root decision
-0208) applies at once, because it changes nothing of the Folder. Icons are Iconoir (MIT), the design system's interface set, inlined as SVG symbols (Lucide before decision F36's addendum of 2026-10-04).
+T3 Code's immediate apply. Icons are Iconoir (MIT), the design system's interface set, inlined as SVG symbols (Lucide before decision F36's addendum of 2026-10-04).
 
 ## Launchpad home: the catalog
 
@@ -2190,11 +1981,10 @@ change (without them; the last known sign-ins stay on the cards) and on "Refresh
 status" (with them again), and shows:
 
 - no introduction (root decision 0188, Matěj 2026-10-04: no paragraph that only
-  restates the page), no tier notes, no "Zjištěno v …" and no note on a shared (Team)
-  Environment: the "?" beside the heading explains the section, in a Team Environment
-  that its accounts are the whole Team's ([the guide](#the-guide-decision-f56), F56's
-  addendum (2) of 2026-10-18); the warning stays in the confirmation of an enable on a
-  shared Environment;
+  restates the page); each tier's note is one short line: "Bez nich tu nic nefunguje.",
+  "Hodí se skoro každému.", "Zapni jen to, co používáš.";
+- on a shared Environment (the Team preset) the warning that signed-in accounts are
+  shared by all operators; it is repeated in the confirmation of an enable;
 - three groups, **Required**, **Recommended** and **Optional**, in catalog order, each
   a settings group of rows. A row carries on the left the tool's real name (gh,
   composio, bitwarden, wacli, gogcli, neon: what an agent says and what is searched for), one
@@ -2401,7 +2191,7 @@ odebrán" (a 0197 pilot's: "Přístup odebrán v trezoru"), "Trezor neodpovídá
 se nedokončilo", "Tento Environment zatím trezor nemá" (the handover names no vault),
 "Čeká na váš Bitwarden" (a personal Environment whose person has not connected their
 own Bitwarden yet, root decision 0203 point 7, with "Připojit", a link to the form of
-Apps → Trezor, and no setup) and "V tomto Prostředí není k dispozici" on this
+Nastavení → Trezor, and no setup) and "V tomto Prostředí není k dispozici" on this
 computer, which says no plan (F36's addendum of 2026-10-16) ("Connected", "Not set up
 yet", …). Its
 controls are "Otevřít trezor" once connected, a link in a new tab to
@@ -2417,13 +2207,10 @@ the Folder again to show it. The state is accepted only in its exact form
 `src/launchpad/vault-panel.ts`.
 
 **An agent's secret request** (decision F54, root decision 0198 point 9 (c); the
-wireframe's `screens/SecretRequest.tsx` and the section of `EnvVault.tsx`). Trezor's
-page in the Apps column (`/vault`) has below it the page of one request,
-`/vault/requests/<id>`, a sub-route as Integrace has its forms (`pageRoute`; the
-first-paint script agrees, `tests/launchpad-first-paint.test.ts`). The link
-`lazurio vault request` printed before, `/settings/vault/requests/<id>`, opens the same
-request for good ([F54's amendment of
-2026-10-18](decisions.md#f54-amendment-of-2026-10-18-the-requests-page-under-trezor-the-old-addresses-kept-for-good)).
+wireframe's `screens/SecretRequest.tsx` and the section of `EnvVault.tsx`). Settings
+have the section `vault` (Nastavení → Trezor, `/settings/vault`) and below it the page
+of one request, `/settings/vault/requests/<id>`, a sub-route as Integrace has its
+forms (`pageRoute`; the first-paint script agrees, `tests/launchpad-first-paint.test.ts`).
 `src/launchpad/vault-requests-panel.ts` draws two places the Trezor page holds:
 `#vault-requests`, "Žádosti agentů" with the count and one row per waiting request
 (what the agent needs, its fields, "Zadat" to its page), shown only while one waits;
@@ -2499,22 +2286,14 @@ two-step Remove, a key added outside Launchpad shown without Remove, a 390 px wi
 screen, and Czech, without page errors. A real Remote Environment, its network grant and
 `ssh <alias> true` from a device are not part of that check.
 
-## Vault (Apps → Trezor)
+## Vault (Nastavení → Trezor)
 
-Apps → Vault, Czech "Trezor" ([F53's addendum of
+Settings → Vault ([F53's addendum of
 2026-10-14](decisions.md#f53-addendum-of-2026-10-14-nastavení--trezor-and-the-správci),
-root decision 0198 point 5, the wireframe's `EnvVault` of prototypes-lazurio#33), a page
-of the Apps column under Integrace since [F53's addendum of
-2026-10-18 (2)](decisions.md#f53-addendum-of-2026-10-18-2-trezor-is-a-page-of-the-apps-column)
-(`/vault`, the frame `vault`, Files' header with the title alone and "Obnovit stav"; listed
-only where the Environment has a vault, [F53's addendum of
-2026-10-18 (3)](decisions.md#f53-addendum-of-2026-10-18-3-trezor-only-where-the-environment-has-a-vault)),
-is the way into the Environment's own vault, which is Lazurio Vaultwarden's web vault on its own
-address: one row with the vault's name and state, and the actions the person's
+root decision 0198 point 5, the wireframe's `EnvVault` of prototypes-lazurio#33) is the
+way into the Environment's own vault, which is Lazurio Vaultwarden's web vault on its own
+address: the rule, one row with the vault's name and state, and the actions the person's
 membership decides ("Přidat položku" and "Otevřít trezor", or "Vytvořit účet v trezoru").
-The rule ("Kdo má přístup do Prostředí, má i jeho hesla") and how the vault works are
-the "?" beside its heading ([the guide](#the-guide-decision-f56), F56's addendum of
-2026-10-18), which plays what is true of this Environment's vault.
 The Launchpad never lists items or shows a value. The routes are
 `src/launchpad/vault-page-routes.ts` (`GET /api/vault`, `POST /api/vault/membership`),
 over the vault's core (`src/vault/flow.ts`, `src/vault/members.ts`); the page's pure part
@@ -2534,35 +2313,16 @@ the fake bw of `tests/fixtures/fake-vault.ts`.
 
 **An Environment without a vault** ([F53's addendum of
 2026-10-17](decisions.md#f53-addendum-of-2026-10-17-an-environment-without-a-vault-explains-the-vault))
-says why in the page's line; how a vault works in an Organization is the guide video
-`vault-overview`, which the "?" beside the heading opens in place (since F56's addendum of
-2026-10-18 the page no longer has the group "Jak trezor funguje").
-The line depends on the vault's reason (`vaultPageView`'s `note`): a
+says why in the page's line and explains the vault under it: the group "Jak trezor
+funguje" (`#vault-explainer`) with the guide video `vault-overview`, its player there from
+the start at its poster, and three sentences on how a vault works in an Organization.
+The line depends on the vault's reason (`vaultPageView`'s `note` and `explainer`): a
 public Organization's Environment, whose handover names no tailnet (`no-tailnet`), has
 none on purpose, since the Organization is a public demo; any other (`no-vault`) is not
 set up yet, and the Organization's Admin sets it up. A public Environment (F55) still has
 no Trezor at all. `bun scripts/preview-launchpad.ts hosted cs|en <port> owner
 no-tailnet|no-vault` shows either: the preview's work Environment then has no vault, for
-that reason, and its Apps column no Trezor; `/vault` opens the page.
-
-**Where the column lists Trezor** ([F53's addendum of
-2026-10-18 (3)](decisions.md#f53-addendum-of-2026-10-18-3-trezor-only-where-the-environment-has-a-vault),
-root decision 0185's addendum, HumanAndMachines/Lazurio#577). Only where the Environment
-has a vault, as the vault core answers for it (`vaultAnswer` in `src/vault/flow.ts`, the
-answer `lazurio vault status` reads; `vaultListed` in `vault-page-view.ts`): listed for
-`own`, `needs-connection`, a 0197 pilot whose account was connected and the faults
-(`folder-unreadable`, `handover-missing`, `handover-unreadable`, `not-operator`,
-`connection-unreadable`, a core that throws), so the page can say them; not listed for
-`no-vault`, `no-tailnet`, `workstation` and a pilot never connected, whose status is
-`no-vault`. The server decides it for the first paint: `vaultInAppsOf`
-(`boot-document.ts`) reads it beside the Folder's state, from local files only, the boot
-document carries it as `vaultInApps`, and the page is served with `hidden` on
-`#vault-nav` where it is false; `ui.ts` draws the item from the same member. A page
-without a boot document follows its preset (`vaultInApps`): not on this computer.
-Trezor's addresses, `/vault` and the old `/settings/vault` with their requests, answer
-either way. Tested over HTTP in `tests/launchpad-apps-vault.test.ts` with the production
-composition of the vault's facts (`processVaultHost`), the handover's place, the
-operator's record and the state root the test's.
+that reason.
 
 **A personal Environment's own Bitwarden** ([F53's amendment of
 2026-10-16](decisions.md#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden),
@@ -2659,16 +2419,13 @@ in the page's language, focuses it and plays it. Never `autoplay`, `muted` or `l
 files carry no audio track; nothing of the video loads before the press. `render()`
 follows the page's language: the button's words, or an open video replaced by the new
 language's, paused. The pure part, `guideVideoPlayer`, decides the markup and the names
-(`tests/launchpad-guide-video.test.ts`). Apps → Trezor mounts it in
+(`tests/launchpad-guide-video.test.ts`). Nastavení → Trezor mounts it in
 `#vault-bitwarden-video` at the top of "V Codex Desktopu a ve vašem prohlížeči"
 (`vault-page-panel.ts`, hidden for a personal Environment's own Bitwarden, whose steps
-differ). Trezor's "?", where its words are true of the Environment's vault (an Organization's
-vault the person is in, or no vault here; [the guide](#the-guide-decision-f56)), mounts
-`vault-overview` in `#vault-video-player` with `open` the first time it is pressed
-(`src/launchpad/page-help.ts`): the box `#vault-video` opens under the page's heading, the
-press plays the video (with less motion it waits at its poster), the line under it
-(`vaultVideoLine`) says what the video does not, and the "?" again, Escape or the page
-moving on closes it, the focus back on the "?".
+differ). Nastavení → Trezor of an Environment without a vault mounts `vault-overview`
+in `#vault-explainer-video` with `open`: there the video is the section's own content, so
+its player is there from the start, paused at its poster (nothing else of it loads before
+it plays), mounted the first time the section shows.
 
 The files are `src/launchpad/videos/<name>-<cs|en>.mp4` and their posters
 `<name>-<cs|en>.webp`, embedded in the executable with `{ type: "file" }` like the shell's
@@ -2710,9 +2467,8 @@ navigations; on the Files page the sidebar keeps the catalog's Organizations
 (`data-view="catalog files"`), and the header's page action is "Refresh". The view
 shows:
 
-- no sentence that explains the page: the "?" beside its heading does ([the
-  guide](#the-guide-decision-f56)), on a Team Environment with the line that the whole
-  Team reads and changes the folder;
+- the introduction (what the folder is) and, on a Team Environment, the note that the
+  whole Team sees and changes the same folder;
 - the path as links, "Documents" / "Dokumenty" first, the current folder last
   (`aria-current="page"`);
 - "Upload files" (a file picker, several at once) and "Download folder (ZIP)";
@@ -2721,7 +2477,7 @@ shows:
   modification time in the reader's language and time zone, and "Download" (named
   "Download <name>" for assistive technology). Below 36 rem of the list's width a row
   stacks its size and date under its name and the column names are hidden;
-- an empty folder says so, the empty Documents folder that there are no files yet; a missing or
+- an empty folder says so; the empty Documents folder says what it is for; a missing or
   refused path says the folder or file does not exist and links to Documents; a file
   path (locally) says it is a file, with Download and a link to its folder.
 
@@ -2775,8 +2531,8 @@ the Launchpad builds no viewer of its own.
   right corner, the wireframe's `apps-corner` ([F47's addendum of 2026-10-12,
   evening](decisions.md#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview)):
   one toggle in the same place on every page, Settings, Files and a module's information
-  page included, after the Guide on the Apps home (Integrace's "Jak to funguje" is the
-  guide's card's since F56's addendum of 2026-10-18); only its icon below 768 px. Pressed, it takes
+  page included, after the page's help link (the Guide on the Apps home, "Jak to
+  funguje" on Integrace, none elsewhere); only its icon below 768 px. Pressed, it takes
   the quiet surface, and it stays in the corner while the panel is open (the wireframe
   hid it then; Matěj's call of 2026-10-12); a click on it closes the panel. The corner is
   the page's, left of the panel, so the panel beside the page never covers it; when the
@@ -2898,9 +2654,9 @@ the Launchpad builds no viewer of its own.
   widths, the step aside and back, the keys, the stored layout); how it looks and moves
   belongs to a check in a browser. The controls in the page's corners (2026-10-12,
   evening) are pinned by `tests/launchpad-page-corners.test.ts` (the one Browser toggle
-  in the corner after the Apps home's Guide, outside every view and head; the column's
+  in the corner after the page's help link, outside every view and head; the column's
   toggle in the band on top of the column with the vendored lockup, above the column
-  head, at the page's top left and in the strip; heads with their titles and their "?" only;
+  head, at the page's top left and in the strip; heads with their titles only;
   Integrace's search and refresh with the tabs) and were checked in
   Chrome against the hosted preview in Czech and English at 1440×900, 900×900 and
   390×844: the Apps home, Integrace, the Marketplace, every section of Settings, Files
@@ -2965,7 +2721,7 @@ Organization's, and it gets none of it.
      open it) with "Zkusit znovu"; a T3 Code that did not turn the provider on, said
      beside the account; and without the Environment browser "Přihlášení tu teď nejde
      otevřít.", nothing started. Signed in, the page reads `GET /api/ai?fresh=1` at once;
-  2. **GitHub**: "Připojeno jako @login", or "Nepřipojeno" with
+  2. **GitHub**: "Připojeno jako @login", or "Zpřístupní vaše repozitáře a moduly." with
      "Připojit" (gh's own sign-in dialog of Nástroje), enabled only once AI is there;
      before, the step waits under its number;
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
@@ -2982,12 +2738,12 @@ Organization's, and it gets none of it.
      `"reason": "ai-missing"` while the AI is provably missing. An AI that could not be
      checked holds nothing back.
 
-  Then "Hesla pro agenty" with Trezor Prostředí and its state as Apps → Trezor reads
+  Then "Hesla pro agenty" with Trezor Prostředí and its state as Nastavení → Trezor reads
   it (`GET /api/vault`, `vaultPageView`; a Remote Environment with a vault only),
   "Volitelné" (Composio where Nástroje offer it, with its sign-in; on a Remote
   Environment SSH z vlastního počítače, "Nastaveno" once a device's key was added here,
   and Codex Desktop, both leading to Settings → SSH; between them "Trezor v Bitwardenu"
-  where Apps → Trezor gives the steps for Bitwarden, its "Návod" opening them) and
+  where Nastavení → Trezor gives the steps for Bitwarden, its "Návod" opening them) and
   "Prohlídka aplikace" ("Spustit
   prohlídku" / "Spustit znovu" starts the introduction in Apps). A Team or Automated
   Environment's Začínáme says only "Tady není co nastavovat.".
@@ -3026,8 +2782,7 @@ Organization's, and it gets none of it.
   view only: until the basics exist the tour is back on the next page load, and Začínáme
   never goes away. It steps aside while a dialog or the Environment browser is open and
   waits while its element is not on the page (a preparation that runs).
-- **Where the bubble stands** (`src/shell/guide-placement.ts`, which the guide shares
-  since F56; Lazurio/LazurioPlatform#461): one
+- **Where the bubble stands** (`tour-placement.ts`, Lazurio/LazurioPlatform#461): one
   rule for every stop. Beside the ringed element when there is room, else under it,
   above it or on its left; along that side it starts where the ring starts, or ends
   where the ring ends when starting there would leave the window, so the bubble at
@@ -3066,10 +2821,7 @@ Organization's, and it gets none of it.
   `machine-view.ts`, the wireframe's `ThisEnvironment`): "Druh", "Patří" and "Pracuje v
   něm"; the technical name and kind, the owner and assignment as recorded, the tailnet
   node, the host and the relationships are folded under "Pro podporu". A workstation
-  says only "Váš počítač". No introduction. The section is named by its kind ("Toto
-  Týmové Prostředí", on a computer "Tento počítač") and "Druh" is one of the three kinds,
-  an automated Environment "Pracovní Prostředí s automatizacemi"
-  ([F28's addendum of 2026-10-18](decisions.md#f28-addendum-of-2026-10-18-three-kinds-of-environment-and-your-computer-without-a-kind)).
+  says only "Váš počítač". No introduction.
 - **Obsah Prostředí** (`content-panel.ts`) in Settings → Toto Prostředí, above
   those facts, and in Začínáme's third step: a row per item of `GET /api/content` (the
   personal Environment holds the Personalspace, a work one its Organization, a

@@ -95,11 +95,12 @@ const posixTest = test.skipIf(process.platform === "win32");
 
 // --- The handover and the binding -------------------------------------
 
-test("the vendored schema carries Machines #560's entry.audience, exactly the constant public", () => {
-  // Re-pinned since to Machines #633, which adds only
-  // `entry.browser.local_port` (tests/environment-browser-loopback-entry.test.ts).
+test("the vendored schema is Machines #560's: entry.audience is exactly the constant public", () => {
   expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/633",
+    "https://github.com/HumanAndMachine-ai/Machines/pull/560",
+  );
+  expect(provenance.source_commit).toBe(
+    "a1cee4eea554348c5a51e4a71c4fa9325dfa8bfc",
   );
   const audience = (
     schema as unknown as {
@@ -235,7 +236,6 @@ test("the entry's answer and the boot document carry the audience only as public
     shell: null,
     catalog: null,
     entry,
-    vaultInApps: null,
   };
   expect(parseBoot(bootJson(boot))?.entry).toEqual(entry);
   // Without the member: not public, and nothing in the answer says so.
@@ -438,18 +438,15 @@ test("without the member Začínáme, the count, the line and the tour are what 
   expect(tourStep(team, freshTourProgress, null)).toBeNull();
 });
 
-// --- Integrace, Trezor and Nastavení → Nástroje ---------------------------
+// --- Integrace and Nastavení → Trezor -----------------------------------
 
-test("a public Environment withholds Integrace, Trezor and Nastavení → Nástroje, and shows Apps and Settings in their place", () => {
+test("a public Environment withholds Integrace, Nastavení → Trezor and Nastavení → Nástroje, and shows Apps and Settings in their place", () => {
   for (const path of [
     "/integrations",
     "/integrations/connected",
     "/integrations/custom",
     "/integrations/custom/new",
     "/integrations/app/gmail",
-    "/vault",
-    "/vault/requests/abcdefghijklmnopqrstuvwx",
-    // Trezor's old addresses in Settings (F54 as amended on 2026-10-18).
     "/settings/vault",
     "/settings/vault/requests/abcdefghijklmnopqrstuvwx",
     "/settings/tools",
@@ -468,22 +465,14 @@ test("a public Environment withholds Integrace, Trezor and Nastavení → Nástr
     "/settings/ssh",
   ])
     expect([path, withheldInPublic(pageRoute(path))]).toEqual([path, false]);
-  // The pages of the Apps column it withholds leave the Apps home in their
-  // place, Nástroje the default Settings section.
-  for (const path of [
-    "/integrations/connected",
-    "/vault",
-    "/vault/requests/abcdefghijklmnopqrstuvwx",
-    "/settings/vault",
-  ])
-    expect([path, publicRoute(pageRoute(path))]).toEqual([
-      path,
-      { view: "home" },
-    ]);
-  expect(publicRoute(pageRoute("/settings/tools"))).toEqual({
-    view: "settings",
-    section: "general",
+  expect(publicRoute(pageRoute("/integrations/connected"))).toEqual({
+    view: "home",
   });
+  for (const path of ["/settings/vault", "/settings/tools"])
+    expect(publicRoute(pageRoute(path))).toEqual({
+      view: "settings",
+      section: "general",
+    });
   for (const path of ["/", "/settings/start", "/o/example/deals"])
     expect(publicRoute(pageRoute(path))).toEqual(pageRoute(path));
 });
@@ -722,8 +711,6 @@ const withheldPages = [
   "/integrations",
   "/integrations/connected",
   "/integrations/app/gmail",
-  "/vault",
-  "/vault/requests/abcdefghijklmnopqrstuvwx",
   "/settings/vault",
   "/settings/vault/requests/abcdefghijklmnopqrstuvwx",
   "/settings/tools",

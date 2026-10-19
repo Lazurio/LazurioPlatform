@@ -160,26 +160,20 @@ const { team: _, ...withoutTeam } = organization.owner;
 // for the Machine hostname `host`; with `browser`, the entry also routes the
 // Environment browser's view (root decision 0191), with `signOut` it names
 // the person's sign-out (Machines#358) and with `audience` it is a public
-// Environment (root decision 0204). With `assignment` it is instead the
-// Team's (`team`) or a persona's Automated Environment (`automation`), its
-// Team kept, as the handover states it.
+// Environment (root decision 0204).
 export function organizationWithEntry(
   listenPort = 20000,
   host = "workspace.example.lazurio.io",
   browser = false,
   signOut = false,
   audience = false,
-  assignment: "team" | "automation" | null = null,
 ) {
   const entry = handoverEntry(host, listenPort);
   const routed = browser ? withBrowser(entry, host) : entry;
   const signed = signOut ? withSignOut(routed) : routed;
   return binding({
     ...organization,
-    owner:
-      assignment === null
-        ? withoutTeam
-        : { ...organization.owner, assignment: assignments[assignment] },
+    owner: withoutTeam,
     entry: audience ? withAudience(signed) : signed,
   });
 }

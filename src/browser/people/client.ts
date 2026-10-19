@@ -22,7 +22,6 @@ import {
 } from "../contract/pure";
 import {
   aloneAddress,
-  handOffNotice,
   menuStep,
   ownTabView,
   pictureKey,
@@ -494,14 +493,6 @@ class Viewer {
       case "new-tab":
         offerNewTab(message.id, message.url);
         return;
-      case "hand-off": {
-        // A page of the person's Lazurio account (#504): their own browser
-        // opens it, never this one.
-        const found = handOffNotice(message.url, say);
-        if (found !== null)
-          showNotice(found.text, found.open, found.title, found.button);
-        return;
-      }
       case "dialog":
         this.showDialog(message);
         return;
@@ -1397,19 +1388,12 @@ alone.addEventListener("click", () => {
   if (view !== null) window.open(view, "_blank", "noopener");
 });
 
-/** The notice above the page: its text, what its button opens in a new tab
- * of the person's own browser (none without the button), its title and the
- * button's label, Otevřít unless said otherwise. */
-function showNotice(
-  text: string,
-  open: string | null,
-  title = text,
-  button = say.open,
-): void {
+/** The notice above the page: its text, what its Otevřít opens (none
+ * without the button) and its title. */
+function showNotice(text: string, open: string | null, title = text): void {
   offered = open;
   noticeText.textContent = text;
   noticeText.title = title;
-  noticeOpen.textContent = button;
   noticeOpen.hidden = open === null;
   notice.hidden = false;
 }

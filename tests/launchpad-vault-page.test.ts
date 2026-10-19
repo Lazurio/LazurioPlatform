@@ -1148,6 +1148,7 @@ test.skipIf(!posix)(
         reason: "no-vault",
       });
       expect(vaultPageView(model, null, messages("cs"))).toMatchObject({
+        rule: false,
         note: "Trezor na tomto počítači není.",
         row: null,
         actions: [],
@@ -1240,9 +1241,11 @@ test.skipIf(!posix)(
           name: null,
         });
         expect(vaultPageView(model, null, messages("cs"))).toMatchObject({
+          rule: false,
           note,
           row: null,
           actions: [],
+          explainer: true,
         });
         expect(bitwardenGuide(model, null, messages("cs"))).toBeNull();
       }

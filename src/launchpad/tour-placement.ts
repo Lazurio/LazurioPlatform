@@ -1,7 +1,5 @@
-// Where a bubble at a ringed element stands: the Launchpad's first-run tour
-// (src/launchpad/tour.ts; Lazurio/LazurioPlatform#461 point 2) and the
-// guide's card (guide-layer.ts, decision F56) follow one rule, so it lives in
-// the shell, which both load. Beside the ringed element when there is
+// Where the tour's bubble stands (tour.ts; Lazurio/LazurioPlatform#461
+// point 2): one rule for every stop. Beside the ringed element when there is
 // room, else under it, else above it, else on its left. Along that side it
 // starts where the ring starts, or ends where the ring ends when starting
 // there would leave the window, and moves only as far as the window needs,
@@ -11,10 +9,8 @@
 // with a mouse) never covers it. It keeps a readable width, 300 px or what a
 // narrower window leaves, and its arrow points at the element. Where no side
 // has room it takes the side it overflows least and stays in the window all
-// the same. Without the element on screen the tour's bubble stands in the
-// bottom right corner, without an arrow; the guide's card stands in the
-// middle instead, and below 768 px it is a sheet at the window's foot
-// (`guidePlacement`). Pure: the callers measure the page and draw.
+// the same. Without the element on screen it stands in the bottom right
+// corner, without an arrow. Pure: tour.ts measures the page and draws.
 
 /** A box in the window's coordinates, as `getBoundingClientRect` gives. */
 export type TourBox = Readonly<{
@@ -155,64 +151,3 @@ export function tourPlacement(
     arrow: arrowAt(anchor.left, anchor.right, left, width),
   };
 }
-
-/** Below this window width the guide's card is a sheet at the window's foot
- * (the shaping's default for a phone, DEV-6612 3(c)): a narrow window has no
- * room beside an element, and the column it points into is folded away. */
-export const guideSheetBelow = 768;
-
-export type GuidePlacement = TourPlacement &
-  Readonly<{
-    /** A sheet across the window's foot, as wide as the window leaves. */
-    sheet: boolean;
-  }>;
-
-/** Where the guide's card stands (decision F56): as the tour's bubble beside
- * a ringed element; in the middle of the window without one (the element is
- * missing or hidden, the prototype's fallback); and below `guideSheetBelow`
- * as a sheet at the window's foot, the ring still drawn where the element
- * is. Never an arrow but beside an element. */
-export function guidePlacement(
-  input: Readonly<{
-    anchor: TourBox | null;
-    /** The card's height at the width this returns for the same window. */
-    height: number;
-    viewport: Readonly<{ width: number; height: number }>;
-  }>,
-): GuidePlacement {
-  const { anchor, height, viewport } = input;
-  const bottom = viewport.height - margin;
-  if (viewport.width < guideSheetBelow)
-    return {
-      side: null,
-      left: margin,
-      top: Math.round(Math.max(margin, bottom - height)),
-      width: Math.max(0, viewport.width - 2 * margin),
-      arrow: null,
-      sheet: true,
-    };
-  if (anchor === null) {
-    const width = tourWidth(viewport.width);
-    const right = viewport.width - margin;
-    return {
-      side: null,
-      left: Math.round(
-        clamp((viewport.width - width) / 2, margin, right - width),
-      ),
-      top: Math.round(
-        clamp((viewport.height - height) / 2, margin, bottom - height),
-      ),
-      width,
-      arrow: null,
-      sheet: false,
-    };
-  }
-  return { ...tourPlacement(input), sheet: false };
-}
-
-/** The width of the guide's card in a window this wide, before its height is
- * known: the sheet's below `guideSheetBelow`, else the tour's. */
-export const guideWidth = (viewportWidth: number): number =>
-  viewportWidth < guideSheetBelow
-    ? Math.max(0, viewportWidth - 2 * margin)
-    : tourWidth(viewportWidth);

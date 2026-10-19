@@ -37,6 +37,5 @@ Delete this folder when both hold:
 
 Deleting it means removing this folder, the `pilotContextOf` and `pilotConnected`
 fallbacks in `../host.ts`, the `context.kind === "pilot"` branches and the
-`PilotContext` member of `VaultHost.context` in `../flow.ts` together with the pilot's
-branch of `vaultAnswer` there (which `vaultStatus` and the Apps column's Trezor read),
-and the pilot tests (`tests/vault-pilot.test.ts`). Nothing else depends on it.
+`PilotContext` member of `VaultHost.context` in `../flow.ts`, and the pilot tests
+(`tests/vault-pilot.test.ts`). Nothing else depends on it.

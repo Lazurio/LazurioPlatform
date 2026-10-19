@@ -50,14 +50,14 @@
 // app's integration already and finishes a sign-in only when it returns. A
 // hosted preview's work Environment has its own vault (decision F53) in the
 // tests' fake Vaultwarden at the example Organization's address, set up
-// before the start, so Začínáme and Apps → Trezor show it with the
+// before the start, so Začínáme and Nastavení → Trezor show it with the
 // steps for Bitwarden in Codex Desktop (F53's addendum of 2026-10-16); the
 // fake bw keeps everything under the synthetic home, and the gateway names a
 // fictional person, jana, whose own address the steps offer. A personal
 // preview's vault is its person's own Bitwarden (root decision 0203 point 7)
 // in the tests' fake Bitwarden cloud, waiting for its person: the JSON line's
 // `bitwarden` has a fictional agents' account's `client_id`, `client_secret`
-// and master password to connect with on Apps → Trezor (the account is
+// and master password to connect with on Nastavení → Trezor (the account is
 // in the cloud's EU region, or in the US with `bitwarden-us` anywhere after
 // the mode), and `accept`, a file whose creation makes the person accept the
 // invitation the page asked for, as Bitwarden's e-mail would. With `public`
@@ -65,17 +65,11 @@
 // Environment (root decision 0204, decision F55): its entry carries
 // `audience: "public"`, so the Launchpad runs the demo onboarding, the
 // column head says the Environment is public and shared, and Integrace,
-// Apps → Trezor and Nastavení → Nástroje answer as absent. With
+// Nastavení → Trezor and Nastavení → Nástroje answer as absent. With
 // `no-vault` or `no-tailnet` anywhere after the mode, a hosted preview's work
 // Environment has no vault, for that reason (F53's addendum of 2026-10-17):
-// nothing is set up, the Apps column does not list Trezor (F53's addendum of
-// 2026-10-18 (3)), and `/vault` says why and explains the vault with its
-// guide video. With `team` or `automated` anywhere after the mode, a
-// hosted preview's work Environment is the example Organization's Team
-// Environment or a persona's Automated Environment instead (its handover's
-// assignment `team` or `automation`), to see how a page names each kind
-// (decision F28's addendum of 2026-10-18). Synthetic names only; stop it
-// with Ctrl-C.
+// nothing is set up, and Nastavení → Trezor says why and explains the vault
+// with its guide video. Synthetic names only; stop it with Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -142,8 +136,6 @@ const composioOff = process.argv.slice(3).includes("composio-off");
 const publicEnvironment =
   process.argv[2] === "hosted" && process.argv.slice(3).includes("public");
 const microsoft365 = process.argv.slice(3).includes("microsoft365");
-const team =
-  process.argv[2] === "hosted" && process.argv.slice(3).includes("team");
 const composioOrgMissing = process.argv
   .slice(3)
   .includes("composio-org-missing");
@@ -155,14 +147,6 @@ const noVault =
       (value): value is "no-vault" | "no-tailnet" =>
         value === "no-vault" || value === "no-tailnet",
     ) ?? null;
-const assignment =
-  mode !== "hosted"
-    ? null
-    : process.argv.slice(3).includes("team")
-      ? "team"
-      : process.argv.slice(3).includes("automated")
-        ? "automation"
-        : null;
 const locale = process.argv[3] === "en" ? "en" : "cs";
 const listenPort = Number(process.argv[4] ?? 24611);
 const role =
@@ -191,13 +175,7 @@ else {
   await mkdir(join(folder, "organizations"), { mode: 0o755 });
   await mkdir(join(folder, "personalspace"), { mode: 0o700 });
   const preset =
-    mode === "personal"
-      ? "hosted-personal"
-      : assignment === "team"
-        ? "hosted-organization-team"
-        : assignment === "automation"
-          ? "hosted-organization-steward"
-          : "hosted-organization-personal";
+    mode === "personal" ? "hosted-personal" : "hosted-organization-personal";
   await initializeHandoverFolder(folder, {
     preset,
     // A Remote Environment as the gateway serves it: the Environment
@@ -212,7 +190,6 @@ else {
             true,
             true,
             publicEnvironment,
-            assignment,
           ),
     profile: presetProfile(preset, os, { locale }),
   });
@@ -632,7 +609,7 @@ async function previewVault() {
     context: async () =>
       ownContext(
         workHandover(vaultMember(workAccount, "Pracovní example")),
-        team ? "team" : "work",
+        "work",
       ),
   });
   const setUp = await vaultSetup(host);
@@ -706,7 +683,7 @@ const app = await startLaunchpad(
     ? {}
     : {
         // A hosted preview's gateway names a fictional person with a Lazurio
-        // username, as Lazurio Auth's answer does, so Apps → Trezor
+        // username, as Lazurio Auth's answer does, so Nastavení → Trezor
         // offers her own address (F53's addendum of 2026-10-16).
         fetcher: async () =>
           new Response("ok", {

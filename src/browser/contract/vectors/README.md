@@ -9,8 +9,8 @@ the module, this directory is licensed under MIT (`../LICENSE`).
 `v1/` holds one file per contract: `remote-tab-ids` (C1), `strips` (C2),
 `view-addresses` (C3), `boot-clock` (C4), `holder-files` (C5), `live-tabs`
 (C6), `agent-browser` (C7), `messages` (C8 and C9), `new-tab` (C10), `cli`
-(C13), `times` (C14), `framing` (C15), `address-bar` (C16), `language`
-(C17) and `hand-off` (C18). C11 and C12 are internal to the Platform: their shapes live in the
+(C13), `times` (C14), `framing` (C15), `address-bar` (C16) and `language`
+(C17). C11 and C12 are internal to the Platform: their shapes live in the
 module's `platform.ts`, which no fork takes, and have no vectors. Within v1
 a file only gains cases. A changed
 expectation is a change of the contract's major (F50 point 3), seen in review

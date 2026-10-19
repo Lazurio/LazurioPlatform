@@ -12,14 +12,15 @@ import type { MessageKey } from "./messages";
 /** The sections of Settings, in the order of the settings navigation.
  * `start` is Nastavení → Začínáme, the Environment's onboarding from live
  * facts (root decision 0201 point 1), first where the Environment has it.
- * Trezor is no section: it is a page of the Apps column (F53's addendum of
- * 2026-10-18), whose old addresses here still lead to it. */
+ * `vault` is Nastavení → Trezor, the way into the Environment's own vault
+ * (root decision 0198 point 5), right after the tools. */
 export const settingsSections = [
   "start",
   "general",
   "communication",
   "machine",
   "tools",
+  "vault",
   "ssh",
   "recovery",
 ] as const;
@@ -37,13 +38,9 @@ export type PageRoute =
   | Readonly<{ view: "home" }>
   | Readonly<{ view: "organization"; organization: string }>
   | Readonly<{ view: "module"; organization: string; module: string }>
-  /** A section of Settings. */
-  | Readonly<{ view: "settings"; section: SettingsSection }>
-  /** Trezor, the way into the Environment's own vault (root decision 0198
-   * point 5), a page of the Apps column under Integrace (F53's addendum of
-   * 2026-10-18): `/vault`, and `/vault/requests/<id>` the page of one
-   * agent's secret request (`request`, decision F54). */
-  | Readonly<{ view: "vault"; request?: string }>
+  /** A section of Settings; in Trezor, `/settings/vault/requests/<id>` is
+   * the page of one agent's secret request (`request`, decision F54). */
+  | Readonly<{ view: "settings"; section: SettingsSection; request?: string }>
   /** A folder of the Documents folder (decision F35): `/files` is the
    * folder itself, `/files/<name>/<name>` one below it. */
   | Readonly<{ view: "files"; path: readonly string[] }>
@@ -70,13 +67,12 @@ export const integrationsTabs = ["all", "connected", "custom"] as const;
 export type IntegrationsTab = (typeof integrationsTabs)[number];
 
 /** The frames of the page: the Apps home (home, Organization, module), the
- * Files page, Integrace, Trezor and the Marketplace beside the same Apps
- * column, and Settings with its navigation. */
+ * Files page, Integrace and the Marketplace beside the same Apps column, and
+ * Settings with its navigation. */
 export type PageFrame =
   | "catalog"
   | "files"
   | "integrations"
-  | "vault"
   | "marketplace"
   | "settings";
 export const routeFrame = (route: PageRoute): PageFrame =>
@@ -86,20 +82,9 @@ export const routeFrame = (route: PageRoute): PageFrame =>
       ? "files"
       : route.view === "integrations"
         ? "integrations"
-        : route.view === "vault"
-          ? "vault"
-          : route.view === "marketplace"
-            ? "marketplace"
-            : "catalog";
-
-/** Trezor's old addresses in Settings (F54 as amended on 2026-10-18): what
- * `lazurio vault request` printed into agents' threads before, which keep
- * them, so the server answers them for good and the page shows Trezor
- * there, rewriting the address to its own. */
-export const legacyVaultPaths: readonly string[] = [
-  "/settings/vault",
-  "/settings/vault/requests/:id",
-];
+        : route.view === "marketplace"
+          ? "marketplace"
+          : "catalog";
 
 /** Every path the server answers with the page. The two catalog patterns are
  * the server's route parameters; the page reads its segments itself. */
@@ -111,20 +96,15 @@ export const pagePaths: readonly string[] = [
   "/files/*",
   "/integrations",
   "/integrations/*",
-  "/vault",
-  "/vault/requests/:id",
   "/marketplace",
   "/settings",
   ...settingsSections.map((section) => `/settings/${section}`),
-  ...legacyVaultPaths,
+  "/settings/vault/requests/:id",
 ];
 
 export function settingsPath(section: SettingsSection): string {
   return `/settings/${section}`;
 }
-
-/** Trezor's page in the Apps column. */
-export const vaultPath = "/vault";
 
 export function organizationPath(organization: string): string {
   return `/o/${encodeURIComponent(organization)}`;
@@ -161,18 +141,6 @@ function segment(input: string | undefined): string | null {
   }
 }
 
-/** Trezor's route below its page, `rest` the path after `/vault` (or after
- * the old `/settings/vault`): an agent's secret request has its own page;
- * anything else opens Trezor itself. */
-function vaultRoute(rest: string): PageRoute {
-  if (rest === "/requests" || rest.startsWith("/requests/")) {
-    const request = segment(rest.slice("/requests/".length));
-    if (request !== null && isSecretRequestId(request))
-      return { view: "vault", request };
-  }
-  return { view: "vault" };
-}
-
 /** The route of a location path. `/settings` and an unknown section open the
  * default section (the caller rewrites the address to its canonical path);
  * `/o/<org>` and `/o/<org>/<module>` are the catalog; anything else is the
@@ -187,18 +155,6 @@ export function pageRoute(pathname: string): PageRoute {
   }
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   if (path === "/marketplace") return { view: "marketplace" };
-  // Trezor (F53's addendum of 2026-10-18): its page, and below it.
-  if (path === "/vault" || path.startsWith("/vault/"))
-    return vaultRoute(path.slice("/vault".length));
-  // Its old addresses in Settings, kept for good (F54 as amended on
-  // 2026-10-18): Trezor itself and an agent's secret request, the address
-  // rewritten to the new one (`routePath`).
-  if (
-    path === "/settings/vault" ||
-    path === "/settings/vault/requests" ||
-    path.startsWith("/settings/vault/requests/")
-  )
-    return vaultRoute(path.slice("/settings/vault".length));
   // Integrace: a tab, or one app's card; anything else below opens Vše.
   if (path === "/integrations" || path.startsWith("/integrations/")) {
     const parts = path.slice("/integrations".length).split("/").slice(1);
@@ -234,6 +190,17 @@ export function pageRoute(pathname: string): PageRoute {
   }
   if (path !== "/settings" && !path.startsWith("/settings/"))
     return { view: "home" };
+  // An agent's secret request: its page in Trezor; anything else below
+  // `requests` opens Trezor itself.
+  if (
+    path === "/settings/vault/requests" ||
+    path.startsWith("/settings/vault/requests/")
+  ) {
+    const request = segment(path.slice("/settings/vault/requests/".length));
+    return request !== null && isSecretRequestId(request)
+      ? { view: "settings", section: "vault", request }
+      : { view: "settings", section: "vault" };
+  }
   const section = path.slice("/settings/".length);
   return {
     view: "settings",
@@ -271,10 +238,7 @@ export function routePath(route: PageRoute): string {
       ? customServerPath(route.form.server)
       : integrationsPath(route.tab, route.app);
   if (route.view === "marketplace") return "/marketplace";
-  if (route.view === "vault")
-    return route.request === undefined
-      ? vaultPath
-      : secretRequestPath(route.request);
+  if (route.request !== undefined) return secretRequestPath(route.request);
   return settingsPath(route.section);
 }
 
@@ -286,6 +250,7 @@ export const sectionLabels: Readonly<Record<SettingsSection, MessageKey>> = {
   communication: "voiceTitle",
   machine: "machineTitle",
   tools: "toolsTitle",
+  vault: "vaultPageTitle",
   ssh: "sshTitle",
   recovery: "recoveryTitle",
 };
@@ -338,17 +303,12 @@ export function routeTitle(
           : `${folder} · ${copy.filesTitle} — ${copy.title}`,
     };
   }
-  if (route.view === "vault")
-    return {
-      heading: copy.vaultPageTitle,
-      document:
-        route.request === undefined
-          ? `${copy.vaultPageTitle} — ${copy.title}`
-          : `${copy.vaultRequestTitle} · ${copy.vaultPageTitle} — ${copy.title}`,
-    };
   const heading = copy[sectionLabels[route.section]];
   return {
     heading,
-    document: `${heading} · ${copy.settingsTitle} — ${copy.title}`,
+    document:
+      route.request === undefined
+        ? `${heading} · ${copy.settingsTitle} — ${copy.title}`
+        : `${copy.vaultRequestTitle} · ${heading} · ${copy.settingsTitle} — ${copy.title}`,
   };
 }

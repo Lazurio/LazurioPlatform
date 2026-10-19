@@ -1,15 +1,11 @@
-import { type ShellEnvironmentKind, shellEnvironmentKinds } from "./contract";
-import { type KindLocale, kindLabel, kindName, kindShort } from "./kind-name";
+import type { ShellEnvironmentKind } from "./contract";
 
 // The words of the shell elements, in the two languages of the Launchpad, in
 // its tone (decision F16 naming: Environment, never Machine or VM). The
 // elements live in other apps too (the forks), so they carry their own words
 // rather than the Launchpad's catalogue. A label of the rail is the item's
 // name alone (F36's addendum of 2026-10-16): no line about how many
-// Environments a space has, which one was last, or what a click does. The
-// kinds are three, and your own computer has none (decision F28's addendum of
-// 2026-10-18, kind-name.ts); a text about the Environment the page is in
-// names its kind through the tokens of `inKind` ({tomto}, {this}).
+// Environments a space has, which one was last, or what a click does.
 
 export type ShellCopy = Readonly<{
   rail: string;
@@ -22,22 +18,18 @@ export type ShellCopy = Readonly<{
    * sign-out (F36's addendum of 2026-10-16). */
   accountSettings: string;
   signOut: string;
-  /** The name of an Environment without its own name, by kind: an
-   * automated one is Pracovní, your own computer Váš počítač. */
+  /** The name of an Environment without its own name, by kind. */
   names: Readonly<Record<ShellEnvironmentKind, string>>;
   /** The kind on an Environment's second line, left out where the name
    * already says it (root decision 0170 addendum 2026-10-15; the brand
-   * voice, "Druh Prostředí stačí"): Osobní, Pracovní or Týmové, and on your
-   * own computer, which has no kind, Váš počítač. */
+   * voice, "Druh Prostředí stačí"). */
   kinds: Readonly<Record<ShellEnvironmentKind, string>>;
   /** A work Environment assigned to someone other than the viewer. */
   assignedTo: string;
   /** An Environment known not to run. */
   offline: string;
   pick: string;
-  /** The gear beside the picker, by the kind it opens the Settings of
-   * ("Nastavení Týmového Prostředí", the prototype's `SettingsGear`). */
-  settings: Readonly<Record<ShellEnvironmentKind, string>>;
+  settings: string;
   /** The gear on an Organization's Dashboard (F36's addendum of
    * 2026-10-05). */
   organizationSettings: string;
@@ -52,48 +44,23 @@ export type ShellCopy = Readonly<{
   choose: string;
   go: string;
   close: string;
-  /** The switch's name, with a token of `inKind`. */
   switchLabel: string;
   chat: string;
   apps: string;
   automate: string;
-  /** A missing app's title, with a token of `inKind`. */
   chatMissing: string;
   automateMissing: string;
   /** The quiet prompt under the switch while the Environment lacks a basic
    * (root decision 0201 point 2): "{done}" of "{total}" done. */
   setupPrompt: string;
   /** The quiet notice of the column head on a public Environment (root
-   * decision 0204 point 4, decision F55): one or two sentences, with a token
-   * of `inKind`. */
+   * decision 0204 point 4, decision F55): one or two sentences. */
   publicNotice: string;
   /** The rail on a host's page with nobody signed in (F36's addendum of
    * 2026-10-06): its accessible name, and the key's name and label. */
   signedOutRail: string;
   signIn: string;
-  /** The guide's card (decision F56): the step on, the last step, the way
-   * out, the answer while Začínáme wants attention, the invitation at the
-   * end of an explanation about Buddy for a person without one, and the
-   * neutral guide's name for assistive technology; the link to an
-   * explanation's documentation at its last step (F56's addendum of
-   * 2026-10-18). */
-  guideNext: string;
-  guideDone: string;
-  guideClose: string;
-  guideBusy: string;
-  guideInvite: string;
-  guideName: string;
-  guideDocs: string;
 }>;
-
-/** One word per kind of `lazurio.shell.v1`. */
-function byKind(
-  word: (kind: ShellEnvironmentKind) => string,
-): Readonly<Record<ShellEnvironmentKind, string>> {
-  return Object.freeze(
-    Object.fromEntries(shellEnvironmentKinds.map((kind) => [kind, word(kind)])),
-  ) as Readonly<Record<ShellEnvironmentKind, string>>;
-}
 
 const en: ShellCopy = {
   rail: "Organizations",
@@ -104,16 +71,24 @@ const en: ShellCopy = {
   account: "Lazurio account",
   accountSettings: "Account settings",
   signOut: "Sign out",
-  names: byKind((kind) => kindShort(kind, "en")),
-  kinds: byKind((kind) => kindShort(kind, "en")),
+  names: {
+    personal: "Personal",
+    work: "Work",
+    team: "Team",
+    automated: "Automated",
+    workstation: "This computer",
+  },
+  kinds: {
+    personal: "Personal",
+    work: "Work",
+    team: "Team",
+    automated: "Automated",
+    workstation: "Local",
+  },
   assignedTo: "assigned to {login}",
   offline: "offline",
   pick: "{name}, switch Environment",
-  settings: byKind((kind) =>
-    kind === "workstation"
-      ? "Settings of your computer"
-      : `${kindLabel(kind, "en")} Settings`,
-  ),
+  settings: "Environment Settings",
   organizationSettings: "Organization Settings",
   switcher: "Go to an Environment",
   searchIn: "Search in {name}…",
@@ -126,24 +101,17 @@ const en: ShellCopy = {
   choose: "choose",
   go: "go",
   close: "close",
-  switchLabel: "Apps of {this}",
+  switchLabel: "Apps of this Environment",
   chat: "Chat",
   apps: "Apps",
   automate: "Automate",
-  chatMissing: "Chat does not run {in this}",
-  automateMissing: "Automate does not run {in this}",
+  chatMissing: "Chat does not run on this Environment",
+  automateMissing: "Automate does not run on this Environment",
   setupPrompt: "Finish setting up ({done} of {total})",
   publicNotice:
-    "{This} is public and shared and is wiped every night. Do not enter personal data or sign in to your own accounts.",
+    "This Environment is public and shared and is wiped every night. Do not enter personal data or sign in to your own accounts.",
   signedOutRail: "Lazurio",
   signIn: "Sign in with your Lazurio account",
-  guideNext: "Next",
-  guideDone: "Got it",
-  guideClose: "Close",
-  guideBusy: "Finish Getting started first",
-  guideInvite: "Get your Buddy",
-  guideName: "Lazurio guide",
-  guideDocs: "Documentation",
 };
 
 const cs: ShellCopy = {
@@ -155,12 +123,24 @@ const cs: ShellCopy = {
   account: "Lazurio účet",
   accountSettings: "Nastavení účtu",
   signOut: "Odhlásit",
-  names: byKind((kind) => kindShort(kind, "cs")),
-  kinds: byKind((kind) => kindShort(kind, "cs")),
+  names: {
+    personal: "Osobní",
+    work: "Pracovní",
+    team: "Týmové",
+    automated: "Automatizované",
+    workstation: "Tento počítač",
+  },
+  kinds: {
+    personal: "Osobní",
+    work: "Pracovní",
+    team: "Týmové",
+    automated: "Automatizované",
+    workstation: "Místní",
+  },
   assignedTo: "přiřazeno {login}",
   offline: "offline",
   pick: "{name}, přepnout Prostředí",
-  settings: byKind((kind) => `Nastavení ${kindName(kind, { case: "gen" })}`),
+  settings: "Nastavení Prostředí",
   organizationSettings: "Nastavení Organizace",
   switcher: "Přejít na Prostředí",
   searchIn: "Hledat v {name}…",
@@ -173,27 +153,20 @@ const cs: ShellCopy = {
   choose: "vybrat",
   go: "přejít",
   close: "zavřít",
-  switchLabel: "Aplikace {tohoto}",
+  switchLabel: "Aplikace Prostředí",
   chat: "Chat",
   apps: "Apps",
   automate: "Automate",
-  chatMissing: "Chat {v tomto} neběží",
-  automateMissing: "Automate {v tomto} neběží",
+  chatMissing: "Chat v tomto Prostředí neběží",
+  automateMissing: "Automate v tomto Prostředí neběží",
   setupPrompt: "Dokončit nastavení ({done} ze {total})",
   publicNotice:
-    "{Toto} je veřejné a sdílené a každou noc se smaže. Nezadávejte sem osobní údaje a nepřihlašujte se ke svým účtům.",
+    "Toto Prostředí je veřejné a sdílené a každou noc se smaže. Nezadávejte sem osobní údaje a nepřihlašujte se ke svým účtům.",
   signedOutRail: "Lazurio",
   signIn: "Přihlásit Lazurio účtem",
-  guideNext: "Další",
-  guideDone: "Rozumím",
-  guideClose: "Ukončit",
-  guideBusy: "Nejdřív dokončete Začínáme",
-  guideInvite: "Založte si Buddyho",
-  guideName: "Průvodce Lazuriem",
-  guideDocs: "Dokumentace",
 };
 
-export const shellMessages = (locale: KindLocale): ShellCopy =>
+export const shellMessages = (locale: "cs" | "en"): ShellCopy =>
   locale === "cs" ? cs : en;
 
 /** `{name}` style placeholders filled with plain text. */

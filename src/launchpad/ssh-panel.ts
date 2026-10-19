@@ -43,6 +43,7 @@ export function createSshPanel(
     return element;
   };
   const status = find<HTMLParagraphElement>("#ssh-status");
+  const shared = find<HTMLParagraphElement>("#ssh-shared");
   const unsupported = find<HTMLParagraphElement>("#ssh-unsupported");
   const prompt = find<HTMLPreElement>("#ssh-prompt");
   const promptMissing = find<HTMLParagraphElement>("#ssh-prompt-missing");
@@ -395,6 +396,10 @@ export function createSshPanel(
     /** Whether the section was read once. */
     get loaded() {
       return overview !== null || loading;
+    },
+    /** A Team Environment's devices are the whole Team's. */
+    shared(team: boolean) {
+      shared.hidden = !team;
     },
   });
 }

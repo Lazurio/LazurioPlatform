@@ -15,7 +15,6 @@ import {
 } from "../update/service-control";
 import { unreadableHolderFiles } from "./contract/node";
 import { browserBounds } from "./contract/pure";
-import { isGithubLogin } from "./people/cookies";
 import {
   browserExtensionDigest,
   writeBrowserExtension,
@@ -64,94 +63,10 @@ export const browserProfileDirectory = (home: string) =>
 /** The virtual screen; no window grows past it. */
 export const browserScreenSize = Object.freeze({ width: 1920, height: 1080 });
 
-/** The gateway's loopback entry for the Environment browser itself
- * (LazurioPlatform#504, F39's addendum of 2026-10-18): its port
- * (`entry.browser.local_port`) and the Environment's own name, `<base>` of
- * every `https://<app>.<base>` (from `entry.modules.origin_template`). It
- * serves this Environment's own apps and modules without a sign-in, because
- * the Environment browser never holds a Lazurio session, and answers the
- * bare `<base>` with the hand-off to the person's own browser. */
-export type BrowserLocalEntry = Readonly<{ port: number; base: string }>;
-
 /** What the gateway tells the Environment about the view, from the handover
- * (`entry.browser`, Machines): where the person reaches it, the loopback
- * port the view service listens on and, where the gateway runs it, its
- * loopback entry for the browser itself (`local`). Never derived by
- * convention. */
-export type BrowserEntry = Readonly<{
-  origin: string;
-  listenPort: number;
-  local?: BrowserLocalEntry;
-}>;
-
-const dnsLabel = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
-const moduleTemplate = new RegExp(
-  `^https://\\{module\\}\\.(${dnsLabel}(?:\\.${dnsLabel})+)$`,
-);
-
-/** The Environment's own name from the handover's module origin template
- * (`https://{module}.<base>`): `<base>`, which must have at least three
- * labels (`<environment>.<organization>.lazurio.io`, or a personal
- * `<slug>.lazurio.io`), so a rule for it can never cover all of
- * `lazurio.io` or a top-level domain. Null for anything else. */
-export function environmentBaseOf(originTemplate: unknown): string | null {
-  if (typeof originTemplate !== "string" || originTemplate.length > 270)
-    return null;
-  const base = moduleTemplate.exec(originTemplate)?.[1];
-  return base !== undefined && base.split(".").length >= 3 ? base : null;
-}
-
-/** The loopback entry from the handover's members, or none: a port of the
- * schema's range and a base `environmentBaseOf` accepts. */
-export function browserLocalEntry(
-  localPort: unknown,
-  originTemplate: unknown,
-): BrowserLocalEntry | undefined {
-  const base = environmentBaseOf(originTemplate);
-  if (
-    base === null ||
-    !Number.isInteger(localPort) ||
-    (localPort as number) < 1024 ||
-    (localPort as number) > 65535
-  )
-    return undefined;
-  return Object.freeze({ port: localPort as number, base });
-}
-
-/** Chrome's resolver rule for the loopback entry (#504): every name of this
- * Environment, `*.<base>` and the bare `<base>`, resolves to the gateway's
- * loopback entry and its port. Chrome's `*.<base>` does not cover `<base>`
- * itself, so both are named. The URL, its Host, its cookies and its TLS name
- * stay the page's own; only where Chrome connects changes. Other
- * Environments, the Dashboard and the sign-in service resolve as before,
- * where the browser's policy blocks them (Machines). A proxy changes nothing
- * here: Chrome asks a proxy by the URL's name, before it resolves, and a
- * guest whose environment forces one already lists `<base>` and `.<base>` in
- * its `no_proxy` (Machines#586); `--proxy-bypass-list` would be ignored,
- * since Chrome reads it only with `--proxy-server`. */
-export function browserResolverRule(local: BrowserLocalEntry): string {
-  const target = `127.0.0.1:${local.port}`;
-  return `MAP *.${local.base} ${target},MAP ${local.base} ${target}`;
-}
-
-/** The browser's flags: `browserFlags`, and with the loopback entry its
- * resolver rule. Without it they are exactly `browserFlags`. */
-export function browserLaunchFlags(
-  local?: BrowserLocalEntry,
-): readonly string[] {
-  return local === undefined
-    ? browserFlags
-    : Object.freeze([
-        ...browserFlags,
-        `--host-resolver-rules=${browserResolverRule(local)}`,
-      ]);
-}
-
-/** One flag as a word of the unit's `sh -c '…'`: as it is, or in double
- * quotes when it holds a space or a `*`. No flag holds a quote, `$`, a
- * backquote or a backslash (`environmentBaseOf`). */
-const shellWord = (flag: string) =>
-  /^[A-Za-z0-9_%=.,:/+-]+$/.test(flag) ? flag : `"${flag}"`;
+ * (`entry.browser`, Machines): where the person reaches it and the loopback
+ * port the view service listens on. Never derived by convention. */
+export type BrowserEntry = Readonly<{ origin: string; listenPort: number }>;
 
 // Chrome for Testing as agent-browser installs it under the operator's home
 // (Machines: `agent-browser install`): the only path Machines' AppArmor
@@ -271,11 +186,11 @@ export function renderDisplayUnit(): string {
  * the Environment's sign-ins, stays. Optional (`-`): should the removal ever
  * fail, a browser with old tabs is better than none. Threads open their
  * windows again with `lazurio browser window`. */
-export function renderBrowserUnit(local?: BrowserLocalEntry): string {
+export function renderBrowserUnit(): string {
   const command = [
     `b=$$(ls -d ${chromeCandidates.join(" ")} 2>/dev/null | sort -V | tail -n 1)`,
     '[ -x "$$b" ] || exit 78',
-    `exec "$$b" ${browserLaunchFlags(local).map(shellWord).join(" ")} about:blank`,
+    `exec "$$b" ${browserFlags.join(" ")} about:blank`,
   ].join("; ");
   return [
     unitMarker,
@@ -348,7 +263,7 @@ export function renderBrowserUnits(
 ): Readonly<Record<BrowserUnit, string>> {
   return Object.freeze({
     [displayUnit]: renderDisplayUnit(),
-    [browserUnit]: renderBrowserUnit(entry.local),
+    [browserUnit]: renderBrowserUnit(),
     [browserViewUnit]: renderBrowserViewUnit(entry, selector),
   });
 }
@@ -665,48 +580,31 @@ export async function observeEnvironmentBrowser(
     if (active === "failed") return warn("browser-unit-failed", { unit });
     if (active !== "active") return warn("browser-unit-inactive", { unit });
   }
-  // An answer that is ok, and the GitHub login it names, if any.
   const answers = async (url: string) => {
     try {
       const response = await input.fetch(url, {
         redirect: "error",
         signal: AbortSignal.timeout(probeTimeoutMs),
       });
-      if (!response.ok) {
-        await response.body?.cancel();
-        return null;
-      }
-      const text = await response.text().catch(() => "");
-      let github: unknown;
-      try {
-        github = (JSON.parse(text) as { github?: unknown }).github;
-      } catch {}
-      return { github: isGithubLogin(github) ? github : null };
+      await response.body?.cancel();
+      return response.ok;
     } catch {
-      return null;
+      return false;
     }
   };
-  if (
-    (await answers(`http://127.0.0.1:${browserCdpPort}/json/version`)) === null
-  )
+  if (!(await answers(`http://127.0.0.1:${browserCdpPort}/json/version`)))
     return warn("browser-not-answering");
-  const view = await answers(
-    `http://127.0.0.1:${input.entry.listenPort}/.lazurio/health`,
-  );
-  if (view === null) return warn("browser-view-not-answering");
+  if (
+    !(await answers(
+      `http://127.0.0.1:${input.entry.listenPort}/.lazurio/health`,
+    ))
+  )
+    return warn("browser-view-not-answering");
   // Root decision 0191 point 32: the tabs such a file held at the hub's last
   // reading of it do not end until it can be read again, and a file the hub
   // has not read since the view started holds none. Doctor cannot tell which.
   const unreadable = await unreadableHolderFiles(input.env);
   if (unreadable.length > 0)
     return warn("browser-holder-unreadable", { files: unreadable.join(", ") });
-  // Whom the browser's kept github.com sign-in names (#504): signed in to
-  // GitHub as this login, a public name. None in a public Environment,
-  // whose view removes that sign-in.
-  return view.github === null
-    ? Object.freeze({ outcome: "ok" as const })
-    : Object.freeze({
-        outcome: "ok" as const,
-        context: Object.freeze({ github: view.github }),
-      });
+  return Object.freeze({ outcome: "ok" as const });
 }

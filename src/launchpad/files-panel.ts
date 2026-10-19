@@ -68,6 +68,7 @@ export function createFilesPanel(
   const status = find<HTMLParagraphElement>("#files-status");
   const announcer = find<HTMLParagraphElement>("#files-announce");
   const body = find<HTMLDivElement>("#files-body");
+  const shared = find<HTMLParagraphElement>("#files-shared");
   const drop = find<HTMLDivElement>("#files-drop");
   const dropText = find<HTMLParagraphElement>("#files-drop-text");
   const refreshButton = find<HTMLButtonElement>("#files-refresh");
@@ -602,6 +603,10 @@ export function createFilesPanel(
     relabel() {
       for (const upload of uploads) renderUpload(upload);
       render();
+    },
+    /** The Team note follows the preset, known once the profile is read. */
+    shared(value: boolean) {
+      shared.hidden = !value;
     },
   };
 }

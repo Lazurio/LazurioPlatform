@@ -45,8 +45,6 @@ export const en = {
     "This address is on the view of an Environment browser but links to no tab, so it does not open here.",
   addressRefusedScheme:
     "The Environment browser opens only http and https addresses here.",
-  handOff: "This page opens only in your own browser.",
-  openInYourBrowser: "Open in your browser",
 };
 export type Words = { readonly [K in keyof typeof en]: string };
 export const cs: Words = {
@@ -88,8 +86,6 @@ export const cs: Words = {
     "Tato adresa patří pohledu prohlížeče Prostředí, ale neodkazuje na žádnou záložku, takže se tu neotevře.",
   addressRefusedScheme:
     "Prohlížeč Prostředí tu otevírá jen adresy http a https.",
-  handOff: "Tato stránka se otevře jen ve vašem prohlížeči.",
-  openInYourBrowser: "Otevřít ve vašem prohlížeči",
 };
 
 export const words: Readonly<Record<"cs" | "en", Words>> = Object.freeze({

@@ -17,7 +17,6 @@ import {
   type ShellEnvironmentKind,
   type ShellOrganization,
   type ShellSetup,
-  type ShellTheme,
   shellSchema,
   workstationId,
 } from "../shell/contract";
@@ -239,9 +238,7 @@ export function ownerOrganization(
  * computer a workstation runs on; `setup` what the Environment still lacks
  * (root decision 0188, setup-state.ts), when the server knows it;
  * `ownerKey` the owning Organization's own slug as the Machine handover
- * names it (`owner.organization_key`), when it does; `theme` the
- * Environment's theme (root decision 0208, `shellThemeOf` of its record),
- * which `/.lazurio/shell.json` and the page's boot document always carry. */
+ * names it (`owner.organization_key`), when it does. */
 export function shellDocument(
   input: Readonly<{
     preset: PresetName;
@@ -251,7 +248,6 @@ export function shellDocument(
     computer?: string;
     setup?: ShellSetup;
     ownerKey?: string | null;
-    theme?: ShellTheme;
   }>,
 ): Shell {
   const { machine } = input;
@@ -351,7 +347,6 @@ export function shellDocument(
     // shell offers none.
     ...(entry?.signOutPath === undefined ? {} : { signOut: entry.signOutPath }),
     ...(visitors ? { audience: "public" as const } : {}),
-    ...(input.theme === undefined ? {} : { theme: input.theme }),
   };
   // The producer's own output passes the same parser as every consumer's.
   const parsed = parseShell(document);

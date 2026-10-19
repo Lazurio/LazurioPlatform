@@ -1309,36 +1309,3 @@ export function surfaceLanguageOf(value: unknown): "cs" | "en" | null {
 export function browserLanguage(language: string): "cs" | "en" {
   return language.toLowerCase().startsWith("cs") ? "cs" : "en";
 }
-
-// ---- The hand-off to the person's own browser (C18) ---------------------------
-
-/** The error Chrome gives a navigation that its policy blocks
- * (`ERR_BLOCKED_BY_ADMINISTRATOR`), as DevTools reports it in
- * `Network.loadingFailed`. The Environment browser's policy (Machines) blocks
- * the Lazurio pages that carry a person's account: the sign-in service, the
- * Dashboard, other Environments and this Environment's own Launchpad, T3
- * Code, Lazurio MausBot and view (F39's addendum of 2026-10-18). */
-export const blockedNavigationError = "net::ERR_BLOCKED_BY_ADMINISTRATOR";
-
-/** The address a person's view offers to open in the person's own browser
- * (F39's addendum of 2026-10-18, #504): that of a page whose navigation the
- * Environment browser's policy blocked (`blockedNavigationError`), an http or
- * https address without credentials. Null for any other failure, any other
- * address and anything else: the view never opens it inside. */
-export function handOffAddress(
-  errorText: unknown,
-  url: unknown,
-): string | null {
-  if (errorText !== blockedNavigationError || typeof url !== "string")
-    return null;
-  try {
-    const address = new URL(url);
-    return (address.protocol === "http:" || address.protocol === "https:") &&
-      address.username === "" &&
-      address.password === ""
-      ? address.href
-      : null;
-  } catch {
-    return null;
-  }
-}

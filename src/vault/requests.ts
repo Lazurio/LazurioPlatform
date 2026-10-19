@@ -21,7 +21,7 @@ export { isSecretRequestId } from "./request-id";
 // what an agent cannot get any other way, it asks a person for in words the
 // person understands (what it needs, why, and where in the service the
 // person finds it), with the fields it needs. The request waits in the
-// Environment's Launchpad (Apps → Trezor and its own page); any person
+// Environment's Launchpad (Nastavení → Trezor and its own page); any person
 // admitted to the Environment fills it in or declines it, without an account
 // in the vault, and the Environment saves the values as one Secure note in
 // its own vault, in the collection Agenti. The agent learns only the state

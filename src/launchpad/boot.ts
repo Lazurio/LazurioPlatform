@@ -11,15 +11,12 @@ import { parseEntryAnswer } from "./chat-view";
 // admission (boot-document.ts): there the request that brings the page is
 // already admitted, while a workstation's page is served without the token
 // its reads need. `<script type="application/json" id="lazurio-boot">`
-// holds `{schema, locale, shell, catalog, entry, vaultInApps}`: the
-// Folder's language, the `lazurio.shell.v1` document of `/.lazurio/shell.json`
-// without `setup` (which waits for GitHub), the catalog of `POST /api/catalog`,
-// the recorded entry's public parts of `GET /api/entry` and whether the Apps
-// column lists Trezor, as the server read the vault for this Environment
-// (F53's addendum of 2026-10-18 (3)), which no request of the page answers.
-// Every member is checked by the same parser as the answer it stands for; one
-// that does not parse is read by the page as before, and an absent or
-// malformed `vaultInApps` leaves Trezor to the page's preset.
+// holds `{schema, locale, shell, catalog, entry}`: the Folder's language,
+// the `lazurio.shell.v1` document of `/.lazurio/shell.json` without `setup`
+// (which waits for GitHub), the catalog of `POST /api/catalog` and the
+// recorded entry's public parts of `GET /api/entry`. Every member is checked
+// by the same parser as the answer it stands for; one that does not parse is
+// read by the page as before.
 
 export const bootSchema = "lazurio.launchpad-boot.v1";
 
@@ -33,9 +30,6 @@ export type LaunchpadBoot = Readonly<{
   shell: Shell | null;
   catalog: Catalog | null;
   entry: PublicEntry | null;
-  /** Whether the Apps column lists Trezor (`vaultListed`); null where the
-   * document does not say. */
-  vaultInApps: boolean | null;
 }>;
 
 /** The document as the text of its `<script type="application/json">`:
@@ -78,7 +72,5 @@ export function parseBoot(
       input.entry == null
         ? null
         : parseEntryAnswer({ kind: "entry", entry: input.entry }),
-    vaultInApps:
-      typeof input.vaultInApps === "boolean" ? input.vaultInApps : null,
   });
 }

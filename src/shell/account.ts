@@ -43,8 +43,7 @@ const debug: Debug = (message) => console.debug(message);
 export const accountCacheKey = "lazurio.account.v1";
 
 export type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-/** This origin's `localStorage`, where it can be reached; null otherwise. */
-export const browserStore = (): Store | null => {
+const browserStore = (): Store | null => {
   try {
     return typeof localStorage === "undefined" ? null : localStorage;
   } catch {

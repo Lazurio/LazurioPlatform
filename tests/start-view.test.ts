@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import type { ContentItem, ContentList } from "../src/launchpad/content-client";
 import type { ContentFact } from "../src/launchpad/content-view";
 import { messages } from "../src/launchpad/messages";
-import { pageRoute } from "../src/launchpad/routes";
 import {
   optionalRows,
   type StartFacts,
@@ -70,7 +69,7 @@ test("a new work Environment: AI now, GitHub after it, the content after GitHub"
         basic: "github",
         mark: "later",
         title: "GitHub",
-        status: "Nepřipojeno",
+        status: "Zpřístupní vaše repozitáře a moduly.",
       },
       {
         basic: "content",
@@ -423,7 +422,7 @@ test("GitHub once AI is there, then the content, then all done", () => {
     basic: "github",
     mark: "now",
     title: "GitHub",
-    status: "Nepřipojeno",
+    status: "Zpřístupní vaše repozitáře a moduly.",
   });
   expect(withAi?.github).toEqual({ enabled: true });
   expect(withAi?.intro).toBe("Hotovo 1 ze 3 kroků.");
@@ -617,10 +616,9 @@ test("the content step waits for AI even with GitHub connected (Pablo's review o
 });
 
 // "Trezor v Bitwardenu" (the wireframe's row of prototypes-lazurio 1eefc3d,
-// F53's addendum of 2026-10-16, plan DEV-6665): exactly where Apps → Trezor
-// (F53's addendum of 2026-10-18) gives the steps for Bitwarden in Codex
-// Desktop and the person's browser, its "Návod" leads there, to their
-// section. No state: the extension is on
+// F53's addendum of 2026-10-16, plan DEV-6665): exactly where Nastavení →
+// Trezor gives the steps for Bitwarden in Codex Desktop and the person's
+// browser, its "Návod" leads there, to their section. No state: the extension is on
 // the person's computer, where the Environment cannot see it.
 test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose page gives the steps, leading to them", () => {
   const remote = {
@@ -642,7 +640,7 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
       title: "Trezor v Bitwardenu",
       text: "Hesla z Trezoru Prostředí i v Codex Desktopu a ve vašem prohlížeči.",
       status: null,
-      action: { label: "Návod", to: "/vault", part: "bitwarden" },
+      action: { label: "Návod", to: "/settings/vault", part: "bitwarden" },
     },
     {
       id: "codex",
@@ -657,12 +655,9 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
     title: "Vault in Bitwarden",
     text: "Your Environment vault's passwords in Codex Desktop and your browser too.",
     status: null,
-    action: { label: "Guide", to: "/vault", part: "bitwarden" },
+    action: { label: "Guide", to: "/settings/vault", part: "bitwarden" },
   });
-  // Its "Návod" opens Trezor's page in the Apps column, not Settings.
-  const to = optionalRows(remote, cs)[1]?.action?.to;
-  expect(to === undefined ? null : pageRoute(to)).toEqual({ view: "vault" });
-  // The row follows the vault as Apps → Trezor reads it (`GET
+  // The row follows the vault as Nastavení → Trezor reads it (`GET
   // /api/vault`) and, for a Lazurio Vaultwarden, the person's membership
   // answer the page asks too (`offersBitwarden`): exactly where the page
   // gives the steps (Pablo's review of #465).

@@ -12,7 +12,6 @@ import { installPinnedBw, pinnedInstalled } from "./install";
 import { inviteeInvitation, settleInvitee } from "./invitee";
 import type { PilotContext } from "./legacy-0197/context";
 import {
-  pilotConnected,
   pilotEnv,
   pilotRefresh,
   pilotSecrets,
@@ -197,7 +196,7 @@ const creating = (facts: VaultFacts): VaultStatus => ({
 
 /** The agents' account a personal Environment's person connected, without
  * its file: never registered here; the person disconnects and connects it
- * again in Apps → Vault. */
+ * again in Settings → Vault. */
 const enteredAccountMissing = (facts: VaultFacts): VaultStatus =>
   failedStatus(facts, "account", "account-missing");
 
@@ -340,29 +339,9 @@ async function ownState(
   return { kind: "ready", account, recorded };
 }
 
-/** The Environment's vault answer as its status resolves it: the host's
- * context (`readVaultContext`), with a 0197 pilot resolved as `pilotStatus`
- * resolves it. A pilot whose account was connected stays the pilot; one
- * never connected is what the Environment itself answers, `no-vault` (the
- * host derives a pilot for every Organization's Environment on a network,
- * connected or not). `vaultStatus` and the Apps column's Trezor
- * (`vaultInAppsOf`, src/launchpad/boot-document.ts) both read it, so the
- * status and the listing never disagree. Only local files: neither bw nor
- * the vault is asked. */
-export async function vaultAnswer(
-  host: VaultHost,
-): Promise<
-  VaultContext | PilotContext | VaultUnsupported | VaultNeedsConnection
-> {
-  const context = await host.context();
-  if (context.kind !== "pilot") return context;
-  if (await pilotConnected(host.directory, context)) return context;
-  return Object.freeze({ kind: "unsupported", reason: "no-vault" });
-}
-
 /** `status`: local, no network, no mutation. */
 export async function vaultStatus(host: VaultHost): Promise<VaultStatus> {
-  const context = await vaultAnswer(host);
+  const context = await host.context();
   if (context.kind === "unsupported") return unsupportedStatus(context.reason);
   if (context.kind === "needs-connection") return needsConnectionStatus;
   if (context.kind === "pilot") return pilotStatus(host, context);

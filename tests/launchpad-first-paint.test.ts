@@ -63,18 +63,6 @@ test("the page's first frame is the frame its route shows", () => {
     "/marketplace/",
     "/marketplace//",
     "/marketplacex",
-    // Trezor in the Apps column (F53's addendum of 2026-10-18), and its old
-    // addresses in Settings, which open it too.
-    "/vault",
-    "/vault/",
-    "/vault/requests",
-    "/vault/requests/",
-    "/vault/requests/abcdefghijklmnopqrstuvwx",
-    "/vault/requests/x",
-    "/vault/requests/a/b",
-    "/vault/x",
-    "/vaultx",
-    "/settings/vaultx",
     "/settings",
     "/settings/",
     "/settings/start",

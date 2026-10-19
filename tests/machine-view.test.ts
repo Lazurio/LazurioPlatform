@@ -20,7 +20,7 @@ test.each([
   [
     "en",
     { kind: "automation", githubLogin: "example", githubId: 12345 },
-    "automations of an Organization persona; responsible operator example (GitHub id 12345)",
+    "an automated Environment of an Organization persona; responsible operator example (GitHub id 12345)",
   ],
   [
     "cs",
@@ -31,7 +31,7 @@ test.each([
   [
     "cs",
     { kind: "automation", githubLogin: "example", githubId: 12345 },
-    "Automatizace persony Organizace; odpovědný operátor example (GitHub id 12345)",
+    "Automatizované Prostředí persony Organizace; odpovědný operátor example (GitHub id 12345)",
   ],
 ] as const)(
   "the %s assignment line of %o reads %p",
@@ -96,7 +96,7 @@ test("a personal Remote Environment: yours; the kind says no one else works in i
       en,
     ).facts,
   ).toEqual([
-    ["Kind", "Personal Environment"],
+    ["Kind", "Personal Remote Environment"],
     ["Belongs to", "you (@octocat)"],
   ]);
 });
@@ -160,7 +160,7 @@ test("an Organization's Environments: its name, then the assignee, the Team or t
       }),
     ),
   ).toEqual([
-    ["Druh", "Pracovní Prostředí s automatizacemi"],
+    ["Druh", "Automatizované Prostředí"],
     ["Patří", "Example"],
     ["Pracuje v něm", "automatizace, odpovídá @octocat"],
   ]);
@@ -220,32 +220,4 @@ test("the technical facts are only under Pro podporu, a workstation says it is y
   ).toEqual({ facts: [["Druh", "Váš počítač"]], support: [] });
   expect(cs.machineSupport).toBe("Pro podporu");
   expect(en.machineSupport).toBe("For support");
-});
-
-// Decision F28's addendum of 2026-10-18 (root decision 0207, addendum of the
-// same day): the kind is one of three, an automated Environment a work one
-// with its automations, your own computer has none; a preset this release
-// does not know names no kind rather than a wrong one.
-test.each([
-  ["local", "Váš počítač", "Your computer"],
-  ["hosted-personal", "Osobní Prostředí", "Personal Environment"],
-  ["hosted-organization-personal", "Pracovní Prostředí", "Work Environment"],
-  ["hosted-organization-team", "Týmové Prostředí", "Team Environment"],
-  [
-    "hosted-organization-steward",
-    "Pracovní Prostředí s automatizacemi",
-    "Work Environment with automations",
-  ],
-  ["hosted-organization-unknown", "Prostředí", "Environment"],
-] as const)("the kind of %s reads %p and %p", (preset, czech, english) => {
-  for (const [copy, kind] of [
-    [cs, czech],
-    [en, english],
-  ] as const)
-    expect(
-      environmentFacts(
-        { preset, machine: null, organization: named, team: null },
-        copy,
-      ).facts,
-    ).toEqual([[copy.machineKind, kind]]);
 });

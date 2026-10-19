@@ -802,7 +802,7 @@ test("on an Environment's page the column head is the picker, the gear, the swit
                 (environment.apps.apps === "/"
                   ? "/settings"
                   : `${environment.apps.apps}settings`),
-              label: copy.settings[environment.kind],
+              label: copy.settings,
               current: active === "settings",
             },
             tabs: switchTabs(shell, copy, app),

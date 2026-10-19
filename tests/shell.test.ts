@@ -118,10 +118,10 @@ test("a workstation's document: this computer, every Organization of the Folder 
   });
   const current = shell.environments[0];
   if (current === undefined) throw new Error("The document has one");
-  // Your own computer has no kind: it is Váš počítač (F28's addendum of
-  // 2026-10-18), and its name already says so.
-  expect(environmentName(current, cs)).toBe("Váš počítač");
-  expect(environmentWho(current, cs)).toBe("");
+  expect(environmentName(current, cs)).toBe("Tento počítač");
+  // The kind beside the name, as the Dashboard words it (0170 addendum
+  // 2026-10-15, "Druh Prostředí stačí").
+  expect(environmentWho(current, cs)).toBe("Místní");
   // Named by its computer when the host name is known, never by a hosted
   // machine's name.
   const named = shellDocument({
@@ -132,12 +132,6 @@ test("a workstation's document: this computer, every Organization of the Folder 
     computer: "Example-MacBook.local",
   });
   expect(named.environments[0]?.label).toBe("Example-MacBook");
-  // Beside its computer's name it says what it is: your computer.
-  const laptop = named.environments[0];
-  if (laptop === undefined) throw new Error("The document has one");
-  expect(environmentName(laptop, cs)).toBe("Example-MacBook");
-  expect(environmentWho(laptop, cs)).toBe("Váš počítač");
-  expect(environmentWho(laptop, en)).toBe("Your computer");
   expect(
     shellDocument({
       preset: "local",
@@ -188,9 +182,9 @@ test("a workstation's document: this computer, every Organization of the Folder 
       tab.missing,
     ]),
   ).toEqual([
-    ["chat", null, false, "Chat na tomto počítači neběží"],
+    ["chat", null, false, "Chat v tomto Prostředí neběží"],
     ["apps", "/", true, null],
-    ["automate", null, false, "Automate na tomto počítači neběží"],
+    ["automate", null, false, "Automate v tomto Prostředí neběží"],
   ]);
 });
 
@@ -645,7 +639,7 @@ test("several Organizations: a space's Environments, its last one remembered, th
     ["vm-1.north", "Work", "assigned to @person-1", false],
     ["vm-2.north", "Work", "assigned to @person-2", false],
     ["vm-3.north", "Work", "assigned to @person-3", true],
-    ["laptop", "Your computer", "", false],
+    ["laptop", "This computer", "Local", false],
   ]);
   // ⌘⇧E: every space, each Organization with its head; "All
   // Organizations" under the picker: every space by its title, no head. A

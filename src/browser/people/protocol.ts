@@ -124,10 +124,6 @@ export type ServerMessage =
   | Readonly<{ t: "popup"; id: string; url: string }>
   /** The tab opened a new tab (no opener access): offer it. */
   | Readonly<{ t: "new-tab"; id: string; url: string }>
-  /** The Environment browser's policy blocked a page of the person's Lazurio
-   * account (F39's addendum of 2026-10-18, #504): offer to open it in the
-   * person's own browser, never inside. */
-  | Readonly<{ t: "hand-off"; url: string }>
   | Readonly<{
       t: "dialog";
       kind: "alert" | "confirm" | "prompt" | "beforeunload";

@@ -839,7 +839,7 @@ test("the personal space's starts: Chat and Automate lead where the switch's tab
       "Zadejte agentovi první úkol",
       { kind: "app", app: "chat", href: chat },
     ],
-    ["automate", "Automate", "Automate v tomto Osobním Prostředí neběží", null],
+    ["automate", "Automate", "Automate v tomto Prostředí neběží", null],
     ["integrations", "Integrace", "Připojte poštu a kalendář", integrations],
     ["files", "Soubory", "Nahrajte podklady pro agenty", files],
   ]);
@@ -847,8 +847,13 @@ test("the personal space's starts: Chat and Automate lead where the switch's tab
   // addendum, Q1): both muted, in English as the switch says it.
   expect(startsView(personalStarts(switchOf("en", "local", null), en))).toEqual(
     [
-      ["chat", "Chat", "Chat does not run on this computer", null],
-      ["automate", "Automate", "Automate does not run on this computer", null],
+      ["chat", "Chat", "Chat does not run on this Environment", null],
+      [
+        "automate",
+        "Automate",
+        "Automate does not run on this Environment",
+        null,
+      ],
       [
         "integrations",
         "Integrations",

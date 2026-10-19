@@ -52,7 +52,7 @@ export type VaultContext = Readonly<{
 
 /** A personal Environment whose handover names no vault and whose person has
  * not connected their own Bitwarden yet (root decision 0203 point 7): only
- * the person moves it on, in Apps → Vault; nothing runs for it. `name`
+ * the person moves it on, in Settings → Vault; nothing runs for it. `name`
  * is the name its vault gets once connected (`personalVaultName`), which
  * the page shows the person beforehand. */
 export type VaultNeedsConnection = Readonly<{

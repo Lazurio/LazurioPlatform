@@ -1,6 +1,5 @@
-import { browserStore, pageAccountJson } from "./account";
+import { pageAccountJson } from "./account";
 import {
-  currentEnvironment,
   parseShell,
   type Shell,
   type ShellAccount,
@@ -8,8 +7,6 @@ import {
   shellSchema,
 } from "./contract";
 import { installShellFonts } from "./fonts";
-import { createGuide, type GuideElement } from "./guide";
-import { createGuideLayer } from "./guide-layer";
 import { icon } from "./icons";
 import {
   drawIdentity,
@@ -17,7 +14,6 @@ import {
   organizationMark,
 } from "./identity-element";
 import { createIdentityResponder } from "./identity-protocol";
-import { inKind } from "./kind-name";
 import { appOf, keptVisit, reportLast } from "./last";
 import { fillShell, type ShellCopy, shellMessages } from "./messages";
 import { newTabElement } from "./new-tab-element";
@@ -25,11 +21,6 @@ import { registerGuide } from "./offline-guide";
 import { accountSourceOf, createShellState } from "./state";
 import { columnHeadCss, railCss, railWidth } from "./styles";
 import { applyTabIcon } from "./tab-icon";
-import {
-  createEnvironmentTheme,
-  environmentTheme,
-  type ThemeDocument,
-} from "./theme";
 import { installShellTokens } from "./tokens";
 import { vendorText } from "./vendor-text" with { type: "macro" };
 import {
@@ -64,12 +55,8 @@ import {
 // switch Chat · Apps · Automate).
 // Each draws into its own shadow root, so neither the host's styles nor these
 // leak across. The panel below the head stays the app's own.
-// `<lazurio-buddy>` (decision F56, guide.ts) is where the guide draws: a
-// "?" of the page (`data-guide-help`) makes Buddy, or without him the
-// neutral guide of Lazurio, explain the page in place. It draws nothing and
-// listens to nothing until the page hands over its explanations
-// (`provideGuides`); the forks, which place it and hand over nothing, are
-// unchanged. Buddy's bubble itself (root decision 0180) comes later.
+// `<lazurio-buddy>` is reserved for Buddy's bubble (decision 0180) and not
+// defined here.
 //
 // Data: the `lazurio.shell.v1` document. A host that has it calls
 // `provideShell`; otherwise the elements read `/.lazurio/shell.json` on
@@ -114,25 +101,9 @@ import {
 // promises there (F36's addendum of 2026-10-13): the brand fonts' faces
 // (fonts.ts) and the design system's tokens on the root with the mark
 // `data-lazurio-theme="light"` (tokens.ts), each once, and neither where the
-// document has them already; and since F36's addendum of 2026-10-18 (root
-// decision 0208) the Environment's theme over them (theme.ts): the one this
-// origin remembers as the script evaluates, then the document's.
+// document has them already.
 
 const logo = vendorText("symbol-color.svg");
-
-// The Environment theme of this page (theme.ts): declared in its document,
-// remembered on its origin, announced as `lazurio-theme`.
-const theme = createEnvironmentTheme({
-  document:
-    typeof document === "undefined"
-      ? null
-      : (document as unknown as ThemeDocument),
-  store: browserStore(),
-  announce: (change) =>
-    document.dispatchEvent(
-      new CustomEvent("lazurio-theme", { detail: change }),
-    ),
-});
 
 // The page's document, the person's account and the two merged (what the
 // elements draw), shared by every element of the page.
@@ -143,7 +114,6 @@ const state = createShellState({
   report: reportLast,
   guide: registerGuide,
   tabIcon: applyTabIcon,
-  theme: (shell) => theme.provide(shell.theme ?? null),
 });
 let requested = false;
 
@@ -163,65 +133,6 @@ export function provideShell(shell: Shell | ShellSignedOut): void {
 export function provideAccount(account: ShellAccount | null): void {
   state.provideAccount(account);
 }
-
-// The guide of this page (guide.ts): what it plays and when, drawn by
-// guide-layer.ts in each `<lazurio-buddy>`'s own shadow root.
-const guideLayers = new WeakMap<
-  GuideElement,
-  ReturnType<typeof createGuideLayer>
->();
-const guide = createGuide({
-  shell: () => state.drawn(),
-  copy: shellMessages,
-  follow: (changed) => state.listen(changed),
-  listenHelp: (play) => {
-    // A plain click of a "?" (`data-guide-help`), the keyboard's included:
-    // a button fires `click` for Enter and Space.
-    const click = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0) return;
-      const help = event
-        .composedPath()
-        .find(
-          (node): node is HTMLElement =>
-            node instanceof HTMLElement && node.dataset.guideHelp !== undefined,
-        );
-      if (help === undefined) return;
-      if (play(help.dataset.guideHelp ?? "", help)) event.preventDefault();
-    };
-    document.addEventListener("click", click);
-    return () => document.removeEventListener("click", click);
-  },
-  layer: (element) => {
-    let layer = guideLayers.get(element);
-    if (layer === undefined) {
-      layer = createGuideLayer(element as LazurioBuddy, logo);
-      guideLayers.set(element, layer);
-    }
-    return layer;
-  },
-  announce: (element, event) =>
-    (element as LazurioBuddy).dispatchEvent(
-      new CustomEvent("lazurio-guide", {
-        detail: event,
-        bubbles: true,
-        composed: true,
-      }),
-    ),
-});
-
-/** Hands over the explanations of the page the host shows now (decision
- * F56), replacing those before: a list of `{id, title, steps: [{text, sub?,
- * at?}]}`, each step pointing at a `data-guide` mark of the page; null
- * withdraws. Once a page hands them over and places `<lazurio-buddy>`, a "?"
- * (`data-guide-help="<id>"`) plays the explanation it names: one of these,
- * or one of the shell's principles. */
-export function provideGuides(guides: unknown): void {
-  guide.provide(guides);
-}
-
-/** The arbiter between the guide and a host's own onboarding tour: never
- * two at once. Not part of interface v1; the Launchpad's tour uses it. */
-export const guideAttention = guide.attention;
 
 function requestShell(): void {
   state.requestAccount();
@@ -248,61 +159,6 @@ function requestDocument(): void {
       if (shell !== null) provideShell(shell);
     })
     .catch(() => undefined);
-}
-
-// The page's document again when the page is shown again (F36's addendum of
-// 2026-10-18): on `visibilitychange` to visible and on `focus`, never by a
-// timer, so a change of the Environment's theme (or of what it lacks)
-// reaches a page without a reload. Only where the elements read the
-// document themselves and after their first read; one read at a time, and
-// none within `rereadGapMs` of the last, since both events come together.
-const rereadGapMs = 1_000;
-let rereading = false;
-let rereadAt = Number.NEGATIVE_INFINITY;
-function rereadDocument(): void {
-  if (
-    !requested ||
-    rereading ||
-    document.documentElement.dataset.lazurioShell === "host"
-  )
-    return;
-  const now = Date.now();
-  if (now - rereadAt < rereadGapMs) return;
-  rereading = true;
-  rereadAt = now;
-  fetch("/.lazurio/shell.json", {
-    credentials: "same-origin",
-    cache: "no-store",
-  })
-    .then((response) => (response.ok ? response.json() : null))
-    .then((value: unknown) => {
-      const shell = parseShell(value);
-      // Drawn again only when it says something else.
-      if (
-        shell !== null &&
-        JSON.stringify(shell) !== JSON.stringify(state.local())
-      )
-        provideShell(shell);
-    })
-    .catch(() => undefined)
-    .finally(() => {
-      rereading = false;
-    });
-}
-
-// The page's events that bring the theme (and the document) again: the
-// storage of another tab of this origin, and the page shown again.
-let watching = false;
-function watchEnvironmentTheme(): void {
-  if (watching) return;
-  watching = true;
-  window.addEventListener("storage", (event) => {
-    if (event.key === environmentTheme.cacheKey) theme.stored(event.newValue);
-  });
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) rereadDocument();
-  });
-  window.addEventListener("focus", () => rereadDocument());
 }
 
 // Where you last were in each space, in this browser: a click on a space in
@@ -1086,13 +942,7 @@ export class LazurioColumnHead extends ShellElement {
     const head = element("div", "head");
     head.append(row);
     // No switch on an Organization's Dashboard.
-    if (model.tabs !== null)
-      head.append(
-        this.appSwitch(
-          model.tabs,
-          inKind(copy.switchLabel, currentEnvironment(shell)?.kind ?? null),
-        ),
-      );
+    if (model.tabs !== null) head.append(this.appSwitch(model.tabs, copy));
     if (model.setup !== null) head.append(this.setupPrompt(model.setup));
     if (model.notice !== undefined)
       head.append(this.publicNotice(model.notice));
@@ -1129,9 +979,9 @@ export class LazurioColumnHead extends ShellElement {
   }
 
   /** The switch Chat · Apps · Automate. */
-  private appSwitch(tabs: readonly SwitchTab[], label: string): HTMLElement {
+  private appSwitch(tabs: readonly SwitchTab[], copy: ShellCopy): HTMLElement {
     const nav = element("nav", "switch");
-    nav.setAttribute("aria-label", label);
+    nav.setAttribute("aria-label", copy.switchLabel);
     nav.append(
       ...tabs.map((tab) => {
         const glyph = icon(tab.app, 16);
@@ -1167,23 +1017,6 @@ export class LazurioColumnHead extends ShellElement {
       }),
     );
     return nav;
-  }
-}
-
-/** `<lazurio-buddy>`: the guide's place on the page (decision F56). Its
- * `lang` picks the guide's language, else the shell document's. It makes
- * no shadow root and adds no listener of its own: the guide draws in it only
- * once the page takes part. */
-export class LazurioBuddy extends HTMLElement implements GuideElement {
-  static observedAttributes = ["lang"];
-  connectedCallback() {
-    guide.attach(this);
-  }
-  disconnectedCallback() {
-    guide.detach(this);
-  }
-  attributeChangedCallback() {
-    if (this.isConnected) guide.changed();
   }
 }
 
@@ -1243,19 +1076,12 @@ function answerFramedViews(): void {
   state.listen(() => responder.changed());
 }
 
-/** Defines the elements (once), declares the brand fonts, the design
- * system's tokens and the Environment theme in the document and answers
- * framed views of the Environment browser. The tokens, their mark and the
- * theme this origin remembers are declared synchronously, before anything
- * waits: `/.lazurio/shell.js` calls this as it evaluates, before the app's
- * own module runs (F36's addendum of 2026-10-18). */
+/** Defines the elements (once), declares the brand fonts and the design
+ * system's tokens in the document and answers framed views of the
+ * Environment browser. */
 export function defineShellElements(): void {
   installShellFonts(document);
   installShellTokens(document);
-  theme.start();
-  watchEnvironmentTheme();
-  // The document's theme even on a page that places no element.
-  requestDocument();
   if (!customElements.get("lazurio-rail"))
     customElements.define("lazurio-rail", LazurioRail);
   if (!customElements.get("lazurio-column-head"))
@@ -1269,8 +1095,6 @@ export function defineShellElements(): void {
         request: requestDocument,
       }),
     );
-  if (!customElements.get("lazurio-buddy"))
-    customElements.define("lazurio-buddy", LazurioBuddy);
   if (!customElements.get("lazurio-environment"))
     customElements.define(
       "lazurio-environment",

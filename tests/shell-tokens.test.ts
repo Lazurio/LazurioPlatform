@@ -9,7 +9,6 @@ import { shellElementInterface } from "../src/shell/interface";
 import { columnHeadCss, railCss } from "../src/shell/styles";
 import {
   installShellTokens,
-  shellColorSchemeCss,
   shellTheme,
   shellTokensCss,
   type TokenDocument,
@@ -67,15 +66,8 @@ test("the vendored tokens.css is exactly the shape the shell injects", async () 
     shapeProblems(designTokens),
     "src/shell/vendor/lazurio/tokens.css must be, without its comments, exactly one top-level `:root { … }` rule of `--lz-*` custom properties. The shell puts this text as it is into every app's document (src/shell/tokens.ts) and, as `:host`, into every element (src/shell/base-styles.ts), so anything else in it would restyle the apps. Keep the design system's file to its tokens, or change how the shell injects them before vendoring this copy (F36's addendum of 2026-10-13).",
   ).toEqual([]);
-  // What the document gets is that text without its comments, then the
-  // scheme of its values (F36's addendum of 2026-10-18): one rule of the one
-  // custom property, `light`, which MausBot's "Environment" skin keys on.
-  expect(shellTokensCss).toBe(
-    `${designTokens.replace(comments, "")}${shellColorSchemeCss}`,
-  );
-  expect(shellColorSchemeCss).toBe(
-    ":root { --lazurio-color-scheme: light; }\n",
-  );
+  // What the document gets is that text without its comments.
+  expect(shellTokensCss).toBe(designTokens.replace(comments, ""));
   expect(names.length).toBeGreaterThan(100);
 });
 
@@ -229,7 +221,7 @@ test("the elements resolve every token from their own :host, never from the docu
   // shadow tree. Their colours stay the app's roles over these (root
   // decision 0187).
   expect(hostTokens.replace(comments, "")).toBe(
-    designTokens.replace(comments, "").replace(":root", ":host"),
+    shellTokensCss.replace(":root", ":host"),
   );
   for (const css of [railCss, columnHeadCss, environmentCss]) {
     expect(css.startsWith(hostTokens)).toBe(true);

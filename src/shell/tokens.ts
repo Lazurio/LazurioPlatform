@@ -19,14 +19,6 @@ import { designTokens } from "./design-tokens";
 // read these: each declares the same tokens on its own `:host`, so no value
 // on the document reaches their shadow roots, and their colours stay the
 // app's roles (0187) over the design system's.
-//
-// Beside the tokens, in the same style, the one custom property that says
-// which colour scheme their values are in (F36's addendum of 2026-10-18,
-// root decision 0208): `--lazurio-color-scheme: light`, on every document
-// that gets the tokens, from the moment the script evaluates, with or
-// without an Environment theme. MausBot's "Environment" skin keys its code
-// palette on it. An Environment theme's dark values set it to `dark` where
-// they apply (theme.ts); nothing else changes it.
 
 /** The mark on `<html>` once the shell declared the tokens there (interface
  * v1, `declares.theme`). */
@@ -35,19 +27,12 @@ export const shellTheme = Object.freeze({
   value: "light",
 } as const);
 
-/** The vendored `tokens.css` without its comments. */
-const designTokensCss = designTokens.replace(/\/\*[\s\S]*?\*\//g, "");
-
-/** The scheme the tokens' values are in, declared with them (interface v1,
- * `declares.environmentTheme.properties`). */
-export const shellColorSchemeCss = ":root { --lazurio-color-scheme: light; }\n";
-
 /** What the shell puts in an app's document: the vendored `tokens.css`
- * without its comments, then the scheme of its values. */
-export const shellTokensCss = `${designTokensCss}${shellColorSchemeCss}`;
+ * without its comments. */
+export const shellTokensCss = designTokens.replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** The names it declares, in its order. */
-const tokenNames = [...designTokensCss.matchAll(/(--lz-[\w-]+)\s*:/g)].flatMap(
+const tokenNames = [...shellTokensCss.matchAll(/(--lz-[\w-]+)\s*:/g)].flatMap(
   (match) => (match[1] === undefined ? [] : [match[1]]),
 );
 

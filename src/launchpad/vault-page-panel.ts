@@ -1,7 +1,6 @@
 import type { BitwardenRegion } from "../vault/endpoints";
 import type { VaultStatus } from "../vault/flow";
 import { createGuideVideo } from "./guide-video";
-import type { VaultGuideFacts } from "./guides";
 import type { MessageKey } from "./messages";
 import {
   type BitwardenGuide,
@@ -32,7 +31,7 @@ type Copy = Readonly<Record<MessageKey, string>>;
 type Answer = Promise<{ value: unknown; ok: boolean }>;
 
 // Settings → Vault, Nastavení → Trezor (root decision 0198 point 5): the
-// Environment's vault with its state and the way into it, drawn
+// rule, the Environment's vault with its state and the way into it, drawn
 // from `vault-page-view.ts`. On first view the page reads the vault's state
 // as recorded here (`GET /api/vault`), then asks the vault itself (the
 // Tools row's refresh) and where the person stands in it (`POST
@@ -55,9 +54,8 @@ type Answer = Promise<{ value: unknown; ok: boolean }>;
 // (the server, and the person's own address where the membership answer
 // carries it) and the extension's own screens; Začínáme's "Návod" brings
 // them into view (`revealBitwarden`). An Environment without a vault says
-// why in the page's line. The rule and how a vault works are the "?" beside
-// the page's heading (decision F56's addendum of 2026-10-18, guides.ts),
-// chosen from what this panel read (`facts`, `drawn`).
+// why in the page's line and shows how a vault works in an Organization,
+// with its guide video at its poster (`#vault-explainer`, DEV-6631).
 export function createVaultPagePanel(
   options: Readonly<{
     get: (path: string) => Answer;
@@ -68,9 +66,6 @@ export function createVaultPagePanel(
     /** This Environment's Chat (T3 Code's origin as recorded), or null on a
      * workstation: the guide's button opens it as the shell's Chat does. */
     chat: () => string | null;
-    /** Called after the page is drawn: what its "?" plays may have changed
-     * (`facts`). */
-    drawn?: () => void;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -78,6 +73,7 @@ export function createVaultPagePanel(
     if (!element) throw new Error("Missing vault UI");
     return element;
   };
+  const rule = find<HTMLParagraphElement>("#vault-page-rule");
   const status = find<HTMLParagraphElement>("#vault-page-status");
   const note = find<HTMLParagraphElement>("#vault-page-note");
   const group = find<HTMLElement>("#vault-page-group");
@@ -134,6 +130,13 @@ export function createVaultPagePanel(
     copy: options.copy,
     locale: () => (document.documentElement.lang === "cs" ? "cs" : "en"),
   });
+  // How a vault works, where this Environment has none (DEV-6631): the guide
+  // video `vault-overview`, its player there from the start at its poster
+  // (guide-video.ts `open`), mounted the first time the section shows, so
+  // that not even its poster loads anywhere else.
+  const explainer = find<HTMLElement>("#vault-explainer");
+  const explainerVideoSlot = find<HTMLDivElement>("#vault-explainer-video");
+  let explainerVideo: Readonly<{ render(): void }> | null = null;
   // The extension's screens, one per picture and language, bundled with the
   // page; a step shows a copy of the one in the page's language.
   const pictures = [
@@ -312,8 +315,20 @@ export function createVaultPagePanel(
     disconnectButton.textContent = disconnecting
       ? copy.vaultDisconnecting
       : copy.vaultDisconnect;
+    rule.hidden = !view.rule;
     note.hidden = view.note === null;
     note.textContent = view.note ?? "";
+    explainer.hidden = !view.explainer;
+    if (view.explainer && explainerVideo === null)
+      explainerVideo = createGuideVideo(explainerVideoSlot, {
+        name: "vault-overview",
+        title: () => options.copy().vaultExplainerTitle,
+        describedBy: "vault-explainer-text",
+        copy: options.copy,
+        locale: () => (document.documentElement.lang === "cs" ? "cs" : "en"),
+        open: true,
+      });
+    explainerVideo?.render();
     group.hidden = view.row === null;
     name.textContent = view.row?.title ?? "";
     state.textContent = view.row?.line ?? "";
@@ -324,7 +339,6 @@ export function createVaultPagePanel(
     guide.hidden = !view.guide;
     guide.replaceChildren(...(view.guide ? guideOf(copy) : []));
     drawBitwarden(bitwardenGuide(model, person, copy, view), copy);
-    options.drawn?.();
   }
 
   /** The connection's section as the page knows it: the vault's name in its
@@ -723,19 +737,6 @@ export function createVaultPagePanel(
     /** Whether the section was read once. */
     get loaded() {
       return model !== null || loading;
-    },
-    /** What the page read, which its "?" is chosen by (guides.ts
-     * `vaultHelp`): the vault core's answer, newest first, and where the
-     * person stands in the vault; each null until read. */
-    get facts(): VaultGuideFacts {
-      const status = outcome ?? fresh ?? model?.status ?? null;
-      return {
-        vault:
-          model === null || status === null
-            ? null
-            : { status, environment: model.environment },
-        person,
-      };
     },
   });
 }

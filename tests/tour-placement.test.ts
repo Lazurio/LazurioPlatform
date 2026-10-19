@@ -4,7 +4,7 @@ import {
   type TourPlacement,
   tourPlacement,
   tourWidth,
-} from "../src/shell/guide-placement";
+} from "../src/launchpad/tour-placement";
 
 // Lazurio/LazurioPlatform#461 point 2: on a laptop, the bubble of the tour
 // that rings "Zkusit znovu" at the right edge of the content column ran past

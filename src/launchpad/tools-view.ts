@@ -297,6 +297,7 @@ export function organizationDetails(
 export type ToolGroup = Readonly<{
   tier: Tier;
   title: string;
+  note: string;
   tools: readonly ToolOverview[];
 }>;
 
@@ -312,17 +313,16 @@ export function toolGroups(
   tools: readonly ToolOverview[],
   copy: Copy,
 ): readonly ToolGroup[] {
-  // Each tier's heading alone: what the tiers mean is the "?"'s (decision
-  // F56's addendum of 2026-10-18).
-  const headings: Record<Tier, MessageKey> = {
-    required: "toolsTierRequired",
-    recommended: "toolsTierRecommended",
-    optional: "toolsTierOptional",
+  const headings: Record<Tier, readonly [MessageKey, MessageKey]> = {
+    required: ["toolsTierRequired", "toolsTierRequiredNote"],
+    recommended: ["toolsTierRecommended", "toolsTierRecommendedNote"],
+    optional: ["toolsTierOptional", "toolsTierOptionalNote"],
   };
   return tiers
     .map((tier) => ({
       tier,
-      title: copy[headings[tier]],
+      title: copy[headings[tier][0]],
+      note: copy[headings[tier][1]],
       tools: tools.filter(
         (tool) =>
           tool.tier === tier &&
@@ -682,61 +682,6 @@ export function curatedActions(
   };
 }
 
-/** What Nástroje's "?" can truthfully point at (decision F56's addendum (2)
- * of 2026-10-18; Pablo's review of #503), from what the page draws, in its
- * order: `connect`, where a person connects a tool with their own account
- * (in a Team Environment, a team account): the first sign-in or adding and
- * connecting, else the first connection someone made (its line "Připojeno
- * jako …"); and `agents`, the first switch "Používají agenti" the person can
- * move. Never a vault's or Executor's row (their own steps, not a person's
- * sign-in), a tool not offered here, a tool the Organization does not allow,
- * or gh of a Team Environment, which works as the Organization's identity
- * and signs nobody in. Null where there is none: the guide then leaves out
- * the steps that would point at it (guides.ts `toolsGuide`). */
-export type ToolGuideTargets = Readonly<{
-  connect: Readonly<{ tool: string; part: "action" | "state" }> | null;
-  agents: Readonly<{ tool: string }> | null;
-}>;
-
-export function toolGuideTargets(
-  groups: readonly ToolGroup[],
-  copy: Copy,
-  brokered: boolean,
-): ToolGuideTargets {
-  const shown = groups.flatMap((group) => group.tools);
-  // The rows either step may point at: offered here, and not the vault's
-  // or Executor's own row.
-  const eligible = shown.filter(
-    (tool) => tool.offered && !ownRows.includes(tool.name),
-  );
-  const personal = eligible.filter(
-    (tool) =>
-      tool.setup === "launchpad" &&
-      !githubActionRefused({ brokered, tool: tool.name, action: "login" }),
-  );
-  const action = personal.find((tool) => {
-    const primary = curatedActions(tool, copy, brokered).primary;
-    return primary !== null && primary.mode !== "install-only";
-  });
-  const connected = personal.find(
-    (tool) =>
-      tool.signIn?.state === "signed-in" &&
-      tool.organization?.allowed !== false,
-  );
-  const switched = eligible.find(
-    (tool) => tool.tier !== "required" && !organizationView(tool, copy).locked,
-  );
-  return {
-    connect:
-      action !== undefined
-        ? { tool: action.name, part: "action" }
-        : connected !== undefined
-          ? { tool: connected.name, part: "state" }
-          : null,
-    agents: switched === undefined ? null : { tool: switched.name },
-  };
-}
-
 /** The full next selection a request carries: the enabled tools that are not
  * required, with one of them switched, sorted and unique. A tool the
  * Organization decides is carried as the person chose it (decision F45). */
@@ -991,6 +936,15 @@ export function noticeHolds(
     notice.revision === overview.revision &&
     overview.tools.some((tool) => tool.name === notice.name)
   );
+}
+
+/** The line above the tools: when they were read. The Folder and its
+ * revision are nothing a person needs here (Matěj 2026-10-09), nor in
+ * Settings → General since F36's addendum of 2026-10-16. */
+export function checkedLine(at: Date, locale: "cs" | "en", copy: Copy): string {
+  return fill(copy.toolsChecked, {
+    time: at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
+  });
 }
 
 /** Only an https address of the catalog becomes a link. */
