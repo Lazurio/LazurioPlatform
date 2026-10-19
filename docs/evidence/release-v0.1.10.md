@@ -232,7 +232,19 @@ Running.
   |---|---|---|---|
   | 2026-10-19 19:15:43–19:15:53Z | work VM `f1040cafc798ecf0` | T3 Code 0.1.0-lazurio.3 → 0.1.0-preview.20261019.2. Only the T3 Code service restarted. | unchanged |
   | 2026-10-19 19:27:56–19:28:04Z and 19:38:57–19:40:52Z | work VM `f1040cafc798ecf0` | Read-only checks of Chat as the Owner: a new-chat page, one existing thread and the command palette. A thread's terminal drawer was opened and closed twice; no command ran in it. Three read-only file checks inside the guest (19:39:18, 19:40:11 and 19:40:54Z). No tab was added in the Environment Browser. | unchanged |
-  | 2026-10-19, within 20:31–20:43Z (planned) | work VM `f1040cafc798ecf0` | From that thread's terminal: a read-only look at its browser session variable, and one `xdg-open https://example.com`, which leaves one tab open in the Environment Browser. Its exact times follow. | |
+  | 2026-10-19 20:31:23–20:37:29Z | work VM `f1040cafc798ecf0` | Read-only checks of Chat as the Owner. One `xdg-open https://example.com` from a Chat thread's terminal, at 20:34:08–20:34:11Z, left one tab open in the Environment Browser. T3 Code's persistent shell for that thread, started at 19:39:53Z, stays open with nothing run in it. | unchanged |
+  | 2026-10-19 21:07:17–21:07:39Z | personal VM `482d0d709bcc19df` | T3 Code 0.1.0-lazurio.3 → 0.1.0-lazurio.4, after a check and a backup. Only the T3 Code service restarted. | unchanged |
+  | 2026-10-19 21:30:33–21:31:13Z | work VMs `a2a75fc428e8dbad` (21:30:33–21:30:48Z), `146fb920b36d943c` (21:30:48–21:30:58Z) and `f1040cafc798ecf0` (21:30:58–21:31:13Z) | T3 Code → 0.1.0-lazurio.4, each after a check and a backup: from 0.1.0-lazurio.3 on the first two, and from 0.1.0-preview.20261019.2 on the third. Only the T3 Code service restarted. A readback right after found all three serving 0.1.0-lazurio.4, with the service active and the Platform still on `0.1.10-rc.1`. | unchanged |
+
+  The T3 Code updates to 0.1.0-lazurio.4 ran on the Operator's go of 20:41:38Z.
+
+- **In the pilot Organization, outside the stage's Machines:** its Conglomerate Host got Machines
+  v0.12.182.
+  - It was applied 21:01:37–21:06:45Z, and came out healthy (33 of 33 checks).
+  - For this host only, the Operator waived the rollout runbook's rule that a running canary
+    closes first.
+  - The host is not on the path of the stage's rounds, which read the work VMs through their own
+    host. People reach the Environments without it.
 
 When it has ended:
 - its record replaces the one in this pull request;
