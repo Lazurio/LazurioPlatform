@@ -2,14 +2,23 @@ import { expect, test } from "bun:test";
 import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chatDefaults, recommendedChatModel } from "../src/chat/defaults";
+import {
+  type ChatDefaults,
+  chatDefaults,
+  recommendedChatModel,
+} from "../src/chat/defaults";
 import type { Converse } from "../src/tools/ai-probe";
 import type { ToolsEnvironment } from "../src/tools/overview";
 
 test("read-only Chat status and apply use T3's native owner; custom choices survive", async () => {
   const home = await realpath(await mkdtemp(join(tmpdir(), "chat-defaults-")));
   try {
-    await writeFile(join(home, "t3"), "#!/bin/sh\nexit 1\n", { mode: 0o700 });
+    for (const name of ["t3", "codex"])
+      await writeFile(join(home, name), "#!/bin/sh\nexit 1\n", {
+        mode: 0o700,
+      });
+    // Codex answers that its configuration pins no model.
+    const { converse } = codexAnswering(configRead(null));
     let current: unknown = null;
     let managed: unknown = null;
     const calls: string[][] = [];
@@ -31,7 +40,7 @@ test("read-only Chat status and apply use T3's native owner; custom choices surv
         };
       },
     };
-    expect((await chatDefaults(tools)).state).toBe("outdated");
+    expect((await chatDefaults(tools, { converse })).state).toBe("outdated");
     expect(calls[0]).toEqual([
       join(home, "t3"),
       "lazurio",
@@ -41,24 +50,28 @@ test("read-only Chat status and apply use T3's native owner; custom choices surv
     ]);
     current = managed = recommendedChatModel;
     expect(
-      (await chatDefaults(tools, { apply: true, folder: home })).state,
+      (await chatDefaults(tools, { apply: true, folder: home, converse }))
+        .state,
     ).toBe("managed");
     current = {
       ...recommendedChatModel,
       options: [{ id: "reasoningEffort", value: "low" }],
     };
-    expect((await chatDefaults(tools)).state).toBe("custom");
+    expect((await chatDefaults(tools, { converse })).state).toBe("custom");
     current = managed = { instanceId: "codex", model: "previous", options: [] };
-    expect((await chatDefaults(tools)).state).toBe("outdated");
+    expect((await chatDefaults(tools, { converse })).state).toBe("outdated");
     expect(
-      await chatDefaults({
-        ...tools,
-        run: async () => ({
-          exitCode: 0,
-          stdout: '{"version":1}',
-          stderr: "secret",
-        }),
-      }),
+      await chatDefaults(
+        {
+          ...tools,
+          run: async () => ({
+            exitCode: 0,
+            stdout: '{"version":1}',
+            stderr: "secret",
+          }),
+        },
+        { converse },
+      ),
     ).toEqual({
       kind: "chat-defaults",
       state: "unavailable",
@@ -75,9 +88,11 @@ test("read-only Chat status and apply use T3's native owner; custom choices surv
 // Chat's model comes from the Environment's Codex configuration (root
 // decision 0209 and the 0204 addendum of 2026-10-19): when Codex's own
 // `config/read` resolves a `model` (Machines' system file, the operator's own
-// file), that model is the recommendation; without one, or without an
-// answer, the Platform's own stays. T3's reconciliation (F51) keeps a
-// person's own choice either way; the fake T3 below does what T3 does.
+// file), that model is the recommendation; when Codex answers that it pins
+// none, the Platform's own. Without Codex's answer the model is not known and
+// T3 is left as it is, since a gateway that admits only the pinned model
+// would refuse the Platform's own. T3's reconciliation (F51) keeps a person's
+// own choice; the fake T3 below does what T3 does.
 
 type Selection = Readonly<{
   instanceId: string;
@@ -95,11 +110,13 @@ async function environment(start: {
   let current = start.current;
   let managed = start.lastManaged;
   const written: unknown[] = [];
+  const t3 = { calls: 0 };
   const tools: ToolsEnvironment = {
     home,
     path: home,
     platform: "linux",
     run: async (argv) => {
+      t3.calls += 1;
       if (argv.length === 6) {
         const { selection } = JSON.parse(argv[5] ?? "");
         written.push(selection);
@@ -122,6 +139,7 @@ async function environment(start: {
     home,
     tools,
     written,
+    t3,
     done: () => rm(home, { recursive: true, force: true }),
   };
 }
@@ -251,55 +269,77 @@ test("a model the person chose in Chat wins over the one Codex's configuration p
   }
 });
 
-test("when Codex's config/read fails Chat keeps the Platform's default and is not blocked", async () => {
-  for (const answer of [
-    "timeout",
-    "failed",
-    { id: 1, error: { code: -32601, message: "Method not found" } },
-    { id: 1, result: { config: { model: 7 } } },
-    { id: 1, result: { config: { model: "two\nlines" } } },
-    { id: 1, result: null },
+test("without Codex's answer, apply writes nothing and says why; a managed pinned model stays", async () => {
+  const luna = { ...recommendedChatModel, model: "gpt-6-luna" };
+  const unreadable: ChatDefaults = {
+    kind: "chat-defaults",
+    state: "unavailable",
+    reason: "codex-config-unreadable",
+  };
+  const throwing: Converse = async () => {
+    throw new Error("spawn failed");
+  };
+  for (const talk of [
+    codexAnswering("timeout").converse,
+    codexAnswering("failed").converse,
+    codexAnswering({
+      id: 1,
+      error: { code: -32601, message: "Method not found" },
+    }).converse,
+    codexAnswering({ id: 1, result: { config: { model: 7 } } }).converse,
+    codexAnswering({ id: 1, result: { config: { model: "two\nlines" } } })
+      .converse,
+    codexAnswering({ id: 1, result: { config: null } }).converse,
+    codexAnswering({ id: 1, result: null }).converse,
+    throwing,
   ]) {
-    const env = await environment({ current: null, lastManaged: null });
+    // T3 holds the pinned model the Platform last wrote.
+    const env = await environment({ current: luna, lastManaged: luna });
     try {
-      const codex = codexAnswering(answer);
       expect(
         await chatDefaults(env.tools, {
           apply: true,
           folder: env.home,
-          converse: codex.converse,
+          converse: talk,
         }),
-      ).toEqual({ kind: "chat-defaults", state: "managed" });
-      expect(env.written).toEqual([recommendedChatModel]);
+      ).toEqual(unreadable);
+      // The read-only check does not compare with the Platform's own either.
+      expect(await chatDefaults(env.tools, { converse: talk })).toEqual(
+        unreadable,
+      );
+      expect(env.t3.calls).toBe(0);
+      expect(env.written).toEqual([]);
+      // Once Codex answers again, the pinned model is still Chat's.
+      expect(
+        (
+          await chatDefaults(env.tools, {
+            converse: codexAnswering(configRead("gpt-6-luna")).converse,
+          })
+        ).state,
+      ).toBe("managed");
     } finally {
       await env.done();
     }
   }
-  // A Codex that throws, and no Codex on PATH at all.
+  // No Codex on PATH: it is never started and nothing is written.
   const env = await environment({ current: null, lastManaged: null });
   try {
     await rm(join(env.home, "codex"));
     let asked = false;
     const converse: Converse = async () => {
       asked = true;
-      throw new Error("spawn failed");
+      return "failed";
     };
     expect(
-      (
-        await chatDefaults(env.tools, {
-          apply: true,
-          folder: env.home,
-          converse,
-        })
-      ).state,
-    ).toBe("managed");
+      await chatDefaults(env.tools, {
+        apply: true,
+        folder: env.home,
+        converse,
+      }),
+    ).toEqual(unreadable);
     expect(asked).toBe(false);
-    await writeFile(join(env.home, "codex"), "#!/bin/sh\nexit 1\n", {
-      mode: 0o700,
-    });
-    expect((await chatDefaults(env.tools, { converse })).state).toBe("managed");
-    expect(asked).toBe(true);
-    expect(env.written).toEqual([recommendedChatModel]);
+    expect(env.t3.calls).toBe(0);
+    expect(env.written).toEqual([]);
   } finally {
     await env.done();
   }
