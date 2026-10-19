@@ -88,7 +88,17 @@
 // after the mode, the fictional person jana already has her Lazurio account
 // with a master password in the hosted work Environment's vault, so Apps →
 // Trezor adds and confirms her and finds her a member: the vault's video
-// stands open first (F56's addendum (4) of 2026-10-19). Synthetic names only;
+// stands open first (F56's addendum (4) of 2026-10-19). With `gh-signed-out`
+// or `gh-no-ssh` anywhere after the mode, gh is the curated sign-in's own
+// fake (tests/fixtures/fake-login-tools.ts) beside a fake `ssh`, the
+// system's `ssh-keygen` and `git`, all on the synthetic home (decision F19,
+// addendum of 2026-10-19), and the Organization provides the AI (a fake
+// codex), so Začínáme offers GitHub's step at once: `gh-signed-out` starts
+// signed out, and its device code is confirmed by creating the file
+// `ghApprove` of the JSON line, as the person's confirmation on GitHub
+// would; `gh-no-ssh` starts signed in as octocat without an SSH key, so
+// GitHub is connected badly. With `gh-slow` each step of the SSH key takes
+// 4 s, so the window can be closed while it links. Synthetic names only;
 // stop it with Ctrl-C.
 import {
   chmod,
@@ -125,12 +135,14 @@ import {
   writeModule,
   writeOrganization,
 } from "../tests/fixtures/catalog-folder";
+import { fakeAiClis } from "../tests/fixtures/fake-ai-clis";
 import {
   cloudHost,
   startFakeBitwardenCloud,
 } from "../tests/fixtures/fake-bitwarden-cloud";
 import { executorWorld } from "../tests/fixtures/fake-executor";
 import { startFakeExecutor } from "../tests/fixtures/fake-executor-api";
+import { fakeLoginTools } from "../tests/fixtures/fake-login-tools";
 import {
   fakeBw,
   fakeHost,
@@ -169,6 +181,14 @@ const composioOrgMissing = process.argv
 const composioSignedOut = process.argv.slice(3).includes("composio-signed-out");
 const bitwardenUs = process.argv.slice(3).includes("bitwarden-us");
 const vaultMemberPerson = process.argv.slice(3).includes("vault-member");
+// gh as the curated sign-in's own fake (#515, #516), signed out or signed
+// in without an SSH key; null: the stand-in that answers signed in.
+const ghFake = process.argv.slice(3).includes("gh-signed-out")
+  ? "signed-out"
+  : process.argv.slice(3).includes("gh-no-ssh")
+    ? "no-ssh"
+    : null;
+const ghSlow = process.argv.slice(3).includes("gh-slow");
 const noVault =
   process.argv
     .slice(3)
@@ -404,10 +424,31 @@ async function writeExample() {
 // and the Tools page reads no real tool or sign-in.
 const home = join(parent, "home");
 await mkdir(join(home, "bin"), { recursive: true });
-for (const tool of ["gh", "t3"])
+for (const tool of ghFake === null ? ["gh", "t3"] : ["t3"])
   await writeFile(join(home, "bin", tool), "#!/bin/sh\nexit 1\n", {
     mode: 0o755,
   });
+// The sign-in's own fake gh, ssh and the system's ssh-keygen on the
+// synthetic home, and git for the Git identity the sign-in sets there. The
+// Organization provides the AI (a fake codex whose provider needs no
+// sign-in), so Začínáme offers GitHub's step at once.
+const ghTools = ghFake === null ? null : await fakeLoginTools(home, ["gh"]);
+if (ghFake !== null) {
+  const git = Bun.which("git");
+  if (git !== null) await symlink(git, join(home, "bin", "git"));
+  await fakeAiClis(home, ["codex"]);
+  await writeFile(join(home, "codex.provided"), "");
+  if (ghFake === "no-ssh") {
+    await writeFile(join(home, "gh.state"), "octocat\n");
+    await writeFile(
+      join(home, "gh.scopes"),
+      "gist read:org repo admin:public_key\n",
+    );
+  }
+  if (ghSlow)
+    for (const step of ["ssh-key-add", "api-meta", "ssh"])
+      await writeFile(join(home, `slow.${step}`), "4");
+}
 // Integrace (decision F42): a fake composio signed in, with an active account
 // named only by `link --list`, an expired one, and for Gmail an expired
 // account beside a sign-in nobody finished, which the page leaves out (F42
@@ -832,7 +873,11 @@ const app = await startLaunchpad(
   // no real account or T3 Code is asked.
   toolsEnvironmentOf(
     {
-      PATH: `${join(home, "bin")}:${join(home, ".local", "bin")}`,
+      // The sign-in's own fake gh needs its private utilities too.
+      PATH:
+        ghTools === null
+          ? `${join(home, "bin")}:${join(home, ".local", "bin")}`
+          : `${join(home, "bin")}:${ghTools}`,
       HOME: home,
     },
     process.platform,
@@ -860,7 +905,8 @@ const app = await startLaunchpad(
               }),
               stderr: "",
             }
-          : command[0]?.endsWith("/gh") &&
+          : ghFake === null &&
+              command[0]?.endsWith("/gh") &&
               command.slice(1).join(" ") === "auth status --json hosts"
             ? {
                 exitCode: 0,
@@ -880,7 +926,9 @@ const app = await startLaunchpad(
                 stderr: "",
               }
             : // composio answers its own version (the fake's state).
-              command[1] === "--version" && !command[0]?.endsWith("/composio")
+              command[1] === "--version" &&
+                !command[0]?.endsWith("/composio") &&
+                !(ghFake !== null && command[0]?.endsWith("/gh"))
               ? { exitCode: 0, stdout: "t3 v0.0.45-lazurio.2\n", stderr: "" }
               : command[1] === "auth" && command[2] === "pairing"
                 ? {
@@ -970,5 +1018,7 @@ console.log(
     ...(composioSignedOut
       ? { composioApprove: join(home, ".fake-composio", "approve") }
       : {}),
+    // The person's confirmation of gh's device code on GitHub: create it.
+    ...(ghFake === null ? {} : { ghApprove: join(home, "approve") }),
   }),
 );
