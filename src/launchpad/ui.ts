@@ -987,10 +987,18 @@ const integrations = createIntegrationsPanel({
     if (!browser.showView(view))
       window.open(view, "_blank", "noopener,noreferrer");
   },
+  // Composio's sign-in asked for by a card (decision F42, note of
+  // 2026-10-19): the tools are read live first, so a card read before
+  // Composio's sign-in or its "Používají agenti" never sends the person
+  // away; only signed out does Settings → Tools open its sign-in.
   signInComposio: async () => {
+    await tools.refresh({ signIn: true });
+    const composio = toolsOverview?.tools.find(
+      (tool) => tool.name === "composio",
+    );
+    if (composio?.signIn?.state === "signed-in") return "signed-in";
     shell.navigate(settingsPath("tools"));
-    await tools.refresh();
-    return tools.openSignIn("composio");
+    return tools.openSignIn("composio") ? "opened" : "settings";
   },
   admin: async () => {
     const key = catalog.soleOrganization();
@@ -1454,6 +1462,9 @@ const tools = createToolsPanel({
     if (githubSeen !== "connected" && github === "connected")
       void content.refresh({ restore: false });
     githubSeen = github;
+    // A tool installed, or switched on or off for agents, changes what
+    // connects the apps too (decision F42, note of 2026-10-19).
+    if (!isPublicEnvironment(entry)) integrations.toolsRead(overview);
     content.render();
     startByItself();
     firstRun();

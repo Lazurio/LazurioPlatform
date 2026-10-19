@@ -45,6 +45,7 @@ const sourceStates = new Set([
   "absent",
   "unreadable",
   "signed-out",
+  "off",
   "not-allowed",
   "organization",
 ]);
@@ -321,6 +322,9 @@ export function cardView(
      * Admin's "Nastavit v Dashboardu" and "Povolit Composio" open. */
     dashboard: boolean;
     copy: Copy;
+    /** Composio is signed in here but off for agents (the reading's
+     * `sources.composio` is `off`, decision F42's note of 2026-10-19). */
+    composioOff?: boolean;
   }>,
 ): CardView {
   const { copy } = options;
@@ -336,6 +340,22 @@ export function cardView(
     own.length > 0 &&
     own.every((account) => account.state === "pending");
   const label = pathLabel(choice, copy);
+  // Composio signed in, but its "Používají agenti" off: the card says so in
+  // the switch's words and opens Settings → Tools, where the switch is,
+  // instead of asking for a sign-in that is there (decision F42, note of
+  // 2026-10-19).
+  if (
+    choice.path === "composio" &&
+    choice.signIn &&
+    options.composioOff === true
+  )
+    return {
+      line: copy.integrationsComposioOff,
+      connected: false,
+      pathLabel: null,
+      action: { kind: "open-tools", label: copy.integrationsOpenTools },
+      composio: false,
+    };
   if (choice.path === "tool")
     return {
       line: about,
@@ -939,4 +959,24 @@ export function monogram(name: string): string {
 /** The tools a person can open for an app only its tool connects. */
 export function toolOf(choice: PathChoice): AppTool | null {
   return choice.path === null && choice.missing === "tool" ? choice.tool : null;
+}
+
+/** Which tools are installed and on for agents, as the tools' reading says
+ * (decision F42, note of 2026-10-19). Composio connects apps only installed,
+ * signed in and on for agents, so when this changes the page reads the
+ * Integrace again, as it does when a sign-in changes: after a sign-in,
+ * "Používají agenti" goes on only after the reading the sign-in caused. */
+export function toolStatesKey(
+  overview: Readonly<{
+    tools: readonly Readonly<{
+      name: string;
+      installed: boolean;
+      enabled: boolean;
+    }>[];
+  }> | null,
+): string {
+  return JSON.stringify(
+    overview?.tools.map((tool) => [tool.name, tool.installed, tool.enabled]) ??
+      null,
+  );
 }

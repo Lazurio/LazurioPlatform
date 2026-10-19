@@ -64,6 +64,7 @@ import {
   serverLine,
   sourceLines,
   tabLabels,
+  toolStatesKey,
   visibleApps,
 } from "./integrations-view";
 import type { MessageKey } from "./messages";
@@ -133,9 +134,11 @@ export function createIntegrationsPanel(
     navigate: (path: string) => void;
     /** Opens the right panel on the Environment browser's view. */
     showBrowser: (view: string) => void;
-    /** Opens Composio's sign-in of Settings → Tools; false when it could
-     * not (the page then just goes there). */
-    signInComposio: () => Promise<boolean>;
+    /** Composio's sign-in, read live first (decision F42, note of
+     * 2026-10-19): `signed-in` where Composio is signed in here after all,
+     * and nothing else happens; otherwise Settings → Tools is shown, with
+     * its sign-in `opened` where it could open. */
+    signInComposio: () => Promise<"signed-in" | "opened" | "settings">;
     /** Whether the person is the Organization's Admin or Owner (GitHub's
      * answer); false where it is not known. */
     admin: () => Promise<boolean>;
@@ -213,6 +216,9 @@ export function createIntegrationsPanel(
   /** "Odpojit" of each account from its confirmation until the reading
    * after it (`Removal`). */
   let removals: Removals = new Map();
+  /** Which tools are installed and on for agents, as last reported
+   * (`toolsRead`); null before the first report. */
+  let toolStates: string | null = null;
   /** Composio's update from this page (`ComposioUpdate`). */
   let updating: ComposioUpdate = "idle";
   /** The way to Composio's Apps and back (`composioTrip`). */
@@ -533,10 +539,36 @@ export function createIntegrationsPanel(
     if (reason === "name-required") {
       formNeedsName = true;
       forming = app;
-    } else if (reason === "composio-signed-out") {
-      if (!(await options.signInComposio()))
-        options.navigate(settingsPath("tools"));
+    } else if (reason === "composio-signed-out") void composioFirst(app);
+    render();
+  }
+
+  /** "Připojit" where the page's reading asks for Composio's sign-in, or a
+   * connect refused for it (decision F42, note of 2026-10-19). Composio is
+   * read live first: signed in, the page reads the Integrace again and the
+   * card connects, or says that Composio is off for agents; signed out, its
+   * sign-in opens in Settings → Tools, as before. */
+  async function composioFirst(id: string) {
+    const answer = await options.signInComposio();
+    if (answer !== "signed-in") {
+      say(options.copy().integrationsComposioSignIn, "info");
+      return;
     }
+    note = null;
+    await load(true);
+    const app = overview?.apps.find((item) => item.id === id);
+    if (app?.path.path === "composio" && !app.path.signIn) form(app, false);
+  }
+
+  /** The connect form of an app's card: opened, or closed again where
+   * `toggle` and it is open. */
+  function form(app: IntegrationApp, toggle: boolean) {
+    forming = toggle && forming === app.id ? null : app.id;
+    formName = "";
+    formNeedsName =
+      app.accounts.some(
+        (account) => !account.spare && account.state === "connected",
+      ) && app.path.path === "composio";
     render();
   }
 
@@ -849,19 +881,10 @@ export function createIntegrationsPanel(
   function act(app: IntegrationApp, action: CardAction, line: string) {
     if (action.kind === "connect") {
       if (app.path.path === "composio" && app.path.signIn) {
-        void options.signInComposio().then((opened) => {
-          if (!opened) options.navigate(settingsPath("tools"));
-        });
-        say(options.copy().integrationsComposioSignIn, "info");
+        void composioFirst(app.id);
         return;
       }
-      forming = forming === app.id ? null : app.id;
-      formName = "";
-      formNeedsName =
-        app.accounts.some(
-          (account) => !account.spare && account.state === "connected",
-        ) && app.path.path === "composio";
-      render();
+      form(app, true);
       return;
     }
     if (action.kind === "open-tools") options.navigate(settingsPath("tools"));
@@ -935,6 +958,7 @@ export function createIntegrationsPanel(
       admin,
       dashboard: options.dashboard() !== null,
       copy,
+      composioOff: overview?.sources.composio === "off",
     });
     const article = element("article", "integration-card");
     article.id = `integration-${app.id}`;
@@ -2001,5 +2025,15 @@ export function createIntegrationsPanel(
     /** Whether Composio is allowed here, as the page last read it; null
      * until read. */
     composio: (): boolean | null => overview?.composio.allowed ?? null,
+    /** The tools were read (Settings → Tools): where a tool was installed,
+     * or switched on or off for agents, since the last reading, the
+     * Integrace are read again (decision F42, note of 2026-10-19). After a
+     * sign-in, Composio's "Používají agenti" goes on only after the reading
+     * the sign-in caused, which the sign-in's own re-read came before. */
+    toolsRead(tools: Parameters<typeof toolStatesKey>[0]) {
+      const states = toolStatesKey(tools);
+      if (toolStates !== null && toolStates !== states) void load(true);
+      toolStates = states;
+    },
   };
 }

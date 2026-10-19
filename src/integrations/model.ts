@@ -47,6 +47,10 @@ export type SourceState =
   | "unreadable"
   /** Installed but not signed in (Composio). */
   | "signed-out"
+  /** Signed in, but off for agents here: its "Používají agenti" in
+   * Settings → Tools is off, so nothing connects through it (Composio;
+   * decision F42, note of 2026-10-19). */
+  | "off"
   /** Signed in, but not working in the Composio organization of this
    * Environment's Organization's name (decision F42, addendum of
    * 2026-10-13): nothing of it counts, nothing connects through it. */
@@ -91,7 +95,12 @@ export type ExecutorReading =
 export type ComposioReadingState =
   | Readonly<{ state: "ok"; accounts: readonly ComposioAccount[] }>
   | Readonly<{
-      state: "unavailable" | "unreadable" | "signed-out" | "organization";
+      state:
+        | "unavailable"
+        | "unreadable"
+        | "signed-out"
+        | "off"
+        | "organization";
     }>;
 
 /** What the tools say: which tools for one app are connected here. */

@@ -1531,6 +1531,8 @@ const en = {
     "The {provider} company app is not set up yet.",
   integrationsComposioOffOrganization: "Composio is off in the Organization.",
   integrationsComposioOffHere: "Composio is off here.",
+  integrationsComposioOff:
+    "Composio is connected, but Used by agents is off for it.",
   integrationsAskAdmin: "Ask the Admin",
   integrationsAskAdminCopied: "A message for the Admin is in your clipboard.",
   integrationsAskAdminText:
@@ -3160,6 +3162,8 @@ const cs: Record<MessageKey, string> = {
     "Firemní aplikace {provider} ještě není nastavená.",
   integrationsComposioOffOrganization: "Composio je v Organizaci vypnuté.",
   integrationsComposioOffHere: "Composio je tu vypnuté.",
+  integrationsComposioOff:
+    "Composio je připojené, ale má vypnuté Používají agenti.",
   integrationsAskAdmin: "Požádat Admina",
   integrationsAskAdminCopied: "Zprávu pro Admina máte ve schránce.",
   integrationsAskAdminText:
