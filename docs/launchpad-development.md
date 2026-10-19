@@ -2563,7 +2563,7 @@ the fake bw of `tests/fixtures/fake-vault.ts`.
 **An Environment without a vault** ([F53's addendum of
 2026-10-17](decisions.md#f53-addendum-of-2026-10-17-an-environment-without-a-vault-explains-the-vault))
 says why in the page's line; how a vault works in an Organization is the guide video
-`vault-overview`, open in place under the heading as the page opens (F56's addendum of
+`vault-overview`, open in place under the heading as the page opens (F56's addendum (4) of
 2026-10-19; since its addendum of 2026-10-18 the page no longer has the group "Jak trezor
 funguje", and the "?" beside the heading closes and reopens the video).
 The line depends on the vault's reason (`vaultPageView`'s `note`): a
