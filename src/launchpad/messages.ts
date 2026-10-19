@@ -1543,6 +1543,8 @@ const en = {
     "You set this up in the Dashboard, in the Organization's settings.",
   integrationsComposioSignIn:
     "Sign in to Composio first: it opens in Settings → Tools.",
+  integrationsComposioStateUnreadable:
+    "Composio's state could not be read. Try again.",
   integrationsBrowserMissing:
     "A direct sign-in needs {this}'s browser, which is not available here.",
   integrationsKeyTitle: "Key for {app}",
@@ -3174,6 +3176,8 @@ const cs: Record<MessageKey, string> = {
     "Nastavíte to v Přehledu Organizace, v jejím nastavení.",
   integrationsComposioSignIn:
     "Nejdřív se přihlaste do Composia: otevře se v Nastavení → Nástroje.",
+  integrationsComposioStateUnreadable:
+    "Stav Composia se nepodařilo načíst. Zkuste to znovu.",
   integrationsBrowserMissing:
     "Přímé přihlášení potřebuje prohlížeč, který {v tomto} teď není.",
   integrationsKeyTitle: "Klíč pro {app}",

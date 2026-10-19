@@ -8,11 +8,15 @@ import type {
   IntegrationsOverview,
 } from "../src/integrations/model";
 import {
+  type ComposioToolsReading,
   cardView,
+  composioSignIn,
+  composioSignInNote,
   parseIntegrations,
   toolStatesKey,
 } from "../src/launchpad/integrations-view";
 import { messages } from "../src/launchpad/messages";
+import { parseToolsOverview } from "../src/launchpad/tools-view";
 import {
   type FakeComposioState,
   integrationsWorld,
@@ -252,4 +256,121 @@ test("the page reads the reading's off state", () => {
     readAt: "2026-10-19T12:00:00.000Z",
   };
   expect(parseIntegrations(overview)?.sources.composio).toBe("off");
+});
+
+// "Připojit" asking for Composio's sign-in reads the tools live first, and
+// only a reading that proves Composio signed out (or not installed) sends
+// the person to Settings → Tools (Pablo's review of #523). A read that
+// failed, answered something that is not a reading, or was superseded by a
+// later read proves nothing: the person stays on Integrace and is told to
+// try again.
+
+const tools = (
+  composio: Partial<{ installed: boolean; signIn: { state: string } }> | null,
+): ComposioToolsReading => ({
+  tools: [
+    { name: "gh", installed: true, signIn: { state: "signed-out" } },
+    ...(composio === null
+      ? []
+      : [{ name: "composio", installed: true, ...composio }]),
+  ],
+});
+
+// Composio's sign-in as a card asks for it, with where it went.
+async function signIn(read: () => Promise<ComposioToolsReading | null>) {
+  const went: string[] = [];
+  const answer = await composioSignIn(read, () => {
+    went.push("tools");
+    return true;
+  });
+  return { answer, went };
+}
+
+const stays = { answer: "unreadable" as const, went: [] as string[] };
+
+test("a tools read that failed or answered no reading sends nobody away: Integrace say to try again", async () => {
+  const cs = messages("cs");
+  const en = messages("en");
+  // `/api/tools/status` failed: the tools panel answers no reading.
+  expect(await signIn(async () => null)).toEqual(stays);
+  // It answered, but not a reading.
+  expect(
+    await signIn(async () =>
+      parseToolsOverview({ kind: "tools-status", tools: "composio" }),
+    ),
+  ).toEqual(stays);
+  // A reading that does not know Composio's sign-in (its probe timed out, or
+  // did not run), or has no Composio, proves no sign-out either.
+  for (const composio of [{ signIn: { state: "unknown" } }, {}, null])
+    expect(await signIn(async () => tools(composio))).toEqual(stays);
+  // The line the card says, through the page's notice.
+  expect(composioSignInNote("unreadable", cs)).toEqual({
+    text: "Stav Composia se nepodařilo načíst. Zkuste to znovu.",
+    tone: "warning",
+  });
+  expect(composioSignInNote("unreadable", en)).toEqual({
+    text: "Composio's state could not be read. Try again.",
+    tone: "warning",
+  });
+});
+
+test("a read a later read superseded decides nothing; the later one decides", async () => {
+  // Two "Připojit" close together: the first read is overtaken by the
+  // second, and the tools panel answers a superseded read with no reading,
+  // never with the reading the page shows by then.
+  let first: (reading: ComposioToolsReading | null) => void = () => {};
+  const went: string[] = [];
+  const earlier = composioSignIn(
+    () =>
+      new Promise((resolve) => {
+        first = resolve;
+      }),
+    () => {
+      went.push("earlier");
+      return true;
+    },
+  );
+  const later = composioSignIn(
+    async () => tools({ signIn: { state: "signed-in" } }),
+    () => {
+      went.push("later");
+      return true;
+    },
+  );
+  expect(await later).toBe("signed-in");
+  first(null);
+  expect(await earlier).toBe("unreadable");
+  expect(went).toEqual([]);
+});
+
+test("a Composio really signed out, or not installed, still opens its sign-in in Settings → Tools", async () => {
+  const cs = messages("cs");
+  for (const composio of [
+    { signIn: { state: "signed-out" } },
+    { installed: false },
+    { installed: false, signIn: { state: "unknown" } },
+  ])
+    expect(await signIn(async () => tools(composio))).toEqual({
+      answer: "opened",
+      went: ["tools"],
+    });
+  // Settings → Tools could not open the sign-in itself: the person is there
+  // all the same.
+  expect(
+    await composioSignIn(
+      async () => tools({ signIn: { state: "signed-out" } }),
+      () => false,
+    ),
+  ).toBe("settings");
+  // Signed in after all: nobody goes anywhere; the card reads the Integrace
+  // again and its form opens.
+  expect(
+    await signIn(async () => tools({ signIn: { state: "signed-in" } })),
+  ).toEqual({ answer: "signed-in", went: [] });
+  for (const answer of ["opened", "settings"] as const)
+    expect(composioSignInNote(answer, cs)).toEqual({
+      text: cs.integrationsComposioSignIn,
+      tone: "info",
+    });
+  expect(composioSignInNote("signed-in", cs)).toBeNull();
 });

@@ -36,12 +36,14 @@ import {
   appsPreview,
   attentionCount,
   type CardAction,
+  type ComposioSignInAnswer,
   type ComposioTrip,
   type ComposioUpdate,
   cardView,
   composioOrganizationChanged,
   composioOrganizationLine,
   composioOrganizationWaits,
+  composioSignInNote,
   composioTrip,
   composioUpdated,
   composioUpdateLine,
@@ -134,11 +136,12 @@ export function createIntegrationsPanel(
     navigate: (path: string) => void;
     /** Opens the right panel on the Environment browser's view. */
     showBrowser: (view: string) => void;
-    /** Composio's sign-in, read live first (decision F42, note of
-     * 2026-10-19): `signed-in` where Composio is signed in here after all,
-     * and nothing else happens; otherwise Settings → Tools is shown, with
-     * its sign-in `opened` where it could open. */
-    signInComposio: () => Promise<"signed-in" | "opened" | "settings">;
+    /** Composio's sign-in, read live first (`composioSignIn`, decision F42,
+     * note of 2026-10-19): `signed-in` where Composio is signed in here
+     * after all, and nothing else happens; `unreadable` where the tools
+     * could not be read, and the person stays here; otherwise Settings →
+     * Tools is shown, with its sign-in `opened` where it could open. */
+    signInComposio: () => Promise<ComposioSignInAnswer>;
     /** Whether the person is the Organization's Admin or Owner (GitHub's
      * answer); false where it is not known. */
     admin: () => Promise<boolean>;
@@ -547,11 +550,15 @@ export function createIntegrationsPanel(
    * connect refused for it (decision F42, note of 2026-10-19). Composio is
    * read live first: signed in, the page reads the Integrace again and the
    * card connects, or says that Composio is off for agents; signed out, its
-   * sign-in opens in Settings → Tools, as before. */
+   * sign-in opens in Settings → Tools, as before; not read, the person stays
+   * here and is told to try again. */
   async function composioFirst(id: string) {
-    const answer = await options.signInComposio();
-    if (answer !== "signed-in") {
-      say(options.copy().integrationsComposioSignIn, "info");
+    const said = composioSignInNote(
+      await options.signInComposio(),
+      options.copy(),
+    );
+    if (said !== null) {
+      say(said.text, said.tone);
       return;
     }
     note = null;

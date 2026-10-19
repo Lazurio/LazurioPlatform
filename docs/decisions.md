@@ -9838,6 +9838,12 @@ when the reading is read again and what a card says meanwhile.
   sign-in, and a connect refused for it, read the tools live first: signed in, the
   person stays on Integrace, the Integrace are read again and the card's form
   opens; signed out, Settings → Tools opens Composio's sign-in, as before.
+  An unreadable state never sends the person away: only that read's own reading,
+  proving Composio signed out or not installed, opens Settings → Tools; a read
+  that failed, was not a reading or was superseded by a later read, and a sign-in
+  the reading does not know, keep the person on Integrace with "Stav Composia se
+  nepodařilo načíst. Zkuste to znovu." ("Composio's state could not be read. Try
+  again."; Pablo's review of #523).
 - **Off for agents is said.** Signed in but with "Používají agenti" off is its own
   state of the reading's Composio source (`off`), which `lazurio integrations list`
   prints too. Its cards say "Composio je připojené, ale agenti ho nepoužívají:
@@ -9855,8 +9861,10 @@ when the reading is read again and what a card says meanwhile.
 
 Verified by tests: a switch-on and a completed sign-in making the next reading
 current without a refresh, a connect then starting (`authorize`) and a really
-signed-out Composio still refused, the reading's `off` and its card, and the key
-that reads the Integrace again (`tests/integrations-composio-ready.test.ts`, red on
+signed-out Composio still refused, the reading's `off` and its card, the key
+that reads the Integrace again, and a failed, invalid or superseded tools read
+keeping the person on Integrace while a really signed-out Composio still opens its
+sign-in (`composioSignIn`; `tests/integrations-composio-ready.test.ts`, red on
 main). In a headless browser on the preview with `composio-signed-out`, in Czech and
 English: on main, after the sign-in Gmail's "Připojit" landed on Settings → Tools; now
 it stays on Integrace with its form, a card read before the sign-in connects after a

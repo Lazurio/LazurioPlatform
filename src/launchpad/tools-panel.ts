@@ -1714,14 +1714,18 @@ export function createToolsPanel(
   }
 
   /** Reads the tools again. `signIn` asks for the sign-in probes, which may
-   * contact the providers: by default only the first read does. */
+   * contact the providers: by default only the first read does. Answers this
+   * read's own reading, or null where it failed, was not one or a later read
+   * superseded it: never the reading a later read left (decision F42, note
+   * of 2026-10-19). */
   async function refresh(
     request: Readonly<{ signIn?: boolean }> = {},
-  ): Promise<void> {
-    if (options.absent?.() === true) return;
+  ): Promise<ToolsOverview | null> {
+    if (options.absent?.() === true) return null;
     const copy = options.copy();
     const turn = ++sequence;
     const probe = request.signIn ?? !signInChecked;
+    let reading: ToolsOverview | null = null;
     busy = true;
     if (overview === null) failed = false;
     render();
@@ -1733,7 +1737,7 @@ export function createToolsPanel(
         "/api/tools/status",
         probe ? { signIn: true } : {},
       );
-      if (turn !== sequence) return;
+      if (turn !== sequence) return null;
       const parsed = ok ? parseToolsOverview(value) : null;
       if (parsed === null) throw new Error("Tools unavailable");
       if (probe) {
@@ -1743,20 +1747,21 @@ export function createToolsPanel(
           if (tool.signIn !== undefined) signIns.set(tool.name, tool.signIn);
       }
       const known = (tool: ToolOverview) => signIns.get(tool.name);
-      overview = {
+      reading = {
         ...parsed,
         tools: parsed.tools.map((tool) => {
           const signIn = tool.signIn ?? known(tool);
           return signIn === undefined ? tool : { ...tool, signIn };
         }),
       };
+      overview = reading;
       failed = false;
       // A notice belongs to the Folder revision it was made at: a reading of
       // another one means the Folder changed since, elsewhere, and its Undo
       // would be refused.
       if (notice !== null && !noticeHolds(notice, overview)) notice = null;
     } catch {
-      if (turn !== sequence) return;
+      if (turn !== sequence) return null;
       overview = null;
       failed = true;
       say(copy.toolsLoadFailed);
@@ -1767,6 +1772,7 @@ export function createToolsPanel(
         options.observed(overview);
       }
     }
+    return reading;
   }
 
   // The whole page reads the Folder again; its reload refreshes this panel.

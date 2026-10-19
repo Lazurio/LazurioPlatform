@@ -980,3 +980,55 @@ export function toolStatesKey(
       null,
   );
 }
+
+/** The tools' reading as Composio's sign-in asks it (`ToolsOverview`). */
+export type ComposioToolsReading = Readonly<{
+  tools: readonly Readonly<{
+    name: string;
+    installed: boolean;
+    signIn?: Readonly<{ state: string }>;
+  }>[];
+}>;
+
+/** What Composio's sign-in asked for by a card did (`composioSignIn`). */
+export type ComposioSignInAnswer =
+  | "signed-in"
+  | "opened"
+  | "settings"
+  | "unreadable";
+
+/** Composio's sign-in asked for by a card (decision F42, note of
+ * 2026-10-19): `read` reads the tools live and answers that reading, or null
+ * where it failed, was not one or a later read superseded it. Only a reading
+ * that proves Composio signed out, or not installed, calls `openSignIn`,
+ * which goes to Settings → Tools and opens its sign-in there (`opened`,
+ * else `settings`). Signed in, nobody goes anywhere (`signed-in`); with no
+ * reading, or one that does not know Composio's sign-in, the person stays on
+ * Integrace (`unreadable`), since a sign-out was never established. */
+export async function composioSignIn(
+  read: () => Promise<ComposioToolsReading | null>,
+  openSignIn: () => boolean,
+): Promise<ComposioSignInAnswer> {
+  const reading = await read();
+  const composio = reading?.tools.find((tool) => tool.name === "composio");
+  if (composio === undefined) return "unreadable";
+  if (composio.installed) {
+    const state = composio.signIn?.state;
+    if (state === "signed-in") return "signed-in";
+    if (state !== "signed-out") return "unreadable";
+  }
+  return openSignIn() ? "opened" : "settings";
+}
+
+/** What the card says after Composio's sign-in (`composioSignIn`): where it
+ * is, in Settings → Tools; to try again where Composio could not be read;
+ * nothing where it is signed in, since the card then connects. */
+export function composioSignInNote(
+  answer: ComposioSignInAnswer,
+  copy: Copy,
+): Note | null {
+  if (answer === "signed-in") return null;
+  if (answer === "unreadable")
+    return { text: copy.integrationsComposioStateUnreadable, tone: "warning" };
+  return { text: copy.integrationsComposioSignIn, tone: "info" };
+}

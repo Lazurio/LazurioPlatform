@@ -802,9 +802,12 @@ sign-in switches Composio's "Používají agenti" on only after the reading it
 caused, so the page reads the Integrace again not only when a tool's sign-in
 changes but also when a tool is installed or switched on or off for agents
 (`toolStatesKey`; the panel's `toolsRead`). A card whose path still asks for
-Composio's sign-in reads the tools live first (`signInComposio`): signed in, the
-person stays on Integrace, the Integrace are read again and the card's form
-opens; only signed out does Settings → Tools open Composio's sign-in. Signed in
+Composio's sign-in reads the tools live first (`signInComposio`, `composioSignIn`):
+signed in, the person stays on Integrace, the Integrace are read again and the
+card's form opens; only that read's own reading proving Composio signed out (or
+not installed) makes Settings → Tools open Composio's sign-in. A read that failed,
+was not a reading or was superseded never sends the person away: the card says
+"Stav Composia se nepodařilo načíst. Zkuste to znovu." Signed in
 but off for agents (`off`), a card says "Composio je připojené, ale agenti ho
 nepoužívají: v Nástrojích má vypnuté „Používají agenti“." ("Composio is
 connected, but agents don't use it: “Used by agents” is off in Tools.")

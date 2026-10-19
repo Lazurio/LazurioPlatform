@@ -61,7 +61,7 @@ import {
 } from "./first-run";
 import { type PageHelpId, pageGuide, pageHelpStates } from "./guides";
 import { createIntegrationsPanel } from "./integrations-panel";
-import { toolSignInsKey } from "./integrations-view";
+import { composioSignIn, toolSignInsKey } from "./integrations-view";
 import { createColumn, keepCornerFree } from "./layout";
 import { environmentFacts, type Fact, type MachineView } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
@@ -645,7 +645,7 @@ let sshDevices: number | null = null;
 // Organization's name is not "Připojeno" there. Read each time Začínáme is
 // shown, and when the sign-in changes while it is.
 /** Composio's sign-in as the tools' reading names it; null signed out. */
-function composioSignIn(): string | null {
+function composioSignInKey(): string | null {
   const composio = toolsOverview?.tools.find(
     (tool) => tool.name === "composio",
   );
@@ -657,7 +657,7 @@ function composioSignIn(): string | null {
     : null;
 }
 const composioOrganization = createComposioOrganizationReader({
-  signIn: composioSignIn,
+  signIn: composioSignInKey,
   read: async () => {
     const { value, ok } = await post("/api/tools/composio/organizations", {});
     return ok && organizationChoices(value) !== null
@@ -990,16 +990,16 @@ const integrations = createIntegrationsPanel({
   // Composio's sign-in asked for by a card (decision F42, note of
   // 2026-10-19): the tools are read live first, so a card read before
   // Composio's sign-in or its "Používají agenti" never sends the person
-  // away; only signed out does Settings → Tools open its sign-in.
-  signInComposio: async () => {
-    await tools.refresh({ signIn: true });
-    const composio = toolsOverview?.tools.find(
-      (tool) => tool.name === "composio",
-    );
-    if (composio?.signIn?.state === "signed-in") return "signed-in";
-    shell.navigate(settingsPath("tools"));
-    return tools.openSignIn("composio") ? "opened" : "settings";
-  },
+  // away; only this read's own reading, proving Composio signed out, makes
+  // Settings → Tools open its sign-in.
+  signInComposio: () =>
+    composioSignIn(
+      () => tools.refresh({ signIn: true }),
+      () => {
+        shell.navigate(settingsPath("tools"));
+        return tools.openSignIn("composio");
+      },
+    ),
   admin: async () => {
     const key = catalog.soleOrganization();
     if (key === null) return false;
