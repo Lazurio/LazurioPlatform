@@ -15,6 +15,7 @@ import {
 } from "../tools/catalog";
 import { quoteToolNote } from "../tools/note";
 import {
+  isServerServices,
   type MachineAssignment,
   type MachineBinding,
   type MachinePeer,
@@ -282,6 +283,13 @@ const servicesAssignment: Text = {
   en: "- Assignment: Server services (root decision 0209). Only the Organization's Owners and Admins enter it, and the services the server provides to its Environments run here. On GitHub, in sharing and in Publication the rules of a Team Environment hold here; to people, though, it is the Work Environment named Server services, never a Team one.",
 };
 
+// Who the Operator is in the services Environment of a server: the Team
+// preset's line names a Team member, and only Owners and Admins enter it.
+const servicesOperator: Text = {
+  cs: "- Operátor: Owner nebo Admin Organizace, který je právě připojený. OS účet sdílejí všichni, kdo sem vstupují, a není osoba. Na GitHubu jednáš jako brokerovaná identita Organizace, ne jako ten člověk, a změny se připisují Teamu.",
+  en: "- Operator: whichever Owner or Admin of the Organization is connected now. Everyone who enters shares the OS account, which is not a person. On GitHub you act as the brokered Organization identity, not as that person, and changes are attributed to the Team.",
+};
+
 // One short factual document: context for every agent starting inside the
 // Folder, not a manual (that is `manual/`, rendered from the same inputs).
 // Everything about the Machine comes from the recorded handover; everything
@@ -346,9 +354,14 @@ function machineSection(
     local: { cs: "", en: "" },
   }[preset];
   // A public Environment's visitors share it, whatever its preset, and it
-  // has no GitHub identity (decision F55's addendum of 2026-10-17).
+  // has no GitHub identity (decision F55's addendum of 2026-10-17). Only
+  // Owners and Admins enter Služby serveru, which have the Team preset.
   const operatorLine =
-    githubIdentity(preset, machine) === "none" ? publicOperator : operator;
+    githubIdentity(preset, machine) === "none"
+      ? publicOperator
+      : preset === "hosted-organization-team" && isServerServices(machine)
+        ? servicesOperator
+        : operator;
   lines.push(
     pick({
       cs: `- Název: \`${machine.name}\` (${machine.kind}).`,
