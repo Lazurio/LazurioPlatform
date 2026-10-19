@@ -711,6 +711,35 @@ export function composioTrip(
     : { trip, refresh: false };
 }
 
+/** What of the tools' reading the Integrace depend on: which tool is
+ * signed in, as whom and, for Composio, in which organization. When it
+ * changes, the page reads the Integrace again: a tool's sign-in changes
+ * which apps it connects, and Composio's organization which accounts count
+ * (the end-to-end test of 2026-10-19: the sign-in dialog made the
+ * Organization's organization current, and Integrace kept saying it was
+ * missing). */
+export function toolSignInsKey(
+  overview: Readonly<{
+    tools: readonly Readonly<{
+      name: string;
+      signIn?: Readonly<{
+        state: string;
+        account?: string;
+        organization?: string;
+      }>;
+    }>[];
+  }> | null,
+): string {
+  return JSON.stringify(
+    overview?.tools.map((tool) => [
+      tool.name,
+      tool.signIn?.state ?? null,
+      tool.signIn?.account ?? null,
+      tool.signIn?.organization ?? null,
+    ]) ?? null,
+  );
+}
+
 /** One line per source that could not be read, so a missing source is
  * never taken for "nothing connected". An Environment without Executor
  * (`absent`) says nothing about it: its cards take the next way (F36's

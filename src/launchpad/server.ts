@@ -2068,6 +2068,10 @@ export async function startLaunchpad(
                 kind: "composio-organizations-failed",
                 reason: "unreadable",
               });
+            // Found or made current: the Integrace reading the Launchpad
+            // keeps for a minute may still say it is missing, so the next
+            // one reads again (the end-to-end test of 2026-10-19).
+            if (converged.verdict.kind === "matches") integrations.forget();
             return response({
               kind: "composio-organizations",
               organizations: converged.organizations,
@@ -2081,7 +2085,11 @@ export async function startLaunchpad(
             )
               return response({ error: "invalid-organization" }, 400);
             server.timeout(request, 60);
-            return response(await logins.selectComposioOrganization(value.id));
+            const selected = await logins.selectComposioOrganization(value.id);
+            // Integrace's links lead into the organization now current.
+            if (selected.kind === "composio-organization-selected")
+              integrations.forget();
+            return response(selected);
           }
           const tool = value.tool;
           if (typeof tool !== "string")

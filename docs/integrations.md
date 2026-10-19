@@ -514,6 +514,14 @@ right organization.
   its documented API creates or renames an organization (the API lists them, the
   CLI lists and switches). On Apps → Integrace, "Zkontrolovat připojení" finds it
   by name afterwards.
+- **No stale verdict** (the end-to-end test of 2026-10-19): an answer of
+  `/api/tools/composio/organizations` that finds the organization or makes it
+  current, and a choice of the person's (`/api/tools/composio/organization`),
+  drop the reading the Launchpad keeps for a minute, so the next one reads
+  again; and the page reads the Integrace again whenever a tool's sign-in
+  changes, Composio's organization included (`toolSignInsKey`). Before, the
+  dialog said "Composio je připojené" while Apps → Integrace, read before, still
+  said the organization was missing.
 - **The sign-in dialog** of Settings → Tools (note of 2026-10-17) shows, after the
   sign-in, only what is left: where the organization is missing, the
   Organization's name as Composio accepts it with "Kopírovat", a drawing of the

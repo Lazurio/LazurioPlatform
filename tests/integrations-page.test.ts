@@ -28,6 +28,7 @@ import {
   serverLine,
   sourceLines,
   tabLabels,
+  toolSignInsKey,
   visibleApps,
 } from "../src/launchpad/integrations-view";
 import { messages } from "../src/launchpad/messages";
@@ -668,6 +669,34 @@ test("Aplikace v Composiu: only a link to Composio's dashboard, none where Compo
   expect(
     `${en.integrationsComposioMissing} ${en.integrationsComposioConnectThere}`,
   ).toBe("Can't find an app here? Connect it in Composio");
+});
+
+// The end-to-end test of 2026-10-19: the sign-in dialog made the
+// Organization's organization current and said "Composio je připojené", and
+// Apps → Integrace, read while it was missing, kept saying so. A tool's
+// sign-in already read the Integrace again; Composio's organization is part
+// of its sign-in, so its change reads them again too.
+test("Integrace reads again when a tool's sign-in changes, Composio's organization included", () => {
+  const tools = (organization: string, account = "bob@lazurio.ai") => ({
+    tools: [
+      { name: "gh", signIn: { state: "signed-in" as const, account: "bob" } },
+      {
+        name: "composio",
+        signIn: { state: "signed-in" as const, account, organization },
+      },
+      { name: "wacli" },
+    ],
+  });
+  expect(toolSignInsKey(tools("bob_workspace"))).toBe(
+    toolSignInsKey(tools("bob_workspace")),
+  );
+  expect(toolSignInsKey(tools("bob_workspace"))).not.toBe(
+    toolSignInsKey(tools("lazurioexampleorganization")),
+  );
+  expect(toolSignInsKey(tools("x", "bob@lazurio.ai"))).not.toBe(
+    toolSignInsKey(tools("x", "alena@lazurio.ai")),
+  );
+  expect(toolSignInsKey(null)).not.toBe(toolSignInsKey(tools("x")));
 });
 
 test("coming back from Composio's Apps reads the Integrace once, only after the page lost the person", () => {

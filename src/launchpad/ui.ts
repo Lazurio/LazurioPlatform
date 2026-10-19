@@ -60,6 +60,7 @@ import {
 } from "./first-run";
 import { type PageHelpId, pageGuide, pageHelpStates } from "./guides";
 import { createIntegrationsPanel } from "./integrations-panel";
+import { toolSignInsKey } from "./integrations-view";
 import { createColumn, keepCornerFree } from "./layout";
 import { environmentFacts, type Fact, type MachineView } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
@@ -1394,11 +1395,9 @@ const tools = createToolsPanel({
     if (framed) drawGuide(shell.route());
   },
   observed: (overview) => {
-    // A tool's sign-in changes which apps it connects: Integrace read again.
-    const signIns = JSON.stringify(
-      overview?.tools.map((tool) => [tool.name, tool.signIn?.state ?? null]) ??
-        null,
-    );
+    // A tool's sign-in changes which apps it connects, and Composio's
+    // organization which accounts count: Integrace read again.
+    const signIns = toolSignInsKey(overview);
     if (
       toolSignIns !== null &&
       toolSignIns !== signIns &&

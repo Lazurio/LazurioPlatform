@@ -743,6 +743,53 @@ test("the sign-in dialog asks to create a missing organization, finds it on a la
   expect((await readComposioState(world.home)).organization).toBe("priklad");
 });
 
+// The end-to-end test of 2026-10-19: the dialog said "Composio je
+// připojené", and "Vybrat aplikace" opened Apps → Integrace, which still
+// said the organization was missing. The reading the Launchpad keeps for a
+// minute was the one made while it was missing; the dialog's reading that
+// found the organization must not leave it behind.
+test("the dialog finding the organization leaves no stale reading behind: Integrace says it without a refresh", async () => {
+  const directory = await parent();
+  const world = await integrationsWorld(directory, {
+    composio: {
+      accounts: [gmail],
+      organization: "First",
+      organizations: [{ id: "org_1", name: "First" }],
+    },
+  });
+  cleanups.push(() => world.executor.stop());
+  const app = await worldLaunchpad(directory, world, {
+    tools: ["composio"],
+    handover: {
+      preset: "hosted-organization-personal",
+      machine: bindings.organization,
+      organization: { slug: "example", displayName: "Příklad" },
+    },
+  });
+  cleanups.push(() => app.close());
+  // The page's reading, as Apps → Integrace makes it without a refresh.
+  const reading = async () =>
+    (
+      (await (
+        await app.get("/api/integrations")
+      ).json()) as IntegrationsOverview
+    ).composio.organization;
+  expect(await reading()).toEqual({ name: "Příklad", state: "missing" });
+  // The person creates it in Composio's dashboard, and the dialog finds it.
+  const state = await readComposioState(world.home);
+  await writeComposioState(world.home, {
+    ...state,
+    organizations: [
+      ...(state.organizations ?? []),
+      { id: "org_2", name: "priklad" },
+    ],
+  });
+  expect(
+    await (await app.post("/api/tools/composio/organizations", {})).json(),
+  ).toMatchObject({ organization: { name: "Příklad", state: "matches" } });
+  expect(await reading()).toEqual({ name: "Příklad", state: "matches" });
+});
+
 test("the sign-in dialog says in one sentence when its organization is there twice or cannot be made current", async () => {
   const copy = messages("cs");
   const cases: [Partial<FakeComposioState>, ComposioDialogView][] = [
@@ -839,6 +886,25 @@ test("a personal Environment's sign-in dialog leaves the choice to the person", 
     ],
   });
   expect((await readComposioState(world.home)).organization).toBe("First");
+  // The person chooses the other one: Integrace's links lead there at once,
+  // not after the reading the Launchpad keeps for a minute.
+  const apps = async () =>
+    (
+      (await (
+        await app.get("/api/integrations")
+      ).json()) as IntegrationsOverview
+    ).composio.apps;
+  expect(await apps()).toBe(
+    "https://dashboard.composio.dev/First/~/connect/apps",
+  );
+  expect(
+    await (
+      await app.post("/api/tools/composio/organization", { id: "org_2" })
+    ).json(),
+  ).toMatchObject({ kind: "composio-organization-selected" });
+  expect(await apps()).toBe(
+    "https://dashboard.composio.dev/Second/~/connect/apps",
+  );
 });
 
 test("the page's words for each state of the organization", () => {
