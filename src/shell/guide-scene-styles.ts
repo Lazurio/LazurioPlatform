@@ -100,6 +100,16 @@ const stillCss = `
 .s-peye { position: absolute; top: -11px; right: -11px; display: grid; width: 24px; height: 24px; place-items: center; border-radius: 50%; background: var(--lz-blue-500); color: var(--lz-white); }
 .s-peye svg { width: 13px; height: 13px; }
 .s-ycursor { position: absolute; top: 0; left: 0; translate: 176px 66px; }
+.s-lzwin { position: absolute; top: 8px; left: 156px; width: 62px; height: 62px; overflow: hidden; border: 1px solid var(--lz-blue-200); border-radius: 6px; background: var(--lz-white); box-shadow: 0 4px 12px rgb(0 0 0 / 6%); opacity: 0; transform: translateX(8px); }
+.s-lzbar { display: flex; height: 13px; align-items: center; gap: 3px; padding: 0 4px; border-bottom: 1px solid var(--lz-line-faint); }
+.s-lzbar img { display: block; width: 8px; height: 8px; }
+.s-lzbar .s-name { font-size: 7.5px; }
+.s-lzbody { display: flex; flex-direction: column; gap: 5px; padding: 7px 6px 0; }
+.s-lzbody .s-i { width: 80%; height: 4px; border-radius: 2px; background: var(--lz-blue-200); }
+.s-lzbody .s-i:nth-child(2) { width: 56%; }
+.s-lzwin .s-peye { top: auto; right: 4px; bottom: 4px; width: 18px; height: 18px; }
+.s-lzwin .s-peye svg { width: 11px; height: 11px; }
+[data-state~="watch"] .s-lzwin { opacity: 1; transform: none; }
 .s-tile { display: flex; width: 96px; height: 54px; flex-direction: column; justify-content: center; gap: 4px; padding: 0 10px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); }
 .s-tname { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: var(--lz-weight-akce); white-space: nowrap; }
 .s-tname svg { width: 16px; height: 16px; }
@@ -127,6 +137,7 @@ const motionCss = `
   ${moving} .s-app:nth-child(3) { transition-delay: 0.52s; }
   ${moving} .s-app:nth-child(4) { transition-delay: 0.63s; }
   ${moving} .s-link { transition: background 0.3s ease; }
+  ${moving} .s-lzwin { transition: transform 0.6s var(--e) 0.2s, opacity 0.4s ease 0.2s; }
   ${moving} [data-state~="work"] .s-acursor { animation: s-work 3.6s var(--e) infinite; }
   ${moving} [data-state~="work"] .s-wbody .s-i { animation: s-type 3.6s var(--e) infinite; }
   ${moving} [data-state~="work"] .s-wbody .s-i:nth-child(2) { animation-delay: 0.5s; }

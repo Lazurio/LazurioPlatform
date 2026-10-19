@@ -24,7 +24,8 @@ import { type KindLocale, kindName, shownKind } from "./kind-name";
 //
 // Its rules (tests/shell-guide-scenes.test.ts): no "=" and no words of
 // sameness, the person's laptop is never the agents' computer, two devices
-// with Lazurio as a window into theirs; the way from the Osobní to the
+// with Lazurio as a window into theirs (on your own computer, where the
+// agents work too, one device, yours); the way from the Osobní to the
 // Pracovní Prostředí is one straight solid arrow, pointing from the first to
 // the second; three kinds of Environment; at most three words a label.
 
@@ -114,6 +115,9 @@ type Draw = Readonly<{
   locale: KindLocale;
   /** The agents' computer as the scene names it: the kind it plays in. */
   computerLabel: string;
+  /** It plays on your own computer, where the agents work too: the
+   * computer is yours, never one in the cloud beside it. */
+  own: boolean;
 }>;
 
 /** A value per beat, from a list. */
@@ -154,14 +158,15 @@ const title = (text: string, icon?: ShellIcon): SceneNode =>
 /** The agents' virtual computer, the picture the scenes come back to: a
  * screen of the kind it plays in, its own browser and apps (`apps`), and an
  * agent's cursor working in it (`work`). It lives elsewhere, never on the
- * person's laptop. */
+ * person's laptop. On your own computer it is that computer, "váš počítač",
+ * and Lazurio opens on the same screen beside the agents' work (`watch`). */
 const computer = (draw: Draw): SceneNode =>
   p("pc", {
     children: [
       p("screen", {
         children: [
           p("bar", {
-            icon: "cloud",
+            icon: draw.own ? "laptop" : "cloud",
             children: [p("name", { text: draw.computerLabel })],
           }),
           p("desk", {
@@ -181,6 +186,20 @@ const computer = (draw: Draw): SceneNode =>
                 icon: "cursor",
                 children: [tag(draw.say("agent"))],
               }),
+              ...(draw.own
+                ? [
+                    p("lzwin", {
+                      children: [
+                        p("lzbar", {
+                          logo: true,
+                          children: [p("name", { text: "Lazurio" })],
+                        }),
+                        p("lzbody", { children: lines(3) }),
+                        p("peye", { icon: "eye" }),
+                      ],
+                    }),
+                  ]
+                : []),
             ],
           }),
         ],
@@ -230,40 +249,54 @@ const scenes: Readonly<Record<string, Scene>> = {
    * browser and apps, where they work; at the end two devices stand apart,
    * their computer in the cloud and yours, and Lazurio in your browser is a
    * window into theirs: an eye, and one straight solid arrow from that
-   * window to their computer. Never an "=". */
+   * window to their computer. Never an "=". On your own computer the agents
+   * work on it too, so it stays one device, "váš počítač", and Lazurio
+   * opens on its screen beside their work (Matěj, 2026-10-19). */
   environment: {
     beats: 4,
-    draw: (draw) => [
-      draw.o(
-        "zoom",
-        {
-          at: (b) => (b >= 3 ? [6, 44] : [47, 8]),
-          scale: (b) => (b >= 3 ? 0.56 : 1),
-          state: per(["", "apps", "apps work", "apps work"]),
-        },
-        { children: [computer(draw)] },
-      ),
-      draw.o(
-        "tag",
-        { at: [10, 18], show: (b) => b >= 3, delay: 300 },
-        { icon: "cloud", text: draw.say("agentsComputer") },
-      ),
-      draw.o(
-        "zoom",
-        { at: [170, 44], scale: 0.6, show: (b) => b >= 3, delay: 450 },
-        { children: [laptop(draw)] },
-      ),
-      draw.o(
-        "tag ink",
-        { at: [190, 18], show: (b) => b >= 3, delay: 600 },
-        { text: draw.say("yourComputer") },
-      ),
-      draw.o(
-        "line arrow",
-        { at: [185, 84], show: (b) => b >= 3, delay: 900 },
-        { line: [47, 180] },
-      ),
-    ],
+    draw: (draw) =>
+      draw.own
+        ? [
+            draw.o(
+              "zoom",
+              {
+                at: [47, 8],
+                state: per(["", "apps", "apps work", "apps work watch"]),
+              },
+              { children: [computer(draw)] },
+            ),
+          ]
+        : [
+            draw.o(
+              "zoom",
+              {
+                at: (b) => (b >= 3 ? [6, 44] : [47, 8]),
+                scale: (b) => (b >= 3 ? 0.56 : 1),
+                state: per(["", "apps", "apps work", "apps work"]),
+              },
+              { children: [computer(draw)] },
+            ),
+            draw.o(
+              "tag",
+              { at: [10, 18], show: (b) => b >= 3, delay: 300 },
+              { icon: "cloud", text: draw.say("agentsComputer") },
+            ),
+            draw.o(
+              "zoom",
+              { at: [170, 44], scale: 0.6, show: (b) => b >= 3, delay: 450 },
+              { children: [laptop(draw)] },
+            ),
+            draw.o(
+              "tag ink",
+              { at: [190, 18], show: (b) => b >= 3, delay: 600 },
+              { text: draw.say("yourComputer") },
+            ),
+            draw.o(
+              "line arrow",
+              { at: [185, 84], show: (b) => b >= 3, delay: 900 },
+              { line: [47, 180] },
+            ),
+          ],
   },
   /** 2: the Osobní Prostředí: Admin and strangers stop at its blue border;
    * beside it a Pracovní Prostředí, which belongs to the Organization, and
@@ -563,15 +596,13 @@ const scenes: Readonly<Record<string, Scene>> = {
 export const sceneIds: readonly string[] = Object.freeze(Object.keys(scenes));
 
 /** How the scene of a principle names the agents' computer in an Environment
- * of `kind`: its kind (an automated Environment is a work one), else the
- * plain word; on your own computer the picture still shows the agents'
- * computer in the cloud, as the prototype's does. */
+ * of `kind`: its kind (an automated Environment is a work one), on your own
+ * computer "váš počítač", else the plain word. */
 function computerLabel(
   kind: ShellEnvironmentKind | null,
   locale: KindLocale,
 ): string {
-  if (kind === null || shownKind(kind) === "workstation")
-    return words.environment[locale];
+  if (kind === null) return words.environment[locale];
   return kindName(kind, { locale });
 }
 
@@ -609,6 +640,7 @@ export function guideScene(
         say: (name) => words[name][locale],
         locale,
         computerLabel: label,
+        own: kind !== null && shownKind(kind) === "workstation",
       }),
     );
     built.set(key, objects);

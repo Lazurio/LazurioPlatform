@@ -14877,7 +14877,7 @@ beats and look are the wireframe's; its code is not ported.
 
    | Principle | 1 | 2 | 3 | 4 |
    | --- | --- | --- | --- | --- |
-   | `environment` | the agents' computer, named by the kind it plays in | its apps pop into the dock, its browser opens | an agent's cursor clicks and types in it | it steps aside as "počítač agentů"; "váš počítač" comes in beside it, Lazurio in its bar and in it a window with their screen small and an eye; one straight solid arrow from that window to their computer |
+   | `environment` | the agents' computer, named by the kind it plays in | its apps pop into the dock, its browser opens | an agent's cursor clicks and types in it | it steps aside as "počítač agentů"; "váš počítač" comes in beside it, Lazurio in its bar and in it a window with their screen small and an eye; one straight solid arrow from that window to their computer; on your computer one device (point 7) |
    | `buddy` | the Osobní Prostředí, a person in it, a lock | its border turns blue; Admin and "cizí" knock and stop at it, a vermilion × each | a Pracovní Prostředí appears beside it; Admin walks toward it | Admin is in it, a blue ✓ |
    | `reach` | the Osobní and the Pracovní Prostředí | one straight solid arrow from the Osobní to the Pracovní Prostředí is drawn, an agent travels along it, above it | an agent from work slides toward the Osobní Prostředí and stops at its blue border, a vermilion × | the arrow grows stronger, the agent travels again |
    | `files` | your cursor drags Smlouva.pdf into the chat; an agent types | your "Odkaz?" and the agent's link Report.pdf | your cursor taps it; it downloads into Stažené | the camera travels to Soubory: both files, an agent at work, an eye |
@@ -14901,8 +14901,7 @@ beats and look are the wireframe's; its code is not ported.
    adds no sentence: it names things (at most three words, the guide's text rules, three
    kinds of Environment) and the step's text stays the card's and the accessible
    content. The agents' computer carries the kind it plays in (an automated Environment
-   a Pracovní one); on your computer it says "Prostředí" and the picture stays the
-   agents' computer, as the wireframe's does.
+   a Pracovní one); on your computer it is "váš počítač", one device (point 7).
 4. **Accessibility.** The stage is `aria-hidden`. With `prefers-reduced-motion` (or the
    layer's `data-still`) each beat is its finished frame: the stylesheet's plain rules
    are the frames, and every transition and animation stands only inside `@media
@@ -14916,10 +14915,21 @@ beats and look are the wireframe's; its code is not ported.
    si Buddyho") have a row of their own under the buttons, kept but unseen and
    unreachable until that step. Before, the foot wrapped at the last step and the card
    grew by a row.
-6. **Size.** `shell.js` grows from 136,305 to 163,715 bytes (gzip from 43,803 to 50,863):
+6. **Size.** `shell.js` grows from 136,305 to 165,116 bytes (gzip from 43,803 to 51,129):
    the scenes' stylesheet, their data and eleven Iconoir icons (cloud, lock, building,
    mail, calendar, eye, page, folder, cursor, xmark, link). No dependency, image or
    video; the Lazurio symbol on the laptop is the shell's own.
+7. **On your computer, one device** (decided by Matěj on 2026-10-19, before the
+   publication of this addendum). Where Lazurio runs on the person's own computer
+   (kind `workstation`), the agents work on that same computer, so two devices and
+   "Lazurio je okno do jejich počítače" would not be true there. The principle
+   `environment` keeps its first step's own words ("Agenti pracují i na vašem
+   počítači") and its last step gets its own too: "Lazurio ukazuje, co agenti dělají"
+   ("Lazurio shows what your agents do"). Its scene draws one device, "váš počítač",
+   with a laptop's mark instead of the cloud, from the first step on: its apps, the
+   agents at work, and at the last step a Lazurio window on that same screen with its
+   eye on their work; no second device, no "počítač agentů" and no arrow. Integrace's
+   computer is "váš počítač" there too. Every other kind is unchanged.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -14933,10 +14943,7 @@ beats and look are the wireframe's; its code is not ported.
 
 **Honest limits.** Motion, placement and look are checked in a browser, not in CI (root
 decision 0178); the tests hold the data, the beats, the words and the reduced-motion
-contract. The scenes' English words are the agent's, for Matěj's review. On your
-computer the last beat of `environment` still shows two devices, as the wireframe
-does, although agents work on your computer too; its text says the same, and both wait
-for Matěj's word. Without Buddy the Osobní Prostředí shows a person, not Buddy, and the
+contract. The scenes' English words are the agent's, for Matěj's review. Without Buddy the Osobní Prostředí shows a person, not Buddy, and the
 guide's mark stays the neutral one. Soubory of a Team Environment plays the Launchpad's
 `files-team`, which has no scene. The Dashboard plays the scenes with its next shell pin
 (task 994).
@@ -14947,11 +14954,13 @@ both languages and every kind; a page that hands over nothing draws nothing; the
 built `aria-hidden` with no other accessible name, each beat's places, presence and
 state, an entering stage off stage; the words a scene draws under the guide's rules,
 names only, no "=" and no sameness; the kind on the agents' computer; two devices apart
-with Lazurio's window and one arrow to theirs; one straight solid arrow from the Osobní
+with Lazurio's window and one arrow to theirs, and on your computer one device, yours,
+with Lazurio on its screen and no arrow; one straight solid arrow from the Osobní
 to the Pracovní Prostředí with nothing on it and nothing dashed but the Lazurio window's
 frame and an app not signed in; motion only where it is not reduced, every animation
 looping or ending at its still frame, every animation defined; no listener in the scene
-modules), `tests/shell-guide.test.ts`, `tests/shell-guide-protocol.test.ts` and in
+modules), `tests/shell-guide.test.ts` (the step texts on your computer and in every
+other kind), `tests/shell-guide-protocol.test.ts` and in
 headless Chrome against the hosted and personal previews, Czech and English, a Work, a
 Team and a Personal Environment, at 1440 and 700 px, with and without
 `prefers-reduced-motion` (root decision 0178): each principle's scene at each step, one

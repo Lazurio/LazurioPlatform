@@ -371,7 +371,7 @@ test("a scene adds no sentence: names of things only, no '=' and no words of sam
     expect(guideWordFindings(wrong).length).toBeGreaterThan(0);
 });
 
-test("the agents' computer is named by the kind it plays in; your computer has none and the picture stays theirs", () => {
+test("the agents' computer is named by the kind it plays in; on your computer it is yours", () => {
   const label = (kind: ShellEnvironmentKind | null, locale: "cs" | "en") => {
     const texts: string[] = [];
     const walk = (node: SceneNode) => {
@@ -392,7 +392,8 @@ test("the agents' computer is named by the kind it plays in; your computer has n
   expect(label("automated", "cs")).toEqual(["Pracovní Prostředí"]);
   expect(label("team", "cs")).toEqual(["Týmové Prostředí"]);
   expect(label("personal", "en")).toEqual(["Personal Environment"]);
-  expect(label("workstation", "cs")).toEqual(["Prostředí"]);
+  expect(label("workstation", "cs")).toEqual(["váš počítač"]);
+  expect(label("workstation", "en")).toEqual(["your computer"]);
   expect(label(null, "en")).toEqual(["Environment"]);
   // A scene is drawn again only when its words change.
   expect(guideScene("environment", 1, "cs", "work")?.key).toBe(
@@ -404,8 +405,12 @@ test("the agents' computer is named by the kind it plays in; your computer has n
 });
 
 /** The objects of a scene by the first of their parts' names. */
-const objectsOf = (id: string) =>
-  (guideScene(id, 0, "cs", "work")?.objects ?? []).flatMap(function flat(
+const objectsOf = (
+  id: string,
+  kind: ShellEnvironmentKind | null = "work",
+  locale: "cs" | "en" = "cs",
+) =>
+  (guideScene(id, 0, locale, kind)?.objects ?? []).flatMap(function flat(
     node: SceneNode,
   ): SceneNode[] {
     return [
@@ -455,6 +460,63 @@ test("two devices, never one: the agents' computer and your laptop stand apart, 
   expect(startX).toBeGreaterThanOrEqual(yourX);
   expect(startX - length).toBeGreaterThanOrEqual(theirRight);
   expect(arrow.beats.show.slice(0, last)).toEqual([false, false, false]);
+});
+
+test("on your computer one device: yours, with Lazurio and the agents' work on the same screen, no second device and no arrow", () => {
+  const flat = (node: SceneNode): SceneNode[] => [
+    node,
+    ...(node.children ?? []).flatMap(flat),
+  ];
+  for (const locale of locales) {
+    const objects = objectsOf("environment", "workstation", locale);
+    // One object on stage in every beat: the computer itself.
+    expect(objects.length).toBe(1);
+    const [device] = objects;
+    if (device?.beats === undefined) throw new Error("The device is drawn");
+    expect(device.beats.show).toEqual([true, true, true, true]);
+    expect(device.beats.scale).toEqual([1, 1, 1, 1]);
+    // Its apps, the agents at work, then Lazurio on the same screen.
+    expect(device.beats.state).toEqual([
+      "",
+      "apps",
+      "apps work",
+      "apps work watch",
+    ]);
+    const parts = flat(device);
+    expect(parts.filter((node) => node.part.startsWith("pc"))).toHaveLength(1);
+    expect(parts.some((node) => node.part === "pc laptop")).toBe(false);
+    expect(parts.some((node) => node.line !== undefined)).toBe(false);
+    // Named "váš počítač" from the first step, never the agents' computer.
+    const texts = parts.flatMap((node) =>
+      node.text === undefined ? [] : [node.text],
+    );
+    expect(texts).toContain(locale === "cs" ? "váš počítač" : "your computer");
+    for (const theirs of ["počítač agentů", "agents' computer", "Prostředí"])
+      expect(texts).not.toContain(theirs);
+    const bar = parts.find((node) => node.part === "bar");
+    expect(bar?.icon).toBe("laptop");
+    // Lazurio on that same computer, with its eye on what the agents do.
+    const lazurio = parts.find((node) => node.part === "lzwin");
+    if (lazurio === undefined) throw new Error("Lazurio is on the screen");
+    expect(flat(lazurio).some((node) => node.logo === true)).toBe(true);
+    expect(flat(lazurio).some((node) => node.icon === "eye")).toBe(true);
+  }
+  // Every other kind keeps its two devices and the arrow.
+  for (const kind of [null, "work", "team", "personal", "automated"] as const)
+    expect(
+      objectsOf("environment", kind).filter((node) => node.line !== undefined),
+    ).toHaveLength(1);
+  // Lazurio's window on the screen is drawn only once the last beat says so.
+  const rules = rulesOf(guideSceneCss).filter((rule) =>
+    rule.selector.includes(".s-lzwin"),
+  );
+  expect(rules.find((rule) => rule.selector === ".s-lzwin")?.body).toContain(
+    "opacity: 0",
+  );
+  expect(
+    rules.find((rule) => rule.selector === '[data-state~="watch"] .s-lzwin')
+      ?.body,
+  ).toContain("opacity: 1");
 });
 
 test("where agents may go: one straight solid arrow, from the Osobní Prostředí to the Pracovní Prostředí, and nothing the other way", () => {

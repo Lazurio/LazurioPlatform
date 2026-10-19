@@ -156,6 +156,13 @@ const principles: readonly Principle[] = [
           cs: "Lazurio je okno do jejich počítače",
           en: "Lazurio is a window into their computer",
         },
+        // On your computer the agents work on the same computer as you, so
+        // Lazurio is no window into another one (Matěj, 2026-10-19; F56's
+        // addendum (3)).
+        computer: {
+          cs: "Lazurio ukazuje, co agenti dělají",
+          en: "Lazurio shows what your agents do",
+        },
         at: "switch",
       },
     ],

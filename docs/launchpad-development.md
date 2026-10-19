@@ -947,7 +947,8 @@ guide's mark and a card beside it, and the layer lets every click through.
   The engine hands the layer `GuideView.scene`, keyed by the principle's id and the
   step; nothing of it is interface v1. A scene names things only (at most three words,
   the guide's text rules), never "=" or a word of sameness, draws two devices with
-  Lazurio as a window into the agents' computer, and the way from the Osobní to the
+  Lazurio as a window into the agents' computer (on your computer one device, yours,
+  with Lazurio on its screen and no arrow), and the way from the Osobní to the
   Pracovní Prostředí as one straight solid arrow with nothing on it. The card keeps one
   size through any explanation: every step's words stand in one place (`.lines`, only
   the step's own shown), the stage is as wide as the card leaves (at most 360 px, 16 by
