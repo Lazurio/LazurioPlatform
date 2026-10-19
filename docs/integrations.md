@@ -503,7 +503,16 @@ right organization.
   Composio works in the person's current organization, its accounts count and
   links and removals go there; Apps → Integrace says what to do with a link to
   Composio's dashboard, and `lazurio integrations list` tells agents. The next
-  reading after the person created it makes it current.
+  reading after the person created it makes it current. Meanwhile Apps →
+  Integrace waits as the sign-in dialog does (F42's note of 2026-10-19,
+  `composioOrganizationWaits`): while it is shown it reads
+  `/api/tools/composio/organizations` again at the dialog's pace
+  (`composioPollDelay`, `composioPollNext`: after 4 s, then half as long again,
+  at most every 30 s, not while the page is hidden, at once when it shows
+  again), and the Integrace (`?refresh=1`) once the verdict changed
+  (`composioOrganizationChanged`). Its line ends as the dialog's waiting line,
+  "Až ji založíte, Lazurio bude pokračovat samo." ("Až ji přejmenujete, …"
+  where there are two), and names no button.
 - **Where its organization cannot be told** (`unverified`, or an `elsewhere`
   organization that could not be made current), the Composio source reads
   `organization`: none of its accounts is listed, and a link or a removal is
@@ -512,8 +521,8 @@ right organization.
   (the name null where it is `unverified`), null elsewhere.
 - **Creating one** is the person's, in Composio's dashboard: neither its CLI nor
   its documented API creates or renames an organization (the API lists them, the
-  CLI lists and switches). On Apps → Integrace, "Zkontrolovat připojení" finds it
-  by name afterwards.
+  CLI lists and switches). The sign-in dialog and Apps → Integrace find it by
+  name by themselves afterwards.
 - **No stale verdict** (the end-to-end test of 2026-10-19): an answer of
   `/api/tools/composio/organizations` that finds the organization or makes it
   current, and a choice of the person's (`/api/tools/composio/organization`),
