@@ -843,6 +843,10 @@ const en = {
   guideComposioTitle: "Composio",
   guideComposioAccount: "Sign in to Composio with your own account",
   guideComposioAccountSub: "The Organization has no shared Composio",
+  // In a Team Environment, the Team's Composio account (decision F42, note
+  // of 2026-10-19).
+  guideComposioAccountTeam: "Sign in to Composio with the Team's account",
+  guideComposioAccountTeamSub: "Not anyone's personal account",
   guideComposioOrganization: "One organization in it for each Organization",
   guideComposioOrganizationSub: "Invite nobody else into it",
   guideComposioAgents:
@@ -2528,6 +2532,8 @@ const cs: Record<MessageKey, string> = {
   guideComposioTitle: "Composio",
   guideComposioAccount: "Composio přihlásíte svým vlastním účtem",
   guideComposioAccountSub: "Organizace společné Composio nemá",
+  guideComposioAccountTeam: "Composio přihlásíte týmovým účtem",
+  guideComposioAccountTeamSub: "Ne osobním účtem nikoho z Teamu",
   guideComposioOrganization: "Pro každou Organizaci v něm jedna organizace",
   guideComposioOrganizationSub: "Nikoho dalšího do ní nezvěte",
   guideComposioAgents:
