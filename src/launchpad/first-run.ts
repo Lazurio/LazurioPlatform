@@ -306,7 +306,8 @@ export type TourStop = Readonly<{
   target: TourTarget;
   title: string;
   /** Why, in a few plain words; the whole bubble stays within about a
-   * dozen words. */
+   * dozen words. Null where the title says enough: the bubble shows no
+   * line under it. */
   text: string | null;
   /** The primary button of the bubble: on the introduction's stops. */
   next: "next" | "done" | null;
@@ -346,8 +347,9 @@ export function tourStop(
   switch (step) {
     case "gear": {
       const next = nextBasic(facts);
-      if (next === "ai")
-        return stop("gear", copy.tourGearAiTitle, copy.tourGearAiText);
+      // The title alone, as Začínáme's AI step (Matěj 2026-10-16: "méně je
+      // více").
+      if (next === "ai") return stop("gear", copy.tourGearAiTitle, null);
       if (next === "github")
         return stop("gear", copy.tourGearGithubTitle, copy.tourGearGithubText);
       if (failed)
