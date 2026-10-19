@@ -1532,7 +1532,7 @@ const en = {
   integrationsComposioOffOrganization: "Composio is off in the Organization.",
   integrationsComposioOffHere: "Composio is off here.",
   integrationsComposioOff:
-    "Composio is connected, but Used by agents is off for it.",
+    "Composio is connected, but agents don't use it: “Used by agents” is off in Tools.",
   integrationsAskAdmin: "Ask the Admin",
   integrationsAskAdminCopied: "A message for the Admin is in your clipboard.",
   integrationsAskAdminText:
@@ -3163,7 +3163,7 @@ const cs: Record<MessageKey, string> = {
   integrationsComposioOffOrganization: "Composio je v Organizaci vypnuté.",
   integrationsComposioOffHere: "Composio je tu vypnuté.",
   integrationsComposioOff:
-    "Composio je připojené, ale má vypnuté Používají agenti.",
+    "Composio je připojené, ale agenti ho nepoužívají: v Nástrojích má vypnuté „Používají agenti“.",
   integrationsAskAdmin: "Požádat Admina",
   integrationsAskAdminCopied: "Zprávu pro Admina máte ve schránce.",
   integrationsAskAdminText:

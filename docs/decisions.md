@@ -9840,8 +9840,9 @@ when the reading is read again and what a card says meanwhile.
   opens; signed out, Settings → Tools opens Composio's sign-in, as before.
 - **Off for agents is said.** Signed in but with "Používají agenti" off is its own
   state of the reading's Composio source (`off`), which `lazurio integrations list`
-  prints too. Its cards say "Composio je připojené, ale má vypnuté Používají
-  agenti." ("Composio is connected, but Used by agents is off for it.") in the
+  prints too. Its cards say "Composio je připojené, ale agenti ho nepoužívají:
+  v Nástrojích má vypnuté „Používají agenti“." ("Composio is connected, but
+  agents don't use it: “Used by agents” is off in Tools.") in the
   switch's own words, with "Otevřít Nástroje", where the switch is, as a card that
   only a tool connects does. The path rule is unchanged (`signIn` still means not
   signed in and on for agents), and so is the connect route's refusal.

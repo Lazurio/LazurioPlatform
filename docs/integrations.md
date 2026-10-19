@@ -805,8 +805,9 @@ changes but also when a tool is installed or switched on or off for agents
 Composio's sign-in reads the tools live first (`signInComposio`): signed in, the
 person stays on Integrace, the Integrace are read again and the card's form
 opens; only signed out does Settings → Tools open Composio's sign-in. Signed in
-but off for agents (`off`), a card says "Composio je připojené, ale má vypnuté
-Používají agenti." ("Composio is connected, but Used by agents is off for it.")
+but off for agents (`off`), a card says "Composio je připojené, ale agenti ho
+nepoužívají: v Nástrojích má vypnuté „Používají agenti“." ("Composio is
+connected, but agents don't use it: “Used by agents” is off in Tools.")
 with "Otevřít Nástroje", and a connect is refused as `composio-signed-out` as
 before.
 

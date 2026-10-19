@@ -205,14 +205,14 @@ test("Composio signed in but off for agents: the card says so with the switch's 
     composioOff,
   });
   expect(cardView(gmail, entry, options(cs, true))).toEqual({
-    line: "Composio je připojené, ale má vypnuté Používají agenti.",
+    line: "Composio je připojené, ale agenti ho nepoužívají: v Nástrojích má vypnuté „Používají agenti“.",
     connected: false,
     pathLabel: null,
     action: { kind: "open-tools", label: "Otevřít Nástroje" },
     composio: false,
   });
   expect(cardView(gmail, entry, options(en, true)).line).toBe(
-    "Composio is connected, but Used by agents is off for it.",
+    "Composio is connected, but agents don't use it: “Used by agents” is off in Tools.",
   );
   // Signed out: Připojit, which asks for Composio's sign-in, as before.
   expect(cardView(gmail, entry, options(cs, false)).action).toEqual({
