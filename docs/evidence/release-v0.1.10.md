@@ -4,7 +4,8 @@ Evidence for [recovery mode G.3](../recovery-mode.md#g3-canary-stage-8-hours-on-
 and [the release cycle](../release-cycle.md#qualification-and-the-canary): the candidate
 `v0.1.10-rc.1` (source `edca9290470d04802610cf3c86556c66a597309e`) and the final tag `v0.1.10` at
 the same source.
-The record is [`qualification/canary/v0.1.10-rc.1.json`](../../qualification/canary/v0.1.10-rc.1.json).
+The record is [`qualification/canary/v0.1.10-rc.1.json`](../../qualification/canary/v0.1.10-rc.1.json),
+added by [#528](https://github.com/Lazurio/LazurioPlatform/pull/528).
 Machines are opaque ids, as in the record. Which Machine is which is kept only in the pilot
 Organization's own private records.
 
