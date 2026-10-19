@@ -141,13 +141,51 @@ the end of the stage. No module app failed in any round.
 - **Modules already running at the start** (3 each on two work VMs) were still running at the
   end, with their data mounts present (#476). None stopped or failed.
 - **Module opens through the Launchpad** were not recorded inside this stage. The browser
-  acceptance below opens modules after it, and the second stage records module opens inside it.
+  acceptance below opened modules after it, inside the second stage.
 
 ## Browser acceptance (root decision 0178)
 
-On the pilot Organization, after the first stage, with the designated test accounts (the Owner
-and a member), each in an agent's own headless browser profile. The result is added here before
-this pull request is marked ready.
+On the pilot Organization, 2026-10-19 18:44–19:21Z, mostly inside the second stage. An agent ran
+the checks with the designated test accounts (the Owner and a member), each in its own headless
+browser profile. No Chat turn was run.
+
+- **Passed:**
+  - **Sign-in and health.** Sign-in through the gateway on all three work VMs. On each, the
+    recovery page reads `0.1.10-rc.1` with every check ok.
+  - **Refusal.** A member is refused (403) on an Environment she was not given.
+  - **Sign-out.** Sign-out and sign-in again in a single tab.
+  - **An app.** The Knowledgebase opened, closed and opened again.
+  - **The Environment theme (#493).**
+    - Settings offers the five themes, in Czech and in English.
+    - A write to Ocean was followed by Settings, the Apps page, the rail and the column, also
+      after a reload. It was then written back.
+    - On the public Environment the group is withheld, and a write is refused with 403
+      `public-environment`.
+  - **Trezor (#495, #500).**
+    - The Apps column does not list it where the Environment has no vault, which is all three: the
+      pilot Organization has none on purpose.
+    - The new and the old addresses open the vault page with its no-vault explanation.
+    - The public Environment has no Trezor.
+  - **The guide (#501, #502, #503).**
+    - A "?" plays its explanation in place on Apps, Soubory, Integrace and every Settings section,
+      in Czech and in English, with the Team variants on the Team Environment.
+    - Escape closes it and stays on the page.
+  - **Words (#497).** The words for the kinds of Environment on the Work and the Team
+    Environment. No visible text names an Environment "Mašina", "VM" or "server".
+  - **The Environment Browser (#505).**
+    - Inside it, the Dashboard is not signed in, on the Work Environment and on the public one.
+    - On the public one, github.com is not signed in either.
+    - The public Environment's own app names still reach the gateway's sign-in. That is expected
+      while the hosting side's part of #505 is not deployed.
+  - **Layout.** The rail and the column band at 1440 px and at 390 px.
+- **Not run, on purpose:** opening the Work Environment's own app names inside its Environment
+  Browser. That browser keeps the Environment's own GitHub sign-in, and the gateway's sign-in has
+  no click, so the visit would create a Lazurio session there. It is recorded on
+  [#504](https://github.com/Lazurio/LazurioPlatform/issues/504#issuecomment-6275485495), and the
+  hosting side's part of #505 closes it.
+- **Found:** one copy defect in Settings, recorded on
+  [#498](https://github.com/Lazurio/LazurioPlatform/issues/498#issuecomment-6275484991). No
+  regression, and no Recovery mode.
 
 ## The second stage, with the personal VM
 
@@ -159,8 +197,28 @@ Running.
   18:55:14Z, found 4/4. T3 Code's version is still recorded, but no longer compared, because it is
   not part of the Platform candidate. All three work VMs and the personal VM run T3 Code
   0.1.0-lazurio.3 at the start.
-- **Inside the stage:** the G.3 item (a Folder refresh and a deliberate Launchpad restart) and
-  module opens through the Launchpad.
+- **Real work inside the stage, so far.** This is the browser acceptance above; every value was set
+  back.
+  - **Theme.** The Environment theme of `f1040cafc798ecf0` was set to Ocean at 19:07:43Z and back
+    to Lazurio at 19:07:55Z (theme record revisions 9 and 10).
+  - **Language.** The Settings language was changed and set back on `f1040cafc798ecf0` (19:12:41Z
+    and 19:15:27Z, Folder revisions 12 and 13) and on `a2a75fc428e8dbad` (19:12:43Z and 19:15:16Z,
+    revisions 5 and 6).
+  - **A refused write.** A theme write on `146fb920b36d943c`, the public Environment, at 19:11:07Z
+    was refused with 403, as designed. The record did not change.
+  - **Module opens.** The Knowledgebase was opened, closed and opened again through the Launchpad on
+    `f1040cafc798ecf0`, at 19:10:38Z and 19:10:52Z.
+  - **Sign-out.** Sign-out and sign-in again on `f1040cafc798ecf0`, at 19:15:48–19:16:06Z and
+    19:19:20–19:19:42Z.
+
+  The G.3 item itself, a Folder refresh and a deliberate Launchpad restart, follows inside the
+  stage.
+- **Other changes on the same Machines during the stage, so far:**
+
+  | When (UTC) | Machines | What | Platform |
+  |---|---|---|---|
+  | 2026-10-19 19:15:43–19:15:53Z | work VM `f1040cafc798ecf0` | T3 Code 0.1.0-lazurio.3 → 0.1.0-preview.20261019.2. Only the T3 Code service restarted. | unchanged |
+  | 2026-10-19, within 19:31–19:43Z | work VM `f1040cafc798ecf0` | A read-only check from a Chat thread's terminal (the environment, `xdg-open`), which opens one tab in the Environment Browser. Its exact times follow. | unchanged |
 
 When it has ended:
 - its record replaces the one in this pull request;
