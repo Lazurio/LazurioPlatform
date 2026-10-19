@@ -562,6 +562,38 @@ test("GitHub from the Tools reading of the profile shown", () => {
     }),
   ).toBe("missing");
   expect(composioFact(null)).toBe("none");
+  // Signed in, and what the organizations' reading says of the organization
+  // of this Environment's Organization's name (the end-to-end test of
+  // 2026-10-19): done only where it is the one Composio works in, or where
+  // the person chooses; not read yet, the sign-in says it.
+  const signedIn = {
+    revision: 1,
+    sharedEnvironment: false,
+    tools: [
+      { name: "composio", installed: true, signIn: { state: "signed-in" } },
+    ],
+  } as const;
+  const named = (state: "matches" | "missing" | "ambiguous" | "elsewhere") =>
+    ({ kind: "named", name: "Lazurio Example Organization", state }) as const;
+  expect(composioFact(signedIn, named("matches"))).toBe("connected");
+  expect(composioFact(signedIn, { kind: "chosen", personal: true })).toBe(
+    "connected",
+  );
+  expect(composioFact(signedIn, null)).toBe("connected");
+  for (const state of ["missing", "ambiguous", "elsewhere"] as const)
+    expect(composioFact(signedIn, named(state))).toBe("unfinished");
+  expect(composioFact(signedIn, { kind: "unverified" })).toBe("unfinished");
+  // Signed out, the organization does not matter.
+  expect(
+    composioFact(
+      {
+        revision: 1,
+        sharedEnvironment: false,
+        tools: [{ name: "composio", installed: true }],
+      },
+      named("missing"),
+    ),
+  ).toBe("missing");
 });
 
 test("the first address: the token and a start request apart, both leading to Začínáme", () => {

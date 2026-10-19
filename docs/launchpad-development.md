@@ -2984,8 +2984,11 @@ Organization's, and it gets none of it.
 
   Then "Hesla pro agenty" with Trezor Prostředí and its state as Apps → Trezor reads
   it (`GET /api/vault`, `vaultPageView`; a Remote Environment with a vault only),
-  "Volitelné" (Composio where Nástroje offer it, with its sign-in; on a Remote
-  Environment SSH z vlastního počítače, "Nastaveno" once a device's key was added here,
+  "Volitelné" (Composio where Nástroje offer it, with its sign-in, and "Nedokončeno"
+  with "Dokončit" where it is signed in but the organizations' reading says it does
+  not work in the organization of the Organization's name: "Dokončit" opens
+  Composio's dialog at the step left in Composio, decision F42's note of 2026-10-19;
+  on a Remote Environment SSH z vlastního počítače, "Nastaveno" once a device's key was added here,
   and Codex Desktop, both leading to Settings → SSH; between them "Trezor v Bitwardenu"
   where Apps → Trezor gives the steps for Bitwarden, its "Návod" opening them) and
   "Prohlídka aplikace" ("Spustit

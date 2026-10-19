@@ -545,6 +545,15 @@ right organization.
   paused while the page is hidden and at once when it shows again) until it is
   connected, then says "Composio je připojené" with the account and the
   organization current after the switch, and "Vybrat aplikace" to Apps → Integrace.
+- **Začínáme** (F42's note of 2026-10-19): its Composio row reads
+  `/api/tools/composio/organizations` each time it is shown, and again when
+  Composio's sign-in changes meanwhile (`composioFact`). Signed in, but with the
+  organization missing, there twice, not made current or the Organization's name
+  unreadable, the row says "Nedokončeno" with "Dokončit", which opens the sign-in
+  dialog at the step left in Composio (`openComposioOrganization`); until the
+  first answer, and where the person chooses, the sign-in says it ("Připojeno").
+  Settings → Tools keeps "Připojeno jako <account> (<current organization>)":
+  the sign-in itself is done.
 
 ### Account names and Composio's dashboard
 

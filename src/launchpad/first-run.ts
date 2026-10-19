@@ -11,6 +11,7 @@ import {
 import type { MessageKey } from "./messages";
 import type { EntryAudience } from "./public-environment";
 import type { SettingsSection } from "./routes";
+import type { OrganizationRuleView } from "./tools-view";
 import { fill } from "./update-view";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -92,13 +93,28 @@ export function githubAccount(overview: ToolsReading): string | null {
     : null;
 }
 
-/** Whether Composio is connected: `none` where Tools do not offer it. */
-export type ComposioFact = "missing" | "connected" | "none";
+/** Whether Composio is connected: `none` where Tools do not offer it;
+ * `unfinished` where it is signed in, but the organizations' reading says it
+ * does not work in the organization of this Environment's Organization's
+ * name (missing, there twice, not made current, or the name unreadable;
+ * decision F42, note of 2026-10-19). */
+export type ComposioFact = "missing" | "unfinished" | "connected" | "none";
 
-export function composioFact(overview: ToolsReading): ComposioFact {
+/** `organization` is the rule of the last answer of
+ * `/api/tools/composio/organizations` for this sign-in, null until read:
+ * then the sign-in says it, as before. */
+export function composioFact(
+  overview: ToolsReading,
+  organization: OrganizationRuleView | null = null,
+): ComposioFact {
   const composio = overview?.tools.find((tool) => tool.name === "composio");
   if (composio === undefined) return "none";
-  return composio.signIn?.state === "signed-in" ? "connected" : "missing";
+  if (composio.signIn?.state !== "signed-in") return "missing";
+  return organization === null ||
+    organization.kind === "chosen" ||
+    (organization.kind === "named" && organization.state === "matches")
+    ? "connected"
+    : "unfinished";
 }
 
 /** The Environment's AI as the page knows it (`GET /api/ai`, tools/ai.ts):

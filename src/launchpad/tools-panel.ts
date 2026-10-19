@@ -332,6 +332,25 @@ export function createToolsPanel(
 
   function openLogin(tool: ToolOverview, mode: "install" | "login" | "ssh") {
     const copy = options.copy();
+    showLogin(tool, mode);
+    if (overview?.sharedEnvironment === true) {
+      // Everyone on a shared Environment uses what is signed in here. The
+      // dialog's status says it once; the page already shows the same note.
+      phase("confirm", copy.toolsShared);
+      const go = element("button", "", copy.toolsLoginContinue);
+      go.type = "button";
+      go.addEventListener("click", () => void begin());
+      const row = element("p", "tool-actions");
+      row.append(go);
+      loginBody.replaceChildren(row);
+      go.focus();
+      return;
+    }
+    void begin();
+  }
+
+  /** The dialog of a tool's sign-in, open and empty, with its flow. */
+  function showLogin(tool: ToolOverview, mode: "install" | "login" | "ssh") {
     loginOpener = {
       name: tool.name,
       control: mode === "ssh" ? "link-ssh" : "curated",
@@ -354,26 +373,12 @@ export function createToolsPanel(
       challenge: null,
       qr: null,
     };
-    loginHeading.textContent = loginTitle(tool.name, mode, copy);
+    loginHeading.textContent = loginTitle(tool.name, mode, options.copy());
     loginStatus.textContent = "";
     loginBody.replaceChildren();
     if (typeof loginDialog.showModal === "function") loginDialog.showModal();
     else loginDialog.setAttribute("open", "");
     loginHeading.focus();
-    if (overview?.sharedEnvironment === true) {
-      // Everyone on a shared Environment uses what is signed in here. The
-      // dialog's status says it once; the page already shows the same note.
-      phase("confirm", copy.toolsShared);
-      const go = element("button", "", copy.toolsLoginContinue);
-      go.type = "button";
-      go.addEventListener("click", () => void begin());
-      const row = element("p", "tool-actions");
-      row.append(go);
-      loginBody.replaceChildren(row);
-      go.focus();
-      return;
-    }
-    void begin();
   }
 
   async function begin() {
@@ -1882,6 +1887,26 @@ export function createToolsPanel(
     return true;
   }
 
+  /** Composio signed in, but not in the organization of its Organization's
+   * name (Začínáme's "Dokončit", decision F42, note of 2026-10-19): its
+   * dialog opens at what is left to do in Composio, as after a sign-in. True
+   * when it opened. */
+  function openComposioOrganization(): boolean {
+    if (overview === null || busy || loginDialog.open) return false;
+    const tool = overview.tools.find((entry) => entry.name === "composio");
+    if (tool?.signIn?.state !== "signed-in") return false;
+    showLogin(tool, "login");
+    signedIn({
+      kind: "signed-in",
+      tool: tool.name,
+      already: true,
+      ...(tool.signIn.account === undefined
+        ? {}
+        : { account: tool.signIn.account }),
+    });
+    return true;
+  }
+
   render();
-  return { refresh, openSignIn };
+  return { refresh, openSignIn, openComposioOrganization };
 }
