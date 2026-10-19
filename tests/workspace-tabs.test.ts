@@ -7,6 +7,7 @@ import { executionOs } from "../src/folder/platform";
 import {
   appsScope,
   appsScopes,
+  appsSectionHead,
   appsSections,
   workspaceTabsTarget,
 } from "../src/launchpad/apps-view";
@@ -191,6 +192,43 @@ test("Apps shows the tabs in the Organization's order; a module in no tab is in 
   expect(productionspace?.tiles.map((tile) => tile.key)).toEqual([
     "r:firmware",
   ]);
+});
+
+test("the Workspace's head: the flag first, then the tabs' switch with 'Upravit karty' after it and no count; every other section keeps its count", () => {
+  // Decision F32's addendum of 2026-10-19 (prototypes-lazurio#73): the
+  // switch stands at the head's right end and the flag on the rule. Where
+  // each part stands to the pixel is checked in a browser.
+  const group = appsScope(catalog, { view: "home" }, cs);
+  if (group === null) throw new Error("The fixture has an Organization");
+  const [workspace, productionspace] = appsSections(catalog, group, cs, null);
+  if (workspace === undefined || productionspace === undefined)
+    throw new Error("The fixture has both sections");
+  const edit =
+    "https://dashboard.lazurio.ai/orgs/example/settings?tab=modules&focus=workspace-tabs";
+  const head = appsSectionHead(workspace, edit);
+  expect(head.flag).toBe("Workspace");
+  if (head.end.kind !== "tabs") throw new Error("The Workspace has tabs");
+  expect(head.end.tabs.map((tab) => tab.name)).toEqual([
+    "Každodenní práce",
+    "Finance",
+    "Sklad",
+  ]);
+  expect(head.end.edit).toBe(edit);
+  // Anyone but the Owner: the switch alone.
+  expect(appsSectionHead(workspace, null).end).toMatchObject({
+    kind: "tabs",
+    edit: null,
+  });
+  // Productionspace never has tabs: its count, and no edit even for the Owner.
+  expect(appsSectionHead(productionspace, edit)).toEqual({
+    flag: "Productionspace",
+    end: { kind: "count", count: productionspace.count },
+  });
+  // A Workspace without tabs keeps its count.
+  expect(appsSectionHead({ ...workspace, tabs: null }, edit)).toEqual({
+    flag: "Workspace",
+    end: { kind: "count", count: workspace.count },
+  });
 });
 
 test("fewer than two tabs with modules here show none: the plain Workspace", () => {

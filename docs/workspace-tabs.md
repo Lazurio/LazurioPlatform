@@ -1,20 +1,23 @@
 # Workspace tabs: an Organization's own arrangement of its modules
 
-Decision: [F32's addendum of 2026-10-16](decisions.md), root decision 0206. Related: #428 (hide
+Decision: [F32's addendum of 2026-10-16](decisions.md), root decision 0206, and its look of
+2026-10-19 (HumanAndMachine-ai/prototypes-lazurio#73). Related: #428 (hide
 auxiliary module tiles), #446 (the first proposal, Work / Administration per
 browser, whose tabs pattern and tests this builds on).
 
 ## What a person sees
 
 Apps keeps two sections, Workspace and Productionspace. When the Organization
-has arranged its Workspace, a row of its tabs sits beside the Workspace pill:
+has arranged its Workspace, its tabs stand at the right end of the Workspace
+head as the same switch as Chat · Apps · Automate in the column, 6 px above
+the blue rule, while the "Workspace" flag stays flush on the rule:
 "Každodenní práce", "Finance", "Sklad". The first tab opens; every module is in
 exactly one tab; a module nobody placed is in the first. Favourites stay
 first within a tab and pinned in the column. Without an arrangement, or with
 fewer than two tabs that have something on this Environment, Workspace looks
 as before.
 
-The Organization's Owner also sees "Upravit karty" at the end of the row and
+The Organization's Owner also sees "Upravit karty" right after the switch and
 "Přesunout do karty" in each module's menu. Both lead to the Organization's
 modules in its Dashboard. Nobody else sees an editing action.
 
@@ -102,3 +105,7 @@ was made for this kind of Organization-wide choice and fails safe.
 - Who besides the Owner may arrange: Stewards, as with "Přístup k modulu"?
 - #428 (hiding auxiliary modules) is served by a tab such as "Správa"; a
   separate "hidden" state is not part of this.
+- The wireframe's note (Matěj, 2026-10-17) gives the personal Workspace the
+  same tabs, arranged by its owner. This contract has none there: the
+  personal space has no Organization root whose settings could hold them, so
+  where its arrangement lives is a step of its own.

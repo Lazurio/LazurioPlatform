@@ -248,6 +248,37 @@ export type AppsSection = Readonly<{
 /** One tab of an Organization's Workspace, as Apps draws it. */
 export type AppsTab = Readonly<{ name: string; tiles: readonly AppsTile[] }>;
 
+/** A section's head as Apps draws it, in order (decision F32's addenda of
+ * 2026-10-16 and 2026-10-19): the flag first, flush on the section's rule,
+ * then the count; or, where the Workspace shows the Organization's tabs, no
+ * count but the tabs' switch at the head's right end, with "Upravit karty"
+ * after it where the Owner is led to arrange them (`edit`, from
+ * `workspaceTabsTarget`). */
+export type AppsSectionHead = Readonly<{
+  flag: string;
+  end:
+    | Readonly<{ kind: "count"; count: string }>
+    | Readonly<{
+        kind: "tabs";
+        tabs: readonly [AppsTab, ...AppsTab[]];
+        edit: string | null;
+      }>;
+}>;
+
+export function appsSectionHead(
+  section: AppsSection,
+  edit: string | null,
+): AppsSectionHead {
+  const [first, ...rest] = section.tabs ?? [];
+  return {
+    flag: section.title,
+    end:
+      first === undefined
+        ? { kind: "count", count: section.count }
+        : { kind: "tabs", tabs: [first, ...rest], edit },
+  };
+}
+
 const countKeys = {
   modules: {
     one: "appsModulesOne",

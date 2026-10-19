@@ -23,6 +23,7 @@ import {
   appsHomeParts,
   appsScope,
   appsScopes,
+  appsSectionHead,
   appsSpaceOf,
   favoriteTiles,
   moduleAccessTarget,
@@ -826,11 +827,15 @@ export function createCatalogPanel(
   ): HTMLElement {
     const part = element("section", "apps-section");
     part.dataset.section = value.kind;
+    const head = appsSectionHead(
+      value,
+      workspaceTabsTarget(null, group, options.dashboard, owner),
+    );
     const top = element("div", "section-head");
-    const title = element("h2", "section-pill", value.title);
+    top.append(element("h2", "section-pill", head.flag));
     const grid = element("div", "tile-grid");
-    if (value.tabs === null) {
-      top.append(title, element("span", "section-count", value.count));
+    if (head.end.kind === "count") {
+      top.append(element("span", "section-count", head.end.count));
       grid.append(...value.tiles.map((item) => tile(item, group, owner)));
       if (offer !== null) grid.append(newModuleTile(offer));
       part.append(top, grid);
@@ -838,10 +843,9 @@ export function createCatalogPanel(
     }
     // The Organization's own tabs (decision F32's addendum of 2026-10-16),
     // the WAI-ARIA tabs pattern: arrows, Home and End move between them.
-    const tabs = value.tabs;
+    const { tabs, edit } = head.end;
     const key = tabsKey(group);
     const first = tabs[0];
-    if (first === undefined) return part;
     const selected =
       tabs.find((tab) => tab.name === selectedTabs.get(key)) ?? first;
     const list = element("div", "workspace-tabs");
@@ -885,9 +889,10 @@ export function createCatalogPanel(
       });
       list.append(button);
     });
-    top.classList.add("workspace-head");
-    top.append(title, list);
-    const edit = workspaceTabsTarget(null, group, options.dashboard, owner);
+    // The switch and "Upravit karty" after it, together at the head's right
+    // end (decision F32's addendum of 2026-10-19).
+    const end = element("div", "workspace-head-end");
+    end.append(list);
     if (edit !== null) {
       const link = element(
         "a",
@@ -895,8 +900,10 @@ export function createCatalogPanel(
         options.copy().appsTabsEdit,
       );
       link.href = edit;
-      top.append(link);
+      end.append(link);
     }
+    top.classList.add("workspace-head");
+    top.append(end);
     grid.append(...selected.tiles.map((item) => tile(item, group, owner)));
     // "+ Nový modul" stays with the first tab, where a new module lands.
     if (offer !== null && selected === first) grid.append(newModuleTile(offer));

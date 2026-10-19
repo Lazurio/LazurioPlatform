@@ -4653,6 +4653,40 @@ the same name pattern. Shaping: [Workspace tabs](workspace-tabs.md).
 | The Launchpad writes the Organization root itself with the Owner's identity | A second writer of the Organization's settings beside the Dashboard, against root decision 0194 point 2; not chosen (an open question for Matěj if the round trip to the Dashboard feels too long) |
 | `settings.workspace.tabs`, read with the catalog, arranged in the Dashboard (selected) | One truth in the Organization's repository, the same for every member and every agent; one writer; older releases keep working |
 
+**Addendum 2026-10-19, decided by Matěj (Organization Admin) on the wireframe
+(HumanAndMachine-ai/prototypes-lazurio#73, plan DEV-6612): the tabs look like
+the column's switch.** The row of quiet words beside the flag, the shown one
+underlined on the rule (the addendum above), gives way to:
+
+1. **The same switch as Chat · Apps · Automate.** The tabs are the column
+   head's segmented switch (`nav.switch` and `.tab` of
+   `src/shell/styles.ts`): one control surface with 3 px around and 2 px
+   between the tabs, the design system's `radius-md` and its inner corner,
+   weight 550, the shown tab raised on a hairline. The page draws it with the
+   roles the shell's colour roles stand for on the Launchpad (`--hover`,
+   `--card`, `--border`, `--fg`, `--muted-fg`, the focus in `--link`), so a
+   theme other than Lazurio colours both alike; no new token.
+2. **At the head's right end, the flag flush on its rule.** The switch
+   stands at the right end of the Workspace head, 6 px above the blue rule,
+   with "Upravit karty" right after it for the Owner. The "Workspace" flag
+   stays on the rule with no gap under it: the head aligns its parts to its
+   bottom edge. Where the switch does not fit beside the flag, it takes a
+   line above the flag rather than below it, so the flag never leaves the
+   rule; on a very narrow page its tabs wrap inside it.
+3. **Unchanged:** the tabs' keyboard (arrows, Home, End) and their WAI-ARIA
+   roles, the count giving way to the tabs, and Productionspace without tabs.
+
+Where each part stands to the pixel is checked in a browser (root decision
+0178); `appsSectionHead` in `src/launchpad/apps-view.ts` and its test hold
+the order: the flag first, then the switch with "Upravit karty" after it.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Quiet words beside the flag, underlined on the rule (2026-10-16) | A second look of tabs beside the column's switch; replaced by Matěj |
+| The switch beside the flag, the head centred on it | The taller switch lifts the flag off the rule and leaves a gap under it; rejected by Matěj |
+| On a narrow page, the switch on a line below the flag | Puts the switch between the flag and its rule; not chosen |
+| The switch at the head's right end, 6 px above the rule, the flag flush (selected) | One look of a switch across the product; the flag stays the section's mark on its rule |
+
 ## F33 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal, partly decided)
 
 **Proposal of 2026-10-02 (plan DEV-6638); partly decided by Matěj the same evening, not
