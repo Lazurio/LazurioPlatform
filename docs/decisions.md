@@ -14857,3 +14857,104 @@ removed sentences, ids and keys gone), `tests/start-view.test.ts`,
 `tests/tools-view.test.ts`, `tests/recovery-view.test.ts`,
 `tests/environment-wording.test.ts`, and in headless Chrome against the hosted and
 personal previews (root decision 0178).
+
+### F56 addendum (3) of 2026-10-19: the six principles in motion
+
+**Decided by Matěj (Organization Admin) with F56 (root decision 0180's addendum of
+2026-10-18; plan DEV-6612 M3, the lane's shaping section 7 item 6, "Guide: the six
+principles in motion"; the approved wireframe, prototypes-lazurio bebea85,
+`BuddyGuide.tsx`, `guide-parts.tsx`, `guide.css`, `docs/buddy-guide.md`).** F56 left
+the principles' motion for this slice: the wireframe's guide says a few words and lets
+the motion carry the message. Each principle now plays a short scene in the guide's
+card, one beat a step, after the brand's video standard (design-system-lazurio
+`content/brand/video/video.md`: a light paper stage, white objects, blue for the
+answer, the expressive vermilion only for "no", one subject at a time). Its story,
+beats and look are the wireframe's; its code is not ported.
+
+1. **What plays at each step.** Five principles have a scene; Trezor keeps its approved
+   video (`guide-video.ts`, F53's addendum of 2026-10-16) and gets none, so its card
+   says its five lines as before.
+
+   | Principle | 1 | 2 | 3 | 4 |
+   | --- | --- | --- | --- | --- |
+   | `environment` | the agents' computer, named by the kind it plays in | its apps pop into the dock, its browser opens | an agent's cursor clicks and types in it | it steps aside as "počítač agentů"; "váš počítač" comes in beside it, Lazurio in its bar and in it a window with their screen small and an eye; one straight solid arrow from that window to their computer |
+   | `buddy` | the Osobní Prostředí, a person in it, a lock | its border turns blue; Admin and "cizí" knock and stop at it, a vermilion × each | a Pracovní Prostředí appears beside it; Admin walks toward it | Admin is in it, a blue ✓ |
+   | `reach` | the Osobní and the Pracovní Prostředí | one straight solid arrow from the Osobní to the Pracovní Prostředí is drawn, an agent travels along it, above it | an agent from work slides toward the Osobní Prostředí and stops at its blue border, a vermilion × | the arrow grows stronger, the agent travels again |
+   | `files` | your cursor drags Smlouva.pdf into the chat; an agent types | your "Odkaz?" and the agent's link Report.pdf | your cursor taps it; it downloads into Stažené | the camera travels to Soubory: both files, an agent at work, an eye |
+   | `integrations` | the agents' computer; your cursor taps E-mail, a key turns, "přihlášeno" | a line from the computer to E-mail, an agent goes there | Kalendář stays neutral, dashed, "nepřihlášeno": no lock, no red | the line grows stronger, a second agent comes |
+2. **It is the shell's, internal, and adds nothing to interface v1.** The principles are
+   the shell's, so their scenes are too, and every app that loads `shell.js` plays them.
+   `guide-scenes.ts` is pure data: per beat where each object stands, whether it is on
+   stage, the words of its state and when it moves, with the names it draws in Czech
+   and English; `guide-stage.ts` builds it in the card and sets a beat;
+   `guide-scene-styles.ts` draws it. The engine hands the layer the scene of the
+   principle and step that play (`GuideView.scene`, keyed by the principle's id and the
+   step); a host's own explanation has none. Page scenes would be the host's, handed
+   over with its explanations, which needs a new member of `provideGuides`: none is
+   added until a page needs one.
+3. **The content rules, held by tests.** No "=" and no words of sameness in anything a
+   scene draws: the person's laptop is never the agents' computer, two devices stand
+   apart and Lazurio is a window into theirs. The way from the Osobní to the Pracovní
+   Prostředí is one straight solid arrow, pointing from the first to the second; nothing
+   stands on it, and there is no way back drawn at all (the wireframe's red dashed line
+   back is dropped by Matěj's rule): the agent from work stops at the border. A scene
+   adds no sentence: it names things (at most three words, the guide's text rules, three
+   kinds of Environment) and the step's text stays the card's and the accessible
+   content. The agents' computer carries the kind it plays in (an automated Environment
+   a Pracovní one); on your computer it says "Prostředí" and the picture stays the
+   agents' computer, as the wireframe's does.
+4. **Accessibility.** The stage is `aria-hidden`. With `prefers-reduced-motion` (or the
+   layer's `data-still`) each beat is its finished frame: the stylesheet's plain rules
+   are the frames, and every transition and animation stands only inside `@media
+   (prefers-reduced-motion: no-preference)` and outside `data-still`. Every animation
+   loops (an agent at work) or ends where the still frame stands, so the end of a beat
+   in motion is its still frame.
+5. **The card keeps one size through an explanation**, any explanation, a host's too:
+   every step's words stand in one place with only the step's own shown and heard, the
+   stage has one size (as wide as the card leaves, at most 360 px, 16 by 9; below 768 px
+   it stands centred in the sheet), and the last step's links ("Dokumentace", "Založte
+   si Buddyho") have a row of their own under the buttons, kept but unseen and
+   unreachable until that step. Before, the foot wrapped at the last step and the card
+   grew by a row.
+6. **Size.** `shell.js` grows from 136,305 to 163,715 bytes (gzip from 43,803 to 50,863):
+   the scenes' stylesheet, their data and eleven Iconoir icons (cloud, lock, building,
+   mail, calendar, eye, page, folder, cursor, xmark, link). No dependency, image or
+   video; the Lazurio symbol on the laptop is the shell's own.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Port the wireframe's React scenes | The shell has no React and should not get it for decoration. Rejected for data and CSS |
+| The scenes in the Launchpad | The principles are the shell's; the Dashboard and the forks would play them without motion. Rejected |
+| A scene member of `provideGuides` now | A permanent name with no page that needs it. Rejected until one does |
+| The Prostředí scene over the page area, as the wireframe plays it | The shell does not know a host's page area. Rejected: in the card everywhere |
+| The wireframe's red dashed way back in "Kam smějí agenti" | Matěj's rule: one straight solid arrow from the Osobní to the Pracovní Prostředí. Rejected |
+| Lines drawn with `stroke-dasharray` | Shows dashes while it draws. Rejected: a line is a bar revealed by `clip-path` |
+| Letting the card grow at the last step | The card and its scene jump, most visibly as a sheet. Rejected for the reserved row |
+
+**Honest limits.** Motion, placement and look are checked in a browser, not in CI (root
+decision 0178); the tests hold the data, the beats, the words and the reduced-motion
+contract. The scenes' English words are the agent's, for Matěj's review. On your
+computer the last beat of `environment` still shows two devices, as the wireframe
+does, although agents work on your computer too; its text says the same, and both wait
+for Matěj's word. Without Buddy the Osobní Prostředí shows a person, not Buddy, and the
+guide's mark stays the neutral one. Soubory of a Team Environment plays the Launchpad's
+`files-team`, which has no scene. The Dashboard plays the scenes with its next shell pin
+(task 994).
+
+Verified by `tests/shell-guide-scenes.test.ts` (on the shell's engine: every principle's
+step with a scene plays it at its beat and Trezor and a host's explanation none, in
+both languages and every kind; a page that hands over nothing draws nothing; the stage
+built `aria-hidden` with no other accessible name, each beat's places, presence and
+state, an entering stage off stage; the words a scene draws under the guide's rules,
+names only, no "=" and no sameness; the kind on the agents' computer; two devices apart
+with Lazurio's window and one arrow to theirs; one straight solid arrow from the Osobní
+to the Pracovní Prostředí with nothing on it and nothing dashed but the Lazurio window's
+frame and an app not signed in; motion only where it is not reduced, every animation
+looping or ending at its still frame, every animation defined; no listener in the scene
+modules), `tests/shell-guide.test.ts`, `tests/shell-guide-protocol.test.ts` and in
+headless Chrome against the hosted and personal previews, Czech and English, a Work, a
+Team and a Personal Environment, at 1440 and 700 px, with and without
+`prefers-reduced-motion` (root decision 0178): each principle's scene at each step, one
+size of the card and the stage per explanation, no running animation and a settled
+frame from the first moment with less motion, and a fork-like page with the shell,
+`<lazurio-buddy>` and a "?" but no `provideGuides` drawing nothing.
