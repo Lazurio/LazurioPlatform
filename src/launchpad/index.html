@@ -588,6 +588,7 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .tool-signin[data-state="signed-in"], .vault-page-state[data-tone="ok"] { color: var(--success-fg); }
 .vault-page-state[data-tone="warn"] { color: var(--warning-fg); }
 .tool-signin[data-state="signed-out"], .tool-ssh[data-state="not-linked"] { color: var(--warning-fg); }
+.tool-signin[data-state="waiting"] .spinner { display: inline-block; margin-right: 6px; vertical-align: -1px; }
 .tools-muted { color: var(--muted-fg); font-size: 12.5px; }
 /* The Launchpad's older reading while it reads the tools anew (tools-reading.ts): shown as being checked. */
 #tools-groups[data-checking] { opacity: 0.6; transition: opacity 0.2s; }
@@ -623,6 +624,17 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .dialog-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; margin: 1rem -1.5rem -1.5rem; padding: 1rem 1.5rem; border-top: 1px solid var(--border); background: var(--muted); }
 .dialog-foot [role="status"] { margin-right: auto; color: var(--muted-fg); font-size: 12.5px; }
 #tools-login-status { font-weight: var(--lz-weight-akce); }
+/* The sign-in dialog's head: its title and a small × that closes the window
+   and never ends a sign-in that runs (decision F19, addendum 2026-10-19);
+   "Zrušit" in its foot only while a code waits; a waiting mark beside the
+   status while it finishes. */
+.dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.dialog-head h2 { flex: 1; min-width: 0; }
+button.dialog-x { flex: none; width: 30px; height: 30px; margin: -3px -6px 0 0; padding: 0; border: 0; background: transparent; color: var(--muted-fg); }
+button.dialog-x:hover { background: var(--hover); color: var(--fg); }
+button.dialog-x:focus-visible { outline: 2px solid var(--lz-accent); outline-offset: 2px; }
+button.dialog-x .icon { width: 18px; height: 18px; }
+#tools-login-status .spinner { display: inline-block; margin-right: 8px; vertical-align: -1px; }
 #tools-login-steps { display: flex; flex-wrap: wrap; gap: 0.25rem 1.75rem; margin: 0 0 0.75rem; padding-left: 1.1rem; color: var(--muted-fg); font-size: 12.5px; }
 #tools-login-steps li[data-state="current"] { color: var(--fg); font-weight: 600; }
 #tools-login-steps li[data-state="done"] { color: var(--success-fg); }
@@ -1810,11 +1822,11 @@ button:not(.primary) .provider-openai { color: #000000; }
 <div class="dialog-foot"><span id="tools-prompt-status" role="status" aria-live="polite"></span><button type="button" id="tools-prompt-close" data-message="toolsClose">Close</button><button type="button" id="tools-prompt-copy" class="primary" data-message="toolsCopy">Copy prompt</button></div>
 </dialog>
 <dialog id="tools-login" aria-labelledby="tools-login-title" aria-describedby="tools-login-status">
-<h2 id="tools-login-title" tabindex="-1"></h2>
+<div class="dialog-head"><h2 id="tools-login-title" tabindex="-1"></h2><button type="button" class="dialog-x" id="tools-login-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>
 <ol id="tools-login-steps"></ol>
 <p id="tools-login-status" role="status" aria-live="polite"></p>
 <div id="tools-login-body"></div>
-<div class="dialog-foot"><button type="button" id="tools-login-close" data-message="toolsClose">Close</button></div>
+<div class="dialog-foot" id="tools-login-foot" hidden><button type="button" id="tools-login-cancel" data-message="toolsLoginCancel">Cancel</button></div>
 </dialog>
 <dialog id="integrations-confirm" aria-labelledby="integrations-confirm-title">
 <h2 id="integrations-confirm-title" tabindex="-1"></h2>

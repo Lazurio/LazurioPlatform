@@ -1623,17 +1623,73 @@ export function loginEndMessage(
   return { message: copy.toolsLoginEnded, agent: false, retry: true };
 }
 
+/** What closing the sign-in dialog (its ×, Escape) does in a phase
+ * (decision F19, addendum 2026-10-19, #516): `detach` while a sign-in starts
+ * or runs, waiting for the person or finishing (gh's SSH key) — the page
+ * keeps its handle and polls on, the end runs as it would with the dialog
+ * open, and opening the same tool's sign-in again shows it; `close` where
+ * nothing runs (before it starts, while it installs, after its end). Never
+ * a cancel: only "Zrušit" cancels (`loginCancelOffered`). */
+export function loginCloseAction(phase: LoginPhase): "detach" | "close" {
+  return phase === "waiting" || phase === "linking" ? "detach" : "close";
+}
+
+/** Whether the dialog offers "Zrušit": only while a code, a link or a QR
+ * code waits for the person (`challenge`). Never while the sign-in finishes
+ * after it (gh's SSH key: 30 s per step, at most 5 minutes), which has no
+ * cancel; it ends by itself. */
+export function loginCancelOffered(
+  flow: Readonly<{ phase: LoginPhase; challenge: boolean }>,
+): boolean {
+  return flow.phase === "waiting" && flow.challenge;
+}
+
+/** A sign-in the page runs, as Začínáme says it (#516): waiting for the
+ * person (starting, or a code, link or QR shown) or finishing (gh's SSH
+ * key); null where none runs. */
+export type LoginFlowState = "waiting" | "finishing";
+
+export function loginFlowState(phase: LoginPhase): LoginFlowState | null {
+  return phase === "waiting"
+    ? "waiting"
+    : phase === "linking"
+      ? "finishing"
+      : null;
+}
+
+/** How long past a session's own end (`expiresAt`, when the server ends it
+ * by itself at the latest) the page keeps asking while its polls get no
+ * answer. */
+export const loginPollGraceMs = 60_000;
+
+/** Whether the page stops asking about a sign-in whose polls get no answer
+ * (#516): only once its own end has surely passed, never on a missed poll
+ * alone, since the session goes on by itself on the server and a poll ends
+ * nothing. Without a known end it asks on. */
+export function loginPollGivenUp(
+  expiresAt: number | null,
+  now: number,
+): boolean {
+  return expiresAt !== null && now > expiresAt + loginPollGraceMs;
+}
+
 /** What the dialog's status line and detail say while a sign-in runs: before
  * the first answer and while the tool has shown nothing to act on, the status
  * names the step and the detail says what happens and for how long at most,
  * never the same sentence twice; with a challenge the status says it waits
- * for you and the challenge is the detail. */
+ * for you and the challenge is the detail. While it finishes after that
+ * (gh's SSH key) it never says connected before the proof passed: the
+ * status says it finishes, and the detail that the window may be closed
+ * (#516). */
 export function loginProgress(
   state: LoginView | null,
   copy: Copy,
 ): Readonly<{ status: string; detail: string | null }> {
   if (state?.kind === "pending" && state.step === "ssh-key")
-    return { status: copy.toolsLoginLinking, detail: null };
+    return {
+      status: copy.toolsLoginLinking,
+      detail: copy.toolsLoginFinishingDetail,
+    };
   if (state?.kind === "pending" && state.challenge !== undefined)
     return { status: copy.toolsLoginWaiting, detail: null };
   return {
@@ -1669,6 +1725,69 @@ export async function answerWithin(
     clearTimeout(timer);
   }
 }
+
+/** The one poll loop of a sign-in the page holds (#516). A session answers
+ * its end only once, so a second loop could take the end from the first and
+ * lose it; the dialog hiding and showing again never makes another one.
+ * `schedule` plans the next poll unless one is planned or under way; `now`
+ * polls at once, unless one is under way, whose answer then counts as
+ * usual; `stop` ends the loop, and an answer still under way then counts
+ * for nothing. `ask` sends one poll; `answered` takes each answer. */
+export function createLoginPoll(
+  options: Readonly<{
+    ask: () => Promise<
+      Readonly<{ answered: true; value: unknown } | { answered: false }>
+    >;
+    answered: (
+      answer: Readonly<
+        { answered: true; value: unknown } | { answered: false }
+      >,
+    ) => void;
+    intervalMs?: number;
+    setTimer?: (action: () => void, ms: number) => unknown;
+    clearTimer?: (timer: unknown) => void;
+  }>,
+) {
+  const interval = options.intervalMs ?? 2_000;
+  const setTimer =
+    options.setTimer ??
+    ((action: () => void, ms: number) => setTimeout(action, ms));
+  const clearTimer =
+    options.clearTimer ??
+    ((timer: unknown) => clearTimeout(timer as ReturnType<typeof setTimeout>));
+  let timer: unknown = null;
+  let asking = false;
+  let stopped = false;
+  function fire() {
+    timer = null;
+    asking = true;
+    void options
+      .ask()
+      .catch(() => ({ answered: false }) as const)
+      .then((answer) => {
+        asking = false;
+        if (!stopped) options.answered(answer);
+      });
+  }
+  return {
+    schedule(ms = interval): void {
+      if (stopped || asking || timer !== null) return;
+      timer = setTimer(fire, ms);
+    },
+    now(): void {
+      if (stopped || asking) return;
+      if (timer !== null) clearTimer(timer);
+      timer = setTimer(fire, 0);
+    },
+    stop(): void {
+      stopped = true;
+      if (timer !== null) clearTimer(timer);
+      timer = null;
+    },
+  };
+}
+
+export type LoginPoll = ReturnType<typeof createLoginPoll>;
 
 /** "You are signed in to gh as octocat (Org)." */
 export function signedInMessage(state: LoginView, copy: Copy): string {

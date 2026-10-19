@@ -466,14 +466,17 @@ export function createStartPanel(
         body = parts.body;
       }
       if (step.basic === "github" && view.github !== null) {
-        // "Připojit", or "Připojit znovu" where GitHub is connected badly
-        // (#515): each opens GitHub's sign-in as it stands (`openSignIn`).
+        // "Připojit", "Připojit znovu" where GitHub is connected badly
+        // (#515), or "Otevřít" for the sign-in this page runs (#516): each
+        // opens GitHub's sign-in as it stands (`openSignIn`).
         const connect = element(
           "button",
           view.github.enabled ? "primary" : "",
           view.github.kind === "reconnect"
             ? copy.startGithubReconnect
-            : copy.startConnect,
+            : view.github.kind === "open"
+              ? copy.startOpen
+              : copy.startConnect,
         );
         connect.type = "button";
         connect.dataset.tour = "start-github";
@@ -486,9 +489,10 @@ export function createStartPanel(
         index,
         copy,
         actions,
-        step.basic === "ai" &&
+        (step.basic === "ai" &&
           view.ai.kind === "signing-in" &&
-          step.mark !== "failed",
+          step.mark !== "failed") ||
+          (step.basic === "github" && view.github?.kind === "open"),
       );
       if (body.length > 0) node.querySelector(".start-main")?.append(...body);
       // The content's own rows: the step's body.

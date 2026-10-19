@@ -701,6 +701,9 @@ const startPanel = createStartPanel({
           aiSignIn: aiSignIn.state(),
           aiPlace: aiSignInPlace(entry),
           githubLogin: githubAccount(toolsOverview),
+          // GitHub's sign-in this page runs, its window closed or not
+          // (#516): the step says it runs, and opens it again.
+          githubFlow: tools.running("gh") ?? undefined,
           list: content.list(),
         };
   },
@@ -1510,6 +1513,9 @@ const tools = createToolsPanel({
   },
   // A public Environment has no Nástroje (decision F55): nothing to read.
   absent: () => isPublicEnvironment(entry),
+  // A sign-in of this page started, moved on or ended, its window open or
+  // closed (#516): Začínáme follows.
+  signInsChanged: () => firstRun(),
 });
 const voice = voicePanel({
   post,
