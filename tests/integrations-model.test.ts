@@ -1396,6 +1396,13 @@ test("the update of Composio is offered only where Composio is on here and not t
   // The build already, or an update that cannot work here.
   expect(update({})).toBe(false);
   expect(update({ composioUpdate: false })).toBe(false);
+  // An earlier Lazurio build (0.4.3-lazurio.1): not the pinned one, but it
+  // already removes without a prompt and names its accounts, which is all
+  // the line promises; only Settings → Tools offers its update (note of
+  // 2026-10-19).
+  expect(update({ composioUpdate: true, composioDisconnect: true })).toBe(
+    false,
+  );
   // Composio off for agents, not installed or signed out: not ready.
   expect(update({ composioUpdate: true, composioReady: false })).toBe(false);
   // Not allowed here (root decision 0194).

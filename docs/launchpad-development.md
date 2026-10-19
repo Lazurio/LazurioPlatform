@@ -2366,9 +2366,10 @@ card's state is read again. What it shows:
 
 **Update** (decision F42, addendum (3) of 2026-10-13). The tools reading carries the
 build Lazurio pins for a tool (`pinned`; today only composio, Lazurio's build of the
-Composio CLI). A composio whose version is not that build says so in its Details
-("Tohle není sestavení, které Lazurio používá (0.4.3-lazurio.1)." / "This is not the
-build Lazurio uses (0.4.3-lazurio.1).", the amber attention state) and its row offers
+Composio CLI, `0.4.3-lazurio.2` since 2026-10-19). A composio whose version is not
+that build, an earlier build of Lazurio's (`0.4.3-lazurio.1`) included, says so in its
+Details ("Toto není sestavení, které Lazurio používá (0.4.3-lazurio.2)." / "This is not
+the build Lazurio uses (0.4.3-lazurio.2).", the amber attention state) and its row offers
 "Aktualizovat" / "Update" (named "Update composio") where the update can work: a
 `launchpad` tool this Environment offers, not refused by the Organization, installed
 in the standard path (an installation elsewhere is never shadowed by a second copy, so
@@ -2378,7 +2379,7 @@ there is no button there). The click is the person's consent: it posts
 installer run per tool at a time, shared with installation, `busy` otherwise; a tool
 without a pinned build is refused as `update-unavailable`). While it runs the status
 line says that the tool is being updated; the row then says the outcome ("composio
-0.4.3-lazurio.1 je nainstalovaný; přihlášení zůstává." or that the update did not
+0.4.3-lazurio.2 je nainstalovaný; přihlášení zůstává." or that the update did not
 finish, with why under "What happened" in Details) and the tools are read again.
 
 **gh and its SSH key** (F19 addendum 2026-09-28). The gh dialog has a third step,

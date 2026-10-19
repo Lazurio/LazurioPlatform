@@ -9498,6 +9498,50 @@ lookup, "Odpojit" removing by id with `--yes`, a word id naming no account there
 `lazurio integrations list --json` carrying the same names
 (`tests/integrations-routes.test.ts`).
 
+*Note of 2026-10-19, released on the Operator's instruction (plan DEV-6626): Lazurio's
+build moves to 0.4.3-lazurio.2: the login poll checks every 5 s.* The note of
+2026-10-19 above (the end-to-end test as Bob, "Not ours") found the dialog waiting 60
+to 70 s after "Authorize", because Composio's CLI polls a pending login with a growing
+pause. The fork fixes it (Lazurio/composio#3) and releases
+`@composio/cli@0.4.3-lazurio.2` from the squash of #3,
+`e52fc87e7eaf07b7d83e0b50a8dd0c392d215294`: `composio login --poll` and the browser
+wait of `composio login` check every 5 s for up to 10 minutes, `--key` about 75 s.
+Points 1 to 4 are unchanged but for the pin and the number of changes.
+
+- **The pin.** `composioBuild` names 0.4.3-lazurio.2, the installer at that same
+  commit (its `install.sh` byte for byte the one of the merge of #2, so the
+  installation behaves as before) and the four archives' SHA-256 from the release's
+  `checksums.txt`, which the downloaded archives match (read 2026-10-19).
+- **Three changes.** The build is Composio's stable 0.4.3 with three changes; the
+  constant goes once Composio's own stable CLI has all three (the poll is proposed
+  upstream nowhere yet).
+- **An Environment on 0.4.3-lazurio.1** is not the build Lazurio pins: Settings →
+  Tools says so in amber, naming 0.4.3-lazurio.2, and offers "Aktualizovat";
+  `lazurio tools update composio` installs 0.4.3-lazurio.2 in place and keeps the
+  sign-in. As point 3 has it, nothing updates it unasked.
+- **Integrace does not ask for it.** The line of addendum (b) of 2026-10-14, point 2,
+  promises disconnecting and names ("Aktualizujte Composio, ať tu můžete účty
+  odpojovat a vidět jejich jména."), and its point 4 tells agents that until the
+  update accounts cannot be disconnected. 0.4.3-lazurio.1 already does both, so
+  `composio.update` is now also false where the CLI removes without a prompt
+  (`composio.disconnect`): no line on Integrace and none for agents there; the update
+  stays in Settings → Tools.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the line for 0.4.3-lazurio.1 | Everyone is pushed to the newest build; but the line and the agents' line would promise what the person already has; rejected |
+| Another line for an earlier Lazurio build ("so the sign-in is noticed at once") | True, and still pushes everyone; but a second sentence for a gain that matters only at the next sign-in, which happens in Settings → Tools, where the update is offered; not now |
+
+Verified by tests: the pinned constant and the installer's environment with the new
+tag and digests, and the update from 0.4.3-lazurio.1 (and an older build) to
+0.4.3-lazurio.2 keeping the sign-in (`tests/tools-install.test.ts`); the Tools page's
+note and "Update" for 0.4.3-lazurio.1 (`tests/tools-view.test.ts`); the route
+updating an Environment on 0.4.3-lazurio.1 (`tests/launchpad-curated.test.ts`); no
+update offered on Integrace where the CLI removes without a prompt
+(`tests/integrations-model.test.ts`), and for 0.4.3-lazurio.1 Settings → Tools
+offering it while Integrace and `lazurio integrations list` do not
+(`tests/integrations-routes.test.ts`).
+
 **Addendum 2026-10-14, asked for by the Organization Admin: "Aplikace v Composiu"
 leads to Composio's own Apps.** Lazurio's catalog (point 6) does not list every app
 Composio offers. Wispr Flow's MCP, for example, could be connected only in Composio's
