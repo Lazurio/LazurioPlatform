@@ -41,8 +41,10 @@ Initialize the declared operator's standard Lazurio Folder from the handover.
 The workspace preset is derived from the handover (personal-vm -> hosted-personal;
 workspace-vm with owner.assignment operator -> hosted-organization-personal, team
 -> hosted-organization-team, automation (the Automated Environment of an
-Organization persona, decision 0169) -> hosted-organization-steward; without
-owner.assignment and without owner.team -> hosted-organization-personal). When
+Organization persona, decision 0169) -> hosted-organization-steward, services
+(the services Environment of a server, root decision 0209) ->
+hosted-organization-team; without owner.assignment and without owner.team ->
+hosted-organization-personal). When
 the handover states owner.assignment, --preset may name only the preset it
 derives. A workspace-vm handover with owner.team and no owner.assignment does
 not say whether the Remote Environment is assigned to one operator or shared, so

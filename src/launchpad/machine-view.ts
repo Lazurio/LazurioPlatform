@@ -5,14 +5,23 @@ import { fill } from "./update-view";
 // "This Environment" shows it, in the words the Folder renders it with
 // (src/folder/render.ts assignmentLine). `automation` is the Automated
 // Environment of an Organization persona (decision 0169), named by its
-// responsible operator.
+// responsible operator; `services` the services Environment of a server,
+// named Služby serveru (root decision 0209), which names nobody.
 export type AssignmentView =
   | Readonly<{
       kind: "operator" | "automation";
       githubLogin: string;
       githubId: number;
     }>
-  | Readonly<{ kind: "team" }>;
+  | Readonly<{ kind: "team" | "services" }>;
+
+/** The guard of every match on an assignment's kind here: what is left
+ * after every kind is handled is `never`, so a kind added to
+ * `AssignmentView` fails to compile until it is (src/folder/machine-binding.ts
+ * `unknownAssignment`, which this page script cannot import). */
+function unknownAssignment(_assignment: never): never {
+  throw new Error("Unknown assignment");
+}
 
 export function assignmentText(
   assignment: AssignmentView,
@@ -20,17 +29,28 @@ export function assignmentText(
     Record<
       Extract<
         MessageKey,
-        "machineAssignmentTeam" | "machineAssignmentAutomation"
+        | "machineAssignmentTeam"
+        | "machineAssignmentAutomation"
+        | "serverServicesName"
       >,
       string
     >
   >,
 ): string {
-  if (assignment.kind === "team") return copy.machineAssignmentTeam;
-  const operator = `${assignment.githubLogin} (GitHub id ${assignment.githubId})`;
-  return assignment.kind === "automation"
-    ? fill(copy.machineAssignmentAutomation, { operator })
-    : operator;
+  switch (assignment.kind) {
+    case "team":
+      return copy.machineAssignmentTeam;
+    case "services":
+      return copy.serverServicesName;
+    case "operator":
+      return `${assignment.githubLogin} (GitHub id ${assignment.githubId})`;
+    case "automation":
+      return fill(copy.machineAssignmentAutomation, {
+        operator: `${assignment.githubLogin} (GitHub id ${assignment.githubId})`,
+      });
+    default:
+      return unknownAssignment(assignment);
+  }
 }
 
 /** One recorded peer of the handover's relationships. */
@@ -134,15 +154,7 @@ export function environmentFacts(
   // A personal Environment says so by its kind; "only you" would repeat it
   // (root decision 0170 addendum 2026-10-15, "Druh Prostředí stačí").
   const works =
-    owner.kind === "principal"
-      ? null
-      : assignment?.kind === "operator"
-        ? `@${assignment.githubLogin}`
-        : assignment?.kind === "automation"
-          ? fill(copy.machineWorksAutomation, {
-              login: assignment.githubLogin,
-            })
-          : teamName;
+    owner.kind === "principal" ? null : worksText(assignment, teamName, copy);
   return {
     facts: [
       [copy.machineKind, kind],
@@ -151,6 +163,32 @@ export function environmentFacts(
     ],
     support: supportFacts(binding, copy),
   };
+}
+
+/** Who works in an Organization's Environment, by its assignment: the
+ * assigned operator, an automation and its responsible operator, the Team
+ * (also where the handover states no assignment), or the Organization's
+ * Owners and Admins in Služby serveru. */
+function worksText(
+  assignment: AssignmentView | undefined,
+  teamName: string | null,
+  copy: FactsCopy,
+): string | null {
+  if (assignment === undefined) return teamName;
+  switch (assignment.kind) {
+    case "operator":
+      return `@${assignment.githubLogin}`;
+    case "automation":
+      return fill(copy.machineWorksAutomation, {
+        login: assignment.githubLogin,
+      });
+    case "team":
+      return teamName;
+    case "services":
+      return teamName;
+    default:
+      return unknownAssignment(assignment);
+  }
 }
 
 function supportFacts(binding: MachineView, copy: FactsCopy): Fact[] {

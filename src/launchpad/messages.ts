@@ -1406,6 +1406,8 @@ const en = {
   machineWorks: "Who works in it",
   machineWorksTeam: "Team {team}",
   machineWorksAutomation: "automation, @{login} is responsible",
+  // The name of the services Environment of a server (root decision 0209).
+  serverServicesName: "Server services",
   machineKindPersonal: kindDetail("personal", "en"),
   machineKindWork: kindDetail("work", "en"),
   machineKindTeam: kindDetail("team", "en"),
@@ -3053,6 +3055,7 @@ const cs: Record<MessageKey, string> = {
   machineWorks: "Pracuje v něm",
   machineWorksTeam: "Team {team}",
   machineWorksAutomation: "automatizace, odpovídá @{login}",
+  serverServicesName: "Služby serveru",
   machineKindPersonal: kindDetail("personal", "cs"),
   machineKindWork: kindDetail("work", "cs"),
   machineKindTeam: kindDetail("team", "cs"),

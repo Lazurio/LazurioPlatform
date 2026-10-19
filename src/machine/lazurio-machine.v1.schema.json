@@ -50,6 +50,22 @@
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "work" } } }] },
         "entry": { "$ref": "#/$defs/entry" },
         "vault": { "$ref": "#/$defs/vault_work" },
+        "services": {
+          "description": "The services of a services Environment (root decision 0209, Machines docs/server-services.md §2.1), rendered only for a Platform that reads them: each one's id and kind, its one productionspace repository (the same on every server) and the loopback port of its page, which the Environment browser opens. No service has a hostname.",
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "kind"],
+            "properties": {
+              "id": { "type": "string", "maxLength": 32, "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
+              "kind": { "enum": ["ai-pool", "ai-gateway", "http", "diagnostics", "public-entry", "dns01"] },
+              "repository": { "type": "string", "pattern": "^[A-Za-z0-9-]+/[A-Za-z0-9_.-]+$" },
+              "page_port": { "type": "integer", "minimum": 1025, "maximum": 65535 }
+            }
+          }
+        },
         "installed": { "$ref": "#/$defs/installed" },
         "account": { "$ref": "#/$defs/account" }
       }
@@ -129,6 +145,13 @@
             "github_login": { "type": "string", "maxLength": 39, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
             "github_id": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
           }
+        },
+        {
+          "description": "The services Environment of a Proxmox server (root decision 0209): the Work Environment \"Služby serveru\" of the Owners and Admins of the Organization that owns the Machine. Rendered only for a Platform that reads it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": { "kind": { "const": "services" } }
         }
       ]
     },

@@ -82,6 +82,10 @@ export async function readVaultContext(
   } catch {
     return unsupported("folder-unreadable");
   }
+  // The vault's rules follow the preset's kind, not the words people read:
+  // Služby serveru (root decision 0209) have the Team preset, so, as in a
+  // Team Environment, their vault adds and removes no person until a live
+  // answer of who may enter exists (DEV-6631 C4).
   const kind = presetKinds[preset];
   if (kind === "workstation") return unsupported("workstation");
   const sources = input.sources ?? {

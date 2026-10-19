@@ -1,7 +1,11 @@
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { withFolderReadLock } from "../folder/lock";
-import type { MachineBinding } from "../folder/machine-binding";
+import {
+  assignedPerson,
+  type MachineBinding,
+  unknownAssignment,
+} from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import { readMachineContext } from "../machine/context";
@@ -76,14 +80,12 @@ export const presetKinds: Readonly<Record<PresetName, ShellEnvironmentKind>> = {
 /** The GitHub login of the one person the Environment belongs to, when it
  * records one: the owner of a personal Remote Environment, the assigned
  * operator of a work one, the responsible operator of an Automated one. A
- * Team Environment and a workstation name nobody. */
+ * Team Environment, the services Environment of a server and a workstation
+ * name nobody. */
 export function operatorLogin(machine: MachineBinding | null): string | null {
   if (machine === null) return null;
   if (machine.owner.kind === "principal") return machine.owner.githubLogin;
-  const assignment = machine.owner.assignment;
-  return assignment !== undefined && assignment.kind !== "team"
-    ? assignment.githubLogin
-    : null;
+  return assignedPerson(machine.owner.assignment)?.githubLogin ?? null;
 }
 
 /** The Organizations of the catalog the shell names: every candidate with a
@@ -177,7 +179,9 @@ export function teamLabel(
     : name;
 }
 
-/** The person a work Environment is assigned to, for its "who" line. */
+/** The person a work Environment is assigned to, for its "who" line: only
+ * an operator's. The services Environment of a server is a work one that
+ * nobody is assigned to. */
 export function assigneeLogin(
   machine: MachineBinding | null,
   kind: ShellEnvironmentKind,
@@ -185,9 +189,17 @@ export function assigneeLogin(
   if (kind !== "work" || machine === null) return null;
   if (machine.owner.kind !== "organization") return null;
   const assignment = machine.owner.assignment;
-  return assignment !== undefined && assignment.kind === "operator"
-    ? assignment.githubLogin
-    : null;
+  if (assignment === undefined) return null;
+  switch (assignment.kind) {
+    case "operator":
+      return assignment.githubLogin;
+    case "automation":
+    case "team":
+    case "services":
+      return null;
+    default:
+      return unknownAssignment(assignment);
+  }
 }
 
 /** A workstation's name: the computer's host name without its domain

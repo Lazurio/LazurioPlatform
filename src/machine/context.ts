@@ -40,14 +40,37 @@ export type MachineRelationships<Zone extends MachineZone = MachineZone> =
 // Authored per guest in the owner Deployment Repo and copied by Machines, never
 // inferred. Only the Organization branch carries it. `automation` (Machines
 // #277, decision 0169) names the responsible operator of an Automated
-// Environment with the operator's shape, never the persona.
+// Environment with the operator's shape, never the persona. `services` (root
+// decision 0209, Machines docs/server-services.md §2) is the services
+// Environment of a Proxmox server, "Služby serveru": a work Environment of the
+// Organization that only its Owners and Admins enter; like `team` it names
+// nobody.
 export type OrganizationAssignment =
   | Readonly<{
       kind: "operator" | "automation";
       github_login: string;
       github_id: number;
     }>
-  | Readonly<{ kind: "team" }>;
+  | Readonly<{ kind: "team" | "services" }>;
+// The services of a services Environment (root decision 0209, Machines
+// docs/server-services.md §2.1): each one's id and kind, its one
+// productionspace repository and the loopback port of its page. Only the
+// Organization branch carries it, and Machines writes it together with the
+// `services` assignment. The handover is read with it exactly as written;
+// nothing here reads it yet (the link to a service's page is DEV-6674 S2.1
+// and S2.2).
+export type MachineService = Readonly<{
+  id: string;
+  kind:
+    | "ai-pool"
+    | "ai-gateway"
+    | "http"
+    | "diagnostics"
+    | "public-entry"
+    | "dns01";
+  repository?: string;
+  page_port?: number;
+}>;
 // How the Machine is entered through its workspace gateway, rendered by
 // Machines from the same route catalog as the gateway (Machines 0.12.93).
 // Optional and closed on both branches; finished values, never a convention.
@@ -129,6 +152,7 @@ export type OrganizationWorkspaceContext = Readonly<{
   relationships?: MachineRelationships<"work">;
   entry?: MachineEntry;
   vault?: MachineVault;
+  services?: readonly MachineService[];
   installed: MachineInstalled;
   account: null;
 }>;

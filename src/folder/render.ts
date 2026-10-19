@@ -15,9 +15,11 @@ import {
 } from "../tools/catalog";
 import { quoteToolNote } from "../tools/note";
 import {
+  type MachineAssignment,
   type MachineBinding,
   type MachinePeer,
   parseMachineBinding,
+  unknownAssignment,
 } from "./machine-binding";
 import { manualEntries } from "./outputs";
 import {
@@ -244,23 +246,41 @@ export function assignmentLine(
   if (machine.owner.kind !== "organization") return [];
   const { assignment } = machine.owner;
   if (assignment === undefined) return [];
-  const text: Text =
-    assignment.kind === "team"
-      ? {
-          cs: "- Přiřazení: sdílený Teamem.",
-          en: "- Assignment: shared by the Team.",
-        }
-      : assignment.kind === "automation"
-        ? {
-            cs: `- Přiřazení: automatizovaný Environment persony Organizace; odpovědný Operátor \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
-            en: `- Assignment: an automated Environment of an Organization persona; responsible Operator \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
-          }
-        : {
-            cs: `- Přiřazení: přiřazený Operátorovi \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
-            en: `- Assignment: assigned to Operator \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
-          };
-  return [text[locale]];
+  return [assignmentText(assignment)[locale]];
 }
+
+function assignmentText(assignment: MachineAssignment): Text {
+  switch (assignment.kind) {
+    case "team":
+      return {
+        cs: "- Přiřazení: sdílený Teamem.",
+        en: "- Assignment: shared by the Team.",
+      };
+    case "services":
+      return servicesAssignment;
+    case "automation":
+      return {
+        cs: `- Přiřazení: automatizovaný Environment persony Organizace; odpovědný Operátor \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+        en: `- Assignment: an automated Environment of an Organization persona; responsible Operator \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+      };
+    case "operator":
+      return {
+        cs: `- Přiřazení: přiřazený Operátorovi \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+        en: `- Assignment: assigned to Operator \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+      };
+    default:
+      return unknownAssignment(assignment);
+  }
+}
+
+// The services Environment of a server, Služby serveru (root decision 0209):
+// who enters it, that the rules of a Team Environment hold there (it has the
+// Team preset: the brokered identity, sharing, Publication by a named
+// person) and how people name it. The same in AGENTS.md and the manual.
+const servicesAssignment: Text = {
+  cs: "- Přiřazení: Služby serveru (root decision 0209). Vstupují sem jen Owneři a Admini Organizace a běží tu služby, které server poskytuje svým Environmentům. Na GitHubu, ve sdílení i v Publikaci tu platí pravidla týmového Environmentu; lidem je to ale Pracovní Prostředí jménem Služby serveru, nikdy Týmové.",
+  en: "- Assignment: Server services (root decision 0209). Only the Organization's Owners and Admins enter it, and the services the server provides to its Environments run here. On GitHub, in sharing and in Publication the rules of a Team Environment hold here; to people, though, it is the Work Environment named Server services, never a Team one.",
+};
 
 // One short factual document: context for every agent starting inside the
 // Folder, not a manual (that is `manual/`, rendered from the same inputs).
