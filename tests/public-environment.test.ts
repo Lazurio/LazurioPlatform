@@ -95,12 +95,11 @@ const posixTest = test.skipIf(process.platform === "win32");
 
 // --- The handover and the binding -------------------------------------
 
-test("the vendored schema is Machines #560's: entry.audience is exactly the constant public", () => {
+test("the vendored schema carries Machines #560's entry.audience, exactly the constant public", () => {
+  // Re-pinned since to Machines #633, which adds only
+  // `entry.browser.local_port` (tests/environment-browser-loopback-entry.test.ts).
   expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/560",
-  );
-  expect(provenance.source_commit).toBe(
-    "a1cee4eea554348c5a51e4a71c4fa9325dfa8bfc",
+    "https://github.com/HumanAndMachine-ai/Machines/pull/633",
   );
   const audience = (
     schema as unknown as {

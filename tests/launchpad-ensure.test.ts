@@ -6,7 +6,13 @@ import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
-import { type HostedOptions, startLaunchpad } from "../src/launchpad/server";
+import {
+  type HostedOptions,
+  isLocalEnsure,
+  localEnsureMayStart,
+  localEnsureModeHeader,
+  startLaunchpad,
+} from "../src/launchpad/server";
 import { runModuleCommand } from "../src/modules/module-cli";
 import type { ModuleHost } from "../src/modules/module-operations";
 import { createSessionRunner } from "../src/modules/session-runner";
@@ -385,6 +391,228 @@ posixTest(
   60_000,
 );
 
+// LazurioPlatform#504 (F39's addendum of 2026-10-18): the Environment browser
+// never holds a Lazurio session, so the gateway's loopback entry for it
+// (`entry.browser.local_port`, Machines) asks `ensure` without one: a
+// loopback Host naming the Launchpad's listener, no Origin and no Fetch
+// Metadata, the browser's mode passed on in `X-Lazurio-Fetch-Mode`. Anything
+// that looks like a browser, or names another Host, goes through the
+// admission as before and is refused without a session.
+posixTest(
+  "the loopback entry's readiness call: ensure without a session only from loopback, with a loopback Host and no Origin or Fetch Metadata",
+  async () => {
+    const parent = await realpath(await mkdtemp(join(root, "local-")));
+    const { folder, entry } = await hostedFolder(parent);
+    const port = await runnable(folder, "gamma", "notes");
+    const home = join(parent, "home");
+    await mkdir(home);
+    const manager = createFakeServiceManager({
+      runtimeDirectory: join(parent, "runtime"),
+    });
+    await mkdir(manager.runtimeDirectory);
+    const host = linuxHost(manager, home, port, binary);
+    const app = await startLaunchpad(
+      folder,
+      undefined,
+      undefined,
+      undefined,
+      { fetcher, ensureWaitMs: 10_000 },
+      undefined,
+      {},
+      undefined,
+      host,
+    );
+    const loopback = `127.0.0.1:${entry.listenPort}`;
+    const local = async (
+      id: string,
+      headers: Record<string, string>,
+      method = "GET",
+    ) => {
+      const response = await fetch(
+        `http://127.0.0.1:${entry.listenPort}/api/internal/hosted/modules/${id}/ensure?`,
+        { method, headers },
+      );
+      const text = await response.text();
+      return {
+        code: response.status,
+        body: text === "" ? null : JSON.parse(text),
+      };
+    };
+    try {
+      // Anything a browser sends, or another Host: the admission, which a
+      // request without the session never passes.
+      for (const [headers, reason] of [
+        [{ host: loopback, origin: entry.externalOrigin }, "host-mismatch"],
+        [{ host: loopback, "sec-fetch-site": "same-origin" }, "host-mismatch"],
+        [{ host: loopback, "sec-fetch-mode": "navigate" }, "host-mismatch"],
+        [{ host: loopback, "Sec-Fetch-Dest": "document" }, "host-mismatch"],
+        [{ host: "notes.workspace.example.lazurio.io" }, "host-mismatch"],
+        [{ host: `attacker.example:${entry.listenPort}` }, "host-mismatch"],
+        [{ host: "127.0.0.1:1" }, "host-mismatch"],
+        [{ host: launchpadHost }, "origin-mismatch"],
+      ] as const)
+        expect(await local("notes", headers), JSON.stringify(headers)).toEqual({
+          code: 401,
+          body: { error: "denied", reason },
+        });
+      expect(manager.commands("systemd-run")).toEqual([]);
+
+      // The readiness call: a background request passed on as such only
+      // reports; a WebSocket upgrade never starts anything.
+      expect(
+        await local("notes", {
+          host: loopback,
+          "x-lazurio-fetch-mode": "cors",
+        }),
+      ).toMatchObject({ code: 503, body: { state: "stopped" } });
+      expect(
+        await local("notes", {
+          host: `localhost:${entry.listenPort}`,
+          "sec-websocket-key": "x3JJHMbDL1EzLkh9GBhXDw==",
+        }),
+      ).toMatchObject({ code: 503 });
+      expect(manager.commands("systemd-run")).toEqual([]);
+      // The same typed answers as the gateway's.
+      expect(await local("nothing", { host: loopback })).toMatchObject({
+        code: 404,
+        body: { reason: "module-unknown" },
+      });
+      expect((await local("notes", { host: loopback }, "POST")).code).toBe(405);
+      // No mode at all, or an empty one, is no browser's navigation: it
+      // only reports, never an Open.
+      for (const headers of [
+        { host: loopback },
+        { host: loopback, "x-lazurio-fetch-mode": "" },
+      ])
+        expect(
+          await local("notes", headers),
+          JSON.stringify(headers),
+        ).toMatchObject({ code: 503, body: { state: "stopped" } });
+      expect(manager.commands("systemd-run")).toEqual([]);
+      // A navigation passed on is an Open; once running, every call is 204.
+      expect(
+        await local("notes", {
+          host: loopback,
+          "x-lazurio-fetch-mode": "navigate",
+        }),
+      ).toEqual({ code: 204, body: null });
+      expect(manager.commands("systemd-run")).toHaveLength(1);
+      expect(await local("notes", { host: loopback })).toEqual({
+        code: 204,
+        body: null,
+      });
+      expect(manager.commands("systemd-run")).toHaveLength(1);
+    } finally {
+      expect(await app.close()).toEqual({ kind: "closed" });
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
+
+// Machines#633 (merged as a9debf51), the local entry's twin of `lazurio_module`:
+// the request the Launchpad receives, header for header. Caddy's
+// `reverse_proxy 127.0.0.1:<port>` from loopback, `method GET`, `rewrite
+// /api/internal/hosted/modules/{args[2]}/ensure?`, `header_up Host
+// 127.0.0.1:<port>`, `-Origin`, `-Sec-Fetch-*`, `-Cookie`, `-Authorization`,
+// `-DPoP`, `-Connection`, `-Upgrade`, `-Sec-WebSocket-*`; the browser's other
+// headers pass (User-Agent, Accept, Client Hints, Caddy's X-Forwarded-*), and
+// `X-Lazurio-Fetch-Mode` carries the browser's Sec-Fetch-Mode only when it
+// sent one. Nothing of the browser's session or Fetch Metadata reaches it.
+function machines633(
+  entry: Entry,
+  mode: string | null,
+  extra: Record<string, string> = {},
+) {
+  const headers: Record<string, string> = {
+    host: `127.0.0.1:${entry.listenPort}`,
+    "user-agent":
+      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+    accept:
+      "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "accept-language": "cs-CZ,cs;q=0.9",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "sec-ch-ua": '"Chromium";v="155", "Not.A/Brand";v="99"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Linux"',
+    "upgrade-insecure-requests": "1",
+    priority: "u=0, i",
+    "x-forwarded-for": "127.0.0.1",
+    "x-forwarded-host": "notes.workspace.example.lazurio.io",
+    "x-forwarded-proto": "https",
+    ...(mode === null ? {} : { "x-lazurio-fetch-mode": mode }),
+    ...extra,
+  };
+  return fetch(
+    `http://127.0.0.1:${entry.listenPort}/api/internal/hosted/modules/notes/ensure?`,
+    { method: "GET", headers },
+  );
+}
+
+posixTest(
+  "Machines#633's exact readiness request: a navigation starts the module; no mode, a background mode or a socket only report; anything a browser adds is refused",
+  async () => {
+    const parent = await realpath(await mkdtemp(join(root, "m633-")));
+    const { folder, entry } = await hostedFolder(parent);
+    const port = await runnable(folder, "gamma", "notes");
+    const home = join(parent, "home");
+    await mkdir(home);
+    const manager = createFakeServiceManager({
+      runtimeDirectory: join(parent, "runtime"),
+    });
+    await mkdir(manager.runtimeDirectory);
+    const host = linuxHost(manager, home, port, binary);
+    const app = await startLaunchpad(
+      folder,
+      undefined,
+      undefined,
+      undefined,
+      { fetcher, ensureWaitMs: 10_000 },
+      undefined,
+      {},
+      undefined,
+      host,
+    );
+    const status = async (response: Promise<Response>) => {
+      const answer = await response;
+      await answer.body?.cancel();
+      return answer.status;
+    };
+    try {
+      // Without the browser's mode (curl in the Environment), with a
+      // background fetch, a WebSocket's mode or a module's subresource: 503,
+      // nothing starts.
+      for (const mode of [null, "cors", "no-cors", "same-origin", "websocket"])
+        expect(await status(machines633(entry, mode)), String(mode)).toBe(503);
+      expect(manager.commands("systemd-run")).toEqual([]);
+      // What the twin removes, if it ever arrived, sends the request through
+      // the admission, which it does not pass.
+      for (const extra of [
+        { origin: "https://notes.workspace.example.lazurio.io" },
+        { "sec-fetch-site": "same-origin" },
+        { "sec-fetch-mode": "navigate" },
+        { "sec-fetch-dest": "document" },
+      ])
+        expect(
+          await status(machines633(entry, "navigate", extra)),
+          JSON.stringify(extra),
+        ).toBe(401);
+      expect(manager.commands("systemd-run")).toEqual([]);
+      // The browser's top-level navigation: the module starts, 204.
+      expect(await status(machines633(entry, "navigate"))).toBe(204);
+      expect(manager.commands("systemd-run")).toHaveLength(1);
+      // Running: every call continues, nothing starts again.
+      for (const mode of [null, "cors", "navigate"])
+        expect(await status(machines633(entry, mode)), String(mode)).toBe(204);
+      expect(manager.commands("systemd-run")).toHaveLength(1);
+    } finally {
+      expect(await app.close()).toEqual({ kind: "closed" });
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
+
 posixTest(
   "ensure with a chunked session (a personal VM's large session): the gateway's chunks admit it and reach the auth endpoint unchanged; a gap is refused",
   async () => {
@@ -682,3 +910,45 @@ posixTest(
   },
   30_000,
 );
+
+test("a local ensure is only a loopback peer with a loopback Host of this listener and nothing a browser sends", () => {
+  const local = (headers: Record<string, string>, peer: string | null) =>
+    isLocalEnsure({ headers: new Headers(headers), peer }, 4100);
+  for (const host of ["127.0.0.1:4100", "localhost:4100", "[::1]:4100"])
+    for (const peer of ["127.0.0.1", "127.0.1.1", "::1", "::ffff:127.0.0.1"])
+      expect(local({ host }, peer), `${host} ${peer}`).toBe(true);
+  // Not loopback, or not known.
+  for (const peer of ["10.90.0.2", "::ffff:10.0.0.1", "fe80::1", null])
+    expect(local({ host: "127.0.0.1:4100" }, peer), String(peer)).toBe(false);
+  // Another Host: the Launchpad's own, a module's, another port, none.
+  for (const host of [
+    "launchpad.workspace.example.lazurio.io",
+    "notes.workspace.example.lazurio.io",
+    "127.0.0.1:4101",
+    "127.0.0.1",
+  ])
+    expect(local({ host }, "127.0.0.1"), host).toBe(false);
+  expect(local({}, "127.0.0.1")).toBe(false);
+  // Origin or any Fetch Metadata.
+  for (const extra of [
+    { origin: "null" },
+    { "sec-fetch-site": "none" },
+    { "sec-fetch-mode": "navigate" },
+    { "sec-fetch-dest": "document" },
+    { "sec-fetch-user": "?1" },
+    { "sec-fetch-storage-access": "none" },
+  ])
+    expect(
+      local({ host: "127.0.0.1:4100", ...extra }, "127.0.0.1"),
+      JSON.stringify(extra),
+    ).toBe(false);
+  // The browser's mode, passed on: only a navigation, or none, may start.
+  const may = (headers: Record<string, string>) =>
+    localEnsureMayStart(new Headers(headers));
+  expect(may({})).toBe(false);
+  expect(may({ [localEnsureModeHeader]: "" })).toBe(false);
+  expect(may({ [localEnsureModeHeader]: "navigate" })).toBe(true);
+  expect(may({ [localEnsureModeHeader]: "cors" })).toBe(false);
+  expect(may({ [localEnsureModeHeader]: "websocket" })).toBe(false);
+  expect(may({ "sec-websocket-key": "x" })).toBe(false);
+});

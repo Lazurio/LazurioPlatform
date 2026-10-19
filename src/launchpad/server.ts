@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { join } from "node:path";
+import type { Server } from "bun";
 import {
   browserViewDocumentPath,
   browserViewPath,
@@ -426,6 +427,57 @@ export function ensureMayStart(headers: Headers): boolean {
   if (headers.has("sec-websocket-key")) return false;
   const mode = headers.get("sec-fetch-mode");
   return mode === null || mode === "navigate";
+}
+
+/** The header in which the gateway's loopback entry for the Environment
+ * browser (#504) passes on the browser's `Sec-Fetch-Mode`: a local `ensure`
+ * carries no Fetch Metadata of its own (`isLocalEnsure`). */
+export const localEnsureModeHeader = "x-lazurio-fetch-mode";
+
+const loopbackPeer = (address: string | null) =>
+  address !== null &&
+  (/^127(?:\.[0-9]{1,3}){3}$/.test(address) ||
+    address === "::1" ||
+    /^::ffff:127(?:\.[0-9]{1,3}){3}$/i.test(address));
+
+/** Whether an `ensure` is the readiness call of the gateway's loopback entry
+ * for the Environment browser (LazurioPlatform#504, F39's addendum of
+ * 2026-10-18), which the Launchpad answers without a gateway session: the
+ * Environment browser never holds a Lazurio session, and that entry serves
+ * only this Environment's own apps to its own browser. Accepted only as the
+ * view's hub accepts the Launchpad's requests (F47 point 6): a loopback
+ * connection, a loopback `Host` naming this listener, and no `Origin` and no
+ * Fetch Metadata (`Sec-Fetch-*`), which a browser always sends, so neither a
+ * page in the Environment browser nor a request through the gateway, which
+ * sends the Launchpad's own Host, is ever one. It only makes a module run or
+ * says that it does, as the gateway's `ensure` does after admission. */
+export function isLocalEnsure(
+  request: Readonly<{ headers: Headers; peer: string | null }>,
+  port: number,
+): boolean {
+  if (!loopbackPeer(request.peer)) return false;
+  const host = request.headers.get("host");
+  if (
+    host !== `127.0.0.1:${port}` &&
+    host !== `localhost:${port}` &&
+    host !== `[::1]:${port}`
+  )
+    return false;
+  if (request.headers.has("origin")) return false;
+  for (const name of request.headers.keys())
+    if (name.toLowerCase().startsWith("sec-fetch-")) return false;
+  return true;
+}
+
+/** Whether a local `ensure` may start a stopped app: only a navigation, as
+ * the loopback entry passes the browser's mode on (`localEnsureModeHeader`,
+ * Machines#633 sends it only when the browser sent `Sec-Fetch-Mode`). The
+ * Environment browser sends that with every request, so a call without it
+ * (or with an empty one) comes from no browser's navigation and only
+ * reports: unlike through the gateway, an absent mode is never an Open. */
+export function localEnsureMayStart(headers: Headers): boolean {
+  if (headers.has("sec-websocket-key")) return false;
+  return headers.get(localEnsureModeHeader) === "navigate";
 }
 
 /** The status of an `ensure` answer, the only part of it the gateway reads
@@ -1059,6 +1111,43 @@ export async function startLaunchpad(
       headers: { ...headers, ...kept, "Content-Type": type },
     });
   }
+  // The gateway's `ensure` (launchpad-parity B5), after its admission or as
+  // the loopback entry's readiness call (`isLocalEnsure`): the module's
+  // default app runs, or the typed reason why not.
+  async function answerEnsure(
+    request: Request,
+    server: Server<undefined>,
+    encoded: string,
+    mayStart: boolean,
+  ): Promise<Response> {
+    const response = (body: unknown, status = 200) =>
+      Response.json(body, { status, headers });
+    if (request.method !== "GET")
+      return response({ error: "method-not-allowed" }, 405);
+    if (closing) return response({ error: "closing" }, 503);
+    let id: string;
+    try {
+      id = decodeURIComponent(encoded);
+    } catch {
+      id = "";
+    }
+    // The wait for health is bounded below the request's idle deadline.
+    server.timeout(request, 30);
+    try {
+      const result = await modules.ensure(id, {
+        mayStart,
+        ...(hostedOptions.ensureWaitMs === undefined
+          ? {}
+          : { waitMs: hostedOptions.ensureWaitMs }),
+      });
+      const status = ensureStatus(result);
+      return status === 204
+        ? new Response(null, { status, headers })
+        : response(result, status);
+    } catch {
+      return response({ error: "operation-failed" }, 503);
+    }
+  }
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: entry === null ? 0 : entry.listenPort,
@@ -1077,6 +1166,27 @@ export async function startLaunchpad(
       // of the Environment's vault (decision F11's amendments of 2026-10-14
       // and 2026-10-16). Locally nobody is named.
       let person: AdmittedPerson = nobody;
+      const ensureRequest = ensureRoute.exec(url.pathname);
+      // The readiness call of the gateway's loopback entry for the
+      // Environment browser (#504): an `ensure` without a session, answered
+      // before the admission and nothing else (`isLocalEnsure`).
+      if (
+        trust !== null &&
+        ensureRequest !== null &&
+        isLocalEnsure(
+          {
+            headers: request.headers,
+            peer: server.requestIP(request)?.address ?? null,
+          },
+          server.port ?? 0,
+        )
+      )
+        return answerEnsure(
+          request,
+          server,
+          ensureRequest[1] as string,
+          localEnsureMayStart(request.headers),
+        );
       if (trust !== null && shell !== null) {
         // Hosted: the gateway's admission, revalidated here; the request's
         // own URL is loopback and is not evidence of anything.
@@ -1508,35 +1618,15 @@ export async function startLaunchpad(
           return response({ error: "method-not-allowed" }, 405);
         return response({ kind: "entry", entry: publicEntry(entry) });
       }
-      const ensureRequest = ensureRoute.exec(url.pathname);
       if (ensureRequest !== null) {
         // Only behind a gateway: a workstation has no module hostnames.
         if (trust === null) return response({ error: "not-found" }, 404);
-        if (request.method !== "GET")
-          return response({ error: "method-not-allowed" }, 405);
-        if (closing) return response({ error: "closing" }, 503);
-        let id: string;
-        try {
-          id = decodeURIComponent(ensureRequest[1] as string);
-        } catch {
-          id = "";
-        }
-        // The wait for health is bounded below the request's idle deadline.
-        server.timeout(request, 30);
-        try {
-          const result = await modules.ensure(id, {
-            mayStart: ensureMayStart(request.headers),
-            ...(hostedOptions.ensureWaitMs === undefined
-              ? {}
-              : { waitMs: hostedOptions.ensureWaitMs }),
-          });
-          const status = ensureStatus(result);
-          return status === 204
-            ? new Response(null, { status, headers })
-            : response(result, status);
-        } catch {
-          return response({ error: "operation-failed" }, 503);
-        }
+        return answerEnsure(
+          request,
+          server,
+          ensureRequest[1] as string,
+          ensureMayStart(request.headers),
+        );
       }
       const moduleRequest = moduleRoute.exec(url.pathname);
       if (moduleRequest !== null) {

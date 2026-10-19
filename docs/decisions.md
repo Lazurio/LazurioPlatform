@@ -8289,6 +8289,136 @@ pass through the proxy too, Data saver's frames and the clicks on 10×10 px targ
 and with a second view of the same tab hung (an endless loop in its script), the first view's
 frames stopped for 1.9 s and went on at 10 a second.
 
+**Addendum 2026-10-18: the Lazurio sign-in happens only in the person's own browser**
+(decided by Matěj on 2026-10-18, LazurioPlatform#504, root decision 0191's addendum of the same
+day; plan DEV-6646). In the public Environment `try-01` of LazurioExampleOrganization the
+Environment browser opened an app of its own Environment on that Environment's gateway sign-in
+page. A visitor who signed in there left their Lazurio session and their github.com session in
+the shared profile for every later visitor; in a Team Environment the same happened between
+Team members. The person who drives the view has already signed in, in their own browser, to
+reach `browser.…`. That sign-in, with their access to the Environment, is what lets them see
+and drive the Environment browser. A Lazurio session inside it would let anyone who views it
+open the person's other Environments or the Dashboard.
+
+The rule: **the Environment browser never holds a Lazurio session.** It opens its own
+Environment's plain apps and modules without a sign-in. The pages that carry the person's
+account open in the person's own browser. Sign-ins to other services stay as root decisions
+0191 and 0198 say. This addendum adds to points 1, 7 and 8; the rest of F39 stands.
+
+1. **The Environment's own names go to the gateway's loopback entry** (Machines). The gateway
+   runs a second entry on loopback, for the Environment browser only. It serves this
+   Environment's apps and modules without a sign-in, because only the Environment's own
+   processes reach loopback (root decision 0172). It answers the bare Machine hostname with a
+   page that hands off to the person's own browser. Machines writes its port into the handover
+   as `entry.browser.local_port` (127.0.0.1:4443 today), only where the entry runs. With that
+   member the browser unit adds one flag:
+   `--host-resolver-rules="MAP *.<base> 127.0.0.1:<port>,MAP <base> 127.0.0.1:<port>"`.
+   `<base>` is the Environment's name from `entry.modules.origin_template`
+   (`https://{module}.<base>`), which must have at least three labels, so the rule can never
+   cover all of `lazurio.io`. Chrome's `*.<base>` does not cover `<base>` itself, so both are
+   named; the bare name has the oauth2 paths, so mapping it keeps every sign-in start of the
+   gateway out of the browser. The URL, its Host, its TLS name and its cookies stay the page's
+   own; only where Chrome connects changes. Without the member the flags are exactly as before.
+   A changed flag restarts the browser (point 10), and its windows close as they do for every
+   new flag.
+   - **A proxy.** Chrome asks a proxy by the URL's name before it resolves anything, so a forced
+     proxy would take the Environment's names past the rule. A guest whose environment forces
+     one already lists `<base>` and `.<base>` in its `no_proxy` (Machines#586), which Chrome on
+     Linux reads. The unit adds no `--proxy-bypass-list`: Chrome reads it only with
+     `--proxy-server`, which the unit does not set.
+2. **The Launchpad answers the entry's readiness call without a session.** Before it serves a
+   module, the loopback entry asks the Launchpad's `ensure`, as the gateway does after its
+   admission (launchpad-parity B5). The Launchpad accepts that request without a gateway session
+   only by the rule the view's hub uses for the Launchpad's requests (F47 point 6): a loopback
+   connection, a loopback `Host` naming the Launchpad's own listener (`127.0.0.1:<port>`,
+   `localhost:<port>` or `[::1]:<port>`), and no `Origin` and no `Sec-Fetch-*` header. A browser
+   always sends Fetch Metadata, and the gateway sends the Launchpad's external Host, so neither a
+   page in the Environment browser nor anything through the gateway is ever such a request.
+   Everything else goes through the admission as before. The entry passes the browser's
+   `Sec-Fetch-Mode` on in `X-Lazurio-Fetch-Mode`, only when the browser sent one
+   (Machines#633). Only `navigate` starts a stopped module. A background mode, an empty one,
+   none at all (a request no browser navigation made, such as `curl` inside the Environment)
+   and a WebSocket key only report: unlike through the gateway, an absent mode is never an
+   Open (`isLocalEnsure`, `localEnsureMayStart` in `src/launchpad/server.ts`).
+3. **Lazurio account pages are handed off to the person's own browser.** A Chrome policy that
+   Machines manages blocks the pages that carry the person's account: `auth.lazurio.ai`,
+   `dashboard.lazurio.ai`, the other Environments under `lazurio.io`, and this Environment's own
+   Launchpad, T3 Code, Lazurio MausBot and view. Chrome fails such a navigation with
+   `ERR_BLOCKED_BY_ADMINISTRATOR`. While someone views a tab, the hub turns on its Network
+   domain, buffering no bodies, and remembers the error text of each failed document request by
+   its loader. When the main frame commits an error page for a loader that the policy blocked,
+   the hub sends the tab's viewers `{t: "hand-off", url}`. The view shows its notice "Tato
+   stránka se otevře jen ve vašem prohlížeči." with the button "Otevřít ve vašem prohlížeči",
+   which opens the address in a new tab of the person's own browser. The view never opens it
+   inside, and the address passes the contract's `handOffAddress` (F50's addendum of
+   2026-10-18) on both sides. A tab nobody views has the Network domain off, so an agent's
+   blocked navigation shows only Chrome's error page.
+4. **The view sweeps Lazurio sessions out of the browser.** Each time the view reaches the
+   browser (its start, an upgrade, a restarted browser), it reads every cookie at the browser
+   target and removes, by setting it again already expired:
+   - every cookie of `lazurio.ai` and its subdomains;
+   - the gateway's own cookies on `lazurio.io`: `__Secure-lazurio-workspace` with its chunks,
+     and `__Host-lazurio-public-notice`. A module's own cookies stay;
+   - in a public Environment (root decision 0204; the handover's `entry.audience`, or the
+     Folder's record when the handover cannot be read), also github.com's session cookies
+     `user_session`, `__Host-user_session_same_site`, `logged_in` and `dotcom_user`.
+
+   Elsewhere github.com's sign-in is the Environment's and stays. The view's health answer
+   names its login (`github`, from `dotcom_user` next to `logged_in=yes`; a public name, never
+   a cookie's value), and `lazurio doctor` shows it in the `environment-browser` check as
+   `github=<login>` ("přihlášeno na GitHub jako <login>"). No other cookie value is read or
+   logged.
+5. **Agents.** The Folder's browser section tells agents never to sign in to Lazurio in the
+   Environment browser and never to ask the Operator to, and to run a sign-in check with a test
+   account (root decision 0178) in a Chrome of their own with its own temporary profile, never
+   in the Environment browser (template revision `base-instructions-58`).
+
+**Waits on Machines.** Machines#633 builds the loopback entry (IPv4 `127.0.0.1:4443` only), its
+readiness call, the hand-off page on the bare host and `/oauth2/*`, and the managed policy in
+`/etc/opt/chrome_for_testing/policies/managed`. It writes `entry.browser.local_port` and the
+policy only for a Platform at least `PLATFORM_ENTRY_BROWSER_LOCAL_MINIMUM`, bound to the
+release that ships this addendum. Until then nothing changes for the browser's flags or the
+Launchpad's admission, and the sweep alone already keeps Lazurio sessions out of the profile:
+a person who signs in to Lazurio inside loses that session at the next view start. The vendored
+handover schema is byte for byte the merge of Machines#633 (`a9debf51`), which adds only that
+member to #560's.
+
+| Failure | What happens |
+| --- | --- |
+| The handover has no `local_port` | Flags as before; the Environment's apps reach the gateway, which asks for a sign-in as before |
+| `local_port` with module origins of fewer than three labels | No rule; flags as before |
+| The loopback entry is down | The Environment's names fail to connect in the Environment browser; the view and the rest of the Environment work |
+| A page in the browser calls the Launchpad's loopback port | Refused: a browser sends `Sec-Fetch-*`, and the request goes through the admission without a session |
+| A blocked page is opened while nobody views the tab | Chrome's error page only; the next viewer sees it, not a notice |
+| The cookie read or the removal fails | Logged; the view serves; the next start sweeps again |
+| The handover and the Folder both cannot be read | The Environment counts as not public: Lazurio sessions go, github.com's sign-in stays |
+
+**Not decided here.** A sweep during a running view, between starts (the policy keeps new
+Lazurio sessions from being made; a public Environment is also wiped at least nightly). The
+hand-off of a blocked page inside a subframe.
+
+Tests: `tests/environment-browser-loopback-entry.test.ts` (the name from the module origins, the
+rule, the unit with and without it, the handover member, its range and the pin to #633's merge);
+`tests/launchpad-ensure.test.ts` (the readiness call both ways through a real Launchpad,
+Machines#633's exact request replayed header for header, and the rule itself); `tests/environment-browser-view.test.ts` (the hand-off against the scripted
+DevTools peer: only the policy's error, only the main frame, the loader's pairing, no
+navigation, the Network domain only while viewed; the sweep at every connection and the health
+answer); `tests/environment-browser-view-client.test.ts` (the notice in both languages and the
+addresses it refuses); `tests/environment-browser-cookies.test.ts` (which cookies go, removal at
+the browser target, the login, publicness, doctor's context); the contract's vectors
+`hand-off.json`.
+
+Checked against a real Chrome 155 on macOS on 2026-10-18 with
+`scripts/proof-browser-loopback-entry.ts`, a stand-in loopback entry with a throwaway
+certificate: the unit's exact rule sent `https://mission-control.<base>/x` and
+`https://<base>/oauth2/start` to the entry's port with their own Host; a forced proxy took the
+names without a bypass (`ERR_PROXY_CONNECTION_FAILED`) and the rule applied with one;
+`Network.loadingFailed` and the error page's `Page.frameNavigated` named the same loader; and the
+sweep removed the Lazurio and gateway cookies that real responses had set, host-only and domain
+cookies alike, kept the module's and github.com's, named `octocat`, and in public mode removed
+github.com's session too. The Machines policy, the real loopback entry and an Environment are
+checked after Machines delivers them.
+
 ## F40 — Lazurio-account entry, approved devices and internal Environment sharing
 
 Accepted direction, 2026-10-06, root decision 0192. The complete public
@@ -12198,6 +12328,20 @@ hub's `navigableAddress`, the tools' icons, the Launchpad's frame and agent-brow
 answered otherwise only in the settled cases above. The cases of `frame-ancestors`,
 `appShellOrigin` and the view's language answered as before, and so did those of the
 Launchpad's reading of a view's messages, except a message of another major.
+
+**Addendum 2026-10-18: C18, the hand-off to the person's own browser** (LazurioPlatform#504,
+F39's addendum of 2026-10-18). The contract grows by one section and two exports, within v1
+(point 3):
+- `blockedNavigationError`: `"net::ERR_BLOCKED_BY_ADMINISTRATOR"`, DevTools' error text for a
+  navigation the Environment browser's policy blocks;
+- `handOffAddress(errorText, url)`: the address a view offers to open in the person's own
+  browser, that of a page the policy blocked, an http or https address without credentials;
+  null for any other failure, address or value.
+
+The view's hub and its page both read it, so the page's button never opens what the hub would
+not have offered. A fork's view that hands a page off takes the same rule. The vectors' file is
+`hand-off.json` (C18); the module's exported names gain the two. The hub's message
+`{t: "hand-off", url}` belongs to the view's own protocol (`people/protocol.ts`), not to C8.
 
 ## F51 — Managed Chat starts in the Folder; Platform owns the model recommendation
 
