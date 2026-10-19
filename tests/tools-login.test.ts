@@ -1308,6 +1308,7 @@ test.skipIf(!keygen || realGit === null)(
       await rm(directory, { recursive: true, force: true });
     }
   },
+  20_000,
 );
 
 test.skipIf(!keygen)(

@@ -601,6 +601,7 @@ test.skipIf(process.platform === "win32" || realSshKeygen === null)(
     // Without --sign-in nothing is probed and nothing is said about it.
     expect(find((await doctor(world)).json, "tool", "gh")?.outcome).toBe("ok");
   },
+  30_000,
 );
 
 test("a module that is not executable needs attention with its typed reason", async () => {

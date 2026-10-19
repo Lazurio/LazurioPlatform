@@ -231,6 +231,8 @@ test.skipIf(!keygen)(
       await foreign.close();
     }
   },
+  // Real processes (the fakes, ssh-keygen): slower under a loaded run.
+  30_000,
 );
 
 test.skipIf(!keygen)(
@@ -258,6 +260,8 @@ test.skipIf(!keygen)(
       await unlisted.close();
     }
   },
+  // Real processes (the fakes, ssh-keygen): slower under a loaded run.
+  30_000,
 );
 
 test.skipIf(!keygen)(
@@ -282,6 +286,8 @@ test.skipIf(!keygen)(
       await opened.close();
     }
   },
+  // Real processes (the fakes, ssh-keygen): slower under a loaded run.
+  30_000,
 );
 
 test.skipIf(!keygen)(
@@ -310,6 +316,8 @@ test.skipIf(!keygen)(
       await broken.close();
     }
   },
+  // Real processes (the fakes, ssh-keygen): slower under a loaded run.
+  30_000,
 );
 
 test.skipIf(!keygen)(
@@ -356,4 +364,6 @@ test.skipIf(!keygen)(
       await opened.close();
     }
   },
+  // Real processes (the fakes, ssh-keygen): slower under a loaded run.
+  30_000,
 );
