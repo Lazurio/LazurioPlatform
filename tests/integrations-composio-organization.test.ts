@@ -140,10 +140,16 @@ test("every name Composio allows for the Organization matches it, the one the di
     "Příklad s.r.o.",
     "Rozjedeme.ai",
     "3M Česko",
-  ])
+  ]) {
     expect(verdict(display, composioOrganizationName(display) ?? "")).toBe(
       "matches",
     );
+    // Composio stores the name it was given in lower case (its create form,
+    // 2026-10-19: "Will be created as lazurioexampleorganization").
+    expect(
+      verdict(display, (composioOrganizationName(display) ?? "").toLowerCase()),
+    ).toBe("matches");
+  }
   expect(verdict("Lazurio Example Organization", "LazurioExample")).toBe(
     "missing",
   );

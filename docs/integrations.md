@@ -479,7 +479,12 @@ right organization.
   without diacritics (`composioOrganizationName`: "Lazurio Example
   Organization" is `LazurioExampleOrganization`), with `Org` before one that
   would start with a digit, which is then compared in that form too. A
-  display name that gives no such name is `unverified`.
+  display name that gives no such name is `unverified`. Composio stores the
+  name in lower case: its create form says "Will be created as
+  lazurioexampleorganization", and its dashboard, addresses and `orgs list`
+  name the organization so (the end-to-end test of 2026-10-19). The dialog
+  offers the readable CamelCase form, which Composio accepts and lowercases;
+  the match ignores case, so both are the Organization's.
 - **The verdict** (`composioOrganizationVerdict`), over `orgs list`: `matches`
   where the one organization of that name is current; `elsewhere` where it
   exists and another is current; `missing` where the account has none;

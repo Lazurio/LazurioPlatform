@@ -5,9 +5,14 @@
 // (the Organization Admin's screenshot of 2026-10-17) says "Must start with a
 // letter. Only letters, numbers, and underscores allowed.", so "Lazurio
 // Example Organization" cannot be created there; "LazurioExampleOrganization"
-// can, and it matches the Organization. Pure, for the server's rule and the
-// page's dialog alike (`composio-organization.ts` reads the Folder and cannot
-// be part of the page).
+// can, and it matches the Organization. Composio stores the name in lower
+// case: its create form says "Will be created as lazurioexampleorganization"
+// (the end-to-end test of 2026-10-19), and its dashboard, its address and
+// `orgs list` name it so. The dialog still offers the readable CamelCase
+// form, which Composio accepts and lowercases; the rule ignores case, so
+// both match. Pure, for the server's rule and the page's dialog alike
+// (`composio-organization.ts` reads the Folder and cannot be part of the
+// page).
 
 /** A name as the rule compares it: without diacritics, in lower case, and
  * only its letters and digits, the ones Composio allows in a name; spaces,
