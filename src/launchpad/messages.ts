@@ -1453,6 +1453,12 @@ const en = {
     "Your Composio account has no organization named “{composio}”. {This} belongs to the Organization {name} and should connect through Composio in your own organization of that name; until you create it, it connects in the organization you have selected. Create it in Composio.",
   integrationsComposioOrganizationAmbiguous:
     "Your Composio account has more than one organization named “{composio}”. Until only one is left, {this} connects in the organization you have selected. Rename the extra one in Composio.",
+  // The same two in a Team Environment, signed in to Composio with the
+  // Team's Composio account (decision F42, note of 2026-10-19).
+  integrationsComposioOrganizationMissingTeam:
+    "The Team's Composio account has no organization named “{composio}”. {This} belongs to the Organization {name} and should connect through Composio in the Team account's organization of that name; until you create it, it connects in the organization the account has selected. Create it in Composio.",
+  integrationsComposioOrganizationAmbiguousTeam:
+    "The Team's Composio account has more than one organization named “{composio}”. Until only one is left, {this} connects in the organization the account has selected. Rename the extra one in Composio.",
   integrationsComposioOrganizationElsewhere:
     "Composio could not be switched to your organization “{composio}”, so nothing connects through it now. Click Check connections to try again.",
   integrationsComposioOrganizationUnverified:
@@ -3086,6 +3092,10 @@ const cs: Record<MessageKey, string> = {
     "Ve vašem účtu Composia chybí organizace „{composio}“. {Toto} patří Organizaci {name} a má se přes Composio připojovat ve vaší vlastní organizaci tohoto jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu.",
   integrationsComposioOrganizationAmbiguous:
     "Ve vašem účtu Composia je víc organizací se jménem „{composio}“. Dokud nezůstane jen jedna, připojuje se {toto} v organizaci, kterou máte vybranou. Tu navíc v Composiu přejmenujte.",
+  integrationsComposioOrganizationMissingTeam:
+    "V týmovém účtu Composia chybí organizace „{composio}“. {Toto} patří Organizaci {name} a má se přes Composio připojovat v organizaci tohoto jména v týmovém účtu; dokud ji nezaložíte, připojuje se v organizaci, kterou má účet vybranou. Založte ji v Composiu.",
+  integrationsComposioOrganizationAmbiguousTeam:
+    "V týmovém účtu Composia je víc organizací se jménem „{composio}“. Dokud nezůstane jen jedna, připojuje se {toto} v organizaci, kterou má účet vybranou. Tu navíc v Composiu přejmenujte.",
   integrationsComposioOrganizationElsewhere:
     "Composio se nepodařilo přepnout do vaší organizace „{composio}“, a tak se přes něj teď nic nepřipojí. Klikněte na Zkontrolovat připojení a zkuste to znovu.",
   integrationsComposioOrganizationUnverified:

@@ -614,11 +614,12 @@ export function removalsRead(
 }
 
 /** Why "Odpojit" did not disconnect the account, from the route's answer;
- * null where it did. */
+ * null where it did. `team` as `composioOrganizationLine`'s. */
 export function disconnectFailure(
   answer: unknown,
   overview: IntegrationsOverview | null,
   copy: Copy,
+  team = false,
 ): string | null {
   const value =
     typeof answer === "object" && answer !== null
@@ -627,7 +628,9 @@ export function disconnectFailure(
   if (value.kind === "disconnected") return null;
   if (value.reason === "composio-organization")
     return (
-      (overview === null ? null : composioOrganizationLine(overview, copy)) ??
+      (overview === null
+        ? null
+        : composioOrganizationLine(overview, copy, team)) ??
       copy.integrationsComposioOrganizationChanged
     );
   return value.reason === "disconnect-unsupported"
@@ -796,10 +799,13 @@ export function sourceLines(
  * say. The organization is named as Composio accepts the name (note of
  * 2026-10-17), the Organization as it names itself. Missing or there twice,
  * the page waits for it by itself (`composioOrganizationWaits`), so the line
- * ends with the sign-in dialog's own waiting line (note of 2026-10-19). */
+ * ends with the sign-in dialog's own waiting line. In a Team Environment
+ * (`team`) the account is the Team's Composio account, not the person's
+ * (notes of 2026-10-19). */
 export function composioOrganizationLine(
   overview: IntegrationsOverview,
   copy: Copy,
+  team = false,
 ): string | null {
   const target = overview.composio.organization;
   if (target === null || target.state === "matches") return null;
@@ -813,9 +819,23 @@ export function composioOrganizationLine(
     return copy.integrationsComposioOrganizationUnverified;
   const names = { name: target.name, composio };
   if (target.state === "missing")
-    return `${fill(copy.integrationsComposioOrganizationMissing, names)} ${copy.toolsComposioCreateWait}`;
+    return `${fill(
+      copy[
+        team
+          ? "integrationsComposioOrganizationMissingTeam"
+          : "integrationsComposioOrganizationMissing"
+      ],
+      names,
+    )} ${copy.toolsComposioCreateWait}`;
   if (target.state === "ambiguous")
-    return `${fill(copy.integrationsComposioOrganizationAmbiguous, names)} ${copy.toolsComposioRenameWait}`;
+    return `${fill(
+      copy[
+        team
+          ? "integrationsComposioOrganizationAmbiguousTeam"
+          : "integrationsComposioOrganizationAmbiguous"
+      ],
+      names,
+    )} ${copy.toolsComposioRenameWait}`;
   return fill(copy.integrationsComposioOrganizationElsewhere, names);
 }
 
@@ -882,11 +902,12 @@ export function liveText(current: string, said: string): string | null {
 
 /** Why a connect did not start, from the route's `reason`: the line it
  * says, in its tone. `composio-signed-out` also opens Composio's sign-in
- * (the panel's part). */
+ * (the panel's part). `team` as `composioOrganizationLine`'s. */
 export function refusalNote(
   reason: unknown,
   overview: IntegrationsOverview | null,
   copy: Copy,
+  team = false,
 ): Note {
   const danger = (text: string): Note => ({ text, tone: "danger" });
   if (reason === "name-required")
@@ -896,7 +917,9 @@ export function refusalNote(
   if (reason === "composio-organization")
     return {
       text:
-        (overview === null ? null : composioOrganizationLine(overview, copy)) ??
+        (overview === null
+          ? null
+          : composioOrganizationLine(overview, copy, team)) ??
         copy.integrationsComposioOrganizationChanged,
       tone: "warning",
     };
