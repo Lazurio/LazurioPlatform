@@ -353,28 +353,35 @@ returned or logged.
 
 ### Lazurio's build of the CLI
 
-Decision F42, addendum (3) of 2026-10-13 (the Operator's decision). Composio's stable
-CLI cannot remove an account without a prompt and names no account but by an alias,
-so Lazurio installs its own build until a stable release of Composio's has both
-changes (proposed upstream in ComposioHQ/composio#4817, issue #4816, and #4809).
+Decision F42, addendum (3) of 2026-10-13 (the Operator's decision), and its note of
+2026-10-19. Composio's stable CLI cannot remove an account without a prompt, names no
+account but by an alias and notices a finished sign-in late, so Lazurio installs its
+own build until a stable release of Composio's has all three changes (proposed
+upstream in ComposioHQ/composio#4817, issue #4816, and #4809; the login's poll not
+yet).
 
-- **The build.** Composio's stable 0.4.3 with exactly two changes, the GitHub release
-  `@composio/cli@0.4.3-lazurio.1` of the fork Lazurio/composio (assets
+- **The build.** Composio's stable 0.4.3 with exactly three changes, the GitHub
+  release `@composio/cli@0.4.3-lazurio.2` of the fork Lazurio/composio (assets
   `composio-<target>.zip` and `checksums.txt`, as Composio's); `composio --version`
-  prints `0.4.3-lazurio.1`. `connections remove <account> --yes` (and `-y`) removes
+  prints `0.4.3-lazurio.2`. `connections remove <account> --yes` (and `-y`) removes
   without a prompt; `connections list` prints on every entry its `id` (`ca_…`), its
   `alias` wherever it has one (a toolkit's only account too; `alias: null` may stand
   for none) and, where Composio knows the provider's identity, `display_name`
   (trimmed, at most 200 characters), for example `{"gmail":[{"id":"ca_example123",
   "status":"ACTIVE","alias":"work","word_id":"castle","display_name":
-  "ada@example.com","permission_group":null}]}`. Its `composio upgrade`, update
+  "ada@example.com","permission_group":null}]}`. `composio login --poll`, and the
+  browser wait of `composio login`, check a pending login every 5 s for up to 10
+  minutes (`--key`: about 75 s), where Composio's own pause doubles from the sixth
+  check on (checks at about 0, 5, 10, 15, 20, 25, 35, 54, 92 and 169 s), so the
+  Launchpad's Composio dialog noticed an "Authorize" up to about a minute late
+  (Lazurio/composio#3, since 0.4.3-lazurio.2). Its `composio upgrade`, update
   check, skill installation and companion self-repair default to the fork's releases.
 - **The pin** is one constant, `composioBuild` (`src/tools/composio-build.ts`): the
   fork, the version and its tag, and the commit of the fork's installer
   (`installerCommit`). The tag and the commit come from the same release of the fork
   and change together, in one reviewed change; the constant goes, and the recipe
   returns to Composio's installer and latest stable release, once Composio's own
-  stable CLI has both changes.
+  stable CLI has all three changes.
 - **Installation** (`lazurio tools install composio`, Settings → Tools): Composio's
   installer from Lazurio's fork, pinned by commit
   (`https://raw.githubusercontent.com/Lazurio/composio/<installerCommit>/install.sh`;
@@ -382,7 +389,7 @@ changes (proposed upstream in ComposioHQ/composio#4817, issue #4816, and #4809).
   run with `COMPOSIO_INSTALL_PLUGINS=0`,
   `COMPOSIO_INSTALL_SHELL=none`, `COMPOSIO_INSTALL_HELP=0`,
   `COMPOSIO_GITHUB_OWNER=Lazurio`, `COMPOSIO_GITHUB_REPO=composio` and
-  `COMPOSIO_INSTALL_VERSION=@composio/cli@0.4.3-lazurio.1`. It downloads the release's
+  `COMPOSIO_INSTALL_VERSION=@composio/cli@0.4.3-lazurio.2`. It downloads the release's
   archive for the platform, checks it against the release's `checksums.txt`, publishes
   the bundle into `~/.composio` beside the files already there and links
   `~/.local/bin/composio`. The installer served at `https://composio.dev/install`
@@ -397,7 +404,7 @@ changes (proposed upstream in ComposioHQ/composio#4817, issue #4816, and #4809).
   installer's `detect_target` chooses), so the
   installer refuses any other archive before it extracts or replaces anything: a
   refused installation or update changes nothing. The installation is done only when
-  `composio --version` then prints exactly `0.4.3-lazurio.1`. Were another version to
+  `composio --version` then prints exactly `0.4.3-lazurio.2`. Were another version to
   run after an installer that ignored the pins, it would fail at `verify`
   (`version-mismatch`), and what runs would stay.
 - **Update** (`lazurio tools update composio`; "Aktualizovat" / "Update" in Settings →
