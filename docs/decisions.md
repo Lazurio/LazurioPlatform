@@ -14921,5 +14921,15 @@ Verified by:
   the visit rule (open where true, closed by the person until the page moves on, open
   again on the next visit);
 - `tests/launchpad-guide.test.ts`: where the video is true, unchanged;
-- headless Chrome against the hosted preview (root decision 0178): a work Environment
-  with its vault and the person a member, and `no-vault`.
+- headless Chrome against the hosted preview (root decision 0178, `bun
+  scripts/preview-launchpad.ts hosted cs <port> owner …`), in three states:
+  - `vault-member`: the work Environment's vault with the person a member, which this
+    addendum adds to the preview;
+  - `no-vault`: no vault;
+  - no option: the vault with the person not a member.
+
+  In the first two, the box is open first at the video's start, paused, with the focus
+  outside it. The "?" closes it, and reading the status again keeps it closed. The "?"
+  opens it again and it plays, and Escape closes it. Moving on and coming back, in the
+  app or by a reload, opens it again at its start. In the third state the box never
+  opens, and the "?" plays `vault-agents`.

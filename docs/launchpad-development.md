@@ -1014,7 +1014,9 @@ guide's mark and a card beside it, and the layer lets every click through.
   variant is chosen only by facts the page knows, never by an Organization's name
   (#499).
 - **Check it in a browser** (root decision 0178): `bun scripts/preview-launchpad.ts
-  hosted|personal cs|en <port> owner [team|automated|no-vault|composio-off]`, then every
+  hosted|personal cs|en <port> owner [team|automated|no-vault|vault-member|composio-off]`
+  (`vault-member`: the person already a member of the work Environment's vault, where
+  Trezor shows its video first), then every
   page with its "?" at 1440 and 700 px, with and without `prefers-reduced-motion`: one
   "?" right after the heading, the ring on each step's element (or the card in the
   middle where it is not on the page), "Dokumentace" at the last step of Integrace,

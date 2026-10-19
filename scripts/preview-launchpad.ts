@@ -74,8 +74,12 @@
 // hosted preview's work Environment is the example Organization's Team
 // Environment or a persona's Automated Environment instead (its handover's
 // assignment `team` or `automation`), to see how a page names each kind
-// (decision F28's addendum of 2026-10-18). Synthetic names only; stop it
-// with Ctrl-C.
+// (decision F28's addendum of 2026-10-18). With `vault-member` anywhere
+// after the mode, the fictional person jana already has her Lazurio account
+// with a master password in the hosted work Environment's vault, so Apps →
+// Trezor adds and confirms her and finds her a member: the vault's video
+// stands open first (F56's addendum of 2026-10-19). Synthetic names only;
+// stop it with Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -106,6 +110,7 @@ import { toolsEnvironmentOf } from "../src/tools/overview";
 import { runTool } from "../src/tools/status";
 import { readConnection } from "../src/vault/connection";
 import { vaultSetup } from "../src/vault/flow";
+import { personAddress } from "../src/vault/members";
 import {
   writeModule,
   writeOrganization,
@@ -148,6 +153,7 @@ const composioOrgMissing = process.argv
   .slice(3)
   .includes("composio-org-missing");
 const bitwardenUs = process.argv.slice(3).includes("bitwarden-us");
+const vaultMemberPerson = process.argv.slice(3).includes("vault-member");
 const noVault =
   process.argv
     .slice(3)
@@ -610,6 +616,9 @@ async function previewBitwarden() {
 async function previewVault() {
   const vault = await startFakeVault(home);
   vault.allow(workAccount);
+  // The gateway's person (jana) with her own account in the vault, master
+  // password set: the membership adds and confirms her.
+  if (vaultMemberPerson) vault.person(personAddress("jana"), true);
   const zip = zipOf("bw", fakeBw);
   const pin = fakePin(zip);
   // No vault, for the reason asked for: nothing to set up.
