@@ -22,6 +22,8 @@ test.each([
     { kind: "automation", githubLogin: "example", githubId: 12345 },
     "automations of an Organization persona; responsible operator example (GitHub id 12345)",
   ],
+  // Root decision 0209: the services Environment of a server by its name.
+  ["en", { kind: "services" }, "Server services"],
   [
     "cs",
     { kind: "operator", githubLogin: "example", githubId: 12345 },
@@ -33,6 +35,7 @@ test.each([
     { kind: "automation", githubLogin: "example", githubId: 12345 },
     "Automatizace persony Organizace; odpovědný operátor example (GitHub id 12345)",
   ],
+  ["cs", { kind: "services" }, "Služby serveru"],
 ] as const)(
   "the %s assignment line of %o reads %p",
   (locale, assignment, text) => {

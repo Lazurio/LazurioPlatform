@@ -542,6 +542,8 @@ test.skipIf(process.platform === "win32")(
     for (const [machine, name] of [
       [bindings.assignedOperator, "hosted-organization-personal"],
       [bindings.assignedTeam, "hosted-organization-team"],
+      // Služby serveru (root decision 0209) take the Team preset.
+      [bindings.services, "hosted-organization-team"],
     ] as const) {
       const { parent, folder } = await setup({ personalspace: "empty" });
       try {

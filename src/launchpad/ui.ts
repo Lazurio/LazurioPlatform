@@ -63,7 +63,12 @@ import { type PageHelpId, pageGuide, pageHelpStates } from "./guides";
 import { createIntegrationsPanel } from "./integrations-panel";
 import { composioSignIn, toolSignInsKey } from "./integrations-view";
 import { createColumn, keepCornerFree } from "./layout";
-import { environmentFacts, type Fact, type MachineView } from "./machine-view";
+import {
+  environmentFacts,
+  type Fact,
+  type MachineView,
+  presetLabel,
+} from "./machine-view";
 import { type MessageKey, messages } from "./messages";
 import { moduleCopy } from "./module-view";
 import { createHelpVideo } from "./page-help";
@@ -1223,13 +1228,6 @@ let pending: {
   preset: string;
   profile: Record<string, string>;
 } | null = null;
-const presetLabels: Record<string, MessageKey> = {
-  local: "presetLocal",
-  "hosted-personal": "presetHostedPersonal",
-  "hosted-organization-personal": "presetHostedOrganizationPersonal",
-  "hosted-organization-team": "presetHostedOrganizationTeam",
-  "hosted-organization-steward": "presetHostedOrganizationSteward",
-};
 // Settings → Tento Environment (root decision 0188): what a person needs in
 // view, the recorded technical facts folded under "Pro podporu"; rendered as
 // text only, never as editable controls. Drawn again once the catalog (an
@@ -1387,7 +1385,7 @@ async function load() {
     ...current.allowedPresets.map(
       (name) =>
         new Option(
-          copy[presetLabels[name] ?? "preset"],
+          copy[presetLabel(name, current.machine)],
           name,
           false,
           name === current.preset.name,

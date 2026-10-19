@@ -1,7 +1,12 @@
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { withFolderReadLock } from "../folder/lock";
-import type { MachineBinding } from "../folder/machine-binding";
+import {
+  assignedPerson,
+  isServerServices,
+  type MachineBinding,
+  unknownAssignment,
+} from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import { readMachineContext } from "../machine/context";
@@ -22,6 +27,7 @@ import {
   workstationId,
 } from "../shell/contract";
 import { initialsOf } from "../shell/view";
+import { messages } from "./messages";
 import { isPublicEnvironment } from "./public-environment";
 
 // The Dashboard's slug lives with the contract, where the shell's merge of
@@ -73,17 +79,27 @@ export const presetKinds: Readonly<Record<PresetName, ShellEnvironmentKind>> = {
   "hosted-organization-steward": "automated",
 };
 
+/** The kind people are shown for this Environment: its preset's, except the
+ * services Environment of a server, Služby serveru (root decision 0209
+ * point 3). It has the Team preset because it acts on GitHub as a Team
+ * Environment does, but to people it is a work Environment (root decision
+ * 0207: no fourth kind, and never a Team one). */
+export function environmentKind(
+  preset: PresetName,
+  machine: MachineBinding | null,
+): ShellEnvironmentKind {
+  return isServerServices(machine) ? "work" : presetKinds[preset];
+}
+
 /** The GitHub login of the one person the Environment belongs to, when it
  * records one: the owner of a personal Remote Environment, the assigned
  * operator of a work one, the responsible operator of an Automated one. A
- * Team Environment and a workstation name nobody. */
+ * Team Environment, the services Environment of a server and a workstation
+ * name nobody. */
 export function operatorLogin(machine: MachineBinding | null): string | null {
   if (machine === null) return null;
   if (machine.owner.kind === "principal") return machine.owner.githubLogin;
-  const assignment = machine.owner.assignment;
-  return assignment !== undefined && assignment.kind !== "team"
-    ? assignment.githubLogin
-    : null;
+  return assignedPerson(machine.owner.assignment)?.githubLogin ?? null;
 }
 
 /** The Organizations of the catalog the shell names: every candidate with a
@@ -177,7 +193,9 @@ export function teamLabel(
     : name;
 }
 
-/** The person a work Environment is assigned to, for its "who" line. */
+/** The person a work Environment is assigned to, for its "who" line: only
+ * an operator's. The services Environment of a server is a work one that
+ * nobody is assigned to. */
 export function assigneeLogin(
   machine: MachineBinding | null,
   kind: ShellEnvironmentKind,
@@ -185,9 +203,37 @@ export function assigneeLogin(
   if (kind !== "work" || machine === null) return null;
   if (machine.owner.kind !== "organization") return null;
   const assignment = machine.owner.assignment;
-  return assignment !== undefined && assignment.kind === "operator"
-    ? assignment.githubLogin
-    : null;
+  if (assignment === undefined) return null;
+  switch (assignment.kind) {
+    case "operator":
+      return assignment.githubLogin;
+    case "automation":
+    case "team":
+    case "services":
+      return null;
+    default:
+      return unknownAssignment(assignment);
+  }
+}
+
+/** This Environment's own name in the document: a workstation's computer, a
+ * Team or Automated Environment's Team (`teamLabel`), or the name of the
+ * services Environment of a server, Služby serveru in the Folder's language
+ * (root decision 0209 point 1); null where it has none, which the elements
+ * name by its kind. */
+export function environmentLabel(
+  input: Readonly<{
+    machine: MachineBinding | null;
+    kind: ShellEnvironmentKind;
+    locale: "cs" | "en";
+    catalog: Catalog;
+    computer?: string | undefined;
+  }>,
+): string | null {
+  if (input.kind === "workstation") return computerLabel(input.computer);
+  if (isServerServices(input.machine))
+    return messages(input.locale).serverServicesName;
+  return teamLabel(input.machine, input.kind, input.catalog);
 }
 
 /** A workstation's name: the computer's host name without its domain
@@ -259,7 +305,7 @@ export function shellDocument(
   // A public Environment (root decision 0204, decision F55): its column head
   // says so, and it has no first run to count.
   const visitors = isPublicEnvironment(entry);
-  const kind = presetKinds[input.preset];
+  const kind = environmentKind(input.preset, machine);
   const held = shellOrganizations(input.catalog);
   // The owning Organization first.
   const owner = ownerOrganization(machine, kind);
@@ -316,10 +362,13 @@ export function shellDocument(
     environments: [
       {
         id,
-        label:
-          kind === "workstation"
-            ? computerLabel(input.computer)
-            : teamLabel(machine, kind, input.catalog),
+        label: environmentLabel({
+          machine,
+          kind,
+          locale: input.locale,
+          catalog: input.catalog,
+          computer: input.computer,
+        }),
         kind,
         // A personal Environment belongs to no Organization, whatever its
         // Folder holds.

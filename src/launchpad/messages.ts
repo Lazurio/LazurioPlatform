@@ -1406,6 +1406,12 @@ const en = {
   machineWorks: "Who works in it",
   machineWorksTeam: "Team {team}",
   machineWorksAutomation: "automation, @{login} is responsible",
+  // The services Environment of a server (root decision 0209): its name in
+  // the shell and in its assignment, who enters it, and its kind, a work
+  // Environment set apart as `kindDetail` sets apart an automated one.
+  serverServicesName: "Server services",
+  machineWorksServices: "Owners and Admins of the Organization",
+  machineKindServices: `${kindDetail("work", "en")} with the server's services`,
   machineKindPersonal: kindDetail("personal", "en"),
   machineKindWork: kindDetail("work", "en"),
   machineKindTeam: kindDetail("team", "en"),
@@ -3053,6 +3059,9 @@ const cs: Record<MessageKey, string> = {
   machineWorks: "Pracuje v něm",
   machineWorksTeam: "Team {team}",
   machineWorksAutomation: "automatizace, odpovídá @{login}",
+  serverServicesName: "Služby serveru",
+  machineWorksServices: "Owneři a Admini Organizace",
+  machineKindServices: `${kindDetail("work", "cs")} se službami serveru`,
   machineKindPersonal: kindDetail("personal", "cs"),
   machineKindWork: kindDetail("work", "cs"),
   machineKindTeam: kindDetail("team", "cs"),

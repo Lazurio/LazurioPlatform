@@ -1,5 +1,9 @@
 import type { ToolNotes } from "../tools/catalog";
-import type { MachineBinding, MachinePeer } from "./machine-binding";
+import {
+  isServerServices,
+  type MachineBinding,
+  type MachinePeer,
+} from "./machine-binding";
 import type { ManualPath } from "./outputs";
 import {
   githubIdentity,
@@ -1563,6 +1567,14 @@ const publicMeaning: Text = t(
   "This Environment, though, is public (root decision 0204): its visitors share it and it has no GitHub identity, neither a brokered nor a personal one. It reads the Organization's public repositories anonymously and nothing is published from here.",
 );
 
+// What the Team preset means on the services Environment of a server,
+// Služby serveru (root decision 0209), which takes it for its GitHub identity
+// and Publication: who enters it, who the Operator is and how people name it.
+const servicesMeaning: Text = t(
+  "Jde ale o Služby serveru (root decision 0209): do tohoto Environmentu vstupují jen Owneři a Admini Organizace, ne členové Teamu, a Operátorem je ten z nich, kdo je právě připojený. Běží tu služby, které server poskytuje svým Environmentům, a agenti tu jednají za Admina, který spravuje jejich klíče. Brokerovaná identita, sdílení a Publikace jmenovaným člověkem platí jako u týmového Environmentu; lidem je to ale Pracovní Prostředí jménem Služby serveru, nikdy Týmové.",
+  "This, though, is Server services (root decision 0209): only the Organization's Owners and Admins enter this Environment, not the Team's members, and the Operator is whichever of them is connected. The services the server provides to its Environments run here, and agents here act for the Admin who manages their keys. The brokered identity, sharing and Publication by a named person hold as for a Team Environment; to people, though, it is the Work Environment named Server services, never a Team one.",
+);
+
 const presetMeaning: Readonly<Record<PresetName, Text>> = {
   local: t(
     "Vlastní pracovní stanice Operátora bez handoveru. Přihlášený uživatel je Owner i Operátor. Personalspace je přítomný, repozitáře Organizací žijí v `organizations/<org>/` a používají se Operátorova vlastní přihlášení. Aplikace spuštěné z Launchpadu žijí jen po dobu jeho session.",
@@ -1650,6 +1662,14 @@ function zoneOfThisMachine(
 ): Text {
   const organization =
     machine?.owner.kind === "organization" ? machine.owner.organization : null;
+  // Služby serveru have the Team preset, but only Owners and Admins enter
+  // them, and their services serve the server's Environments (root decision
+  // 0209 points 3 and 4).
+  if (preset === "hosted-organization-team" && isServerServices(machine))
+    return t(
+      `Tenhle Environment (Služby serveru, root decision 0209) je v pracovní zóně Organizace \`${organization}\`. Vstupují do něj jen Owneři a Admini Organizace. Environmenty na stejném serveru dosáhnou jen na ty jeho služby, které jim povolí Deployment Repo Organizace, a to po vnitřní síti serveru, ne přes tailnet.`,
+      `This Environment (Server services, root decision 0209) is in the work zone of Organization \`${organization}\`. Only the Organization's Owners and Admins enter it. Environments on the same server reach only those of its services that the Organization's Deployment Repo grants them, over the server's internal network, not the tailnet.`,
+    );
   switch (preset) {
     case "local":
       return t(
@@ -2268,6 +2288,9 @@ function thisMachine(source: InstructionSource): string {
       ),
       presetMeaning[preset],
       ...(githubIdentity(preset, machine) === "none" ? [publicMeaning] : []),
+      ...(preset === "hosted-organization-team" && isServerServices(machine)
+        ? [servicesMeaning]
+        : []),
       blank,
       t(
         "## Zóny: co kam smí (decision 0155)",

@@ -76,10 +76,11 @@
 // Environment has no vault, for that reason (F53's addendum of 2026-10-17):
 // nothing is set up, the Apps column does not list Trezor (F53's addendum of
 // 2026-10-18 (3)), and `/vault` says why and explains the vault with its
-// guide video. With `team` or `automated` anywhere after the mode, a
-// hosted preview's work Environment is the example Organization's Team
-// Environment or a persona's Automated Environment instead (its handover's
-// assignment `team` or `automation`), to see how a page names each kind
+// guide video. With `team`, `automated` or `services` anywhere after the
+// mode, a hosted preview's work Environment is the example Organization's
+// Team Environment, a persona's Automated Environment or the server's
+// Služby serveru instead (its handover's assignment `team`, `automation` or
+// `services`, root decision 0209), to see how a page names each kind
 // (decision F28's addendum of 2026-10-18). With `vault-member` anywhere
 // after the mode, the fictional person jana already has her Lazurio account
 // with a master password in the hosted work Environment's vault, so Apps →
@@ -179,7 +180,9 @@ const assignment =
       ? "team"
       : process.argv.slice(3).includes("automated")
         ? "automation"
-        : null;
+        : process.argv.slice(3).includes("services")
+          ? "services"
+          : null;
 const locale = process.argv[3] === "en" ? "en" : "cs";
 const listenPort = Number(process.argv[4] ?? 24611);
 const role =
@@ -210,7 +213,7 @@ else {
   const preset =
     mode === "personal"
       ? "hosted-personal"
-      : assignment === "team"
+      : assignment === "team" || assignment === "services"
         ? "hosted-organization-team"
         : assignment === "automation"
           ? "hosted-organization-steward"
@@ -726,7 +729,8 @@ async function previewVault() {
     context: async () =>
       ownContext(
         workHandover(vaultMember(workAccount, "Pracovní example")),
-        team ? "team" : "work",
+        // Služby serveru keep the Team preset's vault rule (root 0209).
+        team || assignment === "services" ? "team" : "work",
       ),
   });
   const setUp = await vaultSetup(host);

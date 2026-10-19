@@ -894,6 +894,46 @@ Folder keeps preserving the Operator's own top-level files.
 **Amendment 2026-09-30.** A fifth preset for the Automated Environment of upstream
 decision 0169 is proposed in [F27](#f27--the-steward-preset-for-the-automated-environment).
 
+**Amendment 2026-10-19 (root decision 0209, plan DEV-6674 S1.1 and the labels of
+S2.4; pending the Machines re-pin).** Every Proxmox server of an Organization has one
+services Environment `services-NN`, to people **Služby serveru** ("Server services"):
+a work Environment of the Organization that only its Owners and Admins enter.
+Machines gives it the closed handover assignment `{kind: "services"}` (Machines
+`docs/server-services.md` §2), which names nobody, and lists its services in the
+Organization-branch member `services`. The vendored schema takes both byte for byte
+from the Machines branch that adds them, with `pending` in `schema-provenance.json`
+until its pull request merges and the pin moves there. The Platform:
+
+1. **Accepts and projects** the assignment one to one (`{kind: "services"}` in the
+   binding); any other kind still fails closed. Every match on the kind ends in the
+   compile-time guard `unknownAssignment`, so the next kind fails to compile wherever
+   it is not handled. The member `services` is read exactly as written and recorded
+   nowhere; the link to a service's page is S2.1 and S2.2.
+2. **Derives the Team preset**, and a new choice may take only it: Služby serveru act
+   on GitHub only as the Organization's brokered identity and a named person
+   publishes from them (root decision 0209 addendum (c), F31). The curated gh
+   sign-in, the GitHub sign-in pilot (F48), the person's onboarding and a person's
+   private values in recovery behave as on a Team Environment.
+3. **Names them a work Environment.** The preset is the composition, not the words
+   people read: the shell document gives kind `work` and the label "Služby serveru"
+   (`environmentKind`, `environmentLabel`), with no assignee or operator; Toto
+   Prostředí reads "Pracovní Prostředí se službami serveru", set apart as an
+   automated Environment is, with "Owneři a Admini Organizace" working there; Obecné
+   names their preset the same way; prepared prompts take the same kind. The
+   generated Folder's assignment line, Operator line, preset meaning and zone say who
+   enters, that the Team's rules hold and what people call it. These texts render
+   only for the new assignment, which no earlier release can record, so the template
+   revision stays `base-instructions-58` and no existing Folder changes.
+4. **Keeps the Team's vault rule.** The vault follows the preset's kind: it adds and
+   removes no person until a live answer of who may enter exists (DEV-6631 C4).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A sixth preset `hosted-organization-services` with the brokered identity and kind `work` | One more composition every preset-keyed consumer must learn, and every check that means "brokered" (content, Owner and maintainer answers, module creation, the Folder's Team rules) to be revisited, for a composition identical to the Team preset's; a new preset is a product decision of its own; rejected |
+| Leave the Team preset's words (Týmové Prostředí) | Contradicts root decisions 0207 and 0209 point 3; rejected |
+| A shell kind `services` | A fourth kind for people, which 0207 forbids, and a change of `lazurio.shell.v1`; rejected |
+| The Team preset for the identity, the kind people read from the binding (selected) | One composition for every brokered Environment; the words follow one predicate (`isServerServices`); texts chosen by the brokered identity alone still say Team (S2.4) |
+
 
 A user-facing "Machine profile" choice has two effects with two owners: infrastructure
 custody and topology belong to the hosting engine, Environment configuration to
