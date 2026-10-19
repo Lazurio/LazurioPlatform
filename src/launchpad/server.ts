@@ -2068,6 +2068,10 @@ export async function startLaunchpad(
                 kind: "composio-organizations-failed",
                 reason: "unreadable",
               });
+            // Found or made current: the Integrace reading the Launchpad
+            // keeps for a minute may still say it is missing, so the next
+            // one reads again (the end-to-end test of 2026-10-19).
+            if (converged.verdict.kind === "matches") integrations.forget();
             return response({
               kind: "composio-organizations",
               organizations: converged.organizations,
@@ -2081,7 +2085,11 @@ export async function startLaunchpad(
             )
               return response({ error: "invalid-organization" }, 400);
             server.timeout(request, 60);
-            return response(await logins.selectComposioOrganization(value.id));
+            const selected = await logins.selectComposioOrganization(value.id);
+            // Integrace's links lead into the organization now current.
+            if (selected.kind === "composio-organization-selected")
+              integrations.forget();
+            return response(selected);
           }
           const tool = value.tool;
           if (typeof tool !== "string")
@@ -2232,6 +2240,9 @@ export async function startLaunchpad(
                 : {}),
               ...(value.sshKey === true ? { sshKey: true } : {}),
             });
+            // Signed in: what connects the apps changed (decision F42,
+            // note of 2026-10-19), so Integrace read again.
+            if (started.kind === "signed-in") integrations.forget();
             // A refusal before anything ran (codex and claude without the
             // Environment browser, or with the Organization's AI) is one as
             // every other.
@@ -2254,11 +2265,12 @@ export async function startLaunchpad(
               return response(ended.kind === "blocked" ? ended : refusal, 409);
             }
           }
-          return response(
+          const answered =
             url.pathname === "/api/tools/login/poll"
               ? withQr(logins.poll(tool, handle))
-              : logins.cancel(tool, handle),
-          );
+              : logins.cancel(tool, handle);
+          if (answered.kind === "signed-in") integrations.forget();
+          return response(answered);
         }
         if (
           ["/api/tools/preview", "/api/tools/update"].includes(url.pathname)
@@ -2287,6 +2299,10 @@ export async function startLaunchpad(
             value.tools,
             value.notes,
           );
+          // A tool switched on or off for agents changes what connects the
+          // apps (Composio's "Používají agenti", decision F42, note of
+          // 2026-10-19): Integrace read again, the connect route too.
+          if (result.kind === "updated") integrations.forget();
           return response(
             result.kind === "blocked"
               ? result

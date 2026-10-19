@@ -352,6 +352,11 @@ test("the shipped catalog is valid, and every direct path is verified", () => {
     gmail: "gogcli",
     neon: "neon",
   });
+  // Canva's MCP server refuses every return address but allowlisted ones at
+  // its authorize step, so Canva connects through Composio (#519).
+  const canva = integrationsCatalog.apps.find((app) => app.id === "canva");
+  expect(canva?.direct).toBeUndefined();
+  expect(canva?.composio).toBe("canva");
 });
 
 test("a catalog of another shape is refused", () => {

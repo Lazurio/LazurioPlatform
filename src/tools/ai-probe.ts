@@ -17,7 +17,8 @@ import { resolveOnPath } from "./status";
 // it is stopped. Claude Code through `claude auth status --json`. Both run as
 // the operator with this Environment's PATH and home, as Settings → Nástroje
 // runs the tools, and only on request: Začínáme, the shell document's
-// `setup` and nothing else ask, and an answer is kept a minute.
+// `setup` and nothing else ask, and an answer is kept a minute. Chat's
+// defaults (chat/defaults.ts) ask the same app-server for `config/read`.
 
 /** A conversation with a process over its standard streams: `input` is
  * written and stdin stays open until a line of stdout satisfies `until` or
@@ -91,31 +92,29 @@ export const converse: Converse = (command, env, input, until, timeoutMs) =>
     child.stdin?.write(input);
   });
 
-const accountReadId = 1;
+const answerId = 1;
 
-/** The messages that ask Codex's app-server for the account. */
-const codexQuestion = `${[
-  {
-    method: "initialize",
-    id: 0,
-    params: {
-      clientInfo: { name: "lazurio", title: "Lazurio", version: "1" },
+/** The messages that ask Codex's app-server one question, `method` with
+ * `params`, after the handshake. */
+const codexQuestion = (method: string, params: unknown): string =>
+  `${[
+    {
+      method: "initialize",
+      id: 0,
+      params: {
+        clientInfo: { name: "lazurio", title: "Lazurio", version: "1" },
+      },
     },
-  },
-  { method: "initialized" },
-  {
-    method: "account/read",
-    id: accountReadId,
-    params: { refreshToken: false },
-  },
-]
-  .map((message) => JSON.stringify(message))
-  .join("\n")}\n`;
+    { method: "initialized" },
+    { method, id: answerId, params },
+  ]
+    .map((message) => JSON.stringify(message))
+    .join("\n")}\n`;
 
 function answerOf(line: string): unknown {
   try {
     const value = JSON.parse(line) as { id?: unknown };
-    return value?.id === accountReadId ? value : undefined;
+    return value?.id === answerId ? value : undefined;
   } catch {
     return undefined;
   }
@@ -137,30 +136,50 @@ function toolEnv(environment: ToolsEnvironment): Record<string, string> {
   return env;
 }
 
-export async function readCodex(
+/** One question to a short-lived app-server of this Environment's Codex,
+ * as the operator: `{ result }` of its answer (absent when it answered with
+ * an error), `not-installed` without `codex` on PATH, or `no-answer` when it
+ * could not be asked, ended first or did not answer in time. */
+export async function askCodex(
   environment: ToolsEnvironment,
   talk: Converse,
   timeoutMs: number,
-): Promise<AiProviderReading> {
+  method: string,
+  params: unknown,
+): Promise<Readonly<{ result?: unknown }> | "not-installed" | "no-answer"> {
   const codex = await resolveOnPath(
     "codex",
     environment.path,
     environment.platform,
   );
-  if (codex === undefined) return { provider: "codex", state: "not-installed" };
-  if (!environment.home) return { provider: "codex", state: "unknown" };
+  if (codex === undefined) return "not-installed";
+  if (!environment.home) return "no-answer";
   const lines = await talk(
     [codex, "app-server"],
     toolEnv(environment),
-    codexQuestion,
+    codexQuestion(method, params),
     (line) => answerOf(line) !== undefined,
     timeoutMs,
   ).catch(() => "failed" as const);
-  if (typeof lines === "string") return { provider: "codex", state: "unknown" };
+  if (typeof lines === "string") return "no-answer";
   const answer = answerOf(lines.at(-1) ?? "") as
     | { result?: unknown }
     | undefined;
-  return codexReading(answer?.result);
+  return { result: answer?.result };
+}
+
+export async function readCodex(
+  environment: ToolsEnvironment,
+  talk: Converse,
+  timeoutMs: number,
+): Promise<AiProviderReading> {
+  const answer = await askCodex(environment, talk, timeoutMs, "account/read", {
+    refreshToken: false,
+  });
+  if (answer === "not-installed")
+    return { provider: "codex", state: "not-installed" };
+  if (answer === "no-answer") return { provider: "codex", state: "unknown" };
+  return codexReading(answer.result);
 }
 
 export async function readClaude(

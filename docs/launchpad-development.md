@@ -989,8 +989,9 @@ guide's mark and a card beside it, and the layer lets every click through.
     member (no account or no master password yet, removed), and while that is not
     known, the Launchpad's `vault-agents`, which promises no Bitwarden of one's own; where
     the person is a member of the vault, or the Environment has no vault, the approved video
-    `vault-overview`, which the "?" opens in place (`page-help.ts`, `#vault-video`) with
-    the one line it does not say; nothing until the page read the vault's state. One
+    `vault-overview`, open in place as the page opens and the first thing it shows (F56's
+    addendum (4) of 2026-10-19), with the one line it does not say; the "?" closes and reopens
+    it (`page-help.ts`, `#vault-video`); nothing until the page read the vault's state. One
     agent's request has no "?";
   - Settings ([F56's addendum (2) of 2026-10-18](decisions.md#f56-addendum-2-of-2026-10-18-every-section-of-settings-has-its--and-loses-its-explaining-sentences)): Začínáme
     `settings-start` (only where it has the basics: not on a public Environment's demo
@@ -1033,7 +1034,9 @@ guide's mark and a card beside it, and the layer lets every click through.
   variant is chosen only by facts the page knows, never by an Organization's name
   (#499).
 - **Check it in a browser** (root decision 0178): `bun scripts/preview-launchpad.ts
-  hosted|personal cs|en <port> owner [team|automated|no-vault|composio-off]`, then every
+  hosted|personal cs|en <port> owner [team|automated|no-vault|vault-member|composio-off]`
+  (`vault-member`: the person already a member of the work Environment's vault, where
+  Trezor shows its video first), then every
   page with its "?" at 1440 and 700 px, with and without `prefers-reduced-motion`: one
   "?" right after the heading, the ring on each step's element (or the card in the
   middle where it is not on the page), "Dokumentace" at the last step of Integrace,
@@ -2366,9 +2369,10 @@ card's state is read again. What it shows:
 
 **Update** (decision F42, addendum (3) of 2026-10-13). The tools reading carries the
 build Lazurio pins for a tool (`pinned`; today only composio, Lazurio's build of the
-Composio CLI). A composio whose version is not that build says so in its Details
-("Tohle není sestavení, které Lazurio používá (0.4.3-lazurio.1)." / "This is not the
-build Lazurio uses (0.4.3-lazurio.1).", the amber attention state) and its row offers
+Composio CLI, `0.4.3-lazurio.2` since 2026-10-19). A composio whose version is not
+that build, an earlier build of Lazurio's (`0.4.3-lazurio.1`) included, says so in its
+Details ("Toto není sestavení, které Lazurio používá (0.4.3-lazurio.2)." / "This is not
+the build Lazurio uses (0.4.3-lazurio.2).", the amber attention state) and its row offers
 "Aktualizovat" / "Update" (named "Update composio") where the update can work: a
 `launchpad` tool this Environment offers, not refused by the Organization, installed
 in the standard path (an installation elsewhere is never shadowed by a second copy, so
@@ -2378,7 +2382,7 @@ there is no button there). The click is the person's consent: it posts
 installer run per tool at a time, shared with installation, `busy` otherwise; a tool
 without a pinned build is refused as `update-unavailable`). While it runs the status
 line says that the tool is being updated; the row then says the outcome ("composio
-0.4.3-lazurio.1 je nainstalovaný; přihlášení zůstává." or that the update did not
+0.4.3-lazurio.2 je nainstalovaný; přihlášení zůstává." or that the update did not
 finish, with why under "What happened" in Details) and the tools are read again.
 
 **gh and its SSH key** (F19 addendum 2026-09-28). The gh dialog has a third step,
@@ -2559,8 +2563,9 @@ the fake bw of `tests/fixtures/fake-vault.ts`.
 **An Environment without a vault** ([F53's addendum of
 2026-10-17](decisions.md#f53-addendum-of-2026-10-17-an-environment-without-a-vault-explains-the-vault))
 says why in the page's line; how a vault works in an Organization is the guide video
-`vault-overview`, which the "?" beside the heading opens in place (since F56's addendum of
-2026-10-18 the page no longer has the group "Jak trezor funguje").
+`vault-overview`, open in place under the heading as the page opens (F56's addendum (4) of
+2026-10-19; since its addendum of 2026-10-18 the page no longer has the group "Jak trezor
+funguje", and the "?" beside the heading closes and reopens the video).
 The line depends on the vault's reason (`vaultPageView`'s `note`): a
 public Organization's Environment, whose handover names no tailnet (`no-tailnet`), has
 none on purpose, since the Organization is a public demo; any other (`no-vault`) is not
@@ -2687,12 +2692,15 @@ language's, paused. The pure part, `guideVideoPlayer`, decides the markup and th
 `#vault-bitwarden-video` at the top of "V Codex Desktopu a ve vašem prohlížeči"
 (`vault-page-panel.ts`, hidden for a personal Environment's own Bitwarden, whose steps
 differ). Trezor's "?", where its words are true of the Environment's vault (an Organization's
-vault the person is in, or no vault here; [the guide](#the-guide-decision-f56)), mounts
-`vault-overview` in `#vault-video-player` with `open` the first time it is pressed
-(`src/launchpad/page-help.ts`): the box `#vault-video` opens under the page's heading, the
-press plays the video (with less motion it waits at its poster), the line under it
-(`vaultVideoLine`) says what the video does not, and the "?" again, Escape or the page
-moving on closes it, the focus back on the "?".
+vault the person is in, or no vault here; [the guide](#the-guide-decision-f56)), is the
+first thing the page shows (F56's addendum (4) of 2026-10-19, `src/launchpad/page-help.ts`):
+as the page knows the video is true, the box `#vault-video` opens under the page's heading
+with `vault-overview` in `#vault-video-player` at its poster, playing nothing and moving no
+focus, and the person starts it; the line under it (`vaultVideoLine`) says what the video
+does not. The "?" closes it and opens it again, and then plays it (with less motion it
+waits at its poster); Escape closes it, the focus back on the "?". Closed by the person, it
+stays closed until the page moves on (`helpVideoDrawing`, per visit), and the next visit
+opens it again.
 
 The files are `src/launchpad/videos/<name>-<cs|en>.mp4` and their posters
 `<name>-<cs|en>.webp`, embedded in the executable with `{ type: "file" }` like the shell's
@@ -3008,8 +3016,11 @@ Organization's, and it gets none of it.
 
   Then "Hesla pro agenty" with Trezor Prostředí and its state as Apps → Trezor reads
   it (`GET /api/vault`, `vaultPageView`; a Remote Environment with a vault only),
-  "Volitelné" (Composio where Nástroje offer it, with its sign-in; on a Remote
-  Environment SSH z vlastního počítače, "Nastaveno" once a device's key was added here,
+  "Volitelné" (Composio where Nástroje offer it, with its sign-in, and "Nedokončeno"
+  with "Dokončit" where it is signed in but the organizations' reading says it does
+  not work in the organization of the Organization's name: "Dokončit" opens
+  Composio's dialog at the step left in Composio, decision F42's note of 2026-10-19;
+  on a Remote Environment SSH z vlastního počítače, "Nastaveno" once a device's key was added here,
   and Codex Desktop, both leading to Settings → SSH; between them "Trezor v Bitwardenu"
   where Apps → Trezor gives the steps for Bitwarden, its "Návod" opening them) and
   "Prohlídka aplikace" ("Spustit

@@ -278,7 +278,7 @@ test.skipIf(process.platform === "win32")(
             version: "0.7.1",
             standardPath: false,
             // Lazurio's build of composio (decision F42 addendum (3)).
-            pinned: "0.4.3-lazurio.1",
+            pinned: "0.4.3-lazurio.2",
             prompt: toolPrompt("composio", "en") as string,
           },
           {

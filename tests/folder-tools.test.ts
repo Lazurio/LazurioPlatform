@@ -128,8 +128,8 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
   for (const locale of ["cs", "en"] as const) {
     const target = findTool("composio")?.activation?.installation[locale];
     for (const part of [
-      "0.4.3-lazurio.1",
-      "`@composio/cli@0.4.3-lazurio.1`",
+      "0.4.3-lazurio.2",
+      "`@composio/cli@0.4.3-lazurio.2`",
       "https://github.com/Lazurio/composio",
       "`lazurio tools install composio`",
       "`lazurio tools update composio`",

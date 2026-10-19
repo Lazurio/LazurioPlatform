@@ -44,6 +44,7 @@ import {
   autoStartStep,
   composioFact,
   contentBlockedBy,
+  createComposioOrganizationReader,
   githubAccount,
   githubFact,
   idleAutoStart,
@@ -60,6 +61,7 @@ import {
 } from "./first-run";
 import { type PageHelpId, pageGuide, pageHelpStates } from "./guides";
 import { createIntegrationsPanel } from "./integrations-panel";
+import { composioSignIn, toolSignInsKey } from "./integrations-view";
 import { createColumn, keepCornerFree } from "./layout";
 import { environmentFacts, type Fact, type MachineView } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
@@ -77,7 +79,11 @@ import { demoModule, demoStartView, startCount } from "./start-view";
 import { createThemePanel } from "./theme-panel";
 import { withAppsTheme } from "./theme-view";
 import { createToolsPanel } from "./tools-panel";
-import type { ToolGuideTargets } from "./tools-view";
+import {
+  organizationChoices,
+  organizationRule,
+  type ToolGuideTargets,
+} from "./tools-view";
 import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
 import { fill, pillView, pillVisible } from "./update-view";
@@ -250,7 +256,9 @@ function drawGuide(route: PageRoute) {
     help.setAttribute("aria-label", copy.pageHelp);
     help.title = copy.pageHelp;
   }
-  if (videoHelp === null) vaultVideo.close();
+  // Trezor's video stands open first where its words are true (F56's
+  // addendum (4) of 2026-10-19); a new page is a new visit.
+  vaultVideo.draw(videoHelp, JSON.stringify(route));
 }
 // The documentation of the Launchpad's "Guide" (the root Launchpad's
 // `guideDocumentationUrl`), in the page's language.
@@ -634,6 +642,32 @@ let vaultRow: StartVaultRow | null = null;
 let vaultBitwarden = false;
 let vaultPerson: VaultPagePerson | null = null;
 let sshDevices: number | null = null;
+// Composio's organization as Začínáme last read it (decision F42, note of
+// 2026-10-19), so that Composio signed in but not in the organization of the
+// Organization's name is not "Připojeno" there. Read each time Začínáme is
+// shown, and when the sign-in changes while it is.
+/** Composio's sign-in as the tools' reading names it; null signed out. */
+function composioSignInKey(): string | null {
+  const composio = toolsOverview?.tools.find(
+    (tool) => tool.name === "composio",
+  );
+  return composio?.signIn?.state === "signed-in"
+    ? JSON.stringify([
+        composio.signIn.account ?? null,
+        composio.signIn.organization ?? null,
+      ])
+    : null;
+}
+const composioOrganization = createComposioOrganizationReader({
+  signIn: composioSignInKey,
+  read: async () => {
+    const { value, ok } = await post("/api/tools/composio/organizations", {});
+    return ok && organizationChoices(value) !== null
+      ? organizationRule(value)
+      : null;
+  },
+  changed: () => startPanel.render(),
+});
 // "Přihlásit ChatGPT" and "Přihlásit Claude" (root decision 0201 points 3-6,
 // F19's addendum of 2026-10-15): the CLI's sign-in through the Launchpad; on
 // a Remote Environment its page opens in the Environment browser, and the
@@ -671,7 +705,7 @@ const startPanel = createStartPanel({
           copy,
         )
       : null,
-  composio: () => composioFact(toolsOverview),
+  composio: () => composioFact(toolsOverview, composioOrganization.rule()),
   sshDevices: () => sshDevices,
   vault: () => vaultRow,
   bitwarden: () => vaultBitwarden,
@@ -680,8 +714,10 @@ const startPanel = createStartPanel({
   signInGithub: () => {
     if (!tools.openSignIn("gh")) shell.navigate(settingsPath("tools"));
   },
+  // Signed in already, the dialog opens at the step left in Composio.
   signInComposio: () => {
-    if (!tools.openSignIn("composio")) shell.navigate(settingsPath("tools"));
+    if (!tools.openSignIn("composio") && !tools.openComposioOrganization())
+      shell.navigate(settingsPath("tools"));
   },
   signInAi: (tool) => void aiSignIn.start(tool),
   cancelAi: () => void aiSignIn.cancel(),
@@ -706,6 +742,7 @@ async function readStartExtras() {
     startPanel.render();
     return;
   }
+  void composioOrganization.read(true);
   const [vault, ssh] = await Promise.all([
     get("/api/vault").catch(() => null),
     get("/api/ssh").catch(() => null),
@@ -952,11 +989,19 @@ const integrations = createIntegrationsPanel({
     if (!browser.showView(view))
       window.open(view, "_blank", "noopener,noreferrer");
   },
-  signInComposio: async () => {
-    shell.navigate(settingsPath("tools"));
-    await tools.refresh();
-    return tools.openSignIn("composio");
-  },
+  // Composio's sign-in asked for by a card (decision F42, note of
+  // 2026-10-19): the tools are read live first, so a card read before
+  // Composio's sign-in or its "Používají agenti" never sends the person
+  // away; only this read's own reading, proving Composio signed out, makes
+  // Settings → Tools open its sign-in.
+  signInComposio: () =>
+    composioSignIn(
+      () => tools.refresh({ signIn: true }),
+      () => {
+        shell.navigate(settingsPath("tools"));
+        return tools.openSignIn("composio");
+      },
+    ),
   admin: async () => {
     const key = catalog.soleOrganization();
     if (key === null) return false;
@@ -973,6 +1018,10 @@ const integrations = createIntegrationsPanel({
     shellDocument !== null && shellDocument.organizations.length === 1
       ? (shellDocument.organizations[0]?.dashboard ?? null)
       : null,
+  // A Team Environment's Composio is the Team's Composio account.
+  team: () =>
+    shellDocument !== null &&
+    currentEnvironment(shellDocument)?.kind === "team",
   // Whether Composio is allowed chooses what Integrace's "?" plays.
   drawn: () => {
     if (framed) drawGuide(shell.route());
@@ -1029,16 +1078,17 @@ const vaultPage = createVaultPagePanel({
     if (framed) drawGuide(shell.route());
   },
 });
-// Trezor's "?" where the approved video of how a vault works is true of
-// this Environment (guides.ts `vaultHelp`): the video in place, under the
-// page's heading (page-help.ts).
+// Trezor's video where the approved video of how a vault works is true of
+// this Environment (guides.ts `vaultHelp`): in place, under the page's
+// heading, open as the page opens, its "?" closing and reopening it
+// (page-help.ts).
 const vaultVideoBox = document.querySelector<HTMLElement>("#vault-video");
 const vaultVideoSlot = document.querySelector<HTMLElement>(
   "#vault-video-player",
 );
 const vaultVideo =
   vaultVideoBox === null || vaultVideoSlot === null
-    ? { toggle() {}, close() {}, open: false, render() {} }
+    ? { toggle() {}, draw() {}, open: false, render() {} }
     : createHelpVideo({
         box: vaultVideoBox,
         slot: vaultVideoSlot,
@@ -1394,11 +1444,9 @@ const tools = createToolsPanel({
     if (framed) drawGuide(shell.route());
   },
   observed: (overview) => {
-    // A tool's sign-in changes which apps it connects: Integrace read again.
-    const signIns = JSON.stringify(
-      overview?.tools.map((tool) => [tool.name, tool.signIn?.state ?? null]) ??
-        null,
-    );
+    // A tool's sign-in changes which apps it connects, and Composio's
+    // organization which accounts count: Integrace read again.
+    const signIns = toolSignInsKey(overview);
     if (
       toolSignIns !== null &&
       toolSignIns !== signIns &&
@@ -1407,6 +1455,10 @@ const tools = createToolsPanel({
       void integrations.refresh();
     toolSignIns = signIns;
     toolsOverview = overview;
+    // Začínáme shown: Composio's organization for its sign-in as it is now.
+    const route = shell.route();
+    if (route.view === "settings" && route.section === "start")
+      void composioOrganization.read(false);
     // Once GitHub is connected the content routes may answer otherwise; a
     // sign-in this view saw starts the content once its turn has come (0201
     // point 3).
@@ -1417,6 +1469,9 @@ const tools = createToolsPanel({
     if (githubSeen !== "connected" && github === "connected")
       void content.refresh({ restore: false });
     githubSeen = github;
+    // A tool installed, or switched on or off for agents, changes what
+    // connects the apps too (decision F42, note of 2026-10-19).
+    if (!isPublicEnvironment(entry)) integrations.toolsRead(overview);
     content.render();
     startByItself();
     firstRun();

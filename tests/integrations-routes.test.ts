@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runIntegrationsCommand } from "../src/integrations/cli";
 import type { IntegrationsOverview } from "../src/integrations/model";
+import { composioBuild } from "../src/tools/composio-build";
 import { embeddedIdentity } from "../src/update/identity";
 import {
   captureConsole,
@@ -1720,6 +1721,64 @@ test("Lazurio's build: names from the list without a lookup, and Odpojit removes
     ["grace@example.com", "ca_2", "connected"],
   ]);
   expect(await lookups()).toEqual([]);
+});
+
+// An Environment still on Lazurio's earlier build, 0.4.3-lazurio.1 (decision
+// F42, note of 2026-10-19): Settings → Tools reads it as not the build
+// Lazurio pins and offers the update there; Integrace asks for nothing,
+// since that build already disconnects and names accounts, which is all its
+// line and the agents' line say the update brings.
+test("an earlier Lazurio build: the update stays in Settings → Tools, Integrace and agents are not asked for it", async () => {
+  const { parent, world, app } = await setup(
+    {
+      composio: {
+        lazurioBuild: true,
+        removeYes: true,
+        version: "0.4.3-lazurio.1",
+        accounts: [
+          {
+            id: "ca_1",
+            toolkit: "gmail",
+            status: "ACTIVE",
+            alias: "work",
+            word_id: "castle",
+            display_name: "ada@example.com",
+          },
+        ],
+      },
+    },
+    { tools: ["composio"] },
+  );
+  const status = (await (await app.post("/api/tools/status", {})).json()) as {
+    tools: { name: string }[];
+  };
+  expect(status.tools.find((tool) => tool.name === "composio")).toMatchObject({
+    installed: true,
+    version: "0.4.3-lazurio.1",
+    pinned: composioBuild.version,
+    standardPath: true,
+  });
+  expect(composioBuild.version).not.toBe("0.4.3-lazurio.1");
+  const { value } = await overview(app);
+  expect(value.composio.ready).toBe(true);
+  expect(value.composio.disconnect).toBe(true);
+  expect(value.composio.update).toBe(false);
+  expect(
+    value.apps.find((item) => item.id === "gmail")?.accounts[0]?.label,
+  ).toBe("work");
+  const text = await runIntegrationsCommand(
+    ["list", "--folder", join(parent, "Lazurio")],
+    {
+      identity: embeddedIdentity(),
+      platform: process.platform,
+      env: { PATH: world.path, HOME: world.home },
+      executable: process.execPath,
+      executorEndpoint: world.executorHost(),
+      executorPresent: true,
+    },
+  );
+  expect(text.code).toBe(0);
+  expect(text.stdout).not.toContain("Composio should be updated");
 });
 
 async function noKey(

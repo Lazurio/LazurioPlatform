@@ -36,10 +36,14 @@ import {
   appsPreview,
   attentionCount,
   type CardAction,
+  type ComposioSignInAnswer,
   type ComposioTrip,
   type ComposioUpdate,
   cardView,
+  composioOrganizationChanged,
   composioOrganizationLine,
+  composioOrganizationWaits,
+  composioSignInNote,
   composioTrip,
   composioUpdated,
   composioUpdateLine,
@@ -62,6 +66,7 @@ import {
   serverLine,
   sourceLines,
   tabLabels,
+  toolStatesKey,
   visibleApps,
 } from "./integrations-view";
 import type { MessageKey } from "./messages";
@@ -72,6 +77,11 @@ import {
   type PageRoute,
   settingsPath,
 } from "./routes";
+import {
+  composioDialogView,
+  composioPollDelay,
+  composioPollNext,
+} from "./tools-view";
 import { fill } from "./update-view";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -93,7 +103,10 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // 2026-10-14). "Odpojit" closes its confirmation at once and the account's
 // row says "Odpojuji…" until the reading after it; where Composio is not the
 // build Lazurio pins, one line offers its update (decision F42, addendum (b)
-// of 2026-10-14).
+// of 2026-10-14). Where the organization of the Organization's name is
+// missing in Composio or there twice, the page reads its verdict again by
+// itself, at the pace of Composio's sign-in dialog, and the Integrace once
+// it changed (decision F42, note of 2026-10-19).
 
 type Session = Readonly<{
   id: string;
@@ -123,15 +136,21 @@ export function createIntegrationsPanel(
     navigate: (path: string) => void;
     /** Opens the right panel on the Environment browser's view. */
     showBrowser: (view: string) => void;
-    /** Opens Composio's sign-in of Settings → Tools; false when it could
-     * not (the page then just goes there). */
-    signInComposio: () => Promise<boolean>;
+    /** Composio's sign-in, read live first (`composioSignIn`, decision F42,
+     * note of 2026-10-19): `signed-in` where Composio is signed in here
+     * after all, and nothing else happens; `unreadable` where the tools
+     * could not be read, and the person stays here; otherwise Settings →
+     * Tools is shown, with its sign-in `opened` where it could open. */
+    signInComposio: () => Promise<ComposioSignInAnswer>;
     /** Whether the person is the Organization's Admin or Owner (GitHub's
      * answer); false where it is not known. */
     admin: () => Promise<boolean>;
     /** The Organization's page in the Dashboard, where its Admin sets up a
      * company app and allows Composio; null where none is known. */
     dashboard: () => string | null;
+    /** Whether this is a Team Environment, whose Composio is signed in with
+     * the Team's Composio account (decision F42, note of 2026-10-19). */
+    team: () => boolean;
     /** Called after the page is drawn: what the guide of the page's "?" is
      * chosen by may have changed (whether Composio is allowed). */
     drawn?: () => void;
@@ -203,10 +222,22 @@ export function createIntegrationsPanel(
   /** "Odpojit" of each account from its confirmation until the reading
    * after it (`Removal`). */
   let removals: Removals = new Map();
+  /** Which tools are installed and on for agents, as last reported
+   * (`toolsRead`); null before the first report. */
+  let toolStates: string | null = null;
   /** Composio's update from this page (`ComposioUpdate`). */
   let updating: ComposioUpdate = "idle";
   /** The way to Composio's Apps and back (`composioTrip`). */
   let trip: ComposioTrip = "idle";
+  /** The organizations' verdict read again while the page waits for the
+   * person in Composio (`composioOrganizationWaits`): the next reading, the
+   * readings without a change so far, and the last one's view. */
+  const waiting: {
+    timer: ReturnType<typeof setTimeout> | null;
+    attempt: number;
+    key: string | null;
+    reading: boolean;
+  } = { timer: null, attempt: 0, key: null, reading: false };
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -337,6 +368,7 @@ export function createIntegrationsPanel(
         drawAttention();
         if (deepLink !== null) openLinked(deepLink);
         render();
+        waitForComposio();
         if (!adminAsked && overview?.scope === "organization") {
           adminAsked = true;
           void options.admin().then((answer) => {
@@ -346,6 +378,61 @@ export function createIntegrationsPanel(
         }
       }
     }
+  }
+
+  /** Reads the organizations' verdict again while the page waits for the
+   * person in Composio and is shown: after the dialog's pace, or `now` (the
+   * page shown again); never while hidden or once it no longer waits. */
+  function waitForComposio(now = false) {
+    if (waiting.timer !== null) clearTimeout(waiting.timer);
+    waiting.timer = null;
+    if (
+      waiting.reading ||
+      document.hidden ||
+      !active() ||
+      !composioOrganizationWaits(overview)
+    )
+      return;
+    if (now) waiting.attempt = 0;
+    waiting.timer = setTimeout(
+      () => void readComposioOrganization(),
+      now ? 0 : composioPollDelay(waiting.attempt),
+    );
+  }
+
+  async function readComposioOrganization() {
+    waiting.timer = null;
+    waiting.reading = true;
+    let answer: unknown = null;
+    try {
+      const { value, ok } = await options.post(
+        "/api/tools/composio/organizations",
+        {},
+      );
+      if (ok) answer = value;
+    } catch {}
+    waiting.reading = false;
+    if (!active() || !composioOrganizationWaits(overview)) return;
+    // Found, or otherwise changed: the Integrace say what it is now. The
+    // pace keeps growing, so a reading that would still disagree never
+    // makes the page read faster.
+    if (composioOrganizationChanged(overview, answer)) {
+      waiting.attempt += 1;
+      waiting.key = null;
+      void load(true);
+      return;
+    }
+    const view = composioDialogView(answer, null, options.copy());
+    const key = JSON.stringify(view);
+    if (key === waiting.key) waiting.attempt += 1;
+    else {
+      waiting.attempt = 0;
+      waiting.key = key;
+    }
+    if (
+      composioPollNext(view, { open: true, hidden: document.hidden }) === "read"
+    )
+      waitForComposio();
   }
 
   /** An agent's link to an app's card: the card with its form, unless the
@@ -454,14 +541,44 @@ export function createIntegrationsPanel(
       return;
     }
     const reason = value.reason;
-    note = refusalNote(reason, overview, copy);
+    note = refusalNote(reason, overview, copy, options.team());
     if (reason === "name-required") {
       formNeedsName = true;
       forming = app;
-    } else if (reason === "composio-signed-out") {
-      if (!(await options.signInComposio()))
-        options.navigate(settingsPath("tools"));
+    } else if (reason === "composio-signed-out") void composioFirst(app);
+    render();
+  }
+
+  /** "Připojit" where the page's reading asks for Composio's sign-in, or a
+   * connect refused for it (decision F42, note of 2026-10-19). Composio is
+   * read live first: signed in, the page reads the Integrace again and the
+   * card connects, or says that Composio is off for agents; signed out, its
+   * sign-in opens in Settings → Tools, as before; not read, the person stays
+   * here and is told to try again. */
+  async function composioFirst(id: string) {
+    const said = composioSignInNote(
+      await options.signInComposio(),
+      options.copy(),
+    );
+    if (said !== null) {
+      say(said.text, said.tone);
+      return;
     }
+    note = null;
+    await load(true);
+    const app = overview?.apps.find((item) => item.id === id);
+    if (app?.path.path === "composio" && !app.path.signIn) form(app, false);
+  }
+
+  /** The connect form of an app's card: opened, or closed again where
+   * `toggle` and it is open. */
+  function form(app: IntegrationApp, toggle: boolean) {
+    forming = toggle && forming === app.id ? null : app.id;
+    formName = "";
+    formNeedsName =
+      app.accounts.some(
+        (account) => !account.spare && account.state === "connected",
+      ) && app.path.path === "composio";
     render();
   }
 
@@ -564,7 +681,7 @@ export function createIntegrationsPanel(
         account: account.selector,
         confirm: true,
       });
-      failure = disconnectFailure(value, overview, copy);
+      failure = disconnectFailure(value, overview, copy, options.team());
     } catch {
       failure = copy.integrationsDisconnectFailed;
     }
@@ -774,19 +891,10 @@ export function createIntegrationsPanel(
   function act(app: IntegrationApp, action: CardAction, line: string) {
     if (action.kind === "connect") {
       if (app.path.path === "composio" && app.path.signIn) {
-        void options.signInComposio().then((opened) => {
-          if (!opened) options.navigate(settingsPath("tools"));
-        });
-        say(options.copy().integrationsComposioSignIn, "info");
+        void composioFirst(app.id);
         return;
       }
-      forming = forming === app.id ? null : app.id;
-      formName = "";
-      formNeedsName =
-        app.accounts.some(
-          (account) => !account.spare && account.state === "connected",
-        ) && app.path.path === "composio";
-      render();
+      form(app, true);
       return;
     }
     if (action.kind === "open-tools") options.navigate(settingsPath("tools"));
@@ -860,6 +968,7 @@ export function createIntegrationsPanel(
       admin,
       dashboard: options.dashboard() !== null,
       copy,
+      composioOff: overview?.sources.composio === "off",
     });
     const article = element("article", "integration-card");
     article.id = `integration-${app.id}`;
@@ -1801,7 +1910,11 @@ export function createIntegrationsPanel(
     // name: what to do in Composio (decision F42, addendum of 2026-10-13;
     // the figure that explained the model is gone since its note of
     // 2026-10-17, the explanation is in the documentation).
-    const organizationLine = composioOrganizationLine(overview, copy);
+    const organizationLine = composioOrganizationLine(
+      overview,
+      copy,
+      options.team(),
+    );
     if (organizationLine !== null && overview.composio.organization !== null) {
       const open = element("a", "button", copy.integrationsComposioOpen);
       open.href = composioDashboard;
@@ -1871,9 +1984,11 @@ export function createIntegrationsPanel(
       void load(true);
     }
   };
-  document.addEventListener("visibilitychange", () =>
-    step(document.visibilityState === "hidden" ? "left" : "back"),
-  );
+  document.addEventListener("visibilitychange", () => {
+    step(document.visibilityState === "hidden" ? "left" : "back");
+    // Back from Composio's tab: the organization read at once.
+    waitForComposio(!document.hidden);
+  });
   window.addEventListener("blur", () => step("left"));
   window.addEventListener("focus", () => step("back"));
   refreshButton.addEventListener("click", () => {
@@ -1890,9 +2005,11 @@ export function createIntegrationsPanel(
         custom = null;
         drawCustom();
         render();
+        waitForComposio();
         return;
       }
       const first = route === null && overview === null;
+      const again = route === null && overview !== null;
       route = {
         tab: next.tab,
         ...(next.app === undefined ? {} : { app: next.app }),
@@ -1910,7 +2027,11 @@ export function createIntegrationsPanel(
         if (overview !== null) openLinked(next.app);
       }
       if (first) queueMicrotask(() => void load());
-      else render();
+      else {
+        render();
+        // Shown again while it waits: the organization read at once.
+        if (again) waitForComposio(true);
+      }
     },
     relabel,
     /** Reads again: after a tool's sign-in, or on request. */
@@ -1918,5 +2039,15 @@ export function createIntegrationsPanel(
     /** Whether Composio is allowed here, as the page last read it; null
      * until read. */
     composio: (): boolean | null => overview?.composio.allowed ?? null,
+    /** The tools were read (Settings → Tools): where a tool was installed,
+     * or switched on or off for agents, since the last reading, the
+     * Integrace are read again (decision F42, note of 2026-10-19). After a
+     * sign-in, Composio's "Používají agenti" goes on only after the reading
+     * the sign-in caused, which the sign-in's own re-read came before. */
+    toolsRead(tools: Parameters<typeof toolStatesKey>[0]) {
+      const states = toolStatesKey(tools);
+      if (toolStates !== null && toolStates !== states) void load(true);
+      toolStates = states;
+    },
   };
 }

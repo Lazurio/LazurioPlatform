@@ -2,7 +2,11 @@ import { composioDashboard } from "../integrations/composio-source";
 import { executorToolName, vaultToolName } from "../tools/catalog";
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
 import type { ToolSignIn } from "../tools/status";
-import { composioScene, composioStepMarker } from "./composio-scene";
+import {
+  composioNameStep,
+  composioScene,
+  composioStepMarker,
+} from "./composio-scene";
 import { createExecutorPanel } from "./executor-panel";
 import type { MessageKey } from "./messages";
 import { integrationsPath } from "./routes";
@@ -14,6 +18,7 @@ import {
   composioDialogView,
   composioPollDelay,
   composioPollNext,
+  composioSignInText,
   connectionLine,
   curatedActions,
   currentNotes,
@@ -332,6 +337,25 @@ export function createToolsPanel(
 
   function openLogin(tool: ToolOverview, mode: "install" | "login" | "ssh") {
     const copy = options.copy();
+    showLogin(tool, mode);
+    if (overview?.sharedEnvironment === true) {
+      // Everyone on a shared Environment uses what is signed in here. The
+      // dialog's status says it once; the page already shows the same note.
+      phase("confirm", copy.toolsShared);
+      const go = element("button", "", copy.toolsLoginContinue);
+      go.type = "button";
+      go.addEventListener("click", () => void begin());
+      const row = element("p", "tool-actions");
+      row.append(go);
+      loginBody.replaceChildren(row);
+      go.focus();
+      return;
+    }
+    void begin();
+  }
+
+  /** The dialog of a tool's sign-in, open and empty, with its flow. */
+  function showLogin(tool: ToolOverview, mode: "install" | "login" | "ssh") {
     loginOpener = {
       name: tool.name,
       control: mode === "ssh" ? "link-ssh" : "curated",
@@ -354,26 +378,12 @@ export function createToolsPanel(
       challenge: null,
       qr: null,
     };
-    loginHeading.textContent = loginTitle(tool.name, mode, copy);
+    loginHeading.textContent = loginTitle(tool.name, mode, options.copy());
     loginStatus.textContent = "";
     loginBody.replaceChildren();
     if (typeof loginDialog.showModal === "function") loginDialog.showModal();
     else loginDialog.setAttribute("open", "");
     loginHeading.focus();
-    if (overview?.sharedEnvironment === true) {
-      // Everyone on a shared Environment uses what is signed in here. The
-      // dialog's status says it once; the page already shows the same note.
-      phase("confirm", copy.toolsShared);
-      const go = element("button", "", copy.toolsLoginContinue);
-      go.type = "button";
-      go.addEventListener("click", () => void begin());
-      const row = element("p", "tool-actions");
-      row.append(go);
-      loginBody.replaceChildren(row);
-      go.focus();
-      return;
-    }
-    void begin();
   }
 
   async function begin() {
@@ -582,7 +592,11 @@ export function createToolsPanel(
     if (challenge.kind === "url") {
       const url = loginLink(challenge.url, "dashboard.composio.dev");
       loginBody.replaceChildren(
-        element("p", "", copy.toolsLoginComposioText),
+        element(
+          "p",
+          "",
+          composioSignInText(copy, overview?.sharedEnvironment === true),
+        ),
         ...(url === null ? [] : [link(url, copy.toolsLoginComposioLink)]),
       );
       return;
@@ -901,7 +915,7 @@ export function createToolsPanel(
         },
       );
     });
-    box.append(composioStepMarker(4), value, copyName);
+    box.append(composioStepMarker(composioNameStep), value, copyName);
     return box;
   }
 
@@ -1259,17 +1273,16 @@ export function createToolsPanel(
     const title = element("h3", "row-title", tool.name);
     if (tool.command !== tool.name)
       title.append(element("code", "", tool.command));
-    text.append(title, element("p", "row-desc", toolDescription(tool, copy)));
-
-    const view = toolStatusView(
-      tool,
-      copy,
-      overview?.hosted === true,
-      overview?.sharedEnvironment === true,
-    );
     // On a Team Environment gh working as the Organization's App identity
-    // reads "Works as lazurio-for-github[bot]".
+    // reads "Works as lazurio-for-github[bot]", and Composio's sentence
+    // names the Team's Composio account.
     const team = overview?.sharedEnvironment === true;
+    text.append(
+      title,
+      element("p", "row-desc", toolDescription(tool, copy, team)),
+    );
+
+    const view = toolStatusView(tool, copy, overview?.hosted === true, team);
     const line = connectionLine(tool, copy, team);
     // The last act on this row, said from the tool as it is now (Matěj
     // 2026-10-09): it never contradicts the line above.
@@ -1705,14 +1718,18 @@ export function createToolsPanel(
   }
 
   /** Reads the tools again. `signIn` asks for the sign-in probes, which may
-   * contact the providers: by default only the first read does. */
+   * contact the providers: by default only the first read does. Answers this
+   * read's own reading, or null where it failed, was not one or a later read
+   * superseded it: never the reading a later read left (decision F42, note
+   * of 2026-10-19). */
   async function refresh(
     request: Readonly<{ signIn?: boolean }> = {},
-  ): Promise<void> {
-    if (options.absent?.() === true) return;
+  ): Promise<ToolsOverview | null> {
+    if (options.absent?.() === true) return null;
     const copy = options.copy();
     const turn = ++sequence;
     const probe = request.signIn ?? !signInChecked;
+    let reading: ToolsOverview | null = null;
     busy = true;
     if (overview === null) failed = false;
     render();
@@ -1724,7 +1741,7 @@ export function createToolsPanel(
         "/api/tools/status",
         probe ? { signIn: true } : {},
       );
-      if (turn !== sequence) return;
+      if (turn !== sequence) return null;
       const parsed = ok ? parseToolsOverview(value) : null;
       if (parsed === null) throw new Error("Tools unavailable");
       if (probe) {
@@ -1734,20 +1751,21 @@ export function createToolsPanel(
           if (tool.signIn !== undefined) signIns.set(tool.name, tool.signIn);
       }
       const known = (tool: ToolOverview) => signIns.get(tool.name);
-      overview = {
+      reading = {
         ...parsed,
         tools: parsed.tools.map((tool) => {
           const signIn = tool.signIn ?? known(tool);
           return signIn === undefined ? tool : { ...tool, signIn };
         }),
       };
+      overview = reading;
       failed = false;
       // A notice belongs to the Folder revision it was made at: a reading of
       // another one means the Folder changed since, elsewhere, and its Undo
       // would be refused.
       if (notice !== null && !noticeHolds(notice, overview)) notice = null;
     } catch {
-      if (turn !== sequence) return;
+      if (turn !== sequence) return null;
       overview = null;
       failed = true;
       say(copy.toolsLoadFailed);
@@ -1758,6 +1776,7 @@ export function createToolsPanel(
         options.observed(overview);
       }
     }
+    return reading;
   }
 
   // The whole page reads the Folder again; its reload refreshes this panel.
@@ -1882,6 +1901,26 @@ export function createToolsPanel(
     return true;
   }
 
+  /** Composio signed in, but not in the organization of its Organization's
+   * name (Začínáme's "Dokončit", decision F42, note of 2026-10-19): its
+   * dialog opens at what is left to do in Composio, as after a sign-in. True
+   * when it opened. */
+  function openComposioOrganization(): boolean {
+    if (overview === null || busy || loginDialog.open) return false;
+    const tool = overview.tools.find((entry) => entry.name === "composio");
+    if (tool?.signIn?.state !== "signed-in") return false;
+    showLogin(tool, "login");
+    signedIn({
+      kind: "signed-in",
+      tool: tool.name,
+      already: true,
+      ...(tool.signIn.account === undefined
+        ? {}
+        : { account: tool.signIn.account }),
+    });
+    return true;
+  }
+
   render();
-  return { refresh, openSignIn };
+  return { refresh, openSignIn, openComposioOrganization };
 }

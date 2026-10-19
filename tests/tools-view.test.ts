@@ -1,4 +1,9 @@
 import { expect, test } from "bun:test";
+import {
+  composioNameStep,
+  composioSceneLabel,
+  composioScreen,
+} from "../src/launchpad/composio-scene";
 import { messages } from "../src/launchpad/messages";
 import {
   answerWithin,
@@ -8,6 +13,7 @@ import {
   composioPollMaxMs,
   composioPollNext,
   composioPollStartMs,
+  composioSignInText,
   connectionLine,
   curatedActions,
   currentNotes,
@@ -36,6 +42,7 @@ import {
   takesNote,
   teamInstallOutcome,
   toolChangeOutcome,
+  toolDescription,
   toolGroups,
   toolGuideTargets,
   toolNoticeView,
@@ -263,7 +270,7 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
     path: "/home/o/.local/bin/composio",
     realPath: "/home/o/.composio/composio",
     standardPath: true,
-    pinned: "0.4.3-lazurio.1",
+    pinned: "0.4.3-lazurio.2",
   } as const;
   const stock = tool({ ...installed, version: "0.4.3" });
   for (const locale of ["en", "cs"] as const) {
@@ -272,13 +279,21 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
       state: "attention",
       headline: copy.toolsInstalled.replace("{version}", "0.4.3"),
       path: "/home/o/.local/bin/composio → /home/o/.composio/composio",
-      notes: [copy.toolsNotPinned.replace("{pinned}", "0.4.3-lazurio.1")],
+      notes: [copy.toolsNotPinned.replace("{pinned}", "0.4.3-lazurio.2")],
       fix: false,
     });
     expect(updateAction(stock, copy)).toEqual({
       label: copy.toolsUpdateAction,
       named: copy.toolsUpdateActionNamed.replace("{name}", "composio"),
     });
+    // The previous pin, Lazurio's own earlier build, is not the build
+    // Lazurio uses now either: the same note names the current one.
+    const previous = tool({ ...installed, version: "0.4.3-lazurio.1" });
+    expect(toolStatusView(previous, copy, true)).toMatchObject({
+      state: "attention",
+      notes: [copy.toolsNotPinned.replace("{pinned}", "0.4.3-lazurio.2")],
+    });
+    expect(updateAction(previous, copy)?.label).toBe(copy.toolsUpdateAction);
     // Signed in or not: the update keeps the sign-in. A version that could
     // not be read is not the pinned build either, and an older build of
     // the fork is not it.
@@ -293,14 +308,14 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
     // Environment does not offer, one the Organization does not allow, and
     // a tool an agent sets up: no "Update".
     for (const other of [
-      tool({ ...installed, version: "0.4.3-lazurio.1" }),
+      tool({ ...installed, version: "0.4.3-lazurio.2" }),
       tool({
         installed: true,
         version: "0.4.3",
         path: "/home/o/.local/bin/composio",
         standardPath: true,
       }),
-      tool({ pinned: "0.4.3-lazurio.1" }),
+      tool({ pinned: "0.4.3-lazurio.2" }),
       tool({ ...installed, version: "0.4.3", standardPath: false }),
       tool({ ...installed, version: "0.4.3", offered: false }),
       tool({
@@ -313,7 +328,7 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
       expect(updateAction(other, copy)).toBeNull();
     expect(
       toolStatusView(
-        tool({ ...installed, version: "0.4.3-lazurio.1" }),
+        tool({ ...installed, version: "0.4.3-lazurio.2" }),
         copy,
         true,
       ),
@@ -324,7 +339,7 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
         {
           kind: "tool-updated",
           tool: "composio",
-          after: { version: "0.4.3-lazurio.1" },
+          after: { version: "0.4.3-lazurio.2" },
           changed: true,
         },
         "composio",
@@ -335,7 +350,7 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
       reload: false,
       message: copy.toolsUpdatedNow
         .replace("{name}", "composio")
-        .replace("{version}", "0.4.3-lazurio.1"),
+        .replace("{version}", "0.4.3-lazurio.2"),
     });
     expect(
       updateOutcome(
@@ -394,7 +409,7 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
   ]).toEqual(["Update", "Aktualizovat"]);
   // The page takes the pin from the server's answer, only as text.
   const answer = { ...overview([stock]) };
-  expect(parseToolsOverview(answer)?.tools[0]?.pinned).toBe("0.4.3-lazurio.1");
+  expect(parseToolsOverview(answer)?.tools[0]?.pinned).toBe("0.4.3-lazurio.2");
   expect(
     parseToolsOverview({ ...answer, tools: [{ ...stock, pinned: 4 }] }),
   ).toBeNull();
@@ -1104,6 +1119,39 @@ test("Composio's dialog: create, rename, one sentence or connected, from the org
   }
 });
 
+test("in a Team Environment Nástroje names the Team's Composio account, elsewhere the person's own (decision F42, note of 2026-10-19)", () => {
+  const cs = messages("cs");
+  const en = messages("en");
+  // The row's sentence: the reading's `sharedEnvironment` chooses it.
+  expect(toolDescription(tool(), cs, true)).toBe(
+    "Snadná cesta k mnoha aplikacím přes Composio, s týmovým účtem Composia. Aplikace připojíte v Apps → Integrace.",
+  );
+  expect(toolDescription(tool(), en, true)).toBe(
+    "An easy way to many apps through Composio, with the Team's Composio account. You connect the apps in Apps → Integrations.",
+  );
+  for (const shared of [false, undefined])
+    expect(toolDescription(tool(), cs, shared)).toBe(
+      "Snadná cesta k mnoha aplikacím přes Composio, s vaším vlastním účtem. Aplikace připojíte v Apps → Integrace.",
+    );
+  // Only Composio's sentence differs; gh's stays the same in either.
+  expect(toolDescription(tool({ name: "gh" }), cs, true)).toBe(
+    toolDescription(tool({ name: "gh" }), cs, false),
+  );
+  // The sign-in dialog's line before the person signs in to Composio.
+  expect(composioSignInText(cs, true)).toBe(
+    "Přihlaste se do Composia v prohlížeči týmovým účtem Composia, ne osobním.",
+  );
+  expect(composioSignInText(en, true)).toBe(
+    "Sign in to Composio in your browser with the Team's Composio account, not a personal one.",
+  );
+  expect(composioSignInText(cs, false)).toBe(
+    "Přihlaste se do Composia v prohlížeči.",
+  );
+  expect(composioSignInText(en, false)).toBe(
+    "Sign in to Composio in your browser.",
+  );
+});
+
 test("Composio's dialog reads again calmly while the person works in Composio, and stops once connected, closed or hidden", () => {
   expect(composioPollDelay(0)).toBe(composioPollStartMs);
   expect(composioPollStartMs).toBe(4_000);
@@ -1132,6 +1180,34 @@ test("Composio's dialog reads again calmly while the person works in Composio, a
   expect(composioPollNext(connected, { open: true, hidden: true })).toBe(
     "stop",
   );
+});
+
+// The drawing of Composio's dashboard (decision F42, note of 2026-10-17),
+// matched again to the dashboard on 2026-10-19: the card at the bottom left
+// is the person's own (their name and current organization), and it opens a
+// menu whose top row, "Organization" with the current one, opens the list
+// with "Create Org". The drawing went from a card straight to the list; it
+// now draws the menu as its own step, so the name is the fifth.
+test("the drawing goes through the person's menu: FOR YOU, the account, Organization, Create Org, then the name", () => {
+  expect(composioSceneLabel(messages("cs"), "LazurioExampleOrganization")).toBe(
+    "V Composiu: 1. FOR YOU, 2. váš účet vlevo dole, 3. Organization, 4. Create Org, 5. jméno LazurioExampleOrganization a Create organization.",
+  );
+  expect(composioSceneLabel(messages("en"), "LazurioExampleOrganization")).toBe(
+    "In Composio: 1. FOR YOU, 2. your account at the bottom left, 3. Organization, 4. Create Org, 5. the name LazurioExampleOrganization and Create organization.",
+  );
+  // The dialog's name box carries the number of the step it belongs to.
+  expect(composioNameStep).toBe(5);
+  // Composio's own words, as its dashboard writes them; the person and the
+  // organizations are fictional, the current one last.
+  expect(composioScreen).toMatchObject({
+    forYou: "FOR YOU",
+    organization: "Organization",
+    logOut: "Log out",
+    findOrg: "Find Org...",
+    createOrg: "Create Org",
+    person: "Jana",
+    organizations: ["Acme", "Northwind", "jana_workspace"],
+  });
 });
 
 test("the Git identity of a gh sign-in is read only in its exact form and becomes one sentence for people", () => {
@@ -1488,6 +1564,46 @@ test("install, login end, organizations and logout answers become one sentence e
       detail: copy.toolsSignOutFailedDetail.replace("{reason}", "tool-exit"),
     });
   }
+});
+
+// The end-to-end test of 2026-10-19: "Odpojit" on Composio's card said
+// "composio: odhlášeno v tomto Prostředí. Poskytovatel přihlášení eviduje…".
+// The sentence stands on the tool's own card, so it names no tool id, and
+// it says in plain words what happened, for every tool alike.
+test("a sign-out says what happened in the person's words, without the tool's id", () => {
+  const answers = [
+    [{ kind: "logged-out", revocation: "local-only" }, "composio"],
+    [{ kind: "logged-out", revocation: "local-only" }, "gh"],
+    [{ kind: "logged-out", revocation: "remote" }, "wacli"],
+    [{ kind: "logout-failed", reason: "tool-exit" }, "gh"],
+  ] as const;
+  for (const locale of ["cs", "en"] as const) {
+    const copy = messages(locale);
+    for (const [answer, name] of answers) {
+      const { message } = logoutOutcome(answer, name, copy);
+      expect(message).not.toContain(name);
+      expect(message).not.toContain("{");
+      expect(message.charAt(0)).toBe(message.charAt(0).toUpperCase());
+    }
+  }
+  expect(
+    logoutOutcome(
+      { kind: "logged-out", revocation: "local-only" },
+      "composio",
+      messages("cs"),
+    ).message,
+  ).toBe(
+    "Odpojeno v tomto Prostředí. Ve vašem účtu u poskytovatele zůstane přístup povolený, dokud ho tam nezrušíte.",
+  );
+  expect(
+    logoutOutcome(
+      { kind: "logged-out", revocation: "local-only" },
+      "composio",
+      messages("en"),
+    ).message,
+  ).toBe(
+    "Disconnected in this Environment. Your account with the provider keeps the access allowed until you remove it there.",
+  );
 });
 
 test("a note request carries the full next set of notes, sorted; a draft is checked like the Folder state", () => {

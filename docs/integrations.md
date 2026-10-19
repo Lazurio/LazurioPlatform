@@ -15,8 +15,10 @@ An **Integrace** is an app or service connected to an Environment. Each has
 exactly one **path**: by its own **tool** from Settings → Tools (`gh` for GitHub,
 `wacli` for WhatsApp, `gogcli` for Google on a personal Environment, `neon` for
 Neon), **directly** through the Environment's Executor, or **through Composio**
-with the person's own Composio account. People connect, see and disconnect them
-in the Launchpad under Apps → Integrace; agents read the same list with
+with the person's own Composio account (in a Team Environment the Team's Composio
+account, [below](#the-composio-organization-of-an-environment)). People connect,
+see and disconnect them in the Launchpad under Apps → Integrace; agents read the
+same list with
 `lazurio integrations list --json` and use an Integrace where it is connected,
 in the order tool → Executor → Composio. Agents never connect one themselves:
 the sign-in is the person's consent, so they send the link to its card.
@@ -47,7 +49,9 @@ the sign-in is the person's consent, so they send the link to its card.
 `choosePath` is the wireframe's rule, with a test for every branch
 (`tests/integrations-path.test.ts`):
 
-1. A connected tool made for the app wins; its card offers nothing else.
+1. A connected tool made for the app wins; its card offers nothing else. An
+   account of the app left directly or through Composio is spare beside it, as
+   in point 2 (until 2026-10-19 such an account was drawn as if it were used).
 2. One app, one path: an app already connected keeps its way, přímo before an
    older Composio one. An account left on the other way is marked spare
    ("nepoužívá se") and may be disconnected.
@@ -351,28 +355,35 @@ returned or logged.
 
 ### Lazurio's build of the CLI
 
-Decision F42, addendum (3) of 2026-10-13 (the Operator's decision). Composio's stable
-CLI cannot remove an account without a prompt and names no account but by an alias,
-so Lazurio installs its own build until a stable release of Composio's has both
-changes (proposed upstream in ComposioHQ/composio#4817, issue #4816, and #4809).
+Decision F42, addendum (3) of 2026-10-13 (the Operator's decision), and its note of
+2026-10-19. Composio's stable CLI cannot remove an account without a prompt, names no
+account but by an alias and notices a finished sign-in late, so Lazurio installs its
+own build until a stable release of Composio's has all three changes (proposed
+upstream in ComposioHQ/composio#4817, issue #4816, and #4809; the login's poll not
+yet).
 
-- **The build.** Composio's stable 0.4.3 with exactly two changes, the GitHub release
-  `@composio/cli@0.4.3-lazurio.1` of the fork Lazurio/composio (assets
+- **The build.** Composio's stable 0.4.3 with exactly three changes, the GitHub
+  release `@composio/cli@0.4.3-lazurio.2` of the fork Lazurio/composio (assets
   `composio-<target>.zip` and `checksums.txt`, as Composio's); `composio --version`
-  prints `0.4.3-lazurio.1`. `connections remove <account> --yes` (and `-y`) removes
+  prints `0.4.3-lazurio.2`. `connections remove <account> --yes` (and `-y`) removes
   without a prompt; `connections list` prints on every entry its `id` (`ca_…`), its
   `alias` wherever it has one (a toolkit's only account too; `alias: null` may stand
   for none) and, where Composio knows the provider's identity, `display_name`
   (trimmed, at most 200 characters), for example `{"gmail":[{"id":"ca_example123",
   "status":"ACTIVE","alias":"work","word_id":"castle","display_name":
-  "ada@example.com","permission_group":null}]}`. Its `composio upgrade`, update
+  "ada@example.com","permission_group":null}]}`. `composio login --poll`, and the
+  browser wait of `composio login`, check a pending login every 5 s for up to 10
+  minutes (`--key`: about 75 s), where Composio's own pause doubles from the sixth
+  check on (checks at about 0, 5, 10, 15, 20, 25, 35, 54, 92 and 169 s), so the
+  Launchpad's Composio dialog noticed an "Authorize" up to about a minute late
+  (Lazurio/composio#3, since 0.4.3-lazurio.2). Its `composio upgrade`, update
   check, skill installation and companion self-repair default to the fork's releases.
 - **The pin** is one constant, `composioBuild` (`src/tools/composio-build.ts`): the
   fork, the version and its tag, and the commit of the fork's installer
   (`installerCommit`). The tag and the commit come from the same release of the fork
   and change together, in one reviewed change; the constant goes, and the recipe
   returns to Composio's installer and latest stable release, once Composio's own
-  stable CLI has both changes.
+  stable CLI has all three changes.
 - **Installation** (`lazurio tools install composio`, Settings → Tools): Composio's
   installer from Lazurio's fork, pinned by commit
   (`https://raw.githubusercontent.com/Lazurio/composio/<installerCommit>/install.sh`;
@@ -380,7 +391,7 @@ changes (proposed upstream in ComposioHQ/composio#4817, issue #4816, and #4809).
   run with `COMPOSIO_INSTALL_PLUGINS=0`,
   `COMPOSIO_INSTALL_SHELL=none`, `COMPOSIO_INSTALL_HELP=0`,
   `COMPOSIO_GITHUB_OWNER=Lazurio`, `COMPOSIO_GITHUB_REPO=composio` and
-  `COMPOSIO_INSTALL_VERSION=@composio/cli@0.4.3-lazurio.1`. It downloads the release's
+  `COMPOSIO_INSTALL_VERSION=@composio/cli@0.4.3-lazurio.2`. It downloads the release's
   archive for the platform, checks it against the release's `checksums.txt`, publishes
   the bundle into `~/.composio` beside the files already there and links
   `~/.local/bin/composio`. The installer served at `https://composio.dev/install`
@@ -395,7 +406,7 @@ changes (proposed upstream in ComposioHQ/composio#4817, issue #4816, and #4809).
   installer's `detect_target` chooses), so the
   installer refuses any other archive before it extracts or replaces anything: a
   refused installation or update changes nothing. The installation is done only when
-  `composio --version` then prints exactly `0.4.3-lazurio.1`. Were another version to
+  `composio --version` then prints exactly `0.4.3-lazurio.2`. Were another version to
   run after an installer that ignored the pins, it would fail at `verify`
   (`version-mismatch`), and what runs would stay.
 - **Update** (`lazurio tools update composio`; "Aktualizovat" / "Update" in Settings →
@@ -424,7 +435,10 @@ changes (proposed upstream in ComposioHQ/composio#4817, issue #4816, and #4809).
   aktualizované." stands under the tabs. Any other answer says "Aktualizace nedoběhla.
   Zkuste to znovu." in the line, and its button tries again. Where Composio is off,
   not installed, signed out, elsewhere on PATH or already the build, there is no line;
-  the cards and the other notices already say what is missing. `lazurio integrations
+  the cards and the other notices already say what is missing. Nor is there one where
+  the CLI already removes an account without a prompt (`composio.disconnect`), as an
+  earlier Lazurio build (`0.4.3-lazurio.1`) does: it has what the line promises, so
+  only Settings → Tools offers its update (F42, note of 2026-10-19). `lazurio integrations
   list` says in one line that the person updates Composio in Settings → Tools, and
   that an agent does not do it unless the person asks (decision 0161, F17).
 - **Integrace** reads the richer list: names and removal by id
@@ -452,6 +466,18 @@ Nobody else is invited to these organizations and no key is shared: the person
 signs in to Composio with their own account, and Lazurio switches the CLI to the
 right organization.
 
+A **Team Environment** (the tools reading's `sharedEnvironment`, the shell
+document's kind `team`) is signed in with the Team's Composio account, not anyone's
+personal one (F42, note of 2026-10-19; root decision 0162, addendum of 2026-10-17: an
+Environment of the same Organization with other credentials signs in with a separate
+Composio account). In that account, too, the organization carries the Organization's
+name, and every rule below holds as it is. The Launchpad says so there and nowhere
+else: the Composio row of Settings → Tools and its sign-in dialog name the Team's
+Composio account, Apps → Integrace's notice about a missing or doubled organization
+names the Team's account instead of "your Composio account", and Integrace's "?"
+plays `integrations-composio-team`. Lazurio does not check which account is signed
+in: a Team's account is an ordinary Composio account.
+
 - **The rule** (`composioOrganizationRule`): an Environment whose Machine binding
   names an owning Organization works in the organization of that Organization's
   display name (`organization.display_name` of its manifest, as the Folder's
@@ -477,7 +503,12 @@ right organization.
   without diacritics (`composioOrganizationName`: "Lazurio Example
   Organization" is `LazurioExampleOrganization`), with `Org` before one that
   would start with a digit, which is then compared in that form too. A
-  display name that gives no such name is `unverified`.
+  display name that gives no such name is `unverified`. Composio stores the
+  name in lower case: its create form says "Will be created as
+  lazurioexampleorganization", and its dashboard, addresses and `orgs list`
+  name the organization so (the end-to-end test of 2026-10-19). The dialog
+  offers the readable CamelCase form, which Composio accepts and lowercases;
+  the match ignores case, so both are the Organization's.
 - **The verdict** (`composioOrganizationVerdict`), over `orgs list`: `matches`
   where the one organization of that name is current; `elsewhere` where it
   exists and another is current; `missing` where the account has none;
@@ -496,7 +527,16 @@ right organization.
   Composio works in the person's current organization, its accounts count and
   links and removals go there; Apps → Integrace says what to do with a link to
   Composio's dashboard, and `lazurio integrations list` tells agents. The next
-  reading after the person created it makes it current.
+  reading after the person created it makes it current. Meanwhile Apps →
+  Integrace waits as the sign-in dialog does (F42's note of 2026-10-19,
+  `composioOrganizationWaits`): while it is shown it reads
+  `/api/tools/composio/organizations` again at the dialog's pace
+  (`composioPollDelay`, `composioPollNext`: after 4 s, then half as long again,
+  at most every 30 s, not while the page is hidden, at once when it shows
+  again), and the Integrace (`?refresh=1`) once the verdict changed
+  (`composioOrganizationChanged`). Its line ends as the dialog's waiting line,
+  "Až ji založíte, Lazurio bude pokračovat samo." ("Až ji přejmenujete, …"
+  where there are two), and names no button.
 - **Where its organization cannot be told** (`unverified`, or an `elsewhere`
   organization that could not be made current), the Composio source reads
   `organization`: none of its accounts is listed, and a link or a removal is
@@ -505,22 +545,43 @@ right organization.
   (the name null where it is `unverified`), null elsewhere.
 - **Creating one** is the person's, in Composio's dashboard: neither its CLI nor
   its documented API creates or renames an organization (the API lists them, the
-  CLI lists and switches). On Apps → Integrace, "Zkontrolovat připojení" finds it
-  by name afterwards.
+  CLI lists and switches). The sign-in dialog and Apps → Integrace find it by
+  name by themselves afterwards.
+- **No stale verdict** (the end-to-end test of 2026-10-19): an answer of
+  `/api/tools/composio/organizations` that finds the organization or makes it
+  current, and a choice of the person's (`/api/tools/composio/organization`),
+  drop the reading the Launchpad keeps for a minute, so the next one reads
+  again; and the page reads the Integrace again whenever a tool's sign-in
+  changes, Composio's organization included (`toolSignInsKey`). Before, the
+  dialog said "Composio je připojené" while Apps → Integrace, read before, still
+  said the organization was missing.
 - **The sign-in dialog** of Settings → Tools (note of 2026-10-17) shows, after the
   sign-in, only what is left: where the organization is missing, the
   Organization's name as Composio accepts it with "Kopírovat", a drawing of the
-  path in Composio's dashboard ("FOR YOU", the organization card at the bottom of
-  the sidebar, "Create Org", then the page it opens, where the name is typed into
-  "Organization name" and "Create organization" clicked; `composioScreen` in
-  `src/launchpad/composio-scene.ts` holds Composio's labels, matched to the
-  Organization Admin's screenshots) and "Otevřít Composio" to the dashboard's
+  path in Composio's dashboard ("FOR YOU" (1), the person's own card at the
+  bottom of the sidebar, their name and current organization (2), "Organization"
+  on top of the menu it opens (3), "Create Org" in the list that row opens (4),
+  then the page it opens, where the name is typed into "Organization name" and
+  "Create organization" clicked (5, the number the dialog's name box carries); a
+  loop of 16.5 s; under reduced motion the menu and the list open with places 1
+  to 4; `composioScreen` in `src/launchpad/composio-scene.ts` holds Composio's
+  labels, matched to the Organization Admin's screenshots and, for the menu, to
+  the end-to-end test's of 2026-10-19) and "Otevřít Composio" to the dashboard's
   root; where there are two of the name, rename the extra one. Apps → Integrace
   and `lazurio integrations list` name the organization in the same form. It
   reads the organizations again by itself (after 4 s, growing to every 30 s,
   paused while the page is hidden and at once when it shows again) until it is
   connected, then says "Composio je připojené" with the account and the
   organization current after the switch, and "Vybrat aplikace" to Apps → Integrace.
+- **Začínáme** (F42's note of 2026-10-19): its Composio row reads
+  `/api/tools/composio/organizations` each time it is shown, and again when
+  Composio's sign-in changes meanwhile (`composioFact`). Signed in, but with the
+  organization missing, there twice, not made current or the Organization's name
+  unreadable, the row says "Nedokončeno" with "Dokončit", which opens the sign-in
+  dialog at the step left in Composio (`openComposioOrganization`); until the
+  first answer, and where the person chooses, the sign-in says it ("Připojeno").
+  Settings → Tools keeps "Připojeno jako <account> (<current organization>)":
+  the sign-in itself is done.
 
 ### Account names and Composio's dashboard
 
@@ -742,7 +803,8 @@ readiness, whether its CLI removes an account here (`disconnect`), whether the
 page offers its update (`update`: [Lazurio's build](#lazurios-build-of-the-cli)) and its
 Apps in Composio's dashboard (`apps`: [Composio's own Apps](#composios-own-apps-aplikace-v-composiu)), each
 source's state (`ok`, `unavailable`, `absent` for an Environment
-without Executor, `unreadable`, `signed-out`, `not-allowed`), the tools for one app that are connected, every catalog app with
+without Executor, `unreadable`, `signed-out`, `off` for a Composio signed in whose
+"Používají agenti" is off, `not-allowed`), the tools for one app that are connected, every catalog app with
 its path, `connected`, its accounts (path, the selector that disconnects it: Executor's
 connection id, Composio's id where its list gives one, else its word id; its
 `label`, state, spare, and `manage`, a Composio account's page in Composio's
@@ -755,7 +817,26 @@ server's line is not shown). A source that cannot be read is said so and never
 taken for "nothing connected"; only a Folder that cannot be read fails the route
 (500). The tools' sign-in probes and Composio reach the network, so the Launchpad
 keeps its last reading for a minute and reads again on "Zkontrolovat připojení"
-(`?refresh=1`) and after every change.
+(`?refresh=1`) and after every change: a connect or a removal, a change of the
+tools in Settings → Tools (`/api/tools/update`) and a sign-in of a tool that ends
+signed in (decision F42, note of 2026-10-19).
+
+**Right after Composio's sign-in** (decision F42, note of 2026-10-19). A
+sign-in switches Composio's "Používají agenti" on only after the reading it
+caused, so the page reads the Integrace again not only when a tool's sign-in
+changes but also when a tool is installed or switched on or off for agents
+(`toolStatesKey`; the panel's `toolsRead`). A card whose path still asks for
+Composio's sign-in reads the tools live first (`signInComposio`, `composioSignIn`):
+signed in, the person stays on Integrace, the Integrace are read again and the
+card's form opens; only that read's own reading proving Composio signed out (or
+not installed) makes Settings → Tools open Composio's sign-in. A read that failed,
+was not a reading or was superseded never sends the person away: the card says
+"Stav Composia se nepodařilo načíst. Zkuste to znovu." Signed in
+but off for agents (`off`), a card says "Composio je připojené, ale agenti ho
+nepoužívají: v Nástrojích má vypnuté „Používají agenti“." ("Composio is
+connected, but agents don't use it: “Used by agents” is off in Tools.")
+with "Otevřít Nástroje", and a connect is refused as `composio-signed-out` as
+before.
 
 | Route | Body | Answer |
 | --- | --- | --- |
