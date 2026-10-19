@@ -3,15 +3,19 @@ import { machineBinding } from "../../src/machine/binding";
 import { parseMachineContext } from "../../src/machine/context";
 import organization from "./machine-context.json";
 import personal from "./machine-context-personal.json";
+import services from "./machine-context-services.json";
 
 // The v0.12.61 fields as Machines writes them: the assignment copied from the
 // owner overlay, and the peers derived from the Conglomerate Host grants.
 // `automation` (Machines #277, decision 0169) names the responsible operator
-// of an Automated Environment, with the operator's shape.
+// of an Automated Environment, with the operator's shape; `services` (root
+// decision 0209, DEV-6674) is the services Environment of a server and names
+// nobody.
 export const assignments = Object.freeze({
   operator: { kind: "operator", github_login: "example", github_id: 12345 },
   team: { kind: "team" },
   automation: { kind: "automation", github_login: "example", github_id: 12345 },
+  services: { kind: "services" },
 } as const);
 // A work VM of operator `example`: their laptop and personal VM may reach it,
 // it reaches the Conglomerate Host gateway over HTTPS and nothing over SSH.
@@ -161,7 +165,8 @@ const { team: _, ...withoutTeam } = organization.owner;
 // Environment browser's view (root decision 0191), with `signOut` it names
 // the person's sign-out (Machines#358) and with `audience` it is a public
 // Environment (root decision 0204). With `assignment` it is instead the
-// Team's (`team`) or a persona's Automated Environment (`automation`), its
+// Team's (`team`), a persona's Automated Environment (`automation`) or the
+// services Environment of a server (`services`, root decision 0209), its
 // Team kept, as the handover states it.
 export function organizationWithEntry(
   listenPort = 20000,
@@ -169,7 +174,7 @@ export function organizationWithEntry(
   browser = false,
   signOut = false,
   audience = false,
-  assignment: "team" | "automation" | null = null,
+  assignment: "team" | "automation" | "services" | null = null,
 ) {
   const entry = handoverEntry(host, listenPort);
   const routed = browser ? withBrowser(entry, host) : entry;
@@ -295,6 +300,15 @@ export const bindings = Object.freeze({
   personalSignOut: binding({
     ...personal,
     entry: withSignOut(entries.personal),
+  }),
+  // Root decision 0209 (DEV-6674): the services Environment of a server,
+  // Služby serveru, as Machines writes its handover (with its entry, vault
+  // and services), and the Team-bearing work VM of the base fixture assigned
+  // to it.
+  services: binding(services),
+  assignedServices: binding({
+    ...organization,
+    owner: { ...organization.owner, assignment: assignments.services },
   }),
   // Root decision 0204 (Machines #560): a public Environment, on a work
   // Environment of one operator and on a Team Environment.
