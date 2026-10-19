@@ -256,7 +256,9 @@ function drawGuide(route: PageRoute) {
     help.setAttribute("aria-label", copy.pageHelp);
     help.title = copy.pageHelp;
   }
-  if (videoHelp === null) vaultVideo.close();
+  // Trezor's video stands open first where its words are true (F56's
+  // addendum (4) of 2026-10-19); a new page is a new visit.
+  vaultVideo.draw(videoHelp, JSON.stringify(route));
 }
 // The documentation of the Launchpad's "Guide" (the root Launchpad's
 // `guideDocumentationUrl`), in the page's language.
@@ -1076,16 +1078,17 @@ const vaultPage = createVaultPagePanel({
     if (framed) drawGuide(shell.route());
   },
 });
-// Trezor's "?" where the approved video of how a vault works is true of
-// this Environment (guides.ts `vaultHelp`): the video in place, under the
-// page's heading (page-help.ts).
+// Trezor's video where the approved video of how a vault works is true of
+// this Environment (guides.ts `vaultHelp`): in place, under the page's
+// heading, open as the page opens, its "?" closing and reopening it
+// (page-help.ts).
 const vaultVideoBox = document.querySelector<HTMLElement>("#vault-video");
 const vaultVideoSlot = document.querySelector<HTMLElement>(
   "#vault-video-player",
 );
 const vaultVideo =
   vaultVideoBox === null || vaultVideoSlot === null
-    ? { toggle() {}, close() {}, open: false, render() {} }
+    ? { toggle() {}, draw() {}, open: false, render() {} }
     : createHelpVideo({
         box: vaultVideoBox,
         slot: vaultVideoSlot,
