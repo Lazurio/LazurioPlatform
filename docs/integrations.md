@@ -779,7 +779,8 @@ readiness, whether its CLI removes an account here (`disconnect`), whether the
 page offers its update (`update`: [Lazurio's build](#lazurios-build-of-the-cli)) and its
 Apps in Composio's dashboard (`apps`: [Composio's own Apps](#composios-own-apps-aplikace-v-composiu)), each
 source's state (`ok`, `unavailable`, `absent` for an Environment
-without Executor, `unreadable`, `signed-out`, `not-allowed`), the tools for one app that are connected, every catalog app with
+without Executor, `unreadable`, `signed-out`, `off` for a Composio signed in whose
+"Používají agenti" is off, `not-allowed`), the tools for one app that are connected, every catalog app with
 its path, `connected`, its accounts (path, the selector that disconnects it: Executor's
 connection id, Composio's id where its list gives one, else its word id; its
 `label`, state, spare, and `manage`, a Composio account's page in Composio's
@@ -792,7 +793,22 @@ server's line is not shown). A source that cannot be read is said so and never
 taken for "nothing connected"; only a Folder that cannot be read fails the route
 (500). The tools' sign-in probes and Composio reach the network, so the Launchpad
 keeps its last reading for a minute and reads again on "Zkontrolovat připojení"
-(`?refresh=1`) and after every change.
+(`?refresh=1`) and after every change: a connect or a removal, a change of the
+tools in Settings → Tools (`/api/tools/update`) and a sign-in of a tool that ends
+signed in (decision F42, note of 2026-10-19).
+
+**Right after Composio's sign-in** (decision F42, note of 2026-10-19). A
+sign-in switches Composio's "Používají agenti" on only after the reading it
+caused, so the page reads the Integrace again not only when a tool's sign-in
+changes but also when a tool is installed or switched on or off for agents
+(`toolStatesKey`; the panel's `toolsRead`). A card whose path still asks for
+Composio's sign-in reads the tools live first (`signInComposio`): signed in, the
+person stays on Integrace, the Integrace are read again and the card's form
+opens; only signed out does Settings → Tools open Composio's sign-in. Signed in
+but off for agents (`off`), a card says "Composio je připojené, ale má vypnuté
+Používají agenti." ("Composio is connected, but Used by agents is off for it.")
+with "Otevřít Nástroje", and a connect is refused as `composio-signed-out` as
+before.
 
 | Route | Body | Answer |
 | --- | --- | --- |
