@@ -15,11 +15,11 @@ Organization's own private records.
 - No personal VM took part. So the record lists the work VMs only, and
   `scripts/qualify/check-canary.ts` refuses it with exactly one finding: "no personal VM is listed;
   the stage needs every one" (root decision 0166 point 6).
-- The 8 hours start when the last Machine runs the candidate. The canary passes only after an
-  operator's personal VM has run the candidate and a new 8-hour stage on all four Machines has
-  ended.
-- Then the record is replaced by that stage's and this document is completed (*The second stage*
-  below).
+- The 8 hours start when the last Machine runs the candidate. So the canary passes only after a new
+  8-hour stage on all four Machines, including an operator's personal VM, has ended.
+- That second stage started at `2026-10-19T18:53:29Z`, when the personal VM joined, and runs until
+  at least `2026-10-20T03:00:00Z`. Then its record replaces this one and this document is completed
+  (*The second stage* below).
 
 ## Qualification
 
@@ -36,8 +36,8 @@ ran on the default branch (`workflow_run`) and succeeded:
 
 The scope is the pilot Organization's 3 work VMs, which are all of its Environments, plus the
 personal VM of one operator. The personal VM is outside the Organization, which has no personal
-Environment (root decision 0204 point 7). The scope is not narrowed. The personal VM has not run
-the candidate yet.
+Environment (root decision 0204 point 7). The scope is not narrowed. The personal VM joined only
+for the second stage.
 
 How each Machine got the candidate:
 - **The work VMs** went through the pilot Organization's Machines lane, the path that pins their
@@ -50,13 +50,20 @@ How each Machine got the candidate:
 
   The same apply brought Lazurio MausBot 0.1.115-lazurio.3 to the three work VMs. The Launchpad
   units were switched to the candidate at 09:52:35Z, 10:00:57Z and 10:09:06Z.
-- **The personal VM** waits for its Owner's consent, which the release cycle keeps for every
-  rollout ("the personal VM Owner's consent").
-  - Its path will be the one used for `v0.1.9-rc.6` and `v0.1.8-rc.70`: its own updater
-    (`lazurio update --version v0.1.10-rc.1`, which verifies the release's attestation), followed
-    by `lazurio machine folder-refresh`, as the hosting apply does.
-  - That departs from G.3's "the path that pins its release", because a pin is a minimum (root
-    decision 0161, addendum of 2026-09-28).
+- **The personal VM** got the candidate after its Owner's consent, which the release cycle keeps
+  for every rollout ("the personal VM Owner's consent"). It went from `0.1.9` to `0.1.10-rc.1` at
+  18:52:57Z–18:53:29Z:
+  - its own updater, `lazurio update --version v0.1.10-rc.1`, which verifies the release's
+    attestation;
+  - then `lazurio machine folder-refresh`, as the hosting apply does (template
+    `base-instructions-58`);
+  - its Launchpad unit started on the candidate at 18:53:16Z;
+  - at 18:53:29Z it was proven: active, running and health on the candidate, `recover` healthy,
+    `NRestarts` 0.
+
+  This departs from G.3, which says each Machine is rolled "through the path that pins its
+  release". The personal lane's pin was not raised for this candidate, just as for `v0.1.9-rc.6`
+  and `v0.1.8-rc.70`: a pin is a minimum (root decision 0161, addendum of 2026-09-28).
 
 ## The first stage: the work VMs
 
@@ -144,14 +151,16 @@ this pull request is marked ready.
 
 ## The second stage, with the personal VM
 
-The second stage starts once the personal VM's Owner has consented:
-1. The personal VM gets the candidate by the path above.
-2. One round proves all four Machines on the candidate.
-3. Its time is the start of the 8 hours.
-4. The rounds continue every 30 minutes, with the same reads. T3 Code's version is recorded but
-   no longer compared, because it is not part of the Platform candidate.
-5. The G.3 item (a Folder refresh and a deliberate Launchpad restart) and module opens through the
-   Launchpad are done inside the stage.
+Running.
+- **Start:** `2026-10-19T18:53:29Z`, when the personal VM, the last Machine, was proven on the
+  candidate (above). A round at 18:54:36Z found all four Machines on the candidate and healthy.
+- **End:** not before `2026-10-20T03:00:00Z`, 8 h 6 min after the start.
+- **Observation:** the same read-only rounds every 30 minutes, over all four Machines. The first, at
+  18:55:14Z, found 4/4. T3 Code's version is still recorded, but no longer compared, because it is
+  not part of the Platform candidate. All three work VMs and the personal VM run T3 Code
+  0.1.0-lazurio.3 at the start.
+- **Inside the stage:** the G.3 item (a Folder refresh and a deliberate Launchpad restart) and
+  module opens through the Launchpad.
 
 When it has ended:
 - its record replaces the one in this pull request;
