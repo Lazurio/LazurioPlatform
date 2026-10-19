@@ -1531,6 +1531,8 @@ const en = {
     "The {provider} company app is not set up yet.",
   integrationsComposioOffOrganization: "Composio is off in the Organization.",
   integrationsComposioOffHere: "Composio is off here.",
+  integrationsComposioOff:
+    "Composio is connected, but agents don't use it: “Used by agents” is off in Tools.",
   integrationsAskAdmin: "Ask the Admin",
   integrationsAskAdminCopied: "A message for the Admin is in your clipboard.",
   integrationsAskAdminText:
@@ -1541,6 +1543,8 @@ const en = {
     "You set this up in the Dashboard, in the Organization's settings.",
   integrationsComposioSignIn:
     "Sign in to Composio first: it opens in Settings → Tools.",
+  integrationsComposioStateUnreadable:
+    "Composio's state could not be read. Try again.",
   integrationsBrowserMissing:
     "A direct sign-in needs {this}'s browser, which is not available here.",
   integrationsKeyTitle: "Key for {app}",
@@ -3160,6 +3164,8 @@ const cs: Record<MessageKey, string> = {
     "Firemní aplikace {provider} ještě není nastavená.",
   integrationsComposioOffOrganization: "Composio je v Organizaci vypnuté.",
   integrationsComposioOffHere: "Composio je tu vypnuté.",
+  integrationsComposioOff:
+    "Composio je připojené, ale agenti ho nepoužívají: v Nástrojích má vypnuté „Používají agenti“.",
   integrationsAskAdmin: "Požádat Admina",
   integrationsAskAdminCopied: "Zprávu pro Admina máte ve schránce.",
   integrationsAskAdminText:
@@ -3170,6 +3176,8 @@ const cs: Record<MessageKey, string> = {
     "Nastavíte to v Přehledu Organizace, v jejím nastavení.",
   integrationsComposioSignIn:
     "Nejdřív se přihlaste do Composia: otevře se v Nastavení → Nástroje.",
+  integrationsComposioStateUnreadable:
+    "Stav Composia se nepodařilo načíst. Zkuste to znovu.",
   integrationsBrowserMissing:
     "Přímé přihlášení potřebuje prohlížeč, který {v tomto} teď není.",
   integrationsKeyTitle: "Klíč pro {app}",

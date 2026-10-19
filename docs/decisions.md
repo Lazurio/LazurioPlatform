@@ -9816,6 +9816,60 @@ public against confidential client), the Dashboard's editor and drift view of th
 setting, Teams, Google Workspace's company app, sending mail, and company apps on the
 person's own computer.
 
+*Note of 2026-10-19, after the Organization Admin's onboarding of a work Environment
+(plan DEV-6626): right after Composio's sign-in, "Připojit" connects.* On Apps →
+Integrace, "Připojit" on a Composio app (Gmail) sent the person to Settings → Tools,
+where nothing opened, until the page was reloaded. The sign-in switches Composio's
+"Používají agenti" on (Matěj 2026-10-04), but only after the reading the sign-in
+caused, and that reading also read the Integrace; Composio counts only installed,
+signed in and on for agents (the reading's `composioReady`), so every Composio card kept
+asking for its sign-in. Nothing read the Integrace again: the page compared only the
+tools' sign-ins, the Launchpad kept its reading for a minute after
+`/api/tools/update` (so a connect was refused as `composio-signed-out` too), and
+Integrace read only on its first visit. Points 3 and 5 are unchanged; this note says
+when the reading is read again and what a card says meanwhile.
+
+- **Read again after the change.** The Launchpad drops its reading after a recorded
+  change of the tools (`/api/tools/update`) and after a tool's sign-in that ends
+  signed in; the page reads the Integrace again when a tool is installed or
+  switched on or off for agents (`toolStatesKey`), as it does when a sign-in
+  changes.
+- **Never sent away while signed in.** A card whose reading still asks for Composio's
+  sign-in, and a connect refused for it, read the tools live first: signed in, the
+  person stays on Integrace, the Integrace are read again and the card's form
+  opens; signed out, Settings → Tools opens Composio's sign-in, as before.
+  An unreadable state never sends the person away: only that read's own reading,
+  proving Composio signed out or not installed, opens Settings → Tools; a read
+  that failed, was not a reading or was superseded by a later read, and a sign-in
+  the reading does not know, keep the person on Integrace with "Stav Composia se
+  nepodařilo načíst. Zkuste to znovu." ("Composio's state could not be read. Try
+  again."; Pablo's review of #523).
+- **Off for agents is said.** Signed in but with "Používají agenti" off is its own
+  state of the reading's Composio source (`off`), which `lazurio integrations list`
+  prints too. Its cards say "Composio je připojené, ale agenti ho nepoužívají:
+  v Nástrojích má vypnuté „Používají agenti“." ("Composio is connected, but
+  agents don't use it: “Used by agents” is off in Tools.") in the
+  switch's own words, with "Otevřít Nástroje", where the switch is, as a card that
+  only a tool connects does. The path rule is unchanged (`signIn` still means not
+  signed in and on for agents), and so is the connect route's refusal.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Read the Integrace on every visit of the page | Never stale; but a full reading (the tools' sign-in probes, Composio's CLI) on each visit; rejected: read again when what they depend on changed |
+| Switch "Používají agenti" on from the card | One click fewer; but a change of the Folder's tools from another page, against the person's own switch; rejected: the card says so and opens Settings → Tools |
+| Keep "off" inside `unavailable` and decide on the page from the tools' reading | No new state; but agents read only the reading, and the page would read two sources for one fact; rejected |
+
+Verified by tests: a switch-on and a completed sign-in making the next reading
+current without a refresh, a connect then starting (`authorize`) and a really
+signed-out Composio still refused, the reading's `off` and its card, the key
+that reads the Integrace again, and a failed, invalid or superseded tools read
+keeping the person on Integrace while a really signed-out Composio still opens its
+sign-in (`composioSignIn`; `tests/integrations-composio-ready.test.ts`, red on
+main). In a headless browser on the preview with `composio-signed-out`, in Czech and
+English: on main, after the sign-in Gmail's "Připojit" landed on Settings → Tools; now
+it stays on Integrace with its form, a card read before the sign-in connects after a
+live check, and a Composio switched off says so on its cards.
+
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
 > **Superseded in part by [F53](#f53--every-environment-owns-its-vault-its-own-organization-in-the-networks-vaultwarden-created-by-its-technical-account)
