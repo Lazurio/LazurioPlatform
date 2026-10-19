@@ -433,7 +433,10 @@ yet).
   aktualizované." stands under the tabs. Any other answer says "Aktualizace nedoběhla.
   Zkuste to znovu." in the line, and its button tries again. Where Composio is off,
   not installed, signed out, elsewhere on PATH or already the build, there is no line;
-  the cards and the other notices already say what is missing. `lazurio integrations
+  the cards and the other notices already say what is missing. Nor is there one where
+  the CLI already removes an account without a prompt (`composio.disconnect`), as an
+  earlier Lazurio build (`0.4.3-lazurio.1`) does: it has what the line promises, so
+  only Settings → Tools offers its update (F42, note of 2026-10-19). `lazurio integrations
   list` says in one line that the person updates Composio in Settings → Tools, and
   that an agent does not do it unless the person asks (decision 0161, F17).
 - **Integrace** reads the richer list: names and removal by id

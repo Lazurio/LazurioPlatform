@@ -175,8 +175,11 @@ export type IntegrationsOverview = Readonly<{
     /** Whether the page offers Composio's update (decision F42, addendum
      * (b) of 2026-10-14): Composio is on here (`ready`) but the installed
      * CLI is not the build Lazurio pins, and its update can work, as
-     * Settings → Tools reads it (`pinnedUpdateOffered`). The update is
-     * Settings → Tools' own (`/api/tools/upgrade`). */
+     * Settings → Tools reads it (`pinnedUpdateOffered`), and the CLI does
+     * not remove an account without a prompt yet: the line promises
+     * disconnecting and names, which an earlier Lazurio build already has
+     * (note of 2026-10-19). The update is Settings → Tools' own
+     * (`/api/tools/upgrade`). */
     update: boolean;
     /** "Aplikace v Composiu" (decision F42, addendum of 2026-10-14): the
      * Apps section of the Composio organization this Environment works in,
@@ -541,8 +544,14 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
       source: policy.source,
       ready: input.composioReady,
       disconnect: composioUsable && input.composioDisconnect === true,
+      // Not where the CLI already removes without a prompt: an earlier
+      // Lazurio build has what the line promises, so only Settings → Tools
+      // offers its update (decision F42, note of 2026-10-19).
       update:
-        policy.allowed && input.composioReady && input.composioUpdate === true,
+        policy.allowed &&
+        input.composioReady &&
+        input.composioUpdate === true &&
+        input.composioDisconnect !== true,
       apps: composioUsable ? composioAppsUrl(input.composioOrganization) : null,
       organization: input.composioTarget ?? null,
     }),
