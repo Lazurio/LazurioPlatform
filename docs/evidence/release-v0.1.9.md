@@ -125,6 +125,16 @@ the end of the stage. No module app failed in any round.
     the stage.
   - The last Folder refresh was the personal VM's, at 15:00:20Z.
   - The browser acceptance below deliberately left both out.
+  - **Done after the stage, on the candidate.** The release reviewer ran both on work VM
+    `f1040cafc798ecf0` at 2026-10-19T05:56:10–05:56:16Z, before the final tag:
+    `lazurio machine folder-refresh` as the Machine's user (`unchanged`, exit 0), then a
+    deliberate `systemctl --user restart lazurio-launchpad.service` (exit 0). The unit came
+    back active at 05:56:11Z with `NRestarts` 0 (a deliberate restart does not count), and
+    `lazurio recover --json` answered `healthy` on 0.1.9-rc.6. A round at 05:56:54Z found all
+    three work VMs on the candidate and healthy, and the Machine's public Launchpad name
+    answered its sign-in redirect. This is a deviation from G.3's "during the stage": the
+    item proves the same behavior on the same bytes, a few hours later. It does not shorten
+    the 8 hours.
 
 ## Browser acceptance (root decision 0178)
 
