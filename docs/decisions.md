@@ -8380,8 +8380,8 @@ policy only for a Platform at least `PLATFORM_ENTRY_BROWSER_LOCAL_MINIMUM`, boun
 release that ships this addendum. Until then nothing changes for the browser's flags or the
 Launchpad's admission, and the sweep alone already keeps Lazurio sessions out of the profile:
 a person who signs in to Lazurio inside loses that session at the next view start. The vendored
-handover schema is byte for byte the head of Machines#633 (`1c3b4e54`), which adds only that
-member to #560's; it is re-pinned to #633's merge once it merges.
+handover schema is byte for byte the merge of Machines#633 (`a9debf51`), which adds only that
+member to #560's.
 
 | Failure | What happens |
 | --- | --- |
@@ -8398,7 +8398,7 @@ Lazurio sessions from being made; a public Environment is also wiped at least ni
 hand-off of a blocked page inside a subframe.
 
 Tests: `tests/environment-browser-loopback-entry.test.ts` (the name from the module origins, the
-rule, the unit with and without it, the handover member, its range and the #633 pin);
+rule, the unit with and without it, the handover member, its range and the pin to #633's merge);
 `tests/launchpad-ensure.test.ts` (the readiness call both ways through a real Launchpad,
 Machines#633's exact request replayed header for header, and the rule itself); `tests/environment-browser-view.test.ts` (the hand-off against the scripted
 DevTools peer: only the policy's error, only the main frame, the loader's pairing, no

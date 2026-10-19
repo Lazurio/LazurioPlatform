@@ -3,11 +3,10 @@
   "source_version": null,
   "source_tag": null,
   "source_pull_request": "https://github.com/HumanAndMachine-ai/Machines/pull/633",
-  "source_commit": "1c3b4e541ef4f85143306ce7567d9d22844c81a1",
+  "source_commit": "a9debf519e09d94f76a9ddacb866063996543262",
   "source_path": "workloads/workspace-vm/lazurio-machine.v1.schema.json",
   "source_sha256": "85628496202a4b95ef6c1472e47caf4e0f13f406bc837e620480c04aac16ae38",
   "sha256": "85628496202a4b95ef6c1472e47caf4e0f13f406bc837e620480c04aac16ae38",
   "publication_authorization": "https://github.com/HumanAndMachine-ai/Machines/pull/124#issuecomment-5688845105",
-  "pin_update": "https://github.com/HumanAndMachine-ai/Machines/pull/633",
-  "pending": "Machines#633 is open: the vendored file is byte for byte its head 1c3b4e541ef4f85143306ce7567d9d22844c81a1, which adds only the optional `entry.browser.local_port` (LazurioPlatform#504) to the merge of #560. Re-pin to #633's merge commit (or the release that carries it) once it merges; drop this note then."
+  "pin_update": "https://github.com/HumanAndMachine-ai/Machines/pull/633"
 }

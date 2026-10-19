@@ -510,7 +510,7 @@ posixTest(
   60_000,
 );
 
-// Machines#633 (head 1c3b4e54), the local entry's twin of `lazurio_module`:
+// Machines#633 (merged as a9debf51), the local entry's twin of `lazurio_module`:
 // the request the Launchpad receives, header for header. Caddy's
 // `reverse_proxy 127.0.0.1:<port>` from loopback, `method GET`, `rewrite
 // /api/internal/hosted/modules/{args[2]}/ensure?`, `header_up Host

@@ -11,11 +11,10 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
-from the head of the open Machines pull request **#633** (commit
-`1c3b4e541ef4f85143306ce7567d9d22844c81a1`, SHA-256
+from the merge of Machines pull request **#633** into `main` (commit
+`a9debf519e09d94f76a9ddacb866063996543262`, SHA-256
 `85628496202a4b95ef6c1472e47caf4e0f13f406bc837e620480c04aac16ae38`), which adds only
-the optional `entry.browser.local_port` (LazurioPlatform#504) and is re-pinned to its
-merge once it merges. Before it, the merge of Machines pull request **#560** into
+the optional `entry.browser.local_port` (LazurioPlatform#504) and changes nothing else. Before it, the merge of Machines pull request **#560** into
 `main` (commit `a1cee4eea554348c5a51e4a71c4fa9325dfa8bfc`, SHA-256
 `f6bb3b3d53273184714ca1fd9d5b6412c9f5e1e07002a0cd5d47b1cd1ccf60c4`), which added only
 the optional `entry.audience` ([below](#the-hosted-entry-decision-f16), root decision
@@ -389,9 +388,8 @@ Environment browser. Its optional `local_port` (LazurioPlatform#504, F39's adden
 2026-10-18) is the port of the gateway's loopback entry for the Environment browser
 itself, which serves this Environment's own apps without a sign-in; with it the browser
 resolves `*.<base>` and `<base>` (from `modules.origin_template`) to that port. It comes
-from Machines pull request **#633** (head `1c3b4e541ef4f85143306ce7567d9d22844c81a1`, SHA-256
-`85628496202a4b95ef6c1472e47caf4e0f13f406bc837e620480c04aac16ae38`), vendored byte for byte
-and re-pinned to its merge once it merges; Machines writes it only for a Platform at least
+from the merge of Machines pull request **#633** (commit `a9debf519e09d94f76a9ddacb866063996543262`), vendored byte for byte;
+Machines writes it only for a Platform at least
 `PLATFORM_ENTRY_BROWSER_LOCAL_MINIMUM`, since an earlier reader refuses the whole document.
 Absent, the browser's flags are as before.
 

@@ -147,12 +147,12 @@ test("the handover's local_port is the loopback entry; absent or out of range, n
   ).toBeUndefined();
 });
 
-test("the vendored schema is Machines #633's head: local_port, optional, a port of the entry's range", () => {
+test("the vendored schema is the merge of Machines #633: local_port, optional, a port of the entry's range", () => {
   expect(provenance.source_pull_request).toBe(
     "https://github.com/HumanAndMachine-ai/Machines/pull/633",
   );
   expect(provenance.source_commit).toBe(
-    "1c3b4e541ef4f85143306ce7567d9d22844c81a1",
+    "a9debf519e09d94f76a9ddacb866063996543262",
   );
   const browser = (
     schema as unknown as {
@@ -174,4 +174,9 @@ test("the vendored schema is Machines #633's head: local_port, optional, a port 
     minimum: 1024,
     maximum: 65535,
   });
+});
+
+test("the vendored schema is pinned, nothing pending", () => {
+  expect("pending" in provenance).toBe(false);
+  expect(provenance.sha256).toBe(provenance.source_sha256);
 });
