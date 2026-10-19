@@ -285,6 +285,9 @@ export type CatalogSection =
       kind: "workspace";
       title: string;
       modules: readonly CatalogModuleEntry[];
+      /** The Organization's own tabs (decision F32's addendum of
+       * 2026-10-16), null when it shows none. */
+      tabs: readonly CatalogWorkspaceTab[] | null;
     }>
   | Readonly<{
       kind: "productionspace";
@@ -292,6 +295,40 @@ export type CatalogSection =
       repositories: readonly CatalogRepositoryEntry[];
     }>;
 export type CatalogSectionKind = CatalogSection["kind"];
+
+/** One tab of an Organization's Workspace: its name and its modules that
+ * are on this Environment, in the catalog's order. */
+export type CatalogWorkspaceTab = Readonly<{
+  name: string;
+  modules: readonly CatalogModuleEntry[];
+}>;
+
+/** The Workspace's tabs as the page shows them (decision F32's addendum of
+ * 2026-10-16): the Organization's tabs in its order, each with its modules
+ * that are here in the catalog's order; a module the Organization put in no
+ * tab, or in a tab it named twice, is in the first tab. A tab without a
+ * module here is left out, and fewer than two tabs show none: the plain
+ * Workspace. Module ids the Organization names that are not here make no
+ * tile. */
+export function workspaceTabs(
+  declared: CatalogOrganization["workspaceTabs"],
+  modules: readonly CatalogModuleEntry[],
+): readonly CatalogWorkspaceTab[] | null {
+  if (declared === undefined || declared.length === 0) return null;
+  const tabOf = new Map<string, number>();
+  declared.forEach((tab, index) => {
+    for (const id of tab.modules) if (!tabOf.has(id)) tabOf.set(id, index);
+  });
+  const tabs = declared
+    .map((tab, index) => ({
+      name: tab.name,
+      modules: modules.filter(
+        (entry) => (tabOf.get(entry.module.module) ?? 0) === index,
+      ),
+    }))
+    .filter((tab) => tab.modules.length > 0);
+  return tabs.length < 2 ? null : tabs;
+}
 
 /** One group as the sidebar and the overview list it: an Organization, or
  * the Personalspace group after the Organizations (B11). */
@@ -350,6 +387,7 @@ export function catalogGroupEntry(
                   kind: "workspace" as const,
                   title: copy.catalogSectionWorkspace,
                   modules,
+                  tabs: workspaceTabs(organization.workspaceTabs, modules),
                 },
               ]),
           ...(repositories.length === 0
@@ -521,7 +559,25 @@ function isOrganization(value: unknown): value is CatalogOrganization {
     Array.isArray(entry.modules) &&
     entry.modules.every(isModule) &&
     Array.isArray(entry.repositories) &&
-    entry.repositories.every(isRepository)
+    entry.repositories.every(isRepository) &&
+    (entry.workspaceTabs === undefined ||
+      (Array.isArray(entry.workspaceTabs) &&
+        entry.workspaceTabs.length <= 12 &&
+        entry.workspaceTabs.every(isWorkspaceTab)))
+  );
+}
+function isWorkspaceTab(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const tab = value as Record<string, unknown>;
+  return (
+    text(tab.name) &&
+    tab.name.length > 0 &&
+    [...tab.name].length <= 40 &&
+    Array.isArray(tab.modules) &&
+    tab.modules.length <= 500 &&
+    tab.modules.every(
+      (id) => typeof id === "string" && /^[a-z0-9][a-z0-9-]{0,62}$/.test(id),
+    )
   );
 }
 

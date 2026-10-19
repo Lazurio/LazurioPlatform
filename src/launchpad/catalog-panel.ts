@@ -17,11 +17,13 @@ import { appLinkTarget, startThenOpen } from "./app-opening";
 import {
   type AppsHomePart,
   type AppsSection,
+  type AppsTab,
   type AppsTile,
   appsHeading,
   appsHomeParts,
   appsScope,
   appsScopes,
+  appsSectionHead,
   appsSpaceOf,
   favoriteTiles,
   moduleAccessTarget,
@@ -32,6 +34,7 @@ import {
   type PersonalStart,
   type TileTarget,
   tileTarget,
+  workspaceTabsTarget,
 } from "./apps-view";
 import {
   type CatalogFact,
@@ -658,6 +661,17 @@ export function createCatalogPanel(
       list.append(link);
     };
     showAccess();
+    // "Přesunout do karty" (decision F32's addendum of 2026-10-16): the
+    // Organization's Owner arranges the tabs in its Dashboard.
+    const tabs = workspaceTabsTarget(item, group, options.dashboard, owner);
+    if (tabs !== null) {
+      const link = element("a", "tile-menu-item");
+      link.href = tabs;
+      link.setAttribute("role", "menuitem");
+      link.append(svg("folder"), copy.appsMoveToTab);
+      link.addEventListener("click", close);
+      list.append(link);
+    }
     // A Steward's answer is asked when the person reaches for the menu, and
     // the item joins the open menu when it comes.
     const reach = () => {
@@ -795,6 +809,16 @@ export function createCatalogPanel(
     );
   }
 
+  // The tab each Organization's Workspace shows, by its name, for this
+  // page; a new page starts on the first tab.
+  const selectedTabs = new Map<string, string>();
+  const tabsKey = (group: CatalogGroupEntry) =>
+    group.organization.organization ?? group.organization.directory;
+  const focusTab = () =>
+    body
+      .querySelector<HTMLButtonElement>('.workspace-tab[aria-selected="true"]')
+      ?.focus();
+
   function section(
     value: AppsSection,
     group: CatalogGroupEntry,
@@ -803,13 +827,88 @@ export function createCatalogPanel(
   ): HTMLElement {
     const part = element("section", "apps-section");
     part.dataset.section = value.kind;
+    const head = appsSectionHead(
+      value,
+      workspaceTabsTarget(null, group, options.dashboard, owner),
+    );
     const top = element("div", "section-head");
-    const title = element("h2", "section-pill", value.title);
-    top.append(title, element("span", "section-count", value.count));
+    top.append(element("h2", "section-pill", head.flag));
     const grid = element("div", "tile-grid");
-    grid.append(...value.tiles.map((item) => tile(item, group, owner)));
-    if (offer !== null) grid.append(newModuleTile(offer));
-    part.append(top, grid);
+    if (head.end.kind === "count") {
+      top.append(element("span", "section-count", head.end.count));
+      grid.append(...value.tiles.map((item) => tile(item, group, owner)));
+      if (offer !== null) grid.append(newModuleTile(offer));
+      part.append(top, grid);
+      return part;
+    }
+    // The Organization's own tabs (decision F32's addendum of 2026-10-16),
+    // the WAI-ARIA tabs pattern: arrows, Home and End move between them.
+    const { tabs, edit } = head.end;
+    const key = tabsKey(group);
+    const first = tabs[0];
+    const selected =
+      tabs.find((tab) => tab.name === selectedTabs.get(key)) ?? first;
+    const list = element("div", "workspace-tabs");
+    list.setAttribute("role", "tablist");
+    list.setAttribute("aria-label", value.title);
+    const panel = element("div", "workspace-tab-panel");
+    panel.id = "apps-workspace-panel";
+    panel.setAttribute("role", "tabpanel");
+    panel.tabIndex = 0;
+    const select = (next: AppsTab | undefined) => {
+      if (next === undefined) return;
+      selectedTabs.set(key, next.name);
+      render();
+      focusTab();
+    };
+    tabs.forEach((tab, index) => {
+      const button = element("button", "workspace-tab", tab.name);
+      button.type = "button";
+      button.id = `apps-workspace-tab-${index}`;
+      button.setAttribute("role", "tab");
+      button.setAttribute("aria-controls", panel.id);
+      button.setAttribute("aria-selected", String(tab === selected));
+      button.tabIndex = tab === selected ? 0 : -1;
+      if (tab === selected) panel.setAttribute("aria-labelledby", button.id);
+      button.addEventListener("click", () => select(tab));
+      button.addEventListener("keydown", (event) => {
+        const last = tabs.length - 1;
+        const next =
+          event.key === "ArrowRight"
+            ? tabs[index === last ? 0 : index + 1]
+            : event.key === "ArrowLeft"
+              ? tabs[index === 0 ? last : index - 1]
+              : event.key === "Home"
+                ? tabs[0]
+                : event.key === "End"
+                  ? tabs[last]
+                  : undefined;
+        if (next === undefined) return;
+        event.preventDefault();
+        select(next);
+      });
+      list.append(button);
+    });
+    // The switch and "Upravit karty" after it, together at the head's right
+    // end (decision F32's addendum of 2026-10-19).
+    const end = element("div", "workspace-head-end");
+    end.append(list);
+    if (edit !== null) {
+      const link = element(
+        "a",
+        "workspace-tabs-edit",
+        options.copy().appsTabsEdit,
+      );
+      link.href = edit;
+      end.append(link);
+    }
+    top.classList.add("workspace-head");
+    top.append(end);
+    grid.append(...selected.tiles.map((item) => tile(item, group, owner)));
+    // "+ Nový modul" stays with the first tab, where a new module lands.
+    if (offer !== null && selected === first) grid.append(newModuleTile(offer));
+    panel.append(grid);
+    part.append(top, panel);
     return part;
   }
 
@@ -1366,6 +1465,10 @@ export function createCatalogPanel(
     const focused =
       document.activeElement instanceof HTMLElement &&
       document.activeElement.dataset.moduleAction !== undefined;
+    // A background answer redraws the page: a tab that had the keyboard
+    // keeps it.
+    const tabFocused =
+      document.activeElement?.classList.contains("workspace-tab") === true;
     if (selection.kind !== "module") lifecycle = null;
     head.hidden = selection.kind === "module";
     if (selection.kind !== "module") drawHead(scope);
@@ -1376,6 +1479,7 @@ export function createCatalogPanel(
           ? moduleView(catalog, scope, selection.organization, selection.module)
           : appsHome(catalog, scope)),
     );
+    if (tabFocused) focusTab();
     const action = body.querySelector<HTMLButtonElement>(
       "[data-module-action]",
     );

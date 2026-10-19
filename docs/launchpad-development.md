@@ -3139,3 +3139,20 @@ Organization's, and it gets none of it.
   `tests/tour-placement.test.ts` (where the bubble stands: the page's own boxes at 1440,
   1280, 1024 and 800 px, short windows, a classic scrollbar and a sweep of elements
   across five windows).
+
+An Organization's own tabs in Workspace (decision F32's addendum of 2026-10-16)
+are shaped in [Workspace tabs](workspace-tabs.md): one setting of the
+Organization, read with its catalog, arranged by its Owner in the Dashboard.
+They look like the column head's switch Chat · Apps · Automate (F32's addendum
+of 2026-10-19, prototypes-lazurio#73): `nav.switch` and `.tab` of
+`src/shell/styles.ts` drawn in the page's roles the shell's colour roles stand
+for here (`--hover`, `--card`, `--border`, `--fg`, `--muted-fg`, `--link`), at
+the right end of the Workspace head 6 px above its rule, "Upravit karty" right
+after the switch (one `.workspace-head-end`), and the "Workspace" flag flush
+on the rule: the head (`.workspace-head`) wraps in reverse and aligns its parts
+to its bottom edge, so a switch that does not fit beside the flag takes a line
+above it. `appsSectionHead` (`apps-view.ts`) gives the head's parts in order;
+`catalog-panel.ts` draws them. Tests: `tests/workspace-tabs.test.ts` and the
+contract cases in `tests/organization-settings.test.ts`; the geometry (no gap
+under the flag, the switch 6 px above the rule) is checked in a browser.
+Preview: `bun scripts/preview-launchpad.ts local cs 0 owner workspace-tabs`.

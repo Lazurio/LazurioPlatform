@@ -4590,6 +4590,103 @@ at all.
 | Hide every module without an app, or every module with `module-unavailable` | Hides accessible auxiliary modules and broken checkouts alike; rejected (#428 owns intentional hiding) |
 | Mark absent in the catalog, leave it out of the Launchpad's lists (selected) | One filesystem fact, stated once; the CLI keeps the whole declaration; nobody sees a module they cannot open |
 
+**Addendum 2026-10-16, decided by Matěj (Organization Admin) after a partner
+Organization's Owner proposed Work / Administration groups (#428, #446); root
+decision 0206: the Organization arranges its Workspace into tabs of its own.** Workspace and
+Productionspace stay. Inside Workspace an Organization may name its own tabs
+("Každodenní práce", "Finance", "Sklad") and put each module into one of them,
+the same for every member. It does what Teams were once drawn for (point 2
+above), without Teams: the tabs are the Organization's arrangement of its
+work, not an access or membership axis. A person's own order stays the
+favourites of the column (F36 point 7).
+
+1. **One setting of the Organization (root decision 0194).** The tabs are
+   `settings.workspace.tabs` of the Organization root's
+   `lazurio.organization.json`: in order, each `{ "name", "modules" }`, the
+   modules by their `lazurio.module.v1` id. At most twelve tabs; a name of 1
+   to 40 characters with no space at either end, unique with letter case
+   ignored; a module in one tab at most. Anything else makes the settings
+   section invalid by the section's one rule: nothing of it applies, the
+   Workspace stays one list, the manifest stays usable.
+2. **The first tab holds the rest.** A module the Organization put in no tab,
+   a new module among them, is in the first tab; module ids that name no
+   module here make no tile. A tab with no module on this Environment is left
+   out (the Workspace lists only what is here, F32 addendum of 2026-10-15),
+   and fewer than two tabs show no row of tabs at all: the plain Workspace.
+   "+ Nový modul" stays at the end of the first tab.
+3. **Read with the catalog.** `readFolderCatalog` reads the tabs from the
+   Organization root in the Folder (`workspaceTabs` on the Organization, also
+   in `lazurio organization list --json`), so an agent sees the same
+   arrangement. A Workspace's tabs reach other Environments as the rest of the
+   root does: after its content synchronization.
+4. **Arranged by the Owner, in the Dashboard (root decision 0194 point 2).**
+   Only where GitHub's live answer says this Environment's identity is an
+   Owner of the Organization (the "+ Nový modul" answer), a tile's menu offers
+   "Přesunout do karty" and the row of tabs "Upravit karty". Both open the
+   Organization's modules in its Dashboard in this window, as "Přístup k
+   modulu" does; the Dashboard writes the change with the Owner's own GitHub
+   rights and reads it back. The Launchpad writes nothing and grants nothing.
+5. **Quiet.** Tabs carry only their names: no counts, no explanation, no
+   tooltip with mechanics. The shown tab is for this page only; a new page
+   opens the first.
+
+**Not in this addendum, each its own step:** the Dashboard's editor of the
+tabs and its knowledge of the key. Until the Dashboard and an
+Organization's Environments run releases that know `workspace.tabs`, a
+declared tab makes the whole settings section invalid to them, and they keep
+the settings they applied last; so no Organization declares tabs before
+then;
+delivering the tabs through the Environment's relay (F45), which would show an
+Owner's change within about two minutes instead of after the next content
+synchronization. Lazurio Core's copy of the closed tree
+(`organization-settings-lib.mjs` and the schema's `$defs.organizationSettings`)
+comes upstream with root decision 0206 (HumanAndMachines/Lazurio#561), with
+the same name pattern. Shaping: [Workspace tabs](workspace-tabs.md).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Work / Administration groups per person in the browser (#446 as proposed) | Each person sorts alone, per browser and per Environment; an Organization's arrangement cannot be shared; rejected by Matěj |
+| A fixed pair Práce / Správa | The Organization cannot name its own areas; rejected by Matěj |
+| A field on `module_slots` in `modules.manifest.json` | Splits a tab's name and order from its members, enters the legacy projection, and has no writer but a pull request; not chosen |
+| A new top-level key of `lazurio.organization.json` | The canonical manifest is a closed schema: every older release would refuse the whole Organization; rejected |
+| The tabs in the Dashboard's database | A second truth beside the repository; rejected by root decision 0194 |
+| The Launchpad writes the Organization root itself with the Owner's identity | A second writer of the Organization's settings beside the Dashboard, against root decision 0194 point 2; not chosen (an open question for Matěj if the round trip to the Dashboard feels too long) |
+| `settings.workspace.tabs`, read with the catalog, arranged in the Dashboard (selected) | One truth in the Organization's repository, the same for every member and every agent; one writer; older releases keep working |
+
+**Addendum 2026-10-19, decided by Matěj (Organization Admin) on the wireframe
+(HumanAndMachine-ai/prototypes-lazurio#73, plan DEV-6612): the tabs look like
+the column's switch.** The row of quiet words beside the flag, the shown one
+underlined on the rule (the addendum above), gives way to:
+
+1. **The same switch as Chat · Apps · Automate.** The tabs are the column
+   head's segmented switch (`nav.switch` and `.tab` of
+   `src/shell/styles.ts`): one control surface with 3 px around and 2 px
+   between the tabs, the design system's `radius-md` and its inner corner,
+   weight 550, the shown tab raised on a hairline. The page draws it with the
+   roles the shell's colour roles stand for on the Launchpad (`--hover`,
+   `--card`, `--border`, `--fg`, `--muted-fg`, the focus in `--link`), so a
+   theme other than Lazurio colours both alike; no new token.
+2. **At the head's right end, the flag flush on its rule.** The switch
+   stands at the right end of the Workspace head, 6 px above the blue rule,
+   with "Upravit karty" right after it for the Owner. The "Workspace" flag
+   stays on the rule with no gap under it: the head aligns its parts to its
+   bottom edge. Where the switch does not fit beside the flag, it takes a
+   line above the flag rather than below it, so the flag never leaves the
+   rule; on a very narrow page its tabs wrap inside it.
+3. **Unchanged:** the tabs' keyboard (arrows, Home, End) and their WAI-ARIA
+   roles, the count giving way to the tabs, and Productionspace without tabs.
+
+Where each part stands to the pixel is checked in a browser (root decision
+0178); `appsSectionHead` in `src/launchpad/apps-view.ts` and its test hold
+the order: the flag first, then the switch with "Upravit karty" after it.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Quiet words beside the flag, underlined on the rule (2026-10-16) | A second look of tabs beside the column's switch; replaced by Matěj |
+| The switch beside the flag, the head centred on it | The taller switch lifts the flag off the rule and leaves a gap under it; rejected by Matěj |
+| On a narrow page, the switch on a line below the flag | Puts the switch between the flag and its rule; not chosen |
+| The switch at the head's right end, 6 px above the rule, the flag flush (selected) | One look of a switch across the product; the flag stays the section's mark on its rule |
+
 ## F33 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal, partly decided)
 
 **Proposal of 2026-10-02 (plan DEV-6638); partly decided by Matěj the same evening, not
