@@ -14857,3 +14857,69 @@ removed sentences, ids and keys gone), `tests/start-view.test.ts`,
 `tests/tools-view.test.ts`, `tests/recovery-view.test.ts`,
 `tests/environment-wording.test.ts`, and in headless Chrome against the hosted and
 personal previews (root decision 0178).
+
+### F56 addendum of 2026-10-19: Trezor's video is the first thing the page shows
+
+**Decided by Matěj (Organization Admin) on 2026-10-19, about 14:15Z, in the DEV-6631
+thread, with a screenshot of an Automated Environment's Trezor without a vault showing the
+video:** „tady tohle video je super. Myslím si, že úplně krásně vysvětluje, jak Bitwarden
+funguje, a i v prostředích, kde je Bitwarden aktivní, si myslím, že by tohle mělo být úplně
+jako první věc, kterou člověk vidí ve chvíli, kdy chce s Bitwardenem nějakým způsobem
+interagovat z Launchpadu." It changes point 4 of the addendum of 2026-10-18, where the
+person's press of the "?" opened the video. Now the approved video `vault-overview`
+(design-system-lazurio#93) is the first thing Trezor shows wherever its words are true.
+
+1. **Where: unchanged** (point 3 of the addendum of 2026-10-18, `vaultHelp`). The video
+   shows where the person is a member of the vault, or where the Environment has no
+   vault. Elsewhere the page shows no video, and the "?" plays its explanation as before:
+   - where nobody who enters is added (`vault-agents`);
+   - where the person is not a member, or that is not known yet;
+   - in a Personal Environment, whose vault is the person's own Bitwarden.
+
+   The video says that people share from their own Bitwarden, which a visitor of a shared
+   Team Environment cannot do (#499).
+2. **How it shows.** Once the page knows that the video is true (it has read the vault's
+   state and the person's membership), the box `#vault-video` opens first, under the
+   page's heading. It shows the video's poster:
+   - nothing plays, and nothing but the poster loads;
+   - the focus stays where it is, and nothing scrolls.
+
+   The person starts it with the player's own control. The line under it
+   (`vaultVideoLine`) is unchanged.
+3. **The "?"** beside the heading closes the video and opens it again; when it opens it,
+   the video plays from the start (with less motion, it waits at its poster). Escape
+   closes it.
+4. **Closed by the person, it stays closed until the page moves on.** Reading the status
+   again, a change of language or the membership arriving do not reopen it. The next
+   visit opens it again (`helpVideoDrawing` in `src/launchpad/page-help.ts`, per visit of
+   a route).
+5. **Unchanged:**
+   - The served page keeps the box hidden, so nothing flashes where the video is not
+     true.
+   - The video never plays by itself and has no sound.
+   - The page keeps no sentence that explains the vault.
+   - The guide's card plays `vault-agents` and the Personal adaptation.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The video in every Organization's Environment, the `vault-agents` places included | It would say that people share from their own Bitwarden where nobody is added (#499). Rejected. A variant for a shared Team Environment can come from the host's facts later |
+| Muted autoplay | Motion and data the person did not ask for; `prefers-reduced-motion` would need its own path. Rejected |
+| Open only until the person has seen it once | Matěj asked for the first thing on every approach to Bitwarden, and a remembered "seen" needs a store per person. Rejected for now |
+| The video behind the "?" (the addendum of 2026-10-18) | What this addendum changes. Rejected |
+
+**Honest limits.**
+
+- **The first look.** While the membership is being asked (a few seconds on the first
+  look), the page shows no video. Then the box opens, and the vault's row and actions move
+  down once.
+- **The words.** The video's words speak of an Organization's vault. A Work Environment
+  whose vault adds people shows it also where the vault is reached by a Lazurio sign-in
+  (the addendum of 2026-10-18's honest limit stands).
+
+Verified by:
+- `tests/launchpad-guide-video.test.ts`: the box served hidden at the top of the page, and
+  the visit rule (open where true, closed by the person until the page moves on, open
+  again on the next visit);
+- `tests/launchpad-guide.test.ts`: where the video is true, unchanged;
+- headless Chrome against the hosted preview (root decision 0178): a work Environment
+  with its vault and the person a member, and `no-vault`.
