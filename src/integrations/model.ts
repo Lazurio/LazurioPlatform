@@ -453,13 +453,13 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
       tools,
       connected: [...new Set(accounts.map((account) => account.path))],
     });
+    // An account on another way than the app's is spare, a direct or a
+    // Composio one beside the app's own tool too: the tool connects the
+    // app, so the account is not used (the end-to-end test of 2026-10-19).
     const marked = accounts.map((account) =>
       Object.freeze({
         ...account,
-        spare:
-          path.path !== null &&
-          path.path !== "tool" &&
-          account.path !== path.path,
+        spare: path.path !== null && account.path !== path.path,
       }),
     );
     const connected =

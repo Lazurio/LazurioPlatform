@@ -47,7 +47,9 @@ the sign-in is the person's consent, so they send the link to its card.
 `choosePath` is the wireframe's rule, with a test for every branch
 (`tests/integrations-path.test.ts`):
 
-1. A connected tool made for the app wins; its card offers nothing else.
+1. A connected tool made for the app wins; its card offers nothing else. An
+   account of the app left directly or through Composio is spare beside it, as
+   in point 2 (until 2026-10-19 such an account was drawn as if it were used).
 2. One app, one path: an app already connected keeps its way, přímo before an
    older Composio one. An account left on the other way is marked spare
    ("nepoužívá se") and may be disconnected.
