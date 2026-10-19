@@ -17,7 +17,15 @@ import {
 } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
-import { chatPairing, publicEntry, t3PairUrl } from "../src/launchpad/chat";
+import {
+  chatPairing,
+  chatPairingLabel,
+  chatPairingPath,
+  isChatPairingFetch,
+  mintChatPairing,
+  publicEntry,
+  t3PairUrl,
+} from "../src/launchpad/chat";
 import {
   chatHref,
   chatPairLink,
@@ -25,42 +33,85 @@ import {
   parseEntryAnswer,
   parsePromptHandoff,
 } from "../src/launchpad/chat-view";
-import type { AuthFetcher } from "../src/launchpad/hosted-trust";
+import { type AuthFetcher, nobody } from "../src/launchpad/hosted-trust";
 import { startLaunchpad } from "../src/launchpad/server";
-import { runTool, type ToolRunner } from "../src/tools/status";
-import { organizationWithEntry } from "./fixtures/machine-bindings";
+import type { ToolsEnvironment } from "../src/tools/overview";
+import {
+  runTool,
+  type ToolProcessResult,
+  type ToolRunner,
+} from "../src/tools/status";
+import {
+  binding,
+  handoverEntry,
+  organizationWithEntry,
+} from "./fixtures/machine-bindings";
+import organization from "./fixtures/machine-context.json";
+import { freePort } from "./fixtures/ports";
 
 // Chat into T3 Code (launchpad-parity B8, slice P7): the resident's behaviour
 // (`R:launchpad/src/t3-chat-lib.mjs`, `R:launchpad/public/app.js:2257-2281`)
-// with every value from the recorded entry.
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  return port;
-};
+// with every value from the recorded entry. Since the decision of 2026-10-17
+// the Environment pairs its own browser: T3 Code's web client asks
+// `GET /.lazurio/chat/pairing` on its own origin, minted by the same code as
+// the Launchpad's click, with T3's operator pairing where T3 Code offers it.
 
 const credential = "Pairing_Token-0123456789abcdef";
+const expiresAt = "2026-10-17T12:01:00.000Z";
 
-// A fake T3 launcher on a private PATH: it records its arguments and answers
-// as `t3 auth pairing create --json` does, or as told by `mode`.
-async function fakeLauncher(directory: string, mode: string) {
+// The JSON `t3 auth pairing create --json` and `t3 lazurio pairing --json`
+// print, with values of T3's own the Platform never passes on.
+const pairingOutput = JSON.stringify({
+  id: "pairing-1",
+  credential,
+  label: "as-t3-echoes-it",
+  scopes: ["scope-a", "scope-b"],
+  expiresAt,
+});
+
+// T3 Code's capabilities (`t3 lazurio capabilities`), with or without its
+// operator pairing.
+const capabilitiesOutput = (operatorPairing: boolean) =>
+  JSON.stringify({
+    version: 1,
+    managedFolder: true,
+    modelRecommendation: true,
+    providerRefresh: true,
+    ...(operatorPairing ? { operatorPairing: true } : {}),
+  });
+
+// A fake T3 launcher on a private PATH: it answers `t3 lazurio capabilities`
+// (with the operator pairing when `operator`), refuses a `--json` to `t3
+// lazurio pairing` as T3's CLI refuses a flag it does not know
+// (Lazurio/t3code#84: the command always prints JSON), records the
+// arguments of the pairing call and answers it as T3 does, or as told by
+// `mode`.
+async function fakeLauncher(directory: string, mode: string, operator = false) {
   const script = join(directory, "t3");
   const outputs: Record<string, string> = {
-    ok: `echo '{"credential":"${credential}","label":"launchpad-chat"}'`,
+    ok: `echo '${pairingOutput}'`,
     // A failing call whose output holds the credential: never passed on.
     fail: `echo 'could not pair ${credential}' >&2; exit 3`,
     unreadable: "echo 'not json'",
-    shape: `echo '{"credential":"short"}'`,
+    shape: `echo '{"credential":"short","expiresAt":"${expiresAt}"}'`,
+    // A credential without a readable expiry.
+    expiry: `echo '{"credential":"${credential}","expiresAt":"in a minute"}'`,
   };
   await writeFile(
     script,
     `#!/bin/sh
+if [ "$1 $2" = "lazurio capabilities" ]; then
+  echo '${capabilitiesOutput(operator)}'
+  exit 0
+fi
+if [ "$1 $2" = "lazurio pairing" ]; then
+  for argument in "$@"; do
+    if [ "$argument" = "--json" ]; then
+      echo "Unrecognized flag: --json in command t3 lazurio pairing" >&2
+      exit 1
+    fi
+  done
+fi
 printf '%s\\n' "$@" > "${join(directory, "t3.calls")}"
 ${outputs[mode]}
 `,
@@ -68,7 +119,47 @@ ${outputs[mode]}
   await chmod(script, 0o755);
 }
 
-async function hostedLaunchpad() {
+// The two calls of one pairing: the capabilities, then the pairing itself,
+// `operator` (`t3 lazurio pairing`, which always prints JSON) or standard
+// (`t3 auth pairing create --json`).
+const capabilitiesCall = (bin: string, home: string) => ({
+  command: [join(bin, "t3"), "lazurio", "capabilities"],
+  timeoutMs: 15_000,
+  env: { HOME: home, PATH: bin },
+});
+const pairingCall = (
+  bin: string,
+  home: string,
+  kind: "operator" | "standard",
+  label: string,
+) => ({
+  command: [
+    join(bin, "t3"),
+    ...(kind === "operator"
+      ? ["lazurio", "pairing"]
+      : ["auth", "pairing", "create"]),
+    "--base-dir",
+    join(home, ".t3"),
+    "--ttl",
+    "60s",
+    "--label",
+    label,
+    ...(kind === "operator" ? [] : ["--json"]),
+  ],
+  timeoutMs: chatPairing.timeoutMs,
+  env: { HOME: home, PATH: bin },
+});
+
+async function hostedLaunchpad(
+  options: Readonly<{
+    /** The Lazurio username the gateway's answer names. */
+    username?: string;
+    /** A public Environment (root decision 0204). */
+    audience?: boolean;
+    /** A Team Environment. */
+    team?: boolean;
+  }> = {},
+) {
   const parent = await realpath(
     await mkdtemp(join(tmpdir(), "launchpad-chat-")),
   );
@@ -79,8 +170,16 @@ async function hostedLaunchpad() {
   await mkdir(folder, { mode: 0o700 });
   await mkdir(join(folder, "organizations"), { mode: 0o755 });
   await mkdir(join(folder, "personalspace"), { mode: 0o700 });
-  const preset = "hosted-organization-personal";
-  const machine = organizationWithEntry(freePort());
+  const preset = options.team
+    ? "hosted-organization-team"
+    : "hosted-organization-personal";
+  const port = freePort();
+  const machine = options.team
+    ? binding({
+        ...organization,
+        entry: handoverEntry("workspace.example.lazurio.io", port),
+      })
+    : organizationWithEntry(port, undefined, false, false, options.audience);
   const entry = machine.entry;
   if (entry === undefined) throw new Error("The fixture has an entry");
   await initializeHandoverFolder(folder, {
@@ -91,7 +190,12 @@ async function hostedLaunchpad() {
   const fetcher: AuthFetcher = async (_url, init) =>
     new Headers(init.headers).get("cookie") ===
     "__Secure-lazurio-workspace=valid"
-      ? new Response("ok")
+      ? new Response("ok", {
+          headers:
+            options.username === undefined
+              ? {}
+              : { "x-auth-request-preferred-username": options.username },
+        })
       : new Response("no", { status: 401 });
   const runs: { command: string[]; timeoutMs: number; env: object }[] = [];
   const run: ToolRunner = (command, timeoutMs, env) => {
@@ -117,6 +221,21 @@ async function hostedLaunchpad() {
   };
   const pair = (headers: Record<string, string> = sameOrigin) =>
     fetch(`${base}/api/chat/pair`, { method: "POST", headers, body: "{}" });
+  // T3 Code's web client asking on its own origin, as the gateway forwards
+  // it here (Machines `ingress.ts` `shellRoute`): the Launchpad's Host, the
+  // session cookie alone and the browser's own Fetch Metadata of a script's
+  // fetch.
+  const ownFetch = {
+    ...valid,
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-dest": "empty",
+  };
+  const selfPair = (
+    headers: Record<string, string> = ownFetch,
+    init: RequestInit = {},
+    path = "/.lazurio/chat/pairing",
+  ) => fetch(`${base}${path}`, { headers, ...init });
   return {
     entry,
     home,
@@ -124,8 +243,10 @@ async function hostedLaunchpad() {
     base,
     host,
     valid,
+    ownFetch,
     runs,
     pair,
+    selfPair,
     async close() {
       await app.close();
       await rm(parent, { recursive: true, force: true });
@@ -183,7 +304,7 @@ test.skipIf(process.platform === "win32")(
 );
 
 test.skipIf(process.platform === "win32")(
-  "hosted: Chat mints a one-time pairing link on the recorded T3 Code origin with the resident's exact call",
+  "hosted: Chat mints a one-time pairing link on the recorded T3 Code origin with T3's own call",
   async () => {
     const hosted = await hostedLaunchpad();
     try {
@@ -212,35 +333,23 @@ test.skipIf(process.platform === "win32")(
       ]);
       expect(body.url).toBe(t3PairUrl(entry.t3codeOrigin, credential));
       expect(chatPairLink(body, entry.t3codeOrigin)).toBe(body.url);
-      // The resident's call (`R:launchpad/src/t3-chat-lib.mjs:75` over
-      // Machines' `t3 auth pairing create --base-dir ~/.t3`), with only
-      // HOME and PATH of this Launchpad's environment.
+      // T3 Code's capabilities first; this one offers no operator pairing,
+      // so the resident's call (`R:launchpad/src/t3-chat-lib.mjs:75` over
+      // Machines' `t3 auth pairing create --base-dir ~/.t3`), labelled for
+      // the admitted person (the gateway named nobody here), with only HOME
+      // and PATH of this Launchpad's environment.
       expect(runs).toEqual([
-        {
-          command: [
-            join(bin, "t3"),
-            "auth",
-            "pairing",
-            "create",
-            "--base-dir",
-            join(home, ".t3"),
-            "--ttl",
-            "60s",
-            "--label",
-            "launchpad-chat",
-            "--json",
-          ],
-          timeoutMs: chatPairing.timeoutMs,
-          env: { HOME: home, PATH: bin },
-        },
+        capabilitiesCall(bin, home),
+        pairingCall(bin, home, "standard", "Lazurio"),
       ]);
       expect(
         (await readFile(join(bin, "t3.calls"), "utf8")).trim().split("\n"),
-      ).toEqual(runs[0]?.command.slice(1) ?? []);
+      ).toEqual(runs[1]?.command.slice(1) ?? []);
 
-      // A failed call, output that is not the answer, or a credential of
-      // another shape: one reason, and the tool's output never passed on.
-      for (const mode of ["fail", "unreadable", "shape"]) {
+      // A failed call, output that is not the answer, a credential of
+      // another shape or without a readable expiry: one reason, and the
+      // tool's output never passed on.
+      for (const mode of ["fail", "unreadable", "shape", "expiry"]) {
         await fakeLauncher(bin, mode);
         const failed = await pair();
         const text = await failed.text();
@@ -253,6 +362,220 @@ test.skipIf(process.platform === "win32")(
       }
       // Nothing is recorded: the Folder and the home hold no token.
       expect(await readdir(home)).toEqual([".local"]);
+    } finally {
+      await hosted.close();
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "hosted: T3 Code's own fetch gets its pairing, exactly the JSON and no-store, with T3's operator pairing labelled for the admitted person",
+  async () => {
+    const hosted = await hostedLaunchpad({ username: "example" });
+    try {
+      const { home, bin, runs, selfPair, pair } = hosted;
+      await fakeLauncher(bin, "ok", true);
+      const answer = await selfPair();
+      // What T3 Code's client accepts and nothing else (Lazurio/t3code#84):
+      // 200 without a redirect, JSON, and exactly these three keys.
+      expect([answer.status, answer.redirected]).toEqual([200, false]);
+      expect(answer.headers.get("cache-control")).toBe("no-store");
+      expect(answer.headers.get("content-type")).toStartWith(
+        "application/json",
+      );
+      // Byte for byte: nothing else of T3's answer (its id, label or
+      // scopes) is passed on.
+      expect(await answer.text()).toBe(
+        `{"kind":"chat-pairing","credential":"${credential}","expiresAt":"${expiresAt}"}`,
+      );
+      // T3 Code offers its operator pairing: `t3 lazurio pairing`, with the
+      // standard call's arguments but `--json`, which it does not take.
+      expect(runs).toEqual([
+        capabilitiesCall(bin, home),
+        pairingCall(bin, home, "operator", "Lazurio · example"),
+      ]);
+      expect(
+        (await readFile(join(bin, "t3.calls"), "utf8")).trim().split("\n"),
+      ).toEqual(runs[1]?.command.slice(1) ?? []);
+      // The Launchpad's click mints through the same code: the same call.
+      runs.length = 0;
+      const clicked = await pair();
+      expect([clicked.status, (await clicked.json()).url]).toEqual([
+        200,
+        `https://t3code.workspace.example.lazurio.io/pair#token=${credential}`,
+      ]);
+      expect(runs).toEqual([
+        capabilitiesCall(bin, home),
+        pairingCall(bin, home, "operator", "Lazurio · example"),
+      ]);
+      // Nothing is recorded: the home holds no token.
+      expect(await readdir(home)).toEqual([".local"]);
+    } finally {
+      await hosted.close();
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "hosted: the self-pairing answers only an admitted page's own fetch: every other request mints nothing",
+  async () => {
+    const hosted = await hostedLaunchpad({ username: "example" });
+    try {
+      const { entry, host, valid, ownFetch, runs, bin, selfPair } = hosted;
+      await fakeLauncher(bin, "ok", true);
+      // Unadmitted: no session, a session the gateway refuses, or the T3
+      // Code origin's own Host (the gateway must send the Launchpad's).
+      const { cookie: _, ...withoutCookie } = ownFetch;
+      for (const [headers, reason] of [
+        [withoutCookie, "cookie-missing"],
+        [
+          { ...ownFetch, cookie: "__Secure-lazurio-workspace=expired" },
+          "auth-denied",
+        ],
+        [
+          { ...ownFetch, host: new URL(entry.t3codeOrigin).host },
+          "host-mismatch",
+        ],
+      ] as const) {
+        const denied = await selfPair(headers);
+        expect([reason, denied.status, await denied.json()]).toEqual([
+          reason,
+          401,
+          { error: "denied", reason },
+        ]);
+      }
+      // Admitted, but not a page's own fetch: no Fetch Metadata at all,
+      // another site, a sibling of the Environment, a typed address, a
+      // navigation on T3 Code's own origin (a link, a bookmark), a
+      // subresource and speculative loads.
+      for (const headers of [
+        valid,
+        { ...ownFetch, "sec-fetch-site": "cross-site" },
+        { ...ownFetch, "sec-fetch-site": "same-site" },
+        {
+          ...valid,
+          "sec-fetch-site": "none",
+          "sec-fetch-mode": "navigate",
+          "sec-fetch-dest": "document",
+        },
+        {
+          ...valid,
+          "sec-fetch-site": "same-origin",
+          "sec-fetch-mode": "navigate",
+          "sec-fetch-dest": "document",
+        },
+        { ...ownFetch, "sec-fetch-mode": "no-cors", "sec-fetch-dest": "image" },
+        { ...ownFetch, "sec-purpose": "prefetch" },
+        { ...ownFetch, purpose: "prefetch" },
+        {
+          ...valid,
+          "sec-fetch-site": "same-origin",
+          "sec-fetch-mode": "navigate",
+          "sec-purpose": "prefetch;prerender",
+        },
+      ]) {
+        const refused = await selfPair(headers);
+        expect([headers, refused.status, await refused.json()]).toEqual([
+          headers,
+          403,
+          { error: "not-allowed" },
+        ]);
+      }
+      // A query, a HEAD and any other method: not the request either.
+      const query = await selfPair(ownFetch, {}, "/.lazurio/chat/pairing?x=1");
+      expect([query.status, await query.json()]).toEqual([
+        400,
+        { error: "invalid-request" },
+      ]);
+      const head = await selfPair(ownFetch, { method: "HEAD" });
+      expect(head.status).toBe(405);
+      const posted = await selfPair(
+        {
+          ...ownFetch,
+          origin: entry.externalOrigin,
+          "content-type": "application/json",
+        },
+        { method: "POST", body: "{}" },
+      );
+      expect([posted.status, await posted.json()]).toEqual([
+        405,
+        { error: "method-not-allowed" },
+      ]);
+      expect(runs).toEqual([]);
+      // Any other path beside it is no pairing: the page's static listener
+      // answers it.
+      const neighbour = await fetch(`${hosted.base}/.lazurio/chat/other`, {
+        headers: { host, cookie: valid.cookie },
+      });
+      expect(neighbour.status).toBe(404);
+      expect(runs).toEqual([]);
+    } finally {
+      await hosted.close();
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "hosted: a public Environment's visitor gets the standard pairing without asking T3 Code; a Team Environment's person gets the operator pairing",
+  async () => {
+    const visited = await hostedLaunchpad({
+      username: "visitor",
+      audience: true,
+    });
+    try {
+      const { home, bin, runs, selfPair } = visited;
+      // Even where T3 Code offers its operator pairing.
+      await fakeLauncher(bin, "ok", true);
+      const answer = await selfPair();
+      expect([answer.status, await answer.json()]).toEqual([
+        200,
+        { kind: "chat-pairing", credential, expiresAt },
+      ]);
+      expect(runs).toEqual([
+        pairingCall(bin, home, "standard", "Lazurio · visitor"),
+      ]);
+    } finally {
+      await visited.close();
+    }
+    const team = await hostedLaunchpad({ username: "example", team: true });
+    try {
+      const { home, bin, runs, selfPair } = team;
+      await fakeLauncher(bin, "ok", true);
+      const answer = await selfPair();
+      expect(answer.status).toBe(200);
+      expect(runs).toEqual([
+        capabilitiesCall(bin, home),
+        pairingCall(bin, home, "operator", "Lazurio · example"),
+      ]);
+    } finally {
+      await team.close();
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "hosted: without t3, or when its call fails, the self-pairing answers 409 with the reason and never the output",
+  async () => {
+    const hosted = await hostedLaunchpad({ username: "example" });
+    try {
+      const { bin, runs, selfPair } = hosted;
+      const missing = await selfPair();
+      expect([missing.status, await missing.json()]).toEqual([
+        409,
+        { kind: "blocked", reason: "t3-launcher-missing" },
+      ]);
+      expect(runs).toEqual([]);
+      for (const mode of ["fail", "unreadable", "shape", "expiry"]) {
+        await fakeLauncher(bin, mode, true);
+        const failed = await selfPair();
+        const text = await failed.text();
+        expect([mode, failed.status, JSON.parse(text)]).toEqual([
+          mode,
+          409,
+          { kind: "blocked", reason: "t3-pairing-failed" },
+        ]);
+        expect(text).not.toContain(credential);
+      }
     } finally {
       await hosted.close();
     }
@@ -318,10 +641,189 @@ test.skipIf(process.platform === "win32")(
         404,
         { error: "not-found" },
       ]);
+      // Nor the self-pairing: refused without the token, absent with it.
+      const ownFetch = {
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-Mode": "cors",
+      };
+      const unadmitted = await fetch(new URL(chatPairingPath, url), {
+        headers: ownFetch,
+      });
+      expect(unadmitted.status).toBe(403);
+      const self = await fetch(new URL(chatPairingPath, url), {
+        headers: { ...ownFetch, Authorization: `Bearer ${token}` },
+      });
+      expect([self.status, await self.json()]).toEqual([
+        404,
+        { error: "not-found" },
+      ]);
       expect(ran).toBe(false);
     } finally {
       await app.server.stop(true);
       await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test("a pairing is labelled with the admitted person's Lazurio username, and only with one", () => {
+  const named = (username: string | null) =>
+    chatPairingLabel({ subject: null, username });
+  expect(named("example")).toBe("Lazurio · example");
+  expect(named("a1-b2")).toBe("Lazurio · a1-b2");
+  // Nobody named: a session without a Lazurio username, or a terminal.
+  expect(named(null)).toBe("Lazurio");
+  expect(chatPairingLabel(nobody)).toBe("Lazurio");
+  expect(chatPairingLabel()).toBe("Lazurio");
+  // Anything that is not a Lazurio username names nobody: never an option
+  // for a command line, a line break, a capital, a service account or the
+  // account's id from before the username.
+  for (const username of [
+    "",
+    "ex",
+    "a".repeat(40),
+    "-example",
+    "--json",
+    "exa mple",
+    "example\nx",
+    "exa--mple",
+    "Example",
+    "service-account-x",
+    "0b9f2c3e-5d4a-4f6b-9c1d-2e3f4a5b6c7d",
+  ])
+    expect([username, named(username)]).toEqual([username, "Lazurio"]);
+  // Short: at most 49 characters.
+  expect(named("a".repeat(39))).toHaveLength(49);
+});
+
+test("only a page's own script fetch on its origin asks for the pairing", () => {
+  const ownFetch = (headers: Record<string, string>) =>
+    isChatPairingFetch(new Headers(headers));
+  expect(
+    ownFetch({ "sec-fetch-site": "same-origin", "sec-fetch-mode": "cors" }),
+  ).toBe(true);
+  expect(
+    ownFetch({
+      "sec-fetch-site": "same-origin",
+      "sec-fetch-mode": "same-origin",
+      "sec-fetch-dest": "empty",
+    }),
+  ).toBe(true);
+  const own = { "sec-fetch-site": "same-origin", "sec-fetch-mode": "cors" };
+  for (const headers of [
+    {},
+    { "sec-fetch-mode": "cors" },
+    { "sec-fetch-site": "same-origin" },
+    { "sec-fetch-site": "same-site", "sec-fetch-mode": "cors" },
+    { "sec-fetch-site": "cross-site", "sec-fetch-mode": "cors" },
+    { "sec-fetch-site": "none", "sec-fetch-mode": "navigate" },
+    { "sec-fetch-site": "same-origin", "sec-fetch-mode": "navigate" },
+    { "sec-fetch-site": "same-origin", "sec-fetch-mode": "nested-navigate" },
+    { "sec-fetch-site": "same-origin", "sec-fetch-mode": "no-cors" },
+    { "sec-fetch-site": "same-origin", "sec-fetch-mode": "websocket" },
+    { ...own, "sec-purpose": "prefetch" },
+    { ...own, "sec-purpose": "prefetch;anonymous-client-ip" },
+    { ...own, "sec-purpose": "prefetch;prerender" },
+    { ...own, purpose: "prefetch" },
+    { ...own, purpose: "Prefetch" },
+  ])
+    expect([headers, ownFetch(headers)]).toEqual([headers, false]);
+});
+
+test.skipIf(process.platform === "win32")(
+  "the operator pairing only where T3 Code says it offers it, never on a public Environment",
+  async () => {
+    const directory = await realpath(
+      await mkdtemp(join(tmpdir(), "launchpad-chat-mint-")),
+    );
+    await writeFile(join(directory, "t3"), "#!/bin/sh\nexit 1\n");
+    await chmod(join(directory, "t3"), 0o755);
+    try {
+      const work = organizationWithEntry().entry;
+      const visited = organizationWithEntry(
+        20000,
+        undefined,
+        false,
+        false,
+        true,
+      ).entry;
+      if (work === undefined || visited === undefined)
+        throw new Error("The fixtures have entries");
+      // Which calls one pairing ran, by their subcommand and `--json`. As
+      // T3's CLI, `t3 lazurio pairing` refuses a `--json` it does not know.
+      const mint = async (
+        entry: typeof work,
+        capabilities: ToolProcessResult | Error,
+      ) => {
+        const calls: string[] = [];
+        const environment: ToolsEnvironment = {
+          path: directory,
+          home: directory,
+          platform: process.platform,
+          run: async (command) => {
+            const json = command.includes("--json");
+            calls.push(
+              `${command.slice(1, 3).join(" ")}${json ? " --json" : ""}`,
+            );
+            if (command[2] === "capabilities") {
+              if (capabilities instanceof Error) throw capabilities;
+              return capabilities;
+            }
+            if (command[1] === "lazurio" && json)
+              return { exitCode: 1, stdout: "", stderr: "Unrecognized flag" };
+            return { exitCode: 0, stdout: pairingOutput, stderr: "" };
+          },
+        };
+        const pairing = await mintChatPairing(entry, environment, {
+          subject: null,
+          username: "example",
+        });
+        return { pairing, calls };
+      };
+      const answer = (stdout: string, exitCode = 0) => ({
+        exitCode,
+        stdout,
+        stderr: "",
+      });
+      const offered = (value: unknown) =>
+        answer(JSON.stringify({ version: 1, operatorPairing: value }));
+      expect(await mint(work, offered(true))).toEqual({
+        pairing: { kind: "chat-pairing", credential, expiresAt },
+        calls: ["lazurio capabilities", "lazurio pairing"],
+      });
+      expect(
+        (await mint(work, answer(capabilitiesOutput(true)))).calls,
+      ).toEqual(["lazurio capabilities", "lazurio pairing"]);
+      // Anything but `true`: today's standard pairing.
+      for (const capabilities of [
+        offered(false),
+        offered("true"),
+        offered(1),
+        answer(capabilitiesOutput(false)),
+        // A vanilla upstream T3 Code has no `lazurio` command.
+        answer("", 1),
+        answer("not json"),
+        answer("[true]"),
+        "timeout" as const,
+        new Error("The capabilities could not be asked"),
+      ])
+        expect([
+          capabilities,
+          await mint(work, capabilities as ToolProcessResult | Error),
+        ]).toEqual([
+          capabilities,
+          {
+            pairing: { kind: "chat-pairing", credential, expiresAt },
+            calls: ["lazurio capabilities", "auth pairing --json"],
+          },
+        ]);
+      // A public Environment: the standard pairing, and T3 Code is not even
+      // asked what it offers.
+      expect(await mint(visited, offered(true))).toEqual({
+        pairing: { kind: "chat-pairing", credential, expiresAt },
+        calls: ["auth pairing --json"],
+      });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
     }
   },
 );

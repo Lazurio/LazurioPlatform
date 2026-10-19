@@ -7,6 +7,7 @@ import {
 } from "../src/browser/contract/pure";
 import {
   aloneAddress,
+  handOffNotice,
   menuStep,
   ownTabView,
   pictureKey,
@@ -1105,5 +1106,41 @@ describe("what the view says while no frame is drawn (#392)", () => {
     expect(at(false, true, true)).toBe("connecting");
     expect(at(true, false, false, true)).toBe("hidden");
     expect(at(false, false, true, true)).toBe("hidden");
+  });
+});
+
+// F39's addendum of 2026-10-18 (#504): the page of a person's Lazurio account
+// that the Environment browser's policy blocked is offered in their own
+// browser with one button, never opened inside. The service's address is
+// checked again here, so the button opens only an http or https address.
+describe("the hand-off to the person's own browser", () => {
+  test("offers the blocked page in the person's own browser, in their language", () => {
+    const url = "https://dashboard.lazurio.ai/environments";
+    expect(handOffNotice(url, cs)).toEqual({
+      text: "Tato stránka se otevře jen ve vašem prohlížeči.",
+      open: url,
+      button: "Otevřít ve vašem prohlížeči",
+      title: url,
+    });
+    expect(handOffNotice(url, en)).toEqual({
+      text: "This page opens only in your own browser.",
+      open: url,
+      button: "Open in your browser",
+      title: url,
+    });
+  });
+
+  test("shows nothing for an address the button must never open", () => {
+    for (const url of [
+      "javascript:alert(1)",
+      "file:///etc/passwd",
+      "chrome-error://chromewebdata/",
+      "https://user:secret@auth.lazurio.ai/",
+      "not an address",
+      "",
+      null,
+      42,
+    ])
+      expect(handOffNotice(url, cs), String(url)).toBeNull();
   });
 });

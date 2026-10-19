@@ -91,12 +91,20 @@ test("the agent's words read as the person reads them, in both languages", () =>
   ).toBe("A, B a C");
   expect(fieldList([{ name: "API klíč", secret: true }], cs)).toBe("API klíč");
   expect(itemLine(request, cs)).toBe(
-    "Uloží se do trezoru Prostředí jako položka Fakturace API klient.",
+    "Uloží se do trezoru tohoto Prostředí jako položka Fakturace API klient.",
   );
   expect(itemLine(request, en)).toBe(
-    "It is saved in the Environment's vault as the item Fakturace API klient.",
+    "It is saved in this Environment's vault as the item Fakturace API klient.",
   );
-  expect(requestHref(request)).toBe(`/settings/vault/requests/${id}`);
+  // In the Environment it is shown in, its kind (F28's addendum of
+  // 2026-10-18).
+  expect(itemLine(request, messages("cs", "team"))).toBe(
+    "Uloží se do trezoru tohoto Týmového Prostředí jako položka Fakturace API klient.",
+  );
+  expect(itemLine(request, messages("en", "work"))).toBe(
+    "It is saved in this Work Environment's vault as the item Fakturace API klient.",
+  );
+  expect(requestHref(request)).toBe(`/vault/requests/${id}`);
   // Saved only with every field filled, white space alone is not a value.
   const filled = new Map([
     ["Client ID", "fake-id"],
@@ -124,9 +132,11 @@ test("a refusal says what the person can do; an answered request is read again",
       "Trezor teď neodpovídá. Zkuste to prosím za chvíli.",
     );
   expect(refusalText("not-connected", cs)).toBe(
-    "Trezor Prostředí zatím není připravený.",
+    "Trezor tohoto Prostředí zatím není připravený.",
   );
   expect(refusalText("no-vault", cs)).toBe("Toto Prostředí zatím trezor nemá.");
+  // A public Organization's Environment: none, not "yet" (DEV-6631).
+  expect(refusalText("no-tailnet", cs)).toBe("Toto Prostředí trezor nemá.");
   expect(refusalText("not-found", cs)).toBe("Žádost neexistuje.");
   expect(refusalText("vault-failed", cs)).toBe(
     "Uložení se nepodařilo. Zkuste to znovu.",

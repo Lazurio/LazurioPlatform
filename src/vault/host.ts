@@ -22,6 +22,7 @@ import { readConnection } from "./connection";
 import {
   connectionDirectory,
   personalVaultContextOf,
+  personalVaultName,
   type VaultContext,
   type VaultEnvironmentKind,
   type VaultNeedsConnection,
@@ -130,7 +131,10 @@ export async function readVaultContext(
     return personalVaultContextOf({ handover, connection }) ?? own;
   if (pilot !== null && (await pilotConnected(input.directory, pilot)))
     return pilot;
-  return Object.freeze({ kind: "needs-connection" });
+  return Object.freeze({
+    kind: "needs-connection",
+    name: personalVaultName(handover.owner.github_login),
+  });
 }
 
 /** "Používají agenti" on for the vault in one Folder, at its current

@@ -4,8 +4,14 @@ import {
   parseShell,
   parseShellAccount,
   type Shell,
+  type ShellEnvironmentKind,
 } from "../shell/contract";
-import { defineShellElements, provideShell } from "../shell/elements";
+import {
+  defineShellElements,
+  guideAttention,
+  provideGuides,
+  provideShell,
+} from "../shell/elements";
 import { shellMessages } from "../shell/messages";
 import { environmentName, switchTabs } from "../shell/view";
 import { type AiReading, parseAiAnswer } from "../tools/ai";
@@ -52,19 +58,26 @@ import {
   startSection,
   type TourFacts,
 } from "./first-run";
+import { type PageHelpId, pageGuide, pageHelpStates } from "./guides";
 import { createIntegrationsPanel } from "./integrations-panel";
 import { createColumn, keepCornerFree } from "./layout";
 import { environmentFacts, type Fact, type MachineView } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
+import { moduleCopy } from "./module-view";
+import { createHelpVideo } from "./page-help";
+import { isPublicEnvironment, publicRoute } from "./public-environment";
 import { createRecoveryPanel } from "./recovery-panel";
 import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
-import { routeFrame, settingsPath } from "./routes";
+import { type PageRoute, routeFrame, settingsPath } from "./routes";
 import { createShell } from "./shell";
 import { createSshPanel } from "./ssh-panel";
 import { keyGroups, parseSshOverview } from "./ssh-view";
 import { createStartPanel, type StartVaultRow } from "./start-panel";
-import { startCount } from "./start-view";
+import { demoModule, demoStartView, startCount } from "./start-view";
+import { createThemePanel } from "./theme-panel";
+import { withAppsTheme } from "./theme-view";
 import { createToolsPanel } from "./tools-panel";
+import type { ToolGuideTargets } from "./tools-view";
 import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
 import { fill, pillView, pillVisible } from "./update-view";
@@ -75,6 +88,7 @@ import {
   parseVaultMembership,
   parseVaultPage,
   type VaultPagePerson,
+  vaultInApps,
   vaultPageView,
 } from "./vault-page-view";
 import { createVaultRequestsPanel } from "./vault-requests-panel";
@@ -140,7 +154,12 @@ const controls = {
 // none of them again; a workstation's page carries none and reads them.
 const boot = parseBoot(document.getElementById(bootElementId)?.textContent);
 let locale: "cs" | "en" = boot?.locale ?? "en";
-let copy = messages(locale);
+// The catalog names the kind of this Environment wherever a text is about it
+// (decision F28's addendum of 2026-10-18): the kind its shell document names,
+// none until that is known.
+const kindOf = (document: Shell | null): ShellEnvironmentKind | null =>
+  document === null ? null : (currentEnvironment(document)?.kind ?? null);
+let copy = messages(locale, kindOf(boot?.shell ?? null));
 // The recorded entry's public parts (`GET /api/entry`); null on a workstation
 // and until read. The pairing of Chat and Automate, the tiles' module
 // origins and the Recovery page's T3 Code link.
@@ -153,12 +172,86 @@ let chatTakesPrompts = false;
 // this Environment's `/.lazurio/shell.json`, which the page reads with its
 // own credential and hands over (the forks let the elements read it). The
 // boot document's is handed over before the elements are defined, so they
-// draw with the page's first paint.
+// draw with the page's first paint. It is handed over with the
+// Environment's theme as Apps shows it, light only (root decision 0208,
+// theme-view.ts), into its place after the page's own tokens: the bundler
+// links them at the end of <head>, so the place is there too. A hosted page
+// carries it filled (boot-document.ts); a workstation's gets it here, empty,
+// before the shell declares anything.
 let shellDocument: Shell | null = boot?.shell ?? null;
-if (shellDocument !== null) provideShell(shellDocument);
+if (document.querySelector("style[data-lazurio-environment-theme]") === null) {
+  const place = document.createElement("style");
+  place.dataset.lazurioEnvironmentTheme = "";
+  document.head.append(place);
+}
+if (shellDocument !== null) provideShell(withAppsTheme(shellDocument));
 defineShellElements();
 const columnHead = document.querySelector<HTMLElement>("#column-head");
 const rail = document.querySelector<HTMLElement>("#rail");
+// The shell's guide (decision F56 and its addendum of 2026-10-18,
+// guides.ts): the "?" right after the page's heading (the header's on
+// Settings, Soubory and Trezor; the Apps home's and Integrace's in their own
+// heads) and the explanations of the page shown, in the page's language and
+// chosen by what the page knows; none in Recovery mode. Where Trezor's "?"
+// opens the approved video instead, the page plays it in place
+// (page-help.ts).
+const pageHelps = Object.fromEntries(
+  (["page-help", "catalog-help", "integrations-page-help"] as const).map(
+    (id) => [id, document.querySelector<HTMLButtonElement>(`#${id}`)],
+  ),
+) as Readonly<Record<PageHelpId, HTMLButtonElement | null>>;
+const buddy = document.querySelector<HTMLElement>("#buddy");
+// Recovery mode ends the guide for the page's life (`enterRecovery`).
+let guideOff = false;
+/** What Settings → Nástroje's "?" can point at, as the tools panel last
+ * drew it; null until the tools are read (`tools`'s `drawn`). */
+let toolTargets: ToolGuideTargets | null = null;
+/** The "?" of the page now shown when it opens a video (Trezor's). */
+let videoHelp: HTMLButtonElement | null = null;
+function drawGuide(route: PageRoute) {
+  const guide = pageGuide(
+    route,
+    {
+      kind: kindOf(shellDocument),
+      locale,
+      composio: integrations.composio(),
+      vault: vaultPage.facts,
+      // What Začínáme shows here, as its navigation decides (`firstRun`).
+      start: isPublicEnvironment(entry)
+        ? "demo"
+        : profileState === null
+          ? null
+          : signsInAsPerson(profileState.preset)
+            ? "basics"
+            : "none",
+      tools: toolTargets,
+    },
+    copy,
+  );
+  provideGuides(guideOff ? null : guide.guides);
+  buddy?.setAttribute("lang", locale);
+  const states = pageHelpStates(route, guide, guideOff);
+  videoHelp = null;
+  for (const id of Object.keys(pageHelps) as PageHelpId[]) {
+    const help = pageHelps[id];
+    if (help === null) continue;
+    const state = states[id];
+    help.hidden = state.hidden;
+    if (state.plays !== null) help.dataset.guideHelp = state.plays;
+    else delete help.dataset.guideHelp;
+    if (state.controls !== null) {
+      videoHelp = help;
+      help.setAttribute("aria-controls", state.controls);
+      help.setAttribute("aria-expanded", String(vaultVideo.open));
+    } else {
+      help.removeAttribute("aria-controls");
+      help.removeAttribute("aria-expanded");
+    }
+    help.setAttribute("aria-label", copy.pageHelp);
+    help.title = copy.pageHelp;
+  }
+  if (videoHelp === null) vaultVideo.close();
+}
 // The documentation of the Launchpad's "Guide" (the root Launchpad's
 // `guideDocumentationUrl`), in the page's language.
 const guide = document.querySelector<HTMLAnchorElement>("#catalog-guide");
@@ -206,12 +299,24 @@ async function readShell() {
       JSON.stringify(parsed) === JSON.stringify(shellDocument);
     shellDocument = parsed;
     if (same) return;
-    provideShell(parsed);
+    provideShell(withAppsTheme(parsed));
+    // A kind known only now (a workstation reads its document) names itself
+    // in the page's words once they were written.
+    const named = messages(locale, kindOf(parsed));
+    if (named !== copy) {
+      copy = named;
+      if (labelled) relabel();
+    }
     catalog.render();
+    // A theme changed elsewhere (`lazurio theme`, another tab) is shown in
+    // Settings too.
+    theme.follow(parsed.theme);
   } catch {
     // The rail stays empty; the page itself works without it.
   } finally {
     shellRead = true;
+    // The kind the explanations are chosen by may be known only now.
+    if (framed) drawGuide(shell.route());
     drawMachine();
     firstRun();
     showWhenDrawn();
@@ -233,12 +338,20 @@ const catalog = createCatalogPanel({
   setupAction: (action) => setupAction(action),
   post: (path, body) => post(path, body),
   get: (path) => get(path),
-  copy: () => copy,
+  // A Team Environment's refusals name the Team's access, not a person's.
+  copy: () =>
+    moduleCopy(
+      copy,
+      shellDocument !== null &&
+        currentEnvironment(shellDocument)?.kind === "team",
+    ),
   route: () => shell.route(),
   navigate: (path) => shell.navigate(path),
   loaded: () => {
     shell.relabel();
     drawMachine();
+    // A public Environment's Začínáme names the module to try.
+    startPanel.render();
     showWhenDrawn();
   },
   entry: () => entry,
@@ -326,6 +439,8 @@ function firstRunFacts(): TourFacts | null {
   if (profileState === null) return null;
   return {
     preset: profileState.preset,
+    // A public Environment's demo onboarding (decision F55), by the entry.
+    ...(isPublicEnvironment(entry) ? { audience: "public" as const } : {}),
     ai: aiFact(),
     github: githubFact(toolsOverview, profileState.revision),
     content: content.fact(),
@@ -354,6 +469,7 @@ function resolveKind() {
     ai: aiFact(),
     code,
     rootAccess: rootAccess?.login === login ? rootAccess.write : null,
+    ...(isPublicEnvironment(entry) ? { audience: "public" as const } : {}),
   });
 }
 function unpreparedCode(code: string): boolean {
@@ -502,11 +618,14 @@ const tour = createTour({
   // Recovery mode has no tour, and it steps aside while the person looks at
   // the Environment browser in the right panel.
   off: () => recoveryMode !== null || browser.isOpen(),
+  // Never two tours at once (decision F56): the guide hears whether the
+  // tour wants attention, and the tour waits while the guide is out.
+  attention: guideAttention,
 });
 // Nastavení → Začínáme (root decision 0201): the basics from the same facts,
-// the vault's state as Nastavení → Trezor reads it, the optional steps and
-// the tour. Its vault and SSH rows are read each time it is shown, and so is
-// whether Nastavení → Trezor gives the steps for Bitwarden ("Trezor v
+// the vault's state as Apps → Trezor reads it, the optional steps and the
+// tour. Its vault and SSH rows are read each time it is shown, and so is
+// whether Apps → Trezor gives the steps for Bitwarden ("Trezor v
 // Bitwardenu", F53's addendum of 2026-10-16). Where the vault is a Lazurio
 // Vaultwarden, that follows the person's membership answer, which the Trezor
 // page asks too: asked here once per page, again only after an answer that
@@ -544,6 +663,14 @@ const startPanel = createStartPanel({
           list: content.list(),
         };
   },
+  // A public Environment's Začínáme (decision F55): Apps, a module and Chat.
+  demo: () =>
+    isPublicEnvironment(entry)
+      ? demoStartView(
+          { chat: chatHref(entry), module: demoModule(catalog.current()) },
+          copy,
+        )
+      : null,
   composio: () => composioFact(toolsOverview),
   sshDevices: () => sshDevices,
   vault: () => vaultRow,
@@ -566,7 +693,13 @@ const startPanel = createStartPanel({
 /** Reads what only Začínáme shows: the vault's state and the devices with
  * SSH, where the Environment has them (not this computer). */
 async function readStartExtras() {
-  if (profileState === null || profileState.preset === "local") {
+  // A public Environment's Začínáme shows neither (decision F55), and it has
+  // no vault to read.
+  if (
+    profileState === null ||
+    profileState.preset === "local" ||
+    isPublicEnvironment(entry)
+  ) {
     vaultRow = null;
     vaultBitwarden = false;
     sshDevices = null;
@@ -600,7 +733,7 @@ async function readStartExtras() {
   vaultBitwarden = offersBitwarden(model, person);
   startPanel.render();
 }
-/** Where the person stands in the vault, as Nastavení → Trezor asks it
+/** Where the person stands in the vault, as Apps → Trezor asks it
  * (`POST /api/vault/membership`); "failed" without an answer, as there. */
 async function readVaultPerson(): Promise<VaultPagePerson> {
   try {
@@ -617,8 +750,34 @@ function openAiStep() {
     shell.navigate(settingsPath("start"));
   startPanel.focusAi();
 }
+// What a public Environment does not have (decision F55): the page's
+// stylesheet hides Integrace and Trezor in the Apps column, Nástroje in the
+// settings navigation and Začínáme's "Zkontrolovat znovu" while `<html
+// data-audience="public">` says so; the router shows Apps and Settings in
+// place of the first three.
+function drawAudience() {
+  if (isPublicEnvironment(entry))
+    document.documentElement.dataset.audience = "public";
+  else delete document.documentElement.dataset.audience;
+}
+drawAudience();
 const startNav = document.querySelector<HTMLElement>("#start-nav");
 const startCountNode = document.querySelector<HTMLElement>("#start-count");
+// Trezor in the Apps column (F53's addendum of 2026-10-18): only where this
+// Environment has a vault, as the server read it for the first paint (the
+// boot document's `vaultInApps`, F53's addendum of 2026-10-18 (3)), which
+// the served page already shows; a page that carries none by its preset,
+// never on this computer. Marked while its page shows.
+const vaultNav = document.querySelector<HTMLElement>("#vault-nav");
+const vaultOpen = document.querySelector<HTMLAnchorElement>("#vault-open");
+function drawVaultNav() {
+  if (vaultNav !== null)
+    vaultNav.hidden = !vaultInApps(
+      boot?.vaultInApps ?? null,
+      profileState?.preset ?? null,
+    );
+}
+drawVaultNav();
 // The shell document the elements were last given, with the page's own
 // `setup`.
 let shellProvided: string | null = null;
@@ -635,7 +794,10 @@ function firstRun() {
   if (line !== lineDrawn) catalog.render();
   if (startNav !== null)
     startNav.hidden =
-      profileState !== null && !signsInAsPerson(profileState.preset);
+      profileState !== null &&
+      !signsInAsPerson(profileState.preset) &&
+      !isPublicEnvironment(entry);
+  drawVaultNav();
   const count = facts === null ? null : startCount(facts);
   if (startCountNode !== null) {
     startCountNode.hidden = count === null;
@@ -643,6 +805,8 @@ function firstRun() {
   }
   startPanel.render();
   provideOwnSetup(facts);
+  // What Začínáme's "?" plays follows the profile and the entry.
+  drawGuide(shell.route());
   tour.update();
   takeStart();
 }
@@ -655,6 +819,7 @@ function provideOwnSetup(facts: TourFacts | null) {
   if (facts.github === "unknown") return;
   const setup = shellSetup({
     preset: profileState.preset,
+    audience: facts.audience,
     ai: facts.ai,
     github: facts.github,
     list: content.list(),
@@ -665,7 +830,7 @@ function provideOwnSetup(facts: TourFacts | null) {
   const drawn = JSON.stringify(next);
   if (drawn === shellProvided) return;
   shellProvided = drawn;
-  provideShell(next);
+  provideShell(withAppsTheme(next));
 }
 // A start request (`#lazurio-start=…`, or a button of the line) runs once
 // the page is in its Settings section and knows enough: gh's sign-in opens
@@ -808,6 +973,10 @@ const integrations = createIntegrationsPanel({
     shellDocument !== null && shellDocument.organizations.length === 1
       ? (shellDocument.organizations[0]?.dashboard ?? null)
       : null,
+  // Whether Composio is allowed chooses what Integrace's "?" plays.
+  drawn: () => {
+    if (framed) drawGuide(shell.route());
+  },
 });
 // Settings → Recovery, and in Recovery mode the whole page
 // (docs/recovery.md "The Recovery page"): read on first view, never written.
@@ -846,20 +1015,45 @@ const ssh = createSshPanel({
   },
   origin: () => location.origin,
 });
-// Settings → Vault, Nastavení → Trezor (root decision 0198 point 5): read on
-// first view; the server adds the person the gateway admitted to the vault.
+// Apps → Vault, Apps → Trezor (root decision 0198 point 5, F53's addendum of
+// 2026-10-18): read on first view; the server adds the person the gateway
+// admitted to the vault.
 const vaultPage = createVaultPagePanel({
   get: (path) => get(path),
   post: (path, body) => post(path, body),
   copy: () => copy,
   chat: () => chatHref(entry),
-  shown: () => {
-    const route = framed ? shell.route() : null;
-    return route?.view === "settings" && route.section === "vault";
+  shown: () => (framed ? shell.route().view === "vault" : false),
+  // What it read chooses what Trezor's "?" plays (#499).
+  drawn: () => {
+    if (framed) drawGuide(shell.route());
   },
 });
-// Nastavení → Trezor: the agents' secret requests (decision F54), the
-// section of those that wait and one request's page; read when shown.
+// Trezor's "?" where the approved video of how a vault works is true of
+// this Environment (guides.ts `vaultHelp`): the video in place, under the
+// page's heading (page-help.ts).
+const vaultVideoBox = document.querySelector<HTMLElement>("#vault-video");
+const vaultVideoSlot = document.querySelector<HTMLElement>(
+  "#vault-video-player",
+);
+const vaultVideo =
+  vaultVideoBox === null || vaultVideoSlot === null
+    ? { toggle() {}, close() {}, open: false, render() {} }
+    : createHelpVideo({
+        box: vaultVideoBox,
+        slot: vaultVideoSlot,
+        line: "vault-video-line",
+        name: "vault-overview",
+        title: () => copy.vaultExplainerTitle,
+        copy: () => copy,
+        locale: () => locale,
+      });
+for (const help of Object.values(pageHelps))
+  help?.addEventListener("click", () => {
+    if (help === videoHelp) vaultVideo.toggle(help);
+  });
+// Apps → Trezor: the agents' secret requests (decision F54), the section of
+// those that wait and one request's page; read when shown.
 const vaultRequests = createVaultRequestsPanel({
   get: (path) => get(path),
   post: (path, body) => post(path, body),
@@ -909,6 +1103,11 @@ let framed = false;
 const shell = createShell({
   copy: () => copy,
   displayName: (organization) => catalog.displayName(organization),
+  // A public Environment has no Integrace and no Trezor (decision F55).
+  place: (route) => (isPublicEnvironment(entry) ? publicRoute(route) : route),
+  // Escape is the guide's while it explains a page (decision F56): it
+  // closes the explanation and the page stays.
+  guiding: () => guideAttention.playing() !== null,
   onRoute: (route) => {
     // The switch marks Apps, the gear Settings (the Organization rail).
     columnHead?.setAttribute(
@@ -921,6 +1120,7 @@ const shell = createShell({
     if (framed && (route.view === "home" || route.view === "organization"))
       void catalog.refresh();
     files.show(route);
+    drawGuide(route);
     integrations.show(route);
     if (
       route.view === "settings" &&
@@ -930,13 +1130,10 @@ const shell = createShell({
       void recovery.refresh();
     if (route.view === "settings" && route.section === "ssh" && !ssh.loaded)
       void ssh.refresh();
-    if (
-      route.view === "settings" &&
-      route.section === "vault" &&
-      !vaultPage.loaded
-    )
-      void vaultPage.refresh();
+    if (route.view === "vault" && !vaultPage.loaded) void vaultPage.refresh();
     vaultRequests.show(route);
+    if (route.view === "vault") vaultOpen?.setAttribute("aria-current", "page");
+    else vaultOpen?.removeAttribute("aria-current");
     if (framed && route.view === "settings") {
       // Settings read what only they show the first time they are shown;
       // back in Tento Environment or Začínáme the content is read again, and
@@ -1042,9 +1239,10 @@ function enterRecovery(mode: RecoveryMode) {
   // Nothing of the Folder can be read, its language neither: the browser's.
   if (!loaded) {
     locale = navigator.language.startsWith("cs") ? "cs" : "en";
-    copy = messages(locale);
+    copy = messages(locale, kindOf(shellDocument));
   }
   document.documentElement.dataset.mode = "recovery";
+  guideOff = true;
   relabel();
   shell.pin({ view: "settings", section: "recovery" });
   recovery.enter(mode);
@@ -1065,9 +1263,12 @@ function relabel() {
   if (guide !== null)
     guide.href = `https://documentation.lazurio.ai/${locale === "en" ? "en" : "cs"}/guide/?utm_source=launchpad&utm_medium=product&utm_campaign=guide`;
   shell.relabel();
+  if (framed) drawGuide(shell.route());
   recovery.render();
   ssh.render();
+  theme.render();
   vaultPage.render();
+  vaultVideo.render();
   vaultRequests.relabel();
   files.relabel();
   integrations.relabel();
@@ -1109,10 +1310,11 @@ async function load() {
   const first = !loaded;
   loaded = true;
   const read = current.profile.locale === "cs" ? "cs" : "en";
-  // The words are written again only in another language.
-  const relabelled = !labelled || read !== locale;
+  // The words are written again only in another language or kind.
+  const before = copy;
   locale = read;
-  copy = messages(locale);
+  copy = messages(locale, kindOf(shellDocument));
+  const relabelled = !labelled || copy !== before;
   profileState = {
     preset: current.preset.name,
     revision: current.revision,
@@ -1122,10 +1324,6 @@ async function load() {
   // content operation as a person's work Environment.
   if (!first) void content.refresh();
   renderUpdate();
-  // A Team Environment's folder is the whole Team's, and so are the devices
-  // that sign in to it.
-  files.shared(current.preset.name === "hosted-organization-team");
-  ssh.shared(current.preset.name === "hosted-organization-team");
   if (relabelled) {
     relabel();
     catalog.render();
@@ -1190,13 +1388,22 @@ function whenIdle(task: () => void) {
 // The tools section (decision F18). A change recorded there moves the Folder
 // revision, so a profile preview made before it is no longer valid.
 const tools = createToolsPanel({
+  // What Nástroje's "?" can point at chooses its steps.
+  drawn: (targets) => {
+    toolTargets = targets;
+    if (framed) drawGuide(shell.route());
+  },
   observed: (overview) => {
     // A tool's sign-in changes which apps it connects: Integrace read again.
     const signIns = JSON.stringify(
       overview?.tools.map((tool) => [tool.name, tool.signIn?.state ?? null]) ??
         null,
     );
-    if (toolSignIns !== null && toolSignIns !== signIns)
+    if (
+      toolSignIns !== null &&
+      toolSignIns !== signIns &&
+      !isPublicEnvironment(entry)
+    )
       void integrations.refresh();
     toolSignIns = signIns;
     toolsOverview = overview;
@@ -1221,6 +1428,8 @@ const tools = createToolsPanel({
     controls.apply.disabled = true;
     await load();
   },
+  // A public Environment has no Nástroje (decision F55): nothing to read.
+  absent: () => isPublicEnvironment(entry),
 });
 const voice = voicePanel({
   post,
@@ -1230,6 +1439,47 @@ const voice = voicePanel({
     controls.apply.disabled = true;
     await load();
   },
+});
+// The Environment's theme (root decision 0208): Settings → Obecné → Téma
+// Prostředí. A choice is declared in this page at once and kept in the page's
+// shell document, so the next reading of it changes nothing.
+const theme = createThemePanel({
+  get,
+  post,
+  copy: () => copy,
+  apply: (chosen) => {
+    if (shellDocument === null) return;
+    shellDocument = { ...shellDocument, theme: chosen };
+    provideShell(withAppsTheme(shellDocument));
+  },
+  // A public Environment's theme is fixed (decision F55): no group.
+  fixed: () => isPublicEnvironment(entry),
+  shared: () =>
+    shellDocument !== null &&
+    currentEnvironment(shellDocument)?.kind === "team",
+});
+// The page shown again (another tab, another app, `lazurio theme` meanwhile):
+// the shell document read again, at most once a second, never by a timer.
+let shellRereadAt = Number.NEGATIVE_INFINITY;
+function rereadShell() {
+  if (document.hidden || recoveryMode !== null) return;
+  const now = Date.now();
+  if (now - shellRereadAt < 1000) return;
+  shellRereadAt = now;
+  void readShell();
+}
+document.addEventListener("visibilitychange", rereadShell);
+window.addEventListener("focus", rereadShell);
+// Another tab of this origin chose a theme (the shell followed it at once):
+// this page's document and Settings follow too.
+document.addEventListener("lazurio-theme", (event) => {
+  const change = (event as CustomEvent<{ revision?: unknown } | null>).detail;
+  if (
+    change !== null &&
+    typeof change?.revision === "number" &&
+    change.revision !== shellDocument?.theme?.revision
+  )
+    rereadShell();
 });
 // Začínáme's "Zkontrolovat znovu": every fact asked again now, the CLIs and
 // gh's sign-in included.
@@ -1308,6 +1558,10 @@ controls.apply.addEventListener("click", async () => {
 // (`R:launchpad/public/app.js:2257-2281`); when there is none (no T3
 // launcher, a failed call) it follows the plain origin, where the app itself
 // asks an unpaired browser to pair. Apps on this origin moves within the page.
+// Since the decision of 2026-10-17 T3 Code pairs an unpaired browser itself
+// (`GET /.lazurio/chat/pairing`); Chat's click still pairs on the way, which
+// is harmless and what older T3 Code builds need. It can go once every
+// Environment's T3 Code pairs itself.
 const pairing: Readonly<
   Record<
     string,
@@ -1444,6 +1698,10 @@ async function readEntry() {
     recovery.render();
     catalog.render();
     browser.render();
+    // Whether it is a public Environment, which the page may learn only now.
+    drawAudience();
+    shell.replace();
+    firstRun();
   }
   await handoff;
 }
@@ -1465,17 +1723,11 @@ if (boot === null) {
   else void readPromptHandoff();
   if (shellDocument === null) void readShell();
   if (boot.catalog === null) void catalog.refresh();
-  files.shared(
-    shellDocument !== null &&
-      currentEnvironment(shellDocument)?.kind === "team",
-  );
-  ssh.shared(
-    shellDocument !== null &&
-      currentEnvironment(shellDocument)?.kind === "team",
-  );
   relabel();
   browser.render();
 }
+// The themes for Settings → Obecné; nothing to read on a public Environment.
+void theme.load();
 load().catch(() => {
   loadFailed = true;
   controls.status.textContent = copy.loadFailed;

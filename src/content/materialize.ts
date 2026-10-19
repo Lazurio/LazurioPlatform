@@ -9,8 +9,9 @@ import { sameRepository } from "./model";
 
 // Materialization of one ABSENT repository (docs/content-sync.md): clone into
 // a temporary sibling of the destination on the same filesystem, verify the
-// clone (remote identity, branch `main`, the inspected commit and, for an
-// Organization root, its declaration), then publish it with a no-replace
+// clone (remote identity, its branch, `main` unless a repository database
+// declares another, the inspected commit and, for an Organization root, its
+// declaration), then publish it with a no-replace
 // rename. An occupied destination is never touched. An interrupted run leaves
 // only its own temporary sibling, recognized by its exact name and marker and
 // removed only by this operation, under the content lock, the next time it
@@ -94,10 +95,19 @@ export type MaterializeRequest = Readonly<{
   repository: string;
   url: string;
   credentialHelper?: string | undefined;
+  /** The branch cloned and verified: a repository database's declared one
+   * (often `v3`). Absent: `main`. */
+  branch?: string | undefined;
   git: ContentGit;
   /** More verification of the clone before it is published (the
    * declaration of an Organization root): a failure code, or null. */
   verify?: (checkout: string) => Promise<string | null>;
+  /** The destination's final name, read from the verified clone: on a public
+   * Environment an Organization root's repository name as its own
+   * declaration spells it (decision F55's addendum of 2026-10-17), where the
+   * request only knows the handover's lowercase slug. It may differ from
+   * `name` by letter case only. Absent: `name`. */
+  finalName?: (checkout: string) => Promise<string>;
 }>;
 
 export type MaterializeResult =
@@ -114,9 +124,11 @@ export type MaterializeResult =
     }>;
 
 /** What `fill` makes of a temporary sibling's checkout: ready to publish,
- * with what it learned on the way, or a failure code. */
+ * with what it learned on the way, or a failure code. `name`: the final name
+ * the checkout is published under, when the fill learned its spelling; it
+ * may differ from the requested name by letter case only. */
 export type FillOutcome<T> =
-  | Readonly<{ kind: "ready"; value: T }>
+  | Readonly<{ kind: "ready"; value: T; name?: string }>
   | Readonly<{ kind: "failed"; code: string }>;
 
 export type PublishResult<T> =
@@ -131,7 +143,10 @@ export type PublishResult<T> =
  * into place with a rename that never replaces anything. A clone of
  * `materializeRepository`, and a new module of `lazurio module create`
  * (decision F52). An exception of `fill` is `publish-failed`; the temporary
- * sibling is removed in every case.
+ * sibling is removed in every case. A final name the fill gives (`FillOutcome`)
+ * must be a destination name that differs from `name` by letter case only,
+ * and is checked again for an occupant, in any letter case, before the
+ * rename: the temporary sibling and its leftovers keep the requested name.
  */
 export async function publishNewCheckout<T>(
   request: Readonly<{
@@ -169,7 +184,19 @@ export async function publishNewCheckout<T>(
     const checkout = join(temporary, "checkout");
     const filled = await request.fill(checkout);
     if (filled.kind === "failed") return filled;
-    const destination = join(request.parent, request.name);
+    const name = filled.name ?? request.name;
+    if (name !== request.name) {
+      if (
+        !isDestinationName(name) ||
+        name.toLowerCase() !== request.name.toLowerCase()
+      )
+        return { kind: "failed", code: "destination-invalid" };
+      // The requested name was free in any letter case before the fill; an
+      // entry that appeared meanwhile in another one stays untouched, also
+      // on a case-sensitive filesystem, where the kernel would not see it.
+      if (await occupied(request.parent, name)) return { kind: "occupied" };
+    }
+    const destination = join(request.parent, name);
     // The kernel decides: an entry that appeared meanwhile stays untouched.
     if (renameNoReplace(checkout, destination) === "exists")
       return { kind: "occupied" };
@@ -190,23 +217,30 @@ export async function materializeRepository(
     parent: request.parent,
     name: request.name,
     fill: async (checkout): Promise<FillOutcome<string>> => {
+      const branch = request.branch ?? "main";
       const cloned = await request.git.clone({
         url: request.url,
         directory: checkout,
-        branch: "main",
+        branch,
         credentialHelper: request.credentialHelper,
       });
       if (cloned !== "cloned") return { kind: "failed", code: "clone-failed" };
       const observed = await request.git.inspect(checkout);
       if (
         observed.kind !== "checkout" ||
-        observed.branch !== "main" ||
+        observed.branch !== branch ||
         !sameRepository(observed.repository, request.repository)
       )
         return { kind: "failed", code: "checkout-unexpected" };
       const refused = (await request.verify?.(checkout)) ?? null;
       if (refused !== null) return { kind: "failed", code: refused };
-      return { kind: "ready", value: observed.commit };
+      return request.finalName === undefined
+        ? { kind: "ready", value: observed.commit }
+        : {
+            kind: "ready",
+            value: observed.commit,
+            name: await request.finalName(checkout),
+          };
     },
   });
   return result.kind === "published"

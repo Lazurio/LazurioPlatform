@@ -394,6 +394,29 @@ posixTest(
   60_000,
 );
 
+// Issue #413: the Launchpad's start peeks without waiting (`void
+// personalspace.peek(folder)`); what waits for the start's background reads
+// (`settled()`) must also wait for the decision that peek starts once it has
+// read the layout, not only for decisions already being made.
+posixTest(
+  "settled waits for the decision a peek not awaited starts after it has read the layout",
+  async () => {
+    world = await createWorld();
+    const { folder, directory } = await workstation(
+      "example_GEN3",
+      "example/example_GEN3",
+    );
+    const gh = changingGitHub(ownPersonalspace);
+    const holder = createPersonalspaceHolder(() =>
+      contentHost(world as World, gh.github),
+    );
+    void holder.peek(folder);
+    await holder.settled();
+    expect(gh.count("viewer")).toBe(1);
+    expect(await holder.peek(folder)).toEqual(heldAt(directory));
+  },
+);
+
 posixTest(
   "peek never waits for GitHub: unverified until the first answer, then the last answer, asked again in the background when it is old or GitHub did not answer",
   async () => {

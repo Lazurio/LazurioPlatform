@@ -6,12 +6,15 @@ import { join } from "node:path";
 // 2026-10-12, evening; the wireframe's apps-corner). One Browser toggle,
 // which browser-panel.ts collects once by its class as it starts, shows
 // where the panel is offered and presses while the panel is open, stands in
-// the top right corner after the page's help link. The corner is the page's,
+// the top right corner after the Apps home's Guide. The corner is the page's,
 // left of the panel, outside every view and head, so the toggle is drawn
 // wherever the page is, stays in view beside the open panel, and the focus
-// can always come back to it. The column's toggle stands in the column's
-// head, one at the page's top left while the column is hidden, and the panel
-// strip's while the page steps aside. Page heads hold only their titles, and
+// can always come back to it. The column's toggle stands in the band on top
+// of the column with the Lazurio lockup (Matěj 2026-10-17), one at the page's
+// top left while the column is hidden, and the panel strip's while the page
+// steps aside. Page heads hold only their titles and the "?" right after
+// them (decision F56, tests/launchpad-guide.test.ts): Integrace's "Jak to
+// funguje" moved into the guide's card (its addendum of 2026-10-18), and
 // Integrace keep their search and refresh with the tabs. How it looks and
 // moves, and the focus, are checked in a browser, not here (root decision
 // 0178).
@@ -116,18 +119,16 @@ test("one Browser toggle, in the page's top right corner, as browser-panel.ts fi
   }
 });
 
-test("the corner holds the page's help link by its frame: the Guide on the Apps home and Jak to funguje on Integrace, then the toggle", () => {
+test("the corner holds the Guide on the Apps home and Integrace's Composio link, then the toggle; Jak to funguje is the guide's card's now", () => {
   const corner = byId("page-corner");
   expect(
     childrenOf(corner).map(
       (node) => node.attributes.get("id") ?? classes(node).join(" "),
     ),
-  ).toEqual([
-    "catalog-guide",
-    "integrations-composio",
-    "integrations-help",
-    "ghost browser-toggle",
-  ]);
+  ).toEqual(["catalog-guide", "integrations-composio", "ghost browser-toggle"]);
+  expect(
+    elements.some((node) => node.attributes.get("id") === "integrations-help"),
+  ).toBe(false);
   // "Aplikace v Composiu" beside Jak to funguje (decision F42, addendum of
   // 2026-10-14): Integrace only, a new tab of the person's browser, hidden
   // until the reading carries Composio's Apps (integrations-panel.ts render).
@@ -141,7 +142,6 @@ test("the corner holds the page's help link by its frame: the Guide on the Apps 
   expect(says(composio, "integrationsComposioApps")).toBe(true);
   for (const [id, frame, word] of [
     ["catalog-guide", "catalog", "appsGuide"],
-    ["integrations-help", "integrations", "integrationsHelp"],
   ] as const) {
     const link = byId(id);
     expect(link.tag).toBe("a");
@@ -152,7 +152,7 @@ test("the corner holds the page's help link by its frame: the Guide on the Apps 
   }
 });
 
-test("page heads hold only their titles: no toggle, help link, search or refresh in the head of any page", () => {
+test("page heads hold only their titles and their '?': no toggle, help link, search or refresh in the head of any page", () => {
   const heads = [
     byId("catalog-head"),
     only("market-head"),
@@ -163,19 +163,16 @@ test("page heads hold only their titles: no toggle, help link, search or refresh
     (node) =>
       classes(node).includes("column-toggle") ||
       classes(node).includes("browser-toggle") ||
-      [
-        "catalog-guide",
-        "integrations-help",
-        "integrations-search",
-        "integrations-refresh",
-      ].includes(node.attributes.get("id") ?? ""),
+      ["catalog-guide", "integrations-search", "integrations-refresh"].includes(
+        node.attributes.get("id") ?? "",
+      ),
   );
-  expect(controls).toHaveLength(8);
+  expect(controls).toHaveLength(7);
   for (const head of heads)
     for (const control of controls) expect(inside(control, head)).toBe(false);
 });
 
-test("the column's toggle stands in its head, under the shell's column head, and one at the page's top left while it is hidden", () => {
+test("the column starts with its band, the toggle and the Lazurio lockup, above the shell's column head; one toggle at the page's top left while it is hidden", () => {
   const toggles = withClass("column-toggle");
   expect(toggles).toHaveLength(3);
   for (const toggle of toggles) {
@@ -183,14 +180,36 @@ test("the column's toggle stands in its head, under the shell's column head, and
     expect(toggle.attributes.get("aria-controls")).toBe("sidebar");
     expect(toggle.attributes.get("aria-expanded")).toBe("true");
   }
-  // Right under <lazurio-column-head>, beside it in the column: the shell's
-  // column head offers no slot and takes nothing of the host.
-  const column = childrenOf(byId("sidebar"));
+  // The band on top of the column (Matěj 2026-10-17), then the shell's
+  // column head right under it: the head offers no slot and takes nothing of
+  // the host, so the band is the page's own, beside it in the column. It is
+  // the same on every route: inside no view.
+  const band = only("column-band");
   const head = byId("column-head");
   expect(head.tag).toBe("lazurio-column-head");
-  expect(column[column.indexOf(head) + 1]).toBe(
-    toggles.find((toggle) => toggle.parent === byId("sidebar")),
+  expect(childrenOf(byId("sidebar")).slice(0, 2)).toEqual([band, head]);
+  expect(band.attributes.has("data-view")).toBe(false);
+  // In it the toggle that hides the column, then the app's name: the design
+  // system's approved lockup, the whole vendored file (its bytes are pinned
+  // by the vendor README), named for screen readers, never the symbol beside
+  // a word (content/brand/logo/logo.md).
+  const inBand = childrenOf(band);
+  expect(inBand).toHaveLength(2);
+  const [toggle, lockup] = inBand as [Element, Element];
+  expect(toggles).toContain(toggle);
+  expect(lockup.tag).toBe("img");
+  expect(classes(lockup)).toEqual(["column-lockup"]);
+  expect(lockup.attributes.get("src")).toBe(
+    "../shell/vendor/lazurio/lockup-color.svg",
   );
+  expect(lockup.attributes.get("alt")).toBe("Lazurio");
+  expect(
+    elements.filter(
+      (node) =>
+        node.tag === "img" &&
+        (node.attributes.get("src") ?? "").includes("symbol-color"),
+    ),
+  ).toEqual([]);
   // At the page's top left, while the column is hidden.
   expect(
     toggles.filter((toggle) => inside(toggle, only("page-corner-start"))),

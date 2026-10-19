@@ -27,7 +27,9 @@ import { repositoryPattern, sameRepository } from "./model";
 // repository: when it does not declare itself the root, resolution fails
 // (`root-declaration-mismatch`) instead of trying another. A discovery source
 // that finds nothing passes to the next. The interim pair name-candidate and
-// scan goes when the Dashboard source is wired; the verification stays.
+// scan goes when the Dashboard source is wired; the verification stays. A
+// public Environment, which has no GitHub identity, asks GitHub nothing
+// before the clone (`resolveAnonymousRoot`).
 
 export const rootSources = [
   "explicit",
@@ -98,6 +100,94 @@ export function declaresRoot(
   }
 }
 
+const failed = (
+  code: Extract<RootResolution, { kind: "failed" }>["code"],
+  detail: string,
+  candidates?: readonly string[],
+): RootResolution =>
+  Object.freeze({
+    kind: "failed",
+    code,
+    detail,
+    ...(candidates === undefined ? {} : { candidates }),
+  });
+
+/** Whether a named root is `<owner>/<repository>` of `login`. */
+const namesRootOf = (repository: string, login: string) =>
+  repositoryPattern.test(repository) &&
+  repository.split("/")[0]?.toLowerCase() === login.toLowerCase();
+
+const namedElsewhere = (login: string) =>
+  failed(
+    "root-owner-mismatch",
+    `the named root must be <owner>/<repository> of ${login}`,
+  );
+
+type RootInput = Readonly<{
+  folder: string;
+  login: string;
+  catalog: Catalog;
+  git: ContentGit;
+  root?: string | undefined;
+}>;
+
+/** The root of `login` the Folder already holds, the ambiguity of more than
+ * one, or null when it holds none. */
+async function heldRoot(input: RootInput): Promise<RootResolution | null> {
+  const lower = input.login.toLowerCase();
+  const held = input.catalog.organizations.filter(
+    (entry) => entry.forgeLogin?.toLowerCase() === lower,
+  );
+  if (held.length > 1)
+    return Object.freeze({
+      kind: "ambiguous-in-folder",
+      directories: Object.freeze(held.map((entry) => entry.directory)),
+    });
+  const [entry] = held;
+  if (entry === undefined) return null;
+  const directory = join(input.folder, "organizations", entry.directory);
+  const observed = await input.git.inspect(directory);
+  return Object.freeze({
+    kind: "present",
+    directory,
+    name: entry.directory,
+    slug: entry.organization,
+    repository: observed.kind === "checkout" ? observed.repository : null,
+  });
+}
+
+/** The root of `login` on a public Environment (root decision 0204 point 5,
+ * decision F55's addendum of 2026-10-17), which has no GitHub identity to
+ * read a declaration with before the clone: the root the Folder holds, else
+ * the operator's named root (`explicit`), else the name candidate
+ * `<login>/<login>_GEN3`. Here `resolved` is only the candidate: the install
+ * verifies the clone's own declaration before it publishes it
+ * (`root-declaration-mismatch`), as it does for every source, and a
+ * repository anonymous Git cannot read fails its clone. No scan and no
+ * Dashboard: a scan would read the Organization's listing and one
+ * declaration per repository through GitHub's unauthenticated API, which
+ * allows 60 requests an hour per address. Reads nothing of GitHub. */
+export async function resolveAnonymousRoot(
+  input: RootInput,
+): Promise<RootResolution> {
+  const held = await heldRoot(input);
+  if (held !== null) return held;
+  const { login } = input;
+  if (input.root !== undefined)
+    return namesRootOf(input.root, login)
+      ? Object.freeze({
+          kind: "resolved",
+          source: "explicit",
+          repository: input.root,
+        })
+      : namedElsewhere(login);
+  return Object.freeze({
+    kind: "resolved",
+    source: "name-candidate",
+    repository: `${login}/${login}_GEN3`,
+  });
+}
+
 type Verdict = "declares" | "does-not-declare" | "unavailable";
 
 async function verdict(
@@ -130,37 +220,8 @@ export async function resolveOrganizationRootRepository(
   const { login, github } = input;
   const lower = login.toLowerCase();
   // An Organization the Folder already holds is its own root.
-  const held = input.catalog.organizations.filter(
-    (entry) => entry.forgeLogin?.toLowerCase() === lower,
-  );
-  if (held.length > 1)
-    return Object.freeze({
-      kind: "ambiguous-in-folder",
-      directories: Object.freeze(held.map((entry) => entry.directory)),
-    });
-  const [entry] = held;
-  if (entry !== undefined) {
-    const directory = join(input.folder, "organizations", entry.directory);
-    const observed = await input.git.inspect(directory);
-    return Object.freeze({
-      kind: "present",
-      directory,
-      name: entry.directory,
-      slug: entry.organization,
-      repository: observed.kind === "checkout" ? observed.repository : null,
-    });
-  }
-  const failed = (
-    code: Extract<RootResolution, { kind: "failed" }>["code"],
-    detail: string,
-    candidates?: readonly string[],
-  ): RootResolution =>
-    Object.freeze({
-      kind: "failed",
-      code,
-      detail,
-      ...(candidates === undefined ? {} : { candidates }),
-    });
+  const held = await heldRoot(input);
+  if (held !== null) return held;
   const unavailable = () =>
     failed(
       "github-unavailable",
@@ -175,14 +236,7 @@ export async function resolveOrganizationRootRepository(
   for (const [source, ask] of named) {
     const repository = await ask();
     if (repository === null) continue;
-    if (
-      !repositoryPattern.test(repository) ||
-      repository.split("/")[0]?.toLowerCase() !== lower
-    )
-      return failed(
-        "root-owner-mismatch",
-        `the named root must be <owner>/<repository> of ${login}`,
-      );
+    if (!namesRootOf(repository, login)) return namedElsewhere(login);
     const answer = await verdict(github, login, repository);
     if (answer === "unavailable") return unavailable();
     if (answer === "does-not-declare")

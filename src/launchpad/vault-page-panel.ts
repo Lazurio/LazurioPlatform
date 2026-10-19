@@ -1,4 +1,7 @@
+import type { BitwardenRegion } from "../vault/endpoints";
 import type { VaultStatus } from "../vault/flow";
+import { createGuideVideo } from "./guide-video";
+import type { VaultGuideFacts } from "./guides";
 import type { MessageKey } from "./messages";
 import {
   type BitwardenGuide,
@@ -6,9 +9,13 @@ import {
   bitwardenGuide,
   bitwardenReveal,
   connectionFilled,
+  connectionPictures,
   connectionRefusalText,
+  disconnectedLine,
+  inviteRefusalText,
   parseVaultMembership,
   parseVaultPage,
+  signUpLinks,
   type VaultPageAction,
   type VaultPageModel,
   type VaultPagePerson,
@@ -25,24 +32,32 @@ type Copy = Readonly<Record<MessageKey, string>>;
 type Answer = Promise<{ value: unknown; ok: boolean }>;
 
 // Settings → Vault, Nastavení → Trezor (root decision 0198 point 5): the
-// rule, the Environment's vault with its state and the way into it, drawn
+// Environment's vault with its state and the way into it, drawn
 // from `vault-page-view.ts`. On first view the page reads the vault's state
 // as recorded here (`GET /api/vault`), then asks the vault itself (the
 // Tools row's refresh) and where the person stands in it (`POST
 // /api/vault/membership`, which adds them). Every server value is drawn as
 // text; the links lead into the network's own vault, in a new tab. A
 // personal Environment whose person has not connected their own Bitwarden
-// shows the form instead (root decision 0203 point 7): its values go from
-// the inputs into the one `POST /api/vault/connect` and nowhere else (no
-// storage, address or log), the secret ones are emptied as they are sent
-// and the rest once connected; the page then follows the setup that
-// creates the vault, as the Tools row does. Under the vault, "V Codex
+// shows its section instead (root decision 0203 point 7; F53's amendment
+// of 2026-10-16, (2)): the picture of the vault it gets, two steps with
+// Bitwarden's own screens in the page's language (the sign-up of
+// bitwarden.eu, or of bitwarden.com on request) and the fields, whose values
+// go from the inputs into the one `POST /api/vault/connect` and nowhere
+// else (no storage, address or log); the secret ones are emptied as they
+// are sent and the rest once connected, and the page then follows the setup
+// that creates the vault, as the Tools row does. Connected, the person may
+// ask to be invited (`POST /api/vault/invitee`), and the answer says where
+// they stand. Under the vault, "V Codex
 // Desktopu a ve vašem prohlížeči": the steps that add the vault to the
 // Bitwarden extension (F53's addendum of 2026-10-16), with the extension's
 // page in the Chrome Web Store, the values to paste with their Copy buttons
 // (the server, and the person's own address where the membership answer
 // carries it) and the extension's own screens; Začínáme's "Návod" brings
-// them into view (`revealBitwarden`).
+// them into view (`revealBitwarden`). An Environment without a vault says
+// why in the page's line. The rule and how a vault works are the "?" beside
+// the page's heading (decision F56's addendum of 2026-10-18, guides.ts),
+// chosen from what this panel read (`facts`, `drawn`).
 export function createVaultPagePanel(
   options: Readonly<{
     get: (path: string) => Answer;
@@ -53,6 +68,9 @@ export function createVaultPagePanel(
     /** This Environment's Chat (T3 Code's origin as recorded), or null on a
      * workstation: the guide's button opens it as the shell's Chat does. */
     chat: () => string | null;
+    /** Called after the page is drawn: what its "?" plays may have changed
+     * (`facts`). */
+    drawn?: () => void;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -60,7 +78,6 @@ export function createVaultPagePanel(
     if (!element) throw new Error("Missing vault UI");
     return element;
   };
-  const rule = find<HTMLParagraphElement>("#vault-page-rule");
   const status = find<HTMLParagraphElement>("#vault-page-status");
   const note = find<HTMLParagraphElement>("#vault-page-note");
   const group = find<HTMLElement>("#vault-page-group");
@@ -71,17 +88,35 @@ export function createVaultPagePanel(
   const guide = find<HTMLParagraphElement>("#vault-page-guide");
   const again = find<HTMLButtonElement>("#vault-page-refresh");
   const connectSection = find<HTMLElement>("#vault-connect");
+  const pictureLabel = find<HTMLElement>("#vault-connect-picture-label");
+  const pictureVault = find<HTMLElement>("#vault-connect-picture-vault");
+  const signUp = find<HTMLAnchorElement>("#vault-connect-open");
+  const signUpLabel = find<HTMLSpanElement>("#vault-connect-open-label");
+  const otherRegion = find<HTMLButtonElement>("#vault-connect-other");
   const form = find<HTMLFormElement>("#vault-connect-form");
-  const region = find<HTMLSelectElement>("#vault-connect-region");
   const clientId = find<HTMLInputElement>("#vault-connect-client-id");
   const clientSecret = find<HTMLInputElement>("#vault-connect-client-secret");
   const password = find<HTMLInputElement>("#vault-connect-password");
-  const email = find<HTMLInputElement>("#vault-connect-email");
   const connectError = find<HTMLParagraphElement>("#vault-connect-error");
   const connectSubmit = find<HTMLButtonElement>("#vault-connect-submit");
   const reveals = [
     ...form.querySelectorAll<HTMLButtonElement>("button[data-reveal]"),
   ];
+  // Bitwarden's own screens of the connection's steps, one per picture and
+  // language, bundled with the page; each step's slot shows a copy of the
+  // one in the page's language once the section shows.
+  const shots = [
+    ...connectSection.querySelectorAll<HTMLElement>("[data-shot]"),
+  ];
+  const connectPictures = [
+    ...document.querySelectorAll<HTMLImageElement>(
+      "#vault-connect-pictures img",
+    ),
+  ];
+  const inviteForm = find<HTMLFormElement>("#vault-invite");
+  const inviteEmail = find<HTMLInputElement>("#vault-invite-email");
+  const inviteSubmit = find<HTMLButtonElement>("#vault-invite-submit");
+  const inviteError = find<HTMLParagraphElement>("#vault-invite-error");
   const disconnectBox = find<HTMLDivElement>("#vault-page-disconnect");
   const disconnectButton = find<HTMLButtonElement>("#vault-disconnect");
   const bitwarden = find<HTMLElement>("#vault-bitwarden");
@@ -89,6 +124,16 @@ export function createVaultPagePanel(
   const bitwardenFirst = find<HTMLParagraphElement>("#vault-bitwarden-first");
   const bitwardenSteps = find<HTMLOListElement>("#vault-bitwarden-steps");
   const bitwardenNote = find<HTMLParagraphElement>("#vault-bitwarden-note");
+  // The guide's video above the steps, for an Organization's Lazurio
+  // Vaultwarden, whose steps it shows (guide-video.ts).
+  const bitwardenVideoSlot = find<HTMLDivElement>("#vault-bitwarden-video");
+  const bitwardenVideo = createGuideVideo(bitwardenVideoSlot, {
+    name: "vault-bitwarden",
+    title: () => options.copy().startBitwardenTitle,
+    describedBy: "vault-bitwarden-steps",
+    copy: options.copy,
+    locale: () => (document.documentElement.lang === "cs" ? "cs" : "en"),
+  });
   // The extension's screens, one per picture and language, bundled with the
   // page; a step shows a copy of the one in the page's language.
   const pictures = [
@@ -113,6 +158,16 @@ export function createVaultPagePanel(
   let outcome: VaultStatus | null = null;
   let disconnecting = false;
   let notice: string | null = null;
+  // A disconnect that succeeded in this page: one line says that the vault
+  // stays in the person's Bitwarden until they connect again or the page is
+  // loaded anew (`disconnectedLine`).
+  let disconnected = false;
+  // Whose sign-up step 1 opens: bitwarden.eu unless the person asked for
+  // bitwarden.com; and the invitation: whether it is sent now and why the
+  // last one was refused.
+  let signUpRegion: BitwardenRegion = "eu";
+  let inviting = false;
+  let inviteProblem: string | null = null;
   // The Bitwarden steps as last drawn (a Copy button's word stays while
   // they say the same), and whether they are to be brought into view once
   // shown.
@@ -225,19 +280,26 @@ export function createVaultPagePanel(
   function render() {
     const copy = options.copy();
     again.disabled = loading;
+    const view = vaultPageView(model, person, copy, outcome ?? fresh);
     status.textContent =
       loading && model === null
         ? copy.vaultRowChecking
         : failed
           ? copy.vaultLoadFailed
-          : (notice ?? "");
-    const view = vaultPageView(model, person, copy, outcome ?? fresh);
-    connectSection.hidden = !view.connect;
+          : (notice ?? disconnectedLine(view, disconnected, copy) ?? "");
+    connectSection.hidden = view.connect === null;
+    if (view.connect !== null) drawConnection(view.connect.vault, copy);
     connectSubmit.textContent = connecting
       ? copy.vaultConnectSubmitting
       : copy.vaultConnectSubmit;
     connectSubmit.disabled = connecting || !connectionFilled(values());
     connectError.textContent = problem ?? "";
+    inviteForm.hidden = !view.invite;
+    inviteSubmit.textContent = inviting
+      ? copy.vaultInviteSubmitting
+      : copy.vaultInviteSubmit;
+    inviteSubmit.disabled = inviting || inviteEmail.value.trim() === "";
+    inviteError.textContent = inviteProblem ?? "";
     for (const button of reveals) {
       const input = document.getElementById(button.dataset.reveal ?? "");
       button.textContent =
@@ -250,7 +312,6 @@ export function createVaultPagePanel(
     disconnectButton.textContent = disconnecting
       ? copy.vaultDisconnecting
       : copy.vaultDisconnect;
-    rule.hidden = !view.rule;
     note.hidden = view.note === null;
     note.textContent = view.note ?? "";
     group.hidden = view.row === null;
@@ -263,6 +324,70 @@ export function createVaultPagePanel(
     guide.hidden = !view.guide;
     guide.replaceChildren(...(view.guide ? guideOf(copy) : []));
     drawBitwarden(bitwardenGuide(model, person, copy, view), copy);
+    options.drawn?.();
+  }
+
+  /** The connection's section as the page knows it: the vault's name in its
+   * picture (smaller, then cut, where a long name would run into the
+   * neighbours; whole in the picture's accessible name), step 1's sign-up
+   * of the region chosen with the switch to the other, and Bitwarden's
+   * screens in the page's language, each placed once per language. */
+  function drawConnection(vault: string, copy: Copy) {
+    const pictures = connectionPictures(vault, copy);
+    pictureLabel.textContent = pictures.label;
+    // Fitted once laid out: a hidden page measures nothing.
+    if (pictureVault.dataset.vault !== vault && fitName(pictureVault, vault))
+      pictureVault.dataset.vault = vault;
+    const links = signUpLinks(signUpRegion, copy);
+    signUp.href = links.open.href;
+    signUpLabel.textContent = links.open.label;
+    otherRegion.textContent = links.other.label;
+    const language = document.documentElement.lang === "cs" ? "cs" : "en";
+    for (const slot of shots) {
+      const step = pictures.steps.find(
+        (entry) => entry.name === slot.dataset.shot,
+      );
+      if (step === undefined) continue;
+      const placed = slot.querySelector("img");
+      if (placed !== null && placed.dataset.locale === language) {
+        placed.alt = step.alt;
+        continue;
+      }
+      const source = connectPictures.find(
+        (image) =>
+          image.dataset.picture === step.name &&
+          image.dataset.locale === language,
+      );
+      if (source === undefined) continue;
+      const shot = source.cloneNode(false) as HTMLImageElement;
+      shot.className = "vault-bitwarden-picture";
+      shot.alt = step.alt;
+      slot.replaceChildren(shot);
+    }
+  }
+
+  /** A name in the picture's middle, as wide as its column at most: the
+   * font steps down to 10 px, and a name still too wide is cut with an
+   * ellipsis (the accessible name keeps it whole). Whether it was measured:
+   * a picture not laid out yet (the page hidden) is fitted when it shows. */
+  function fitName(node: HTMLElement, text: string): boolean {
+    const label = node as unknown as SVGTextElement;
+    const widest = 110;
+    label.style.removeProperty("font-size");
+    label.textContent = text;
+    if (label.getComputedTextLength() === 0) return false;
+    for (
+      let size = 12;
+      size >= 10 && label.getComputedTextLength() > widest;
+      size -= 1
+    )
+      label.style.fontSize = `${size}px`;
+    let cut = text;
+    while (cut.length > 1 && label.getComputedTextLength() > widest) {
+      cut = cut.slice(0, -1);
+      label.textContent = `${cut.trimEnd()}…`;
+    }
+    return true;
   }
 
   /** The Bitwarden steps, drawn again only when they say something else, so
@@ -271,6 +396,8 @@ export function createVaultPagePanel(
    * the person moved the focus meanwhile, or forgotten where they will not. */
   function drawBitwarden(steps: BitwardenGuide | null, copy: Copy) {
     bitwarden.hidden = steps === null;
+    bitwardenVideoSlot.hidden = steps?.kind !== "server";
+    bitwardenVideo.render();
     const now = JSON.stringify(steps) + copy.vaultBitwardenCopy;
     if (now !== drawnGuide) {
       drawnGuide = now;
@@ -401,11 +528,9 @@ export function createVaultPagePanel(
   /** The form's values as typed: the master password exactly so. */
   function values(): Record<string, string> {
     return {
-      region: region.value,
       clientId: clientId.value,
       clientSecret: clientSecret.value,
       masterPassword: password.value,
-      email: email.value,
     };
   }
 
@@ -418,8 +543,7 @@ export function createVaultPagePanel(
     for (const button of reveals) button.setAttribute("aria-pressed", "false");
     if (all) {
       clientId.value = "";
-      email.value = "";
-      region.value = "eu";
+      signUpRegion = "eu";
     }
   }
 
@@ -431,6 +555,8 @@ export function createVaultPagePanel(
     if (connecting || !connectionFilled(sent)) return;
     connecting = true;
     problem = null;
+    // Connecting again: the line of the last disconnect goes.
+    disconnected = false;
     forget(false);
     render();
     let answer: { value: unknown; ok: boolean } | null = null;
@@ -479,16 +605,51 @@ export function createVaultPagePanel(
     }
   }
 
+  /** Asks for the person's invitation: their address in one request,
+   * emptied once Bitwarden has it; the answer is where they stand now. A
+   * refusal says why in one line under the field; an answer that does not
+   * say where they stand (Bitwarden not answering now) says so above the
+   * vault, and the next look of the page invites them. */
+  async function invite(): Promise<void> {
+    const address = inviteEmail.value;
+    if (inviting || address.trim() === "") return;
+    inviting = true;
+    inviteProblem = null;
+    render();
+    let answer: { value: unknown; ok: boolean } | null = null;
+    try {
+      answer = await options.post("/api/vault/invitee", { email: address });
+    } catch {}
+    inviting = false;
+    const copy = options.copy();
+    const parsed =
+      answer?.ok === true ? parseVaultMembership(answer.value) : null;
+    if (parsed !== null) {
+      inviteEmail.value = "";
+      person = parsed;
+      notice = parsed.kind === "unknown" ? copy.vaultConnectBusy : null;
+    } else
+      inviteProblem =
+        inviteRefusalText(
+          (answer?.value as { reason?: unknown } | null)?.reason,
+          copy,
+        ) ?? copy.vaultInviteFailed;
+    render();
+  }
+
   /** Disconnects the person's own Bitwarden: the account forgotten here,
-   * the organization kept in Bitwarden. */
+   * the organization kept in Bitwarden, which one line says once it is
+   * done. */
   async function disconnect(): Promise<void> {
     if (disconnecting) return;
     disconnecting = true;
     notice = null;
+    disconnected = false;
     render();
     try {
       const { value, ok } = await options.post("/api/vault/disconnect", {});
-      if (!ok)
+      if (ok) disconnected = true;
+      else
         notice = connectionRefusalText(
           (value as { reason?: unknown } | null)?.reason,
           options.copy(),
@@ -499,6 +660,7 @@ export function createVaultPagePanel(
     disconnecting = false;
     outcome = null;
     problem = null;
+    inviteProblem = null;
     await refresh();
   }
 
@@ -517,6 +679,16 @@ export function createVaultPagePanel(
       button.setAttribute("aria-pressed", String(show));
       render();
     });
+  // Step 1's other region: bitwarden.com for a person who uses it.
+  otherRegion.addEventListener("click", () => {
+    signUpRegion = signUpRegion === "eu" ? "us" : "eu";
+    render();
+  });
+  inviteForm.addEventListener("input", () => render());
+  inviteForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void invite();
+  });
   disconnectButton.addEventListener("click", () => void disconnect());
   again.addEventListener("click", () => void refresh());
   // Back from the vault's sign-in in another tab: a person who had no
@@ -551,6 +723,19 @@ export function createVaultPagePanel(
     /** Whether the section was read once. */
     get loaded() {
       return model !== null || loading;
+    },
+    /** What the page read, which its "?" is chosen by (guides.ts
+     * `vaultHelp`): the vault core's answer, newest first, and where the
+     * person stands in the vault; each null until read. */
+    get facts(): VaultGuideFacts {
+      const status = outcome ?? fresh ?? model?.status ?? null;
+      return {
+        vault:
+          model === null || status === null
+            ? null
+            : { status, environment: model.environment },
+        person,
+      };
     },
   });
 }

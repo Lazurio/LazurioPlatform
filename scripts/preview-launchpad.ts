@@ -31,10 +31,11 @@
 // direct paths (decision F44 installs none on a computer); in a Remote
 // Environment the page follows Settings → Tools → executor, as in
 // production. A hosted preview's Composio has the person's own
-// organization of the example Organization's name ("Example Company"),
-// which the first reading makes current; with `composio-org-missing`
-// anywhere after the mode it lacks it, and Apps → Integrace says to create
-// it (decision F42, addendum of 2026-10-13). With `composio-off` anywhere
+// organization of the example Organization's name ("Example Company", in
+// Composio "ExampleCompany"), which the first reading makes current; with
+// `composio-org-missing` anywhere after the mode it lacks it, and Apps →
+// Integrace says to create it (decision F42, addendum of 2026-10-13). With
+// `composio-off` anywhere
 // after the mode, a hosted
 // preview's example Organization does not allow Composio (root decision
 // 0194, decision F45): its root becomes a Git checkout whose `main` says so,
@@ -49,11 +50,32 @@
 // app's integration already and finishes a sign-in only when it returns. A
 // hosted preview's work Environment has its own vault (decision F53) in the
 // tests' fake Vaultwarden at the example Organization's address, set up
-// before the start, so Začínáme and Nastavení → Trezor show it with the
+// before the start, so Začínáme and Apps → Trezor show it with the
 // steps for Bitwarden in Codex Desktop (F53's addendum of 2026-10-16); the
 // fake bw keeps everything under the synthetic home, and the gateway names a
-// fictional person, jana, whose own address the steps offer. Synthetic names
-// only; stop it with Ctrl-C.
+// fictional person, jana, whose own address the steps offer. A personal
+// preview's vault is its person's own Bitwarden (root decision 0203 point 7)
+// in the tests' fake Bitwarden cloud, waiting for its person: the JSON line's
+// `bitwarden` has a fictional agents' account's `client_id`, `client_secret`
+// and master password to connect with on Apps → Trezor (the account is
+// in the cloud's EU region, or in the US with `bitwarden-us` anywhere after
+// the mode), and `accept`, a file whose creation makes the person accept the
+// invitation the page asked for, as Bitwarden's e-mail would. With `public`
+// anywhere after the mode, a hosted preview's work Environment is a public
+// Environment (root decision 0204, decision F55): its entry carries
+// `audience: "public"`, so the Launchpad runs the demo onboarding, the
+// column head says the Environment is public and shared, and Integrace,
+// Apps → Trezor and Nastavení → Nástroje answer as absent. With
+// `no-vault` or `no-tailnet` anywhere after the mode, a hosted preview's work
+// Environment has no vault, for that reason (F53's addendum of 2026-10-17):
+// nothing is set up, the Apps column does not list Trezor (F53's addendum of
+// 2026-10-18 (3)), and `/vault` says why and explains the vault with its
+// guide video. With `team` or `automated` anywhere after the mode, a
+// hosted preview's work Environment is the example Organization's Team
+// Environment or a persona's Automated Environment instead (its handover's
+// assignment `team` or `automation`), to see how a page names each kind
+// (decision F28's addendum of 2026-10-18). Synthetic names only; stop it
+// with Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -82,11 +104,16 @@ import { microsoft365Description } from "../src/integrations/microsoft365-execut
 import { startLaunchpad } from "../src/launchpad/server";
 import { toolsEnvironmentOf } from "../src/tools/overview";
 import { runTool } from "../src/tools/status";
+import { readConnection } from "../src/vault/connection";
 import { vaultSetup } from "../src/vault/flow";
 import {
   writeModule,
   writeOrganization,
 } from "../tests/fixtures/catalog-folder";
+import {
+  cloudHost,
+  startFakeBitwardenCloud,
+} from "../tests/fixtures/fake-bitwarden-cloud";
 import { executorWorld } from "../tests/fixtures/fake-executor";
 import { startFakeExecutor } from "../tests/fixtures/fake-executor-api";
 import {
@@ -112,14 +139,34 @@ const mode =
     : "local";
 const fresh = process.argv[6] === "fresh";
 const composioOff = process.argv.slice(3).includes("composio-off");
+const publicEnvironment =
+  process.argv[2] === "hosted" && process.argv.slice(3).includes("public");
 const microsoft365 = process.argv.slice(3).includes("microsoft365");
 // With `workspace-tabs` anywhere after the mode, the example Organization has
 // a dozen modules arranged into three tabs of its own (decision F32's
 // addendum of 2026-10-16), the setting `workspace.tabs` of its root.
 const tabbed = process.argv.slice(3).includes("workspace-tabs");
+const team =
+  process.argv[2] === "hosted" && process.argv.slice(3).includes("team");
 const composioOrgMissing = process.argv
   .slice(3)
   .includes("composio-org-missing");
+const bitwardenUs = process.argv.slice(3).includes("bitwarden-us");
+const noVault =
+  process.argv
+    .slice(3)
+    .find(
+      (value): value is "no-vault" | "no-tailnet" =>
+        value === "no-vault" || value === "no-tailnet",
+    ) ?? null;
+const assignment =
+  mode !== "hosted"
+    ? null
+    : process.argv.slice(3).includes("team")
+      ? "team"
+      : process.argv.slice(3).includes("automated")
+        ? "automation"
+        : null;
 const locale = process.argv[3] === "en" ? "en" : "cs";
 const listenPort = Number(process.argv[4] ?? 24611);
 const role =
@@ -148,13 +195,29 @@ else {
   await mkdir(join(folder, "organizations"), { mode: 0o755 });
   await mkdir(join(folder, "personalspace"), { mode: 0o700 });
   const preset =
-    mode === "personal" ? "hosted-personal" : "hosted-organization-personal";
+    mode === "personal"
+      ? "hosted-personal"
+      : assignment === "team"
+        ? "hosted-organization-team"
+        : assignment === "automation"
+          ? "hosted-organization-steward"
+          : "hosted-organization-personal";
   await initializeHandoverFolder(folder, {
     preset,
+    // A Remote Environment as the gateway serves it: the Environment
+    // browser's view and the person's sign-out (Machines#358), and with
+    // `public` a public Environment's audience (decision F55).
     machine:
       mode === "personal"
-        ? personalWithEntry(listenPort, true)
-        : organizationWithEntry(listenPort, host, true),
+        ? personalWithEntry(listenPort, true, true)
+        : organizationWithEntry(
+            listenPort,
+            host,
+            true,
+            true,
+            publicEnvironment,
+            assignment,
+          ),
     profile: presetProfile(preset, os, { locale }),
   });
 }
@@ -355,7 +418,7 @@ await writeFile(
     // addendum of 2026-10-13); without it, the page says to create it.
     organizations: [
       { id: "org_1", name: "Příklad s.r.o." },
-      ...(composioOrgMissing ? [] : [{ id: "org_2", name: "Example Company" }]),
+      ...(composioOrgMissing ? [] : [{ id: "org_2", name: "ExampleCompany" }]),
     ],
     accounts: [
       {
@@ -578,13 +641,67 @@ await writeFile(
 // on the tools' PATH, so the row's installation reads what its setup placed.
 const executor = mode === "local" ? undefined : await executorWorld({ home });
 // The work Environment's own vault, set up and connected before the start;
-// locally and on the personal preview, this process's (none on a computer).
-const vaultHost = mode === "hosted" ? await previewVault() : undefined;
+// the personal preview's person's own Bitwarden in the fake cloud, waiting
+// for its person; locally, this process's (none on a computer).
+let bitwarden: Readonly<Record<string, string>> | null = null;
+const vaultHost =
+  mode === "hosted"
+    ? await previewVault()
+    : mode === "personal"
+      ? await previewBitwarden()
+      : undefined;
+async function previewBitwarden() {
+  const cloud = await startFakeBitwardenCloud(home);
+  const masterPassword = "Preview agents 2026";
+  const key = await cloud.account(
+    "jana+agents@example.com",
+    masterPassword,
+    undefined,
+    "v1",
+    bitwardenUs ? "us" : "eu",
+  );
+  const zip = zipOf("bw", fakeBw);
+  const pin = fakePin(zip);
+  const host = cloudHost({
+    home,
+    cloud,
+    pin,
+    download: fakeRelease(pin, zip).fetch,
+  });
+  // The person accepts the invitation the page asked for once this file
+  // appears, as Bitwarden's e-mail would let them.
+  const accept = join(parent, "accept");
+  setInterval(async () => {
+    if (!(await Bun.file(accept).exists())) return;
+    await Bun.file(accept).delete();
+    const connection = await readConnection(host.connection).catch(() => null);
+    if (connection?.invitee) await cloud.accept(connection.invitee);
+  }, 500);
+  bitwarden = {
+    clientId: key.clientId,
+    clientSecret: key.clientSecret,
+    masterPassword,
+    accept,
+  };
+  return { ...host, enableForAgents: async () => undefined };
+}
 async function previewVault() {
   const vault = await startFakeVault(home);
   vault.allow(workAccount);
   const zip = zipOf("bw", fakeBw);
   const pin = fakePin(zip);
+  // No vault, for the reason asked for: nothing to set up.
+  if (noVault !== null)
+    return {
+      ...fakeHost({
+        home,
+        vault,
+        pin,
+        download: fakeRelease(pin, zip).fetch,
+        context: async () => ({ kind: "unsupported", reason: noVault }),
+      }),
+      enableForAgents: async () => undefined,
+    };
   const host = fakeHost({
     home,
     vault,
@@ -593,7 +710,7 @@ async function previewVault() {
     context: async () =>
       ownContext(
         workHandover(vaultMember(workAccount, "Pracovní example")),
-        "work",
+        team ? "team" : "work",
       ),
   });
   const setUp = await vaultSetup(host);
@@ -668,7 +785,7 @@ const app = await startLaunchpad(
     ? {}
     : {
         // A hosted preview's gateway names a fictional person with a Lazurio
-        // username, as Lazurio Auth's answer does, so Nastavení → Trezor
+        // username, as Lazurio Auth's answer does, so Apps → Trezor
         // offers her own address (F53's addendum of 2026-10-16).
         fetcher: async () =>
           new Response("ok", {
@@ -823,5 +940,6 @@ console.log(
     proxy,
     browser: mode === "local" ? null : browserOrigin,
     folder,
+    ...(bitwarden === null ? {} : { bitwarden }),
   }),
 );

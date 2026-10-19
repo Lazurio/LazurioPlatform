@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { readShellInputs, shellDocument } from "../../launchpad/shell-document";
+import { readMachineContext } from "../../machine/context";
 import { hostedOperatorFolder } from "../../machine/operator";
 import { shellMessages } from "../../shell/messages";
 import {
@@ -20,6 +21,7 @@ import {
   writeLiveTabs,
 } from "../contract/node";
 import { browserCdpPort, browserScreenSize } from "../units";
+import { sweepCookies } from "./cookies";
 import { loopbackBrowser, startViewService } from "./service";
 
 /** `lazurio browser serve --port <port> --origin <origin>`: the people's view
@@ -74,6 +76,27 @@ export async function readViewIdentity(
     : environmentIdentity(shell, shell.current, shellMessages(shell.locale));
 }
 
+/** Whether this Environment is public (root decision 0204, decision F55),
+ * for the cookie sweep (#504): the handover's `entry.audience`, or, where it
+ * cannot be read, the shell document of the declared operator's Folder,
+ * which records it. Not public when neither can be read. */
+export async function readViewPublic(
+  handover: () => Promise<"public" | undefined> = async () =>
+    (await readMachineContext()).context.entry?.audience,
+  folder: () => Promise<string | undefined> = hostedOperatorFolder,
+): Promise<boolean> {
+  try {
+    return (await handover()) === "public";
+  } catch {}
+  try {
+    const found = await folder();
+    if (found === undefined) return false;
+    return shellDocument(await readShellInputs(found)).audience === "public";
+  } catch {
+    return false;
+  }
+}
+
 export async function runViewService(
   args: readonly string[],
   env: Readonly<Record<string, string | undefined>>,
@@ -116,6 +139,7 @@ export async function runViewService(
     identity: () => readViewIdentity(),
     hub: {
       connect: loopbackBrowser(browserCdpPort),
+      sweepCookies: async (cdp) => sweepCookies(cdp, await readViewPublic()),
       holds: holdsReader({ holders, sockets }, { log }),
       watchHolds: (changed) => watchHolds([holders, sockets], changed),
       ...(liveTabs === undefined

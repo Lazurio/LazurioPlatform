@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { join } from "node:path";
+import type { Server } from "bun";
 import {
   browserViewDocumentPath,
   browserViewPath,
@@ -36,9 +37,13 @@ import {
 import { withFolderReadLock } from "../folder/lock";
 import type { MachineEntry } from "../folder/machine-binding";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
-import { selectablePresets } from "../folder/presets";
+import { type PresetName, selectablePresets } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
-import { enabledTools, stateFields } from "../folder/state";
+import {
+  enabledTools,
+  type FolderPreferences,
+  stateFields,
+} from "../folder/state";
 import { ownDataValue } from "../folder/state-fields";
 import { updateProfile, updateTools } from "../folder/update-profile";
 import { resolvedVoice } from "../folder/voice";
@@ -68,6 +73,13 @@ import { readOrganizationApplications } from "../organizations/read-applications
 import type { RecoveryResult } from "../recover/recover";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
+import { shellThemeOf } from "../theme/palettes";
+import {
+  fileThemeStore,
+  fixedThemeReads,
+  memoryThemeStore,
+  type ThemeStore,
+} from "../theme/record";
 import { isAiProvider } from "../tools/ai";
 import { type AiProbe, createAiProbe } from "../tools/ai-probe";
 import { reloadAiServices } from "../tools/ai-services";
@@ -104,13 +116,22 @@ import { runProcess } from "../update/self-check";
 import type { VaultHost } from "../vault/flow";
 import { enableVaultForAgents, processVaultHost } from "../vault/host";
 import type { LaunchpadBoot } from "./boot";
-import { launchpadBoot, withBoot } from "./boot-document";
-import { createChatPromptCheck, issueChatLink, publicEntry } from "./chat";
+import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
+import {
+  chatPairingPath,
+  createChatPromptCheck,
+  isChatPairingFetch,
+  issueChatLink,
+  mintChatPairing,
+  publicEntry,
+} from "./chat";
 import { createContentRoutes } from "./content-routes";
 import { prepareContext } from "./content-view";
 import { createExecutorRoutes, isExecutorJob } from "./executor-routes";
 import { createFilesRoutes, maxRequestBytes } from "./files-routes";
 import { shellSetup, signsInAsPerson } from "./first-run";
+import { guideVideoPath } from "./guide-video";
+import { guideVideoAnswer, isGuideVideoPath } from "./guide-video-files";
 import { serveHealthSocket } from "./health-socket";
 import {
   type AdmittedPerson,
@@ -118,6 +139,7 @@ import {
   createHostedTrust,
   nobody,
 } from "./hosted-trust";
+import { notModified } from "./http-conditions";
 import {
   createIntegrationsRoutes,
   type IntegrationsSeams,
@@ -145,13 +167,7 @@ import {
   withOfflineGuide,
 } from "./offline-guide";
 import { createOwnerCheck } from "./organization-owner";
-import {
-  admitLocal,
-  notModified,
-  pageRoutes,
-  privatePage,
-  serveShell,
-} from "./page";
+import { admitLocal, pageRoutes, privatePage, serveShell } from "./page";
 import {
   isOrganizationPrompt,
   isPromptId,
@@ -162,18 +178,25 @@ import {
   promptOrganization,
 } from "./prompts";
 import {
+  isPublicEnvironment,
+  isToolsApiPath,
+  withheldInPublic,
+} from "./public-environment";
+import { pageRoute } from "./routes";
+import {
   type ContentReader,
   createGithubProbe,
   createSetupCache,
   readContent,
 } from "./setup-state";
-import { readShellInputs, shellDocument } from "./shell-document";
+import { presetKinds, readShellInputs, shellDocument } from "./shell-document";
 import { createSshRoutes } from "./ssh-routes";
 import {
   checkBundledPage,
   LaunchpadStartRefused,
   readStartState,
 } from "./start-check";
+import { createThemeRoutes } from "./theme-routes";
 import type { UpdatePill } from "./update-pill";
 import { createVaultConnectionRoutes } from "./vault-connection-routes";
 import { createVaultPageRoutes } from "./vault-page-routes";
@@ -352,6 +375,19 @@ const maintainRoute =
  * Lazurio/t3code#35), in the gateway's segment grammar. */
 const promptRoute = /^\/\.lazurio\/prompts\/([A-Za-z0-9._-]+)$/;
 
+/** The catalog of a prompt document in the Folder's language, naming this
+ * Environment's kind as the page does (decision F28's addendum of
+ * 2026-10-18); a preset this release does not know names none. */
+const folderMessages = (
+  preferences: Pick<FolderPreferences, "preset" | "profile">,
+) =>
+  messages(
+    preferences.profile.locale === "cs" ? "cs" : "en",
+    Object.hasOwn(presetKinds, preferences.preset.name)
+      ? presetKinds[preferences.preset.name as PresetName]
+      : null,
+  );
+
 // The Environment browser's view (decision F38): the JSON answer the panels
 // of the Launchpad and of T3 Code read (`browserViewDocumentPath`), and the
 // hand-over a link opens (`browserViewPath`), the contract's C12. Both under
@@ -365,6 +401,7 @@ const isLazurioDocument = (path: string) =>
   path === offlineWorkerPath ||
   path === browserViewDocumentPath ||
   path === browserViewPath ||
+  path === chatPairingPath ||
   promptRoute.test(path);
 
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
@@ -390,6 +427,57 @@ export function ensureMayStart(headers: Headers): boolean {
   if (headers.has("sec-websocket-key")) return false;
   const mode = headers.get("sec-fetch-mode");
   return mode === null || mode === "navigate";
+}
+
+/** The header in which the gateway's loopback entry for the Environment
+ * browser (#504) passes on the browser's `Sec-Fetch-Mode`: a local `ensure`
+ * carries no Fetch Metadata of its own (`isLocalEnsure`). */
+export const localEnsureModeHeader = "x-lazurio-fetch-mode";
+
+const loopbackPeer = (address: string | null) =>
+  address !== null &&
+  (/^127(?:\.[0-9]{1,3}){3}$/.test(address) ||
+    address === "::1" ||
+    /^::ffff:127(?:\.[0-9]{1,3}){3}$/i.test(address));
+
+/** Whether an `ensure` is the readiness call of the gateway's loopback entry
+ * for the Environment browser (LazurioPlatform#504, F39's addendum of
+ * 2026-10-18), which the Launchpad answers without a gateway session: the
+ * Environment browser never holds a Lazurio session, and that entry serves
+ * only this Environment's own apps to its own browser. Accepted only as the
+ * view's hub accepts the Launchpad's requests (F47 point 6): a loopback
+ * connection, a loopback `Host` naming this listener, and no `Origin` and no
+ * Fetch Metadata (`Sec-Fetch-*`), which a browser always sends, so neither a
+ * page in the Environment browser nor a request through the gateway, which
+ * sends the Launchpad's own Host, is ever one. It only makes a module run or
+ * says that it does, as the gateway's `ensure` does after admission. */
+export function isLocalEnsure(
+  request: Readonly<{ headers: Headers; peer: string | null }>,
+  port: number,
+): boolean {
+  if (!loopbackPeer(request.peer)) return false;
+  const host = request.headers.get("host");
+  if (
+    host !== `127.0.0.1:${port}` &&
+    host !== `localhost:${port}` &&
+    host !== `[::1]:${port}`
+  )
+    return false;
+  if (request.headers.has("origin")) return false;
+  for (const name of request.headers.keys())
+    if (name.toLowerCase().startsWith("sec-fetch-")) return false;
+  return true;
+}
+
+/** Whether a local `ensure` may start a stopped app: only a navigation, as
+ * the loopback entry passes the browser's mode on (`localEnsureModeHeader`,
+ * Machines#633 sends it only when the browser sent `Sec-Fetch-Mode`). The
+ * Environment browser sends that with every request, so a call without it
+ * (or with an empty one) comes from no browser's navigation and only
+ * reports: unlike through the gateway, an absent mode is never an Open. */
+export function localEnsureMayStart(headers: Headers): boolean {
+  if (headers.has("sec-websocket-key")) return false;
+  return headers.get(localEnsureModeHeader) === "navigate";
 }
 
 /** The status of an `ensure` answer, the only part of it the gateway reads
@@ -562,6 +650,9 @@ export async function startLaunchpad(
   // condition this start can name refuses it with `LaunchpadStartRefused`,
   // before anything listens, so the caller can serve Recovery mode instead.
   const { entry } = await readStartState(folder, { locked: true });
+  // A public Environment (root decision 0204, decision F55): no first run,
+  // no Integrace and no Nastavení → Trezor, by the entry recorded at start.
+  const publicEnvironment = isPublicEnvironment(entry);
   if (!(await privatePage(checkBundledPage)))
     throw new LaunchpadStartRefused("asset-missing", entry);
   const trust = entry === null ? null : createHostedTrust(entry, hostedOptions);
@@ -744,7 +835,8 @@ export async function startLaunchpad(
     // start. One that could not be checked does not.
     refuseInstall: async () => {
       const preset = await folderPreset(folder).catch(() => undefined);
-      if (preset === undefined || !signsInAsPerson(preset)) return null;
+      if (preset === undefined || !signsInAsPerson(preset) || publicEnvironment)
+        return null;
       return (await ai.state()).state === "missing" ? "ai-missing" : null;
     },
     host: () =>
@@ -863,6 +955,26 @@ export async function startLaunchpad(
     headers,
     journal: (line) => console.log(JSON.stringify(line)),
   });
+  // The Environment's theme (root decision 0208): one record of this Folder
+  // in the install base, which `lazurio theme` changes too; a development run
+  // without a base keeps it in memory (src/theme/record.ts). Read by
+  // `/.lazurio/shell.json` and the page's boot document, changed by
+  // Settings → Obecné; fixed on a public Environment, by the entry recorded
+  // at start, the one rule that withholds Nástroje and Trezor there: every
+  // read there is the default Lazurio, whatever the record kept from before
+  // says (root decision 0208 point 6), and every change is refused.
+  const themeStore: ThemeStore = fixedThemeReads(
+    installed?.base === undefined
+      ? memoryThemeStore()
+      : fileThemeStore(installed.base, folder),
+    () => publicEnvironment,
+  );
+  const themes = createThemeRoutes({
+    store: themeStore,
+    headers,
+    fixed: () => publicEnvironment,
+    journal: (line) => console.log(JSON.stringify(line)),
+  });
   const newTab = createNewTabRoutes({
     browser,
     holder,
@@ -903,7 +1015,7 @@ export async function startLaunchpad(
       readFolderState(state),
     );
     const preset = current.preferences.preset.name;
-    if (!signsInAsPerson(preset)) return undefined;
+    if (!signsInAsPerson(preset) || publicEnvironment) return undefined;
     const [reading, signIn, read] = await Promise.all([
       ai.state(),
       github.state(),
@@ -913,20 +1025,30 @@ export async function startLaunchpad(
   });
   // The boot document of the page (F36's addendum of 2026-10-08, boot.ts):
   // what this Launchpad knows from the Folder alone, under one short read of
-  // its state. None when that fails or takes longer than a moment: the page
-  // then reads it all itself, as before.
+  // its state, and whether the Apps column lists Trezor from the vault's
+  // local facts (F53's addendum of 2026-10-18 (3), never failing). None when
+  // that fails or takes longer than a moment: the page then reads it all
+  // itself, as before.
   async function pageBoot(): Promise<LaunchpadBoot | null> {
     let late: ReturnType<typeof setTimeout> | undefined;
     const read = (async () => {
-      const [inputs, tailnet] = await Promise.all([
+      const [inputs, tailnet, theme, vaultInApps] = await Promise.all([
         readShellInputs(folder, {
           ownerKey: hostedOptions.ownerKey,
           lockWaitMs: bootLockWaitMs,
           personalspace: personalspace.peek,
         }),
         (hostedOptions.offlineTailnet ?? machineTailnet)(),
+        themeStore.read(),
+        vaultInAppsOf(vaultHostOf()),
       ]);
-      return launchpadBoot({ ...inputs, entry, tailnet });
+      return launchpadBoot({
+        ...inputs,
+        entry,
+        tailnet,
+        theme: shellThemeOf(theme),
+        vaultInApps,
+      });
     })().catch(() => null);
     try {
       return await Promise.race([
@@ -989,6 +1111,43 @@ export async function startLaunchpad(
       headers: { ...headers, ...kept, "Content-Type": type },
     });
   }
+  // The gateway's `ensure` (launchpad-parity B5), after its admission or as
+  // the loopback entry's readiness call (`isLocalEnsure`): the module's
+  // default app runs, or the typed reason why not.
+  async function answerEnsure(
+    request: Request,
+    server: Server<undefined>,
+    encoded: string,
+    mayStart: boolean,
+  ): Promise<Response> {
+    const response = (body: unknown, status = 200) =>
+      Response.json(body, { status, headers });
+    if (request.method !== "GET")
+      return response({ error: "method-not-allowed" }, 405);
+    if (closing) return response({ error: "closing" }, 503);
+    let id: string;
+    try {
+      id = decodeURIComponent(encoded);
+    } catch {
+      id = "";
+    }
+    // The wait for health is bounded below the request's idle deadline.
+    server.timeout(request, 30);
+    try {
+      const result = await modules.ensure(id, {
+        mayStart,
+        ...(hostedOptions.ensureWaitMs === undefined
+          ? {}
+          : { waitMs: hostedOptions.ensureWaitMs }),
+      });
+      const status = ensureStatus(result);
+      return status === 204
+        ? new Response(null, { status, headers })
+        : response(result, status);
+    } catch {
+      return response({ error: "operation-failed" }, 503);
+    }
+  }
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: entry === null ? 0 : entry.listenPort,
@@ -1007,6 +1166,27 @@ export async function startLaunchpad(
       // of the Environment's vault (decision F11's amendments of 2026-10-14
       // and 2026-10-16). Locally nobody is named.
       let person: AdmittedPerson = nobody;
+      const ensureRequest = ensureRoute.exec(url.pathname);
+      // The readiness call of the gateway's loopback entry for the
+      // Environment browser (#504): an `ensure` without a session, answered
+      // before the admission and nothing else (`isLocalEnsure`).
+      if (
+        trust !== null &&
+        ensureRequest !== null &&
+        isLocalEnsure(
+          {
+            headers: request.headers,
+            peer: server.requestIP(request)?.address ?? null,
+          },
+          server.port ?? 0,
+        )
+      )
+        return answerEnsure(
+          request,
+          server,
+          ensureRequest[1] as string,
+          localEnsureMayStart(request.headers),
+        );
       if (trust !== null && shell !== null) {
         // Hosted: the gateway's admission, revalidated here; the request's
         // own URL is loopback and is not evidence of anything.
@@ -1033,6 +1213,16 @@ export async function startLaunchpad(
             page.ok ? answer.status : page.status,
           );
         }
+        // A guide video, answered here and not through the inner listener,
+        // so that its byte range reaches it (guide-video-files.ts).
+        if (
+          (request.method === "GET" || request.method === "HEAD") &&
+          isGuideVideoPath(url.pathname)
+        )
+          return guideVideoAnswer(
+            request,
+            url.pathname.slice(guideVideoPath.length),
+          );
         if (
           request.method === "GET" &&
           !url.pathname.startsWith("/api/") &&
@@ -1041,7 +1231,14 @@ export async function startLaunchpad(
           return fromShell(
             request,
             `${url.pathname}${url.search}`,
-            (page) => page.status,
+            // What a public Environment does not have answers as absent:
+            // the page itself, which shows Apps or Settings in its place.
+            (page) =>
+              page.ok &&
+              publicEnvironment &&
+              withheldInPublic(pageRoute(url.pathname))
+                ? 404
+                : page.status,
             // Nová karta is framed only by the Environment's own apps (F47
             // point 1).
             url.pathname === newTabPagePath && entry !== null
@@ -1062,9 +1259,10 @@ export async function startLaunchpad(
           return response({ error: "method-not-allowed" }, 405);
         if (closing) return response({ error: "closing" }, 503);
         try {
-          const [inputs, tailnet] = await Promise.all([
+          const [inputs, tailnet, theme] = await Promise.all([
             readShellInputs(folder, { ownerKey: hostedOptions.ownerKey }),
             (hostedOptions.offlineTailnet ?? machineTailnet)(),
+            themeStore.read(),
           ]);
           // GitHub and the content only where the Environment signs in as
           // its person (setup-state.ts).
@@ -1072,12 +1270,14 @@ export async function startLaunchpad(
             ? setup.peek()
             : undefined;
           // Whether the elements register the offline guide's worker
-          // (decision F41): only where the worker's address serves it.
+          // (decision F41): only where the worker's address serves it. The
+          // Environment's theme always (root decision 0208).
           return response(
             withOfflineGuide(
               shellDocument({
                 ...inputs,
                 ...(known === undefined ? {} : { setup: known }),
+                theme: shellThemeOf(theme),
               }),
               tailnet,
             ),
@@ -1158,9 +1358,7 @@ export async function startLaunchpad(
               folder,
               holder,
               login,
-              messages(
-                current.preferences.profile.locale === "cs" ? "cs" : "en",
-              ),
+              folderMessages(current.preferences),
             );
             return document === null ? notFound() : response(document);
           } catch {
@@ -1180,9 +1378,7 @@ export async function startLaunchpad(
             );
             if (!signsInAsPerson(current.preferences.preset.name))
               return notFound();
-            const copy = messages(
-              current.preferences.profile.locale === "cs" ? "cs" : "en",
-            );
+            const copy = folderMessages(current.preferences);
             const read = await readContent(contentState);
             const context = prepareContext(read.list, read.job, copy);
             if (
@@ -1220,13 +1416,39 @@ export async function startLaunchpad(
               id,
               folder,
               organization,
-              messages(
-                current.preferences.profile.locale === "cs" ? "cs" : "en",
-              ),
+              folderMessages(current.preferences),
             ),
           );
         } catch {
           return notFound();
+        }
+      }
+      if (url.pathname === chatPairingPath) {
+        // The Environment pairs its own browser (decision of 2026-10-17):
+        // T3 Code's web client, without a session, asks here on its own
+        // origin, which the gateway forwards behind the same admission. Only
+        // a page's own fetch (chat.ts), only where Chat is T3 Code behind
+        // this Launchpad, minted for the admitted person exactly as
+        // `POST /api/chat/pair` mints. A HEAD mints nothing.
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        if (entry === null) return response({ error: "not-found" }, 404);
+        if ([...url.searchParams.keys()].length > 0)
+          return response({ error: "invalid-request" }, 400);
+        if (!isChatPairingFetch(request.headers))
+          return response({ error: "not-allowed" }, 403);
+        // `t3 lazurio capabilities`, then the pairing call: 15 s each.
+        server.timeout(request, 45);
+        try {
+          const pairing = await mintChatPairing(
+            entry,
+            toolsEnvironment,
+            person,
+          );
+          return response(pairing, pairing.kind === "blocked" ? 409 : 200);
+        } catch {
+          return response({ error: "operation-failed" }, 500);
         }
       }
       if (
@@ -1396,35 +1618,15 @@ export async function startLaunchpad(
           return response({ error: "method-not-allowed" }, 405);
         return response({ kind: "entry", entry: publicEntry(entry) });
       }
-      const ensureRequest = ensureRoute.exec(url.pathname);
       if (ensureRequest !== null) {
         // Only behind a gateway: a workstation has no module hostnames.
         if (trust === null) return response({ error: "not-found" }, 404);
-        if (request.method !== "GET")
-          return response({ error: "method-not-allowed" }, 405);
-        if (closing) return response({ error: "closing" }, 503);
-        let id: string;
-        try {
-          id = decodeURIComponent(ensureRequest[1] as string);
-        } catch {
-          id = "";
-        }
-        // The wait for health is bounded below the request's idle deadline.
-        server.timeout(request, 30);
-        try {
-          const result = await modules.ensure(id, {
-            mayStart: ensureMayStart(request.headers),
-            ...(hostedOptions.ensureWaitMs === undefined
-              ? {}
-              : { waitMs: hostedOptions.ensureWaitMs }),
-          });
-          const status = ensureStatus(result);
-          return status === 204
-            ? new Response(null, { status, headers })
-            : response(result, status);
-        } catch {
-          return response({ error: "operation-failed" }, 503);
-        }
+        return answerEnsure(
+          request,
+          server,
+          ensureRequest[1] as string,
+          ensureMayStart(request.headers),
+        );
       }
       const moduleRequest = moduleRoute.exec(url.pathname);
       if (moduleRequest !== null) {
@@ -1485,6 +1687,29 @@ export async function startLaunchpad(
                 ? 202
                 : 200,
           );
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      // A public Environment has no sign-in, no Integrace and no vault of its
+      // own (root decision 0204 point 4): Nástroje, Integrace and Trezor
+      // answer as absent, before anything signs a tool in, installs it or
+      // reads Executor, Composio or the vault.
+      if (
+        publicEnvironment &&
+        (isToolsApiPath(url.pathname) ||
+          integrations.handles(url.pathname) ||
+          vaultPage.handles(url.pathname) ||
+          vaultRequests.handles(url.pathname) ||
+          vaultConnection.handles(url.pathname))
+      )
+        return response({ error: "not-found" }, 404);
+      // The theme reads everywhere; on a public Environment its change is
+      // refused (theme-routes.ts, root decision 0208 point 6).
+      if (themes.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        try {
+          return await themes.handle(request, url);
         } catch {
           return response({ error: "operation-failed" }, 500);
         }
@@ -1602,12 +1827,14 @@ export async function startLaunchpad(
         }
         if (url.pathname === "/api/chat/pair") {
           // Chat (launchpad-parity B8): a one-time T3 Code pairing link for
-          // this admitted browser, minted by T3's own CLI. Only behind a
-          // gateway: a workstation's T3 Code is wherever the operator runs it.
+          // this admitted browser, minted by T3's own CLI for its person.
+          // Only behind a gateway: a workstation's T3 Code is wherever the
+          // operator runs it. Kept although T3 Code now pairs itself
+          // (`GET /.lazurio/chat/pairing`): older T3 Code builds need it.
           stateFields(input, []);
           if (entry === null) return response({ error: "not-found" }, 404);
-          server.timeout(request, 30);
-          const result = await issueChatLink(entry, toolsEnvironment);
+          server.timeout(request, 45);
+          const result = await issueChatLink(entry, toolsEnvironment, person);
           return response(result, result.kind === "blocked" ? 409 : 200);
         }
         if (url.pathname === "/api/mausbot/pair") {
@@ -2172,6 +2399,15 @@ export async function startLaunchpad(
         ? `${server.url.href}#${token}`
         : `${entry.externalOrigin}/`,
     hosted: entry !== null,
+    /** Resolves when the reads this Launchpad began on its own in the
+     * background have ended: whose Personalspace this is, decided at its
+     * start, and the shell's setup, read again after a change. No answer
+     * waits for them (none waits for GitHub); what observes what the
+     * Launchpad asks GitHub or its Folder waits here first, so that it
+     * observes the request it makes and not the start's own work. */
+    async settled(): Promise<void> {
+      await Promise.all([personalspace.settled(), setup.settled()]);
+    },
     close() {
       closing = true;
       clearInterval(audienceTimer);

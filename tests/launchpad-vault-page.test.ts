@@ -60,6 +60,7 @@ import {
   personalWithEntry,
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
+import { freePort } from "./fixtures/ports";
 
 // Settings → Vault, Nastavení → Trezor, over HTTP (root decision 0198 points
 // 2, 3 and 5; DEV-6631 tasks 648, 638b and 774; decision F53's addendum and
@@ -75,17 +76,6 @@ import organization from "./fixtures/machine-context.json";
 
 const posix = process.platform !== "win32";
 type Json = Record<string, unknown>;
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  return port;
-};
 
 /** Polls until `read` answers something, for at most `ms`. */
 async function until<T>(
@@ -984,12 +974,16 @@ test.skipIf(!posix)(
       },
     });
     try {
-      await until(async () =>
-        (await s.members()).every((member) => member.type !== 1),
+      // The look ends with its journal: the vault lists the Správci gone
+      // before the last removal is journaled.
+      const removed = () =>
+        s.journal.filter((entry) => entry.outcome === "removed");
+      await until(
+        async () =>
+          removed().length >= 2 &&
+          (await s.members()).every((member) => member.type !== 1),
       );
-      expect(
-        s.journal.filter((entry) => entry.outcome === "removed"),
-      ).toHaveLength(2);
+      expect(removed()).toHaveLength(2);
       expect(await s.members()).toEqual([
         expect.objectContaining({ email: workAccount, type: 0 }),
       ]);
@@ -1135,6 +1129,7 @@ test.skipIf(!posix)(
         },
         setup: null,
         environment: null,
+        name: null,
       });
       const membership = await fetch(
         new URL("/api/vault/membership", url.origin),
@@ -1153,11 +1148,105 @@ test.skipIf(!posix)(
         reason: "no-vault",
       });
       expect(vaultPageView(model, null, messages("cs"))).toMatchObject({
-        rule: false,
         note: "Trezor na tomto počítači není.",
         row: null,
         actions: [],
       });
+      expect(vault.requests).toHaveLength(0);
+    } finally {
+      await app.close();
+      await vault.stop();
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "an Environment without a vault: the page's answer says why, and the page explains the vault, none on purpose in a public Organization (DEV-6631)",
+  async () => {
+    const parent = await realpath(
+      await mkdtemp(join(tmpdir(), "launchpad-vault-page-none-")),
+    );
+    const folder = join(parent, "Lazurio");
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "cs",
+      detail: "concise",
+      coordination: "direct",
+    });
+    const home = join(parent, "home");
+    const vault = await startFakeVault(home);
+    const zip = zipOf("bw", fakeBw);
+    const pin = fakePin(zip);
+    let reason: "no-tailnet" | "no-vault" = "no-tailnet";
+    const app = await startLaunchpad(
+      folder,
+      undefined,
+      undefined,
+      undefined,
+      {},
+      {
+        path: "/usr/bin:/bin",
+        home,
+        xdg: {},
+        platform: process.platform,
+        run: runTool,
+      },
+      {},
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fakeHost({
+        home,
+        vault,
+        pin,
+        download: fakeRelease(pin, zip).fetch,
+        context: async () => ({ kind: "unsupported", reason }),
+      }),
+    );
+    try {
+      const url = new URL(app.url);
+      const token = url.hash.slice(1);
+      const read = async () =>
+        parseVaultPage(
+          await (
+            await fetch(new URL("/api/vault", url.origin), {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+          ).json(),
+        );
+      for (const [why, note] of [
+        [
+          "no-tailnet",
+          "Tato Organizace je veřejná ukázka a skutečná hesla do ní nepatří, proto v ní trezor záměrně není. Všechno ostatní funguje jako ve skutečné Organizaci.",
+        ],
+        [
+          "no-vault",
+          "Trezor tohoto Prostředí není nastavený. Nastaví ho Admin Organizace a pak ho najdete tady.",
+        ],
+      ] as const) {
+        reason = why;
+        const model = await read();
+        expect(model).toEqual({
+          status: { kind: "vault-status", state: "unsupported", reason: why },
+          setup: null,
+          environment: null,
+          name: null,
+        });
+        expect(vaultPageView(model, null, messages("cs"))).toMatchObject({
+          note,
+          row: null,
+          actions: [],
+        });
+        expect(bitwardenGuide(model, null, messages("cs"))).toBeNull();
+      }
+      // Nothing was asked of the vault.
       expect(vault.requests).toHaveLength(0);
     } finally {
       await app.close();

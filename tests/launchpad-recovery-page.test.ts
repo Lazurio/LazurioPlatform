@@ -20,6 +20,7 @@ import {
 import type { RecoveryResult } from "../src/recover/recover";
 import { performInstall } from "../src/update/install";
 import { type ProcessRunner, runProcess } from "../src/update/self-check";
+import { freePort } from "./fixtures/ports";
 import { commitOf, executable, target } from "./fixtures/update-world";
 
 // The Recovery page (docs/recovery.md "The Recovery page"): `GET
@@ -241,13 +242,7 @@ test.skipIf(process.platform === "win32")(
 test.skipIf(process.platform === "win32")(
   "hosted: the Recovery page and its evidence sit behind the gateway's admission",
   async () => {
-    const probe = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
-      fetch: () => new Response(""),
-    });
-    const listenPort = probe.port;
-    probe.stop(true);
+    const listenPort = freePort();
     const entry = parseMachineEntry({
       externalOrigin: "https://launchpad.workspace.example.lazurio.io",
       authCheckUrl: "https://workspace.example.lazurio.io/oauth2/auth",
@@ -332,6 +327,19 @@ test.skipIf(process.platform === "win32")(
       expect([pairing.status, (await pairing.json()).error]).toEqual([
         503,
         "recovery-mode",
+      ]);
+      // Nor does T3 Code's own fetch for its pairing get one: Recovery mode
+      // changes nothing, and answers it with its plain page.
+      const selfPairing = await fetch(`${base}/.lazurio/chat/pairing`, {
+        headers: {
+          ...valid,
+          "sec-fetch-site": "same-origin",
+          "sec-fetch-mode": "cors",
+        },
+      });
+      expect([selfPairing.status, await selfPairing.text()]).toEqual([
+        503,
+        "Lazurio Launchpad: Recovery mode\ncheck: start-refused\nreason: folder-transaction-pending\n",
       ]);
     } finally {
       await app.close();

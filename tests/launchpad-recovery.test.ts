@@ -28,23 +28,13 @@ import {
 } from "../src/launchpad/start-check";
 import { launchpadHealth } from "../src/update/service-control";
 import { bindings } from "./fixtures/machine-bindings";
+import { freePort } from "./fixtures/ports";
 
 // Recovery mode (docs/update.md "Recovery mode"): a start refused on a
 // condition the executable can name is served, not exited — on the same port,
 // as the Recovery page (plain text when the page does not serve), with a typed
 // refusal on every other API route and 503 on the health socket, which every
 // updater reads as "not healthy". The page itself: launchpad-recovery-page.
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  return port;
-};
 
 // A socket path is short on macOS: /tmp, not the long per-user tmpdir.
 const scratch = async (prefix: string) =>

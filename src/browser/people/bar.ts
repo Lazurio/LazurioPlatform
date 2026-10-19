@@ -1,5 +1,11 @@
-import { browserViewUrl, viewPathTab } from "../contract/pure";
+import {
+  blockedNavigationError,
+  browserViewUrl,
+  handOffAddress,
+  viewPathTab,
+} from "../contract/pure";
 import type { Picture } from "./protocol";
+import type { Words } from "./words";
 
 /** The bar of the people's view (decision F39 point 1 and its addendum of
  * 2026-10-13): what its controls decide, as pure functions. The view page's
@@ -65,4 +71,32 @@ export function ownTabView(
 ): string | null {
   const tab = shown ?? viewPathTab(path);
   return tab === null ? null : browserViewUrl(origin, tab);
+}
+
+/** The notice above the page: its text, what its button opens in the
+ * person's own browser (null: no button), the button's label and the text's
+ * title. */
+export type Notice = Readonly<{
+  text: string;
+  open: string | null;
+  button: string;
+  title: string;
+}>;
+
+/** The notice for a page the Environment browser's policy blocked, as the
+ * service reports it (`hand-off`, F39's addendum of 2026-10-18, #504): a page
+ * of the person's Lazurio account, offered with one click in their own
+ * browser and never opened inside. The address is checked again by the
+ * contract (`handOffAddress`), so the button opens only an http or https
+ * address. Null for anything else, which shows no notice. */
+export function handOffNotice(url: unknown, say: Words): Notice | null {
+  const open = handOffAddress(blockedNavigationError, url);
+  return open === null
+    ? null
+    : Object.freeze({
+        text: say.handOff,
+        open,
+        button: say.openInYourBrowser,
+        title: open,
+      });
 }

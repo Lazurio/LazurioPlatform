@@ -249,6 +249,36 @@ view's only admission is the gateway's. Asked for a session that has no window y
 they open that session's window first, so a T3 thread's panel shows the thread's own tab
 (F38, addendum 2026-10-06).
 
+**T3 Code pairs itself (decision of the Organization Admin, 2026-10-17,
+[contract](launchpad-development.md#chat-entry)).** The Environment pairs every browser
+this admission lets in, not only the one that clicked Chat in the Launchpad. T3 Code's
+web client asks for `GET /.lazurio/chat/pairing` on its own origin whenever it has no
+session, or only a legacy one. The gateway forwards the request as it forwards every
+`/.lazurio/*` read of the forks' origins (Machines `workloads/workspace-vm/ingress.ts`,
+`shellRoute`):
+
+- only `GET` and `HEAD`, after the gateway's own admission;
+- with the Launchpad's own `Host`;
+- with only the session cookie (whole or chunked), and without `Authorization`, `DPoP`
+  or an upgrade.
+
+The browser's other headers pass as they are, its Fetch Metadata among them; it sends
+no `Origin` with a same-origin `GET`. So this admission applies unchanged (Host
+equality, session revalidation), and the person it names labels the pairing. The route
+then answers only a page's own script fetch: `Sec-Fetch-Site: same-origin`,
+`Sec-Fetch-Mode` `cors` or `same-origin`, no prefetch. `same-origin` is relative to the
+page that fetches, T3 Code's or the Launchpad's own origin, so another site or a
+sibling hostname gets nothing. The gateway forwards the namespace on MausBot's origin
+too, so a MausBot page would pass the same rule: the same admitted person, in a
+first-party app of the same Environment. The route mints through the same code as the
+click: T3's operator pairing where T3 Code offers it, the standard one on a public
+Environment. It answers `{"kind":"chat-pairing","credential":"…","expiresAt":"…"}`
+with `Cache-Control: no-store`; the credential rides only in that response body, which
+the script of the same origin reads, never in a URL. Like the click's route, it sits
+behind the whole-Environment admission: an app-only session
+([root 0192](environment-access.md#platform-consumer-qualification)) must be refused
+here as there. T3 Code's own pairing page and its sessions stay T3's.
+
 ### Files links (decision F35)
 
 `<Launchpad origin>/files/<path>`, the link `lazurio files link` prints, is an ordinary

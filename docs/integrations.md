@@ -433,10 +433,24 @@ changes (proposed upstream in ComposioHQ/composio#4817, issue #4816, and #4809).
 
 ### The Composio organization of an Environment
 
-Decision F42, addendum of 2026-10-13. Each person has one Composio account. In it
-they have one organization of their own for each Lazurio Organization, named as
-the Organization is, with nobody else in it, and the default one Composio made
-when they signed up.
+Decision F42, addendum of 2026-10-13 and its note of 2026-10-17. Each person has one
+Composio account. In it they have one organization of their own for each Lazurio
+Organization, named as the Organization is, with nobody else in it, and the default
+one Composio made when they signed up.
+
+How the person's account maps to Environments (what the figure of the sign-in
+dialog and Apps → Integrace drew until 2026-10-17; the screens now show only the
+step left to do):
+
+| In the person's Composio account | Used by |
+| --- | --- |
+| `ExampleCompany`, the Organization "Example Company" named as Composio accepts it | that Organization's Environments |
+| one organization for each other Organization, named as it is | that Organization's Environments |
+| the default organization (`<login>_workspace`, made at the sign-up) | the person's personal Environment |
+
+Nobody else is invited to these organizations and no key is shared: the person
+signs in to Composio with their own account, and Lazurio switches the CLI to the
+right organization.
 
 - **The rule** (`composioOrganizationRule`): an Environment whose Machine binding
   names an owning Organization works in the organization of that Organization's
@@ -451,10 +465,19 @@ when they signed up.
   disagree on the owner. Missing or ambiguous is `unverified` (fixed on
   2026-10-13 after rc.65, whose exact comparison left every Environment of an
   Organization with capitals in its slug `unverified`). Any other Environment, a personal one or a computer, works in
-  the organization the person chose; the sign-in dialog advises a personal
-  Environment to choose the default one. A name matches whatever its case, its
-  spaces and its diacritics (`organizationKey`: "Human and Machine" is
-  `humanandmachine`); punctuation counts.
+  the organization the person chose; by advice (this page) a personal
+  Environment's is the default one, and the sign-in dialog offers the choice where
+  the account has several. A name matches by its letters and digits alone
+  (`organizationKey`, note of 2026-10-17, evening): its case, diacritics,
+  spaces, punctuation and underscores do not count, so every name Composio
+  allows for the Organization matches it ("Human and Machine",
+  `HumanAndMachine`, `human_and_machine` and `humanandmachine` are one name).
+  The person creates it as Composio accepts names, only letters, digits and
+  underscores, starting with a letter: the display name's words in CamelCase
+  without diacritics (`composioOrganizationName`: "Lazurio Example
+  Organization" is `LazurioExampleOrganization`), with `Org` before one that
+  would start with a digit, which is then compared in that form too. A
+  display name that gives no such name is `unverified`.
 - **The verdict** (`composioOrganizationVerdict`), over `orgs list`: `matches`
   where the one organization of that name is current; `elsewhere` where it
   exists and another is current; `missing` where the account has none;
@@ -472,8 +495,8 @@ when they signed up.
 - **Missing or there more than once** (the Operator's decision of 2026-10-13):
   Composio works in the person's current organization, its accounts count and
   links and removals go there; Apps → Integrace says what to do with a link to
-  Composio's dashboard and the model drawn, and `lazurio integrations list` tells
-  agents. The next reading after the person created it makes it current.
+  Composio's dashboard, and `lazurio integrations list` tells agents. The next
+  reading after the person created it makes it current.
 - **Where its organization cannot be told** (`unverified`, or an `elsewhere`
   organization that could not be made current), the Composio source reads
   `organization`: none of its accounts is listed, and a link or a removal is
@@ -481,8 +504,23 @@ when they signed up.
   `composio.organization` is `{name, state}` on an Organization's Environment
   (the name null where it is `unverified`), null elsewhere.
 - **Creating one** is the person's, in Composio's dashboard: neither its CLI nor
-  its documented API creates an organization. "Zkontrolovat připojení" finds it
+  its documented API creates or renames an organization (the API lists them, the
+  CLI lists and switches). On Apps → Integrace, "Zkontrolovat připojení" finds it
   by name afterwards.
+- **The sign-in dialog** of Settings → Tools (note of 2026-10-17) shows, after the
+  sign-in, only what is left: where the organization is missing, the
+  Organization's name as Composio accepts it with "Kopírovat", a drawing of the
+  path in Composio's dashboard ("FOR YOU", the organization card at the bottom of
+  the sidebar, "Create Org", then the page it opens, where the name is typed into
+  "Organization name" and "Create organization" clicked; `composioScreen` in
+  `src/launchpad/composio-scene.ts` holds Composio's labels, matched to the
+  Organization Admin's screenshots) and "Otevřít Composio" to the dashboard's
+  root; where there are two of the name, rename the extra one. Apps → Integrace
+  and `lazurio integrations list` name the organization in the same form. It
+  reads the organizations again by itself (after 4 s, growing to every 30 s,
+  paused while the page is hidden and at once when it shows again) until it is
+  connected, then says "Composio je připojené" with the account and the
+  organization current after the switch, and "Vybrat aplikace" to Apps → Integrace.
 
 ### Account names and Composio's dashboard
 

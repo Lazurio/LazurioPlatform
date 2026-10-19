@@ -125,6 +125,9 @@ export function refusalText(reason: unknown, copy: Copy): string | null {
     case "not-connected":
     case "pilot-0197":
       return copy.vaultRequestNotReady;
+    // A public Organization's Environment has none, by design (DEV-6631).
+    case "no-tailnet":
+      return copy.vaultRequestNone;
     case "workstation":
     case "no-vault":
     case "folder-unreadable":

@@ -317,3 +317,36 @@ test.skipIf(process.platform === "win32")(
     }
   },
 );
+
+// Issue #413: the kernel grants a read its lock before the read has verified
+// and synced it. A mutation of this process that is refused in that moment,
+// or while the read releases it, still waits for the read; before, it saw no
+// read counted yet and failed as busy, under load on CI (a profile change
+// right after the shell setup cache started its background read).
+test.skipIf(process.platform === "win32")(
+  "a mutation started at any moment of its own read's acquisition or release waits for it",
+  async () => {
+    const directory = await realpath(
+      await mkdtemp(join(tmpdir(), "lock-own-read-window-")),
+    );
+    try {
+      // The first read creates the lock; every later one finds it.
+      await withFolderReadLock(directory, async () => {});
+      for (let ticks = 0; ticks < 60; ticks += 1) {
+        const order: string[] = [];
+        const read = withFolderReadLock(directory, async () => {
+          order.push("read");
+        });
+        for (let tick = 0; tick < ticks; tick += 1)
+          await new Promise((resolve) => setImmediate(resolve));
+        const write = withFolderOperationLock(directory, async () => {
+          order.push("write");
+        });
+        await Promise.all([read, write]);
+        expect([...order].sort()).toEqual(["read", "write"]);
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);

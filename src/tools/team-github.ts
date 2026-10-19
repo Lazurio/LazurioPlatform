@@ -4,9 +4,11 @@
 // person's account. The curated sign-in of gh and the linking of a person's
 // SSH key are refused there; signing out stays possible exactly when a
 // person's account is signed in (a left-over of the ended exception), because
-// removing it from the shared Machine is what the rule wants. Pure and
-// dependency-free, so the Launchpad page decides with exactly the rule the
-// server and the CLI enforce.
+// removing it from the shared Machine is what the rule wants. A public
+// Environment keeps the same rule but has no GitHub identity at all, so it
+// says that instead (`publicGithubText`). Pure and dependency-free, so the
+// Launchpad page decides with exactly the rule the server and the CLI
+// enforce.
 
 type Text = Readonly<{ cs: string; en: string }>;
 
@@ -16,6 +18,32 @@ export const teamGithubText: Text = {
   cs: "Toto Týmové Prostředí pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace. Osobní účty GitHubu se tady nepřihlašují.",
   en: "This Team Environment works in GitHub through Lazurio for GitHub, set up by the Organization. Personal GitHub accounts are not signed in here.",
 };
+
+/** The same rule on a public Environment (root decision 0204, decision F55's
+ * addendum of 2026-10-17), which has no GitHub identity at all: what it says
+ * instead of Lazurio for GitHub. The rule itself is the Team's, unchanged. */
+export const publicGithubText: Text = {
+  cs: "Toto Prostředí je veřejné a nemá žádnou identitu GitHubu. Veřejné repozitáře Organizace čte anonymně a nic se odsud nepublikuje. Účty GitHubu se tady nepřihlašují.",
+  en: "This Environment is public and has no GitHub identity. It reads the Organization's public repositories anonymously and nothing is published from here. GitHub accounts are not signed in here.",
+};
+
+/** Why a sign-out of gh is refused on a public Environment. */
+export const publicGithubLogoutText: Text = {
+  cs: "Odhlašuje se tu jen osobní účet GitHubu, který tu zůstal přihlášený, a gh žádný takový nehlásí.",
+  en: "Only a personal GitHub account left signed in here is signed out, and gh reports none.",
+};
+
+/** In gh's status line on a public Environment, instead of
+ * `teamGithubPhrase`. */
+export const publicGithubPhrase: Text = {
+  cs: "bez identity GitHubu",
+  en: "no GitHub identity",
+};
+
+/** The wording of the rule on this Environment: a public one's, or the
+ * Team's. */
+export const githubRuleText = (isPublic: boolean): Text =>
+  isPublic ? publicGithubText : teamGithubText;
 
 /** Why a sign-out of gh is refused there: no person's account to remove. */
 export const teamGithubLogoutText: Text = {

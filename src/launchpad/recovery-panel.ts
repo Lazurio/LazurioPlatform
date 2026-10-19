@@ -114,9 +114,13 @@ export function createRecoveryPanel(
     const blocks: Node[] = [];
     const summary = element("p", "callout", view.summary);
     if (view.verdict === "broken") summary.dataset.kind = "warning";
+    // What the guide of the page's "?" points at (decision F56's addendum
+    // of 2026-10-18): the result and the checks.
+    summary.dataset.guide = "recovery-result";
     blocks.push(summary);
 
     const checks = element("ul", "card");
+    checks.dataset.guide = "recovery-checks";
     for (const check of view.checks) {
       const row = element("li", "row");
       const main = element("div", "row-main");
@@ -237,6 +241,8 @@ export function createRecoveryPanel(
             element("pre", "", view.journal),
           );
       }
+      // What the evidence carries stays beside it: the person decides here
+      // whether to file it to the public repository.
       blocks.push(
         group(
           copy.recoveryEvidenceTitle,

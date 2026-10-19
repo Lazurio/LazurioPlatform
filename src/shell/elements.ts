@@ -1,5 +1,6 @@
-import { pageAccountJson } from "./account";
+import { browserStore, pageAccountJson } from "./account";
 import {
+  currentEnvironment,
   parseShell,
   type Shell,
   type ShellAccount,
@@ -7,6 +8,8 @@ import {
   shellSchema,
 } from "./contract";
 import { installShellFonts } from "./fonts";
+import { createGuide, type GuideElement } from "./guide";
+import { createGuideLayer } from "./guide-layer";
 import { icon } from "./icons";
 import {
   drawIdentity,
@@ -14,6 +17,7 @@ import {
   organizationMark,
 } from "./identity-element";
 import { createIdentityResponder } from "./identity-protocol";
+import { inKind } from "./kind-name";
 import { appOf, keptVisit, reportLast } from "./last";
 import { fillShell, type ShellCopy, shellMessages } from "./messages";
 import { newTabElement } from "./new-tab-element";
@@ -21,14 +25,23 @@ import { registerGuide } from "./offline-guide";
 import { accountSourceOf, createShellState } from "./state";
 import { columnHeadCss, railCss, railWidth } from "./styles";
 import { applyTabIcon } from "./tab-icon";
+import {
+  createEnvironmentTheme,
+  environmentTheme,
+  type ThemeDocument,
+} from "./theme";
 import { installShellTokens } from "./tokens";
 import { vendorText } from "./vendor-text" with { type: "macro" };
 import {
+  type ColumnNotice,
   type ColumnSetupPrompt,
   columnHead,
   elementIdentity,
   hereOf,
   initialsOf,
+  personalSpace,
+  type RailAccount,
+  railAccount,
   railHome,
   railSpaces,
   type ShellApp,
@@ -44,14 +57,19 @@ import {
 
 // The Lazurio shell as framework-free custom elements (decision F36,
 // addendum of 2026-10-04): `<lazurio-rail>` (level 1: the logo to the
-// Dashboard, the jump to an Environment, your personal space, one avatar per
-// Organization, the account) and `<lazurio-column-head>` (the head of an
-// app's left column: the Environment picker with the gear of this
-// Environment's Settings beside it, then the switch Chat · Apps · Automate).
+// Dashboard, the jump to an Environment, your personal space when you have
+// an Environment there, one avatar per Organization, the account) and
+// `<lazurio-column-head>` (the head of an app's left column: the Environment
+// picker with the gear of this Environment's Settings beside it, then the
+// switch Chat · Apps · Automate).
 // Each draws into its own shadow root, so neither the host's styles nor these
 // leak across. The panel below the head stays the app's own.
-// `<lazurio-buddy>` is reserved for Buddy's bubble (decision 0180) and not
-// defined here.
+// `<lazurio-buddy>` (decision F56, guide.ts) is where the guide draws: a
+// "?" of the page (`data-guide-help`) makes Buddy, or without him the
+// neutral guide of Lazurio, explain the page in place. It draws nothing and
+// listens to nothing until the page hands over its explanations
+// (`provideGuides`); the forks, which place it and hand over nothing, are
+// unchanged. Buddy's bubble itself (root decision 0180) comes later.
 //
 // Data: the `lazurio.shell.v1` document. A host that has it calls
 // `provideShell`; otherwise the elements read `/.lazurio/shell.json` on
@@ -96,9 +114,25 @@ import {
 // promises there (F36's addendum of 2026-10-13): the brand fonts' faces
 // (fonts.ts) and the design system's tokens on the root with the mark
 // `data-lazurio-theme="light"` (tokens.ts), each once, and neither where the
-// document has them already.
+// document has them already; and since F36's addendum of 2026-10-18 (root
+// decision 0208) the Environment's theme over them (theme.ts): the one this
+// origin remembers as the script evaluates, then the document's.
 
 const logo = vendorText("symbol-color.svg");
+
+// The Environment theme of this page (theme.ts): declared in its document,
+// remembered on its origin, announced as `lazurio-theme`.
+const theme = createEnvironmentTheme({
+  document:
+    typeof document === "undefined"
+      ? null
+      : (document as unknown as ThemeDocument),
+  store: browserStore(),
+  announce: (change) =>
+    document.dispatchEvent(
+      new CustomEvent("lazurio-theme", { detail: change }),
+    ),
+});
 
 // The page's document, the person's account and the two merged (what the
 // elements draw), shared by every element of the page.
@@ -109,6 +143,7 @@ const state = createShellState({
   report: reportLast,
   guide: registerGuide,
   tabIcon: applyTabIcon,
+  theme: (shell) => theme.provide(shell.theme ?? null),
 });
 let requested = false;
 
@@ -128,6 +163,65 @@ export function provideShell(shell: Shell | ShellSignedOut): void {
 export function provideAccount(account: ShellAccount | null): void {
   state.provideAccount(account);
 }
+
+// The guide of this page (guide.ts): what it plays and when, drawn by
+// guide-layer.ts in each `<lazurio-buddy>`'s own shadow root.
+const guideLayers = new WeakMap<
+  GuideElement,
+  ReturnType<typeof createGuideLayer>
+>();
+const guide = createGuide({
+  shell: () => state.drawn(),
+  copy: shellMessages,
+  follow: (changed) => state.listen(changed),
+  listenHelp: (play) => {
+    // A plain click of a "?" (`data-guide-help`), the keyboard's included:
+    // a button fires `click` for Enter and Space.
+    const click = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      const help = event
+        .composedPath()
+        .find(
+          (node): node is HTMLElement =>
+            node instanceof HTMLElement && node.dataset.guideHelp !== undefined,
+        );
+      if (help === undefined) return;
+      if (play(help.dataset.guideHelp ?? "", help)) event.preventDefault();
+    };
+    document.addEventListener("click", click);
+    return () => document.removeEventListener("click", click);
+  },
+  layer: (element) => {
+    let layer = guideLayers.get(element);
+    if (layer === undefined) {
+      layer = createGuideLayer(element as LazurioBuddy, logo);
+      guideLayers.set(element, layer);
+    }
+    return layer;
+  },
+  announce: (element, event) =>
+    (element as LazurioBuddy).dispatchEvent(
+      new CustomEvent("lazurio-guide", {
+        detail: event,
+        bubbles: true,
+        composed: true,
+      }),
+    ),
+});
+
+/** Hands over the explanations of the page the host shows now (decision
+ * F56), replacing those before: a list of `{id, title, steps: [{text, sub?,
+ * at?}]}`, each step pointing at a `data-guide` mark of the page; null
+ * withdraws. Once a page hands them over and places `<lazurio-buddy>`, a "?"
+ * (`data-guide-help="<id>"`) plays the explanation it names: one of these,
+ * or one of the shell's principles. */
+export function provideGuides(guides: unknown): void {
+  guide.provide(guides);
+}
+
+/** The arbiter between the guide and a host's own onboarding tour: never
+ * two at once. Not part of interface v1; the Launchpad's tour uses it. */
+export const guideAttention = guide.attention;
 
 function requestShell(): void {
   state.requestAccount();
@@ -154,6 +248,61 @@ function requestDocument(): void {
       if (shell !== null) provideShell(shell);
     })
     .catch(() => undefined);
+}
+
+// The page's document again when the page is shown again (F36's addendum of
+// 2026-10-18): on `visibilitychange` to visible and on `focus`, never by a
+// timer, so a change of the Environment's theme (or of what it lacks)
+// reaches a page without a reload. Only where the elements read the
+// document themselves and after their first read; one read at a time, and
+// none within `rereadGapMs` of the last, since both events come together.
+const rereadGapMs = 1_000;
+let rereading = false;
+let rereadAt = Number.NEGATIVE_INFINITY;
+function rereadDocument(): void {
+  if (
+    !requested ||
+    rereading ||
+    document.documentElement.dataset.lazurioShell === "host"
+  )
+    return;
+  const now = Date.now();
+  if (now - rereadAt < rereadGapMs) return;
+  rereading = true;
+  rereadAt = now;
+  fetch("/.lazurio/shell.json", {
+    credentials: "same-origin",
+    cache: "no-store",
+  })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((value: unknown) => {
+      const shell = parseShell(value);
+      // Drawn again only when it says something else.
+      if (
+        shell !== null &&
+        JSON.stringify(shell) !== JSON.stringify(state.local())
+      )
+        provideShell(shell);
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      rereading = false;
+    });
+}
+
+// The page's events that bring the theme (and the document) again: the
+// storage of another tab of this origin, and the page shown again.
+let watching = false;
+function watchEnvironmentTheme(): void {
+  if (watching) return;
+  watching = true;
+  window.addEventListener("storage", (event) => {
+    if (event.key === environmentTheme.cacheKey) theme.stored(event.newValue);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) rereadDocument();
+  });
+  window.addEventListener("focus", () => rereadDocument());
 }
 
 // Where you last were in each space, in this browser: a click on a space in
@@ -607,6 +756,79 @@ export class LazurioRail extends ShellElement {
     this.root.replaceChildren(nav);
   }
 
+  /** The account at the foot of the rail (`railAccount`): the link to its
+   * settings, or the button that opens its menu with the sign-out. The menu
+   * is a popover in the top layer, as the list under the picker, beside the
+   * account; the button is its invoker, so the browser opens and closes it
+   * (a second click, a click outside or Escape) and returns the focus. Its
+   * sign-out is a plain link, never announced, so the browser navigates to
+   * it whatever the host routes. */
+  private account(
+    shell: Shell,
+    model: RailAccount,
+  ): Readonly<{ item: HTMLElement; menu: HTMLElement | null }> {
+    const account =
+      model.kind === "link"
+        ? this.link(model.href, "item account")
+        : element("button", "item account");
+    this.withTip(account, model.label);
+    account.setAttribute("aria-label", model.label);
+    const photo = () => {
+      const mark = element("span", "avatar");
+      if (shell.operator.initials !== null)
+        mark.textContent = shell.operator.initials;
+      else mark.append(icon("user", 16));
+      return mark;
+    };
+    if (shell.operator.avatar !== null) {
+      const picture = element("img", "avatar");
+      picture.alt = "";
+      picture.referrerPolicy = "no-referrer";
+      picture.src = shell.operator.avatar;
+      picture.addEventListener("error", () => picture.replaceWith(photo()), {
+        once: true,
+      });
+      account.append(picture);
+    } else account.append(photo());
+    if (model.kind === "link") return { item: account, menu: null };
+
+    const button = account as HTMLButtonElement;
+    button.type = "button";
+    button.setAttribute("aria-expanded", "false");
+    const menu = element("div", "switcher-box switcher-popover account-menu");
+    menu.popover = "auto";
+    menu.setAttribute("aria-label", model.label);
+    const list = element("div", "switcher-list");
+    for (const entry of model.entries) {
+      const link = entry.announce
+        ? this.link(entry.href, "switcher-row")
+        : element("a", "switcher-row");
+      if (!entry.announce) link.href = entry.href;
+      link.dataset.entry = entry.kind;
+      const glyph = element("span", "switcher-glyph");
+      glyph.append(icon(entry.kind === "settings" ? "settings" : "logout", 16));
+      link.append(glyph, element("span", "switcher-name", entry.label));
+      link.addEventListener("click", () => menu.hidePopover());
+      list.append(link);
+    }
+    menu.append(list);
+    button.popoverTargetElement = menu;
+    // Beside the account, its foot level with the account's, never below
+    // the window.
+    menu.addEventListener("beforetoggle", (event) => {
+      if ((event as ToggleEvent).newState !== "open") return;
+      const rect = button.getBoundingClientRect();
+      menu.style.left = `${rect.right + 8}px`;
+      menu.style.bottom = `${Math.max(8, window.innerHeight - rect.bottom)}px`;
+    });
+    menu.addEventListener("toggle", (event) => {
+      const open = (event as ToggleEvent).newState === "open";
+      button.setAttribute("aria-expanded", String(open));
+      if (open) (list.firstElementChild as HTMLElement | null)?.focus();
+    });
+    return { item: button, menu };
+  }
+
   protected render() {
     const signedOut = state.signedOut();
     if (signedOut !== null) {
@@ -674,15 +896,19 @@ export class LazurioRail extends ShellElement {
     search.addEventListener("click", () => this.openJump());
 
     const scroll = element("div", "scroll");
+    // Your personal space, when the rail lists it, comes first with your
+    // initials, a divider between it and the Organizations.
     spaces.forEach((space, index) => {
-      if (index === 1) scroll.append(element("div", "divider"));
+      const personal = space.space === personalSpace;
+      if (index > 0 && spaces[index - 1]?.space === personalSpace)
+        scroll.append(element("div", "divider"));
       const link = this.withTip(
         this.link(space.href, "item space"),
         space.title,
       );
       link.setAttribute("aria-label", space.title);
       if (space.active) link.setAttribute("aria-current", "true");
-      if (index === 0) {
+      if (personal) {
         const mark = element("span", "initials");
         if (space.initials !== null) mark.textContent = space.initials;
         else mark.append(icon("user", 16));
@@ -700,28 +926,10 @@ export class LazurioRail extends ShellElement {
       scroll.append(add);
     }
 
-    const account = this.withTip(
-      this.link(shell.account, "item account"),
-      copy.account,
+    const { item: account, menu } = this.account(
+      shell,
+      railAccount(shell, copy),
     );
-    account.setAttribute("aria-label", copy.account);
-    const photo = () => {
-      const mark = element("span", "avatar");
-      if (shell.operator.initials !== null)
-        mark.textContent = shell.operator.initials;
-      else mark.append(icon("user", 16));
-      return mark;
-    };
-    if (shell.operator.avatar !== null) {
-      const picture = element("img", "avatar");
-      picture.alt = "";
-      picture.referrerPolicy = "no-referrer";
-      picture.src = shell.operator.avatar;
-      picture.addEventListener("error", () => picture.replaceWith(photo()), {
-        once: true,
-      });
-      account.append(picture);
-    } else account.append(photo());
 
     const jump = element("dialog", "switcher-dialog");
     jump.addEventListener("click", (event) => {
@@ -731,7 +939,7 @@ export class LazurioRail extends ShellElement {
 
     nav.append(home, search, element("div", "divider"), scroll, account);
     this.labelled(nav);
-    this.root.replaceChildren(nav, jump);
+    this.root.replaceChildren(nav, jump, ...(menu === null ? [] : [menu]));
   }
 }
 
@@ -878,9 +1086,29 @@ export class LazurioColumnHead extends ShellElement {
     const head = element("div", "head");
     head.append(row);
     // No switch on an Organization's Dashboard.
-    if (model.tabs !== null) head.append(this.appSwitch(model.tabs, copy));
+    if (model.tabs !== null)
+      head.append(
+        this.appSwitch(
+          model.tabs,
+          inKind(copy.switchLabel, currentEnvironment(shell)?.kind ?? null),
+        ),
+      );
     if (model.setup !== null) head.append(this.setupPrompt(model.setup));
+    if (model.notice !== undefined)
+      head.append(this.publicNotice(model.notice));
     this.root.replaceChildren(head);
+  }
+
+  /** The quiet notice under the switch on a public Environment (decision
+   * F55): its words beside a dot that carries the colour (the design
+   * system's `lz-notice--quiet`), a note and no link. A narrow column keeps
+   * the dot alone and the words for assistive technology. */
+  private publicNotice(notice: ColumnNotice): HTMLElement {
+    const note = element("p", "public-notice");
+    note.setAttribute("role", "note");
+    note.dataset.notice = "public";
+    note.append(element("span", "public-notice-text", notice.text));
+    return note;
   }
 
   /** The quiet prompt under the switch while the Environment lacks a basic
@@ -901,9 +1129,9 @@ export class LazurioColumnHead extends ShellElement {
   }
 
   /** The switch Chat · Apps · Automate. */
-  private appSwitch(tabs: readonly SwitchTab[], copy: ShellCopy): HTMLElement {
+  private appSwitch(tabs: readonly SwitchTab[], label: string): HTMLElement {
     const nav = element("nav", "switch");
-    nav.setAttribute("aria-label", copy.switchLabel);
+    nav.setAttribute("aria-label", label);
     nav.append(
       ...tabs.map((tab) => {
         const glyph = icon(tab.app, 16);
@@ -939,6 +1167,23 @@ export class LazurioColumnHead extends ShellElement {
       }),
     );
     return nav;
+  }
+}
+
+/** `<lazurio-buddy>`: the guide's place on the page (decision F56). Its
+ * `lang` picks the guide's language, else the shell document's. It makes
+ * no shadow root and adds no listener of its own: the guide draws in it only
+ * once the page takes part. */
+export class LazurioBuddy extends HTMLElement implements GuideElement {
+  static observedAttributes = ["lang"];
+  connectedCallback() {
+    guide.attach(this);
+  }
+  disconnectedCallback() {
+    guide.detach(this);
+  }
+  attributeChangedCallback() {
+    if (this.isConnected) guide.changed();
   }
 }
 
@@ -998,12 +1243,19 @@ function answerFramedViews(): void {
   state.listen(() => responder.changed());
 }
 
-/** Defines the elements (once), declares the brand fonts and the design
- * system's tokens in the document and answers framed views of the
- * Environment browser. */
+/** Defines the elements (once), declares the brand fonts, the design
+ * system's tokens and the Environment theme in the document and answers
+ * framed views of the Environment browser. The tokens, their mark and the
+ * theme this origin remembers are declared synchronously, before anything
+ * waits: `/.lazurio/shell.js` calls this as it evaluates, before the app's
+ * own module runs (F36's addendum of 2026-10-18). */
 export function defineShellElements(): void {
   installShellFonts(document);
   installShellTokens(document);
+  theme.start();
+  watchEnvironmentTheme();
+  // The document's theme even on a page that places no element.
+  requestDocument();
   if (!customElements.get("lazurio-rail"))
     customElements.define("lazurio-rail", LazurioRail);
   if (!customElements.get("lazurio-column-head"))
@@ -1017,6 +1269,8 @@ export function defineShellElements(): void {
         request: requestDocument,
       }),
     );
+  if (!customElements.get("lazurio-buddy"))
+    customElements.define("lazurio-buddy", LazurioBuddy);
   if (!customElements.get("lazurio-environment"))
     customElements.define(
       "lazurio-environment",

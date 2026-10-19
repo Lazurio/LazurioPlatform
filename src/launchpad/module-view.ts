@@ -94,6 +94,10 @@ const reasonKeys: Readonly<Record<string, MessageKey>> = {
   "required-slot-undeclared": "moduleReasonRequiredSlotUndeclared",
   "required-slot-planned": "moduleReasonRequiredSlotPlanned",
   "required-slot-missing": "moduleReasonRequiredSlotMissing",
+  "data-mount-denied": "moduleReasonDataMountDenied",
+  "data-mount-occupied": "moduleReasonDataMountOccupied",
+  "data-mount-unavailable": "moduleReasonDataMountUnavailable",
+  "data-mount-clone-failed": "moduleReasonDataMountCloneFailed",
   "runtime-secret-unavailable": "moduleReasonRuntimeSecretUnavailable",
   "coordination-busy": "appCoordinationBusy",
   "service-unrecognized": "appServiceUnrecognized",
@@ -125,6 +129,19 @@ const reasonKeys: Readonly<Record<string, MessageKey>> = {
   "preparation-install-failed": "preparationReasonInstallFailed",
   "preparation-script-failed": "preparationReasonScriptFailed",
 };
+
+/** The words of module refusals on this Environment. A Team Environment
+ * (`team`) has no person's GitHub account: it reads GitHub as the Team,
+ * through Lazurio for GitHub, so its `data-mount-denied` names the Team's
+ * access (#488). */
+export function moduleCopy(copy: Copy, team: boolean): Copy {
+  return team
+    ? {
+        ...copy,
+        moduleReasonDataMountDenied: copy.moduleReasonDataMountDeniedTeam,
+      }
+    : copy;
+}
 
 /** A refusal or a missing link in words; an unknown code is named by its
  * code, never guessed. A refused file of the module's checkout is named in

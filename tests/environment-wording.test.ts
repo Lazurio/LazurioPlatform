@@ -7,6 +7,8 @@ import { presetNames, presetProfile } from "../src/folder/presets";
 import { environmentWording, renderInstructions } from "../src/folder/render";
 import { messages } from "../src/launchpad/messages";
 import { newTabCopy } from "../src/launchpad/new-tab-view";
+import { shellEnvironmentKinds } from "../src/shell/contract";
+import { hasKindToken, inKind } from "../src/shell/kind-name";
 import { shellMessages } from "../src/shell/messages";
 import { renderOfflineGuide } from "../src/shell/offline-page";
 import {
@@ -185,12 +187,13 @@ const czechForbidden: readonly [string, RegExp][] = [
   // The kind is enough (the brand voice, "Druh Prostředí stačí"; Matěj
   // 2026-10-14): never a label "jen vaše" or "sdílené Teamem". Stems, not
   // listed endings, so every case of váš and tvůj is caught ("jen vaší",
-  // "jen tvou", "jen tvojí"); "jen vám" is another word and stays allowed.
-  // A sentence may still say in full words that a Team Prostředí is shared
-  // ("sdílené celým Teamem").
+  // "jen tvou", "jen tvojí"). Since Matěj's review of 2026-10-17 "jen vám"
+  // and "jen pro vás" go too: unnatural Czech, said normally instead ("Toto
+  // je vaše Prostředí."). A sentence may still say in full words that a
+  // Team Prostředí is shared ("sdílené celým Teamem").
   [
     "jen vaše (any form)",
-    /(?<!\p{L})jen\s+(?:váš|vaš\p{L}*|tv\p{L}+)(?!\p{L})/iu,
+    /(?<!\p{L})jen\s+(?:váš|vaš\p{L}*|tv\p{L}+|vám|pro\s+vás)(?!\p{L})/iu,
   ],
   ["sdílené Teamem", /sdílen\p{L}* Teamem/u],
   // Prostředí is neuter. No neuter form ends in -ý, so a word in -ý before
@@ -215,6 +218,14 @@ const czechForbidden: readonly [string, RegExp][] = [
     "firma for the Organization",
     /(?<!\p{L})(?:firm(?!ware)\p{L}*|firem)(?!\p{L})/iu,
   ],
+  // Three kinds, and your own computer has none (root decision 0207,
+  // addendum of 2026-10-18; F28's addendum of the same day): no Automated,
+  // Místní or Buddy kind, and none of the presets' old names.
+  ["Automatizované Prostředí (any case)", /Automatizovan\p{L}*\s+Prostředí/iu],
+  ["Místní Prostředí (any case)", /Místn\p{L}*\s+Prostředí/iu],
+  ["Prostředí Buddy", /Prostředí\s+Buddy/u],
+  ["Lokální pracovní stanice", /Lokální\s+pracovní\s+stanic/iu],
+  ["Pracovní týmové", /Pracovní\s+týmov/iu],
   [
     "the tenhle family",
     new RegExp(
@@ -277,8 +288,10 @@ async function czechLiterals(path: string): Promise<string> {
 
 test("Czech that people read says Prostředí, Lazurio, Organizace and tento (0170 addendum 2026-10-15)", async () => {
   const found = [
-    ...Object.entries(messages("cs")).flatMap(([key, value]) =>
-      czechFindings(`messages.cs.${key}`, value),
+    ...[null, ...shellEnvironmentKinds].flatMap((kind) =>
+      Object.entries(messages("cs", kind)).flatMap(([key, value]) =>
+        czechFindings(`messages.cs.${kind ?? "any"}.${key}`, value),
+      ),
     ),
     ...Object.entries(shellMessages("cs")).flatMap(([key, value]) =>
       czechFindings(
@@ -427,10 +440,20 @@ test.each([
   "jen tvou Organizaci",
   "jen vaší Organizaci",
   "jen tvojí Organizaci",
+  // and, since 2026-10-17, "jen vám" and "jen pro vás".
+  "Pracuje jen vám.",
+  "Ten váš zůstane jen pro vás.",
   "jen vašimi",
   // Masculine agreement with the neuter term.
   "Týmový Prostředí",
   "Automatizovaný Prostředí",
+  // The old kinds (F28's addendum of 2026-10-18).
+  "Automatizované Prostředí",
+  "v Automatizovaném Prostředí",
+  "Místní Prostředí",
+  "Toto je vaše Prostředí Buddy",
+  "Lokální pracovní stanice",
+  "Pracovní týmové",
   "Tento Prostředí",
   "ten Prostředí",
   "tenhle Prostředí",
@@ -450,12 +473,11 @@ test.each([
   "firemní",
   "firmware",
   "productionspace/firmware",
-  "jen vám",
   "tato Prostředí",
   "Prostředí, které",
   "CRM: kontakty, firmy, obchody a marketing.",
   "Týmové Prostředí",
-  "Automatizované Prostředí",
+  "Pracovní Prostředí s automatizacemi",
   "Toto Prostředí",
   "to Prostředí",
   "jedno Prostředí",
@@ -465,7 +487,6 @@ test.each([
   "v tomto Prostředí",
   "s jedním Prostředím",
   "proměnné prostředí",
-  "Pracuje jen vám.",
 ])("the Czech guard lets through %p", (text) => {
   expect(czechFindings("t", text)).toEqual([]);
   expect(
@@ -474,4 +495,145 @@ test.each([
       "Toto Prostředí na serveru spustí `lazurio launchpad serve`; firemní účet; proměnné prostředí; bude sdílené celým Teamem.",
     ),
   ).toEqual([]);
+});
+
+// Decision F28's addendum of 2026-10-18 (root decision 0207, addendum of the
+// same day): people read three kinds, Osobní, Pracovní and Týmové Prostředí
+// (Personal, Work and Team Environment); an automated Environment is a work
+// one, and your own computer has no kind, it is Váš počítač.
+const englishOldKinds: readonly [string, RegExp][] = [
+  ["Automated as a kind", /\bAutomated\b/],
+  ["Local as a kind", /\bLocal (?:workstation|Environment)\b/i],
+  [
+    "a kind as a Remote Environment",
+    /\b(?:Personal|Work|Team) Remote Environment\b/,
+  ],
+  ["Work, Team", /\bWork, Team\b/],
+];
+
+test("the shell names three kinds, and your own computer has none", () => {
+  for (const [locale, words] of [
+    ["cs", ["Osobní", "Pracovní", "Týmové", "Váš počítač"]],
+    ["en", ["Personal", "Work", "Team", "Your computer"]],
+  ] as const) {
+    const copy = shellMessages(locale);
+    expect(new Set(Object.values(copy.names))).toEqual(new Set(words));
+    expect(new Set(Object.values(copy.kinds))).toEqual(new Set(words));
+    expect(copy.names.automated).toBe(copy.names.work);
+    expect(copy.kinds.automated).toBe(copy.kinds.work);
+  }
+  expect(shellMessages("cs").settings).toEqual({
+    personal: "Nastavení Osobního Prostředí",
+    work: "Nastavení Pracovního Prostředí",
+    team: "Nastavení Týmového Prostředí",
+    automated: "Nastavení Pracovního Prostředí",
+    workstation: "Nastavení vašeho počítače",
+  });
+  expect(shellMessages("en").settings).toEqual({
+    personal: "Personal Environment Settings",
+    work: "Work Environment Settings",
+    team: "Team Environment Settings",
+    automated: "Work Environment Settings",
+    workstation: "Settings of your computer",
+  });
+});
+
+test("the English that people read says no old kind", () => {
+  const texts = [
+    ...[null, ...shellEnvironmentKinds].flatMap((kind) =>
+      Object.entries(messages("en", kind)).map(
+        ([key, value]) =>
+          [`messages.en.${kind ?? "any"}.${key}`, value] as const,
+      ),
+    ),
+    ...Object.entries(shellMessages("en")).map(
+      ([key, value]) =>
+        [
+          `shell.en.${key}`,
+          typeof value === "string" ? value : Object.values(value).join("\n"),
+        ] as const,
+    ),
+  ];
+  expect(
+    texts.flatMap(([where, text]) =>
+      englishOldKinds
+        .filter(([, pattern]) => pattern.test(text))
+        .map(([word]) => `${where}: ${word}: ${text}`),
+    ),
+  ).toEqual([]);
+  for (const old of [
+    "Automated",
+    "Local workstation",
+    "Personal Remote Environment",
+    "Work, Team",
+  ])
+    expect(englishOldKinds.some(([, pattern]) => pattern.test(old))).toBe(true);
+  for (const fine of [
+    "Work Environment with automations",
+    "T3 Code in a Remote Environment",
+    "Your computer",
+  ])
+    expect(englishOldKinds.some(([, pattern]) => pattern.test(fine))).toBe(
+      false,
+    );
+});
+
+// Only these texts keep the plain words for this Environment: they speak of
+// its kind itself, which naming would repeat (Obecné's hint beside the kind
+// it describes) or contradict (a kind that could not be read).
+const aboutTheKind: ReadonlySet<string> = new Set([
+  "presetHint",
+  "toolsLoginFailureEnvironment",
+]);
+const plainThis = {
+  cs: /(?<!\p{L})(?:toto|tohoto|tomuto|tomto|tímto)\s+Prostředí/iu,
+  en: /\bthis Environment\b/i,
+} as const;
+
+test("a text about the Environment the page is in names its kind, in both languages", () => {
+  const found: string[] = [];
+  for (const locale of ["cs", "en"] as const) {
+    for (const kind of [null, ...shellEnvironmentKinds])
+      for (const [key, value] of Object.entries(messages(locale, kind))) {
+        // Every token is filled, with a kind or without.
+        if (hasKindToken(value)) found.push(`${locale}.${key}: a token`);
+        if (
+          kind !== null &&
+          !aboutTheKind.has(key) &&
+          plainThis[locale].test(value)
+        )
+          found.push(`${locale}.${kind}.${key}: ${value}`);
+      }
+    const copy = shellMessages(locale);
+    for (const kind of shellEnvironmentKinds)
+      for (const [key, value] of Object.entries(copy))
+        if (typeof value === "string") {
+          const filled = inKind(value, kind);
+          if (hasKindToken(filled))
+            found.push(`shell.${locale}.${key}: a token`);
+          if (plainThis[locale].test(filled))
+            found.push(`shell.${locale}.${kind}.${key}: ${filled}`);
+        }
+  }
+  expect(found).toEqual([]);
+  // The texts that keep the plain words are exactly these, and say them.
+  for (const key of aboutTheKind)
+    for (const locale of ["cs", "en"] as const)
+      expect(
+        plainThis[locale].test(
+          messages(locale, "team")[key as keyof ReturnType<typeof messages>],
+        ),
+      ).toBe(true);
+  // Without a kind the plain words stay, as before.
+  expect(messages("cs").machineTitle).toBe("Toto Prostředí");
+  expect(messages("en").machineTitle).toBe("This Environment");
+  expect(messages("cs", "team").machineTitle).toBe("Toto Týmové Prostředí");
+  expect(messages("cs", "workstation").machineTitle).toBe("Tento počítač");
+  expect(messages("en", "automated").machineTitle).toBe(
+    "This Work Environment",
+  );
+  expect(messages("en", "workstation").machineTitle).toBe("This computer");
+  // One catalog per language and kind.
+  expect(messages("cs", "team")).toBe(messages("cs", "team"));
+  expect(messages("cs", null)).toBe(messages("cs"));
 });

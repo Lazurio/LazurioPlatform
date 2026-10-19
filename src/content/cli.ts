@@ -33,8 +33,12 @@ export const contentHelp = `organization install <github-login> [--role builder|
   repositories that this Environment's GitHub sign-in (gh's) can read, then
   the declared preparation of each module it cloned, then the doctor's check
   of the Organization. A child repository it cannot read is reported and the
-  others continue; infra, repository databases and restricted slots are left
-  out. An existing repository is never fetched, switched or reset, and an
+  others continue; infra and restricted slots are left out. A module's
+  declared data mount (a repository_db_mount slot such as
+  workspace/<module>/db or mission-control/db) follows its module: cloned on
+  its declared branch when the module is there after this install, excluded
+  while it is not; any other database slot is left out. An existing
+  repository is never fetched, switched or reset, and an
   occupied destination is never touched. The root of an Organization the
   Folder already holds is that checkout. Otherwise a name is only a
   candidate: --root <owner>/<repository> when named, else
@@ -55,8 +59,17 @@ export const contentHelp = `organization install <github-login> [--role builder|
   (role-unverified). Only
   on a workstation (local) and a work Environment
   (hosted-organization-personal or hosted-organization-steward, its own
-  Organization only). The Automated preset grants no GitHub role. One JSON line
-  per step with --json, then the result.
+  Organization only). The Automated preset grants no GitHub role. A public
+  Environment (its handover's entry.audience public, whatever its preset) has
+  no GitHub identity: it installs its own Organization only, as a reader
+  (--role reader; any other role fails role-unverified), reads nothing of
+  GitHub's API and clones the root and every child over anonymous HTTPS with
+  an isolated git (none of the operator's Git configuration, credential, askpass
+  or SSH helpers, HTTPS only, exactly https://github.com/<owner>/<repository>.git);
+  its root is the one the Folder holds, --root or
+  <login>/<login>_GEN3, verified in the clone, and a child anonymous Git
+  cannot read is reported (clone-failed). One JSON line per step with --json,
+  then the result.
 personalspace install [--folder <absolute Folder>] [--json]
   Installs the person's Personalspace into personalspace/<login>_GEN3: when
   <login>/<login>_GEN3 exists on GitHub (private, the person's own), it is
@@ -80,7 +93,7 @@ personalspace install [--folder <absolute Folder>] [--json]
   (warning personalspace-placeholders) with the next step, the bootstrap in a
   task worktree and a pull request.
 Neither runs on a Team Environment, whose content the hosting
-prepares (prepared-by-hosting). One content operation runs at a time per
+prepares (prepared-by-hosting), unless it is public. One content operation runs at a time per
 Folder (content-busy). The Folder is found as for organization list.
 Exit status: 0 installed, 1 failed (the step and its code are printed), 2
 usage or not allowed on this Environment.`;

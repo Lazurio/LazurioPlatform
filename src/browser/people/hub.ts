@@ -6,9 +6,11 @@ import type { GraceKind, TabFacts, TabOpener } from "../contract/platform";
 import {
   type BootTime,
   browserTimes,
+  handOffAddress,
   navigableAddress,
 } from "../contract/pure";
 import type { CdpConnection, CdpEvent } from "./cdp";
+import type { CookieSweep } from "./cookies";
 import {
   type ClientMessage,
   encodeFrame,
@@ -62,6 +64,10 @@ export type HubSeams = Readonly<{
   /** The Environment's boot clock, read before each snapshot; null where
    * there is none, and then no list is written. */
   bootClock?: () => Promise<BootTime | null>;
+  /** Removes the cookies a Lazurio session leaves in the browser (#504,
+   * `sweepCookies`), each time the hub reaches the browser: the view's
+   * start, an upgrade, a restarted browser. */
+  sweepCookies?: (cdp: CdpConnection) => Promise<CookieSweep>;
   /** Where uploaded files wait until the page reads them. */
   uploadDirectory: string;
   /** The virtual screen; no window grows past it. */
@@ -165,7 +171,15 @@ type Tab = {
   selectionTimer: ReturnType<typeof setTimeout> | null;
   /** Reads the title and icon while the tab is watched. */
   metaTimer: ReturnType<typeof setInterval> | null;
+  /** The newest failed document requests of a watched tab, by their loader
+   * id, with DevTools' error text: an error page that commits names the
+   * same loader (#504). */
+  failed: Map<string, string>;
 };
+
+/** Failed document requests remembered per tab: the navigation's own and a
+ * few the error page retried. */
+const keptFailures = 8;
 
 type FileChooser = {
   targetId: string;
@@ -306,6 +320,9 @@ export function clampSize(size: ViewSize): ViewSize {
 
 export class BrowserHub {
   private cdp: CdpConnection | null = null;
+  /** The GitHub login of the browser's kept github.com sign-in at the last
+   * sweep (#504); null without one, in a public Environment, or before. */
+  private github: string | null = null;
   private stopped = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly tabs = new Map<string, Tab>();
@@ -363,6 +380,12 @@ export class BrowserHub {
 
   get connected(): boolean {
     return this.cdp !== null;
+  }
+
+  /** Whom the browser's kept github.com sign-in names (#504): the login at
+   * the last cookie sweep, or null. */
+  get githubLogin(): string | null {
+    return this.github;
   }
 
   /** Connected and discovery has reported every existing page: a target
@@ -860,6 +883,23 @@ export class BrowserHub {
       return;
     }
     this.seams.log("browser connected");
+    if (this.seams.sweepCookies !== undefined) {
+      try {
+        const swept = await this.seams.sweepCookies(cdp);
+        this.github = swept.github;
+        if (swept.removed > 0)
+          this.seams.log(
+            `removed ${swept.removed} Lazurio session cookie(s) from the browser`,
+          );
+        if (swept.remaining > 0)
+          this.seams.log(
+            `${swept.remaining} Lazurio session cookie(s) could not be removed`,
+          );
+      } catch (error) {
+        this.seams.log(`cookie sweep failed: ${String(error)}`);
+      }
+      if (this.cdp !== cdp) return;
+    }
     // A tab kept across a reconnect whose page did not come back is gone.
     for (const id of [...this.tabs.keys()])
       if (!this.seen.has(id)) this.gone(id);
@@ -1014,6 +1054,7 @@ export class BrowserHub {
         world: null,
         document: 0,
         pendingOpen: null,
+        failed: new Map(),
         selectionTimer: null,
         metaTimer: null,
       };
@@ -1128,6 +1169,14 @@ export class BrowserHub {
         return null;
       });
     await call("Emulation.setFocusEmulationEnabled", { enabled: true });
+    // A navigation the browser's policy blocks is handed off to the viewer's
+    // own browser (#504); only the Network domain says why a navigation
+    // failed. Nothing of the pages' bodies is kept for it.
+    await call("Network.enable", {
+      maxTotalBufferSize: 0,
+      maxResourceBufferSize: 0,
+      maxPostDataSize: 0,
+    });
     await this.meta(tab);
     if (tab.metaTimer === null && tab.watched)
       tab.metaTimer = setInterval(() => void this.meta(tab), metaEveryMs);
@@ -1146,6 +1195,9 @@ export class BrowserHub {
     tab.lastFrame = null;
     if (tab.resizeTimer !== null) clearTimeout(tab.resizeTimer);
     tab.resizeTimer = null;
+    tab.failed.clear();
+    if (cdp !== null && session !== null)
+      void cdp.send("Network.disable", {}, session).catch(() => undefined);
     if (cdp === null || session === null || tab.screencast === null) return;
     tab.screencast = null;
     this.forgetAcks(tab);
@@ -1469,10 +1521,41 @@ export class BrowserHub {
         this.maybeAck(tab);
         return;
       }
+      case "Network.loadingFailed": {
+        if (p.type !== "Document" || typeof p.requestId !== "string") return;
+        tab.failed.delete(p.requestId);
+        tab.failed.set(p.requestId, String(p.errorText ?? ""));
+        while (tab.failed.size > keptFailures) {
+          const oldest = tab.failed.keys().next().value;
+          if (oldest === undefined) break;
+          tab.failed.delete(oldest);
+        }
+        return;
+      }
       case "Page.frameNavigated": {
-        const frame = p.frame as { id?: string; parentId?: string } | undefined;
+        const frame = p.frame as
+          | {
+              id?: string;
+              parentId?: string;
+              loaderId?: string;
+              unreachableUrl?: string;
+            }
+          | undefined;
         if (frame?.parentId !== undefined) return;
         if (typeof frame?.id === "string") tab.mainFrameId = frame.id;
+        // An error page for a navigation the browser's policy blocked: the
+        // page of a person's Lazurio account, which opens only in their own
+        // browser (#504). The view offers it there and never opens it here.
+        if (
+          typeof frame?.loaderId === "string" &&
+          frame.unreachableUrl !== undefined
+        ) {
+          const url = handOffAddress(
+            tab.failed.get(frame.loaderId),
+            frame.unreachableUrl,
+          );
+          if (url !== null) this.broadcast(tab, { t: "hand-off", url });
+        }
         tab.world = null;
         tab.document += 1;
         // A new document has no selection: a copy must not take the old one.

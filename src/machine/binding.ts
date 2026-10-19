@@ -88,6 +88,10 @@ function entry(input: HandoverEntry): MachineEntry {
       ...(input.environment_relay === undefined
         ? {}
         : { environmentRelaySocket: input.environment_relay.socket }),
+      ...(input.sign_out === undefined
+        ? {}
+        : { signOutPath: input.sign_out.path }),
+      ...(input.audience === undefined ? {} : { audience: input.audience }),
     });
   } catch {
     throw new MachineContextError("machine-context-invalid");

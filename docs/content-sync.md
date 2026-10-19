@@ -95,8 +95,11 @@ materialized or inspected for cleanliness by this operation:
 Installation (below) is a different operation with its own rules: since decision F33
 (1.1 point 4) it materializes absent Production Space repositories, and since the F9
 addendum of 2026-10-04 it materializes the Personalspace on the two kinds of
-Environment that hold one. Neither is ever fetched, fast-forwarded or prepared by it,
-and repository databases and worktrees stay outside it too.
+Environment that hold one. Neither is ever fetched, fast-forwarded or prepared by it.
+Since the B7 amendment of 2026-10-17 it also materializes the declared data mount
+(`repository_db_mount`) of a module that is there after the same install, on its
+declared branch, and never fetches or changes one that exists; worktrees stay outside
+it.
 
 ## Identity and rights
 
@@ -105,7 +108,11 @@ meant to use, as selected by its [workspace preset](workspace-presets.md):
 
 - private workspace or local Machine: the Operator's own provider sign-in;
 - team workspace: the brokered Organization identity, one short-lived
-  repository-scoped token per operation.
+  repository-scoped token per operation. Content installation itself is the hosting's
+  there (`prepared-by-hosting`); a module's own data mount is provided at its start
+  through the brokered `gh` with the repository named in `GH_REPO`, and cloned with
+  git's configured credential helper, which the hosting points at the same broker
+  (B7 amendment of 2026-10-18, #488).
 
 Denied, revoked or unavailable access stops that repository's operation and preserves
 local content. Synchronization never substitutes another identity, reuses a peer's
@@ -149,6 +156,7 @@ The content follows the Environment's kind, which is the Folder's recorded prese
 | Personal Remote Environment | `hosted-personal` | Only the person's Personalspace, never an Organization repository; gh must work as the handover's owner (`github-identity-mismatch`) |
 | Work Environment of one operator, Automated Environment | `hosted-organization-personal`, `hosted-organization-steward` | Only the Organization of its handover (`owner.organization`), never a Personalspace |
 | Team Environment | `hosted-organization-team` | Prepared by the hosting (Machines); the operation answers `prepared-by-hosting` and does nothing |
+| Public Environment (`entry.audience` `public`) | any | Only the Organization of its handover, read anonymously as a reader ([below](#a-public-environment-anonymous-reading)); never a Personalspace |
 
 The Automated Environment uses the ordinary explicit installation under its
 signed-in persona account (F9 amendment of 2026-10-12). Its preset describes the
@@ -209,9 +217,14 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
 3. **modules** — the children are re-read from the root as it now is: the workspace
    modules, the root-level applications (`mission-control`, `design-system`) and the
    Production Space repositories (decision F33, 1.1 point 4), each with a GitHub
-   remote in its slot. `infra` and repository databases (`mission-control/db`,
-   `workspace/<module>/db`) are the Organization's own bootstrap (B7) and are left out
-   (`excluded`). The role scope comes first: a restricted (Admin-only,
+   remote in its slot. A declared data mount (`materialization:
+   "repository_db_mount"` at `mission-control/db` or `workspace/<module>/db`) follows
+   its module (B7, amended 2026-10-17): materialized on its declared `git.branch`
+   (often `v3`) by the same function as the modules when the module is materialized or
+   present in this install, `excluded` when it is not; an empty directory at its place
+   counts as absent. A present checkout is reported as for any child (`present`, or
+   `blocked` for another repository) and never changed. `infra` and a database slot
+   declared otherwise are left out (`excluded`). The role scope comes first: a restricted (Admin-only,
    `default_access` `restricted` or `private`) slot and every slot below it are in
    scope only for a verified Admin; for a Steward, Builder or Reader they are
    `excluded_by_role_scope` without any provider operation. A slot whose access
@@ -235,6 +248,47 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
 5. **check** — the doctor's checks of this Organization in the catalog
    (`catalogChecks`): the Organization must be executable; modules with a reason are
    counted in the detail.
+
+### A public Environment: anonymous reading
+
+A public Environment (root decision 0204, [F55's addendum of
+2026-10-17](decisions.md#addendum-of-2026-10-17-a-public-environment-has-no-github-identity))
+has no GitHub identity at all: no broker, no App installation token and no person's
+sign-in; `gh` is signed out. The recorded entry decides it (`githubIdentity`, the
+same rule as the generated texts), whatever the preset, so a Team Environment with the
+member is no longer `prepared-by-hosting`. The same five steps run, with these
+differences only (`scope.github` `anonymous` in `src/content/model.ts`):
+
+- **access** asks GitHub nothing: no gh account, no repository, membership or
+  declaration read. The role is the Reader's (restricted slots and what is below them
+  `excluded_by_role_scope`); only the Reader's role may be asked for, any other one
+  fails closed (`role-unverified`), the CLI's bare Admin form included. The root is the
+  one the Folder holds, the named `--root`, or the name candidate `<login>/<login>_GEN3`;
+  there is no scan, which would read the Organization's listing and one declaration
+  per repository through GitHub's unauthenticated API (60 requests an hour per
+  address, shared by every visitor of that address). The candidate is verified in the
+  clone, as every source is (`root-declaration-mismatch`). The handover names the
+  Organization by its lowercase slug, so the root is published under the repository
+  name its own verified declaration spells (`root_repository.locator`, which may differ
+  from the request by letter case only): `organizations/<Org>_GEN3` as every member's
+  install names it, also on a case-sensitive filesystem. The occupied check covers that
+  name in any letter case, also when an entry appears while the root is cloned.
+  Children keep the paths their slots declare.
+- **root** and **modules** clone exactly `https://github.com/<owner>/<repository>.git`
+  (anything else fails before any process) with an isolated git: the process gets only
+  PATH, a locale and an empty temporary home, with no system, global or XDG configuration
+  and nothing injected through the environment (`GIT_CONFIG_*`, `GIT_CONFIG_PARAMETERS`),
+  no credential, askpass or SSH helper and HTTPS the only protocol
+  (`anonymousGitEnvironment` in `src/content/git.ts`). So no `http.extraHeader`,
+  credential helper, `insteadOf` rewrite (to another host or to SSH) or `core.sshCommand`
+  of the operator, a visitor or this process reaches the clone (review of #472). A
+  child is not asked of GitHub before its clone, so one that anonymous Git cannot read
+  (private or absent) is reported `failed` (`clone-failed`), not `denied`.
+- Nothing is created, generated, granted, committed or pushed: the Personalspace is
+  refused (`not-for-this-environment`), and the Organization path has no such step.
+
+Everything else, the temporary sibling, the verification, the no-replace publish,
+the preparation and the check, is the same code. Without the member nothing changes.
 
 ### The Personalspace
 

@@ -4,6 +4,10 @@ import {
   isModuleOriginTemplate,
 } from "../launchpad/hosted-entry";
 import { type HostedEntry, parseHostedEntry } from "../launchpad/hosted-trust";
+import {
+  type EntryAudience,
+  isEntryAudience,
+} from "../launchpad/public-environment";
 import { ownDataValue, stateFields } from "./state-fields";
 
 // The handover part of a hosted Folder: a projection of the root-issued
@@ -69,9 +73,12 @@ export type MachineRelationships = Readonly<{
 // port (`entry.mausbot`, DEV-6632) are recorded only when the handover carries
 // them, both or neither, so an entry recorded from an older handover is
 // unchanged byte for byte. The Environment browser's view (`entry.browser`,
-// root decision 0191, F38) follows the same rule, and so does the socket of
-// the Environment's relay to the Dashboard (`entry.environment_relay.socket`,
-// root decision 0194, DEV-6653 contract C3).
+// root decision 0191, F38) follows the same rule, and so do the socket of the
+// Environment's relay to the Dashboard (`entry.environment_relay.socket`, root
+// decision 0194, DEV-6653 contract C3), the path of the person's sign-out
+// on the shell's origins (`entry.sign_out.path`, Machines#358) and the
+// audience of a public Environment (`entry.audience`, root decision 0204,
+// Machines #560).
 export type MachineEntry = HostedEntry &
   Readonly<{
     t3codeOrigin: string;
@@ -81,6 +88,8 @@ export type MachineEntry = HostedEntry &
     browserOrigin?: string;
     browserListenPort?: number;
     environmentRelaySocket?: string;
+    signOutPath?: string;
+    audience?: EntryAudience;
   }>;
 
 /** The socket of the Environment's relay, by the wire schema's rule: one
@@ -89,6 +98,12 @@ export const isEnvironmentRelaySocket = (value: unknown): value is string =>
   typeof value === "string" &&
   value.length <= 100 &&
   /^\/run\/[a-z0-9-]+\/[a-z0-9-]+\.sock$/.test(value);
+
+/** The path of the person's sign-out, by the wire schema's rule: exactly the
+ * one path the gateway serves on the shell's origins (Machines#358). */
+export const signOutPath = "/.lazurio/sign-out";
+export const isSignOutPath = (value: unknown): value is string =>
+  value === signOutPath;
 
 export type MachineBinding = Readonly<{
   contextDigest: string;
@@ -279,11 +294,14 @@ function relationships(input: unknown): MachineRelationships {
 
 // All six members or none, each by the rule of the wire schema, as written;
 // Lazurio MausBot's two members and the Environment browser's two members are
-// optional, each pair only together, and so is the relay's socket.
+// optional, each pair only together, and so are the relay's socket, the
+// sign-out's path and the audience.
 export function parseMachineEntry(input: unknown): MachineEntry {
   const withMausbot = ownDataValue(input, "mausbotOrigin") !== undefined;
   const withBrowser = ownDataValue(input, "browserOrigin") !== undefined;
   const withRelay = ownDataValue(input, "environmentRelaySocket") !== undefined;
+  const withSignOut = ownDataValue(input, "signOutPath") !== undefined;
+  const withAudience = ownDataValue(input, "audience") !== undefined;
   const {
     t3codeOrigin,
     moduleOriginTemplate,
@@ -292,6 +310,8 @@ export function parseMachineEntry(input: unknown): MachineEntry {
     browserOrigin,
     browserListenPort,
     environmentRelaySocket,
+    signOutPath: signOut,
+    audience,
     ...launchpad
   }: Record<string, unknown> = stateFields(input, [
     "externalOrigin",
@@ -303,6 +323,8 @@ export function parseMachineEntry(input: unknown): MachineEntry {
     ...(withMausbot ? ["mausbotOrigin", "mausbotListenPort"] : []),
     ...(withBrowser ? ["browserOrigin", "browserListenPort"] : []),
     ...(withRelay ? ["environmentRelaySocket"] : []),
+    ...(withSignOut ? ["signOutPath"] : []),
+    ...(withAudience ? ["audience"] : []),
   ]);
   const hosted = parseHostedEntry(launchpad);
   if (!isHttpsOrigin(t3codeOrigin))
@@ -328,6 +350,16 @@ export function parseMachineEntry(input: unknown): MachineEntry {
     if (!isEnvironmentRelaySocket(environmentRelaySocket))
       throw new Error("Invalid hosted entry Environment relay socket");
     entry = { ...entry, environmentRelaySocket };
+  }
+  if (withSignOut) {
+    if (!isSignOutPath(signOut))
+      throw new Error("Invalid hosted entry sign-out path");
+    entry = { ...entry, signOutPath: signOut };
+  }
+  if (withAudience) {
+    if (!isEntryAudience(audience))
+      throw new Error("Invalid hosted entry audience");
+    entry = { ...entry, audience };
   }
   return Object.freeze(entry);
 }

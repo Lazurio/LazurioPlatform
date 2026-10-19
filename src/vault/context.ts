@@ -45,22 +45,29 @@ export type VaultContext = Readonly<{
   /** A personal Environment's own Bitwarden (root decision 0203 point 7):
    * the Bitwarden cloud region of the agents' account the person connected,
    * and the address of the person's own Bitwarden account, which the vault
-   * invites. Absent for a Lazurio Vaultwarden the handover names. */
-  bitwarden?: Readonly<{ region: BitwardenRegion; invitee: string }>;
+   * invites once the person asks (null until then). Absent for a Lazurio
+   * Vaultwarden the handover names. */
+  bitwarden?: Readonly<{ region: BitwardenRegion; invitee: string | null }>;
 }>;
 
 /** A personal Environment whose handover names no vault and whose person has
  * not connected their own Bitwarden yet (root decision 0203 point 7): only
- * the person moves it on, in Settings → Vault; nothing runs for it. */
-export type VaultNeedsConnection = Readonly<{ kind: "needs-connection" }>;
+ * the person moves it on, in Apps → Vault; nothing runs for it. `name`
+ * is the name its vault gets once connected (`personalVaultName`), which
+ * the page shows the person beforehand. */
+export type VaultNeedsConnection = Readonly<{
+  kind: "needs-connection";
+  name: string;
+}>;
 
-/** The Bitwarden a personal Environment's person connected: its region, the
- * agents' account and the person's own account the vault invites. Not
- * secret; kept beside the custody (connection.ts). */
+/** The Bitwarden a personal Environment's person connected: the region
+ * whose identity host accepted the agents' API key, the agents' account and
+ * the person's own account the vault invites, null until the person asks to
+ * be invited. Not secret; kept beside the custody (connection.ts). */
 export type BitwardenConnection = Readonly<{
   region: BitwardenRegion;
   account: string;
-  invitee: string;
+  invitee: string | null;
 }>;
 
 /** The name of a personal Environment's own Bitwarden organization: "Osobní
@@ -114,6 +121,14 @@ export type VaultUnsupportedReason =
   /** The handover names no vault for this Environment (yet): Machines
    * writes the member only where the network pre-allowed its account. */
   | "no-vault"
+  /** The handover names neither a vault nor a tailnet: an Organization's
+   * Environment reached without a private network. Machines declares no
+   * `network` only for the work VMs of a public Organization (root decision
+   * 0204, its public-entry guests; every other work VM and every personal VM
+   * has one), and a Lazurio Vaultwarden answers only inside its network
+   * (root decision 0203), so this Environment has no vault by design, not
+   * yet (DEV-6631, F53's addendum of 2026-10-17). */
+  | "no-tailnet"
   /** A personal Environment's record of the Bitwarden its person connected
    * is there but cannot be read: nothing is guessed; disconnecting removes
    * it (root decision 0203 point 7). */
@@ -134,7 +149,10 @@ export function vaultContextOf(
 ): VaultContext | VaultUnsupported {
   const vault = input.handover.vault;
   if (vault === undefined)
-    return Object.freeze({ kind: "unsupported", reason: "no-vault" });
+    return Object.freeze({
+      kind: "unsupported",
+      reason: input.handover.network === undefined ? "no-tailnet" : "no-vault",
+    });
   const { owner } = input.handover;
   return Object.freeze({
     kind: "own",

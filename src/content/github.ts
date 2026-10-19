@@ -1,3 +1,5 @@
+import { parse } from "node:path";
+import { ghStatus } from "../tools/gh-status";
 import type { ToolsEnvironment } from "../tools/overview";
 import { resolveOnPath } from "../tools/status";
 import { githubLoginPattern, repositoryPattern } from "./model";
@@ -8,7 +10,20 @@ import type { MembershipAnswer, RepositoryPermission } from "./role";
 // with the operator's home, exactly as the Launchpad's other GitHub reads run
 // it (`askGitHub`). An injectable interface, so the core is tested without a
 // network. No token is read, printed or passed anywhere: gh holds it, and git
-// gets gh as its credential helper only for an HTTPS remote.
+// gets gh as its credential helper only for an HTTPS remote. A public
+// Environment has none of it (`anonymousGitHub`).
+//
+// On a Team Environment the gh found there is the Organization's brokered gh
+// (Lazurio/github-app `adapter/brokered-gh.mjs`, which Machines installs as
+// `/usr/local/bin/gh`, #488): GitHub's App identity Lazurio for GitHub, with a
+// token minted for exactly one repository per command. Every call here speaks
+// its contract, which a person's gh takes just as well: gh runs outside any
+// checkout (the filesystem root), so no checkout's origin picks the
+// repository; a read of one repository names it in `GH_REPO`; the adapter's
+// refusals, which carry no API status, are read by their words; and an HTTPS
+// clone keeps git's own configured credential helper wherever gh is that App
+// identity (`remote`), because the adapter refuses every `gh auth` command
+// and the hosting points git's helper at the same broker.
 
 export type GitHubViewer = Readonly<{
   login: string;
@@ -120,7 +135,9 @@ export type ContentGitHub = Readonly<{
   ): Promise<"granted" | "failed">;
   /** The Git remote of a repository for this sign-in: SSH when gh's
    * `git_protocol` is `ssh`, otherwise HTTPS with gh as the credential
-   * helper, as `gh repo clone` and `gh auth setup-git` do. */
+   * helper, as `gh repo clone` and `gh auth setup-git` do; where gh is a
+   * GitHub App's identity (a Team Environment's brokered gh), HTTPS with
+   * git's own configured helper (no `credentialHelper`). */
   remote(fullName: string): Promise<
     Readonly<{
       url: string;
@@ -129,6 +146,26 @@ export type ContentGitHub = Readonly<{
     }>
   >;
 }>;
+
+/** GitHub on a public Environment (root decision 0204 point 5, decision F55's
+ * addendum of 2026-10-17), which has no identity at all: no gh account, no
+ * App, no token. Reader-only by its shape: its one capability is where a
+ * public repository is read, `https://github.com/<owner>/<repository>.git`
+ * with the empty credential helper, which makes the git adapter clone it
+ * isolated from every configuration, credential and helper
+ * (`anonymousGitEnvironment`), so a clone carries nothing of anyone and
+ * GitHub answers it as it answers anyone. It reads nothing of GitHub's API
+ * and has nothing that creates, grants or pushes. */
+export const anonymousGitHub = Object.freeze({
+  remote(fullName: string): Readonly<{ url: string; credentialHelper: "" }> {
+    if (!repositoryPattern.test(fullName))
+      throw new Error("Invalid repository coordinate");
+    return Object.freeze({
+      url: `https://github.com/${fullName}.git`,
+      credentialHelper: "",
+    });
+  },
+});
 
 const timeoutMs = 20_000;
 
@@ -142,6 +179,7 @@ type GhAnswer =
       exitCode: number;
       status: string | null;
       stdout: string;
+      stderr: string;
     }>
   | Readonly<{ kind: "unavailable" }>;
 
@@ -209,6 +247,19 @@ function highestPermission(
   for (const [field, permission] of permissionOrder)
     if (permissions?.[field] === true) return permission;
   return null;
+}
+
+/** Whether a Team Environment's brokered gh refused a repository as not this
+ * Team's (its stderr, `Brokered gh failed closed: <why>`, exit 1, no API
+ * status): the broker mints only for a repository of its Organization on
+ * which the Team holds a grant, and answers anything else "refused the
+ * request"; without a repository named it has none to mint for. Every other
+ * refusal of the adapter (the broker not reachable, an invalid answer, its
+ * configuration missing) is GitHub not answering now. */
+export function brokeredRefusalDenies(stderr: string): boolean {
+  return /^Brokered gh failed closed: (?:GitHub token broker refused the request|run gh inside a Team repository checkout)/m.test(
+    stderr,
+  );
 }
 
 /** `GET /user/memberships/orgs/<org>`, as `organization-owner.ts` reads it. */
@@ -339,7 +390,14 @@ export function ghContentGitHub(
       value[name] = entry;
     return value;
   };
-  const run = async (args: readonly string[]): Promise<GhAnswer> => {
+  // Outside any checkout, so the brokered gh takes its repository from
+  // `GH_REPO` alone, never from the origin of the directory this process
+  // happens to run in (the Folder, a module an agent works in).
+  const outside = (home: string) => parse(home).root;
+  const run = async (
+    args: readonly string[],
+    extra: Readonly<Record<string, string>> = {},
+  ): Promise<GhAnswer> => {
     const executable = await gh();
     if (executable === undefined || !environment.home)
       return { kind: "unavailable" };
@@ -347,7 +405,8 @@ export function ghContentGitHub(
       const result = await environment.run(
         [executable, ...args],
         timeoutMs,
-        env(),
+        { ...env(), ...extra },
+        { cwd: outside(environment.home) },
       );
       if (result === "timeout") return { kind: "unavailable" };
       if (result.exitCode === 0) return { kind: "ok", stdout: result.stdout };
@@ -356,10 +415,40 @@ export function ghContentGitHub(
         exitCode: result.exitCode,
         status: errorStatus(result.stdout),
         stdout: result.stdout,
+        stderr: result.stderr,
       };
     } catch {
       return { kind: "unavailable" };
     }
+  };
+  // Whether gh works here as a GitHub App's identity (Lazurio for GitHub
+  // through the Organization's broker), as its sign-in probe reads it: the
+  // one `gh auth` command the brokered gh answers. `unknown` when the probe
+  // did not answer (a timeout, gh not runnable), never taken for "not the
+  // App"; a definite answer is kept for this instance.
+  let identity: "app" | "other" | undefined;
+  const appIdentity = async (): Promise<"app" | "other" | "unknown"> => {
+    if (identity !== undefined) return identity;
+    const executable = await gh();
+    const home = environment.home;
+    if (executable === undefined || !home) return "unknown";
+    const status = await ghStatus(
+      (command, ms) =>
+        environment.run(command, ms, env(), { cwd: outside(home) }),
+      executable,
+      timeoutMs,
+    );
+    if (status.signIn.state === "unknown") return "unknown";
+    if (
+      status.signIn.state === "signed-in" &&
+      status.signIn.identity === "unknown"
+    )
+      return "unknown";
+    identity =
+      status.signIn.state === "signed-in" && status.signIn.identity === "app"
+        ? "app"
+        : "other";
+    return identity;
   };
   const repositoryPath = (owner: string, name: string) => {
     const fullName = `${owner}/${name}`;
@@ -385,14 +474,34 @@ export function ghContentGitHub(
       return { kind: "unavailable" };
     },
     async repository(owner, name): Promise<RepositoryAnswer> {
-      const answer = await run(["api", repositoryPath(owner, name)]);
+      // The repository named to gh, as the brokered gh needs it (a person's
+      // gh ignores it for an explicit path).
+      const answer = await run(["api", repositoryPath(owner, name)], {
+        GH_REPO: `${owner}/${name}`,
+      });
       if (answer.kind === "ok") {
         const repository = parseRepository(answer.stdout);
-        return repository === null
-          ? { kind: "unavailable" }
+        if (repository === null) return { kind: "unavailable" };
+        // `permissions` describe a user. An App installation's token gets
+        // them all false even with write, and GitHub answers a repository
+        // at all only to an identity that may read it (404 otherwise): for
+        // the App identity the answer is the read.
+        // An identity the probe could not tell is GitHub not answering
+        // now, never a refusal.
+        if (repository.readable) return { kind: "observed", repository };
+        const who = await appIdentity();
+        if (who === "unknown") return { kind: "unavailable" };
+        return who === "app"
+          ? {
+              kind: "observed",
+              repository: Object.freeze({ ...repository, readable: true }),
+            }
           : { kind: "observed", repository };
       }
-      if (answer.kind === "error" && answer.status === "404")
+      if (
+        answer.kind === "error" &&
+        (answer.status === "404" || brokeredRefusalDenies(answer.stderr))
+      )
         return { kind: "missing" };
       return { kind: "unavailable" };
     },
@@ -596,9 +705,17 @@ export function ghContentGitHub(
       ]);
       if (protocol.kind === "ok" && protocol.stdout.trim() === "ssh")
         return { url: `git@github.com:${fullName}.git` };
+      const url = `https://github.com/${fullName}.git`;
+      // The App identity of a Team Environment: git's configured helper,
+      // which the hosting points at the broker for exactly this repository
+      // (`useHttpPath`); gh's would be refused, and resetting the list would
+      // drop the broker's.
+      // An unknown identity keeps gh's helper, as before; the read before
+      // a clone has usually settled it already.
+      if ((await appIdentity()) === "app") return { url };
       const executable = await gh();
       return {
-        url: `https://github.com/${fullName}.git`,
+        url,
         ...(executable === undefined
           ? {}
           : {

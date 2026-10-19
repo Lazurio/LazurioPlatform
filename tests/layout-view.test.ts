@@ -26,9 +26,10 @@ import {
 // under one key and read defensively. The DOM (layout.ts, browser-panel.ts)
 // only draws this.
 
-// The room right of the rail and a 264 px column in a window 1800 px wide,
-// and the widest panel that leaves the page its narrowest width.
-const room = 1800 - 64 - 1 - 264;
+// The room right of the rail (its edge toward the app included) and a
+// 264 px column in a window 1800 px wide, and the widest panel that leaves
+// the page its narrowest width.
+const room = 1800 - 64 - 264;
 const side = room - pageMinWidth;
 
 describe("the right panel's width", () => {
@@ -125,24 +126,24 @@ describe("the left column's width", () => {
       208, 264, 480,
     ]);
     // The app right of the rail in a window 1800 px wide.
-    const app = 1800 - 64 - 1;
+    const app = 1800 - 64;
     expect(placeColumn(app, null)).toEqual({ width: 264, min: 208, max: 480 });
     expect(placeColumn(app, 320)).toMatchObject({ width: 320 });
     expect(placeColumn(app, 320.6)).toMatchObject({ width: 321 });
     expect(placeColumn(app, 100)).toMatchObject({ width: 208 });
     expect(placeColumn(app, 900)).toMatchObject({ width: 480 });
     // A window of 800 px leaves the page its 400 px.
-    expect(placeColumn(800 - 65, 480)).toEqual({
-      width: 335,
+    expect(placeColumn(800 - 64, 480)).toEqual({
+      width: 336,
       min: 208,
-      max: 335,
+      max: 336,
     });
     // Narrower still, the column keeps its least width.
     expect(placeColumn(500, null)).toEqual({ width: 208, min: 208, max: 208 });
   });
 
   test("its divider's keys: → widens it by 24 px, 96 with Shift, ← narrows it; Home and End go to the least and the greatest width", () => {
-    const at = placeColumn(1735, 300);
+    const at = placeColumn(1736, 300);
     const key = (name: string, shift = false) => ({ key: name, shift });
     expect(keyColumn(at, key("ArrowRight"))).toBe(324);
     expect(keyColumn(at, key("ArrowRight", true))).toBe(396);
@@ -151,7 +152,7 @@ describe("the left column's width", () => {
     expect(keyColumn(at, key("End"))).toBe(480);
     // Past either end, placing it holds it in range.
     expect(
-      placeColumn(1735, keyColumn(placeColumn(1735, 470), key("ArrowRight"))),
+      placeColumn(1736, keyColumn(placeColumn(1736, 470), key("ArrowRight"))),
     ).toMatchObject({ width: 480 });
     for (const other of ["Enter", "ArrowDown", "Escape"])
       expect(keyColumn(at, key(other))).toBeNull();

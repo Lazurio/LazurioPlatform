@@ -22,10 +22,11 @@ import {
 } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
-import { selectRange } from "../src/launchpad/files-routes";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
+import { selectRange } from "../src/launchpad/http-conditions";
 import { startLaunchpad } from "../src/launchpad/server";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
+import { freePort } from "./fixtures/ports";
 import { readZip, unzipTest } from "./fixtures/zip-reader";
 
 // The Files routes of the Launchpad (decision F35) over real HTTP: a local
@@ -38,17 +39,6 @@ const cleanups: (() => Promise<unknown>)[] = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port;
-  probe.stop(true);
-  return port;
-};
 
 async function homeOf(prefix: string) {
   const parent = await realpath(await mkdtemp(join(tmpdir(), prefix)));

@@ -1,5 +1,6 @@
 import type { VaultPhase, VaultStatus } from "../vault/flow";
 import type { MessageKey } from "./messages";
+import { vaultPath } from "./routes";
 import { answerWithin } from "./tools-view";
 import { fill } from "./update-view";
 import {
@@ -156,7 +157,7 @@ export function createVaultPanel(
     // setup, which would only wait for them.
     if (running === null && status?.state === "needs-connection") {
       const connect = element("a", "button primary", copy.vaultConnectAction);
-      connect.href = "/settings/vault";
+      connect.href = vaultPath;
       connect.dataset.route = "";
       connect.dataset.tool = "bitwarden";
       connect.dataset.control = "vault-connect";

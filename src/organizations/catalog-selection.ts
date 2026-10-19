@@ -49,6 +49,45 @@ export function selectCatalogOrganization(
     : { kind: "found", organization: byDirectory };
 }
 
+/** The Organization that owns a Machine, by the owner its handover names: a
+ * GitHub login (`owner.organization`), compared case-insensitively as GitHub
+ * does. An Organization whose manifest binds a GitHub login (`forgeLogin`) is
+ * the owner only by that login, never by its slug: its slug may be another
+ * Organization's login (slug `Example`, login `ExampleCo`; slug `ExampleCo`,
+ * login `Other`). An Organization that binds none takes part by its slug, as
+ * before. Exactly one candidate selects it; two or more, such as two manifests
+ * binding the login or one binding it and another unbound one with it as its
+ * slug, select none. Only when none answers, the directory name under
+ * `organizations/` of an Organization that binds no login, exactly. The
+ * Personalspace group is never a Machine's owning Organization.
+ *
+ * Organization settings (F45) and Composio's organization rule both read
+ * the owner through this one rule, so they never disagree on it. Routes and
+ * the CLI name an Organization by `selectCatalogOrganization` instead. */
+export function selectOwnerOrganization(
+  catalog: Catalog,
+  owner: string,
+): CatalogOrganizationSelection {
+  const key = owner.toLowerCase();
+  const candidates = catalog.organizations.filter((entry) =>
+    entry.forgeLogin === undefined
+      ? entry.organization?.toLowerCase() === key
+      : entry.forgeLogin.toLowerCase() === key,
+  );
+  if (candidates.length === 1)
+    return {
+      kind: "found",
+      organization: candidates[0] as CatalogOrganization,
+    };
+  if (candidates.length > 1) return { kind: "ambiguous", candidates };
+  const byDirectory = catalog.organizations.find(
+    (entry) => entry.forgeLogin === undefined && entry.directory === owner,
+  );
+  return byDirectory === undefined
+    ? { kind: "missing" }
+    : { kind: "found", organization: byDirectory };
+}
+
 /** The name that selects exactly this candidate under the same rule: its slug,
  * otherwise its directory name, otherwise null (a duplicated slug whose
  * directory is also taken by a slug has no name that cannot be confused). */

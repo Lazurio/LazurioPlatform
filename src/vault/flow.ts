@@ -12,6 +12,7 @@ import { installPinnedBw, pinnedInstalled } from "./install";
 import { inviteeInvitation, settleInvitee } from "./invitee";
 import type { PilotContext } from "./legacy-0197/context";
 import {
+  pilotConnected,
   pilotEnv,
   pilotRefresh,
   pilotSecrets,
@@ -104,7 +105,8 @@ export type {
 // connects it (connection.ts) it `needs-connection` and nothing runs; once
 // connected, the agents' account the person entered is the account here,
 // never registered, and the same setup creates its vault, a Free
-// organization, and invites the person into it (invitee.ts).
+// organization, and invites the person into it once they asked
+// (invitee.ts).
 
 /** Where the vault runs: trusted composition, never HTTP input. */
 export type VaultHost = Readonly<{
@@ -195,7 +197,7 @@ const creating = (facts: VaultFacts): VaultStatus => ({
 
 /** The agents' account a personal Environment's person connected, without
  * its file: never registered here; the person disconnects and connects it
- * again in Settings → Vault. */
+ * again in Apps → Vault. */
 const enteredAccountMissing = (facts: VaultFacts): VaultStatus =>
   failedStatus(facts, "account", "account-missing");
 
@@ -338,9 +340,29 @@ async function ownState(
   return { kind: "ready", account, recorded };
 }
 
+/** The Environment's vault answer as its status resolves it: the host's
+ * context (`readVaultContext`), with a 0197 pilot resolved as `pilotStatus`
+ * resolves it. A pilot whose account was connected stays the pilot; one
+ * never connected is what the Environment itself answers, `no-vault` (the
+ * host derives a pilot for every Organization's Environment on a network,
+ * connected or not). `vaultStatus` and the Apps column's Trezor
+ * (`vaultInAppsOf`, src/launchpad/boot-document.ts) both read it, so the
+ * status and the listing never disagree. Only local files: neither bw nor
+ * the vault is asked. */
+export async function vaultAnswer(
+  host: VaultHost,
+): Promise<
+  VaultContext | PilotContext | VaultUnsupported | VaultNeedsConnection
+> {
+  const context = await host.context();
+  if (context.kind !== "pilot") return context;
+  if (await pilotConnected(host.directory, context)) return context;
+  return Object.freeze({ kind: "unsupported", reason: "no-vault" });
+}
+
 /** `status`: local, no network, no mutation. */
 export async function vaultStatus(host: VaultHost): Promise<VaultStatus> {
-  const context = await host.context();
+  const context = await vaultAnswer(host);
   if (context.kind === "unsupported") return unsupportedStatus(context.reason);
   if (context.kind === "needs-connection") return needsConnectionStatus;
   if (context.kind === "pilot") return pilotStatus(host, context);
@@ -602,7 +624,8 @@ async function signIn(
 
 /** A personal Environment's own Bitwarden (root decision 0203 point 7): its
  * person invited into the vault, or confirmed once they accepted, after a
- * setup that left it connected. Best effort: a failure is journaled with a
+ * setup that left it connected, once the person asked to be invited (F53's
+ * amendment of 2026-10-16, (2)). Best effort: a failure is journaled with a
  * fixed reason and the next setup, or the person's next look at Settings →
  * Vault, moves it on; it is never the setup's. */
 async function invitePerson(
@@ -613,8 +636,9 @@ async function invitePerson(
   session: string,
   vault: Recorded,
 ): Promise<void> {
+  // Nobody to invite until the person asks (connection.ts).
   const invitee = context.bitwarden?.invitee;
-  if (invitee === undefined) return;
+  if (invitee === undefined || invitee === null) return;
   const journal = (outcome: string, reason?: string) =>
     host.journal?.({
       operation: "members",

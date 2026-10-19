@@ -1,7 +1,11 @@
 import { dirname, join } from "node:path";
 import type { ApplicationRunner } from "./application-runner";
 import { object, text } from "./manifest";
-import { PreparationRefused, preparationRefusal } from "./preparation-refusal";
+import {
+  type PreparationReason,
+  PreparationRefused,
+  preparationRefusal,
+} from "./preparation-refusal";
 import { parseProcessLaunch } from "./process-launch";
 import { readModuleApplication } from "./read-application";
 import {
@@ -9,7 +13,10 @@ import {
   RuntimeSecretUnavailable,
   runtimeSecretReasons,
 } from "./runtime-secrets";
-import { RequiredSlotRefused } from "./sibling-origins";
+import {
+  type RequiredSlotReason,
+  RequiredSlotRefused,
+} from "./sibling-origins";
 
 type Selection = Readonly<{ company: string; module: string; package: string }>;
 type Operation =
@@ -298,12 +305,21 @@ export function createApplicationLifecycle(adapters: {
             );
           } catch (error) {
             // A preparation refused for a known reason keeps it, with its
-            // file relative to the module (decision F25); nothing was
-            // stopped. An answer, not a throw: a throw would leave the
-            // transaction's retained record behind.
+            // file relative to the module (decision F25), as does a module
+            // data mount that could not be provided, with its slot
+            // (launchpad-parity B7); nothing was stopped. An answer, not a
+            // throw: a throw would leave the transaction's retained record
+            // behind.
+            const refused: Readonly<{
+              reason: PreparationReason | RequiredSlotReason;
+              file: string;
+            }> | null =
+              error instanceof RequiredSlotRefused
+                ? { reason: error.reason, file: error.slot }
+                : preparationRefusal(error, directory);
             return Object.freeze({
               kind: "preparation-preflight-failed" as const,
-              ...preparationRefusal(error, directory),
+              ...refused,
             });
           }
           preparations.add(preparation);

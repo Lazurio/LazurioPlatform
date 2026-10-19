@@ -1,21 +1,62 @@
-import type { VaultEnvironmentKind } from "../vault/context";
+import type {
+  VaultEnvironmentKind,
+  VaultUnsupportedReason,
+} from "../vault/context";
 import type { BitwardenRegion } from "../vault/endpoints";
-import type { VaultPhase, VaultStatus } from "../vault/flow";
+import type { VaultPhase, VaultStatus, vaultAnswer } from "../vault/flow";
 import type { VaultMemberState, VaultMemberUnknown } from "../vault/members";
 import { pluralKey } from "./apps-view";
 import type { MessageKey } from "./messages";
 import { fill } from "./update-view";
 import { parseVaultStatus } from "./vault-view";
 
-// Settings → Vault, Nastavení → Trezor (root decision 0198 point 5, the
-// wireframe's EnvVault of prototypes-lazurio#33): the page's pure part. What
-// the server's answers say, in the page's words, and where each action
-// leads. The vault itself is Lazurio Vaultwarden's web vault on its own
-// address; the Launchpad never lists items or shows a value. Every server
-// value is accepted only in its exact form, and everything returned is text
-// for `textContent` or an https link into the network's vault.
+// Apps → Vault, Apps → Trezor (root decision 0198 point 5, the wireframe's
+// EnvVault of prototypes-lazurio#33; a page of the Apps column since F53's
+// addendum of 2026-10-18): the page's pure part. What the server's answers
+// say, in the page's words, and where each action leads. The vault itself is
+// Lazurio Vaultwarden's web vault on its own address; the Launchpad never
+// lists items or shows a value. Every server value is accepted only in its
+// exact form, and everything returned is text for `textContent` or an https
+// link into the network's vault.
 
 type Copy = Readonly<Record<MessageKey, string>>;
+
+/** Why an Environment has no vault, as the vault core answers it, on which
+ * the Apps column does not list Trezor: it has none by design (a public
+ * Organization's, `no-tailnet`) or not yet (`no-vault`), or it is this
+ * computer (`workstation`, the second wave of root decision 0193). Every
+ * other reason is a fault the page says, so it stays listed. */
+const unlisted: readonly VaultUnsupportedReason[] = [
+  "workstation",
+  "no-vault",
+  "no-tailnet",
+];
+
+/** Whether the Apps column lists Trezor (root decision 0185's addendum of
+ * 2026-10-18; F53's addendum of 2026-10-18 (3)), by the vault
+ * core's answer for this Environment as `lazurio vault status` resolves it
+ * (`vaultAnswer`, read by `vaultInAppsOf` in boot-document.ts): where the
+ * Environment has a vault, also a personal Environment's that waits for its
+ * person and a connected 0197 pilot's, and where the core could not read why
+ * it has none; not where it has none, nor on this computer. Its address
+ * answers either way. */
+export const vaultListed = (
+  answer: Awaited<ReturnType<typeof vaultAnswer>>,
+): boolean =>
+  answer.kind !== "unsupported" || !unlisted.includes(answer.reason);
+
+/** Whether the page lists Trezor in its Apps column: as the server decided
+ * for its first paint (`vaultListed`, carried by the boot document); a page
+ * that carries no decision, a workstation's, which is served without one,
+ * or a hosted page whose boot document was late, by its preset: not on this
+ * computer (`local`, whose answer is `workstation`), listed elsewhere, also
+ * while the preset is not known, so that a Remote Environment never shows
+ * it late. A public Environment's rule (decision F55) is the page's
+ * stylesheet's. */
+export const vaultInApps = (
+  carried: boolean | null,
+  preset: string | null,
+): boolean => carried ?? preset !== "local";
 
 const kinds: readonly VaultEnvironmentKind[] = [
   "personal",
@@ -32,6 +73,7 @@ const phases: readonly VaultPhase[] = [
 const memberStates: readonly VaultMemberState[] = [
   "no-account",
   "awaiting-password",
+  "not-invited",
   "invitation-pending",
   "accepted",
   "member",
@@ -57,7 +99,19 @@ export type VaultPageModel = Readonly<{
   status: VaultStatus;
   setup: VaultPhase | null;
   environment: VaultEnvironmentKind | null;
+  /** The name a personal Environment's own Bitwarden vault gets once its
+   * person connects it (`Osobní <login>`), while it waits for them; null
+   * otherwise. */
+  name: string | null;
 }>;
+
+/** A vault's name as Bitwarden takes one: 1 to 50 characters on one
+ * line. */
+const isVaultName = (value: unknown): value is string =>
+  typeof value === "string" &&
+  value.length >= 1 &&
+  value.length <= 50 &&
+  !/\p{Cc}/u.test(value);
 
 export function parseVaultPage(input: unknown): VaultPageModel | null {
   if (!isRecord(input) || input.kind !== "vault-page") return null;
@@ -70,10 +124,13 @@ export function parseVaultPage(input: unknown): VaultPageModel | null {
     !kinds.includes(input.environment as VaultEnvironmentKind)
   )
     return null;
+  const name = input.name ?? null;
+  if (name !== null && !isVaultName(name)) return null;
   return {
     status,
     setup: input.setup as VaultPhase | null,
     environment: input.environment as VaultEnvironmentKind | null,
+    name,
   };
 }
 
@@ -199,11 +256,12 @@ type RowState = Readonly<{
   tone: "ok" | "busy" | "warn" | "quiet";
 }>;
 
-/** What the page shows. */
+/** What the page shows. The rule ("Kdo má přístup do Prostředí, má i jeho
+ * hesla") and how a vault works in an Organization are its "?"'s (decision
+ * F56's addendum of 2026-10-18, guides.ts), not the page's. */
 export type VaultPageView = Readonly<{
-  /** The rule above the vault. */
-  rule: boolean;
-  /** One short line instead of the vault (this computer, no vault yet). */
+  /** One short line instead of the vault: this computer, or why this
+   * Environment has no vault. */
   note: string | null;
   /** The vault's row: its name and its state. */
   row: (RowState & Readonly<{ title: string }>) | null;
@@ -216,9 +274,14 @@ export type VaultPageView = Readonly<{
    * only with a ready own vault (connected, unlocked, no setup running),
    * never for a 0197 pilot, which takes no requests. */
   guide: boolean;
-  /** The form that connects a personal Environment's own Bitwarden, while
-   * its person has not connected it (root decision 0203 point 7). */
-  connect: boolean;
+  /** The section that connects a personal Environment's own Bitwarden,
+   * while its person has not connected it (root decision 0203 point 7):
+   * `vault` is the name its vault gets, which its picture shows. */
+  connect: Readonly<{ vault: string }> | null;
+  /** "Chcete hesla agentů vidět i ve svém Bitwardenu?": the invitation the
+   * person of a connected personal Environment's own Bitwarden may ask for,
+   * while they have not (F53's amendment of 2026-10-16, (2)). */
+  invite: boolean;
   /** "Odpojit Bitwarden": a personal Environment's own Bitwarden, once
    * connected (or its record unreadable), while no setup runs. */
   disconnect: boolean;
@@ -281,8 +344,12 @@ function rowLine(
  * than the state recorded here; while the vault does not answer, its links
  * still come from the recorded state:
  *
- * - this computer, or an Environment without a vault: one short line;
- * - otherwise the rule and the vault's row: its name and the item count,
+ * - this computer: one short line;
+ * - an Environment without a vault: why, in place of the vault (how a vault
+ *   works in an Organization is the "?"'s video). A public Organization's
+ *   Environment (`no-tailnet`) has none on purpose; any other's (`no-vault`)
+ *   is not set up yet, and its Organization's Admin sets it up;
+ * - otherwise the vault's row: its name and the item count,
  *   "Zakládání trezoru…" while a setup runs, "Neodpovídá" when the vault
  *   does not answer;
  * - the actions follow the person: with an account in the network's vault
@@ -302,13 +369,13 @@ export function vaultPageView(
   fresh: VaultStatus | null = null,
 ): VaultPageView {
   const view = (fields: Partial<VaultPageView>): VaultPageView => ({
-    rule: true,
     note: null,
     row: null,
     actions: [],
     hint: null,
     guide: false,
-    connect: false,
+    connect: null,
+    invite: false,
     disconnect: false,
     ...fields,
   });
@@ -322,24 +389,30 @@ export function vaultPageView(
     status.reason === "connection-unreadable"
   )
     return view({
-      rule: false,
       note: copy.vaultPageConnectionUnreadable,
       disconnect: setup === null,
     });
-  if (status.state === "unsupported")
+  if (status.state === "unsupported") {
+    const why =
+      status.reason === "no-tailnet"
+        ? copy.vaultPagePublic
+        : status.reason === "no-vault"
+          ? copy.vaultPageNoVault
+          : null;
     return view({
-      rule: false,
       note:
-        status.reason === "workstation"
+        why ??
+        (status.reason === "workstation"
           ? copy.vaultPageWorkstation
-          : status.reason === "no-vault"
-            ? copy.vaultPageNoVault
-            : copy.vaultRowUnavailable,
+          : copy.vaultRowUnavailable),
     });
+  }
   // A personal Environment whose person has not connected their own
-  // Bitwarden yet: the form, with its own explanation.
+  // Bitwarden yet: the section that connects it, with the vault it gets.
   if (status.state === "needs-connection")
-    return view({ rule: false, connect: true });
+    return view({
+      connect: { vault: model.name ?? copy.vaultPageTitle },
+    });
   // The vault's name; a 0197 pilot has none: the organization bw names.
   const named =
     status.name ??
@@ -432,13 +505,16 @@ export function vaultPageView(
 
 /**
  * A personal Environment's own Bitwarden (root decision 0203 point 7): the
- * row and "Odpojit Bitwarden", and what the person does next. A member adds
- * and opens; an invitation not accepted yet, or accepted and not confirmed
- * yet, says so in one line; a person removed in Bitwarden is told so. A
- * vault Bitwarden no longer accepts, and a failure the person resolves (the
- * agents' account owns another Free organization, its file is gone), says
- * what to do. Nobody else is added here: the person is whom they named when
- * connecting.
+ * row and "Odpojit Bitwarden", and what the person does next. Not invited
+ * yet: one line that it is connected and the invitation they may ask for
+ * (F53's amendment of 2026-10-16, (2)). A member adds and opens; an
+ * invitation not accepted yet, or accepted and not confirmed yet, says so in
+ * one line; a person removed in Bitwarden is told so. A vault Bitwarden no
+ * longer accepts, and a failure the person resolves (the agents' account
+ * owns another Free organization, its file is gone), says what to do.
+ * Nobody else is added here: the person is whom they asked to invite.
+ * While their answer is not there yet, the vault offers nothing to open: it
+ * opens only for a member.
  */
 function personalBitwardenView(
   status: VaultStatus,
@@ -475,9 +551,18 @@ function personalBitwardenView(
     href: links.open,
     primary: true,
   };
-  if (person === null || person.kind === "unknown")
+  if (person === null) return view({ guide, row, disconnect });
+  if (person.kind === "unknown")
     return view({ guide, row, actions: [open], disconnect });
   switch (person.state) {
+    case "not-invited":
+      return view({
+        guide,
+        row,
+        hint: copy.vaultPageConnected,
+        invite: true,
+        disconnect,
+      });
     case "invitation-pending":
       return view({
         guide,
@@ -730,28 +815,40 @@ export function bitwardenGuide(
   };
 }
 
-/** Why a connection was refused, in the page's words; null for none. */
+/** What the page says once the person disconnected a personal
+ * Environment's own Bitwarden (`disconnected`: a disconnect that succeeded
+ * in this page, which it forgets when they connect again or the page is
+ * loaded anew): that the vault and its passwords stay in their Bitwarden,
+ * while the section that connects it shows; null otherwise. */
+export function disconnectedLine(
+  view: Pick<VaultPageView, "connect">,
+  disconnected: boolean,
+  copy: Copy,
+): string | null {
+  return disconnected && view.connect !== null ? copy.vaultDisconnected : null;
+}
+
+/** Why a connection was refused, in the page's words: one sentence that
+ * says what to do, and for a wrong master password a second one that names
+ * both values to paste again, since the form empties the secret ones as
+ * they are sent; null for none. */
 export function connectionRefusalText(
   reason: unknown,
   copy: Copy,
 ): string | null {
   switch (reason) {
-    case "region-invalid":
-      return copy.vaultConnectRegionInvalid;
     case "client-id-invalid":
       return copy.vaultConnectClientIdInvalid;
     case "client-secret-invalid":
       return copy.vaultConnectClientSecretInvalid;
     case "password-invalid":
       return copy.vaultConnectPasswordInvalid;
-    case "email-invalid":
-      return copy.vaultConnectEmailInvalid;
     case "invalid-credentials":
       return copy.vaultConnectInvalidCredentials;
+    case "account-refused":
+      return copy.vaultConnectAccountRefused;
     case "wrong-password":
       return copy.vaultConnectWrongPassword;
-    case "same-account":
-      return copy.vaultConnectSameAccount;
     case "owns-organization":
       return copy.vaultConnectOwnsOrganization;
     case "unsupported-kdf":
@@ -775,13 +872,101 @@ export function connectionRefusalText(
   }
 }
 
+/** Why the invitation the person asked for was refused, in the page's
+ * words: one sentence that says what to do; null for none. */
+export function inviteRefusalText(reason: unknown, copy: Copy): string | null {
+  switch (reason) {
+    case "email-invalid":
+      return copy.vaultInviteEmailInvalid;
+    case "same-account":
+      return copy.vaultInviteSameAccount;
+    case "invited":
+      return copy.vaultInviteInvited;
+    // No vault yet, or a setup that still creates it.
+    case "not-connected":
+    case "setting-up":
+      return copy.vaultInviteNotReady;
+    case "rate-limited":
+    case "unreachable":
+    case "busy":
+      return copy.vaultConnectBusy;
+    case "not-offered":
+    case "pilot-0197":
+      return copy.vaultConnectNotOffered;
+    case "failed":
+      return copy.vaultInviteFailed;
+    default:
+      return null;
+  }
+}
+
 /** The form's values as the person typed them: every field filled in. */
 export const connectionFilled = (
   values: Readonly<Record<string, string>>,
 ): boolean =>
-  ["region", "clientId", "clientSecret", "masterPassword", "email"].every(
+  ["clientId", "clientSecret", "masterPassword"].every(
     (field) => (values[field] ?? "").trim() !== "",
   );
+
+/** Bitwarden's own account creation of each region, where step 1 leads:
+ * the EU's first, the US's for a person who uses bitwarden.com. */
+export const bitwardenSignUps: Readonly<Record<BitwardenRegion, string>> = {
+  eu: "https://vault.bitwarden.eu/#/signup",
+  us: "https://vault.bitwarden.com/#/signup",
+};
+
+/** Step 1's way to Bitwarden: the button to the sign-up of the region
+ * chosen (the EU unless the person asked for the other), and the small
+ * switch to the other region's. */
+export function signUpLinks(
+  region: BitwardenRegion,
+  copy: Copy,
+): Readonly<{
+  open: Readonly<{ label: string; href: string }>;
+  other: Readonly<{ label: string; region: BitwardenRegion }>;
+}> {
+  const other: BitwardenRegion = region === "eu" ? "us" : "eu";
+  return {
+    open: {
+      label: fill(copy.vaultConnectOpen, {
+        service: bitwardenServices[region],
+      }),
+      href: bitwardenSignUps[region],
+    },
+    other: {
+      label: fill(copy.vaultConnectOther, {
+        service: bitwardenServices[other],
+      }),
+      region: other,
+    },
+  };
+}
+
+/** Bitwarden's own screens the connection's steps show, with the place to
+ * fill in ringed (`src/launchpad/images/bitwarden-<name>-<locale>.webp`):
+ * `signup`, the e-mail of a new account; `api-key`, the "API key" window's
+ * client_id and client_secret. */
+export type ConnectionPicture = "signup" | "api-key";
+
+/** The connection's words that depend on what the page knows: the picture
+ * of the vault between the person's Bitwarden and the agents, by the name
+ * the vault gets (its accessible name), and the alternative texts of
+ * Bitwarden's screens, by step. */
+export function connectionPictures(
+  vault: string,
+  copy: Copy,
+): Readonly<{
+  label: string;
+  steps: readonly Readonly<{ name: ConnectionPicture; alt: string }>[];
+}> {
+  return {
+    label: fill(copy.vaultConnectPicture, { name: vault }),
+    steps: [
+      { name: "signup", alt: copy.vaultConnectSignUpPicture },
+      { name: "api-key", alt: copy.vaultConnectApiKeyPicture },
+    ],
+  };
+}
 
 /** How soon the page is read again while a setup creates the vault. */
 export const vaultPageSetupPollMs = 2_000;

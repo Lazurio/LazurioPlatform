@@ -79,6 +79,35 @@ export function t3ProvidersAnswer(
   return Object.freeze(providers);
 }
 
+/** The flags of `t3 lazurio capabilities` the Platform reads, each by its
+ * own consumer: the provider refresh here, the operator pairing of a browser
+ * (`mintChatPairing` in launchpad/chat.ts, the decision of 2026-10-17). */
+export type T3Capability = "providerRefresh" | "operatorPairing";
+
+/** Whether this Environment's T3 Code says it offers `capability`: `true`
+ * for it in the one JSON object `t3 lazurio capabilities` prints (the
+ * Lazurio/t3code fork's versioned hosting contract, which reads and changes
+ * nothing). A T3 Code without the command (a vanilla upstream build), a
+ * failure, a timeout and any other answer are no. */
+export async function t3Offers(
+  t3: string,
+  env: Readonly<Record<string, string>>,
+  run: ToolRunner,
+  capability: T3Capability,
+): Promise<boolean> {
+  const capabilities = await run(
+    [t3, "lazurio", "capabilities"],
+    capabilitiesMs,
+    env,
+    { maxBytes: 16 * 1024 },
+  ).catch(() => "timeout" as const);
+  return (
+    capabilities !== "timeout" &&
+    capabilities.exitCode === 0 &&
+    objectIn(capabilities.stdout)?.[capability] === true
+  );
+}
+
 /** The service's 409 `driver-mismatch` in `t3`'s error output. */
 export function t3Mismatches(
   output: string,
@@ -115,16 +144,7 @@ export async function refreshT3Providers(
     return Object.freeze({ state: "not-installed" });
   const env: Record<string, string> = { HOME: input.home };
   if (input.path) env.PATH = input.path;
-  const capabilities = await input
-    .run([t3, "lazurio", "capabilities"], capabilitiesMs, env, {
-      maxBytes: 16 * 1024,
-    })
-    .catch(() => "timeout" as const);
-  if (
-    capabilities === "timeout" ||
-    capabilities.exitCode !== 0 ||
-    objectIn(capabilities.stdout)?.providerRefresh !== true
-  )
+  if (!(await t3Offers(t3, env, input.run, "providerRefresh")))
     return Object.freeze({ state: "not-supported" });
   const requested = aiProviders.filter((tool) =>
     input.providers.includes(tool),

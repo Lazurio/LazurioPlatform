@@ -20,6 +20,7 @@ import {
   segmentRefusal,
 } from "../files/rules";
 import { type ZipInput, zipArchive } from "../files/zip";
+import { selectRange } from "./http-conditions";
 
 // The Files routes of the Launchpad (decision F35): the Operator's Documents
 // folder through the browser. Every route sits behind the Launchpad's own
@@ -71,49 +72,6 @@ export type RequestTimeout = Readonly<{
  * not list the generators Bun takes. */
 const generatorBody = (source: AsyncGenerator<Uint8Array>): BodyInit =>
   source as unknown as BodyInit;
-
-export type ByteRange =
-  | Readonly<{ kind: "full" }>
-  | Readonly<{ kind: "range"; start: number; end: number }>
-  | Readonly<{ kind: "unsatisfiable" }>;
-
-/** The one byte range of a request (RFC 9110 14.2), inclusive. A missing,
- * malformed or multiple range, another unit, or an `If-Range` that names
- * another version of the file is the whole file; a start past its end is
- * unsatisfiable. */
-export function selectRange(
-  range: string | null,
-  ifRange: string | null,
-  size: number,
-  validators: Readonly<{ etag: string; lastModified: string }>,
-): ByteRange {
-  if (range === null) return { kind: "full" };
-  if (
-    ifRange !== null &&
-    ifRange.trim() !== validators.etag &&
-    ifRange.trim() !== validators.lastModified
-  )
-    return { kind: "full" };
-  const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
-  if (match === null) return { kind: "full" };
-  const [first = "", last = ""] = [match[1], match[2]];
-  if (first === "" && last === "") return { kind: "full" };
-  if (size === 0) return { kind: "unsatisfiable" };
-  if (first === "") {
-    const suffix = Number(last);
-    return suffix === 0
-      ? { kind: "unsatisfiable" }
-      : { kind: "range", start: Math.max(0, size - suffix), end: size - 1 };
-  }
-  const start = Number(first);
-  if (last !== "" && Number(last) < start) return { kind: "full" };
-  if (start >= size) return { kind: "unsatisfiable" };
-  return {
-    kind: "range",
-    start,
-    end: last === "" ? size - 1 : Math.min(Number(last), size - 1),
-  };
-}
 
 // The exact query of a route: only the named keys, each at most once.
 function query(

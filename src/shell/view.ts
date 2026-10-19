@@ -7,6 +7,7 @@ import {
   type ShellOrganization,
   type ShellSignedOut,
 } from "./contract";
+import { inKind } from "./kind-name";
 import { fillShell, type ShellCopy, shellMessages } from "./messages";
 
 // Pure presentation of the shell document (decision F36, addendum of
@@ -244,9 +245,13 @@ export type RailSpace = Readonly<{
   initials: string | null;
 }>;
 
-/** The rail: your personal space, then every Organization of the document
- * in its order. A click leads to the space's last Environment (`last`, by
- * space: the account's or what this browser remembers), else its first;
+/** The rail: your personal space when you have one, then every
+ * Organization of the document in its order. The personal space is listed
+ * only while it holds an Environment of yours (`spaceEnvironments`) or you
+ * are in it: personal Environments are not offered by self-service yet
+ * (product decision of 2026-10-16), so an empty personal space would be an
+ * entry point to nothing. It appears by itself once one exists. A click
+ * leads to the space's last Environment (`last`, by space: the account's or what this browser remembers), else its first;
  * a space without one leads to its Dashboard. On an Environment's page it
  * stays in the rail's app (`app`). On a page that is no Environment's
  * (`app` null, F36's addendum of 2026-10-05) there is no app to stay in: the
@@ -287,11 +292,18 @@ export function railSpaces(
       ...marks,
     });
   };
+  const personal =
+    options.here === personalSpace ||
+    spaceEnvironments(shell, personalSpace).length > 0
+      ? [
+          space(personalSpace, copy.personal, shell.dashboard, {
+            avatar: null,
+            initials: shell.operator.initials,
+          }),
+        ]
+      : [];
   return [
-    space(personalSpace, copy.personal, shell.dashboard, {
-      avatar: null,
-      initials: shell.operator.initials,
-    }),
+    ...personal,
     ...shell.organizations.map((organization) =>
       space(organization.slug, organization.name, organization.dashboard, {
         avatar: organization.avatar,
@@ -311,6 +323,62 @@ export function railHome(
   return Object.freeze({
     href: shell.dashboard,
     current: pageOf(shell, space).kind === "dashboard",
+  });
+}
+
+/** An entry of the account's menu. `announce`: a link the host may take
+ * over (`lazurio-navigate`, as every link on the page's origin); the sign-out
+ * never is one, because the gateway serves it and no host's router may stand
+ * in for it. */
+export type RailAccountEntry = Readonly<{
+  kind: "settings" | "sign-out";
+  href: string;
+  label: string;
+  announce: boolean;
+}>;
+
+/** The person's account at the foot of the rail: its accessible name, which
+ * is its label too (the name alone, F36's addendum of 2026-10-16), and either
+ * the link to the account settings or the menu it opens. */
+export type RailAccount = Readonly<{
+  label: string;
+}> &
+  (
+    | Readonly<{ kind: "link"; href: string }>
+    | Readonly<{ kind: "menu"; entries: readonly RailAccountEntry[] }>
+  );
+
+/** The account at the foot of the rail (F36's addendum of 2026-10-16, the
+ * shell wireframe's menu of the account). Without a sign-out in the document
+ * it is the link to the account settings it always was. With one it opens a
+ * menu of the two: "Nastavení účtu" and "Odhlásit", which ends this
+ * Environment's session and the Lazurio account's in this browser
+ * (Machines#358). The sign-out is a plain navigation to the address the
+ * document names (`announce: false`). */
+export function railAccount(shell: Shell, copy: ShellCopy): RailAccount {
+  if (shell.signOut === undefined)
+    return Object.freeze({
+      kind: "link",
+      href: shell.account,
+      label: copy.account,
+    });
+  return Object.freeze({
+    kind: "menu",
+    label: copy.account,
+    entries: Object.freeze([
+      Object.freeze({
+        kind: "settings",
+        href: shell.account,
+        label: copy.accountSettings,
+        announce: true,
+      }),
+      Object.freeze({
+        kind: "sign-out",
+        href: shell.signOut,
+        label: copy.signOut,
+        announce: false,
+      }),
+    ]),
   });
 }
 
@@ -778,10 +846,12 @@ export function switchTabs(
     apps: apps.apps,
     automate: apps.automate,
   };
+  // "Chat v tomto Týmovém Prostředí neběží" (decision F28's addendum of
+  // 2026-10-18).
   const missing: Readonly<Record<ShellApp, string | null>> = {
-    chat: copy.chatMissing,
+    chat: inKind(copy.chatMissing, environment.kind),
     apps: null,
-    automate: copy.automateMissing,
+    automate: inKind(copy.automateMissing, environment.kind),
   };
   return shellApps.map((app) =>
     Object.freeze({
@@ -853,6 +923,28 @@ export function columnSetupPrompt(
   };
 }
 
+/** The quiet notice of the column head on a public Environment (root
+ * decision 0204 point 4, decision F55): in Apps, Chat and Automate and in its
+ * Settings alike, as long as the person is there. Its words are the whole
+ * notice; it leads nowhere. */
+export type ColumnNotice = Readonly<{ text: string }>;
+
+/** The notice where the current Environment is public; null elsewhere and
+ * on a page that is no Environment's. */
+export function columnNotice(
+  shell: Shell,
+  copy: ShellCopy,
+): ColumnNotice | null {
+  const environment = currentEnvironment(shell);
+  if (shell.audience !== "public" || environment === null) return null;
+  // Its kind, "Toto Pracovní Prostředí je veřejné…" (decision F28's addendum
+  // of 2026-10-18). A public Environment is a hosted one (F55); a document
+  // that calls a computer public keeps the plain words, which agree with
+  // "veřejné", as "Tento počítač" would not.
+  const kind = environment.kind === "workstation" ? null : environment.kind;
+  return { text: inKind(copy.publicNotice, kind) };
+}
+
 /** The Settings of an Environment, the gear's address beside its picker:
  * `/settings` of its Launchpad (Apps), a path when Apps is this origin's. */
 export function environmentSettingsHref(environment: ShellEnvironment): string {
@@ -889,6 +981,9 @@ export type ColumnHead = Readonly<{
   /** The switch; null on an Organization's Dashboard, which has none. */
   tabs: readonly SwitchTab[] | null;
   setup: ColumnSetupPrompt | null;
+  /** On a public Environment, that it is public and shared; absent
+   * elsewhere, so every other head is what it was. */
+  notice?: ColumnNotice;
 }>;
 
 /** What the column head shows, from the host's attributes (`space`,
@@ -938,6 +1033,7 @@ export function columnHead(
     };
   }
   const { environment, space } = page;
+  const notice = columnNotice(shell, copy);
   const app = (shellApps as readonly (string | null)[]).includes(options.active)
     ? (options.active as ShellApp)
     : null;
@@ -946,10 +1042,12 @@ export function columnHead(
     picker: identityOf(shell, environment, copy, space),
     gear: {
       href: own ?? environmentSettingsHref(environment),
-      label: copy.settings,
+      // "Nastavení Týmového Prostředí": the Settings of the kind it names.
+      label: copy.settings[environment.kind],
       current: inSettings,
     },
     tabs: switchTabs(shell, copy, app),
     setup: columnSetupPrompt(shell, copy, app),
+    ...(notice === null ? {} : { notice }),
   };
 }

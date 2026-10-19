@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path";
 import { readFolderCatalog } from "../organizations/catalog";
-import { selectCatalogOrganization } from "../organizations/catalog-selection";
+import { selectOwnerOrganization } from "../organizations/catalog-selection";
 import { organizationSettings } from "../organizations/organization-settings";
 import { parseUniqueJson } from "../providers/unique-json";
 import type { ToolsEnvironment } from "../tools/overview";
@@ -58,8 +58,9 @@ const failed = (detail: string): SourceRead => ({
   detail,
 });
 
-/** The settings of `organization` (its slug, as the handover names it) in
- * the Folder's root of it, at the commit of its `main`. */
+/** The settings of `organization` (the owner the handover names, a GitHub
+ * login, selected by `selectOwnerOrganization`) in the Folder's root of it,
+ * at the commit of its `main`. */
 export async function readRepositorySettings(
   folder: string,
   organization: string,
@@ -67,7 +68,7 @@ export async function readRepositorySettings(
 ): Promise<SourceRead> {
   let directory: string;
   try {
-    const selection = selectCatalogOrganization(
+    const selection = selectOwnerOrganization(
       await readFolderCatalog(folder),
       organization,
     );

@@ -1,3 +1,5 @@
+import type { ShellEnvironmentKind } from "../shell/contract";
+import { inKind, kindDetail } from "../shell/kind-name";
 import {
   teamGithubLogoutText,
   teamGithubPhrase,
@@ -14,12 +16,7 @@ const en = {
     "The combined agent instructions are too long. Shorten this voice or your tool notes, then load current settings and try again.",
   voiceTitle: "Agent communication",
   voiceEditor: "Tone of Voice for agents",
-  voiceIntro:
-    "Set how agents communicate in this Environment, including emails, WhatsApp messages and instructions for other agents.",
-  voiceShared: "Everyone in this team Environment uses the same voice.",
   voiceLanguageLink: "Change language in General",
-  voiceHint:
-    "Edit the text to suit you. Saved changes apply to new conversations.",
   voiceSave: "Save",
   voiceCancel: "Cancel changes",
   voiceRestore: "Restore default",
@@ -34,6 +31,13 @@ const en = {
   voiceStale:
     "Settings changed elsewhere. Your draft is kept. Load current settings, check your text and save again.",
   voiceRefresh: "Load current settings",
+
+  themeGroup: "Environment theme",
+  themeNote: "The colours of Chat, Apps and Automate {in this}.",
+  themeShared: "Everyone in this Team Environment sees the same theme.",
+  themeFailed: "Could not change the theme. Try again.",
+  themeStale:
+    "The theme was changed elsewhere meanwhile. The selected one is the current theme.",
 
   appPrepare: "Prepare dependencies",
   appCleanPrepare: "Reinstall dependencies (remove node_modules)",
@@ -67,7 +71,7 @@ const en = {
   appStatus: "Status",
   appOpen: "Get application link",
   appStop: "Stop",
-  appVisit: "Open application in this Environment",
+  appVisit: "Open application {in this}",
   appBusy: "Operation in progress…",
   appStarted:
     "Process started. Check readiness before opening the application.",
@@ -104,7 +108,7 @@ const en = {
   updateChecked: "Last verified check: {age} ago.",
   updateNeverChecked: "No verified check yet.",
   updateStale:
-    "Last verified check: {age} ago. A newer release may be withheld from this Environment.",
+    "Last verified check: {age} ago. A newer release may be withheld from {this}.",
   updateFailed:
     "The update did not complete: {code}. The installed version keeps working; the same click retries.",
   updateStateInvalid:
@@ -124,13 +128,9 @@ const en = {
   toolsLoading: "Reading tools…",
   toolsLoadFailed:
     "The tools could not be read. Try Refresh status; if that does not help, ask an agent for help.",
-  toolsChecked: "Checked at {time}",
   toolsTierRequired: "Required",
-  toolsTierRequiredNote: "Nothing works here without them.",
   toolsTierRecommended: "Recommended",
-  toolsTierRecommendedNote: "Useful to almost everyone.",
   toolsTierOptional: "Optional",
-  toolsTierOptionalNote: "Turn on only what you use.",
   toolsInstalled: "Installed, version {version}",
   toolsInstalledNoVersion: "Installed, version unknown",
   toolsNotInstalled: "Not installed",
@@ -139,9 +139,9 @@ const en = {
   toolsFixWithAgent: "Fix with an agent",
   toolsFixWithAgentNamed: "Fix {name} with an agent",
   toolsFixPromptHint:
-    "Copy this prompt and paste it into a new chat in this Environment. The agent puts the tool where it belongs; nothing is reinstalled and your sign-in stays.",
+    "Copy this prompt and paste it into a new chat {in this}. The agent puts the tool where it belongs; nothing is reinstalled and your sign-in stays.",
   toolsFixPrompt:
-    "Task: the tool `{command}` works in this Environment, but it does not run from the standard place `~/.local/bin/{command}`; it now runs from `{path}`. Straighten it: put only a link or wrapper to the working program into `~/.local/bin`, so that `{command}` runs from there. Reinstall nothing, change no version and leave the sign-in and settings alone. If it cannot be done without a change outside the home directory, change nothing and tell me why. Proof: `command -v {command}` prints `~/.local/bin/{command}` (expanded to the home directory), `{command} --version` answers with the same version as before, and `lazurio tools status --json` shows `standardPath: true` for it.",
+    "Task: the tool `{command}` works {in this}, but it does not run from the standard place `~/.local/bin/{command}`; it now runs from `{path}`. Straighten it: put only a link or wrapper to the working program into `~/.local/bin`, so that `{command}` runs from there. Reinstall nothing, change no version and leave the sign-in and settings alone. If it cannot be done without a change outside the home directory, change nothing and tell me why. Proof: `command -v {command}` prints `~/.local/bin/{command}` (expanded to the home directory), `{command} --version` answers with the same version as before, and `lazurio tools status --json` shows `standardPath: true` for it.",
   toolsSetupLaunchpad: "Set up in Launchpad",
   toolsSetupAgent: "Set up with an agent",
   toolsEnabled: "Enabled",
@@ -159,9 +159,9 @@ const en = {
   toolsOrganizationHow:
     "Only the Organization's Admin can change it, in the Organization's settings.",
   toolsOrganizationFromDashboard:
-    "This Environment asks the Dashboard for them every two minutes.",
+    "{This} asks the Dashboard for them every two minutes.",
   toolsOrganizationFromRepository:
-    "This Environment reads them from the Organization's repository it holds.",
+    "{This} reads them from the Organization's repository it holds.",
   toolsOrganizationVersion: "Version {version}, applied {time}.",
   toolsOrganizationNotApplied: "Nothing applied yet.",
   toolsOrganizationChecked: "Last checked {time}.",
@@ -169,7 +169,7 @@ const en = {
   toolsOrganizationUnreachable:
     "The Dashboard is not answering right now; the settings applied last stay.",
   toolsOrganizationIdentity:
-    "This Environment cannot identify itself to the Dashboard right now; the settings applied last stay.",
+    "{This} cannot identify itself to the Dashboard right now; the settings applied last stay.",
   toolsOrganizationInvalid:
     "The Organization's settings are invalid right now and its Admin needs to fix them; the settings applied last stay.",
   toolsOrganizationRepository:
@@ -251,7 +251,7 @@ const en = {
   toolsSignOutAction: "Disconnect",
   toolsSignOutNamed: "Disconnect {name}",
   toolsSignedOutLocal:
-    "{name}: signed out in this Environment. The provider still lists this sign-in until you revoke it in your account settings there.",
+    "{name}: signed out {in this}. The provider still lists this sign-in until you revoke it in your account settings there.",
   toolsSignedOutRemote:
     "{name}: signed out; the linked device was removed from your account.",
   toolsSignOutFailed:
@@ -270,13 +270,12 @@ const en = {
   toolsInstalling:
     "Installing {name} from its official source. This can take a minute.",
   toolsInstalledNow: "{name} {version} is installed.",
-  toolsAlreadyInstalled:
-    "{name} already works in this Environment; nothing was changed.",
+  toolsAlreadyInstalled: "{name} already works {in this}; nothing was changed.",
   toolsInstallFailed:
     "The installation did not finish. Nothing that already worked was changed.",
   toolsInstallFailedDetail: "Step {stage}: {reason}.",
   toolsInstallUnsupported:
-    "The installer built into Lazurio does not cover this Environment.",
+    "The installer built into Lazurio does not cover {this}.",
   toolsInstallUnsupportedDetail: "System {platform}, architecture {arch}.",
   toolsInstallNotOnPath:
     "~/.local/bin is not on the PATH of this Launchpad, so agents may not find the tool until it is added to the shell profile.",
@@ -303,7 +302,7 @@ const en = {
   toolsLoginQrText:
     "On your phone open WhatsApp, then Settings, Linked devices, Link a device, and point the camera at this code. It changes every few seconds; the newest one is always shown here.",
   toolsLoginQrAlt:
-    "QR code that links WhatsApp to this Environment. Scan it in WhatsApp on your phone under Settings, Linked devices, Link a device. If you cannot scan it, pair with a phone number below.",
+    "QR code that links WhatsApp to {this}. Scan it in WhatsApp on your phone under Settings, Linked devices, Link a device. If you cannot scan it, pair with a phone number below.",
   toolsLoginPhoneTitle: "Pair with a phone number instead",
   toolsLoginPhoneLabel: "Your WhatsApp phone number with the country code",
   toolsLoginPhoneAction: "Get a pairing code",
@@ -320,9 +319,9 @@ const en = {
   toolsLoginAlreadySignedInAs:
     "{name} was already connected as {account}; nothing changed.",
   toolsLoginWacliSync:
-    "WhatsApp now copies your recent messages to this Environment in the background. You can close this window.",
+    "WhatsApp now copies your recent messages to {this} in the background. You can close this window.",
   toolsLoginFailureNotInstalled:
-    "The tool is not installed in this Environment. Close this window and choose Install and sign in on its card.",
+    "The tool is not installed {in this}. Close this window and choose Install and sign in on its card.",
   toolsLoginFailureUrl:
     "The tool offered an address that is not its official sign-in page, so it was not shown.",
   toolsLoginFailureOutput: "The tool answered in a form Lazurio does not know.",
@@ -333,7 +332,7 @@ const en = {
   toolsLoginFailureSpawn:
     "The tool could not be started. Try again; if it does not start, finish it with an agent.",
   toolsLoginFailureNoChallenge:
-    "The tool showed no link, code or QR code within a minute, so its sign-in was stopped. Check that this Environment reaches the internet and try again; if it happens again, finish it with an agent.",
+    "The tool showed no link, code or QR code within a minute, so its sign-in was stopped. Check that {this} reaches the internet and try again; if it happens again, finish it with an agent.",
   toolsLoginFailureBrowser:
     "The Environment browser did not open the sign-in page, so the sign-in was stopped. Try again in a moment.",
   toolsLoginFailureProviderUnknown:
@@ -353,32 +352,30 @@ const en = {
   toolsSshTeam: capitalized(teamGithubPhrase.en),
   toolsWorksAs: capitalized(teamGithubWorksAs.en),
   toolsLinkSshAction: "Link SSH key",
-  toolsLinkSshNamed:
-    "Link the SSH key of this Environment to the {name} account",
+  toolsLinkSshNamed: "Link the SSH key of {this} to the {name} account",
   toolsLoginTitleSsh: "Link SSH key: {name}",
   toolsStepLinking: "Linking the SSH key",
   toolsStepLinked: "SSH key linked",
-  toolsLoginLinking: "Connected. Linking the SSH key of this Environment…",
+  toolsLoginLinking: "Connected. Linking the SSH key of {this}…",
   toolsLoginRefreshText:
     "Your gh sign-in may not manage the SSH keys of your account yet. To allow it, open the GitHub device page on any device (this computer, another one or your phone) and enter this code:",
   toolsSshLinkedDone: "Connected as {account}.",
   toolsGitIdentitySet:
-    "Your commits in this Environment carry the name {name} <{email}>.",
+    "Your commits {in this} carry the name {name} <{email}>.",
   toolsGitIdentityCompleted:
-    "Git in this Environment now has your name and email for commits; what was missing came from your GitHub account.",
+    "Git {in this} now has your name and email for commits; what was missing came from your GitHub account.",
   toolsGitIdentityNotSet:
-    "Git in this Environment does not know your name and email for commits yet, so publishing changes from here fails. Ask an agent to set your Git identity.",
+    "Git {in this} does not know your name and email for commits yet, so publishing changes from here fails. Ask an agent to set your Git identity.",
   toolsSshKeyCreated:
     "A new key without a passphrase was created, so agents can use it: {path} ({fingerprint}).",
   toolsSshKeyReused:
     "The existing key {path} ({fingerprint}) is used unchanged.",
   toolsSshNotLinkedDone:
-    "You are signed in to gh as {account}, but the SSH key of this Environment is not linked, so git over SSH does not work yet.",
-  toolsSshFailureNotSignedIn: "In this Environment gh is not signed in.",
+    "You are signed in to gh as {account}, but the SSH key of {this} is not linked, so git over SSH does not work yet.",
+  toolsSshFailureNotSignedIn: "{In this} gh is not signed in.",
   toolsSshFailureScopeMissing:
     "The gh sign-in may not manage the SSH keys of your account.",
-  toolsSshFailureKeygenMissing:
-    "ssh-keygen is not installed in this Environment.",
+  toolsSshFailureKeygenMissing: "ssh-keygen is not installed {in this}.",
   toolsSshFailureKeygenFailed: "A new key could not be created in ~/.ssh.",
   toolsSshFailureKeyPassphrase:
     "The existing key {path} is protected by a passphrase, which agents cannot enter. It was left as it is.",
@@ -396,50 +393,47 @@ const en = {
     "~/.ssh/known_hosts holds a github.com host key that differs from the keys GitHub publishes. Nothing was changed.",
   toolsSshFailureKnownHostsFailed:
     "~/.ssh/known_hosts could not be read or written.",
-  toolsSshFailureSshMissing: "ssh is not installed in this Environment.",
+  toolsSshFailureSshMissing: "ssh is not installed {in this}.",
   toolsSshFailureProofFailed:
     "The test connection to GitHub over SSH did not answer with GitHub's greeting.",
   toolsSshFailureProofOtherAccount:
-    "Over SSH GitHub greeted another account ({account}): another key of this Environment is offered first.",
+    "Over SSH GitHub greeted another account ({account}): another key of {this} is offered first.",
   toolsLoginFailureNotSignedIn:
-    "In this Environment gh is not signed in. Sign in first; the SSH key is linked as part of it.",
+    "{In this} gh is not signed in. Sign in first; the SSH key is linked as part of it.",
   toolsLoginFailureEnvironment:
     "The kind of this Environment could not be read, so the sign-in stopped before changing anything further.",
   toolsSshRemoved:
-    "The SSH key of this Environment was removed from your GitHub account; the key files stay in this Environment.",
+    "The SSH key of {this} was removed from your GitHub account; the key files stay {in this}.",
   toolsSshRemovalNotRegistered:
-    "The SSH key of this Environment was not registered on your GitHub account.",
+    "The SSH key of {this} was not registered on your GitHub account.",
   toolsSshRemovalNoKey:
-    "This Environment has no SSH key; nothing was removed from GitHub.",
+    "{This} has no SSH key; nothing was removed from GitHub.",
   toolsSshRemovalKept:
-    "The SSH key of this Environment stays registered on your GitHub account because Lazurio did not register it. Remove it under GitHub Settings, SSH and GPG keys (github.com/settings/keys), if this Environment must lose access.",
+    "The SSH key of {this} stays registered on your GitHub account because Lazurio did not register it. Remove it under GitHub Settings, SSH and GPG keys (github.com/settings/keys), if {this} must lose access.",
   toolsSshKeyFingerprint: "Key fingerprint: {fingerprint}.",
   toolsSshRemovalFailed:
-    "The SSH key of this Environment may still be registered on your GitHub account: gh could not remove it. Remove it under GitHub Settings, SSH and GPG keys (github.com/settings/keys), if this Environment must lose access.",
+    "The SSH key of {this} may still be registered on your GitHub account: gh could not remove it. Remove it under GitHub Settings, SSH and GPG keys (github.com/settings/keys), if {this} must lose access.",
   toolsComposioOrgLabel: "Organization in Composio",
-  toolsComposioOrgCurrent: "{name} (current)",
-  toolsComposioOrgHint:
-    "Apps you connect in Composio belong to this account and organization: the account of the Environment, which its agents use.",
-  toolsComposioOrgSaved:
-    "The Composio organization of this Environment is now {name}.",
-  toolsComposioOrgFailed:
-    "The organization could not be changed. You can change it later with lazurio tools composio-org.",
+  toolsComposioOrgFailed: "The organization could not be changed.",
   toolsComposioOrgLoading: "Reading your Composio organizations…",
   toolsComposioOrgUnavailable:
-    "The organizations could not be read. You can choose one later with lazurio tools composio-org.",
-  toolsComposioOrgMatches:
-    "This Environment uses your Composio organization “{name}”, named as its Organization is.",
-  toolsComposioOrgMissing:
-    "Your Composio account has no organization named “{name}”, as this Environment's Organization is. Until you create it, this Environment connects in the organization you have selected. Create it in Composio, for yourself alone, then click Check again.",
-  toolsComposioOrgAmbiguous:
-    "Your Composio account has more than one organization named “{name}”. Until only one is left, this Environment connects in the organization you have selected. Keep one, then click Check again.",
+    "Your Composio organizations could not be read just now.",
   toolsComposioOrgElsewhere:
-    "Composio could not be switched to your organization “{name}”. Click Check again.",
-  toolsComposioOrgCheckAgain: "Check again",
+    "Composio could not be switched to your organization “{name}”.",
   toolsComposioOrgUnverified:
-    "The name of this Environment's Organization cannot be read, so its Composio organization cannot be checked. Click Check again; if that does not help, ask the agent in Chat to check this Environment's Folder.",
-  toolsComposioOrgPersonal:
-    "On a personal Environment, choose your default organization, the one Composio made when you signed up.",
+    "The name of {this}'s Organization cannot be read, so nothing connects through Composio now; ask the agent in Chat to check it.",
+  toolsComposioCreateTitle: "One more step in Composio",
+  toolsComposioCreateText: "Create an organization with this name in Composio.",
+  toolsComposioCreateName: "Organization name",
+  toolsComposioCreateWait: "Once it exists, Lazurio continues on its own.",
+  toolsComposioRenameText:
+    "Composio has more than one organization named “{name}”; rename the extra one.",
+  toolsComposioRenameWait: "Once it is renamed, Lazurio continues on its own.",
+  toolsComposioScene:
+    "In Composio: 1. {forYou}, 2. {organization}, 3. {createOrg}, 4. the name {name} and {create}.",
+  toolsComposioSceneYou: "You",
+  toolsComposioConnected: "Composio is connected",
+  toolsComposioChooseApps: "Choose apps",
   toolsPromptTitle: "Connect {name} with an agent",
   toolsPromptHint:
     "Copy this prompt and paste it into a new thread in Chat. The agent installs the tool and guides you through the sign-in in your browser. You never copy an API key.",
@@ -450,8 +444,6 @@ const en = {
     "Copying is not available here. The text is selected; copy it with the keyboard.",
   toolsClose: "Close",
   toolsMcpTitle: "A custom MCP server",
-  toolsMcpText:
-    "You add custom MCP servers in Apps → Integrations → Custom; an agent adds one on your explicit request.",
   toolsMcpAction: "Add one with an agent",
   toolsMcpPromptHint:
     "Copy this prompt and paste it into a new thread in Chat. The agent asks which server you want and adds it; a key you enter yourself in Integrations.",
@@ -474,8 +466,7 @@ const en = {
   appsNoApp: "No app",
   appsAbout: "About the module",
   appsLog: "App log",
-  appsLogHint:
-    "Read the log's last lines on the command line of this Environment:",
+  appsLogHint: "Read the log's last lines on the command line of {this}:",
   appsStarting: "Starting {name}…",
   appsStartFailed: "{name} could not be opened. Its overview says why.",
   // The org-agnostic description of a module by its stone's semantic key,
@@ -554,7 +545,7 @@ const en = {
   catalogLoading: "Reading Organizations…",
   catalogLoadFailed:
     "The Organizations could not be read. Try Refresh; if it keeps failing, run lazurio organization list in the CLI.",
-  catalogEmpty: "There are no apps in this Environment yet.",
+  catalogEmpty: "There are no apps {in this} yet.",
   catalogNotFound:
     "This Organization or module is not in this Folder. It may have been renamed or removed; see all Organizations.",
   chat: "Chat",
@@ -607,7 +598,7 @@ const en = {
   catalogReasonGithubUnavailable:
     "GitHub did not answer, so it cannot be verified now that this personal space is yours. It is checked again once GitHub answers.",
   catalogReasonGithubIdentityMismatch:
-    "GitHub is signed in here with another account than this Environment's owner, so this personal space is not read.",
+    "GitHub is signed in here with another account than {this}'s owner, so this personal space is not read.",
   catalogReasonPersonalspaceUnverified:
     "Checking with GitHub that this personal space is yours…",
   catalogReasonDeclaration:
@@ -621,13 +612,13 @@ const en = {
   catalogReasonDeclarationNotRegular:
     "{file} is not a regular file (a symlink, for example); Lazurio reads the module's files only as files of your own checkout.",
   catalogReasonDeclarationOwner:
-    "{file} belongs to another account in this Environment, so it is not a file of your own checkout. Make it yours again (for example with chown) or check it out again.",
+    "{file} belongs to another account {in this}, so it is not a file of your own checkout. Make it yours again (for example with chown) or check it out again.",
   catalogReasonDeclarationTooLarge:
     "{file} is larger than a file of the checkout may be (1 MiB; 16 MiB for a lockfile).",
   catalogReasonDirectoryNotRegular:
     "{file} is not a real directory (a symlink, for example); Lazurio reads the checkout only through its own directories.",
   catalogReasonDirectoryOwner:
-    "The directory {file} belongs to another account in this Environment, so it is not your own checkout. Make it yours again (for example with chown) or check it out again.",
+    "The directory {file} belongs to another account {in this}, so it is not your own checkout. Make it yours again (for example with chown) or check it out again.",
   preparationReasonOwnerInvalid:
     "{file} cannot prepare this app: it is missing, is not a package, or the app is not a declared member of its workspace.",
   preparationReasonScriptMissing:
@@ -659,11 +650,23 @@ const en = {
   moduleReasonRequiredSlotUndeclared:
     "The app requires {file}, which the Organization manifest does not declare, so it was not started. Fix the app's required_module_slots or the Organization manifest.",
   moduleReasonRequiredSlotPlanned:
-    "The app requires {file}, which the Organization manifest declares as planned, so it cannot start in this Environment yet.",
+    "The app requires {file}, which the Organization manifest declares as planned, so it cannot start {in this} yet.",
   moduleReasonRequiredSlotMissing:
-    "The app requires {file}, which is not in this Environment beside it, so it was not started. Synchronize the Organization, or ask for access to that module, and start again.",
+    "The app requires {file}, which is not {in this} beside it, so it was not started. Synchronize the Organization, or ask for access to that module, and start again.",
+  moduleReasonDataMountDenied:
+    "The app was not started: its data ({file}) are in a repository your GitHub account cannot read. Ask the Organization's Admin for access and start it again.",
+  // A Team Environment has no person's account: it reads GitHub as the
+  // Team, through Lazurio for GitHub (#488).
+  moduleReasonDataMountDeniedTeam:
+    "The app was not started: its data ({file}) are in a repository this Team Environment cannot reach. Ask the Organization's Admin to give the Team access to it on GitHub and start it again.",
+  moduleReasonDataMountOccupied:
+    "The app was not started: the place for its data ({file}) holds something else, and Lazurio does not touch it. Ask an agent in Chat to look at it.",
+  moduleReasonDataMountUnavailable:
+    "The app was not started: its data ({file}) could not be downloaded, because GitHub did not answer or another download is running. Start it again in a moment.",
+  moduleReasonDataMountCloneFailed:
+    "The app was not started: its data ({file}) could not be downloaded. The data repository may be empty or lack its branch; Lazurio does not create it. Ask the Organization's Admin to check the data repository.",
   moduleReasonRuntimeSecretUnavailable:
-    "The app was not started: it needs secrets that this Environment's vault did not give it. {secrets}. Values are never shown; add or fix the item named exactly like the secret in the Environment's vault and start again.",
+    "The app was not started: it needs secrets that {this}'s vault did not give it. {secrets}. Values are never shown; add or fix the item named exactly like the secret in {this}'s vault and start again.",
   moduleSecretsNotProvided:
     "Started without these optional secrets, so the capabilities that need them are off: {secrets}.",
   runtimeSecretPersonalspace:
@@ -671,18 +674,17 @@ const en = {
   runtimeSecretPersonalEnvironment:
     "the vault of a personal Environment serves only Personalspace apps",
   runtimeSecretWorkstation: "this computer has no Environment vault yet",
-  runtimeSecretNoVaultIdentity: "this Environment has no vault yet",
+  runtimeSecretNoVaultIdentity: "{this} has no vault yet",
   runtimeSecretOtherOrganization:
-    "the app belongs to another Organization than the one that owns this Environment and its vault",
+    "the app belongs to another Organization than the one that owns {this} and its vault",
   runtimeSecretNotConnected:
     "the vault is not set up yet (Settings → Tools → bitwarden)",
   runtimeSecretLocked: "the vault could not be unlocked",
   runtimeSecretBusy: "the vault is busy; try again",
   runtimeSecretUnreachable: "the vault cannot be reached",
   runtimeSecretVaultFailed: "the vault did not answer as expected",
-  runtimeSecretMissing: "no item of this name in the Environment's vault",
-  runtimeSecretAmbiguous:
-    "more than one item of this name in the Environment's vault",
+  runtimeSecretMissing: "no item of this name in {this}'s vault",
+  runtimeSecretAmbiguous: "more than one item of this name in {this}'s vault",
   runtimeSecretEmpty: "its item has no password",
   moduleApplication: "Application",
   moduleStart: "Start",
@@ -719,9 +721,9 @@ const en = {
   moduleReasonFailed:
     "The lifecycle failed before it could confirm a change, for a reason it cannot name. See lazurio module status and lazurio doctor.",
   moduleNoLinkEntry:
-    "No link: the recorded entry of this Remote Environment names no hostname for modules yet.",
+    "No link: the recorded entry of {this} names no hostname for modules yet.",
   moduleNoLinkApp:
-    "No link: the gateway of this Remote Environment serves only the module's default app.",
+    "No link: the gateway of {this} serves only the module's default app.",
   moduleNoLinkBrowser: "No link: the app declares no browser entrypoint.",
   moduleNoLink: "No link: {reason}.",
   recoveryTitle: "Recovery",
@@ -744,54 +746,48 @@ const en = {
   recoveryLoading: "Checking…",
   recoveryAgain: "Check again",
   recoveryLoadFailed:
-    "The check could not be read here. An agent in this Environment can run lazurio recover.",
-  recoveryHealthy: "Lazurio in this Environment is healthy.",
-  recoveryBroken: "Lazurio in this Environment needs a repair.",
+    "The check could not be read here. An agent {in this} can run lazurio recover.",
+  recoveryHealthy: "Lazurio {in this} is healthy.",
+  recoveryBroken: "Lazurio {in this} needs a repair.",
   recoveryNotInstalled:
-    "Lazurio is not installed in this Environment; there is nothing to check.",
+    "Lazurio is not installed {in this}; there is nothing to check.",
   recoveryChecksTitle: "Checks",
   recoveryOutcomeOk: "ok",
   recoveryOutcomeFailed: "failed",
   recoveryOutcomeSkipped: "skipped",
   recoveryEvidenceTitle: "Evidence",
+  // What the evidence carries, where a person decides whether to file it to
+  // the public repository (kept by Pablo's review of #503).
   recoveryEvidenceText:
     "Sanitized structured fields only, exactly as the prepared issue carries them.",
-  recoveryJournalShow: "Show journal (stays in this Environment)",
+  recoveryJournalShow: "Show journal (stays {in this})",
   recoveryJournalHide: "Hide journal",
   recoveryJournalText:
-    "The sanitized tail of the Launchpad's journal. It never leaves this Environment automatically.",
+    "The sanitized tail of the Launchpad's journal. It never leaves {this} automatically.",
   recoveryPromptTitle: "Repair agent",
   recoveryPromptText:
-    "Copy the prompt and paste it into a new chat of your agent app in this Environment (T3 Code in a Remote Environment). The agent repairs forward, or records the fault on GitHub.",
+    "Copy the prompt and paste it into a new chat of your agent app {in this} (T3 Code in a Remote Environment).",
   recoveryPromptCopy: "Copy the prompt",
   recoveryPromptOpenT3: "Open T3 Code",
   recoveryIssueTitle: "Prepared issue",
-  recoveryIssueText:
-    "For the public repository {repository}. The repair agent files it after a search for a duplicate.",
+  recoveryIssueText: "For the public repository {repository}.",
   recoveryIssueCopy: "Copy the gh command",
   recoveryIssueLink: "Open the prefilled issue in the browser",
   recoveryIssueLinkPaste: "Open the issue form in the browser (paste the body)",
   recoveryIssueRefused:
-    "No issue body was prepared: after sanitization it still contained {kinds}. Nothing may leave this Environment automatically.",
-  recoveryNothingFiled:
-    "Nothing was filed. This page only prepares the issue; nothing leaves this Environment automatically.",
+    "No issue body was prepared: after sanitization it still contained {kinds}. Nothing may leave {this} automatically.",
+  recoveryNothingFiled: "Nothing was filed.",
   settingsTitle: "Settings",
   settingsGeneral: "General",
   settingsBack: "Back",
   settingsBreadcrumb: "Where you are in Settings",
-  navigationOpen: "Open navigation",
+  navigationOpen: "Show left panel",
   technicalDetails: "Technical details",
-  presetHint: "The kind of this Environment.",
-  localeHint: "The language of this page and of the agents.",
-  detailHint:
-    "How agents explain their work: briefly, or with technical explanation and evidence.",
-  coordinationHint:
-    "Whether agents work directly, or delegate within the task and verify the results.",
   toolsDetails: "Details",
   toolsDetailsNamed: "Details of {name}",
   toolsPathLabel: "Found at",
-  legend: "Environment profile",
-  machineTitle: "This Environment",
+  legend: "Profile of {this}",
+  machineTitle: "{This}",
   machineKind: "Kind",
   machineName: "Technical name",
   machineOwner: "Owner",
@@ -799,7 +795,7 @@ const en = {
   machineAssignment: "Assignment",
   machineAssignmentTeam: "Team",
   machineAssignmentAutomation:
-    "an automated Environment of an Organization persona; responsible operator {operator}",
+    "automations of an Organization persona; responsible operator {operator}",
   machineTailnet: "Tailnet node",
   machineHost: "Host",
   machineRelationships: "Relationships (enforced by Headscale, not here)",
@@ -808,11 +804,14 @@ const en = {
   machineNoHttps: "no HTTPS",
   machineNone: "not recorded",
   preset: "Workspace preset",
-  presetLocal: "Local workstation",
-  presetHostedPersonal: "Personal",
-  presetHostedOrganizationPersonal: "Work",
-  presetHostedOrganizationTeam: "Work, Team",
-  presetHostedOrganizationSteward: "Automated",
+  // What the preset is, beside the choice no step of Obecné's "?" names
+  // (kept by Pablo's review of #503).
+  presetHint: "The kind of this Environment.",
+  presetLocal: kindDetail("workstation", "en"),
+  presetHostedPersonal: kindDetail("personal", "en"),
+  presetHostedOrganizationPersonal: kindDetail("work", "en"),
+  presetHostedOrganizationTeam: kindDetail("team", "en"),
+  presetHostedOrganizationSteward: kindDetail("automated", "en"),
   locale: "Language",
   detail: "Detail",
   concise: "Concise",
@@ -829,10 +828,75 @@ const en = {
   loadFailed:
     "Cannot read profile. Open the session link from CLI; pending state may require CLI recovery.",
   filesTitle: "Files",
-  filesIntro:
-    "The Documents folder of this Environment. Agents save finished files here; download them, or upload files for the agents.",
-  filesShared:
-    "This Environment is shared: the whole Team sees and changes the same folder.",
+  // The guide of the Files page (decision F56): the "?" beside its heading
+  // and, in a Team Environment, its explanation, which took the page's
+  // explaining sentences (the shell's principle "files" explains it
+  // elsewhere). At most four steps of at most nine words, no full stop.
+  pageHelp: "How does it work?",
+  guideFilesTeamDrag: "Drag a file into the chat",
+  guideFilesTeamShow: "Files show what agents work with",
+  guideFilesTeamShared: "The whole Team can read and change them",
+  // The guide of Integrace where Composio is allowed and of Vlastní, and of
+  // Trezor where nobody who enters is added to the vault (decision F56's
+  // addendum of 2026-10-18, guides.ts): their explanations, which took the
+  // pages' explaining sentences. The same rules.
+  guideComposioTitle: "Composio",
+  guideComposioAccount: "Sign in to Composio with your own account",
+  guideComposioAccountSub: "The Organization has no shared Composio",
+  guideComposioOrganization: "One organization in it for each Organization",
+  guideComposioOrganizationSub: "Invite nobody else into it",
+  guideComposioAgents:
+    "Agents of the Organization's Environment use what you connect",
+  guideComposioAgentsSub:
+    "A Personal Environment uses the account's default organization",
+  guideComposioOther:
+    "Other accounts in another Environment need another Composio account",
+  guideComposioOtherSub:
+    "Three Environments with other accounts, three Composio accounts",
+  guideCustomTitle: "Custom MCP servers",
+  guideCustomWho: "Custom MCP servers for advanced users",
+  guideCustomHow: "A command {in this}, or a URL",
+  guideCustomUse: "Every agent and bot uses them",
+  guideVaultAgentsOwn: "{This} has its own vault",
+  guideVaultAgentsUse: "Agents take passwords from it without asking",
+  guideVaultAgentsSee: "Everyone {in this} sees its passwords",
+  // The guide of every Settings section (decision F56's addendum of
+  // 2026-10-18, guides.ts): their explanations, which took the sections'
+  // explaining sentences. The same rules.
+  guideStartSteps: "Steps that get {this} ready for work",
+  guideStartAi: "First connect your AI account",
+  guideStartGithub: "After GitHub the modules download themselves",
+  guideStartOptional: "Add the optional steps at any time",
+  guideGeneralLanguage: "The language of the page and the agents",
+  guideGeneralDetail: "How fully agents explain their work",
+  guideGeneralCoordination: "Whether agents work alone or delegate",
+  guideGeneralCoordinationSub: "and then check the result",
+  guideGeneralApply: "Preview a change first",
+  guideVoiceHow: "How agents write {in this}",
+  guideVoiceTeam: "One voice for everyone in a Team Environment",
+  guideVoiceWhere: "In e-mails, on WhatsApp and to other agents",
+  guideVoiceNew: "A change applies to new conversations",
+  guideMachineWhat: "{This} is your agents' virtual computer",
+  guideMachineComputer: "Your computer, where agents work too",
+  guideMachineWho: "Whom it belongs to and who works in it",
+  guideMachineWhoComputer: "Whom it belongs to and who works on it",
+  guideMachineSupport: "Technical details for support",
+  guideToolsWhich: "The tools agents use {in this}",
+  guideToolsConnect: "You connect them with your account",
+  guideToolsReach: "Where you connect them, agents can go",
+  guideToolsSwitch: "The switch decides whether agents use it",
+  guideToolsTeamShared: "The whole Team shares {this}",
+  guideToolsTeamAccounts: "Sign in here with team accounts",
+  guideToolsTeamUse: "The whole Team can use what you sign in",
+  guideDevicesPrompt: "Give the prompt to the agent on your computer",
+  guideDevicesSignIn: "You only sign in, it sets up the rest",
+  guideDevicesKey: "Every device has its own key",
+  guideDevicesRemove: "You can remove a key here at any time",
+  guideDevicesTeam: "The whole Team sees and removes devices here",
+  guideRecoveryChecks: "Lazurio checks itself {in this}",
+  guideRecoveryFails: "What fails shows in Checks",
+  guideRecoveryRepair: "An agent repairs it with the prepared prompt",
+  guideRecoveryRepairSub: "or records the fault on GitHub",
   filesRoot: "Documents",
   filesPath: "Folder path",
   filesUpload: "Upload files",
@@ -841,10 +905,9 @@ const en = {
   filesLoading: "Reading the folder…",
   filesLoadFailed: "The folder could not be read. Try Refresh.",
   filesUnavailable:
-    "The Documents folder of this Environment cannot be used: it is not a folder, or it is a link to the home folder or the Lazurio Folder. An agent can fix it on request.",
+    "The Documents folder of {this} cannot be used: it is not a folder, or it is a link to the home folder or the Lazurio Folder. An agent can fix it on request.",
   filesEmpty: "This folder is empty.",
-  filesEmptyRoot:
-    "This is the Documents folder of your Environment. Agents save finished files here, and the files you upload land here too. Nothing is here yet.",
+  filesEmptyRoot: "No files yet.",
   filesNotFound: "This folder or file does not exist.",
   filesOpenRoot: "Open Documents",
   filesIsFile: "{name} is a file.",
@@ -869,7 +932,7 @@ const en = {
   filesUploadCancelled: "Cancelled",
   filesCancel: "Cancel",
   filesCancelNamed: "Cancel the upload of {name}",
-  filesUploadDiskFull: "Not enough free space in this Environment.",
+  filesUploadDiskFull: "Not enough free space {in this}.",
   filesUploadIncomplete: "The upload was interrupted. Try again.",
   filesUploadName:
     "This name cannot be used here. Rename the file and try again.",
@@ -893,9 +956,8 @@ const en = {
   setupUnready: "{name} is not prepared yet. Its Admin prepares it.",
   setupResolve: "Solve in Chat",
   setupRetry: "Try again",
-  tourLabel: "Tour of this Environment",
+  tourLabel: "Tour of {this}",
   tourGearAiTitle: "First connect AI",
-  tourGearAiText: "An agent then helps you with the next steps.",
   tourGearGithubTitle: "Connect GitHub",
   tourGearGithubText: "It opens your repositories.",
   tourGearFailedTitle: "The preparation did not work",
@@ -919,6 +981,7 @@ const en = {
   tourChatTitle: "Chat",
   tourChatText: "Work with agents.",
   tourChatMissingText: "Work with agents. Not running here.",
+  tourChatDemoText: "Work with agents. AI is not connected in this demo.",
   tourAutomateTitle: "Automate",
   tourAutomateText: "Regular tasks and automation.",
   tourAutomateMissingText: "Automation does not run here.",
@@ -931,6 +994,14 @@ const en = {
   startIntro: "{done} of {total} steps done.",
   startReady: "The Environment is ready.",
   startNotHere: "There is nothing to set up here.",
+  startDemoIntro: "Try Lazurio in this demo Environment.",
+  startDemoGroup: "Try it",
+  demoAppsText: "The apps of this Organization's modules.",
+  startDemoModuleTitle: "A module",
+  startDemoModuleText: "Try a module of this Organization.",
+  startDemoModuleAny: "Open any module in Apps.",
+  startDemoChatText: "Work with agents.",
+  startDemoNoAi: "AI is not connected in this demo.",
   startRefresh: "Check again",
   startRequired: "Required steps",
   startDoneMark: "(done)",
@@ -974,12 +1045,11 @@ const en = {
   startGithubTitle: "GitHub",
   startGithubConnected: "Connected as @{login}",
   startGithubConnectedPlain: "Connected",
-  startGithubMissing: "Opens your repositories and modules.",
   startConnect: "Connect",
   startContentOrganization: "Download {name}",
   startContentPersonal: "Prepare your personal space",
   startContentBoth: "Download the Organizations and your personal space",
-  startContentNone: "Content of this Environment",
+  startContentNone: "Content of {this}",
   startContentNothing: "There is nothing to download here.",
   startVaultGroup: "Passwords for agents",
   startVaultTitle: "Environment vault",
@@ -993,10 +1063,13 @@ const en = {
   startSet: "Set up",
   startNotSet: "Not set up",
   startGuide: "Guide",
-  startCodexText: "Work with this Environment from the Codex app.",
+  startCodexText: "Work with {this} from the Codex app.",
   // The Bitwarden extension in Codex Desktop and the person's own browser
-  // (F53's addendum of 2026-10-16): the row leads to Nastavení → Trezor.
+  // (F53's addendum of 2026-10-16): the row leads to Apps → Trezor.
   startBitwardenTitle: "Vault in Bitwarden",
+  // What the optional rows Composio and Trezor v Bitwardenu give, at the
+  // choice (kept by Pablo's review of #503: no step of Začínáme's "?" says
+  // it).
   startBitwardenText:
     "Your Environment vault's passwords in Codex Desktop and your browser too.",
   startTourGroup: "App tour",
@@ -1005,7 +1078,7 @@ const en = {
   startNotToured: "Not yet",
   startTourStart: "Start the tour",
   startTourAgain: "Start again",
-  contentTitle: "Content of this Environment",
+  contentTitle: "Content of {this}",
   contentPersonalspace: "Personal space",
   contentAbsent: "Not here yet",
   contentPresent: "Ready",
@@ -1017,8 +1090,8 @@ const en = {
   contentNeedsGithub: "Starts by itself once GitHub is connected.",
   contentNeedsAi: "Offered once AI is connected.",
   contentRefusedAi: "Connect AI in Getting started first.",
-  contentNotAllowed: "This Environment cannot prepare its content.",
-  contentRefused: "This Environment may not prepare it.",
+  contentNotAllowed: "{This} cannot prepare its content.",
+  contentRefused: "{This} may not prepare it.",
   contentStartFailed: "The preparation could not start. Try again.",
   contentLost: "The progress of the preparation could not be read.",
   contentAgentFixes: "An agent in Chat will fix it.",
@@ -1057,13 +1130,13 @@ const en = {
   contentResolveCopyFailed:
     "The brief could not be copied; open Chat and tell the agent what stopped.",
   preparePromptWhatPersonal:
-    "The preparation of my personal space (Personalspace) in this Environment",
+    "The preparation of my personal space (Personalspace) {in this}",
   preparePromptWhatOrganization:
-    "The preparation of the Organization {name} (GitHub {login}) in this Environment",
+    "The preparation of the Organization {name} (GitHub {login}) {in this}",
   preparePromptStoppedAt: "{what} stopped at the step “{step}”:",
   preparePromptStopped: "{what} stopped.",
   preparePromptBody:
-    "Please finish the installation completely:\n1. Find the cause of the error and fix it in this Environment.\n2. Finish the preparation with the same command the Launchpad runs: `{command}`.\n3. Verify the result: `lazurio doctor`, and the tests of the modules that have them.\n4. Tell me briefly what was wrong, what you did and what you verified. If the fix needs a change outside this Environment (in a repository, for example), ask me first.",
+    "Please finish the installation completely:\n1. Find the cause of the error and fix it {in this}.\n2. Finish the preparation with the same command the Launchpad runs: `{command}`.\n3. Verify the result: `lazurio doctor`, and the tests of the modules that have them.\n4. Tell me briefly what was wrong, what you did and what you verified. If the fix needs a change outside {this} (in a repository, for example), ask me first.",
   toolsDescriptionGh:
     "The connection to GitHub, where your modules are kept. Nothing works here without it.",
   toolsDescriptionComposio:
@@ -1076,8 +1149,8 @@ const en = {
     "The connection to Neon databases, mainly for developing apps.",
   toolsDescriptionBitwarden: "Passwords and other items for agents.",
   toolsDescriptionExecutor:
-    "Agents use the apps connected directly from this Environment through it.",
-  toolsNotOffered: "Not offered in this Environment; agents do not use it.",
+    "Agents use the apps connected directly from {this} through it.",
+  toolsNotOffered: "Not offered {in this}; agents do not use it.",
   vaultRowChecking: "Checking…",
   vaultRowConnected: "Connected",
   vaultRowNotSetUp: "Not set up yet",
@@ -1087,9 +1160,9 @@ const en = {
   vaultRowRevoked: "Access removed in the vault",
   vaultRowUnreachable: "The vault does not answer",
   vaultRowFailed: "The setup did not finish",
-  vaultRowNoVault: "This Environment has no vault yet",
+  vaultRowNoVault: "{This} has no vault yet",
   vaultRowNeedsConnection: "Waiting for your Bitwarden",
-  vaultRowUnavailable: "Not available in this Environment",
+  vaultRowUnavailable: "Not available {in this}",
   vaultPhaseInstall: "Installing Bitwarden…",
   vaultPhaseAccount: "Preparing the vault's account…",
   vaultPhaseVault: "Preparing the vault…",
@@ -1099,80 +1172,101 @@ const en = {
   vaultActionNamed: "{action}: bitwarden",
   vaultOpen: "Open the vault",
   vaultLoadFailed: "The vault's state could not be read.",
-  // Settings → Vault (root decision 0198 point 5, the wireframe's
-  // Nastavení → Trezor): the rule, the vault and the way into it.
+  // Apps → Vault (root decision 0198 point 5, the wireframe's Apps →
+  // Trezor): the vault and the way into it; its "?" says the rule (decision
+  // F56's addendum of 2026-10-18).
   vaultPageTitle: "Vault",
-  vaultPageRule:
-    "Whoever has access to the Environment has all of its passwords.",
   vaultPageWorkstation: "There is no vault on this computer.",
-  vaultPageNoVault: "This Environment has no vault yet.",
+  // An Environment without a vault (DEV-6631, F53's addendum of
+  // 2026-10-17): why it has none, in place of the vault. How a vault works
+  // in an Organization is the guide video `vault-overview`, which the page's
+  // "?" plays in place (decision F56's addendum of 2026-10-18): its title,
+  // its accessible name, and the line under it, which the video does not
+  // say.
+  vaultPageNoVault:
+    "{This}'s vault is not set up. The Organization's Admin sets it up, and then you will find it here.",
+  vaultPagePublic:
+    "This Organization is a public demo and real passwords do not belong in it, so it has no vault on purpose. Everything else works as in a real Organization.",
+  vaultExplainerTitle: "How the vault works",
+  vaultVideoLine: "Whoever can enter the Environment has its passwords too",
   // A personal Environment connects its person's own Bitwarden (root
-  // decision 0203 point 7): the explanation, the form and its refusals.
-  vaultPageNeedsConnection:
-    "This personal Environment keeps its agents' passwords in your own Bitwarden, in a free organization for you and a separate agents' account.",
-  vaultConnectTitle: "Connect your Bitwarden",
-  vaultConnectMainAccount:
-    "Agents never get your main account: they sign in with the agents' account only.",
-  vaultConnectStep1:
-    "In the same service and region as your own account, create a new account for the agents.",
-  vaultConnectStep2:
-    "In it, open Account settings → Security → Keys → API key and copy the client_id and client_secret.",
-  vaultConnectStep3:
-    "Enter them here with the agents' account master password and the e-mail of your own account. This Environment creates the vault and invites you into it.",
-  vaultConnectRegion: "Bitwarden region",
-  vaultConnectRegionEu: "EU (bitwarden.eu)",
-  vaultConnectRegionUs: "US (bitwarden.com)",
-  vaultConnectClientId: "Agents' account client_id",
-  vaultConnectClientSecret: "Agents' account client_secret",
-  vaultConnectPassword: "Agents' account master password",
-  vaultConnectEmail: "E-mail of your own Bitwarden account",
-  vaultConnectEmailHint:
-    "Bitwarden sends you the invitation to the vault there.",
-  vaultConnectKept:
-    "These details stay only in this Environment and are never shown again.",
-  vaultConnectSubmit: "Connect Bitwarden",
+  // decision 0203 point 7; F53's amendment of 2026-10-16, (2)): the title,
+  // the picture of the vault between the person's Bitwarden and the agents,
+  // one line, two steps with Bitwarden's own screens, the fields, one
+  // button; then the invitation the person may ask for. Bitwarden's own
+  // words are quoted as its web vault shows them.
+  vaultConnectTitle: "Your agents' passwords in your Bitwarden",
+  vaultConnectLead:
+    "Your agents get their own account and can't see into yours.",
+  vaultConnectYours: "Your Bitwarden",
+  vaultConnectAgents: "Agents",
+  vaultConnectAgentsWhere: "{in this}",
+  vaultConnectPicture:
+    "The vault {name} between your Bitwarden and the agents {in this}",
+  vaultConnectSignUp:
+    "Create an account for your agents. For its e-mail, you can use your own with +agents: jana+agents@gmail.com",
+  vaultConnectOpen: "Open {service}",
+  vaultConnectOther: "Using {service}?",
+  vaultConnectSignUpPicture:
+    "Bitwarden: the “Email address” field of a new account",
+  vaultConnectApiKey:
+    "In the new account, open Settings → Security → Keys → View API key and copy both values here.",
+  vaultConnectApiKeyPicture:
+    "Bitwarden: the “API Key” window with client_id and client_secret",
+  vaultConnectClientId: "client_id",
+  vaultConnectClientSecret: "client_secret",
+  vaultConnectPassword: "Master password of the agents' account",
+  vaultConnectSubmit: "Connect",
   vaultConnectSubmitting: "Connecting…",
-  vaultConnectRegionInvalid: "Choose the region of your Bitwarden.",
-  vaultConnectClientIdInvalid: "Copy the whole client_id: it starts with user.",
+  vaultConnectKept: "These details stay only {in this}.",
+  vaultConnectClientIdInvalid: "Copy the whole client_id.",
   vaultConnectClientSecretInvalid: "Copy the whole client_secret.",
   vaultConnectPasswordInvalid:
-    "Enter the agents' account master password on one line.",
-  vaultConnectEmailInvalid: "Enter the e-mail of your own Bitwarden account.",
+    "Enter the master password of the agents' account.",
   vaultConnectInvalidCredentials:
-    "Bitwarden did not accept this client_id and client_secret. Check them and the region.",
+    "Bitwarden did not accept this API key; copy it again.",
+  vaultConnectAccountRefused:
+    "Bitwarden did not accept this account; check it in Bitwarden.",
   vaultConnectWrongPassword:
-    "The master password does not match the agents' account.",
-  vaultConnectSameAccount:
-    "The agents' account must be another account than your own.",
+    "That is not the agents' account master password. Paste the client_secret and the password again.",
   vaultConnectOwnsOrganization:
-    "The agents' account already owns or manages another organization. Please create a new agents' account.",
+    "This account is used elsewhere already; create a new one for your agents.",
   vaultConnectUnsupported:
-    "This Environment cannot open this agents' account yet. Please create a new agents' account.",
-  vaultConnectBusy: "Bitwarden is not responding. Try again in a moment.",
-  vaultConnectConnected:
-    "This Environment has its Bitwarden connected already.",
-  vaultConnectNotOffered:
-    "This Environment does not connect its own Bitwarden.",
-  vaultConnectFailed: "Connecting did not work. Try again.",
+    "This account cannot be connected; create a new one for your agents.",
+  vaultConnectBusy: "Bitwarden is not responding; try again in a moment.",
+  vaultConnectConnected: "Your Bitwarden is connected already.",
+  vaultConnectNotOffered: "{This} does not connect its own Bitwarden.",
+  vaultConnectFailed: "Connecting did not work; try again.",
   vaultConnectAction: "Connect",
-  vaultPageInvitationPending:
-    "Bitwarden e-mailed you an invitation to the vault. Once you accept it, this Environment confirms you.",
+  vaultPageConnected: "Your Bitwarden is connected.",
+  vaultInviteTitle:
+    "Want to see your agents' passwords in your own Bitwarden too?",
+  vaultInviteEmail: "Your Bitwarden e-mail",
+  vaultInviteSubmit: "Invite me",
+  vaultInviteSubmitting: "Sending…",
+  vaultInviteEmailInvalid: "Enter the e-mail of your Bitwarden account.",
+  vaultInviteSameAccount:
+    "That is the agents' account; enter the e-mail of your own.",
+  vaultInviteInvited: "An invitation went to another e-mail already.",
+  vaultInviteNotReady: "The vault is not ready yet; try again in a moment.",
+  vaultInviteFailed: "The invitation did not go out; try again.",
+  vaultPageInvitationPending: "Accept the invitation Bitwarden e-mailed you.",
   vaultPageInvitationAccepted:
-    "The invitation is accepted. The confirmation is tried again on your next visit here.",
+    "The invitation is accepted; it completes on your next visit here.",
   vaultPageMemberRevoked: "Your access to the vault was removed in Bitwarden.",
   vaultPageRevokedPersonal:
-    "Bitwarden no longer accepts this vault or the agents' account's API key. Disconnect it and connect it again; a deleted vault is then created anew.",
+    "Bitwarden no longer accepts the vault; disconnect it and connect it again.",
   vaultPageFreeLimit:
-    "The agents' account already owns another free organization. Disconnect it and connect a new agents' account.",
+    "The agents' account is used elsewhere now; disconnect it and connect a new one.",
   vaultPageAccountMissing:
-    "The agents' account is missing in this Environment. Disconnect it and connect it again.",
+    "The agents' account is missing here; disconnect Bitwarden and connect it again.",
   vaultPageConnectionUnreadable:
-    "The connection of your Bitwarden cannot be read. Disconnect it and connect it again.",
+    "Your Bitwarden's connection cannot be read; disconnect it and connect it again.",
   vaultDisconnect: "Disconnect Bitwarden",
   vaultDisconnecting: "Disconnecting…",
-  vaultDisconnectNote:
-    "Disconnecting removes the agents' account details from this Environment; the organization stays in Bitwarden.",
-  vaultPageAgentsOnly: "Only this Environment's agents use its vault.",
+  vaultDisconnectNote: "The vault and its passwords stay in Bitwarden.",
+  vaultDisconnected: "Your vault and its passwords stay in your Bitwarden.",
+  vaultPageAgentsOnly: "Only {this}'s agents use its vault.",
   vaultPageGuide:
     "Does an agent need a password or a key? Tell it in Chat. It asks for the value here, you fill it in, and it goes straight into the vault.",
   vaultPageGuideChat: "Open Chat",
@@ -1187,13 +1281,17 @@ const en = {
   // The gateway named the person, but their sign-in carried no Lazurio
   // username (root decision 0203 point 4): no address, so nobody is added.
   vaultPageNoUsername:
-    "Your sign-in does not include your Lazurio username yet, so this Environment cannot add you to its vault. Please sign in again.",
+    "Your sign-in does not include your Lazurio username yet, so {this} cannot add you to its vault. Please sign in again.",
   // The vault in the Bitwarden extension of Codex Desktop and the person's
   // own browser (F53's addendum of 2026-10-16). The extension's own labels
   // are quoted as its version 2026.10.0 shows them.
   vaultBitwardenTitle: "In Codex Desktop and your browser",
+  // A guide's video (guide-video.ts): the button that opens the browser's
+  // own player; its accessible name names the video.
+  guideVideoPlay: "Play video",
+  guideVideoPlayNamed: "Play video: {title}",
   vaultBitwardenAdd:
-    "In Codex Desktop, open Settings → Browser → Extensions and add Bitwarden. Add it to Chrome from the Chrome Web Store, and to another browser from that browser's own extension store.",
+    "Open the Bitwarden extension in the Chrome Web Store and click “Add to Chrome”. In Codex Desktop, do this in its browser; the extension then appears in Settings → Browser → Extensions.",
   vaultBitwardenStore: "Bitwarden in the Chrome Web Store",
   vaultBitwardenServer:
     "At the bottom, next to “Accessing”, choose “self-hosted”. Paste this address into the “Server URL” field and click “Save”:",
@@ -1218,14 +1316,13 @@ const en = {
     "At the bottom, next to “Accessing”, choose “{service}” and log in with your own Bitwarden account.",
   vaultBitwardenCopy: "Copy",
   vaultBitwardenCopied: "Copied.",
-  // An agent's secret request in Nastavení → Trezor (root decision 0198
+  // An agent's secret request in Apps → Trezor (root decision 0198
   // point 9 (c), decision F54; the wireframe's screens/SecretRequest.tsx).
   vaultRequestsTitle: "Agents' requests",
   vaultRequestTitle: "Agent's request",
   vaultRequestAnswer: "Fill in",
   vaultRequestAnd: "and",
-  vaultRequestItem:
-    "It is saved in the Environment's vault as the item {item}.",
+  vaultRequestItem: "It is saved in {this}'s vault as the item {item}.",
   vaultRequestSave: "Save to the vault",
   vaultRequestDecline: "Decline",
   vaultRequestShow: "Show",
@@ -1234,8 +1331,9 @@ const en = {
   vaultRequestSaved: "Saved to the vault.",
   vaultRequestDeclined: "Declined.",
   vaultRequestMissing: "This request does not exist.",
-  vaultRequestNoVault: "This Environment has no vault yet.",
-  vaultRequestNotReady: "The Environment's vault is not ready yet.",
+  vaultRequestNoVault: "{This} has no vault yet.",
+  vaultRequestNone: "{This} has no vault.",
+  vaultRequestNotReady: "{This}'s vault is not ready yet.",
   vaultRequestFill: "Fill in every field.",
   vaultRequestBusy: "The vault is not responding. Try again in a moment.",
   vaultRequestFailed: "Saving did not work. Try again.",
@@ -1247,7 +1345,7 @@ const en = {
   executorRowNotRunning: "Not running",
   executorRowIncomplete: "Running, setup not finished",
   executorRowConflict: "Conflicts with another installation",
-  executorRowUnavailable: "Not available in this Environment",
+  executorRowUnavailable: "Not available {in this}",
   executorPhaseInstall: "Installing…",
   executorPhaseService: "Starting…",
   executorPhaseAgents: "Connecting the agents…",
@@ -1264,7 +1362,7 @@ const en = {
   executorDetailAgents: "Agents",
   executorVersionPinned: "{version} is installed by the next setup",
   executorVersionOther: "{installed} (Lazurio pins {version})",
-  executorAddressLocal: "{address} (this Environment only)",
+  executorAddressLocal: "{address} ({this} only)",
   executorServiceRunning: "running",
   executorServiceStopped: "stopped",
   executorServiceFailed: "failed",
@@ -1282,7 +1380,7 @@ const en = {
   executorFailed: "The setup did not finish ({stage}: {reason}).",
   executorConflictTitle: "Resolve the conflict of executor with an agent",
   executorConflictPrompt:
-    "Task: in this Environment, Lazurio's Executor conflicts with another installation. Find out with `lazurio executor status --json` what conflicts: `entry` is `~/.local/bin/executor`, `agents` an MCP server named `executor` in Codex or Claude Code. Show the Operator what is there, and only with their consent remove or rename it; then run `lazurio executor setup --json` and check that it reports `running`. Change nothing else.",
+    "Task: {in this}, Lazurio's Executor conflicts with another installation. Find out with `lazurio executor status --json` what conflicts: `entry` is `~/.local/bin/executor`, `agents` an MCP server named `executor` in Codex or Claude Code. Show the Operator what is there, and only with their consent remove or rename it; then run `lazurio executor setup --json` and check that it reports `running`. Change nothing else.",
   toolsNotAdded: "Not added yet",
   toolsLoginTitleGh: "Connect GitHub",
   toolsLoginTitleComposio: "Connect your apps",
@@ -1296,11 +1394,12 @@ const en = {
   machineWorks: "Who works in it",
   machineWorksTeam: "Team {team}",
   machineWorksAutomation: "automation, @{login} is responsible",
-  machineKindPersonal: "Personal Remote Environment",
-  machineKindWork: "Work Remote Environment",
-  machineKindTeam: "Team Remote Environment",
-  machineKindAutomated: "Automated Environment",
-  machineKindWorkstation: "Your computer",
+  machineKindPersonal: kindDetail("personal", "en"),
+  machineKindWork: kindDetail("work", "en"),
+  machineKindTeam: kindDetail("team", "en"),
+  machineKindAutomated: kindDetail("automated", "en"),
+  machineKindWorkstation: kindDetail("workstation", "en"),
+  machineKindUnknown: "Environment",
   machineTechnicalKind: "Technical kind",
   machineSupport: "For support",
   browserToggle: "Browser",
@@ -1315,12 +1414,10 @@ const en = {
   browserFailed: "This tab of the Environment browser cannot be shown here.",
   browserWidth: "Browser width",
   dividerHint: "Drag to change the width; a double-click restores the default",
-  columnHide: "Hide navigation",
-  columnShow: "Show navigation",
-  columnWidth: "Navigation width",
+  columnHide: "Hide left panel",
+  columnShow: "Show left panel",
+  columnWidth: "Left panel width",
   integrationsTitle: "Integrations",
-  integrationsSubtitle:
-    "Connected apps every agent and bot of this Environment uses.",
   integrationsHelp: "How it works",
   integrationsSearch: "Search apps",
   integrationsRefresh: "Check connections",
@@ -1341,37 +1438,26 @@ const en = {
   integrationsPopupBlocked:
     "The browser blocked the connection window. Allow pop-ups and try again.",
   integrationsExecutorUnavailable:
-    "Executor does not run in this Environment now, so nothing connects directly.",
+    "Executor does not run {in this} now, so nothing connects directly.",
   integrationsExecutorUnreadable:
     "Executor answered unexpectedly; the direct connections could not be read.",
   integrationsComposioUnreadable:
     "The connections through Composio could not be read.",
   integrationsComposioOrganizationMissing:
-    "Your Composio account has no organization named “{name}”. This Environment belongs to the Organization {name} and should connect through Composio in your own organization of the same name; until you create it, it connects in the organization you have selected. Create it in Composio, then click Check connections.",
+    "Your Composio account has no organization named “{composio}”. {This} belongs to the Organization {name} and should connect through Composio in your own organization of that name; until you create it, it connects in the organization you have selected. Create it in Composio, then click Check connections.",
   integrationsComposioOrganizationAmbiguous:
-    "Your Composio account has more than one organization named “{name}”. Until only one is left, this Environment connects in the organization you have selected. Keep one, then click Check connections.",
+    "Your Composio account has more than one organization named “{composio}”. Until only one is left, {this} connects in the organization you have selected. Keep one, then click Check connections.",
   integrationsComposioOrganizationElsewhere:
-    "Composio could not be switched to your organization “{name}”, so nothing connects through it now. Click Check connections to try again.",
+    "Composio could not be switched to your organization “{composio}”, so nothing connects through it now. Click Check connections to try again.",
   integrationsComposioOrganizationUnverified:
-    "The name of this Environment's Organization cannot be read, so its Composio organization cannot be checked and nothing connects through Composio now. Click Check connections; if that does not help, ask the agent in Chat to check this Environment's Folder.",
+    "The name of {this}'s Organization cannot be read, so its Composio organization cannot be checked and nothing connects through Composio now. Click Check connections; if that does not help, ask the agent in Chat to check {this}'s Folder.",
   integrationsComposioOpen: "Open Composio",
   integrationsComposioApps: "Apps in Composio",
   integrationsComposioMissing: "Can't find an app here?",
   integrationsComposioConnectThere: "Connect it in Composio",
   integrationsOutsideCatalog: "From Composio.",
   integrationsComposioOrganizationChanged:
-    "Composio does not work in this Environment's organization now. Click Check connections.",
-  composioModelTitle: "How this Environment uses Composio",
-  composioModelAccount: "Your Composio account",
-  composioModelAccountNote: "signed in with GitHub",
-  composioModelOrganization: "organization “{name}”",
-  composioModelOthers: "an organization for each of your other Organizations",
-  composioModelDefault: "your default organization",
-  composioModelEnvironments: "Environments of {name}",
-  composioModelOtherEnvironments: "their Environments",
-  composioModelPersonal: "your personal Environment",
-  composioModelCaption:
-    "You invite nobody to your organizations and share no key.",
+    "Composio does not work in {this}'s organization now. Click Check connections.",
   integrationsToolsUnreadable: "The tools could not be read.",
   integrationsRetry: "Try again",
   integrationsConnect: "Connect",
@@ -1421,11 +1507,9 @@ const en = {
   integrationsManageInComposio: "Manage in Composio",
   integrationsDisconnect: "Disconnect",
   integrationsDisconnectTitle: "Disconnect {account} from {app}?",
-  integrationsDisconnectDirect: "It disconnects in this Environment only.",
+  integrationsDisconnectDirect: "It disconnects {in this} only.",
   integrationsDisconnectComposio:
-    "It disconnects from the Composio account {account}, so in every Environment that uses it.",
-  integrationsDisconnectComposioAny:
-    "It disconnects from the Composio account, so in every Environment that uses it.",
+    "It disconnects from your Composio organization, so in every Environment that uses it.",
   integrationsDisconnectPending:
     "Only this account is withdrawn; the other accounts of {app} stay connected.",
   integrationsDisconnectUnsupported:
@@ -1458,15 +1542,14 @@ const en = {
   integrationsComposioSignIn:
     "Sign in to Composio first: it opens in Settings → Tools.",
   integrationsBrowserMissing:
-    "A direct sign-in needs this Environment's browser, which is not available here.",
+    "A direct sign-in needs {this}'s browser, which is not available here.",
   integrationsKeyTitle: "Key for {app}",
-  integrationsKeyText:
-    "The key stays only in this Environment and is never shown again.",
+  integrationsKeyText: "The key stays only {in this} and is never shown again.",
   integrationsKeyLabel: "Key",
   integrationsMcpTitle: "MCP servers",
   integrationsMcpAdd: "Add MCP server",
   integrationsMcpNone: "No MCP servers yet.",
-  integrationsMcpWhereCommand: "A command in this Environment",
+  integrationsMcpWhereCommand: "A command {in this}",
   integrationsMcpReady: "Added",
   integrationsMcpTools: "Connected · {tools}",
   integrationsMcpPending: "Starting…",
@@ -1518,7 +1601,7 @@ const en = {
   integrationsMcpUrlInvalid:
     "Enter the full address, such as https://mcp.example.com/mcp.",
   integrationsMcpUrlInsecure:
-    "The address starts with https://. Plain http:// only to this Environment (localhost).",
+    "The address starts with https://. Plain http:// only to {this} (localhost).",
   integrationsMcpCwdInvalid: "Enter a full path, such as ~/code or /srv/mcp.",
   integrationsMcpEnvNameInvalid:
     "Letters, digits and underscores only, not starting with a digit.",
@@ -1534,18 +1617,12 @@ const en = {
   integrationsToolsMany: "{count} tools",
   // Settings → SSH from your devices (decision F49).
   sshTitle: "SSH from your devices",
-  sshIntro:
-    "Connect to this Environment over SSH from a terminal on your own computer. Each computer has its own key, which you can remove here at any time.",
-  sshShared:
-    "This is the whole Team's shared Environment: a device added here signs in to the Team's account, and everyone in the Team sees it and can remove it.",
   sshUnsupported:
     "SSH from your devices is available in Environments on Linux and macOS.",
   sshRefresh: "Refresh",
   sshLoading: "Reading SSH access…",
   sshLoadFailed: "SSH access could not be read. Try Refresh.",
   sshPromptTitle: "Prompt for your agent",
-  sshPromptNote:
-    "Give it to the agent on your computer, for example Codex. It opens this page in its browser panel, where you only sign in; it sets up the rest itself.",
   sshPromptCopy: "Copy prompt",
   sshPromptUnavailable:
     "The prompt appears once the settings for your computer are known (below).",
@@ -1569,13 +1646,13 @@ const en = {
   sshRemoveNotOwn:
     "This key was added outside Launchpad; Launchpad does not remove it.",
   sshOutsideTitle: "Added outside Launchpad",
-  sshOutsideNote: "Whoever looks after this Environment removes them.",
+  sshOutsideNote: "Whoever looks after {this} removes them.",
   sshOutsideUnreadable: "A line Launchpad cannot read",
   sshOutsideUntitled: "A key without a name",
   sshProblemDirectory:
-    "~/.ssh in this Environment is not a regular folder, so Launchpad does not change it.",
+    "~/.ssh {in this} is not a regular folder, so Launchpad does not change it.",
   sshProblemSymlink:
-    "~/.ssh/authorized_keys is a link, so Launchpad does not change it. An agent in this Environment can replace it with a regular file.",
+    "~/.ssh/authorized_keys is a link, so Launchpad does not change it. An agent {in this} can replace it with a regular file.",
   sshProblemNotFile:
     "~/.ssh/authorized_keys is not a regular file, so Launchpad does not change it.",
   sshProblemForeignOwner:
@@ -1595,7 +1672,7 @@ const en = {
   sshAlreadyPresent:
     "This key can already sign in here; nothing was changed. The settings for your computer are below.",
   sshAddFailed:
-    "The device could not be added. Try again; if it keeps failing, ask an agent in this Environment.",
+    "The device could not be added. Try again; if it keeps failing, ask an agent {in this}.",
   sshRefusedKeyMissing: "Paste the public key.",
   sshRefusedPrivateKey:
     "This is a private key. Never paste it anywhere; paste the public key from the .pub file.",
@@ -1603,7 +1680,7 @@ const en = {
   sshRefusedOptions:
     "Paste the key without options in front of it, such as command= or from=.",
   sshRefusedKeyRestricted:
-    "This key is already allowed here with restrictions added outside Launchpad (such as from= or command=), so this device could not use it to sign in. Create a new key for this device, or ask whoever looks after this Environment.",
+    "This key is already allowed here with restrictions added outside Launchpad (such as from= or command=), so this device could not use it to sign in. Create a new key for this device, or ask whoever looks after {this}.",
   sshRefusedType:
     "Only ed25519 keys are accepted (ssh-ed25519 or sk-ssh-ed25519@openssh.com). Create one with ssh-keygen -t ed25519.",
   sshRefusedInvalidKey:
@@ -1613,9 +1690,8 @@ const en = {
   sshRefusedName: "Give the device a name with letters or digits.",
   sshRefusedAddedBy:
     "The signed-in account could not be recorded. Reload the page and try again.",
-  sshCodexLink: "Add Environment to Codex",
+  sshCodexLink: "Add {this} to Codex",
   sshComputerTitle: "Settings for your computer",
-  sshComputerNote: "Your agent writes these on your computer.",
   sshConfigLabel: "SSH config",
   sshConfigNote: "Add to ~/.ssh/config",
   sshKnownHostsLabel: "known_hosts",
@@ -1625,14 +1701,13 @@ const en = {
   sshNetworkNote:
     "Adding a key does not give this device network access by itself. If SSH fails, give your agent the exact error. If the device is not allowed on the network yet, the network administrator can allow it.",
   sshComputerMissing: "The settings for your computer are not available yet:",
-  sshMissingTailscale: "Tailscale is not installed in this Environment.",
-  sshMissingTailscaleFailed: "Tailscale in this Environment did not answer.",
-  sshMissingNotRunning: "Tailscale is not connected in this Environment.",
-  sshMissingDnsName: "This Environment has no name in its tailnet (MagicDNS).",
+  sshMissingTailscale: "Tailscale is not installed {in this}.",
+  sshMissingTailscaleFailed: "Tailscale {in this} did not answer.",
+  sshMissingNotRunning: "Tailscale is not connected {in this}.",
+  sshMissingDnsName: "{This} has no name in its tailnet (MagicDNS).",
   sshMissingHostKey:
-    "This Environment has no ed25519 host key (/etc/ssh/ssh_host_ed25519_key.pub).",
-  sshMissingUser:
-    "This Environment's account has no name an SSH config can use.",
+    "{This} has no ed25519 host key (/etc/ssh/ssh_host_ed25519_key.pub).",
+  sshMissingUser: "{This}'s account has no name an SSH config can use.",
 } as const;
 export type MessageKey = keyof typeof en;
 const cs: Record<MessageKey, string> = {
@@ -1640,12 +1715,7 @@ const cs: Record<MessageKey, string> = {
     "Celé instrukce pro agenty jsou příliš dlouhé. Zkraťte tón nebo vlastní poznámky k nástrojům, pak načtěte aktuální nastavení a zkuste uložení znovu.",
   voiceTitle: "Komunikace agentů",
   voiceEditor: "Tone of Voice pro agenty",
-  voiceIntro:
-    "Nastavte, jak mají agenti v tomto Prostředí komunikovat — včetně e-mailů, zpráv na WhatsAppu a instrukcí pro další agenty.",
-  voiceShared: "Toto Týmové Prostředí používá jeden společný tón pro všechny.",
   voiceLanguageLink: "Změnit jazyk v Obecném nastavení",
-  voiceHint:
-    "Text si můžete upravit. Uložené změny se projeví v nových konverzacích.",
   voiceSave: "Uložit",
   voiceCancel: "Zrušit úpravy",
   voiceRestore: "Obnovit výchozí tón",
@@ -1660,6 +1730,12 @@ const cs: Record<MessageKey, string> = {
   voiceStale:
     "Nastavení se mezitím změnilo. Rozepsaný text zůstává. Načtěte aktuální nastavení, zkontrolujte text a uložte ho znovu.",
   voiceRefresh: "Načíst aktuální nastavení",
+
+  themeGroup: "Téma Prostředí",
+  themeNote: "Barvy Chatu, Apps a Automate {v tomto}.",
+  themeShared: "Toto Týmové Prostředí má jedno téma pro všechny.",
+  themeFailed: "Téma se nepodařilo změnit. Zkuste to znovu.",
+  themeStale: "Téma se mezitím změnilo jinde. Vybrané je teď to aktuální.",
 
   appPrepare: "Připravit závislosti",
   appCleanPrepare: "Přeinstalovat závislosti (odstranit node_modules)",
@@ -1693,7 +1769,7 @@ const cs: Record<MessageKey, string> = {
   appStatus: "Stav",
   appOpen: "Získat odkaz aplikace",
   appStop: "Zastavit",
-  appVisit: "Otevřít aplikaci v tomto Prostředí",
+  appVisit: "Otevřít aplikaci {v tomto}",
   appBusy: "Operace probíhá…",
   appStarted:
     "Proces je spuštěný. Před otevřením ověřte připravenost aplikace.",
@@ -1730,7 +1806,7 @@ const cs: Record<MessageKey, string> = {
   updateChecked: "Poslední ověřená kontrola: před {age}.",
   updateNeverChecked: "Zatím žádná ověřená kontrola.",
   updateStale:
-    "Poslední ověřená kontrola: před {age}. Novější vydání může být tomuto Prostředí zadržováno.",
+    "Poslední ověřená kontrola: před {age}. Novější vydání může být {tomuto} zadržováno.",
   updateFailed:
     "Aktualizace se nedokončila: {code}. Nainstalovaná verze běží dál; stejné kliknutí ji zopakuje.",
   updateStateInvalid:
@@ -1749,13 +1825,9 @@ const cs: Record<MessageKey, string> = {
   toolsLoading: "Načítají se nástroje…",
   toolsLoadFailed:
     "Nástroje se nepodařilo načíst. Zkuste Obnovit stav; když to nepomůže, požádejte o pomoc agenta.",
-  toolsChecked: "Zjištěno v {time}",
   toolsTierRequired: "Povinné",
-  toolsTierRequiredNote: "Bez nich tu nic nefunguje.",
   toolsTierRecommended: "Doporučené",
-  toolsTierRecommendedNote: "Hodí se skoro každému.",
   toolsTierOptional: "Volitelné",
-  toolsTierOptionalNote: "Zapněte jen to, co používáte.",
   toolsInstalled: "Nainstalováno, verze {version}",
   toolsInstalledNoVersion: "Nainstalováno, verze neznámá",
   toolsNotInstalled: "Není nainstalováno",
@@ -1764,9 +1836,9 @@ const cs: Record<MessageKey, string> = {
   toolsFixWithAgent: "Opravit s agentem",
   toolsFixWithAgentNamed: "Opravit {name} s agentem",
   toolsFixPromptHint:
-    "Zkopírujte tento prompt a vložte ho do nového chatu v tomto Prostředí. Agent nástroj srovná na jeho místo; nic se nepřeinstaluje a přihlášení zůstane.",
+    "Zkopírujte tento prompt a vložte ho do nového chatu {v tomto}. Agent nástroj srovná na jeho místo; nic se nepřeinstaluje a přihlášení zůstane.",
   toolsFixPrompt:
-    "Úkol: nástroj `{command}` v tomto Prostředí funguje, ale nespouští se ze standardního místa `~/.local/bin/{command}`; teď se spouští z `{path}`. Srovnej to: do `~/.local/bin` dej jen link nebo wrapper na fungující program, aby se `{command}` spouštěl odtud. Nic nepřeinstalovávej, neměň verzi a nesahej na přihlášení ani nastavení. Když to bez změny mimo domovský adresář nejde, nic neměň a řekni mi proč. Důkaz: `command -v {command}` vypíše `~/.local/bin/{command}` (rozbalené na domovský adresář), `{command} --version` odpoví stejnou verzí jako předtím a `lazurio tools status --json` u něj ukáže `standardPath: true`.",
+    "Úkol: nástroj `{command}` {v tomto} funguje, ale nespouští se ze standardního místa `~/.local/bin/{command}`; teď se spouští z `{path}`. Srovnej to: do `~/.local/bin` dej jen link nebo wrapper na fungující program, aby se `{command}` spouštěl odtud. Nic nepřeinstalovávej, neměň verzi a nesahej na přihlášení ani nastavení. Když to bez změny mimo domovský adresář nejde, nic neměň a řekni mi proč. Důkaz: `command -v {command}` vypíše `~/.local/bin/{command}` (rozbalené na domovský adresář), `{command} --version` odpoví stejnou verzí jako předtím a `lazurio tools status --json` u něj ukáže `standardPath: true`.",
   toolsSetupLaunchpad: "Nastavení v Lazuriu",
   toolsSetupAgent: "Nastavení s agentem",
   toolsEnabled: "Zapnuto",
@@ -1782,9 +1854,9 @@ const cs: Record<MessageKey, string> = {
   toolsOrganizationHow:
     "Změnit to může jen Admin Organizace, v jejím nastavení.",
   toolsOrganizationFromDashboard:
-    "Toto Prostředí si je každé dvě minuty načítá z Přehledu Organizace.",
+    "{Toto} si je každé dvě minuty načítá z Přehledu Organizace.",
   toolsOrganizationFromRepository:
-    "Toto Prostředí je čte z repozitáře Organizace, který tu má.",
+    "{Toto} je čte z repozitáře Organizace, který tu má.",
   toolsOrganizationVersion: "Verze {version}, použitá {time}.",
   toolsOrganizationNotApplied: "Zatím se nic nepoužilo.",
   toolsOrganizationChecked: "Naposledy ověřeno {time}.",
@@ -1792,7 +1864,7 @@ const cs: Record<MessageKey, string> = {
   toolsOrganizationUnreachable:
     "Přehled Organizace teď neodpovídá; platí naposledy použité nastavení.",
   toolsOrganizationIdentity:
-    "Toto Prostředí se teď Přehledu Organizace nemůže prokázat; platí naposledy použité nastavení.",
+    "{Toto} se teď Přehledu Organizace nemůže prokázat; platí naposledy použité nastavení.",
   toolsOrganizationInvalid:
     "Nastavení Organizace je teď neplatné a musí ho opravit její Admin; platí naposledy použité nastavení.",
   toolsOrganizationRepository:
@@ -1868,7 +1940,7 @@ const cs: Record<MessageKey, string> = {
   toolsSignOutAction: "Odpojit",
   toolsSignOutNamed: "Odpojit {name}",
   toolsSignedOutLocal:
-    "{name}: odhlášeno v tomto Prostředí. Poskytovatel přihlášení eviduje, dokud ho nezrušíte v nastavení účtu u něj.",
+    "{name}: odhlášeno {v tomto}. Poskytovatel přihlášení eviduje, dokud ho nezrušíte v nastavení účtu u něj.",
   toolsSignedOutRemote:
     "{name}: odhlášeno; propojené zařízení bylo z účtu odebráno.",
   toolsSignOutFailed:
@@ -1887,13 +1959,11 @@ const cs: Record<MessageKey, string> = {
   toolsInstalling:
     "{name} se instaluje z oficiálního zdroje. Může to chvíli trvat.",
   toolsInstalledNow: "{name} {version} je nainstalovaný.",
-  toolsAlreadyInstalled:
-    "{name} v tomto Prostředí už funguje; nic se neměnilo.",
+  toolsAlreadyInstalled: "{name} {v tomto} už funguje; nic se neměnilo.",
   toolsInstallFailed:
     "Instalace nedoběhla. Nic, co už fungovalo, se nezměnilo.",
   toolsInstallFailedDetail: "Krok {stage}: {reason}.",
-  toolsInstallUnsupported:
-    "Instalátor zabudovaný v Lazuriu toto Prostředí nepokrývá.",
+  toolsInstallUnsupported: "Instalátor zabudovaný v Lazuriu {toto} nepokrývá.",
   toolsInstallUnsupportedDetail: "Systém {platform}, architektura {arch}.",
   toolsInstallNotOnPath:
     "~/.local/bin není na PATH Lazuria, takže ho agenti nemusí najít, dokud se nepřidá do profilu shellu.",
@@ -1920,7 +1990,7 @@ const cs: Record<MessageKey, string> = {
   toolsLoginQrText:
     "V telefonu otevřete WhatsApp, pak Nastavení, Propojená zařízení, Propojit zařízení, a namiřte fotoaparát na tento kód. Kód se každých pár sekund mění; tady je vždy ten nejnovější.",
   toolsLoginQrAlt:
-    "QR kód, který propojí WhatsApp s tímto Prostředím. Naskenujte ho ve WhatsAppu v telefonu v Nastavení, Propojená zařízení, Propojit zařízení. Když ho naskenovat nejde, spárujte telefonním číslem níže.",
+    "QR kód, který propojí WhatsApp s {tímto}. Naskenujte ho ve WhatsAppu v telefonu v Nastavení, Propojená zařízení, Propojit zařízení. Když ho naskenovat nejde, spárujte telefonním číslem níže.",
   toolsLoginPhoneTitle: "Spárovat raději telefonním číslem",
   toolsLoginPhoneLabel: "Vaše telefonní číslo ve WhatsAppu s předvolbou země",
   toolsLoginPhoneAction: "Získat párovací kód",
@@ -1937,9 +2007,9 @@ const cs: Record<MessageKey, string> = {
   toolsLoginAlreadySignedInAs:
     "{name} už byl připojený jako {account}; nic se neměnilo.",
   toolsLoginWacliSync:
-    "WhatsApp teď na pozadí kopíruje vaše nedávné zprávy do tohoto Prostředí. Okno můžete zavřít.",
+    "WhatsApp teď na pozadí kopíruje vaše nedávné zprávy do {tohoto}. Okno můžete zavřít.",
   toolsLoginFailureNotInstalled:
-    "Nástroj v tomto Prostředí není nainstalovaný. Zavřete okno a na jeho kartě zvolte Nainstalovat a přihlásit.",
+    "Nástroj {v tomto} není nainstalovaný. Zavřete okno a na jeho kartě zvolte Nainstalovat a přihlásit.",
   toolsLoginFailureUrl:
     "Nástroj nabídl adresu, která není jeho oficiální přihlašovací stránkou, a proto se nezobrazila.",
   toolsLoginFailureOutput: "Nástroj odpověděl v podobě, kterou Lazurio nezná.",
@@ -1950,7 +2020,7 @@ const cs: Record<MessageKey, string> = {
   toolsLoginFailureSpawn:
     "Nástroj se nepodařilo spustit. Zkuste to znovu; když se nespustí, dokončete to s agentem.",
   toolsLoginFailureNoChallenge:
-    "Nástroj do minuty neukázal odkaz, kód ani QR kód, a proto se jeho přihlášení zastavilo. Ověřte, že se toto Prostředí dostane na internet, a zkuste to znovu; když se to zopakuje, dokončete to s agentem.",
+    "Nástroj do minuty neukázal odkaz, kód ani QR kód, a proto se jeho přihlášení zastavilo. Ověřte, že se {toto} dostane na internet, a zkuste to znovu; když se to zopakuje, dokončete to s agentem.",
   toolsLoginFailureBrowser:
     "Prohlížeč Prostředí přihlašovací stránku neotevřel, a proto se přihlášení zastavilo. Zkuste to prosím za chvíli znovu.",
   toolsLoginFailureProviderUnknown:
@@ -1970,31 +2040,29 @@ const cs: Record<MessageKey, string> = {
   toolsSshTeam: capitalized(teamGithubPhrase.cs),
   toolsWorksAs: capitalized(teamGithubWorksAs.cs),
   toolsLinkSshAction: "Propojit SSH klíč",
-  toolsLinkSshNamed: "Propojit SSH klíč tohoto Prostředí s účtem {name}",
+  toolsLinkSshNamed: "Propojit SSH klíč {tohoto} s účtem {name}",
   toolsLoginTitleSsh: "Propojit SSH klíč: {name}",
   toolsStepLinking: "Propojení SSH klíče",
   toolsStepLinked: "SSH klíč propojený",
-  toolsLoginLinking: "Připojeno. Propojuji SSH klíč tohoto Prostředí…",
+  toolsLoginLinking: "Připojeno. Propojuji SSH klíč {tohoto}…",
   toolsLoginRefreshText:
     "Vaše přihlášení gh zatím nesmí spravovat SSH klíče vašeho účtu. Povolíte to na libovolném zařízení (tomto počítači, jiném nebo telefonu): otevřete stránku zařízení GitHubu a zadejte tento kód:",
   toolsSshLinkedDone: "Připojeno jako {account}.",
-  toolsGitIdentitySet:
-    "Vaše commity v tomto Prostředí ponesou jméno {name} <{email}>.",
+  toolsGitIdentitySet: "Vaše commity {v tomto} ponesou jméno {name} <{email}>.",
   toolsGitIdentityCompleted:
-    "Git v tomto Prostředí už zná vaše jméno i e-mail pro commity; co chybělo, doplnil z vašeho účtu GitHubu.",
+    "Git {v tomto} už zná vaše jméno i e-mail pro commity; co chybělo, doplnil z vašeho účtu GitHubu.",
   toolsGitIdentityNotSet:
-    "Git v tomto Prostředí zatím nezná vaše jméno a e-mail pro commity, takže publikování změn odsud selže. Požádejte agenta, ať vaši identitu v Gitu nastaví.",
+    "Git {v tomto} zatím nezná vaše jméno a e-mail pro commity, takže publikování změn odsud selže. Požádejte agenta, ať vaši identitu v Gitu nastaví.",
   toolsSshKeyCreated:
     "Vytvořil se nový klíč bez hesla, aby ho agenti mohli používat: {path} ({fingerprint}).",
   toolsSshKeyReused:
     "Používá se stávající klíč {path} ({fingerprint}) beze změny.",
   toolsSshNotLinkedDone:
-    "gh je přihlášený jako {account}, ale SSH klíč tohoto Prostředí propojený není, takže git přes SSH zatím nefunguje.",
-  toolsSshFailureNotSignedIn: "gh v tomto Prostředí není přihlášený.",
+    "gh je přihlášený jako {account}, ale SSH klíč {tohoto} propojený není, takže git přes SSH zatím nefunguje.",
+  toolsSshFailureNotSignedIn: "gh {v tomto} není přihlášený.",
   toolsSshFailureScopeMissing:
     "Přihlášení gh nesmí spravovat SSH klíče vašeho účtu.",
-  toolsSshFailureKeygenMissing:
-    "V tomto Prostředí není nainstalovaný ssh-keygen.",
+  toolsSshFailureKeygenMissing: "{V tomto} není nainstalovaný ssh-keygen.",
   toolsSshFailureKeygenFailed: "Nový klíč se v ~/.ssh nepodařilo vytvořit.",
   toolsSshFailureKeyPassphrase:
     "Stávající klíč {path} je chráněný heslem, které agenti zadat nemůžou. Zůstal, jak byl.",
@@ -2012,50 +2080,47 @@ const cs: Record<MessageKey, string> = {
     "~/.ssh/known_hosts obsahuje klíč serveru github.com, který se liší od klíčů zveřejněných GitHubem. Nic se nezměnilo.",
   toolsSshFailureKnownHostsFailed:
     "~/.ssh/known_hosts se nepodařilo přečíst ani zapsat.",
-  toolsSshFailureSshMissing: "V tomto Prostředí není nainstalované ssh.",
+  toolsSshFailureSshMissing: "{V tomto} není nainstalované ssh.",
   toolsSshFailureProofFailed:
     "Zkušební spojení s GitHubem přes SSH neodpovědělo pozdravem GitHubu.",
   toolsSshFailureProofOtherAccount:
-    "GitHub přes SSH pozdravil jiný účet ({account}): toto Prostředí nabízí nejdřív jiný klíč.",
+    "GitHub přes SSH pozdravil jiný účet ({account}): {toto} nabízí nejdřív jiný klíč.",
   toolsLoginFailureNotSignedIn:
-    "gh v tomto Prostředí není přihlášený. Nejdřív se přihlaste; SSH klíč se propojí jako součást přihlášení.",
+    "gh {v tomto} není přihlášený. Nejdřív se přihlaste; SSH klíč se propojí jako součást přihlášení.",
   toolsLoginFailureEnvironment:
     "Druh tohoto Prostředí se nepodařilo přečíst, proto se přihlášení zastavilo dřív, než by cokoli dalšího změnilo.",
   toolsSshRemoved:
-    "SSH klíč tohoto Prostředí byl z vašeho účtu GitHubu odebrán; soubory klíče v tomto Prostředí zůstávají.",
+    "SSH klíč {tohoto} byl z vašeho účtu GitHubu odebrán; soubory klíče {v tomto} zůstávají.",
   toolsSshRemovalNotRegistered:
-    "SSH klíč tohoto Prostředí u vašeho účtu GitHubu registrovaný nebyl.",
+    "SSH klíč {tohoto} u vašeho účtu GitHubu registrovaný nebyl.",
   toolsSshRemovalNoKey:
-    "Toto Prostředí nemá žádný SSH klíč; z GitHubu se nic neodebralo.",
+    "{Toto} nemá žádný SSH klíč; z GitHubu se nic neodebralo.",
   toolsSshRemovalKept:
-    "SSH klíč tohoto Prostředí zůstává registrovaný u vašeho účtu GitHubu, protože ho neregistrovalo Lazurio. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má toto Prostředí přístup ztratit.",
+    "SSH klíč {tohoto} zůstává registrovaný u vašeho účtu GitHubu, protože ho neregistrovalo Lazurio. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má {toto} přístup ztratit.",
   toolsSshKeyFingerprint: "Otisk klíče: {fingerprint}.",
   toolsSshRemovalFailed:
-    "SSH klíč tohoto Prostředí může být u vašeho účtu GitHubu pořád registrovaný: gh ho nedokázal odebrat. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má toto Prostředí přístup ztratit.",
+    "SSH klíč {tohoto} může být u vašeho účtu GitHubu pořád registrovaný: gh ho nedokázal odebrat. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má {toto} přístup ztratit.",
   toolsComposioOrgLabel: "Organizace v Composiu",
-  toolsComposioOrgCurrent: "{name} (aktuální)",
-  toolsComposioOrgHint:
-    "Aplikace, které v Composiu napojíte, patří tomuto účtu a organizaci: účtu, který používají agenti tohoto Prostředí.",
-  toolsComposioOrgSaved:
-    "Organizace Composia pro toto Prostředí je teď {name}.",
-  toolsComposioOrgFailed:
-    "Organizaci se nepodařilo změnit. Změnit ji můžete později příkazem lazurio tools composio-org.",
+  toolsComposioOrgFailed: "Organizaci se nepodařilo změnit.",
   toolsComposioOrgLoading: "Načítají se vaše organizace v Composiu…",
   toolsComposioOrgUnavailable:
-    "Organizace se nepodařilo načíst. Vybrat ji můžete později příkazem lazurio tools composio-org.",
-  toolsComposioOrgMatches:
-    "Toto Prostředí používá vaši organizaci v Composiu „{name}“, pojmenovanou stejně jako jeho Organizace.",
-  toolsComposioOrgMissing:
-    "Ve vašem účtu Composia chybí organizace „{name}“, pojmenovaná jako Organizace tohoto Prostředí. Dokud ji nezaložíte, připojuje se toto Prostředí v organizaci, kterou máte vybranou. Založte ji v Composiu jen pro sebe a klikněte na Zkontrolovat znovu.",
-  toolsComposioOrgAmbiguous:
-    "Ve vašem účtu Composia je víc organizací se jménem „{name}“. Dokud nezůstane jen jedna, připojuje se toto Prostředí v organizaci, kterou máte vybranou. Nechte jen jednu a klikněte na Zkontrolovat znovu.",
+    "Vaše organizace v Composiu se teď nepodařilo načíst.",
   toolsComposioOrgElsewhere:
-    "Composio se nepodařilo přepnout do vaší organizace „{name}“. Klikněte na Zkontrolovat znovu.",
-  toolsComposioOrgCheckAgain: "Zkontrolovat znovu",
+    "Composio se nepodařilo přepnout do vaší organizace „{name}“.",
   toolsComposioOrgUnverified:
-    "Jméno Organizace tohoto Prostředí se nepodařilo přečíst, a tak nejde ověřit jeho organizaci v Composiu. Klikněte na Zkontrolovat znovu; když to nepomůže, požádejte agenta v Chatu, ať zkontroluje Folder tohoto Prostředí.",
-  toolsComposioOrgPersonal:
-    "V Osobním Prostředí vyberte svou výchozí organizaci, tu, kterou Composio založilo při vaší registraci.",
+    "Jméno Organizace {tohoto} nejde přečíst, takže přes Composio teď nic nepřipojíte; požádejte o kontrolu agenta v Chatu.",
+  toolsComposioCreateTitle: "Ještě jeden krok v Composiu",
+  toolsComposioCreateText: "Založte v Composiu organizaci s tímto jménem.",
+  toolsComposioCreateName: "Jméno organizace",
+  toolsComposioCreateWait: "Až ji založíte, Lazurio bude pokračovat samo.",
+  toolsComposioRenameText:
+    "V Composiu je víc organizací se jménem „{name}“; tu navíc přejmenujte.",
+  toolsComposioRenameWait: "Až ji přejmenujete, Lazurio bude pokračovat samo.",
+  toolsComposioScene:
+    "V Composiu: 1. {forYou}, 2. {organization}, 3. {createOrg}, 4. jméno {name} a {create}.",
+  toolsComposioSceneYou: "Vy",
+  toolsComposioConnected: "Composio je připojené",
+  toolsComposioChooseApps: "Vybrat aplikace",
   toolsPromptTitle: "Připojit {name} s pomocí agenta",
   toolsPromptHint:
     "Zkopírujte tento prompt a vložte ho v Chatu do nového vlákna. Agent nástroj nainstaluje a provede vás přihlášením v prohlížeči. Žádný API klíč nikdy nekopírujete.",
@@ -2066,8 +2131,6 @@ const cs: Record<MessageKey, string> = {
     "Kopírování tady není dostupné. Text je označený; zkopírujte ho klávesnicí.",
   toolsClose: "Zavřít",
   toolsMcpTitle: "Vlastní MCP server",
-  toolsMcpText:
-    "Vlastní MCP servery přidáte v Apps → Integrace → Vlastní; agent ho přidá na váš výslovný pokyn.",
   toolsMcpAction: "Přidat s agentem",
   toolsMcpPromptHint:
     "Zkopírujte tento prompt a vložte ho v Chatu do nového vlákna. Agent se zeptá, který server chcete, a přidá ho; klíč pak zadáte v Integracích.",
@@ -2090,8 +2153,7 @@ const cs: Record<MessageKey, string> = {
   appsNoApp: "Bez aplikace",
   appsAbout: "O modulu",
   appsLog: "Log aplikace",
-  appsLogHint:
-    "Poslední řádky logu přečtete v příkazové řádce tohoto Prostředí:",
+  appsLogHint: "Poslední řádky logu přečtete v příkazové řádce {tohoto}:",
   appsStarting: "Spouštím {name}…",
   appsStartFailed: "{name} se nepodařilo otevřít. Proč, říká přehled modulu.",
   // The org-agnostic description of a module by its stone's semantic key,
@@ -2170,7 +2232,7 @@ const cs: Record<MessageKey, string> = {
   catalogLoading: "Načítám Organizace…",
   catalogLoadFailed:
     "Organizace nelze načíst. Zkuste Načíst znovu; když to nepomůže, spusťte v CLI lazurio organization list.",
-  catalogEmpty: "V tomto Prostředí zatím nejsou žádné aplikace.",
+  catalogEmpty: "{V tomto} zatím nejsou žádné aplikace.",
   catalogNotFound:
     "Tato Organizace nebo modul v tomto Folderu není. Možná byl přejmenován nebo odstraněn; podívejte se na všechny Organizace.",
   chat: "Chat",
@@ -2212,9 +2274,9 @@ const cs: Record<MessageKey, string> = {
   catalogReasonPersonalspaceUnavailable:
     "Personalspace nelze přečíst: jeho složky musí být skutečné složky, které vlastníte.",
   catalogReasonPersonalspaceForeign:
-    "V personalspace/ je checkout, který není osobním prostorem účtu GitHub přihlášeného v tomto Prostředí. Proto se nečte a žádná jeho aplikace se nespustí. Zůstal, jak byl.",
+    "V personalspace/ je checkout, který není osobním prostorem účtu GitHub přihlášeného {v tomto}. Proto se nečte a žádná jeho aplikace se nespustí. Zůstal, jak byl.",
   catalogReasonPersonalspaceNotOwned:
-    "GitHub tento osobní prostor nezná jako repozitář účtu přihlášeného v tomto Prostředí, proto se nečte.",
+    "GitHub tento osobní prostor nezná jako repozitář účtu přihlášeného {v tomto}, proto se nečte.",
   catalogReasonPersonalspacePublic:
     "Repozitář tohoto osobního prostoru je na GitHubu veřejný. Osobní prostor musí být soukromý, proto se nečte, dokud jím nebude.",
   catalogReasonGithubSignedOut:
@@ -2222,7 +2284,7 @@ const cs: Record<MessageKey, string> = {
   catalogReasonGithubUnavailable:
     "GitHub neodpověděl, proto teď nejde ověřit, že je tento osobní prostor váš. Ověří se znovu, jakmile GitHub odpoví.",
   catalogReasonGithubIdentityMismatch:
-    "GitHub je tu přihlášený jiným účtem, než má vlastník tohoto Prostředí, proto se osobní prostor nečte.",
+    "GitHub je tu přihlášený jiným účtem, než má vlastník {tohoto}, proto se osobní prostor nečte.",
   catalogReasonPersonalspaceUnverified:
     "Ověřujeme na GitHubu, že je tento osobní prostor váš…",
   catalogReasonDeclaration:
@@ -2237,13 +2299,13 @@ const cs: Record<MessageKey, string> = {
   catalogReasonDeclarationNotRegular:
     "{file} není obyčejný soubor (například je to symlink); Lazurio čte soubory modulu jen jako soubory vašeho vlastního checkoutu.",
   catalogReasonDeclarationOwner:
-    "{file} patří jinému účtu v tomto Prostředí, takže to není soubor vašeho vlastního checkoutu. Vraťte ho do svého vlastnictví (například chown) nebo ho znovu checkoutněte.",
+    "{file} patří jinému účtu {v tomto}, takže to není soubor vašeho vlastního checkoutu. Vraťte ho do svého vlastnictví (například chown) nebo ho znovu checkoutněte.",
   catalogReasonDeclarationTooLarge:
     "{file} je větší, než smí soubor checkoutu být (1 MiB; 16 MiB pro lockfile).",
   catalogReasonDirectoryNotRegular:
     "{file} není skutečná složka (například je to symlink); Lazurio čte checkout jen přes jeho vlastní složky.",
   catalogReasonDirectoryOwner:
-    "Složka {file} patří jinému účtu v tomto Prostředí, takže to není váš vlastní checkout. Vraťte ji do svého vlastnictví (například chown) nebo ji znovu checkoutněte.",
+    "Složka {file} patří jinému účtu {v tomto}, takže to není váš vlastní checkout. Vraťte ji do svého vlastnictví (například chown) nebo ji znovu checkoutněte.",
   preparationReasonOwnerInvalid:
     "{file} nemůže tuto aplikaci připravit: chybí, není to balíček, nebo aplikace není deklarovaným členem jeho workspace.",
   preparationReasonScriptMissing:
@@ -2275,11 +2337,21 @@ const cs: Record<MessageKey, string> = {
   moduleReasonRequiredSlotUndeclared:
     "Aplikace potřebuje {file}, který manifest Organizace nedeklaruje, proto nebyla spuštěna. Opravte required_module_slots aplikace nebo manifest Organizace.",
   moduleReasonRequiredSlotPlanned:
-    "Aplikace potřebuje {file}, který manifest Organizace vede jako plánovaný, proto v tomto Prostředí zatím spustit nejde.",
+    "Aplikace potřebuje {file}, který manifest Organizace vede jako plánovaný, proto {v tomto} zatím spustit nejde.",
   moduleReasonRequiredSlotMissing:
-    "Aplikace potřebuje {file}, který v tomto Prostředí vedle ní není, proto nebyla spuštěna. Synchronizujte Organizaci nebo si požádejte o přístup k tomu modulu a spusťte ji znovu.",
+    "Aplikace potřebuje {file}, který {v tomto} vedle ní není, proto nebyla spuštěna. Synchronizujte Organizaci nebo si požádejte o přístup k tomu modulu a spusťte ji znovu.",
+  moduleReasonDataMountDenied:
+    "Aplikace nebyla spuštěna: její data ({file}) jsou v repozitáři, který váš účet na GitHubu nemůže číst. Požádejte Admina Organizace o přístup a spusťte ji znovu.",
+  moduleReasonDataMountDeniedTeam:
+    "Aplikace nebyla spuštěna: její data ({file}) jsou v repozitáři, ke kterému se toto Týmové Prostředí nedostane. Požádejte Admina Organizace, ať k němu Teamu dá na GitHubu přístup, a spusťte ji znovu.",
+  moduleReasonDataMountOccupied:
+    "Aplikace nebyla spuštěna: na místě pro její data ({file}) je něco jiného a Lazurio na to nesahá. Požádejte agenta v Chatu, ať se na to podívá.",
+  moduleReasonDataMountUnavailable:
+    "Aplikace nebyla spuštěna: její data ({file}) se nepodařilo stáhnout, protože GitHub neodpověděl nebo právě běží jiné stahování. Spusťte ji za chvíli znovu.",
+  moduleReasonDataMountCloneFailed:
+    "Aplikace nebyla spuštěna: její data ({file}) se nepodařilo stáhnout. Repozitář dat je možná prázdný nebo nemá svou větev; Lazurio ho nezakládá. Požádejte Admina Organizace, ať repozitář dat zkontroluje.",
   moduleReasonRuntimeSecretUnavailable:
-    "Aplikace nebyla spuštěna: potřebuje tajné údaje, které jí trezor tohoto Prostředí nedal. {secrets}. Hodnoty se nikdy nezobrazují; v trezoru Prostředí přidejte nebo opravte položku pojmenovanou přesně jako ten údaj a spusťte ji znovu.",
+    "Aplikace nebyla spuštěna: potřebuje tajné údaje, které jí trezor {tohoto} nedal. {secrets}. Hodnoty se nikdy nezobrazují; v trezoru {tohoto} přidejte nebo opravte položku pojmenovanou přesně jako ten údaj a spusťte ji znovu.",
   moduleSecretsNotProvided:
     "Spuštěno bez těchto volitelných tajných údajů, takže schopnosti, které je potřebují, jsou vypnuté: {secrets}.",
   runtimeSecretPersonalspace:
@@ -2287,17 +2359,17 @@ const cs: Record<MessageKey, string> = {
   runtimeSecretPersonalEnvironment:
     "trezor Osobního Prostředí slouží jen aplikacím z Personalspace",
   runtimeSecretWorkstation: "tento počítač zatím trezor Prostředí nemá",
-  runtimeSecretNoVaultIdentity: "toto Prostředí zatím trezor nemá",
+  runtimeSecretNoVaultIdentity: "{toto} zatím trezor nemá",
   runtimeSecretOtherOrganization:
-    "aplikace patří jiné Organizaci, než která vlastní toto Prostředí a jeho trezor",
+    "aplikace patří jiné Organizaci, než která vlastní {toto} a jeho trezor",
   runtimeSecretNotConnected:
     "trezor ještě není nastavený (Nastavení → Nástroje → bitwarden)",
   runtimeSecretLocked: "trezor se nepodařilo odemknout",
   runtimeSecretBusy: "trezor je právě zaneprázdněný; zkuste to znovu",
   runtimeSecretUnreachable: "trezor není dostupný",
   runtimeSecretVaultFailed: "trezor neodpověděl tak, jak má",
-  runtimeSecretMissing: "v trezoru Prostředí není položka tohoto názvu",
-  runtimeSecretAmbiguous: "v trezoru Prostředí je víc položek tohoto názvu",
+  runtimeSecretMissing: "v trezoru {tohoto} není položka tohoto názvu",
+  runtimeSecretAmbiguous: "v trezoru {tohoto} je víc položek tohoto názvu",
   runtimeSecretEmpty: "jeho položka nemá heslo",
   moduleApplication: "Aplikace",
   moduleStart: "Spustit",
@@ -2334,9 +2406,9 @@ const cs: Record<MessageKey, string> = {
   moduleReasonFailed:
     "Životní cyklus selhal dřív, než mohl změnu potvrdit, z důvodu, který neumí pojmenovat. Viz lazurio module status a lazurio doctor.",
   moduleNoLinkEntry:
-    "Bez odkazu: zaznamenaný vstup tohoto Prostředí zatím neuvádí hostname pro moduly.",
+    "Bez odkazu: zaznamenaný vstup {tohoto} zatím neuvádí hostname pro moduly.",
   moduleNoLinkApp:
-    "Bez odkazu: gateway tohoto Prostředí obsluhuje jen výchozí aplikaci modulu.",
+    "Bez odkazu: gateway {tohoto} obsluhuje jen výchozí aplikaci modulu.",
   moduleNoLinkBrowser: "Bez odkazu: aplikace nedeklaruje vstup pro prohlížeč.",
   moduleNoLink: "Bez odkazu: {reason}.",
   recoveryTitle: "Obnova",
@@ -2358,11 +2430,11 @@ const cs: Record<MessageKey, string> = {
   recoveryLoading: "Kontroluji…",
   recoveryAgain: "Zkontrolovat znovu",
   recoveryLoadFailed:
-    "Výsledek kontroly tady nejde načíst. Agent v tomto Prostředí může spustit lazurio recover.",
-  recoveryHealthy: "Lazurio v tomto Prostředí je v pořádku.",
-  recoveryBroken: "Lazurio v tomto Prostředí potřebuje opravu.",
+    "Výsledek kontroly tady nejde načíst. Agent {v tomto} může spustit lazurio recover.",
+  recoveryHealthy: "Lazurio {v tomto} je v pořádku.",
+  recoveryBroken: "Lazurio {v tomto} potřebuje opravu.",
   recoveryNotInstalled:
-    "Lazurio v tomto Prostředí není nainstalované; není co kontrolovat.",
+    "Lazurio {v tomto} není nainstalované; není co kontrolovat.",
   recoveryChecksTitle: "Kontroly",
   recoveryOutcomeOk: "v pořádku",
   recoveryOutcomeFailed: "selhala",
@@ -2370,43 +2442,35 @@ const cs: Record<MessageKey, string> = {
   recoveryEvidenceTitle: "Důkazy",
   recoveryEvidenceText:
     "Jen sanitizovaná strukturovaná pole, přesně jak je nese připravené issue.",
-  recoveryJournalShow: "Zobrazit journal (zůstává v tomto Prostředí)",
+  recoveryJournalShow: "Zobrazit journal (zůstává {v tomto})",
   recoveryJournalHide: "Skrýt journal",
   recoveryJournalText:
-    "Sanitizovaný konec journalu Lazuria. Nikdy automaticky neopouští toto Prostředí.",
+    "Sanitizovaný konec journalu Lazuria. Nikdy automaticky neopouští {toto}.",
   recoveryPromptTitle: "Opravný agent",
   recoveryPromptText:
-    "Zkopírujte prompt a vložte ho do nového chatu své agentní aplikace v tomto Prostředí (v Prostředí na serveru do T3 Code). Agent opraví Lazurio směrem dopředu, nebo závadu zapíše na GitHub.",
+    "Zkopírujte prompt a vložte ho do nového chatu své agentní aplikace {v tomto} (v Prostředí na serveru do T3 Code).",
   recoveryPromptCopy: "Zkopírovat prompt",
   recoveryPromptOpenT3: "Otevřít T3 Code",
   recoveryIssueTitle: "Připravené issue",
-  recoveryIssueText:
-    "Pro veřejný repozitář {repository}. Opravný agent ho založí, až ověří, že neexistuje duplicita.",
+  recoveryIssueText: "Pro veřejný repozitář {repository}.",
   recoveryIssueCopy: "Zkopírovat příkaz gh",
   recoveryIssueLink: "Otevřít předvyplněné issue v prohlížeči",
   recoveryIssueLinkPaste:
     "Otevřít formulář issue v prohlížeči (tělo do něj vložte)",
   recoveryIssueRefused:
-    "Tělo issue se nepřipravilo: po sanitizaci v něm zůstalo {kinds}. Nic nesmí toto Prostředí opustit automaticky.",
-  recoveryNothingFiled:
-    "Nic nebylo odesláno. Tato stránka issue jen připraví; nic automaticky neopouští toto Prostředí.",
+    "Tělo issue se nepřipravilo: po sanitizaci v něm zůstalo {kinds}. Nic nesmí {toto} opustit automaticky.",
+  recoveryNothingFiled: "Nic nebylo odesláno.",
   settingsTitle: "Nastavení",
   settingsGeneral: "Obecné",
   settingsBack: "Zpět",
   settingsBreadcrumb: "Kde v nastavení jste",
-  navigationOpen: "Otevřít navigaci",
+  navigationOpen: "Zobrazit levý panel",
   technicalDetails: "Technické podrobnosti",
-  presetHint: "Druh tohoto Prostředí.",
-  localeHint: "Jazyk této stránky a agentů.",
-  detailHint:
-    "Jak agenti vysvětlují svou práci: stručně, nebo s technickým vysvětlením a důkazy.",
-  coordinationHint:
-    "Zda agenti pracují přímo, nebo delegují v rozsahu zadání a výsledek ověří.",
   toolsDetails: "Podrobnosti",
   toolsDetailsNamed: "Podrobnosti o {name}",
   toolsPathLabel: "Umístění",
-  legend: "Profil Prostředí",
-  machineTitle: "Toto Prostředí",
+  legend: "Profil {tohoto}",
+  machineTitle: "{Toto}",
   machineKind: "Druh",
   machineName: "Technický název",
   machineOwner: "Owner",
@@ -2414,7 +2478,7 @@ const cs: Record<MessageKey, string> = {
   machineAssignment: "Přiřazení",
   machineAssignmentTeam: "Týmové",
   machineAssignmentAutomation:
-    "Automatizované Prostředí persony Organizace; odpovědný operátor {operator}",
+    "Automatizace persony Organizace; odpovědný operátor {operator}",
   machineTailnet: "Uzel tailnetu",
   machineHost: "Host",
   machineRelationships: "Vztahy (vynucuje Headscale, ne tato stránka)",
@@ -2423,11 +2487,12 @@ const cs: Record<MessageKey, string> = {
   machineNoHttps: "bez HTTPS",
   machineNone: "nezaznamenáno",
   preset: "Preset pracovního prostředí",
-  presetLocal: "Lokální pracovní stanice",
-  presetHostedPersonal: "Osobní",
-  presetHostedOrganizationPersonal: "Pracovní",
-  presetHostedOrganizationTeam: "Pracovní týmové",
-  presetHostedOrganizationSteward: "Automatizovaný",
+  presetHint: "Druh tohoto Prostředí.",
+  presetLocal: kindDetail("workstation", "cs"),
+  presetHostedPersonal: kindDetail("personal", "cs"),
+  presetHostedOrganizationPersonal: kindDetail("work", "cs"),
+  presetHostedOrganizationTeam: kindDetail("team", "cs"),
+  presetHostedOrganizationSteward: kindDetail("automated", "cs"),
   locale: "Jazyk",
   detail: "Podrobnost",
   concise: "Stručně",
@@ -2445,10 +2510,62 @@ const cs: Record<MessageKey, string> = {
   loadFailed:
     "Profil nelze načíst. Otevřete odkaz relace z CLI; rozpracovaný stav může vyžadovat obnovu přes CLI.",
   filesTitle: "Soubory",
-  filesIntro:
-    "Složka Dokumenty tohoto Prostředí. Agenti sem ukládají hotové soubory; stáhněte si je, nebo sem nahrajte soubory pro agenty.",
-  filesShared:
-    "Toto Prostředí je sdílené: celý Team vidí a mění stejnou složku.",
+  pageHelp: "Jak to funguje?",
+  guideFilesTeamDrag: "Soubor přetáhněte do chatu",
+  guideFilesTeamShow: "Soubory ukazují, s čím agenti pracují",
+  guideFilesTeamShared: "Číst a měnit je může celý Team",
+  guideComposioTitle: "Composio",
+  guideComposioAccount: "Composio přihlásíte svým vlastním účtem",
+  guideComposioAccountSub: "Organizace společné Composio nemá",
+  guideComposioOrganization: "Pro každou Organizaci v něm jedna organizace",
+  guideComposioOrganizationSub: "Nikoho dalšího do ní nezvěte",
+  guideComposioAgents:
+    "Co v ní připojíte, používají agenti v Prostředí Organizace",
+  guideComposioAgentsSub: "Osobní Prostředí používá výchozí organizaci účtu",
+  guideComposioOther:
+    "Jiné účty v dalším Prostředí potřebují další účet Composia",
+  guideComposioOtherSub: "Tři Prostředí s jinými účty, tři účty Composia",
+  guideCustomTitle: "Vlastní MCP servery",
+  guideCustomWho: "Vlastní MCP servery pro pokročilé",
+  guideCustomHow: "Příkazem {v tomto}, nebo adresou URL",
+  guideCustomUse: "Používají je všichni agenti a boti",
+  guideVaultAgentsOwn: "{Toto} má vlastní trezor",
+  guideVaultAgentsUse: "Agenti z něj berou hesla bez ptaní",
+  guideVaultAgentsSee: "Hesla vidí každý {v tomto}",
+  guideStartSteps: "Kroky, které připraví {toto} k práci",
+  guideStartAi: "Nejdřív připojte svůj účet AI",
+  guideStartGithub: "Po GitHubu se moduly stáhnou samy",
+  guideStartOptional: "Volitelné kroky přidáte kdykoli",
+  guideGeneralLanguage: "Jazyk stránky i agentů",
+  guideGeneralDetail: "Jak podrobně agenti vysvětlují svou práci",
+  guideGeneralCoordination: "Jestli agenti pracují sami, nebo delegují",
+  guideGeneralCoordinationSub: "a výsledek pak ověří",
+  guideGeneralApply: "Změnu nejdřív zobrazte v náhledu",
+  guideVoiceHow: "Jak agenti {v tomto} píšou",
+  guideVoiceTeam: "V Týmovém Prostředí jeden tón pro všechny",
+  guideVoiceWhere: "V e-mailech, na WhatsAppu i dalším agentům",
+  guideVoiceNew: "Změna platí pro nové konverzace",
+  guideMachineWhat: "{Toto} je virtuální počítač vašich agentů",
+  guideMachineComputer: "Váš počítač, na kterém pracují i agenti",
+  guideMachineWho: "Komu patří a kdo v něm pracuje",
+  guideMachineWhoComputer: "Komu patří a kdo na něm pracuje",
+  guideMachineSupport: "Technické údaje pro podporu",
+  guideToolsWhich: "Nástroje, které agenti {v tomto} používají",
+  guideToolsConnect: "Připojíte je svým účtem",
+  guideToolsReach: "Kam je připojíte, tam agenti můžou",
+  guideToolsSwitch: "Přepínač určí, jestli ho agenti používají",
+  guideToolsTeamShared: "{Toto} sdílí celý Team",
+  guideToolsTeamAccounts: "Přihlašujte se tu týmovými účty",
+  guideToolsTeamUse: "Co přihlásíte, může používat každý z Teamu",
+  guideDevicesPrompt: "Prompt předejte agentovi na svém počítači",
+  guideDevicesSignIn: "Vy se jen přihlásíte, zbytek nastaví sám",
+  guideDevicesKey: "Každé zařízení má vlastní klíč",
+  guideDevicesRemove: "Klíč tu můžete kdykoli odebrat",
+  guideDevicesTeam: "Zařízení tu vidí a odebírá celý Team",
+  guideRecoveryChecks: "Lazurio {v tomto} kontroluje samo sebe",
+  guideRecoveryFails: "Co selže, uvidíte v Kontrolách",
+  guideRecoveryRepair: "Opravu udělá agent podle připraveného promptu",
+  guideRecoveryRepairSub: "nebo závadu zapíše na GitHub",
   filesRoot: "Dokumenty",
   filesPath: "Cesta ke složce",
   filesUpload: "Nahrát soubory",
@@ -2457,10 +2574,9 @@ const cs: Record<MessageKey, string> = {
   filesLoading: "Načítám složku…",
   filesLoadFailed: "Složku se nepodařilo načíst. Zkuste Načíst znovu.",
   filesUnavailable:
-    "Složku Dokumenty tohoto Prostředí nejde použít: není to složka, nebo je to link na domovskou složku či Lazurio Folder. Na požádání to opraví agent.",
+    "Složku Dokumenty {tohoto} nejde použít: není to složka, nebo je to link na domovskou složku či Lazurio Folder. Na požádání to opraví agent.",
   filesEmpty: "Tato složka je prázdná.",
-  filesEmptyRoot:
-    "Toto je složka Dokumenty vašeho Prostředí. Agenti sem ukládají hotové soubory a dorazí sem i soubory, které nahrajete. Zatím tu nic není.",
+  filesEmptyRoot: "Zatím žádné soubory.",
   filesNotFound: "Tato složka nebo soubor neexistuje.",
   filesOpenRoot: "Otevřít Dokumenty",
   filesIsFile: "{name} je soubor.",
@@ -2485,7 +2601,7 @@ const cs: Record<MessageKey, string> = {
   filesUploadCancelled: "Zrušeno",
   filesCancel: "Zrušit",
   filesCancelNamed: "Zrušit nahrávání {name}",
-  filesUploadDiskFull: "V tomto Prostředí není dost volného místa.",
+  filesUploadDiskFull: "{V tomto} není dost volného místa.",
   filesUploadIncomplete: "Nahrávání se přerušilo. Zkuste to znovu.",
   filesUploadName:
     "Toto jméno tu použít nejde. Soubor přejmenujte a zkuste to znovu.",
@@ -2508,7 +2624,6 @@ const cs: Record<MessageKey, string> = {
   setupRetry: "Zkusit znovu",
   tourLabel: "Prohlídka Prostředí",
   tourGearAiTitle: "Nejdřív připojte AI",
-  tourGearAiText: "Agent vám pak pomůže s dalšími kroky.",
   tourGearGithubTitle: "Připojte GitHub",
   tourGearGithubText: "Zpřístupní vaše repozitáře.",
   tourGearFailedTitle: "Příprava se nepovedla",
@@ -2532,6 +2647,7 @@ const cs: Record<MessageKey, string> = {
   tourChatTitle: "Chat",
   tourChatText: "Práce s agenty.",
   tourChatMissingText: "Práce s agenty. Tady neběží.",
+  tourChatDemoText: "Práce s agenty. AI v této ukázce není připojené.",
   tourAutomateTitle: "Automate",
   tourAutomateText: "Pravidelné úkoly a automatizace.",
   tourAutomateMissingText: "Automatizace tu neběží.",
@@ -2544,6 +2660,14 @@ const cs: Record<MessageKey, string> = {
   startIntro: "Hotovo {done} ze {total} kroků.",
   startReady: "Prostředí je připravené.",
   startNotHere: "Tady není co nastavovat.",
+  startDemoIntro: "Vyzkoušejte si Lazurio v tomto ukázkovém Prostředí.",
+  startDemoGroup: "Vyzkoušejte",
+  demoAppsText: "Aplikace modulů této Organizace.",
+  startDemoModuleTitle: "Modul",
+  startDemoModuleText: "Vyzkoušejte modul této Organizace.",
+  startDemoModuleAny: "Otevřete kterýkoli modul v Apps.",
+  startDemoChatText: "Práce s agenty.",
+  startDemoNoAi: "AI v této ukázce není připojené.",
   startRefresh: "Zkontrolovat znovu",
   startRequired: "Povinné kroky",
   startDoneMark: "(hotovo)",
@@ -2585,7 +2709,6 @@ const cs: Record<MessageKey, string> = {
   startGithubTitle: "GitHub",
   startGithubConnected: "Připojeno jako @{login}",
   startGithubConnectedPlain: "Připojeno",
-  startGithubMissing: "Zpřístupní vaše repozitáře a moduly.",
   startConnect: "Připojit",
   startContentOrganization: "Stáhnout {name}",
   startContentPersonal: "Připravit osobní prostor",
@@ -2604,7 +2727,7 @@ const cs: Record<MessageKey, string> = {
   startSet: "Nastaveno",
   startNotSet: "Nenastaveno",
   startGuide: "Návod",
-  startCodexText: "Pracujte s tímto Prostředím z aplikace Codex.",
+  startCodexText: "Pracujte s {tímto} z aplikace Codex.",
   startBitwardenTitle: "Trezor v Bitwardenu",
   startBitwardenText:
     "Hesla z Trezoru Prostředí i v Codex Desktopu a ve vašem prohlížeči.",
@@ -2666,13 +2789,13 @@ const cs: Record<MessageKey, string> = {
   contentResolveCopyFailed:
     "Zadání se nepodařilo zkopírovat; otevřete Chat a řekněte agentovi, co se zastavilo.",
   preparePromptWhatPersonal:
-    "Příprava mého osobního prostoru (Personalspace) v tomto Prostředí",
+    "Příprava mého osobního prostoru (Personalspace) {v tomto}",
   preparePromptWhatOrganization:
-    "Příprava Organizace {name} (GitHub {login}) v tomto Prostředí",
+    "Příprava Organizace {name} (GitHub {login}) {v tomto}",
   preparePromptStoppedAt: "{what} se zastavila u kroku „{step}“:",
   preparePromptStopped: "{what} se zastavila.",
   preparePromptBody:
-    "Dotáhni prosím instalaci se vším všudy:\n1. Zjisti příčinu chyby a oprav ji v tomto Prostředí.\n2. Dokonči přípravu stejným příkazem, jaký spouští Lazurio: `{command}`.\n3. Ověř výsledek: `lazurio doctor`, a u modulů, které mají testy, jejich testy.\n4. Řekni mi stručně, co bylo špatně, co jsi udělal a co jsi ověřil. Kdyby oprava potřebovala změnu mimo toto Prostředí (třeba v repozitáři), nejdřív se zeptej.",
+    "Dotáhni prosím instalaci se vším všudy:\n1. Zjisti příčinu chyby a oprav ji {v tomto}.\n2. Dokonči přípravu stejným příkazem, jaký spouští Lazurio: `{command}`.\n3. Ověř výsledek: `lazurio doctor`, a u modulů, které mají testy, jejich testy.\n4. Řekni mi stručně, co bylo špatně, co jsi udělal a co jsi ověřil. Kdyby oprava potřebovala změnu mimo {toto} (třeba v repozitáři), nejdřív se zeptej.",
   toolsDescriptionGh:
     "Připojení na GitHub, kde jsou uložené vaše moduly. Bez něj tu nic nefunguje.",
   toolsDescriptionComposio:
@@ -2685,8 +2808,8 @@ const cs: Record<MessageKey, string> = {
     "Připojení na databáze Neon, hlavně pro vývoj aplikací.",
   toolsDescriptionBitwarden: "Hesla a další položky pro agenty.",
   toolsDescriptionExecutor:
-    "Přes něj agenti používají aplikace připojené přímo z tohoto Prostředí.",
-  toolsNotOffered: "V tomto Prostředí se nenabízí; agenti ho nepoužívají.",
+    "Přes něj agenti používají aplikace připojené přímo z {tohoto}.",
+  toolsNotOffered: "{V tomto} se nenabízí; agenti ho nepoužívají.",
   vaultRowChecking: "Zjišťuji stav…",
   vaultRowConnected: "Připojeno",
   vaultRowNotSetUp: "Zatím nenastaveno",
@@ -2696,9 +2819,9 @@ const cs: Record<MessageKey, string> = {
   vaultRowRevoked: "Přístup odebrán v trezoru",
   vaultRowUnreachable: "Trezor neodpovídá",
   vaultRowFailed: "Nastavení se nedokončilo",
-  vaultRowNoVault: "Toto Prostředí zatím trezor nemá",
+  vaultRowNoVault: "{Toto} zatím trezor nemá",
   vaultRowNeedsConnection: "Čeká na váš Bitwarden",
-  vaultRowUnavailable: "V tomto Prostředí není k dispozici",
+  vaultRowUnavailable: "{V tomto} není k dispozici",
   vaultPhaseInstall: "Instaluje se Bitwarden…",
   vaultPhaseAccount: "Připravuje se účet trezoru…",
   vaultPhaseVault: "Připravuje se trezor…",
@@ -2709,69 +2832,81 @@ const cs: Record<MessageKey, string> = {
   vaultOpen: "Otevřít trezor",
   vaultLoadFailed: "Stav trezoru se nepodařilo přečíst.",
   vaultPageTitle: "Trezor",
-  vaultPageRule: "Kdo má přístup do Prostředí, má všechna jeho hesla.",
   vaultPageWorkstation: "Trezor na tomto počítači není.",
-  vaultPageNoVault: "Toto Prostředí zatím trezor nemá.",
-  vaultPageNeedsConnection:
-    "Toto osobní Prostředí ukládá hesla svých agentů do vašeho vlastního Bitwardenu, do bezplatné organizace pro vás a samostatný účet agentů.",
-  vaultConnectTitle: "Připojte svůj Bitwarden",
-  vaultConnectMainAccount:
-    "Agenti nikdy nedostanou váš hlavní účet: přihlašují se jen účtem agentů.",
-  vaultConnectStep1:
-    "Ve stejné službě a oblasti jako váš účet si založte nový účet pro agenty.",
-  vaultConnectStep2:
-    "V něm otevřete Nastavení účtu → Zabezpečení → Klíče → Klíč API a zkopírujte client_id a client_secret.",
-  vaultConnectStep3:
-    "Vyplňte je tady s hlavním heslem účtu agentů a e-mailem svého účtu. Toto Prostředí založí trezor a pozve vás do něj.",
-  vaultConnectRegion: "Oblast Bitwardenu",
-  vaultConnectRegionEu: "EU (bitwarden.eu)",
-  vaultConnectRegionUs: "USA (bitwarden.com)",
-  vaultConnectClientId: "client_id účtu agentů",
-  vaultConnectClientSecret: "client_secret účtu agentů",
-  vaultConnectPassword: "Hlavní heslo účtu agentů",
-  vaultConnectEmail: "E-mail vašeho účtu v Bitwardenu",
-  vaultConnectEmailHint: "Na něj vám Bitwarden pošle pozvánku do trezoru.",
-  vaultConnectKept:
-    "Tyto údaje zůstanou jen v tomto Prostředí a už se nikde nezobrazí.",
-  vaultConnectSubmit: "Připojit Bitwarden",
+  vaultPageNoVault:
+    "Trezor {tohoto} není nastavený. Nastaví ho Admin Organizace a pak ho najdete tady.",
+  vaultPagePublic:
+    "Tato Organizace je veřejná ukázka a skutečná hesla do ní nepatří, proto v ní trezor záměrně není. Všechno ostatní funguje jako ve skutečné Organizaci.",
+  vaultExplainerTitle: "Jak trezor funguje",
+  vaultVideoLine: "Kdo má přístup do Prostředí, má i jeho hesla",
+  vaultConnectTitle: "Hesla pro agenty ve vašem Bitwardenu",
+  vaultConnectLead: "Agenti dostanou vlastní účet a do toho vašeho nevidí.",
+  vaultConnectYours: "Váš Bitwarden",
+  vaultConnectAgents: "Agenti",
+  vaultConnectAgentsWhere: "{v tomto}",
+  vaultConnectPicture:
+    "Trezor {name} mezi vaším Bitwardenem a agenty {v tomto}",
+  vaultConnectSignUp:
+    "Založte účet pro agenty. Jako e-mail použijte třeba ten svůj s +agenti: jana+agenti@gmail.com",
+  vaultConnectOpen: "Otevřít {service}",
+  vaultConnectOther: "Používáte {service}?",
+  vaultConnectSignUpPicture: "Bitwarden: pole „E-mailová adresa“ nového účtu",
+  vaultConnectApiKey:
+    "V novém účtu otevřete Nastavení → Zabezpečení → Klíče → Zobrazit klíč API a oba údaje zkopírujte sem.",
+  vaultConnectApiKeyPicture:
+    "Bitwarden: okno „Klíč API“ s client_id a client_secret",
+  vaultConnectClientId: "client_id",
+  vaultConnectClientSecret: "client_secret",
+  vaultConnectPassword: "Hlavní heslo účtu pro agenty",
+  vaultConnectSubmit: "Připojit",
   vaultConnectSubmitting: "Připojuje se…",
-  vaultConnectRegionInvalid: "Vyberte oblast svého Bitwardenu.",
-  vaultConnectClientIdInvalid: "Zkopírujte celé client_id: začíná na user.",
+  vaultConnectKept: "Údaje zůstanou jen {v tomto}.",
+  vaultConnectClientIdInvalid: "Zkopírujte celé client_id.",
   vaultConnectClientSecretInvalid: "Zkopírujte celé client_secret.",
-  vaultConnectPasswordInvalid:
-    "Zadejte hlavní heslo účtu agentů na jednom řádku.",
-  vaultConnectEmailInvalid: "Zadejte e-mail svého účtu v Bitwardenu.",
+  vaultConnectPasswordInvalid: "Zadejte hlavní heslo účtu pro agenty.",
   vaultConnectInvalidCredentials:
-    "Bitwarden tento client_id a client_secret nepřijal. Zkontrolujte je i oblast.",
-  vaultConnectWrongPassword: "Hlavní heslo neodpovídá účtu agentů.",
-  vaultConnectSameAccount: "Účet agentů musí být jiný než váš vlastní účet.",
+    "Bitwarden tento klíč API nepřijal, zkopírujte ho znovu.",
+  vaultConnectAccountRefused:
+    "Bitwarden tento účet nepřijal, zkontrolujte ho v Bitwardenu.",
+  vaultConnectWrongPassword:
+    "Toto není hlavní heslo účtu pro agenty. Vložte znovu client_secret a heslo.",
   vaultConnectOwnsOrganization:
-    "Účet agentů už vlastní nebo spravuje jinou organizaci. Založte prosím nový účet agentů.",
+    "Tento účet se už používá jinde, založte pro agenty nový.",
   vaultConnectUnsupported:
-    "Tento účet agentů zatím Prostředí neumí otevřít. Založte prosím nový účet agentů.",
-  vaultConnectBusy: "Bitwarden teď neodpovídá. Zkuste to prosím za chvíli.",
-  vaultConnectConnected: "Toto Prostředí už má Bitwarden připojený.",
-  vaultConnectNotOffered: "Toto Prostředí si vlastní Bitwarden nepřipojuje.",
-  vaultConnectFailed: "Připojení se nepodařilo. Zkuste to znovu.",
+    "Tento účet nejde připojit, založte pro agenty nový.",
+  vaultConnectBusy: "Bitwarden teď neodpovídá, zkuste to za chvíli.",
+  vaultConnectConnected: "Váš Bitwarden už je připojený.",
+  vaultConnectNotOffered: "{Toto} si vlastní Bitwarden nepřipojuje.",
+  vaultConnectFailed: "Připojení se nepodařilo, zkuste to znovu.",
   vaultConnectAction: "Připojit",
+  vaultPageConnected: "Váš Bitwarden je připojený.",
+  vaultInviteTitle: "Chcete hesla agentů vidět i ve svém Bitwardenu?",
+  vaultInviteEmail: "Váš e-mail v Bitwardenu",
+  vaultInviteSubmit: "Pozvat mě",
+  vaultInviteSubmitting: "Posílá se…",
+  vaultInviteEmailInvalid: "Zadejte e-mail svého účtu v Bitwardenu.",
+  vaultInviteSameAccount: "To je účet pro agenty, zadejte e-mail toho svého.",
+  vaultInviteInvited: "Pozvánka už odešla na jiný e-mail.",
+  vaultInviteNotReady: "Trezor ještě není hotový, zkuste to za chvíli.",
+  vaultInviteFailed: "Pozvánka neodešla, zkuste to znovu.",
   vaultPageInvitationPending:
-    "Bitwarden vám e-mailem poslal pozvánku do trezoru. Po jejím přijetí vás toto Prostředí potvrdí.",
+    "Přijměte pozvánku, kterou vám Bitwarden poslal e-mailem.",
   vaultPageInvitationAccepted:
-    "Pozvánka je přijatá. Potvrzení se zkusí znovu při vaší příští návštěvě této stránky.",
+    "Pozvánka je přijatá, dokončí se při vaší příští návštěvě.",
   vaultPageMemberRevoked: "Přístup do trezoru vám byl v Bitwardenu odebrán.",
   vaultPageRevokedPersonal:
-    "Bitwarden tento trezor nebo klíč API účtu agentů už nepřijímá. Odpojte Bitwarden a připojte ho znovu; smazaný trezor Prostředí založí znovu.",
+    "Bitwarden už trezor nepřijímá, odpojte ho a připojte znovu.",
   vaultPageFreeLimit:
-    "Účet agentů už vlastní jinou bezplatnou organizaci. Odpojte ho a připojte nový účet agentů.",
+    "Účet pro agenty se už používá jinde, odpojte ho a připojte nový.",
   vaultPageAccountMissing:
-    "Účet agentů v tomto Prostředí chybí. Odpojte ho a připojte znovu.",
+    "Účet pro agenty tu chybí, odpojte Bitwarden a připojte ho znovu.",
   vaultPageConnectionUnreadable:
-    "Připojení vašeho Bitwardenu se nedá přečíst. Odpojte ho a připojte znovu.",
+    "Připojení Bitwardenu nejde přečíst, odpojte ho a připojte znovu.",
   vaultDisconnect: "Odpojit Bitwarden",
   vaultDisconnecting: "Odpojuje se…",
-  vaultDisconnectNote:
-    "Odpojení smaže údaje účtu agentů z tohoto Prostředí; organizace v Bitwardenu zůstane.",
-  vaultPageAgentsOnly: "Trezor tohoto Prostředí používají jen jeho agenti.",
+  vaultDisconnectNote: "Trezor i hesla v Bitwardenu zůstanou.",
+  vaultDisconnected: "Trezor i hesla zůstaly ve vašem Bitwardenu.",
+  vaultPageAgentsOnly: "Trezor {tohoto} používají jen jeho agenti.",
   vaultPageGuide:
     "Potřebuje agent heslo nebo klíč? Řekněte mu to v Chatu. O hodnotu si řekne tady, vy ji vyplníte a uloží se rovnou do trezoru.",
   vaultPageGuideChat: "Otevřít Chat",
@@ -2784,10 +2919,12 @@ const cs: Record<MessageKey, string> = {
   vaultPageOpen: "Otevřít trezor",
   vaultPageCreateAccount: "Vytvořit účet v trezoru",
   vaultPageNoUsername:
-    "Vaše přihlášení zatím neobsahuje uživatelské jméno v Lazuriu, proto vás toto Prostředí nemůže přidat do svého trezoru. Přihlaste se prosím znovu.",
+    "Vaše přihlášení zatím neobsahuje uživatelské jméno v Lazuriu, proto vás {toto} nemůže přidat do svého trezoru. Přihlaste se prosím znovu.",
   vaultBitwardenTitle: "V Codex Desktopu a ve vašem prohlížeči",
+  guideVideoPlay: "Přehrát video",
+  guideVideoPlayNamed: "Přehrát video: {title}",
   vaultBitwardenAdd:
-    "V Codex Desktopu otevřete Nastavení → Prohlížeč → Rozšíření a přidejte Bitwarden. Do Chromu ho přidejte z Chrome Web Store, do jiného prohlížeče z jeho vlastního obchodu s rozšířeními.",
+    "Otevřete rozšíření Bitwarden v Chrome Web Store a klikněte na „Přidat do Chromu“. V Codex Desktopu to udělejte v jeho prohlížeči, rozšíření pak najdete v Nastavení → Prohlížeč → Rozšíření.",
   vaultBitwardenStore: "Bitwarden v Chrome Web Store",
   vaultBitwardenServer:
     "Dole u „Přistupujete na“ zvolte „vlastní server“. Do pole „URL serveru“ vložte tuto adresu a klikněte na „Uložit“:",
@@ -2815,7 +2952,7 @@ const cs: Record<MessageKey, string> = {
   vaultRequestTitle: "Žádost agenta",
   vaultRequestAnswer: "Zadat",
   vaultRequestAnd: "a",
-  vaultRequestItem: "Uloží se do trezoru Prostředí jako položka {item}.",
+  vaultRequestItem: "Uloží se do trezoru {tohoto} jako položka {item}.",
   vaultRequestSave: "Uložit do trezoru",
   vaultRequestDecline: "Odmítnout",
   vaultRequestShow: "Zobrazit",
@@ -2824,8 +2961,9 @@ const cs: Record<MessageKey, string> = {
   vaultRequestSaved: "Uloženo do trezoru.",
   vaultRequestDeclined: "Odmítnuto.",
   vaultRequestMissing: "Žádost neexistuje.",
-  vaultRequestNoVault: "Toto Prostředí zatím trezor nemá.",
-  vaultRequestNotReady: "Trezor Prostředí zatím není připravený.",
+  vaultRequestNoVault: "{Toto} zatím trezor nemá.",
+  vaultRequestNone: "{Toto} trezor nemá.",
+  vaultRequestNotReady: "Trezor {tohoto} zatím není připravený.",
   vaultRequestFill: "Vyplňte všechna pole.",
   vaultRequestBusy: "Trezor teď neodpovídá. Zkuste to prosím za chvíli.",
   vaultRequestFailed: "Uložení se nepodařilo. Zkuste to znovu.",
@@ -2837,7 +2975,7 @@ const cs: Record<MessageKey, string> = {
   executorRowNotRunning: "Neběží",
   executorRowIncomplete: "Běží, nastavení není dokončené",
   executorRowConflict: "Koliduje s jinou instalací",
-  executorRowUnavailable: "V tomto Prostředí není k dispozici",
+  executorRowUnavailable: "{V tomto} není k dispozici",
   executorPhaseInstall: "Instaluje se…",
   executorPhaseService: "Spouští se…",
   executorPhaseAgents: "Připojují se agenti…",
@@ -2854,7 +2992,7 @@ const cs: Record<MessageKey, string> = {
   executorDetailAgents: "Agenti",
   executorVersionPinned: "{version} se nainstaluje při příštím nastavení",
   executorVersionOther: "{installed} (Lazurio připíná {version})",
-  executorAddressLocal: "{address} (jen toto Prostředí)",
+  executorAddressLocal: "{address} (jen {toto})",
   executorServiceRunning: "běží",
   executorServiceStopped: "zastavená",
   executorServiceFailed: "selhala",
@@ -2872,7 +3010,7 @@ const cs: Record<MessageKey, string> = {
   executorFailed: "Nastavení se nedokončilo ({stage}: {reason}).",
   executorConflictTitle: "Vyřešit kolizi executoru s pomocí agenta",
   executorConflictPrompt:
-    "Úkol: v tomto Prostředí koliduje Executor Lazuria s jinou instalací. Příkazem `lazurio executor status --json` zjisti, co koliduje: `entry` je `~/.local/bin/executor`, `agents` MCP server jménem `executor` v Codexu nebo Claude Code. Ukaž Operátorovi, co tam je, a jen s jeho souhlasem to odstraň nebo přejmenuj; pak spusť `lazurio executor setup --json` a ověř, že hlásí `running`. Nic dalšího neměň.",
+    "Úkol: {v tomto} koliduje Executor Lazuria s jinou instalací. Příkazem `lazurio executor status --json` zjisti, co koliduje: `entry` je `~/.local/bin/executor`, `agents` MCP server jménem `executor` v Codexu nebo Claude Code. Ukaž Operátorovi, co tam je, a jen s jeho souhlasem to odstraň nebo přejmenuj; pak spusť `lazurio executor setup --json` a ověř, že hlásí `running`. Nic dalšího neměň.",
   toolsNotAdded: "Ještě není přidané",
   toolsLoginTitleGh: "Připojit GitHub",
   toolsLoginTitleComposio: "Připojit aplikace",
@@ -2886,11 +3024,12 @@ const cs: Record<MessageKey, string> = {
   machineWorks: "Pracuje v něm",
   machineWorksTeam: "Team {team}",
   machineWorksAutomation: "automatizace, odpovídá @{login}",
-  machineKindPersonal: "Osobní Prostředí",
-  machineKindWork: "Pracovní Prostředí",
-  machineKindTeam: "Týmové Prostředí",
-  machineKindAutomated: "Automatizované Prostředí",
-  machineKindWorkstation: "Váš počítač",
+  machineKindPersonal: kindDetail("personal", "cs"),
+  machineKindWork: kindDetail("work", "cs"),
+  machineKindTeam: kindDetail("team", "cs"),
+  machineKindAutomated: kindDetail("automated", "cs"),
+  machineKindWorkstation: kindDetail("workstation", "cs"),
+  machineKindUnknown: "Prostředí",
   machineTechnicalKind: "Technický druh",
   machineSupport: "Pro podporu",
   browserToggle: "Prohlížeč",
@@ -2905,12 +3044,10 @@ const cs: Record<MessageKey, string> = {
   browserFailed: "Tuto záložku prohlížeče Prostředí tu nejde zobrazit.",
   browserWidth: "Šířka prohlížeče",
   dividerHint: "Táhněte pro změnu šířky, dvojklik vrátí výchozí",
-  columnHide: "Skrýt navigaci",
-  columnShow: "Zobrazit navigaci",
-  columnWidth: "Šířka navigace",
+  columnHide: "Skrýt levý panel",
+  columnShow: "Zobrazit levý panel",
+  columnWidth: "Šířka levého panelu",
   integrationsTitle: "Integrace",
-  integrationsSubtitle:
-    "Připojené aplikace, které používají všichni agenti a boti tohoto Prostředí.",
   integrationsHelp: "Jak to funguje",
   integrationsSearch: "Hledat aplikace",
   integrationsRefresh: "Zkontrolovat připojení",
@@ -2931,37 +3068,26 @@ const cs: Record<MessageKey, string> = {
   integrationsPopupBlocked:
     "Prohlížeč zablokoval okno s připojením. Povolte vyskakovací okna a zkuste to znovu.",
   integrationsExecutorUnavailable:
-    "Executor v tomto Prostředí teď neběží, takže nic nejde připojit přímo.",
+    "Executor {v tomto} teď neběží, takže nic nejde připojit přímo.",
   integrationsExecutorUnreadable:
     "Executor odpověděl nečekaně, přímá připojení se nepodařilo načíst.",
   integrationsComposioUnreadable:
     "Připojení přes Composio se nepodařilo načíst.",
   integrationsComposioOrganizationMissing:
-    "Ve vašem účtu Composia chybí organizace „{name}“. Toto Prostředí patří Organizaci {name} a má se přes Composio připojovat ve vaší vlastní organizaci stejného jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
+    "Ve vašem účtu Composia chybí organizace „{composio}“. {Toto} patří Organizaci {name} a má se přes Composio připojovat ve vaší vlastní organizaci tohoto jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu a klikněte na Zkontrolovat připojení.",
   integrationsComposioOrganizationAmbiguous:
-    "Ve vašem účtu Composia je víc organizací se jménem „{name}“. Dokud nezůstane jen jedna, připojuje se toto Prostředí v organizaci, kterou máte vybranou. Nechte jen jednu a klikněte na Zkontrolovat připojení.",
+    "Ve vašem účtu Composia je víc organizací se jménem „{composio}“. Dokud nezůstane jen jedna, připojuje se {toto} v organizaci, kterou máte vybranou. Nechte jen jednu a klikněte na Zkontrolovat připojení.",
   integrationsComposioOrganizationElsewhere:
-    "Composio se nepodařilo přepnout do vaší organizace „{name}“, a tak se přes něj teď nic nepřipojí. Klikněte na Zkontrolovat připojení a zkuste to znovu.",
+    "Composio se nepodařilo přepnout do vaší organizace „{composio}“, a tak se přes něj teď nic nepřipojí. Klikněte na Zkontrolovat připojení a zkuste to znovu.",
   integrationsComposioOrganizationUnverified:
-    "Jméno Organizace tohoto Prostředí se nepodařilo přečíst, a tak nejde ověřit jeho organizaci v Composiu a přes Composio se teď nic nepřipojí. Klikněte na Zkontrolovat připojení; když to nepomůže, požádejte agenta v Chatu, ať zkontroluje Folder tohoto Prostředí.",
+    "Jméno Organizace {tohoto} se nepodařilo přečíst, a tak nejde ověřit jeho organizaci v Composiu a přes Composio se teď nic nepřipojí. Klikněte na Zkontrolovat připojení; když to nepomůže, požádejte agenta v Chatu, ať zkontroluje Folder {tohoto}.",
   integrationsComposioOpen: "Otevřít Composio",
   integrationsComposioApps: "Aplikace v Composiu",
   integrationsComposioMissing: "Aplikaci tu nenajdete?",
   integrationsComposioConnectThere: "Připojte ji v Composiu",
   integrationsOutsideCatalog: "Z Composia.",
   integrationsComposioOrganizationChanged:
-    "Composio teď nepracuje v organizaci tohoto Prostředí. Klikněte na Zkontrolovat připojení.",
-  composioModelTitle: "Jak toto Prostředí používá Composio",
-  composioModelAccount: "Váš účet Composia",
-  composioModelAccountNote: "přihlášení přes GitHub",
-  composioModelOrganization: "organizace „{name}“",
-  composioModelOthers: "organizace pro každou vaši další Organizaci",
-  composioModelDefault: "vaše výchozí organizace",
-  composioModelEnvironments: "Prostředí Organizace {name}",
-  composioModelOtherEnvironments: "jejich Prostředí",
-  composioModelPersonal: "vaše Osobní Prostředí",
-  composioModelCaption:
-    "Do svých organizací nikoho nezvete a žádný klíč nesdílíte.",
+    "Composio teď nepracuje v organizaci {tohoto}. Klikněte na Zkontrolovat připojení.",
   integrationsToolsUnreadable: "Nástroje se nepodařilo načíst.",
   integrationsRetry: "Zkusit znovu",
   integrationsConnect: "Připojit",
@@ -3011,11 +3137,9 @@ const cs: Record<MessageKey, string> = {
   integrationsManageInComposio: "Spravovat v Composiu",
   integrationsDisconnect: "Odpojit",
   integrationsDisconnectTitle: "Odpojit {account} od aplikace {app}?",
-  integrationsDisconnectDirect: "Odpojí se jen v tomto Prostředí.",
+  integrationsDisconnectDirect: "Odpojí se jen {v tomto}.",
   integrationsDisconnectComposio:
-    "Odpojí se z účtu Composia {account}, takže ve všech Prostředích, které ho používají.",
-  integrationsDisconnectComposioAny:
-    "Odpojí se z vašeho účtu Composia, takže ve všech Prostředích, které ho používají.",
+    "Odpojí se z vaší organizace v Composiu, takže ve všech Prostředích, která ji používají.",
   integrationsDisconnectPending:
     "Odvolá se jen tento účet; ostatní účty aplikace {app} zůstanou připojené.",
   integrationsDisconnectUnsupported:
@@ -3048,15 +3172,14 @@ const cs: Record<MessageKey, string> = {
   integrationsComposioSignIn:
     "Nejdřív se přihlaste do Composia: otevře se v Nastavení → Nástroje.",
   integrationsBrowserMissing:
-    "Přímé přihlášení potřebuje prohlížeč, který v tomto Prostředí teď není.",
+    "Přímé přihlášení potřebuje prohlížeč, který {v tomto} teď není.",
   integrationsKeyTitle: "Klíč pro {app}",
-  integrationsKeyText:
-    "Klíč zůstane jen v tomto Prostředí a už se nikde nezobrazí.",
+  integrationsKeyText: "Klíč zůstane jen {v tomto} a už se nikde nezobrazí.",
   integrationsKeyLabel: "Klíč",
   integrationsMcpTitle: "MCP servery",
   integrationsMcpAdd: "Přidat MCP server",
   integrationsMcpNone: "Zatím žádné MCP servery.",
-  integrationsMcpWhereCommand: "Příkaz v tomto Prostředí",
+  integrationsMcpWhereCommand: "Příkaz {v tomto}",
   integrationsMcpReady: "Přidáno",
   integrationsMcpTools: "Připojeno · {tools}",
   integrationsMcpPending: "Spouštím…",
@@ -3108,7 +3231,7 @@ const cs: Record<MessageKey, string> = {
   integrationsMcpUrlInvalid:
     "Zadejte celou adresu, třeba https://mcp.example.com/mcp.",
   integrationsMcpUrlInsecure:
-    "Adresa musí začínat https://. http:// jde jen v tomto Prostředí (localhost).",
+    "Adresa musí začínat https://. http:// jde jen {v tomto} (localhost).",
   integrationsMcpCwdInvalid: "Zadejte celou cestu, třeba ~/code nebo /srv/mcp.",
   integrationsMcpEnvNameInvalid:
     "Jen písmena, číslice a podtržítko, na začátku ne číslice.",
@@ -3124,18 +3247,12 @@ const cs: Record<MessageKey, string> = {
   integrationsToolsMany: "{count} nástrojů",
   // Settings → SSH from your devices (decision F49).
   sshTitle: "SSH ze zařízení",
-  sshIntro:
-    "Připojte se do tohoto Prostředí přes SSH z terminálu na svém počítači. Každý počítač má vlastní klíč a tady ho můžete kdykoli odebrat.",
-  sshShared:
-    "Toto je společné Prostředí celého Teamu: zařízení přidané tady se přihlašuje do účtu Teamu a každý z Teamu ho vidí a může odebrat.",
   sshUnsupported:
     "SSH ze zařízení je dostupné v Prostředích s Linuxem a macOS.",
   sshRefresh: "Obnovit",
   sshLoading: "Načítá se přístup přes SSH…",
   sshLoadFailed: "Přístup přes SSH se nepodařilo načíst. Zkuste Obnovit.",
   sshPromptTitle: "Prompt pro vašeho agenta",
-  sshPromptNote:
-    "Předejte ho agentovi na svém počítači, třeba Codexu. Otevře si tuto stránku ve svém panelu prohlížeče, kde se jen přihlásíte; zbytek nastaví sám.",
   sshPromptCopy: "Zkopírovat prompt",
   sshPromptUnavailable:
     "Prompt se objeví, jakmile budou známá nastavení pro váš počítač (níže).",
@@ -3158,13 +3275,13 @@ const cs: Record<MessageKey, string> = {
   sshRemoveNotFound: "Tento klíč už tu není. Zkuste Obnovit.",
   sshRemoveNotOwn: "Tento klíč byl přidaný mimo Lazurio; Lazurio ho neodebírá.",
   sshOutsideTitle: "Přidané mimo Lazurio",
-  sshOutsideNote: "Odebírá je ten, kdo se o Prostředí stará.",
+  sshOutsideNote: "Odebírá je ten, kdo se o {toto} stará.",
   sshOutsideUnreadable: "Řádek, kterému Lazurio nerozumí",
   sshOutsideUntitled: "Klíč bez názvu",
   sshProblemDirectory:
-    "~/.ssh v tomto Prostředí není běžná složka, proto ji Lazurio nemění.",
+    "~/.ssh {v tomto} není běžná složka, proto ji Lazurio nemění.",
   sshProblemSymlink:
-    "~/.ssh/authorized_keys je odkaz, proto ho Lazurio nemění. Agent v tomto Prostředí ho může nahradit běžným souborem.",
+    "~/.ssh/authorized_keys je odkaz, proto ho Lazurio nemění. Agent {v tomto} ho může nahradit běžným souborem.",
   sshProblemNotFile:
     "~/.ssh/authorized_keys není běžný soubor, proto ho Lazurio nemění.",
   sshProblemForeignOwner:
@@ -3184,7 +3301,7 @@ const cs: Record<MessageKey, string> = {
   sshAlreadyPresent:
     "Tento klíč se tu už přihlásit může; nic se nezměnilo. Nastavení pro váš počítač je níže.",
   sshAddFailed:
-    "Zařízení se nepodařilo přidat. Zkuste to znovu; když to nepomůže, požádejte o pomoc agenta v tomto Prostředí.",
+    "Zařízení se nepodařilo přidat. Zkuste to znovu; když to nepomůže, požádejte o pomoc agenta {v tomto}.",
   sshRefusedKeyMissing: "Vložte veřejný klíč.",
   sshRefusedPrivateKey:
     "Toto je soukromý klíč. Nikam ho nevkládejte; vložte veřejný klíč ze souboru .pub.",
@@ -3192,7 +3309,7 @@ const cs: Record<MessageKey, string> = {
   sshRefusedOptions:
     "Vložte klíč bez voleb před ním, třeba command= nebo from=.",
   sshRefusedKeyRestricted:
-    "Tento klíč už je tu povolený s omezením přidaným mimo Lazurio (třeba from= nebo command=), takže se jím toto zařízení přihlásit nemůže. Vytvořte pro toto zařízení nový klíč, nebo se obraťte na toho, kdo se o Prostředí stará.",
+    "Tento klíč už je tu povolený s omezením přidaným mimo Lazurio (třeba from= nebo command=), takže se jím toto zařízení přihlásit nemůže. Vytvořte pro toto zařízení nový klíč, nebo se obraťte na toho, kdo se o {toto} stará.",
   sshRefusedType:
     "Přijímáme jen klíče ed25519 (ssh-ed25519 nebo sk-ssh-ed25519@openssh.com). Vytvoříte ho příkazem ssh-keygen -t ed25519.",
   sshRefusedInvalidKey:
@@ -3202,9 +3319,8 @@ const cs: Record<MessageKey, string> = {
   sshRefusedName: "Pojmenujte zařízení písmeny nebo číslicemi.",
   sshRefusedAddedBy:
     "Přihlášený účet se nepodařilo zaznamenat. Načtěte stránku znovu a zkuste to ještě jednou.",
-  sshCodexLink: "Přidat Prostředí do Codexu",
+  sshCodexLink: "Přidat {toto} do Codexu",
   sshComputerTitle: "Nastavení pro váš počítač",
-  sshComputerNote: "Váš agent je zapíše do vašeho počítače.",
   sshConfigLabel: "SSH config",
   sshConfigNote: "Přidejte do ~/.ssh/config",
   sshKnownHostsLabel: "known_hosts",
@@ -3214,17 +3330,36 @@ const cs: Record<MessageKey, string> = {
   sshNetworkNote:
     "Přidaný klíč zařízení sám přístup do sítě nedá. Když SSH selže, dejte agentovi přesnou chybovou hlášku. Pokud zařízení do sítě zatím nesmí, povolí mu to správce sítě.",
   sshComputerMissing: "Nastavení pro váš počítač zatím není k dispozici:",
-  sshMissingTailscale: "V tomto Prostředí není nainstalovaný Tailscale.",
-  sshMissingTailscaleFailed: "Tailscale v tomto Prostředí neodpověděl.",
-  sshMissingNotRunning: "Tailscale v tomto Prostředí není připojený.",
-  sshMissingDnsName: "Toto Prostředí nemá ve svém tailnetu jméno (MagicDNS).",
+  sshMissingTailscale: "{V tomto} není nainstalovaný Tailscale.",
+  sshMissingTailscaleFailed: "Tailscale {v tomto} neodpověděl.",
+  sshMissingNotRunning: "Tailscale {v tomto} není připojený.",
+  sshMissingDnsName: "{Toto} nemá ve svém tailnetu jméno (MagicDNS).",
   sshMissingHostKey:
-    "Toto Prostředí nemá klíč hostu ed25519 (/etc/ssh/ssh_host_ed25519_key.pub).",
-  sshMissingUser:
-    "Účet tohoto Prostředí nemá jméno, které by šlo použít v SSH config.",
+    "{Toto} nemá klíč hostu ed25519 (/etc/ssh/ssh_host_ed25519_key.pub).",
+  sshMissingUser: "Účet {tohoto} nemá jméno, které by šlo použít v SSH config.",
 };
+// A text about the Environment the page is in names its kind (decision F28's
+// addendum of 2026-10-18): the catalog writes it with a token of `inKind`
+// ({tomto}, {this}), and `messages` fills them for the page's kind, once per
+// language and kind. Without a kind (an unknown preset, a server answer that
+// knows none) the plain words stay: "toto Prostředí", "this Environment".
+const filled = new Map<string, Readonly<Record<MessageKey, string>>>();
+
 export function messages(
   locale: unknown,
+  kind: ShellEnvironmentKind | null = null,
 ): Readonly<Record<MessageKey, string>> {
-  return locale === "cs" ? cs : en;
+  const language = locale === "cs" ? "cs" : "en";
+  const key = `${language}:${kind ?? ""}`;
+  const known = filled.get(key);
+  if (known !== undefined) return known;
+  const source: Readonly<Record<MessageKey, string>> =
+    language === "cs" ? cs : en;
+  const catalog = Object.freeze(
+    Object.fromEntries(
+      Object.entries(source).map(([name, text]) => [name, inKind(text, kind)]),
+    ),
+  ) as Readonly<Record<MessageKey, string>>;
+  filled.set(key, catalog);
+  return catalog;
 }

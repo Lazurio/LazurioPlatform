@@ -26,8 +26,9 @@ export type ToolRunner = (
    * whose answer is a whole list (the vault's items) takes a larger one.
    * `stdin`: what the process reads on its standard input, which is then
    * closed; without it the process reads nothing. A value a command must
-   * never see on its argv (a vault item, decision F54) goes here. */
-  options?: Readonly<{ maxBytes?: number; stdin?: string }>,
+   * never see on its argv (a vault item, decision F54) goes here.
+   * `cwd`: the directory it runs in; without it, this process's own. */
+  options?: Readonly<{ maxBytes?: number; stdin?: string; cwd?: string }>,
 ) => Promise<ToolProcessResult>;
 
 const maxStreamBytes = 256 * 1024;
@@ -63,6 +64,7 @@ export const runTool: ToolRunner = async (command, timeoutMs, env, options) => {
   if (!executable) throw new Error("A command is required");
   const child = spawn(executable, args, {
     env: { ...env },
+    ...(options?.cwd === undefined ? {} : { cwd: options.cwd }),
     stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     detached: process.platform !== "win32",
     windowsHide: true,

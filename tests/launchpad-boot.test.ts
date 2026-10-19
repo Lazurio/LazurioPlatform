@@ -16,8 +16,9 @@ import {
 } from "../src/launchpad/boot";
 import { launchpadBoot } from "../src/launchpad/boot-document";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
+import { notModified } from "../src/launchpad/http-conditions";
 import { messages } from "../src/launchpad/messages";
-import { notModified, shellEtag, shellSource } from "../src/launchpad/page";
+import { shellEtag, shellSource } from "../src/launchpad/page";
 import { startRecoveryMode } from "../src/launchpad/recovery-mode";
 import { startLaunchpad } from "../src/launchpad/server";
 import {
@@ -28,9 +29,12 @@ import { shellDocument } from "../src/launchpad/shell-document";
 import { LaunchpadStartRefused } from "../src/launchpad/start-check";
 import { readFolderCatalog } from "../src/organizations/catalog";
 import { parseShell, type ShellSetup } from "../src/shell/contract";
+import { environmentThemeCss } from "../src/shell/theme";
+import { shellThemeOf } from "../src/theme/palettes";
 import type { ToolRunner } from "../src/tools/status";
 import { folderFixture, writeOrganization } from "./fixtures/catalog-folder";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
+import { freePort } from "./fixtures/ports";
 
 // The hosted page's first paint (F36's addendum of 2026-10-08): a hosted
 // Launchpad serves its page, after admission only, with its boot document
@@ -39,17 +43,6 @@ import { organizationWithEntry } from "./fixtures/machine-bindings";
 // gateway; and `/.lazurio/shell.json` never waits for GitHub.
 
 const posixTest = test.skipIf(process.platform === "win32");
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port ?? 0;
-  probe.stop(true);
-  return port;
-};
 
 test("the boot document reads back as written, and nothing in it ends its script", () => {
   const hostile = "Ex </script><script>alert(1)</script> <!-- \u2028\u2029";
@@ -68,6 +61,7 @@ test("the boot document reads back as written, and nothing in it ends its script
       t3codeOrigin: "https://t3code.workspace.example.lazurio.io",
       moduleOriginTemplate: "https://{module}.workspace.example.lazurio.io",
     },
+    vaultInApps: false,
   };
   const named = {
     ...boot,
@@ -105,6 +99,7 @@ test("the boot document reads back as written, and nothing in it ends its script
       shell: { schema: "other" },
       catalog: { kind: "other" },
       entry: { launchpadOrigin: "http://insecure.example" },
+      vaultInApps: "false",
     }),
   );
   expect(broken).toEqual({
@@ -112,7 +107,12 @@ test("the boot document reads back as written, and nothing in it ends its script
     shell: null,
     catalog: null,
     entry: null,
+    vaultInApps: null,
   });
+  // A document without the member (an older Launchpad's) leaves Trezor to
+  // the page's preset.
+  const { vaultInApps: _, ...older } = JSON.parse(bootJson(boot));
+  expect(parseBoot(JSON.stringify(older))?.vaultInApps).toBeNull();
 });
 
 test("the boot document carries the shell document without setup, the catalog and only the entry's public parts", async () => {
@@ -351,11 +351,33 @@ posixTest(
       expect(answer.headers.get("cache-control")).toBe("no-store");
       expect(answer.headers.get("content-type")).toContain("text/html");
       const html = await answer.text();
-      expect(html).toContain('<html lang="cs" data-lazurio-shell="host">');
+      // The host's own marks, and the Environment's theme as Apps shows it
+      // (root decision 0208): the default, Lazurio, on <html> and in its
+      // style at the end of the head, after the page's own bundled tokens,
+      // whose values it replaces.
+      expect(html).toContain(
+        '<html lang="cs" data-lazurio-shell="host" data-lazurio-appearance="device" data-lazurio-environment-theme="lazurio">',
+      );
+      const themeStyle =
+        /<style data-lazurio-environment-theme>\n([\s\S]*?)<\/style>/.exec(
+          html,
+        );
+      expect(themeStyle?.[1]).toBe(
+        environmentThemeCss(shellThemeOf({ theme: "lazurio", revision: 0 })),
+      );
+      expect(themeStyle?.index ?? -1).toBeGreaterThan(
+        html.lastIndexOf('<link rel="stylesheet"'),
+      );
+      expect(themeStyle?.index ?? -1).toBeLessThan(html.indexOf("</head>"));
       const cs = messages("cs");
       expect(html).toContain(`data-message="appsAll">${cs.appsAll}<`);
       expect(html).toContain(`data-message="toolsTitle">${cs.toolsTitle}<`);
       expect(html).toContain(`data-message="settingsBack">${cs.settingsBack}<`);
+      // The first paint names this work Environment's kind, as the page
+      // script does (F28's addendum of 2026-10-18).
+      expect(html).toContain(
+        'data-message="machineTitle">Toto Pracovní Prostředí<',
+      );
       expect(html).toContain(
         `aria-live="polite">${cs.catalogLoading}</p>\n<div id="catalog-body"`,
       );
@@ -371,6 +393,9 @@ posixTest(
       expect(boot?.locale).toBe("cs");
       expect(boot?.shell?.locale).toBe("cs");
       expect(boot?.shell?.setup).toBeUndefined();
+      expect(boot?.shell?.theme).toEqual(
+        shellThemeOf({ theme: "lazurio", revision: 0 }),
+      );
       expect(
         boot?.shell?.organizations.find((entry) => entry.slug === "example")
           ?.name,

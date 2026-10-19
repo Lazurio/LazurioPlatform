@@ -162,3 +162,75 @@ test.skipIf(process.platform === "win32")(
     });
   },
 );
+
+// A Machine handover names its owner by the GitHub login its manifest binds,
+// which is not always the slug (slug `Example`, login `ExampleCo`). F45 and
+// Composio share one owner rule (`selectOwnerOrganization`), so the login
+// selects the same root here.
+test.skipIf(process.platform === "win32")(
+  "the handover's Organization by its GitHub login where the slug differs",
+  async () => {
+    const { folder, reader } = await environment();
+    const root = await writeOrganization(folder, "Corp_GEN3", {
+      slug: "ExampleCorp",
+      forge: "Corp",
+      state: "current",
+      modules: [],
+    });
+    await git(root, "init", "--quiet", "--initial-branch=main");
+    const manifest = join(root, "lazurio.organization.json");
+    const document = JSON.parse(await readFile(manifest, "utf8"));
+    await writeOwnedFixture(
+      manifest,
+      JSON.stringify({ ...document, settings: off }),
+    );
+    await git(root, "add", "--all");
+    await git(root, "commit", "--quiet", "-m", "settings");
+    const version = await git(root, "rev-parse", "HEAD");
+    expect(await readRepositorySettings(folder, "corp", reader)).toEqual({
+      kind: "settings",
+      settings: { organization: null, version, values: off, unsupported: [] },
+    });
+  },
+);
+
+// The owner's login is another Organization's slug (Pablo's review of #457):
+// the settings are the ones of the Organization bound to the login, never of
+// the one whose slug it is and which binds another login.
+test.skipIf(process.platform === "win32")(
+  "the handover's Organization by its GitHub login, not by another Organization's slug",
+  async () => {
+    const { folder, reader } = await environment();
+    const committed = async (
+      directory: string,
+      slug: string,
+      forge: string,
+      settings: unknown,
+    ) => {
+      const root = await writeOrganization(folder, directory, {
+        slug,
+        forge,
+        state: "current",
+        modules: [],
+      });
+      await git(root, "init", "--quiet", "--initial-branch=main");
+      const manifest = join(root, "lazurio.organization.json");
+      const document = JSON.parse(await readFile(manifest, "utf8"));
+      await writeOwnedFixture(
+        manifest,
+        JSON.stringify({ ...document, settings }),
+      );
+      await git(root, "add", "--all");
+      await git(root, "commit", "--quiet", "-m", "settings");
+      return git(root, "rev-parse", "HEAD");
+    };
+    const version = await committed("Alpha_GEN3", "Alpha", "Corp", off);
+    await committed("Corp_GEN3", "Corp", "OtherLogin", {
+      integrations: { composio: { allowed: true } },
+    });
+    expect(await readRepositorySettings(folder, "corp", reader)).toEqual({
+      kind: "settings",
+      settings: { organization: null, version, values: off, unsupported: [] },
+    });
+  },
+);

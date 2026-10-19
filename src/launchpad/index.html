@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-lazurio-shell="host">
+<html lang="en" data-lazurio-shell="host" data-lazurio-appearance="device">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Lazurio Launchpad</title>
 <!-- The first paint (F36's addendum of 2026-10-08): before anything else is
      parsed, the frame of the path (`data-frame`) and in Settings its section
@@ -16,11 +16,11 @@
   if (path === "/files" || path.indexOf("/files/") === 0) frame = "files";
   else if (trimmed === "/integrations" || trimmed.indexOf("/integrations/") === 0) frame = "integrations";
   else if (trimmed === "/marketplace") frame = "marketplace";
+  else if (trimmed === "/vault" || trimmed.indexOf("/vault/") === 0 || trimmed === "/settings/vault" || trimmed === "/settings/vault/requests" || trimmed.indexOf("/settings/vault/requests/") === 0) frame = "vault";
   else if (trimmed === "/settings" || trimmed.indexOf("/settings/") === 0) {
     frame = "settings";
     section = trimmed.slice("/settings/".length);
-    if (section === "vault/requests" || section.indexOf("vault/requests/") === 0) section = "vault";
-    if (["start", "general", "communication", "machine", "tools", "vault", "ssh", "recovery"].indexOf(section) < 0) section = "general";
+    if (["start", "general", "communication", "machine", "tools", "ssh", "recovery"].indexOf(section) < 0) section = "general";
   }
   root.setAttribute("data-frame", frame);
   if (section) root.setAttribute("data-section", section);
@@ -48,15 +48,27 @@
    rows) in the Lazurio design-system look: every colour, type and radius
    below comes from its vendored tokens (src/shell/vendor/lazurio/tokens.css);
    the aliases keep the names the panels use. Plain CSS, no framework. Light
-   only: the design system has no dark mode yet. */
+   only: the design system has no dark mode yet.
+   The Environment's theme (root decision 0208, F36's addendum of
+   2026-10-18) gives the colour names interface v1 promises other values:
+   the shell writes them into `style[data-lazurio-environment-theme]`, which
+   the server puts at the end of <head> and ui.ts places there on a
+   workstation, after the bundled tokens. So the page's colours come from
+   those names wherever the design system's own value is the same (`--card`
+   is `--lz-surface`, a faint line is `--lz-gray-100`, the blue is
+   `--lz-accent`): the default theme, Lazurio, looks exactly as before, and
+   another one reaches every surface, line, button and signal. Apps takes
+   only the light values (theme-view.ts, `appsTheme`); its
+   `data-lazurio-appearance="device"` says how it would show dark ones. */
 :root {
   color-scheme: light;
+  --lazurio-color-scheme: light;
   --bg: var(--lz-surface);
   --fg: var(--lz-ink);
-  --card: var(--lz-white);
+  --card: var(--lz-surface);
   --border: var(--lz-line);
   --input: var(--lz-line);
-  --muted: var(--lz-gray-25);
+  --muted: var(--lz-paper);
   --muted-fg: var(--lz-ink-muted);
   --hover: var(--lz-gray-100);
   --link: var(--lz-accent);
@@ -73,6 +85,11 @@
   --success-fg: var(--lz-success);
   --success-bg: var(--lz-success-bg);
   --success-border: var(--lz-success-border);
+  /* The design system's names no theme gives a value: what stands for them
+     under another theme is below. */
+  --info-border: var(--lz-info-border);
+  --badge-ink: var(--lz-accent-strong);
+  --line-strong: var(--lz-gray-300);
   --radius-control: var(--lz-radius-sm);
   --radius-card: var(--lz-radius-md);
   --font-sans: var(--lz-font-sans);
@@ -80,10 +97,42 @@
   --column-width: 264px;
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
+/* Under an Environment theme other than Lazurio (the shell's mark on <html>):
+   the borders of the info notice, the badge's ink and the strong line come
+   from the theme's own names, and the shell's elements take the page's
+   colours through the twelve roles (root decision 0187), so the rail, the
+   column head and their lists follow the theme. Lazurio sets none of them:
+   the elements already draw the design system's own look. */
+:root[data-lazurio-environment-theme]:not([data-lazurio-environment-theme="lazurio"]) {
+  --info-border: color-mix(in oklab, var(--lz-info) 28%, var(--lz-info-bg));
+  --badge-ink: var(--lz-info);
+  --line-strong: color-mix(in oklab, var(--lz-line), var(--lz-ink) 12%);
+  --lazurio-surface: var(--lz-paper);
+  --lazurio-ink: var(--fg);
+  --lazurio-ink-muted: var(--muted-fg);
+  --lazurio-line: var(--border);
+  --lazurio-line-strong: var(--line-strong);
+  --lazurio-hover: var(--hover);
+  --lazurio-selected: var(--hover);
+  --lazurio-control: var(--hover);
+  --lazurio-raised: var(--card);
+  --lazurio-overlay: var(--card);
+  --lazurio-overlay-ink: var(--fg);
+  --lazurio-focus: var(--link);
+}
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; }
 body { background: var(--lz-gray-50); color: var(--fg); font: 15px/1.45 var(--font-sans); letter-spacing: var(--lz-track-body); -webkit-font-smoothing: antialiased; }
 [hidden] { display: none !important; }
+/* A public Environment (decision F55, ui.ts `drawAudience`): no Integrace,
+   no Trezor, no Nástroje and nothing for Začínáme to check again. */
+html[data-audience="public"] li:has(> #integrations-open),
+html[data-audience="public"] li:has(> #vault-open),
+html[data-audience="public"] #settings-nav li:has(> a[data-section="tools"]),
+html[data-audience="public"] #start-refresh { display: none !important; }
+/* Nor a choice of the theme, which is fixed there (root decision 0208 point
+   6): from the first paint, before theme-panel.ts knows. */
+html[data-audience="public"] #theme-group { display: none !important; }
 /* The first paint is the final page (F36's addendum of 2026-10-08). Only the
    frame and the Settings section the inline script above names are shown
    (shell.ts keeps them as the page moves), and nothing at all until the
@@ -96,6 +145,7 @@ html:not([data-ready]) body { visibility: hidden; animation: lazurio-reveal 0s 2
 html[data-frame="catalog"] [data-view]:not([data-view~="catalog"]),
 html[data-frame="files"] [data-view]:not([data-view~="files"]),
 html[data-frame="integrations"] [data-view]:not([data-view~="integrations"]),
+html[data-frame="vault"] [data-view]:not([data-view~="vault"]),
 html[data-frame="marketplace"] [data-view]:not([data-view~="marketplace"]),
 html[data-frame="settings"] [data-view]:not([data-view~="settings"]),
 html:not([data-frame]) [data-view]:not([data-view~="catalog"]),
@@ -104,20 +154,19 @@ html:not([data-section="communication"]) #view-settings > [data-section="communi
 html:not([data-section="general"]) #view-settings > [data-section="general"],
 html:not([data-section="machine"]) #view-settings > [data-section="machine"],
 html:not([data-section="tools"]) #view-settings > [data-section="tools"],
-html:not([data-section="vault"]) #view-settings > [data-section="vault"],
 html:not([data-section="ssh"]) #view-settings > [data-section="ssh"],
 html:not([data-section="recovery"]) #view-settings > [data-section="recovery"],
 html:not([data-frame="files"]) [data-section-action="files"],
+html:not([data-frame="vault"]) [data-section-action="vault"],
 html:not([data-section="start"]) [data-section-action="start"],
 html:not([data-section="general"]) [data-section-action="general"],
 html:not([data-section="tools"]) [data-section-action="tools"],
-html:not([data-section="vault"]) [data-section-action="vault"],
 html:not([data-section="ssh"]) [data-section-action="ssh"],
 html:not([data-section="recovery"]) [data-section-action="recovery"] { display: none !important; }
 /* The places of the shell elements before their script defines them: the
-   rail's 64 px on its surface, the column head's height, so nothing moves
-   when they draw. */
-lazurio-rail:not(:defined) { position: fixed; inset: 0 auto 0 0; width: var(--lazurio-rail-width, 64px); background: var(--lz-paper); }
+   rail's 64 px on its surface with its edge toward the app, the column
+   head's height, so nothing moves when they draw. */
+lazurio-rail:not(:defined) { position: fixed; inset: 0 auto 0 0; width: var(--lazurio-rail-width, 64px); background: var(--lz-paper); box-shadow: inset -1px 0 0 var(--lz-line); }
 lazurio-column-head:not(:defined) { display: block; min-height: 109px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 a { color: var(--link); text-underline-offset: 0.2em; }
@@ -128,18 +177,34 @@ h1, h2, h3, h4 { margin: 0; font-size: 14px; }
 .icon { width: 16px; height: 16px; flex: none; }
 
 /* The frame: the rail is fixed on the left and sets --lazurio-rail-width;
-   the app sits beside it on the white surface, as a fork's root does. It
-   clips what slides past its right edge (the right panel coming and going),
-   without becoming a scroller, so the column and the panel still stick. */
-.app { display: flex; min-height: 100vh; margin-left: var(--lazurio-rail-width, 64px); background: var(--bg); border-left: 1px solid var(--lz-line); overflow-x: clip; }
-.column { position: sticky; top: 0; z-index: 20; display: flex; flex: none; flex-direction: column; gap: 10px; width: var(--column-width); height: 100vh; padding: 16px 10px 10px; background: var(--lz-gray-25); border-right: 1px solid var(--lz-line-faint); }
+   the app sits beside it on the white surface, as a fork's root does. The
+   hairline between them is the rail's own edge (src/shell/styles.ts, Matěj
+   2026-10-17), so the app draws none on that side and there is never a
+   second line. It clips what slides past its right edge (the right panel
+   coming and going), without becoming a scroller, so the column and the
+   panel still stick. The column starts with its band, from its top edge. */
+.app { display: flex; min-height: 100vh; margin-left: var(--lazurio-rail-width, 64px); background: var(--bg); overflow-x: clip; }
+.column { position: sticky; top: 0; z-index: 20; display: flex; flex: none; flex-direction: column; gap: 10px; width: var(--column-width); height: 100vh; padding: 0 10px 10px; background: var(--lz-paper); border-right: 1px solid var(--lz-gray-100); }
+/* The column's band (Matěj 2026-10-17, the wireframe's AppBand,
+   prototypes-lazurio #56 and #61): as tall as Settings' header, 52 px, it
+   holds the column's toggle and then the app's name, the design system's
+   approved lockup, whole, at its smallest size (18 px tall,
+   content/brand/logo/logo.md), never the symbol beside a word. The toggle's
+   centre stands over the picker's mark and the lockup starts where the
+   Environment's name does, 52 px into the head (the picker's 8 px, its
+   32 px mark and 12 px), so the toggle stands 19 px from the column's edge
+   and 11 px from its top. The column head follows right under the band,
+   without the column's gap. Below 768 px, where the column is the sheet,
+   the toggle is not drawn and the lockup starts the band. */
+.column-band { display: flex; flex: none; align-items: center; gap: 13px; height: 52px; margin-bottom: -10px; padding-left: 9px; }
+.column-lockup { display: block; flex: none; width: auto; height: 18px; }
 .column-apps, .column-settings { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 10px; }
 .column-scroll { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 14px; overflow-y: auto; }
 .column-title { padding: 0 8px; font-size: 18px; font-weight: var(--lz-weight-title); letter-spacing: var(--lz-track-title); }
 .column-label { padding: 4px 10px 6px; color: var(--muted-fg); font-size: 13px; }
-.column-favorites { display: grid; gap: 1px; padding-bottom: 8px; border-bottom: 1px solid var(--lz-line-faint); }
+.column-favorites { display: grid; gap: 1px; padding-bottom: 8px; border-bottom: 1px solid var(--lz-gray-100); }
 .column-hint { padding: 2px 10px 4px; color: var(--muted-fg); font-size: 13px; }
-.column-foot { display: grid; gap: 8px; padding-top: 8px; border-top: 1px solid var(--lz-line-faint); }
+.column-foot { display: grid; gap: 8px; padding-top: 8px; border-top: 1px solid var(--lz-gray-100); }
 .column-foot:not(:has(> :not([hidden]))) { display: none; }
 .menu { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
 .menu-item { display: flex; align-items: center; gap: 10px; min-width: 0; height: 34px; padding: 0 10px; border-radius: var(--lz-radius-sm); color: var(--fg); font-size: 14px; text-decoration: none; }
@@ -164,11 +229,11 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
 .update .stale { color: var(--warning-fg); }
 
 .page { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-/* Settings' and Files' header: one 52 px row, which wraps rather than run
+/* Settings', Files' and Trezor's header: one 52 px row, which wraps rather than run
    past its edge or under the page's corner when the page is too narrow for
    it (#365): the breadcrumb first, then its action on the next row, at the
    right; a long breadcrumb wraps at its slash. */
-.topbar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0.75rem; min-height: 52px; padding: 11px 24px; background: var(--bg); border-bottom: 1px solid var(--lz-line-faint); }
+.topbar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0.75rem; min-height: 52px; padding: 11px 24px; background: var(--bg); border-bottom: 1px solid var(--lz-gray-100); }
 .crumbs { display: flex; align-items: center; min-width: 0; min-height: 30px; }
 .crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
 .crumbs li { display: flex; align-items: center; min-width: 0; }
@@ -178,22 +243,32 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
 .crumbs h1 { font-weight: var(--lz-weight-akce); }
 .crumbs h1:focus, [data-page-heading]:focus { outline: none; }
 .crumbs h1:focus-visible, [data-page-heading]:focus-visible { outline: 2px solid var(--lz-accent); outline-offset: 2px; border-radius: 4px; }
+/* The "?" right after a page's heading (decision F56): the shell's guide
+   explains the page in place. A small round button, quiet until pointed at. */
+button.page-help { width: 24px; height: 24px; margin-left: 6px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted-fg); }
+button.page-help:hover { background: var(--hover); color: var(--fg); }
+button.page-help:focus-visible { outline: 2px solid var(--lz-accent); outline-offset: 2px; }
+button.page-help .icon { width: 18px; height: 18px; }
+/* The Apps home's heading and its "?" (catalog-panel.ts). */
+.apps-title-row { display: flex; align-items: center; min-width: 0; }
 .topbar-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
 .nav-toggle { display: none; }
 /* The page's two top corners (Matěj 2026-10-12, evening; the wireframe's
    apps-corner): controls over the page, always in the same place on every
    page, as ChatGPT and Codex Desktop keep theirs, centred in the band of
-   Settings' and Files' header. Top left, the column's toggle while the
-   column is hidden; top right, the page's help link (Guide on the Apps
-   home, "Jak to funguje" on Integrace) and the Browser toggle. They stay in
-   view as the page scrolls, on the page's own surface, so what scrolls by
-   passes beneath them and never through their words; no bar, no line, no
-   shadow. Page heads hold only their titles and leave the corners free: the
-   right one by its width, `--page-corner` (layout.ts, the wireframe's
+   Settings', Files' and Trezor's header. Top left, the column's toggle while the
+   column is hidden, in the very spot of the band's toggle it stands in for
+   (19 px in: the column's 10 px and the band's 9 px; the wireframe's
+   column-corner); top right, the page's help link (Guide on the Apps home,
+   "Jak to funguje" on Integrace) and the Browser toggle. They stay in view
+   as the page scrolls, on the page's own surface, so what scrolls by passes
+   beneath them and never through their words; no bar, no line, no shadow.
+   Page heads hold only their titles and leave the corners free: the right
+   one by its width, `--page-corner` (layout.ts, the wireframe's
    --apps-corner), the left one while the column is hidden. */
 .page-top { position: sticky; top: 0; z-index: 3; height: 0; }
 .page-corner { position: absolute; top: 11px; display: flex; align-items: center; gap: 14px; min-height: 30px; border-radius: var(--radius-control); background: var(--bg); }
-.page-corner-start { left: 16px; }
+.page-corner-start { left: 19px; }
 .page-corner-end { right: 16px; }
 #catalog-head, .market-head { padding-right: var(--page-corner, 0px); }
 .topbar { padding-right: calc(24px + var(--page-corner, 0px)); }
@@ -201,17 +276,18 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
    catalog-panel.ts hides, has none (the wireframe's corner on the home). */
 #page:has(#catalog-head[hidden]) #catalog-guide { display: none; }
 /* The left column on a wide screen (Matěj's tuning of 2026-10-12, as T3
-   Code's sidebar; layout.ts). Its toggle sits in the column's head, under
-   <lazurio-column-head>, where Chat keeps T3 Code's toggle under the same
-   head, and hides the column, the rail staying. While the column is hidden
-   the toggle at the page's top left shows it again; while the page also
+   Code's sidebar; layout.ts). Its toggle sits first in the column's band, on
+   top of the column above <lazurio-column-head> (Matěj 2026-10-17; Chat and
+   Automate keep theirs in their own band above the same head), and hides
+   the column, the rail staying. While the column is hidden the toggle at
+   the page's top left shows it again, in the same spot; while the page also
    steps aside for the right panel, the one in the panel's strip stands in
    for it. One of them is in view at a time. The column's right edge drags
    it 208–480 px wide, as the panel's divider does. Below 768 px the column
    is the sheet #nav-toggle opens, and none of this shows.
-   The toggle at the page's top left takes 62 px (16 px, its 30 px and
-   16 px). The page's content never moves for it: only a title row it would
-   reach steps aside (Matěj 2026-10-13). Settings' and Files' header always;
+   The toggle at the page's top left takes 62 px (19 px, its 30 px and
+   13 px). The page's content never moves for it: only a title row it would
+   reach steps aside (Matěj 2026-10-13). Settings', Files' and Trezor's header always;
    the first row of the Apps home, Integrace and a module's page, whose wide
    column starts 32 px from the page's edge, by 30 px; the Marketplace's
    head only as far as its centred column comes closer than that (`cqw`,
@@ -222,7 +298,6 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
   button.ghost.column-toggle { display: inline-flex; flex: none; width: 30px; height: 30px; padding: 0; border-radius: var(--radius-control); }
   button.ghost.column-toggle:hover { background: var(--hover); }
   .column-toggle[aria-expanded="true"] .column-toggle-show, .column-toggle[aria-expanded="false"] .column-toggle-hide { display: none; }
-  .column > .column-toggle { align-self: flex-start; }
   .app:not([data-column="hidden"]) .page-corner-start .column-toggle, .browser-strip button.ghost.column-toggle { display: none; }
   .app[data-column="hidden"] .column { display: none; }
   .app[data-column="hidden"] .topbar { padding-left: 62px; }
@@ -231,7 +306,7 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
   .app[data-column="hidden"] .market-head { padding-left: clamp(0px, calc(38px - (100cqw - 56rem) / 2), 38px); }
   .column-divider { display: block; position: absolute; z-index: 1; top: 0; right: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; }
   .column-divider::after { content: ""; position: absolute; top: 0; right: -1px; bottom: 0; width: 2px; background: transparent; transition: background-color 120ms; }
-  .column-divider:hover::after, .column-divider:focus-visible::after, .column-divider.is-dragging::after { background: var(--lz-blue-500); }
+  .column-divider:hover::after, .column-divider:focus-visible::after, .column-divider.is-dragging::after { background: var(--lz-accent); }
   .column-divider:focus-visible { outline: none; }
 }
 @media (min-width: 1100px) { .app[data-browser="wide"][data-column="hidden"] .browser-strip button.ghost.column-toggle { display: inline-flex; } }
@@ -244,6 +319,35 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .voice-meta { justify-content: space-between; color: var(--muted-fg); font-size: 14px; }
 #voice-text { width: 100%; resize: vertical; min-height: 320px; font: inherit; line-height: 1.65; padding: 14px; }
 .section-head-text { display: grid; gap: 0.75rem; }
+/* Settings → Obecné → Vzhled (root decision 0208, theme-panel.ts): a card
+   per theme the Environment may take, on the design system's tile (a
+   hairline, radius-md, the ink's edge once chosen, never a shadow). Each
+   shows its light and its dark look as two small windows of the app in its
+   own colours (theme-view.ts, `previewColours`), Lazurio its light one
+   alone; below, the name and the check of the chosen one. A native radio
+   group: the arrows move between the cards, a choice applies at once. */
+.theme-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); gap: 12px; margin: 0; padding: 0; border: 0; }
+.theme-card { position: relative; display: grid; gap: 10px; padding: 10px; border: 1px solid var(--lz-gray-100); border-radius: var(--lz-radius-md); background: var(--card); color: var(--fg); cursor: pointer; }
+.theme-card:hover { border-color: var(--line-strong); }
+.theme-card:has(input:checked) { border-color: var(--lz-ink); box-shadow: inset 0 0 0 1px var(--lz-ink); }
+.theme-card:has(input:focus-visible) { outline: 2px solid var(--lz-accent); outline-offset: 2px; }
+.theme-card input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.theme-previews { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.theme-previews[data-light-only] { grid-template-columns: 1fr; }
+.theme-preview { display: grid; grid-template-columns: 30% 1fr; height: 60px; overflow: hidden; border: 1px solid var(--preview-line); border-radius: var(--lz-radius-sm); background: var(--preview-surface); }
+.theme-preview-side { display: grid; align-content: start; gap: 4px; padding: 7px 5px; border-right: 1px solid var(--preview-line); background: var(--preview-paper); }
+.theme-preview-side > span { height: 4px; border-radius: 2px; background: var(--preview-muted); opacity: 0.5; }
+.theme-preview-side > span:first-child { height: 7px; background: var(--preview-selected); opacity: 1; }
+.theme-preview-main { display: grid; align-content: start; gap: 5px; padding: 8px; }
+.theme-preview-title { width: 72%; height: 5px; border-radius: 3px; background: var(--preview-ink); }
+.theme-preview-text { width: 92%; height: 4px; border-radius: 2px; background: var(--preview-muted); }
+.theme-preview-actions { display: flex; align-items: center; gap: 5px; margin-top: 4px; }
+.theme-preview-button { width: 28px; height: 10px; border-radius: 3px; background: var(--preview-button); }
+.theme-preview-accent { width: 10px; height: 10px; border-radius: 50%; background: var(--preview-accent); }
+.theme-card-name { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px; font-size: 14px; font-weight: var(--lz-weight-akce); }
+.theme-card-name .icon { visibility: hidden; }
+.theme-card:has(input:checked) .theme-card-name .icon { visibility: visible; }
+#theme-status:empty { display: none; }
 
 /* The Apps home (decision F36): the Organization on top, then the two
    sections Workspace (every module) and Productionspace (production
@@ -263,12 +367,12 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .apps-title-link:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
 .apps-guide { display: inline-flex; align-items: center; gap: 6px; color: var(--muted-fg); font-size: 14px; font-weight: var(--lz-weight-akce); text-decoration: none; }
 .apps-guide:hover { color: var(--fg); }
-.org-mark { display: grid; flex: none; width: 32px; height: 32px; place-items: center; overflow: hidden; border-radius: var(--lz-radius-sm); background: var(--lz-white); box-shadow: inset 0 0 0 1px var(--lz-line); color: var(--fg); font-size: 12px; font-weight: var(--lz-weight-akce); letter-spacing: 0.02em; }
-.org-mark[data-personal] { border-radius: 50%; background: var(--lz-ink); color: var(--lz-white); box-shadow: none; }
+.org-mark { display: grid; flex: none; width: 32px; height: 32px; place-items: center; overflow: hidden; border-radius: var(--lz-radius-sm); background: var(--lz-surface); box-shadow: inset 0 0 0 1px var(--lz-line); color: var(--fg); font-size: 12px; font-weight: var(--lz-weight-akce); letter-spacing: 0.02em; }
+.org-mark[data-personal] { border-radius: 50%; background: var(--lz-ink); color: var(--lz-surface); box-shadow: none; }
 .org-mark img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .apps-section { display: grid; gap: 16px; min-width: 0; }
-.section-head { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--lz-blue-500); }
-.section-pill { padding: 5px 12px; border-radius: 7px 7px 0 0; background: var(--lz-blue-500); color: var(--lz-on-accent); font-size: 14px; font-weight: var(--lz-weight-akce); line-height: normal; }
+.section-head { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--lz-accent); }
+.section-pill { padding: 5px 12px; border-radius: 7px 7px 0 0; background: var(--lz-accent); color: var(--lz-on-accent); font-size: 14px; font-weight: var(--lz-weight-akce); line-height: normal; }
 .section-count { color: var(--muted-fg); font-size: 13px; }
 /* An Organization's own Workspace tabs (decision F32's addendum of
    2026-10-16): quiet words beside the section's pill, the shown one in full
@@ -288,7 +392,7 @@ button.workspace-tab[aria-selected="true"] { color: var(--fg); font-weight: var(
    shell wireframe does (prototypes-lazurio#10). */
 .tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px; }
 .tile-wrap { position: relative; display: grid; min-width: 0; }
-.tile { position: relative; display: flex; align-items: center; gap: 16px; width: 100%; min-width: 0; min-height: 88px; padding: 16px 18px; border: 1px solid var(--lz-line-faint); border-radius: var(--lz-radius-md); background: var(--card); color: var(--fg); font: inherit; text-align: left; text-decoration: none; cursor: pointer; transition: border-color 120ms ease, box-shadow 120ms ease; }
+.tile { position: relative; display: flex; align-items: center; gap: 16px; width: 100%; min-width: 0; min-height: 88px; padding: 16px 18px; border: 1px solid var(--lz-gray-100); border-radius: var(--lz-radius-md); background: var(--card); color: var(--fg); font: inherit; text-align: left; text-decoration: none; cursor: pointer; transition: border-color 120ms ease, box-shadow 120ms ease; }
 button.tile { height: auto; justify-content: flex-start; white-space: normal; box-shadow: none; }
 .tile:hover, .tile:focus-visible { border-color: var(--lz-ink); background: var(--card); box-shadow: none; }
 .tile--new { border-style: dashed; border-color: var(--lz-line); }
@@ -311,21 +415,21 @@ button.tile { height: auto; justify-content: flex-start; white-space: normal; bo
 .tile-mark--app { border-radius: var(--lz-radius-sm); background: var(--lz-gray-50); }
 .apps-starts .tile-desc { white-space: normal; }
 .tile--off { cursor: not-allowed; opacity: 0.4; }
-.tile--off:hover { border-color: var(--lz-line-faint); }
+.tile--off:hover { border-color: var(--lz-gray-100); }
 /* The "⋯" menu at a tile's top right, always visible but quiet; it lists
    the star and the way to the module's overview (design system lz-menu,
    selection variant A). */
 .tile-menu { position: absolute; top: 6px; right: 6px; }
-.tile-menu-button { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: var(--lz-radius-sm); background: transparent; box-shadow: none; color: var(--lz-gray-300); }
+.tile-menu-button { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: var(--lz-radius-sm); background: transparent; box-shadow: none; color: var(--line-strong); }
 .tile-wrap:hover .tile-menu-button { color: var(--muted-fg); }
 .tile-menu-button:hover, .tile-menu.is-open .tile-menu-button { background: var(--lz-gray-100); color: var(--fg); }
 .tile-menu-button .icon { width: 18px; height: 18px; }
-.tile-menu-list { position: absolute; z-index: 30; top: 34px; right: 0; display: grid; min-width: 250px; padding: 6px; border: 1px solid var(--lz-gray-300); border-radius: var(--lz-radius-md); background: var(--lz-white); }
+.tile-menu-list { position: absolute; z-index: 30; top: 34px; right: 0; display: grid; min-width: 250px; padding: 6px; border: 1px solid var(--line-strong); border-radius: var(--lz-radius-md); background: var(--lz-surface); }
 .tile-menu-item { display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; height: 33px; padding: 0 10px; border: 0; border-radius: var(--lz-radius-sm); background: transparent; box-shadow: none; color: var(--fg); font: 400 14px/1 var(--font-sans); text-align: left; text-decoration: none; cursor: pointer; }
 .tile-menu-item:hover, .tile-menu-item:focus-visible { background: var(--lz-paper); }
 /* A short message at the foot of the page (the wireframe's toast). */
 .toast-region { position: fixed; z-index: 60; bottom: 28px; left: 50%; transform: translateX(-50%); }
-.toast { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border: 1px solid var(--lz-gray-300); border-radius: var(--lz-radius-md); background: var(--lz-white); color: var(--fg); font-size: 14px; white-space: nowrap; }
+.toast { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border: 1px solid var(--line-strong); border-radius: var(--lz-radius-md); background: var(--lz-surface); color: var(--fg); font-size: 14px; white-space: nowrap; }
 .market-head { display: flex; align-items: center; gap: 14px; }
 .market-icon { display: grid; width: 52px; height: 52px; place-items: center; border-radius: var(--lz-radius-md); background: var(--lz-gray-100); color: var(--fg); }
 .market-icon .icon { width: 26px; height: 26px; }
@@ -339,7 +443,7 @@ button.tile { height: auto; justify-content: flex-start; white-space: normal; bo
 .module-head-text { display: grid; gap: 2px; min-width: 0; }
 .module-meta { color: var(--muted-fg); font-size: 14px; }
 .module-open { margin-left: auto; height: 30px; padding: 0 12px; }
-.command { display: block; margin-top: 8px; padding: 8px 10px; border-radius: var(--radius-control); background: var(--lz-gray-950); color: var(--lz-gray-25); font-size: 12.5px; user-select: all; overflow-wrap: anywhere; }
+.command { display: block; margin-top: 8px; padding: 8px 10px; border-radius: var(--radius-control); background: var(--lz-ink); color: var(--lz-paper); font-size: 12.5px; user-select: all; overflow-wrap: anywhere; }
 
 /* Sections, cards and rows (T3 Code settingsLayout.tsx, Lazurio look). */
 .intro { max-width: 44rem; color: var(--muted-fg); font-size: 14px; line-height: 1.5; }
@@ -350,7 +454,7 @@ button.tile { height: auto; justify-content: flex-start; white-space: normal; bo
 .group > legend + * { clear: both; }
 .group-note { color: var(--muted-fg); font-size: 13px; }
 .card { margin: 0; padding: 0; list-style: none; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--card); }
-.card > * + * { border-top: 1px solid var(--lz-line-faint); }
+.card > * + * { border-top: 1px solid var(--lz-gray-100); }
 .row { container-type: inline-size; padding: 14px 16px; }
 .row-main { display: flex; flex-direction: column; gap: 0.75rem; }
 @container (min-width: 32rem) {
@@ -368,7 +472,7 @@ dl.card dt { color: var(--fg); font-size: 15px; font-weight: var(--lz-weight-akc
 dl.card dd { margin: 0; color: var(--muted-fg); font-size: 14px; overflow-wrap: anywhere; }
 @container (min-width: 32rem) { dl.card dd { text-align: right; } }
 dl.card ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.25rem; }
-.callout { padding: 10px 14px; border: 1px solid var(--lz-info-border); border-radius: var(--radius-control); background: var(--lz-info-bg); color: var(--fg); font-size: 14px; }
+.callout { padding: 10px 14px; border: 1px solid var(--info-border); border-radius: var(--radius-control); background: var(--lz-info-bg); color: var(--fg); font-size: 14px; }
 .callout[data-kind="warning"], .tools-warning { border: 1px solid var(--warning-border); border-radius: var(--radius-control); background: var(--warning-bg); color: var(--fg); padding: 10px 14px; font-size: 14px; }
 .callout[data-kind="warning"] strong { color: var(--warning-fg); }
 /* The callout's other tones and its row: one notice for every message of a
@@ -403,7 +507,7 @@ pre:empty { display: none; }
 /* Status: a dot, always with a word next to it (the design system's rule:
    colour never carries a state alone). */
 .dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--success); }
-.dot[data-state="blocked"], .dot[data-state="stopped"], .dot[data-state="unknown"] { background: var(--lz-gray-300); }
+.dot[data-state="blocked"], .dot[data-state="stopped"], .dot[data-state="unknown"] { background: var(--line-strong); }
 .dot[data-state="starting"] { background: var(--lz-warning); }
 .dot[data-state="failed"] { background: var(--lz-red-500); }
 .module-status[data-state="running"] { color: var(--success-fg); }
@@ -438,7 +542,7 @@ pre.ssh-block { max-height: none; color: var(--fg); font-size: 12.5px; line-heig
 .ssh-fact { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
 .ssh-missing { margin: 0.4rem 0 0; padding-left: 1.1rem; }
 html[data-mode="recovery"] lazurio-rail, html[data-mode="recovery"] .column, html[data-mode="recovery"] .nav-toggle, html[data-mode="recovery"] .column-toggle, html[data-mode="recovery"] #crumb-parent, html[data-mode="recovery"] .browser-toggle, html[data-mode="recovery"] .browser-panel { display: none !important; }
-html[data-mode="recovery"] .app { margin-left: 0; border-left: 0; }
+html[data-mode="recovery"] .app { margin-left: 0; }
 
 /* Controls: black buttons, quiet outline, the design system's radius. */
 button, .button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: var(--card); color: var(--fg); font: var(--lz-weight-akce) 13px/1 var(--font-sans); white-space: nowrap; cursor: pointer; text-decoration: none; }
@@ -451,18 +555,21 @@ button.destructive:hover { border-color: var(--destructive-border); background: 
 button.ghost { height: auto; padding: 4px 6px; border-color: transparent; background: transparent; color: var(--muted-fg); font-weight: 400; font-size: 14px; }
 button.ghost:hover { background: transparent; color: var(--fg); }
 button:focus-visible, .button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, .menu-item:focus-visible, summary:focus-visible, .tile:focus-visible, .back:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px var(--lz-accent); }
-.switch { position: relative; width: 34px; height: 20px; padding: 2px; border: 0; border-radius: 999px; background: var(--lz-gray-200); justify-content: flex-start; }
-.switch::after { content: ""; width: 16px; height: 16px; border-radius: 999px; background: var(--lz-white); box-shadow: 0 1px 2px rgb(0 0 0 / 20%); transition: transform 0.15s; }
-.switch[aria-checked="true"] { background: var(--lz-ink); }
+.switch { position: relative; width: 34px; height: 20px; padding: 2px; border: 0; border-radius: 999px; background: var(--lz-line); justify-content: flex-start; }
+.switch::after { content: ""; width: 16px; height: 16px; border-radius: 999px; background: var(--lz-surface); box-shadow: 0 1px 2px rgb(0 0 0 / 20%); transition: transform 0.15s; }
+.switch[aria-checked="true"] { background: var(--lz-accent-button); }
 .switch[aria-checked="true"]::after { transform: translateX(14px); }
-.switch:hover { background: var(--lz-gray-300); }
-.switch[aria-checked="true"]:hover { background: var(--lz-gray-800); }
+.switch:hover { background: var(--line-strong); }
+.switch[aria-checked="true"]:hover { background: var(--lz-accent-button-hover); }
 select, input, textarea { border: 1px solid var(--input); border-radius: var(--radius-control); background: var(--card); color: var(--fg); font: 13px/1.4 var(--font-sans); }
 select { height: 32px; width: 14rem; max-width: 100%; padding: 0 1.75rem 0 10px; appearance: none; background: var(--card) var(--chevron) right 0.5rem center / 1rem no-repeat; cursor: pointer; }
+/* Obecné's kinds, the longest "Pracovní Prostředí s automatizacemi" (F28's
+   addendum of 2026-10-18), whole. */
+#preset { width: min(18rem, 100%); }
 select:disabled, input:disabled, textarea:disabled { opacity: 0.6; }
 input { height: 32px; padding: 0 10px; width: 14rem; max-width: 100%; }
 textarea { display: block; width: 100%; padding: 0.4rem 0.5rem; resize: vertical; }
-.badge { display: inline-flex; align-items: center; height: 1.25rem; padding: 0 0.4rem; border-radius: var(--lz-radius-xs); background: var(--lz-accent-soft); color: var(--lz-accent-strong); font-size: 11.5px; font-weight: var(--lz-weight-akce); white-space: nowrap; }
+.badge { display: inline-flex; align-items: center; height: 1.25rem; padding: 0 0.4rem; border-radius: var(--lz-radius-xs); background: var(--lz-info-bg); color: var(--badge-ink); font-size: 11.5px; font-weight: var(--lz-weight-akce); white-space: nowrap; }
 fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 
 /* Tools. */
@@ -473,7 +580,7 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .tool-signin[data-state="signed-out"], .tool-ssh[data-state="not-linked"] { color: var(--warning-fg); }
 .tools-muted { color: var(--muted-fg); font-size: 12.5px; }
 .row-details { margin-top: 0.5rem; }
-.row-details[open] > .details-body { display: grid; gap: 0.75rem; margin-top: 0.625rem; padding: 0.75rem; border-radius: var(--radius-control); background: var(--muted); border: 1px solid var(--lz-line-faint); }
+.row-details[open] > .details-body { display: grid; gap: 0.75rem; margin-top: 0.625rem; padding: 0.75rem; border-radius: var(--radius-control); background: var(--muted); border: 1px solid var(--lz-gray-100); }
 .details-body h4 { color: var(--fg); font-size: 12.5px; font-weight: var(--lz-weight-akce); }
 .details-body section { display: grid; gap: 0.25rem; }
 .details-body .tool-path { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; color: var(--fg); }
@@ -535,15 +642,34 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .vault-request-error:empty { display: none; }
 .vault-request-state[data-state="saved"] { border-color: var(--success-border); background: var(--success-bg); }
 /* A personal Environment connects its person's own Bitwarden (root decision
-   0203 point 7): the explanation, the slot of its motion graphic (#452),
-   the form and the way out. */
+   0203 point 7; F53's amendment of 2026-10-16, (2)): the title, the picture
+   of the vault between the person's Bitwarden and the agents (tokens only:
+   a line, the vault's tile in the accent's soft ground, its lock in the
+   accent), one line, the slot of the guide's video (#452), two numbered
+   steps with Bitwarden's own screens as #vault-bitwarden has them, the
+   fields under the second, and the invitation once connected. */
 #vault-connect { display: grid; gap: 12px; }
 #vault-connect[hidden] { display: none; }
-.vault-connect-motion:empty { display: none; }
-.vault-connect-steps { margin: 0; padding-left: 1.25rem; display: grid; gap: 4px; font-size: 14px; }
+.vault-connect-picture { display: block; width: min(100%, 340px); height: auto; overflow: visible; }
+.vault-connect-picture .vault-connect-link { stroke: var(--lz-line); stroke-width: 1.25; }
+.vault-connect-picture .vault-connect-node { fill: var(--card); stroke: var(--lz-line); stroke-width: 1; }
+.vault-connect-picture .vault-connect-vault { fill: var(--lz-info-bg); }
+.vault-connect-picture .vault-connect-side { color: var(--fg); }
+.vault-connect-picture .vault-connect-lock { color: var(--lz-accent); }
+.vault-connect-picture text { fill: var(--fg); font: var(--lz-weight-akce) 13px var(--font-sans); text-anchor: middle; }
+.vault-connect-picture text.vault-connect-where { fill: var(--muted-fg); font-weight: 400; font-size: 12px; }
+#vault-connect-video:empty { display: none; }
+.vault-connect-steps > li > * { grid-column: 2; min-width: 0; }
+.vault-connect-steps .link-button { height: 30px; }
+.vault-connect-fields { display: grid; gap: 12px; margin-top: 14px; }
 .vault-connect-field { display: grid; gap: 0.4rem; }
-.vault-connect-field input, .vault-connect-field select { width: min(26rem, 100%); }
-.vault-connect-field input { font-family: var(--font-mono); font-size: 13px; }
+.vault-connect-field label { color: var(--fg); font-size: 13.5px; font-weight: var(--lz-weight-akce); }
+.vault-connect-field input { width: min(26rem, 100%); font-family: var(--font-mono); font-size: 13px; }
+.vault-connect-submit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.vault-invite[hidden] { display: none; }
+.vault-invite-field { display: grid; gap: 6px; }
+.vault-invite-field .vault-request-value { margin-top: 4px; }
+.vault-invite input { width: min(20rem, 100%); font-family: inherit; font-size: 14px; }
 .vault-disconnect { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
 .vault-disconnect[hidden] { display: none; }
 /* The vault in the Bitwarden extension of Codex Desktop and the person's
@@ -562,6 +688,15 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .vault-bitwarden-picture { display: block; width: min(100%, 380px); height: auto; margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; }
 .vault-bitwarden-value { padding: 0.2rem 0.45rem; border: 1px solid var(--border); border-radius: var(--lz-radius-xs); background: var(--muted); color: var(--fg); font-size: 13px; overflow-wrap: anywhere; user-select: all; }
 .vault-bitwarden-copy .row-status:empty { display: none; }
+.guide-video { margin: 0 0 12px; }
+/* Trezor's video, opened in place by the page's "?" (decision F56's
+   addendum of 2026-10-18), and the one line under it. */
+.vault-video { margin: 0 0 20px; }
+.vault-video .guide-video { margin-bottom: 6px; }
+#vault-explainer[hidden] { display: none; }
+.guide-video-play .icon { width: 14px; height: 14px; }
+.guide-video-player { display: block; width: 100%; max-width: 720px; height: auto; aspect-ratio: 16 / 9; border: 1px solid var(--border); border-radius: 12px; background: var(--muted); }
+.guide-video-player:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px var(--lz-accent); }
 
 /* Files (decision F35): the Documents folder as a list of rows, the path as
    links, the upload queue and the drop overlay. Below 36 rem of the list's
@@ -591,7 +726,7 @@ a.files-name:hover { text-decoration: underline; }
   .files-size { grid-area: size; text-align: right; white-space: nowrap; }
   .files-modified { grid-area: modified; white-space: nowrap; }
   .files-head { display: block; padding-top: 0.5rem; padding-bottom: 0.5rem; background: var(--muted); }
-  .card > .files-head + .files-row { border-top: 1px solid var(--lz-line-faint); }
+  .card > .files-head + .files-row { border-top: 1px solid var(--lz-gray-100); }
   .files-head .files-name { color: var(--muted-fg); font-size: 12.5px; font-weight: 500; }
 }
 .files-callout { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
@@ -622,12 +757,11 @@ a.files-name:hover { text-decoration: underline; }
    controls in the title row); short of room they go above the tabs, at the
    right, so the tabs keep their place on the hairline. */
 .integrations-head { align-items: flex-start; }
-/* Only the title shares its line with the page's corner: the sentence
-   under it has the page's width (below 768 px the head starts under the
-   corner). */
-.integrations-head .apps-title { padding-right: var(--page-corner, 0px); }
-.integrations-titles { display: grid; gap: 4px; min-width: 0; }
-.integrations-bar { display: flex; flex-wrap: wrap-reverse; align-items: flex-start; gap: 8px 16px; margin-top: -12px; border-bottom: 1px solid var(--lz-line-faint); }
+/* The title and its "?" share their line with the page's corner (below
+   768 px the head starts under the corner). */
+.integrations-head .integrations-titles { padding-right: var(--page-corner, 0px); }
+.integrations-titles { display: flex; align-items: center; min-width: 0; }
+.integrations-bar { display: flex; flex-wrap: wrap-reverse; align-items: flex-start; gap: 8px 16px; margin-top: -12px; border-bottom: 1px solid var(--lz-gray-100); }
 .integrations-tools { display: flex; align-items: center; gap: 8px; margin: 0 0 4px auto; }
 .integrations-search { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid var(--input); border-radius: var(--radius-control); background: var(--card); color: var(--muted-fg); }
 .integrations-search input { width: 200px; height: 30px; padding: 0; border: 0; background: transparent; box-shadow: none; }
@@ -650,9 +784,9 @@ a.files-name:hover { text-decoration: underline; }
 .integration-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--card); }
 .integration-card.is-focused { border-color: var(--lz-accent); box-shadow: 0 0 0 1px var(--lz-accent); }
 .integration-top { display: flex; gap: 12px; min-width: 0; }
-.integration-mark { display: grid; flex: none; width: 40px; height: 40px; place-items: center; border: 1px solid var(--lz-line-faint); border-radius: var(--lz-radius-sm); background: var(--lz-white); }
+.integration-mark { display: grid; flex: none; width: 40px; height: 40px; place-items: center; border: 1px solid var(--lz-gray-100); border-radius: var(--lz-radius-sm); background: var(--lz-surface); }
 .integration-mark svg { width: 24px; height: 24px; }
-.integration-mark-letter { color: var(--muted-fg); font-weight: var(--lz-weight-akce); font-size: 17px; background: var(--lz-gray-25); }
+.integration-mark-letter { color: var(--muted-fg); font-weight: var(--lz-weight-akce); font-size: 17px; background: var(--lz-paper); }
 /* The name on one line and the sentence on two, both whole on hover
    (title): every card's foot, and so its button, stands at the same height
    in a row, whatever its accounts below it. */
@@ -675,7 +809,7 @@ a.files-name:hover { text-decoration: underline; }
 .integration-form-note { flex-basis: 100%; color: var(--muted-fg); font-size: 13px; }
 .integration-form-field { flex: 1 1 140px; }
 .integration-form-field input { width: 100%; }
-.integration-accounts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--lz-line-faint); list-style: none; }
+.integration-accounts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--lz-gray-100); list-style: none; }
 .integration-account { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; min-height: 20px; font-size: 13px; }
 .integration-account-text { display: grid; flex: 1; gap: 2px; min-width: 0; }
 /* A long name or address on one line, whole on hover (title) and while
@@ -711,27 +845,6 @@ button.link-button.danger { color: var(--destructive); }
 .integrations-hint .icon { width: 13px; height: 13px; }
 .integrations-custom-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .integrations-custom-head h2 { font-size: 15px; }
-.composio-organization { display: grid; justify-items: start; gap: 10px; min-width: 0; }
-.composio-organization p { margin: 0; }
-.composio-model { display: grid; gap: 8px; width: 100%; min-width: 0; margin: 4px 0 0; container-type: inline-size; }
-.composio-model figcaption { font-size: 13px; font-weight: var(--lz-weight-akce); }
-.composio-model-grid { display: grid; grid-template-columns: minmax(110px, 1fr) auto minmax(130px, 1.3fr) auto minmax(130px, 1.3fr); align-items: center; gap: 8px 10px; }
-.composio-model-grid > * { grid-row: var(--model-row); grid-column: var(--model-column); }
-/* Short of room the account stands above its organizations, each row
-   organization → its Environments under it. */
-@container (max-width: 560px) {
-  .composio-model-grid { grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); }
-  .composio-model-grid > * { grid-row: auto; grid-column: auto; }
-  .composio-model-grid > .composio-model-account { grid-column: 1 / -1; }
-}
-.composio-model-account { display: grid; align-content: center; align-self: stretch; gap: 2px; padding: 10px 12px; border: 1px solid var(--lz-line-faint); border-radius: var(--radius-control); background: var(--card); font-size: 13px; }
-.composio-model-account span, .composio-model-caption { color: var(--muted-fg); font-size: 13px; }
-/* Above the warning callout's own colour for its emphasis. */
-.composio-model .composio-model-account strong { color: var(--fg); }
-.composio-model-node { padding: 8px 10px; border: 1px solid var(--lz-line-faint); border-radius: var(--radius-control); background: var(--card); font-size: 13px; }
-.composio-model-node.is-here { border-color: var(--lz-accent); }
-.composio-model-arrow { color: var(--muted-fg); }
-.composio-model-caption { margin: 0; }
 .integration-server .row-title { display: flex; align-items: center; gap: 8px; }
 .integration-server .row-title a { color: inherit; text-decoration: none; }
 .integration-server .row-title a:hover { text-decoration: underline; }
@@ -761,7 +874,7 @@ input.mcp-input[aria-invalid="true"] { border-color: var(--destructive-border); 
 .mcp-segments { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--lz-radius-md); background: var(--lz-gray-100); }
 button.mcp-segment { height: 30px; padding: 0 14px; border: 0; border-radius: calc(var(--lz-radius-md) - 3px); background: transparent; color: var(--muted-fg); font-size: 14px; }
 button.mcp-segment:hover { background: transparent; color: var(--fg); }
-button.mcp-segment[aria-checked="true"] { background: var(--lz-white); box-shadow: inset 0 0 0 1px var(--lz-line); color: var(--fg); }
+button.mcp-segment[aria-checked="true"] { background: var(--lz-surface); box-shadow: inset 0 0 0 1px var(--lz-line); color: var(--fg); }
 .mcp-rows { display: grid; gap: 8px; }
 .mcp-rows:empty { display: none; }
 .mcp-row { display: grid; grid-template-columns: minmax(0, 1fr) 36px; align-items: center; gap: 8px; }
@@ -792,7 +905,7 @@ button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); co
    while the panel keeps its width and what it shows does not reflow; as a
    sheet it comes in from the right. 200 ms, the length browser-panel.ts
    waits before it hides the panel; none with reduced motion. */
-.browser-panel { --browser-panel-width: clamp(360px, calc((100vw - var(--lazurio-rail-width, 64px) - var(--column-width)) / 2), 960px); position: sticky; top: 0; z-index: 3; display: flex; flex: none; flex-direction: column; width: var(--browser-panel-width); height: 100vh; background: var(--card); border-left: 1px solid var(--lz-line-faint); animation: browser-panel-in 200ms ease-out; }
+.browser-panel { --browser-panel-width: clamp(360px, calc((100vw - var(--lazurio-rail-width, 64px) - var(--column-width)) / 2), 960px); position: sticky; top: 0; z-index: 3; display: flex; flex: none; flex-direction: column; width: var(--browser-panel-width); height: 100vh; background: var(--card); border-left: 1px solid var(--lz-gray-100); animation: browser-panel-in 200ms ease-out; }
 .browser-panel.is-leaving { animation: browser-panel-out 200ms ease-in forwards; }
 @keyframes browser-panel-in { from { margin-right: calc(-1 * var(--browser-panel-width)); } }
 @keyframes browser-panel-out { to { margin-right: calc(-1 * var(--browser-panel-width)); } }
@@ -809,24 +922,27 @@ button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); co
    selected. The sheet below 1100 px has none. */
 .browser-divider { position: absolute; z-index: 7; top: 0; bottom: 0; left: 0; width: 7px; cursor: col-resize; touch-action: none; }
 .browser-divider::after { content: ""; position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: transparent; transition: background-color 120ms; }
-.browser-divider:hover::after, .browser-divider:focus-visible::after, .browser-divider.is-dragging::after { background: var(--lz-blue-500); }
+.browser-divider:hover::after, .browser-divider:focus-visible::after, .browser-divider.is-dragging::after { background: var(--lz-accent); }
 .browser-divider:focus-visible { outline: none; }
 html.is-resizing, html.is-resizing * { cursor: col-resize !important; user-select: none; }
 html.is-resizing iframe, html.is-resizing lazurio-new-tab { pointer-events: none; }
-@media (min-width: 1100px) { .app[data-browser="wide"] .page { display: none; } }
+/* With the column hidden too, the panel stands right beside the rail, whose
+   own edge is the line between them: the panel's hairline gives way there,
+   keeping its place, so the two never draw a double line. */
+@media (min-width: 1100px) { .app[data-browser="wide"] .page { display: none; } .app[data-browser="wide"][data-column="hidden"] .browser-panel { border-left-color: transparent; } }
 /* The strip (decision F47 point 9, the wireframe's BrowserPanel): the tabs
    the Launchpad holds and its Nová karta entries, then "+", and the panel's
    own actions. Every entry is the same full tab with its × (Matěj
    2026-10-12): its own width, not its title's, decides its size, as in
    Chrome. Tabs narrow to 92 px first, then the list scrolls sideways and the
    shown tab stays in view. */
-.browser-strip { display: flex; flex: none; align-items: center; gap: 8px; height: 46px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--lz-line-faint); background: var(--lz-paper); }
+.browser-strip { display: flex; flex: none; align-items: center; gap: 8px; height: 46px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--lz-gray-100); background: var(--lz-paper); }
 .browser-tabs { display: flex; flex: 1; align-items: center; gap: 4px; min-width: 0; }
 .browser-tablist { display: flex; flex: 0 1 auto; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .browser-tablist::-webkit-scrollbar { display: none; }
 .browser-tab { display: flex; flex: 0 1 auto; align-items: center; width: 220px; height: 32px; min-width: 92px; border: 1px solid transparent; border-radius: var(--lz-radius-sm); color: var(--lz-ink-muted); }
 .browser-tab:hover { background: var(--lz-gray-50); }
-.browser-tab.is-active { border-color: var(--lz-line); background: var(--lz-white); color: var(--lz-ink); }
+.browser-tab.is-active { border-color: var(--lz-line); background: var(--lz-surface); color: var(--lz-ink); }
 button.browser-tab-main { flex: 1; justify-content: flex-start; gap: 8px; height: 100%; min-width: 0; padding: 0 2px 0 10px; border: 0; border-radius: var(--lz-radius-sm); background: transparent; color: inherit; font-weight: 400; text-align: left; }
 button.browser-tab-main:hover { background: transparent; }
 .browser-tab-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -838,9 +954,9 @@ button.browser-tab-close:hover { background: var(--lz-gray-100); color: var(--lz
 .browser-favicon img { display: block; width: 16px; height: 16px; border-radius: var(--lz-radius-xs); }
 .browser-favicon .icon { width: 15px; height: 15px; }
 /* An agent in the tab: a blue dot on its icon, whose ring breathes. */
-.browser-agent { position: absolute; right: -4px; bottom: -4px; width: 10px; height: 10px; border: 2px solid var(--lz-paper); border-radius: 50%; background: var(--lz-blue-500); animation: browser-agent 1.6s ease-in-out infinite; }
-.browser-tab.is-active .browser-agent { border-color: var(--lz-white); }
-@keyframes browser-agent { 50% { box-shadow: 0 0 0 3px rgb(13 18 219 / 22%); } }
+.browser-agent { position: absolute; right: -4px; bottom: -4px; width: 10px; height: 10px; border: 2px solid var(--lz-paper); border-radius: 50%; background: var(--lz-accent); animation: browser-agent 1.6s ease-in-out infinite; }
+.browser-tab.is-active .browser-agent { border-color: var(--lz-surface); }
+@keyframes browser-agent { 50% { box-shadow: 0 0 0 3px color-mix(in oklab, var(--lz-accent) 22%, transparent); } }
 .browser-actions { display: flex; flex: none; align-items: center; gap: 2px; }
 .browser-action { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 8px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted-fg); font: 400 13px/1 var(--font-sans); text-decoration: none; white-space: nowrap; cursor: pointer; }
 .browser-action:hover { background: var(--hover); color: var(--fg); }
@@ -852,13 +968,13 @@ button.browser-action { flex: none; width: 30px; padding: 0; }
    the panel and inside the window (browser-panel.ts places it). Its
    commands in groups with a line between them; one with nothing to do is
    greyed. */
-.browser-menu { position: fixed; z-index: 8; display: grid; width: 220px; padding: 6px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); box-shadow: var(--lz-shadow-float); color: var(--fg); }
+.browser-menu { position: fixed; z-index: 8; display: grid; width: 220px; padding: 6px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-surface); box-shadow: var(--lz-shadow-float); color: var(--fg); }
 .browser-menu:focus { outline: none; }
 button.browser-menu-item { justify-content: flex-start; width: 100%; height: auto; min-height: 32px; padding: 7px 10px; border: 0; border-radius: var(--lz-radius-sm); background: transparent; color: inherit; font: 400 13.5px/1.25 var(--font-sans); text-align: left; white-space: normal; }
 button.browser-menu-item:hover, button.browser-menu-item:focus-visible { background: var(--lz-gray-50); }
 button.browser-menu-item:disabled { opacity: 1; color: var(--lz-ink-faint); }
-.browser-menu-line { height: 1px; margin: 4px 6px; background: var(--lz-line-faint); }
-.browser-body { position: relative; display: flex; flex: 1; min-height: 0; background: var(--lz-gray-25); }
+.browser-menu-line { height: 1px; margin: 4px 6px; background: var(--lz-gray-100); }
+.browser-body { position: relative; display: flex; flex: 1; min-height: 0; background: var(--lz-paper); }
 .browser-frame { display: block; flex: 1; width: 100%; height: 100%; border: 0; background: var(--lz-white); }
 .browser-new-tab { display: block; flex: 1; width: 100%; height: 100%; background: var(--lz-white); }
 .browser-message { margin: auto; max-width: 30rem; padding: 24px; color: var(--muted-fg); font-size: 14px; line-height: 1.5; text-align: center; }
@@ -867,7 +983,7 @@ button.browser-menu-item:disabled { opacity: 1; color: var(--lz-ink-faint); }
    reachable (the wireframe's PendingClose). */
 .browser-toast-slot { position: absolute; z-index: 6; right: 16px; bottom: 18px; left: 16px; display: grid; justify-items: center; pointer-events: none; }
 .browser-toast-region { position: fixed; z-index: 61; right: 16px; bottom: 28px; left: 16px; display: grid; justify-items: center; pointer-events: none; }
-.browser-toast { display: grid; gap: 6px; max-width: 100%; padding: 8px 8px 8px 16px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); box-shadow: var(--lz-shadow-float); color: var(--fg); font-size: 13.5px; pointer-events: auto; }
+.browser-toast { display: grid; gap: 6px; max-width: 100%; padding: 8px 8px 8px 16px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-surface); box-shadow: var(--lz-shadow-float); color: var(--fg); font-size: 13.5px; pointer-events: auto; }
 /* One line per action: a message with Zkusit znovu above the line of the
    tab taken away with Vrátit; a line without a button keeps its right edge. */
 .browser-toast-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; }
@@ -879,7 +995,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
   .browser-panel.is-leaving { animation-name: browser-sheet-out; }
   .browser-divider { display: none; }
 }
-@media (max-width: 767px) { .browser-toggle-text, .integrations-composio-text, .integrations-help-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
+@media (max-width: 767px) { .browser-toggle-text, .integrations-composio-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
 
 /* Narrow viewport: the column is an off-canvas sheet beside the rail,
    opened from a button at the top of the page (T3 Code ui/sidebar.tsx below
@@ -897,7 +1013,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
   /* The page's 14 px here are less than the corner's 16 px from the edge:
      the heads leave it a few pixels more. */
   #catalog-head, .market-head { padding-right: calc(var(--page-corner, 0px) + 8px); }
-  .integrations-head .apps-title { padding-right: 0; }
+  .integrations-head .integrations-titles { padding-right: 0; }
   .container, .container.wide { padding: 20px 14px 48px; }
   /* Settings and Files start under the header; every page without it
      starts its head below #nav-toggle, as the Apps home does (#366). */
@@ -914,7 +1030,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
    prototypes-lazurio 45c92830): the line under the Apps head until the
    Environment is usable, "Obsah Prostředí" in Toto Prostředí, and the
    tour's ring and bubble over the real interface. */
-.setup-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; max-width: 900px; padding: 12px 16px; border: 1px solid var(--lz-info-border); border-radius: var(--radius-card); background: var(--lz-info-bg); color: var(--fg); font-size: 14px; }
+.setup-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; max-width: 900px; padding: 12px 16px; border: 1px solid var(--info-border); border-radius: var(--radius-card); background: var(--lz-info-bg); color: var(--fg); font-size: 14px; }
 .setup-line[data-tone="failed"] { border-color: var(--destructive-border); background: var(--destructive-bg); }
 .setup-line-text { flex: 1; min-width: 220px; }
 .setup-line-actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -942,10 +1058,149 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
 #tools-login .tools-code-row .tools-code { margin: 0; }
 .tools-open { height: 34px; padding: 0 14px; font-size: 14px; }
 .tools-login-more > summary { cursor: pointer; color: var(--muted-fg); font-size: 13px; }
+/* Composio's sign-in dialog after the sign-in (decision F42, addendum (2) of
+   2026-10-13, note of 2026-10-17): no steps; the name to create in Composio
+   with its copy button, the drawing of Composio's dashboard, one button, a
+   quiet line while it waits; connected, a check and the account. */
+#tools-login-steps:empty { display: none; }
+#tools-login-status.is-connected { display: flex; align-items: center; gap: 8px; }
+#tools-login-status.is-connected .icon { width: 18px; height: 18px; color: var(--success-fg); }
+#tools-login .composio-account { margin-left: 26px; color: var(--muted-fg); font-size: 13px; overflow-wrap: anywhere; }
+#tools-login .composio-name { display: flex; align-items: center; gap: 8px; }
+#tools-login .composio-name input { flex: 1 1 auto; width: auto; min-width: 0; max-width: 22rem; border-radius: var(--lz-radius-xs); font-size: 14px; font-weight: var(--lz-weight-akce); }
+#tools-login .composio-wait { display: flex; align-items: center; gap: 8px; color: var(--muted-fg); font-size: 13px; }
+.composio-wait-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--lz-accent); }
+#tools-login .tool-note-problem:empty { display: none; }
+#tools-login .composio-choice { display: grid; justify-items: start; gap: 6px; }
+#tools-login .composio-choice label { margin: 0; font-size: 13px; font-weight: var(--lz-weight-akce); }
+#tools-login .composio-choice select { width: min(18rem, 100%); }
+/* The drawing: a stage of 30 × 21 units that scales with its width (one
+   unit is a thirtieth of it), so it reads the same on a phone. Two light
+   screens: the dashboard with its sidebar (1 to 3), then the page "Create
+   Org" opens, a card centred under "Composio" (4). Its plain styles are the
+   frame shown under prefers-reduced-motion: the organizations open with
+   "Create Org" ringed and the places 1 to 3, the path the person could not
+   find alone; the dialog's own name box above it is the place 4. */
+.composio-scene { --u: calc(100cqw / 30); container-type: inline-size; width: min(100%, 420px); }
+.cs-stage { position: relative; width: calc(30 * var(--u)); height: calc(21 * var(--u)); overflow: hidden; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-gray-25); color: var(--lz-ink); font-family: var(--font-sans); line-height: 1.2; letter-spacing: 0; }
+.cs-stage * { box-sizing: border-box; }
+.cs-small { color: var(--lz-ink-muted); font-size: calc(0.6 * var(--u)); }
+.cs-name { overflow: hidden; font-size: calc(0.74 * var(--u)); font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.cs-glyph { flex: none; width: calc(0.95 * var(--u)); height: calc(0.95 * var(--u)); color: var(--lz-ink-muted); }
+.cs-side { position: absolute; inset: 0 auto 0 0; width: calc(13.5 * var(--u)); border-right: 1px solid var(--lz-line-faint); background: var(--lz-white); }
+.cs-top { position: absolute; top: calc(1 * var(--u)); left: calc(1 * var(--u)); right: calc(1 * var(--u)); display: flex; align-items: center; gap: calc(0.45 * var(--u)); height: calc(1.7 * var(--u)); }
+.cs-mark { flex: none; width: calc(1.3 * var(--u)); height: calc(1.3 * var(--u)); border-radius: calc(0.3 * var(--u)); background: var(--lz-ink); }
+.cs-chip { display: inline-flex; align-items: center; height: calc(1.5 * var(--u)); padding: 0 calc(0.4 * var(--u)); border: 1px solid var(--lz-line); border-radius: calc(0.3 * var(--u)); font-size: calc(0.66 * var(--u)); font-weight: 700; letter-spacing: 0.06em; box-shadow: 0 0 0 calc(0.14 * var(--u)) var(--lz-blue-500); }
+.cs-switch { display: inline-flex; align-items: center; gap: calc(0.15 * var(--u)); margin-left: auto; color: var(--lz-ink-muted); font-size: calc(0.66 * var(--u)); }
+.cs-switch .cs-glyph { width: calc(0.8 * var(--u)); height: calc(0.8 * var(--u)); }
+.cs-nav { position: absolute; top: calc(4.2 * var(--u)); left: calc(1 * var(--u)); display: grid; gap: calc(0.85 * var(--u)); width: calc(9 * var(--u)); }
+.cs-line, .cs-block { display: block; border-radius: calc(0.25 * var(--u)); background: var(--lz-line-faint); }
+.cs-line { height: calc(0.5 * var(--u)); }
+.cs-line:nth-child(2n) { width: 70%; }
+.cs-line:nth-child(3n) { width: 85%; }
+.cs-org { position: absolute; left: calc(0.8 * var(--u)); bottom: calc(0.9 * var(--u)); display: flex; align-items: center; gap: calc(0.55 * var(--u)); width: calc(11.9 * var(--u)); height: calc(2.9 * var(--u)); padding: 0 calc(0.6 * var(--u)); border: 1px solid var(--lz-line); border-radius: calc(0.55 * var(--u)); background: var(--lz-white); }
+.cs-org-words { display: grid; min-width: 0; gap: calc(0.1 * var(--u)); }
+.cs-org > .cs-glyph { margin-left: auto; }
+.cs-avatar { display: grid; flex: none; place-items: center; width: calc(1.6 * var(--u)); height: calc(1.6 * var(--u)); border-radius: 50%; background: var(--lz-expressive-orange-3); font-size: calc(0.7 * var(--u)); font-weight: 700; }
+.cs-avatar[data-tone="1"] { background: var(--lz-expressive-mint-3); }
+.cs-avatar[data-tone="2"] { background: var(--lz-expressive-orchid-3); }
+.cs-main { position: absolute; inset: 0 0 0 calc(13.5 * var(--u)); display: grid; align-content: start; gap: calc(0.8 * var(--u)); padding: calc(1.2 * var(--u)); }
+.cs-block { height: calc(3 * var(--u)); border: 1px solid var(--lz-line-faint); background: var(--lz-white); }
+.cs-block:first-child { width: 45%; height: calc(1 * var(--u)); border: 0; background: var(--lz-line-faint); }
+.cs-pop { position: absolute; left: calc(0.8 * var(--u)); bottom: calc(4.2 * var(--u)); display: grid; gap: calc(0.15 * var(--u)); width: calc(15.2 * var(--u)); padding: calc(0.45 * var(--u)); border: 1px solid var(--lz-line); border-radius: calc(0.6 * var(--u)); background: var(--lz-white); box-shadow: var(--lz-shadow-float); }
+.cs-find { display: flex; align-items: center; gap: calc(0.4 * var(--u)); height: calc(1.9 * var(--u)); padding: 0 calc(0.55 * var(--u)); border: 1px solid var(--lz-line); border-radius: calc(0.4 * var(--u)); color: var(--lz-ink-muted); font-size: calc(0.7 * var(--u)); }
+.cs-row { display: flex; align-items: center; gap: calc(0.5 * var(--u)); height: calc(1.95 * var(--u)); padding: 0 calc(0.45 * var(--u)); border-radius: calc(0.4 * var(--u)); }
+.cs-row.is-current { background: var(--lz-gray-50); }
+.cs-check { margin-left: auto; color: var(--lz-ink); }
+.cs-divider { display: block; height: 1px; margin: calc(0.25 * var(--u)) 0; background: var(--lz-line-faint); }
+.cs-create { display: grid; gap: calc(0.15 * var(--u)); padding: calc(0.4 * var(--u)) calc(0.45 * var(--u)); border-radius: calc(0.4 * var(--u)); box-shadow: 0 0 0 calc(0.14 * var(--u)) var(--lz-blue-500); }
+.cs-create-title { display: flex; align-items: center; gap: calc(0.35 * var(--u)); font-size: calc(0.74 * var(--u)); font-weight: 600; }
+.cs-create-title .cs-glyph { color: var(--lz-ink); }
+.cs-dash { position: absolute; inset: 0; }
+/* The page "Create Org" opens: its proportions are the real screen's, drawn
+   light. */
+.cs-page { position: absolute; inset: 0; background: var(--lz-gray-25); opacity: 0; visibility: hidden; }
+.cs-heading { position: absolute; top: calc(2.05 * var(--u)); left: 0; right: 0; font-size: calc(1.07 * var(--u)); font-weight: 700; text-align: center; }
+.cs-card { position: absolute; top: calc(4.9 * var(--u)); left: calc(7 * var(--u)); width: calc(16 * var(--u)); height: calc(13.6 * var(--u)); border: 1px solid var(--lz-line); border-radius: calc(0.2 * var(--u)); background: var(--lz-white); }
+.cs-card > * { position: absolute; left: calc(1.1 * var(--u)); right: calc(1.1 * var(--u)); }
+.cs-card-title { top: calc(1.22 * var(--u)); font-size: calc(0.84 * var(--u)); font-weight: 600; text-align: center; }
+.cs-card-note { top: calc(2.47 * var(--u)); text-align: center; }
+.cs-label { top: calc(4.36 * var(--u)); font-size: calc(0.6 * var(--u)); font-weight: 600; }
+.cs-field { top: calc(5.41 * var(--u)); display: flex; align-items: center; height: calc(1.64 * var(--u)); padding: 0 calc(0.6 * var(--u)); border: 1px solid var(--lz-line); border-radius: calc(0.15 * var(--u)); }
+.cs-placeholder, .cs-typed { overflow: hidden; font-size: calc(0.64 * var(--u)); white-space: nowrap; text-overflow: ellipsis; }
+.cs-placeholder { position: absolute; left: calc(0.6 * var(--u)); color: var(--lz-ink-muted); opacity: 0; }
+.cs-hint { top: calc(7.1 * var(--u)); font-size: calc(0.52 * var(--u)); line-height: 1.35; }
+.cs-confirm { top: calc(9.6 * var(--u)); display: grid; place-items: center; height: calc(1.64 * var(--u)); border-radius: calc(0.15 * var(--u)); background: var(--lz-ink); color: var(--lz-white); font-size: calc(0.62 * var(--u)); font-weight: 600; }
+.cs-back { top: calc(11.7 * var(--u)); text-align: center; }
+.cs-marker { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--lz-blue-500); color: var(--lz-white); font: 700 11px/1 var(--font-sans); }
+.cs-stage .cs-marker { position: absolute; width: calc(1.25 * var(--u)); height: calc(1.25 * var(--u)); font-size: calc(0.66 * var(--u)); }
+.cs-stage .cs-marker[data-step="1"] { left: calc(6.1 * var(--u)); top: calc(0.25 * var(--u)); }
+.cs-stage .cs-marker[data-step="2"] { left: calc(12 * var(--u)); top: calc(16.55 * var(--u)); }
+.cs-stage .cs-marker[data-step="3"] { left: calc(15.2 * var(--u)); top: calc(13.3 * var(--u)); }
+.cs-stage .cs-marker[data-step="4"] { left: calc(5.5 * var(--u)); top: calc(10.5 * var(--u)); }
+.cs-marker-inline { flex: none; }
+.cs-cursor { position: absolute; top: 0; left: 0; transform: translate(calc(9.6 * var(--u)), calc(13.7 * var(--u))); }
+.cs-arrow { display: block; width: calc(1.45 * var(--u)); height: calc(1.55 * var(--u)); overflow: visible; fill: var(--lz-expressive-orchid); stroke: var(--lz-white); stroke-width: 1.6; stroke-linejoin: round; }
+.cs-you { position: absolute; top: calc(1.3 * var(--u)); left: calc(1.05 * var(--u)); padding: calc(0.12 * var(--u)) calc(0.45 * var(--u)); border-radius: 999px; background: var(--lz-expressive-orchid); color: var(--lz-ink); font-size: calc(0.6 * var(--u)); font-weight: 600; white-space: nowrap; }
+/* The motion: 15 s, then again. FOR YOU (1), the organization at the bottom
+   left (2), Create Org (3); the dashboard gives way to the page it opens,
+   where the name is typed into the field (4) and the button is clicked. */
+@media (prefers-reduced-motion: no-preference) {
+  .composio-wait-dot { animation: composio-pulse 1.6s ease-in-out infinite; }
+  .cs-cursor { animation: cs-cursor 15s infinite; }
+  .cs-dash { animation: cs-dash 15s infinite; }
+  .cs-chip { animation: cs-chip 15s infinite; }
+  .cs-pop { animation: cs-pop 15s infinite; }
+  .cs-create { animation: cs-create 15s infinite; }
+  .cs-page { animation: cs-page 15s infinite; }
+  .cs-field { animation: cs-field 15s infinite; }
+  .cs-placeholder { animation: cs-placeholder 15s infinite; }
+  .cs-typed { animation: cs-typed 15s infinite; }
+  .cs-confirm { animation: cs-confirm 15s infinite; }
+  .cs-stage .cs-marker[data-step="1"] { animation: cs-marker-1 15s infinite; }
+  .cs-stage .cs-marker[data-step="2"] { animation: cs-marker-2 15s infinite; }
+  .cs-stage .cs-marker[data-step="3"] { animation: cs-marker-3 15s infinite; }
+  .cs-stage .cs-marker[data-step="4"] { animation: cs-marker-4 15s infinite; }
+}
+@keyframes composio-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.75); } }
+@keyframes cs-cursor {
+  0%, 4% { opacity: 1; transform: translate(calc(24 * var(--u)), calc(17 * var(--u))); animation-timing-function: ease-in-out; }
+  11%, 18% { transform: translate(calc(4.9 * var(--u)), calc(2.2 * var(--u))); animation-timing-function: ease-in-out; }
+  26% { transform: translate(calc(7.4 * var(--u)), calc(18.8 * var(--u))); }
+  27% { transform: translate(calc(7.4 * var(--u)), calc(18.8 * var(--u))) scale(0.85); }
+  28% { transform: translate(calc(7.4 * var(--u)), calc(18.8 * var(--u))); animation-timing-function: ease-in-out; }
+  35% { transform: translate(calc(9.6 * var(--u)), calc(13.7 * var(--u))); }
+  36% { transform: translate(calc(9.6 * var(--u)), calc(13.7 * var(--u))) scale(0.85); }
+  37%, 44% { transform: translate(calc(9.6 * var(--u)), calc(13.7 * var(--u))); animation-timing-function: ease-in-out; }
+  50% { transform: translate(calc(21.3 * var(--u)), calc(10.7 * var(--u))); }
+  51% { transform: translate(calc(21.3 * var(--u)), calc(10.7 * var(--u))) scale(0.85); }
+  52%, 68% { transform: translate(calc(21.3 * var(--u)), calc(10.7 * var(--u))); animation-timing-function: ease-in-out; }
+  75% { transform: translate(calc(19.4 * var(--u)), calc(15.2 * var(--u))); }
+  76% { transform: translate(calc(19.4 * var(--u)), calc(15.2 * var(--u))) scale(0.85); }
+  77%, 92% { opacity: 1; transform: translate(calc(19.4 * var(--u)), calc(15.2 * var(--u))); }
+  95% { opacity: 0; transform: translate(calc(19.4 * var(--u)), calc(15.2 * var(--u))); }
+  96% { opacity: 0; transform: translate(calc(24 * var(--u)), calc(17 * var(--u))); }
+  100% { opacity: 1; transform: translate(calc(24 * var(--u)), calc(17 * var(--u))); }
+}
+/* "Create Org" opens another page: the dashboard slides away and fades, the
+   page fades in from the other side. */
+@keyframes cs-dash { 0%, 41% { opacity: 1; transform: none; } 44.5%, 97% { opacity: 0; transform: translateX(calc(-1.5 * var(--u))); } 99%, 100% { opacity: 1; transform: none; } }
+@keyframes cs-page { 0%, 42% { opacity: 0; visibility: hidden; transform: translateX(calc(1.5 * var(--u))); } 45.5%, 95% { opacity: 1; visibility: visible; transform: none; } 97%, 100% { opacity: 0; visibility: hidden; transform: none; } }
+@keyframes cs-chip { 0%, 11%, 46%, 100% { box-shadow: none; } 11.5%, 45% { box-shadow: 0 0 0 calc(0.14 * var(--u)) var(--lz-blue-500); } }
+@keyframes cs-pop { 0%, 27.5%, 46%, 100% { opacity: 0; visibility: hidden; } 28.5%, 45% { opacity: 1; visibility: visible; } }
+@keyframes cs-create { 0%, 35.5%, 46%, 100% { box-shadow: 0 0 0 0 transparent; } 36%, 45% { box-shadow: 0 0 0 calc(0.14 * var(--u)) var(--lz-blue-500); } }
+@keyframes cs-field { 0%, 50.5%, 97%, 100% { border-color: var(--lz-line); } 51%, 96% { border-color: var(--lz-blue-500); } }
+@keyframes cs-placeholder { 0%, 52.5%, 97.5%, 100% { opacity: 1; } 53%, 97% { opacity: 0; } }
+@keyframes cs-typed { 0%, 53%, 97.5%, 100% { clip-path: inset(0 100% 0 0); } 65%, 97% { clip-path: inset(0 0 0 0); } }
+@keyframes cs-confirm { 0%, 75.5%, 77%, 100% { transform: none; background: var(--lz-ink); } 76%, 76.5% { transform: scale(0.97); background: var(--lz-gray-700); } }
+@keyframes cs-marker-1 { 0%, 11%, 46%, 100% { opacity: 0; } 11.5%, 45% { opacity: 1; } }
+@keyframes cs-marker-2 { 0%, 26.5%, 46%, 100% { opacity: 0; } 27%, 45% { opacity: 1; } }
+@keyframes cs-marker-3 { 0%, 35.5%, 46%, 100% { opacity: 0; } 36%, 45% { opacity: 1; } }
+@keyframes cs-marker-4 { 0%, 46.5%, 97%, 100% { opacity: 0; } 47.5%, 96% { opacity: 1; } }
 .tour { position: fixed; inset: 0; z-index: 80; pointer-events: none; }
 .tour-ring { position: fixed; border-radius: var(--lz-radius-md); box-shadow: 0 0 0 2px var(--lz-accent), 0 0 0 6px color-mix(in oklab, var(--lz-accent) 25%, transparent), 0 0 0 9999px rgb(0 0 0 / 0.18); transition: left 160ms ease, top 160ms ease, width 160ms ease, height 160ms ease; }
-.tour-bubble { position: fixed; display: flex; flex-direction: column; gap: 8px; width: 300px; max-width: calc(100vw - 24px); padding: 16px 18px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); box-shadow: 0 12px 32px rgb(0 0 0 / 0.16); color: var(--lz-ink); pointer-events: auto; }
-.tour-bubble[data-side]::before { position: absolute; width: 10px; height: 10px; border-bottom: 1px solid var(--lz-line); border-left: 1px solid var(--lz-line); background: var(--lz-white); content: ""; }
+.tour-bubble { position: fixed; display: flex; flex-direction: column; gap: 8px; width: 300px; max-width: calc(100vw - 24px); padding: 16px 18px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-surface); box-shadow: 0 12px 32px rgb(0 0 0 / 0.16); color: var(--lz-ink); pointer-events: auto; }
+.tour-bubble[data-side]::before { position: absolute; width: 10px; height: 10px; border-bottom: 1px solid var(--lz-line); border-left: 1px solid var(--lz-line); background: var(--lz-surface); content: ""; }
 .tour-bubble[data-side="right"]::before { top: calc(var(--tour-arrow, 23px) - 5px); left: -6px; transform: rotate(45deg); }
 .tour-bubble[data-side="left"]::before { top: calc(var(--tour-arrow, 23px) - 5px); right: -6px; transform: rotate(-135deg); }
 .tour-bubble[data-side="below"]::before { top: -6px; left: calc(var(--tour-arrow, 23px) - 5px); transform: rotate(135deg); }
@@ -955,6 +1210,11 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
 .tour-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
 button.tour-later { height: auto; margin-left: auto; padding: 0; border: 0; background: transparent; color: var(--muted-fg); font-size: 12px; font-weight: 400; }
 button.tour-later:hover { background: transparent; color: var(--fg); }
+/* A "?" asked while Začínáme comes first (decision F56): the tour's bubble
+   says it is here; with less motion only its outline does. */
+.tour-bubble[data-nudge] { animation: tour-nudge 0.6s ease-in-out; }
+@keyframes tour-nudge { 0%, 100% { translate: 0 0; } 20% { translate: -6px 0; } 40% { translate: 6px 0; } 60% { translate: -4px 0; } 80% { translate: 4px 0; } }
+@media (prefers-reduced-motion: reduce) { .tour-bubble[data-nudge] { animation: none; outline: 2px solid var(--lz-accent); outline-offset: 2px; } }
 /* Nastavení → Začínáme (root decision 0201; the wireframe's setup.css,
    prototypes-lazurio 1eefc3d): the basics as numbered steps in one card, a
    step's mark green once done and red on a stop, the content's rows inside
@@ -1023,6 +1283,7 @@ button:not(.primary) .provider-openai { color: #000000; }
 <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 20L18 20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 16V4M12 4L15.5 7.5M12 4L8.5 7.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 20L18 20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 4V16M12 16L15.5 12.5M12 16L8.5 12.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-recovery" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2351 14.8906L5 19.0001" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.7649 14.8906L19 19.0001" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.7649 9.10943L19 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2351 9.10943L5 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6.90588 4.53682C6.50592 4.2998 6 4.58808 6 5.05299V18.947C6 19.4119 6.50592 19.7002 6.90588 19.4632L18.629 12.5162C19.0211 12.2838 19.0211 11.7162 18.629 11.4838L6.90588 4.53682Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-external" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M21 3L15 3M21 3L12 12M21 3V9" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 13V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H11" stroke="currentColor" stroke-linecap="round"/></symbol>
 <symbol id="i-chevron-left" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M15 6L9 12L15 18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 9L12 15L18 9" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -1030,6 +1291,7 @@ button:not(.primary) .provider-openai { color: #000000; }
 <symbol id="i-shop" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M3 10V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V10" stroke="currentColor"/><path d="M14.8333 21V15C14.8333 13.8954 13.9379 13 12.8333 13H10.8333C9.72874 13 8.83331 13.8954 8.83331 15V21" stroke="currentColor" stroke-miterlimit="16"/><path d="M21.8183 9.36418L20.1243 3.43517C20.0507 3.17759 19.8153 3 19.5474 3H15.5L15.9753 8.70377C15.9909 8.89043 16.0923 9.05904 16.2532 9.15495C16.6425 9.38698 17.4052 9.81699 18 10C19.0158 10.3125 20.5008 10.1998 21.3465 10.0958C21.6982 10.0526 21.9157 9.7049 21.8183 9.36418Z" stroke="currentColor"/><path d="M14 10C14.5675 9.82538 15.2879 9.42589 15.6909 9.18807C15.8828 9.07486 15.9884 8.86103 15.9699 8.63904L15.5 3H8.5L8.03008 8.63904C8.01158 8.86103 8.11723 9.07486 8.30906 9.18807C8.71207 9.42589 9.4325 9.82538 10 10C11.493 10.4594 12.507 10.4594 14 10Z" stroke="currentColor"/><path d="M3.87567 3.43517L2.18166 9.36418C2.08431 9.7049 2.3018 10.0526 2.6535 10.0958C3.49916 10.1998 4.98424 10.3125 6 10C6.59477 9.81699 7.35751 9.38698 7.74678 9.15495C7.90767 9.05904 8.00913 8.89043 8.02469 8.70377L8.5 3H4.45258C4.18469 3 3.94926 3.17759 3.87567 3.43517Z" stroke="currentColor"/></symbol>
 <symbol id="i-more" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M20 12.5C20.2761 12.5 20.5 12.2761 20.5 12C20.5 11.7239 20.2761 11.5 20 11.5C19.7239 11.5 19.5 11.7239 19.5 12C19.5 12.2761 19.7239 12.5 20 12.5Z" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12.5C12.2761 12.5 12.5 12.2761 12.5 12C12.5 11.7239 12.2761 11.5 12 11.5C11.7239 11.5 11.5 11.7239 11.5 12C11.5 12.2761 11.7239 12.5 12 12.5Z" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 12.5C4.27614 12.5 4.5 12.2761 4.5 12C4.5 11.7239 4.27614 11.5 4 11.5C3.72386 11.5 3.5 11.7239 3.5 12C3.5 12.2761 3.72386 12.5 4 12.5Z" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M8.58737 8.23597L11.1849 3.00376C11.5183 2.33208 12.4817 2.33208 12.8151 3.00376L15.4126 8.23597L21.2215 9.08017C21.9668 9.18848 22.2638 10.0994 21.7243 10.6219L17.5217 14.6918L18.5135 20.4414C18.6409 21.1798 17.8614 21.7428 17.1945 21.3941L12 18.678L6.80547 21.3941C6.1386 21.7428 5.35909 21.1798 5.48645 20.4414L6.47825 14.6918L2.27575 10.6219C1.73617 10.0994 2.03322 9.18848 2.77852 9.08017L8.58737 8.23597Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 9C9 5.49997 14.5 5.5 14.5 9C14.5 11.5 12 10.9999 12 13.9999" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 18.01L12.01 17.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 11.5V16.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7.51L12.01 7.49889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 12H12M18 12H12M12 12V6M12 12V18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M20 9L18.005 20.3463C17.8369 21.3026 17.0062 22 16.0353 22H7.96474C6.99379 22 6.1631 21.3026 5.99496 20.3463L4 9" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 6L15.375 6M3 6L8.625 6M8.625 6V4C8.625 2.89543 9.52043 2 10.625 2H13.375C14.4796 2 15.375 2.89543 15.375 4V6M8.625 6L15.375 6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -1071,23 +1333,31 @@ button:not(.primary) .provider-openai { color: #000000; }
 <lazurio-rail id="rail" app="apps"></lazurio-rail>
 <div class="app" id="app">
 <aside class="column" id="sidebar">
+<!-- The column's band on its top (Matěj 2026-10-17): the column's toggle
+     (layout.ts) and the app's name, the design system's approved lockup.
+     It is the Launchpad's own, not the shell's: every app draws its own band
+     with its own name (Chat T3 Code's, Automate MausBot's), and the shell's
+     column head below it takes nothing of the host. -->
+<div class="column-band">
+<button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button>
+<img class="column-lockup" src="../shell/vendor/lazurio/lockup-color.svg" alt="Lazurio" height="18">
+</div>
 <!-- The head of the column: the Environment picker with the gear of this
      Environment's Settings beside it, then the switch Chat · Apps ·
      Automate. -->
 <lazurio-column-head id="column-head" active="apps" settings="/settings/general"></lazurio-column-head>
-<!-- The column's toggle in its head, under the shared column head, where
-     Chat keeps T3 Code's under the same head (layout.ts); the column head
-     itself is the shell's and takes nothing of the host. -->
-<button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button>
-<!-- Apps: all modules, Files (decision F35) and the favourites; no module
-     list and no search. The Marketplace stands at the foot. -->
-<div class="column-apps" data-view="catalog files integrations marketplace">
+<!-- Apps: all modules, Files (decision F35), Integrace (F42), Trezor (F53's
+     addendum of 2026-10-18; not on this computer, ui.ts) and the
+     favourites; no module list and no search. The Marketplace stands at the
+     foot. -->
+<div class="column-apps" data-view="catalog files integrations vault marketplace">
 <nav class="column-scroll" id="catalog-nav" aria-labelledby="catalog-nav-label">
 <span class="sr-only" id="catalog-nav-label" data-message="appsTitle">Apps</span>
 <ul class="menu column-top">
 <li><a class="menu-item" href="/" id="catalog-home" data-route><svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg><span class="menu-name" data-message="appsAll">All modules</span></a></li>
-<li><a class="menu-item" href="/files" id="files-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><span class="menu-name" data-message="filesTitle">Files</span></a></li>
-<li><a class="menu-item" href="/integrations" id="integrations-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-integrations"/></svg><span class="menu-name" data-message="integrationsTitle">Integrations</span><span class="menu-count" id="integrations-attention" hidden></span></a></li>
+<li><a class="menu-item" href="/files" id="files-open" data-route data-guide="nav-files"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><span class="menu-name" data-message="filesTitle">Files</span></a></li>
+<li><a class="menu-item" href="/integrations" id="integrations-open" data-route data-guide="nav-integrations"><svg class="icon" aria-hidden="true"><use href="#i-integrations"/></svg><span class="menu-name" data-message="integrationsTitle">Integrations</span><span class="menu-count" id="integrations-attention" hidden></span></a></li>
+<li id="vault-nav"><a class="menu-item" href="/vault" id="vault-open" data-route data-guide="nav-vault"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span class="menu-name" data-message="vaultPageTitle">Vault</span></a></li>
 </ul>
 <div class="column-favorites" id="catalog-favorites"></div>
 </nav>
@@ -1103,7 +1373,6 @@ button:not(.primary) .provider-openai { color: #000000; }
 <li><a class="menu-item" href="/settings/communication" data-section="communication" data-route><svg class="icon" aria-hidden="true"><use href="#i-general"/></svg><span class="menu-name" data-message="voiceTitle">Agent communication</span></a></li>
 <li><a class="menu-item" href="/settings/machine" data-section="machine" data-route><svg class="icon" aria-hidden="true"><use href="#i-machine"/></svg><span class="menu-name" data-message="machineTitle">This Environment</span></a></li>
 <li><a class="menu-item" href="/settings/tools" data-section="tools" data-route><svg class="icon" aria-hidden="true"><use href="#i-tools"/></svg><span class="menu-name" data-message="toolsTitle">Tools</span></a></li>
-<li><a class="menu-item" href="/settings/vault" data-section="vault" data-route><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span class="menu-name" data-message="vaultPageTitle">Vault</span></a></li>
 <li><a class="menu-item" href="/settings/ssh" data-section="ssh" data-route><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg><span class="menu-name" data-message="sshTitle">SSH from your devices</span></a></li>
 <li><a class="menu-item" href="/settings/recovery" data-section="recovery" data-route><svg class="icon" aria-hidden="true"><use href="#i-recovery"/></svg><span class="menu-name" data-message="recoveryTitle">Recovery</span></a></li>
 </ul>
@@ -1121,14 +1390,14 @@ button:not(.primary) .provider-openai { color: #000000; }
 <p id="update-error" hidden></p>
 <p id="update-state-invalid" hidden></p>
 </section>
-<ul class="menu" data-view="catalog files integrations marketplace"><li><a class="menu-item" href="/marketplace" id="marketplace-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg><span class="menu-name" data-message="appsMarketplace">Marketplace</span><span class="menu-soon" data-message="appsSoon">coming soon</span></a></li></ul>
+<ul class="menu" data-view="catalog files integrations vault marketplace"><li><a class="menu-item" href="/marketplace" id="marketplace-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg><span class="menu-name" data-message="appsMarketplace">Marketplace</span><span class="menu-soon" data-message="appsSoon">coming soon</span></a></li></ul>
 <ul class="menu" data-view="settings"><li><a class="menu-item" href="/" id="settings-back" data-route><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg><span class="menu-name" data-message="settingsBack">Back</span></a></li></ul>
 </div>
 <!-- The column's right edge drags it wider or narrower (layout.ts). -->
 <div class="column-divider" id="column-divider" role="separator" aria-orientation="vertical" aria-controls="sidebar" tabindex="0"></div>
 </aside>
 <div class="backdrop" id="backdrop"></div>
-<button type="button" class="nav-toggle" id="nav-toggle" aria-controls="sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-panel"/></svg><span class="sr-only" data-message="navigationOpen">Open navigation</span></button>
+<button type="button" class="nav-toggle" id="nav-toggle" aria-controls="sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-panel"/></svg><span class="sr-only" data-message="navigationOpen">Show left panel</span></button>
 <div class="page" id="page">
 <!-- The page's top corners (Matěj 2026-10-12, evening; the wireframe's
      apps-corner), the same on every page: top left the column's toggle
@@ -1138,14 +1407,15 @@ button:not(.primary) .provider-openai { color: #000000; }
      offered and which stays, pressed, while the panel is open. -->
 <div class="page-top">
 <div class="page-corner page-corner-start"><button type="button" class="ghost column-toggle" aria-controls="sidebar" aria-expanded="true"><svg class="icon column-toggle-hide" aria-hidden="true"><use href="#i-panel-close"/></svg><svg class="icon column-toggle-show" aria-hidden="true"><use href="#i-panel"/></svg></button></div>
-<div class="page-corner page-corner-end" id="page-corner"><a class="apps-guide" id="catalog-guide" data-view="catalog" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a><a class="apps-guide" id="integrations-composio" data-view="integrations" target="_blank" rel="noopener noreferrer" hidden><svg class="icon" aria-hidden="true"><use href="#i-external"/></svg><span class="integrations-composio-text" data-message="integrationsComposioApps">Apps in Composio</span></a><a class="apps-guide" id="integrations-help" data-view="integrations" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span class="integrations-help-text" data-message="integrationsHelp">How it works</span></a><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></div>
+<div class="page-corner page-corner-end" id="page-corner"><a class="apps-guide" id="catalog-guide" data-view="catalog" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a><a class="apps-guide" id="integrations-composio" data-view="integrations" data-guide="composio-apps" target="_blank" rel="noopener noreferrer" hidden><svg class="icon" aria-hidden="true"><use href="#i-external"/></svg><span class="integrations-composio-text" data-message="integrationsComposioApps">Apps in Composio</span></a><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" data-guide="browser" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></div>
 </div>
-<!-- Settings and Files: a 52 px header with the breadcrumb and the page
-     actions (T3 Code). The Apps home has none: no top bar. -->
-<header class="topbar" data-view="settings files">
+<!-- Settings, Files and Trezor: a 52 px header with the breadcrumb and the
+     page actions (T3 Code); Files and Trezor have their title alone in it.
+     The Apps home has none: no top bar. -->
+<header class="topbar" data-view="settings files vault">
 <nav class="crumbs" id="crumbs" aria-labelledby="crumbs-label">
 <span class="sr-only" id="crumbs-label" data-message="settingsBreadcrumb">Where you are in Settings</span>
-<ol><li id="crumb-parent" data-view="settings"><a href="/settings/general" id="crumb-settings" data-message="settingsTitle" data-route>Settings</a></li><li id="crumb-organization" hidden><a href="/" id="crumb-org" data-route></a></li><li aria-current="page"><h1 id="page-heading" tabindex="-1">Launchpad</h1></li></ol>
+<ol><li id="crumb-parent" data-view="settings"><a href="/settings/general" id="crumb-settings" data-message="settingsTitle" data-route>Settings</a></li><li id="crumb-organization" hidden><a href="/" id="crumb-org" data-route></a></li><li aria-current="page"><h1 id="page-heading" tabindex="-1">Launchpad</h1><button type="button" class="page-help" id="page-help" hidden><svg class="icon" aria-hidden="true"><use href="#i-help"/></svg></button></li></ol>
 </nav>
 <div class="topbar-actions">
 <button type="button" class="ghost" id="files-refresh" data-section-action="files"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="filesRefresh">Refresh</span></button>
@@ -1164,7 +1434,7 @@ button:not(.primary) .provider-openai { color: #000000; }
      module's overview `/o/<org>/<module>` from a tile's menu; drawn by
      catalog-panel.ts. -->
 <main id="view-catalog" class="container wide" data-view="catalog">
-<header class="apps-head" id="catalog-head"><div class="apps-head-name" id="catalog-head-name"></div></header>
+<header class="apps-head" id="catalog-head"><div class="apps-head-name" id="catalog-head-name"><button type="button" class="page-help" id="catalog-help" hidden><svg class="icon" aria-hidden="true"><use href="#i-help"/></svg></button></div></header>
 <p id="catalog-status" class="row-status" role="status" aria-live="polite">Reading Organizations…</p>
 <div id="catalog-body" class="stack"></div>
 </main>
@@ -1182,7 +1452,7 @@ button:not(.primary) .provider-openai { color: #000000; }
      The head holds the title; the search and Zkontrolovat připojení stand at
      the right end of the tabs' row, outside their navigation. -->
 <main id="view-integrations" class="container wide" data-view="integrations">
-<header class="apps-head integrations-head"><div class="integrations-titles"><h1 class="apps-title" data-page-heading tabindex="-1" data-message="integrationsTitle">Integrations</h1><p class="module-meta" data-message="integrationsSubtitle">Connected apps every agent and bot of this Environment uses.</p></div></header>
+<header class="apps-head integrations-head"><div class="integrations-titles"><h1 class="apps-title" data-page-heading tabindex="-1" data-message="integrationsTitle">Integrations</h1><button type="button" class="page-help" id="integrations-page-help" hidden><svg class="icon" aria-hidden="true"><use href="#i-help"/></svg></button></div></header>
 <div class="integrations-bar">
 <nav class="integrations-tabs" id="integrations-tabs" aria-labelledby="integrations-tabs-label"><span class="sr-only" id="integrations-tabs-label" data-message="integrationsTabsLabel">Show</span><a class="integrations-tab" href="/integrations" data-tab="all" data-route>All</a><a class="integrations-tab" href="/integrations/connected" data-tab="connected" data-route>Connected</a><a class="integrations-tab" href="/integrations/custom" data-tab="custom" data-route>Custom</a></nav>
 <div class="integrations-tools"><label class="integrations-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only" data-message="integrationsSearch">Search apps</span><input type="search" id="integrations-search" autocomplete="off" spellcheck="false"></label><button type="button" class="ghost integrations-refresh" id="integrations-refresh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span class="sr-only" data-message="integrationsRefresh">Check connections</span></button></div>
@@ -1195,12 +1465,9 @@ button:not(.primary) .provider-openai { color: #000000; }
 </main>
 
 <!-- Files (decision F35): the Documents folder of this Environment, `/files`
-     and `/files/<path>`; drawn by files-panel.ts. -->
+     and `/files/<path>`; drawn by files-panel.ts. No sentence explains it:
+     the "?" beside its heading does (decision F56). -->
 <main id="view-files" class="container" data-view="files">
-<div class="section-head-text">
-<p class="intro" data-message="filesIntro">The Documents folder of this Environment. Agents save finished files here; download them, or upload files for the agents.</p>
-<p id="files-shared" class="tools-warning" role="note" hidden data-message="filesShared">This Environment is shared: the whole Team sees and changes the same folder.</p>
-</div>
 <nav class="files-path" aria-labelledby="files-path-label"><span class="sr-only" id="files-path-label" data-message="filesPath">Folder path</span><ol id="files-crumbs"></ol></nav>
 <div class="files-toolbar" id="files-toolbar" hidden>
 <button type="button" class="primary" id="files-upload"><svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg><span data-message="filesUpload">Upload files</span></button>
@@ -1213,14 +1480,112 @@ button:not(.primary) .provider-openai { color: #000000; }
 </section>
 <p id="files-status" class="row-status" role="status" aria-live="polite"></p>
 <p id="files-announce" class="sr-only" role="status" aria-live="polite"></p>
-<div id="files-body" class="stack"></div>
+<div id="files-body" class="stack" data-guide="files-list"></div>
+</main>
+
+<!-- Trezor, Apps → Trezor (root decision 0198 point 5, the wireframe of
+     prototypes-lazurio#33; a page of the Apps column since F53's addendum
+     of 2026-10-18, `/vault`, its old `/settings/vault` leading here): the
+     rule, the Environment's own vault with its state, and the way into
+     Lazurio Vaultwarden on its own address; drawn by vault-page-panel.ts.
+     The Launchpad never lists items or shows a value. -->
+<main id="view-vault" class="container" data-view="vault">
+<section id="section-vault" aria-labelledby="page-heading">
+<!-- How a vault works in an Organization (DEV-6631, design-system-lazurio#93):
+     the approved guide video `vault-overview`, which the "?" beside the
+     page's heading opens in place and plays where its words are true, with
+     the one line it does not say under it (decision F56's addendum of
+     2026-10-18, page-help.ts); hidden until then. The page itself keeps no
+     sentence that explains the vault. -->
+<div class="vault-video" id="vault-video" hidden>
+<div class="guide-video" id="vault-video-player"></div>
+<p class="group-note" id="vault-video-line" data-message="vaultVideoLine">Whoever can enter the Environment has its passwords too</p>
+</div>
+<div class="section-head-text">
+<p class="intro" id="vault-page-note" hidden></p>
+<p class="intro vault-page-guide" id="vault-page-guide" hidden></p>
+<p id="vault-page-status" class="row-status" role="status" aria-live="polite"></p>
+</div>
+<!-- Žádosti agentů (root decision 0198 point 9 (c), decision F54): the
+     agents' secret requests wait here, above the vault, each opening its
+     request's page; drawn by vault-requests-panel.ts, hidden while none
+     waits. -->
+<section class="group" id="vault-requests" hidden></section>
+<section class="group" id="vault-page-group" hidden>
+<div class="card" data-guide="vault-row"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" id="vault-page-name"></p><p class="row-status vault-page-state" id="vault-page-state" role="status" aria-live="polite"></p></div><div class="row-control" id="vault-page-actions" data-guide="vault-open"></div></div></div></div>
+<p class="group-note" id="vault-page-hint" hidden></p>
+<!-- The invitation a personal Environment's person may ask for once their
+     own Bitwarden is connected (F53's amendment of 2026-10-16, (2)): one
+     question, one address, one button; drawn by vault-page-panel.ts. -->
+<form class="card vault-invite" id="vault-invite" novalidate hidden><div class="row"><div class="vault-invite-field"><p class="row-title" data-message="vaultInviteTitle">Want to see your agents' passwords in your own Bitwarden too?</p><label for="vault-invite-email" class="row-desc" data-message="vaultInviteEmail">Your Bitwarden e-mail</label><span class="vault-request-value"><input id="vault-invite-email" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="254"><button type="submit" class="primary" id="vault-invite-submit" disabled>Invite me</button></span><p class="vault-request-error" id="vault-invite-error" role="alert"></p></div></div></form>
+<div class="vault-disconnect" id="vault-page-disconnect" hidden><p class="group-note" data-message="vaultDisconnectNote">The vault and its passwords stay in Bitwarden.</p><button type="button" id="vault-disconnect" data-message="vaultDisconnect">Disconnect Bitwarden</button></div>
+</section>
+<!-- The vault in the Bitwarden extension of Codex Desktop and the person's
+     own browser (F53's addendum of 2026-10-16): the steps, a value with its
+     Copy button; drawn by vault-page-panel.ts, hidden where the person has
+     no vault to add here. Začínáme's "Návod" brings it into view. -->
+<section class="group" id="vault-bitwarden" aria-labelledby="vault-bitwarden-heading" hidden>
+<div class="group-head"><h2 id="vault-bitwarden-heading" tabindex="-1" data-message="vaultBitwardenTitle">In Codex Desktop and your browser</h2></div>
+<!-- The guide's video (guide-video.ts): "Přehrát video", then the browser's
+     own player in its place. -->
+<div class="guide-video" id="vault-bitwarden-video"></div>
+<p class="group-note" id="vault-bitwarden-first" hidden></p>
+<ol class="card vault-bitwarden-steps" id="vault-bitwarden-steps"></ol>
+<p class="group-note" id="vault-bitwarden-note" hidden></p>
+<!-- The Bitwarden extension's own screens (version 2026.10.0, fictional
+     values), the place to fill in ringed; bundled with the page, never shown
+     here: a step shows a copy in the page's language. -->
+<div id="vault-bitwarden-pictures" hidden><img data-picture="server" data-locale="cs" src="./images/bitwarden-server-cs.webp" width="380" height="423" alt="" loading="lazy" decoding="async"><img data-picture="server" data-locale="en" src="./images/bitwarden-server-en.webp" width="380" height="423" alt="" loading="lazy" decoding="async"><img data-picture="email" data-locale="cs" src="./images/bitwarden-email-cs.webp" width="380" height="397" alt="" loading="lazy" decoding="async"><img data-picture="email" data-locale="en" src="./images/bitwarden-email-en.webp" width="380" height="397" alt="" loading="lazy" decoding="async"></div>
+</section>
+<!-- A personal Environment connects its person's own Bitwarden (root
+     decision 0203 point 7, plan DEV-6631 task 775; F53's amendment of
+     2026-10-16, (2)): the title, the picture of the vault between the
+     person's Bitwarden and the agents, one line, the slot of the guide's
+     video, two steps with Bitwarden's own screens, the fields and one
+     button; shown while the vault waits for the connection, drawn by
+     vault-page-panel.ts. A value goes from its input to the one connect
+     request and nowhere else. -->
+<section class="group" id="vault-connect" aria-labelledby="vault-connect-heading" hidden>
+<div class="group-head"><h2 id="vault-connect-heading" data-message="vaultConnectTitle">Your agents' passwords in your Bitwarden</h2></div>
+<svg class="vault-connect-picture" id="vault-connect-picture" data-guide="vault-row" viewBox="0 0 340 108" width="340" height="108" role="img" aria-labelledby="vault-connect-picture-label"><title id="vault-connect-picture-label"></title><line class="vault-connect-link" x1="79" y1="30" x2="146" y2="30"/><line class="vault-connect-link" x1="194" y1="30" x2="261" y2="30"/><rect class="vault-connect-node" x="31.5" y="6.5" width="47" height="47" rx="10"/><rect class="vault-connect-node" x="261.5" y="6.5" width="47" height="47" rx="10"/><use class="vault-connect-side" href="#i-user" x="43" y="18" width="24" height="24"/><rect class="vault-connect-vault" x="146" y="6" width="48" height="48" rx="10"/><use class="vault-connect-lock" href="#i-lock" x="156" y="16" width="28" height="28"/><use class="vault-connect-side" href="#i-bot" x="273" y="18" width="24" height="24"/><text x="55" y="78" data-message="vaultConnectYours">Your Bitwarden</text><text x="170" y="78" id="vault-connect-picture-vault"></text><text x="285" y="78" data-message="vaultConnectAgents">Agents</text><text class="vault-connect-where" x="285" y="96" data-message="vaultConnectAgentsWhere">in this Environment</text></svg>
+<p class="intro" data-message="vaultConnectLead">Your agents get their own account and can't see into yours.</p>
+<!-- The guide's video (guide-video.ts, as #vault-bitwarden-video): the
+     panel mounts createGuideVideo here with the name
+     `vault-personal-bitwarden` once its files exist in src/launchpad/videos/
+     and the name is in guideVideoNames (Lazurio/LazurioPlatform#452); empty
+     and collapsed until then. -->
+<div class="guide-video" id="vault-connect-video"></div>
+<form id="vault-connect-form" novalidate autocomplete="off">
+<ol class="card vault-bitwarden-steps vault-connect-steps">
+<li><span class="vault-bitwarden-text" data-message="vaultConnectSignUp">Create an account for your agents. For its e-mail, you can use your own with +agents: jana+agents@gmail.com</span><span class="vault-bitwarden-link"><a class="button primary" id="vault-connect-open" target="_blank" rel="noopener noreferrer"><span id="vault-connect-open-label">Open bitwarden.eu</span><svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a><button type="button" class="link-button" id="vault-connect-other">Using bitwarden.com?</button></span><span class="vault-connect-shot" data-shot="signup"></span></li>
+<li><span class="vault-bitwarden-text" data-message="vaultConnectApiKey">In the new account, open Settings → Security → Keys → View API key and copy both values here.</span><span class="vault-connect-shot" data-shot="api-key"></span><div class="vault-connect-fields">
+<div class="vault-connect-field"><label for="vault-connect-client-id" data-message="vaultConnectClientId">client_id</label><input id="vault-connect-client-id" name="clientId" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="200" placeholder="user.…"></div>
+<div class="vault-connect-field"><label for="vault-connect-client-secret" data-message="vaultConnectClientSecret">client_secret</label><span class="vault-request-value"><input id="vault-connect-client-secret" name="clientSecret" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="200"><button type="button" class="ghost" data-reveal="vault-connect-client-secret" aria-controls="vault-connect-client-secret" aria-pressed="false">Show</button></span></div>
+<div class="vault-connect-field"><label for="vault-connect-password" data-message="vaultConnectPassword">Master password of the agents' account</label><span class="vault-request-value"><input id="vault-connect-password" name="masterPassword" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="1024"><button type="button" class="ghost" data-reveal="vault-connect-password" aria-controls="vault-connect-password" aria-pressed="false">Show</button></span></div>
+<div class="vault-connect-submit"><button type="submit" class="primary" id="vault-connect-submit" disabled>Connect</button><p class="group-note" data-message="vaultConnectKept">These details stay only in this Environment.</p></div>
+<p class="vault-request-error" id="vault-connect-error" role="alert"></p>
+</div></li>
+</ol>
+</form>
+<!-- Bitwarden's own screens (its web vault 2026.10.0 and 2026.7.0, the
+     same words; fictional values), the place to fill in ringed; bundled with
+     the page, never shown here: a step shows a copy in the page's language
+     once the section shows. -->
+<div id="vault-connect-pictures" hidden><img data-picture="signup" data-locale="cs" src="./images/bitwarden-signup-cs.webp" width="380" height="448" alt="" loading="lazy" decoding="async"><img data-picture="signup" data-locale="en" src="./images/bitwarden-signup-en.webp" width="380" height="427" alt="" loading="lazy" decoding="async"><img data-picture="api-key" data-locale="cs" src="./images/bitwarden-api-key-cs.webp" width="380" height="277" alt="" loading="lazy" decoding="async"><img data-picture="api-key" data-locale="en" src="./images/bitwarden-api-key-en.webp" width="380" height="277" alt="" loading="lazy" decoding="async"></div>
+</section>
+<!-- One agent's secret request (/vault/requests/<id>, decision F54): on
+     its route it alone shows of this section (`data-request`), drawn by
+     vault-requests-panel.ts. -->
+<div id="vault-request" hidden></div>
+</section>
 </main>
 
 <main id="view-settings" class="container" data-view="settings">
 <!-- Začínáme (root decision 0201, the wireframe's Start.tsx of
      prototypes-lazurio 1eefc3d): the Environment's basics checked from live
      facts, the vault, the optional steps and the tour; drawn by
-     start-panel.ts. Only where the Environment signs in as its person. -->
+     start-panel.ts. Only where the Environment signs in as its person; a
+     public Environment (decision F55) shows "Vyzkoušejte" and the tour. -->
 <section id="section-start" data-section="start" aria-labelledby="page-heading">
 <div class="section-head-text">
 <p class="intro" id="start-intro" role="status" aria-live="polite"></p>
@@ -1228,18 +1593,22 @@ button:not(.primary) .provider-openai { color: #000000; }
 </div>
 <section class="group" data-start aria-labelledby="start-required-heading" hidden>
 <div class="group-head"><h2 id="start-required-heading" data-message="startRequired">Required steps</h2></div>
-<ol class="card start-steps" id="start-steps"></ol>
+<ol class="card start-steps" id="start-steps" data-guide="start-steps"></ol>
 <div id="start-content"></div>
 </section>
 <section class="group" id="start-vault-group" aria-labelledby="start-vault-heading" hidden>
 <div class="group-head"><h2 id="start-vault-heading" data-message="startVaultGroup">Passwords for agents</h2></div>
-<div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" data-message="startVaultTitle">Environment vault</p><p class="row-status start-vault-state" id="start-vault-state"></p></div><div class="row-control"><a class="button" href="/settings/vault" data-route data-message="startOpen">Open</a></div></div></div></div>
+<div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" data-message="startVaultTitle">Environment vault</p><p class="row-status start-vault-state" id="start-vault-state"></p></div><div class="row-control"><a class="button" href="/vault" data-route data-message="startOpen">Open</a></div></div></div></div>
 </section>
 <section class="group" id="start-optional-group" data-start aria-labelledby="start-optional-heading" hidden>
 <div class="group-head"><h2 id="start-optional-heading" data-message="startOptional">Optional</h2></div>
-<div class="card" id="start-optional"></div>
+<div class="card" id="start-optional" data-guide="start-optional"></div>
 </section>
-<section class="group" data-start aria-labelledby="start-tour-heading" hidden>
+<section class="group" id="start-demo-group" aria-labelledby="start-demo-heading" hidden>
+<div class="group-head"><h2 id="start-demo-heading" data-message="startDemoGroup">Try it</h2></div>
+<div class="card" id="start-demo"></div>
+</section>
+<section class="group" id="start-tour-group" data-start aria-labelledby="start-tour-heading" hidden>
 <div class="group-head"><h2 id="start-tour-heading" data-message="startTourGroup">App tour</h2></div>
 <div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" data-message="startTourTitle">Apps, Chat and Automate</p><p class="row-status" id="start-tour-state"></p></div><div class="row-control"><button type="button" id="start-tour"></button></div></div></div></div>
 </section>
@@ -1251,29 +1620,35 @@ button:not(.primary) .provider-openai { color: #000000; }
 <legend><h2 id="legend" data-message="legend">Environment profile</h2></legend>
 <div class="card">
 <div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="preset" data-message="preset">Workspace preset</label><p class="row-desc" id="preset-hint" data-message="presetHint">The kind of this Environment.</p></div><div class="row-control"><select name="preset" id="preset" aria-describedby="preset-hint"></select></div></div></div>
-<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="locale" data-message="locale">Language</label><p class="row-desc" id="locale-hint" data-message="localeHint">The language of this page and of the agents.</p></div><div class="row-control"><select name="locale" id="locale" aria-describedby="locale-hint"><option value="en">English</option><option value="cs">Čeština</option></select></div></div></div>
-<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="detail" data-message="detail">Detail</label><p class="row-desc" id="detail-hint" data-message="detailHint">How agents explain their work: briefly, or with technical explanation and evidence.</p></div><div class="row-control"><select name="detail" id="detail" aria-describedby="detail-hint"><option value="concise" data-message="concise">Concise</option><option value="technical" data-message="technical">Technical</option></select></div></div></div>
-<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="coordination" data-message="coordination">Coordination</label><p class="row-desc" id="coordination-hint" data-message="coordinationHint">Whether agents work directly, or delegate within the task and verify the results.</p></div><div class="row-control"><select name="coordination" id="coordination" aria-describedby="coordination-hint"><option value="direct" data-message="direct">Direct</option><option value="coordinator" data-message="coordinator">Coordinator</option></select></div></div></div>
-<div class="row"><div class="row-main"><div class="row-copy"><p id="status" class="row-status" role="status">Loading…</p></div><div class="row-control"><button type="submit" data-message="preview">Preview</button><button type="button" id="apply" class="primary" data-message="apply" disabled>Apply previewed change</button></div></div></div>
+<div class="row" data-guide="general-language"><div class="row-main"><div class="row-copy"><label class="row-title" for="locale" data-message="locale">Language</label></div><div class="row-control"><select name="locale" id="locale"><option value="en">English</option><option value="cs">Čeština</option></select></div></div></div>
+<div class="row" data-guide="general-detail"><div class="row-main"><div class="row-copy"><label class="row-title" for="detail" data-message="detail">Detail</label></div><div class="row-control"><select name="detail" id="detail"><option value="concise" data-message="concise">Concise</option><option value="technical" data-message="technical">Technical</option></select></div></div></div>
+<div class="row" data-guide="general-coordination"><div class="row-main"><div class="row-copy"><label class="row-title" for="coordination" data-message="coordination">Coordination</label></div><div class="row-control"><select name="coordination" id="coordination"><option value="direct" data-message="direct">Direct</option><option value="coordinator" data-message="coordinator">Coordinator</option></select></div></div></div>
+<div class="row" data-guide="general-apply"><div class="row-main"><div class="row-copy"><p id="status" class="row-status" role="status">Loading…</p></div><div class="row-control"><button type="submit" data-message="preview">Preview</button><button type="button" id="apply" class="primary" data-message="apply" disabled>Apply previewed change</button></div></div></div>
 </div>
 </fieldset>
 </form>
 <details class="technical"><summary data-message="technicalDetails">Technical details</summary><pre id="result"></pre></details>
+<!-- The Environment's theme (root decision 0208): a card per theme, drawn by
+     theme-panel.ts once `GET /api/theme` answered; never on a public
+     Environment, whose theme is fixed. -->
+<section class="group" id="theme-group" aria-labelledby="theme-heading" hidden>
+<div class="group-head"><h2 id="theme-heading" data-message="themeGroup">Environment theme</h2><p class="group-note" id="theme-note" data-message="themeNote">The colours of Chat, Apps and Automate in this Environment.</p></div>
+<div class="theme-choices" id="theme-choices" role="radiogroup" aria-labelledby="theme-heading" aria-describedby="theme-note"></div>
+<p id="theme-shared" class="row-desc" hidden data-message="themeShared">Everyone in this Team Environment sees the same theme.</p>
+<p id="theme-status" class="row-status" role="status" aria-live="polite"></p>
+</section>
 </section>
 
 <section id="section-communication" data-section="communication" aria-labelledby="page-heading">
-<p class="intro" data-message="voiceIntro">Set how agents communicate in this Environment, including emails, WhatsApp messages and instructions for other agents.</p>
-<p id="voice-shared" class="row-desc" hidden data-message="voiceShared">Everyone in this team Environment uses the same voice.</p>
 <form id="voice-form" class="group">
 <fieldset id="voice-fields" disabled class="group">
 <legend><h2 data-message="voiceEditor">Tone of Voice for agents</h2></legend>
 <div class="card voice-card">
 <div class="voice-meta"><span id="voice-meta"></span><a href="/settings/general" data-route data-message="voiceLanguageLink">Change language in General</a></div>
 <label for="voice-text" class="sr-only" data-message="voiceEditor">Tone of Voice for agents</label>
-<textarea id="voice-text" rows="16" aria-describedby="voice-hint voice-status"></textarea>
-<p id="voice-hint" class="row-desc" data-message="voiceHint">Edit the text to suit you. Saved changes apply to new conversations.</p>
+<textarea id="voice-text" rows="16" aria-describedby="voice-status" data-guide="voice-text"></textarea>
 </div>
-<div class="voice-actions"><button type="submit" class="primary" id="voice-save" data-message="voiceSave">Save</button><button type="button" id="voice-cancel" data-message="voiceCancel">Cancel changes</button><button type="button" class="ghost" id="voice-default" data-message="voiceRestore">Restore default</button></div>
+<div class="voice-actions" data-guide="voice-save"><button type="submit" class="primary" id="voice-save" data-message="voiceSave">Save</button><button type="button" id="voice-cancel" data-message="voiceCancel">Cancel changes</button><button type="button" class="ghost" id="voice-default" data-message="voiceRestore">Restore default</button></div>
 </fieldset>
 <p id="voice-status" class="row-status" role="status" aria-live="polite"></p>
 <button type="button" id="voice-refresh" hidden data-message="voiceRefresh">Load current settings</button>
@@ -1287,88 +1662,17 @@ button:not(.primary) .provider-openai { color: #000000; }
 <div class="group-head"><h2 id="content-heading" data-message="contentTitle">Content of this Environment</h2></div>
 <div class="card" id="content-list"></div>
 </section>
-<dl id="machine" class="card"></dl>
-<details class="technical" id="machine-support" hidden><summary data-message="machineSupport">For support</summary><dl id="machine-support-list" class="card"></dl></details>
+<dl id="machine" class="card" data-guide="machine-facts"></dl>
+<details class="technical" id="machine-support" data-guide="machine-support" hidden><summary data-message="machineSupport">For support</summary><dl id="machine-support-list" class="card"></dl></details>
 </section>
 
 <section id="tools" data-section="tools" aria-labelledby="page-heading">
-<div class="section-head-text">
-<p id="tools-shared" class="tools-warning" role="note" hidden data-message="toolsShared">This is the whole Team's shared Environment. Sign in here with team accounts, such as a shared mailbox or calendar. Whatever you sign in here, anyone in the Team can use. Connect your personal accounts in your own Environment.</p>
-<p class="toolbar"><span id="tools-checked"></span></p>
 <p id="tools-announce" class="sr-only" role="status" aria-live="polite"></p>
-</div>
-<div id="tools-groups" class="stack"></div>
+<div id="tools-groups" class="stack" data-guide="tools"></div>
 <section class="group" aria-labelledby="tools-mcp-heading">
 <div class="group-head"><h2 id="tools-mcp-heading" data-message="toolsMcpTitle">A custom MCP server</h2></div>
-<div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-desc" data-message="toolsMcpText">You add custom MCP servers in Apps → Integrations → Custom; an agent adds one on your explicit request.</p></div><div class="row-control"><button type="button" id="tools-mcp" data-message="toolsMcpAction" disabled>Add one with an agent</button></div></div></div></div>
+<div class="card"><div class="row"><div class="row-main"><div class="row-control"><button type="button" id="tools-mcp" data-message="toolsMcpAction" disabled>Add one with an agent</button></div></div></div></div>
 </section>
-</section>
-
-<!-- Vault, Nastavení → Trezor (root decision 0198 point 5, the wireframe of
-     prototypes-lazurio#33): the rule, the Environment's own vault with its
-     state, and the way into Lazurio Vaultwarden on its own address; drawn
-     by vault-page-panel.ts. The Launchpad never lists items or shows a
-     value. -->
-<section id="section-vault" data-section="vault" aria-labelledby="page-heading">
-<div class="section-head-text">
-<p class="intro" id="vault-page-rule" data-message="vaultPageRule">Whoever has access to the Environment has all of its passwords.</p>
-<p class="intro" id="vault-page-note" hidden></p>
-<p class="intro vault-page-guide" id="vault-page-guide" hidden></p>
-<p id="vault-page-status" class="row-status" role="status" aria-live="polite"></p>
-</div>
-<!-- Žádosti agentů (root decision 0198 point 9 (c), decision F54): the
-     agents' secret requests wait here, above the vault, each opening its
-     request's page; drawn by vault-requests-panel.ts, hidden while none
-     waits. -->
-<section class="group" id="vault-requests" hidden></section>
-<section class="group" id="vault-page-group" hidden>
-<div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" id="vault-page-name"></p><p class="row-status vault-page-state" id="vault-page-state" role="status" aria-live="polite"></p></div><div class="row-control" id="vault-page-actions"></div></div></div></div>
-<p class="group-note" id="vault-page-hint" hidden></p>
-<div class="vault-disconnect" id="vault-page-disconnect" hidden><p class="group-note" data-message="vaultDisconnectNote">Disconnecting removes the agents' account details from this Environment; the organization stays in Bitwarden.</p><button type="button" id="vault-disconnect" data-message="vaultDisconnect">Disconnect Bitwarden</button></div>
-</section>
-<!-- The vault in the Bitwarden extension of Codex Desktop and the person's
-     own browser (F53's addendum of 2026-10-16): the steps, a value with its
-     Copy button; drawn by vault-page-panel.ts, hidden where the person has
-     no vault to add here. Začínáme's "Návod" brings it into view. -->
-<section class="group" id="vault-bitwarden" aria-labelledby="vault-bitwarden-heading" hidden>
-<div class="group-head"><h2 id="vault-bitwarden-heading" tabindex="-1" data-message="vaultBitwardenTitle">In Codex Desktop and your browser</h2></div>
-<p class="group-note" id="vault-bitwarden-first" hidden></p>
-<ol class="card vault-bitwarden-steps" id="vault-bitwarden-steps"></ol>
-<p class="group-note" id="vault-bitwarden-note" hidden></p>
-<!-- The Bitwarden extension's own screens (version 2026.10.0, fictional
-     values), the place to fill in ringed; bundled with the page, never shown
-     here: a step shows a copy in the page's language. -->
-<div id="vault-bitwarden-pictures" hidden><img data-picture="server" data-locale="cs" src="./images/bitwarden-server-cs.webp" width="380" height="423" alt="" loading="lazy" decoding="async"><img data-picture="server" data-locale="en" src="./images/bitwarden-server-en.webp" width="380" height="423" alt="" loading="lazy" decoding="async"><img data-picture="email" data-locale="cs" src="./images/bitwarden-email-cs.webp" width="380" height="397" alt="" loading="lazy" decoding="async"><img data-picture="email" data-locale="en" src="./images/bitwarden-email-en.webp" width="380" height="397" alt="" loading="lazy" decoding="async"></div>
-</section>
-<!-- A personal Environment connects its person's own Bitwarden (root
-     decision 0203 point 7, plan DEV-6631 task 775): the explanation, the
-     slot of its motion graphic (Lazurio/LazurioPlatform#452) and the one
-     form, shown while the vault waits for the connection; drawn by
-     vault-page-panel.ts. A value goes from its input to the one connect
-     request and nowhere else. -->
-<section class="group" id="vault-connect" aria-labelledby="vault-connect-heading" hidden>
-<div class="group-head"><h2 id="vault-connect-heading" data-message="vaultConnectTitle">Connect your Bitwarden</h2></div>
-<div class="vault-connect-motion" id="vault-connect-motion" data-motion="personal-bitwarden" aria-hidden="true"></div>
-<p class="intro" data-message="vaultPageNeedsConnection">This personal Environment keeps its agents' passwords in your own Bitwarden, in a free organization for you and a separate agents' account.</p>
-<p class="intro" data-message="vaultConnectMainAccount">Agents never get your main account: they sign in with the agents' account only.</p>
-<ol class="vault-connect-steps">
-<li data-message="vaultConnectStep1">In the same service and region as your own account, create a new account for the agents.</li>
-<li data-message="vaultConnectStep2">In it, open Account settings → Security → Keys → API key and copy the client_id and client_secret.</li>
-<li data-message="vaultConnectStep3">Enter them here with the agents' account master password and the e-mail of your own account. This Environment creates the vault and invites you into it.</li>
-</ol>
-<form id="vault-connect-form" class="card" novalidate autocomplete="off">
-<div class="row"><div class="vault-connect-field"><label class="row-title" for="vault-connect-region" data-message="vaultConnectRegion">Bitwarden region</label><select id="vault-connect-region" name="region"><option value="eu" data-message="vaultConnectRegionEu">EU (bitwarden.eu)</option><option value="us" data-message="vaultConnectRegionUs">US (bitwarden.com)</option></select></div></div>
-<div class="row"><div class="vault-connect-field"><label class="row-title" for="vault-connect-client-id" data-message="vaultConnectClientId">Agents' account client_id</label><input id="vault-connect-client-id" name="clientId" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="200" placeholder="user.…"></div></div>
-<div class="row"><div class="vault-connect-field"><label class="row-title" for="vault-connect-client-secret" data-message="vaultConnectClientSecret">Agents' account client_secret</label><span class="vault-request-value"><input id="vault-connect-client-secret" name="clientSecret" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="200"><button type="button" class="ghost" data-reveal="vault-connect-client-secret" aria-controls="vault-connect-client-secret" aria-pressed="false">Show</button></span></div></div>
-<div class="row"><div class="vault-connect-field"><label class="row-title" for="vault-connect-password" data-message="vaultConnectPassword">Agents' account master password</label><span class="vault-request-value"><input id="vault-connect-password" name="masterPassword" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="1024"><button type="button" class="ghost" data-reveal="vault-connect-password" aria-controls="vault-connect-password" aria-pressed="false">Show</button></span></div></div>
-<div class="row"><div class="vault-connect-field"><label class="row-title" for="vault-connect-email" data-message="vaultConnectEmail">E-mail of your own Bitwarden account</label><input id="vault-connect-email" name="email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="254" aria-describedby="vault-connect-email-hint"><p class="row-desc" id="vault-connect-email-hint" data-message="vaultConnectEmailHint">Bitwarden sends you the invitation to the vault there.</p></div></div>
-<div class="row"><div class="row-main"><div class="row-copy"><p class="row-desc" data-message="vaultConnectKept">These details stay only in this Environment and are never shown again.</p><p class="vault-request-error" id="vault-connect-error" role="alert"></p></div><div class="row-control"><button type="submit" class="primary" id="vault-connect-submit" disabled>Connect Bitwarden</button></div></div></div>
-</form>
-</section>
-<!-- One agent's secret request (/settings/vault/requests/<id>, decision
-     F54): on its route it alone shows of this section (`data-request`),
-     drawn by vault-requests-panel.ts. -->
-<div id="vault-request" hidden></div>
 </section>
 
 <!-- SSH from your devices (decision F49): the keys of this account's
@@ -1379,14 +1683,12 @@ button:not(.primary) .provider-openai { color: #000000; }
      exactly what is written. -->
 <section id="section-ssh" data-section="ssh" aria-labelledby="page-heading">
 <div class="section-head-text">
-<p class="intro" data-message="sshIntro">Connect to this Environment over SSH from a terminal on your own computer. Each computer has its own key, which you can remove here at any time.</p>
-<p id="ssh-shared" class="tools-warning" role="note" hidden data-message="sshShared">This is the whole Team's shared Environment: a device added here signs in to the Team's account, and everyone in the Team sees it and can remove it.</p>
 <p id="ssh-unsupported" class="callout" role="note" hidden data-message="sshUnsupported">SSH from your devices is available in Environments on Linux and macOS.</p>
 </div>
 <p id="ssh-status" class="row-status" role="status" aria-live="polite"></p>
 <section class="group" aria-labelledby="ssh-prompt-heading">
-<div class="group-head"><h2 id="ssh-prompt-heading" data-message="sshPromptTitle">Prompt for your agent</h2><p class="group-note" data-message="sshPromptNote">Give it to the agent on your computer, for example Codex. It opens this page in its browser panel, where you only sign in; it sets up the rest itself.</p></div>
-<div class="card"><div class="row ssh-block-row">
+<div class="group-head"><h2 id="ssh-prompt-heading" data-message="sshPromptTitle">Prompt for your agent</h2></div>
+<div class="card" data-guide="ssh-prompt"><div class="row ssh-block-row">
 <pre id="ssh-prompt" class="ssh-block" data-ssh-block="prompt" hidden></pre>
 <p id="ssh-prompt-missing" class="row-desc" hidden></p>
 <div class="ssh-block-actions"><span class="row-status" data-copy-status role="status" aria-live="polite"></span><button type="button" class="primary" id="ssh-prompt-copy" data-copy="ssh-prompt" hidden><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span data-message="sshPromptCopy">Copy prompt</span></button></div>
@@ -1395,7 +1697,7 @@ button:not(.primary) .provider-openai { color: #000000; }
 <section class="group" aria-labelledby="ssh-devices-heading">
 <div class="group-head"><h2 id="ssh-devices-heading" data-message="sshDevicesTitle">Your devices</h2></div>
 <p id="ssh-problem" class="callout" data-kind="warning" role="alert" hidden></p>
-<ul class="card" id="ssh-devices"></ul>
+<ul class="card" id="ssh-devices" data-guide="ssh-devices"></ul>
 </section>
 <section class="group" aria-labelledby="ssh-add-heading">
 <div class="group-head"><h2 id="ssh-add-heading" data-message="sshAddTitle">Add a device</h2><p class="group-note" data-message="sshAddNote">Its name and its public key: one line from the .pub file that starts with ssh-ed25519. Never the private key.</p></div>
@@ -1406,7 +1708,7 @@ button:not(.primary) .provider-openai { color: #000000; }
 </form>
 </section>
 <section class="group" id="ssh-computer" aria-labelledby="ssh-computer-heading">
-<div class="group-head"><h2 id="ssh-computer-heading" data-message="sshComputerTitle">Settings for your computer</h2><p class="group-note" data-message="sshComputerNote">Your agent writes these on your computer.</p></div>
+<div class="group-head"><h2 id="ssh-computer-heading" data-message="sshComputerTitle">Settings for your computer</h2></div>
 <p id="ssh-added" class="callout" role="status" aria-live="polite" hidden></p>
 <div class="card" id="ssh-computer-ready" hidden>
 <div class="row"><div><a id="ssh-codex" data-message="sshCodexLink" hidden>Add Environment to Codex</a><p id="ssh-project-path" class="row-desc"></p></div></div>
@@ -1482,6 +1784,11 @@ button:not(.primary) .provider-openai { color: #000000; }
 <p id="integrations-confirm-status" role="status" aria-live="polite"></p>
 <div class="dialog-foot"><button type="button" class="destructive" id="integrations-confirm-ok"></button><button type="button" id="integrations-confirm-cancel" data-message="integrationsCancel">Cancel</button></div>
 </dialog>
+<!-- The shell's guide (decision F56): where Buddy, or without him the
+     neutral guide of Lazurio, explains this page in place when a "?" asks
+     (data-guide-help); the page hands over its explanations
+     (provideGuides). -->
+<lazurio-buddy id="buddy"></lazurio-buddy>
 <script type="module" src="./ui.ts"></script>
 </body>
 </html>

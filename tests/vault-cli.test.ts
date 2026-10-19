@@ -237,6 +237,15 @@ test("the status in words names what is missing and never a secret", () => {
   ).toBe(
     "Not available: this Environment has no vault yet: its Machine handover names none.",
   );
+  expect(
+    statusText({
+      kind: "vault-status",
+      state: "unsupported",
+      reason: "no-tailnet",
+    }),
+  ).toBe(
+    "Not available: this Environment has no vault and gets none: it is reached without a private network (a public Organization's Environment), and a vault answers only inside one.",
+  );
   expect(statusText({ ...facts, state: "not-set-up", next: "vault" })).toBe(
     `Not set up yet: ${ownAccount} in ${vaultOrigin}; the next step is creating the Environment's vault. The Launchpad sets it up at its start; lazurio vault setup does the same.`,
   );
@@ -264,7 +273,7 @@ test("the status in words names what is missing and never a secret", () => {
     kind: "vault-status",
     state: "needs-connection",
   });
-  expect(waiting).toContain("Settings → Vault");
+  expect(waiting).toContain("Apps → Vault");
   expect(waiting).toContain("never ask for that account's credentials");
   const personal = {
     ...facts,
@@ -302,7 +311,10 @@ test.skipIf(!posix)(
         env: {},
         executable: process.execPath,
         host: {
-          context: async () => ({ kind: "needs-connection" }),
+          context: async () => ({
+            kind: "needs-connection",
+            name: "Osobní example",
+          }),
           directory: () => join(parent, "never"),
           connection: join(parent, "never"),
           base: join(parent, "never"),

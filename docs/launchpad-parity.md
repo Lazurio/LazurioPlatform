@@ -102,7 +102,7 @@ the gap blocks the switch of one hosted Work Environment (`hosted-organization-p
 | # | Capability | Resident | Platform today | Gap | Switch |
 |---|---|---|---|---|---|
 | 14 | Discovery | Scan of `organizations/*`; hosted catalog filtered to one Organization and Team by environment (`R:launchpad/src/server.mjs:587-588`), a documented limitation (`R:manual/hosted-machine-handover.md:121-134`) | None (A.1 #1) | Discovery from the Folder | yes |
-| 15 | Organization install | `lazurio organization install <login> [--role builder|steward]`, Admin = no role, restricted slots excluded for roles, repository-db bootstrap (`R:lazurio/organization-install-lib.mjs:62-78`, `:875-877`, `:440`); root path hard-coded `organizations/<login>_GEN3` (`:139-141`); in-app from the GitHub setup step (`R:launchpad/src/setup-github-lib.mjs:803-805`) | `lazurio organization install <login> [--root <owner>/<repo>]`, `lazurio personalspace install` and `/api/content*` (F9 addendum of 2026-10-04, `src/content/`); as the resident: bare = Admin (verified live, else `role-unverified`), `--role builder|steward` = restricted slots excluded (role verified live), plus `--role reader` (read on the root and an active membership, F9 addendum of 2026-10-05), which the resident does not know; the Launchpad picks the form from the live role; repository databases left out | The root's target source, the Dashboard's Organization record (Lazurio for GitHub), is not wired; meanwhile name candidate and scan, each verified (`docs/content-sync.md`) | new Machines |
+| 15 | Organization install | `lazurio organization install <login> [--role builder|steward]`, Admin = no role, restricted slots excluded for roles, repository-db bootstrap (`R:lazurio/organization-install-lib.mjs:62-78`, `:875-877`, `:440`); root path hard-coded `organizations/<login>_GEN3` (`:139-141`); in-app from the GitHub setup step (`R:launchpad/src/setup-github-lib.mjs:803-805`) | `lazurio organization install <login> [--root <owner>/<repo>]`, `lazurio personalspace install` and `/api/content*` (F9 addendum of 2026-10-04, `src/content/`); as the resident: bare = Admin (verified live, else `role-unverified`), `--role builder|steward` = restricted slots excluded (role verified live), plus `--role reader` (read on the root and an active membership, F9 addendum of 2026-10-05), which the resident does not know; the Launchpad picks the form from the live role; a module's declared data mount (`repository_db_mount`) follows its module (B7 amendment of 2026-10-17), other database slots left out | The root's target source, the Dashboard's Organization record (Lazurio for GitHub), is not wired; meanwhile name candidate and scan, each verified (`docs/content-sync.md`) | new Machines |
 | 16 | Synchronize / update | `lazurio update`: root → Organization roots → children, recovery stash, ff-only (`R:lazurio/runtime/lazurio-update-lib.mjs:122-358`, `:742-758`); `POST /api/update`, `/api/sync`; legacy `pull`, `pull-autostash`, `pull-all` routes run the full update (`R:launchpad/src/server.mjs:1466-1483`) | None; the manual tells agents `git pull --ff-only` on a clean default branch (`docs/decisions.md:729-731`) | Explicit sync | after switch |
 | 17 | Roles builder/steward/admin | Scope filter on restricted slots (root decision 0143) | Install scope by the role, confirmed live (bare = Admin, `--role builder|steward|reader`; the Launchpad picks it from the live role; F9 addenda of 2026-10-04 and 2026-10-05) | Synchronization has no role scope yet (not implemented) | new Machines |
 | 18 | Teams grouping | `module_slots[].teams` N:M, legacy fallbacks (`R:…/discovery-lib.mjs:910`; `R:launchpad/public/app.js:2509`) | Team only as manual text and binding fields (`src/folder/machine-binding.ts:16-30`) | None: superseded by decision F32, Teams are not a presentation axis of the Launchpad; the catalog keeps them for `lazurio module list`. Since F32's final addendum of 2026-10-03 an Organization has two sections instead, Workspace (every module) and Productionspace (read-only), never one by Team; the first addendum's three layout groups (Organization, Workspace, Productionspace) are gone | no (F32) |
@@ -420,6 +420,46 @@ only with `--slot <name>`. Repository-db mounts stay the Organization's own boot
 0188): the role is back, confirmed live on GitHub; restricted slots are in scope only
 for a verified Admin and `excluded_by_role_scope` for a Steward or Builder
 (`docs/content-sync.md`, Installation).*
+*Amended for repository-db mounts by the Owner's direction of 2026-10-17 (DEV-6641):
+a module provides its own declared data mount. A slot with `materialization:
+"repository_db_mount"` directly below a module (`workspace/<module>/db`,
+`mission-control/db`) is required for that module, and its preparation provides it
+before every start, `lazurio module prepare` and the Launchpad's Open: an absent mount,
+or an empty directory at its place, is cloned on its declared `git.branch` (often `v3`) with this Environment's GitHub
+sign-in, through the same verified temporary sibling and no-replace publish as
+installation (`src/content/provide.ts`, under the Folder's content lock). A checkout
+already at the place is used as it is, whatever its origin or branch: never fetched,
+pulled, reset or rewritten, and never a reason to refuse the start. Only providing an
+absent mount can fail, and that refuses the start with the slot: `data-mount-denied`
+(ask the Admin for access), `data-mount-occupied` (a non-empty directory that is no
+checkout, a file or a link at the place, left untouched), `data-mount-unavailable` (GitHub or the content lock did not answer;
+retried at the next start), `data-mount-clone-failed` (an empty remote, a missing
+branch or an unreachable one; never bootstrapped). Installation materializes the same
+mount, by the same function, when its module is materialized or present in the same
+install, and leaves it `excluded` otherwise. It is still never a background sync and
+never an update of an existing mount; creating a data repository stays with
+`lazurio module create --data` and repository-db itself.*
+*Amended for a Team Environment on 2026-10-18 (#488, the Owner's direction recorded
+there): a data mount has this one path on every kind of Environment, and on a Team
+Environment the Platform speaks the contract of the brokered `gh` Machines installs
+(Lazurio/github-app `adapter/brokered-gh.mjs`, "Brokered GitHub identity on a Team
+VM"), not a hosting preparation of its own. Every `gh` call runs outside any checkout
+(the filesystem root), so no checkout's origin chooses the repository; the
+readability check names the repository in `GH_REPO`; an answer to the App identity
+(Lazurio for GitHub, whose `permissions` are all false even with write) is the read.
+The adapter's refusals carry no API status and are read by their words: the broker
+refusing the repository (no grant of the Team) or no repository named is
+`data-mount-denied`; the broker not reachable or answering invalidly is
+`data-mount-unavailable`. The clone keeps git's configured credential helper wherever
+gh is a GitHub App's identity (by gh's own sign-in probe, `gh auth status --json
+hosts`, the one `gh auth` command the adapter answers): no reset of the helper list
+and no `gh auth git-credential`, so the broker's helper with `useHttpPath` answers for
+exactly that repository. A person's gh keeps gh as the helper of an HTTPS clone. On a
+Team Environment `data-mount-denied` says the Team cannot reach the repository and
+asks the Admin to give the Team access on GitHub, never "your GitHub account". The
+broker mints only for repositories of its Organization the Team holds a grant on
+(push or more from a broker before github-app 0.11.0, read too from 0.11.0); everything else stays
+denied.*
 Surface: "Synchronize" as the page action in the Organization view header, "Add
 Organization" at the bottom of the sidebar (T3's "Add project"). No state. On a Team
 Environment the identity is the broker's `gh` wrapper that Machines installs

@@ -8,11 +8,22 @@ import { readModuleApplication } from "./read-application";
 // Organization manifest, is declared `planned_slot`, or is not on this
 // Environment beside the app (not checked out, or not a directory of the
 // checkout). The start's part of issue #128; the catalog, Diagnostics and
-// doctor follow there.
+// doctor follow there. A module's own data mount is required as well, and
+// provided by its preparation (`provideDataMounts`, launchpad-parity B7):
+// GitHub refuses this identity the repository (`data-mount-denied`),
+// something that is no checkout is at its place and stays untouched
+// (`data-mount-occupied`),
+// GitHub or the Folder's content lock does not answer now
+// (`data-mount-unavailable`), or the clone failed: an empty repository, a
+// missing branch, the network (`data-mount-clone-failed`).
 export const requiredSlotReasons = [
   "required-slot-undeclared",
   "required-slot-planned",
   "required-slot-missing",
+  "data-mount-denied",
+  "data-mount-occupied",
+  "data-mount-unavailable",
+  "data-mount-clone-failed",
 ] as const;
 export type RequiredSlotReason = (typeof requiredSlotReasons)[number];
 

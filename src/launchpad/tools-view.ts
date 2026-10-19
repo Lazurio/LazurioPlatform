@@ -1,3 +1,4 @@
+import { composioOrganizationName } from "../integrations/composio-organization-name";
 import {
   type OrganizationSettingsStatus,
   parseSettingsStatus,
@@ -296,7 +297,6 @@ export function organizationDetails(
 export type ToolGroup = Readonly<{
   tier: Tier;
   title: string;
-  note: string;
   tools: readonly ToolOverview[];
 }>;
 
@@ -312,16 +312,17 @@ export function toolGroups(
   tools: readonly ToolOverview[],
   copy: Copy,
 ): readonly ToolGroup[] {
-  const headings: Record<Tier, readonly [MessageKey, MessageKey]> = {
-    required: ["toolsTierRequired", "toolsTierRequiredNote"],
-    recommended: ["toolsTierRecommended", "toolsTierRecommendedNote"],
-    optional: ["toolsTierOptional", "toolsTierOptionalNote"],
+  // Each tier's heading alone: what the tiers mean is the "?"'s (decision
+  // F56's addendum of 2026-10-18).
+  const headings: Record<Tier, MessageKey> = {
+    required: "toolsTierRequired",
+    recommended: "toolsTierRecommended",
+    optional: "toolsTierOptional",
   };
   return tiers
     .map((tier) => ({
       tier,
-      title: copy[headings[tier][0]],
-      note: copy[headings[tier][1]],
+      title: copy[headings[tier]],
       tools: tools.filter(
         (tool) =>
           tool.tier === tier &&
@@ -681,6 +682,61 @@ export function curatedActions(
   };
 }
 
+/** What Nástroje's "?" can truthfully point at (decision F56's addendum (2)
+ * of 2026-10-18; Pablo's review of #503), from what the page draws, in its
+ * order: `connect`, where a person connects a tool with their own account
+ * (in a Team Environment, a team account): the first sign-in or adding and
+ * connecting, else the first connection someone made (its line "Připojeno
+ * jako …"); and `agents`, the first switch "Používají agenti" the person can
+ * move. Never a vault's or Executor's row (their own steps, not a person's
+ * sign-in), a tool not offered here, a tool the Organization does not allow,
+ * or gh of a Team Environment, which works as the Organization's identity
+ * and signs nobody in. Null where there is none: the guide then leaves out
+ * the steps that would point at it (guides.ts `toolsGuide`). */
+export type ToolGuideTargets = Readonly<{
+  connect: Readonly<{ tool: string; part: "action" | "state" }> | null;
+  agents: Readonly<{ tool: string }> | null;
+}>;
+
+export function toolGuideTargets(
+  groups: readonly ToolGroup[],
+  copy: Copy,
+  brokered: boolean,
+): ToolGuideTargets {
+  const shown = groups.flatMap((group) => group.tools);
+  // The rows either step may point at: offered here, and not the vault's
+  // or Executor's own row.
+  const eligible = shown.filter(
+    (tool) => tool.offered && !ownRows.includes(tool.name),
+  );
+  const personal = eligible.filter(
+    (tool) =>
+      tool.setup === "launchpad" &&
+      !githubActionRefused({ brokered, tool: tool.name, action: "login" }),
+  );
+  const action = personal.find((tool) => {
+    const primary = curatedActions(tool, copy, brokered).primary;
+    return primary !== null && primary.mode !== "install-only";
+  });
+  const connected = personal.find(
+    (tool) =>
+      tool.signIn?.state === "signed-in" &&
+      tool.organization?.allowed !== false,
+  );
+  const switched = eligible.find(
+    (tool) => tool.tier !== "required" && !organizationView(tool, copy).locked,
+  );
+  return {
+    connect:
+      action !== undefined
+        ? { tool: action.name, part: "action" }
+        : connected !== undefined
+          ? { tool: connected.name, part: "state" }
+          : null,
+    agents: switched === undefined ? null : { tool: switched.name },
+  };
+}
+
 /** The full next selection a request carries: the enabled tools that are not
  * required, with one of them switched, sorted and unique. A tool the
  * Organization decides is carried as the person chose it (decision F45). */
@@ -935,15 +991,6 @@ export function noticeHolds(
     notice.revision === overview.revision &&
     overview.tools.some((tool) => tool.name === notice.name)
   );
-}
-
-/** The line above the tools: when they were read. The Folder and its
- * revision are nothing a person needs here (Matěj 2026-10-09), nor in
- * Settings → General since F36's addendum of 2026-10-16. */
-export function checkedLine(at: Date, locale: "cs" | "en", copy: Copy): string {
-  return fill(copy.toolsChecked, {
-    time: at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
-  });
 }
 
 /** Only an https address of the catalog becomes a link. */
@@ -1279,7 +1326,9 @@ export type LoginStep = Readonly<{
 /** The steps of one flow: installing (only when it installs), waiting for
  * you, linking the SSH key (gh), signed in. "Link SSH key" of a signed-in gh
  * is linking and linked, with waiting for you first when a device code has
- * to widen the sign-in. */
+ * to widen the sign-in. Composio's dialog draws none: its status line says
+ * the step, and after the sign-in it asks only for what the person still
+ * has to do (decision F42, addendum (2) of 2026-10-13, note of 2026-10-17). */
 export function loginStepOrder(
   flow: Readonly<{
     mode: "install" | "login" | "ssh";
@@ -1288,6 +1337,7 @@ export function loginStepOrder(
     refresh?: boolean;
   }>,
 ): readonly LoginStepName[] {
+  if (flow.tool === "composio") return [];
   if (flow.mode === "ssh")
     return flow.refresh === true
       ? ["waiting", "linking", "linked"]
@@ -1628,10 +1678,10 @@ export function organizationRule(input: unknown): OrganizationRuleView {
   return { kind: "chosen", personal: value.personal === true };
 }
 
-/** Composio's organizations for the select, the current one marked. */
+/** Composio's organizations for the select, by their names; the current one
+ * is the select's value. */
 export function organizationChoices(
   input: unknown,
-  copy: Copy,
 ): readonly OrganizationChoice[] | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const value = input as Record<string, unknown>;
@@ -1651,13 +1701,112 @@ export function organizationChoices(
       typeof current !== "boolean"
     )
       return null;
-    choices.push({
-      id,
-      current,
-      label: current ? fill(copy.toolsComposioOrgCurrent, { name }) : name,
-    });
+    choices.push({ id, current, label: name as string });
   }
   return choices;
+}
+
+/** What Composio's sign-in dialog shows once the person is signed in
+ * (decision F42, addendum (2) of 2026-10-13, note of 2026-10-17): only what
+ * the person still has to do, else that it is connected. `name` is the
+ * Organization's name as Composio accepts it (`composioOrganizationName`),
+ * the one the person types and reads in Composio.
+ * - `create`: the account has no organization of the Organization's name;
+ *   the person creates it in Composio's dashboard.
+ * - `rename`: it has more than one; the person renames the extra one.
+ * - `problem`: one sentence where nothing is the person's to do now (the
+ *   organization could not be made current, the Organization's name or the
+ *   organizations cannot be read, or no organization is current, as when
+ *   the list is empty); the dialog keeps reading.
+ * - `connected`: the account and the organization current after the
+ *   reading made the Organization's one current; `choices` where the person
+ *   chooses among several (a personal Environment, a computer). */
+export type ComposioDialogView =
+  | Readonly<{ kind: "create"; name: string }>
+  | Readonly<{ kind: "rename"; name: string }>
+  | Readonly<{ kind: "problem"; message: string }>
+  | Readonly<{
+      kind: "connected";
+      account: string | null;
+      organization: string | null;
+      choices: readonly OrganizationChoice[] | null;
+    }>;
+
+/** The dialog's view of one answer of `/api/tools/composio/organizations`.
+ * `account` is the signed-in account the sign-in named; the organization is
+ * always the one the answer marks current, which is the one current after
+ * the reading switched, never the one the sign-in named before it. */
+export function composioDialogView(
+  input: unknown,
+  account: string | null,
+  copy: Copy,
+): ComposioDialogView {
+  const choices = organizationChoices(input);
+  if (choices === null)
+    return { kind: "problem", message: copy.toolsComposioOrgUnavailable };
+  const rule = organizationRule(input);
+  if (rule.kind === "unverified")
+    return { kind: "problem", message: copy.toolsComposioOrgUnverified };
+  const current = choices.find((choice) => choice.current)?.label ?? null;
+  if (rule.kind === "named") {
+    // What the person sees in Composio: never a name it refuses.
+    const name = composioOrganizationName(rule.name);
+    if (name === null)
+      return { kind: "problem", message: copy.toolsComposioOrgUnverified };
+    if (rule.state === "missing") return { kind: "create", name };
+    if (rule.state === "ambiguous") return { kind: "rename", name };
+    if (rule.state === "elsewhere")
+      return {
+        kind: "problem",
+        message: fill(copy.toolsComposioOrgElsewhere, { name }),
+      };
+  }
+  // Connected only with an organization current: an empty list or one with
+  // none marked current is not connected, and the dialog reads again.
+  if (current === null)
+    return { kind: "problem", message: copy.toolsComposioOrgUnavailable };
+  if (rule.kind === "named")
+    return { kind: "connected", account, organization: current, choices: null };
+  return {
+    kind: "connected",
+    account,
+    organization: current,
+    choices: choices.length > 1 ? choices : null,
+  };
+}
+
+/** The connected line under "Composio je připojené": the account and the
+ * organization, whichever of them is known. */
+export function composioConnectedLine(
+  view: Extract<ComposioDialogView, { kind: "connected" }>,
+): string {
+  return [view.account, view.organization]
+    .filter((part): part is string => part !== null && part !== "")
+    .join(" · ");
+}
+
+/** How the dialog reads Composio's organizations again while it waits for
+ * the person: first after 4 seconds, then each time half as long again, at
+ * most every 30 seconds. */
+export const composioPollStartMs = 4_000;
+export const composioPollMaxMs = 30_000;
+
+/** The wait before the reading after `attempt` unchanged ones (0 first). */
+export function composioPollDelay(attempt: number): number {
+  return Math.min(
+    composioPollMaxMs,
+    Math.round(composioPollStartMs * 1.5 ** Math.max(0, attempt)),
+  );
+}
+
+/** Whether the dialog reads again: never once connected or closed; not
+ * while the page is hidden (it reads at once when it shows again). */
+export function composioPollNext(
+  view: ComposioDialogView,
+  page: Readonly<{ open: boolean; hidden: boolean }>,
+): "read" | "pause" | "stop" {
+  if (!page.open || view.kind === "connected") return "stop";
+  return page.hidden ? "pause" : "read";
 }
 
 /** One sentence for what a logout did; the key's fingerprint and the reason

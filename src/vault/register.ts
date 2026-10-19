@@ -501,10 +501,43 @@ export class VaultwardenError extends Error {
   constructor(
     readonly reason: VaultwardenFailure,
     readonly status?: number,
+    /** For `invalid-credentials` of a token request: whether the identity
+     * server answered, in its own words, that it does not know this client
+     * (`unknownClientAnswer`). Any other refusal of a token request
+     * (`invalid_request`, `invalid_grant`, an `access_denied`, another 4xx)
+     * is not that, and nothing is concluded from it but the refusal. */
+    readonly unknownClient = false,
   ) {
     super(reason);
     this.name = "VaultwardenError";
   }
+}
+
+/**
+ * An identity server's answer to a token request whose client it does not
+ * know, or whose secret does not match: HTTP 400 with the OAuth error
+ * `invalid_client`, exactly. The Bitwarden cloud's Identity project
+ * (bitwarden/server 0d707bf6842c05e523bc5d802e6d46a8dd62fedc,
+ * `src/Identity/IdentityServer/DynamicClientStore.cs` and
+ * `ClientProviders/UserClientProvider.cs`) finds no client for a
+ * `user.<id>` it does not know and gives a known one its API key as the only
+ * secret; Duende IdentityServer 7.4.6, which it pins
+ * (DuendeSoftware/products tag `is-7.4.6`,
+ * `identity-server/src/IdentityServer/Validation/Default/ClientSecretValidator.cs`),
+ * fails both an unknown client and a secret that does not validate with
+ * `invalid_client`, and its `TokenEndpoint` writes that as a
+ * `TokenErrorResult`, status 400 and `{"error": "invalid_client"}`
+ * (`Endpoints/Results/TokenErrorResult.cs`). Nothing else means that the
+ * region does not know the key.
+ */
+export function unknownClientAnswer(status: number, data: unknown): boolean {
+  return (
+    status === 400 &&
+    typeof data === "object" &&
+    data !== null &&
+    !Array.isArray(data) &&
+    (data as Record<string, unknown>).error === "invalid_client"
+  );
 }
 
 type CallOptions = Readonly<{
@@ -594,7 +627,12 @@ export async function vaultRequest(
       path === "/identity/connect/token" ||
       /username or password is incorrect|invalid_grant/i.test(message)
     )
-      throw new VaultwardenError("invalid-credentials", response.status);
+      throw new VaultwardenError(
+        "invalid-credentials",
+        response.status,
+        path === "/identity/connect/token" &&
+          unknownClientAnswer(response.status, data),
+      );
     throw new VaultwardenError("unexpected", response.status);
   }
   return data;

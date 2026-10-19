@@ -28,8 +28,16 @@ these brand assets in this public repository (2026-10-03).
 | --- | --- | --- |
 | `lazurio/tokens.css` | `tokens.css` | `f5ebb3382c24432f800b86144e549bfc0f064423531d42308f3dd750bd3bb191` |
 | `lazurio/symbol-color.svg` | `content/brand/logo/symbol-color.svg` | `657d021e5fab5f28df6b10488d68f567149783ec51d44f44ba18b129ce9c1941` |
+| `lazurio/lockup-color.svg` | `content/brand/logo/lockup-color.svg` | `56148f482211a3bdb62311ccabb9f943f61440c7b2c23101f120fb1e0f02aefe` |
 
-Only the tokens, the logo symbol and the module stones (below) are vendored:
+The lockup was added on 2026-10-17 from the same pinned commit, where it is
+byte-for-byte the file on the design system's `main` of that day (unchanged since
+the pin). It is the Launchpad page's, not the shell's: the band on top of its left
+column (Apps and Settings, decision F36's addendum of 2026-10-17) draws it whole at
+its smallest size, 18 px tall, as `content/brand/logo/logo.md` requires; it is never
+rebuilt from the symbol and a word. The shell elements draw only the symbol.
+
+Only the tokens, the logo symbol, the lockup and the module stones (below) are vendored:
 the shell and the Launchpad page draw their own components from the tokens, so
 `components.css` is not needed. The tokens declare their values on `:root`; inside a shadow root the
 shell applies the same text to `:host` (`src/shell/base-styles.ts`), so the file
@@ -46,7 +54,12 @@ and `tests/shell-tokens.test.ts` fails when a copy is anything but one `:root`
 rule of `--lz-*` custom properties, or lacks a promised name (dropping or
 renaming one is an interface change, decided and announced first, not a
 re-vendor). A changed value, a new name, or a change to a name nobody is
-promised needs no other edit.
+promised needs no other edit. Since F36's addendum of 2026-10-18 (root decision
+0208) the shell ends that text with one rule of its own, `:root {
+--lazurio-color-scheme: light; }`, the scheme of the values, and the
+Environment's theme gives the promised colour names other values over them; the
+theme Lazurio is this file's own values (`src/theme/palettes.ts`), so a new copy
+reaches it too.
 
 ## Module stones
 

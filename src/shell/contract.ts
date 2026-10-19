@@ -132,6 +132,57 @@ export type ShellSetup = Readonly<{
   item?: ShellSetupItem;
 }>;
 
+/** The colour names an Environment theme gives a value for (F36's addendum of
+ * 2026-10-18, root decision 0208): the token names interface v1 promises
+ * (`declares.tokens`) that are colours, without the type and the radius,
+ * which stay the design system's. */
+export const shellThemeColors = [
+  "--lz-surface",
+  "--lz-paper",
+  "--lz-ink",
+  "--lz-ink-muted",
+  "--lz-line",
+  "--lz-accent",
+  "--lz-accent-button",
+  "--lz-accent-button-hover",
+  "--lz-on-accent",
+  "--lz-gray-50",
+  "--lz-gray-100",
+  "--lz-red-500",
+  "--lz-danger",
+  "--lz-danger-bg",
+  "--lz-warning",
+  "--lz-warning-bg",
+  "--lz-green-500",
+  "--lz-success",
+  "--lz-info",
+  "--lz-info-bg",
+] as const;
+export type ShellThemeColor = (typeof shellThemeColors)[number];
+
+/** One appearance of a theme: a literal sRGB colour `#rrggbb` for every
+ * name of `shellThemeColors`, never a reference, because an app may read the
+ * values from script (T3 Code's terminal does). */
+export type ShellThemeValues = Readonly<Record<ShellThemeColor, string>>;
+
+/** The Environment's theme (F36's addendum of 2026-10-18, root decision
+ * 0208): one record of the Environment, which its Launchpad owns and every app
+ * of the Environment takes through the shell, as it takes the language. */
+export type ShellTheme = Readonly<{
+  /** Lowercase letters, digits and `-` (`lazurio`, `ocean`, …): new ids
+   * may come with any release. */
+  id: string;
+  /** Its name, the same in every language (a palette's own name). */
+  label: string;
+  /** The record's revision: 0 while nobody chose one, one more with every
+   * change. */
+  revision: number;
+  /** The light values, always. */
+  light: ShellThemeValues;
+  /** The dark values, where the theme has a dark variant. */
+  dark?: ShellThemeValues;
+}>;
+
 export type Shell = Readonly<{
   schema: typeof shellSchema;
   /** The language of the person's profile; the elements speak it. */
@@ -164,6 +215,27 @@ export type Shell = Readonly<{
   /** Where an Organization is added (the "+" under the Organizations); null
    * hides it. */
   addOrganization: string | null;
+  /** `public` where the current Environment is public and shared by its
+   * visitors (root decision 0204, decision F55, additive in v1): the column
+   * head says so in Apps, Chat and Automate. Absent otherwise, and always
+   * absent on a page that belongs to no Environment. It grants nothing: the
+   * Environment's gateway decides who enters. */
+  audience?: "public";
+  /** Where the person signs out in this browser (F36's addendum of
+   * 2026-10-16, additive in v1): an https URL, or a path on the page's own
+   * origin as the Dashboard's addresses. On an Environment's page it is the
+   * sign-out its gateway serves on the shell's origins (Machines#358,
+   * `entry.sign_out`), which ends the Environment's session and the Lazurio
+   * account's. With it the account at the bottom opens a menu of the account
+   * settings and the sign-out; absent (or null) there is no sign-out and the
+   * account is the link to its settings, as before. */
+  signOut?: string;
+  /** The current Environment's theme (F36's addendum of 2026-10-18, root
+   * decision 0208, additive in v1): the shell declares its values on the
+   * app's document (`src/shell/theme.ts`). A Launchpad always names one, the
+   * design system's `lazurio` while nobody chose another; absent on a page
+   * that belongs to no Environment. */
+  theme?: ShellTheme;
 }>;
 
 type Data = Readonly<Record<string, unknown>>;
@@ -436,6 +508,58 @@ export function parseShellSetup(
   });
 }
 
+const themeId = /^[a-z][a-z0-9-]{0,31}$/;
+const themeColour = /^#[0-9a-fA-F]{6}$/;
+
+/** One appearance of a theme: every name of `shellThemeColors` with a
+ * literal `#rrggbb` (kept in lowercase, in that order); names this version
+ * does not know are ignored. Null for anything else. */
+function themeValues(value: unknown): ShellThemeValues | null {
+  if (!isRecord(value)) return null;
+  const read: Partial<Record<ShellThemeColor, string>> = {};
+  for (const name of shellThemeColors) {
+    const colour = Object.hasOwn(value, name) ? value[name] : undefined;
+    if (typeof colour !== "string" || !themeColour.test(colour)) return null;
+    read[name] = colour.toLowerCase();
+  }
+  return Object.freeze(read as Record<ShellThemeColor, string>);
+}
+
+/** The `theme` member: absent or null is none (`undefined`); otherwise its
+ * exact shape (`ShellTheme`), or `false` for any other. Members it does not
+ * know are ignored. The shell's cache of the last theme on an origin reads
+ * with it too. */
+export function parseShellTheme(
+  value: unknown,
+): ShellTheme | undefined | false {
+  if (value === undefined || value === null) return undefined;
+  if (!isRecord(value)) return false;
+  const { id, label, revision } = value;
+  const light = themeValues(value.light);
+  const dark =
+    value.dark === undefined || value.dark === null
+      ? undefined
+      : themeValues(value.dark);
+  if (
+    typeof id !== "string" ||
+    !themeId.test(id) ||
+    !text(label, 64) ||
+    typeof revision !== "number" ||
+    !Number.isSafeInteger(revision) ||
+    revision < 0 ||
+    light === null ||
+    dark === null
+  )
+    return false;
+  return Object.freeze({
+    id,
+    label,
+    revision,
+    light,
+    ...(dark === undefined ? {} : { dark }),
+  });
+}
+
 /** The shell document, when the input is a valid `lazurio.shell.v1`; null
  * otherwise. Members this version does not know are ignored (a later producer
  * may add some); every known member must have its exact shape, Environment
@@ -449,11 +573,20 @@ export function parseShellSetup(
  * shape beside a current Environment, which it describes, and absent (not
  * even null) on a page that belongs to no Environment. So is the optional
  * `offlineGuide` (decision F41): absent, false or true beside a current
- * Environment, kept only when true. */
+ * Environment, kept only when true. The optional `signOut` (F36's addendum
+ * of 2026-10-16) is absent, null or an address as the Dashboard's; kept only
+ * when it is one. The optional `audience` (decision F55) is absent, null or
+ * `public` beside a current Environment, kept only when `public`. The
+ * optional `theme` (F36's addendum of 2026-10-18) is absent, null or in its
+ * exact shape (`parseShellTheme`) beside a current Environment, and absent on
+ * a page that belongs to no Environment. */
 export function parseShell(input: unknown): Shell | null {
   if (!isRecord(input) || input.schema !== shellSchema) return null;
   if (!isPageUrl(input.dashboard) || !isPageUrl(input.account)) return null;
   if (!(input.addOrganization === null || isPageUrl(input.addOrganization)))
+    return null;
+  const signOut = input.signOut;
+  if (!(signOut === undefined || signOut === null || isPageUrl(signOut)))
     return null;
   const shared = entries(input);
   if (shared === null) return null;
@@ -474,6 +607,17 @@ export function parseShell(input: unknown): Shell | null {
     (current === null && offlineGuide !== undefined)
   )
     return null;
+  // A public Environment's audience describes the current Environment too.
+  const audience = input.audience;
+  if (
+    !(audience === undefined || audience === null || audience === "public") ||
+    (current === null && audience !== undefined)
+  )
+    return null;
+  // So does its theme: none on a page that belongs to no Environment.
+  const theme = parseShellTheme(input.theme);
+  if (theme === false || (current === null && input.theme !== undefined))
+    return null;
   return Object.freeze({
     schema: shellSchema,
     locale: shared.locale,
@@ -486,6 +630,9 @@ export function parseShell(input: unknown): Shell | null {
     dashboard: input.dashboard,
     account: input.account,
     addOrganization: input.addOrganization as string | null,
+    ...(typeof signOut === "string" ? { signOut } : {}),
+    ...(audience === "public" ? { audience } : {}),
+    ...(theme === undefined ? {} : { theme }),
   });
 }
 

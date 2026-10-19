@@ -112,14 +112,16 @@ test("a workstation's document: this computer, every Organization of the Folder 
     ],
     dashboard: "https://dashboard.lazurio.ai/home",
     account: "https://dashboard.lazurio.ai/settings/account",
-    addOrganization: "https://dashboard.lazurio.ai/add-organization",
+    // No "+" in the rail while self-service creation is unfinished
+    // (product decision of 2026-10-16).
+    addOrganization: null,
   });
   const current = shell.environments[0];
   if (current === undefined) throw new Error("The document has one");
-  expect(environmentName(current, cs)).toBe("Tento počítač");
-  // The kind beside the name, as the Dashboard words it (0170 addendum
-  // 2026-10-15, "Druh Prostředí stačí").
-  expect(environmentWho(current, cs)).toBe("Místní");
+  // Your own computer has no kind: it is Váš počítač (F28's addendum of
+  // 2026-10-18), and its name already says so.
+  expect(environmentName(current, cs)).toBe("Váš počítač");
+  expect(environmentWho(current, cs)).toBe("");
   // Named by its computer when the host name is known, never by a hosted
   // machine's name.
   const named = shellDocument({
@@ -130,6 +132,12 @@ test("a workstation's document: this computer, every Organization of the Folder 
     computer: "Example-MacBook.local",
   });
   expect(named.environments[0]?.label).toBe("Example-MacBook");
+  // Beside its computer's name it says what it is: your computer.
+  const laptop = named.environments[0];
+  if (laptop === undefined) throw new Error("The document has one");
+  expect(environmentName(laptop, cs)).toBe("Example-MacBook");
+  expect(environmentWho(laptop, cs)).toBe("Váš počítač");
+  expect(environmentWho(laptop, en)).toBe("Your computer");
   expect(
     shellDocument({
       preset: "local",
@@ -180,9 +188,9 @@ test("a workstation's document: this computer, every Organization of the Folder 
       tab.missing,
     ]),
   ).toEqual([
-    ["chat", null, false, "Chat v tomto Prostředí neběží"],
+    ["chat", null, false, "Chat na tomto počítači neběží"],
     ["apps", "/", true, null],
-    ["automate", null, false, "Automate v tomto Prostředí neběží"],
+    ["automate", null, false, "Automate na tomto počítači neběží"],
   ]);
 });
 
@@ -213,11 +221,12 @@ test("a hosted work Environment is named by its kind and its person, never by it
     app: "chat",
     last: noLast,
   });
-  // Your personal space has no Environment here: its Dashboard.
+  // Your personal space has no Environment here: the rail does not list
+  // it (product decision of 2026-10-16); the logo still leads to the
+  // Dashboard.
   expect(
     spaces.map((space) => [space.space, space.href, space.active]),
   ).toEqual([
-    ["personal", "https://dashboard.lazurio.ai/home", false],
     // A click stays in the app the rail sits in (Chat).
     ["example", "https://t3code.workspace.example.lazurio.io/", true],
   ]);
@@ -281,10 +290,7 @@ test("an Organization's Environment stands in its Organization's space even befo
       railSpaces(shell, cs, { here: "example", app: "apps", last: noLast }).map(
         (space) => [space.space, space.active],
       ),
-    ).toEqual([
-      ["personal", false],
-      ["example", true],
-    ]);
+    ).toEqual([["example", true]]);
     expect(spaceEnvironments(shell, "personal")).toEqual([]);
   }
   // Read from the Folder, the owner keeps its name and avatar and comes
@@ -639,7 +645,7 @@ test("several Organizations: a space's Environments, its last one remembered, th
     ["vm-1.north", "Work", "assigned to @person-1", false],
     ["vm-2.north", "Work", "assigned to @person-2", false],
     ["vm-3.north", "Work", "assigned to @person-3", true],
-    ["laptop", "This computer", "Local", false],
+    ["laptop", "Your computer", "", false],
   ]);
   // ⌘⇧E: every space, each Organization with its head; "All
   // Organizations" under the picker: every space by its title, no head. A

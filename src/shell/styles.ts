@@ -17,10 +17,10 @@ import { identityCss } from "./identity-styles";
 // flow of the page has one. Nothing here reaches the host page, and the host
 // page's styles do not reach in.
 
-/** The width the rail takes, one step of the design system's grid
- * (`--lz-grid-step`, `lz-rail`); the host lays its content beside it with
- * `padding-left: var(--lazurio-rail-width, 0px)`. 72 px until F36's addendum
- * of 2026-10-06. */
+/** The width the rail takes, its edge toward the app included, one step of
+ * the design system's grid (`--lz-grid-step`, `lz-rail`); the host lays its
+ * content beside it with `padding-left: var(--lazurio-rail-width, 0px)`.
+ * 72 px until F36's addendum of 2026-10-06. */
 export const railWidth = "64px";
 
 /** The list of Environments: under the picker (one space) and as the ⌘⇧E
@@ -83,12 +83,20 @@ export const railCss = `${hostTokens}
 ${baseCss}
 ${switcherCss}
 /* The rail is the host's surface, paper without roles like the app's column
-   (design-system-lazurio#59), and draws no edge toward the app beside it
-   (Matěj 2026-10-04): no border, no shadow, no line. */
+   (design-system-lazurio#59). On its edge toward the app it draws one
+   hairline in the host's line (Matěj 2026-10-17, amending root decision 0187
+   point 2, by which it drew none since 2026-10-04): the role every app maps
+   from its own theme, T3 Code from its sidebar's border and MausBot from its
+   skin's hairline, the design system's line where a host sets no roles. So
+   the line follows light, dark and every theme in every app, and
+   a host draws none of its own on that side. It lies inside the rail's own
+   width, so the app beside it keeps its place, and it is an inset line, not
+   a border: a host's border colour on the rail (T3 Code's sidebar scope,
+   which the rail joins, sets one) never reaches it. */
 :host {
   --shell-surface: var(--lazurio-surface, var(--lz-paper));
 }
-:host { position: fixed; inset: 0 auto 0 0; z-index: 40; display: block; width: ${railWidth}; background: var(--shell-surface); }
+:host { position: fixed; inset: 0 auto 0 0; z-index: 40; display: block; width: ${railWidth}; background: var(--shell-surface); box-shadow: inset -1px 0 0 var(--shell-line); }
 nav { display: flex; height: 100%; flex-direction: column; align-items: center; gap: 4px; padding: 12px 0; }
 /* One corner family (prototypes-lazurio#11): every item is 40 px with
    radius-md around a 32 px mark with radius-sm, so the corners are
@@ -121,6 +129,14 @@ nav { display: flex; height: 100%; flex-direction: column; align-items: center; 
 .space[aria-current="true"] .org-mark, .space[aria-current="true"] .initials { box-shadow: inset 0 0 0 1px var(--shell-mark-line), 0 0 0 3px var(--shell-selected), 0 0 0 4px var(--shell-line-strong); }
 .add { width: 32px; height: 32px; margin: 4px 0; border: 1px dashed var(--shell-line); border-radius: var(--lz-radius-sm); }
 .account .avatar { display: grid; width: 28px; height: 28px; place-items: center; overflow: hidden; border-radius: 50%; background: var(--shell-inverse); color: var(--shell-inverse-ink); font-size: 11px; font-weight: var(--lz-weight-akce); object-fit: cover; }
+.account[aria-expanded="true"] { background: var(--shell-selected); }
+/* The account's menu (F36's addendum of 2026-10-16, the wireframe's menu of
+   the account): the list under the picker's look, one line per entry, beside
+   the account. A popover the browser opens and closes; closed it takes no
+   room, whatever the list's own display says. */
+.account-menu { width: 240px; }
+.account-menu:not(:popover-open) { display: none; }
+.account-menu .switcher-list { padding: 6px; }
 /* With nobody signed in (F36's addendum of 2026-10-06) the sign-in key stands
    at the foot, where a person's account stands, in the items' colours. */
 .sign-in { margin-top: auto; }
@@ -164,6 +180,12 @@ a.tab:hover { color: var(--shell-ink); }
 .setup-prompt:hover { background: var(--shell-hover); }
 .setup-prompt > svg { flex: none; color: var(--shell-ink-muted); }
 .setup-prompt-text { flex: 1 1 auto; min-width: 0; }
+/* The quiet notice under the switch on a public Environment (decision F55,
+   the design system's lz-notice--quiet): the dot carries the colour, never a
+   band; the words in the column's muted ink, as small as the prompt's. */
+.public-notice { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 6px 4px 2px; color: var(--shell-ink-muted); font-size: 12px; font-weight: 450; line-height: 1.4; }
+.public-notice::before { content: ""; flex: none; width: 8px; height: 8px; margin-top: 4px; border-radius: 50%; background: var(--lz-warning); }
+.public-notice-text { flex: 1 1 auto; min-width: 0; }
 /* A dark host without colour roles (data-host-tone="dark", from
    --lazurio-host-tone or the host's background): no frame, light text, a
    translucent hover. A role the host sets wins. The marks and the list
@@ -187,6 +209,8 @@ a.tab:hover { color: var(--shell-ink); }
   .tab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .setup-prompt-text, .setup-prompt > svg:last-child { display: none; }
   .setup-prompt { justify-content: center; }
+  .public-notice { justify-content: center; }
+  .public-notice-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) { .pick > svg { transition: none; } }
 `;

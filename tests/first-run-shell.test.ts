@@ -38,6 +38,7 @@ import type { ToolOverview } from "../src/tools/overview";
 import type { ToolRunner } from "../src/tools/status";
 import { writeOrganization } from "./fixtures/catalog-folder";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
+import { freePort } from "./fixtures/ports";
 
 // The first run (root decisions 0188 and 0201) beyond the page: the shell
 // document's optional `setup` with the Environment's AI, the column head's
@@ -398,17 +399,6 @@ test("prepare-content: a Folder prompt for the Environment's operator, opened in
   expect(document.text).toContain("`lazurio personalspace install`");
 });
 
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port ?? 0;
-  probe.stop(true);
-  return port;
-};
-
 // A hosted work Environment whose gh is signed out. With `content`, what
 // lives here and the last installation are stubbed; without it, the
 // Launchpad's own content routes answer.
@@ -568,8 +558,10 @@ posixTest(
       expect(document.id).toBe("prepare-content");
       // The Lazurio Folder's root: the Organization is not here yet.
       expect(document.cwd).toBe(folder);
+      // It names the kind of this Environment, as the page does (F28's
+      // addendum of 2026-10-18).
       expect(document.text?.split("\n").slice(0, 2)).toEqual([
-        "Příprava Organizace Example (GitHub example-org) v tomto Prostředí se zastavila u kroku „Stahuji Organizaci“:",
+        "Příprava Organizace Example (GitHub example-org) v tomto Pracovním Prostředí se zastavila u kroku „Stahuji Organizaci“:",
         "git clone failed: Permission denied (publickey)",
       ]);
       expect(document.text).toContain(

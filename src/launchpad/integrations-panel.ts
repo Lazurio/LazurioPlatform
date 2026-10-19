@@ -8,7 +8,6 @@ import type {
   IntegrationApp,
   IntegrationsOverview,
 } from "../integrations/model";
-import { composioModel } from "./composio-model";
 import {
   addRow,
   type CustomForm,
@@ -133,6 +132,9 @@ export function createIntegrationsPanel(
     /** The Organization's page in the Dashboard, where its Admin sets up a
      * company app and allows Composio; null where none is known. */
     dashboard: () => string | null;
+    /** Called after the page is drawn: what the guide of the page's "?" is
+     * chosen by may have changed (whether Composio is allowed). */
+    drawn?: () => void;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -142,7 +144,6 @@ export function createIntegrationsPanel(
   };
   const navLink = find<HTMLAnchorElement>("#integrations-open");
   const attention = find<HTMLSpanElement>("#integrations-attention");
-  const help = find<HTMLAnchorElement>("#integrations-help");
   const composioApps = find<HTMLAnchorElement>("#integrations-composio");
   const search = find<HTMLInputElement>("#integrations-search");
   const refreshButton = find<HTMLButtonElement>("#integrations-refresh");
@@ -540,7 +541,7 @@ export function createIntegrationsPanel(
     const name = account.label ?? copy.integrationsAccountUnnamed;
     openConfirm(
       fill(copy.integrationsDisconnectTitle, { account: name, app: app.name }),
-      disconnectText(app, account, null, copy),
+      disconnectText(app, account, copy),
       copy.integrationsDisconnect,
       { kind: "start", run: () => void remove(app, account) },
     );
@@ -898,6 +899,7 @@ export function createIntegrationsPanel(
       const node = button(action.label, "integration-action", () =>
         act(app, action, view.line),
       );
+      node.dataset.action = action.kind;
       node.disabled = busy.has(app.id);
       foot.append(node);
     }
@@ -1032,6 +1034,15 @@ export function createIntegrationsPanel(
     }
     const grid = element("div", "integration-grid");
     grid.append(...shown.map(card));
+    // What the guide points at (decision F56's addendum of 2026-10-18): the
+    // first connected app, and the first Connect of one that is not.
+    grid
+      .querySelector(".integration-state")
+      ?.closest(".integration-card")
+      ?.setAttribute("data-guide", "integration-on");
+    grid
+      .querySelector('.integration-action[data-action="connect"]')
+      ?.setAttribute("data-guide", "integration-connect");
     nodes.push(grid);
     if (capped)
       nodes.push(
@@ -1058,23 +1069,31 @@ export function createIntegrationsPanel(
     title.id = "integrations-mcp-title";
     head.append(title);
     const unavailable = overview?.sources.executor !== "ok";
+    // The guide points at the way to add one and at the list (decision
+    // F56's addendum of 2026-10-18).
     if (unavailable) {
       const add = button(copy.integrationsMcpAdd, "primary", () => {});
       add.prepend(icon("i-plus"));
       add.disabled = true;
+      add.dataset.guide = "mcp-add";
       head.append(add);
     } else {
       const add = routeLink(customServerPath(null), "button primary");
       add.append(icon("i-plus"), copy.integrationsMcpAdd);
+      add.dataset.guide = "mcp-add";
       head.append(add);
     }
     // Where Executor is not running, the notice above says so once; the
     // list says only what it holds.
     const nodes: HTMLElement[] = [head];
-    if (servers.length === 0)
-      nodes.push(element("p", "empty", copy.integrationsMcpNone));
+    if (servers.length === 0) {
+      const empty = element("p", "empty", copy.integrationsMcpNone);
+      empty.dataset.guide = "mcp-list";
+      nodes.push(empty);
+    }
     if (servers.length > 0) {
       const list = element("ul", "card integration-servers");
+      list.dataset.guide = "mcp-list";
       for (const server of servers) {
         const row = element("li", "row integration-server");
         row.dataset.state = server.state;
@@ -1779,21 +1798,16 @@ export function createIntegrationsPanel(
     for (const line of sourceLines(overview, copy))
       problems.push(notice("warning", line));
     // Composio in no organization of this Environment's Organization's
-    // name: what to do in Composio, and the model drawn (decision F42,
-    // addendum of 2026-10-13).
+    // name: what to do in Composio (decision F42, addendum of 2026-10-13;
+    // the figure that explained the model is gone since its note of
+    // 2026-10-17, the explanation is in the documentation).
     const organizationLine = composioOrganizationLine(overview, copy);
     if (organizationLine !== null && overview.composio.organization !== null) {
       const open = element("a", "button", copy.integrationsComposioOpen);
       open.href = composioDashboard;
       open.target = "_blank";
       open.rel = "noopener noreferrer";
-      const box = element("div", "callout composio-organization");
-      box.dataset.kind = "warning";
-      box.append(
-        notice("warning", organizationLine, [open], { bare: true }),
-        composioModel(copy, overview.composio.organization.name),
-      );
-      problems.push(box);
+      problems.push(notice("warning", organizationLine, [open]));
     }
     // Composio not the build Lazurio pins: one line and its update, above
     // the apps (decision F42, addendum (b) of 2026-10-14).
@@ -1833,13 +1847,12 @@ export function createIntegrationsPanel(
         focus = null;
       }
     }
+    options.drawn?.();
   }
 
   function relabel() {
     const copy = options.copy();
-    help.href = integrationsHelp(options.locale());
     // Below 768 px the corner's links show only their icons.
-    help.title = copy.integrationsHelp;
     composioApps.title = copy.integrationsComposioApps;
     search.placeholder = copy.integrationsSearch;
     refreshButton.title = copy.integrationsRefresh;
@@ -1902,5 +1915,8 @@ export function createIntegrationsPanel(
     relabel,
     /** Reads again: after a tool's sign-in, or on request. */
     refresh: () => load(true),
+    /** Whether Composio is allowed here, as the page last read it; null
+     * until read. */
+    composio: (): boolean | null => overview?.composio.allowed ?? null,
   };
 }

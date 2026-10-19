@@ -77,10 +77,21 @@ test("every state the server answers is read back exactly; anything else is refu
     "handover-unreadable",
     "not-operator",
     "no-vault",
+    "no-tailnet",
+    "connection-unreadable",
   ] as const)
     expect(
       parseVaultStatus({ kind: "vault-status", state: "unsupported", reason }),
     ).toEqual({ kind: "vault-status", state: "unsupported", reason });
+  // A public Organization's Environment has no vault by design: its Tools
+  // row does not say "yet" (DEV-6631).
+  expect(
+    vaultRowLine(
+      { kind: "vault-status", state: "unsupported", reason: "no-tailnet" },
+      null,
+      messages("cs"),
+    ),
+  ).toEqual({ text: "V tomto Prostředí není k dispozici", state: "unknown" });
   for (const refused of [
     null,
     [],

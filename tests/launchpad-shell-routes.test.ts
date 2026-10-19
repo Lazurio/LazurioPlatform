@@ -16,6 +16,7 @@ import { shellFonts } from "../src/shell/fonts";
 import { toolsEnvironmentOf } from "../src/tools/overview";
 import { folderFixture, writeOrganization } from "./fixtures/catalog-folder";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
+import { freePort } from "./fixtures/ports";
 
 // Decision F36: `/.lazurio/shell.js` and `/.lazurio/fonts/*` are static
 // assets of this executable, served like the page's own (locally without the
@@ -28,8 +29,10 @@ test("the shell script defines the elements and nothing of a Folder", () => {
   expect(shellSource).toContain('customElements.define("lazurio-rail"');
   expect(shellSource).toContain("lazurio-column-head");
   expect(shellSource).toContain("/.lazurio/shell.json");
-  // No `<lazurio-buddy>` yet: reserved in the contract, not defined.
-  expect(shellSource).not.toContain('define("lazurio-buddy"');
+  // `<lazurio-buddy>` since decision F56: where the guide draws, which it
+  // does only on a page that hands over its explanations (`provideGuides`).
+  expect(shellSource).toContain('customElements.define("lazurio-buddy"');
+  expect(shellSource).toContain("provideGuides");
 });
 
 posixTest(
@@ -247,9 +250,7 @@ posixTest(
     await mkdir(folder, { mode: 0o700 });
     await mkdir(join(folder, "organizations"), { mode: 0o755 });
     await mkdir(join(folder, "personalspace"), { mode: 0o700 });
-    const probe = Bun.serve({ port: 0, fetch: () => new Response("") });
-    const port = probe.port ?? 0;
-    probe.stop(true);
+    const port = freePort();
     const preset = "hosted-organization-personal";
     const machine = organizationWithEntry(port);
     await initializeHandoverFolder(folder, {
@@ -357,9 +358,7 @@ posixTest(
     await mkdir(folder, { mode: 0o700 });
     await mkdir(join(folder, "organizations"), { mode: 0o755 });
     await mkdir(join(folder, "personalspace"), { mode: 0o700 });
-    const probe = Bun.serve({ port: 0, fetch: () => new Response("") });
-    const port = probe.port ?? 0;
-    probe.stop(true);
+    const port = freePort();
     const preset = "hosted-organization-personal";
     // An entry Machines would not issue (not `<app>.<base>.lazurio.io`): its
     // Environment has no identity, so the document fails closed instead of

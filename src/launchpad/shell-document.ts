@@ -17,10 +17,12 @@ import {
   type ShellEnvironmentKind,
   type ShellOrganization,
   type ShellSetup,
+  type ShellTheme,
   shellSchema,
   workstationId,
 } from "../shell/contract";
 import { initialsOf } from "../shell/view";
+import { isPublicEnvironment } from "./public-environment";
 
 // The Dashboard's slug lives with the contract, where the shell's merge of
 // the account reads it too (F37).
@@ -46,6 +48,12 @@ export const dashboardUrl = "https://dashboard.lazurio.ai/home";
 export const accountUrl = "https://dashboard.lazurio.ai/settings/account";
 export const addOrganizationUrl =
   "https://dashboard.lazurio.ai/add-organization";
+
+/** Whether the rail offers adding an Organization. Off: creating an
+ * Organization or a personal space by self-service is not finished yet
+ * (product decision of 2026-10-16, "produkt 1A"), so the rail draws no "+"
+ * (`addOrganization: null`). The address stays for when it returns. */
+export const selfServiceCreationEnabled = false;
 
 /** An Organization's page in the Dashboard; its home when the slug reduces
  * to nothing. */
@@ -231,7 +239,9 @@ export function ownerOrganization(
  * computer a workstation runs on; `setup` what the Environment still lacks
  * (root decision 0188, setup-state.ts), when the server knows it;
  * `ownerKey` the owning Organization's own slug as the Machine handover
- * names it (`owner.organization_key`), when it does. */
+ * names it (`owner.organization_key`), when it does; `theme` the
+ * Environment's theme (root decision 0208, `shellThemeOf` of its record),
+ * which `/.lazurio/shell.json` and the page's boot document always carry. */
 export function shellDocument(
   input: Readonly<{
     preset: PresetName;
@@ -241,10 +251,14 @@ export function shellDocument(
     computer?: string;
     setup?: ShellSetup;
     ownerKey?: string | null;
+    theme?: ShellTheme;
   }>,
 ): Shell {
   const { machine } = input;
   const entry = machine?.entry;
+  // A public Environment (root decision 0204, decision F55): its column head
+  // says so, and it has no first run to count.
+  const visitors = isPublicEnvironment(entry);
   const kind = presetKinds[input.preset];
   const held = shellOrganizations(input.catalog);
   // The owning Organization first.
@@ -293,7 +307,7 @@ export function shellDocument(
     schema: shellSchema,
     locale: input.locale,
     current: id,
-    ...(input.setup === undefined ? {} : { setup: input.setup }),
+    ...(input.setup === undefined || visitors ? {} : { setup: input.setup }),
     operator: {
       initials: login === null ? null : initialsOf(login).slice(0, 2) || null,
       login,
@@ -330,7 +344,14 @@ export function shellDocument(
     organizations,
     dashboard: dashboardUrl,
     account: accountUrl,
-    addOrganization: addOrganizationUrl,
+    addOrganization: selfServiceCreationEnabled ? addOrganizationUrl : null,
+    // The person's sign-out where the gateway serves it on the shell's
+    // origins (Machines#358): a path, so the elements on T3 Code's and
+    // MausBot's origins open it on their own origin too. Without it the
+    // shell offers none.
+    ...(entry?.signOutPath === undefined ? {} : { signOut: entry.signOutPath }),
+    ...(visitors ? { audience: "public" as const } : {}),
+    ...(input.theme === undefined ? {} : { theme: input.theme }),
   };
   // The producer's own output passes the same parser as every consumer's.
   const parsed = parseShell(document);

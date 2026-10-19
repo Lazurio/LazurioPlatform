@@ -54,6 +54,11 @@ import { favoritesKey, parseFavorites, toggleFavorite } from "./favorites";
 import type { SetupAction, SetupLine } from "./first-run";
 import type { MessageKey } from "./messages";
 import {
+  type LifecycleState,
+  lifecycleShown,
+  type RefusedOpen,
+} from "./module-lifecycle-state";
+import {
   moduleLink,
   moduleResultMessage,
   moduleSettling,
@@ -181,6 +186,10 @@ export function createCatalogPanel(
   const favoritesBox = find<HTMLDivElement>("#catalog-favorites");
   const head = find<HTMLElement>("#catalog-head");
   const headName = find<HTMLDivElement>("#catalog-head-name");
+  // The "?" right after the heading (decision F56's addendum of
+  // 2026-10-18): ui.ts says what it plays and whether it shows; the head
+  // keeps it beside the heading it draws.
+  const help = document.querySelector<HTMLButtonElement>("#catalog-help");
   const body = find<HTMLDivElement>("#catalog-body");
   const status = find<HTMLParagraphElement>("#catalog-status");
   const toastRegion = find<HTMLDivElement>("#toast");
@@ -225,18 +234,10 @@ export function createCatalogPanel(
     })
     .finally(() => render());
   const openMode = (): OpenApps => account?.openApps ?? "tab";
-  // The lifecycle of the module the page shows: its last status, the
-  // sentence after the last action, and whether a request is under way.
-  // Nothing of it is kept beyond the page; the service manager is the truth.
-  let lifecycle: {
-    key: string;
-    status: ModuleAnswer | ModuleBlocked | null;
-    message: string | null;
-    busy: boolean;
-    // After Start or Stop the keyboard focus returns to the primary action
-    // once it can take it again (it is disabled while the request runs).
-    focus: boolean;
-  } | null = null;
+  let lifecycle: LifecycleState | null = null;
+  // Why a tile's Open was refused, for the overview it then shows; taken once
+  // (lifecycleShown).
+  let refusedOpen: RefusedOpen | null = null;
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -389,13 +390,22 @@ export function createCatalogPanel(
   // --- Opening a module's app -------------------------------------------
 
   // Starts a workstation's app through the lifecycle: the link it reports
-  // once healthy, or null.
+  // once healthy, or null. A refused start (`blocked`, such as a data mount
+  // that could not be provided) ends at once, its reason kept for the
+  // overview.
   async function started(
     target: Extract<TileTarget, { kind: "start" }>,
   ): Promise<string | null> {
     let result = parseModuleResult(
       (await options.post(target.start, {})).value,
     );
+    if (result?.kind === "blocked") {
+      refusedOpen = {
+        key: target.status,
+        message: moduleResultMessage(result, options.copy()),
+      };
+      return null;
+    }
     for (let attempt = 0; attempt < 30; attempt++) {
       if (result?.kind === "module" && result.healthy)
         return moduleLink(result.runtime?.url);
@@ -424,6 +434,7 @@ export function createCatalogPanel(
     const copy = options.copy();
     const mode = openMode();
     notice = copy.appsStarting.replace("{name}", name);
+    refusedOpen = null;
     render();
     const opened = await startThenOpen(mode, () => started(target), {
       open: () => {
@@ -964,7 +975,9 @@ export function createCatalogPanel(
     heading.tabIndex = -1;
     heading.dataset.pageHeading = "";
     const where = element("div", "apps-where");
-    where.append(heading);
+    const title = element("div", "apps-title-row");
+    title.append(heading, ...(help === null ? [] : [help]));
+    where.append(title);
     const environment = options.environment();
     if (environment !== null) {
       const line = element("span", "apps-environment");
@@ -1329,17 +1342,11 @@ export function createCatalogPanel(
   ): HTMLElement {
     const copy = options.copy();
     const key = lifecycleKey(organization, module);
-    if (lifecycle?.key !== key) {
-      lifecycle = {
-        key,
-        status: null,
-        message: null,
-        busy: false,
-        focus: false,
-      };
-      void readStatus(organization, module);
-    }
-    const current = lifecycle;
+    const shown = lifecycleShown(lifecycle, refusedOpen, key);
+    refusedOpen = shown.refusedOpen;
+    lifecycle = shown.lifecycle;
+    if (shown.fresh) void readStatus(organization, module);
+    const current = shown.lifecycle;
     const view = moduleStatusView(current.status, copy);
     const card = element("div", "card module-lifecycle");
     const item = element("div", "row");
@@ -1532,6 +1539,8 @@ export function createCatalogPanel(
     refresh,
     /** Whether the catalog is being read for the first time. */
     reading: () => state === "loading",
+    /** The catalog as last read; null before the first answer. */
+    current: (): Catalog | null => catalog,
     /** The display name of an Organization slug, once known. */
     displayName(slug: string): string | undefined {
       const organization =

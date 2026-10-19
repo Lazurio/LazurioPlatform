@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { messages } from "../src/launchpad/messages";
 import {
+  moduleCopy,
   moduleLink,
   moduleResultMessage,
   moduleSettling,
@@ -243,6 +244,12 @@ test("the sentence after Start or Stop names what happened or why not", () => {
     ["required-slot-undeclared", "workspace/prices"],
     ["required-slot-planned", "workspace/prices"],
     ["required-slot-missing", "workspace/prices"],
+    // A module's own data mount it could not provide (launchpad-parity B7)
+    // names its slot too.
+    ["data-mount-denied", "workspace/orders/db"],
+    ["data-mount-occupied", "workspace/orders/db"],
+    ["data-mount-unavailable", "workspace/orders/db"],
+    ["data-mount-clone-failed", "workspace/orders/db"],
   ] as const)
     for (const copy of [en, cs]) {
       const sentence = moduleResultMessage({ ...refusal(reason), file }, copy);
@@ -255,6 +262,38 @@ test("the sentence after Start or Stop names what happened or why not", () => {
     "Refused: something-new.",
   );
   expect(moduleResultMessage(null, en)).toBe(en.appResultUnknown);
+});
+
+test("on a Team Environment a data mount GitHub refuses names the Team's access, never a person's account (#488)", () => {
+  const denied = {
+    ...refusal("data-mount-denied"),
+    file: "workspace/orders/db",
+  };
+  for (const copy of [en, cs]) {
+    const team = moduleResultMessage(denied, moduleCopy(copy, true));
+    const own = moduleResultMessage(denied, moduleCopy(copy, false));
+    expect(team).toContain("workspace/orders/db");
+    expect(team).not.toBe(own);
+    expect(own).toBe(moduleResultMessage(denied, copy));
+    // Every other refusal reads the same on both.
+    const unavailable = {
+      ...refusal("data-mount-unavailable"),
+      file: "workspace/orders/db",
+    };
+    expect(moduleResultMessage(unavailable, moduleCopy(copy, true))).toBe(
+      moduleResultMessage(unavailable, copy),
+    );
+  }
+  expect(moduleResultMessage(denied, moduleCopy(en, true))).not.toContain(
+    "your GitHub account",
+  );
+  expect(moduleResultMessage(denied, moduleCopy(en, true))).toContain("Team");
+  expect(moduleResultMessage(denied, moduleCopy(cs, true))).not.toContain(
+    "váš účet",
+  );
+  expect(moduleResultMessage(denied, moduleCopy(cs, true))).toContain(
+    "Týmové Prostředí",
+  );
 });
 
 test("the page keeps reading the status only while a started app settles", () => {
@@ -284,11 +323,18 @@ test("a start refused for its runtime secrets names each one and why, and a star
     parseModuleResult({ ...refused, secrets: [{ name: "EXTERNAL_API_KEY" }] }),
   ).toBeNull();
   expect(moduleResultMessage(refused, en)).toBe(
-    "The app was not started: it needs secrets that this Environment's vault did not give it. EXTERNAL_API_KEY, SECOND_KEY: no item of this name in the Environment's vault; THIRD_KEY: more than one item of this name in the Environment's vault. Values are never shown; add or fix the item named exactly like the secret in the Environment's vault and start again.",
+    "The app was not started: it needs secrets that this Environment's vault did not give it. EXTERNAL_API_KEY, SECOND_KEY: no item of this name in this Environment's vault; THIRD_KEY: more than one item of this name in this Environment's vault. Values are never shown; add or fix the item named exactly like the secret in this Environment's vault and start again.",
   );
   const czech = moduleResultMessage(refused, cs);
   expect(czech).toContain("EXTERNAL_API_KEY, SECOND_KEY: v trezoru");
-  expect(czech).toContain("THIRD_KEY: v trezoru Prostředí je víc položek");
+  expect(czech).toContain(
+    "THIRD_KEY: v trezoru tohoto Prostředí je víc položek",
+  );
+  // In the Environment it is shown in, the vault is that kind's (F28's
+  // addendum of 2026-10-18).
+  expect(moduleResultMessage(refused, messages("cs", "team"))).toContain(
+    "THIRD_KEY: v trezoru tohoto Týmového Prostředí je víc položek",
+  );
   expect(moduleStatusView(refused, cs).code).toBe("runtime-secret-unavailable");
   for (const copy of [en, cs])
     for (const reason of [

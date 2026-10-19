@@ -21,6 +21,7 @@ import {
   withEnvironmentRelay,
 } from "./fixtures/machine-bindings";
 import personal from "./fixtures/machine-context-personal.json";
+import { freePort } from "./fixtures/ports";
 
 // Decision F45 end to end in the Launchpad: on a work Environment whose
 // handover names the Environment's relay, the Launchpad asks the Dashboard
@@ -37,17 +38,6 @@ const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
-
-const freePort = () => {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(""),
-  });
-  const port = probe.port as number;
-  probe.stop(true);
-  return port;
-};
 
 const fetcher: AuthFetcher = async (_url, init) =>
   new Headers(init.headers).get("cookie") === "__Secure-lazurio-workspace=valid"
