@@ -11,10 +11,16 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
-from the merge of Machines pull request **#633** into `main` (commit
-`a9debf519e09d94f76a9ddacb866063996543262`, SHA-256
-`85628496202a4b95ef6c1472e47caf4e0f13f406bc837e620480c04aac16ae38`), which adds only
-the optional `entry.browser.local_port` (LazurioPlatform#504) and changes nothing else. Before it, the merge of Machines pull request **#560** into
+from the merge of Machines pull request **#664** into `main` (commit
+`3c7d9fb00ca06ea7c30812e7e4e33c387b20be1d`, SHA-256
+`587179a16dc61ed605479d98920024ac9087baf59b894c811ede715246a8944a`), which adds only
+the closed assignment branch `{kind: "services"}` and the optional Organization-branch
+member `services`
+([the services Environment of a server](#the-services-environment-of-a-server-root-decision-0209))
+and changes nothing else. Before it, the merge of Machines pull request **#633** into
+`main` (commit `a9debf519e09d94f76a9ddacb866063996543262`, SHA-256
+`85628496202a4b95ef6c1472e47caf4e0f13f406bc837e620480c04aac16ae38`), which added only
+the optional `entry.browser.local_port` (LazurioPlatform#504). Before that, the merge of Machines pull request **#560** into
 `main` (commit `a1cee4eea554348c5a51e4a71c4fa9325dfa8bfc`, SHA-256
 `f6bb3b3d53273184714ca1fd9d5b6412c9f5e1e07002a0cd5d47b1cd1ccf60c4`), which added only
 the optional `entry.audience` ([below](#the-hosted-entry-decision-f16), root decision
@@ -51,18 +57,6 @@ reader substitutes the gateway label of a module id, never the id itself. Adjace
 byte digest, and a test fails when the vendored bytes drift from it. Changes
 originate in Machines, then the consumer is re-pinned and conformance tested. No runtime dependency on a private checkout. The test
 fixtures are synthetic, not a customer's rendered identity.
-
-**Pending re-pin (DEV-6674 S1.1, root decision 0209).** The vendored file is now,
-byte for byte (SHA-256
-`c38174314c3257ad4f476b0cac26f3d5a88eb3c7be3086ed036e5c77563992e8`), the schema of
-Machines commit `54ddcdf16d990bf1e8190bde94f697ed41da7504`, the branch of DEV-6674
-S1.1, which is not yet published as a pull request. It adds to the schema of #633
-only the closed assignment branch `{kind: "services"}` and the optional
-Organization-branch member `services`
-([the services Environment of a server](#the-services-environment-of-a-server-root-decision-0209)).
-`schema-provenance.json` keeps #633 as its source and says so in `pending`; the pin
-moves to the merge of that pull request before this Platform merges, and the test
-"the vendored schema is pinned, nothing pending" fails until it does.
 
 The schema is a `oneOf` with exactly two branches, distinguished by `machine.kind`
 and never mixing owner or host kinds:

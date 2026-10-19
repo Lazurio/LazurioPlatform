@@ -147,12 +147,14 @@ test("the handover's local_port is the loopback entry; absent or out of range, n
   ).toBeUndefined();
 });
 
-test("the vendored schema is the merge of Machines #633: local_port, optional, a port of the entry's range", () => {
+test("the vendored schema carries Machines #633's local_port: optional, a port of the entry's range", () => {
+  // Re-pinned since to Machines #664, which adds only the `services`
+  // assignment and the Organization-branch `services` list.
   expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/633",
+    "https://github.com/HumanAndMachine-ai/Machines/pull/664",
   );
   expect(provenance.source_commit).toBe(
-    "a9debf519e09d94f76a9ddacb866063996543262",
+    "3c7d9fb00ca06ea7c30812e7e4e33c387b20be1d",
   );
   const browser = (
     schema as unknown as {

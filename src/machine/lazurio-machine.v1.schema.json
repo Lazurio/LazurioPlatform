@@ -61,7 +61,7 @@
             "properties": {
               "id": { "type": "string", "maxLength": 32, "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
               "kind": { "enum": ["ai-pool", "ai-gateway", "http", "diagnostics", "public-entry", "dns01"] },
-              "repository": { "type": "string", "pattern": "^[A-Za-z0-9-]+/[A-Za-z0-9_.-]+$" },
+              "repository": { "$ref": "#/$defs/repository" },
               "page_port": { "type": "integer", "minimum": 1025, "maximum": 65535 }
             }
           }
