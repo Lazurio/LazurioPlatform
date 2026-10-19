@@ -148,6 +148,9 @@ export function createIntegrationsPanel(
     /** The Organization's page in the Dashboard, where its Admin sets up a
      * company app and allows Composio; null where none is known. */
     dashboard: () => string | null;
+    /** Whether this is a Team Environment, whose Composio is signed in with
+     * the Team's Composio account (decision F42, note of 2026-10-19). */
+    team: () => boolean;
     /** Called after the page is drawn: what the guide of the page's "?" is
      * chosen by may have changed (whether Composio is allowed). */
     drawn?: () => void;
@@ -538,7 +541,7 @@ export function createIntegrationsPanel(
       return;
     }
     const reason = value.reason;
-    note = refusalNote(reason, overview, copy);
+    note = refusalNote(reason, overview, copy, options.team());
     if (reason === "name-required") {
       formNeedsName = true;
       forming = app;
@@ -678,7 +681,7 @@ export function createIntegrationsPanel(
         account: account.selector,
         confirm: true,
       });
-      failure = disconnectFailure(value, overview, copy);
+      failure = disconnectFailure(value, overview, copy, options.team());
     } catch {
       failure = copy.integrationsDisconnectFailed;
     }
@@ -1907,7 +1910,11 @@ export function createIntegrationsPanel(
     // name: what to do in Composio (decision F42, addendum of 2026-10-13;
     // the figure that explained the model is gone since its note of
     // 2026-10-17, the explanation is in the documentation).
-    const organizationLine = composioOrganizationLine(overview, copy);
+    const organizationLine = composioOrganizationLine(
+      overview,
+      copy,
+      options.team(),
+    );
     if (organizationLine !== null && overview.composio.organization !== null) {
       const open = element("a", "button", copy.integrationsComposioOpen);
       open.href = composioDashboard;

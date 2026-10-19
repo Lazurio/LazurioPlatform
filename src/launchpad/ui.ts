@@ -1016,6 +1016,10 @@ const integrations = createIntegrationsPanel({
     shellDocument !== null && shellDocument.organizations.length === 1
       ? (shellDocument.organizations[0]?.dashboard ?? null)
       : null,
+  // A Team Environment's Composio is the Team's Composio account.
+  team: () =>
+    shellDocument !== null &&
+    currentEnvironment(shellDocument)?.kind === "team",
   // Whether Composio is allowed chooses what Integrace's "?" plays.
   drawn: () => {
     if (framed) drawGuide(shell.route());

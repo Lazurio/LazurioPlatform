@@ -17,7 +17,9 @@ import {
 import type { IntegrationsOverview } from "../src/integrations/model";
 import {
   composioOrganizationLine,
+  disconnectFailure,
   parseIntegrations,
+  refusalNote,
 } from "../src/launchpad/integrations-view";
 import { messages } from "../src/launchpad/messages";
 import {
@@ -957,6 +959,72 @@ test("the page's words for each state of the organization", () => {
     kind: "chosen",
     personal: false,
   });
+});
+
+test("in a Team Environment the page names the Team's Composio account, elsewhere the person's own (decision F42, note of 2026-10-19)", () => {
+  const overview = (state: "missing" | "ambiguous" | "elsewhere") =>
+    ({
+      sources: { tools: "ok", executor: "ok", composio: "ok" },
+      composio: {
+        allowed: true,
+        source: "organization",
+        ready: true,
+        disconnect: false,
+        organization: { name: "Lazurio Example Organization", state },
+      },
+    }) as unknown as IntegrationsOverview;
+  const cs = messages("cs", "team");
+  const en = messages("en", "team");
+  expect(composioOrganizationLine(overview("missing"), cs, true)).toBe(
+    "V týmovém účtu Composia chybí organizace „LazurioExampleOrganization“. Toto Týmové Prostředí patří Organizaci Lazurio Example Organization a má se přes Composio připojovat v organizaci tohoto jména v týmovém účtu; dokud ji nezaložíte, připojuje se v organizaci, kterou má účet vybranou. Založte ji v Composiu. Až ji založíte, Lazurio bude pokračovat samo.",
+  );
+  expect(composioOrganizationLine(overview("missing"), en, true)).toBe(
+    "The Team's Composio account has no organization named “LazurioExampleOrganization”. This Team Environment belongs to the Organization Lazurio Example Organization and should connect through Composio in the Team account's organization of that name; until you create it, it connects in the organization the account has selected. Create it in Composio. Once it exists, Lazurio continues on its own.",
+  );
+  expect(composioOrganizationLine(overview("ambiguous"), cs, true)).toBe(
+    "V týmovém účtu Composia je víc organizací se jménem „LazurioExampleOrganization“. Dokud nezůstane jen jedna, připojuje se toto Týmové Prostředí v organizaci, kterou má účet vybranou. Tu navíc v Composiu přejmenujte. Až ji přejmenujete, Lazurio bude pokračovat samo.",
+  );
+  expect(composioOrganizationLine(overview("ambiguous"), en, true)).toBe(
+    "The Team's Composio account has more than one organization named “LazurioExampleOrganization”. Until only one is left, this Team Environment connects in the organization the account has selected. Rename the extra one in Composio. Once it is renamed, Lazurio continues on its own.",
+  );
+  // Elsewhere, and where nothing says the Environment is a Team's, the
+  // person's own account as before.
+  const work = messages("cs", "work");
+  for (const team of [false, undefined]) {
+    expect(composioOrganizationLine(overview("missing"), work, team)).toBe(
+      "Ve vašem účtu Composia chybí organizace „LazurioExampleOrganization“. Toto Pracovní Prostředí patří Organizaci Lazurio Example Organization a má se přes Composio připojovat ve vaší vlastní organizaci tohoto jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu. Až ji založíte, Lazurio bude pokračovat samo.",
+    );
+    expect(
+      composioOrganizationLine(overview("ambiguous"), work, team),
+    ).toStartWith("Ve vašem účtu Composia je víc organizací");
+  }
+  // A link or a removal refused for the organization says the same.
+  expect(
+    refusalNote("composio-organization", overview("missing"), cs, true).text,
+  ).toStartWith("V týmovém účtu Composia chybí organizace");
+  expect(
+    refusalNote("composio-organization", overview("missing"), work).text,
+  ).toStartWith("Ve vašem účtu Composia chybí organizace");
+  expect(
+    disconnectFailure(
+      { reason: "composio-organization" },
+      overview("ambiguous"),
+      cs,
+      true,
+    ),
+  ).toStartWith("V týmovém účtu Composia je víc organizací");
+  expect(
+    disconnectFailure(
+      { reason: "composio-organization" },
+      overview("ambiguous"),
+      work,
+    ),
+  ).toStartWith("Ve vašem účtu Composia je víc organizací");
+  // The line that names the organization the switch failed for is the same
+  // in either (the organization of the account signed in here).
+  expect(composioOrganizationLine(overview("elsewhere"), cs, true)).toBe(
+    composioOrganizationLine(overview("elsewhere"), cs, false),
+  );
 });
 
 test("the page takes a reading with the organization's state, and refuses a malformed one", async () => {

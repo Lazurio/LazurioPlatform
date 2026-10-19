@@ -9335,6 +9335,50 @@ aplikace", Apps → Integrace waiting and finding the organization by itself, an
 drawing frame by frame and under reduced motion were rendered headless in Chromium
 in Czech and English on the preview with the fake Composio.
 
+*Note of 2026-10-19, decided by Matěj after the end-to-end test of that day (root
+decision 0162, addendum of 2026-10-17; plan DEV-6626): in a Team Environment Composio
+is signed in with the Team's Composio account, and the copy says so.* In a Team
+Environment's Settings → Tools the Composio row said "…s vaším vlastním účtem" right
+under the banner that asks for team accounts only and sends personal ones to the
+person's own Environment. Composio stays available in Team Environments (the tools
+reading's `sharedEnvironment: true`, the shell document's kind `team`). There it is
+signed in with the Team's Composio account, not anyone's personal one: an Environment
+of the same Organization with other credentials signs in with a separate Composio
+account, as the root addendum of 2026-10-17 has it. In that account, too, the
+Composio organization carries the Organization's name; points 1 to 7 are unchanged.
+
+- **The copy, in Team Environments only.** Settings → Tools, from the reading's
+  `sharedEnvironment`: the Composio row says "Snadná cesta k mnoha aplikacím přes
+  Composio, s týmovým účtem Composia. Aplikace připojíte v Apps → Integrace.", and the
+  sign-in dialog beside "Otevřít Composio" "Přihlaste se do Composia v prohlížeči
+  týmovým účtem Composia, ne osobním." Apps → Integrace, from the shell document's
+  kind as the catalog's and the theme's Team copy: where the Team's account has no
+  organization of the Organization's name or more than one, the notice, and the same
+  line on a refused link or removal, says "V týmovém účtu Composia…" instead of "Ve
+  vašem účtu Composia…" and "ve vaší vlastní organizaci". Integrace's "?" plays its
+  own `integrations-composio-team`: "Composio přihlásíte týmovým účtem", "Ne osobním
+  účtem nikoho z Teamu", and the step on the agents without the line on a Personal
+  Environment, which the Team's account does not have. Personal, work and Automated
+  Environments and a computer keep their copy.
+- **Nothing else.** No setting and no check of which account is signed in: a Team's
+  account is an ordinary Composio account. The Folder keeps its text, since its
+  warning for a shared Environment already asks agents for a team account in
+  Composio too. The lines that name the organizations of the account signed in here
+  as "vaše" (the dialog reading them, a switch that failed, a disconnect) stay.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Hide Composio in Team Environments | Nothing to explain; but the Team loses the easy way to many apps; rejected by Matěj: Composio stays, with the Team's account |
+| One sentence for every kind ("the account signed in here") | One text to keep; but a personal or work Environment loses the plain "your own account"; rejected: only Team Environments change |
+
+Verified by tests: the Composio row and the sign-in line with and without
+`sharedEnvironment` (`tests/tools-view.test.ts`); the missing and ambiguous notices,
+and a refused link and removal, in a Team and a work Environment, and the failed
+switch the same in both (`tests/integrations-composio-organization.test.ts`); the
+"?" of Integrace in a Team Environment and in every other kind
+(`tests/launchpad-guide.test.ts`). Nástroje and Apps → Integrace of a Team
+Environment were rendered headless in Chromium in Czech and English.
+
 **Addendum 2026-10-13 (3), decided by the Operator: Lazurio installs its own build of
 Composio's CLI until Composio's own has what Integrace needs.** Composio's stable CLI
 (0.4.2, 0.4.3) removes an account only after a prompt, so the "⋯" menu of a Composio

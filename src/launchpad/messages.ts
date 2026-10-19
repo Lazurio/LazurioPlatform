@@ -298,6 +298,8 @@ const en = {
   toolsLoginGhLink: "Open GitHub",
   toolsLoginCodeLabel: "One-time code",
   toolsLoginComposioText: "Sign in to Composio in your browser.",
+  toolsLoginComposioTextTeam:
+    "Sign in to Composio in your browser with the Team's Composio account, not a personal one.",
   toolsLoginComposioLink: "Open Composio",
   toolsLoginQrText:
     "On your phone open WhatsApp, then Settings, Linked devices, Link a device, and point the camera at this code. It changes every few seconds; the newest one is always shown here.",
@@ -841,6 +843,10 @@ const en = {
   guideComposioTitle: "Composio",
   guideComposioAccount: "Sign in to Composio with your own account",
   guideComposioAccountSub: "The Organization has no shared Composio",
+  // In a Team Environment, the Team's Composio account (decision F42, note
+  // of 2026-10-19).
+  guideComposioAccountTeam: "Sign in to Composio with the Team's account",
+  guideComposioAccountTeamSub: "Not anyone's personal account",
   guideComposioOrganization: "One organization in it for each Organization",
   guideComposioOrganizationSub: "Invite nobody else into it",
   guideComposioAgents:
@@ -1141,6 +1147,10 @@ const en = {
     "The connection to GitHub, where your modules are kept. Nothing works here without it.",
   toolsDescriptionComposio:
     "An easy way to many apps through Composio, with your own account. You connect the apps in Apps → Integrations.",
+  // In a Team Environment Composio is signed in with the Team's Composio
+  // account, not anyone's personal one (decision F42, note of 2026-10-19).
+  toolsDescriptionComposioTeam:
+    "An easy way to many apps through Composio, with the Team's Composio account. You connect the apps in Apps → Integrations.",
   toolsDescriptionWacli:
     "The connection to WhatsApp: agents read and send your messages.",
   toolsDescriptionGogcli:
@@ -1447,6 +1457,12 @@ const en = {
     "Your Composio account has no organization named “{composio}”. {This} belongs to the Organization {name} and should connect through Composio in your own organization of that name; until you create it, it connects in the organization you have selected. Create it in Composio.",
   integrationsComposioOrganizationAmbiguous:
     "Your Composio account has more than one organization named “{composio}”. Until only one is left, {this} connects in the organization you have selected. Rename the extra one in Composio.",
+  // The same two in a Team Environment, signed in to Composio with the
+  // Team's Composio account (decision F42, note of 2026-10-19).
+  integrationsComposioOrganizationMissingTeam:
+    "The Team's Composio account has no organization named “{composio}”. {This} belongs to the Organization {name} and should connect through Composio in the Team account's organization of that name; until you create it, it connects in the organization the account has selected. Create it in Composio.",
+  integrationsComposioOrganizationAmbiguousTeam:
+    "The Team's Composio account has more than one organization named “{composio}”. Until only one is left, {this} connects in the organization the account has selected. Rename the extra one in Composio.",
   integrationsComposioOrganizationElsewhere:
     "Composio could not be switched to your organization “{composio}”, so nothing connects through it now. Click Check connections to try again.",
   integrationsComposioOrganizationUnverified:
@@ -1989,6 +2005,8 @@ const cs: Record<MessageKey, string> = {
   toolsLoginGhLink: "Otevřít GitHub",
   toolsLoginCodeLabel: "Jednorázový kód",
   toolsLoginComposioText: "Přihlaste se do Composia v prohlížeči.",
+  toolsLoginComposioTextTeam:
+    "Přihlaste se do Composia v prohlížeči týmovým účtem Composia, ne osobním.",
   toolsLoginComposioLink: "Otevřít Composio",
   toolsLoginQrText:
     "V telefonu otevřete WhatsApp, pak Nastavení, Propojená zařízení, Propojit zařízení, a namiřte fotoaparát na tento kód. Kód se každých pár sekund mění; tady je vždy ten nejnovější.",
@@ -2518,6 +2536,8 @@ const cs: Record<MessageKey, string> = {
   guideComposioTitle: "Composio",
   guideComposioAccount: "Composio přihlásíte svým vlastním účtem",
   guideComposioAccountSub: "Organizace společné Composio nemá",
+  guideComposioAccountTeam: "Composio přihlásíte týmovým účtem",
+  guideComposioAccountTeamSub: "Ne osobním účtem nikoho z Teamu",
   guideComposioOrganization: "Pro každou Organizaci v něm jedna organizace",
   guideComposioOrganizationSub: "Nikoho dalšího do ní nezvěte",
   guideComposioAgents:
@@ -2803,6 +2823,8 @@ const cs: Record<MessageKey, string> = {
     "Připojení na GitHub, kde jsou uložené vaše moduly. Bez něj tu nic nefunguje.",
   toolsDescriptionComposio:
     "Snadná cesta k mnoha aplikacím přes Composio, s vaším vlastním účtem. Aplikace připojíte v Apps → Integrace.",
+  toolsDescriptionComposioTeam:
+    "Snadná cesta k mnoha aplikacím přes Composio, s týmovým účtem Composia. Aplikace připojíte v Apps → Integrace.",
   toolsDescriptionWacli:
     "Připojení na WhatsApp: agenti čtou a posílají vaše zprávy.",
   toolsDescriptionGogcli:
@@ -3080,6 +3102,10 @@ const cs: Record<MessageKey, string> = {
     "Ve vašem účtu Composia chybí organizace „{composio}“. {Toto} patří Organizaci {name} a má se přes Composio připojovat ve vaší vlastní organizaci tohoto jména; dokud ji nezaložíte, připojuje se v organizaci, kterou máte vybranou. Založte ji v Composiu.",
   integrationsComposioOrganizationAmbiguous:
     "Ve vašem účtu Composia je víc organizací se jménem „{composio}“. Dokud nezůstane jen jedna, připojuje se {toto} v organizaci, kterou máte vybranou. Tu navíc v Composiu přejmenujte.",
+  integrationsComposioOrganizationMissingTeam:
+    "V týmovém účtu Composia chybí organizace „{composio}“. {Toto} patří Organizaci {name} a má se přes Composio připojovat v organizaci tohoto jména v týmovém účtu; dokud ji nezaložíte, připojuje se v organizaci, kterou má účet vybranou. Založte ji v Composiu.",
+  integrationsComposioOrganizationAmbiguousTeam:
+    "V týmovém účtu Composia je víc organizací se jménem „{composio}“. Dokud nezůstane jen jedna, připojuje se {toto} v organizaci, kterou má účet vybranou. Tu navíc v Composiu přejmenujte.",
   integrationsComposioOrganizationElsewhere:
     "Composio se nepodařilo přepnout do vaší organizace „{composio}“, a tak se přes něj teď nic nepřipojí. Klikněte na Zkontrolovat připojení a zkuste to znovu.",
   integrationsComposioOrganizationUnverified:
