@@ -7,8 +7,8 @@ import { inKind, type KindLocale } from "./kind-name";
 // languages, and the explanations of a page, which its host owns and hands
 // over with `provideGuides`, since they point at the host's own elements and
 // change with its page. A port of the Lazurio prototype's guide
-// (prototypes-lazurio bebea85, app/v1/src/guide.ts), English added, the
-// motion left for later (plan DEV-6612, PR 6).
+// (prototypes-lazurio bebea85, app/v1/src/guide.ts), English added; the
+// principles' motion is guide-scenes.ts (F56's addendum (3)).
 //
 // Its rules, which tests/shell-guide.test.ts holds for every text: at most
 // four steps (Trezor keeps the five lines of its approved video), each at
