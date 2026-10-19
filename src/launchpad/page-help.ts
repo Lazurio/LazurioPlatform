@@ -8,8 +8,8 @@ import type { MessageKey } from "./messages";
 type Copy = Readonly<Record<MessageKey, string>>;
 
 // A guide video in place, under its page's heading (decision F56's addenda
-// of 2026-10-18 and 2026-10-19): Trezor's, where the approved video of how a
-// vault works in an Organization (`vault-overview`, DEV-6631,
+// of 2026-10-18 and (4) of 2026-10-19): Trezor's, where the approved video
+// of how a vault works in an Organization (`vault-overview`, DEV-6631,
 // design-system-lazurio#93) is true of this Environment (guides.ts
 // `vaultHelp`). The shell's guide draws rings and cards, not a video, so the
 // page shows the video itself, with the one line under it that the video

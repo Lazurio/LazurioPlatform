@@ -104,7 +104,7 @@ test("the Trezor page holds the player's slot at the top of its Bitwarden sectio
 
 // How a vault works in an Organization (DEV-6631, design-system-lazurio#93):
 // the approved video `vault-overview`, the first thing Trezor shows where its
-// words are true (decision F56's addenda of 2026-10-18 and 2026-10-19,
+// words are true (decision F56's addenda of 2026-10-18 and (4) of 2026-10-19,
 // page-help.ts; where it is true is tests/launchpad-guide.test.ts's): at the
 // top of the page, its player first and under it the one line it does not
 // say. The page serves it hidden; it opens as the page knows it is true.
@@ -156,7 +156,7 @@ test("Trezor's video: served hidden at the top of the page, its player above the
 });
 
 // Matěj, 2026-10-19: the video is the first thing a person sees on Trezor,
-// also where the vault is in use (F56's addendum of 2026-10-19). It stands
+// also where the vault is in use (F56's addendum (4) of 2026-10-19). It stands
 // open with the page where it is true, the person's closing holds while
 // they stay, and the next visit opens it again.
 test("Trezor's video: open with the page where it is true, closed by the person until the page moves on, open again on the next visit", () => {

@@ -7,6 +7,7 @@ import {
   basicsDone,
   composioFact,
   contentBlockedBy,
+  createComposioOrganizationReader,
   finishedTourProgress,
   firstProgress,
   freshTourProgress,
@@ -331,9 +332,19 @@ test("the stops speak the wireframe's words", () => {
   const stop = (step: Parameters<typeof tourStop>[0], facts: TourFacts) =>
     tourStop(step, facts, apps, cs);
   const org = fresh("hosted-organization-personal");
-  expect(stop("gear", org)).toMatchObject({
+  // The gear's AI stop is its title alone in both languages, as Začínáme's
+  // AI step (Matěj 2026-10-16): no line under it.
+  expect(stop("gear", org)).toEqual({
+    target: "gear",
     title: "Nejdřív připojte AI",
-    text: "Agent vám pak pomůže s dalšími kroky.",
+    text: null,
+    next: null,
+    later: true,
+  });
+  expect(tourStop("gear", org, apps, en)).toEqual({
+    target: "gear",
+    title: "First connect AI",
+    text: null,
     next: null,
     later: true,
   });
@@ -562,6 +573,38 @@ test("GitHub from the Tools reading of the profile shown", () => {
     }),
   ).toBe("missing");
   expect(composioFact(null)).toBe("none");
+  // Signed in, and what the organizations' reading says of the organization
+  // of this Environment's Organization's name (the end-to-end test of
+  // 2026-10-19): done only where it is the one Composio works in, or where
+  // the person chooses; not read yet, the sign-in says it.
+  const signedIn = {
+    revision: 1,
+    sharedEnvironment: false,
+    tools: [
+      { name: "composio", installed: true, signIn: { state: "signed-in" } },
+    ],
+  } as const;
+  const named = (state: "matches" | "missing" | "ambiguous" | "elsewhere") =>
+    ({ kind: "named", name: "Lazurio Example Organization", state }) as const;
+  expect(composioFact(signedIn, named("matches"))).toBe("connected");
+  expect(composioFact(signedIn, { kind: "chosen", personal: true })).toBe(
+    "connected",
+  );
+  expect(composioFact(signedIn, null)).toBe("connected");
+  for (const state of ["missing", "ambiguous", "elsewhere"] as const)
+    expect(composioFact(signedIn, named(state))).toBe("unfinished");
+  expect(composioFact(signedIn, { kind: "unverified" })).toBe("unfinished");
+  // Signed out, the organization does not matter.
+  expect(
+    composioFact(
+      {
+        revision: 1,
+        sharedEnvironment: false,
+        tools: [{ name: "composio", installed: true }],
+      },
+      named("missing"),
+    ),
+  ).toBe("missing");
 });
 
 test("the first address: the token and a start request apart, both leading to Začínáme", () => {
@@ -857,4 +900,56 @@ test("the start by itself never comes after a stop, never during a run, never be
         contentBlockedBy(facts) === null,
       ]);
     }
+});
+
+test("Začínáme's organizations reading follows a Composio sign-in that changes mid-read (Pablo's review of #510)", async () => {
+  // Sign-in A's read is in flight when the tools report sign-in B: B's
+  // request is not dropped. A's answer never counts for B, and once A's
+  // read settles the reader reads again for B.
+  const missing = { kind: "named", name: "Example", state: "missing" } as const;
+  const matches = { kind: "named", name: "Example", state: "matches" } as const;
+  let signIn: string | null = "A";
+  const pending: ((rule: typeof missing | typeof matches) => void)[] = [];
+  const asked: (string | null)[] = [];
+  let drawn = 0;
+  const reader = createComposioOrganizationReader({
+    signIn: () => signIn,
+    read: () =>
+      new Promise((resolve) => {
+        asked.push(signIn);
+        pending.push(resolve);
+      }),
+    changed: () => {
+      drawn += 1;
+    },
+  });
+  const first = reader.read(true);
+  signIn = "B";
+  // The tools' reading for B arrives while A's read runs.
+  await reader.read(false);
+  expect(asked).toEqual(["A"]);
+  pending.shift()?.(matches);
+  await Promise.resolve();
+  await Promise.resolve();
+  // A's answer is A's: B has no answer yet, and B is being read.
+  expect(reader.rule()).toBeNull();
+  expect(asked).toEqual(["A", "B"]);
+  pending.shift()?.(missing);
+  await first;
+  expect(reader.rule()).toEqual(missing);
+  expect(drawn).toBe(2);
+  // Unchanged sign-in, no new read unless asked again.
+  await reader.read(false);
+  expect(asked).toEqual(["A", "B"]);
+  // A failed read keeps nothing.
+  const again = reader.read(true);
+  pending.shift()?.(Promise.reject(new Error("down")) as never);
+  await again;
+  expect(asked).toEqual(["A", "B", "B"]);
+  expect(reader.rule()).toBeNull();
+  // Signed out: nothing is read and nothing counts.
+  signIn = null;
+  await reader.read(true);
+  expect(asked).toEqual(["A", "B", "B"]);
+  expect(reader.rule()).toBeNull();
 });

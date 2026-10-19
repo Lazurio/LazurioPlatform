@@ -373,7 +373,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `kind-name.ts` (the words of the three kinds and of your computer, and the tokens a
   text writes for the Environment it is in: {tomto}, {this}; F28's addendum of
   2026-10-18), `guide.ts`, `guide-layer.ts`, `guide-styles.ts`, `guide-content.ts`,
-  `guide-placement.ts` and `guide-protocol.ts` (the guide, [below](#the-guide-decision-f56)),
+  `guide-placement.ts`, `guide-protocol.ts`, `guide-scenes.ts`, `guide-stage.ts` and
+  `guide-scene-styles.ts` (the guide and the principles' scenes, [below](#the-guide-decision-f56)),
   `stones.ts`, `fonts.ts`, `last.ts` (the report of the last Environment used,
   below), `account.ts` and `merge.ts` (the person's account and its merge into the
   rail, below), `state.ts` (what the elements draw, shared by the page's elements and
@@ -934,6 +935,25 @@ guide's mark and a card beside it, and the layer lets every click through.
   `guide-vectors/v1/`. `elements.ts` defines `<lazurio-buddy>` and exports
   `provideGuides` (interface v1), and for the Launchpad alone `guideAttention`, the
   arbiter with its tour.
+- **The principles in motion** ([F56's addendum (3) of 2026-10-19](decisions.md#f56-addendum-3-of-2026-10-19-the-six-principles-in-motion)).
+  `environment`, `buddy`, `reach`, `files` and `integrations` play a scene in the card,
+  one beat a step; Trezor keeps its video and has none, and so does a host's own
+  explanation. `guide-scenes.ts` is the scenes as pure data (per beat where each object
+  stands, whether it is on stage, the words of its state, when it moves; their names in
+  both languages), `guide-stage.ts` builds one in the card and sets a beat, and
+  `guide-scene-styles.ts` draws it: its plain rules are each beat's finished frame, and
+  every transition and animation stands inside `@media (prefers-reduced-motion:
+  no-preference)` and outside the layer's `data-still`, looping or ending at that frame.
+  The engine hands the layer `GuideView.scene`, keyed by the principle's id and the
+  step; nothing of it is interface v1. A scene names things only (at most three words,
+  the guide's text rules), never "=" or a word of sameness, draws two devices with
+  Lazurio as a window into the agents' computer (on your computer one device, yours,
+  with Lazurio on its screen and no arrow), and the way from the Osobní to the
+  Pracovní Prostředí as one straight solid arrow with nothing on it. The card keeps one
+  size through any explanation: every step's words stand in one place (`.lines`, only
+  the step's own shown), the stage is as wide as the card leaves (at most 360 px, 16 by
+  9, centred in the sheet below 768 px), and the last step's links have their own row
+  (`.more`), unseen until then.
 - **A host takes part by asking.** It places `<lazurio-buddy lang>`, hands over the
   explanations of the page it shows with `provideGuides([...])` on every move (null to
   withdraw), marks its elements with `data-guide` and its "?" with
@@ -970,7 +990,7 @@ guide's mark and a card beside it, and the layer lets every click through.
     known, the Launchpad's `vault-agents`, which promises no Bitwarden of one's own; where
     the person is a member of the vault, or the Environment has no vault, the approved video
     `vault-overview`, open in place as the page opens and the first thing it shows (F56's
-    addendum of 2026-10-19), with the one line it does not say; the "?" closes and reopens
+    addendum (4) of 2026-10-19), with the one line it does not say; the "?" closes and reopens
     it (`page-help.ts`, `#vault-video`); nothing until the page read the vault's state. One
     agent's request has no "?";
   - Settings ([F56's addendum (2) of 2026-10-18](decisions.md#f56-addendum-2-of-2026-10-18-every-section-of-settings-has-its--and-loses-its-explaining-sentences)): Začínáme
@@ -1023,8 +1043,12 @@ guide's mark and a card beside it, and the layer lets every click through.
   Trezor's variant in a Work (the video, playing, with its line), Team and Automated
   (`vault-agents`) and Personal (`vault`) Environment and without a vault (the video),
   Escape returning the focus to the "?", the removed sentences absent, and a page with
-  the shell and `<lazurio-buddy>` but no `provideGuides` drawing nothing. Tests:
-  `tests/shell-guide.test.ts`, `tests/shell-guide-protocol.test.ts`,
+  the shell and `<lazurio-buddy>` but no `provideGuides` drawing nothing. For the scenes,
+  play each principle (a button with `data-guide-help="<id>"` plays any of them on a
+  page that takes part) in a Work, a Team and a Personal Environment: every beat, one
+  card size per explanation, and with `prefers-reduced-motion` no running animation and
+  the beat's finished frame at once. Tests: `tests/shell-guide.test.ts`,
+  `tests/shell-guide-protocol.test.ts`, `tests/shell-guide-scenes.test.ts`,
   `tests/launchpad-guide.test.ts`.
 
 ### The offline guide (decision F41)
@@ -2345,9 +2369,10 @@ card's state is read again. What it shows:
 
 **Update** (decision F42, addendum (3) of 2026-10-13). The tools reading carries the
 build Lazurio pins for a tool (`pinned`; today only composio, Lazurio's build of the
-Composio CLI). A composio whose version is not that build says so in its Details
-("Tohle není sestavení, které Lazurio používá (0.4.3-lazurio.1)." / "This is not the
-build Lazurio uses (0.4.3-lazurio.1).", the amber attention state) and its row offers
+Composio CLI, `0.4.3-lazurio.2` since 2026-10-19). A composio whose version is not
+that build, an earlier build of Lazurio's (`0.4.3-lazurio.1`) included, says so in its
+Details ("Toto není sestavení, které Lazurio používá (0.4.3-lazurio.2)." / "This is not
+the build Lazurio uses (0.4.3-lazurio.2).", the amber attention state) and its row offers
 "Aktualizovat" / "Update" (named "Update composio") where the update can work: a
 `launchpad` tool this Environment offers, not refused by the Organization, installed
 in the standard path (an installation elsewhere is never shadowed by a second copy, so
@@ -2357,7 +2382,7 @@ there is no button there). The click is the person's consent: it posts
 installer run per tool at a time, shared with installation, `busy` otherwise; a tool
 without a pinned build is refused as `update-unavailable`). While it runs the status
 line says that the tool is being updated; the row then says the outcome ("composio
-0.4.3-lazurio.1 je nainstalovaný; přihlášení zůstává." or that the update did not
+0.4.3-lazurio.2 je nainstalovaný; přihlášení zůstává." or that the update did not
 finish, with why under "What happened" in Details) and the tools are read again.
 
 **gh and its SSH key** (F19 addendum 2026-09-28). The gh dialog has a third step,
@@ -2668,7 +2693,7 @@ language's, paused. The pure part, `guideVideoPlayer`, decides the markup and th
 (`vault-page-panel.ts`, hidden for a personal Environment's own Bitwarden, whose steps
 differ). Trezor's "?", where its words are true of the Environment's vault (an Organization's
 vault the person is in, or no vault here; [the guide](#the-guide-decision-f56)), is the
-first thing the page shows (F56's addendum of 2026-10-19, `src/launchpad/page-help.ts`):
+first thing the page shows (F56's addendum (4) of 2026-10-19, `src/launchpad/page-help.ts`):
 as the page knows the video is true, the box `#vault-video` opens under the page's heading
 with `vault-overview` in `#vault-video-player` at its poster, playing nothing and moving no
 focus, and the person starts it; the line under it (`vaultVideoLine`) says what the video
@@ -2991,8 +3016,11 @@ Organization's, and it gets none of it.
 
   Then "Hesla pro agenty" with Trezor Prostředí and its state as Apps → Trezor reads
   it (`GET /api/vault`, `vaultPageView`; a Remote Environment with a vault only),
-  "Volitelné" (Composio where Nástroje offer it, with its sign-in; on a Remote
-  Environment SSH z vlastního počítače, "Nastaveno" once a device's key was added here,
+  "Volitelné" (Composio where Nástroje offer it, with its sign-in, and "Nedokončeno"
+  with "Dokončit" where it is signed in but the organizations' reading says it does
+  not work in the organization of the Organization's name: "Dokončit" opens
+  Composio's dialog at the step left in Composio, decision F42's note of 2026-10-19;
+  on a Remote Environment SSH z vlastního počítače, "Nastaveno" once a device's key was added here,
   and Codex Desktop, both leading to Settings → SSH; between them "Trezor v Bitwardenu"
   where Apps → Trezor gives the steps for Bitwarden, its "Návod" opening them) and
   "Prohlídka aplikace" ("Spustit
@@ -3024,10 +3052,10 @@ Organization's, and it gets none of it.
 - **The tour** (`tour.ts` over the rules of `first-run.ts`): a ring around a real
   element and a bubble beside it with at most a dozen words; the layer lets every click
   through, so the person does each step. While a basic is missing: the gear ("Nejdřív
-  připojte AI" · "Agent vám pak pomůže s dalšími kroky.", "Připojte GitHub", "Ještě
-  stáhněte <Organizace>", "Příprava se nepovedla"), Začínáme in the Settings column
-  ("Všechny kroky na jednom místě."), then on Začínáme the missing step itself
-  (`data-tour` `start-ai`, `start-github`, `prepare`). Then the introduction: Apps,
+  připojte AI", its title alone with no line under it, as Začínáme's AI step; "Připojte
+  GitHub", "Ještě stáhněte <Organizace>", "Příprava se nepovedla"), Začínáme in the
+  Settings column ("Všechny kroky na jednom místě."), then on Začínáme the missing step
+  itself (`data-tour` `start-ai`, `start-github`, `prepare`). Then the introduction: Apps,
   Chat, Automate and the gear ("Nastavení" · "Začínáme tu najdete kdykoli."). Every
   bubble but the last offers **"Dokončím později"**, which puts it away for the current
   view only: until the basics exist the tour is back on the next page load, and Začínáme

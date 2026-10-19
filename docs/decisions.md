@@ -9271,6 +9271,114 @@ name with nothing Composio accepts never asked for (`tests/tools-view.test.ts`).
 The dialog, its drawing frame by frame and under reduced motion, and Apps →
 Integrace were rendered headless in Chromium in Czech and English.
 
+*Note of 2026-10-19, after the end-to-end test as Bob, the Owner of the public
+reference Organization LazurioExampleOrganization, in his Work Environment on
+Platform 0.1.9-rc.6 (plan DEV-6626):* the path from the sign-in to a connected
+Composio works; what the person saw on the way did not always agree. Points 1 to
+7 and the notes above are unchanged; this note amends how the pages follow the
+verdict. The reference is
+[integrations](integrations.md#the-composio-organization-of-an-environment).
+
+- **No stale verdict.** The dialog said "Composio je připojené", and "Vybrat
+  aplikace" opened Apps → Integrace, which still said the organization was
+  missing: the page kept the reading it made when the sign-in ended, and the
+  Launchpad keeps a reading for a minute. An answer of the organizations' reading
+  that finds the organization or makes it current, and a person's choice of
+  organization, now drop the Launchpad's reading; the page reads the Integrace
+  again when a tool's sign-in changes, Composio's account and organization
+  included.
+- **Integrace waits as the dialog does.** Its line asked to click "Zkontrolovat
+  připojení", an unlabelled icon. Where the organization is missing or there
+  twice, the page now reads the organizations' verdict again while it is shown,
+  with the dialog's own pace (after 4 s, then half as long again, at most every
+  30 s, not while hidden, at once when shown again), reads the Integrace once the
+  verdict changed, and its line ends with the dialog's waiting line ("Až ji
+  založíte, Lazurio bude pokračovat samo."). The lines of an organization that
+  could not be made current, and of an unreadable name, keep naming the check.
+- **Začínáme agrees.** Its Composio row said "Připojeno" from the sign-in alone.
+  It now reads the same verdict when it is shown; signed in but not in the
+  organization of the Organization's name (missing, twice, not made current, or
+  the name unreadable), the row says "Nedokončeno" with "Dokončit", which opens
+  the dialog at the step left in Composio. An answer counts only for the sign-in
+  it was read with, and when the sign-in changes while a read runs, Začínáme
+  reads again for the new one (`createComposioOrganizationReader`). Nástroje
+  keeps "Připojeno jako …": the sign-in itself is done.
+- **The drawing has the person's menu.** In Composio's dashboard the card at the
+  bottom left is the person's own (their name and current organization) and opens
+  a menu whose top row, "Organization", opens the list with "Create Org". The
+  drawing now shows that menu as its own place: five places, the dialog's name box
+  numbered 5, a loop of 16.5 s; under reduced motion the menu and the list stand
+  open.
+- **Composio stores the name in lower case** ("Will be created as
+  lazurioexampleorganization"). The match already ignores case; the dialog keeps
+  offering the readable CamelCase form. Nothing else changes.
+- **Beside F42.** An account of an app connected through its own tool (GitHub
+  through gh) is spare too, "Navíc přes Composio, nepoužívá se"; the rule exempted
+  the tool path, which no decision asked for. A sign-out in Nástroje says what
+  happened without the tool's id ("Odpojeno v tomto Prostředí. …"), for every
+  tool; it still asks nothing first, as no action in Nástroje does.
+- **Not ours.** The dialog waited 60 to 70 s after "Authorize" because Composio's
+  CLI polls the pending login with a growing interval (`login --poll`: the larger
+  of 5 s and 0.3 s doubling per attempt, so checks at about 0, 5, 10, 15, 20, 25,
+  35, 54, 92 and 169 s); the Launchpad asks its session every 2 s.
+
+Verified by tests: an account beside the app's tool spare
+(`tests/integrations-model.test.ts`); the reading without a refresh saying
+"matches" once the dialog found the organization, and a personal Environment's
+choice moving the links at once (`tests/integrations-composio-organization.test.ts`);
+the sign-ins' key with Composio's organization, what the page waits for, when an
+answer changes it and its line (`tests/integrations-page.test.ts`); Začínáme's
+Composio fact and row (`tests/first-run.test.ts`, `tests/start-view.test.ts`); the
+drawing's places and words, and a sign-out's sentence without the tool's id
+(`tests/tools-view.test.ts`). Začínáme, the dialog connecting and "Vybrat
+aplikace", Apps → Integrace waiting and finding the organization by itself, and the
+drawing frame by frame and under reduced motion were rendered headless in Chromium
+in Czech and English on the preview with the fake Composio.
+
+*Note of 2026-10-19, decided by Matěj after the end-to-end test of that day (root
+decision 0162, addendum of 2026-10-17; plan DEV-6626): in a Team Environment Composio
+is signed in with the Team's Composio account, and the copy says so.* In a Team
+Environment's Settings → Tools the Composio row said "…s vaším vlastním účtem" right
+under the banner that asks for team accounts only and sends personal ones to the
+person's own Environment. Composio stays available in Team Environments (the tools
+reading's `sharedEnvironment: true`, the shell document's kind `team`). There it is
+signed in with the Team's Composio account, not anyone's personal one: an Environment
+of the same Organization with other credentials signs in with a separate Composio
+account, as the root addendum of 2026-10-17 has it. In that account, too, the
+Composio organization carries the Organization's name; points 1 to 7 are unchanged.
+
+- **The copy, in Team Environments only.** Settings → Tools, from the reading's
+  `sharedEnvironment`: the Composio row says "Snadná cesta k mnoha aplikacím přes
+  Composio, s týmovým účtem Composia. Aplikace připojíte v Apps → Integrace.", and the
+  sign-in dialog beside "Otevřít Composio" "Přihlaste se do Composia v prohlížeči
+  týmovým účtem Composia, ne osobním." Apps → Integrace, from the shell document's
+  kind as the catalog's and the theme's Team copy: where the Team's account has no
+  organization of the Organization's name or more than one, the notice, and the same
+  line on a refused link or removal, says "V týmovém účtu Composia…" instead of "Ve
+  vašem účtu Composia…" and "ve vaší vlastní organizaci". Integrace's "?" plays its
+  own `integrations-composio-team`: "Composio přihlásíte týmovým účtem", "Ne osobním
+  účtem nikoho z Teamu", and the step on the agents without the line on a Personal
+  Environment, which the Team's account does not have. Personal, work and Automated
+  Environments and a computer keep their copy.
+- **Nothing else.** No setting and no check of which account is signed in: a Team's
+  account is an ordinary Composio account. The Folder keeps its text, since its
+  warning for a shared Environment already asks agents for a team account in
+  Composio too. The lines that name the organizations of the account signed in here
+  as "vaše" (the dialog reading them, a switch that failed, a disconnect) stay.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Hide Composio in Team Environments | Nothing to explain; but the Team loses the easy way to many apps; rejected by Matěj: Composio stays, with the Team's account |
+| One sentence for every kind ("the account signed in here") | One text to keep; but a personal or work Environment loses the plain "your own account"; rejected: only Team Environments change |
+
+Verified by tests: the Composio row and the sign-in line with and without
+`sharedEnvironment` (`tests/tools-view.test.ts`); the missing and ambiguous notices,
+and a refused link and removal, in a Team and a work Environment, and the failed
+switch the same in both (`tests/integrations-composio-organization.test.ts`); the
+"?" of Integrace in a Team Environment and in every other kind
+(`tests/launchpad-guide.test.ts`). Nástroje and Apps → Integrace of a Team
+Environment were rendered headless in Chromium in Czech and English.
+
 **Addendum 2026-10-13 (3), decided by the Operator: Lazurio installs its own build of
 Composio's CLI until Composio's own has what Integrace needs.** Composio's stable CLI
 (0.4.2, 0.4.3) removes an account only after a prompt, so the "⋯" menu of a Composio
@@ -9388,6 +9496,50 @@ or word id, and no lookup where every entry has an id while a list without ids k
 them (`tests/integrations-model.test.ts`); the reading of the build's list without a
 lookup, "Odpojit" removing by id with `--yes`, a word id naming no account there, and
 `lazurio integrations list --json` carrying the same names
+(`tests/integrations-routes.test.ts`).
+
+*Note of 2026-10-19, released on the Operator's instruction (plan DEV-6626): Lazurio's
+build moves to 0.4.3-lazurio.2: the login poll checks every 5 s.* The note of
+2026-10-19 above (the end-to-end test as Bob, "Not ours") found the dialog waiting 60
+to 70 s after "Authorize", because Composio's CLI polls a pending login with a growing
+pause. The fork fixes it (Lazurio/composio#3) and releases
+`@composio/cli@0.4.3-lazurio.2` from the squash of #3,
+`e52fc87e7eaf07b7d83e0b50a8dd0c392d215294`: `composio login --poll` and the browser
+wait of `composio login` check every 5 s for up to 10 minutes, `--key` about 75 s.
+Points 1 to 4 are unchanged but for the pin and the number of changes.
+
+- **The pin.** `composioBuild` names 0.4.3-lazurio.2, the installer at that same
+  commit (its `install.sh` byte for byte the one of the merge of #2, so the
+  installation behaves as before) and the four archives' SHA-256 from the release's
+  `checksums.txt`, which the downloaded archives match (read 2026-10-19).
+- **Three changes.** The build is Composio's stable 0.4.3 with three changes; the
+  constant goes once Composio's own stable CLI has all three (the poll is proposed
+  upstream nowhere yet).
+- **An Environment on 0.4.3-lazurio.1** is not the build Lazurio pins: Settings →
+  Tools says so in amber, naming 0.4.3-lazurio.2, and offers "Aktualizovat";
+  `lazurio tools update composio` installs 0.4.3-lazurio.2 in place and keeps the
+  sign-in. As point 3 has it, nothing updates it unasked.
+- **Integrace does not ask for it.** The line of addendum (b) of 2026-10-14, point 2,
+  promises disconnecting and names ("Aktualizujte Composio, ať tu můžete účty
+  odpojovat a vidět jejich jména."), and its point 4 tells agents that until the
+  update accounts cannot be disconnected. 0.4.3-lazurio.1 already does both, so
+  `composio.update` is now also false where the CLI removes without a prompt
+  (`composio.disconnect`): no line on Integrace and none for agents there; the update
+  stays in Settings → Tools.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the line for 0.4.3-lazurio.1 | Everyone is pushed to the newest build; but the line and the agents' line would promise what the person already has; rejected |
+| Another line for an earlier Lazurio build ("so the sign-in is noticed at once") | True, and still pushes everyone; but a second sentence for a gain that matters only at the next sign-in, which happens in Settings → Tools, where the update is offered; not now |
+
+Verified by tests: the pinned constant and the installer's environment with the new
+tag and digests, and the update from 0.4.3-lazurio.1 (and an older build) to
+0.4.3-lazurio.2 keeping the sign-in (`tests/tools-install.test.ts`); the Tools page's
+note and "Update" for 0.4.3-lazurio.1 (`tests/tools-view.test.ts`); the route
+updating an Environment on 0.4.3-lazurio.1 (`tests/launchpad-curated.test.ts`); no
+update offered on Integrace where the CLI removes without a prompt
+(`tests/integrations-model.test.ts`), and for 0.4.3-lazurio.1 Settings → Tools
+offering it while Integrace and `lazurio integrations list` do not
 (`tests/integrations-routes.test.ts`).
 
 **Addendum 2026-10-14, asked for by the Organization Admin: "Aplikace v Composiu"
@@ -9751,6 +9903,60 @@ Not in this addendum: verification on a real tenant (design V1 to V6; V1 decides
 public against confidential client), the Dashboard's editor and drift view of the
 setting, Teams, Google Workspace's company app, sending mail, and company apps on the
 person's own computer.
+
+*Note of 2026-10-19, after the Organization Admin's onboarding of a work Environment
+(plan DEV-6626): right after Composio's sign-in, "Připojit" connects.* On Apps →
+Integrace, "Připojit" on a Composio app (Gmail) sent the person to Settings → Tools,
+where nothing opened, until the page was reloaded. The sign-in switches Composio's
+"Používají agenti" on (Matěj 2026-10-04), but only after the reading the sign-in
+caused, and that reading also read the Integrace; Composio counts only installed,
+signed in and on for agents (the reading's `composioReady`), so every Composio card kept
+asking for its sign-in. Nothing read the Integrace again: the page compared only the
+tools' sign-ins, the Launchpad kept its reading for a minute after
+`/api/tools/update` (so a connect was refused as `composio-signed-out` too), and
+Integrace read only on its first visit. Points 3 and 5 are unchanged; this note says
+when the reading is read again and what a card says meanwhile.
+
+- **Read again after the change.** The Launchpad drops its reading after a recorded
+  change of the tools (`/api/tools/update`) and after a tool's sign-in that ends
+  signed in; the page reads the Integrace again when a tool is installed or
+  switched on or off for agents (`toolStatesKey`), as it does when a sign-in
+  changes.
+- **Never sent away while signed in.** A card whose reading still asks for Composio's
+  sign-in, and a connect refused for it, read the tools live first: signed in, the
+  person stays on Integrace, the Integrace are read again and the card's form
+  opens; signed out, Settings → Tools opens Composio's sign-in, as before.
+  An unreadable state never sends the person away: only that read's own reading,
+  proving Composio signed out or not installed, opens Settings → Tools; a read
+  that failed, was not a reading or was superseded by a later read, and a sign-in
+  the reading does not know, keep the person on Integrace with "Stav Composia se
+  nepodařilo načíst. Zkuste to znovu." ("Composio's state could not be read. Try
+  again."; Pablo's review of #523).
+- **Off for agents is said.** Signed in but with "Používají agenti" off is its own
+  state of the reading's Composio source (`off`), which `lazurio integrations list`
+  prints too. Its cards say "Composio je připojené, ale agenti ho nepoužívají:
+  v Nástrojích má vypnuté „Používají agenti“." ("Composio is connected, but
+  agents don't use it: “Used by agents” is off in Tools.") in the
+  switch's own words, with "Otevřít Nástroje", where the switch is, as a card that
+  only a tool connects does. The path rule is unchanged (`signIn` still means not
+  signed in and on for agents), and so is the connect route's refusal.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Read the Integrace on every visit of the page | Never stale; but a full reading (the tools' sign-in probes, Composio's CLI) on each visit; rejected: read again when what they depend on changed |
+| Switch "Používají agenti" on from the card | One click fewer; but a change of the Folder's tools from another page, against the person's own switch; rejected: the card says so and opens Settings → Tools |
+| Keep "off" inside `unavailable` and decide on the page from the tools' reading | No new state; but agents read only the reading, and the page would read two sources for one fact; rejected |
+
+Verified by tests: a switch-on and a completed sign-in making the next reading
+current without a refresh, a connect then starting (`authorize`) and a really
+signed-out Composio still refused, the reading's `off` and its card, the key
+that reads the Integrace again, and a failed, invalid or superseded tools read
+keeping the person on Integrace while a really signed-out Composio still opens its
+sign-in (`composioSignIn`; `tests/integrations-composio-ready.test.ts`, red on
+main). In a headless browser on the preview with `composio-signed-out`, in Czech and
+English: on main, after the sign-in Gmail's "Připojit" landed on Settings → Tools; now
+it stays on Integrace with its form, a card read before the sign-in connects after a
+live check, and a Composio switched off says so on its cards.
 
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
@@ -14858,7 +15064,117 @@ removed sentences, ids and keys gone), `tests/start-view.test.ts`,
 `tests/environment-wording.test.ts`, and in headless Chrome against the hosted and
 personal previews (root decision 0178).
 
-### F56 addendum of 2026-10-19: Trezor's video is the first thing the page shows
+### F56 addendum (3) of 2026-10-19: the six principles in motion
+
+**Decided by Matěj (Organization Admin) with F56 (root decision 0180's addendum of
+2026-10-18; plan DEV-6612 M3, the lane's shaping section 7 item 6, "Guide: the six
+principles in motion"; the approved wireframe, prototypes-lazurio bebea85,
+`BuddyGuide.tsx`, `guide-parts.tsx`, `guide.css`, `docs/buddy-guide.md`).** F56 left
+the principles' motion for this slice: the wireframe's guide says a few words and lets
+the motion carry the message. Each principle now plays a short scene in the guide's
+card, one beat a step, after the brand's video standard (design-system-lazurio
+`content/brand/video/video.md`: a light paper stage, white objects, blue for the
+answer, the expressive vermilion only for "no", one subject at a time). Its story,
+beats and look are the wireframe's; its code is not ported.
+
+1. **What plays at each step.** Five principles have a scene; Trezor keeps its approved
+   video (`guide-video.ts`, F53's addendum of 2026-10-16) and gets none, so its card
+   says its five lines as before.
+
+   | Principle | 1 | 2 | 3 | 4 |
+   | --- | --- | --- | --- | --- |
+   | `environment` | the agents' computer, named by the kind it plays in | its apps pop into the dock, its browser opens | an agent's cursor clicks and types in it | it steps aside as "počítač agentů"; "váš počítač" comes in beside it, Lazurio in its bar and in it a window with their screen small and an eye; one straight solid arrow from that window to their computer; on your computer one device (point 7) |
+   | `buddy` | the Osobní Prostředí, a person in it, a lock | its border turns blue; Admin and "cizí" knock and stop at it, a vermilion × each | a Pracovní Prostředí appears beside it; Admin walks toward it | Admin is in it, a blue ✓ |
+   | `reach` | the Osobní and the Pracovní Prostředí | one straight solid arrow from the Osobní to the Pracovní Prostředí is drawn, an agent travels along it, above it | an agent from work slides toward the Osobní Prostředí and stops at its blue border, a vermilion × | the arrow grows stronger, the agent travels again |
+   | `files` | your cursor drags Smlouva.pdf into the chat; an agent types | your "Odkaz?" and the agent's link Report.pdf | your cursor taps it; it downloads into Stažené | the camera travels to Soubory: both files, an agent at work, an eye |
+   | `integrations` | the agents' computer; your cursor taps E-mail, a key turns, "přihlášeno" | a line from the computer to E-mail, an agent goes there | Kalendář stays neutral, dashed, "nepřihlášeno": no lock, no red | the line grows stronger, a second agent comes |
+2. **It is the shell's, internal, and adds nothing to interface v1.** The principles are
+   the shell's, so their scenes are too, and every app that loads `shell.js` plays them.
+   `guide-scenes.ts` is pure data: per beat where each object stands, whether it is on
+   stage, the words of its state and when it moves, with the names it draws in Czech
+   and English; `guide-stage.ts` builds it in the card and sets a beat;
+   `guide-scene-styles.ts` draws it. The engine hands the layer the scene of the
+   principle and step that play (`GuideView.scene`, keyed by the principle's id and the
+   step); a host's own explanation has none. Page scenes would be the host's, handed
+   over with its explanations, which needs a new member of `provideGuides`: none is
+   added until a page needs one.
+3. **The content rules, held by tests.** No "=" and no words of sameness in anything a
+   scene draws: the person's laptop is never the agents' computer, two devices stand
+   apart and Lazurio is a window into theirs. The way from the Osobní to the Pracovní
+   Prostředí is one straight solid arrow, pointing from the first to the second; nothing
+   stands on it, and there is no way back drawn at all (the wireframe's red dashed line
+   back is dropped by Matěj's rule): the agent from work stops at the border. A scene
+   adds no sentence: it names things (at most three words, the guide's text rules, three
+   kinds of Environment) and the step's text stays the card's and the accessible
+   content. The agents' computer carries the kind it plays in (an automated Environment
+   a Pracovní one); on your computer it is "váš počítač", one device (point 7).
+4. **Accessibility.** The stage is `aria-hidden`. With `prefers-reduced-motion` (or the
+   layer's `data-still`) each beat is its finished frame: the stylesheet's plain rules
+   are the frames, and every transition and animation stands only inside `@media
+   (prefers-reduced-motion: no-preference)` and outside `data-still`. Every animation
+   loops (an agent at work) or ends where the still frame stands, so the end of a beat
+   in motion is its still frame.
+5. **The card keeps one size through an explanation**, any explanation, a host's too:
+   every step's words stand in one place with only the step's own shown and heard, the
+   stage has one size (as wide as the card leaves, at most 360 px, 16 by 9; below 768 px
+   it stands centred in the sheet), and the last step's links ("Dokumentace", "Založte
+   si Buddyho") have a row of their own under the buttons, kept but unseen and
+   unreachable until that step. Before, the foot wrapped at the last step and the card
+   grew by a row.
+6. **Size.** `shell.js` grows from 136,305 to 165,116 bytes (gzip from 43,803 to 51,129):
+   the scenes' stylesheet, their data and eleven Iconoir icons (cloud, lock, building,
+   mail, calendar, eye, page, folder, cursor, xmark, link). No dependency, image or
+   video; the Lazurio symbol on the laptop is the shell's own.
+7. **On your computer, one device** (decided by Matěj on 2026-10-19, before the
+   publication of this addendum). Where Lazurio runs on the person's own computer
+   (kind `workstation`), the agents work on that same computer, so two devices and
+   "Lazurio je okno do jejich počítače" would not be true there. The principle
+   `environment` keeps its first step's own words ("Agenti pracují i na vašem
+   počítači") and its last step gets its own too: "Lazurio ukazuje, co agenti dělají"
+   ("Lazurio shows what your agents do"). Its scene draws one device, "váš počítač",
+   with a laptop's mark instead of the cloud, from the first step on: its apps, the
+   agents at work, and at the last step a Lazurio window on that same screen with its
+   eye on their work; no second device, no "počítač agentů" and no arrow. Integrace's
+   computer is "váš počítač" there too. Every other kind is unchanged.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Port the wireframe's React scenes | The shell has no React and should not get it for decoration. Rejected for data and CSS |
+| The scenes in the Launchpad | The principles are the shell's; the Dashboard and the forks would play them without motion. Rejected |
+| A scene member of `provideGuides` now | A permanent name with no page that needs it. Rejected until one does |
+| The Prostředí scene over the page area, as the wireframe plays it | The shell does not know a host's page area. Rejected: in the card everywhere |
+| The wireframe's red dashed way back in "Kam smějí agenti" | Matěj's rule: one straight solid arrow from the Osobní to the Pracovní Prostředí. Rejected |
+| Lines drawn with `stroke-dasharray` | Shows dashes while it draws. Rejected: a line is a bar revealed by `clip-path` |
+| Letting the card grow at the last step | The card and its scene jump, most visibly as a sheet. Rejected for the reserved row |
+
+**Honest limits.** Motion, placement and look are checked in a browser, not in CI (root
+decision 0178); the tests hold the data, the beats, the words and the reduced-motion
+contract. The scenes' English words are the agent's, for Matěj's review. Without Buddy the Osobní Prostředí shows a person, not Buddy, and the
+guide's mark stays the neutral one. Soubory of a Team Environment plays the Launchpad's
+`files-team`, which has no scene. The Dashboard plays the scenes with its next shell pin
+(task 994).
+
+Verified by `tests/shell-guide-scenes.test.ts` (on the shell's engine: every principle's
+step with a scene plays it at its beat and Trezor and a host's explanation none, in
+both languages and every kind; a page that hands over nothing draws nothing; the stage
+built `aria-hidden` with no other accessible name, each beat's places, presence and
+state, an entering stage off stage; the words a scene draws under the guide's rules,
+names only, no "=" and no sameness; the kind on the agents' computer; two devices apart
+with Lazurio's window and one arrow to theirs, and on your computer one device, yours,
+with Lazurio on its screen and no arrow; one straight solid arrow from the Osobní
+to the Pracovní Prostředí with nothing on it and nothing dashed but the Lazurio window's
+frame and an app not signed in; motion only where it is not reduced, every animation
+looping or ending at its still frame, every animation defined; no listener in the scene
+modules), `tests/shell-guide.test.ts` (the step texts on your computer and in every
+other kind), `tests/shell-guide-protocol.test.ts` and in
+headless Chrome against the hosted and personal previews, Czech and English, a Work, a
+Team and a Personal Environment, at 1440 and 700 px, with and without
+`prefers-reduced-motion` (root decision 0178): each principle's scene at each step, one
+size of the card and the stage per explanation, no running animation and a settled
+frame from the first moment with less motion, and a fork-like page with the shell,
+`<lazurio-buddy>` and a "?" but no `provideGuides` drawing nothing.
+
+### F56 addendum (4) of 2026-10-19: Trezor's video is the first thing the page shows
 
 **Decided by Matěj (Organization Admin) on 2026-10-19, about 14:15Z, in the DEV-6631
 thread, with a screenshot of an Automated Environment's Trezor without a vault showing the

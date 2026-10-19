@@ -407,6 +407,9 @@ export function optionalRows(
   copy: Copy,
 ): readonly OptionalRow[] {
   const rows: OptionalRow[] = [];
+  // Signed in but not in the organization of the Organization's name, it
+  // is not done: its action opens Composio's dialog at the step left there
+  // (decision F42, note of 2026-10-19).
   if (input.composio !== "none")
     rows.push({
       id: "composio",
@@ -415,11 +418,19 @@ export function optionalRows(
       status:
         input.composio === "connected"
           ? copy.startConnected
-          : copy.startNotConnected,
+          : input.composio === "unfinished"
+            ? copy.startUnfinished
+            : copy.startNotConnected,
       action:
         input.composio === "connected"
           ? null
-          : { label: copy.startConnect, to: "composio" },
+          : {
+              label:
+                input.composio === "unfinished"
+                  ? copy.startFinish
+                  : copy.startConnect,
+              to: "composio",
+            },
     });
   const remote = input.preset !== "local";
   if (remote)

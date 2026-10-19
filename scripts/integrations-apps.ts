@@ -352,7 +352,9 @@ export const curatedApps: readonly CuratedApp[] = [
       en: "Graphics, presentations and posts from templates.",
     },
     category: "marketing",
-    executor: mcp("canva"),
+    // Canva's MCP server registers any client but authorizes only
+    // allowlisted return addresses, so the Launchpad's callback is refused
+    // with "Invalid redirect URI." (#519): Canva connects through Composio.
   },
   {
     id: "miro",

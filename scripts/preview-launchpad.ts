@@ -35,6 +35,12 @@
 // Composio "ExampleCompany"), which the first reading makes current; with
 // `composio-org-missing` anywhere after the mode it lacks it, and Apps →
 // Integrace says to create it (decision F42, addendum of 2026-10-13). With
+// `composio-signed-out` anywhere after the mode its Composio is signed out:
+// "Připojit" starts the CLI's own two-step sign-in, whose link opens
+// nothing real, and the person's approval in Composio is the sign-in's key
+// (the link's `cliKey`) written into the file the JSON line names
+// `composioApprove` (its poll notices it on the CLI's schedule, up to a
+// minute later; decision F42, note of 2026-10-19). With
 // `composio-off` anywhere
 // after the mode, a hosted
 // preview's example Organization does not allow Composio (root decision
@@ -78,7 +84,7 @@
 // after the mode, the fictional person jana already has her Lazurio account
 // with a master password in the hosted work Environment's vault, so Apps →
 // Trezor adds and confirms her and finds her a member: the vault's video
-// stands open first (F56's addendum of 2026-10-19). Synthetic names only;
+// stands open first (F56's addendum (4) of 2026-10-19). Synthetic names only;
 // stop it with Ctrl-C.
 import {
   chmod,
@@ -152,6 +158,7 @@ const team =
 const composioOrgMissing = process.argv
   .slice(3)
   .includes("composio-org-missing");
+const composioSignedOut = process.argv.slice(3).includes("composio-signed-out");
 const bitwardenUs = process.argv.slice(3).includes("bitwarden-us");
 const vaultMemberPerson = process.argv.slice(3).includes("vault-member");
 const noVault =
@@ -336,7 +343,7 @@ await mkdir(join(home, ".fake-composio"), { recursive: true, mode: 0o700 });
 await writeFile(
   join(home, ".fake-composio", "state.json"),
   JSON.stringify({
-    signedIn: true,
+    signedIn: !composioSignedOut,
     removeYes: false,
     next: 100,
     activateOnLink: true,
@@ -871,5 +878,8 @@ console.log(
     browser: mode === "local" ? null : browserOrigin,
     folder,
     ...(bitwarden === null ? {} : { bitwarden }),
+    ...(composioSignedOut
+      ? { composioApprove: join(home, ".fake-composio", "approve") }
+      : {}),
   }),
 );
