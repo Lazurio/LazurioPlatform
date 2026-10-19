@@ -15,8 +15,10 @@ An **Integrace** is an app or service connected to an Environment. Each has
 exactly one **path**: by its own **tool** from Settings → Tools (`gh` for GitHub,
 `wacli` for WhatsApp, `gogcli` for Google on a personal Environment, `neon` for
 Neon), **directly** through the Environment's Executor, or **through Composio**
-with the person's own Composio account. People connect, see and disconnect them
-in the Launchpad under Apps → Integrace; agents read the same list with
+with the person's own Composio account (in a Team Environment the Team's Composio
+account, [below](#the-composio-organization-of-an-environment)). People connect,
+see and disconnect them in the Launchpad under Apps → Integrace; agents read the
+same list with
 `lazurio integrations list --json` and use an Integrace where it is connected,
 in the order tool → Executor → Composio. Agents never connect one themselves:
 the sign-in is the person's consent, so they send the link to its card.
@@ -453,6 +455,18 @@ step left to do):
 Nobody else is invited to these organizations and no key is shared: the person
 signs in to Composio with their own account, and Lazurio switches the CLI to the
 right organization.
+
+A **Team Environment** (the tools reading's `sharedEnvironment`, the shell
+document's kind `team`) is signed in with the Team's Composio account, not anyone's
+personal one (F42, note of 2026-10-19; root decision 0162, addendum of 2026-10-17: an
+Environment of the same Organization with other credentials signs in with a separate
+Composio account). In that account, too, the organization carries the Organization's
+name, and every rule below holds as it is. The Launchpad says so there and nowhere
+else: the Composio row of Settings → Tools and its sign-in dialog name the Team's
+Composio account, Apps → Integrace's notice about a missing or doubled organization
+names the Team's account instead of "your Composio account", and Integrace's "?"
+plays `integrations-composio-team`. Lazurio does not check which account is signed
+in: a Team's account is an ordinary Composio account.
 
 - **The rule** (`composioOrganizationRule`): an Environment whose Machine binding
   names an owning Organization works in the organization of that Organization's
