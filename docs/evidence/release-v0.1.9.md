@@ -159,7 +159,7 @@ Every Machine ran the candidate for the whole stage:
 - modules start and open under the candidate (see *Module starts and real work*).
 
 The record passes `scripts/qualify/check-canary.ts`. The pilot Organization's release reviewer
-adds it in [the pull request named in the record](https://github.com/Lazurio/LazurioPlatform/pull/1).
+adds it in [508](https://github.com/Lazurio/LazurioPlatform/pull/508).
 
 ## The final tag
 
