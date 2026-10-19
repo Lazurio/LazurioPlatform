@@ -1490,6 +1490,46 @@ test("install, login end, organizations and logout answers become one sentence e
   }
 });
 
+// The end-to-end test of 2026-10-19: "Odpojit" on Composio's card said
+// "composio: odhlášeno v tomto Prostředí. Poskytovatel přihlášení eviduje…".
+// The sentence stands on the tool's own card, so it names no tool id, and
+// it says in plain words what happened, for every tool alike.
+test("a sign-out says what happened in the person's words, without the tool's id", () => {
+  const answers = [
+    [{ kind: "logged-out", revocation: "local-only" }, "composio"],
+    [{ kind: "logged-out", revocation: "local-only" }, "gh"],
+    [{ kind: "logged-out", revocation: "remote" }, "wacli"],
+    [{ kind: "logout-failed", reason: "tool-exit" }, "gh"],
+  ] as const;
+  for (const locale of ["cs", "en"] as const) {
+    const copy = messages(locale);
+    for (const [answer, name] of answers) {
+      const { message } = logoutOutcome(answer, name, copy);
+      expect(message).not.toContain(name);
+      expect(message).not.toContain("{");
+      expect(message.charAt(0)).toBe(message.charAt(0).toUpperCase());
+    }
+  }
+  expect(
+    logoutOutcome(
+      { kind: "logged-out", revocation: "local-only" },
+      "composio",
+      messages("cs"),
+    ).message,
+  ).toBe(
+    "Odpojeno v tomto Prostředí. Ve vašem účtu u poskytovatele zůstane přístup povolený, dokud ho tam nezrušíte.",
+  );
+  expect(
+    logoutOutcome(
+      { kind: "logged-out", revocation: "local-only" },
+      "composio",
+      messages("en"),
+    ).message,
+  ).toBe(
+    "Disconnected in this Environment. Your account with the provider keeps the access allowed until you remove it there.",
+  );
+});
+
 test("a note request carries the full next set of notes, sorted; a draft is checked like the Folder state", () => {
   const noted = [
     tool({

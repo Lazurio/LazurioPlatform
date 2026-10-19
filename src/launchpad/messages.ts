@@ -251,11 +251,11 @@ const en = {
   toolsSignOutAction: "Disconnect",
   toolsSignOutNamed: "Disconnect {name}",
   toolsSignedOutLocal:
-    "{name}: signed out {in this}. The provider still lists this sign-in until you revoke it in your account settings there.",
+    "Disconnected {in this}. Your account with the provider keeps the access allowed until you remove it there.",
   toolsSignedOutRemote:
-    "{name}: signed out; the linked device was removed from your account.",
+    "Disconnected; the linked device was removed from your account.",
   toolsSignOutFailed:
-    "{name}: signing out did not finish. Refresh the status to see where it stands.",
+    "Disconnecting did not finish. Refresh the status to see where it stands.",
   toolsSignOutFailedDetail: "Reason: {reason}.",
   toolsLoginTitleInstall: "Connect {name}",
   toolsLoginTitle: "Connect {name}",
@@ -1939,11 +1939,10 @@ const cs: Record<MessageKey, string> = {
   toolsSignOutAction: "Odpojit",
   toolsSignOutNamed: "Odpojit {name}",
   toolsSignedOutLocal:
-    "{name}: odhlášeno {v tomto}. Poskytovatel přihlášení eviduje, dokud ho nezrušíte v nastavení účtu u něj.",
+    "Odpojeno {v tomto}. Ve vašem účtu u poskytovatele zůstane přístup povolený, dokud ho tam nezrušíte.",
   toolsSignedOutRemote:
-    "{name}: odhlášeno; propojené zařízení bylo z účtu odebráno.",
-  toolsSignOutFailed:
-    "{name}: odhlášení nedoběhlo. Obnovte stav a uvidíte, jak to je.",
+    "Odpojeno; propojené zařízení bylo z vašeho účtu odebráno.",
+  toolsSignOutFailed: "Odpojení nedoběhlo. Obnovte stav a uvidíte, jak to je.",
   toolsSignOutFailedDetail: "Důvod: {reason}.",
   toolsLoginTitleInstall: "Připojit {name}",
   toolsLoginTitle: "Připojit {name}",
