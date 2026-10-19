@@ -135,6 +135,18 @@ the end of the stage. No module app failed in any round.
     answered its sign-in redirect. This is a deviation from G.3's "during the stage": the
     item proves the same behavior on the same bytes, a few hours later. It does not shorten
     the 8 hours.
+  - **Repeated inside a second stage.** A second stage of the same candidate on the same four
+    Machines started at 2026-10-19T06:07:09Z. Inside it, at 07:10:09–07:10:22Z, the same Folder
+    refresh and deliberate Launchpad restart ran on `f1040cafc798ecf0` and `146fb920b36d943c`
+    (both `unchanged`, exit 0; units back active with `NRestarts` 0). A round at 07:11:25Z found
+    all three work VMs on the candidate and healthy; the stage's rounds at 06:07, 06:38 and
+    07:08Z were 4/4. It was ended at 07:19:39Z, under the exception below, before its 8 hours.
+  - **Matěj's exception for v0.1.9 (the Operator who ordered this release),** in the
+    operator thread on 2026-10-19 at about 07:18Z, verbatim: "Pro v0.1.9 povoluji výjimku:
+    obnova složky a restart Launchpadu proběhly až po osmihodinovém testu, na stejném
+    kandidátovi. Druhý test není třeba dokončit." Scope: this G.3 item, for v0.1.9 only. The
+    record stays the first stage, which passed its 8 hours unshortened; no other G.3 item and
+    no later release is excepted. Recorded on DEV-6671 task-2026-10-17-002.
 
 ## Browser acceptance (root decision 0178)
 
