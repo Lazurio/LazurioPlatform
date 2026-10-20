@@ -57,14 +57,17 @@ export function sleepableAddress(url: string): boolean {
 
 /** The quiet clock of one tab: the latest of when it opened or woke, when
  * someone last viewed it, when an agent last worked in it, when its page
- * last had input or navigated, and when the hub last found unsaved input in
- * it. Milliseconds of the hub's clock. */
+ * last had input or navigated, when the hub last found unsaved input in it,
+ * and when the hub last asked its page to close and it stayed awake (it
+ * objected or hung, and is asked again an idle time later). Milliseconds of
+ * the hub's clock. */
 export type Quiet = Readonly<{
   openedAt: number;
   viewedAt: number;
   agentAt: number;
   activeAt: number;
   unsavedAt: number;
+  askedAt: number;
 }>;
 
 export function quietSince(quiet: Quiet): number {
@@ -74,6 +77,7 @@ export function quietSince(quiet: Quiet): number {
     quiet.agentAt,
     quiet.activeAt,
     quiet.unsavedAt,
+    quiet.askedAt,
   );
 }
 

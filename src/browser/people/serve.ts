@@ -23,6 +23,7 @@ import {
 } from "../contract/node";
 import { browserCdpPort, browserScreenSize } from "../units";
 import { sweepCookies } from "./cookies";
+import { pressureSource } from "./pressure";
 import { loopbackBrowser, startViewService } from "./service";
 
 /** `lazurio browser serve --port <port> --origin <origin>`: the people's view
@@ -169,6 +170,11 @@ export async function runViewService(
               write: (text) => replaceOwnerFile(sleepFile, text),
             },
           }),
+      // The pressure rule (decision F57 point 6) reads Linux's PSI and
+      // meminfo; elsewhere there is nothing to read and the rule is off.
+      ...(process.platform === "linux"
+        ? { pressure: pressureSource({ log }) }
+        : {}),
       uploadDirectory: join(
         runtime?.startsWith("/") ? runtime : tmpdir(),
         "lazurio-browser-uploads",
