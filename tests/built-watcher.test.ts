@@ -166,3 +166,33 @@ test("a real commit in a real checkout is noticed through fs.watch", async () =>
   expect(refreshes).toBe(2);
   await watcher.close();
 });
+
+test("an app added while a sweep reads the apps stays watched when the sweep installs a list without it", async () => {
+  const files = fakeWatch();
+  let release: (apps: readonly WatchedApp[]) => void = () => {};
+  const refreshed: string[] = [];
+  const watcher = createBuildWatcher({
+    apps: () =>
+      new Promise<readonly WatchedApp[]>((resolve) => {
+        release = resolve;
+      }),
+    refresh: async (app) => {
+      refreshed.push(app.id);
+    },
+    watch: files.watch,
+    quietMs: 20,
+    sweepMs: 60_000,
+  });
+  // The sweep reads the apps (pending) while an app starts built.
+  const sweeping = watcher.sweep();
+  watcher.add({ id: "new", gitDirectories: ["/c/new/.git"] });
+  release([]);
+  await sweeping;
+  await watcher.settled();
+  expect(files.watched()).toEqual(["/c/new/.git", "/c/new/.git/refs/heads"]);
+  files.emit("/c/new/.git", "HEAD");
+  await Bun.sleep(80);
+  await watcher.settled();
+  expect(refreshed).toEqual(["new"]);
+  await watcher.close();
+});

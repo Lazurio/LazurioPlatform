@@ -287,9 +287,12 @@ export function createBuilds(input: {
         const served = await store.served();
         await store.collect(
           new Set(
-            [state.current?.key, state.previous?.key, served?.key].filter(
-              (item): item is string => typeof item === "string",
-            ),
+            [
+              state.current?.key,
+              state.previous?.key,
+              served?.key,
+              served?.previous,
+            ].filter((item): item is string => typeof item === "string"),
           ),
         );
         return Object.freeze({

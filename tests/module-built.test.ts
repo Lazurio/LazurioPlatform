@@ -641,3 +641,153 @@ posixTest(
   },
   120_000,
 );
+
+posixTest(
+  "a swap onto a new build refuses no connection: the static server keeps its listener and serves the new build from the record, also when the pull changed the package (#560)",
+  async () => {
+    const home = join(root, "home-gapless");
+    await mkdir(home);
+    const fixture = await staticModule("gapless", home);
+    const { operations } = fixture;
+    try {
+      const started = answer(await operations.start("alpha/site"));
+      expect(started.build?.mode).toBe("built");
+      await until(fixture.page, (page) => page.text === "<p>one</p>");
+      // Probe the app every 20 ms for the whole swap.
+      let probes = 0;
+      let refused = 0;
+      let probing = true;
+      const probe = (async () => {
+        while (probing) {
+          probes++;
+          if ((await fixture.page()).status !== 200) refused++;
+          await Bun.sleep(20);
+        }
+      })();
+      // A pull that changes the page and the package (not its serving
+      // declaration): its build is swapped in by the explicit build.
+      const pkgPath = join(fixture.site, "app/package.json");
+      const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
+      pkg.description = "changed by the pull";
+      await writeFile(pkgPath, JSON.stringify(pkg));
+      const second = await fixture.commit("two");
+      const built = answer(await operations.build("alpha/site"));
+      expect(built.outcome).toBe("built");
+      await until(fixture.page, (page) => page.text === "<p>two</p>");
+      await Bun.sleep(300);
+      probing = false;
+      await probe;
+      expect(probes).toBeGreaterThan(20);
+      expect(refused).toBe(0);
+      // Still the same healthy run of the static server, serving the new
+      // build of the changed package.
+      const status = answer(await operations.status("alpha/site"));
+      expect(status).toMatchObject({ state: "running", healthy: true });
+      expect(status.build).toMatchObject({
+        mode: "built",
+        served: { commit: second },
+      });
+      expect((await fixture.page("/_astro/app.one.js")).status).toBe(200);
+    } finally {
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "an app first opened after the Launchpad started is watched at once: a commit is built and swapped in after the quiet, not at the next sweep (#559)",
+  async () => {
+    const home = join(root, "home-first-open");
+    await mkdir(home);
+    const fixture = await staticModule("first-open", home);
+    const { operations } = fixture;
+    try {
+      // The Launchpad started and swept with nothing opened yet; its next
+      // sweep is a minute away.
+      const keeper = operations.keepBuilt({ quietMs: 100, sweepMs: 60_000 });
+      await keeper?.sweep();
+      await keeper?.settled();
+      answer(await operations.start("alpha/site"));
+      await until(fixture.page, (page) => page.text === "<p>one</p>");
+      const committed = performance.now();
+      const second = await fixture.commit("two");
+      const swapped = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) =>
+            status.kind === "module" && status.build?.served?.commit === second,
+        ),
+      );
+      expect(swapped.build?.served?.commit).toBe(second);
+      // Well within the sweep's minute: the watch saw the commit.
+      expect(performance.now() - committed).toBeLessThan(20_000);
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+    } finally {
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "an app first opened while a sweep reads the catalog stays watched when that sweep's catalog does not list it (#559, the review of #561)",
+  async () => {
+    const home = join(root, "home-interleave");
+    await mkdir(home);
+    // The sweep's catalog read waits on a gate and then answers without
+    // the site: the sweep began before the site was opened.
+    let gate: Promise<void> | null = null;
+    let open: () => void = () => {};
+    const fixture = await staticModule("interleave", home, {
+      readCatalog: async (folder) => {
+        const held = gate;
+        if (held === null) return readFolderCatalog(folder);
+        gate = null;
+        await held;
+        const catalog = await readFolderCatalog(folder);
+        return {
+          ...catalog,
+          organizations: catalog.organizations.map((organization) => ({
+            ...organization,
+            modules: organization.modules.filter(
+              (module) => module.module !== "site",
+            ),
+          })),
+        };
+      },
+    });
+    const { operations } = fixture;
+    try {
+      gate = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      const keeper = operations.keepBuilt({ quietMs: 100, sweepMs: 60_000 });
+      // The first sweep holds its catalog read; the site is opened now.
+      while (gate !== null) await Bun.sleep(10);
+      answer(await operations.start("alpha/site"));
+      await until(fixture.page, (page) => page.text === "<p>one</p>");
+      open();
+      await keeper?.sweep();
+      await keeper?.settled();
+      // A commit is still built and swapped in after the quiet.
+      const second = await fixture.commit("two");
+      const swapped = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) =>
+            status.kind === "module" && status.build?.served?.commit === second,
+        ),
+      );
+      expect(swapped.build?.served?.commit).toBe(second);
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+    } finally {
+      open();
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);

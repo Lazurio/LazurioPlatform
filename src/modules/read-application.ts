@@ -65,5 +65,26 @@ export async function readModuleApplication(
     declarationDigest: createHash("sha256")
       .update(JSON.stringify({ manifest, pkg }))
       .digest("hex"),
+    // What a static app's server depends on (decision F58): its identity,
+    // its listeners (address, protocol, health) and its fallback, never the
+    // rest of its package. A built run carries this digest, so a pull that
+    // changes only the package (a dependency, its version) leaves the
+    // running static server current, and its new build is served without a
+    // restart. Null for an app without a static output.
+    staticDigest:
+      plan.runtime.static === null
+        ? null
+        : createHash("sha256")
+            .update(
+              JSON.stringify({
+                schema: "lazurio.static-serving.v1",
+                id: plan.runtime.id,
+                company: plan.runtime.company,
+                module: plan.runtime.module,
+                listeners: plan.listeners,
+                fallback: plan.runtime.static.fallback,
+              }),
+            )
+            .digest("hex"),
   });
 }

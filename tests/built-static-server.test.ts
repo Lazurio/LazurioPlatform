@@ -1,8 +1,11 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import {
+  chmod,
+  cp,
   mkdir,
   mkdtemp,
   realpath,
+  rename,
   rm,
   symlink,
   writeFile,
@@ -13,6 +16,7 @@ import { join } from "node:path";
 import {
   answerStatic,
   resolveStaticRequest,
+  servedRoots,
 } from "../src/modules/built/static-server";
 import {
   staticServerFiles,
@@ -157,6 +161,33 @@ test("the written-out server runs as the app's process: healthy at once on its l
   expect(await Bun.file(files.script).text()).toBe(staticServerSource());
   expect(await Bun.file(files.config).text()).toBe("");
   expect(await staticServerFiles(join(root, "cache"))).toEqual(files);
+  // The app's builds and the record of what it serves, as the store keeps
+  // them: <key>/ beside served.json.
+  const app = join(root, "app");
+  const [first, second] = ["a".repeat(40), "b".repeat(40)];
+  await cp(build, join(app, first), { recursive: true });
+  await cp(build, join(app, second), { recursive: true });
+  await writeFile(join(app, second, "index.html"), "<h1>second</h1>");
+  await rm(join(app, second, "_astro"), { recursive: true });
+  await mkdir(join(app, second, "_astro"));
+  await writeFile(join(app, second, "_astro/page.Cz2new00.js"), "second");
+  const served = join(app, "served.json");
+  const record = async (key: string, previous: string | null) => {
+    const temporary = `${served}.tmp`;
+    await writeFile(
+      temporary,
+      JSON.stringify({
+        schema_version: "lazurio.build-served.v1",
+        mode: "built",
+        key,
+        commit: key,
+        previous,
+        at: new Date().toISOString(),
+      }),
+    );
+    await rename(temporary, served);
+  };
+  await record(first, null);
   const port = await freePort();
   const started = performance.now();
   const child = Bun.spawn(
@@ -165,8 +196,8 @@ test("the written-out server runs as the app's process: healthy at once on its l
       "--no-env-file",
       `--config=${files.config}`,
       files.script,
-      "--root",
-      build,
+      "--served",
+      served,
       "--fallback",
       "404",
     ],
@@ -182,18 +213,67 @@ test("the written-out server runs as the app's process: healthy at once on its l
       stderr: "pipe",
     },
   );
+  const page = (path: string) =>
+    fetch(`http://127.0.0.1:${port}${path}`, { redirect: "manual" })
+      .then(async (response) => ({
+        status: response.status,
+        text: await response.text(),
+      }))
+      .catch(() => ({ status: 0, text: "" }));
   try {
     let status = 0;
     while (status !== 200 && performance.now() - started < 10_000) {
-      status = await fetch(`http://127.0.0.1:${port}/`, { redirect: "manual" })
-        .then((response) => response.status)
-        .catch(() => 0);
+      status = (await page("/")).status;
       if (status !== 200) await Bun.sleep(5);
     }
     expect(status).toBe(200);
-    expect(await (await fetch(`http://127.0.0.1:${port}/guide/`)).text()).toBe(
-      "<h1>guide</h1>",
+    expect((await page("/")).text).toBe("<h1>home</h1>");
+    expect((await page("/guide/")).text).toBe("<h1>guide</h1>");
+    // A swap is a new record: probed every 20 ms, no request is refused,
+    // and the next answers come from the new build, its assets and the
+    // previous build's alike.
+    let refused = 0;
+    let probes = 0;
+    let probing = true;
+    const probe = (async () => {
+      while (probing) {
+        probes++;
+        if ((await page("/")).status !== 200) refused++;
+        await Bun.sleep(20);
+      }
+    })();
+    await Bun.sleep(200);
+    await record(second, first);
+    const switchedBy = performance.now() + 2000;
+    while (
+      (await page("/")).text !== "<h1>second</h1>" &&
+      performance.now() < switchedBy
+    )
+      await Bun.sleep(5);
+    await Bun.sleep(200);
+    probing = false;
+    await probe;
+    expect((await page("/")).text).toBe("<h1>second</h1>");
+    expect(probes).toBeGreaterThan(10);
+    expect(refused).toBe(0);
+    expect((await page("/_astro/page.Cz2new00.js")).text).toBe("second");
+    expect((await page("/_astro/page.B4x9zQ1a.js")).status).toBe(200);
+    // A record of the development version (the app is about to be stopped)
+    // keeps the build it serves.
+    const temporary = `${served}.tmp`;
+    await writeFile(
+      temporary,
+      JSON.stringify({
+        schema_version: "lazurio.build-served.v1",
+        mode: "dev",
+        key: null,
+        commit: null,
+        previous: null,
+        at: new Date().toISOString(),
+      }),
     );
+    await rename(temporary, served);
+    expect((await page("/")).text).toBe("<h1>second</h1>");
   } finally {
     child.kill("SIGTERM");
   }
@@ -211,10 +291,70 @@ test("the written-out server runs as the app's process: healthy at once on its l
   // A redirect or the 404 page never reports healthy.
   expect(await serves("/guide")).toBe(false);
   expect(await serves("/nowhere")).toBe(false);
-  // Without its listener it refuses to start (Module Standard 4.2).
+  // Without its listener, or without a build to serve, it refuses to start.
   const bare = Bun.spawn(
-    [process.execPath, files.script, "--root", build, "--fallback", "404"],
+    [process.execPath, files.script, "--served", served, "--fallback", "404"],
     { env: { PATH: "/usr/bin:/bin" }, stdout: "ignore", stderr: "ignore" },
   );
   expect(await bare.exited).toBe(2);
+  const nothing = Bun.spawn(
+    [
+      process.execPath,
+      files.script,
+      "--served",
+      join(app, "missing", "served.json"),
+      "--fallback",
+      "404",
+    ],
+    {
+      env: {
+        PATH: "/usr/bin:/bin",
+        LAZURIO_RUNTIME_ENTRYPOINT_ID: "web",
+        LAZURIO_RUNTIME_LISTENER_WEB_HOST: "127.0.0.1",
+        LAZURIO_RUNTIME_LISTENER_WEB_PORT: String(await freePort()),
+      },
+      stdout: "ignore",
+      stderr: "ignore",
+    },
+  );
+  expect(await nothing.exited).toBe(2);
+});
+
+test("a record that cannot be read now is read again at the next request; a development record keeps the build served", async () => {
+  const app = join(root, "retry");
+  await mkdir(app, { recursive: true });
+  const served = join(app, "served.json");
+  const record = async (value: Record<string, unknown>) => {
+    const temporary = `${served}.tmp`;
+    await writeFile(
+      temporary,
+      JSON.stringify({
+        schema_version: "lazurio.build-served.v1",
+        commit: null,
+        at: "2026-10-20T00:00:00.000Z",
+        ...value,
+      }),
+    );
+    await rename(temporary, served);
+  };
+  const [first, second] = ["c".repeat(40), "d".repeat(40)];
+  await record({ mode: "built", key: first, previous: null });
+  const roots = servedRoots(served);
+  expect((await roots()).root).toBe(join(app, first));
+  // A new record that cannot be read for a moment: the last build stays…
+  await record({ mode: "built", key: second, previous: first });
+  await chmod(served, 0o000);
+  try {
+    expect((await roots()).root).toBe(join(app, first));
+  } finally {
+    // …and the same file, readable again, is read at the next request.
+    await chmod(served, 0o600);
+  }
+  expect(await roots()).toEqual({
+    root: join(app, second),
+    previous: join(app, first),
+  });
+  // A development record (the app is about to be stopped) keeps it.
+  await record({ mode: "dev", key: null, previous: null });
+  expect((await roots()).root).toBe(join(app, second));
 });

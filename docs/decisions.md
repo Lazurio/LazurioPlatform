@@ -16070,7 +16070,10 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    `<path>`, `<path>.html`, `<path>/index.html` (a directory without its slash
    redirects), keeps `/_astro/` and `/assets/` a year (`immutable`) and revalidates HTML
    (`no-cache`, ETag), serves a missing asset from the previous build (a page opened
-   before a swap) and exits 0 on SIGTERM. **How it ships:** its text is embedded in the
+   before a swap) and exits 0 on SIGTERM. **Which build it serves** is the record of
+   what the app serves (`served.json` beside its builds: `key`, `previous`), which it
+   reads at its start and again, before a request, whenever the file is another one;
+   the Platform only ever replaces that record whole, by a rename. **How it ships:** its text is embedded in the
    Platform and written once per version beside the cache, run by the operator's Bun
    with an empty Bun configuration (an app's `bunfig.toml` never configures it).
    Measured idle on macOS ARM64: this script 15 MiB RSS (healthy in 40 ms); the same
@@ -16086,8 +16089,16 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    when
    the checkout moved past the newest build, that build is served now, the new commit
    builds in the background and the app is swapped onto it when it is built. **A swap**
-   stops the static server and starts it on the new build, a gap of milliseconds; it
-   also moves an app running its development script from before builds existed. A build
+   is the Platform replacing the record of what the app serves: the running static
+   server keeps its process and its listener and serves the new build from its next
+   request, so no connection is refused (amended 2026-10-20, #560: the swap used to
+   stop and start the server, which on macOS refused connections for about 2 s). A
+   built run carries the digest of its serving declaration only (identity, listeners,
+   fallback), so a pull that changes only the package (a dependency, its version)
+   leaves it current. The process is restarted only where it must change: an app that
+   runs its development script from before builds existed (moved onto its build once),
+   a static server whose serving declaration changed (its address, health path or
+   fallback), and one started by a release before this record (it does not read it). A build
    that fails is recorded with its reason and log (`build-script-failed`,
    `build-timed-out`, `build-output-missing`, `build-output-unservable`, or the
    start-time step's reason), the previous build keeps being served, and the same key is
@@ -16099,7 +16110,8 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    silent dev fallback.**
 7. **After a pull** (`src/modules/built/watcher.ts`, started by the Launchpad as
    `modules.keepBuilt()`): inside the Launchpad's own process (no daemon, F8) it
-   watches the Git directories (`HEAD` and `packed-refs` in the Git directory, and
+   watches, from an app's first built start on (amended 2026-10-20, #559: not only from
+   the next sweep), the Git directories (`HEAD` and `packed-refs` in the Git directory, and
    `refs/heads/`) of every checkout a built app's key includes (the module's, its data
    mount's and its required slots'), waits for 5 s of quiet per app
    and then refreshes it: a background build when the key moved (nothing when it is
@@ -16164,7 +16176,9 @@ root decision 0195 point 19 asks; that check lives in the root repository.
 | Build in place, serve the checkout's `dist/` | A build empties what is served, a failed build leaves nothing, no previous build for a page opened before; rejected |
 | Serve built apps from the Launchpad's own process | No process at all, but a product update or Launchpad restart takes every app down (F8) and the runner's identity and health evidence are bypassed; rejected |
 | The static server as a `lazurio` subcommand | 55–70 MiB RSS each (the whole compiled Platform); rejected for the 15 MiB script |
-| Swap by a `current` link the server follows, without a restart | No gap, but a changed declaration (listener, health, fallback) needs a restart anyway: two mechanisms for one change; rejected for one restart of milliseconds |
+| Swap by stopping and starting the static server | The first implementation; measured on macOS it refuses connections for about 2 s (the session runner confirms the old process group gone, then the new one's listener and health). Replaced on 2026-10-20 (#560) |
+| Swap by the record the server re-reads (`served.json`), no restart | Selected (#560): one process, one listener, zero refused connections, the same on every runner; a built run's digest covers only its serving declaration, so only a change of that (rare) restarts it |
+| Start a second server on the same port with `reusePort`, then stop the old one | Works at the socket level on macOS (both accept while up), but the runner owns one process per app and refuses a port already bound, so it needs a second identity per app in both runners; on Linux a closing `SO_REUSEPORT` socket resets the connections queued on it. Rejected |
 | Key by the module commit only (the brief) | Misses a pull of the module's data repository or a required slot; amended, point 2 |
 | A watcher daemon, or one systemd path unit per checkout | F8 forbids a Lazurio daemon; path units are per checkout to install and remove; rejected for the Launchpad's watch and sweep (point 7) |
 
@@ -16180,7 +16194,8 @@ served). macOS bounds a build by nice and its deadline only (no control group).
 
 **Verified by** `tests/module-runtime.test.ts` (the declaration),
 `tests/built-static-server.test.ts` (resolution, headers, the previous build's assets,
-the written-out script as a process: healthy, SIGTERM exit 0, `--check`),
+the written-out script as a process: healthy, SIGTERM exit 0, `--check`, and a swap by
+its record probed every 20 ms with no request refused),
 `tests/built-builds.test.ts` (the key, the whole install, current/previous kept and the
 rest removed, one build at a time with the waiting person first and joins, a pull during
 a build, a failure kept and not retried by itself, another process's lock, shutdown, a
@@ -16196,13 +16211,19 @@ module build`, an app without `build_output` unchanged, `ensure` answering
 `ensure`, two apps competing for the one build with the waiting one answering
 `build-pending`, a development run from before builds moved onto a build by the first
 sweep that could read the catalog and name the app, a commit built and swapped in by the Launchpad
-without any request, and a data-only pull rebuilt and swapped by the watch of the data
-repository). End to end on
+without any request, a data-only pull rebuilt and swapped by the watch of the data
+repository, a swap of a pull that also changed the package probed every 20 ms with no
+request refused and the same healthy run afterwards (#560; the former stop-and-start
+swap refused 78 probes in this test), and an app first opened after the Launchpad
+started rebuilt and swapped after the quiet, not at the next sweep (#559)). End to end on
 macOS ARM64 with a copy of the reference Organization's Astro knowledgebase in a fixture
 Folder (session runner): its development start healthy in 10.4 s holding 290 MiB; its
 first built open 13.2 s including the build; a later built open 0.4 s holding 16 MiB; a
 pull served the old build until the new one swapped in 9.9 s later; a broken commit
 answered `build-script-failed` with its log while the previous build stayed healthy.
 **Honest limits:** not yet on the hosted Linux reference Environment (systemd unit
-bounds, PSS) and not yet after a real `lazurio update`; the root decision's measurement
+bounds, PSS) and not yet after a real `lazurio update`. The swap involves no process,
+unit or socket on any runner (a `rename(2)` of the record in its own directory and a
+`stat` before each request), so its zero refused connections hold on Linux by
+construction, measured on macOS only; the root decision's measurement
 before and after (point 20) belongs to the plan.
