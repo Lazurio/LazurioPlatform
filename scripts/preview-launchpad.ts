@@ -97,9 +97,11 @@
 // signed out, and its device code is confirmed by creating the file
 // `ghApprove` of the JSON line, as the person's confirmation on GitHub
 // would; `gh-no-ssh` starts signed in as octocat without an SSH key, so
-// GitHub is connected badly. With `gh-slow` each step of the SSH key takes
-// 4 s, so the window can be closed while it links. Synthetic names only;
-// stop it with Ctrl-C.
+// GitHub is connected badly. Without either, the stand-in gh is signed in as
+// example-user and reaches GitHub over SSH (a stand-in key, GitHub's host
+// keys, the greeting answered by the preview), so GitHub reads connected.
+// With `gh-slow` each step of the SSH key takes 4 s, so the window can be
+// closed while it links. Synthetic names only; stop it with Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -142,7 +144,10 @@ import {
 } from "../tests/fixtures/fake-bitwarden-cloud";
 import { executorWorld } from "../tests/fixtures/fake-executor";
 import { startFakeExecutor } from "../tests/fixtures/fake-executor-api";
-import { fakeLoginTools } from "../tests/fixtures/fake-login-tools";
+import {
+  fakeLoginTools,
+  githubHostKeys,
+} from "../tests/fixtures/fake-login-tools";
 import {
   fakeBw,
   fakeHost,
@@ -428,6 +433,34 @@ for (const tool of ghFake === null ? ["gh", "t3"] : ["t3"])
   await writeFile(join(home, "bin", tool), "#!/bin/sh\nexit 1\n", {
     mode: 0o755,
   });
+// The stand-in gh reaches GitHub over SSH as its account (#515), so GitHub
+// reads connected, as on a working Environment: a stand-in key of this
+// Environment (nothing reads its private file), GitHub's published host
+// keys in known_hosts, the system's ssh-keygen to read them, and an ssh the
+// runner below answers with GitHub's greeting.
+if (ghFake === null) {
+  const ssh = join(home, ".ssh");
+  await mkdir(ssh, { recursive: true, mode: 0o700 });
+  await writeFile(join(ssh, "id_ed25519"), "preview stand-in, not a key\n", {
+    mode: 0o600,
+  });
+  const blob = Buffer.concat([
+    Buffer.from([0, 0, 0, 11]),
+    Buffer.from("ssh-ed25519"),
+    Buffer.from([0, 0, 0, 32]),
+    Buffer.alloc(32, 7),
+  ]).toString("base64");
+  await writeFile(join(ssh, "id_ed25519.pub"), `ssh-ed25519 ${blob} preview\n`);
+  await writeFile(
+    join(ssh, "known_hosts"),
+    `${githubHostKeys.map((key) => `github.com ${key}`).join("\n")}\n`,
+  );
+  await writeFile(join(home, "bin", "ssh"), "#!/bin/sh\nexit 255\n", {
+    mode: 0o755,
+  });
+  const keygen = Bun.which("ssh-keygen");
+  if (keygen !== null) await symlink(keygen, join(home, "bin", "ssh-keygen"));
+}
 // The sign-in's own fake gh, ssh and the system's ssh-keygen on the
 // synthetic home, and git for the Git identity the sign-in sets there. The
 // Organization provides the AI (a fake codex whose provider needs no
@@ -938,7 +971,26 @@ const app = await startLaunchpad(
                     }),
                     stderr: "",
                   }
-                : runTool(command, timeoutMs, env),
+                : // The stand-in gh's GitHub over SSH (above): GitHub's
+                  // published host keys, and the greeting of `ssh -T`.
+                  ghFake === null &&
+                    command[0]?.endsWith("/gh") &&
+                    command.slice(1).join(" ") === "api meta --jq .ssh_keys"
+                  ? {
+                      exitCode: 0,
+                      stdout: `${JSON.stringify(githubHostKeys)}\n`,
+                      stderr: "",
+                    }
+                  : ghFake === null &&
+                      command[0]?.endsWith("/ssh") &&
+                      command.includes("git@github.com")
+                    ? {
+                        exitCode: 1,
+                        stdout: "",
+                        stderr:
+                          "Hi example-user! You've successfully authenticated, but GitHub does not provide shell access.\n",
+                      }
+                    : runTool(command, timeoutMs, env),
   ),
   {},
   undefined,
