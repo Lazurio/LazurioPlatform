@@ -377,6 +377,11 @@ async function serve(
     sleepCloseMs?: number;
     wakeRetryMs?: number;
     sleepState?: HubSeams["sleepState"];
+    /** Decision F57 point 6: a pressure source and the rule's times. */
+    pressure?: HubSeams["pressure"];
+    pressureEveryMs?: number;
+    pressureCoolDownMs?: number;
+    pressureQuietMs?: number;
   } = {},
 ) {
   root = await realpath(await mkdtemp(join(tmpdir(), "people-view-")));
@@ -436,6 +441,14 @@ async function serve(
       ...(options.sleepState === undefined
         ? {}
         : { sleepState: options.sleepState }),
+      ...(options.pressure === undefined
+        ? {}
+        : {
+            pressure: options.pressure,
+            pressureEveryMs: options.pressureEveryMs ?? 20,
+            pressureCoolDownMs: options.pressureCoolDownMs ?? 15_000,
+            pressureQuietMs: options.pressureQuietMs ?? 60_000,
+          }),
     },
   });
   await until(() => service?.hub.ready === true);
@@ -3424,4 +3437,204 @@ test("two opens of the same address for the same strip at once give one tab: the
   expect(answers[0]?.body.id).toBe(answers[1]?.body.id);
   expect((await ask("t3-z")).body.id).not.toBe(answers[0]?.body.id);
   expect(browser.called("Target.createTarget")).toHaveLength(3);
+});
+
+// ---- The pressure rule (decision F57 point 6) ---------------------------------
+
+/** A pressure source the test turns, as the hub reads it on its beat. */
+function pressureGauge() {
+  const gauge = {
+    reading: { some: 0, available: 0.5 } as {
+      some: number | null;
+      available: number | null;
+    },
+  };
+  return { gauge, read: async () => gauge.reading };
+}
+
+test("under pressure the hub puts one tab to sleep at a time: first one nothing holds, then held ones least recently used, one with unsaved input last and only if its page lets it; never one someone views, an agent works in or a T3 Code thread holds", async () => {
+  const browser = new FakeBrowser(
+    [1, 2, 3, 4, 5, 6, 7, 8].map((n) =>
+      tab(n, { url: `https://example.com/${n}` }),
+    ),
+  );
+  // id(4) and id(5) have unsaved input; id(5)'s `beforeunload` objects.
+  browser.unsaved.add(id(4));
+  browser.unsaved.add(id(5));
+  browser.beforeUnload.add(id(5));
+  const closedAt = new Map<string, number>();
+  browser.onPageClose = (target) => closedAt.set(target, Date.now());
+  const { gauge, read } = pressureGauge();
+  const { base, logs } = await serve(browser, {
+    unviewedGraceMs: 60_000,
+    // id(1): nothing holds it. id(7): an agent works in it. id(8): a T3
+    // Code thread's.
+    working: [id(7)],
+    holders: {
+      launchpad: [id(2), id(3), id(4), id(5), id(6), id(7)],
+      "t3-a": [id(8)],
+    },
+    pressure: read,
+    pressureCoolDownMs: 60,
+    pressureQuietMs: 100,
+  });
+  // id(6): someone views it. id(3): someone viewed it a moment ago.
+  const watching = await person(base, id(6));
+  const glance = await person(base, id(3));
+  await until(() => glance.of("info").length > 0);
+  glance.socket.close();
+  await until(() => factsOf(3)?.viewers === 0);
+  await until(() => watching.of("info").length > 0);
+  await settle(150);
+  expect(pageClosed(browser)).toEqual([]);
+  const graceOf1 = factsOf(1)?.grace;
+  expect(graceOf1?.kind).toBe("unviewed");
+  // Pressure.
+  gauge.reading = { some: 12, available: 0.5 };
+  await until(() => pageClosed(browser).length === 5, 4_000);
+  expect(pageClosed(browser)).toEqual([1, 2, 3, 4, 5].map((n) => `S-${id(n)}`));
+  for (const n of [1, 2, 3, 4]) {
+    await until(() => asleep(n));
+    expect(factsOf(n)?.sleeping?.reason).toBe("pressure");
+  }
+  // One at a time: the cool-down lies between two sleeps.
+  const times = [1, 2, 3, 4].map((n) => closedAt.get(id(n)) as number);
+  for (let i = 1; i < times.length; i++)
+    expect(
+      (times[i] as number) - (times[i - 1] as number),
+    ).toBeGreaterThanOrEqual(55);
+  // id(4)'s focused field first kept it awake, then, last of all, only its
+  // page could have; id(5)'s page did, and it is not asked again soon.
+  await until(() => browser.called("Page.handleJavaScriptDialog").length > 0);
+  await settle(300);
+  expect(pageClosed(browser)).toHaveLength(5);
+  expect(asleep(5)).toBe(false);
+  expect(browser.targets.has(id(5))).toBe(true);
+  expect(factsOf(5)?.unsaved).toBeDefined();
+  // Never the viewed tab, the agent's or the thread's.
+  for (const n of [6, 7, 8]) {
+    expect(browser.targets.has(id(n))).toBe(true);
+    expect(asleep(n)).toBe(false);
+  }
+  // The tab nothing held keeps F47's count in its tombstone: it ends when
+  // the tab would have ended.
+  expect(factsOf(1)?.grace?.kind).toBe("unviewed");
+  expect(
+    Math.abs(
+      Date.parse(String(factsOf(1)?.grace?.endsAt)) -
+        Date.parse(String(graceOf1?.endsAt)),
+    ),
+  ).toBeLessThanOrEqual(5);
+  expect(logs).toContain(
+    "memory pressure (PSI some avg10 12.0 %, MemAvailable 50 %): tabs fall asleep, one every 0.06 s at most",
+  );
+});
+
+test("pressure has hysteresis: it starts at a limit, goes on between the limits, ends below both, and the rule is off with nothing to read", async () => {
+  const browser = new FakeBrowser(
+    [1, 2, 3, 4, 5].map((n) => tab(n, { url: `https://example.com/${n}` })),
+  );
+  const { gauge, read } = pressureGauge();
+  const { logs } = await serve(browser, {
+    holders: { launchpad: [1, 2, 3, 4, 5].map(id) },
+    pressure: read,
+    pressureCoolDownMs: 100,
+    pressureQuietMs: 0,
+  });
+  const sleeping = () => [1, 2, 3, 4, 5].filter((n) => asleep(n)).length;
+  // Nothing to read: off.
+  gauge.reading = { some: null, available: null };
+  await settle(150);
+  // Between the limits, never under pressure before: nothing.
+  gauge.reading = { some: 5, available: 0.12 };
+  await settle(150);
+  expect(pageClosed(browser)).toEqual([]);
+  // At the start limit.
+  gauge.reading = { some: 10, available: 0.5 };
+  await until(() => sleeping() === 1);
+  // Between the limits it goes on, one tab per cool-down.
+  gauge.reading = { some: 5, available: 0.12 };
+  await until(() => sleeping() === 2);
+  // Below both stop limits it ends.
+  gauge.reading = { some: 1.5, available: 0.2 };
+  await settle(80);
+  const settled = pageClosed(browser).length;
+  await settle(300);
+  expect(pageClosed(browser)).toHaveLength(settled);
+  // Memory short alone is pressure too.
+  gauge.reading = { some: 0, available: 0.08 };
+  await until(() => sleeping() === settled + 1);
+  expect(
+    logs.filter((line) => line.startsWith("memory pressure (")).length,
+  ).toBe(2);
+  expect(logs).toContain(
+    "memory pressure over (PSI some avg10 1.5 %, MemAvailable 20 %)",
+  );
+});
+
+test("an agent that comes while a pressure sleep is pending keeps its tab awake: no close, then or later", async () => {
+  const browser = new FakeBrowser([tab(1, { url: "https://example.com/a" })]);
+  const { gauge, read } = pressureGauge();
+  const { setHolds } = await serve(browser, {
+    holders: { launchpad: [id(1)] },
+    pressure: read,
+    pressureCoolDownMs: 50,
+    pressureQuietMs: 0,
+  });
+  // The agent binds while the page answers about unsaved input, the hub's
+  // last look before the close.
+  let looked = false;
+  browser.onUnsavedRead = () => {
+    browser.onUnsavedRead = null;
+    looked = true;
+    setHolds({ working: [id(1)], holders: { launchpad: [id(1)] } });
+  };
+  gauge.reading = { some: 40, available: 0.05 };
+  await until(() => looked);
+  await settle(300);
+  expect(pageClosed(browser)).toEqual([]);
+  expect(browser.targets.has(id(1))).toBe(true);
+  expect(factsOf(1)?.agents).toEqual([`codex-${id(1).slice(-4)}`]);
+  // Its daemon ends: the tab stays awake an idle time after, pressure or not.
+  setHolds({ idle: [id(1)], holders: { launchpad: [id(1)] } });
+  await settle(300);
+  expect(pageClosed(browser)).toEqual([]);
+  expect(asleep(1)).toBe(false);
+});
+
+test("a tab nothing holds keeps F47's count through the pressure rule: asleep, its tombstone ends when the tab would have; kept awake by its page, so does the tab", async () => {
+  const browser = new FakeBrowser([
+    tab(1, { url: "https://example.com/a" }),
+    tab(2, { url: "https://example.com/b" }),
+  ]);
+  // id(1)'s `beforeunload` objects; id(2) closes.
+  browser.beforeUnload.add(id(1));
+  const { gauge, read } = pressureGauge();
+  await serve(browser, {
+    unviewedGraceMs: 900,
+    pressure: read,
+    pressureCoolDownMs: 20,
+    pressureQuietMs: 0,
+  });
+  await until(() => factsOf(1)?.grace !== null && factsOf(2)?.grace !== null);
+  const endsAt = (n: number) => Date.parse(String(factsOf(n)?.grace?.endsAt));
+  const before = [endsAt(1), endsAt(2)];
+  gauge.reading = { some: 50, available: 0.5 };
+  await until(() => asleep(2));
+  await until(() => browser.called("Page.handleJavaScriptDialog").length > 0);
+  await settle(30);
+  expect(asleep(1)).toBe(false);
+  expect(factsOf(1)?.grace?.kind).toBe("unviewed");
+  expect(factsOf(2)?.grace?.kind).toBe("unviewed");
+  expect(Math.abs(endsAt(1) - (before[0] as number))).toBeLessThanOrEqual(5);
+  expect(Math.abs(endsAt(2) - (before[1] as number))).toBeLessThanOrEqual(5);
+  // Both end at their time, the awake one as F47 ends a tab.
+  await until(
+    () => service?.hub.hasTab(id(1)) === false && !service?.hub.hasTab(id(2)),
+    3_000,
+  );
+  expect(Date.now()).toBeGreaterThanOrEqual(
+    Math.max(before[0] as number, before[1] as number) - 10,
+  );
+  expect(closedTargets(browser)).toEqual([id(1)]);
 });

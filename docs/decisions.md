@@ -15415,8 +15415,10 @@ thresholds provisional until measured. Pablo's review of #537 (same day) closed 
 agent that comes while the hub decides, and the tabs of T3 Code's read-only browser tools,
 which never sleep now (point 5); and opens of one address at once give one tab (point 7).
 Its re-review made `lazurio browser window` reuse only its own thread's strip, by exact
-identity (point 7).
-Step 1 below is implemented in this revision; steps 2 and 3 are planned.**
+identity (point 7). PR 2 (same day, root decision 0195 point 18) implements the pressure rule
+of point 6 with its thresholds still provisional, and keeps a T3 Code thread's tab out of it
+altogether (Matěj's rule: a tab an agent works with never sleeps).
+Steps 1 and 2 below are implemented; step 3 is planned.**
 F47 ends a remote tab only when nothing holds it and nobody views it. A tab a T3 Code thread's
 strip or the Launchpad holds therefore stays loaded as long as the hold, whether anyone uses it
 or not, and the browser's budget (F38's addendum of 2026-10-10) is then spent by the kernel:
@@ -15490,14 +15492,18 @@ them to this task) stay, because they serve the agents' windows nobody watches.
    - It applies to the tabs the Launchpad holds, never to a tab a T3 Code thread holds
      (point 3). This changes F47 point 5: a tab the Launchpad holds no longer stays loaded as
      long as its hold.
-   - A tab nothing holds is ended by F47's graces as before, within 10 minutes, so it never
-     sleeps.
+   - A tab nothing holds is ended by F47's graces as before, within 10 minutes, so the idle
+     rule never puts it to sleep; only the pressure rule may (point 6).
    - A tab with unsaved input stays awake, is asked again after another 20 minutes, and the
      hub's list marks it (`unsaved`) for the strips and Přehled.
+   - A page asked to close that stayed awake (it objected, or neither closed nor objected
+     within 5 s) is asked again an idle time later too: its quiet clock counts from the ask
+     (PR 2; before it, a page that hung was asked again on every beat).
 5. **Never asleep:** a tab someone views; a tab an agent works in or worked in recently; a tab a
-   T3 Code thread holds, by the idle rule or by Uspat (point 3); for the idle rule, a tab with
-   unsaved input; the hub's own blank window; a page without an http(s) address it can open
-   again (`about:blank`, an error page, a `chrome:` page, another Environment's view).
+   T3 Code thread holds, by the idle rule, by pressure or by Uspat (point 3); for the idle rule,
+   a tab with unsaved input; the hub's own blank window; a page without an http(s) address it
+   can open again (`about:blank`, an error page, a `chrome:` page, another Environment's
+   view).
    - **The decision and the close are one step.** The hub asks the page for its last input
      and for unsaved input, then reads the holder files and the bindings once more, and from
      the end of that read to sending `Page.close` it awaits nothing: the last check runs on
@@ -15517,27 +15523,58 @@ them to this task) stay, because they serve the agents' windows nobody watches.
      anything reaches another page; the tab wakes at once (above), and the Folder manual's
      recovery opens the agent's window again. An agent already at work holds its daemon, and
      a T3 Code tool's tab never sleeps, so neither can meet this moment.
-6. **The pressure rule (step 2, not implemented yet).** Before the kernel ends a renderer, the
-   hub puts tabs to sleep by memory pressure, never by `memory.current` against `memory.max`:
-   on the reference Environment on 2026-10-20 the browser's `memory.current` went 246 → 616 →
-   478 MiB after two tabs were opened and closed again, because the page cache stays charged,
-   and other services showed about 90 % file cache in `memory.current`.
-   - **Signals:** the browser cgroup's `memory.pressure` (`some avg10`), the Environment's
-     `/proc/pressure/memory`, and `MemAvailable` of `/proc/meminfo`, read every 5 s.
+6. **The pressure rule (step 2, PR 2).** Before the kernel ends a renderer, the hub puts tabs to
+   sleep by memory pressure, never by `memory.current` against `memory.max`: on the reference
+   Environment on 2026-10-20 the browser's `memory.current` went 246 → 616 → 478 MiB after two
+   tabs were opened and closed again, because the page cache stays charged, and other services
+   showed about 90 % file cache in `memory.current`.
+   - **Signals,** three small files read every 5 s on the hub's own beat: the browser cgroup's
+     `memory.pressure` and the Environment's `/proc/pressure/memory` (PSI, `some avg10`, the
+     higher of the two counts), and `MemAvailable` against `MemTotal` of `/proc/meminfo` as a
+     floor. `full` is not read: it is never higher than `some`. The Environment's PSI counts
+     too, because under shortage the browser's tabs go first, before Modules (0195 point 3).
+     - The browser's cgroup is its unit's, next to the view's own (`/proc/self/cgroup`): the
+       Platform writes both user services without a `Slice=`, so the user manager puts them in
+       the same slice.
+     - A file that cannot be read is left out and logged once: the browser's cgroup while its
+       unit is stopped, a kernel without PSI. With nothing to read the rule is off, logged once.
+       Off Linux (macOS has no PSI) the view reads nothing and the rule is off.
    - **Provisional defaults, measured on Ring 0 (root decision 0204) before they are settled**
-     (the plan's review of 2026-10-20): under pressure when the browser's `some avg10` reaches
-     10 %, or `MemAvailable` falls under 10 % of the memory; no longer once `some avg10` is
-     under 2 % and `MemAvailable` is above 15 %. The 15 s cool-down below is provisional
-     too.
-   - **Under pressure,** one tab every 15 s:
-     - first a tab nothing holds and nobody views, closed as F47 would close it soon;
-     - then the held tab viewed least recently;
-     - a tab with unsaved input last, and only through `Page.close`, so a `beforeunload` that
-       objects keeps it; its strip says so.
-   - **Never chosen:** a tab someone views, or one an agent works in or worked in recently.
-     A tab a T3 Code thread holds comes after every other, as long as point 3 holds.
-   - **The hysteresis and the cool-down** keep the rule from flapping. A woken tab counts as
-     viewed now, so the rule never takes the tab a person just opened.
+     (the plan's review of 2026-10-20; `pressureLimits` and `pressureTimes` in
+     `src/browser/people/pressure.ts`): under pressure when PSI reaches 10 %, or `MemAvailable`
+     falls under 10 % of the memory; no longer once PSI is under 2 % and `MemAvailable` is
+     above 15 %. In between, the state stays what it was (the hysteresis). One tab falls
+     asleep per 15 s at most (the cool-down), so PSI's ten-second average shows what the last
+     one gave. The measurement of 2026-10-20 on the reference Environment (4 vCPU, 8 GiB,
+     zswap, 28 tabs): PSI `some avg10` peaked at 19 % (`full` 17 %) for about 20 s while heavy
+     pages loaded and stayed under 5 % otherwise; `MemAvailable` fell from 5.2 to about
+     2.9 GiB; the kernel ended no renderer. That peak would have started the rule. How soon it
+     ends afterwards depends on where PSI rests: under 5 % was measured, and the stop limit is
+     2 %, so a resting PSI between them keeps a tab falling asleep every 15 s; the Ring 0
+     measurement shows which it is. On a client Environment without swap (2 vCPU, 8 GiB, the
+     browser's 30 %) the kernel ended about 80 renderers of 170–270 MB in 7 days (#525).
+   - **Under pressure,** one tab per cool-down, through the idle rule's sleep (`Page.close`,
+     the tombstone under the same id, and every check of point 5 in one step with the close):
+     - first a tab nothing holds and nobody views. Its tombstone keeps the grace the tab was
+       counting down (F47 point 5), so it ends when the tab would have ended; a hold or a
+       viewer within it keeps it, as for any tombstone;
+     - then a held tab (the Launchpad's strip, or another app's but a T3 Code thread's), the
+       one viewed or used least recently first (its quiet clock);
+     - a tab with unsaved input last, and only through `Page.close`: the hub does not look at
+       its fields again, so only its page's `beforeunload` keeps it awake. Its unsaved input
+       in a field the page does not guard with `beforeunload` is lost, as it would be when the
+       kernel ends its renderer. A tab first found with unsaved input while the rule tried it
+       goes to this group and waits until the others are asleep.
+     The hub tries them in this order until one falls asleep; one that stays awake is skipped.
+   - **Never chosen:** a tab someone views, one an agent works in or worked in recently (the
+     idle rule's test of point 3), and a tab a T3 Code thread holds, as long as point 3 holds
+     (Matěj's rule; this revision changes "after every other" of the first proposal to
+     "never"). Nor a tab in use within the last minute: a woken tab counts as viewed when it
+     wakes, so the rule never takes the tab a person just opened or woke. Nor a page that was
+     asked to close within the idle time and stayed awake (its `beforeunload` objected or it
+     did not answer): it would only do the same again.
+   - **The hysteresis and the cool-down** keep the rule from flapping; the hub logs when
+     pressure starts and ends, with the values that decided.
 7. **No duplicate opens.** Two addresses are the same page when their origin, path and
    query are the same; only the fragment does not count (the plan's review of 2026-10-20). Two
    searches are two pages: an agent's second search never takes over the tab of its first.
@@ -15571,12 +15608,16 @@ them to this task) stay, because they serve the agents' windows nobody watches.
      the 10 minutes of F47 point 5.
    - A restarted browser keeps none: no tab comes back after a browser restart, awake or
      asleep (F38's addendum of 2026-10-10 stands).
+   - The grace a tombstone of an unheld tab keeps (point 6) is not written down: after a
+     restart of the view it has the 10 minutes, as every tab then.
    - A reboot clears the runtime directory with the tabs.
    - At most 500 tombstones are kept, as many tabs as a holder file lists; past that the least
      recently used end.
 9. **When a sleeping tab ends:** as F47 point 5 says for any tab. It stays while a holder file
    lists it or a viewer waits for it. Otherwise it ends after the grace: 8 s after its last hold
-   with Vrátit, 30 s after its last viewer, 10 minutes after a view restart. Zavřít in Přehled
+   with Vrátit, 30 s after its last viewer, 10 minutes after a view restart. A tab nothing held
+   when it fell asleep (by pressure or Uspat) keeps the grace it was counting down; so does
+   such a tab that stays awake because its page objected. Zavřít in Přehled
    ends it for everyone after 8 s with Vrátit. An agent's binding does not hold a sleeping tab:
    it names a target that is gone.
 10. **The hub's loopback requests grow** (C11, Platform-internal, one release serves both ends):
@@ -15610,8 +15651,12 @@ them to this task) stay, because they serve the agents' windows nobody watches.
 | Two opens of one address for one strip at once | One window; the second caller gets the first one's tab, `reused` |
 | An agent's input inside a frame of the page | Not heard: the listener is in the main frame. A navigation of the page or a daemon still counts |
 | The page hangs and neither closes nor objects within 5 s | It stays awake and is tried again an idle time later |
-| A page always arms `beforeunload` | It never sleeps by the idle rule; the pressure rule takes it last and never forces it |
-| Pressure flaps | Step 2's hysteresis and 15 s cool-down (provisional until measured on Ring 0); one tab at a time |
+| A page always arms `beforeunload` | It never sleeps by the idle rule; the pressure rule takes it last, never forces it, and asks it again only an idle time later |
+| Pressure flaps | Step 2's hysteresis (start at 10 % or under 10 % available, stop under 2 % and above 15 %) and 15 s cool-down, provisional until measured on Ring 0; one tab at a time |
+| No PSI to read (macOS, a kernel without PSI) or the browser's cgroup cannot be read | What cannot be read is left out, logged once; `MemAvailable` alone still counts. With nothing at all the rule is off, logged once; the idle rule and the kernel remain |
+| Pressure, and every tab is viewed, an agent's, a thread's or just used | Nothing sleeps; the kernel decides as before this rule. Logged when pressure starts |
+| An agent comes while a pressure sleep is pending | As for the idle rule: the last check and `Page.close` are one step after a fresh read of the holds, and a change the watch reports meanwhile cancels it |
+| Without swap the browser reaches its own `MemoryMax` quickly | The cgroup's PSI rises only while the kernel reclaims the browser's page cache, which may be short before it ends a renderer; the Ring 0 measurement of a swapless Environment settles whether the start limit is low enough (open question of PR 2) |
 | The view restarts | `sleep.json` keeps the tombstones and the woken tabs' ids; a file that cannot be read keeps none, and the apps then drop those ids as tabs that ended |
 | The browser restarts | No tab comes back, asleep or awake |
 | A person's view lies in a hidden tab of their browser | It no longer keeps the tab awake; showing it wakes the tab, which reloads |
@@ -15640,8 +15685,10 @@ them to this task) stay, because they serve the agents' windows nobody watches.
    Probudit on loopback, the list's `sleeping` and `unsaved`, no duplicate opens in the hub
    (concurrent ones included) and in `lazurio browser window`, `sleep.json`, and the view's
    `visible`.
-2. **The pressure rule (PR 2):** the signals, thresholds and order of point 6, with their
-   measurement on the reference Environment first (root decision 0204).
+2. **The pressure rule (PR 2, this revision):** the signals, provisional thresholds, hysteresis,
+   cool-down and order of point 6, through step 1's sleep; a page that hung is asked again an
+   idle time later; an unheld tab's tombstone keeps its grace. The thresholds are settled by
+   measurement on Ring 0 (root decision 0204) before the rule leaves it.
 3. **Přehled and the strips (PR 3):** a sleeping tab marked in the Launchpad's strip and in
    Přehled, Uspat and Probudit, the unsaved hint, and the browser's memory against its budget;
    wireframe first (0195 point 5).
@@ -15672,6 +15719,21 @@ them to this task) stay, because they serve the agents' windows nobody watches.
 - Tests: `tests/environment-browser-view.test.ts` (the hub against a scripted DevTools peer)
   and `tests/environment-browser-sleep.test.ts` (the pure rules, the view's message and
   `lazurio browser window`).
+
+**Where it is (step 2).**
+- `src/browser/people/pressure.ts`: the provisional limits and times (`pressureLimits`,
+  `pressureTimes`), the hysteresis (`underPressure`), PSI and meminfo (`parsePressure`,
+  `availableShare`), the order and its exclusions (`pressureOrder`), the browser's cgroup
+  (`browserPressurePath`) and the source of the three files (`pressureSource`).
+- `src/browser/people/hub.ts`: the beat (`pressureBeat`), the choice (`sleepForPressure`), the
+  pressure rule's quiet minimum in `inUse`, the last resort that leaves unsaved input to the
+  page (`putToSleep`'s `pageDecides`), `askedAt` in the quiet clock, and the kept grace of an
+  unheld tab (`kept`, `reviewSleeper`, `fell`).
+- `src/browser/people/serve.ts`: the source, on Linux only.
+- Tests: the pure rules and the source with fake files in `tests/environment-browser-sleep.test.ts`;
+  the hub with a fake pressure source and the scripted DevTools peer in
+  `tests/environment-browser-view.test.ts` (the order and its exclusions, the hysteresis and
+  the cool-down, an agent that comes while a pressure sleep is pending, the kept grace).
 
 ## F58 — A static app starts from `main` as its build: each commit built once outside the checkout, served by the Platform, rebuilt after a pull
 

@@ -7,6 +7,17 @@ import {
   parseHubTab,
   type TabFacts,
 } from "../src/browser/contract/platform";
+import {
+  availableShare,
+  browserPressurePath,
+  type PressureCandidate,
+  parsePressure,
+  pressureLimits,
+  pressureOrder,
+  pressureSource,
+  pressureTimes,
+  underPressure,
+} from "../src/browser/people/pressure";
 import { parseClientMessage } from "../src/browser/people/protocol";
 import {
   addressKey,
@@ -83,7 +94,7 @@ test("a tab sleeps only with an address the hub opens again by itself", () => {
   ).toBe(false);
 });
 
-test("the quiet clock is the latest use of any kind", () => {
+test("the quiet clock is the latest use of any kind, and a page asked to close that stayed awake counts from then", () => {
   expect(
     quietSince({
       openedAt: 10,
@@ -91,6 +102,7 @@ test("the quiet clock is the latest use of any kind", () => {
       agentAt: 30,
       activeAt: 20,
       unsavedAt: 0,
+      askedAt: 0,
     }),
   ).toBe(40);
   expect(
@@ -100,8 +112,20 @@ test("the quiet clock is the latest use of any kind", () => {
       agentAt: 0,
       activeAt: 0,
       unsavedAt: 55,
+      askedAt: 0,
     }),
   ).toBe(55);
+  // A page that hung or objected is asked again an idle time later.
+  expect(
+    quietSince({
+      openedAt: 10,
+      viewedAt: 40,
+      agentAt: 0,
+      activeAt: 0,
+      unsavedAt: 0,
+      askedAt: 70,
+    }),
+  ).toBe(70);
 });
 
 const record = (n: number, extra: Partial<SleepRecord> = {}): SleepRecord => ({
@@ -398,4 +422,222 @@ test("the hub's list says which tab sleeps and which has unsaved input, only whe
     targetId: id(1),
   });
   expect(hubRequestOf(`/.lazurio/tabs/${id(1)}/nap`)).toBeNull();
+});
+
+// ---- The pressure rule (decision F57 point 6) ----------------------------------
+
+test("the pressure rule's limits and times are the provisional defaults F57 names, until Ring 0 measures them", () => {
+  expect(pressureLimits).toEqual({
+    startSomePercent: 10,
+    startAvailable: 0.1,
+    stopSomePercent: 2,
+    stopAvailable: 0.15,
+  });
+  expect(pressureTimes).toEqual({
+    readEveryMs: 5_000,
+    coolDownMs: 15_000,
+    quietMs: 60_000,
+  });
+});
+
+test("pressure starts at either limit and ends only once every signal is past its stop: no flapping in between", () => {
+  const at = (some: number | null, available: number | null) => ({
+    some,
+    available,
+  });
+  // Calm: neither limit.
+  expect(underPressure(false, at(5, 0.5))).toBe(false);
+  // PSI at its start limit, or memory short, alone is enough.
+  expect(underPressure(false, at(10, 0.5))).toBe(true);
+  expect(underPressure(false, at(0, 0.09))).toBe(true);
+  // Between the limits it stays as it was.
+  expect(underPressure(true, at(5, 0.5))).toBe(true);
+  expect(underPressure(true, at(1, 0.12))).toBe(true);
+  expect(underPressure(false, at(5, 0.12))).toBe(false);
+  // It ends only below 2 % and above 15 % together.
+  expect(underPressure(true, at(1.9, 0.16))).toBe(false);
+  expect(underPressure(true, at(2, 0.16))).toBe(true);
+  expect(underPressure(true, at(1, 0.15))).toBe(true);
+  // A signal that cannot be read counts for neither side.
+  expect(underPressure(false, at(null, 0.05))).toBe(true);
+  expect(underPressure(true, at(null, 0.2))).toBe(false);
+  expect(underPressure(false, at(25, null))).toBe(true);
+  expect(underPressure(true, at(1, null))).toBe(false);
+  // Nothing read: off, whatever it was.
+  expect(underPressure(true, at(null, null))).toBe(false);
+});
+
+test("PSI reads as its some avg10 in percent and meminfo as the share available; anything else is nothing", () => {
+  expect(
+    parsePressure(
+      "some avg10=19.04 avg60=6.12 avg300=1.50 total=123456\nfull avg10=17.00 avg60=5.00 avg300=1.00 total=99999\n",
+    ),
+  ).toBe(19.04);
+  expect(
+    parsePressure(
+      "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n",
+    ),
+  ).toBe(0);
+  // `full` is never higher than `some`, and alone it is no reading.
+  expect(
+    parsePressure("full avg10=17.00 avg60=5.00 avg300=1.00 total=1\n"),
+  ).toBeNull();
+  expect(parsePressure("")).toBeNull();
+  expect(parsePressure("some avg10=abc avg60=0.00\n")).toBeNull();
+  expect(parsePressure("some avg10=250.00 avg60=0.00\n")).toBeNull();
+  expect(
+    availableShare(
+      "MemTotal:        8000000 kB\nMemFree:          100000 kB\nMemAvailable:    2000000 kB\n",
+    ),
+  ).toBe(0.25);
+  expect(availableShare("MemTotal:        8000000 kB\n")).toBeNull();
+  expect(availableShare("MemTotal: 0 kB\nMemAvailable: 0 kB\n")).toBeNull();
+});
+
+const candidate = (
+  name: string,
+  extra: Partial<PressureCandidate> = {},
+): PressureCandidate & { name: string } => ({
+  name,
+  viewed: false,
+  agent: false,
+  thread: false,
+  held: true,
+  unsaved: false,
+  quietSince: 1_000,
+  askedAt: 0,
+  ...extra,
+});
+
+test("under pressure the tabs nothing holds go first, then the held ones, and those with unsaved input last, each the least recently used first", () => {
+  const now = Date.parse("2026-10-20T12:00:00Z");
+  const times = { quietMs: 60_000, askAgainMs: 1_200_000 };
+  const order = pressureOrder(
+    [
+      candidate("held, used later", { quietSince: 500_000 }),
+      candidate("unsaved, used long ago", { unsaved: true, quietSince: 10 }),
+      candidate("held, used earlier", { quietSince: 400_000 }),
+      candidate("unheld, used later", { held: false, quietSince: 600_000 }),
+      candidate("unheld, used earlier", { held: false, quietSince: 300_000 }),
+      candidate("unsaved, used later", { unsaved: true, quietSince: 700_000 }),
+    ],
+    now,
+    times,
+  ).map((c) => c.name);
+  expect(order).toEqual([
+    "unheld, used earlier",
+    "unheld, used later",
+    "held, used earlier",
+    "held, used later",
+    "unsaved, used long ago",
+    "unsaved, used later",
+  ]);
+});
+
+test("the pressure rule never takes a tab someone views, an agent works in or worked in recently, a T3 Code thread holds, one just used, or one that just refused to close", () => {
+  const now = Date.parse("2026-10-20T12:00:00Z");
+  const times = { quietMs: 60_000, askAgainMs: 1_200_000 };
+  const order = pressureOrder(
+    [
+      candidate("viewed", { viewed: true, held: false }),
+      candidate("agent", { agent: true, held: false }),
+      candidate("thread", { thread: true }),
+      candidate("just used", { quietSince: now - 59_999 }),
+      candidate("refused", { unsaved: true, askedAt: now - 1_199_999 }),
+      candidate("refused long ago", {
+        unsaved: true,
+        askedAt: now - 1_200_000,
+      }),
+      candidate("quiet a minute", { quietSince: now - 60_000 }),
+    ],
+    now,
+    times,
+  ).map((c) => c.name);
+  expect(order).toEqual(["quiet a minute", "refused long ago"]);
+  // Every exclusion at once leaves nothing to take.
+  expect(
+    pressureOrder(
+      [candidate("viewed", { viewed: true }), candidate("t", { thread: true })],
+      now,
+      times,
+    ),
+  ).toEqual([]);
+});
+
+test("the browser's PSI is in its unit's cgroup next to the view's own; a cgroup it cannot start from gives none", () => {
+  expect(
+    browserPressurePath(
+      "/user.slice/user-1000.slice/user@1000.service/app.slice/lazurio-browser-view.service",
+    ),
+  ).toBe(
+    "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/lazurio-browser.service/memory.pressure",
+  );
+  expect(browserPressurePath("/")).toBeNull();
+  expect(browserPressurePath("/lazurio-browser-view.service")).toBeNull();
+  expect(browserPressurePath("relative/path")).toBeNull();
+  expect(browserPressurePath("/a/../b/view.service")).toBeNull();
+});
+
+test("the source reads the higher PSI of the browser and the Environment and the memory available; what it cannot read it leaves out, logged once, and with nothing read the rule is off", async () => {
+  const own =
+    "/user.slice/user-1000.slice/user@1000.service/app.slice/lazurio-browser-view.service";
+  const browserFile =
+    "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/lazurio-browser.service/memory.pressure";
+  const psi = (some: number) =>
+    `some avg10=${some.toFixed(2)} avg60=0.00 avg300=0.00 total=1\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n`;
+  const files = new Map<string, string>([
+    [browserFile, psi(14)],
+    ["/proc/pressure/memory", psi(3)],
+    ["/proc/meminfo", "MemTotal: 8000 kB\nMemAvailable: 2000 kB\n"],
+  ]);
+  const logs: string[] = [];
+  let groupReads = 0;
+  const source = pressureSource({
+    log: (line) => logs.push(line),
+    readFile: async (path) => {
+      const text = files.get(path);
+      if (text === undefined)
+        throw Object.assign(new Error("missing"), { code: "ENOENT" });
+      return text;
+    },
+    ownControlGroup: async () => {
+      groupReads++;
+      return own;
+    },
+  });
+  expect(await source()).toEqual({ some: 14, available: 0.25 });
+  files.set("/proc/pressure/memory", psi(21));
+  expect(await source()).toEqual({ some: 21, available: 0.25 });
+  expect(logs).toEqual([]);
+  // The browser's unit is stopped: its cgroup is gone. Logged once.
+  files.delete(browserFile);
+  expect(await source()).toEqual({ some: 21, available: 0.25 });
+  expect(await source()).toEqual({ some: 21, available: 0.25 });
+  expect(logs).toEqual([
+    `memory pressure: ${browserFile} cannot be read (ENOENT)`,
+  ]);
+  // Nothing to read at all, as on a system without PSI or /proc: off.
+  files.clear();
+  expect(await source()).toEqual({ some: null, available: null });
+  expect(await source()).toEqual({ some: null, available: null });
+  expect(logs.filter((line) => line.includes("rule is off"))).toHaveLength(1);
+  expect(logs.filter((line) => line.includes("/proc/meminfo"))).toHaveLength(1);
+  // The view's own cgroup is read once.
+  expect(groupReads).toBe(1);
+  // A view without a cgroup of its own reads the Environment's alone.
+  const alone: string[] = [];
+  const environmentOnly = pressureSource({
+    log: (line) => alone.push(line),
+    readFile: async (path) => {
+      if (path === "/proc/pressure/memory") return psi(4);
+      if (path === "/proc/meminfo")
+        return "MemTotal: 1000 kB\nMemAvailable: 500 kB\n";
+      throw Object.assign(new Error("missing"), { code: "ENOENT" });
+    },
+    ownControlGroup: async () => null,
+  });
+  expect(await environmentOnly()).toEqual({ some: 4, available: 0.5 });
+  expect(await environmentOnly()).toEqual({ some: 4, available: 0.5 });
+  expect(alone).toHaveLength(1);
+  expect(alone[0]).toContain("cgroup is unknown");
 });

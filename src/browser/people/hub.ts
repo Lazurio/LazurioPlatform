@@ -19,6 +19,12 @@ import {
 import type { CdpConnection, CdpEvent } from "./cdp";
 import type { CookieSweep } from "./cookies";
 import {
+  type PressureReading,
+  pressureOrder,
+  pressureTimes,
+  underPressure,
+} from "./pressure";
+import {
   type ClientMessage,
   encodeFrame,
   type FrameHeader,
@@ -45,10 +51,11 @@ import {
  * and what the view does for them (frames, input, pop-ups, dialogs, file
  * choosers). It alone decides when a remote tab ends (F47 point 5): a tab
  * that a strip holds or an agent works in stays; one that nothing holds or
- * views ends after a grace. And when a held tab sleeps (decision F57): its
- * remote tab closes and the hub keeps its tombstone under the same id until
- * someone views it again. One hub per service; it reconnects whenever the
- * browser goes away. */
+ * views ends after a grace. And when a tab sleeps (decision F57), held and
+ * unused for the idle time, or under memory pressure: its remote tab closes
+ * and the hub keeps its tombstone under the same id until someone views it
+ * again. One hub per service; it reconnects whenever the browser goes
+ * away. */
 
 /** One person's socket on one tab. */
 export type Viewer = {
@@ -123,6 +130,14 @@ export type HubSeams = Readonly<{
   idleSleepMs?: number;
   sleepCloseMs?: number;
   wakeRetryMs?: number;
+  /** Memory pressure now (decision F57 point 6, `pressureSource`), read
+   * every `pressureEveryMs`; absent, as off Linux, the pressure rule is
+   * off. */
+  pressure?: () => Promise<PressureReading>;
+  /** Overridable for tests: the pressure rule's times (`pressureTimes`). */
+  pressureEveryMs?: number;
+  pressureCoolDownMs?: number;
+  pressureQuietMs?: number;
 }>;
 
 /** What became of a request to put a tab to sleep (decision F57). */
@@ -233,6 +248,11 @@ type Tab = {
   agentAt: number;
   activeAt: number;
   unsavedAt: number | null;
+  /** When the hub last asked its page to close (`Page.close`); the tab is
+   * still awake, so its `beforeunload` objected or it did not answer. Its
+   * quiet clock starts again, and the pressure rule leaves it alone for an
+   * idle time (decision F57). 0 for never. */
+  askedAt: number;
   /** The main frame's coming navigation is the page's own doing. */
   selfNavigation: boolean;
   /** The hub is looking whether the tab may sleep (decision F57). */
@@ -267,6 +287,10 @@ type Sleeper = {
   state: "held" | "viewed" | "idle";
   graceTimer: ReturnType<typeof setTimeout> | null;
   grace: Readonly<{ kind: GraceKind; endsAt: number }> | null;
+  /** The grace a tab nothing held was counting down when it fell asleep:
+   * its tombstone ends when the tab would have ended (F47 point 5), unless
+   * a hold or a viewer comes first. */
+  kept: Readonly<{ kind: GraceKind; endsAt: number }> | null;
 };
 
 /** Failed document requests remembered per tab: the navigation's own and a
@@ -490,6 +514,13 @@ export class BrowserHub {
   private persistSoon: ReturnType<typeof setTimeout> | null = null;
   private persisting = false;
   private persistAgain = false;
+  /** The pressure rule (decision F57 point 6): its beat, whether the last
+   * reading was under pressure, whether a beat is under way, and when the
+   * rule last put a tab to sleep (its cool-down). */
+  private pressureTimer: ReturnType<typeof setInterval> | null = null;
+  private pressed = false;
+  private pressureBusy = false;
+  private pressureSleptAt = 0;
   private readonly graceMs: number;
   private readonly unviewedGraceMs: number;
   private readonly releaseGraceMs: number;
@@ -500,6 +531,9 @@ export class BrowserHub {
   private readonly idleSleepMs: number;
   private readonly sleepCloseMs: number;
   private readonly wakeRetryMs: number;
+  private readonly pressureEveryMs: number;
+  private readonly pressureCoolDownMs: number;
+  private readonly pressureQuietMs: number;
 
   constructor(private readonly seams: HubSeams) {
     this.graceMs = seams.graceMs ?? browserTimes.viewerGraceMs;
@@ -513,6 +547,10 @@ export class BrowserHub {
     this.idleSleepMs = seams.idleSleepMs ?? sleepTimes.idleMs;
     this.sleepCloseMs = seams.sleepCloseMs ?? sleepTimes.closeWaitMs;
     this.wakeRetryMs = seams.wakeRetryMs ?? sleepTimes.wakeRetryMs;
+    this.pressureEveryMs = seams.pressureEveryMs ?? pressureTimes.readEveryMs;
+    this.pressureCoolDownMs =
+      seams.pressureCoolDownMs ?? pressureTimes.coolDownMs;
+    this.pressureQuietMs = seams.pressureQuietMs ?? pressureTimes.quietMs;
   }
 
   get connected(): boolean {
@@ -545,6 +583,13 @@ export class BrowserHub {
       void this.refreshHolds().then(() => this.sleepIdle());
       this.publishTabs();
     }, this.holdsEveryMs);
+    // The pressure rule reads its signals on a beat of its own (decision F57
+    // point 6), only where there is a source of them.
+    if (this.seams.pressure !== undefined)
+      this.pressureTimer = setInterval(
+        () => void this.pressureBeat(),
+        this.pressureEveryMs,
+      );
     void this.connect();
   }
 
@@ -552,6 +597,8 @@ export class BrowserHub {
     this.stopped = true;
     if (this.reconnectTimer !== null) clearTimeout(this.reconnectTimer);
     if (this.holdsTimer !== null) clearInterval(this.holdsTimer);
+    if (this.pressureTimer !== null) clearInterval(this.pressureTimer);
+    this.pressureTimer = null;
     if (this.holdsSoon !== null) clearTimeout(this.holdsSoon);
     if (this.tabsSoon !== null) clearTimeout(this.tabsSoon);
     this.tabsSoon = null;
@@ -1416,6 +1463,7 @@ export class BrowserHub {
         agentAt: 0,
         activeAt: 0,
         unsavedAt: null,
+        askedAt: 0,
         selfNavigation: false,
         checking: false,
         fall: null,
@@ -2148,7 +2196,8 @@ export class BrowserHub {
     return false;
   }
 
-  /** The quiet clock of a tab now: a shown viewer or a working agent is now. */
+  /** The quiet clock of a tab now: a shown viewer or a working agent is now,
+   * and a page that was asked to close and stayed awake counts from then. */
   private quietSince(tab: Tab, now: number): number {
     if (this.viewing(tab)) tab.viewedAt = now;
     if (this.agentsOf(tab).length > 0) tab.agentAt = now;
@@ -2158,6 +2207,7 @@ export class BrowserHub {
       agentAt: tab.agentAt,
       activeAt: tab.activeAt,
       unsavedAt: tab.unsavedAt ?? 0,
+      askedAt: tab.askedAt,
     });
   }
 
@@ -2243,9 +2293,13 @@ export class BrowserHub {
     );
   }
 
-  private scheduleGrace(tab: Tab, kind: GraceKind): void {
+  /** A grace of its full time, or until `endsAt` for one that goes on. */
+  private scheduleGrace(tab: Tab, kind: GraceKind, endsAt?: number): void {
     this.clearGrace(tab);
-    const ms = this.graceOf(kind);
+    const ms =
+      endsAt === undefined
+        ? this.graceOf(kind)
+        : Math.max(0, endsAt - Date.now());
     tab.grace = { kind, endsAt: Date.now() + ms };
     tab.graceTimer = setTimeout(() => {
       tab.graceTimer = null;
@@ -2398,8 +2452,9 @@ export class BrowserHub {
 
   /** A tab a T3 Code thread's strip holds. Its thread's browser tools drive
    * it over their own DevTools connection, and one that only reads leaves no
-   * trace the hub can see, so such a tab never sleeps by the idle rule or by
-   * Uspat until T3 Code reports that activity (Lazurio/t3code#90). */
+   * trace the hub can see, so such a tab never sleeps by the idle rule, by
+   * pressure or by Uspat until T3 Code reports that activity
+   * (Lazurio/t3code#90). */
   private threadHeld(tab: Tab): boolean {
     return this.holdsOf(tab.id, tab.targetId).some(
       (hold) => stripAppOf(hold.strip) === "t3code",
@@ -2442,6 +2497,80 @@ export class BrowserHub {
       }
     } finally {
       this.sleepBusy = false;
+    }
+  }
+
+  /** The pressure rule's beat (decision F57 point 6): it reads the signals,
+   * keeps or ends the pressure by `underPressure`'s hysteresis, and under
+   * pressure, once the cool-down since its last sleep is over, puts one tab
+   * to sleep. Beats do not overlap. */
+  private async pressureBeat(): Promise<void> {
+    const source = this.seams.pressure;
+    if (source === undefined || this.pressureBusy || this.stopped) return;
+    this.pressureBusy = true;
+    try {
+      const reading = await source().catch(() => null);
+      const was = this.pressed;
+      this.pressed = reading !== null && underPressure(was, reading);
+      if (this.pressed !== was) {
+        const some = reading?.some;
+        const available = reading?.available;
+        const said = [
+          some == null ? null : `PSI some avg10 ${some.toFixed(1)} %`,
+          available == null
+            ? null
+            : `MemAvailable ${Math.round(available * 100)} %`,
+        ]
+          .filter((part) => part !== null)
+          .join(", ");
+        this.seams.log(
+          this.pressed
+            ? `memory pressure (${said}): tabs fall asleep, one every ${this.pressureCoolDownMs / 1000} s at most`
+            : `memory pressure over (${said || "nothing to read"})`,
+        );
+      }
+      if (
+        !this.pressed ||
+        !this.ready ||
+        Date.now() - this.pressureSleptAt < this.pressureCoolDownMs
+      )
+        return;
+      await this.sleepForPressure();
+    } finally {
+      this.pressureBusy = false;
+    }
+  }
+
+  /** One tab to sleep for pressure, in `pressureOrder`: the hub tries them
+   * one after the other through the idle rule's sleep (`putToSleep`) until
+   * one falls asleep. Never a tab someone views, an agent works in or
+   * worked in recently, or a T3 Code thread holds; a tab with unsaved input
+   * comes last, and only its page's `beforeunload` keeps it awake. */
+  private async sleepForPressure(): Promise<void> {
+    const now = Date.now();
+    const order = pressureOrder(
+      [...this.tabs.values()]
+        .filter((tab) => this.sleepable(tab))
+        .map((tab) => ({
+          tab,
+          viewed: this.viewing(tab),
+          agent: this.agentRecent(tab, now),
+          thread: this.threadHeld(tab),
+          held: this.holdsOf(tab.id, tab.targetId).length > 0,
+          unsaved: tab.unsavedAt !== null,
+          quietSince: this.quietSince(tab, now),
+          askedAt: tab.askedAt,
+        })),
+      now,
+      { quietMs: this.pressureQuietMs, askAgainMs: this.idleSleepMs },
+    );
+    for (const { tab, unsaved } of order) {
+      if (this.stopped || this.resolve(tab.id) !== tab) continue;
+      const outcome = await this.putToSleep(tab, "pressure", unsaved);
+      if (outcome.kind === "asleep") {
+        this.pressureSleptAt = Date.now();
+        return;
+      }
     }
   }
 
@@ -2498,10 +2627,13 @@ export class BrowserHub {
    * hub looks cancels the sleep, which the next beat may try again. A page
    * with unsaved input, or whose `beforeunload` objects, stays awake. The
    * tombstone exists before the page is asked to close, so every list of
-   * tabs names the tab throughout. */
+   * tabs names the tab throughout. The pressure rule's last resort,
+   * `pageDecides`, does not look for unsaved input: only the page's own
+   * `beforeunload` keeps such a tab awake (F57 point 6). */
   private async putToSleep(
     tab: Tab,
     reason: SleepReason,
+    pageDecides = false,
   ): Promise<SleepOutcome> {
     if (!this.sleepable(tab))
       return {
@@ -2517,12 +2649,10 @@ export class BrowserHub {
       await this.readActivity(tab);
       const now = Date.now();
       if (this.agentRecent(tab, now)) return { kind: "awake", reason: "agent" };
-      if (
-        reason === "idle" &&
-        now - this.quietSince(tab, now) < this.idleSleepMs
-      )
+      if (this.inUse(tab, reason, now))
         return { kind: "awake", reason: "in-use" };
-      if (await this.unsaved(tab)) return { kind: "awake", reason: "unsaved" };
+      if (!pageDecides && (await this.unsaved(tab)))
+        return { kind: "awake", reason: "unsaved" };
       let fresh: Holds;
       try {
         fresh = await this.seams.holds();
@@ -2537,6 +2667,19 @@ export class BrowserHub {
     } finally {
       tab.checking = false;
     }
+  }
+
+  /** In use too recently for the rule that asks: the idle rule wants an
+   * idle time without use, the pressure rule `pressureQuietMs`; Uspat
+   * wants none. */
+  private inUse(tab: Tab, reason: SleepReason, now: number): boolean {
+    const quiet =
+      reason === "idle"
+        ? this.idleSleepMs
+        : reason === "pressure"
+          ? this.pressureQuietMs
+          : 0;
+    return now - this.quietSince(tab, now) < quiet;
   }
 
   /** The last check and the close, in one synchronous step. */
@@ -2571,8 +2714,7 @@ export class BrowserHub {
       (reason === "idle" && this.holdsOf(tab.id, tab.targetId).length === 0)
     )
       return awake("busy");
-    if (reason === "idle" && now - this.quietSince(tab, now) < this.idleSleepMs)
-      return awake("in-use");
+    if (this.inUse(tab, reason, now)) return awake("in-use");
     const sleeper: Sleeper = {
       record: {
         id: tab.id,
@@ -2595,9 +2737,11 @@ export class BrowserHub {
       state: "held",
       graceTimer: null,
       grace: null,
+      kept: tab.grace,
     };
     this.sleeping.set(tab.id, sleeper);
     this.clearGrace(tab);
+    tab.askedAt = now;
     const outcome = new Promise<SleepOutcome>((resolve) => {
       tab.fall = {
         reason,
@@ -2619,15 +2763,19 @@ export class BrowserHub {
     return outcome;
   }
 
-  /** A fall that ends awake: the tombstone goes, the tab counts as before. */
+  /** A fall that ends awake: the tombstone goes, the tab counts as before,
+   * the grace it counted down included. */
   private fell(tab: Tab, outcome: SleepOutcome): void {
     const fall = tab.fall;
     if (fall === null) return;
     clearTimeout(fall.timer);
     tab.fall = null;
     const sleeper = this.sleeping.get(tab.id);
-    if (sleeper !== undefined && sleeper.falling === tab.targetId)
+    if (sleeper !== undefined && sleeper.falling === tab.targetId) {
+      if (sleeper.kept !== null)
+        this.scheduleGrace(tab, sleeper.kept.kind, sleeper.kept.endsAt);
       this.dropSleeper(sleeper);
+    }
     this.review(tab);
     fall.done(outcome);
   }
@@ -2795,12 +2943,21 @@ export class BrowserHub {
           : "idle";
     if (sleeper.state !== "idle") {
       this.clearSleeperGrace(sleeper);
+      sleeper.kept = null;
       return;
     }
     if (sleeper.grace !== null) return;
+    // A tab nothing held fell asleep while it counted down: the count goes
+    // on, so its tombstone ends when the tab would have ended.
+    const kept = sleeper.kept;
+    sleeper.kept = null;
     const kind: GraceKind =
-      before === "held" ? "release" : before === "viewed" ? "viewer" : idle;
-    const ms = this.graceOf(kind);
+      kept?.kind ??
+      (before === "held" ? "release" : before === "viewed" ? "viewer" : idle);
+    const ms =
+      kept === null
+        ? this.graceOf(kind)
+        : Math.max(0, kept.endsAt - Date.now());
     sleeper.grace = { kind, endsAt: Date.now() + ms };
     sleeper.graceTimer = setTimeout(() => {
       sleeper.graceTimer = null;
@@ -2914,6 +3071,7 @@ export class BrowserHub {
               state: "idle",
               graceTimer: null,
               grace: null,
+              kept: null,
             });
         if (state.sleeping.length > 0)
           this.seams.log(`${state.sleeping.length} sleeping tab(s) kept`);
