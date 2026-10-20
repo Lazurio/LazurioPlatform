@@ -5154,7 +5154,8 @@ each of its origins.
    they are served without the token, as the page is; behind a gateway only after its
    admission, through the inner listener of the page. `/.lazurio/shell.json` is data,
    behind the same admission as every read: the token locally, the gateway's session
-   hosted. It is read-only and recomputed on every read. The candidate's page check
+   hosted. It is read-only and recomputed on every read (its catalog kept while
+   nothing changed since the note of 2026-10-20 (2) below). The candidate's page check
    (`checkBundledPage`) also asks for the script, so a bundle without it does not start.
    The Launchpad page bundles the same elements itself, reads the document with its own
    credential and hands it over (`<html data-lazurio-shell="host">`). Gateway routing of
@@ -6029,6 +6030,36 @@ Bun names them (`chunk-<hash>.<ext>`, `<name>-<hash>.<ext>`; `contentHashedName`
 listener's caching, or `no-store`. A test compiles a hosted Launchpad and pins it. The script is
 still served unminified, now about 1.17 MB (298 KB with `gzip -9`), and compression on
 the way is the ingress's, tracked apart.
+
+*Note of 2026-10-20 (2), plan DEV-6656:* point 2's boot document, `/.lazurio/shell.json`
+on every page of Chat, Apps and Automate, `/api/catalog` and Apps' questions about one
+Organization (its Owner, a module's maintainer, a prepared prompt) each read every
+Organization and module manifest of the Folder again: about 150 ms of a workstation
+per read on a Folder of seventeen Organizations and 146 modules, waited for by the
+first paint. The Launchpad now keeps the catalog while nothing it depends on changed
+(`catalog-reading.ts`): it watches each directory the reading found (the Folder,
+`organizations/`, each Organization's root, each module's directory and its parent,
+each app's package directory, each repository slot and its parent, and the held
+Personalspace's), not recursively, and any change there drops it; so do the
+Launchpad's own content installation and preparation, a profile change and another
+decision whose Personalspace this is, and a change while a reading runs means that
+reading is not kept. A kept reading older than a minute, or one that found
+directories it watches only from then on, still answers and is read anew behind it,
+which bounds a change outside the watched directories (a dependency elsewhere in the
+Organization) to the read after that one. Where a directory cannot be watched, or
+there are more than 2,000, a reading answers only two seconds. The Launchpad reads
+the catalog once at its start. The boot document reads the Folder's state and the
+catalog side by side; its bounds (250 ms for the lock, 500 ms in all) stay. What a
+person can see: a change made outside the Launchpad shows once the system tells of it
+(on macOS some 10 to 30 ms), not on the read that follows the write at once. The CLI
+and the Doctor read anew as before.
+
+| Alternative | Disposition |
+| --- | --- |
+| A short time to live alone | Saves only the reads of one page load; the first open after a while reads everything again; kept for an unwatched Folder |
+| Watch the Folder recursively | One watch per directory on Linux, `node_modules` and `.git` included, against the system's limits and the editors' and dev servers' own; rejected |
+| Compare the modification times of every file read | Needs every reader of the catalog to name what it read; a second model of the catalog; rejected |
+| Watch the directories the reading found, keep it, re-read behind a reading older than a minute (selected) | No daemon, a few hundred watches on a large Folder; a change outside them waits for the read after the minute |
 
 | Alternative | Trade-off / disposition |
 | --- | --- |

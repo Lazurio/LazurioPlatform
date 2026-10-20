@@ -437,11 +437,12 @@ export type ShellInputs = Readonly<{
  * its document reads them: the Folder's preset, Machine binding and language
  * under one read of its state (waiting at most `lockWaitMs` for the Folder's
  * lock), its catalog, this computer's name and the owner's own slug the
- * handover names (`ownerKey`, by default `handoverOwnerKey`). The
- * Launchpad's `/.lazurio/shell.json`, its page's boot document and its
- * offline guide read them here, and so does the Environment browser's view
- * for its own name (decision F39's addendum of 2026-10-12): one read, so the
- * view and the switcher cannot drift apart. */
+ * handover names (`ownerKey`, by default `handoverOwnerKey`), all side by
+ * side. The Launchpad's `/.lazurio/shell.json`, its page's boot document and
+ * its offline guide read them here, with the catalog as the Launchpad keeps
+ * it (`catalog`, catalog-reading.ts), and so does the Environment browser's
+ * view for its own name (decision F39's addendum of 2026-10-12): one read,
+ * so the view and the switcher cannot drift apart. */
 export async function readShellInputs(
   folder: string,
   options: Readonly<{
@@ -451,16 +452,14 @@ export async function readShellInputs(
      * catalog's Personalspace group: the page's boot document gives the
      * Launchpad's last decision, never waiting for GitHub. */
     personalspace?: PersonalspaceHolderRead | undefined;
+    /** The catalog as the caller keeps it; read anew without one. */
+    catalog?: (() => Promise<Catalog>) | undefined;
   }> = {},
 ): Promise<ShellInputs> {
   const state = join(folder, ".lazurio");
-  const current = await withFolderReadLock(
-    state,
-    () => readFolderState(state),
-    options.lockWaitMs,
-  );
-  const [catalog, ownerKey] = await Promise.all([
-    readFolderCatalog(folder, options.personalspace),
+  const [current, catalog, ownerKey] = await Promise.all([
+    withFolderReadLock(state, () => readFolderState(state), options.lockWaitMs),
+    options.catalog?.() ?? readFolderCatalog(folder, options.personalspace),
     (options.ownerKey ?? handoverOwnerKey)(),
   ]);
   return Object.freeze({

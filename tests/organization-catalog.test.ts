@@ -817,16 +817,30 @@ posixTest(
             })
           ).status,
         ).toBe(405);
-        // Recomputed on every read: a new Organization appears without state.
+        // Kept while nothing changed, and read again once the Folder's
+        // watch tells of a change: a new Organization appears without state
+        // within a moment (catalog-reading.ts).
         await writeOrganization(folder, "gamma", {
           slug: "gamma",
           state: "transition",
           modules: [{ id: "site" }],
         });
-        const again = (await (await call({})).json()) as {
-          organizations: { directory: string }[];
-        };
-        expect(again.organizations.map((entry) => entry.directory)).toEqual([
+        const read = async () =>
+          (
+            (await (await call({})).json()) as {
+              organizations: { directory: string }[];
+            }
+          ).organizations.map((entry) => entry.directory);
+        let again = await read();
+        for (
+          let attempt = 0;
+          attempt < 60 && !again.includes("gamma");
+          attempt++
+        ) {
+          await Bun.sleep(50);
+          again = await read();
+        }
+        expect(again).toEqual([
           "alpha_GEN3",
           "beta",
           "broken",
