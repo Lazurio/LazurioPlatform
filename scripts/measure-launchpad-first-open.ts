@@ -10,7 +10,8 @@
 // `--root` names the checkout whose `src/` is measured (by default this one),
 // so the same script measures another revision for a before/after. It prints
 // one JSON object: the page with its boot document (first and repeated), the
-// tools' status cold (no reading yet), kept (within the minute) and on a
+// tools' status cold (no reading yet: the version commands alone, then with
+// the sign-ins), kept (within the minute) and on a
 // first open (the page document, then the tools asked `--page-ms` later, as
 // the page does once loaded), `/api/catalog` first and repeated, and with
 // `--stale` the tools a minute and a moment after a reading (the answer at
@@ -202,6 +203,9 @@ async function launchpad() {
   const lp = await launchpad();
   try {
     result.startMs = lp.startMs;
+    // The version commands alone first, then the reading with the sign-ins,
+    // which the first does not answer.
+    const versions = await timed(() => lp.post("/api/tools/status", {}));
     const cold = await timed(() => lp.tools(false));
     const kept: number[] = [];
     for (let round = 0; round < 5; round++)
@@ -219,6 +223,7 @@ async function launchpad() {
     for (let round = 0; round < 5; round++)
       catalogs.push((await timed(() => lp.post("/api/catalog", {}))).ms);
     result.toolsStatusMs = {
+      versionsCold: versions.ms,
       cold: cold.ms,
       kept: median(kept),
     };

@@ -266,14 +266,43 @@ export async function toolStatus(
   }
 }
 
-/** Every catalog tool's status, in catalog order. The tools are read side by
- * side (plan DEV-6656): each version command is its own process with its own
- * bound, so the reading takes as long as the slowest tool, not the sum. */
+/** How many tools are read at once (plan DEV-6656): one after another was
+ * too slow, and every tool at once would start several Node CLIs together,
+ * a risk on an Environment with little memory left (decided on 2026-10-20). */
+export const toolsReadAtOnce = 3;
+
+/** `work` for every item, at most `limit` at a time, the answers in the
+ * items' order: each item takes the next free place as one ends. */
+export async function boundedAll<T, R>(
+  items: readonly T[],
+  limit: number,
+  work: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const answers = new Array<R>(items.length);
+  let next = 0;
+  const lane = async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      answers[index] = await work(items[index] as T);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, lane),
+  );
+  return answers;
+}
+
+/** Every catalog tool's status, in catalog order. At most `toolsReadAtOnce`
+ * tools are read at a time (plan DEV-6656): each version command is its own
+ * process with its own bound. */
 export async function toolsStatus(
   input: ToolsStatusInput,
 ): Promise<ToolsStatusResult> {
-  const tools = await Promise.all(
-    (input.catalog ?? toolCatalog).map((entry) => toolStatus(entry, input)),
+  const tools = await boundedAll(
+    input.catalog ?? toolCatalog,
+    toolsReadAtOnce,
+    (entry) => toolStatus(entry, input),
   );
   return { kind: "tools-status", tools };
 }

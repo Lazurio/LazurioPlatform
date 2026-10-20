@@ -25,12 +25,14 @@ import {
 } from "./catalog";
 import { pinnedInstaller } from "./install";
 import {
+  boundedAll,
   runTool,
   type ToolRunner,
   type ToolSignIn,
   type ToolStatus,
   type ToolsStatusResult,
   toolStatus,
+  toolsReadAtOnce,
   toolsSignIn,
   xdgOf,
 } from "./status";
@@ -136,9 +138,9 @@ export type ToolsLive = Readonly<{
 
 /** Reads the live facts now: each found tool's version command, which never
  * uses the network, and with `signIn` each installed tool's sign-in probe,
- * which may contact the tool's provider (F18 addendum 2026-09-27). The tools
- * are read side by side, each tool's sign-in right after its own version
- * (plan DEV-6656): the reading takes as long as its slowest tool. */
+ * which may contact the tool's provider (F18 addendum 2026-09-27). At most
+ * `toolsReadAtOnce` tools are read at a time, each tool's sign-in right
+ * after its own version in the same place (plan DEV-6656). */
 export async function readToolsLive(
   environment: ToolsEnvironment,
   signIn: boolean,
@@ -149,21 +151,21 @@ export async function readToolsLive(
     platform: environment.platform,
     run: environment.run,
   };
-  const read = await Promise.all(
-    activatableTools().map(
-      async (
-        entry,
-      ): Promise<Readonly<{ status: ToolStatus; signIn?: ToolSignIn }>> => {
-        const status = await toolStatus(entry, input);
-        if (!signIn) return { status };
-        const [probed] = await toolsSignIn(
-          [{ probe: entry.signInProbe, status }],
-          environment,
-        );
-        if (probed === undefined) throw new Error("A sign-in probe is missing");
-        return { status, signIn: probed };
-      },
-    ),
+  const read = await boundedAll(
+    activatableTools(),
+    toolsReadAtOnce,
+    async (
+      entry,
+    ): Promise<Readonly<{ status: ToolStatus; signIn?: ToolSignIn }>> => {
+      const status = await toolStatus(entry, input);
+      if (!signIn) return { status };
+      const [probed] = await toolsSignIn(
+        [{ probe: entry.signInProbe, status }],
+        environment,
+      );
+      if (probed === undefined) throw new Error("A sign-in probe is missing");
+      return { status, signIn: probed };
+    },
   );
   const status: ToolsStatusResult = {
     kind: "tools-status",

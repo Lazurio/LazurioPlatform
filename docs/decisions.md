@@ -2315,10 +2315,14 @@ anew, and a tool operation through the Launchpad drops the kept reading
 
 *Note of 2026-10-20 (2), the first open (root decision 0195, plan DEV-6656):* the
 first open after a while waited for a whole reading (1.7 to 2.1 s on the reference
-Environment), and the sign-ins only after the Organization's settings. Now (1) the
-tools are read side by side, each tool's sign-in right after its own version, so a
-reading takes as long as its slowest tool, and the settings are asked while the tools
-are read; (2) an installed Launchpad reads the tools with their sign-ins once it
+Environment), and the sign-ins only after the Organization's settings. Now (1) at most
+three tools are read at a time (`toolsReadAtOnce`), each tool's sign-in right after its
+own version in the same place, and the settings are asked while the tools are read. The
+version commands stayed one after another in #535 for memory: every tool at once would
+start several Node CLIs together on an Environment with 8 GiB under pressure, and one
+after another is too slow; three at a time is the bound decided on 2026-10-20. On a
+workstation with five tools installed the version commands took 964 ms one at a time,
+496 ms three at a time and 491 ms all at once; (2) an installed Launchpad reads the tools with their sign-ins once it
 listens and again after its start's own setup, and a hosted Launchpad when it serves
 its own page (not Nová karta, not on a public Environment); the page asks for the
 sign-ins on its load, so this only moves that reading earlier; (3) a read with `allowStale:
@@ -2337,6 +2341,7 @@ through this Launchpad dropped is never answered, not even as stale.
 | Push the new reading to the page (a socket or server-sent events) | A second channel for one panel; asking again shares the same reading at the same cost; rejected |
 | Answer stale to every read | An older page, or the CLI, would take it for current; opt-in with `allowStale` (selected) |
 | Show the stale reading as current and correct it later | Začínáme and the first run's start would act on it; shown as being checked, read by nothing else (selected) |
+| Read every tool at once | Hardly faster than three at a time (491 against 496 ms for the versions), and several Node CLIs started together on a tight Environment; rejected |
 | Wait for the reading, as before, only faster | Still a whole reading on the first open; kept as the fallback when nothing is kept |
 
 *One click.* The page no longer previews a tools change: "Enable", "Disable" and a

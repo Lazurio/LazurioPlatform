@@ -204,8 +204,10 @@ it sees the standard path first, as an operator's login shell with `~/.local/bin
 on PATH does; a tool only on another directory of the interactive PATH is not
 seen there.
 
-The Launchpad reads the tools side by side, each tool's sign-in right after its own
-version, so a reading takes as long as its slowest tool. It keeps its reading of these
+The Launchpad and `tools status` read at most three tools at a time
+(`toolsReadAtOnce`), each tool's sign-in right after its own version in the same place:
+one after another is too slow, and every tool at once would start several Node CLIs
+together on an Environment with little memory left. It keeps its reading of these
 live facts (versions, and sign-ins where it asked for them) for a minute from when the
 reading started, and answers a request without `fresh: true` from it when it has what
 the request asks (`tools-reading.ts`, plan DEV-6656). An older reading answers only a
