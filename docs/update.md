@@ -815,7 +815,9 @@ release runs, the migration removes all of it.
   retry. It shows version, a link to the release notes and the single action
   appropriate to the state. The Launchpad serves it on its loopback session as
   `GET /api/update/status` (computed from disk and the unit, never the network)
-  and `POST /api/update/apply` with the version the pill showed; a version the
+  and `POST /api/update/apply` with the version the pill showed. The page asks
+  the status every ten seconds while it is shown, and at once when it is shown
+  again; a page in the background asks nothing (plan DEV-6656). A version the
   last check no longer names is refused and the pill re-checks. A last verified
   check older than 24 hours is shown prominently by its age whenever the pill
   is shown; it changes no state. `state-invalid` is shown with its path and offers no action. The page

@@ -103,6 +103,7 @@ import {
   vaultPageView,
 } from "./vault-page-view";
 import { createVaultRequestsPanel } from "./vault-requests-panel";
+import { pollWhileVisible } from "./visible-poll";
 import { type VoiceView, voicePanel } from "./voice-panel";
 
 // The fragment of the first address: locally the session token, and a start
@@ -1278,11 +1279,11 @@ function drawMachine() {
 // Every refused API route names Recovery mode (docs/update.md "Recovery
 // mode"): the page then becomes the Recovery page and stays it until reload.
 let recoveryMode: RecoveryMode | null = null;
-let updateTimer: ReturnType<typeof setInterval> | undefined;
+let stopUpdatePoll: (() => void) | undefined;
 function enterRecovery(mode: RecoveryMode) {
   if (recoveryMode !== null) return;
   recoveryMode = mode;
-  clearInterval(updateTimer);
+  stopUpdatePoll?.();
   browser.render();
   // Nothing of the Folder can be read, its language neither: the browser's.
   if (!loaded) {
@@ -1914,5 +1915,6 @@ updateAction.addEventListener("click", async () => {
     renderUpdate();
   }
 });
-updateTimer = setInterval(() => void refreshUpdate(), 10_000);
-void refreshUpdate();
+// The pill asks every ten seconds, only while the page is shown, and at once
+// when it is shown again.
+stopUpdatePoll = pollWhileVisible(refreshUpdate, 10_000);
