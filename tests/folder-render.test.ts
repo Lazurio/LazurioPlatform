@@ -330,8 +330,8 @@ test("the Steward preset renders the persona, its bot team and the publication r
   for (const [document, from, to] of [
     [en, "## Persona bot team", "## How work is done here"],
     [cs, "## Tým botů persony", "## Jak se tu pracuje"],
-    [manual("en"), "## Lazurio MausBot", "## Enabled tools"],
-    [manual("cs"), "## Lazurio MausBot", "## Zapnuté nástroje"],
+    [manual("en"), "## Lazurio MausBot", "## How the Operator works with you"],
+    [manual("cs"), "## Lazurio MausBot", "## Jak s tebou Operátor pracuje"],
   ] as const) {
     const section = document.slice(
       document.indexOf(from),
