@@ -46,12 +46,19 @@ test("the times: a tab sleeps after 20 minutes without use, a page has 5 s to cl
   });
 });
 
-test("one page is its origin and path: the query and the fragment do not count, and only web pages are pages", () => {
+test("one page is its address but for the fragment: the origin, the path and the query count, and only web pages are pages", () => {
   expect(addressKey("https://vault.example.com/#/vault")).toBe(
     "https://vault.example.com/",
   );
+  expect(addressKey("https://vault.example.com/#/send")).toBe(
+    addressKey("https://vault.example.com/#/vault"),
+  );
   expect(addressKey("https://example.com/list?page=2#top")).toBe(
-    "https://example.com/list",
+    "https://example.com/list?page=2",
+  );
+  // Two searches are two pages.
+  expect(addressKey("https://example.com/search?q=a")).not.toBe(
+    addressKey("https://example.com/search?q=b"),
   );
   expect(addressKey("http://localhost:3000/a/b")).toBe(
     "http://localhost:3000/a/b",
@@ -240,7 +247,7 @@ async function threadWorld() {
   return { sockets, holders, bind, calls, pages, seams };
 }
 
-test("a thread's page at the same origin and path is the window of its new session; another thread's page never is", async () => {
+test("a thread's page at the same address, but for its fragment, is the window of its new session; another query or another thread's page never is", async () => {
   const world = await threadWorld();
   // The thread's first session shows the vault; another thread shows the
   // Module; the thread's strip holds a third page.
@@ -258,8 +265,12 @@ test("a thread's page at the same origin and path is the window of its new sessi
     await threadPage("codex-a-2", "https://vault.example.com/#/send", seams),
   ).toBe(id(1));
   expect(
-    await threadPage("codex-a-2", "https://docs.example.com/guide?a=2", seams),
+    await threadPage("codex-a-2", "https://docs.example.com/guide?a=1", seams),
   ).toBe(id(3));
+  // Another query is another page.
+  expect(
+    await threadPage("codex-a-2", "https://docs.example.com/guide?a=2", seams),
+  ).toBeNull();
   expect(
     await threadPage("codex-a-2", "https://module.example.com/", seams),
   ).toBeNull();

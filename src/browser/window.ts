@@ -229,7 +229,7 @@ export function sessionFamily(session: string): string {
 }
 
 /** No duplicate opens (decision F57): an open page of the thread that shows
- * the page of `url` (its origin and path) already. The thread's pages are
+ * `url` already, all but its fragment (`addressKey`). The thread's pages are
  * the tabs its sessions' bindings name (`sessionFamily`) and the tabs its
  * strip's holder file lists, a holder file of the family's name. The page
  * is taken as it is: an address never moves an open window. Null when

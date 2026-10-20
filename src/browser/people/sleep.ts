@@ -33,15 +33,16 @@ export const sleepTimes = Object.freeze({
  * tab that nothing holds ends. Each costs a few hundred bytes. */
 export const maxSleeping = browserBounds.holderTabs;
 
-/** What makes two addresses the same page for "no duplicate opens": the
- * origin and the path, without the query and the fragment. Null for an
- * address that is not http(s). */
+/** What makes two addresses the same page for "no duplicate opens"
+ * (decision F57): the origin, the path and the query; only the fragment does
+ * not count. Two searches are two pages. Null for an address that is not
+ * http(s). */
 export function addressKey(url: string): string | null {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:")
       return null;
-    return `${parsed.origin}${parsed.pathname}`;
+    return `${parsed.origin}${parsed.pathname}${parsed.search}`;
   } catch {
     return null;
   }

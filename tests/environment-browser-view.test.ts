@@ -3193,16 +3193,14 @@ test("Uspat and Probudit on loopback: never a tab someone views or an agent work
   });
 });
 
-test("no duplicate opens: a strip's tab that shows the page already is that tab, awake or asleep; another strip gets its own; a different query moves only a tab not in use", async () => {
+test("no duplicate opens: a strip's tab that shows the address already, but for its fragment, is that tab, awake or asleep; another strip, or another query, gets a tab of its own", async () => {
   const browser = new FakeBrowser([
     tab(1, { url: "https://vault.example.com/#/vault" }),
-    tab(2, { url: "https://module.example.com/list?page=1" }),
+    tab(2, { url: "https://search.example.com/search?q=first" }),
   ]);
-  // id(2) is in use: its page has input now.
-  browser.inputAgo.set(id(2), 0);
   const { base } = await serve(browser, {
     holdsEveryMs: 30,
-    idleSleepMs: 400,
+    idleSleepMs: 300,
     holders: { launchpad: [id(1)], "t3-a": [id(2)] },
   });
   const open = (url: string, strip: string | null) =>
@@ -3211,6 +3209,13 @@ test("no duplicate opens: a strip's tab that shows the page already is that tab,
   expect(await open("https://vault.example.com/#/vault", "launchpad")).toEqual({
     status: 200,
     body: { id: id(1), view: `${origin}/t/${id(1)}`, reused: true },
+  });
+  // Another fragment is the same page: that tab, as it is.
+  expect(
+    (await open("https://vault.example.com/#/send", "launchpad")).body,
+  ).toMatchObject({
+    id: id(1),
+    reused: true,
   });
   expect(browser.called("Target.createTarget")).toEqual([]);
   // Another strip gets a tab of its own.
@@ -3222,33 +3227,35 @@ test("no duplicate opens: a strip's tab that shows the page already is that tab,
   expect(
     (await open("https://vault.example.com/#/vault", "t3-b")).body.id,
   ).toBe(elsewhere.body.id);
-  // A different query on a tab in use: a new tab, the old one untouched.
-  const busy = await open("https://module.example.com/list?page=2", "t3-a");
-  expect(busy.status).toBe(201);
+  // Another query is another page: the agent's next search gets a tab of
+  // its own, and its previous one is never moved.
+  const next = await open("https://search.example.com/search?q=second", "t3-a");
+  expect(next.status).toBe(201);
+  expect(next.body.id).not.toBe(id(2));
   expect(browser.called("Page.navigate")).toEqual([]);
-  // A page for the person that nothing holds (`lazurio browser link --url`):
-  // once quiet, a different query takes it there.
+  // A page for the person that nothing holds (`lazurio browser link
+  // --url`), twice: one tab.
   const link = await open("https://docs.example.com/guide?a=1", null);
   expect(link.status).toBe(201);
-  await settle(450);
-  const moved = await open("https://docs.example.com/guide?a=2", null);
-  expect(moved.body).toMatchObject({ id: link.body.id, reused: true });
-  expect(browser.called("Page.navigate")).toEqual([
-    {
-      method: "Page.navigate",
-      params: { url: "https://docs.example.com/guide?a=2" },
-      sessionId: `S-${link.body.id}`,
-    },
-  ]);
-  // Asleep, the strip's tab is reused and keeps the new address to wake at.
+  expect(
+    (await open("https://docs.example.com/guide?a=1", null)).body,
+  ).toMatchObject({
+    id: link.body.id,
+    reused: true,
+  });
+  // Asleep, the strip's tab is reused and wakes at its own address.
   await until(() => asleep(1));
-  const sleeping = await open("https://vault.example.com/#/send", "launchpad");
-  expect(sleeping.body).toMatchObject({ id: id(1), reused: true });
+  expect(
+    (await open("https://vault.example.com/", "launchpad")).body,
+  ).toMatchObject({
+    id: id(1),
+    reused: true,
+  });
   expect(factsOf(1)).toMatchObject({
-    url: "https://vault.example.com/#/send",
+    url: "https://vault.example.com/#/vault",
     sleeping: { reason: "idle" },
   });
-  expect(asleep(2)).toBe(false);
+  expect(browser.called("Page.navigate")).toEqual([]);
 });
 
 test("a restart of the view keeps the tabs that sleep and the woken tabs' ids; a restarted browser keeps none of them", async () => {

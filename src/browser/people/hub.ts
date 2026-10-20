@@ -570,13 +570,13 @@ export class BrowserHub {
 
   /** A new window at an address, for Nová karta (F47 points 3 and 6): the
    * remote tab exists only from now. A tab of the same strip that shows the
-   * same page (origin and path) already is that tab instead (decision F57,
-   * `reusable`). Null when the address is not one the address bar may open
-   * or the browser cannot be reached. */
+   * same address already (all but its fragment) is that tab instead
+   * (decision F57, `reusable`). Null when the address is not one the address
+   * bar may open or the browser cannot be reached. */
   async openTab(url: string, strip: string | null): Promise<OpenedTab | null> {
     const address = navigableAddress(url);
     if (address === null) return null;
-    const reused = await this.reusable(address, strip);
+    const reused = this.reusable(address, strip);
     if (reused !== null) {
       this.seams.log(`reusing tab ${reused} for ${strip ?? "no strip"}`);
       return { id: reused, reused: true };
@@ -585,19 +585,15 @@ export class BrowserHub {
     return id === null ? null : { id, reused: false };
   }
 
-  /** No duplicate opens (decision F57): the tab of `strip` that shows the
-   * page of `address` (its origin and path) already, awake or asleep. A
-   * strip's tab is one its holder file lists or one the hub opened for it
-   * and its app has not recorded yet; for no strip, a page for the person
-   * that nothing holds. The most recently used is taken. A tab that shows
-   * exactly the address is shown as it is, even one in use. An address that
-   * differs in its query or fragment takes the tab there: a tombstone keeps
-   * the new address, and an awake tab navigates, but only one that is not
-   * in use (`inUse`) and has no unsaved input; else a new tab opens. */
-  private async reusable(
-    address: string,
-    strip: string | null,
-  ): Promise<string | null> {
+  /** No duplicate opens (decision F57): the tab of `strip` that shows
+   * `address` already, awake or asleep, compared by its origin, path and
+   * query (`addressKey`); only the fragment does not count. A strip's tab is
+   * one its holder file lists or one the hub opened for it and its app has
+   * not recorded yet; for no strip, a page for the person that nothing
+   * holds. The most recently used is taken, as it is: a reuse never
+   * navigates a tab, so a different query, an agent's next search, opens a
+   * tab of its own. */
+  private reusable(address: string, strip: string | null): string | null {
     const key = addressKey(address);
     if (key === null) return null;
     const ofStrip = (ids: readonly string[], opener: TabOpener) => {
@@ -613,8 +609,8 @@ export class BrowserHub {
         (opener.kind === "new-tab" && opener.strip === strip)
       );
     };
-    type Candidate = Readonly<{ id: string; usedAt: number }>;
-    const found: Candidate[] = [];
+    const found: Readonly<{ id: string; usedAt: number }>[] = [];
+    const consider = (id: string, usedAt: number) => found.push({ id, usedAt });
     for (const tab of this.tabs.values())
       if (
         tab.targetId !== this.keeperId &&
@@ -623,7 +619,7 @@ export class BrowserHub {
         addressKey(tab.info.url) === key &&
         ofStrip([tab.id, tab.targetId], tab.opener)
       )
-        found.push({ id: tab.id, usedAt: tab.usedAt });
+        consider(tab.id, tab.usedAt);
     for (const sleeper of this.sleeping.values())
       if (
         sleeper.falling === null &&
@@ -631,38 +627,12 @@ export class BrowserHub {
         addressKey(sleeper.record.url) === key &&
         ofStrip([sleeper.record.id], sleeper.record.opener)
       )
-        found.push({ id: sleeper.record.id, usedAt: sleeper.record.usedAt });
-    found.sort((a, b) => b.usedAt - a.usedAt);
-    for (const { id } of found) {
-      const sleeper = this.sleeping.get(id);
-      if (sleeper !== undefined) {
-        if (sleeper.record.url !== address) {
-          sleeper.record = { ...sleeper.record, url: address, title: "" };
-          this.persist();
-        }
-        return id;
-      }
-      const tab = this.resolve(id);
-      if (tab === undefined) continue;
-      if (tab.info.url === address) {
-        tab.usedAt = Date.now();
-        return id;
-      }
-      if (await this.inUse(tab)) continue;
-      const session = tab.sessionId;
-      const cdp = this.cdp;
-      if (cdp === null || session === null || this.resolve(id) !== tab)
-        continue;
-      if (await this.unsaved(tab)) continue;
-      try {
-        await cdp.send("Page.navigate", { url: address }, session);
-      } catch {
-        continue;
-      }
-      tab.usedAt = Date.now();
-      return id;
-    }
-    return null;
+        consider(sleeper.record.id, sleeper.record.usedAt);
+    const chosen = found.sort((a, b) => b.usedAt - a.usedAt)[0];
+    if (chosen === undefined) return null;
+    const tab = this.resolve(chosen.id);
+    if (tab !== undefined) tab.usedAt = Date.now();
+    return chosen.id;
   }
 
   private async newWindow(
@@ -2183,19 +2153,6 @@ export class BrowserHub {
     );
   }
 
-  /** A tab in use (decision F57): someone views it, an agent works in it,
-   * or one of them did, its page had input or navigated, or unsaved input
-   * was found in it, within the idle time. The page's own record of its
-   * last input is asked first. A tab in use never sleeps by the idle rule,
-   * and a reuse never navigates it. */
-  private async inUse(tab: Tab): Promise<boolean> {
-    const now = Date.now();
-    if (now - this.quietSince(tab, now) < this.idleSleepMs) return true;
-    await this.readActivity(tab);
-    const later = Date.now();
-    return later - this.quietSince(tab, later) < this.idleSleepMs;
-  }
-
   /** Whether the page has unsaved input (`unsavedInputScript`); a read that
    * fails is no answer, and the page's `beforeunload` still speaks. */
   private async unsaved(tab: Tab): Promise<boolean> {
@@ -2404,9 +2361,10 @@ export class BrowserHub {
 
   // ---- Sleep (decision F57) --------------------------------------------------
 
-  /** The idle rule, on the holds' beat: every held tab that is not in use
-   * (`inUse`) sleeps, one after the other. A tab nothing holds is left to
-   * F47's graces, which end it sooner. */
+  /** The idle rule, on the holds' beat: every held tab that has not been in
+   * use for the idle time (`quietSince`, then `putToSleep` asks the page)
+   * sleeps, one after the other. A tab nothing holds is left to F47's
+   * graces, which end it sooner. */
   private async sleepIdle(): Promise<void> {
     if (!this.ready || this.sleepBusy || this.stopped) return;
     this.sleepBusy = true;
