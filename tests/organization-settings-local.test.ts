@@ -100,6 +100,32 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
+// The Dashboard never delivers its own access requests setting (root decision
+// 0204, addendum of 2026-10-17 afternoon, point b); read from Git, the root
+// may hold it. It must not withhold the rest, and it is never applied.
+test.skipIf(process.platform === "win32")(
+  "access requests in the root are ignored and the settings beside them apply",
+  async () => {
+    const { folder, commitWith, reader } = await environment();
+    const version = await commitWith({
+      ...off,
+      access_requests: { enabled: true },
+    });
+    expect(await readRepositorySettings(folder, "example", reader)).toEqual({
+      kind: "settings",
+      settings: { organization: null, version, values: off, unsupported: [] },
+    });
+    const broken = await commitWith({
+      ...off,
+      access_requests: { enabled: "yes" },
+    });
+    expect(await readRepositorySettings(folder, "example", reader)).toEqual({
+      kind: "invalid",
+      version: broken,
+    });
+  },
+);
+
 test.skipIf(process.platform === "win32")(
   "an edit that is not committed is not a setting",
   async () => {

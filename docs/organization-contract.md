@@ -113,6 +113,11 @@ merged; the authored schema pinned at the top of this page carries the section).
   records what it applies in the Folder. `deliveredSettings` reads the Dashboard's
   answer by the same contract, keeping a key this release does not know apart, by
   its key only, to be reported `unsupported`.
+- `access_requests` (`{ enabled: boolean }`, root decision 0204, addendum of
+  2026-10-17 afternoon, point b) is the Dashboard's own setting. The reader checks
+  it like every other leaf, so writing it never withholds the rest, and then drops
+  it from `values`: it has no key and is never applied or reported. The Dashboard
+  never delivers it, so only a root read from Git holds it (F45).
 - Readers first: older releases reject a manifest with the section as an unknown
   field. An Organization adds it only after the release with this reader runs on
   all of its Environments.

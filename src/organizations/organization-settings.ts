@@ -91,6 +91,11 @@ export const workspaceTabsMax = 12;
 // (c) of 2026-10-14) carries only identifiers that are not secrets: the
 // Organization's single-tenant Entra app is a public client, so the closed
 // tree refuses any other key (a `client_secret` among them).
+// `access_requests` ("Žádosti o přístup", root decision 0204, addendum of
+// 2026-10-17 afternoon, point b) is the Dashboard's own setting: it is
+// checked so an Organization that writes it keeps every other setting, then
+// dropped (`dashboardOnly`). It has no key, is never applied or reported, and
+// the Dashboard never delivers it; only a root read from Git holds it.
 const contract = objectNode({
   // The Organization's own tabs inside Apps' Workspace (decision F32's
   // addendum of 2026-10-16): in order, each a name and the modules in it; a
@@ -126,7 +131,10 @@ const contract = objectNode({
       ["tenant_id", "client_id", "apps", "callbacks"],
     ),
   }),
+  access_requests: objectNode({ enabled: booleanLeaf }, ["enabled"]),
 });
+/** Top-level settings of the Dashboard alone: checked, never kept. */
+const dashboardOnly = Object.freeze(["access_requests"]);
 
 /** Dot-separated keys of every known setting, as reported per item: every
  * leaf, an array being one. */
@@ -218,7 +226,8 @@ export type OrganizationSettingsEntry = Readonly<{
 export type OrganizationSettings =
   | Readonly<{
       status: "absent" | "valid";
-      /** Exactly the declared keys; `{}` when absent. */
+      /** Exactly the declared keys this Environment applies (the Dashboard's
+       * own are dropped); `{}` when absent. */
       values: OrganizationSettingsValues;
       effective: readonly OrganizationSettingsEntry[];
       issues: readonly [];
@@ -250,8 +259,10 @@ export function organizationSettings(manifest: Data): OrganizationSettings {
       effective: null,
       issues: issues.sort(compareIssues),
     });
-  const values = structuredClone(
-    manifest.settings,
+  const values = Object.fromEntries(
+    Object.entries(structuredClone(manifest.settings) as Data).filter(
+      ([key]) => !dashboardOnly.includes(key),
+    ),
   ) as OrganizationSettingsValues;
   return deepFreeze({
     status: "valid" as const,
