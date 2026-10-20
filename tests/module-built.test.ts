@@ -423,3 +423,49 @@ posixTest(
   },
   120_000,
 );
+
+posixTest(
+  "the Launchpad keeps a static app built after a pull: a development run from before builds moves onto a build at its first sweep, and a commit is built and swapped in without a request",
+  async () => {
+    const home = join(root, "home-watch");
+    await mkdir(home);
+    const fixture = await staticModule("watch", home);
+    const { operations } = fixture;
+    try {
+      // A development run from before builds existed: no build, no record.
+      answer(await operations.start("alpha/site", { dev: true }));
+      await until(fixture.page, (page) => page.text === "synthetic module");
+      await rm(join(root, "watch", "cache"), { recursive: true, force: true });
+      operations.keepBuilt({ quietMs: 100, sweepMs: 60_000 });
+      const first = fixture.head();
+      const moved = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) =>
+            status.kind === "module" &&
+            status.healthy &&
+            status.build?.served?.commit === first,
+        ),
+      );
+      expect(moved.build?.mode).toBe("built");
+      expect((await fixture.page()).text).toBe("<p>one</p>");
+      // A pull: nothing is asked of the Launchpad but its status.
+      const second = await fixture.commit("two");
+      const swapped = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) =>
+            status.kind === "module" &&
+            status.healthy &&
+            status.build?.served?.commit === second,
+        ),
+      );
+      expect(swapped.build?.current?.commit).toBe(second);
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+    } finally {
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);

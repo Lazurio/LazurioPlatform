@@ -724,6 +724,8 @@ export async function startLaunchpad(
     host: moduleHost,
     personalspace: personalspace.decide,
   });
+  // A static app someone opened is built again after a pull (decision F58).
+  modules.keepBuilt();
   // Settings → Nástroje's live facts, kept a minute (tools-reading.ts).
   const toolsReading = createToolsReading(toolsEnvironment);
   // A setup goes on after its answer: its end drops the reading again.
