@@ -152,6 +152,13 @@ export function createBuildWatcher(input: {
   }
 
   return Object.freeze({
+    /** Watch one more app now (one that just started built), until the
+     * next sweep reads them all again. */
+    add(app: WatchedApp) {
+      if (closed) return;
+      apps.set(app.id, app);
+      watchAll();
+    },
     /** The first sweep, then one every few minutes. */
     start() {
       if (closed || timer !== undefined) return;

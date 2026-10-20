@@ -208,6 +208,7 @@ test("an output is installed whole under its key; the current and previous build
     mode: "built",
     key: commit(2),
     commit: commit(2),
+    previous: null,
   });
   checkout.commit = commit(4);
   built(await builds.enqueue(web.job(), "background"));

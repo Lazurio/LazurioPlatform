@@ -77,23 +77,24 @@ function launchOf(input: unknown): {
   };
 }
 
-/** A built start (decision F58): the build output the Platform's static
- * server serves as the app, and the previous build's, from which a missing
- * asset of a page opened before the swap is served. */
-export type StaticServe = Readonly<{ root: string; previous?: string }>;
+/** A built start (decision F58): the record of what the app serves
+ * (`served.json` beside its builds), which the Platform's static server
+ * reads at its start and again whenever it changes, so that a swap onto a
+ * new build never restarts it. */
+export type StaticServe = Readonly<{ served: string }>;
 
 function staticServe(input: StaticServe): StaticServe {
-  const value = object(input, ["root"], ["previous"]);
-  const path = (entry: unknown) => {
-    const item = text(entry, /^\//);
-    if (item.split("/").includes("..")) throw new Error("Invalid build path");
-    return item;
-  };
-  return Object.freeze({
-    root: path(value.root),
-    ...(value.previous === undefined ? {} : { previous: path(value.previous) }),
-  });
+  const value = object(input, ["served"]);
+  const served = text(value.served, /^\/.*\/served\.json$/);
+  if (served.split("/").includes("..")) throw new Error("Invalid served path");
+  return Object.freeze({ served });
 }
+
+/** Whether a run was started from this declaration: its whole digest, or
+ * for a built run the static serving digest (decision F58). */
+const startedFrom = (plan: Plan, digest: string | null) =>
+  digest !== null &&
+  (plan.declarationDigest === digest || plan.staticDigest === digest);
 
 function selection(input: unknown): Selection {
   const value = object(input, ["company", "module", "package"]);
@@ -248,8 +249,7 @@ export function createApplicationLifecycle(adapters: {
     } catch {
       plan = null;
     }
-    const current =
-      plan !== null && plan.declarationDigest === state.declarationDigest;
+    const current = plan !== null && startedFrom(plan, state.declarationDigest);
     const listeners = [];
     if (plan && current)
       for (const listener of plan.listeners) {
@@ -618,7 +618,12 @@ export function createApplicationLifecycle(adapters: {
             Object.freeze({
               application: value,
               launch,
-              declarationDigest: plan.declarationDigest,
+              // A built run is the static server of this declaration's
+              // serving part only (decision F58).
+              declarationDigest:
+                served !== undefined && plan.staticDigest !== null
+                  ? plan.staticDigest
+                  : plan.declarationDigest,
               ports: Object.freeze(plan.listeners.map((item) => item.port)),
             }),
           );
@@ -649,7 +654,7 @@ export function createApplicationLifecycle(adapters: {
       } catch {
         return Object.freeze({ kind: "declaration-changed" as const });
       }
-      if (plan.declarationDigest !== run.declarationDigest)
+      if (!startedFrom(plan, run.declarationDigest))
         return Object.freeze({ kind: "declaration-changed" as const });
       const listener = plan.listeners.find(
         (item) => item.role === "entrypoint",

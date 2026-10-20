@@ -15,8 +15,15 @@
 // their content (`/_astro/`, Vite's `/assets/`) are kept a year. A file that
 // is missing from this build but was in the previous one (an asset of a page
 // opened before the swap) is served from the previous build.
-import { lstat, realpath, stat } from "node:fs/promises";
-import { join, sep } from "node:path";
+//
+// Which build it serves is the record of what the app serves, `served.json`
+// beside its builds: read at its start and again, before a request, whenever
+// the file changed (a new file: the Platform replaces it whole by a rename).
+// So a swap onto a new build is the Platform writing that record; this
+// process and its listener stay, and no connection is refused (decision F58
+// point 6).
+import { lstat, readFile, realpath, stat } from "node:fs/promises";
+import { dirname, join, sep } from "node:path";
 
 export type StaticFallback = "404" | "spa";
 
@@ -195,19 +202,80 @@ export async function answerStatic(
   return new Response(file, { status: resolved.status, headers });
 }
 
-export function serveStatic(options: StaticServerOptions) {
+/** The build directories a `served.json` names: its `key` (and its
+ * `previous` key) beside it. */
+type Roots = Readonly<{ root: string; previous?: string }>;
+const keyPattern = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+
+/** The roots of the record at `file`, read again only when the file is
+ * another one (its inode, size or time changed). A record that names no
+ * build (the app is about to be stopped for its development version) or
+ * cannot be read keeps the last roots; without any, it throws. */
+export function servedRoots(file: string): () => Promise<Roots> {
+  const directory = dirname(file);
+  let seen: string | null = null;
+  let roots: Roots | null = null;
+  const read = async (): Promise<Roots> => {
+    const entry = await stat(file);
+    const mark = `${entry.ino}:${entry.size}:${entry.mtimeMs}`;
+    if (mark !== seen) {
+      seen = mark;
+      const value = JSON.parse(await readFile(file, "utf8")) as Record<
+        string,
+        unknown
+      >;
+      if (
+        value.mode === "built" &&
+        typeof value.key === "string" &&
+        keyPattern.test(value.key)
+      )
+        roots = Object.freeze({
+          root: join(directory, value.key),
+          ...(typeof value.previous === "string" &&
+          keyPattern.test(value.previous) &&
+          value.previous !== value.key
+            ? { previous: join(directory, value.previous) }
+            : {}),
+        });
+    }
+    if (roots === null) throw new Error("No build to serve");
+    return roots;
+  };
+  return async () => {
+    try {
+      return await read();
+    } catch (error) {
+      if (roots !== null) return roots;
+      throw error;
+    }
+  };
+}
+
+export function serveStatic(
+  options: Readonly<{
+    hostname: string;
+    port: number;
+    fallback: StaticFallback;
+    roots: () => Promise<Roots>;
+  }>,
+) {
   return Bun.serve({
     hostname: options.hostname,
     port: options.port,
     development: false,
     fetch: (request) =>
-      answerStatic(request, options).catch(
-        () =>
-          new Response("Internal error\n", {
-            status: 500,
-            headers: textHeaders,
-          }),
-      ),
+      options
+        .roots()
+        .then((roots) =>
+          answerStatic(request, { ...roots, fallback: options.fallback }),
+        )
+        .catch(
+          () =>
+            new Response("Internal error\n", {
+              status: 500,
+              headers: textHeaders,
+            }),
+        ),
   });
 }
 
@@ -226,51 +294,61 @@ export function entrypointOf(
 }
 
 const usage =
-  "Usage: --root <dir> --fallback 404|spa [--previous <dir>] [--check <path>]";
+  "Usage: --served <served.json> --fallback 404|spa | --root <dir> --fallback 404|spa --check <path>";
 
-/** `--root <dir> --fallback 404|spa [--previous <dir>]`, and with
- * `--check <path>` only whether the build answers that path with a file
- * (the Platform's check of a build before it is kept, decision F58). */
-export function argumentsOf(args: readonly string[]) {
+/** `--served <served.json> --fallback 404|spa`: serve; `--root <dir>
+ * --fallback 404|spa --check <path>`: only whether that build answers the
+ * path with a file (the Platform's check of a build before it is kept,
+ * decision F58). */
+export function argumentsOf(
+  args: readonly string[],
+):
+  | Readonly<{ served: string; fallback: StaticFallback }>
+  | Readonly<{ root: string; fallback: StaticFallback; check: string }> {
   const values = new Map<string, string>();
   for (let index = 0; index < args.length; index += 2) {
     const name = args[index];
     const value = args[index + 1];
     if (
-      !["--root", "--previous", "--fallback", "--check"].includes(name ?? "") ||
+      !["--served", "--root", "--fallback", "--check"].includes(name ?? "") ||
       value === undefined ||
+      !value.startsWith(name === "--fallback" ? "" : "/") ||
       values.has(name as string)
     )
       throw new Error(usage);
     values.set(name as string, value);
   }
-  const root = values.get("--root");
   const fallback = values.get("--fallback");
-  const previous = values.get("--previous");
+  if (fallback !== "404" && fallback !== "spa") throw new Error(usage);
+  const served = values.get("--served");
+  const root = values.get("--root");
   const check = values.get("--check");
-  if (
-    root === undefined ||
-    !root.startsWith("/") ||
-    (fallback !== "404" && fallback !== "spa") ||
-    (previous !== undefined && !previous.startsWith("/")) ||
-    (check !== undefined && !check.startsWith("/"))
-  )
-    throw new Error(usage);
-  return { root, fallback: fallback as StaticFallback, previous, check };
+  if (served !== undefined && root === undefined && check === undefined)
+    return { served, fallback };
+  if (served === undefined && root !== undefined && check !== undefined)
+    return { root, fallback, check };
+  throw new Error(usage);
 }
 
 if (import.meta.main) {
   try {
-    const { check, ...options } = argumentsOf(process.argv.slice(2));
-    if (check !== undefined) {
+    const options = argumentsOf(process.argv.slice(2));
+    if ("check" in options) {
       const answer = await resolveStaticRequest(
         options.root,
-        check,
+        options.check,
         options.fallback,
       );
       process.exit(answer.kind === "file" && answer.status === 200 ? 0 : 1);
     }
-    const server = serveStatic({ ...entrypointOf(process.env), ...options });
+    const roots = servedRoots(options.served);
+    // A start names a build to serve, or there is nothing to start.
+    await roots();
+    const server = serveStatic({
+      ...entrypointOf(process.env),
+      fallback: options.fallback,
+      roots,
+    });
     // SIGTERM ends the app with exit 0 (Lazurio Module Standard 4.4).
     const end = () => {
       void server.stop(true).finally(() => process.exit(0));
