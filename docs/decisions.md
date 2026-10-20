@@ -6019,6 +6019,15 @@ Recovery mode. Not done: a smaller bundle (it is served unminified, about 880 KB
 cached); the person's account and an Owner's answer still arrive after the first paint,
 with their own requests.
 
+*Note of 2026-10-20 (#532, plan DEV-6656):* point 5 did not hold for the compiled
+executable. Its inner listener serves the hashed bundle files without any
+`Cache-Control`, so behind the gateway they were `no-store` and every open fetched the
+main script again. The hosted Launchpad now sets `public, max-age=31536000, immutable`
+on the files the bundle itself lists (`bundledFilePaths` in `page.ts`), whatever the
+inner listener sends; a test compiles a hosted Launchpad and pins it. The script is
+still served unminified, now about 1.17 MB (298 KB with `gzip -9`), and compression on
+the way is the ingress's, tracked apart.
+
 | Alternative | Trade-off / disposition |
 | --- | --- |
 | Show the page at once and hide only its English words until the language is known | Every cold load would still show the page without the rail and the column head until the script arrives: one of the wrong states; rejected |
