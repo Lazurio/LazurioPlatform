@@ -10989,7 +10989,8 @@ workstation, keep their apps' own "+".
      (F38's addendum of 2026-10-11); the page says so, as the wireframe does.
    - Přehled is read only while the page is visible (the Page Visibility API), every 5 s; a
      hidden Nová karta reads nothing.
-   - Uspat waits for DEV-6656 spike 916; until then Přehled offers Zavřít.
+   - Uspat waits for DEV-6656 spike 916; until then Přehled offers Zavřít. *(F57 below
+     decides sleeping tabs; Přehled's Uspat comes with its step 3.)*
 4. **The places that hold a remote tab are files their apps' servers write.** A holder
    (0195 point 11) is a T3 Code thread whose strip has the tab, or the Launchpad for a tab a
    person opened in it: from its Nová karta, or as a page's new tab while viewed there (F39
@@ -11237,7 +11238,7 @@ workstation, keep their apps' own "+".
 | A binding file alone means an agent works in the tab | The binding outlives the daemon on purpose, so agents' windows would never end; rejected |
 | The element, the Launchpad's page, holder files and the hub deciding (selected) | No change to Machines or the gateway; one owner per fact: holds by their apps, the live tabs and a tab's end by the hub, the overview by the Launchpad |
 
-**Not decided here.** Uspat and putting tabs to sleep (DEV-6656 spike 916); a person's name as
+**Not decided here.** Uspat and putting tabs to sleep (DEV-6656 spike 916, now proposed in F57); a person's name as
 a tab's opener (admission is not identity, F11); recent sites (until then the suggestions are
 the Environment's apps); MausBot as an app of Nová karta. Matěj decided two former open
 points: on 2026-10-11, that one tab's JavaScript heap marked "≈" is enough as its memory, and
@@ -15403,3 +15404,221 @@ Verified by:
   opens it again and it plays, and Escape closes it. Moving on and coming back, in the
   app or by a reload, opens it again at its start. In the third state the box never
   opens, and the "?" plays `vault-agents`.
+
+## F57 — Sleeping tabs: a tab nobody uses closes its window and keeps its place, under its id
+
+**Proposed by the agent on 2026-10-20 on Matěj's direction of the same day (root decision 0195
+point 4, plan DEV-6656, proposal Lazurio/LazurioPlatform#525, incident #297); open for the
+Admin's review. Step 1 below is implemented in this revision; steps 2 and 3 are planned.**
+F47 ends a remote tab only when nothing holds it and nobody views it. A tab a T3 Code thread's
+strip or the Launchpad holds therefore stays loaded as long as the hold, whether anyone uses it
+or not, and the browser's budget (F38's addendum of 2026-10-10) is then spent by the kernel:
+- a heavy public page costs 150–250 MB of renderer;
+- on one client Organization's 8 GiB Work Environment the kernel ended about 80 renderers of
+  170–270 MB in 7 days with 34 page targets open, many of them duplicates of the same web
+  vault, Module and Launchpad pages (#525);
+- the kernel picks its victim by score, often the tab the person works in.
+
+Matěj's hard rule of 2026-10-20: **a tab an agent works with stays fully functional and never
+sleeps under its hands.** The flags that keep background windows at full speed
+(`--disable-renderer-backgrounding` and its siblings, F38's addendum of 2026-10-10, which left
+them to this task) stay, because they serve the agents' windows nobody watches.
+
+1. **A sleeping tab is a tombstone.** The hub closes the tab's window and keeps a record of
+   it: its id, address, title, icon, who opened it, when it was opened and last used, and when
+   and why it fell asleep. The tab keeps its id. A view `…/t/<id>`, the holder files, the list
+   of live tabs (`tabs.json`) and the hub's list (F47 points 4 and 6) name it as before, so
+   every strip keeps it in its place and no app changes for it. No Chrome capability beyond
+   DevTools, no extension.
+   - **The window model stays.** Root decision 0191 point 11 is kept as it is: every live
+     remote tab is the active tab of its own window. A sleeping tab has no window at all, and
+     waking opens a new one. 0195 point 4 asks for the Admin's explicit decision only for a
+     change of that model; this needs none.
+2. **Waking.** A view of the tab whose page is shown, or Probudit, opens the address again in a
+   window of its own (`Target.createTarget` with `newWindow`, at the size of the viewer that
+   waits), and the new target takes the tab's id. The view shows the address and title from the
+   tombstone at once and the page once it loads.
+   - The hub keeps which live target carries which tab id. `tabs.json` names both ids, so an
+     app that recorded either keeps it; the hub's list names the tab id.
+   - Sleep loses what a reload loses: the tab's back and forward history, its session storage
+     and the page's state in memory. The sign-ins stay: they are the profile's cookies.
+3. **What counts as use.** The hub decides from what it can observe, nothing else:
+   - **Viewed:** a view's socket whose page is shown in the person's browser. The view now says
+     when its page is hidden or shown (the Page Visibility API, message `visible`). A view of an
+     earlier release says nothing and counts as shown.
+   - **An agent works in it:** an agent-browser session is bound to it and that session's
+     daemon runs (F47 point 5). The daemon ends an hour after the agent's last command, the idle
+     timeout the Platform writes (#326).
+   - **An agent worked in it recently**, either of:
+     - the hub saw such a daemon run within the idle time (20 minutes), so an agent-browser
+       agent's tab stays awake at least 80 minutes after its last command;
+     - its page had input or a navigation within the idle time while nobody viewed it (more
+       than 30 s after the last viewer left). That is the trace of an agent that drives the
+       page over its own DevTools connection, as T3 Code's browser tools do through Playwright:
+       Chrome reports one client's commands to no other client, so the hub cannot see them,
+       only their effect on the page.
+   - **Input** is a trusted `pointerdown`, `keydown`, `input`, `wheel` or `touchstart` in the
+     page's main frame. The hub hears it through a listener in its own isolated world, set when
+     each document commits. The page's scripts cannot reach that world, and nothing is
+     reported to the page.
+   - **A navigation** is a new main document, unless Chrome reports that the page asked for it
+     itself (`Page.frameRequestedNavigation` with a refresh by meta tag or header, a script, or
+     a reload).
+   - **Unsaved input:** the focused field differs from what the page gave it (a text field or
+     area, a select, a checkbox or radio button, a chosen file; in an open shadow root or a
+     same-origin frame too), or the page's `beforeunload` objects when the hub asks it to close
+     (`Page.close`, never `Target.closeTarget`). A focused rich editor (`contenteditable`) has
+     nothing to compare with; its page's own `beforeunload` speaks for it.
+4. **The idle rule.** On the hub's beat (30 s), every tab that a holder file holds and that has
+   not been in use for 20 minutes falls asleep, the least recently used first, one after the
+   other. Not in use means: nobody viewed it, no agent worked in it, its page had no input and
+   no navigation, and no unsaved input was found in it, all within the last 20 minutes.
+   - It applies whoever holds the tab, a T3 Code thread or the Launchpad. This changes F47
+     point 5: a held tab no longer stays loaded as long as its hold.
+   - A tab nothing holds is ended by F47's graces as before, within 10 minutes, so it never
+     sleeps.
+   - A tab with unsaved input stays awake, is asked again after another 20 minutes, and the
+     hub's list marks it (`unsaved`) for the strips and Přehled.
+5. **Never asleep:** a tab someone views; a tab an agent works in or worked in recently; for the
+   idle rule, a tab with unsaved input; the hub's own blank window; a page without an http(s)
+   address it can open again (`about:blank`, an error page, a `chrome:` page, another
+   Environment's view).
+6. **The pressure rule (step 2, not implemented yet).** Before the kernel ends a renderer, the
+   hub puts tabs to sleep by memory pressure, never by `memory.current` against `memory.max`:
+   on the reference Environment on 2026-10-20 the browser's `memory.current` went 246 → 616 →
+   478 MiB after two tabs were opened and closed again, because the page cache stays charged,
+   and other services showed about 90 % file cache in `memory.current`.
+   - **Signals:** the browser cgroup's `memory.pressure` (`some avg10`), the Environment's
+     `/proc/pressure/memory`, and `MemAvailable` of `/proc/meminfo`, read every 5 s.
+   - **Proposed defaults, to be measured on Ring 0:** under pressure when the browser's `some
+     avg10` reaches 10 %, or `MemAvailable` falls under 10 % of the memory; no longer once
+     `some avg10` is under 2 % and `MemAvailable` is above 15 %.
+   - **Under pressure,** one tab every 15 s:
+     - first a tab nothing holds and nobody views, closed as F47 would close it soon;
+     - then the held tab viewed least recently;
+     - a tab with unsaved input last, and only through `Page.close`, so a `beforeunload` that
+       objects keeps it; its strip says so.
+   - **Never chosen:** a tab someone views, or one an agent works in or worked in recently.
+   - **The hysteresis and the cool-down** keep the rule from flapping. A woken tab counts as
+     viewed now, so the rule never takes the tab a person just opened.
+7. **No duplicate opens.**
+   - **The hub's open path** (`POST /.lazurio/tabs`: Nová karta, `lazurio browser open`,
+     `lazurio browser link --url`, an Integrace sign-in): when a tab of the same strip already
+     shows the same page (origin and path), awake or asleep, it is that tab. The hub answers
+     200 `{id, view, reused: true}` instead of 201 with a new one.
+     - A tab of the strip is one its holder file lists, or one the hub opened for that strip
+       that its app has not recorded yet. For no strip, it is a page for the person that
+       nothing holds.
+     - The same address is shown as it is, even in a tab in use.
+     - A different query or fragment takes the tab there: a sleeping tab keeps the new address
+       to wake at; an awake one navigates, but only one not in use and without unsaved input.
+       Otherwise a new tab opens.
+   - **`lazurio browser window --session <s> --url <address>`:** when the session has no open
+     window and a page of its thread already shows the same origin and path, the session is
+     bound to that page instead of a new window. The thread's pages are those its sessions'
+     bindings name (the session and its numbered siblings `<s>-2`…) and those the holder file of
+     the thread's name lists. An address never moves an open window, so the page is taken as
+     it is.
+8. **A restart of the view keeps them.** The hub writes its tombstones and its woken targets' ids
+   to `$XDG_RUNTIME_DIR/lazurio-browser/sleep.json` (`lazurio.browser-sleep.v1`, mode 0600,
+   replaced atomically) with the browser's own id, the last segment of its DevTools socket's
+   address, which Chrome makes anew at each start.
+   - A restarted view with the same browser keeps them; a sleeping tab nothing holds then has
+     the 10 minutes of F47 point 5.
+   - A restarted browser keeps none: no tab comes back after a browser restart, awake or
+     asleep (F38's addendum of 2026-10-10 stands).
+   - A reboot clears the runtime directory with the tabs.
+   - At most 500 tombstones are kept, as many tabs as a holder file lists; past that the least
+     recently used end.
+9. **When a sleeping tab ends:** as F47 point 5 says for any tab. It stays while a holder file
+   lists it or a viewer waits for it. Otherwise it ends after the grace: 8 s after its last hold
+   with Vrátit, 30 s after its last viewer, 10 minutes after a view restart. Zavřít in Přehled
+   ends it for everyone after 8 s with Vrátit. An agent's binding does not hold a sleeping tab:
+   it names a target that is gone.
+10. **The hub's loopback requests grow** (C11, Platform-internal, one release serves both ends):
+    - `POST /.lazurio/tabs/<id>/sleep` (Uspat): 200 `{sleeping: true}`, or 409 with why the tab
+      stays awake: `viewed`, `agent`, `unsaved`, `not-sleepable` or `busy`;
+    - `POST /.lazurio/tabs/<id>/wake` (Probudit): 200 `{awake: true}` once the browser reports
+      the tab;
+    - each tab of the list gains `sleeping: {since, reason}` (`idle`, `pressure` or `asked`)
+      and `unsaved` (when unsaved input was last found), each only where it applies.
+11. **The end of a thread.** The Platform cannot observe that a T3 Code thread was settled: it
+    sees only holder files. T3 Code removes an archived or deleted thread's holder file (F47
+    point 10's addendum), so those tabs end through F47's graces already. A settled thread
+    keeps its holds, and the idle rule puts its tabs to sleep 20 minutes after their last use.
+    Whether settling should also let go of them is T3 Code's follow-up.
+12. **What stays.** The anti-throttling flags, the browser's budget and its no-restore start;
+    F47's holds, graces and reconciliation, which no app changes for; 0191 point 11; the
+    holder files' and `tabs.json`'s formats and the contract's vectors (C5, C6), where a
+    sleeping tab is one more id in the list.
+
+**Failure modes.**
+
+| Failure | What happens |
+| --- | --- |
+| Waking fails (the browser does not answer or refuses the window) | The waiting view says the browser reconnects; the hub tries again every 2 s while someone waits, and the reconnect wakes it |
+| The browser reports the woken window late | Its report, whenever it comes, gives it the tab's id and its waiting viewers |
+| The address needed a form (POST) or a one-time link | It wakes as a load of its address: the site shows what it shows for that address (often the form again, or an error the person navigates away from). Sign-ins in cookies stay |
+| The page's state was only in memory (back history, session storage, an unsent draft without a field) | Gone, as after a reload. A field with unsaved input, or a page whose `beforeunload` objects, keeps its tab awake |
+| An agent starts in the tab at the very moment it falls asleep | The hub reads the holds and asks the page for its last input right before it asks the page to close, so the window is a few milliseconds. Such an agent gets `tab_gone`, and the Folder manual's recovery runs `lazurio browser window`, which opens a window (with `--url`, the thread's page at that address when there is one). Waking the agent's own sleeping window instead is a follow-up (below) |
+| An agent drives a page over its own DevTools connection with no input and no navigation for 20 minutes (only reading it) while nobody views it | The tab may sleep; the agent's next command fails because the target is gone. T3 Code's follow-up below closes this for its browser tools |
+| An agent's input inside a frame of the page | Not heard: the listener is in the main frame. A navigation of the page or a daemon still counts |
+| The page hangs and neither closes nor objects within 5 s | It stays awake and is tried again an idle time later |
+| A page always arms `beforeunload` | It never sleeps by the idle rule; the pressure rule takes it last and never forces it |
+| Pressure flaps | Step 2's hysteresis and 15 s cool-down; one tab at a time |
+| The view restarts | `sleep.json` keeps the tombstones and the woken tabs' ids; a file that cannot be read keeps none, and the apps then drop those ids as tabs that ended |
+| The browser restarts | No tab comes back, asleep or awake |
+| A person's view lies in a hidden tab of their browser | It no longer keeps the tab awake; showing it wakes the tab, which reloads |
+| A person's laptop sleeps with the view shown | The view counts as shown until its connection ends |
+| T3 Code keeps every thread tab's frame mounted while its panel shows the thread (`visibility: hidden`, read in the fork on 2026-10-20) | Such a frame's page is shown by the Page Visibility API, so the thread's tabs stay awake while the panel is open somewhere; T3 Code's follow-up below |
+
+**Variants considered.**
+
+| Alternative | Disposition |
+| --- | --- |
+| Close the tab and keep a tombstone under the same id (selected) | DevTools only, no extension; keeps 0191 point 11; the apps keep working unchanged, because the id stays |
+| Move the tab into a shared background window and discard it there | `chrome.tabs.discard` cannot discard the active tab of a window, and every remote tab is one. Moving tabs between windows needs an extension with the `tabs` capability, which is new, and a background window of many tabs changes 0191 point 11, which 0195 point 4 leaves to the Admin. Chrome also replaces a discarded tab's contents, so the DevTools target changes and the hub would need the same alias. Rejected |
+| Chromium's Memory Saver on Linux | Not verified on a Linux Environment: this work touched no Environment. By Chromium's own rule it discards only a tab that is not the active one of its window, and every remote tab is the active tab of its own window, so it could discard none without the same change of the window model; its timing would also be Chrome's, not the hub's with its exclusions. Rejected for now; worth measuring if the window model ever changes |
+| Leave it to the kernel (today) | It ends a renderer by score, often the one in use, and the strips show a dead tab. Rejected |
+| End the tab instead (F47's close) | The strips lose it. Rejected |
+| An agent counts only by its agent-browser daemon | T3 Code's browser tools drive pages through Playwright without a daemon. Rejected for the daemon plus the page's input and navigations |
+| Pressure by `memory.current` against `memory.max` | The page cache stays charged (measured 246 → 616 → 478 MiB). Rejected for PSI and `MemAvailable` |
+| The tombstones in the hub's memory only | A view update would make every app drop its sleeping tabs. Rejected |
+
+**Steps.**
+
+1. **The hub's sleep (this revision, PR 1):** tombstones under the tab's id, waking on view and by
+   Probudit, the idle rule with its exclusions, Uspat and Probudit on loopback, the list's
+   `sleeping` and `unsaved`, no duplicate opens in the hub and in `lazurio browser window`,
+   `sleep.json`, and the view's `visible`.
+2. **The pressure rule (PR 2):** the signals, thresholds and order of point 6, with their
+   measurement on the reference Environment first (root decision 0204).
+3. **Přehled and the strips (PR 3):** a sleeping tab marked in the Launchpad's strip and in
+   Přehled, Uspat and Probudit, the unsaved hint, and the browser's memory against its budget;
+   wireframe first (0195 point 5).
+4. **T3 Code (its repository):** show a sleeping tab as sleeping in the thread's strip; mount
+   only the shown tab's frame or tell the view it is hidden; mark its browser tools' activity
+   so a tab they drive without input never sleeps; decide whether settling a thread lets go of
+   its tabs.
+5. **An agent's own sleeping window (follow-up):** `lazurio browser window` could wake the
+   session's sleeping window instead of opening a new one. The woken window has a new target
+   id, which agent-browser must be bound to while the strips keep the tab's id; T3 Code's strip
+   records its thread's bindings, so it has to learn that both ids are one tab first. Until
+   then the agent gets a new window and the sleeping one stays in the strip.
+
+**Where it is (step 1).**
+- `src/browser/people/sleep.ts`: the times, the page key of an address, the quiet clock, the
+  page's input listener and unsaved-input check, and `sleep.json`'s format.
+- `src/browser/people/hub.ts`: tab ids and the woken targets' ids, tombstones, the idle rule
+  (`sleepIdle`, `putToSleep`), waking (`wake`, `adopt`), `inUse` and `agentRecent`, the reuse
+  of a strip's tab (`reusable`), what a restart keeps (`sameBrowser`, `persist`), and the list
+  and `tabs.json` with sleeping tabs.
+- `src/browser/people/service.ts`: `sleep` and `wake` on loopback, and 200 for a reused tab.
+- `src/browser/people/protocol.ts` and `client.ts`: the view's `visible`.
+- `src/browser/people/cdp.ts`: the browser's own id. `src/browser/people/serve.ts`: `sleep.json`.
+- `src/browser/window.ts`: `threadPage` and `sessionFamily` for `lazurio browser window`.
+- `src/browser/contract/platform.ts` (C11) and `src/launchpad/new-tab/hub-client.ts`: the new
+  requests' paths, the list's new members and the reuse answer.
+- Tests: `tests/environment-browser-view.test.ts` (the hub against a scripted DevTools peer)
+  and `tests/environment-browser-sleep.test.ts` (the pure rules, the view's message and
+  `lazurio browser window`).
