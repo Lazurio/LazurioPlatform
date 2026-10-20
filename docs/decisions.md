@@ -15798,10 +15798,11 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    data-only pull** (a new commit of `workspace/<module>/db` or of a required slot, the
    module's commit unchanged) builds and swaps exactly as a module pull does: from the
    watch of that repository's Git directory after its quiet, at the latest at the next
-   sweep, or at the app's next Open. Until one sweep has read the catalog and every
-   running app's status, every sweep also takes the static apps that run their
-   development script from before builds existed and moves them onto a build: a read
-   that fails at the Launchpad's start is tried again, never forgotten. One refresh per app at a time; changes
+   sweep, or at the app's next Open. Until one sweep has read the catalog and then
+   named, read and inspected every app it lists, every sweep also takes the static apps
+   that run their development script from before builds existed and moves them onto a
+   build: anything that fails at the Launchpad's start (the catalog, an app's
+   resolution, its declaration, its status) is tried again, never forgotten. One refresh per app at a time; changes
    during one become exactly one more. A module never opened builds on its first open.
    The CLI never watches.
 8. **Visibility.** Every answer about a static app carries `build`: what it runs
@@ -15868,7 +15869,7 @@ module build`, an app without `build_output` unchanged, `ensure` answering
 `build-pending` then healthy, a failed build retried by a person's Start but never by
 `ensure`, two apps competing for the one build with the waiting one answering
 `build-pending`, a development run from before builds moved onto a build by the first
-sweep that could read the catalog, a commit built and swapped in by the Launchpad
+sweep that could read the catalog and name the app, a commit built and swapped in by the Launchpad
 without any request, and a data-only pull rebuilt and swapped by the watch of the data
 repository). End to end on
 macOS ARM64 with a copy of the reference Organization's Astro knowledgebase in a fixture

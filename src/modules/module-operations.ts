@@ -1023,19 +1023,19 @@ export function createModuleOperations(input: {
 
   /** The target's app when it is a static app this host builds. */
   async function staticPlan(target: Target): Promise<Plan | null> {
+    return readStaticPlan(target).catch(() => null);
+  }
+  // The same, but a declaration that cannot be read now throws, where null
+  // means "not a static app" (the sweep's move tells them apart).
+  async function readStaticPlan(target: Target): Promise<Plan | null> {
     if (builder === undefined) return null;
-    try {
-      const plan = await readModuleApplication(
-        target.moduleDirectory,
-        target.app,
-      );
-      return plan.kind === "declared-runtime-plan" &&
-        plan.runtime.static !== null
-        ? plan
-        : null;
-    } catch {
-      return null;
-    }
+    const plan = await readModuleApplication(
+      target.moduleDirectory,
+      target.app,
+    );
+    return plan.kind === "declared-runtime-plan" && plan.runtime.static !== null
+      ? plan
+      : null;
   }
 
   const storeOf = (target: Target, plan: Plan) =>
@@ -1316,8 +1316,10 @@ export function createModuleOperations(input: {
     string,
     Readonly<{ prepared: Prepared; plan: Plan }>
   >();
-  // Done only by a sweep that read the catalog and every running app's
-  // status: a read that fails now is tried again at the next sweep.
+  // Done only by a sweep that read the catalog and then named, read and
+  // inspected every app it lists: anything that fails now (the catalog, an
+  // app's resolution, its declaration, its status) is tried again at the
+  // next sweep.
   let migrating = true;
   async function gitDirectoriesOf(target: Target, plan: Plan) {
     const read = (host.builds as NonNullable<ModuleHost["builds"]>)
@@ -1364,9 +1366,20 @@ export function createModuleOperations(input: {
     watched.clear();
     for (const [key, recorded] of names) {
       const [name, app] = key.split("\0") as [string, string];
+      // An app of the move that cannot be named or read now keeps the move
+      // pending, so that the next sweep tries it again.
       const prepared = await prepare("build", name, { app });
-      if ("kind" in prepared) continue;
-      const plan = await staticPlan(prepared.target);
+      if ("kind" in prepared) {
+        if (recorded === undefined) migrated = false;
+        continue;
+      }
+      let plan: Plan | null;
+      try {
+        plan = await readStaticPlan(prepared.target);
+      } catch {
+        if (recorded === undefined) migrated = false;
+        continue;
+      }
       if (plan === null) continue;
       const store = storeOf(prepared.target, plan);
       // Without a build state: only an app that runs now.

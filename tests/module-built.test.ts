@@ -197,6 +197,7 @@ async function staticModule(
   };
   return {
     operations,
+    folder,
     site,
     next,
     port,
@@ -568,6 +569,71 @@ posixTest(
       expect(after?.current?.key).not.toBe(before?.current?.key as string);
       expect(after?.served?.key).toBe(after?.current?.key as string);
       expect((await fixture.page()).text).toBe("<p>one+d2</p>");
+    } finally {
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "a first sweep that reads the catalog but cannot name the app keeps the move pending: the next sweep moves the development run from before builds onto a build",
+  async () => {
+    const home = join(root, "home-resolve");
+    await mkdir(home);
+    // Every catalog read is counted; one chosen read fails.
+    let reads = 0;
+    let failing = -1;
+    const fixture = await staticModule("resolve", home, {
+      readCatalog: (folder) => {
+        reads++;
+        return reads === failing
+          ? Promise.reject(new Error("catalog unreadable now"))
+          : readFolderCatalog(folder);
+      },
+    });
+    const { operations } = fixture;
+    try {
+      // A development run from before builds existed: no build, no record.
+      answer(await operations.start("alpha/site", { dev: true }));
+      await until(fixture.page, (page) => page.text === "synthetic module");
+      await rm(join(root, "resolve", "cache"), {
+        recursive: true,
+        force: true,
+      });
+      // The first sweep reads the catalog (its first read), then names each
+      // app it lists, one read each, in the catalog's order: the read that
+      // names the site fails. Where the site is first, that is the sweep's
+      // second read.
+      const listed = (await readFolderCatalog(fixture.folder)).organizations
+        .flatMap((organization) => organization.modules)
+        .flatMap((module) =>
+          module.apps
+            .filter((app) => app.kind === "runtime-declared")
+            .map(() => module.module),
+        );
+      failing = reads + 1 + listed.indexOf("site") + 1;
+      const keeper = operations.keepBuilt({ quietMs: 100, sweepMs: 60_000 });
+      await keeper?.sweep();
+      await keeper?.settled();
+      expect(reads).toBeGreaterThanOrEqual(failing);
+      expect(answer(await operations.status("alpha/site")).build?.mode).toBe(
+        "dev",
+      );
+      // Recovered: the next sweep moves it.
+      await keeper?.sweep();
+      const moved = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) =>
+            status.kind === "module" &&
+            status.healthy &&
+            status.build?.mode === "built",
+        ),
+      );
+      expect(moved.build?.served?.commit).toBe(fixture.head());
+      expect((await fixture.page()).text).toBe("<p>one</p>");
     } finally {
       await operations.stop("alpha/site");
       await operations.close();
